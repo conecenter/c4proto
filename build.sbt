@@ -23,4 +23,9 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
 
 lazy val macros = project.settings(metaMacroSettings)
 
-lazy val app = project.settings(metaMacroSettings).dependsOn(macros)
+lazy val app = project.settings(metaMacroSettings).dependsOn(macros).settings(
+  libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0"
+)
+
+
+
