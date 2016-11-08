@@ -3,6 +3,9 @@ package examples
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
+import scala.collection.immutable
+import scala.meta.Ctor.Ref.Name
+import scala.meta.Defn.Def
 
 @compileTimeOnly("@examples.Main not expanded")
 class main extends scala.annotation.StaticAnnotation {
@@ -70,21 +73,70 @@ class schema extends scala.annotation.StaticAnnotation {
     }.toList
     val adaptersImpl = messages.map{message⇒
       val adapterName = Term.Name(s"${message.name}ProtoAdapter")
-      val messageName = Type.Name(message.name)//${Lit(message.id)}
-      q"""object $adapterName extends com.squareup.wire.ProtoAdapter[$messageName](
-        com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
-        classOf[$messageName]
-        )
-        with ProtoAdapterWithId {
-          def id = ???
-          def encodedSize(value: $messageName): Int = ???
-          def encode(writer: com.squareup.wire.ProtoWriter, value: $messageName) = ???
-          def decode(reader: com.squareup.wire.ProtoReader) = ???
-
-        }"""
+      val (withId, idDef): (List[Name],List[Def]) = message.id
+        .map(id⇒(ctor"ProtoAdapterWithId"::Nil,q"def id = ${Lit(id)}"::Nil))
+        .getOrElse((Nil,Nil))
+      val implTypeName = Type.Name(s"${message.name}Impl")
+      val defArgs: List[Term.Param] = message.props.map{ prop ⇒
+        param"${Term.Name(prop.name)}: ${Type.Name(prop.tpe.resultType)}"
+      }
+      val sizeStatements: List[Stat] = message.props.map { prop ⇒
+        q"value.${Term.Name(prop.name)}.foreach(item => res += ${Term.Name(prop.tpe.serializerType)}.encodedSizeWithTag(${Lit(prop.id)}, item))"
+      }
+      val encodeStatements: List[Stat] = message.props.map { prop ⇒
+        q"value.${Term.Name(prop.name)}.foreach(item => ${Term.Name(prop.tpe.serializerType)}.encodeWithTag(writer, ${Lit(prop.id)}, item))"
+      }
+      val initDecodeStatements: List[Stat] = message.props.map { prop ⇒
+        s"var prop_${prop.name}: ${prop.tpe.resultType} = ${prop.tpe.empty}".parse[Stat].get
+      }
+      val decodeCases: List[Case] = message.props.map { prop ⇒
+        val decoded = s"${prop.tpe.serializerType}.decode(reader)"
+        /*"\n                    case $$_{id} => prep_$$_{name} = $$_{serde}.decode(reader) :: prep_$$_{name}" :
+                "\n                    case $$_{id} => prep_$$_{name} = Option($$_{serde}.decode(reader))"
+        */
+        s"case ...".parse[Case].get
+      }
+      val constructArgs: List[Term.Arg] = message.props.map { prop ⇒
+        s"prop_${prop.name}".parse[Term.Arg].get
+      }
+      val messageName = Type.Name(message.name) //${Lit(message.id)}
+      val implTermName = Term.Name(s"${message.name}Impl")
+      (adapterName,List(
+        q"""case class $implTypeName(..$defArgs) extends ${Ctor.Name(message.name)} {}""",
+        q"""
+          object $adapterName extends com.squareup.wire.ProtoAdapter[$messageName](
+            com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
+            classOf[$messageName]
+          ) with ..$withId {
+            ..$idDef;
+            def encodedSize(value: $messageName): Int = {
+              var res = 0;
+              ..$sizeStatements
+              res
+            }
+            def encode(writer: com.squareup.wire.ProtoWriter, value: $messageName) = {
+              ..$encodeStatements
+            }
+            def decode(reader: com.squareup.wire.ProtoReader) = {
+              ..$initDecodeStatements;
+              val token = reader.beginMessage();
+              var done = false;
+              while(!done) reader.nextTag() match {
+                case -1 => done = true
+                ..case $decodeCases
+                case _ => reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
+              }
+              reader.endMessage(token)
+              $implTermName(..$constructArgs)
+            }
+          }
+        """
+      ))
     }
-    val adaptersList = messages.map(message⇒Term.Name(s"${message.name}ProtoAdapter")) //.mkString(",")
+    val adaptersList = adaptersImpl.map{ case(adapterName,classes)⇒adapterName} //.mkString(",")
     val adaptersDef = q"def adapters: List[com.squareup.wire.ProtoAdapter[_<:Object] with ProtoAdapterWithId] = List(..$adaptersList)"
-    q"object $objectName { ..$stats; ..$adaptersImpl; $adaptersDef }"
+    val res = q"object $objectName { ..$stats; ..${adaptersImpl.flatMap(_._2)}; $adaptersDef }"
+    println(res)
+    res
   }
 }
