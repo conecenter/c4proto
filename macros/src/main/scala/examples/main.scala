@@ -20,10 +20,10 @@ class scale(id: Int) extends StaticAnnotation
 
 trait ProtoAdapterWithId {
   def id: Int
+  def className: String
 }
 
 case class ProtoProp(
-  defArg: String,
   sizeStatement: String,
   encodeStatement: String,
   initDecodeStatement: String,
@@ -35,24 +35,24 @@ case class ProtoType(
     encodeStatement: (String,String), serializerType: String, empty: String, resultType: String,
     resultFix: String="", reduce: (String,String)=("","")
 )
-case class ProtoMessage(adapterName: String, classImpl: String, adapterImpl: String)
+case class ProtoMessage(adapterName: String, adapterImpl: String)
 case class ProtoMods(id: Option[Int]=None)
 
 @compileTimeOnly("not expanded")
 class schema extends scala.annotation.StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
-    val q"object $objectName { ..$stats }" = defn
+    val q"object $objectName extends ..$ext { ..$stats }" = defn
     val messages: List[ProtoMessage] = stats.flatMap{
       case q"import ..$i" ⇒ None
-      case q"..$mods trait ${Type.Name(messageName)} { ..$stats }" =>
+      case q"..$mods case class ${Type.Name(messageName)} ( ..$params )" =>
         val protoMods = mods./:(ProtoMods())((pMods,mod)⇒ mod match {
           case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty ⇒
             pMods.copy(id=Option(id))
         })
-        val props: List[ProtoProp] = stats.map{
-          case q"..$mods def ${Term.Name(propName)}: $tpe" ⇒
+        val props: List[ProtoProp] = params.map{
+          case param"..$mods ${Term.Name(propName)}: $tpe = $v" ⇒
             val Seq(mod"@Id(${Lit(id:Int)})") = mods
-            val pt: ProtoType = tpe match {
+            val pt: ProtoType = tpe.get match {
               case t"Int" ⇒
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName != 0)", s"prep_$propName)"),
@@ -114,7 +114,6 @@ class schema extends scala.annotation.StaticAnnotation {
               */
             }
             ProtoProp(
-                defArg = s"$propName: ${pt.resultType}",
                 sizeStatement = s"${pt.encodeStatement._1} res += ${pt.serializerType}.encodedSizeWithTag($id, ${pt.encodeStatement._2}",
                 encodeStatement = s"${pt.encodeStatement._1} ${pt.serializerType}.encodeWithTag(writer, $id, ${pt.encodeStatement._2}",
                 initDecodeStatement = s"var prep_$propName: ${pt.resultType} = ${pt.empty}",
@@ -124,16 +123,14 @@ class schema extends scala.annotation.StaticAnnotation {
             )
         }.toList
         val Sys = "Sys(.*)".r
-        val resultType = messageName match { case Sys(v) ⇒ v case v ⇒ v }
-        val classImpl = if(resultType != messageName) "" else
-          s"""case class ${resultType}Impl(${props.map(_.defArg).mkString(",")}) extends $resultType"""
-        val struct = s"""${resultType}Impl(${props.map(_.constructArg).mkString(",")})"""
+        val (resultType,factoryName) = messageName match { case Sys(v) ⇒ (v,s"${v}Factory") case v ⇒ (v,v) }
+        val struct = s"""${factoryName}(${props.map(_.constructArg).mkString(",")})"""
         val adapterImpl = s"""
           object ${resultType}ProtoAdapter extends com.squareup.wire.ProtoAdapter[$resultType](
             com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
             classOf[$resultType]
           ) ${protoMods.id.map(_⇒"with ProtoAdapterWithId").getOrElse("")} {
-            ${protoMods.id.map(i⇒s"def id = $i").getOrElse("")}
+            ${protoMods.id.map(i⇒s"def id = $i; def className = classOf[$resultType].getName").getOrElse("")}
             def encodedSize(value: $resultType): Int = {
               val $struct = value
               var res = 0;
@@ -160,15 +157,13 @@ class schema extends scala.annotation.StaticAnnotation {
           }
         """
         val regAdapter = protoMods.id.map(_⇒s"${resultType}ProtoAdapter").getOrElse("")
-        ProtoMessage(regAdapter, classImpl, adapterImpl) :: Nil
+        ProtoMessage(regAdapter, adapterImpl) :: Nil
     }.toList
     val res = q"""
-      object $objectName {
+      object $objectName extends ..$ext {
         ..$stats;
-        ..${messages.map(_.classImpl).filter(_.nonEmpty).map(_.parse[Stat].get)};
         ..${messages.map(_.adapterImpl.parse[Stat].get)};
-        def adapters: List[com.squareup.wire.ProtoAdapter[_<:Object] with ProtoAdapterWithId] =
-          List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})
+        override def adapters = List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})
       }"""
     println(res)
     res
