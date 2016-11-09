@@ -1,27 +1,8 @@
-package examples
 
+package ee.cone.base.c4proto
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
-
-@compileTimeOnly("@examples.Main not expanded")
-class main extends scala.annotation.StaticAnnotation {
-  inline def apply(defn: Any): Any = meta {
-    val q"object $name { ..$stats }" = defn
-    val main = q"def main(args: Array[String]): Unit = { ..$stats }"
-    q"object $name { $main }"
-  }
-}
-
-////
-
-class Id(id: Int) extends StaticAnnotation
-class scale(id: Int) extends StaticAnnotation
-
-trait ProtoAdapterWithId {
-  def id: Int
-  def className: String
-}
 
 case class ProtoProp(
   sizeStatement: String,
@@ -32,14 +13,14 @@ case class ProtoProp(
   resultFix: String
 )
 case class ProtoType(
-    encodeStatement: (String,String), serializerType: String, empty: String, resultType: String,
-    resultFix: String="", reduce: (String,String)=("","")
+  encodeStatement: (String,String), serializerType: String, empty: String, resultType: String,
+  resultFix: String="", reduce: (String,String)=("","")
 )
 case class ProtoMessage(adapterName: String, adapterImpl: String)
 case class ProtoMods(id: Option[Int]=None)
 
 @compileTimeOnly("not expanded")
-class schema extends scala.annotation.StaticAnnotation {
+class schema extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
     val q"object $objectName extends ..$ext { ..$stats }" = defn
     val messages: List[ProtoMessage] = stats.flatMap{
@@ -114,12 +95,12 @@ class schema extends scala.annotation.StaticAnnotation {
               */
             }
             ProtoProp(
-                sizeStatement = s"${pt.encodeStatement._1} res += ${pt.serializerType}.encodedSizeWithTag($id, ${pt.encodeStatement._2}",
-                encodeStatement = s"${pt.encodeStatement._1} ${pt.serializerType}.encodeWithTag(writer, $id, ${pt.encodeStatement._2}",
-                initDecodeStatement = s"var prep_$propName: ${pt.resultType} = ${pt.empty}",
-                decodeCase = s"case $id => prep_$propName = ${pt.reduce._1} ${pt.serializerType}.decode(reader) ${pt.reduce._2}",
-                constructArg = s"prep_$propName",
-                resultFix = if(pt.resultFix.nonEmpty) s"prep_$propName = ${pt.resultFix}" else ""
+              sizeStatement = s"${pt.encodeStatement._1} res += ${pt.serializerType}.encodedSizeWithTag($id, ${pt.encodeStatement._2}",
+              encodeStatement = s"${pt.encodeStatement._1} ${pt.serializerType}.encodeWithTag(writer, $id, ${pt.encodeStatement._2}",
+              initDecodeStatement = s"var prep_$propName: ${pt.resultType} = ${pt.empty}",
+              decodeCase = s"case $id => prep_$propName = ${pt.reduce._1} ${pt.serializerType}.decode(reader) ${pt.reduce._2}",
+              constructArg = s"prep_$propName",
+              resultFix = if(pt.resultFix.nonEmpty) s"prep_$propName = ${pt.resultFix}" else ""
             )
         }.toList
         val Sys = "Sys(.*)".r

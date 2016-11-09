@@ -1,3 +1,4 @@
+
 scalaVersion in ThisBuild := "2.11.8"
 
 // To find the latest version, see MetaVersion in https://github.com/scalameta/paradise/blob/master/build.sbt
@@ -21,11 +22,11 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   scalacOptions += "-Xplugin-require:macroparadise"
 )
 
+lazy val wire = Seq(libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0")
+
 lazy val macros = project.settings(metaMacroSettings)
 
-lazy val app = project.settings(metaMacroSettings).dependsOn(macros).settings(
-  libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0"
-)
+lazy val app = project.settings(metaMacroSettings ++ wire).dependsOn(macros)
 
 
 
