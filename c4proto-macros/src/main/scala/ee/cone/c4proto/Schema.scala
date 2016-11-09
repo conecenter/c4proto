@@ -1,5 +1,5 @@
 
-package ee.cone.base.c4proto
+package ee.cone.c4proto
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
@@ -20,7 +20,7 @@ case class ProtoMessage(adapterName: String, adapterImpl: String)
 case class ProtoMods(id: Option[Int]=None)
 
 @compileTimeOnly("not expanded")
-class schema extends StaticAnnotation {
+class protocol extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
     val q"object $objectName extends ..$ext { ..$stats }" = defn
     val messages: List[ProtoMessage] = stats.flatMap{
@@ -146,7 +146,7 @@ class schema extends StaticAnnotation {
         ..${messages.map(_.adapterImpl.parse[Stat].get)};
         override def adapters = List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})
       }"""
-    println(res)
+    //println(res)
     res
   }
 }

@@ -1,16 +1,16 @@
-package ee.cone.base.c4proto
+package ee.cone.c4proto
 
 import com.squareup.wire.ProtoAdapter
 
 import scala.annotation.StaticAnnotation
 
-trait Schema {
+trait Protocol {
   def adapters: List[ProtoAdapter[_<:Object] with ProtoAdapterWithId] = ???
 }
 
-class FindAdapter(schemaList: Schema*)(
+class FindAdapter(list: Seq[Protocol])(
   val byName: Map[String,ProtoAdapter[_<:Object] with ProtoAdapterWithId] =
-  schemaList.flatMap(_.adapters).map(a ⇒ a.className → a).toMap
+  list.flatMap(_.adapters).map(a ⇒ a.className → a).toMap
 ) {
   def apply[M](model: M) =
     byName(model.getClass.getName).asInstanceOf[ProtoAdapter[M]]

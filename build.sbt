@@ -22,11 +22,19 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   scalacOptions += "-Xplugin-require:macroparadise"
 )
 
-lazy val wire = Seq(libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0")
+lazy val wireSettings = Seq(libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0")
 
-lazy val macros = project.settings(metaMacroSettings)
+lazy val publishSettings = Seq(
+  organization := "ee.cone",
+  version := "0.1.3"
+)
 
-lazy val app = project.settings(metaMacroSettings ++ wire).dependsOn(macros)
+lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
+
+lazy val `c4proto-util` = project.settings(publishSettings ++ metaMacroSettings ++ wireSettings).dependsOn(`c4proto-macros`)
+
+lazy val root = project.in(file(".")).settings(publishArtifact := false).aggregate(`c4proto-macros`, `c4proto-util`)
+
 
 
 

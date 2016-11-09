@@ -1,4 +1,4 @@
-package ee.cone.base.c4proto
+package ee.cone.c4proto
 
 import scala.annotation.StaticAnnotation
 
@@ -13,6 +13,6 @@ object BigDecimalFactory {
   }
 }
 
-@schema object DecimalSchema extends Schema {
+@protocol object BigDecimalProtocol extends Protocol {
   case class SysBigDecimal(@Id(0x0001) scale: Int, @Id(0x0002) bytes: okio.ByteString)
 }
