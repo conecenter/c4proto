@@ -12,7 +12,7 @@ class FindAdapter(list: Seq[Protocol])(
   val byName: Map[String,ProtoAdapter[_<:Object] with ProtoAdapterWithId] =
   list.flatMap(_.adapters).map(a ⇒ a.className → a).toMap
 ) {
-  def apply[M](model: M) =
+  def apply[M](model: M): ProtoAdapter[M] =
     byName(model.getClass.getName).asInstanceOf[ProtoAdapter[M]]
 }
 
