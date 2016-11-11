@@ -44,7 +44,7 @@ class protocol extends StaticAnnotation {
               case t"Long" ⇒
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName != 0L)", s"prep_$propName)"),
-                  serializerType = "com.squareup.wire.ProtoAdapter.SINT62",
+                  serializerType = "com.squareup.wire.ProtoAdapter.SINT64",
                   empty = "0",
                   resultType = "Long"
                 )

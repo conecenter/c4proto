@@ -1,7 +1,7 @@
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.1.3"
+  version := "0.1.4"
 )
 
 scalaVersion in ThisBuild := "2.11.8"
@@ -24,17 +24,19 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   scalacOptions in (Compile, console) := compilerOptions :+ "-Yrepl-class-based", // necessary to use console
   scalacOptions += "-Xplugin-require:macroparadise"
 )
-lazy val wireSettings = Seq(libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0")
+
 lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
-lazy val `c4proto-util` = project.settings(publishSettings ++ metaMacroSettings ++ wireSettings).dependsOn(`c4proto-macros`)
-
-
-lazy val `c4http-server` = project.settings(publishSettings).settings(
+lazy val `c4proto-util` = project.settings(publishSettings ++ metaMacroSettings).settings(
+  libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0",
   libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0"
-).dependsOn(`c4proto-util`)
+).dependsOn(`c4proto-macros`)
+
+lazy val `c4http-proto` = project.settings(publishSettings).dependsOn(`c4proto-util`)
+lazy val `c4http-server` = project.settings(publishSettings).dependsOn(`c4http-proto`)
 
 lazy val root = project.in(file(".")).settings(publishArtifact := false).aggregate(
   `c4proto-macros`, `c4proto-util`
+  //`c4http-proto`, `c4http-server`
 )
 
 

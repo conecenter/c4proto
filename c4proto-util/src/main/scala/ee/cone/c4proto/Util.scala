@@ -12,8 +12,8 @@ class FindAdapter(list: Seq[Protocol])(
   val byName: Map[String,ProtoAdapter[_<:Object] with ProtoAdapterWithId] =
   list.flatMap(_.adapters).map(a ⇒ a.className → a).toMap
 ) {
-  def apply[M](model: M): ProtoAdapter[M] =
-    byName(model.getClass.getName).asInstanceOf[ProtoAdapter[M]]
+  def apply[M](model: M): ProtoAdapter[M] with ProtoAdapterWithId =
+    byName(model.getClass.getName).asInstanceOf[ProtoAdapter[M] with ProtoAdapterWithId]
 }
 
 class Id(id: Int) extends StaticAnnotation
