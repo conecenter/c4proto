@@ -110,7 +110,7 @@ class protocol extends StaticAnnotation {
           object ${resultType}ProtoAdapter extends com.squareup.wire.ProtoAdapter[$resultType](
             com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
             classOf[$resultType]
-          ) ${protoMods.id.map(_⇒"with ProtoAdapterWithId").getOrElse("")} {
+          ) ${protoMods.id.map(_⇒"with ee.cone.c4proto.ProtoAdapterWithId").getOrElse("")} {
             ${protoMods.id.map(i⇒s"def id = $i; def className = classOf[$resultType].getName").getOrElse("")}
             def encodedSize(value: $resultType): Int = {
               val $struct = value

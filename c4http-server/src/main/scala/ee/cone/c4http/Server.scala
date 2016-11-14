@@ -64,13 +64,16 @@ class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
 class HttpGateway(httpPort: Int, bootstrapServers: String, postTopic: String, getTopic: String) {
   def state: ConsumerState = consumer.state
   private lazy val producer = Producer(bootstrapServers)
-  private lazy val findAdapter = new FindAdapter(Seq(HttpProtocol))
-  private lazy val sender = new Sender(producer, postTopic, findAdapter)
-  private lazy val receiver = new Receiver(findAdapter)
-      .handling(classOf[HttpProtocol.RequestValue])(
+  private lazy val findAdapter = new FindAdapter(Seq(HttpProtocol))()
+  private lazy val toSrcId = new Handling[String](findAdapter)
+    .add(classOf[HttpProtocol.RequestValue])((r:HttpProtocol.RequestValue)⇒r.path)
+  private lazy val sender = new Sender(producer, postTopic, findAdapter, toSrcId)
+  private lazy val reduce = new Handling[Unit](findAdapter)
+      .add(classOf[HttpProtocol.RequestValue])(
         (resp: HttpProtocol.RequestValue) ⇒
-          staticRoot(resp.srcId) = resp.body.toByteArray
+          staticRoot(resp.path) = resp.body.toByteArray
       )
+  private lazy val receiver = new Receiver(findAdapter, reduce)
   private lazy val staticRoot = TrieMap[String,Array[Byte]]()
   private lazy val consumer =
     new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, receiver.receive)

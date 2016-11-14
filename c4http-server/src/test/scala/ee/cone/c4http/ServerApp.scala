@@ -12,3 +12,22 @@ object ServerApp extends App {
     }
   } finally System.exit(0)
 }
+
+/*
+object Test {
+
+  class Change
+  case class A(id: String, description: String)
+  //case class B(id: String, description: String)
+
+  case class World(aById: Map[String,A], aByDescription: Map[String,B])
+
+  def keys(obj: A): Seq[(,)] =
+
+  def reduce(world: World, next: A): World = {
+    val prevOpt = world.aById.get(next.id)
+
+  }
+
+}
+*/

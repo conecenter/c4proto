@@ -28,17 +28,8 @@ object OnShutdown {
   })
 }
 
-/*
-object Record {
-  case class Impl[M](key: KafkaProtocol.TopicKey, value: M)
-  def apply(srcId: String, value: Object) = {
-
-
-  }
-}*/
-
-class Handling[R](findAdapter: FindAdapter, val byId: Map[Long, Object ⇒ R]=Map()) {
-  def apply[M](cl: Class[M])(handle: M⇒R): Handling[R] =
+class Handling[R](findAdapter: FindAdapter, val byId: Map[Long, Object ⇒ R]=Map[Long, Object ⇒ R]()) {
+  def add[M](cl: Class[M])(handle: M⇒R): Handling[R] =
     new Handling[R](findAdapter, byId + (
       findAdapter.byClass(cl).id → handle.asInstanceOf[Object ⇒ R]
       ))
@@ -61,17 +52,6 @@ class Sender(
   }
 }
 
-class Receiver(findAdapter: FindAdapter, receive: Handling[Unit]){
-  def receive(rec: ProducerRecord[Array[Byte], Array[Byte]]): Unit = {
-    val keyAdapter = findAdapter.byClass(classOf[KafkaProtocol.TopicKey])
-    val key = keyAdapter.decode(rec.key)
-    val valueAdapter = findAdapter.byId(key.valueTypeId)
-    val value = valueAdapter.decode(rec.value)
-    receive.byId(key.valueTypeId)(value)
-    //decode(new ProtoReader(new okio.Buffer().write(bytes)))
-  }
-}
-
 object Producer {
   def apply(bootstrapServers: String): KafkaProducer[Array[Byte], Array[Byte]] = {
     val props = Map[String, Object](
@@ -90,6 +70,19 @@ object Producer {
     producer
   }
 }
+
+class Receiver(findAdapter: FindAdapter, receive: Handling[Unit]){
+  def receive(rec: ConsumerRecord[Array[Byte], Array[Byte]]): Unit = {
+    val keyAdapter = findAdapter.byClass(classOf[KafkaProtocol.TopicKey])
+    val key = keyAdapter.decode(rec.key)
+    val valueAdapter = findAdapter.byId(key.valueTypeId)
+    val value = valueAdapter.decode(rec.value)
+    receive.byId(key.valueTypeId)(value)
+    //decode(new ProtoReader(new okio.Buffer().write(bytes)))
+  }
+}
+
+
 
 /*
 class SyncConsumer(bootstrapServers: String, groupId: String, topic: String)(
