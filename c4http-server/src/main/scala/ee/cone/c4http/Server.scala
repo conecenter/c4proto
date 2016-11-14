@@ -2,6 +2,7 @@
 package ee.cone.c4http
 
 import java.net.InetSocketAddress
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
@@ -29,7 +30,7 @@ class Handler(sender: Sender, staticRoot: String⇒Array[Byte]) extends HttpHand
           .flatMap{ case(k,l)⇒l.asScala.map(v⇒HttpProtocol.Header(k,v)) }.toList
         val buffer = new okio.Buffer
         val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
-        sender.send(path, HttpProtocol.POSTRequestValue(headers, body)).get()
+        sender.send(HttpProtocol.RequestValue(path, headers, body)).get()
         Array.empty[Byte]
     }
     httpExchange.sendResponseHeaders(200, bytes.length)
@@ -58,14 +59,26 @@ class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
   }
 }
 
+
+
 class HttpGateway(httpPort: Int, bootstrapServers: String, postTopic: String, getTopic: String) {
+  def state: ConsumerState = consumer.state
   private lazy val producer = Producer(bootstrapServers)
   private lazy val findAdapter = new FindAdapter(Seq(HttpProtocol))
   private lazy val sender = new Sender(producer, postTopic, findAdapter)
+  private lazy val receiver = new Receiver(findAdapter)
+      .handling(classOf[HttpProtocol.RequestValue])(
+        (resp: HttpProtocol.RequestValue) ⇒
+          staticRoot(resp.srcId) = resp.body.toByteArray
+      )
   private lazy val staticRoot = TrieMap[String,Array[Byte]]()
-  private lazy val consumer = new ToStoredConsumer(bootstrapServers, getTopic, 0)()
-
+  private lazy val consumer =
+    new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, receiver.receive)
+  private lazy val pool = Pool()
   private lazy val handler = new Handler(sender, staticRoot)
-  private lazy val server = new Server(Pool(), httpPort, handler)
-  def start(): Unit = server.start()
+  private lazy val server = new Server(pool, httpPort, handler)
+  def start(): Unit = {
+    val consumerFuture = pool.submit(consumer)
+    server.start()
+  }
 }

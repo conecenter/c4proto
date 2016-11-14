@@ -1,8 +1,8 @@
 package ee.cone.c4http
 
-import ee.cone.c4proto.{Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object HttpProtocol extends Protocol {
-  case class POSTRequestValue(headers: List[Header], body: okio.ByteString)
-  case class Header(key: String, value: String)
+  @Id(0x0020) case class RequestValue(@Id(0x0021) path: String, @Id(0x0022) headers: List[Header], @Id(0x0023) body: okio.ByteString)
+  case class Header(@Id(0x0024) key: String, @Id(0x0025) value: String)
 }
