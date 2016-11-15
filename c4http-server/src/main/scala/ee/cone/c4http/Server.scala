@@ -2,8 +2,7 @@
 package ee.cone.c4http
 
 import java.net.InetSocketAddress
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
+import java.util.concurrent.ExecutorService
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4proto._
@@ -38,17 +37,6 @@ class Handler(sender: Sender, staticRoot: String⇒Array[Byte]) extends HttpHand
   } finally httpExchange.close() }
 }
 
-object Pool {
-  def apply(): ExecutorService = {
-    val pool: ExecutorService = Executors.newCachedThreadPool() //newWorkStealingPool
-    OnShutdown(()⇒{
-      pool.shutdown()
-      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
-    })
-    pool
-  }
-}
-
 class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
   def start(): Unit = {
     val server: HttpServer = HttpServer.create(new InetSocketAddress(httpPort),0)
@@ -64,7 +52,7 @@ class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
 class HttpGateway(httpPort: Int, bootstrapServers: String, postTopic: String, getTopic: String) {
   def state: ConsumerState = consumer.state
   private lazy val producer = Producer(bootstrapServers)
-  private lazy val findAdapter = new FindAdapter(Seq(HttpProtocol))()
+  private lazy val findAdapter = new FindAdapter(Seq(KafkaProtocol,HttpProtocol))()
   private lazy val toSrcId = new Handling[String](findAdapter)
     .add(classOf[HttpProtocol.RequestValue])((r:HttpProtocol.RequestValue)⇒r.path)
   private lazy val sender = new Sender(producer, postTopic, findAdapter, toSrcId)
@@ -81,7 +69,7 @@ class HttpGateway(httpPort: Int, bootstrapServers: String, postTopic: String, ge
   private lazy val handler = new Handler(sender, staticRoot)
   private lazy val server = new Server(pool, httpPort, handler)
   def start(): Unit = {
-    val consumerFuture = pool.submit(consumer)
+    consumer.start()
     server.start()
   }
 }

@@ -7,7 +7,7 @@ object ServerApp extends App {
     val server = new HttpGateway(8067,"localhost:9092","test-http-posts","test-http-gets")
     server.start()
     while(server.state != Finished) {
-      if(server.state == Starting) println("Starting...")
+      println(server.state)
       Thread.sleep(1000)
     }
   } finally System.exit(0)
