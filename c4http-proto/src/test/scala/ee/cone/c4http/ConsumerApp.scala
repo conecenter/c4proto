@@ -15,11 +15,13 @@ object ConsumerApp {
       val reduce = new Handling[Unit](findAdapter)
         .add(classOf[HttpProtocol.RequestValue]) {
           (req: HttpProtocol.RequestValue) ⇒
-            val next: String = try{
+            val next: String = try {
               val prev = new String(req.body.toByteArray, "UTF-8")
               (prev.toLong * 3).toString
             } catch {
-              case r: Exception ⇒ "###"
+              case r: Exception ⇒
+                //throw new Exception("die")
+                "###"
             }
             val body = okio.ByteString.encodeUtf8(next)
             val resp = HttpProtocol.RequestValue(req.path, Nil, body)

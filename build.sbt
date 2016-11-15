@@ -1,7 +1,8 @@
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.1.4"
+  version := "0.1.4",
+  fork := true //looks like sbt hangs for a minute on System.exit
 )
 
 scalaVersion in ThisBuild := "2.11.8"
