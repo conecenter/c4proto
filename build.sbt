@@ -32,6 +32,7 @@ lazy val `c4proto-util` = project.settings(publishSettings ++ metaMacroSettings)
   libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0"
 ).dependsOn(`c4proto-macros`)
 
+
 lazy val `c4http-proto` = project.settings(publishSettings ++ metaMacroSettings).dependsOn(`c4proto-util`)
 lazy val `c4http-server` = project.settings(publishSettings).dependsOn(`c4http-proto`)
 
