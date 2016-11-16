@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/conecenter/c4proto.svg?branch=master)](https://travis-ci.org/conecenter/c4proto)
+
 # c4proto
 Protobuf scalameta macros
 
