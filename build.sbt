@@ -7,24 +7,30 @@ lazy val publishSettings = Seq(
 
 scalaVersion in ThisBuild := "2.11.8"
 
-// To find the latest version, see MetaVersion in https://github.com/scalameta/paradise/blob/master/build.sbt
-lazy val metaVersion = "1.3.0.522"
-// To find the latest PR number, see https://github.com/scalameta/paradise/commits/master
-lazy val latestPullRequestNumber = 109
-lazy val paradiseVersion = s"3.0.0.$latestPullRequestNumber"
-lazy val compilerOptions = Seq[String]() // Include your favorite compiler flags here.
+////////////////////////////////////////////////////////////////////////////////
+// from https://github.com/scalameta/sbt-macro-example/blob/master/build.sbt
+
 lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
+  libraryDependencies += "org.scalameta" %% "scalameta" % "1.4.0.544",
+  // New-style macro annotations are under active development.  As a result, in
+  // this build we'll be referring to snapshot versions of both scala.meta and
+  // macro paradise.
   resolvers += Resolver.url(
     "scalameta",
     url("http://dl.bintray.com/scalameta/maven"))(Resolver.ivyStylePatterns),
-  libraryDependencies += "org.scalameta" %% "scalameta" % metaVersion,
-  sources in (Compile, doc) := Nil,
+  // A dependency on macro paradise 3.x is required to both write and expand
+  // new-style macros.  This is similar to how it works for old-style macro
+  // annotations and a dependency on macro paradise 2.x.
   addCompilerPlugin(
-    "org.scalameta" % "paradise" % paradiseVersion cross CrossVersion.full),
-  scalacOptions ++= compilerOptions,
-  scalacOptions in (Compile, console) := compilerOptions :+ "-Yrepl-class-based", // necessary to use console
-  scalacOptions += "-Xplugin-require:macroparadise"
+    "org.scalameta" % "paradise" % "3.0.0.132" cross CrossVersion.full),
+  scalacOptions += "-Xplugin-require:macroparadise",
+  // temporary workaround for https://github.com/scalameta/paradise/issues/10
+  scalacOptions in (Compile, console) := Seq(), // macroparadise plugin doesn't work in repl yet.
+  // temporary workaround for https://github.com/scalameta/paradise/issues/55
+  sources in (Compile, doc) := Nil // macroparadise doesn't work with scaladoc yet.
 )
+
+////////////////////////////////////////////////////////////////////////////////
 
 lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
 lazy val `c4proto-util` = project.settings(publishSettings ++ metaMacroSettings).settings(
