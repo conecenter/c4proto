@@ -134,7 +134,7 @@ class ToStoredConsumer(bootstrapServers: String, topic: String, pos: Long)(
     val topicPartition = new TopicPartition(topic, 0)
     consumer.assign(List(topicPartition).asJava)
     var untilPos = consumer.position(topicPartition)
-    println("untilPos",untilPos)
+    //println("untilPos",untilPos)
     consumer.seek(topicPartition, pos)
     while(alive.get){
       if(!ready.get() && untilPos <= consumer.position(topicPartition))
