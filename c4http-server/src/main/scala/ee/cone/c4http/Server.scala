@@ -2,8 +2,7 @@
 package ee.cone.c4http
 
 import java.net.InetSocketAddress
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
+import java.util.concurrent.ExecutorService
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4proto._
@@ -38,17 +37,6 @@ class Handler(sender: Sender, staticRoot: String⇒Array[Byte]) extends HttpHand
   } finally httpExchange.close() }
 }
 
-object Pool {
-  def apply(): ExecutorService = {
-    val pool: ExecutorService = Executors.newCachedThreadPool() //newWorkStealingPool
-    OnShutdown(()⇒{
-      pool.shutdown()
-      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
-    })
-    pool
-  }
-}
-
 class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
   def start(): Unit = {
     val server: HttpServer = HttpServer.create(new InetSocketAddress(httpPort),0)
@@ -59,29 +47,36 @@ class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
   }
 }
 
-
-
-class HttpGateway(httpPort: Int, bootstrapServers: String, postTopic: String, getTopic: String) {
-  def state: ConsumerState = consumer.state
-  private lazy val producer = Producer(bootstrapServers)
-  private lazy val findAdapter = new FindAdapter(Seq(HttpProtocol))()
-  private lazy val toSrcId = new Handling[String](findAdapter)
-    .add(classOf[HttpProtocol.RequestValue])((r:HttpProtocol.RequestValue)⇒r.path)
-  private lazy val sender = new Sender(producer, postTopic, findAdapter, toSrcId)
-  private lazy val reduce = new Handling[Unit](findAdapter)
+object HttpGateway {
+  def main(args: Array[String]): Unit = try {
+    val bootstrapServers = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
+    val httpPort = Option(System.getenv("C4HTTP_PORT")).get.toInt
+    val postTopic = Option(System.getenv("C4HTTP_POST_TOPIC")).getOrElse("http-posts")
+    val getTopic = Option(System.getenv("C4HTTP_GET_TOPIC")).getOrElse("http-gets")
+    ////
+    val producer = Producer(bootstrapServers)
+    val findAdapter = new FindAdapter(Seq(KafkaProtocol,HttpProtocol))()
+    val toSrcId = new Handling[String](findAdapter)
+      .add(classOf[HttpProtocol.RequestValue])((r:HttpProtocol.RequestValue)⇒r.path)
+    val sender = new Sender(producer, postTopic, findAdapter, toSrcId)
+    val staticRoot = TrieMap[String,Array[Byte]]()
+    val reduce = new Handling[Unit](findAdapter)
       .add(classOf[HttpProtocol.RequestValue])(
         (resp: HttpProtocol.RequestValue) ⇒
           staticRoot(resp.path) = resp.body.toByteArray
       )
-  private lazy val receiver = new Receiver(findAdapter, reduce)
-  private lazy val staticRoot = TrieMap[String,Array[Byte]]()
-  private lazy val consumer =
-    new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, receiver.receive)
-  private lazy val pool = Pool()
-  private lazy val handler = new Handler(sender, staticRoot)
-  private lazy val server = new Server(pool, httpPort, handler)
-  def start(): Unit = {
-    val consumerFuture = pool.submit(consumer)
+    val receiver = new Receiver(findAdapter, reduce)
+    val pool = Pool()
+    val consumer =
+      new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, receiver.receive)
+    val handler = new Handler(sender, staticRoot)
+    val server = new Server(pool, httpPort, handler)
+    ////
+    consumer.start()
     server.start()
-  }
+    while(consumer.state != Finished) {
+      //println(consumer.state)
+      Thread.sleep(1000)
+    }
+  } finally System.exit(0)
 }

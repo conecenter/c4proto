@@ -1,15 +1,12 @@
 package ee.cone.c4proto
 
-import java.util
 import java.util.Collections
-import java.util.concurrent.{ExecutorService, Future}
+import java.util.concurrent.{ExecutorService, Executors, Future, TimeUnit}
 import java.util.concurrent.atomic.AtomicBoolean
 
-import com.squareup.wire.ProtoReader
-import okio.Buffer
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
-import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer, OffsetAndMetadata, OffsetCommitCallback}
+import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer, OffsetAndMetadata}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 
@@ -26,6 +23,17 @@ object OnShutdown {
   def apply(f: ()⇒Unit): Unit = Runtime.getRuntime.addShutdownHook(new Thread(){
     override def run(): Unit = f()
   })
+}
+
+object Pool {
+  def apply(): ExecutorService = {
+    val pool: ExecutorService = Executors.newCachedThreadPool() //newWorkStealingPool
+    OnShutdown(()⇒{
+      pool.shutdown()
+      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
+    })
+    pool
+  }
 }
 
 class Handling[R](findAdapter: FindAdapter, val byId: Map[Long, Object ⇒ R]=Map[Long, Object ⇒ R]()) {
@@ -84,8 +92,9 @@ class Receiver(findAdapter: FindAdapter, receive: Handling[Unit]){
 
 
 
-/*
-class SyncConsumer(bootstrapServers: String, groupId: String, topic: String)(
+
+class ToIdempotentConsumer(bootstrapServers: String, groupId: String, topic: String)(
+  val pool: ExecutorService,
   val handle: ConsumerRecord[Array[Byte],Array[Byte]]⇒Unit
 ) extends Consumer {
   protected lazy val props: Map[String, Object] = Map(
@@ -100,35 +109,23 @@ class SyncConsumer(bootstrapServers: String, groupId: String, topic: String)(
       consumer.poll(1000 /*timeout*/).asScala.foreach { rec ⇒
         handle(rec)
         val offset = new OffsetAndMetadata(rec.offset + 1)
-        consumer.commitSync(Collections.singletonMap(topicPartition, offset))
+        //consumer.commitSync(Collections.singletonMap(topicPartition, offset))
       }
+      consumer.commitSync()
       //! if consumer.commitSync() after loop, if single fails then all recent will be re-consumed
     }
   }
+  protected def readyState: ConsumerState = Started
 }
-*/
 
-sealed trait ConsumerState
-case object NotStarted extends ConsumerState
-case object Starting extends ConsumerState
-case object Started extends ConsumerState
-case object Finished extends ConsumerState
+
+
 class ToStoredConsumer(bootstrapServers: String, topic: String, pos: Long)(
-  pool: ExecutorService,
+  val pool: ExecutorService,
   val handle: ConsumerRecord[Array[Byte],Array[Byte]]⇒Unit
 ) extends Consumer {
   private lazy val ready = new AtomicBoolean(false)
-  private var future: Option[Future[_]] = None
-  def state: ConsumerState = synchronized {
-    future.map(_.isDone) match {
-      case None ⇒ NotStarted
-      case Some(false) ⇒ if(ready.get()) Started else Starting
-      case Some(true) ⇒ Finished
-    }
-  }
-  def start(): Unit = synchronized{
-    future = Option(pool.submit(this))
-  }
+  protected def readyState: ConsumerState = if(ready.get()) Started else Starting
   protected def props: Map[String, Object] = Map(
     "bootstrap.servers" → bootstrapServers,
     "enable.auto.commit" → "false"
@@ -137,6 +134,7 @@ class ToStoredConsumer(bootstrapServers: String, topic: String, pos: Long)(
     val topicPartition = new TopicPartition(topic, 0)
     consumer.assign(List(topicPartition).asJava)
     var untilPos = consumer.position(topicPartition)
+    //println("untilPos",untilPos)
     consumer.seek(topicPartition, pos)
     while(alive.get){
       if(!ready.get() && untilPos <= consumer.position(topicPartition))
@@ -146,9 +144,27 @@ class ToStoredConsumer(bootstrapServers: String, topic: String, pos: Long)(
   }
 }
 
+sealed trait ConsumerState
+case object NotStarted extends ConsumerState
+case object Starting extends ConsumerState
+case object Started extends ConsumerState
+case object Finished extends ConsumerState
 abstract class Consumer extends Runnable {
   protected def props: Map[String, Object]
   protected def runInner(): Unit
+  protected def pool: ExecutorService
+  protected def readyState: ConsumerState
+  private var future: Option[Future[_]] = None
+  def start(): Unit = synchronized{
+    future = Option(pool.submit(this))
+  }
+  def state: ConsumerState = synchronized {
+    future.map(_.isDone) match {
+      case None ⇒ NotStarted
+      case Some(false) ⇒ readyState
+      case Some(true) ⇒ Finished
+    }
+  }
   private lazy val deserializer = new ByteArrayDeserializer
   protected lazy val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
     props.asJava, deserializer, deserializer
