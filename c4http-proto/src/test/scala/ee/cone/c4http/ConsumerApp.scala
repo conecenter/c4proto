@@ -57,5 +57,59 @@ object Test {
 
   }
 
+
+  update: Updated(Option(fromNode),Option(toNode))
+
+  parse
+  extract
+  index
+  join
+
+
+  updatesA = crateUpdates(prevA, statesA)
+  nextA = applyUpdates(prevA, updatesA)
+
+  eventsA = makeEvents(prevA,prevB,nextB)
+
+
+
+
+  class AAAIndexed(node: AAA, fromBBB: Seq[BBBKey], fromCCC: Seq[CCCKey])
+  aaaIndex: Map[AAAKey,AAAIndexed]
+
+  def mapDepBBBToAAA(bbb: BBB): Seq[AAAKey]
+  def reduceBBBToAAA(aaa: AAA, bbb: BBB): AAA
+
+////
+  case class Update[V](from: Seq[V], to: Seq[V])
+
+  trait MapReduce[Node, K, V, AV] {
+    def map(node: Node): Map[K, V]
+    def del(aggregateValue: AV, partialValue: V): AV
+    def add(aggregateValue: AV, partialValue: V): AV
+  }
+
+  def reduce[K, V, AV](index: Map[K,AV], updates: Map[K,Update[V]]): Map[K,Update[AV]] = ???
+  def map[K, V, AV](updates: Map[K,Update[AV]]): Map[K,Update[V]] = ???
+
+
+
 }
 */
+object Test {
+  case class Update[V](from: V, to: V)
+
+  def add[V](a: V, b: V): V = ???
+  def add[V](a: Update[V], b: Update[V]): Update[V] = ???
+
+
+  A_diff = reduce(A_prev,B_diff)
+
+  A_all = reduce(A_prev,A_diff)
+  C_diff = map(A_diff)
+  C_all = reduce(C_prev,C_diff)
+
+
+
+
+}
