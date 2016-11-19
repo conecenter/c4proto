@@ -60,36 +60,33 @@ object Test {
 
 import Types._
 
-class MyReduction(world: World[Old])(implicit aggregator: Aggregator, events: Events)
-  extends Reduction[World[New]]
-{
-  import aggregator._
-  import world._
-  implicit lazy val void: Index[New,Types.SrcId,Void] = ???
-  implicit private lazy val newRawChildNode = reduceOriginal[RawChildNode]
-  implicit private lazy val newRawParentNode = reduceOriginal[RawParentNode]
-  implicit private lazy val newChildNodeByParent = joinMap(new ChildNodeByParentJoin)
-  implicit private lazy val newParentNodeWithChildren = joinMap(new ParentNodeWithChildrenJoin)
-  def next: World[New] = World[New]()
+class MyReduction(implicit indexFactory: IndexFactory, eventSource: EventSource){
+  import indexFactory._
+  implicit lazy val void: Index[Types.SrcId,Void] = ???
+  implicit lazy val newRawChildNode = createOriginalIndex[RawChildNode]
+  implicit lazy val newRawParentNode = createOriginalIndex[RawParentNode]
+  implicit lazy val newChildNodeByParentJoin = new ChildNodeByParentJoin
+  implicit lazy val newParentNodeWithChildrenJoin = new ParentNodeWithChildrenJoin
+  implicit lazy val newChildNodeByParent = createJoinMapIndex[RawChildNode,Void,ChildNodeByParent]
+  implicit lazy val newParentNodeWithChildren = createJoinMapIndex[ChildNodeByParent,RawParentNode,ParentNodeWithChildren]
 }
 
 case class RawChildNode(srcId: SrcId, parentSrcId: SrcId, caption: String)
 case class RawParentNode(srcId: SrcId, caption: String)
 case class ChildNodeByParent(srcId: SrcId, child: RawChildNode)
 case class ParentNodeWithChildren(srcId: SrcId, children: List[RawChildNode])
+/*
 case class World[S](implicit
   rawChildNode: Index[S,SrcId,RawChildNode],
   rawParentNode: Index[S,SrcId,RawParentNode],
   childNodeByParent: Index[S,SrcId,ChildNodeByParent],
   parentNodeWithChildren: Index[S,SrcId,ParentNodeWithChildren]
-)
-class ChildNodeByParentJoin(implicit aggregator: Aggregator) extends Join[RawChildNode,Void,ChildNodeByParent] {
-  import aggregator._
+)*/
+class ChildNodeByParentJoin extends Join[RawChildNode,Void,ChildNodeByParent] {
   def join(rawChildNode: Values[RawChildNode], void: Values[Void]): Values[ChildNodeByParent] =
     rawChildNode.map(child ⇒ ChildNodeByParent(srcId=child.parentSrcId,child=child))
 }
-class ParentNodeWithChildrenJoin(implicit aggregator: Aggregator) extends Join[ChildNodeByParent,RawParentNode,ParentNodeWithChildren] {
-  import aggregator._
+class ParentNodeWithChildrenJoin extends Join[ChildNodeByParent,RawParentNode,ParentNodeWithChildren] {
   def join(childNodeByParent: Values[ChildNodeByParent], rawParentNode: Values[RawParentNode]): Values[ParentNodeWithChildren] = {
     rawParentNode.map(parent ⇒
       ParentNodeWithChildren(parent.srcId, childNodeByParent.map(_.child).toList)
@@ -100,30 +97,76 @@ class ParentNodeWithChildrenJoin(implicit aggregator: Aggregator) extends Join[C
 
 ////
 
-case class Counted[V](value: V, count: Int)
 trait Void
 object Types {
   type SrcId = String
   type Values[V] = Seq[V]//Map[V,Int] //List[Counted[V]]
 }
-trait Old
-trait New
-trait Events
+trait EventSource
+/*
+
 trait Reduction[W] {
   def next: W
 }
-trait Index[S,K,V]
 trait Keys[V]
+*/
+// moment -> mod/index -> key/srcId -> value -> count
+trait Lens[From,To] {
+  def get(from: From): Option[To]
+  def set(from: From, to: Option[To]): From
+}
+class World(val value: Map[Object,Object])
+trait Index[K,V] {
+  def need(prev: World, next: World): World
+}
 trait Join[T1,T2,R] {
   def join(a1: Values[T1], a2: Values[T2]): Values[R]
 }
-trait Aggregator {
-  def joinMap[T1,T2,R](rejoin: Join[T1,T2,R])(implicit
-    index1: Index[New,SrcId,T1],
-    index2: Index[New,SrcId,T2],
-    indexPrev: Index[Old,SrcId,R]
-  ): Index[New,SrcId,R]
-  def reduceOriginal[R](implicit indexPrev: Index[Old,SrcId,R], events: Events): Index[New,SrcId,R]
+trait IndexFactory {
+  def createJoinMapIndex[T1, T2, R](implicit
+    rejoin: Join[T1, T2, R], index1: Index[SrcId, T1], index2: Index[SrcId, T2]
+  ): Index[SrcId, R]
+  def createOriginalIndex[R](implicit eventSource: EventSource): Index[SrcId, R]
+}
   //def valuesToSeq[T](values: Values[T]): Seq[T]
   //def values[T](values: Seq[T]): Values[T]
+
+////
+
+class IndexFactoryImpl extends IndexFactory {
+  def createJoinMapIndex[T1, T2, R](implicit
+      rejoin: Join[T1, T2, R],
+      index1: Index[SrcId, T1], index2: Index[SrcId, T2]
+  ) = new JoinMapIndex
+  override def createOriginalIndex[R](implicit eventSource: EventSource) =
+    new OriginalIndex
 }
+
+class OriginalIndex[R] extends Index[SrcId, R] {
+  def need(prev: World, next: World): World = {
+    ???
+  }
+}
+
+class JoinMapIndex[T1, T2, R](implicit
+  rejoin: Join[T1, T2, R],
+    index1: Index[SrcId, T1], index2: Index[SrcId, T2],
+    worldLens: Lens[World, IndexMap[SrcId, R]] = new WorldLensImpl
+) extends Index[SrcId, R] {
+  def need(prev: World, next0: World): World = if(worldLens.get(next0).nonEmpty) next else {
+    val next2 = index2.need(prev, index1.need(prev, next))
+    val next3 = ???
+    worldLens.set(world,next3)
+  }
+}
+
+case class IndexMap[K,V](value: Map[K,Map[V,Int]], changed: Set[K])
+
+class WorldLensImpl[To<:Object] extends Lens[World,To] {
+  def get(from: World) = from.value.get(this).asInstanceOf[Option[To]]
+  def set(from: World, to: Option[To]) =
+    new World(if(to.isEmpty) from.value - this else from.value + (this→to.get))
+}
+
+////
+
