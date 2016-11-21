@@ -170,3 +170,29 @@ class WorldLensImpl[To<:Object] extends Lens[World,To] {
 
 ////
 
+trait WorldInnerExpression[T1, T2, R] {
+  def calculate(prev: Option[R], a1: Option[T1], a2: Option[T2]): R
+}
+
+trait WorldOuterExpression[T1, T2, R] {
+  def need(prev: World, next: World): World
+}
+
+
+class WorldOuterExpressionImpl[T1, T2, R](
+    expr1: T1, expr2: T2
+) {
+  def need(prevWorld: World, nextWorld: World): World = {
+    if(nextWorld.contains(this)){ return nextWorld }
+    val nextWorld2 = expr2.need(prevWorld, expr1.need(prevWorld, nextWorld))
+
+    prevWorld.get(this) nextWorld2
+
+    val nextValue
+
+     + (this→)
+    val next3 = ???
+    worldLens.set(world,next3)
+
+  }
+}
