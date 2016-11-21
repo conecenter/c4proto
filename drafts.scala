@@ -57,7 +57,7 @@ object Test {
   //aggregator.join
 
 }
-
+/*
 import Types._
 
 class MyReduction(implicit indexFactory: IndexFactory, eventSource: EventSource){
@@ -196,3 +196,7 @@ class WorldOuterExpressionImpl[T1, T2, R](
 
   }
 }
+
+////
+*/
+
