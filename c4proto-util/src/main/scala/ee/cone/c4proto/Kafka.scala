@@ -15,9 +15,54 @@ import scala.collection.JavaConverters.mapAsJavaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 
-@protocol object KafkaProtocol extends Protocol {
+@protocol object QProtocol extends Protocol {
   @Id(0x0010) case class TopicKey(@Id(0x0011) srcId: String, @Id(0x0012) valueTypeId: Long)
 }
+
+trait QRecord {
+  def key: Array[Byte]
+  def value: Array[Byte]
+  def offset: Long
+}
+
+////////////////////
+
+class Handling[R](findAdapter: FindAdapter, val byId: Map[Long, Object ⇒ R]=Map[Long, Object ⇒ R]()) {
+  def add[M](cl: Class[M])(handle: M⇒R): Handling[R] =
+    new Handling[R](findAdapter, byId + (
+      findAdapter.byClass(cl).id → handle.asInstanceOf[Object ⇒ R]
+      ))
+}
+
+class Sender(
+    //producer: KafkaProducer[Array[Byte], Array[Byte]],
+    //topic: String,
+    findAdapter: FindAdapter,
+    toSrcId: Handling[String]
+)(forward: (Array[Byte], Array[Byte]) ⇒ Unit) {
+  def send(value: Object): Unit/*Future[RecordMetadata]*/ = {
+    val valueAdapter = findAdapter(value)
+    val srcId = toSrcId.byId(valueAdapter.id)(value)
+    val key = QProtocol.TopicKey(srcId, valueAdapter.id)
+    val keyAdapter = findAdapter(key)
+    forward(keyAdapter.encode(key), valueAdapter.encode(value))
+    //producer.send(new ProducerRecord(topic, rawKey, rawValue))
+  }
+}
+
+class Receiver(findAdapter: FindAdapter, receive: Handling[Unit]){
+  def receive(rec: QRecord): Unit = {
+    val keyAdapter = findAdapter.byClass(classOf[QProtocol.TopicKey])
+    val key = keyAdapter.decode(rec.key)
+    val valueAdapter = findAdapter.byId(key.valueTypeId)
+    val value = valueAdapter.decode(rec.value)
+    receive.byId(key.valueTypeId)(value)
+    //decode(new ProtoReader(new okio.Buffer().write(bytes)))
+  }
+}
+
+////////////////////
+
 
 object OnShutdown {
   def apply(f: ()⇒Unit): Unit = Runtime.getRuntime.addShutdownHook(new Thread(){
@@ -33,30 +78,6 @@ object Pool {
       pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
     })
     pool
-  }
-}
-
-class Handling[R](findAdapter: FindAdapter, val byId: Map[Long, Object ⇒ R]=Map[Long, Object ⇒ R]()) {
-  def add[M](cl: Class[M])(handle: M⇒R): Handling[R] =
-    new Handling[R](findAdapter, byId + (
-      findAdapter.byClass(cl).id → handle.asInstanceOf[Object ⇒ R]
-      ))
-}
-
-class Sender(
-  producer: KafkaProducer[Array[Byte], Array[Byte]],
-  topic: String,
-  findAdapter: FindAdapter,
-  toSrcId: Handling[String]
-) {
-  def send(value: Object): Future[RecordMetadata] = {
-    val valueAdapter = findAdapter(value)
-    val srcId = toSrcId.byId(valueAdapter.id)(value)
-    val key = KafkaProtocol.TopicKey(srcId, valueAdapter.id)
-    val keyAdapter = findAdapter(key)
-    val rawKey = keyAdapter.encode(key)
-    val rawValue = valueAdapter.encode(value)
-    producer.send(new ProducerRecord(topic, rawKey, rawValue))
   }
 }
 
@@ -79,23 +100,14 @@ object Producer {
   }
 }
 
-class Receiver(findAdapter: FindAdapter, receive: Handling[Unit]){
-  def receive(rec: ConsumerRecord[Array[Byte], Array[Byte]]): Unit = {
-    val keyAdapter = findAdapter.byClass(classOf[KafkaProtocol.TopicKey])
-    val key = keyAdapter.decode(rec.key)
-    val valueAdapter = findAdapter.byId(key.valueTypeId)
-    val value = valueAdapter.decode(rec.value)
-    receive.byId(key.valueTypeId)(value)
-    //decode(new ProtoReader(new okio.Buffer().write(bytes)))
-  }
+class KafkaQRecordAdapter(rec: ConsumerRecord[Array[Byte], Array[Byte]]) extends QRecord {
+  def key: Array[Byte] = rec.key
+  def value: Array[Byte] = rec.value
+  def offset: Long = rec.offset
 }
 
-
-
-
 class ToIdempotentConsumer(bootstrapServers: String, groupId: String, topic: String)(
-  val pool: ExecutorService,
-  val handle: ConsumerRecord[Array[Byte],Array[Byte]]⇒Unit
+  val pool: ExecutorService, handle: QRecord⇒Unit
 ) extends Consumer {
   protected lazy val props: Map[String, Object] = Map(
     "bootstrap.servers" → bootstrapServers,
@@ -107,8 +119,8 @@ class ToIdempotentConsumer(bootstrapServers: String, groupId: String, topic: Str
     consumer.assign(List(topicPartition).asJava)
     while(alive.get) {
       consumer.poll(1000 /*timeout*/).asScala.foreach { rec ⇒
-        handle(rec)
-        val offset = new OffsetAndMetadata(rec.offset + 1)
+        handle(new KafkaQRecordAdapter(rec))
+        //val offset = new OffsetAndMetadata(rec.offset + 1)
         //consumer.commitSync(Collections.singletonMap(topicPartition, offset))
       }
       consumer.commitSync()
@@ -118,11 +130,8 @@ class ToIdempotentConsumer(bootstrapServers: String, groupId: String, topic: Str
   protected def readyState: ConsumerState = Started
 }
 
-
-
 class ToStoredConsumer(bootstrapServers: String, topic: String, pos: Long)(
-  val pool: ExecutorService,
-  val handle: ConsumerRecord[Array[Byte],Array[Byte]]⇒Unit
+  val pool: ExecutorService, handle: Iterable[QRecord]⇒Unit
 ) extends Consumer {
   private lazy val ready = new AtomicBoolean(false)
   protected def readyState: ConsumerState = if(ready.get()) Started else Starting
@@ -139,7 +148,7 @@ class ToStoredConsumer(bootstrapServers: String, topic: String, pos: Long)(
     while(alive.get){
       if(!ready.get() && untilPos <= consumer.position(topicPartition))
         ready.set(true)
-      consumer.poll(1000 /*timeout*/).asScala.foreach(handle)
+      handle(consumer.poll(1000 /*timeout*/).asScala.map(new KafkaQRecordAdapter(_)))
     }
   }
 }

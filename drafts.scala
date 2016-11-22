@@ -200,6 +200,11 @@ class WorldOuterExpressionImpl[T1, T2, R](
 ////
 */
 ////
+/*
+object A extends scala.collection.immutable.Map.Map1 {
+
+}
+*/
 
 import Types._
 
@@ -263,7 +268,6 @@ object Types {
   type IndexValues = Map[Object,Int]
   type Index = Map[SrcId,IndexValues]
   type World = Map[WorldKey,Index]
-  type Events = Index
 }
 
 trait Join
@@ -282,7 +286,7 @@ trait WorldPartExpression {
 }
 case class WorldPartTransition(diff: Object, next: Object)
 
-case class WorldTransition(prev: World, diff: World, current: World)
+case class WorldTransition(prev: World, diff: Map[WorldKey,Set[SrcId]], current: World)
 
 class IndexFactoryImpl extends IndexFactory {
   def createJoinMapIndex(rejoin: Join): BaseCoHandler = rejoin match {
@@ -297,65 +301,87 @@ class IndexFactoryImpl extends IndexFactory {
 }
 
 
-
 class JoinMapIndex(
   val inputWorldKeys: Seq[WorldKey],
   val outputWorldKey: WorldKey
 )(
   recalc: Seq[Values[Object]]⇒Iterable[Object]
 ) extends WorldPartExpression {
+  import IndexOperations._
   def toSrcId(obj: Object): SrcId = ???
-  def getIndex(world: World, key: WorldKey): Index = world.getOrElse(key, Map.empty[SrcId,IndexValues])
-  def recalcSome(getIndex: WorldKey⇒Index, ids: Seq[SrcId]): Seq[Object] = {
-    val worldParts: Seq[Index] = inputWorldKeys.map(getIndex)
-    ids.flatMap(id ⇒ recalc(worldParts.map(_.getOrElse(id, Map.empty).keys)))
-  }
-  def toMultiSet[T](values: Seq[T]): Map[T,Int] =
-    values.groupBy(identity(_)).mapValues(_.size)
-  def add[K,V](values: Map[K,V], diff: Map[K,V], defV: V)(op: (V,V)⇒V): Map[K,V] =
-    diff.foldLeft(values) { (values, diffKV) ⇒
-      val (key, diffV) = diffKV
-      val prevV = values.getOrElse(key,defV)
-      val nextV = op(prevV,diffV)
-      if(nextV == defV) values - key else values + (key → nextV)
+  def recalcSome(world: World, ids: Iterable[SrcId], res: IndexValues, sign: Int): IndexValues = {
+    val worldParts: Seq[Index] = inputWorldKeys.map(getIndex(world,_))
+    (res /: ids){(res: IndexValues,id: SrcId)⇒
+      val args = worldParts.map(_.getOrElse(id, Map.empty).keys) //.keys?
+      AddPatchMap.many(res, recalc(args), sign)
     }
+  }
   def transform(transition: WorldTransition): WorldTransition = {
-    val ids: Seq[SrcId] = inputWorldKeys.flatMap(transition.diff.get).flatMap(_.keys).distinct
-    if(ids.isEmpty){ return transition }
-    val prevOutput: IndexValues = toMultiSet(recalcSome(getIndex(transition.prev,_), ids))
-    val nextOutput: IndexValues = toMultiSet(recalcSome(getIndex(transition.current,_), ids))
-    val outputDiff: IndexValues = add(nextOutput, prevOutput, 0)((v,d)⇒v-d)
-    if(outputDiff.isEmpty){ return transition }
+    val ids: Set[SrcId] = inputWorldKeys.flatMap(transition.diff.get).toSet.flatten
+    if (ids.isEmpty) return transition;
+    val prevOutput = recalcSome(transition.prev, ids, Map.empty, -1)
+    val outputDiff = recalcSome(transition.current, ids, prevOutput, +1)
+    if (outputDiff.isEmpty) return transition;
     val indexDiff: Index = outputDiff.groupBy(toSrcId)
-    val diff: World = transition.diff + (outputWorldKey→indexDiff)
-
-    val next: World = applyDiff(transition.current, diff)
-
+    val currentIndex: Index = getIndex(transition.current, outputWorldKey)
+    val nextIndex: Index = NestedPatchMap.many(currentIndex, indexDiff)
+    val next = transition.current + (outputWorldKey → nextIndex)
+    val diff = transition.diff + (outputWorldKey → indexDiff.keySet)
     WorldTransition(transition.prev, diff, next)
   }
-  def applyDiff(current: World, diff: World): World = {
-    val currentIndex: Index = getIndex(current, outputWorldKey)
-    val indexDiff: Index = getIndex(diff, outputWorldKey)
-    val nextIndex: Index = add[SrcId,IndexValues](currentIndex, indexDiff, Map.empty)((v,d)⇒
-      add[Object,Int](v,d,0){(v,d)⇒
-        val res = v+d
-        if(res < 0) throw new Exception
-        res
-      }
-    )
-    current + (outputWorldKey→nextIndex)
-  }
-
 }
 
+class ReducerImpl(handlers: List[WorldTransition⇒WorldTransition]/*CoHandlerLists*/) {
+  def reduce(prev: World, events: Iterable[QRecord]): World = {
+    val keyAdapter = findAdapter.byClass(classOf[KafkaProtocol.TopicKey])
+    val evTree: Map[WorldKey,Map[SrcId,Iterable[Object]]] =
+      events.map(rec⇒(keyAdapter.decode(rec.key), rec))
+      .groupBy(_._1.valueTypeId).map{ events ⇒
+        val worldKey = worldKeyFromId(events.head._1.valueTypeId)
+        val valueAdapter = findAdapter.byId(key.valueTypeId)
+        worldKey → events.groupBy(_._1.srcId).mapValues{ events ⇒
+          valueAdapter.decode(events.last._2.value)→1
+        }
+      }
+    val transition = WorldTransition(prev,evTree.mapValues(_.keySet),???)
 
-class ReducerImpl(handlers: List[WorldTransition⇒WorldTransition]/*CoHandlerLists*/)(
-  val eventsKey: WorldKey = classOf[Events].getName
-) {
-  def reduce(prev: World, events: Events): World = {
-    val transition = WorldTransition(prev,Map(eventsKey→events),prev)
+
+
     handlers.foldLeft(transition)((transition,handler) ⇒ handler(transition)).current
   }
 }
 
+
+object IndexOperations {
+  def getIndex(world: World, key: WorldKey): Index = world.getOrElse(key, Map.empty[SrcId,IndexValues])
+}
+
+abstract class PatchMap[K,V] {
+  protected def empty: V
+  protected def isEmpty(v: V): Boolean
+  protected def op(v: V, d: V): V
+  def one(res: Map[K,V], key: K, diffV: V): Map[K,V] = {
+    val prevV = res.getOrElse(key,empty)
+    val nextV = op(prevV,diffV)
+    if(isEmpty(nextV)) res - key else res + (key → nextV)
+  }
+  def many(res: Map[K,V], keys: Iterable[K], value: V): Map[K,V] =
+    (res /: keys)((res, key) ⇒ one(res, key, value))
+  def many(res: Map[K,V], diff: Map[K,V]): Map[K,V] =
+    (res /: diff)((res, kv) ⇒ one(res, kv._1, kv._2))
+}
+object AddPatchMap extends PatchMap[Object,Int] {
+  protected def empty: Int = 0
+  protected def isEmpty(v: Int): Boolean = v == 0
+  protected def op(v: Int, d: Int): Int = v + d
+}
+object NestedPatchMap extends PatchMap[SrcId,IndexValues] {
+  protected def empty: IndexValues = Map.empty[Object,Int]
+  protected def isEmpty(v: IndexValues): Boolean = v.isEmpty
+  protected def op(v: IndexValues, d: IndexValues): IndexValues = {
+    val res = AddPatchMap.many(v, d)
+    if(res.valuesIterator.exists(_<0)) throw new Exception
+    res
+  }
+}
 

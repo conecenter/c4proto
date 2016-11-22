@@ -1,17 +1,20 @@
 package ee.cone.c4http
 
 import ee.cone.c4proto._
+import org.apache.kafka.clients.producer.ProducerRecord
 
 object ConsumerApp {
   def main(args: Array[String]): Unit = {
     try {
       val bootstrapServers = "localhost:9092"
       val pool = Pool()
-      val findAdapter = new FindAdapter(Seq(KafkaProtocol,HttpProtocol))()
+      val findAdapter = new FindAdapter(Seq(QProtocol,HttpProtocol))()
       val producer = Producer(bootstrapServers)
       val toSrcId = new Handling[String](findAdapter)
         .add(classOf[HttpProtocol.RequestValue])((r:HttpProtocol.RequestValue)⇒r.path)
-      val sender: Sender = new Sender(producer, "http-gets", findAdapter, toSrcId)
+      val sender: Sender = new Sender(findAdapter, toSrcId)(
+        (k:Array[Byte],v:Array[Byte]) ⇒ producer.send(new ProducerRecord("http-gets", k, v)).get()
+      )
       val reduce = new Handling[Unit](findAdapter)
         .add(classOf[HttpProtocol.RequestValue]) {
           (req: HttpProtocol.RequestValue) ⇒
