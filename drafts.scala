@@ -275,41 +275,43 @@ abstract class Join2[T1,T2,R](val t1: Class[T1], val t2: Class[T2], val r: Class
 // moment -> mod/index -> key/srcId -> value -> count
 
 case object WorldPartExpressionKey extends EventKey[WorldPartExpression]
-case class WorldPartExpression(
-  inputWorldKeys: Seq[WorldKey],
-  outputWorldKey: WorldKey
-)(recalculate: Seq[Object]⇒Option[(Object,Object)])
+trait WorldPartExpression {
+  def inputWorldKeys: Seq[WorldKey]
+  def outputWorldKey: WorldKey
+  def transform(transition: WorldTransition): WorldTransition
+}
 case class WorldPartTransition(diff: Object, next: Object)
 
 case class WorldTransition(prev: World, diff: World, current: World)
 
 class IndexFactoryImpl extends IndexFactory {
   def createJoinMapIndex(rejoin: Join): BaseCoHandler = rejoin match {
-    case join: Join2[Object,Object,Object] ⇒ new JoinMapIndex(
+    case join: Join2[_,_,_] ⇒ CoHandler(WorldPartExpressionKey)(new JoinMapIndex(
       Seq(join.t1.getName, join.t2.getName),
       join.r.getName
     )({
-      case Seq(a1, a2) ⇒ join.join(a1, a2)
-    })
+      case Seq(a1, a2) ⇒ join.asInstanceOf[Join2[Object,Object,Object]].join(a1, a2)
+    }))
   }
+  def createOriginalIndex[R](cl: Class[R]): BaseCoHandler = ???
 }
 
 
 
 class JoinMapIndex(
-  inputWorldKeys: Seq[WorldKey],
-  outputWorldKey: WorldKey
-)(recalc: Seq[Values[Object]]⇒Iterable[Object]){
+  val inputWorldKeys: Seq[WorldKey],
+  val outputWorldKey: WorldKey
+)(
+  recalc: Seq[Values[Object]]⇒Iterable[Object]
+) extends WorldPartExpression {
   def toSrcId(obj: Object): SrcId = ???
-  def getIndex(world: World, key: WorldKey): Index = world.getOrElse(_, Map.empty)
-  def recalcSome(getIndex: WorldKey⇒Index, ids: Seq[SrcId]): IndexValues = {
+  def getIndex(world: World, key: WorldKey): Index = world.getOrElse(key, Map.empty[SrcId,IndexValues])
+  def recalcSome(getIndex: WorldKey⇒Index, ids: Seq[SrcId]): Seq[Object] = {
     val worldParts: Seq[Index] = inputWorldKeys.map(getIndex)
-    ids.flatMap(id ⇒
-      recalc(worldParts.map(_.getOrElse(id, Map.empty).keys))
-    ).flatMap(nodes ⇒
-      nodes.groupBy(identity(_)).mapValues(_.size)
-    )
+    ids.flatMap(id ⇒ recalc(worldParts.map(_.getOrElse(id, Map.empty).keys)))
   }
+  def toMultiSet[T](values: Seq[T]): Map[T,Int] =
+    values.groupBy(identity(_)).mapValues(_.size)
   def add[K,V](values: Map[K,V], diff: Map[K,V], defV: V)(op: (V,V)⇒V): Map[K,V] =
     diff.foldLeft(values) { (values, diffKV) ⇒
       val (key, diffV) = diffKV
@@ -320,36 +322,40 @@ class JoinMapIndex(
   def transform(transition: WorldTransition): WorldTransition = {
     val ids: Seq[SrcId] = inputWorldKeys.flatMap(transition.diff.get).flatMap(_.keys).distinct
     if(ids.isEmpty){ return transition }
-    val prevOutput: IndexValues = recalcSome(getIndex(transition.prev,_), ids)
-    val nextOutput: IndexValues = recalcSome(getIndex(transition.current,_), ids)
+    val prevOutput: IndexValues = toMultiSet(recalcSome(getIndex(transition.prev,_), ids))
+    val nextOutput: IndexValues = toMultiSet(recalcSome(getIndex(transition.current,_), ids))
     val outputDiff: IndexValues = add(nextOutput, prevOutput, 0)((v,d)⇒v-d)
     if(outputDiff.isEmpty){ return transition }
-    val indexDiff = outputDiff.groupBy(toSrcId)
+    val indexDiff: Index = outputDiff.groupBy(toSrcId)
+    val diff: World = transition.diff + (outputWorldKey→indexDiff)
 
-    val currentIndex = getIndex(transition.current, outputWorldKey)
-    val nextIndex: Index = add(currentIndex, indexDiff, Map.empty)((v,d)⇒
-      add(v,d,0){(v,d)⇒
+    val next: World = applyDiff(transition.current, diff)
+
+    WorldTransition(transition.prev, diff, next)
+  }
+  def applyDiff(current: World, diff: World): World = {
+    val currentIndex: Index = getIndex(current, outputWorldKey)
+    val indexDiff: Index = getIndex(diff, outputWorldKey)
+    val nextIndex: Index = add[SrcId,IndexValues](currentIndex, indexDiff, Map.empty)((v,d)⇒
+      add[Object,Int](v,d,0){(v,d)⇒
         val res = v+d
         if(res < 0) throw new Exception
         res
       }
     )
-    val next: World = transition.current + (outputWorldKey→nextIndex)
-    val diff: World = transition.diff + (outputWorldKey→indexDiff)
-    WorldTransition(transition.prev, diff, next)
+    current + (outputWorldKey→nextIndex)
   }
+
 }
 
 
-class ReducerImpl(handlers: List[WorldTransition⇒WorldTransition]/*CoHandlerLists*/) {
-  private def pair[T](key: Class[T], value: T) = key.getName → value
+class ReducerImpl(handlers: List[WorldTransition⇒WorldTransition]/*CoHandlerLists*/)(
+  val eventsKey: WorldKey = classOf[Events].getName
+) {
   def reduce(prev: World, events: Events): World = {
-    val transition = WorldTransition(prev,Map(pair(classOf[Events], events)),prev)
+    val transition = WorldTransition(prev,Map(eventsKey→events),prev)
     handlers.foldLeft(transition)((transition,handler) ⇒ handler(transition)).current
   }
-
-
-
 }
 
 
