@@ -34,16 +34,23 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
 
 lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
 lazy val `c4proto-util` = project.settings(publishSettings ++ metaMacroSettings).settings(
-  libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0",
-  libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0"
+  libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0"
 ).dependsOn(`c4proto-macros`)
+lazy val `c4proto-kafka` = project.settings(publishSettings).settings(
+  libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0"
+).dependsOn(
+  `c4proto-util`
+)
 
-
-lazy val `c4http-proto` = project.settings(publishSettings ++ metaMacroSettings).dependsOn(`c4proto-util`)
-lazy val `c4http-server` = project.settings(publishSettings).dependsOn(`c4http-proto`)
+lazy val `c4http-proto` = project.settings(publishSettings ++ metaMacroSettings).dependsOn(
+  `c4proto-util`, `c4proto-kafka` % "test->compile"
+)
+lazy val `c4http-server` = project.settings(publishSettings).dependsOn(
+  `c4http-proto`, `c4proto-kafka`
+)
 
 lazy val root = project.in(file(".")).settings(publishArtifact := false).aggregate(
-  `c4proto-macros`, `c4proto-util`,
+  `c4proto-macros`, `c4proto-util`, `c4proto-kafka`,
   `c4http-proto`, `c4http-server`
 )
 

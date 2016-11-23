@@ -9,10 +9,15 @@ trait Protocol {
 }
 
 class FindAdapter(list: Seq[Protocol])(
+  adapters: Seq[ProtoAdapter[_<:Object] with ProtoAdapterWithId] =
+    list.flatMap(_.adapters)
+)(
   val byName: Map[String,ProtoAdapter[_<:Object] with ProtoAdapterWithId] =
-    list.flatMap(_.adapters).map(a ⇒ a.className → a).toMap,
+    adapters.map(a ⇒ a.className → a).toMap,
   val byId: Map[Long,ProtoAdapter[_<:Object] with ProtoAdapterWithId] =
-    list.flatMap(_.adapters).map(a ⇒ a.id → a).toMap
+    adapters.map(a ⇒ a.id → a).toMap,
+  val nameById: Map[Long,String] =
+    adapters.map(a ⇒ a.id → a.className).toMap
 ) {
   def apply[M](model: M): ProtoAdapter[M] with ProtoAdapterWithId =
     byClass(model.getClass.asInstanceOf[Class[M]])
