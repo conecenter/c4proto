@@ -24,28 +24,26 @@ class MyReduction(indexFactory: IndexFactory) extends CoHandlerProvider {
 
 case class RawChildNode(srcId: SrcId, parentSrcId: SrcId, caption: String)
 case class RawParentNode(srcId: SrcId, caption: String)
-case class ChildNodeByParent(child: RawChildNode)
+case object ChildNodeByParent extends IndexWorldKey[SrcId,RawChildNode]
 case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
 
 class ChildNodeByParentJoin extends Join2(
-  classOf[RawChildNode], classOf[Void], classOf[ChildNodeByParent],
-  classOf[SrcId], classOf[SrcId]
+  BySrcId(classOf[RawChildNode]), VoidBy[SrcId](), ChildNodeByParent
 ) {
-  def join(rawChildNode: Values[RawChildNode], void: Values[Void]): Values[(SrcId,ChildNodeByParent)] =
-    rawChildNode.map(child ⇒ child.parentSrcId → ChildNodeByParent(child))
-  def sort(nodes: Iterable[ChildNodeByParent]): List[ChildNodeByParent] =
-    nodes.toList.sortBy(_.child.srcId)
+  def join(rawChildNode: Values[RawChildNode], void: Values[Unit]): Values[(SrcId,RawChildNode)] =
+    rawChildNode.map(child ⇒ child.parentSrcId → child)
+  def sort(nodes: Iterable[RawChildNode]): List[RawChildNode] =
+    nodes.toList.sortBy(_.srcId)
 }
 class ParentNodeWithChildrenJoin extends Join2(
-  classOf[ChildNodeByParent], classOf[RawParentNode], classOf[ParentNodeWithChildren],
-  classOf[SrcId], classOf[SrcId]
+  ChildNodeByParent, BySrcId(classOf[RawParentNode]), BySrcId(classOf[ParentNodeWithChildren])
 ) {
   def join(
-      childNodeByParent: Values[ChildNodeByParent],
+      childNodeByParent: Values[RawChildNode],
       rawParentNode: Values[RawParentNode]
   ): Values[(SrcId,ParentNodeWithChildren)] = {
     rawParentNode.map(parent ⇒
-      parent.srcId → ParentNodeWithChildren(parent.caption, childNodeByParent.map(_.child))
+      parent.srcId → ParentNodeWithChildren(parent.caption, childNodeByParent)
     )
   }
   def sort(nodes: Iterable[ParentNodeWithChildren]): List[ParentNodeWithChildren] =
@@ -54,20 +52,30 @@ class ParentNodeWithChildrenJoin extends Join2(
 
 ////
 
+trait WorldKey[Item]
+case class VoidBy[K]() extends IndexWorldKey[K,Unit]
+object BySrcId {
+  case class It[V](className: String) extends IndexWorldKey[SrcId,V]
+  def apply[V](cl: Class[V]): IndexWorldKey[SrcId,V] = It(cl.getName)
+}
+
+
 trait IndexFactory {
   def createJoinMapIndex[T1,T2,R<:Object,TK,RK](join: Join2[T1,T2,R,TK,RK]): BaseCoHandler
 }
 object Types {
+  type IndexWorldKey[K,V] = WorldKey[Map[K,Values[V]]]
   type SrcId = String
-  type WorldKey = String
+  //type WorldKey = String
   type Values[V] = List[V]
   type MultiSet[T] = Map[T,Int]
-  type World = Map[WorldKey,Map[Object,Values[Object]]]
+  type World = Map[WorldKey[_],Map[Object,Values[Object]]]
 }
 
 abstract class Join2[T1,T2,R,TK,RK](
-    val t1: Class[T1], val t2: Class[T2], val r: Class[R],
-    val tk: Class[TK], val rk: Class[RK]
+    val t1: IndexWorldKey[TK,T1],
+    val t2: IndexWorldKey[TK,T2],
+    val r: IndexWorldKey[RK,R]
 ) {
   def join(a1: Values[T1], a2: Values[T2]): Values[(RK,R)]
   def sort(values: Iterable[R]): List[R]
@@ -78,13 +86,13 @@ abstract class Join2[T1,T2,R,TK,RK](
 
 case object WorldPartExpressionKey extends EventKey[WorldPartExpression]
 trait WorldPartExpression {
-  def inputWorldKeys: Seq[WorldKey]
-  def outputWorldKey: WorldKey
+  def inputWorldKeys: Seq[WorldKey[_]]
+  def outputWorldKey: WorldKey[_]
   def transform(transition: WorldTransition): WorldTransition
 }
 case class WorldPartTransition(diff: Object, next: Object)
 
-case class WorldTransition(prev: World, diff: Map[WorldKey,Map[Object,Boolean]], current: World)
+case class WorldTransition(prev: World, diff: Map[WorldKey[_],Map[Object,Boolean]], current: World)
 
 ////
 
@@ -108,8 +116,7 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
 class IndexFactoryImpl extends IndexFactory {
   def createJoinMapIndex[T1,T2,R<:Object,TK,RK](join: Join2[T1,T2,R,TK,RK]): BaseCoHandler = {
     CoHandler(WorldPartExpressionKey)(new JoinMapIndex[TK,RK,R](
-      Seq(join.t1.getName, join.t2.getName),
-      join.r.getName
+      Seq(join.t1, join.t2), join.r
     )(
       {
         case Seq(a1, a2) ⇒ join.join(a1.asInstanceOf[Values[T1]], a2.asInstanceOf[Values[T2]])
@@ -121,8 +128,8 @@ class IndexFactoryImpl extends IndexFactory {
 
 
 class JoinMapIndex[JoinKey,MapKey,Value<:Object](
-  val inputWorldKeys: Seq[WorldKey],
-  val outputWorldKey: WorldKey
+  val inputWorldKeys: Seq[WorldKey[_]],
+  val outputWorldKey: IndexWorldKey[MapKey,Value]
 )(
   recalculate: Seq[Values[Object]]⇒Iterable[(MapKey,Value)],
   sort: Iterable[Value] ⇒ List[Value]
@@ -142,13 +149,13 @@ class JoinMapIndex[JoinKey,MapKey,Value<:Object](
   val subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
     new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
 ) extends WorldPartExpression {
-  private def getPart[K,V](world: Map[WorldKey,Map[_,_]], key: WorldKey) =
+  private def getPart[K,V](world: Map[WorldKey[_],Map[_,_]], key: WorldKey[_]) =
     world.getOrElse(key, Map.empty).asInstanceOf[Map[K,V]]
-  private def setPart[V](res: Map[WorldKey,Map[Object,V]], part: Map[MapKey,V]) =
+  private def setPart[V](res: Map[WorldKey[_],Map[Object,V]], part: Map[MapKey,V]) =
     res + (outputWorldKey → part.asInstanceOf[Map[Object,V]])
 
   def recalculateSome(
-    getIndex: WorldKey⇒Map[JoinKey,Values[Object]],
+    getIndex: WorldKey[_]⇒Map[JoinKey,Values[Object]],
     add: PatchMap[MapKey,MultiSet[Value],Value],
     ids: Set[JoinKey], res: Map[MapKey,MultiSet[Value]]
   ): Map[MapKey,MultiSet[Value]] = {
@@ -181,11 +188,23 @@ class ReducerImpl(
   val replace: PatchMap[Object,Values[Object],Values[Object]] =
     new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
 )(
-  val add: PatchMap[WorldKey,Map[Object,Values[Object]],Map[Object,Values[Object]]] =
-    new PatchMap[WorldKey,Map[Object,Values[Object]],Map[Object,Values[Object]]](Map.empty,_.isEmpty,replace.many)
+  val add: PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]] =
+    new PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]](Map.empty,_.isEmpty,replace.many)
 ) {
   private lazy val handlers: List[WorldTransition⇒WorldTransition] = {
-    handlerLists.list(WorldPartExpressionKey)
+    val list = handlerLists.list(WorldPartExpressionKey)
+    val byOutput = list.groupBy(_.outputWorldKey).mapValues{ case i :: Nil ⇒ i }
+    (Map.empty[WorldKey[_],Int] /: list){(priorities,expression)⇒reg(priorities,key)}
+
+    def reg(res: Map[WorldKey[_],Int], keys: Seq[WorldKey[_]]): Map[WorldKey[_],Int] = (res /: keys){
+      (priorities,key) ⇒
+        val handler = byOutput(key)
+        ???
+        val res = reg(priorities, handler.inputWorldKeys)
+        res + (key→res.size)
+    }
+
+    ???
   }
   def reduce(prev: World, replaced: World): World = {
     val diff = replaced.mapValues(_.mapValues(_⇒true))
@@ -204,7 +223,7 @@ class QRecords(findAdapter: FindAdapter) {
       case (topicKey, _) ⇒ topicKey.valueTypeId
     }.map {
       case (valueTypeId, keysEvents) ⇒
-        val worldKey = findAdapter.nameById(valueTypeId)
+        val worldKey = BySrcId.It(findAdapter.nameById(valueTypeId))
         val valueAdapter = findAdapter.byId(valueTypeId)
         worldKey → keysEvents.groupBy {
           case (topicKey, _) ⇒ topicKey.srcId
