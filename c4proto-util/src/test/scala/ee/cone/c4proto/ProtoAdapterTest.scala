@@ -7,13 +7,27 @@ object MyApp extends App {
   val worker0 = Person("worker0", Some(30))
   val worker1 = Person("worker1", Some(20))
   val group0 = Group(Some(leader0), List(worker0,worker1))
-  val findAdapter = new FindAdapter(Seq(MyProtocol))()
-  val adapter = findAdapter(group0)
-  val bytes = adapter.encode(group0)
-  println(bytes.toList)
+  val handlerLists = CoHandlerLists(
+    CoHandler(ProtocolKey)(MyProtocol) ::
+    CoHandler(ReceiverKey)(new Receiver(classOf[Group], {
+      (group1:Group) ⇒
+      println(group0,group1,group0==group1)
+    })) ::
+    Nil
+  )
+  var rec: Option[QRecord] = None
+  val qRecords = QRecords(handlerLists){ (k:Array[Byte],v:Array[Byte]) ⇒
+    println(k.toList)
+    println(v.toList)
+    rec = Some(new QRecord {
+      def key:Array[Byte] = k
+      def value:Array[Byte] = v
+      def offset = 0
+    })
+  }
+  qRecords.sendUpdate("",group0)
+  qRecords.receive(rec.get)
   //println(new String(bytes,"..."))
-  val group1 = adapter.decode(bytes)
-  println(group0,group1,group0==group1)
 }
 
 @protocol object MyProtocol extends Protocol {

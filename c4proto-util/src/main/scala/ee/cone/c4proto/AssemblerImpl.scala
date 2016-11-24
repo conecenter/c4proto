@@ -16,39 +16,39 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
 }
 
 class IndexFactoryImpl extends IndexFactory {
-  def createJoinMapIndex[T1,T2,R<:Object,TK,RK](join: Join2[T1,T2,R,TK,RK]): BaseCoHandler = {
-    CoHandler(WorldPartExpressionKey)(new JoinMapIndex[TK,RK,R](
-      Seq(join.t1, join.t2), join.r
-    )(
-      {
-        case Seq(a1, a2) ⇒ join.join(a1.asInstanceOf[Values[T1]], a2.asInstanceOf[Values[T2]])
-      },
-      join.sort
-    )()())
+  def createJoinMapIndex[T1,T2,Value<:Object,TK,MapKey](join: Join2[T1,T2,Value,TK,MapKey]): BaseCoHandler = {
+    val recalculate: Seq[Values[Object]]⇒Iterable[(MapKey,Value)] = {
+      case Seq(a1, a2) ⇒
+        join.join(a1.asInstanceOf[Values[T1]], a2.asInstanceOf[Values[T2]])
+    }
+    val add: PatchMap[Value,Int,Int] =
+      new PatchMap[Value,Int,Int](0,_==0,(v,d)⇒v+d)
+    val addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]] =
+      new PatchMap[MapKey,Values[Value],MultiSet[Value]](
+        Nil,_.isEmpty,
+        (v,d)⇒join.sort(add.many(d, v, 1).flatMap{ case(node,count) ⇒
+          if(count<0) throw new Exception
+          List.fill(count)(node)
+        })
+      )
+    val addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
+      new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))
+    val subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
+      new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
+    CoHandler(WorldPartExpressionKey)(new JoinMapIndex[TK,MapKey,Value](
+      Seq(join.t1, join.t2), join.r, recalculate,
+      addNestedPatch, addNestedDiff, subNestedDiff
+    ))
   }
 }
 
 class JoinMapIndex[JoinKey,MapKey,Value<:Object](
   val inputWorldKeys: Seq[WorldKey[_]],
-  val outputWorldKey: IndexWorldKey[MapKey,Value]
-)(
+  val outputWorldKey: IndexWorldKey[MapKey,Value],
   recalculate: Seq[Values[Object]]⇒Iterable[(MapKey,Value)],
-  sort: Iterable[Value] ⇒ List[Value]
-)(
-  val add: PatchMap[Value,Int,Int] = new PatchMap[Value,Int,Int](0,_==0,(v,d)⇒v+d)
-)(
-  val addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]] =
-    new PatchMap[MapKey,Values[Value],MultiSet[Value]](
-      Nil,_.isEmpty,
-      (v,d)⇒sort(add.many(d, v, 1).flatMap{ case(node,count) ⇒
-        if(count<0) throw new Exception
-        List.fill(count)(node)
-      })
-    ),
-  val addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
-    new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1)),
-  val subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
-    new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
+  addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],
+  addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
+  subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value]
 ) extends WorldPartExpression {
   private def getPart[K,V](world: Map[WorldKey[_],Map[_,_]], key: WorldKey[_]) =
     world.getOrElse(key, Map.empty).asInstanceOf[Map[K,V]]
@@ -90,38 +90,43 @@ case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: Lis
   }
 }
 
-class ReducerImpl(
-  handlerLists: CoHandlerLists
-)(
-  val replace: PatchMap[Object,Values[Object],Values[Object]] =
-    new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
-)(
-  val add: PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]] =
-    new PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]](Map.empty,_.isEmpty,replace.many)
-) {
-  private lazy val expressions: Seq[WorldPartExpression] =
-    handlerLists.list(WorldPartExpressionKey)
-  private lazy val originals: Set[WorldKey[_]] =
-    handlerLists.list(ProtocolKey).flatMap(_.adapters)
-      .map(adapter⇒BySrcId.It(adapter.className)).toSet
-  private lazy val byOutput: Map[WorldKey[_], WorldPartExpression] =
-    expressions.groupBy(_.outputWorldKey).mapValues{ case i :: Nil ⇒ i }
-  private def regOne(
-    priorities: ReverseInsertionOrderSet[WorldKey[_]],
-    handler: WorldPartExpression
-  ): ReverseInsertionOrderSet[WorldKey[_]] = {
-    val key = handler.outputWorldKey
-    if(priorities.contains(key)) priorities
-    else (priorities /: handler.inputWorldKeys.flatMap{ k ⇒
-      val needHandler = byOutput.get(k)
-      if(needHandler.isEmpty && !originals(k)) throw new Exception(s"undefined $k")
-      needHandler
-    })(regOne).add(key)
+object Reducer {
+  def apply(handlerLists: CoHandlerLists): Reducer = {
+    val replace: PatchMap[Object,Values[Object],Values[Object]] =
+      new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
+    val add: PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]] =
+      new PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]](Map.empty,_.isEmpty,replace.many)
+    val expressions: Seq[WorldPartExpression] =
+      handlerLists.list(WorldPartExpressionKey)
+    val originals: Set[WorldKey[_]] =
+      handlerLists.list(ProtocolKey).flatMap(_.adapters)
+        .map(adapter⇒BySrcId.It(adapter.className)).toSet
+    val byOutput: Map[WorldKey[_], WorldPartExpression] =
+      expressions.groupBy(_.outputWorldKey).mapValues{ case i :: Nil ⇒ i }
+    def regOne(
+        priorities: ReverseInsertionOrderSet[WorldKey[_]],
+        handler: WorldPartExpression
+    ): ReverseInsertionOrderSet[WorldKey[_]] = {
+      val key = handler.outputWorldKey
+      if(priorities.contains(key)) priorities
+      else (priorities /: handler.inputWorldKeys.flatMap{ k ⇒
+        val needHandler = byOutput.get(k)
+        if(needHandler.isEmpty && !originals(k))
+          throw new Exception(s"undefined $k")
+        needHandler
+      })(regOne).add(key)
+    }
+    val expressionsByPriority: List[WorldPartExpression] =
+      (ReverseInsertionOrderSet[WorldKey[_]]() /: expressions)(regOne).items.reverse
+        .map(byOutput)
+    new Reducer(add, expressionsByPriority)
   }
-  private lazy val expressionsByPriority: List[WorldPartExpression] =
-    (ReverseInsertionOrderSet[WorldKey[_]]() /: expressions)(regOne).items.reverse
-      .map(byOutput)
+}
 
+class Reducer(
+    add: PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]],
+    expressionsByPriority: List[WorldPartExpression]
+) {
   def reduce(prev: World, replaced: World): World = {
     val diff = replaced.mapValues(_.mapValues(_⇒true))
     val current = add.many(prev, replaced)

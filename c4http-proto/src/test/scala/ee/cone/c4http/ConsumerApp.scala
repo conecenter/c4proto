@@ -8,16 +8,15 @@ object ConsumerApp {
     try {
       val bootstrapServers = "localhost:9092"
       val pool = Pool()
-      val findAdapter = new FindAdapter(Seq(QProtocol,HttpProtocol))()
       val producer = Producer(bootstrapServers)
-      val toSrcId = new Handling[String](findAdapter)
-        .add(classOf[HttpProtocol.RequestValue])((r:HttpProtocol.RequestValue)⇒r.path)
-      val sender: Sender = new Sender(findAdapter, toSrcId)(
+      lazy val qRecords = QRecords(handlerLists){
         (k:Array[Byte],v:Array[Byte]) ⇒ producer.send(new ProducerRecord("http-gets", k, v)).get()
-      )
-      val reduce = new Handling[Unit](findAdapter)
-        .add(classOf[HttpProtocol.RequestValue]) {
-          (req: HttpProtocol.RequestValue) ⇒
+      }
+      lazy val handlerLists: CoHandlerLists = CoHandlerLists(
+        CoHandler(ProtocolKey)(QProtocol) ::
+          CoHandler(ProtocolKey)(HttpProtocol) ::
+          CoHandler(ReceiverKey)(new Receiver(classOf[HttpProtocol.RequestValue], {
+            (req:HttpProtocol.RequestValue) ⇒
             val next: String = try {
               val prev = new String(req.body.toByteArray, "UTF-8")
               (prev.toLong * 3).toString
@@ -28,11 +27,13 @@ object ConsumerApp {
             }
             val body = okio.ByteString.encodeUtf8(next)
             val resp = HttpProtocol.RequestValue(req.path, Nil, body)
-            sender.send(resp)
-        }
-      val receiver = new Receiver(findAdapter, reduce)
+            qRecords.sendUpdate(resp.path,resp)
+          })) ::
+          Nil
+      )
+
       val consumer = new ToIdempotentConsumer(bootstrapServers,"test-consumer","http-posts")(pool, { rec ⇒
-        receiver.receive(rec)
+        qRecords.receive(rec)
         println("received at: ",rec.offset)
       })
       consumer.start()
@@ -99,6 +100,7 @@ object Test {
 
 }
 */
+/*
 object Test {
   case class Update[V](from: V, to: V)
 
@@ -115,4 +117,4 @@ object Test {
 
 
 
-}
+}*/

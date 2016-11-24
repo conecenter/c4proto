@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutorService
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4proto._
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.internals.Sender
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
@@ -19,7 +20,7 @@ object Trace { //m. b. to util
   }
 }
 
-class Handler(sender: Sender, staticRoot: String⇒Array[Byte]) extends HttpHandler {
+class Handler(sender: QRecords, staticRoot: String⇒Array[Byte]) extends HttpHandler {
   def handle(httpExchange: HttpExchange) = Trace{ try {
     val path = httpExchange.getRequestURI.getPath
     val bytes: Array[Byte] = httpExchange.getRequestMethod match {
@@ -30,7 +31,7 @@ class Handler(sender: Sender, staticRoot: String⇒Array[Byte]) extends HttpHand
           .flatMap{ case(k,l)⇒l.asScala.map(v⇒HttpProtocol.Header(k,v)) }.toList
         val buffer = new okio.Buffer
         val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
-        sender.send(HttpProtocol.RequestValue(path, headers, body))
+        sender.sendUpdate(path, HttpProtocol.RequestValue(path, headers, body))
         Array.empty[Byte]
     }
     httpExchange.sendResponseHeaders(200, bytes.length)
@@ -56,25 +57,25 @@ object HttpGateway {
     val getTopic = Option(System.getenv("C4HTTP_GET_TOPIC")).getOrElse("http-gets")
     ////
     val producer = Producer(bootstrapServers)
-    val findAdapter = new FindAdapter(Seq(QProtocol,HttpProtocol))()()
-    val toSrcId = new Handling[String](findAdapter)
-      .add(classOf[HttpProtocol.RequestValue])((r:HttpProtocol.RequestValue)⇒r.path)
-    val sender = new Sender(findAdapter, toSrcId)(
+    val staticRoot = TrieMap[String,Array[Byte]]()
+    val handlerLists = CoHandlerLists(
+      CoHandler(ProtocolKey)(QProtocol) ::
+      CoHandler(ProtocolKey)(HttpProtocol) ::
+      CoHandler(ReceiverKey)(new Receiver(classOf[HttpProtocol.RequestValue],
+        (resp:HttpProtocol.RequestValue) ⇒
+          staticRoot(resp.path) = resp.body.toByteArray
+      )) ::
+      Nil
+    )
+    val qRecords = QRecords(handlerLists)(
       (k:Array[Byte],v:Array[Byte]) ⇒ producer.send(new ProducerRecord(postTopic, k, v)).get()
     )
-    val staticRoot = TrieMap[String,Array[Byte]]()
-    val reduce = new Handling[Unit](findAdapter)
-      .add(classOf[HttpProtocol.RequestValue])(
-        (resp: HttpProtocol.RequestValue) ⇒
-          staticRoot(resp.path) = resp.body.toByteArray
-      )
-    val receiver = new Receiver(findAdapter, reduce)
     val pool = Pool()
     val consumer =
       new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, { messages ⇒
-        messages.foreach(receiver.receive)
+        messages.foreach(qRecords.receive(_))
       })
-    val handler = new Handler(sender, staticRoot)
+    val handler = new Handler(qRecords, staticRoot)
     val server = new Server(pool, httpPort, handler)
     ////
     consumer.start()

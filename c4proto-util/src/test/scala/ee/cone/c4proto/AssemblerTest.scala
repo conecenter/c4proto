@@ -39,12 +39,12 @@ class ParentNodeWithChildrenJoin extends Join2(
 object AssemblerTestApp extends App {
   val indexFactory = new IndexFactoryImpl
   import indexFactory._
-  val handlerLists = new CoHandlerListsImpl(()⇒
+  val handlerLists = CoHandlerLists(
     createJoinMapIndex(new ChildNodeByParentJoin) ::
     createJoinMapIndex(new ParentNodeWithChildrenJoin) ::
     Nil
   )
-  val reducer = new ReducerImpl(handlerLists)()()
+  val reducer = Reducer(handlerLists)
 
 
 
