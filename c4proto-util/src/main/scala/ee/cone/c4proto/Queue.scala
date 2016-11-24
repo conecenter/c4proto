@@ -1,5 +1,7 @@
 package ee.cone.c4proto
 
+import ee.cone.c4proto.Types.World
+
 @protocol object QProtocol extends Protocol {
   @Id(0x0010) case class TopicKey(@Id(0x0011) srcId: String, @Id(0x0012) valueTypeId: Long)
 }
@@ -45,3 +47,26 @@ class Receiver(findAdapter: FindAdapter, receive: Handling[Unit]){
     //decode(new ProtoReader(new okio.Buffer().write(bytes)))
   }
 }
+
+class QRecords(findAdapter: FindAdapter) {
+  def toTree(records: Iterable[QRecord]): World = {
+    val keyAdapter = findAdapter.byClass(classOf[QProtocol.TopicKey])
+    records.map {
+      rec ⇒ (keyAdapter.decode(rec.key), rec)
+    }.groupBy {
+      case (topicKey, _) ⇒ topicKey.valueTypeId
+    }.map {
+      case (valueTypeId, keysEvents) ⇒
+        val worldKey = BySrcId.It(findAdapter.nameById(valueTypeId))
+        val valueAdapter = findAdapter.byId(valueTypeId)
+        worldKey → keysEvents.groupBy {
+          case (topicKey, _) ⇒ topicKey.srcId
+        }.map { case(srcId,keysEventsI) ⇒
+          val (topicKey, rec) = keysEventsI.last
+          val rawValue = rec.value
+          (srcId:Object) → (if (rawValue.length > 0) valueAdapter.decode(rawValue) :: Nil else Nil)
+        }
+    }
+  }
+}
+

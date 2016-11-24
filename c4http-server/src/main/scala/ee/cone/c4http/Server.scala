@@ -56,7 +56,7 @@ object HttpGateway {
     val getTopic = Option(System.getenv("C4HTTP_GET_TOPIC")).getOrElse("http-gets")
     ////
     val producer = Producer(bootstrapServers)
-    val findAdapter = new FindAdapter(Seq(QProtocol,HttpProtocol))()
+    val findAdapter = new FindAdapter(Seq(QProtocol,HttpProtocol))()()
     val toSrcId = new Handling[String](findAdapter)
       .add(classOf[HttpProtocol.RequestValue])((r:HttpProtocol.RequestValue)⇒r.path)
     val sender = new Sender(findAdapter, toSrcId)(
