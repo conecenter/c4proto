@@ -1,9 +1,13 @@
 package ee.cone.c4proto
 
 import ee.cone.c4proto.Types._
+import PCProtocol._
 
-case class RawChildNode(srcId: SrcId, parentSrcId: SrcId, caption: String)
-case class RawParentNode(srcId: SrcId, caption: String)
+@protocol object PCProtocol extends Protocol {
+  @Id(0x0003) case class RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
+  @Id(0x0001) case class RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
+}
+
 case object ChildNodeByParent extends IndexWorldKey[SrcId,RawChildNode]
 case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
 
@@ -32,7 +36,7 @@ class ParentNodeWithChildrenJoin extends Join2(
 
 
 
-  //lazy val findAdapter = new FindAdapter()
+
   //lazy val qRecords = new QRecords(findAdapter)
 
 
@@ -40,13 +44,27 @@ object AssemblerTestApp extends App {
   val indexFactory = new IndexFactoryImpl
   import indexFactory._
   val handlerLists = CoHandlerLists(
+    CoHandler(ProtocolKey)(QProtocol) ::
+    CoHandler(ProtocolKey)(PCProtocol) ::
     createJoinMapIndex(new ChildNodeByParentJoin) ::
     createJoinMapIndex(new ParentNodeWithChildrenJoin) ::
     Nil
   )
+  var recs: List[QRecord] = Nil
+  val qRecords = QRecords(handlerLists){ (k:Array[Byte],v:Array[Byte]) ⇒
+    recs = new QRecord {
+      def key:Array[Byte] = k
+      def value:Array[Byte] = v
+      def offset = recs.headOption.map(_.offset).getOrElse(0)
+    } :: recs
+  }
   val reducer = Reducer(handlerLists)
 
-
-
+  qRecords.sendUpdate("1", RawParentNode("1","P-1"))
+  Seq("2","3").foreach(srcId⇒qRecords.sendUpdate(srcId, RawChildNode(srcId,"1",s"C-$srcId")))
+  val diff = qRecords.toTree(recs.reverse)
+  println(diff)
+  val world = reducer.reduce(Map.empty,diff)
+  println(world)
 
 }

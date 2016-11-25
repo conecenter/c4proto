@@ -98,9 +98,11 @@ object Reducer {
       new PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]](Map.empty,_.isEmpty,replace.many)
     val expressions: Seq[WorldPartExpression] =
       handlerLists.list(WorldPartExpressionKey)
+    val adapters = handlerLists.list(ProtocolKey).flatMap(_.adapters)
     val originals: Set[WorldKey[_]] =
-      handlerLists.list(ProtocolKey).flatMap(_.adapters)
-        .map(adapter⇒BySrcId.It(adapter.className)).toSet
+      adapters.map(_.className).map(BySrcId.It(_)).toSet + VoidBy()
+
+
     val byOutput: Map[WorldKey[_], WorldPartExpression] =
       expressions.groupBy(_.outputWorldKey).mapValues{ case i :: Nil ⇒ i }
     def regOne(

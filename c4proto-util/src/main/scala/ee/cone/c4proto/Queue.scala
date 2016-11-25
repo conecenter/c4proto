@@ -1,7 +1,7 @@
 package ee.cone.c4proto
 
 import ee.cone.c4proto.Types.{SrcId, World}
-import AdapterTypes._
+import com.squareup.wire.ProtoAdapter
 import ee.cone.c4proto.QProtocol.TopicKey
 
 @protocol object QProtocol extends Protocol {
@@ -27,13 +27,13 @@ object QRecords {
   //CoHandler(ReceiverKey)(new Receiver(classOf[String])((s:String)⇒()))
   def apply(handlerLists: CoHandlerLists)(forward: (Array[Byte], Array[Byte]) ⇒ Unit): QRecords = {
     val adapters = handlerLists.list(ProtocolKey).flatMap(_.adapters)
-    val byName: Map[String,ProtoAdapterWithId[_<:Object]] =
+    val byName: Map[String,ProtoAdapter[_] with HasId] =
       adapters.map(a ⇒ a.className → a).toMap
-    val byId: Map[Long,ProtoAdapterWithId[_<:Object]] =
-      adapters.map(a ⇒ a.id → a).toMap
+    val byId: Map[Long,ProtoAdapter[Object]] =
+      adapters.map(a ⇒ a.id → a.asInstanceOf[ProtoAdapter[Object]]).toMap
     val nameById = adapters.map(a ⇒ a.id → a.className).toMap
     val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
-      .asInstanceOf[ProtoAdapterWithId[QProtocol.TopicKey]]
+      .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
     val receiveById = handlerLists.list(ReceiverKey)
       .map{ receiver ⇒ byName(receiver.cl.getName).id → receiver.handler }
       .asInstanceOf[List[(Long,Object⇒Unit)]].toMap
@@ -42,17 +42,17 @@ object QRecords {
 }
 
 class QRecords(
-    byName: Map[String,ProtoAdapterWithId[_<:Object]],
-    byId: Map[Long,ProtoAdapterWithId[_<:Object]],
+    byName: Map[String,ProtoAdapter[_]],
+    byId: Map[Long,ProtoAdapter[Object]],
     nameById: Map[Long,String],
-    keyAdapter: ProtoAdapterWithId[TopicKey],
+    keyAdapter: ProtoAdapter[TopicKey],
     receiveById: Map[Long,Object⇒Unit],
     forward: (Array[Byte], Array[Byte]) ⇒ Unit
 ) {
-  def byInstance[M](model: M): ProtoAdapterWithId[M] =
+  def byInstance[M](model: M): ProtoAdapter[M] =
     byClass(model.getClass.asInstanceOf[Class[M]])
-  def byClass[M](cl: Class[M]): ProtoAdapterWithId[M] =
-    byName(cl.getName).asInstanceOf[ProtoAdapterWithId[M]]
+  def byClass[M](cl: Class[M]): ProtoAdapter[M] with HasId =
+    byName(cl.getName).asInstanceOf[ProtoAdapter[M] with HasId]
 
   def toTree(records: Iterable[QRecord]): World = records.map {
     rec ⇒ (keyAdapter.decode(rec.key), rec)
@@ -60,7 +60,7 @@ class QRecords(
     case (topicKey, _) ⇒ topicKey.valueTypeId
   }.map {
     case (valueTypeId, keysEvents) ⇒
-      val worldKey = BySrcId.It(nameById(valueTypeId))
+      val worldKey = BySrcId.It[Object](nameById(valueTypeId))
       val valueAdapter = byId(valueTypeId)
       worldKey → keysEvents.groupBy {
         case (topicKey, _) ⇒ topicKey.srcId
