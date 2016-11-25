@@ -1,7 +1,7 @@
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.1.4",
+  version := "0.2.0",
   fork := true //looks like sbt hangs for a minute on System.exit
 )
 

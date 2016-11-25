@@ -19,6 +19,7 @@ class ChildNodeByParentJoin extends Join2(
   def sort(nodes: Iterable[RawChildNode]): List[RawChildNode] =
     nodes.toList.sortBy(_.srcId)
 }
+
 class ParentNodeWithChildrenJoin extends Join2(
   ChildNodeByParent, BySrcId(classOf[RawParentNode]), BySrcId(classOf[ParentNodeWithChildren])
 ) {
@@ -33,12 +34,6 @@ class ParentNodeWithChildrenJoin extends Join2(
   def sort(nodes: Iterable[ParentNodeWithChildren]): List[ParentNodeWithChildren] =
     if(nodes.size <= 1) nodes.toList else throw new Exception("PK")
 }
-
-
-
-
-  //lazy val qRecords = new QRecords(findAdapter)
-
 
 object AssemblerTestApp extends App {
   val indexFactory = new IndexFactoryImpl
