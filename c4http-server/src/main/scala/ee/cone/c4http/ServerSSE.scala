@@ -96,12 +96,13 @@ class SSE {
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
   }
-  def sendToAgent(connectionKey: String, data: Array[Byte]): Unit = synchronized {
-    ???
+  def sendToAgent(connectionKey: String, data: Array[Byte]): Boolean = {
+    val handler = synchronized { channels.get(connectionKey) }
+
   }
 }
 
-import java.nio.channels.AsynchronousSocketChannel
+
 
 
 
