@@ -36,31 +36,30 @@ class IndexFactoryImpl extends IndexFactory {
     val subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
       new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
     CoHandler(WorldPartExpressionKey)(new JoinMapIndex[TK,MapKey,Value](
-      Seq(join.t1, join.t2), join.r, recalculate,
+      Seq(join.t1, join.t2).asInstanceOf[Seq[WorldKey[Index[TK,Object]]]],
+      join.r, recalculate,
       addNestedPatch, addNestedDiff, subNestedDiff
     ))
   }
 }
 
 class JoinMapIndex[JoinKey,MapKey,Value<:Object](
-  val inputWorldKeys: Seq[WorldKey[_]],
-  val outputWorldKey: IndexWorldKey[MapKey,Value],
+  val inputWorldKeys: Seq[WorldKey[Index[JoinKey,Object]]],
+  val outputWorldKey: WorldKey[Index[MapKey,Value]],
   recalculate: Seq[Values[Object]]⇒Iterable[(MapKey,Value)],
   addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value]
 ) extends WorldPartExpression {
-  private def getPart[K,V](world: Map[WorldKey[_],Map[_,_]], key: WorldKey[_]) =
-    world.getOrElse(key, Map.empty).asInstanceOf[Map[K,V]]
   private def setPart[V](res: Map[WorldKey[_],Map[Object,V]], part: Map[MapKey,V]) =
     res + (outputWorldKey → part.asInstanceOf[Map[Object,V]])
 
   def recalculateSome(
-    getIndex: WorldKey[_]⇒Map[JoinKey,Values[Object]],
+    getIndex: WorldKey[Index[JoinKey,Object]]⇒Index[JoinKey,Object],
     add: PatchMap[MapKey,MultiSet[Value],Value],
     ids: Set[JoinKey], res: Map[MapKey,MultiSet[Value]]
   ): Map[MapKey,MultiSet[Value]] = {
-    val worldParts: Seq[Map[JoinKey,Values[Object]]] =
+    val worldParts: Seq[Index[JoinKey,Object]] =
       inputWorldKeys.map(getIndex)
     (res /: ids){(res: Map[MapKey,MultiSet[Value]], id: JoinKey)⇒
       val args = worldParts.map(_.getOrElse(id, Nil))
@@ -68,15 +67,15 @@ class JoinMapIndex[JoinKey,MapKey,Value<:Object](
     }
   }
   def transform(transition: WorldTransition): WorldTransition = {
-    val ids = (Set.empty[JoinKey] /: inputWorldKeys)((res,id) ⇒
-      res ++ getPart[JoinKey,Boolean](transition.diff, id).keys
+    val ids = (Set.empty[JoinKey] /: inputWorldKeys)((res,key) ⇒
+      res ++ transition.diff.getOrElse(key, Map.empty).keys.asInstanceOf[Set[JoinKey]]
     )
     if (ids.isEmpty){ return transition }
-    val prevOutput = recalculateSome(getPart(transition.prev,_), subNestedDiff, ids, Map.empty)
-    val indexDiff = recalculateSome(getPart(transition.current,_), addNestedDiff, ids, prevOutput)
+    val prevOutput = recalculateSome(_.of(transition.prev), subNestedDiff, ids, Map.empty)
+    val indexDiff = recalculateSome(_.of(transition.current), addNestedDiff, ids, prevOutput)
     if (indexDiff.isEmpty){ return transition }
-    val currentIndex: Map[MapKey,Values[Value]] = getPart(transition.current, outputWorldKey)
-    val nextIndex: Map[MapKey,Values[Value]] = addNestedPatch.many(currentIndex, indexDiff)
+    val currentIndex: Index[MapKey,Value] = outputWorldKey.of(transition.current)
+    val nextIndex: Index[MapKey,Value] = addNestedPatch.many(currentIndex, indexDiff)
     val next: World = setPart(transition.current, nextIndex)
     val diff = setPart(transition.diff, indexDiff.mapValues(_⇒true))
     WorldTransition(transition.prev, diff, next)
@@ -94,8 +93,8 @@ object Reducer {
   def apply(handlerLists: CoHandlerLists): Reducer = {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
-    val add: PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]] =
-      new PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]](Map.empty,_.isEmpty,replace.many)
+    val add: PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]] =
+      new PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,replace.many)
     val expressions: Seq[WorldPartExpression] =
       handlerLists.list(WorldPartExpressionKey)
     val adapters = handlerLists.list(ProtocolKey).flatMap(_.adapters)
@@ -126,7 +125,7 @@ object Reducer {
 }
 
 class Reducer(
-    add: PatchMap[WorldKey[_],Map[Object,Values[Object]],Map[Object,Values[Object]]],
+    add: PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]],
     expressionsByPriority: List[WorldPartExpression]
 ) {
   def reduce(prev: World, replaced: World): World = {

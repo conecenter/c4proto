@@ -8,7 +8,7 @@ import PCProtocol._
   @Id(0x0001) case class RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }
 
-case object ChildNodeByParent extends IndexWorldKey[SrcId,RawChildNode]
+case object ChildNodeByParent extends WorldKey[Index[SrcId,RawChildNode]](Map.empty)
 case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
 
 class ChildNodeByParentJoin extends Join2(

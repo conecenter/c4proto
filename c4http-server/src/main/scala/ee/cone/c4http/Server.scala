@@ -5,6 +5,7 @@ import java.net.InetSocketAddress
 import java.util.concurrent.ExecutorService
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
+import ee.cone.c4proto.Types.{Index, World}
 import ee.cone.c4proto._
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.internals.Sender
@@ -49,37 +50,47 @@ class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
   }
 }
 
+case object StaticRootKey extends WorldKey[Index[String,okio.ByteString]](Map.empty)
+
 object HttpGateway {
   def main(args: Array[String]): Unit = try {
     val bootstrapServers = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
     val httpPort = Option(System.getenv("C4HTTP_PORT")).get.toInt
     val postTopic = Option(System.getenv("C4HTTP_POST_TOPIC")).getOrElse("http-posts")
     val getTopic = Option(System.getenv("C4HTTP_GET_TOPIC")).getOrElse("http-gets")
+    val ssePort = Option(System.getenv("C4SSE_PORT")).get.toInt
     ////
-    val producer = Producer(bootstrapServers)
-    val staticRoot = TrieMap[String,Array[Byte]]()
+    val sseService = new TcpService(ssePort)
+    //val staticRoot = TrieMap[String,Array[Byte]]()
     val handlerLists = CoHandlerLists(
       CoHandler(ProtocolKey)(QProtocol) ::
       CoHandler(ProtocolKey)(HttpProtocol) ::
       CoHandler(ReceiverKey)(new Receiver(classOf[HttpProtocol.RequestValue],
-        (resp:HttpProtocol.RequestValue) ⇒
-          staticRoot(resp.path) = resp.body.toByteArray
+        (world: World, resp: HttpProtocol.RequestValue) ⇒
+          Map(StaticRootKey → Map(resp.path → resp.body :: Nil)) //.toByteArray
       )) ::
       Nil
     )
+    val producer = Producer(bootstrapServers)
     val qRecords = QRecords(handlerLists)(
       (k:Array[Byte],v:Array[Byte]) ⇒ producer.send(new ProducerRecord(postTopic, k, v)).get()
     )
     val pool = Pool()
+    var world: World = Map.empty
+    val reducer = Reducer(handlerLists)
     val consumer =
-      new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, { messages ⇒
-        messages.foreach(qRecords.receive(_))
+      new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, { (messages: Iterable[QRecord]) ⇒
+        messages.foreach{ message ⇒
+          val diff = qRecords.receive(world, message)
+          world = reducer.reduce(world, diff)
+        }
       })
-    val handler = new Handler(qRecords, staticRoot)
+    val handler = new Handler(qRecords, path ⇒ world(StaticRootKey)(path).head.toByteArray)
     val server = new Server(pool, httpPort, handler)
     ////
     consumer.start()
     server.start()
+
     while(consumer.state != Finished) {
       //println(consumer.state)
       Thread.sleep(1000)

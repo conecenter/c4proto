@@ -21,7 +21,7 @@ trait QRecord {
 //
 
 case object ReceiverKey extends EventKey[Receiver[_]]
-class Receiver[M](val cl: Class[M], val handler: M⇒Unit)
+class Receiver[M](val cl: Class[M], val handler: (World,M)⇒World)
 
 object QRecords {
   //CoHandler(ReceiverKey)(new Receiver(classOf[String])((s:String)⇒()))
@@ -36,7 +36,7 @@ object QRecords {
       .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
     val receiveById = handlerLists.list(ReceiverKey)
       .map{ receiver ⇒ byName(receiver.cl.getName).id → receiver.handler }
-      .asInstanceOf[List[(Long,Object⇒Unit)]].toMap
+      .asInstanceOf[List[(Long,(World,Object)⇒World)]].toMap
     new QRecords(byName,byId,nameById,keyAdapter,receiveById,forward)
   }
 }
@@ -46,7 +46,7 @@ class QRecords(
     byId: Map[Long,ProtoAdapter[Object]],
     nameById: Map[Long,String],
     keyAdapter: ProtoAdapter[TopicKey],
-    receiveById: Map[Long,Object⇒Unit],
+    receiveById: Map[Long,(World,Object)⇒World],
     forward: (Array[Byte], Array[Byte]) ⇒ Unit
 ) {
   def byInstance[M](model: M): ProtoAdapter[M] =
@@ -70,11 +70,11 @@ class QRecords(
         (srcId:Object) → (if (rawValue.length > 0) valueAdapter.decode(rawValue) :: Nil else Nil)
       }
   }
-  def receive(rec: QRecord): Unit = {
+  def receive(world: World, rec: QRecord): World = {
     val key = keyAdapter.decode(rec.key)
     val valueAdapter = byId(key.valueTypeId)
     val value = valueAdapter.decode(rec.value)
-    receiveById(key.valueTypeId)(value)
+    receiveById(key.valueTypeId)(world, value)
   }
   def sendUpdate[M](srcId: SrcId, value: M): Unit =
     send(srcId, value.getClass.asInstanceOf[Class[M]], Option(value))
