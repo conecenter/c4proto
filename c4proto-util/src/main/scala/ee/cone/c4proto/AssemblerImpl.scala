@@ -118,14 +118,14 @@ object Reducer {
     }
     val expressionsByPriority: List[WorldPartExpression] =
       (ReverseInsertionOrderSet[WorldPartExpression]() /: expressions)(regOne).items.reverse
-    new Reducer(add, expressionsByPriority)
+    new ReducerImpl(add, expressionsByPriority)
   }
 }
 
-class Reducer(
+class ReducerImpl(
     add: PatchMap[WorldKey[_],Object,Index[Object,Object]],
     expressionsByPriority: List[WorldPartExpression]
-) {
+) extends Reducer {
   def reduce(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World = {
     val diff = replaced.mapValues(_.mapValues(_⇒true))
     val current = add.many(prev, replaced)

@@ -4,15 +4,6 @@ import ee.cone.c4proto.Types.{SrcId, Values, World}
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4proto.QProtocol.TopicKey
 
-@protocol object QProtocol extends Protocol {
-  @Id(0x0010) case class TopicKey(@Id(0x0011) srcId: String, @Id(0x0012) valueTypeId: Long)
-}
-
-trait QRecord {
-  def key: Array[Byte]
-  def value: Array[Byte]
-  def offset: Long
-}
 
 ////////////////////
 /*Future[RecordMetadata]*/
@@ -20,63 +11,38 @@ trait QRecord {
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-case object ReceiverKey extends EventKey[Receiver[_]]
-class Receiver[M](val cl: Class[M], val handler: (CoHandlerLists,World,M)⇒World)
-
-object QRecords {
-  //CoHandler(ReceiverKey)(new Receiver(classOf[String])((s:String)⇒()))
-  def apply(handlerLists: CoHandlerLists)(forward: (Array[Byte], Array[Byte]) ⇒ Unit): QRecords = {
-    val adapters = handlerLists.list(ProtocolKey).flatMap(_.adapters)
-    val byName: Map[String,ProtoAdapter[_] with HasId] =
-      adapters.map(a ⇒ a.className → a).toMap
-    val byId: Map[Long,ProtoAdapter[Object]] =
-      adapters.map(a ⇒ a.id → a.asInstanceOf[ProtoAdapter[Object]]).toMap
-    val nameById = adapters.map(a ⇒ a.id → a.className).toMap
-    val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
-      .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
-    val receiveById = handlerLists.list(ReceiverKey)
-      .map{ receiver ⇒ byName(receiver.cl.getName).id → receiver.handler }
-      .asInstanceOf[List[(Long,(CoHandlerLists,World,Object)⇒World)]].toMap
-    new QRecords(byName,byId,nameById,keyAdapter,receiveById,forward)
-  }
-}
-
 class QReceiverJoin extends Join3(
-  By.unit(classOf[Protocol]),
+  By.unit(classOf[QAdapterRegistry]),
   By.unit(classOf[Reducer]),
   By.unit(classOf[Receiver[_]]),
   By.unit(classOf[QReceiver])
 ) {
   def join(
-    protocols: Values[Protocol],
+    qAdapterRegistries: Values[QAdapterRegistry],
     reducers: Values[Reducer],
     receivers: Values[Receiver[_]]
   ): Values[(Unit, QReceiver)] = {
-    val adapters = protocols.flatMap(_.adapters)
-    val byName: Map[String,ProtoAdapter[_] with HasId] =
-      adapters.map(a ⇒ a.className → a).toMap
+    val qAdapterRegistry = Single(qAdapterRegistries)
     val byId: Map[Long,ProtoAdapter[Object]] =
-      adapters.map(a ⇒ a.id → a.asInstanceOf[ProtoAdapter[Object]]).toMap
-    val nameById = adapters.map(a ⇒ a.id → a.className).toMap
-    val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
-      .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
+      qAdapterRegistry.adapters.map(a ⇒ a.id → a.asInstanceOf[ProtoAdapter[Object]]).toMap
+    val nameById = qAdapterRegistry.adapters.map(a ⇒ a.id → a.className).toMap
     val receiveById = receivers
-      .map{ receiver ⇒ byName(receiver.cl.getName).id → receiver.handler }
+      .map{ receiver ⇒ qAdapterRegistry.byName(receiver.cl.getName).id → receiver.handler }
       .asInstanceOf[List[(Long,(World,Object)⇒World)]].toMap
     val reducer = Single(reducers)
-    val receiver = new QReceiver(byId,nameById,keyAdapter,receiveById,reducer)
+    val receiver = new QReceiverImpl(byId,nameById,qAdapterRegistry.keyAdapter,receiveById,reducer)
     List(()→receiver)
   }
   def sort(values: Iterable[QReceiver]): List[QReceiver] = List(Single(values.toList))
 }
 
-class QReceiver(
+class QReceiverImpl(
     byId: Map[Long,ProtoAdapter[Object]],
     nameById: Map[Long,String],
     keyAdapter: ProtoAdapter[TopicKey],
     receiveById: Map[Long,(World,Object)⇒World],
     reducer: Reducer
-) {
+) extends QReceiver {
   private def toTree(records: Iterable[QRecord]) = records.map {
     rec ⇒ (keyAdapter.decode(rec.key), rec)
   }.groupBy {
@@ -109,11 +75,44 @@ class QReceiver(
   }
 }
 
-class QSender(
-  keyAdapter: ProtoAdapter[TopicKey],
-  byName: Map[String,ProtoAdapter[_]],
-  forward: (Array[Byte], Array[Byte]) ⇒ Unit
-){
+class QAdapterRegistry(
+    val adapters: List[ProtoAdapter[_] with HasId],
+    val byName: Map[String,ProtoAdapter[_] with HasId],
+    val keyAdapter: ProtoAdapter[QProtocol.TopicKey]
+)
+
+class QAdapterRegistryJoin extends Join1(
+  By.unit(classOf[Protocol]),
+  By.unit(classOf[QAdapterRegistry])
+) {
+  def join(protocols: Values[Protocol]): Values[(Unit, QAdapterRegistry)] = {
+    val adapters = protocols.flatMap(_.adapters)
+    val byName: Map[String,ProtoAdapter[_] with HasId] =
+      adapters.map(a ⇒ a.className → a).toMap
+    val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
+      .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
+    val qAdapterRegistry = new QAdapterRegistry(adapters, byName, keyAdapter)
+    List(()→qAdapterRegistry)
+  }
+  def sort(values: Iterable[QAdapterRegistry]): List[QAdapterRegistry] = List(Single(values.toList))
+}
+
+class QSenderJoin extends Join2(
+  By.unit(classOf[QAdapterRegistry]),
+  By.unit(classOf[RawQSender]),
+  By.unit(classOf[QSender])
+) {
+  def join(
+    qAdapterRegistries: Values[QAdapterRegistry],
+    rawQSenders: Values[RawQSender]
+  ): Values[(Unit, QSender)] = {
+    List(()→new QSenderImpl(Single(qAdapterRegistries),Single(rawQSenders)))
+  }
+  def sort(values: Iterable[QSender]): List[QSender] = List(Single(values.toList))
+}
+
+class QSenderImpl(qAdapterRegistry: QAdapterRegistry, forward: RawQSender) extends QSender {
+  import qAdapterRegistry._
   def sendUpdate[M](srcId: SrcId, value: M): Unit =
     send(srcId, value.getClass.asInstanceOf[Class[M]], Option(value))
   def sendDelete[M](srcId: SrcId, cl: Class[M]): Unit = send(srcId, cl, None)
@@ -123,6 +122,6 @@ class QSender(
     val valueAdapter = byClass(cl)
     val rawKey = keyAdapter.encode(QProtocol.TopicKey(srcId, valueAdapter.id))
     val rawValue = value.map(valueAdapter.encode).getOrElse(Array.empty)
-    forward(rawKey, rawValue)
+    forward.send(rawKey, rawValue)
   }
 }

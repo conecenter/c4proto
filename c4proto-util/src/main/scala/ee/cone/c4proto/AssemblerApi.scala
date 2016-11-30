@@ -75,3 +75,6 @@ case class WorldTransition(
   current: World
 )
 
+trait Reducer {
+  def reduce(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World
+}
