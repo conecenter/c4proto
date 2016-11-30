@@ -1,6 +1,6 @@
 package ee.cone.c4proto
 
-import ee.cone.c4proto.Types.{SrcId, World}
+import ee.cone.c4proto.Types.{SrcId, Values, World}
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4proto.QProtocol.TopicKey
 
@@ -21,7 +21,7 @@ trait QRecord {
 //
 
 case object ReceiverKey extends EventKey[Receiver[_]]
-class Receiver[M](val cl: Class[M], val handler: (World,M)⇒World)
+class Receiver[M](val cl: Class[M], val handler: (CoHandlerLists,World,M)⇒World)
 
 object QRecords {
   //CoHandler(ReceiverKey)(new Receiver(classOf[String])((s:String)⇒()))
@@ -36,49 +36,89 @@ object QRecords {
       .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
     val receiveById = handlerLists.list(ReceiverKey)
       .map{ receiver ⇒ byName(receiver.cl.getName).id → receiver.handler }
-      .asInstanceOf[List[(Long,(World,Object)⇒World)]].toMap
+      .asInstanceOf[List[(Long,(CoHandlerLists,World,Object)⇒World)]].toMap
     new QRecords(byName,byId,nameById,keyAdapter,receiveById,forward)
   }
 }
 
-class QRecords(
-    byName: Map[String,ProtoAdapter[_]],
+class QReceiverJoin extends Join3(
+  By.unit(classOf[Protocol]),
+  By.unit(classOf[Reducer]),
+  By.unit(classOf[Receiver[_]]),
+  By.unit(classOf[QReceiver])
+) {
+  def join(
+    protocols: Values[Protocol],
+    reducers: Values[Reducer],
+    receivers: Values[Receiver[_]]
+  ): Values[(Unit, QReceiver)] = {
+    val adapters = protocols.flatMap(_.adapters)
+    val byName: Map[String,ProtoAdapter[_] with HasId] =
+      adapters.map(a ⇒ a.className → a).toMap
+    val byId: Map[Long,ProtoAdapter[Object]] =
+      adapters.map(a ⇒ a.id → a.asInstanceOf[ProtoAdapter[Object]]).toMap
+    val nameById = adapters.map(a ⇒ a.id → a.className).toMap
+    val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
+      .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
+    val receiveById = receivers
+      .map{ receiver ⇒ byName(receiver.cl.getName).id → receiver.handler }
+      .asInstanceOf[List[(Long,(World,Object)⇒World)]].toMap
+    val reducer = Single(reducers)
+    val receiver = new QReceiver(byId,nameById,keyAdapter,receiveById,reducer)
+    List(()→receiver)
+  }
+  def sort(values: Iterable[QReceiver]): List[QReceiver] = List(Single(values.toList))
+}
+
+class QReceiver(
     byId: Map[Long,ProtoAdapter[Object]],
     nameById: Map[Long,String],
     keyAdapter: ProtoAdapter[TopicKey],
     receiveById: Map[Long,(World,Object)⇒World],
-    forward: (Array[Byte], Array[Byte]) ⇒ Unit
+    reducer: Reducer
 ) {
-  def byInstance[M](model: M): ProtoAdapter[M] =
-    byClass(model.getClass.asInstanceOf[Class[M]])
-  def byClass[M](cl: Class[M]): ProtoAdapter[M] with HasId =
-    byName(cl.getName).asInstanceOf[ProtoAdapter[M] with HasId]
-
-  def toTree(records: Iterable[QRecord]): World = records.map {
+  private def toTree(records: Iterable[QRecord]) = records.map {
     rec ⇒ (keyAdapter.decode(rec.key), rec)
   }.groupBy {
     case (topicKey, _) ⇒ topicKey.valueTypeId
   }.map {
     case (valueTypeId, keysEvents) ⇒
-      val worldKey = BySrcId.It[Object](nameById(valueTypeId))
+      val worldKey = By.It[SrcId,Object]('S',nameById(valueTypeId))
       val valueAdapter = byId(valueTypeId)
       worldKey → keysEvents.groupBy {
         case (topicKey, _) ⇒ topicKey.srcId
-      }.map { case(srcId,keysEventsI) ⇒
+      }.map { case (srcId, keysEventsI) ⇒
         val (topicKey, rec) = keysEventsI.last
         val rawValue = rec.value
-        (srcId:Object) → (if (rawValue.length > 0) valueAdapter.decode(rawValue) :: Nil else Nil)
+        (srcId: Object) →
+          (if(rawValue.length > 0) valueAdapter.decode(rawValue) ::
+            Nil else Nil)
       }
   }
-  def receive(world: World, rec: QRecord): World = {
+  def receiveEvents(world: World, records: Iterable[QRecord]): World = {
+    val diff = toTree(records)
+    //debug here
+    reducer.reduce(world, diff)
+  }
+
+  def receiveCommand(world: World, rec: QRecord): World = {
     val key = keyAdapter.decode(rec.key)
     val valueAdapter = byId(key.valueTypeId)
     val value = valueAdapter.decode(rec.value)
     receiveById(key.valueTypeId)(world, value)
   }
+}
+
+class QSender(
+  keyAdapter: ProtoAdapter[TopicKey],
+  byName: Map[String,ProtoAdapter[_]],
+  forward: (Array[Byte], Array[Byte]) ⇒ Unit
+){
   def sendUpdate[M](srcId: SrcId, value: M): Unit =
     send(srcId, value.getClass.asInstanceOf[Class[M]], Option(value))
   def sendDelete[M](srcId: SrcId, cl: Class[M]): Unit = send(srcId, cl, None)
+  private def byClass[M](cl: Class[M]): ProtoAdapter[M] with HasId =
+    byName(cl.getName).asInstanceOf[ProtoAdapter[M] with HasId]
   private def send[M](srcId: SrcId, cl: Class[M], value: Option[M]): Unit = {
     val valueAdapter = byClass(cl)
     val rawKey = keyAdapter.encode(QProtocol.TopicKey(srcId, valueAdapter.id))

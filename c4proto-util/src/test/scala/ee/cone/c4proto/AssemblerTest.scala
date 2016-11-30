@@ -11,17 +11,17 @@ import PCProtocol._
 case object ChildNodeByParent extends WorldKey[Index[SrcId,RawChildNode]](Map.empty)
 case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
 
-class ChildNodeByParentJoin extends Join2(
-  BySrcId(classOf[RawChildNode]), VoidBy[SrcId](), ChildNodeByParent
+class ChildNodeByParentJoin extends Join1(
+  By.srcId(classOf[RawChildNode]), ChildNodeByParent
 ) {
-  def join(rawChildNode: Values[RawChildNode], void: Values[Unit]): Values[(SrcId,RawChildNode)] =
+  def join(rawChildNode: Values[RawChildNode]): Values[(SrcId,RawChildNode)] =
     rawChildNode.map(child ⇒ child.parentSrcId → child)
   def sort(nodes: Iterable[RawChildNode]): List[RawChildNode] =
     nodes.toList.sortBy(_.srcId)
 }
 
 class ParentNodeWithChildrenJoin extends Join2(
-  ChildNodeByParent, BySrcId(classOf[RawParentNode]), BySrcId(classOf[ParentNodeWithChildren])
+  ChildNodeByParent, By.srcId(classOf[RawParentNode]), By.srcId(classOf[ParentNodeWithChildren])
 ) {
   def join(
     childNodeByParent: Values[RawChildNode],

@@ -52,6 +52,8 @@ class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
 
 case object StaticRootKey extends WorldKey[Index[String,okio.ByteString]](Map.empty)
 
+
+
 object HttpGateway {
   def main(args: Array[String]): Unit = try {
     val bootstrapServers = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
@@ -60,16 +62,32 @@ object HttpGateway {
     val getTopic = Option(System.getenv("C4HTTP_GET_TOPIC")).getOrElse("http-gets")
     val ssePort = Option(System.getenv("C4SSE_PORT")).get.toInt
     ////
-    val sseService = new TcpService(ssePort)
+    val sseService = new TcpService
     //val staticRoot = TrieMap[String,Array[Byte]]()
     val handlerLists = CoHandlerLists(
       CoHandler(ProtocolKey)(QProtocol) ::
       CoHandler(ProtocolKey)(HttpProtocol) ::
       CoHandler(ReceiverKey)(new Receiver(classOf[HttpProtocol.RequestValue],
-        (world: World, resp: HttpProtocol.RequestValue) ⇒
+        (handlerLists: CoHandlerLists, world: World, resp: HttpProtocol.RequestValue) ⇒
           Map(StaticRootKey → Map(resp.path → resp.body :: Nil)) //.toByteArray
       )) ::
-      Nil
+      CoHandler(ReceiverKey)(new Receiver(classOf[HttpProtocol.SSEvent], {
+        (
+          handlerLists: CoHandlerLists,
+          world: World,
+          ssEvent: HttpProtocol.SSEvent
+        ) ⇒
+          val senderRegistry = Single(handlerLists.list(SenderToAgentKey))
+          senderRegistry(ssEvent.connectionKey) match {
+            case Some(send) ⇒ send(ssEvent.body.toByteArray)
+            case None ⇒ ??? // not found to kafka
+          }
+          Map()
+      })) ::
+      CoHandler(ChannelStatusKey){ status ⇒
+        ??? // to kafka
+      } ::
+      sseService.handlers
     )
     val producer = Producer(bootstrapServers)
     val qRecords = QRecords(handlerLists)(
@@ -81,7 +99,7 @@ object HttpGateway {
     val consumer =
       new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, { (messages: Iterable[QRecord]) ⇒
         messages.foreach{ message ⇒
-          val diff = qRecords.receive(world, message)
+          val diff = qRecords.receive(handlerLists, world, message)
           world = reducer.reduce(world, diff)
         }
       })
@@ -90,6 +108,7 @@ object HttpGateway {
     ////
     consumer.start()
     server.start()
+    sseService.start(handlerLists, ssePort)
 
     while(consumer.state != Finished) {
       //println(consumer.state)

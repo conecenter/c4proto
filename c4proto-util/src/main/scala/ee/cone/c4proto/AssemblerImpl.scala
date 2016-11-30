@@ -16,11 +16,7 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
 }
 
 class IndexFactoryImpl extends IndexFactory {
-  def createJoinMapIndex[T1,T2,Value<:Object,TK,MapKey](join: Join2[T1,T2,Value,TK,MapKey]): BaseCoHandler = {
-    val recalculate: Seq[Values[Object]]⇒Iterable[(MapKey,Value)] = {
-      case Seq(a1, a2) ⇒
-        join.join(a1.asInstanceOf[Values[T1]], a2.asInstanceOf[Values[T2]])
-    }
+  def createJoinMapIndex[Value<:Object,TK,MapKey](join: Join[Value,TK,MapKey]): WorldPartExpression = {
     val add: PatchMap[Value,Int,Int] =
       new PatchMap[Value,Int,Int](0,_==0,(v,d)⇒v+d)
     val addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]] =
@@ -35,24 +31,23 @@ class IndexFactoryImpl extends IndexFactory {
       new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))
     val subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
       new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
-    CoHandler(WorldPartExpressionKey)(new JoinMapIndex[TK,MapKey,Value](
-      Seq(join.t1, join.t2).asInstanceOf[Seq[WorldKey[Index[TK,Object]]]],
-      join.r, recalculate,
-      addNestedPatch, addNestedDiff, subNestedDiff
-    ))
+    new JoinMapIndex[TK,MapKey,Value](
+      join, addNestedPatch, addNestedDiff, subNestedDiff
+    )
   }
 }
 
 class JoinMapIndex[JoinKey,MapKey,Value<:Object](
-  val inputWorldKeys: Seq[WorldKey[Index[JoinKey,Object]]],
-  val outputWorldKey: WorldKey[Index[MapKey,Value]],
-  recalculate: Seq[Values[Object]]⇒Iterable[(MapKey,Value)],
+  join: Join[Value,JoinKey,MapKey],
   addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value]
 ) extends WorldPartExpression {
-  private def setPart[V](res: Map[WorldKey[_],Map[Object,V]], part: Map[MapKey,V]) =
-    res + (outputWorldKey → part.asInstanceOf[Map[Object,V]])
+  def inputWorldKeys: Seq[WorldKey[Index[JoinKey, Object]]] = join.inputWorldKeys
+  def outputWorldKey: WorldKey[Index[MapKey, Value]] = join.outputWorldKey
+
+  private def setPart[V](res: World, part: Map[MapKey,V]) =
+    (res + (outputWorldKey → part)).asInstanceOf[Map[WorldKey[_],Map[Object,V]]]
 
   def recalculateSome(
     getIndex: WorldKey[Index[JoinKey,Object]]⇒Index[JoinKey,Object],
@@ -63,7 +58,7 @@ class JoinMapIndex[JoinKey,MapKey,Value<:Object](
       inputWorldKeys.map(getIndex)
     (res /: ids){(res: Map[MapKey,MultiSet[Value]], id: JoinKey)⇒
       val args = worldParts.map(_.getOrElse(id, Nil))
-      add.many(res, recalculate(args))
+      add.many(res, join.joins(args))
     }
   }
   def transform(transition: WorldTransition): WorldTransition = {
@@ -89,50 +84,53 @@ case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: Lis
   }
 }
 
+trait OriginalWorldPart[A] extends DataDependencyTo[A]
+
 object Reducer {
-  def apply(handlerLists: CoHandlerLists): Reducer = {
+  def apply(rules: List[DataDependencyTo[_]]): Reducer = {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
-    val add: PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]] =
+    val add =
       new PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,replace.many)
+          .asInstanceOf[PatchMap[WorldKey[_],Object,Index[Object,Object]]]
     val expressions: Seq[WorldPartExpression] =
-      handlerLists.list(WorldPartExpressionKey)
+      rules.collect{ case e: WorldPartExpression ⇒ e }
+      //handlerLists.list(WorldPartExpressionKey)
+    val originals: Set[WorldKey[_]] =
+      rules.collect{ case e: OriginalWorldPart[_] ⇒ e.outputWorldKey }.toSet
+    /*
     val adapters = handlerLists.list(ProtocolKey).flatMap(_.adapters)
     val originals: Set[WorldKey[_]] =
-      adapters.map(_.className).map(BySrcId.It(_)).toSet + VoidBy()
-
-
-    val byOutput: Map[WorldKey[_], WorldPartExpression] =
-      expressions.groupBy(_.outputWorldKey).mapValues{ case i :: Nil ⇒ i }
+      adapters.map(_.className).map(BySrcId.It(_)).toSet
+*/
+    val byOutput: Map[WorldKey[_], Seq[WorldPartExpression]] =
+      expressions.groupBy(_.outputWorldKey)
     def regOne(
-        priorities: ReverseInsertionOrderSet[WorldKey[_]],
+        priorities: ReverseInsertionOrderSet[WorldPartExpression],
         handler: WorldPartExpression
-    ): ReverseInsertionOrderSet[WorldKey[_]] = {
-      val key = handler.outputWorldKey
-      if(priorities.contains(key)) priorities
+    ): ReverseInsertionOrderSet[WorldPartExpression] = {
+      if(priorities.contains(handler)) priorities
       else (priorities /: handler.inputWorldKeys.flatMap{ k ⇒
-        val needHandler = byOutput.get(k)
-        if(needHandler.isEmpty && !originals(k))
-          throw new Exception(s"undefined $k")
-        needHandler
-      })(regOne).add(key)
+        byOutput.getOrElse(k,
+          if(originals(k)) Nil else throw new Exception(s"undefined $k")
+        )
+      })(regOne).add(handler)
     }
     val expressionsByPriority: List[WorldPartExpression] =
-      (ReverseInsertionOrderSet[WorldKey[_]]() /: expressions)(regOne).items.reverse
-        .map(byOutput)
+      (ReverseInsertionOrderSet[WorldPartExpression]() /: expressions)(regOne).items.reverse
     new Reducer(add, expressionsByPriority)
   }
 }
 
 class Reducer(
-    add: PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]],
+    add: PatchMap[WorldKey[_],Object,Index[Object,Object]],
     expressionsByPriority: List[WorldPartExpression]
 ) {
-  def reduce(prev: World, replaced: World): World = {
+  def reduce(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World = {
     val diff = replaced.mapValues(_.mapValues(_⇒true))
     val current = add.many(prev, replaced)
     val transition = WorldTransition(prev,diff,current)
-    expressionsByPriority.foldLeft(transition)((transition,handler) ⇒
+    (transition /: expressionsByPriority)((transition,handler) ⇒
       handler.transform(transition)
     ).current
   }

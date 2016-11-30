@@ -1,22 +1,79 @@
 package ee.cone.c4http
 
-import java.io.OutputStream
-import java.net.{InetSocketAddress, ServerSocket}
+import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
-import java.util
 import java.util.UUID
-import java.util.concurrent.{Executor, ExecutorService, Future}
 
-import ee.cone.base.connection_api._
-import ee.cone.base.util.Bytes
-import ee.cone.c4proto.{CoHandlerLists, EventKey, OnShutdown}
+import ee.cone.c4proto.Types.{Index, World}
+import ee.cone.c4proto._
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.Queue
 
+class ChannelHandler(
+  channel: AsynchronousSocketChannel, fail: Throwable⇒Unit
+) extends CompletionHandler[Integer,Unit]{
+  private var queue: Queue[Array[Byte]] = Queue.empty
+  private var activeElement: Option[Array[Byte]] = None
+  private def startWrite(): Unit =
+    queue.dequeueOption.foreach{ case (element,nextQueue) ⇒
+      queue = nextQueue
+      activeElement = Option(element)
+      channel.write[Unit](ByteBuffer.wrap(element), null, this)
+    }
+  def add(data: Array[Byte]): Unit = synchronized {
+    queue.enqueue(data)
+    if(activeElement.isEmpty) startWrite()
+  }
+  def completed(result: Integer, att: Unit): Unit = synchronized {
+    activeElement = None
+    startWrite()
+  }
+  def failed(exc: Throwable, att: Unit): Unit = fail(exc)
+}
+
+class TcpService {
+  private val channels = TrieMap[String,ChannelHandler]()
+  def start(handlerLists: CoHandlerLists, port: Int): Unit = {
+    val address = new InetSocketAddress(port)
+    val listener = AsynchronousServerSocketChannel.open().bind(address)
+    listener.accept[Unit](null, new CompletionHandler[AsynchronousSocketChannel,Unit] {
+      def completed(ch: AsynchronousSocketChannel, att: Unit): Unit = {
+        listener.accept[Unit](null, this)
+        val key = UUID.randomUUID.toString
+        channels += key → new ChannelHandler(ch, error ⇒ {
+          val message = error.getStackTrace.toString
+          handlerLists.list(ChannelStatusKey).foreach(_(ChannelFailed(key, message)))
+          channels -= key
+        })
+        handlerLists.list(ChannelStatusKey).foreach(_(ChannelCreated(key)))
+      }
+      def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
+    })
+  }
+  def handlers: List[BaseCoHandler] = List(
+    CoHandler(SenderToAgentKey)(key⇒channels.get(key).map(handler⇒handler.add))
+  )
+}
 
 
+case object SenderToAgentKey extends EventKey[String⇒Option[Array[Byte]⇒Unit]]
+
+trait ChannelStatus
+case class ChannelCreated(key: String) extends ChannelStatus
+case class ChannelFailed(key: String, message: String) extends ChannelStatus
+case object ChannelStatusKey extends EventKey[ChannelStatus⇒Unit]
+
+/*
+private def sendToAgent(handlerLists: CoHandlerLists, key: String, data: Array[Byte]): Unit =
+  channels.get(key) match {
+    case Some(handler) ⇒ handler.add(data)
+    case None ⇒
+      handlerLists.list(ChannelStatusKey).foreach(_(ChannelNotFound(key)))
+  }*/
+
+/*
 class SSESender(
   allowOriginOption: Option[String]
 ) extends SenderOfConnection with CoHandlerProvider {
@@ -58,7 +115,7 @@ class RSSEServer(
     }
   }
 }
-
+*/
 /*
 class SeverSSE(ssePort: Int) extends Runnable {
   def run(): Unit = {
@@ -74,65 +131,11 @@ class SeverSSE(ssePort: Int) extends Runnable {
 
 ////////////////////////
 
-class ChannelHandler(
-  channel: AsynchronousSocketChannel, fail: Throwable⇒Unit
-) extends CompletionHandler[Integer,Unit]{
-  private var queue: Queue[Array[Byte]] = Queue.empty
-  private var activeElement: Option[Array[Byte]] = None
-  private def startWrite(): Unit =
-    queue.dequeueOption.foreach{ case (element,nextQueue) ⇒
-      queue = nextQueue
-      activeElement = Option(element)
-      channel.write[Unit](ByteBuffer.wrap(element), null, this)
-    }
-  def add(data: Array[Byte]): Unit = synchronized {
-    queue.enqueue(data)
-    if(activeElement.isEmpty) startWrite()
-  }
-  def completed(result: Integer, att: Unit): Unit = synchronized {
-    activeElement = None
-    startWrite()
-  }
-  def failed(exc: Throwable, att: Unit): Unit = fail(exc)
-}
-
-class TcpService(port: Int) {
-  private val channels = TrieMap[String,ChannelHandler]()
-  def start(handlerLists: CoHandlerLists): Unit = {
-    val address = new InetSocketAddress(port)
-    val listener = AsynchronousServerSocketChannel.open().bind(address)
-    listener.accept[Unit](null, new CompletionHandler[AsynchronousSocketChannel,Unit] {
-      def completed(ch: AsynchronousSocketChannel, att: Unit): Unit = {
-        listener.accept[Unit](null, this)
-        val key = UUID.randomUUID.toString
-        channels += key → new ChannelHandler(ch, error ⇒ {
-          val message = error.getStackTrace.toString
-          handlerLists.list(ChannelStatusKey).foreach(_(ChannelFailed(key, message)))
-          channels -= key
-        })
-        handlerLists.list(ChannelStatusKey).foreach(_(ChannelCreated(key)))
-      }
-      def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
-    })
-  }
-  def sendToAgent(handlerLists: CoHandlerLists, key: String, data: Array[Byte]): Unit =
-    channels.get(key) match {
-      case Some(handler) ⇒ handler.add(data)
-      case None ⇒
-        handlerLists.list(ChannelStatusKey).foreach(_(ChannelNotFound(key)))
-    }
-}
-
-trait ChannelStatus
-case class ChannelNotFound(key: String) extends ChannelStatus
-case class ChannelCreated(key: String) extends ChannelStatus
-case class ChannelFailed(key: String, message: String) extends ChannelStatus
-case object ChannelStatusKey extends EventKey[ChannelStatus⇒Unit]
 
 
 
 ///////////////////////////
-
+/*
 class SerialExecutor(
   executor: ExecutorService, add: Runnable⇒Unit, poll: ()⇒Option[Runnable]
 ) {
@@ -157,3 +160,4 @@ class SerialExecutor(
     }
   }
 }
+*/
