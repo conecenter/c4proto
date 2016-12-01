@@ -12,11 +12,16 @@ trait QRecord {
   def offset: Long
 }
 
+case class TopicName(value: String)
+
 trait RawQSender {
-  def send(key: Array[Byte], value: Array[Byte]): Unit
+  def send(topic: TopicName, key: Array[Byte], value: Array[Byte]): Unit
 }
 
-class Receiver[M](val cl: Class[M], val handler: (World,M)⇒World)
+trait CommandReceiver[M] {
+  def className: String
+  def handle(world: World, command: M): World
+}
 
 trait QReceiver {
   def receiveEvents(world: World, records: Iterable[QRecord]): World
@@ -24,6 +29,6 @@ trait QReceiver {
 }
 
 trait QSender {
-  def sendUpdate[M](srcId: SrcId, value: M): Unit
-  def sendDelete[M](srcId: SrcId, cl: Class[M]): Unit
+  def sendUpdate[M](topic: TopicName, srcId: SrcId, value: M): Unit
+  def sendDelete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): Unit
 }

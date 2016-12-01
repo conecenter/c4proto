@@ -84,8 +84,6 @@ case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: Lis
   }
 }
 
-trait OriginalWorldPart[A] extends DataDependencyTo[A]
-
 object Reducer {
   def apply(rules: List[DataDependencyTo[_]]): Reducer = {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
@@ -98,11 +96,6 @@ object Reducer {
       //handlerLists.list(WorldPartExpressionKey)
     val originals: Set[WorldKey[_]] =
       rules.collect{ case e: OriginalWorldPart[_] ⇒ e.outputWorldKey }.toSet
-    /*
-    val adapters = handlerLists.list(ProtocolKey).flatMap(_.adapters)
-    val originals: Set[WorldKey[_]] =
-      adapters.map(_.className).map(BySrcId.It(_)).toSet
-*/
     val byOutput: Map[WorldKey[_], Seq[WorldPartExpression]] =
       expressions.groupBy(_.outputWorldKey)
     def regOne(
@@ -134,6 +127,26 @@ class ReducerImpl(
       handler.transform(transition)
     ).current
   }
+}
+
+trait IndexFactoryApp {
+  lazy val indexFactory: IndexFactory = new IndexFactoryImpl
+}
+
+trait ReducerApp {
+  def dataDependencies: List[DataDependencyTo[_]]
+  lazy val reducer: Reducer = Reducer(dataDependencies)
+}
+
+trait DataDependenciesApp {
+  def dataDependencies: List[DataDependencyTo[_]] = Nil
+}
+
+trait ProtocolDataDependenciesApp extends DataDependenciesApp {
+  def protocols: List[Protocol]
+  override def dataDependencies: List[DataDependencyTo[_]] =
+    protocols.flatMap(_.adapters).map(adapter⇒new OriginalWorldPart(By.It('S',adapter.className))) :::
+    super.dataDependencies
 }
 
 

@@ -5,13 +5,12 @@ import java.net.InetSocketAddress
 import java.util.concurrent.ExecutorService
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import ee.cone.c4proto.Types.{Index, World}
+import ee.cone.c4http.HttpProtocol.{RequestValue, SSEvent}
+import ee.cone.c4proto.Types.{Index, Values, World}
 import ee.cone.c4proto._
-import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.{Producer, ProducerRecord}
 import org.apache.kafka.clients.producer.internals.Sender
 
-import scala.collection.JavaConverters.mapAsScalaMapConverter
-import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.concurrent.TrieMap
 
 
@@ -21,90 +20,155 @@ object Trace { //m. b. to util
   }
 }
 
-class Handler(sender: QRecords, staticRoot: String⇒Array[Byte]) extends HttpHandler {
-  def handle(httpExchange: HttpExchange) = Trace{ try {
-    val path = httpExchange.getRequestURI.getPath
-    val bytes: Array[Byte] = httpExchange.getRequestMethod match {
-      case "GET" ⇒
-        staticRoot(path)
-      case "POST" ⇒
-        val headers = httpExchange.getRequestHeaders.asScala
-          .flatMap{ case(k,l)⇒l.asScala.map(v⇒HttpProtocol.Header(k,v)) }.toList
-        val buffer = new okio.Buffer
-        val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
-        sender.sendUpdate(path, HttpProtocol.RequestValue(path, headers, body))
-        Array.empty[Byte]
-    }
-    httpExchange.sendResponseHeaders(200, bytes.length)
-    if(bytes.length > 0) httpExchange.getResponseBody.write(bytes)
-  } finally httpExchange.close() }
+
+
+////
+
+
+
+class HttpGatewayApp
+  extends IndexFactoryApp
+  with ReducerApp
+  with DataDependenciesApp
+  with ProtocolDataDependenciesApp
+  with HttpServerApp
+  with SSEServerApp
+  with QReceiverApp
+  with QSenderApp
+  with QAdapterRegistryApp
+  with HttpContentProviderApp
+  with SSEQueueApp
+{
+  def httpPort: Int = Option(System.getenv("C4HTTP_PORT")).get.toInt
+  def ssePort: Int = Option(System.getenv("C4SSE_PORT")).get.toInt
+
+
+  lazy val  pool: ExecutorService = Pool()
+
+
+  def httpPostObserver: HttpPostObserver = ???
+
+
+  def channelStatusObserver: ChannelStatusObserver = ???
+
+  //def commandReceivers: List[Receiver[_]] = ???
+  def rawQSender: RawQSender = ???
+  def protocols: List[Protocol] = QProtocol :: HttpProtocol :: Nil
+  //def dataDependencies: List[DataDependencyTo[_]] = ???
+  def worldProvider: WorldProvider = ???
 }
 
-class Server(pool: ExecutorService, httpPort: Int, handler: HttpHandler) {
-  def start(): Unit = {
-    val server: HttpServer = HttpServer.create(new InetSocketAddress(httpPort),0)
-    OnShutdown(()⇒server.stop(Int.MaxValue))
-    server.setExecutor(pool)
-    server.createContext("/", handler)
-    server.start()
+////
+
+trait WorldProvider {
+  def value: World
+}
+
+//
+
+trait HttpContentProviderApp {
+  def worldProvider: WorldProvider
+  lazy val httpContentProvider: HttpContentProvider =
+    new HttpContentProviderImpl(worldProvider)
+}
+
+class HttpContentProviderImpl(
+  worldProvider: WorldProvider
+) extends HttpContentProvider {
+  def get(path: String): List[HttpProtocol.RequestValue] =
+    By.srcId(classOf[HttpProtocol.RequestValue]).of(worldProvider.value).getOrElse(path, Nil)
+}
+
+/*
+class ReceiverToStaticContent(
+  reducer: Reducer
+) extends CommandReceiver[HttpProtocol.RequestValue] {
+  def className: String = classOf[HttpProtocol.RequestValue].getName
+  def handle(world: World, command: RequestValue): World = {
+    reducer.reduce(world, Map(StaticRootKey→Map(command.path→List(command))))
   }
 }
 
-case object StaticRootKey extends WorldKey[Index[String,okio.ByteString]](Map.empty)
+trait ReceiverToStaticContentApp extends CommandReceiversApp {
+  def reducer: Reducer
+  lazy val receiverToStaticContent: CommandReceiver[HttpProtocol.RequestValue] =
+    new ReceiverToStaticContent(reducer)
+  override def commandReceivers: List[CommandReceiver[_]] =
+    receiverToStaticContent :: super.commandReceivers
+}*/
 
+//case object StaticRootKey extends WorldKey[Index[String,HttpProtocol.RequestValue]](Map.empty)
 
+//
+
+trait SSEQueueApp extends CommandReceiversApp {
+  def sseServer: TcpServer
+  def qSender: QSender
+  def sseStatusTopic: TopicName
+  lazy val sseEventCommandReceiver: CommandReceiver[_] =
+    new SSEEventCommandReceiver(qSender, sseStatusTopic, sseServer)
+  lazy val channelStatusObserver: ChannelStatusObserver =
+    new SSEChannelStatusObserverImpl(qSender, sseStatusTopic)
+  override def commandReceivers: List[CommandReceiver[_]] =
+    sseEventCommandReceiver :: super.commandReceivers
+}
+
+class SSEEventCommandReceiver(
+  qSender: QSender, sseStatusTopic: TopicName, sseServer: TcpServer
+) extends CommandReceiver[HttpProtocol.SSEvent] {
+  def className: String = classOf[HttpProtocol.SSEvent].getName
+  def handle(world: World, command: SSEvent): World = {
+    val key = command.connectionKey
+    sseServer.senderByKey(key) match {
+      case Some(send) ⇒ send.add(command.body.toByteArray)
+      case None ⇒ qSender.sendUpdate(sseStatusTopic, "", HttpProtocol.SSEStatus(key, "agent not found"))
+    }
+    world
+  }
+}
+
+class SSEChannelStatusObserverImpl(
+  qSender: QSender, sseStatusTopic: TopicName
+) extends ChannelStatusObserver {
+  def changed(key: String, error: Option[Throwable]): Unit = {
+    val message = error.map(_.getStackTrace.toString).getOrElse("")
+    qSender.sendUpdate(sseStatusTopic, "", HttpProtocol.SSEStatus(key, message))
+  }
+}
+
+trait KafkaProducerApp {
+  lazy val kafkaProducer: Producer[Array[Byte], Array[Byte]] = Producer() ???
+}
+
+class KafkaRawQSender(producer: Producer[Array[Byte], Array[Byte]]) extends RawQSender {
+  def send(topic: TopicName, key: Array[Byte], value: Array[Byte]): Unit = {
+    producer.send(new ProducerRecord(topic.value, 0, key, value)).get()
+  }
+}
+
+//
 
 object HttpGateway {
   def main(args: Array[String]): Unit = try {
     val bootstrapServers = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
-    val httpPort = Option(System.getenv("C4HTTP_PORT")).get.toInt
+
     val postTopic = Option(System.getenv("C4HTTP_POST_TOPIC")).getOrElse("http-posts")
     val getTopic = Option(System.getenv("C4HTTP_GET_TOPIC")).getOrElse("http-gets")
-    val ssePort = Option(System.getenv("C4SSE_PORT")).get.toInt
-    ////
-    val sseService = new TcpService
-    //val staticRoot = TrieMap[String,Array[Byte]]()
-    val handlerLists = CoHandlerLists(
-      CoHandler(ProtocolKey)(QProtocol) ::
-      CoHandler(ProtocolKey)(HttpProtocol) ::
-      CoHandler(ReceiverKey)(new Receiver(classOf[HttpProtocol.RequestValue],
-        (handlerLists: CoHandlerLists, world: World, resp: HttpProtocol.RequestValue) ⇒
-          Map(StaticRootKey → Map(resp.path → resp.body :: Nil)) //.toByteArray
-      )) ::
-      CoHandler(ReceiverKey)(new Receiver(classOf[HttpProtocol.SSEvent], {
-        (
-          handlerLists: CoHandlerLists,
-          world: World,
-          ssEvent: HttpProtocol.SSEvent
-        ) ⇒
-          val senderRegistry = Single(handlerLists.list(SenderToAgentKey))
-          senderRegistry(ssEvent.connectionKey) match {
-            case Some(send) ⇒ send(ssEvent.body.toByteArray)
-            case None ⇒ ??? // not found to kafka
-          }
-          Map()
-      })) ::
-      CoHandler(ChannelStatusKey){ status ⇒
-        ??? // to kafka
-      } ::
-      sseService.handlers
-    )
+
+
+
     val producer = Producer(bootstrapServers)
-    val qRecords = QRecords(handlerLists)(
-      (k:Array[Byte],v:Array[Byte]) ⇒ producer.send(new ProducerRecord(postTopic, k, v)).get()
-    )
+
     val pool = Pool()
     var world: World = Map.empty
     val reducer = Reducer(handlerLists)
     val consumer =
       new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, { (messages: Iterable[QRecord]) ⇒
-        messages.foreach{ message ⇒
-          val diff = qRecords.receive(handlerLists, world, message)
-          world = reducer.reduce(world, diff)
-        }
+
+          world = qReceiver.receiveEvents(world, messages)
+
       })
-    val handler = new Handler(qRecords, path ⇒ world(StaticRootKey)(path).head.toByteArray)
-    val server = new Server(pool, httpPort, handler)
+
     ////
     consumer.start()
     server.start()

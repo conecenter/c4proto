@@ -7,4 +7,6 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   case class Header(@Id(0x0024) key: String, @Id(0x0025) value: String)
 
   @Id(0x0026) case class SSEvent(@Id(0x0027) connectionKey: String, @Id(0x0023) body: okio.ByteString)
+
+  @Id(0x0028) case class SSEStatus(@Id(0x0027) connectionKey: String, @Id(0x0029) error: String)
 }

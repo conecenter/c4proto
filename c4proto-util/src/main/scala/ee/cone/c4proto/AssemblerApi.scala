@@ -48,21 +48,6 @@ trait Join[Result,JoinKey,MapKey]
   def sort(values: Iterable[Result]): List[Result]
 }
 
-abstract class Join2[T1,T2,R,TK,RK](
-  t1: WorldKey[Index[TK,T1]],
-  t2: WorldKey[Index[TK,T2]],
-  val outputWorldKey: WorldKey[Index[RK,R]]
-) extends Join[R,TK,RK] {
-  def join(a1: Values[T1], a2: Values[T2]): Values[(RK,R)]
-  //
-  def joins(in: Seq[Values[Object]]): Iterable[(RK,R)] = in match {
-    case Seq(a1, a2) ⇒
-      join(a1.asInstanceOf[Values[T1]], a2.asInstanceOf[Values[T2]])
-  }
-  def inputWorldKeys: Seq[WorldKey[Index[TK,Object]]] =
-    Seq(t1, t2).asInstanceOf[Seq[WorldKey[Index[TK,Object]]]]
-}
-
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
@@ -78,3 +63,5 @@ case class WorldTransition(
 trait Reducer {
   def reduce(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World
 }
+
+class OriginalWorldPart[A](val outputWorldKey: WorldKey[A]) extends DataDependencyTo[A]
