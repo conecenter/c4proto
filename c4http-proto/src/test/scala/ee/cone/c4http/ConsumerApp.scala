@@ -15,7 +15,7 @@ object ConsumerApp {
       lazy val handlerLists: CoHandlerLists = CoHandlerLists(
         CoHandler(ProtocolKey)(QProtocol) ::
           CoHandler(ProtocolKey)(HttpProtocol) ::
-          CoHandler(ReceiverKey)(new CommandReceiver(classOf[HttpProtocol.RequestValue], {
+          CoHandler(ReceiverKey)(new MessageReceiver(classOf[HttpProtocol.RequestValue], {
             (req:HttpProtocol.RequestValue) ⇒
             val next: String = try {
               val prev = new String(req.body.toByteArray, "UTF-8")
@@ -37,7 +37,7 @@ object ConsumerApp {
         println("received at: ",rec.offset)
       })
       consumer.start()
-      while(consumer.state != Finished) {
+      while(consumer.state < ConsumerState.finished) {
         //println(consumer.state)
         Thread.sleep(1000)
       }

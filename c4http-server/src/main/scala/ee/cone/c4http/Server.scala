@@ -33,29 +33,35 @@ class HttpGatewayApp
   with ProtocolDataDependenciesApp
   with HttpServerApp
   with SSEServerApp
-  with QReceiverApp
+  with QMessageReceiverApp
+  with QStatePartReceiverApp
   with QSenderApp
   with QAdapterRegistryApp
+  with PoolApp
+  with ToIdempotentConsumerApp
+  with ToStoredConsumerApp
   with HttpContentProviderApp
   with SSEQueueApp
 {
+  def bootstrapServers: String = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
   def httpPort: Int = Option(System.getenv("C4HTTP_PORT")).get.toInt
   def ssePort: Int = Option(System.getenv("C4SSE_PORT")).get.toInt
+  def sseStatusTopic: TopicName = TopicName("sse-status")
 
 
-  lazy val  pool: ExecutorService = Pool()
 
 
   def httpPostObserver: HttpPostObserver = ???
-
-
-  def channelStatusObserver: ChannelStatusObserver = ???
 
   //def commandReceivers: List[Receiver[_]] = ???
   def rawQSender: RawQSender = ???
   def protocols: List[Protocol] = QProtocol :: HttpProtocol :: Nil
   //def dataDependencies: List[DataDependencyTo[_]] = ???
   def worldProvider: WorldProvider = ???
+  def messageConsumerTopic: TopicName = ???
+  def consumerGroupId: String = ???
+
+  def statePartConsumerTopic: TopicName = ???
 }
 
 ////
@@ -79,51 +85,28 @@ class HttpContentProviderImpl(
     By.srcId(classOf[HttpProtocol.RequestValue]).of(worldProvider.value).getOrElse(path, Nil)
 }
 
-/*
-class ReceiverToStaticContent(
-  reducer: Reducer
-) extends CommandReceiver[HttpProtocol.RequestValue] {
-  def className: String = classOf[HttpProtocol.RequestValue].getName
-  def handle(world: World, command: RequestValue): World = {
-    reducer.reduce(world, Map(StaticRootKey→Map(command.path→List(command))))
-  }
-}
-
-trait ReceiverToStaticContentApp extends CommandReceiversApp {
-  def reducer: Reducer
-  lazy val receiverToStaticContent: CommandReceiver[HttpProtocol.RequestValue] =
-    new ReceiverToStaticContent(reducer)
-  override def commandReceivers: List[CommandReceiver[_]] =
-    receiverToStaticContent :: super.commandReceivers
-}*/
-
-//case object StaticRootKey extends WorldKey[Index[String,HttpProtocol.RequestValue]](Map.empty)
-
-//
-
 trait SSEQueueApp extends CommandReceiversApp {
   def sseServer: TcpServer
   def qSender: QSender
   def sseStatusTopic: TopicName
-  lazy val sseEventCommandReceiver: CommandReceiver[_] =
+  lazy val sseEventCommandReceiver: MessageReceiver[_] =
     new SSEEventCommandReceiver(qSender, sseStatusTopic, sseServer)
   lazy val channelStatusObserver: ChannelStatusObserver =
     new SSEChannelStatusObserverImpl(qSender, sseStatusTopic)
-  override def commandReceivers: List[CommandReceiver[_]] =
+  override def commandReceivers: List[MessageReceiver[_]] =
     sseEventCommandReceiver :: super.commandReceivers
 }
 
 class SSEEventCommandReceiver(
   qSender: QSender, sseStatusTopic: TopicName, sseServer: TcpServer
-) extends CommandReceiver[HttpProtocol.SSEvent] {
+) extends MessageReceiver[HttpProtocol.SSEvent] {
   def className: String = classOf[HttpProtocol.SSEvent].getName
-  def handle(world: World, command: SSEvent): World = {
+  def receiveMessage(command: SSEvent): Unit = {
     val key = command.connectionKey
     sseServer.senderByKey(key) match {
       case Some(send) ⇒ send.add(command.body.toByteArray)
       case None ⇒ qSender.sendUpdate(sseStatusTopic, "", HttpProtocol.SSEStatus(key, "agent not found"))
     }
-    world
   }
 }
 
@@ -136,45 +119,27 @@ class SSEChannelStatusObserverImpl(
   }
 }
 
-trait KafkaProducerApp {
-  lazy val kafkaProducer: Producer[Array[Byte], Array[Byte]] = Producer() ???
-}
 
-class KafkaRawQSender(producer: Producer[Array[Byte], Array[Byte]]) extends RawQSender {
-  def send(topic: TopicName, key: Array[Byte], value: Array[Byte]): Unit = {
-    producer.send(new ProducerRecord(topic.value, 0, key, value)).get()
-  }
-}
 
-//
+// I>P -- to agent, cmd>evl
+// >P -- post, sse status
+// Sn> -- to neo
+// S0>W -- static content
 
 object HttpGateway {
   def main(args: Array[String]): Unit = try {
-    val bootstrapServers = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
-
-    val postTopic = Option(System.getenv("C4HTTP_POST_TOPIC")).getOrElse("http-posts")
-    val getTopic = Option(System.getenv("C4HTTP_GET_TOPIC")).getOrElse("http-gets")
-
-
-
-    val producer = Producer(bootstrapServers)
-
-    val pool = Pool()
-    var world: World = Map.empty
-    val reducer = Reducer(handlerLists)
-    val consumer =
-      new ToStoredConsumer(bootstrapServers, getTopic, 0)(pool, { (messages: Iterable[QRecord]) ⇒
-
-          world = qReceiver.receiveEvents(world, messages)
-
-      })
-
-    ////
+    val app = new HttpGatewayApp
+    app.pool.start()
+    val consumer = app.toStoredConsumer
     consumer.start()
-    server.start()
-    sseService.start(handlerLists, ssePort)
-
-    while(consumer.state != Finished) {
+    while(consumer.state < ConsumerState.started) {
+      //println(consumer.state)
+      Thread.sleep(1000)
+    }
+    app.toStart.foreach(_.start())
+    //val postTopic = Option(System.getenv("C4HTTP_POST_TOPIC")).getOrElse("http-posts")
+    //val getTopic = Option(System.getenv("C4HTTP_GET_TOPIC")).getOrElse("http-gets")
+    while(consumer.state < ConsumerState.finished) {
       //println(consumer.state)
       Thread.sleep(1000)
     }

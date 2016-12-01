@@ -4,7 +4,7 @@ import java.net.InetSocketAddress
 import java.util.concurrent.ExecutorService
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import ee.cone.c4proto.{OnShutdown, Single}
+import ee.cone.c4proto._
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
@@ -41,11 +41,11 @@ class ReqHandler(
   } finally httpExchange.close() }
 }
 
-class RHttpServer(port: Int, handler: HttpHandler, pool: ExecutorService) extends CanStart {
+class RHttpServer(port: Int, handler: HttpHandler, pool: Pool) extends CanStart {
   def start(): Unit = {
     val server: HttpServer = HttpServer.create(new InetSocketAddress(port),0)
     OnShutdown(()⇒server.stop(Int.MaxValue))
-    server.setExecutor(pool)
+    server.setExecutor(pool.value.get)
     server.createContext("/", handler)
     server.start()
   }
@@ -53,7 +53,7 @@ class RHttpServer(port: Int, handler: HttpHandler, pool: ExecutorService) extend
 
 trait HttpServerApp extends ToStartApp {
   def httpPort: Int
-  def pool: ExecutorService
+  def pool: Pool
   def httpPostObserver: HttpPostObserver
   def httpContentProvider: HttpContentProvider
   lazy val httpServer: CanStart = {

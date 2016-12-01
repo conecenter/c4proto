@@ -4,7 +4,7 @@ import java.util.Collections
 import java.util.concurrent.{ExecutorService, Executors, Future, TimeUnit}
 import java.util.concurrent.atomic.AtomicBoolean
 
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord, RecordMetadata}
+import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer, OffsetAndMetadata}
 import org.apache.kafka.common.TopicPartition
@@ -21,19 +21,34 @@ object OnShutdown {
   })
 }
 
-object Pool {
-  def apply(): ExecutorService = {
-    val pool: ExecutorService = Executors.newCachedThreadPool() //newWorkStealingPool
+trait PoolApp {
+  lazy val pool: Pool = new Pool
+}
+
+class Pool {
+  var value: Option[ExecutorService] = None
+  def start(): Unit = {
+    val pool = Executors.newCachedThreadPool() //newWorkStealingPool
     OnShutdown(()⇒{
       pool.shutdown()
       pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
     })
-    pool
+    value = Some(pool)
   }
 }
 
-object Producer {
-  def apply(bootstrapServers: String): KafkaProducer[Array[Byte], Array[Byte]] = {
+////
+
+trait KafkaProducerApp extends ToStartApp {
+  def bootstrapServers: String
+  lazy val rawQSender: RawQSender with CanStart =
+    new KafkaRawQSender(bootstrapServers)
+  override def toStart: List[CanStart] = rawQSender :: super.toStart
+}
+
+class KafkaRawQSender(bootstrapServers: String) extends RawQSender with CanStart {
+  var producer: Option[Producer[Array[Byte], Array[Byte]]] = None
+  def start(): Unit = {
     val props = Map[String, Object](
       "bootstrap.servers" → bootstrapServers,
       "acks" → "all",
@@ -43,13 +58,17 @@ object Producer {
       "buffer.memory" → "33554432"
     )
     val serializer = new ByteArraySerializer
-    val producer = new KafkaProducer[Array[Byte], Array[Byte]](
+    producer = Some(new KafkaProducer[Array[Byte], Array[Byte]](
       props.asJava, serializer, serializer
-    )
-    OnShutdown(() ⇒ producer.close())
-    producer
+    ))
+    OnShutdown(() ⇒ producer.map(_.close()))
+  }
+  def send(topic: TopicName, key: Array[Byte], value: Array[Byte]): Unit = {
+    producer.get.send(new ProducerRecord(topic.value, 0, key, value)).get()
   }
 }
+
+////
 
 class KafkaQRecordAdapter(rec: ConsumerRecord[Array[Byte], Array[Byte]]) extends QRecord {
   def key: Array[Byte] = rec.key
@@ -57,8 +76,18 @@ class KafkaQRecordAdapter(rec: ConsumerRecord[Array[Byte], Array[Byte]]) extends
   def offset: Long = rec.offset
 }
 
-class ToIdempotentConsumer(bootstrapServers: String, groupId: String, topic: String)(
-  val pool: ExecutorService, handle: QRecord⇒Unit
+trait ToIdempotentConsumerApp extends ToStartApp {
+  def bootstrapServers: String
+  def messageConsumerTopic: TopicName
+  def consumerGroupId: String
+  def pool: Pool
+  def qMessageReceiver: QMessageReceiver
+  lazy val toIdempotentConsumer = new ToIdempotentConsumer(bootstrapServers, consumerGroupId, messageConsumerTopic)(pool, qMessageReceiver)
+  override def toStart: List[CanStart] = toIdempotentConsumer :: super.toStart
+}
+
+class ToIdempotentConsumer(bootstrapServers: String, groupId: String, topic: TopicName)(
+  val pool: Pool, qMessageReceiver: QMessageReceiver
 ) extends Consumer {
   protected lazy val props: Map[String, Object] = Map(
     "bootstrap.servers" → bootstrapServers,
@@ -66,11 +95,11 @@ class ToIdempotentConsumer(bootstrapServers: String, groupId: String, topic: Str
     "group.id" → groupId //?
   )
   protected def runInner(): Unit = {
-    val topicPartition = new TopicPartition(topic, 0)
+    val topicPartition = new TopicPartition(topic.value, 0)
     consumer.assign(List(topicPartition).asJava)
     while(alive.get) {
       consumer.poll(1000 /*timeout*/).asScala.foreach { rec ⇒
-        handle(new KafkaQRecordAdapter(rec))
+        qMessageReceiver.receiveMessage(new KafkaQRecordAdapter(rec))
         //val offset = new OffsetAndMetadata(rec.offset + 1)
         //consumer.commitSync(Collections.singletonMap(topicPartition, offset))
       }
@@ -78,20 +107,30 @@ class ToIdempotentConsumer(bootstrapServers: String, groupId: String, topic: Str
       //! if consumer.commitSync() after loop, if single fails then all recent will be re-consumed
     }
   }
-  protected def readyState: ConsumerState = Started
+  protected def readyState: Int = ConsumerState.started
 }
 
-class ToStoredConsumer(bootstrapServers: String, topic: String, pos: Long)(
-  val pool: ExecutorService, handle: Iterable[QRecord]⇒Unit
+trait ToStoredConsumerApp {
+  def bootstrapServers: String
+  def statePartConsumerTopic: TopicName
+  def pool: Pool
+  def qStatePartReceiver: QStatePartReceiver
+  lazy val toStoredConsumer = new ToStoredConsumer(bootstrapServers, statePartConsumerTopic, 0)(pool,qStatePartReceiver)
+  // to start before others
+}
+
+class ToStoredConsumer(bootstrapServers: String, topic: TopicName, pos: Long)(
+  val pool: Pool, qStatePartReceiver: QStatePartReceiver
 ) extends Consumer {
   private lazy val ready = new AtomicBoolean(false)
-  protected def readyState: ConsumerState = if(ready.get()) Started else Starting
+  protected def readyState: Int =
+    if(ready.get()) ConsumerState.started else ConsumerState.starting
   protected def props: Map[String, Object] = Map(
     "bootstrap.servers" → bootstrapServers,
     "enable.auto.commit" → "false"
   )
   protected def runInner(): Unit = {
-    val topicPartition = new TopicPartition(topic, 0)
+    val topicPartition = new TopicPartition(topic.value, 0)
     consumer.assign(List(topicPartition).asJava)
     var untilPos = consumer.position(topicPartition)
     //println("untilPos",untilPos)
@@ -99,30 +138,33 @@ class ToStoredConsumer(bootstrapServers: String, topic: String, pos: Long)(
     while(alive.get){
       if(!ready.get() && untilPos <= consumer.position(topicPartition))
         ready.set(true)
-      handle(consumer.poll(1000 /*timeout*/).asScala.map(new KafkaQRecordAdapter(_)))
+      val records = consumer.poll(1000 /*timeout*/).asScala
+        .map(new KafkaQRecordAdapter(_))
+      qStatePartReceiver.receiveStateParts(records)
     }
   }
 }
 
-sealed trait ConsumerState
-case object NotStarted extends ConsumerState
-case object Starting extends ConsumerState
-case object Started extends ConsumerState
-case object Finished extends ConsumerState
-abstract class Consumer extends Runnable {
+object ConsumerState {
+  def notStarted = 0
+  def starting = 1
+  def started = 2
+  def finished = 3
+}
+abstract class Consumer extends Runnable with CanStart {
   protected def props: Map[String, Object]
   protected def runInner(): Unit
-  protected def pool: ExecutorService
-  protected def readyState: ConsumerState
+  protected def pool: Pool
+  protected def readyState: Int
   private var future: Option[Future[_]] = None
   def start(): Unit = synchronized{
-    future = Option(pool.submit(this))
+    future = Option(pool.value.get.submit(this))
   }
-  def state: ConsumerState = synchronized {
+  def state: Int = synchronized {
     future.map(_.isDone) match {
-      case None ⇒ NotStarted
+      case None ⇒ ConsumerState.notStarted
       case Some(false) ⇒ readyState
-      case Some(true) ⇒ Finished
+      case Some(true) ⇒ ConsumerState.finished
     }
   }
   private lazy val deserializer = new ByteArrayDeserializer
@@ -142,3 +184,4 @@ abstract class Consumer extends Runnable {
     }
   }
 }
+

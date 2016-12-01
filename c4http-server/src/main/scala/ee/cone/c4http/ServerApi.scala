@@ -1,15 +1,9 @@
 package ee.cone.c4http
 
 import com.sun.net.httpserver.HttpExchange
-import ee.cone.c4proto.CommandReceiver
+import ee.cone.c4proto.MessageReceiver
 
-trait ToStartApp {
-  def toStart: List[CanStart] = Nil
-}
 
-trait CanStart {
-  def start(): Unit
-}
 
 ////
 
@@ -38,5 +32,5 @@ trait HttpContentProvider {
 ////
 
 trait CommandReceiversApp {
-  def commandReceivers: List[CommandReceiver[_]] = Nil
+  def commandReceivers: List[MessageReceiver[_]] = Nil
 }

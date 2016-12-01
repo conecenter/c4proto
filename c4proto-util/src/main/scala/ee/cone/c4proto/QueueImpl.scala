@@ -2,7 +2,6 @@ package ee.cone.c4proto
 
 import ee.cone.c4proto.Types.{SrcId, World}
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4proto.QProtocol.TopicKey
 
 
 ////////////////////
@@ -11,35 +10,38 @@ import ee.cone.c4proto.QProtocol.TopicKey
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-trait QReceiverApp {
+trait QStatePartReceiverApp {
   def qAdapterRegistry: QAdapterRegistry
   def reducer: Reducer
-  def commandReceivers: List[CommandReceiver[_]]
-  lazy val qReceiver: QReceiver = {
-    val byId: Map[Long,ProtoAdapter[Object]] =
-      qAdapterRegistry.adapters.map(a ⇒ a.id → a.asInstanceOf[ProtoAdapter[Object]]).toMap
+  lazy val qStatePartReceiver: QStatePartReceiver = {
     val nameById = qAdapterRegistry.adapters.map(a ⇒ a.id → a.className).toMap
-    val receiveById = commandReceivers.map{ receiver ⇒ qAdapterRegistry.byName(receiver.className).id → receiver }
-      .asInstanceOf[List[(Long,CommandReceiver[Object])]].toMap
-    new QReceiverImpl(byId,nameById,qAdapterRegistry.keyAdapter,receiveById,reducer)
+    new QStatePartReceiverImpl(qAdapterRegistry,nameById,reducer)
   }
 }
 
-class QReceiverImpl(
-    byId: Map[Long,ProtoAdapter[Object]],
+trait QMessageReceiverApp {
+  def qAdapterRegistry: QAdapterRegistry
+  def commandReceivers: List[MessageReceiver[_]]
+  lazy val qMessageReceiver: QMessageReceiver = {
+    val receiveById = commandReceivers.map{ receiver ⇒ qAdapterRegistry.byName(receiver.className).id → receiver }
+      .asInstanceOf[List[(Long,MessageReceiver[Object])]].toMap
+    new QMessageReceiverImpl(qAdapterRegistry,receiveById)
+  }
+}
+
+class QStatePartReceiverImpl(
+    qAdapterRegistry: QAdapterRegistry,
     nameById: Map[Long,String],
-    keyAdapter: ProtoAdapter[TopicKey],
-    receiveById: Map[Long,CommandReceiver[Object]],
     reducer: Reducer
-) extends QReceiver {
+) extends QStatePartReceiver {
   private def toTree(records: Iterable[QRecord]) = records.map {
-    rec ⇒ (keyAdapter.decode(rec.key), rec)
+    rec ⇒ (qAdapterRegistry.keyAdapter.decode(rec.key), rec)
   }.groupBy {
     case (topicKey, _) ⇒ topicKey.valueTypeId
   }.map {
     case (valueTypeId, keysEvents) ⇒
       val worldKey = By.It[SrcId,Object]('S',nameById(valueTypeId))
-      val valueAdapter = byId(valueTypeId)
+      val valueAdapter = qAdapterRegistry.byId(valueTypeId)
       worldKey → keysEvents.groupBy {
         case (topicKey, _) ⇒ topicKey.srcId
       }.map { case (srcId, keysEventsI) ⇒
@@ -50,23 +52,32 @@ class QReceiverImpl(
             Nil else Nil)
       }
   }
-  def receiveEvents(world: World, records: Iterable[QRecord]): World = {
+  var world: World = Map()
+  def receiveStateParts(records: Iterable[QRecord]): Unit = {
     val diff = toTree(records)
     //debug here
-    reducer.reduce(world, diff)
-  }
-
-  def receiveCommand(world: World, rec: QRecord): World = {
-    val key = keyAdapter.decode(rec.key)
-    val valueAdapter = byId(key.valueTypeId)
-    val value = valueAdapter.decode(rec.value)
-    receiveById(key.valueTypeId).handle(world, value)
+    val nextWorld = reducer.reduce(world, diff)
+    synchronized{ world = nextWorld }
   }
 }
+
+class QMessageReceiverImpl(
+    qAdapterRegistry: QAdapterRegistry,
+    receiveById: Map[Long,MessageReceiver[Object]]
+) extends QMessageReceiver {
+  def receiveMessage(rec: QRecord): Unit = {
+    val key = qAdapterRegistry.keyAdapter.decode(rec.key)
+    val valueAdapter = qAdapterRegistry.byId(key.valueTypeId)
+    val value = valueAdapter.decode(rec.value)
+    receiveById(key.valueTypeId).receiveMessage(value)
+  }
+}
+
 
 class QAdapterRegistry(
     val adapters: List[ProtoAdapter[_] with HasId],
     val byName: Map[String,ProtoAdapter[_] with HasId],
+    val byId: Map[Long,ProtoAdapter[Object]],
     val keyAdapter: ProtoAdapter[QProtocol.TopicKey]
 )
 
@@ -78,7 +89,9 @@ trait QAdapterRegistryApp {
       adapters.map(a ⇒ a.className → a).toMap
     val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
-    new QAdapterRegistry(adapters, byName, keyAdapter)
+    val byId: Map[Long,ProtoAdapter[Object]] =
+      qAdapterRegistry.adapters.map(a ⇒ a.id → a.asInstanceOf[ProtoAdapter[Object]]).toMap
+    new QAdapterRegistry(adapters, byName, byId, keyAdapter)
   }
 }
 
@@ -91,8 +104,9 @@ trait QSenderApp {
 class QSenderImpl(qAdapterRegistry: QAdapterRegistry, forward: RawQSender) extends QSender {
   import qAdapterRegistry._
   def sendUpdate[M](topic: TopicName, srcId: SrcId, value: M): Unit =
-    send(srcId, value.getClass.asInstanceOf[Class[M]], Option(value))
-  def sendDelete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): Unit = send(srcId, cl, None)
+    send(topic, srcId, value.getClass.asInstanceOf[Class[M]], Option(value))
+  def sendDelete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): Unit =
+    send(topic, srcId, cl, None)
   private def byClass[M](cl: Class[M]): ProtoAdapter[M] with HasId =
     byName(cl.getName).asInstanceOf[ProtoAdapter[M] with HasId]
   private def send[M](topic: TopicName, srcId: SrcId, cl: Class[M], value: Option[M]): Unit = {

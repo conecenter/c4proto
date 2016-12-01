@@ -18,17 +18,29 @@ trait RawQSender {
   def send(topic: TopicName, key: Array[Byte], value: Array[Byte]): Unit
 }
 
-trait CommandReceiver[M] {
+trait MessageReceiver[M] {
   def className: String
-  def handle(world: World, command: M): World
+  def receiveMessage(command: M): Unit
 }
 
-trait QReceiver {
-  def receiveEvents(world: World, records: Iterable[QRecord]): World
-  def receiveCommand(world: World, rec: QRecord): World
+trait QStatePartReceiver {
+  def receiveStateParts(records: Iterable[QRecord]): Unit
+}
+trait QMessageReceiver {
+  def receiveMessage(rec: QRecord): Unit
 }
 
 trait QSender {
   def sendUpdate[M](topic: TopicName, srcId: SrcId, value: M): Unit
   def sendDelete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): Unit
+}
+
+////
+
+trait ToStartApp {
+  def toStart: List[CanStart] = Nil
+}
+
+trait CanStart {
+  def start(): Unit
 }

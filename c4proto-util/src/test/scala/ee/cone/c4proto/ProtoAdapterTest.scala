@@ -9,7 +9,7 @@ object MyApp extends App {
   val group0 = Group(Some(leader0), List(worker0,worker1))
   val handlerLists = CoHandlerLists(
     CoHandler(ProtocolKey)(MyProtocol) ::
-    CoHandler(ReceiverKey)(new CommandReceiver(classOf[Group], {
+    CoHandler(ReceiverKey)(new MessageReceiver(classOf[Group], {
       (group1:Group) ⇒
       println(group0,group1,group0==group1)
     })) ::
