@@ -45,9 +45,9 @@ object AssemblerTestApp extends App {
     createJoinMapIndex(new ParentNodeWithChildrenJoin) ::
     Nil
   )
-  var recs: List[QRecord] = Nil
+  var recs: List[QConsumerRecord] = Nil
   val qRecords = QRecords(handlerLists){ (k:Array[Byte],v:Array[Byte]) ⇒
-    recs = new QRecord {
+    recs = new QConsumerRecord {
       def key:Array[Byte] = k
       def value:Array[Byte] = v
       def offset = recs.headOption.map(_.offset).getOrElse(0)

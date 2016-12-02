@@ -1,5 +1,7 @@
 package ee.cone.c4proto
 
+import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
+
 import ee.cone.c4proto.Types.{SrcId, World}
 import com.squareup.wire.ProtoAdapter
 
@@ -19,13 +21,18 @@ trait QStatePartReceiverApp {
   }
 }
 
-trait QMessageReceiverApp {
+trait QMessageMapperApp {
   def qAdapterRegistry: QAdapterRegistry
-  def commandReceivers: List[MessageReceiver[_]]
-  lazy val qMessageReceiver: QMessageReceiver = {
-    val receiveById = commandReceivers.map{ receiver ⇒ qAdapterRegistry.byName(receiver.className).id → receiver }
-      .asInstanceOf[List[(Long,MessageReceiver[Object])]].toMap
-    new QMessageReceiverImpl(qAdapterRegistry,receiveById)
+  def commandReceivers: List[MessageMapper[_]]
+  lazy val qMessageMapper: QMessageMapper = {
+    val receiveById =
+      commandReceivers.groupBy(_.topic).mapValues(_.groupBy(cl⇒qAdapterRegistry.byName(cl.mClass.getName).id))
+        .asInstanceOf[Map[TopicName, Map[Long, List[MessageMapper[Object]]]]]
+      /*
+      commandReceivers.map{ receiver ⇒
+        qAdapterRegistry.byName(receiver.mClass.getName).id → receiver
+      }.asInstanceOf[List[(Long,MessageMapper[Object])]].toMap*/
+    new QMessageMapperImpl(qAdapterRegistry,receiveById)
   }
 }
 
@@ -34,7 +41,7 @@ class QStatePartReceiverImpl(
     nameById: Map[Long,String],
     reducer: Reducer
 ) extends QStatePartReceiver {
-  private def toTree(records: Iterable[QRecord]) = records.map {
+  private def toTree(records: Iterable[QConsumerRecord]) = records.map {
     rec ⇒ (qAdapterRegistry.keyAdapter.decode(rec.key), rec)
   }.groupBy {
     case (topicKey, _) ⇒ topicKey.valueTypeId
@@ -53,7 +60,7 @@ class QStatePartReceiverImpl(
       }
   }
   var world: World = Map()
-  def receiveStateParts(records: Iterable[QRecord]): Unit = {
+  def receiveStateParts(records: Iterable[QConsumerRecord]): Unit = {
     val diff = toTree(records)
     //debug here
     val nextWorld = reducer.reduce(world, diff)
@@ -61,15 +68,16 @@ class QStatePartReceiverImpl(
   }
 }
 
-class QMessageReceiverImpl(
+class QMessageMapperImpl(
     qAdapterRegistry: QAdapterRegistry,
-    receiveById: Map[Long,MessageReceiver[Object]]
-) extends QMessageReceiver {
-  def receiveMessage(rec: QRecord): Unit = {
+    receiveById: Map[TopicName, Map[Long, List[MessageMapper[Object]]]]
+) extends QMessageMapper {
+  def topics: List[TopicName] = receiveById.keys.toList.sortBy(_.value)
+  def mapMessage(rec: QConsumerRecord): Seq[QProducerRecord] = {
     val key = qAdapterRegistry.keyAdapter.decode(rec.key)
     val valueAdapter = qAdapterRegistry.byId(key.valueTypeId)
     val value = valueAdapter.decode(rec.value)
-    receiveById(key.valueTypeId).receiveMessage(value)
+    receiveById(rec.topic).getOrElse(key.valueTypeId,Nil).flatMap(_.mapMessage(value))
   }
 }
 
@@ -95,24 +103,47 @@ trait QAdapterRegistryApp {
   }
 }
 
-trait QSenderApp {
+trait QMessagesApp {
   def qAdapterRegistry: QAdapterRegistry
   def rawQSender: RawQSender
-  lazy val qSender: QSender = new QSenderImpl(qAdapterRegistry, rawQSender)
+  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry)
 }
 
-class QSenderImpl(qAdapterRegistry: QAdapterRegistry, forward: RawQSender) extends QSender {
+class QMessagesImpl(qAdapterRegistry: QAdapterRegistry) extends QMessages {
   import qAdapterRegistry._
-  def sendUpdate[M](topic: TopicName, srcId: SrcId, value: M): Unit =
-    send(topic, srcId, value.getClass.asInstanceOf[Class[M]], Option(value))
-  def sendDelete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): Unit =
-    send(topic, srcId, cl, None)
+  def update[M](topic: TopicName, srcId: SrcId, value: M): QProducerRecord =
+    inner(topic, srcId, value.getClass.asInstanceOf[Class[M]], Option(value))
+  def delete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): QProducerRecord =
+    inner(topic, srcId, cl, None)
   private def byClass[M](cl: Class[M]): ProtoAdapter[M] with HasId =
     byName(cl.getName).asInstanceOf[ProtoAdapter[M] with HasId]
-  private def send[M](topic: TopicName, srcId: SrcId, cl: Class[M], value: Option[M]): Unit = {
+  private def inner[M](topic: TopicName, srcId: SrcId, cl: Class[M], value: Option[M]): QProducerRecord = {
     val valueAdapter = byClass(cl)
     val rawKey = keyAdapter.encode(QProtocol.TopicKey(srcId, valueAdapter.id))
     val rawValue = value.map(valueAdapter.encode).getOrElse(Array.empty)
-    forward.send(topic, rawKey, rawValue)
+    new QProducerRecord(topic, rawKey, rawValue)
+  }
+}
+
+////
+
+object OnShutdown {
+  def apply(f: ()⇒Unit): Unit = Runtime.getRuntime.addShutdownHook(new Thread(){
+    override def run(): Unit = f()
+  })
+}
+
+trait PoolApp {
+  lazy val pool: Pool = new PoolImpl
+}
+
+class PoolImpl extends Pool {
+  def make(): ExecutorService = {
+    val pool = Executors.newCachedThreadPool() //newWorkStealingPool
+    OnShutdown(()⇒{
+      pool.shutdown()
+      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
+    })
+    pool
   }
 }

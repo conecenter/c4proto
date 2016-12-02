@@ -15,7 +15,7 @@ object ConsumerApp {
       lazy val handlerLists: CoHandlerLists = CoHandlerLists(
         CoHandler(ProtocolKey)(QProtocol) ::
           CoHandler(ProtocolKey)(HttpProtocol) ::
-          CoHandler(ReceiverKey)(new MessageReceiver(classOf[HttpProtocol.RequestValue], {
+          CoHandler(ReceiverKey)(new MessageMapper(classOf[HttpProtocol.RequestValue], {
             (req:HttpProtocol.RequestValue) ⇒
             val next: String = try {
               val prev = new String(req.body.toByteArray, "UTF-8")

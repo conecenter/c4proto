@@ -1,38 +1,42 @@
 package ee.cone.c4proto
 
+import java.util.concurrent.ExecutorService
+
 import ee.cone.c4proto.Types.{SrcId, World}
 
 @protocol object QProtocol extends Protocol {
   @Id(0x0010) case class TopicKey(@Id(0x0011) srcId: String, @Id(0x0012) valueTypeId: Long)
 }
 
-trait QRecord {
+trait QConsumerRecord {
+  def topic: TopicName
   def key: Array[Byte]
   def value: Array[Byte]
   def offset: Long
 }
 
+class QProducerRecord(val topic: TopicName, val key: Array[Byte], val value: Array[Byte])
+
 case class TopicName(value: String)
 
 trait RawQSender {
-  def send(topic: TopicName, key: Array[Byte], value: Array[Byte]): Unit
+  def send(rec: QProducerRecord): Unit
 }
 
-trait MessageReceiver[M] {
-  def className: String
-  def receiveMessage(command: M): Unit
+abstract class MessageMapper[M](val topic: TopicName, val mClass: Class[M]) {
+  def mapMessage(command: M): Seq[QProducerRecord]
 }
 
 trait QStatePartReceiver {
-  def receiveStateParts(records: Iterable[QRecord]): Unit
+  def receiveStateParts(records: Iterable[QConsumerRecord]): Unit
 }
-trait QMessageReceiver {
-  def receiveMessage(rec: QRecord): Unit
+trait QMessageMapper {
+  def mapMessage(rec: QConsumerRecord): Seq[QProducerRecord]
 }
 
-trait QSender {
-  def sendUpdate[M](topic: TopicName, srcId: SrcId, value: M): Unit
-  def sendDelete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): Unit
+trait QMessages {
+  def update[M](topic: TopicName, srcId: SrcId, value: M): QProducerRecord
+  def delete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): QProducerRecord
 }
 
 ////
@@ -43,4 +47,8 @@ trait ToStartApp {
 
 trait CanStart {
   def start(): Unit
+}
+
+trait Pool {
+  def make(): ExecutorService
 }

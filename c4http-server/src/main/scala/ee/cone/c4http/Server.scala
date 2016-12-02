@@ -33,35 +33,31 @@ class HttpGatewayApp
   with ProtocolDataDependenciesApp
   with HttpServerApp
   with SSEServerApp
-  with QMessageReceiverApp
+  with QMessageMapperApp
   with QStatePartReceiverApp
-  with QSenderApp
+  with QMessagesApp
   with QAdapterRegistryApp
   with PoolApp
   with ToIdempotentConsumerApp
   with ToStoredConsumerApp
-  with HttpContentProviderApp
-  with SSEQueueApp
+  with KafkaProducerApp
 {
   def bootstrapServers: String = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
   def httpPort: Int = Option(System.getenv("C4HTTP_PORT")).get.toInt
   def ssePort: Int = Option(System.getenv("C4SSE_PORT")).get.toInt
+  def messageConsumerTopic: TopicName = TopicName("http-gate-inbox")
+  def statePartConsumerTopic: TopicName = TopicName("http-gate-state")
   def sseStatusTopic: TopicName = TopicName("sse-status")
-
-
-
-
-  def httpPostObserver: HttpPostObserver = ???
+  def httpPostTopic: TopicName = TopicName("http-posts")
 
   //def commandReceivers: List[Receiver[_]] = ???
-  def rawQSender: RawQSender = ???
   def protocols: List[Protocol] = QProtocol :: HttpProtocol :: Nil
   //def dataDependencies: List[DataDependencyTo[_]] = ???
   def worldProvider: WorldProvider = ???
-  def messageConsumerTopic: TopicName = ???
+
   def consumerGroupId: String = ???
 
-  def statePartConsumerTopic: TopicName = ???
+
 }
 
 ////
@@ -72,52 +68,13 @@ trait WorldProvider {
 
 //
 
-trait HttpContentProviderApp {
-  def worldProvider: WorldProvider
-  lazy val httpContentProvider: HttpContentProvider =
-    new HttpContentProviderImpl(worldProvider)
-}
 
-class HttpContentProviderImpl(
-  worldProvider: WorldProvider
-) extends HttpContentProvider {
-  def get(path: String): List[HttpProtocol.RequestValue] =
-    By.srcId(classOf[HttpProtocol.RequestValue]).of(worldProvider.value).getOrElse(path, Nil)
-}
 
-trait SSEQueueApp extends CommandReceiversApp {
-  def sseServer: TcpServer
-  def qSender: QSender
-  def sseStatusTopic: TopicName
-  lazy val sseEventCommandReceiver: MessageReceiver[_] =
-    new SSEEventCommandReceiver(qSender, sseStatusTopic, sseServer)
-  lazy val channelStatusObserver: ChannelStatusObserver =
-    new SSEChannelStatusObserverImpl(qSender, sseStatusTopic)
-  override def commandReceivers: List[MessageReceiver[_]] =
-    sseEventCommandReceiver :: super.commandReceivers
-}
 
-class SSEEventCommandReceiver(
-  qSender: QSender, sseStatusTopic: TopicName, sseServer: TcpServer
-) extends MessageReceiver[HttpProtocol.SSEvent] {
-  def className: String = classOf[HttpProtocol.SSEvent].getName
-  def receiveMessage(command: SSEvent): Unit = {
-    val key = command.connectionKey
-    sseServer.senderByKey(key) match {
-      case Some(send) ⇒ send.add(command.body.toByteArray)
-      case None ⇒ qSender.sendUpdate(sseStatusTopic, "", HttpProtocol.SSEStatus(key, "agent not found"))
-    }
-  }
-}
 
-class SSEChannelStatusObserverImpl(
-  qSender: QSender, sseStatusTopic: TopicName
-) extends ChannelStatusObserver {
-  def changed(key: String, error: Option[Throwable]): Unit = {
-    val message = error.map(_.getStackTrace.toString).getOrElse("")
-    qSender.sendUpdate(sseStatusTopic, "", HttpProtocol.SSEStatus(key, message))
-  }
-}
+
+
+
 
 
 

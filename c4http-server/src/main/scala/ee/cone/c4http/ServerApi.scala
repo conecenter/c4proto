@@ -1,7 +1,7 @@
 package ee.cone.c4http
 
 import com.sun.net.httpserver.HttpExchange
-import ee.cone.c4proto.MessageReceiver
+import ee.cone.c4proto.{MessageMapper, QProducerRecord}
 
 
 
@@ -11,26 +11,21 @@ trait SenderToAgent {
   def add(data: Array[Byte]): Unit
 }
 
-trait ChannelStatusObserver {
-  def changed(key: String, error: Option[Throwable]): Unit
-}
+
 
 trait TcpServer {
   def senderByKey(key: String): Option[SenderToAgent]
+  def status(key: String, message: String): QProducerRecord
 }
 
 ////
 
-trait HttpPostObserver {
-  def received(req: HttpProtocol.RequestValue): Unit
-}
 
-trait HttpContentProvider {
-  def get(path: String): List[HttpProtocol.RequestValue]
-}
+
+
 
 ////
 
 trait CommandReceiversApp {
-  def commandReceivers: List[MessageReceiver[_]] = Nil
+  def commandReceivers: List[MessageMapper[_]] = Nil
 }

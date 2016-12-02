@@ -5,6 +5,9 @@ import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
 
+import ee.cone.c4http.HttpProtocol.SSEvent
+import ee.cone.c4proto._
+
 import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.Queue
 
@@ -30,16 +33,24 @@ class ChannelHandler(
   def failed(exc: Throwable, att: Unit): Unit = fail(exc)
 }
 
-trait SSEServerApp extends ToStartApp {
+trait SSEServerApp extends ToStartApp with CommandReceiversApp {
   def ssePort: Int
-  def channelStatusObserver: ChannelStatusObserver
+  def qMessages: QMessages
+  def sseStatusTopic: TopicName
+  def sseEventTopic: TopicName
+  def rawQSender: RawQSender
+
   lazy val sseServer: TcpServer with CanStart =
-    new TcpServerImpl(ssePort, channelStatusObserver)
+    new TcpServerImpl(ssePort, qMessages, sseStatusTopic, rawQSender)
   override def toStart: List[CanStart] = sseServer :: super.toStart
+  lazy val sseEventCommandReceiver: MessageMapper[_] =
+    new SSEEventCommandMapper(sseEventTopic, sseServer)
+  override def commandReceivers: List[MessageMapper[_]] =
+    sseEventCommandReceiver :: super.commandReceivers
 }
 
 class TcpServerImpl(
-  port: Int, channelStatusObserver: ChannelStatusObserver
+  port: Int, qMessages: QMessages, sseStatusTopic: TopicName, rawQSender: RawQSender
 ) extends TcpServer with CanStart {
   val channels: TrieMap[String,ChannelHandler] = TrieMap()
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
@@ -51,13 +62,29 @@ class TcpServerImpl(
         listener.accept[Unit](null, this)
         val key = UUID.randomUUID.toString
         channels += key → new ChannelHandler(ch, error ⇒ {
-          channelStatusObserver.changed(key, Some(error))
-          channels -= key
+          rawQSender.send(status(key, error.getStackTrace.toString))
+          channels -= key //close?
         })
-        channelStatusObserver.changed(key, None)
+        rawQSender.send(status(key, ""))
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
   }
+  def status(key: String, message: String): QProducerRecord =
+    qMessages.update(sseStatusTopic, "", HttpProtocol.SSEStatus(key, message))
 }
 
+class SSEEventCommandMapper(
+  topicName: TopicName,
+  sseServer: TcpServer
+) extends MessageMapper[HttpProtocol.SSEvent](topicName, classOf[HttpProtocol.SSEvent]) {
+  def mapMessage(command: SSEvent): Seq[QProducerRecord] = {
+    val key = command.connectionKey
+    sseServer.senderByKey(key) match {
+      case Some(send) ⇒
+        send.add(command.body.toByteArray)
+        Nil
+      case None ⇒ sseServer.status(key, "agent not found") :: Nil
+    }
+  }
+}
