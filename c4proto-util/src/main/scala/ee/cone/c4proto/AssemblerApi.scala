@@ -51,7 +51,7 @@ trait Join[Result,JoinKey,MapKey]
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
-trait WorldPartExpression extends DataDependencyFrom[_] with DataDependencyTo[_] {
+trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {
   def transform(transition: WorldTransition): WorldTransition
 }
 case class WorldTransition(

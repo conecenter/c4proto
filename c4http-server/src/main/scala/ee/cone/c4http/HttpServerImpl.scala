@@ -4,11 +4,17 @@ import java.net.InetSocketAddress
 import java.util.concurrent.ExecutorService
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import ee.cone.c4http.HttpProtocol.RequestValue
+import ee.cone.c4http.HttpProtocol._
 import ee.cone.c4proto._
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+
+object Trace { //m. b. to util
+  def apply[T](f: =>T): T = try { f } catch {
+    case e: Throwable => e.printStackTrace(); throw e
+  }
+}
 
 trait RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte]
@@ -17,20 +23,20 @@ trait RHttpHandler {
 class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val path = httpExchange.getRequestURI.getPath
-    val worldKey = By.srcId(classOf[HttpProtocol.RequestValue])
-    Single(worldKey.of(worldProvider.value)(path)).body.toByteArray
+    val worldKey = By.srcId(classOf[RequestValue])
+    Single(worldKey.of(worldProvider.world)(path)).body.toByteArray
   }
 }
 
-class HttpPostHandler(qMessages: QMessages, topic: TopicName, rawQSender: RawQSender) extends RHttpHandler {
+class HttpPostHandler(qMessages: QMessages, streamKey: StreamKey, rawQSender: RawQSender) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val headers = httpExchange.getRequestHeaders.asScala
-      .flatMap{ case(k,l)⇒l.asScala.map(v⇒HttpProtocol.Header(k,v)) }.toList
+      .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
     val buffer = new okio.Buffer
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
-    val req = HttpProtocol.RequestValue(path, headers, body)
-    rawQSender.send(qMessages.update(topic, "", req))
+    val req = RequestValue(path, headers, body)
+    rawQSender.send(streamKey, qMessages.update("", req))
     Array.empty[Byte]
   }
 }
@@ -55,19 +61,20 @@ class RHttpServer(port: Int, handler: HttpHandler, pool: Pool) extends CanStart 
   }
 }
 
-trait HttpServerApp extends ToStartApp {
+trait HttpServerApp extends ToStartApp with ProtocolsApp {
   def httpPort: Int
   def pool: Pool
   def qMessages: QMessages
-  def httpPostTopic: TopicName
+  def httpPostStreamKey: StreamKey
   def rawQSender: RawQSender
   def worldProvider: WorldProvider
   lazy val httpServer: CanStart = {
     val handler = new ReqHandler(Map(
       "GET" → new HttpGetHandler(worldProvider),
-      "POST" → new HttpPostHandler(qMessages, httpPostTopic, rawQSender)
+      "POST" → new HttpPostHandler(qMessages, httpPostStreamKey, rawQSender)
     ))
     new RHttpServer(httpPort, handler, pool)
   }
   override def toStart: List[CanStart] = httpServer :: super.toStart
+  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
 }

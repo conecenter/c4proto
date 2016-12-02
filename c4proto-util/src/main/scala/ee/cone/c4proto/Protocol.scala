@@ -15,3 +15,6 @@ trait HasId {
   def className: String
 }
 
+trait ProtocolsApp {
+  def protocols: List[Protocol] = Nil
+}

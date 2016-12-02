@@ -84,24 +84,24 @@ case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: Lis
   }
 }
 
-object Reducer {
+object ReducerImpl {
   def apply(rules: List[DataDependencyTo[_]]): Reducer = {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
     val add =
       new PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,replace.many)
           .asInstanceOf[PatchMap[WorldKey[_],Object,Index[Object,Object]]]
-    val expressions: Seq[WorldPartExpression] =
-      rules.collect{ case e: WorldPartExpression ⇒ e }
+    val expressions/*: Seq[WorldPartExpression]*/ =
+      rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
       //handlerLists.list(WorldPartExpressionKey)
     val originals: Set[WorldKey[_]] =
       rules.collect{ case e: OriginalWorldPart[_] ⇒ e.outputWorldKey }.toSet
-    val byOutput: Map[WorldKey[_], Seq[WorldPartExpression]] =
+    val byOutput: Map[WorldKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
     def regOne(
-        priorities: ReverseInsertionOrderSet[WorldPartExpression],
-        handler: WorldPartExpression
-    ): ReverseInsertionOrderSet[WorldPartExpression] = {
+        priorities: ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]],
+        handler: WorldPartExpression with DataDependencyFrom[_]
+    ): ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]] = {
       if(priorities.contains(handler)) priorities
       else (priorities /: handler.inputWorldKeys.flatMap{ k ⇒
         byOutput.getOrElse(k,
@@ -110,7 +110,7 @@ object Reducer {
       })(regOne).add(handler)
     }
     val expressionsByPriority: List[WorldPartExpression] =
-      (ReverseInsertionOrderSet[WorldPartExpression]() /: expressions)(regOne).items.reverse
+      (ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]]() /: expressions)(regOne).items.reverse
     new ReducerImpl(add, expressionsByPriority)
   }
 }
@@ -135,7 +135,7 @@ trait IndexFactoryApp {
 
 trait ReducerApp {
   def dataDependencies: List[DataDependencyTo[_]]
-  lazy val reducer: Reducer = Reducer(dataDependencies)
+  lazy val reducer: Reducer = ReducerImpl(dataDependencies)
 }
 
 trait DataDependenciesApp {

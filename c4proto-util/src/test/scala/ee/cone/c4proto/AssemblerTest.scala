@@ -53,7 +53,7 @@ object AssemblerTestApp extends App {
       def offset = recs.headOption.map(_.offset).getOrElse(0)
     } :: recs
   }
-  val reducer = Reducer(handlerLists)
+  val reducer = ReducerImpl(handlerLists)
 
   qRecords.sendUpdate("1", RawParentNode("1","P-1"))
   Seq("2","3").foreach(srcId⇒qRecords.sendUpdate(srcId, RawChildNode(srcId,"1",s"C-$srcId")))

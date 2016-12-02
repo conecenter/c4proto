@@ -9,34 +9,36 @@ import ee.cone.c4proto.Types.{SrcId, World}
 }
 
 trait QConsumerRecord {
-  def topic: TopicName
+  def streamKey: StreamKey
   def key: Array[Byte]
   def value: Array[Byte]
   def offset: Long
 }
 
-class QProducerRecord(val topic: TopicName, val key: Array[Byte], val value: Array[Byte])
+class QProducerRecord(val key: Array[Byte], val value: Array[Byte])
 
-case class TopicName(value: String)
+case class StreamKey(from: String, to: String)
 
 trait RawQSender {
-  def send(rec: QProducerRecord): Unit
+  def send(streamKey: StreamKey, rec: QProducerRecord): Unit
 }
 
-abstract class MessageMapper[M](val topic: TopicName, val mClass: Class[M]) {
+abstract class MessageMapper[M](val streamKey: StreamKey, val mClass: Class[M]) {
   def mapMessage(command: M): Seq[QProducerRecord]
 }
 
 trait QStatePartReceiver {
-  def receiveStateParts(records: Iterable[QConsumerRecord]): Unit
+  def reduce(world: World, records: Iterable[QConsumerRecord]): World
 }
+
 trait QMessageMapper {
+  def streamKeys: List[StreamKey]
   def mapMessage(rec: QConsumerRecord): Seq[QProducerRecord]
 }
 
 trait QMessages {
-  def update[M](topic: TopicName, srcId: SrcId, value: M): QProducerRecord
-  def delete[M](topic: TopicName, srcId: SrcId, cl: Class[M]): QProducerRecord
+  def update[M](srcId: SrcId, value: M): QProducerRecord
+  def delete[M](srcId: SrcId, cl: Class[M]): QProducerRecord
 }
 
 ////
@@ -51,4 +53,8 @@ trait CanStart {
 
 trait Pool {
   def make(): ExecutorService
+}
+
+trait WorldProvider {
+  def world: World
 }

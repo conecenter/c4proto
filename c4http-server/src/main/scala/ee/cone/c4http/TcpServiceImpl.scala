@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
 
-import ee.cone.c4http.HttpProtocol.SSEvent
+import ee.cone.c4http.TcpProtocol._
 import ee.cone.c4proto._
 
 import scala.collection.concurrent.TrieMap
@@ -20,7 +20,7 @@ class ChannelHandler(
     queue.dequeueOption.foreach{ case (element,nextQueue) ⇒
       queue = nextQueue
       activeElement = Option(element)
-      channel.write[Unit](ByteBuffer.wrap(element), null, this)
+      channel.write[Unit](ByteBuffer.wrap(element), (), this)
     }
   def add(data: Array[Byte]): Unit = synchronized {
     queue.enqueue(data)
@@ -33,52 +33,53 @@ class ChannelHandler(
   def failed(exc: Throwable, att: Unit): Unit = fail(exc)
 }
 
-trait SSEServerApp extends ToStartApp with CommandReceiversApp {
+trait SSEServerApp extends ToStartApp with CommandReceiversApp with ProtocolsApp {
   def ssePort: Int
   def qMessages: QMessages
-  def sseStatusTopic: TopicName
-  def sseEventTopic: TopicName
+  def sseStatusStreamKey: StreamKey
+  def sseEventStreamKey: StreamKey
   def rawQSender: RawQSender
 
   lazy val sseServer: TcpServer with CanStart =
-    new TcpServerImpl(ssePort, qMessages, sseStatusTopic, rawQSender)
+    new TcpServerImpl(ssePort, qMessages, sseStatusStreamKey, rawQSender)
   override def toStart: List[CanStart] = sseServer :: super.toStart
   lazy val sseEventCommandReceiver: MessageMapper[_] =
-    new SSEEventCommandMapper(sseEventTopic, sseServer)
+    new SSEEventCommandMapper(sseEventStreamKey, sseServer)
   override def commandReceivers: List[MessageMapper[_]] =
     sseEventCommandReceiver :: super.commandReceivers
+  override def protocols: List[Protocol] = TcpProtocol :: super.protocols
 }
 
 class TcpServerImpl(
-  port: Int, qMessages: QMessages, sseStatusTopic: TopicName, rawQSender: RawQSender
+  port: Int, qMessages: QMessages, sseStatusStream: StreamKey, rawQSender: RawQSender
 ) extends TcpServer with CanStart {
   val channels: TrieMap[String,ChannelHandler] = TrieMap()
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
   def start(): Unit = {
     val address = new InetSocketAddress(port)
     val listener = AsynchronousServerSocketChannel.open().bind(address)
-    listener.accept[Unit](null, new CompletionHandler[AsynchronousSocketChannel,Unit] {
+    listener.accept[Unit]((), new CompletionHandler[AsynchronousSocketChannel,Unit] {
       def completed(ch: AsynchronousSocketChannel, att: Unit): Unit = {
-        listener.accept[Unit](null, this)
+        listener.accept[Unit]((), this)
         val key = UUID.randomUUID.toString
         channels += key → new ChannelHandler(ch, error ⇒ {
-          rawQSender.send(status(key, error.getStackTrace.toString))
+          rawQSender.send(sseStatusStream, status(key, error.getStackTrace.toString))
           channels -= key //close?
         })
-        rawQSender.send(status(key, ""))
+        rawQSender.send(sseStatusStream, status(key, ""))
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
   }
   def status(key: String, message: String): QProducerRecord =
-    qMessages.update(sseStatusTopic, "", HttpProtocol.SSEStatus(key, message))
+    qMessages.update("", TcpStatus(key, message))
 }
 
 class SSEEventCommandMapper(
-  topicName: TopicName,
+  streamKey: StreamKey,
   sseServer: TcpServer
-) extends MessageMapper[HttpProtocol.SSEvent](topicName, classOf[HttpProtocol.SSEvent]) {
-  def mapMessage(command: SSEvent): Seq[QProducerRecord] = {
+) extends MessageMapper[TcpEvent](streamKey, classOf[TcpEvent]) {
+  def mapMessage(command: TcpEvent): Seq[QProducerRecord] = {
     val key = command.connectionKey
     sseServer.senderByKey(key) match {
       case Some(send) ⇒
