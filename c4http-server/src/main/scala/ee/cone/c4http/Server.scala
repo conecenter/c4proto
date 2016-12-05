@@ -3,18 +3,11 @@ package ee.cone.c4http
 
 import ee.cone.c4proto._
 
-class HttpGatewayApp
-  extends IndexFactoryApp
-  with ReducerApp
-  with DataDependenciesApp
-  with ProtocolDataDependenciesApp
+class HttpGatewayApp extends ServerApp
+  with QMessagesApp
+  with TreeAssemblerApp
   with HttpServerApp
   with SSEServerApp
-  with QMessageMapperApp
-  with QStatePartReceiverApp
-  with QMessagesApp
-  with QAdapterRegistryApp
-  with PoolApp
   with ToIdempotentConsumerApp
   with ToStoredConsumerApp
   with KafkaProducerApp
@@ -31,28 +24,11 @@ class HttpGatewayApp
   //def dataDependencies: List[DataDependencyTo[_]] = ???
 }
 
-
-
 object HttpGateway {
   def main(args: Array[String]): Unit = try {
-    println("EEE")
     val app = new HttpGatewayApp
-    val consumer = app.worldProvider
-    consumer.start()
-    println("DDD")
-    while(consumer.state < ConsumerState.started) {
-      println(consumer.state)
-      Thread.sleep(1000)
-    }
-    println("B",consumer.state)
-    app.toStart.foreach(_.start())
-    while(consumer.state < ConsumerState.finished) {
-      println(consumer.state)
-      Thread.sleep(1000)
-    }
-    println("C",consumer.state)
-    Thread.sleep(1000)
-  } finally {} //System.exit(0)
+    app.execution.run()
+  } finally System.exit(0)
 }
 
 // I>P -- to agent, cmd>evl

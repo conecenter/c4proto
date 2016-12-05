@@ -14,7 +14,10 @@ object By {
 }
 
 trait IndexFactory {
-  def createJoinMapIndex[R<:Object,TK,RK](join: Join[R,TK,RK]): WorldPartExpression
+  def createJoinMapIndex[R<:Object,TK,RK](join: Join[R,TK,RK]):
+    WorldPartExpression
+      with DataDependencyFrom[Index[TK, Object]]
+      with DataDependencyTo[Index[RK, R]]
 }
 
 abstract class WorldKey[Item](default: Item) {
@@ -40,6 +43,10 @@ trait DataDependencyTo[To] {
   def outputWorldKey: WorldKey[To]
 }
 
+trait DataDependenciesApp {
+  def dataDependencies: List[DataDependencyTo[_]] = Nil
+}
+
 trait Join[Result,JoinKey,MapKey]
   extends DataDependencyFrom[Index[JoinKey,Object]]
   with DataDependencyTo[Index[MapKey,Result]]
@@ -60,8 +67,8 @@ case class WorldTransition(
   current: World
 )
 
-trait Reducer {
-  def reduce(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World
+trait TreeAssembler {
+  def replace(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World
 }
 
 class OriginalWorldPart[A](val outputWorldKey: WorldKey[A]) extends DataDependencyTo[A]

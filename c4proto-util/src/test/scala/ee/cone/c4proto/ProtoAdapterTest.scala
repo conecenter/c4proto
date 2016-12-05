@@ -1,33 +1,36 @@
 
 package ee.cone.c4proto
 
-object MyApp extends App {
+object ProtoAdapterTest extends App {
   import MyProtocol._
   val leader0 = Person("leader0", Some(40))
   val worker0 = Person("worker0", Some(30))
   val worker1 = Person("worker1", Some(20))
   val group0 = Group(Some(leader0), List(worker0,worker1))
-  val handlerLists = CoHandlerLists(
-    CoHandler(ProtocolKey)(MyProtocol) ::
-    CoHandler(ReceiverKey)(new MessageMapper(classOf[Group], {
-      (group1:Group) ⇒
-      println(group0,group1,group0==group1)
-    })) ::
-    Nil
-  )
-  var rec: Option[QConsumerRecord] = None
-  val qRecords = QRecords(handlerLists){ (k:Array[Byte],v:Array[Byte]) ⇒
-    println(k.toList)
-    println(v.toList)
-    rec = Some(new QConsumerRecord {
-      def key:Array[Byte] = k
-      def value:Array[Byte] = v
-      def offset = 0
-    })
+
+  val testStreamKey = TestProducerToConsumerRecord.testStreamKey
+  val testMessageMapper = new MessageMapper(testStreamKey, classOf[Group]) {
+    def mapMessage(group1: Group): Seq[QProducerRecord] = {
+      assert(group0==group1)
+      Nil
+    }
   }
-  qRecords.sendUpdate("",group0)
-  qRecords.receive(rec.get)
-  //println(new String(bytes,"..."))
+  val app = new QMessagesApp {
+    override def protocols: List[Protocol] = MyProtocol :: super.protocols
+    def messageMappers: List[MessageMapper[_]] = testMessageMapper :: Nil
+  }
+  val rec = TestProducerToConsumerRecord(app.qMessages.update("",group0))
+  app.qMessageMapper.mapMessage(rec)
+}
+
+object TestProducerToConsumerRecord {
+  def testStreamKey = StreamKey("","")
+  def apply(rec: QProducerRecord): QConsumerRecord = new QConsumerRecord {
+    def streamKey: StreamKey = testStreamKey
+    def key:Array[Byte] = rec.key
+    def value:Array[Byte] = rec.value
+    def offset: Long = 0
+  }
 }
 
 @protocol object MyProtocol extends Protocol {

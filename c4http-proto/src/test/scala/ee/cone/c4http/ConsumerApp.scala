@@ -1,49 +1,79 @@
 package ee.cone.c4http
 
+import java.util.UUID
+
+import ee.cone.c4http.TcpProtocol.Status
 import ee.cone.c4proto._
-import org.apache.kafka.clients.producer.ProducerRecord
 
-object ConsumerApp {
-  def main(args: Array[String]): Unit = {
-    try {
-      val bootstrapServers = "localhost:9092"
-      val pool = Pool()
-      val producer = Producer(bootstrapServers)
-      lazy val qRecords = QRecords(handlerLists){
-        (k:Array[Byte],v:Array[Byte]) ⇒ producer.send(new ProducerRecord("http-gets", k, v)).get()
-      }
-      lazy val handlerLists: CoHandlerLists = CoHandlerLists(
-        CoHandler(ProtocolKey)(QProtocol) ::
-          CoHandler(ProtocolKey)(HttpProtocol) ::
-          CoHandler(ReceiverKey)(new MessageMapper(classOf[HttpProtocol.RequestValue], {
-            (req:HttpProtocol.RequestValue) ⇒
-            val next: String = try {
-              val prev = new String(req.body.toByteArray, "UTF-8")
-              (prev.toLong * 3).toString
-            } catch {
-              case r: Exception ⇒
-                //throw new Exception("die")
-                "###"
-            }
-            val body = okio.ByteString.encodeUtf8(next)
-            val resp = HttpProtocol.RequestValue(req.path, Nil, body)
-            qRecords.sendUpdate(resp.path,resp)
-          })) ::
-          Nil
-      )
+class TestConsumerApp extends ServerApp
+  with QMessagesApp
+  with TreeAssemblerApp
+  with ToIdempotentConsumerApp
+  with ToStoredConsumerApp
+  with KafkaProducerApp
+{
+  def messageMappers: List[MessageMapper[_]] =
+    new PostMessageMapper(StreamKey("http-posts", "http-gate-state"),qMessages) ::
+    new TcpStatusToStateMessageMapper(StreamKey("sse-status",stateTopic),qMessages) ::
+    new TcpStatusToDisconnectMessageMapper(StreamKey("sse-status","sse-events"),qMessages) ::
+    Nil
+  def consumerGroupId: String = "http-test"
+  def stateTopic = s"http-test-${UUID.randomUUID}-state"
+  def statePartConsumerStreamKey: StreamKey = StreamKey(stateTopic,"")
+  def bootstrapServers: String = "localhost:9092"
+  override def protocols: List[Protocol] = ConnectionProtocol :: super.protocols
+}
 
-      val consumer = new ToIdempotentConsumer(bootstrapServers,"test-consumer","http-posts")(pool, { rec ⇒
-        qRecords.receive(rec)
-        println("received at: ",rec.offset)
-      })
-      consumer.start()
-      while(consumer.state < ConsumerState.finished) {
-        //println(consumer.state)
-        Thread.sleep(1000)
-      }
-    } finally System.exit(0)
+class PostMessageMapper(streamKey: StreamKey, qMessages: QMessages)
+  extends MessageMapper(streamKey, classOf[HttpProtocol.RequestValue])
+{
+  def mapMessage(req: HttpProtocol.RequestValue): Seq[QProducerRecord] = {
+    val next: String = try {
+      val prev = new String(req.body.toByteArray, "UTF-8")
+      (prev.toLong * 3).toString
+    } catch {
+      case r: Exception ⇒
+        //throw new Exception("die")
+        "###"
+    }
+    val body = okio.ByteString.encodeUtf8(next)
+    val resp = HttpProtocol.RequestValue(req.path, Nil, body)
+    qMessages.update(resp.path,resp) :: Nil
   }
 }
+
+class TcpStatusToStateMessageMapper(streamKey: StreamKey, qMessages: QMessages)
+  extends MessageMapper(streamKey, classOf[TcpProtocol.Status])
+{
+  def mapMessage(message: Status): Seq[QProducerRecord] = {
+    val srcId = message.connectionKey
+    if(message.error.isEmpty)
+      qMessages.update(srcId, ConnectionProtocol.Connection()) :: Nil
+    else
+      qMessages.delete(srcId, classOf[ConnectionProtocol.Connection]) :: Nil
+  }
+}
+
+class TcpStatusToDisconnectMessageMapper(streamKey: StreamKey, qMessages: QMessages)
+  extends MessageMapper(streamKey, classOf[TcpProtocol.Status])
+{
+  def mapMessage(message: Status): Seq[QProducerRecord] = {
+    if(message.error.isEmpty) Nil
+    else qMessages.update("", TcpProtocol.DisconnectEvent(message.connectionKey)) :: Nil
+  }
+}
+
+@protocol object ConnectionProtocol extends Protocol {
+  @Id(0x0003) case class Connection()
+}
+
+object ConsumerTest {
+  def main(args: Array[String]): Unit = try {
+    val app = new TestConsumerApp
+    app.execution.run()
+  } finally System.exit(0)
+}
+
 
 /*
 object Test {

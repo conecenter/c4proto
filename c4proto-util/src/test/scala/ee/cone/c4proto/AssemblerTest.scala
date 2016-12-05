@@ -35,31 +35,25 @@ class ParentNodeWithChildrenJoin extends Join2(
     if(nodes.size <= 1) nodes.toList else throw new Exception("PK")
 }
 
-object AssemblerTestApp extends App {
+class AssemblerTestApp extends QMessagesApp with TreeAssemblerApp {
+  override def protocols: List[Protocol] = PCProtocol :: super.protocols
+  def messageMappers: List[MessageMapper[_]] = Nil
+  override def dataDependencies: List[DataDependencyTo[_]] =
+    indexFactory.createJoinMapIndex(new ChildNodeByParentJoin) ::
+    indexFactory.createJoinMapIndex(new ParentNodeWithChildrenJoin) ::
+    super.dataDependencies
+}
+
+object AssemblerTest extends App {
   val indexFactory = new IndexFactoryImpl
-  import indexFactory._
-  val handlerLists = CoHandlerLists(
-    CoHandler(ProtocolKey)(QProtocol) ::
-    CoHandler(ProtocolKey)(PCProtocol) ::
-    createJoinMapIndex(new ChildNodeByParentJoin) ::
-    createJoinMapIndex(new ParentNodeWithChildrenJoin) ::
-    Nil
-  )
-  var recs: List[QConsumerRecord] = Nil
-  val qRecords = QRecords(handlerLists){ (k:Array[Byte],v:Array[Byte]) ⇒
-    recs = new QConsumerRecord {
-      def key:Array[Byte] = k
-      def value:Array[Byte] = v
-      def offset = recs.headOption.map(_.offset).getOrElse(0)
-    } :: recs
-  }
-  val reducer = ReducerImpl(handlerLists)
-
-  qRecords.sendUpdate("1", RawParentNode("1","P-1"))
-  Seq("2","3").foreach(srcId⇒qRecords.sendUpdate(srcId, RawChildNode(srcId,"1",s"C-$srcId")))
-  val diff = qRecords.toTree(recs.reverse)
+  val app = new AssemblerTestApp
+  var recs =
+    TestProducerToConsumerRecord(app.qMessages.update("1", RawParentNode("1","P-1"))) ::
+    List("2","3").map(srcId⇒
+      TestProducerToConsumerRecord(app.qMessages.update(srcId, RawChildNode(srcId,"1",s"C-$srcId")))
+    )
+  val diff = app.qMessages.toTree(recs.reverse)
   println(diff)
-  val world = reducer.reduce(Map.empty,diff)
+  val world = app.treeAssembler.replace(Map.empty,diff)
   println(world)
-
 }

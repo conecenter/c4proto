@@ -24,23 +24,25 @@ trait KafkaProducerApp extends ToStartApp {
 trait ToIdempotentConsumerApp extends ToStartApp {
   def bootstrapServers: String
   def consumerGroupId: String
-  def pool: Pool
+  def serverFactory: ServerFactory
   def qMessageMapper: QMessageMapper
   def rawQSender: RawQSender
-  lazy val toIdempotentConsumers: List[ToIdempotentConsumer] =
+  lazy val toIdempotentConsumers: List[CanStart] =
     qMessageMapper.streamKeys.map(streamKey⇒
-      new ToIdempotentConsumer(bootstrapServers, consumerGroupId, streamKey)(pool, qMessageMapper, rawQSender)
+      serverFactory.toServer(new ToIdempotentConsumer(bootstrapServers, consumerGroupId, streamKey)(qMessageMapper, rawQSender))
     )
   override def toStart: List[CanStart] = toIdempotentConsumers ::: super.toStart
 }
 
-trait ToStoredConsumerApp {
+trait ToStoredConsumerApp extends ToStartApp {
   def bootstrapServers: String
   def statePartConsumerStreamKey: StreamKey
-  def pool: Pool
-  def qStatePartReceiver: QStatePartReceiver
-  lazy val worldProvider = new ToStoredConsumer(bootstrapServers, statePartConsumerStreamKey, 0)(pool,qStatePartReceiver)
-  // to start before others
+  def serverFactory: ServerFactory
+  def qMessages: QMessages
+  def treeAssembler: TreeAssembler
+  lazy val worldProvider = new ToStoredConsumer(bootstrapServers, statePartConsumerStreamKey, 0)(qMessages,treeAssembler)
+  lazy val worldServer: CanStart = serverFactory.toServer(worldProvider)
+  override def toStart: List[CanStart] = worldServer :: super.toStart
 }
 
 
@@ -48,7 +50,8 @@ trait ToStoredConsumerApp {
 
 class KafkaRawQSender(bootstrapServers: String) extends RawQSender with CanStart {
   var producer: Option[Producer[Array[Byte], Array[Byte]]] = None
-  def start(): Unit = {
+  def early: Option[ShouldStartEarly] = None
+  def start(pool: ExecutorService): Unit = {
     val props = Map[String, Object](
       "bootstrap.servers" → bootstrapServers,
       "acks" → "all",
@@ -83,7 +86,7 @@ class KafkaQConsumerRecordAdapter(parentStreamKey: StreamKey, rec: ConsumerRecor
 //consumer.commitSync(Collections.singletonMap(topicPartition, offset))
 
 class ToIdempotentConsumer(bootstrapServers: String, groupId: String, val streamKey: StreamKey)(
-  val pool: Pool, qMessageMapper: QMessageMapper, rawQSender: RawQSender
+  qMessageMapper: QMessageMapper, rawQSender: RawQSender
 ) extends KConsumer {
   protected lazy val props: Map[String, Object] = Map(
     "bootstrap.servers" → bootstrapServers,
@@ -98,15 +101,13 @@ class ToIdempotentConsumer(bootstrapServers: String, groupId: String, val stream
       //! if consumer.commitSync() after loop, if single fails then all recent will be re-consumed
     }
   }
-  protected def readyState: Int = ConsumerState.started
 }
 
 class ToStoredConsumer(bootstrapServers: String, val streamKey: StreamKey, pos: Long)(
-  val pool: Pool, qStatePartReceiver: QStatePartReceiver
-) extends KConsumer with WorldProvider {
+  qMessages: QMessages, treeAssembler: TreeAssembler
+) extends KConsumer with WorldProvider with ShouldStartEarly {
   private lazy val ready = new AtomicBoolean(false)
-  protected def readyState: Int =
-    if(ready.get()) ConsumerState.started else ConsumerState.starting
+  def isReady: Boolean = ready.get()
   protected def props: Map[String, Object] = Map(
     "bootstrap.servers" → bootstrapServers,
     "enable.auto.commit" → "false"
@@ -118,7 +119,8 @@ class ToStoredConsumer(bootstrapServers: String, val streamKey: StreamKey, pos: 
     //println("untilPos",untilPos)
     consumer.seek(topicPartition, pos)
     poll(consumer){ recs ⇒
-      val nextWorld = qStatePartReceiver.reduce(world, recs)
+      val diff = qMessages.toTree(recs)
+      val nextWorld = treeAssembler.replace(world, diff)
       synchronized{ theWorld = nextWorld }
       if(!ready.get() && untilPos <= consumer.position(topicPartition) )
         ready.set(true)
@@ -126,29 +128,10 @@ class ToStoredConsumer(bootstrapServers: String, val streamKey: StreamKey, pos: 
   }
 }
 
-object ConsumerState {
-  def notStarted = 0
-  def starting = 1
-  def started = 2
-  def finished = 3
-}
-abstract class KConsumer extends Runnable with CanStart {
+abstract class KConsumer extends Runnable {
   protected def streamKey: StreamKey
   protected def props: Map[String, Object]
   protected def runInner(consumer: Consumer[Array[Byte], Array[Byte]], topicPartition: TopicPartition): Unit
-  protected def pool: Pool
-  protected def readyState: Int
-  private var future: Option[Future[_]] = None
-  def start(): Unit = synchronized{
-    future = Option(pool.make().submit(this))
-  }
-  def state: Int = synchronized {
-    future.map(_.isDone) match {
-      case None ⇒ ConsumerState.notStarted
-      case Some(false) ⇒ readyState
-      case Some(true) ⇒ ConsumerState.finished
-    }
-  }
   protected lazy val alive = new AtomicBoolean(true)
   protected def poll(consumer: Consumer[Array[Byte], Array[Byte]])(recv: Iterable[QConsumerRecord]⇒Unit): Unit =
     while(alive.get)

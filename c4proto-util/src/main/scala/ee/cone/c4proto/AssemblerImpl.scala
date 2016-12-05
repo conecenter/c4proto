@@ -16,7 +16,11 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
 }
 
 class IndexFactoryImpl extends IndexFactory {
-  def createJoinMapIndex[Value<:Object,TK,MapKey](join: Join[Value,TK,MapKey]): WorldPartExpression = {
+  def createJoinMapIndex[Value<:Object,TK,MapKey](join: Join[Value,TK,MapKey]):
+    WorldPartExpression
+      with DataDependencyFrom[Index[TK, Object]]
+      with DataDependencyTo[Index[MapKey, Value]]
+  = {
     val add: PatchMap[Value,Int,Int] =
       new PatchMap[Value,Int,Int](0,_==0,(v,d)⇒v+d)
     val addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]] =
@@ -42,7 +46,10 @@ class JoinMapIndex[JoinKey,MapKey,Value<:Object](
   addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value]
-) extends WorldPartExpression {
+) extends WorldPartExpression
+  with DataDependencyFrom[Index[JoinKey, Object]]
+  with DataDependencyTo[Index[MapKey, Value]]
+{
   def inputWorldKeys: Seq[WorldKey[Index[JoinKey, Object]]] = join.inputWorldKeys
   def outputWorldKey: WorldKey[Index[MapKey, Value]] = join.outputWorldKey
 
@@ -84,8 +91,8 @@ case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: Lis
   }
 }
 
-object ReducerImpl {
-  def apply(rules: List[DataDependencyTo[_]]): Reducer = {
+object TreeAssemblerImpl {
+  def apply(rules: List[DataDependencyTo[_]]): TreeAssembler = {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
     val add =
@@ -111,15 +118,15 @@ object ReducerImpl {
     }
     val expressionsByPriority: List[WorldPartExpression] =
       (ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]]() /: expressions)(regOne).items.reverse
-    new ReducerImpl(add, expressionsByPriority)
+    new TreeAssemblerImpl(add, expressionsByPriority)
   }
 }
 
-class ReducerImpl(
+class TreeAssemblerImpl(
     add: PatchMap[WorldKey[_],Object,Index[Object,Object]],
     expressionsByPriority: List[WorldPartExpression]
-) extends Reducer {
-  def reduce(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World = {
+) extends TreeAssembler {
+  def replace(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World = {
     val diff = replaced.mapValues(_.mapValues(_⇒true))
     val current = add.many(prev, replaced)
     val transition = WorldTransition(prev,diff,current)
@@ -129,24 +136,7 @@ class ReducerImpl(
   }
 }
 
-trait IndexFactoryApp {
-  lazy val indexFactory: IndexFactory = new IndexFactoryImpl
+object ProtocolDataDependencies {
+  def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
+    protocols.flatMap(_.adapters).map(adapter⇒new OriginalWorldPart(By.It('S',adapter.className)))
 }
-
-trait ReducerApp {
-  def dataDependencies: List[DataDependencyTo[_]]
-  lazy val reducer: Reducer = ReducerImpl(dataDependencies)
-}
-
-trait DataDependenciesApp {
-  def dataDependencies: List[DataDependencyTo[_]] = Nil
-}
-
-trait ProtocolDataDependenciesApp extends DataDependenciesApp {
-  def protocols: List[Protocol]
-  override def dataDependencies: List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters).map(adapter⇒new OriginalWorldPart(By.It('S',adapter.className))) :::
-    super.dataDependencies
-}
-
-

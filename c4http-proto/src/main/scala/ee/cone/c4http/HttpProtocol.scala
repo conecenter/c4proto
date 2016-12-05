@@ -8,6 +8,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 }
 
 @protocol object TcpProtocol extends Protocol {
-  @Id(0x0026) case class TcpEvent(@Id(0x0027) connectionKey: String, @Id(0x0023) body: okio.ByteString)
-  @Id(0x0028) case class TcpStatus(@Id(0x0027) connectionKey: String, @Id(0x0029) error: String)
+  @Id(0x0026) case class WriteEvent(@Id(0x0027) connectionKey: String, @Id(0x0023) body: okio.ByteString)
+  @Id(0x0028) case class Status(@Id(0x0027) connectionKey: String, @Id(0x0029) error: String)
+  @Id(0x002A) case class DisconnectEvent(@Id(0x0027) connectionKey: String)
 }

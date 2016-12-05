@@ -51,11 +51,12 @@ class ReqHandler(
   } finally httpExchange.close() }
 }
 
-class RHttpServer(port: Int, handler: HttpHandler, pool: Pool) extends CanStart {
-  def start(): Unit = {
+class RHttpServer(port: Int, handler: HttpHandler) extends CanStart {
+  def early: Option[ShouldStartEarly] = None
+  def start(pool: ExecutorService): Unit = {
     val server: HttpServer = HttpServer.create(new InetSocketAddress(port),0)
     OnShutdown(()⇒server.stop(Int.MaxValue))
-    server.setExecutor(pool.make())
+    server.setExecutor(pool)
     server.createContext("/", handler)
     server.start()
   }
@@ -63,7 +64,6 @@ class RHttpServer(port: Int, handler: HttpHandler, pool: Pool) extends CanStart 
 
 trait HttpServerApp extends ToStartApp with ProtocolsApp {
   def httpPort: Int
-  def pool: Pool
   def qMessages: QMessages
   def httpPostStreamKey: StreamKey
   def rawQSender: RawQSender
@@ -73,7 +73,7 @@ trait HttpServerApp extends ToStartApp with ProtocolsApp {
       "GET" → new HttpGetHandler(worldProvider),
       "POST" → new HttpPostHandler(qMessages, httpPostStreamKey, rawQSender)
     ))
-    new RHttpServer(httpPort, handler, pool)
+    new RHttpServer(httpPort, handler)
   }
   override def toStart: List[CanStart] = httpServer :: super.toStart
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
