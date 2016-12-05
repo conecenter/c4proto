@@ -47,10 +47,11 @@ class AssemblerTestApp extends QMessagesApp with TreeAssemblerApp {
 object AssemblerTest extends App {
   val indexFactory = new IndexFactoryImpl
   val app = new AssemblerTestApp
+  val testStreamKey = StreamKey("","")
   var recs =
-    TestProducerToConsumerRecord(app.qMessages.update("1", RawParentNode("1","P-1"))) ::
-    List("2","3").map(srcId⇒
-      TestProducerToConsumerRecord(app.qMessages.update(srcId, RawChildNode(srcId,"1",s"C-$srcId")))
+    app.qMessages.toRecord(testStreamKey, "1" → RawParentNode("1","P-1")) ::
+    List("2","3").map(srcId ⇒
+      app.qMessages.toRecord(testStreamKey, srcId → RawChildNode(srcId,"1",s"C-$srcId"))
     )
   val diff = app.qMessages.toTree(recs.reverse)
   println(diff)

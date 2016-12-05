@@ -36,7 +36,7 @@ class HttpPostHandler(qMessages: QMessages, streamKey: StreamKey, rawQSender: Ra
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
     val req = RequestValue(path, headers, body)
-    rawQSender.send(streamKey, qMessages.update("", req))
+    rawQSender.send(qMessages.toRecord(streamKey, req))
     Array.empty[Byte]
   }
 }

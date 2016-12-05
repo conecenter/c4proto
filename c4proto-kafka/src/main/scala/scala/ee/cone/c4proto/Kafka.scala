@@ -66,7 +66,8 @@ class KafkaRawQSender(bootstrapServers: String) extends RawQSender with CanStart
     ))
     OnShutdown(() ⇒ producer.map(_.close()))
   }
-  def send(streamKey: StreamKey, rec: QProducerRecord): Unit = {
+  def send(rec: QRecord): Unit = {
+    val streamKey = rec.streamKey
     if(streamKey.to.isEmpty) throw new Exception(s"no destination: $streamKey")
     val kRec = new ProducerRecord(streamKey.to, 0, rec.key, rec.value)
     producer.get.send(kRec).get()
@@ -75,11 +76,10 @@ class KafkaRawQSender(bootstrapServers: String) extends RawQSender with CanStart
 
 ////
 
-class KafkaQConsumerRecordAdapter(parentStreamKey: StreamKey, rec: ConsumerRecord[Array[Byte], Array[Byte]]) extends QConsumerRecord {
+class KafkaQConsumerRecordAdapter(parentStreamKey: StreamKey, rec: ConsumerRecord[Array[Byte], Array[Byte]]) extends QRecord {
   def streamKey: StreamKey = parentStreamKey
   def key: Array[Byte] = rec.key
   def value: Array[Byte] = rec.value
-  def offset: Long = rec.offset
 }
 
 //val offset = new OffsetAndMetadata(rec.offset + 1)
@@ -95,8 +95,8 @@ class ToIdempotentConsumer(bootstrapServers: String, groupId: String, val stream
   )
   protected def runInner(consumer: Consumer[Array[Byte], Array[Byte]], topicPartition: TopicPartition): Unit = {
     poll(consumer){ recs ⇒
-      val toSend = recs.flatMap(qMessageMapper.mapMessage).toList
-      toSend.foreach(rawQSender.send(streamKey,_))
+      val toSend = recs.flatMap(qMessageMapper.mapMessage(streamKey,_)).toList
+      toSend.foreach(rawQSender.send)
       consumer.commitSync()
       //! if consumer.commitSync() after loop, if single fails then all recent will be re-consumed
     }
@@ -133,7 +133,7 @@ abstract class KConsumer extends Runnable {
   protected def props: Map[String, Object]
   protected def runInner(consumer: Consumer[Array[Byte], Array[Byte]], topicPartition: TopicPartition): Unit
   protected lazy val alive = new AtomicBoolean(true)
-  protected def poll(consumer: Consumer[Array[Byte], Array[Byte]])(recv: Iterable[QConsumerRecord]⇒Unit): Unit =
+  protected def poll(consumer: Consumer[Array[Byte], Array[Byte]])(recv: Iterable[QRecord]⇒Unit): Unit =
     while(alive.get)
       recv(consumer.poll(1000 /*timeout*/).asScala.map(new KafkaQConsumerRecordAdapter(streamKey,_)))
   def run(): Unit = {

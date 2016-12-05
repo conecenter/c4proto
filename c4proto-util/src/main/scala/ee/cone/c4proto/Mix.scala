@@ -6,7 +6,7 @@ trait QMessagesApp extends ProtocolsApp {
   def messageMappers: List[MessageMapper[_]]
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry)
-  lazy val qMessageMapper: QMessageMapper = QMessageMapperImpl(qAdapterRegistry, messageMappers)
+  lazy val qMessageMapper: QMessageMapper = QMessageMapperImpl(qAdapterRegistry, qMessages, messageMappers)
 }
 
 trait ServerApp {

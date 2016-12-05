@@ -13,7 +13,7 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.Queue
 
 class ChannelHandler(
-  channel: AsynchronousSocketChannel, fail: Throwable⇒Unit
+  val channel: AsynchronousSocketChannel, fail: Throwable⇒Unit
 ) extends CompletionHandler[Integer,Unit] with SenderToAgent {
   private var queue: Queue[Array[Byte]] = Queue.empty
   private var activeElement: Option[Array[Byte]] = None
@@ -65,29 +65,27 @@ class TcpServerImpl(
         listener.accept[Unit]((), this)
         val key = UUID.randomUUID.toString
         channels += key → new ChannelHandler(ch, error ⇒ {
-          rawQSender.send(sseStatusStream, status(key, error.getStackTrace.toString))
-          channels -= key //close?
+          rawQSender.send(qMessages.toRecord(sseStatusStream, Status(key, error.getStackTrace.toString)))
+          channels.remove(key).foreach(_.channel.close()) //does close block?
         })
-        rawQSender.send(sseStatusStream, status(key, ""))
+        rawQSender.send(qMessages.toRecord(sseStatusStream, Status(key, "")))
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
   }
-  def status(key: String, message: String): QMessage =
-    QMessage(Status(key, message))
 }
 
 class SSEEventCommandMapper(
-  streamKey: StreamKey,
+  val streamKey: StreamKey,
   sseServer: TcpServer
-) extends MessageMapper[WriteEvent](streamKey, classOf[WriteEvent]) {
-  def mapMessage(command: WriteEvent): Seq[QProducerRecord] = {
+) extends MessageMapper[WriteEvent](classOf[WriteEvent]) {
+  def mapMessage(command: WriteEvent): Seq[Status] = {
     val key = command.connectionKey
     sseServer.senderByKey(key) match {
       case Some(send) ⇒
         send.add(command.body.toByteArray)
         Nil
-      case None ⇒ sseServer.status(key, "agent not found") :: Nil
+      case None ⇒ Seq(Status(key, "agent not found"))
     }
   }
 }

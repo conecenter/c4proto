@@ -8,9 +8,10 @@ object ProtoAdapterTest extends App {
   val worker1 = Person("worker1", Some(20))
   val group0 = Group(Some(leader0), List(worker0,worker1))
 
-  val testStreamKey = TestProducerToConsumerRecord.testStreamKey
-  val testMessageMapper = new MessageMapper(testStreamKey, classOf[Group]) {
-    def mapMessage(group1: Group): Seq[QProducerRecord] = {
+  val testStreamKey = StreamKey("","")
+  val testMessageMapper = new MessageMapper(classOf[Group]) {
+    def streamKey: StreamKey = testStreamKey
+    def mapMessage(group1: Group): Seq[Product] = {
       assert(group0==group1)
       Nil
     }
@@ -19,18 +20,8 @@ object ProtoAdapterTest extends App {
     override def protocols: List[Protocol] = MyProtocol :: super.protocols
     def messageMappers: List[MessageMapper[_]] = testMessageMapper :: Nil
   }
-  val rec = TestProducerToConsumerRecord(app.qMessages.update("",group0))
-  app.qMessageMapper.mapMessage(rec)
-}
-
-object TestProducerToConsumerRecord {
-  def testStreamKey = StreamKey("","")
-  def apply(rec: QProducerRecord): QConsumerRecord = new QConsumerRecord {
-    def streamKey: StreamKey = testStreamKey
-    def key:Array[Byte] = rec.key
-    def value:Array[Byte] = rec.value
-    def offset: Long = 0
-  }
+  val rec = app.qMessages.toRecord(testStreamKey, ""→group0)
+  app.qMessageMapper.mapMessage(testStreamKey, rec)
 }
 
 @protocol object MyProtocol extends Protocol {

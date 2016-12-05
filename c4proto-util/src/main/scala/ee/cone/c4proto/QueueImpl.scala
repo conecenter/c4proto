@@ -1,7 +1,5 @@
 package ee.cone.c4proto
 
-import java.util.concurrent.{ExecutorService, Executors, TimeUnit}
-
 import ee.cone.c4proto.Types.{Index, SrcId}
 import com.squareup.wire.ProtoAdapter
 
@@ -10,25 +8,22 @@ import com.squareup.wire.ProtoAdapter
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
+class QRecordImpl(val streamKey: StreamKey, val key: Array[Byte], val value: Array[Byte]) extends QRecord
+
 class QMessagesImpl(qAdapterRegistry: QAdapterRegistry) extends QMessages {
   import qAdapterRegistry._
-
-  def update[M](srcId: SrcId, value: M): QProducerRecord =
-    inner(srcId, value.getClass.asInstanceOf[Class[M]], Option(value))
-  def delete[M](srcId: SrcId, cl: Class[M]): QProducerRecord =
-    inner(srcId, cl, None)
-
-  def toProducerRecord(message: QMessage): QProducerRecord = ???
-  private def byClass[M](cl: Class[M]): ProtoAdapter[M] with HasId =
-    byName(cl.getName).asInstanceOf[ProtoAdapter[M] with HasId]
-  private def inner[M](srcId: SrcId, cl: Class[M], value: Option[M]): QProducerRecord = {
-    val valueAdapter = byClass(cl)
+  def toRecord(streamKey: StreamKey, message: Product): QRecord = {
+    val(srcId,cl,value) = message match {
+      case (srcId: SrcId, cl: Class[_]) ⇒ (srcId, cl, None:Option[Product])
+      case (srcId: SrcId, value: Product) ⇒ (srcId, value.getClass, Option(value))
+      case value: Product ⇒ ("", value.getClass, Option(value))
+    }
+    val valueAdapter = byName(cl.getName).asInstanceOf[ProtoAdapter[Product] with HasId]
     val rawKey = keyAdapter.encode(QProtocol.TopicKey(srcId, valueAdapter.id))
     val rawValue = value.map(valueAdapter.encode).getOrElse(Array.empty)
-    new QProducerRecord(rawKey, rawValue)
+    new QRecordImpl(streamKey, rawKey, rawValue)
   }
-  ////
-  def toTree(records: Iterable[QConsumerRecord]): Map[WorldKey[_],Index[Object,Object]] = records.map {
+  def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]] = records.map {
     rec ⇒ (qAdapterRegistry.keyAdapter.decode(rec.key), rec)
   }.groupBy {
     case (topicKey, _) ⇒ topicKey.valueTypeId
@@ -50,29 +45,27 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry) extends QMessages {
 }
 
 object QMessageMapperImpl {
-  def apply(qAdapterRegistry: QAdapterRegistry, messageMappers: List[MessageMapper[_]]): QMessageMapper = {
+  def apply(qAdapterRegistry: QAdapterRegistry, qMessages: QMessages, messageMappers: List[MessageMapper[_]]): QMessageMapper = {
     val receiveById =
       messageMappers.groupBy(_.streamKey).mapValues(_.groupBy(cl⇒qAdapterRegistry.byName(cl.mClass.getName).id))
         .asInstanceOf[Map[StreamKey, Map[Long, List[MessageMapper[Object]]]]]
-    /*
-    commandReceivers.map{ receiver ⇒
-      qAdapterRegistry.byName(receiver.mClass.getName).id → receiver
-    }.asInstanceOf[List[(Long,MessageMapper[Object])]].toMap*/
-    new QMessageMapperImpl(qAdapterRegistry,receiveById)
+    new QMessageMapperImpl(qAdapterRegistry,qMessages,receiveById)
   }
 }
 
 class QMessageMapperImpl(
     qAdapterRegistry: QAdapterRegistry,
+    qMessages: QMessages,
     receiveById: Map[StreamKey, Map[Long, List[MessageMapper[Object]]]]
 ) extends QMessageMapper {
   def streamKeys: List[StreamKey] =
     receiveById.keys.toList.filter(_.from.nonEmpty).sortBy(s⇒s"${s.from}->${s.to}")
-  def mapMessage(rec: QConsumerRecord): Seq[QProducerRecord] = {
+  def mapMessage(streamKey: StreamKey, rec: QRecord): Seq[QRecord] = {
     val key = qAdapterRegistry.keyAdapter.decode(rec.key)
     val valueAdapter = qAdapterRegistry.byId(key.valueTypeId)
     val value = valueAdapter.decode(rec.value)
-    receiveById(rec.streamKey).getOrElse(key.valueTypeId,Nil).flatMap(_.mapMessage(value))
+    receiveById(rec.streamKey).getOrElse(key.valueTypeId,Nil)
+      .flatMap(_.mapMessage(value)).map(qMessages.toRecord(streamKey,_))
   }
 }
 
