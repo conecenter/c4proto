@@ -53,8 +53,35 @@ object AssemblerTest extends App {
     List("2","3").map(srcId ⇒
       app.qMessages.toRecord(testStreamKey, srcId → RawChildNode(srcId,"1",s"C-$srcId"))
     )
-  val diff = app.qMessages.toTree(recs.reverse)
-  println(diff)
+  val diff: Map[WorldKey[_], Index[Object, Object]] = app.qMessages.toTree(recs.reverse)
   val world = app.treeAssembler.replace(Map.empty,diff)
+  val shouldDiff = Map(
+    By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
+      "1" -> List(RawParentNode("1","P-1"))
+    ),
+    By.srcId(classOf[PCProtocol.RawChildNode]) -> Map(
+      "2" -> List(RawChildNode("2","1","C-2")),
+      "3" -> List(RawChildNode("3","1","C-3"))
+    )
+  )
   println(world)
+  assert(diff==shouldDiff)
+  assert(world==Map(
+    By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
+      "1" -> List(RawParentNode("1","P-1"))
+    ),
+    By.srcId(classOf[PCProtocol.RawChildNode]) -> Map(
+      "2" -> List(RawChildNode("2","1","C-2")),
+      "3" -> List(RawChildNode("3","1","C-3"))
+    ),
+    ChildNodeByParent -> Map(
+      "1" -> List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
+    ),
+    By.srcId(classOf[ParentNodeWithChildren]) -> Map(
+      "1" -> List(ParentNodeWithChildren(
+        "P-1",
+        List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
+      ))
+    )
+  ))
 }

@@ -13,6 +13,7 @@ object ProtoAdapterTest extends App {
     def streamKey: StreamKey = testStreamKey
     def mapMessage(group1: Group): Seq[Product] = {
       assert(group0==group1)
+      println("OK",group1)
       Nil
     }
   }

@@ -20,10 +20,19 @@ class TestConsumerApp extends ServerApp
     new TcpStatusToDisconnectMessageMapper(StreamKey("sse-status","sse-events")) ::
     Nil
   def consumerGroupId: String = "http-test"
-  def stateTopic = s"http-test-${UUID.randomUUID}-state"
+  lazy val stateTopic: String = {
+    val res = s"http-test-${UUID.randomUUID}-state"
+    println(s"stateTopic: $res")
+    res
+  }
   def statePartConsumerStreamKey: StreamKey = StreamKey(stateTopic,"")
   def bootstrapServers: String = "localhost:9092"
-  override def protocols: List[Protocol] = ConnectionProtocol :: super.protocols
+  override def protocols: List[Protocol] =
+    ConnectionProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
+
+  lazy val tcpEventBroadcaster: CanStart =
+    serverFactory.toServer(new TcpEventBroadcaster(worldProvider, qMessages, StreamKey("","sse-events"), rawQSender))
+  override def toStart: List[CanStart] = tcpEventBroadcaster :: super.toStart
 }
 
 class PostMessageMapper(val streamKey: StreamKey)
@@ -53,9 +62,11 @@ class TcpEventBroadcaster(
       val world = worldProvider.world
       val worldKey = By.srcId(classOf[ConnectionProtocol.Connection])
       val connections: Index[SrcId, Connection] = worldKey.of(world)
-      val sizeBody = okio.ByteString.encodeUtf8(connections.size.toString)
-      connections.keys.foreach{ connectionKey ⇒
-        val message = TcpProtocol.WriteEvent(connectionKey,sizeBody)
+      val size = s"${connections.size}\n"
+      val sizeBody = okio.ByteString.encodeUtf8(size)
+      println(size)
+      connections.values.flatten.foreach{ connection ⇒
+        val message = TcpProtocol.WriteEvent(connection.connectionKey,sizeBody)
         rawQSender.send(qMessages.toRecord(streamKey, message))
       }
       Thread.sleep(3000)
@@ -68,7 +79,7 @@ class TcpStatusToStateMessageMapper(val streamKey: StreamKey)
 {
   def mapMessage(message: Status): Seq[Product] = {
     val srcId = message.connectionKey
-    if(message.error.isEmpty) Seq(srcId → ConnectionProtocol.Connection())
+    if(message.error.isEmpty) Seq(srcId → ConnectionProtocol.Connection(srcId))
     else Seq(srcId → classOf[ConnectionProtocol.Connection])
   }
 }
@@ -83,14 +94,14 @@ class TcpStatusToDisconnectMessageMapper(val streamKey: StreamKey)
 }
 
 @protocol object ConnectionProtocol extends Protocol {
-  @Id(0x0003) case class Connection()
+  @Id(0x0003) case class Connection(@Id(0x0027) connectionKey: String)
 }
 
 object ConsumerTest {
-  def main(args: Array[String]): Unit = try {
+  def main(args: Array[String]): Unit = try { Trace {
     val app = new TestConsumerApp
     app.execution.run()
-  } finally System.exit(0)
+  } } finally System.exit(0)
 }
 
 

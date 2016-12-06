@@ -24,7 +24,7 @@ class ChannelHandler(
       channel.write[Unit](ByteBuffer.wrap(element), (), this)
     }
   def add(data: Array[Byte]): Unit = synchronized {
-    queue.enqueue(data)
+    queue = queue.enqueue(data)
     if(activeElement.isEmpty) startWrite()
   }
   def completed(result: Integer, att: Unit): Unit = Trace {
@@ -84,8 +84,8 @@ class SSEEventCommandMapper(
   def mapMessage(command: WriteEvent): Seq[Status] = {
     val key = command.connectionKey
     sseServer.senderByKey(key) match {
-      case Some(send) ⇒
-        send.add(command.body.toByteArray)
+      case Some(sender) ⇒
+        sender.add(command.body.toByteArray)
         Nil
       case None ⇒ Seq(Status(key, "agent not found"))
     }
