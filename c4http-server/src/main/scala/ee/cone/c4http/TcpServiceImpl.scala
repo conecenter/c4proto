@@ -27,9 +27,11 @@ class ChannelHandler(
     queue.enqueue(data)
     if(activeElement.isEmpty) startWrite()
   }
-  def completed(result: Integer, att: Unit): Unit = synchronized {
-    activeElement = None
-    startWrite()
+  def completed(result: Integer, att: Unit): Unit = Trace {
+    synchronized {
+      activeElement = None
+      startWrite()
+    }
   }
   def failed(exc: Throwable, att: Unit): Unit = fail(exc)
 }
@@ -61,7 +63,7 @@ class TcpServerImpl(
     val address = new InetSocketAddress(port)
     val listener = AsynchronousServerSocketChannel.open().bind(address)
     listener.accept[Unit]((), new CompletionHandler[AsynchronousSocketChannel,Unit] {
-      def completed(ch: AsynchronousSocketChannel, att: Unit): Unit = {
+      def completed(ch: AsynchronousSocketChannel, att: Unit): Unit = Trace {
         listener.accept[Unit]((), this)
         val key = UUID.randomUUID.toString
         channels += key → new ChannelHandler(ch, error ⇒ {

@@ -10,12 +10,6 @@ import ee.cone.c4proto._
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
-object Trace { //m. b. to util
-  def apply[T](f: =>T): T = try { f } catch {
-    case e: Throwable => e.printStackTrace(); throw e
-  }
-}
-
 trait RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte]
 }

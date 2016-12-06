@@ -45,7 +45,11 @@ lazy val `c4proto-kafka` = project.settings(publishSettings).settings(
 lazy val `c4http-proto` = project.settings(publishSettings ++ metaMacroSettings).dependsOn(
   `c4proto-util`, `c4proto-kafka` % "test->compile"
 )
-lazy val `c4http-server` = project.settings(publishSettings).dependsOn(
+lazy val `c4http-server` = project.settings(
+  publishSettings ++ Seq(
+    libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21"
+  )
+).enablePlugins(JavaServerAppPackaging).dependsOn(
   `c4http-proto`, `c4proto-kafka`
 )
 

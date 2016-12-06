@@ -25,10 +25,10 @@ class HttpGatewayApp extends ServerApp
 }
 
 object HttpGateway {
-  def main(args: Array[String]): Unit = try {
+  def main(args: Array[String]): Unit = try { Trace {
     val app = new HttpGatewayApp
     app.execution.run()
-  } finally System.exit(0)
+  } } finally System.exit(0)
 }
 
 // I>P -- to agent, cmd>evl

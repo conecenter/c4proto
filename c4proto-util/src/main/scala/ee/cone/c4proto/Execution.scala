@@ -15,6 +15,7 @@ class ExecutionImpl(
 ) extends Runnable {
   private def sleep() = Thread.sleep(1000)
   def run(): Unit = {
+    println(s"tracking ${toStart.size} services")
     val pool = Executors.newCachedThreadPool() //newWorkStealingPool
     OnShutdown(()⇒{
       pool.shutdown()
@@ -22,9 +23,11 @@ class ExecutionImpl(
     })
     pool.submit(new TwoPhaseStart(pool, toStart))
     while(toStart.collectFirst{
-      case s: CanFail if s.isDone ⇒ println(s"$s is done"); sleep(); s
-      case _ ⇒ sleep()
-    }.isEmpty){}
+      case s: CanFail if s.isDone ⇒
+        println(s"$s is done")
+        sleep()
+        s
+    }.isEmpty) sleep()
   }
 }
 
@@ -35,7 +38,11 @@ class ServerFactoryImpl extends ServerFactory {
 class CanStartImpl(runnable: Runnable) extends CanStart with CanFail {
   private var future: Option[Future[_]] = None
   def start(pool: ExecutorService): Unit = synchronized{
-    future = Option(pool.submit(runnable))
+    future = Option(pool.submit(new Runnable{
+      def run(): Unit = Trace {
+        runnable.run()
+      }
+    }))
   }
   def isDone: Boolean = synchronized{
     future.exists(_.isDone)

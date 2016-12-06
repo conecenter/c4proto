@@ -73,3 +73,9 @@ object OnShutdown {
     override def run(): Unit = f()
   })
 }
+
+object Trace { //m. b. to util
+  def apply[T](f: =>T): T = try { f } catch {
+    case e: Throwable => e.printStackTrace(); throw e
+  }
+}
