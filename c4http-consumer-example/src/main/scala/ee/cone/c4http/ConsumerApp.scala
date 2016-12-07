@@ -2,7 +2,6 @@ package ee.cone.c4http
 
 import java.util.UUID
 
-import ee.cone.c4http.ConnectionProtocol.Connection
 import ee.cone.c4http.TcpProtocol.Status
 import ee.cone.c4proto.Types.{Index, SrcId}
 import ee.cone.c4proto._
@@ -28,7 +27,7 @@ class TestConsumerApp extends ServerApp
   def statePartConsumerStreamKey: StreamKey = StreamKey(stateTopic,"")
   def bootstrapServers: String = "localhost:9092"
   override def protocols: List[Protocol] =
-    ConnectionProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
+    HttpProtocol :: TcpProtocol :: super.protocols
 
   lazy val tcpEventBroadcaster: CanStart =
     serverFactory.toServer(new TcpEventBroadcaster(worldProvider, qMessages, StreamKey("","sse-events"), rawQSender))
@@ -60,8 +59,8 @@ class TcpEventBroadcaster(
   override def run(): Unit = {
     while(true){
       val world = worldProvider.world
-      val worldKey = By.srcId(classOf[ConnectionProtocol.Connection])
-      val connections: Index[SrcId, Connection] = worldKey.of(world)
+      val worldKey = By.srcId(classOf[Status])
+      val connections: Index[SrcId, Status] = worldKey.of(world)
       val size = s"${connections.size}\n"
       val sizeBody = okio.ByteString.encodeUtf8(size)
       println(size)
@@ -79,8 +78,8 @@ class TcpStatusToStateMessageMapper(val streamKey: StreamKey)
 {
   def mapMessage(message: Status): Seq[Product] = {
     val srcId = message.connectionKey
-    if(message.error.isEmpty) Seq(srcId → ConnectionProtocol.Connection(srcId))
-    else Seq(srcId → classOf[ConnectionProtocol.Connection])
+    if(message.error.isEmpty) Seq(srcId → Status(srcId,""))
+    else Seq(srcId → classOf[Status])
   }
 }
 
@@ -91,10 +90,6 @@ class TcpStatusToDisconnectMessageMapper(val streamKey: StreamKey)
     if(message.error.isEmpty) Nil
     else Seq(TcpProtocol.DisconnectEvent(message.connectionKey))
   }
-}
-
-@protocol object ConnectionProtocol extends Protocol {
-  @Id(0x0003) case class Connection(@Id(0x0027) connectionKey: String)
 }
 
 object ConsumerTest {

@@ -11,7 +11,9 @@ scalaVersion in ThisBuild := "2.11.8"
 // from https://github.com/scalameta/sbt-macro-example/blob/master/build.sbt
 
 lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
-  libraryDependencies += "org.scalameta" %% "scalameta" % "1.4.0.544",
+  ivyConfigurations += config("compileonly").hide,
+  libraryDependencies += "org.scalameta" %% "scalameta" % "1.4.0.544" % "compileonly",
+  unmanagedClasspath in Compile ++= update.value.select(configurationFilter("compileonly")),
   // New-style macro annotations are under active development.  As a result, in
   // this build we'll be referring to snapshot versions of both scala.meta and
   // macro paradise.
@@ -32,19 +34,22 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
 lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
-lazy val `c4proto-util` = project.settings(publishSettings ++ metaMacroSettings).settings(
+
+lazy val `c4proto-api` = project.settings(publishSettings).settings(
   libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0"
-).dependsOn(`c4proto-macros`)
+)
+
+lazy val `c4proto-util` = project.settings(publishSettings).settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+lazy val `c4http-proto` = project.settings(publishSettings).settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+
 lazy val `c4proto-kafka` = project.settings(publishSettings).settings(
   libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0"
 ).dependsOn(
   `c4proto-util`
 )
 
-lazy val `c4http-proto` = project.settings(publishSettings ++ metaMacroSettings).dependsOn(
-  `c4proto-util`, `c4proto-kafka` % "test->compile"
-)
 lazy val `c4http-server` = project.settings(
   publishSettings ++ Seq(
     libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21"
@@ -53,9 +58,13 @@ lazy val `c4http-server` = project.settings(
   `c4http-proto`, `c4proto-kafka`
 )
 
+lazy val `c4http-consumer-example` = project.settings(publishSettings).dependsOn(
+  `c4proto-util`, `c4proto-kafka`, `c4http-proto`
+)
+
 lazy val root = project.in(file(".")).settings(publishArtifact := false).aggregate(
   `c4proto-macros`, `c4proto-util`, `c4proto-kafka`,
-  `c4http-proto`, `c4http-server`
+  `c4http-proto`, `c4http-server`, `c4http-consumer-example`
 )
 
 

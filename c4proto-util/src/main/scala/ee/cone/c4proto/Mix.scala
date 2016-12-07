@@ -24,3 +24,9 @@ trait TreeAssemblerApp extends DataDependenciesApp {
     ProtocolDataDependencies(protocols) ::: super.dataDependencies
   lazy val treeAssembler: TreeAssembler = TreeAssemblerImpl(dataDependencies)
 }
+
+////
+
+trait ProtocolsApp {
+  def protocols: List[Protocol] = Nil
+}
