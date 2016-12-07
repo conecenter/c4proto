@@ -36,35 +36,44 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
 
 
 lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
-
 lazy val `c4proto-api` = project.settings(publishSettings).settings(
   libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0"
 )
 
-lazy val `c4proto-util` = project.settings(publishSettings).settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
-lazy val `c4http-proto` = project.settings(publishSettings).settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+lazy val `c4proto-types` = project.settings(publishSettings)
+  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+lazy val `c4http-proto` = project.settings(publishSettings)
+  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
 
-lazy val `c4proto-kafka` = project.settings(publishSettings).settings(
-  libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0"
-).dependsOn(
-  `c4proto-util`
-)
+lazy val `c4event-source-base` = project.settings(publishSettings)
+  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
 
-lazy val `c4http-server` = project.settings(
-  publishSettings ++ Seq(
-    libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21"
-  )
-).enablePlugins(JavaServerAppPackaging).dependsOn(
-  `c4http-proto`, `c4proto-kafka`
-)
+lazy val `c4event-source-base-examples` = project.settings(publishSettings)
+  .settings(metaMacroSettings)
+  .dependsOn(`c4event-source-base`,`c4proto-types`)
 
-lazy val `c4http-consumer-example` = project.settings(publishSettings).dependsOn(
-  `c4proto-util`, `c4proto-kafka`, `c4http-proto`
-)
+lazy val `c4event-source-kafka` = project.settings(publishSettings)
+  .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0")
+  .dependsOn(`c4event-source-base`)
+
+lazy val `c4http-server` = project.settings(publishSettings)
+  .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
+  .enablePlugins(JavaServerAppPackaging)
+  .dependsOn(`c4http-proto`, `c4event-source-kafka`)
+
+lazy val `c4http-consumer-example` = project.settings(publishSettings)
+  .dependsOn(`c4event-source-kafka`, `c4http-proto`)
 
 lazy val root = project.in(file(".")).settings(publishArtifact := false).aggregate(
-  `c4proto-macros`, `c4proto-util`, `c4proto-kafka`,
-  `c4http-proto`, `c4http-server`, `c4http-consumer-example`
+  `c4event-source-base`,
+  `c4event-source-base-examples`,
+  `c4event-source-kafka`,
+  `c4http-consumer-example`,
+  `c4http-proto`,
+  `c4http-server`,
+  `c4proto-api`,
+  `c4proto-macros`,
+  `c4proto-types`
 )
 
 
