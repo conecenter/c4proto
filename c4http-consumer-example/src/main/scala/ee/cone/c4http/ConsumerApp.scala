@@ -78,8 +78,8 @@ class TcpStatusToStateMessageMapper(val streamKey: StreamKey)
 {
   def mapMessage(message: Status): Seq[Product] = {
     val srcId = message.connectionKey
-    if(message.error.isEmpty) Seq(srcId → Status(srcId,""))
-    else Seq(srcId → classOf[Status])
+    if(message.error.isEmpty) Seq(srcId → Status(srcId,"")) // to update world
+    else Seq(srcId → classOf[Status]) //to delete from world
   }
 }
 

@@ -28,6 +28,12 @@ object ProtoAdapterTest extends App {
 @protocol object MyProtocol extends Protocol {
   import BigDecimalProtocol._
   //com.squareup.wire.ProtoAdapter
-  @Id(0x0003) case class Person(@Id(0x0007) name: String, @Id(0x0004) age: Option[BigDecimal] @scale(0))
-  @Id(0x0001) case class Group(@Id(0x0005) leader: Option[Person], @Id(0x0006) worker: List[Person])
+  @Id(0x0003) case class Person(
+    @Id(0x0007) name: String,
+    @Id(0x0004) age: Option[BigDecimal] @scale(0)
+  )
+  @Id(0x0001) case class Group(
+    @Id(0x0005) leader: Option[Person],
+    @Id(0x0006) worker: List[Person]
+  )
 }
