@@ -1,14 +1,19 @@
 
+import sbt.Keys._
+import sbt._
+
+lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
+
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.3.0",
-  name := "c4proto",
-  description := "Protobuf scalameta macros",  
+  version := "0.3.2",
+  //name := "c4proto",
+  //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
-  publishArtifact in Test := false,
+  //publishArtifact in Test := false,
   bintrayOrganization := Some("conecenter2b"),  
   //bintrayOrganization in bintray.Keys.bintray := None,
-  licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0")),
+  licenses := ourLicense,
   fork := true //looks like sbt hangs for a minute on System.exit
 )
 
@@ -43,40 +48,48 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
 ////////////////////////////////////////////////////////////////////////////////
 
 
-import sbt.Keys._
-import sbt._
 
+lazy val descr = "C4 framework"
 
 lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
-lazy val `c4proto-api` = project.settings(publishSettings).settings(
-  libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0"
-)
+  .settings(description := s"$descr / scalameta macros to generate Protobuf adapters for case classes")
+lazy val `c4proto-api` = project.settings(publishSettings)
+  .settings(description := s"$descr / runtime dependency for generated Protobuf adapters")
+  .settings(libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0")
 
 lazy val `c4proto-types` = project.settings(publishSettings)
+  .settings(description := s"$descr / additional data types to use in messages")
   .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
 lazy val `c4http-proto` = project.settings(publishSettings)
+  .settings(description := s"$descr / http message definitions")
   .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
 
 lazy val `c4event-source-base` = project.settings(publishSettings)
+  .settings(description := s"$descr")
   .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
 
 lazy val `c4event-source-base-examples` = project.settings(publishSettings)
+  .settings(description := s"$descr")
   .settings(metaMacroSettings)
   .dependsOn(`c4event-source-base`,`c4proto-types`)
 
 lazy val `c4event-source-kafka` = project.settings(publishSettings)
+  .settings(description := s"$descr")
   .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0")
   .dependsOn(`c4event-source-base`)
 
 lazy val `c4http-server` = project.settings(publishSettings)
+  .settings(description := s"$descr / http/tcp gate server to kafka")
   .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
   .enablePlugins(JavaServerAppPackaging)
   .dependsOn(`c4http-proto`, `c4event-source-kafka`)
 
 lazy val `c4http-consumer-example` = project.settings(publishSettings)
+  .settings(description := s"$descr")
   .dependsOn(`c4event-source-kafka`, `c4http-proto`)
 
-lazy val root = project.in(file(".")).settings(publishSettings).aggregate(
+//publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
+lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4event-source-base`,
   `c4event-source-base-examples`,
   `c4event-source-kafka`,
