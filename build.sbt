@@ -2,6 +2,13 @@
 lazy val publishSettings = Seq(
   organization := "ee.cone",
   version := "0.3.0",
+  name := "c4proto",
+  description := "Protobuf scalameta macros",  
+  publishMavenStyle := false,
+  publishArtifact in Test := false,
+  bintrayOrganization := Some("conecenter2b"),  
+  //bintrayOrganization in bintray.Keys.bintray := None,
+  licenses := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0")),
   fork := true //looks like sbt hangs for a minute on System.exit
 )
 
@@ -30,9 +37,14 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   scalacOptions in (Compile, console) := Seq(), // macroparadise plugin doesn't work in repl yet.
   // temporary workaround for https://github.com/scalameta/paradise/issues/55
   sources in (Compile, doc) := Nil // macroparadise doesn't work with scaladoc yet.
+  
 )
 
 ////////////////////////////////////////////////////////////////////////////////
+
+
+import sbt.Keys._
+import sbt._
 
 
 lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
@@ -64,7 +76,7 @@ lazy val `c4http-server` = project.settings(publishSettings)
 lazy val `c4http-consumer-example` = project.settings(publishSettings)
   .dependsOn(`c4event-source-kafka`, `c4http-proto`)
 
-lazy val root = project.in(file(".")).settings(publishArtifact := false).aggregate(
+lazy val root = project.in(file(".")).settings(publishSettings).aggregate(
   `c4event-source-base`,
   `c4event-source-base-examples`,
   `c4event-source-kafka`,
