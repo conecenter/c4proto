@@ -88,6 +88,10 @@ lazy val `c4http-consumer-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .dependsOn(`c4event-source-kafka`, `c4http-proto`)
 
+
+lazy val `c4http-sse` = project.settings(publishSettings)
+lazy val `c4vdom-base` = project.settings(publishSettings)
+
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4event-source-base`,
