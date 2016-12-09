@@ -59,7 +59,7 @@ class TcpServerImpl(
   val channels: TrieMap[String,ChannelHandler] = TrieMap()
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
   def early: Option[ShouldStartEarly] = None
-  def start(pool: ExecutorService): Unit = {
+  def start(ctx: ExecutionContext): Unit = {
     val address = new InetSocketAddress(port)
     val listener = AsynchronousServerSocketChannel.open().bind(address)
     listener.accept[Unit]((), new CompletionHandler[AsynchronousSocketChannel,Unit] {

@@ -51,7 +51,7 @@ trait ToStoredConsumerApp extends ToStartApp {
 class KafkaRawQSender(bootstrapServers: String) extends RawQSender with CanStart {
   var producer: Option[Producer[Array[Byte], Array[Byte]]] = None
   def early: Option[ShouldStartEarly] = None
-  def start(pool: ExecutorService): Unit = {
+  def start(ctx: ExecutionContext): Unit = {
     val props = Map[String, Object](
       "bootstrap.servers" → bootstrapServers,
       "acks" → "all",
@@ -64,7 +64,7 @@ class KafkaRawQSender(bootstrapServers: String) extends RawQSender with CanStart
     producer = Some(new KafkaProducer[Array[Byte], Array[Byte]](
       props.asJava, serializer, serializer
     ))
-    OnShutdown(() ⇒ producer.map(_.close()))
+    ctx.onShutdown(() ⇒ producer.map(_.close()))
   }
   def send(rec: QRecord): Unit = {
     val streamKey = rec.streamKey
@@ -128,7 +128,7 @@ class ToStoredConsumer(bootstrapServers: String, val streamKey: StreamKey, pos: 
   }
 }
 
-abstract class KConsumer extends Runnable {
+abstract class KConsumer extends Executable {
   protected def streamKey: StreamKey
   protected def props: Map[String, Object]
   protected def runInner(consumer: Consumer[Array[Byte], Array[Byte]], topicPartition: TopicPartition): Unit
@@ -136,12 +136,12 @@ abstract class KConsumer extends Runnable {
   protected def poll(consumer: Consumer[Array[Byte], Array[Byte]])(recv: Iterable[QRecord]⇒Unit): Unit =
     while(alive.get)
       recv(consumer.poll(1000 /*timeout*/).asScala.map(new KafkaQConsumerRecordAdapter(streamKey,_)))
-  def run(): Unit = {
+  def run(ctx: ExecutionContext): Unit = {
     val deserializer = new ByteArrayDeserializer
     val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
     )
-    OnShutdown{() ⇒
+    ctx.onShutdown{() ⇒
       alive.set(false)
       consumer.wakeup()
     }

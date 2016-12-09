@@ -24,12 +24,7 @@ class HttpGatewayApp extends ServerApp
   //def dataDependencies: List[DataDependencyTo[_]] = ???
 }
 
-object HttpGateway {
-  def main(args: Array[String]): Unit = try { Trace {
-    val app = new HttpGatewayApp
-    app.execution.run()
-  } } finally System.exit(0)
-}
+object HttpGateway extends Main((new HttpGatewayApp).execution.run)
 
 // I>P -- to agent, cmd>evl
 // >P -- post, sse status

@@ -47,10 +47,10 @@ class ReqHandler(
 
 class RHttpServer(port: Int, handler: HttpHandler) extends CanStart {
   def early: Option[ShouldStartEarly] = None
-  def start(pool: ExecutorService): Unit = {
+  def start(ctx: ExecutionContext): Unit = {
     val server: HttpServer = HttpServer.create(new InetSocketAddress(port),0)
-    OnShutdown(()⇒server.stop(Int.MaxValue))
-    server.setExecutor(pool)
+    ctx.onShutdown(()⇒server.stop(Int.MaxValue))
+    server.setExecutor(ctx.executors)
     server.createContext("/", handler)
     server.start()
   }

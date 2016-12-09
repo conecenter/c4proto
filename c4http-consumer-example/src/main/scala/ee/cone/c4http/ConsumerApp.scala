@@ -55,8 +55,8 @@ class PostMessageMapper(val streamKey: StreamKey)
 class TcpEventBroadcaster(
     worldProvider: WorldProvider, //
     qMessages: QMessages, streamKey: StreamKey, rawQSender: RawQSender
-) extends Runnable {
-  override def run(): Unit = {
+) extends Executable {
+  def run(executionContext: ExecutionContext): Unit = {
     while(true){
       val world = worldProvider.world
       val worldKey = By.srcId(classOf[Status])
@@ -92,12 +92,8 @@ class TcpStatusToDisconnectMessageMapper(val streamKey: StreamKey)
   }
 }
 
-object ConsumerTest {
-  def main(args: Array[String]): Unit = try { Trace {
-    val app = new TestConsumerApp
-    app.execution.run()
-  } } finally System.exit(0)
-}
+object ConsumerTest extends Main((new TestConsumerApp).execution.run)
+
 
 
 /*

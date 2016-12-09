@@ -12,7 +12,7 @@ trait QMessagesApp extends ProtocolsApp {
 trait ServerApp {
   def toStart: List[CanStart]
   lazy val serverFactory: ServerFactory = new ServerFactoryImpl
-  lazy val execution: Runnable = new ExecutionImpl(toStart)
+  lazy val execution: Executable = new ExecutionImpl(toStart)
 }
 
 ////

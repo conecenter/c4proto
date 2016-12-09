@@ -50,7 +50,7 @@ trait ShouldStartEarly {
 }
 
 trait CanStart {
-  def start(pool: ExecutorService): Unit
+  def start(ctx: ExecutionContext): Unit
   def early: Option[ShouldStartEarly]
 }
 
@@ -59,20 +59,20 @@ trait CanFail {
 }
 
 trait ServerFactory {
-  def toServer(runnable: Runnable): CanStart
+  def toServer(runnable: Executable): CanStart
 }
 
 trait WorldProvider {
   def world: World
 }
 
-////
-
-object OnShutdown {
-  def apply(f: ()⇒Unit): Unit = Runtime.getRuntime.addShutdownHook(new Thread(){
-    override def run(): Unit = f()
-  })
+trait Executable {
+  def run(ctx: ExecutionContext): Unit
 }
+
+class ExecutionContext(val executors: ExecutorService, val onShutdown: (()⇒Unit)⇒Unit)
+
+////
 
 object Trace { //m. b. to util
   def apply[T](f: =>T): T = try { f } catch {
