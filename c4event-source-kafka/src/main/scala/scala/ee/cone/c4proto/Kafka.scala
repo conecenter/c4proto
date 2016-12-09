@@ -4,7 +4,7 @@ import java.util.concurrent.{ExecutorService, Executors, Future, TimeUnit}
 import java.util.concurrent.atomic.AtomicBoolean
 
 import ee.cone.c4proto.Types.World
-import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord}
+import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.{Consumer, ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.common.TopicPartition
@@ -16,8 +16,8 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 trait KafkaProducerApp extends ToStartApp {
   def bootstrapServers: String
-  lazy val rawQSender: RawQSender with CanStart =
-    new KafkaRawQSender(bootstrapServers)
+  lazy val kafkaRawQSender: KafkaRawQSender = new KafkaRawQSender(bootstrapServers)
+  def rawQSender: RawQSender with CanStart = kafkaRawQSender
   override def toStart: List[CanStart] = rawQSender :: super.toStart
 }
 
@@ -26,10 +26,10 @@ trait ToIdempotentConsumerApp extends ToStartApp {
   def consumerGroupId: String
   def serverFactory: ServerFactory
   def qMessageMapper: QMessageMapper
-  def rawQSender: RawQSender
+  def kafkaRawQSender: KafkaRawQSender
   lazy val toIdempotentConsumers: List[CanStart] =
     qMessageMapper.streamKeys.map(streamKey⇒
-      serverFactory.toServer(new ToIdempotentConsumer(bootstrapServers, consumerGroupId, streamKey)(qMessageMapper, rawQSender))
+      serverFactory.toServer(new ToIdempotentConsumer(bootstrapServers, consumerGroupId, streamKey)(qMessageMapper, kafkaRawQSender))
     )
   override def toStart: List[CanStart] = toIdempotentConsumers ::: super.toStart
 }
@@ -66,12 +66,13 @@ class KafkaRawQSender(bootstrapServers: String) extends RawQSender with CanStart
     ))
     ctx.onShutdown(() ⇒ producer.map(_.close()))
   }
-  def send(rec: QRecord): Unit = {
+  def sendStart(rec: QRecord): Future[RecordMetadata] = {
     val streamKey = rec.streamKey
     if(streamKey.to.isEmpty) throw new Exception(s"no destination: $streamKey")
     val kRec = new ProducerRecord(streamKey.to, 0, rec.key, rec.value)
-    producer.get.send(kRec).get()
+    producer.get.send(kRec)
   }
+  def send(rec: QRecord): Unit = sendStart(rec).get()
 }
 
 ////
@@ -86,7 +87,7 @@ class KafkaQConsumerRecordAdapter(parentStreamKey: StreamKey, rec: ConsumerRecor
 //consumer.commitSync(Collections.singletonMap(topicPartition, offset))
 
 class ToIdempotentConsumer(bootstrapServers: String, groupId: String, val streamKey: StreamKey)(
-  qMessageMapper: QMessageMapper, rawQSender: RawQSender
+  qMessageMapper: QMessageMapper, rawQSender: KafkaRawQSender
 ) extends KConsumer {
   protected lazy val props: Map[String, Object] = Map(
     "bootstrap.servers" → bootstrapServers,
@@ -96,7 +97,8 @@ class ToIdempotentConsumer(bootstrapServers: String, groupId: String, val stream
   protected def runInner(consumer: Consumer[Array[Byte], Array[Byte]], topicPartition: TopicPartition): Unit = {
     poll(consumer){ recs ⇒
       val toSend = recs.flatMap(qMessageMapper.mapMessage(streamKey,_)).toList
-      toSend.foreach(rawQSender.send)
+      val metadata = toSend.map(rawQSender.sendStart)
+      metadata.foreach(_.get())
       consumer.commitSync()
       //! if consumer.commitSync() after loop, if single fails then all recent will be re-consumed
     }
