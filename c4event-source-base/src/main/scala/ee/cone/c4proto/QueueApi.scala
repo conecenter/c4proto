@@ -8,21 +8,30 @@ import ee.cone.c4proto.Types.{Index, SrcId, World}
   @Id(0x0010) case class TopicKey(@Id(0x0011) srcId: String, @Id(0x0012) valueTypeId: Long)
 }
 
+case class ActorName(value: String)
+
+sealed trait TopicName
+case class InboxTopicName(actorName: ActorName) extends TopicName
+case class StateTopicName(actorName: ActorName) extends TopicName
+
 trait QRecord {
-  def streamKey: StreamKey
+  def topic: TopicName
   def key: Array[Byte]
   def value: Array[Byte]
 }
-
-case class StreamKey(from: String, to: String)
 
 trait RawQSender {
   def send(rec: QRecord): Unit
 }
 
+sealed trait MessageMapResult
+case class Update[M<:Product](srcId: SrcId, value: M) extends MessageMapResult
+case class Delete[M<:Product](srcId: SrcId, value: Class[M]) extends MessageMapResult
+case class Send[M<:Product](actorName: ActorName, value: M) extends MessageMapResult
+
 abstract class MessageMapper[M](val mClass: Class[M]) {
-  def streamKey: StreamKey
-  def mapMessage(message: M): Seq[Product]
+  def actorName: ActorName
+  def mapMessage(world: World, message: M): Seq[MessageMapResult]
 }
 
 trait MessageMappersApp {
@@ -30,13 +39,13 @@ trait MessageMappersApp {
 }
 
 trait QMessageMapper {
-  def streamKeys: List[StreamKey]
-  def mapMessage(streamKey: StreamKey, rec: QRecord): Seq[QRecord]
+  def mapMessage(world: World, rec: QRecord): Seq[QRecord]
 }
 
 trait QMessages {
-  def toRecord(streamKey: StreamKey, message: Product): QRecord
+  def toRecord(actorName: Option[ActorName], message: MessageMapResult): QRecord
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]]
+  def send[M](message: Send[M]): Unit
 }
 
 ////

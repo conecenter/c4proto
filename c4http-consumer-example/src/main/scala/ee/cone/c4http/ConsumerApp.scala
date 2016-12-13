@@ -3,7 +3,7 @@ package ee.cone.c4http
 import java.util.UUID
 
 import ee.cone.c4http.TcpProtocol.Status
-import ee.cone.c4proto.Types.{Index, SrcId}
+import ee.cone.c4proto.Types.{Index, SrcId, World}
 import ee.cone.c4proto._
 
 class TestConsumerApp extends ServerApp
@@ -34,10 +34,10 @@ class TestConsumerApp extends ServerApp
   override def toStart: List[CanStart] = tcpEventBroadcaster :: super.toStart
 }
 
-class PostMessageMapper(val streamKey: StreamKey)
+class PostMessageMapper(val actorName: ActorName)
   extends MessageMapper(classOf[HttpProtocol.RequestValue])
 {
-  def mapMessage(req: HttpProtocol.RequestValue): Seq[(SrcId,HttpProtocol.RequestValue)] = {
+  def mapMessage(world: World, req: HttpProtocol.RequestValue): Seq[MessageMapResult] = {
     val next: String = try {
       val prev = new String(req.body.toByteArray, "UTF-8")
       (prev.toLong * 3).toString
@@ -48,7 +48,7 @@ class PostMessageMapper(val streamKey: StreamKey)
     }
     val body = okio.ByteString.encodeUtf8(next)
     val resp = HttpProtocol.RequestValue(req.path, Nil, body)
-    Seq(resp.path→resp)
+    Seq(Update(resp.path,resp))
   }
 }
 
@@ -73,20 +73,20 @@ class TcpEventBroadcaster(
   }
 }
 
-class TcpStatusToStateMessageMapper(val streamKey: StreamKey)
+class TcpStatusToStateMessageMapper(val actorName: ActorName)
   extends MessageMapper(classOf[TcpProtocol.Status])
 {
-  def mapMessage(message: Status): Seq[Product] = {
+  def mapMessage(world: World, message: Status): Seq[MessageMapResult] = {
     val srcId = message.connectionKey
-    if(message.error.isEmpty) Seq(srcId → Status(srcId,"")) // to update world
-    else Seq(srcId → classOf[Status]) //to delete from world
+    if(message.error.isEmpty) Seq(Update(srcId, Status(srcId,""))) // to update world
+    else Seq(Delete(srcId, classOf[Status])) //to delete from world
   }
 }
 
-class TcpStatusToDisconnectMessageMapper(val streamKey: StreamKey)
+class TcpStatusToDisconnectMessageMapper(val actorName: ActorName)
   extends MessageMapper(classOf[TcpProtocol.Status])
 {
-  def mapMessage(message: Status): Seq[TcpProtocol.DisconnectEvent] = {
+  def mapMessage(world: World, message: Status): Seq[MessageMapResult] = {
     if(message.error.isEmpty) Nil
     else Seq(TcpProtocol.DisconnectEvent(message.connectionKey))
   }

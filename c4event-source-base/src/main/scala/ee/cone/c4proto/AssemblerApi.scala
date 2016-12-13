@@ -2,6 +2,8 @@ package ee.cone.c4proto
 
 import Types._
 
+import scala.collection.immutable.Map
+
 object Single {
   def apply[C](l: List[C]): C =
     if(l.tail.nonEmpty) throw new Exception("single expected") else l.head
@@ -72,3 +74,12 @@ trait TreeAssembler {
 }
 
 class OriginalWorldPart[A](val outputWorldKey: WorldKey[A]) extends DataDependencyTo[A]
+
+////
+
+case object ErrorsKey extends WorldKey[Index[SrcId,String]](Map.empty)
+
+trait Reducer {
+  def reduceRecover(world: World, recs: List[QRecord]): World
+  def reduceCheck(world: World, rec: QRecord): (World, List[QRecord])
+}

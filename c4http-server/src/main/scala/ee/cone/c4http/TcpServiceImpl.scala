@@ -4,9 +4,9 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
-import java.util.concurrent.ExecutorService
 
 import ee.cone.c4http.TcpProtocol._
+import ee.cone.c4proto.Types.World
 import ee.cone.c4proto._
 
 import scala.collection.concurrent.TrieMap
@@ -54,7 +54,7 @@ trait SSEServerApp extends ToStartApp with MessageMappersApp with ProtocolsApp {
 }
 
 class TcpServerImpl(
-  port: Int, qMessages: QMessages, sseStatusStream: StreamKey, rawQSender: RawQSender
+  port: Int, worldProvider: WorldProvider, qMessages: QMessages
 ) extends TcpServer with CanStart {
   val channels: TrieMap[String,ChannelHandler] = TrieMap()
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
@@ -67,10 +67,10 @@ class TcpServerImpl(
         listener.accept[Unit]((), this)
         val key = UUID.randomUUID.toString
         channels += key → new ChannelHandler(ch, error ⇒ {
-          rawQSender.send(qMessages.toRecord(sseStatusStream, Status(key, error.getStackTrace.toString)))
+          qMessages.send(Send(sseStatusStream, Status(key, error.getStackTrace.toString)))
           channels.remove(key).foreach(_.channel.close()) //does close block?
         })
-        rawQSender.send(qMessages.toRecord(sseStatusStream, Status(key, "")))
+        qMessages.send(Send(sseStatusStream, Status(key, "")))
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
@@ -78,10 +78,10 @@ class TcpServerImpl(
 }
 
 class SSEEventCommandMapper(
-  val streamKey: StreamKey,
+  val actorName: ActorName,
   sseServer: TcpServer
 ) extends MessageMapper[WriteEvent](classOf[WriteEvent]) {
-  def mapMessage(command: WriteEvent): Seq[Status] = {
+  def mapMessage(world: World, command: WriteEvent): Seq[MessageMapResult] = {
     val key = command.connectionKey
     sseServer.senderByKey(key) match {
       case Some(sender) ⇒

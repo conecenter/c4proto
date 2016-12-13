@@ -1,6 +1,8 @@
 
 package ee.cone.c4proto
 
+import ee.cone.c4proto.Types.World
+
 object ProtoAdapterTest extends App {
   import MyProtocol._
   val leader0 = Person("leader0", Some(40))
@@ -8,10 +10,10 @@ object ProtoAdapterTest extends App {
   val worker1 = Person("worker1", Some(20))
   val group0 = Group(Some(leader0), List(worker0,worker1))
 
-  val testStreamKey = StreamKey("","")
+  val testActorName = ActorName("")
   val testMessageMapper = new MessageMapper(classOf[Group]) {
-    def streamKey: StreamKey = testStreamKey
-    def mapMessage(group1: Group): Seq[Product] = {
+    def actorName: ActorName = testActorName
+    def mapMessage(world: World, group1: Group): Seq[MessageMapResult] = {
       assert(group0==group1)
       println("OK",group1)
       Nil

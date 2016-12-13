@@ -5,6 +5,7 @@ import java.util.concurrent.ExecutorService
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4http.HttpProtocol._
+import ee.cone.c4proto.Types.World
 import ee.cone.c4proto._
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
@@ -17,12 +18,12 @@ trait RHttpHandler {
 class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val path = httpExchange.getRequestURI.getPath
-    val worldKey = By.srcId(classOf[RequestValue])
-    Single(worldKey.of(worldProvider.world)(path)).body.toByteArray
+    val publishedByPath = By.srcId(classOf[RequestValue])
+    Single(publishedByPath.of(worldProvider.world)(path)).body.toByteArray
   }
 }
 
-class HttpPostHandler(qMessages: QMessages, streamKey: StreamKey, rawQSender: RawQSender) extends RHttpHandler {
+class HttpPostHandler(worldProvider: WorldProvider, qMessages: QMessages) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val headers = httpExchange.getRequestHeaders.asScala
       .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
@@ -30,7 +31,12 @@ class HttpPostHandler(qMessages: QMessages, streamKey: StreamKey, rawQSender: Ra
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
     val req = RequestValue(path, headers, body)
-    rawQSender.send(qMessages.toRecord(streamKey, req))
+    val confByActor = By.srcId(classOf[RequestConf])
+    confByActor.of(worldProvider.world).foreach{
+      case (actorName, confList) ⇒
+        if(confList.map(_.path).exists(p ⇒ p.nonEmpty && path.startsWith(p)))
+          qMessages.send(Send(ActorName(actorName), req))
+    }
     Array.empty[Byte]
   }
 }
@@ -56,16 +62,25 @@ class RHttpServer(port: Int, handler: HttpHandler) extends CanStart {
   }
 }
 
+class HttpPublishMapper(val actorName: ActorName) extends MessageMapper(classOf[RequestValue]) {
+  def mapMessage(world: World, message: RequestValue): Seq[MessageMapResult] =
+    Seq(Update(message.path, message))
+}
+
+
+class HttpConfMapper(val actorName: ActorName) extends MessageMapper(classOf[RequestConf]) {
+  def mapMessage(world: World, message: RequestConf): Seq[MessageMapResult] =
+    Seq(Update(message.actorName, message))
+}
+
 trait HttpServerApp extends ToStartApp with ProtocolsApp {
   def httpPort: Int
   def qMessages: QMessages
-  def httpPostStreamKey: StreamKey
-  def rawQSender: RawQSender
   def worldProvider: WorldProvider
   lazy val httpServer: CanStart = {
     val handler = new ReqHandler(Map(
       "GET" → new HttpGetHandler(worldProvider),
-      "POST" → new HttpPostHandler(qMessages, httpPostStreamKey, rawQSender)
+      "POST" → new HttpPostHandler(worldProvider, qMessages)
     ))
     new RHttpServer(httpPort, handler)
   }

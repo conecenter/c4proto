@@ -3,6 +3,8 @@ package ee.cone.c4proto
 
 import Types._
 
+import scala.collection.immutable.Map
+
 class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
   def one(res: Map[K,V], key: K, diffV: DV): Map[K,V] = {
     val prevV = res.getOrElse(key,empty)
@@ -139,4 +141,29 @@ class TreeAssemblerImpl(
 object ProtocolDataDependencies {
   def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
     protocols.flatMap(_.adapters).map(adapter⇒new OriginalWorldPart(By.It('S',adapter.className)))
+}
+
+////
+
+class ReducerImpl(actorName: ActorName)(
+  qMessages: QMessages, qMessageMapper: QMessageMapper,
+  treeAssembler: TreeAssembler
+) extends Reducer {
+  def reduceRecover(world: World, recs: List[QRecord]): World = {
+    val diff = qMessages.toTree(recs)
+    treeAssembler.replace(world, diff)
+  }
+  //def reduceCheck(state: (World,List[QRecord]), rec: QRecord)
+  def reduceCheck(prevWorld: World, rec: QRecord): (World, List[QRecord])= try {
+    val stateTopicName = StateTopicName(actorName)
+    val toSend = qMessageMapper.mapMessage(prevWorld, rec).toList
+    val world = reduceRecover(prevWorld, toSend.filter(_.topic==stateTopicName))
+    val errors = ErrorsKey.of(world)
+    if(errors.nonEmpty) throw new Exception(errors.toString)
+    (world, toSend)
+  } catch {
+    case e: Exception ⇒
+      // ??? exception to record
+      (prevWorld, Nil:List[QRecord])
+  }
 }
