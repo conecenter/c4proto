@@ -1,43 +1,38 @@
 package ee.cone.c4http
 
-import java.util.UUID
-
-import ee.cone.c4http.TcpProtocol.Status
+import ee.cone.c4http.InternetProtocol._
 import ee.cone.c4proto.Types.{Index, SrcId, World}
 import ee.cone.c4proto._
 
 class TestConsumerApp extends ServerApp
   with QMessagesApp
   with TreeAssemblerApp
-  with ToIdempotentConsumerApp
-  with ToStoredConsumerApp
-  with KafkaProducerApp
+  with QReducerApp
+  with KafkaApp
 {
-  def messageMappers: List[MessageMapper[_]] =
-    new PostMessageMapper(StreamKey("http-posts", "http-gate-state")) ::
-    new TcpStatusToStateMessageMapper(StreamKey("sse-status",stateTopic)) ::
-    new TcpStatusToDisconnectMessageMapper(StreamKey("sse-status","sse-events")) ::
-    Nil
-  def consumerGroupId: String = "http-test"
-  lazy val stateTopic: String = {
-    val res = s"http-test-${UUID.randomUUID}-state"
-    println(s"stateTopic: $res")
-    res
-  }
-  def statePartConsumerStreamKey: StreamKey = StreamKey(stateTopic,"")
+  private def appActorName = ActorName("http-test")
+  private def gateActorName = ActorName("http-gate")
   def bootstrapServers: String = "localhost:9092"
-  override def protocols: List[Protocol] =
-    HttpProtocol :: TcpProtocol :: super.protocols
 
-  lazy val tcpEventBroadcaster: CanStart =
-    serverFactory.toServer(new TcpEventBroadcaster(worldProvider, qMessages, StreamKey("","sse-events"), rawQSender))
-  override def toStart: List[CanStart] = tcpEventBroadcaster :: super.toStart
+  private lazy val postMessageMapper = new PostMessageMapper(gateActorName)
+  private lazy val worldProvider: WorldProvider with Executable =
+    actorFactory.create(appActorName, messageMappers)
+  private lazy val tcpEventBroadcaster =
+    new TcpEventBroadcaster(appActorName,gateActorName)(worldProvider, qMessages)
+  private lazy val worldProviderServer =
+    serverFactory.toServer(worldProvider)
+  private lazy val tcpEventBroadcasterServer =
+    serverFactory.toServer(tcpEventBroadcaster)
+
+  override def toStart: List[CanStart] =
+    worldProviderServer :: tcpEventBroadcasterServer :: super.toStart
+  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  def messageMappers: List[MessageMapper[_]] =
+    postMessageMapper :: TcpStatusMapper :: Nil
 }
 
-class PostMessageMapper(val actorName: ActorName)
-  extends MessageMapper(classOf[HttpProtocol.RequestValue])
-{
-  def mapMessage(world: World, req: HttpProtocol.RequestValue): Seq[MessageMapResult] = {
+class PostMessageMapper(gateActorName: ActorName) extends MessageMapper(classOf[HttpRequestValue]){
+  def mapMessage(world: World, req: HttpRequestValue): Seq[MessageMapResult] = {
     val next: String = try {
       val prev = new String(req.body.toByteArray, "UTF-8")
       (prev.toLong * 3).toString
@@ -47,48 +42,39 @@ class PostMessageMapper(val actorName: ActorName)
         "###"
     }
     val body = okio.ByteString.encodeUtf8(next)
-    val resp = HttpProtocol.RequestValue(req.path, Nil, body)
-    Seq(Update(resp.path,resp))
+    val resp = HttpRequestValue(req.path, Nil, body)
+    Seq(Send(gateActorName,resp))
   }
 }
 
-class TcpEventBroadcaster(
-    worldProvider: WorldProvider, //
-    qMessages: QMessages, streamKey: StreamKey, rawQSender: RawQSender
+class TcpEventBroadcaster(appActorName: ActorName, gateActorName: ActorName)(
+    worldProvider: WorldProvider, qMessages: QMessages
 ) extends Executable {
   def run(executionContext: ExecutionContext): Unit = {
+    qMessages.send(Send(gateActorName, ForwardingConf(appActorName.value, List(
+      ForwardingRule("/"),
+      ForwardingRule(":sse")
+    ))))
     while(true){
-      val world = worldProvider.world
-      val worldKey = By.srcId(classOf[Status])
-      val connections: Index[SrcId, Status] = worldKey.of(world)
+      val connections: Index[SrcId, TcpStatus] =
+        By.srcId(classOf[TcpStatus]).of(worldProvider.world)
       val size = s"${connections.size}\n"
       val sizeBody = okio.ByteString.encodeUtf8(size)
       println(size)
       connections.values.flatten.foreach{ connection ⇒
-        val message = TcpProtocol.WriteEvent(connection.connectionKey,sizeBody)
-        rawQSender.send(qMessages.toRecord(streamKey, message))
+        val message = TcpWrite(connection.connectionKey,sizeBody)
+        qMessages.send(Send(gateActorName, message))
       }
       Thread.sleep(3000)
     }
   }
 }
 
-class TcpStatusToStateMessageMapper(val actorName: ActorName)
-  extends MessageMapper(classOf[TcpProtocol.Status])
-{
-  def mapMessage(world: World, message: Status): Seq[MessageMapResult] = {
+object TcpStatusMapper extends MessageMapper(classOf[TcpStatus]){
+  def mapMessage(world: World, message: TcpStatus): Seq[MessageMapResult] = {
     val srcId = message.connectionKey
-    if(message.error.isEmpty) Seq(Update(srcId, Status(srcId,""))) // to update world
-    else Seq(Delete(srcId, classOf[Status])) //to delete from world
-  }
-}
-
-class TcpStatusToDisconnectMessageMapper(val actorName: ActorName)
-  extends MessageMapper(classOf[TcpProtocol.Status])
-{
-  def mapMessage(world: World, message: Status): Seq[MessageMapResult] = {
-    if(message.error.isEmpty) Nil
-    else Seq(TcpProtocol.DisconnectEvent(message.connectionKey))
+    if(message.error.isEmpty) Seq(Update(srcId, TcpStatus(srcId,""))) // to update world
+    else Seq(Delete(srcId, classOf[TcpStatus])) //to delete from world
   }
 }
 

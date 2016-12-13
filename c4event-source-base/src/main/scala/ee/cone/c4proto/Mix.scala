@@ -6,18 +6,17 @@ trait QMessagesApp extends ProtocolsApp {
   def rawQSender: RawQSender
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
+  lazy val qMessageMapperFactory: QMessageMapperFactory =
+    new QMessageMapperFactory(qAdapterRegistry, qMessages)
 }
 
 trait QReducerApp {
-  def messageMappers: List[MessageMapper[_]]
   def treeAssembler: TreeAssembler
   def qAdapterRegistry: QAdapterRegistry
   def qMessages: QMessages
-  lazy val qReducers: Map[ActorName,Reducer] =
-    QMessageMapperFactory(qAdapterRegistry, qMessages, messageMappers).map{
-      case (actorName, qMessageMapper) ⇒
-        actorName → new ReducerImpl(actorName)(qMessages, qMessageMapper, treeAssembler)
-    }
+  def qMessageMapperFactory: QMessageMapperFactory
+  lazy val qReducerFactory: ReducerFactory =
+    new ReducerFactoryImpl(qMessageMapperFactory, qMessages, treeAssembler)
 }
 
 trait ServerApp {

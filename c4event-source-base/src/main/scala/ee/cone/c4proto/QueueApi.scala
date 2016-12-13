@@ -30,7 +30,6 @@ case class Delete[M<:Product](srcId: SrcId, value: Class[M]) extends MessageMapR
 case class Send[M<:Product](actorName: ActorName, value: M) extends MessageMapResult
 
 abstract class MessageMapper[M](val mClass: Class[M]) {
-  def actorName: ActorName
   def mapMessage(world: World, message: M): Seq[MessageMapResult]
 }
 
@@ -45,7 +44,7 @@ trait QMessageMapper {
 trait QMessages {
   def toRecord(actorName: Option[ActorName], message: MessageMapResult): QRecord
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]]
-  def send[M](message: Send[M]): Unit
+  def send[M<:Product](message: Send[M]): Unit
 }
 
 ////

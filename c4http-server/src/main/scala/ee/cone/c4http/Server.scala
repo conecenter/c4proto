@@ -6,22 +6,18 @@ import ee.cone.c4proto._
 class HttpGatewayApp extends ServerApp
   with QMessagesApp
   with TreeAssemblerApp
+  with QReducerApp
+  with InternetForwarderApp
   with HttpServerApp
   with SSEServerApp
-  with ToIdempotentConsumerApp
-  with ToStoredConsumerApp
-  with KafkaProducerApp
+  with KafkaApp
 {
   def bootstrapServers: String = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
   def httpPort: Int = Option(System.getenv("C4HTTP_PORT")).get.toInt
   def ssePort: Int = Option(System.getenv("C4SSE_PORT")).get.toInt
-  def consumerGroupId: String = "http-gate"
-  def statePartConsumerStreamKey: StreamKey = StreamKey("http-gate-state","") //http-gate-inbox
-  def sseStatusStreamKey: StreamKey = StreamKey("","sse-status")
-  def httpPostStreamKey: StreamKey = StreamKey("","http-posts")
-  def sseEventStreamKey: StreamKey = StreamKey("sse-events","sse-status")
-  //def commandReceivers: List[Receiver[_]] = ???
-  //def dataDependencies: List[DataDependencyTo[_]] = ???
+  lazy val worldProvider: WorldProvider with Executable =
+    actorFactory.create(ActorName("http-gate"), messageMappers)
+  override def toStart: List[CanStart] = serverFactory.toServer(worldProvider) :: super.toStart
 }
 
 object HttpGateway extends Main((new HttpGatewayApp).execution.run)

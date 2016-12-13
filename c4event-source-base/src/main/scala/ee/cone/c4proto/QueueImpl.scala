@@ -12,7 +12,8 @@ class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[B
 
 class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
   import qAdapterRegistry._
-  def send[M](message: Send[M]): Unit = getRawQSender().send(toRecord(None, message))
+  def send[M<:Product](message: Send[M]): Unit =
+    getRawQSender().send(toRecord(None, message))
   def toRecord(currentActorName: Option[ActorName], message: MessageMapResult): QRecord = {
     val(topic, selectedSrcId, selectedClass, selectedValue) = message match {
       case Update(srcId, value) ⇒
@@ -50,20 +51,16 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
 }
 
-object QMessageMapperFactory {
-  def apply(
-    qAdapterRegistry: QAdapterRegistry, qMessages: QMessages,
-    messageMappers: List[MessageMapper[_]]
-  ): Map[ActorName,QMessageMapper] =
-    messageMappers.groupBy(_.actorName).mapValues{ mappers ⇒
-      val receiveById =
-        mappers.groupBy(cl ⇒ qAdapterRegistry.byName(cl.mClass.getName).id)
-          .asInstanceOf[Map[Long, List[MessageMapper[Object]]]]
-      new QMessageMapperFactory(qAdapterRegistry,qMessages,receiveById)
-    }
+class QMessageMapperFactory(qAdapterRegistry: QAdapterRegistry, qMessages: QMessages) {
+  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): QMessageMapper = {
+    val receiveById =
+      messageMappers.groupBy(cl ⇒ qAdapterRegistry.byName(cl.mClass.getName).id)
+        .asInstanceOf[Map[Long, List[MessageMapper[Object]]]]
+    new QMessageMapperImpl(actorName)(qAdapterRegistry,qMessages,receiveById)
+  }
 }
 
-class QMessageMapperFactory(
+class QMessageMapperImpl(actorName: ActorName)(
     qAdapterRegistry: QAdapterRegistry,
     qMessages: QMessages,
     receiveById: Map[Long, List[MessageMapper[Object]]]
@@ -73,7 +70,7 @@ class QMessageMapperFactory(
     val valueAdapter = qAdapterRegistry.byId(key.valueTypeId)
     val value = valueAdapter.decode(rec.value)
     receiveById.getOrElse(key.valueTypeId,Nil).flatMap(mapper ⇒
-      mapper.mapMessage(world, value).map(qMessages.toRecord(Option(mapper.actorName),_))
+      mapper.mapMessage(world, value).map(qMessages.toRecord(Option(actorName),_))
     )
   }
 }

@@ -1,12 +1,10 @@
 package ee.cone.c4proto
 
-import java.lang.Long
-import java.util
 import java.util.Collections.singletonMap
-import java.util.concurrent.{ExecutorService, Executors, Future, TimeUnit}
+import java.util.concurrent.Future
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
-import ee.cone.c4proto.Types.{Index, SrcId, World}
+import ee.cone.c4proto.Types._
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.{Consumer, ConsumerRecord, KafkaConsumer, OffsetAndMetadata}
@@ -19,28 +17,14 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.immutable.Map
 
-trait KafkaProducerApp extends ToStartApp {
+trait KafkaApp extends ToStartApp {
   def bootstrapServers: String
+  def qReducerFactory: ReducerFactory
   lazy val kafkaRawQSender: KafkaRawQSender = new KafkaRawQSender(bootstrapServers)
   def rawQSender: RawQSender with CanStart = kafkaRawQSender
+  lazy val actorFactory: ActorFactory =
+    new KafkaActorFactory(bootstrapServers)(qReducerFactory, kafkaRawQSender)
   override def toStart: List[CanStart] = rawQSender :: super.toStart
-}
-
-trait KafkaActorApp extends ToStartApp {
-  def bootstrapServers: String
-  def serverFactory: ServerFactory
-  def qMessages: QMessages
-  def qReducers: Map[ActorName,Reducer]
-  def treeAssembler: TreeAssembler
-  def kafkaRawQSender: KafkaRawQSender
-  lazy val qActors: Map[ActorName,Executable with WorldProvider] =
-    qReducers.map{ case (actorName, reducer) ⇒
-      actorName → new KafkaActor(bootstrapServers, actorName)(reducer, kafkaRawQSender)
-    }
-  private lazy val qActorServers = qActors.toList.sortBy(_._1.value).map{
-    case (actorName, actor) ⇒ serverFactory.toServer(actor)
-  }
-  override def toStart: List[CanStart] = qActorServers ::: super.toStart
 }
 
 ////
@@ -80,12 +64,22 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
   def value: Array[Byte] = rec.value
 }
 
+class KafkaActorFactory(bootstrapServers: String)(qReducerFactory: ReducerFactory, kafkaRawQSender: KafkaRawQSender) extends ActorFactory {
+  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): Executable with WorldProvider = {
+    val reducer = qReducerFactory.create(actorName, messageMappers)
+    new KafkaActor(bootstrapServers, actorName)(reducer, kafkaRawQSender)(
+      new AtomicBoolean(false),
+      new AtomicBoolean(true),
+      new AtomicReference[World](Map())
+    )
+  }
+}
+
 class KafkaActor(bootstrapServers: String, actorName: ActorName)(
   reducer: Reducer, rawQSender: KafkaRawQSender
+)(
+  ready: AtomicBoolean, alive: AtomicBoolean, worldRef: AtomicReference[World]
 ) extends Executable with WorldProvider with ShouldStartEarly {
-  private lazy val ready = new AtomicBoolean(false)
-  private lazy val alive = new AtomicBoolean(true)
-  private lazy val worldRef = new AtomicReference[World](Map())
   def isReady: Boolean = ready.get()
   private def poll(consumer: Consumer[Array[Byte], Array[Byte]]) =
       consumer.poll(1000 /*timeout*/).asScala

@@ -167,3 +167,13 @@ class ReducerImpl(actorName: ActorName)(
       (prevWorld, Nil:List[QRecord])
   }
 }
+
+class ReducerFactoryImpl(
+    qMessageMapperFactory: QMessageMapperFactory, qMessages: QMessages,
+    treeAssembler: TreeAssembler
+) extends ReducerFactory {
+  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): Reducer = {
+    val qMessageMapper = qMessageMapperFactory.create(actorName, messageMappers)
+    new ReducerImpl(actorName)(qMessages, qMessageMapper, treeAssembler)
+  }
+}

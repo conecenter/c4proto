@@ -9,22 +9,26 @@ object ProtoAdapterTest extends App {
   val worker0 = Person("worker0", Some(30))
   val worker1 = Person("worker1", Some(20))
   val group0 = Group(Some(leader0), List(worker0,worker1))
-
-  val testActorName = ActorName("")
+  //
   val testMessageMapper = new MessageMapper(classOf[Group]) {
-    def actorName: ActorName = testActorName
     def mapMessage(world: World, group1: Group): Seq[MessageMapResult] = {
       assert(group0==group1)
       println("OK",group1)
       Nil
     }
   }
+  val testActorName = ActorName("")
   val app = new QMessagesApp {
+    def rawQSender: RawQSender =
+      new RawQSender { def send(rec: QRecord): Unit = () }
     override def protocols: List[Protocol] = MyProtocol :: super.protocols
     def messageMappers: List[MessageMapper[_]] = testMessageMapper :: Nil
   }
-  val rec = app.qMessages.toRecord(testStreamKey, ""→group0)
-  app.qMessageMapper.mapMessage(testStreamKey, rec)
+  val qMessageMapper =
+    app.qMessageMapperFactory.create(testActorName, testMessageMapper :: Nil)
+  //
+  val rec = app.qMessages.toRecord(None, Send(testActorName,group0))
+  qMessageMapper.mapMessage(Map(), rec)
 }
 
 @protocol object MyProtocol extends Protocol {

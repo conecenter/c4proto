@@ -4,7 +4,7 @@ import java.net.InetSocketAddress
 import java.util.concurrent.ExecutorService
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import ee.cone.c4http.HttpProtocol._
+import ee.cone.c4http.InternetProtocol._
 import ee.cone.c4proto.Types.World
 import ee.cone.c4proto._
 
@@ -18,25 +18,31 @@ trait RHttpHandler {
 class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val path = httpExchange.getRequestURI.getPath
-    val publishedByPath = By.srcId(classOf[RequestValue])
+    val publishedByPath = By.srcId(classOf[HttpRequestValue])
     Single(publishedByPath.of(worldProvider.world)(path)).body.toByteArray
   }
 }
 
-class HttpPostHandler(worldProvider: WorldProvider, qMessages: QMessages) extends RHttpHandler {
+class ForwarderConfigImpl(worldProvider: WorldProvider) extends ForwarderConfig {
+  def targets(path: String): List[ActorName] =
+    By.srcId(classOf[ForwardingConf]).of(worldProvider.world).collect{
+      case (actorName, confList)
+        if confList.flatMap(_.rules).exists(r ⇒ path.startsWith(r.path)) ⇒
+        ActorName(actorName)
+    }.toList.sortBy(_.value)
+}
+
+class HttpPostHandler(forwarder: ForwarderConfig, qMessages: QMessages) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val headers = httpExchange.getRequestHeaders.asScala
       .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
     val buffer = new okio.Buffer
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
-    val req = RequestValue(path, headers, body)
-    val confByActor = By.srcId(classOf[RequestConf])
-    confByActor.of(worldProvider.world).foreach{
-      case (actorName, confList) ⇒
-        if(confList.map(_.path).exists(p ⇒ p.nonEmpty && path.startsWith(p)))
-          qMessages.send(Send(ActorName(actorName), req))
-    }
+    val req = HttpRequestValue(path, headers, body)
+    val targets = forwarder.targets(path)
+    if(targets.isEmpty) throw new Exception("no handler")
+    targets.foreach(actorName ⇒ qMessages.send(Send(actorName, req)))
     Array.empty[Byte]
   }
 }
@@ -62,28 +68,39 @@ class RHttpServer(port: Int, handler: HttpHandler) extends CanStart {
   }
 }
 
-class HttpPublishMapper(val actorName: ActorName) extends MessageMapper(classOf[RequestValue]) {
-  def mapMessage(world: World, message: RequestValue): Seq[MessageMapResult] =
+object HttpPublishMapper extends MessageMapper(classOf[HttpRequestValue]) {
+  def mapMessage(world: World, message: HttpRequestValue): Seq[MessageMapResult] =
     Seq(Update(message.path, message))
 }
 
 
-class HttpConfMapper(val actorName: ActorName) extends MessageMapper(classOf[RequestConf]) {
-  def mapMessage(world: World, message: RequestConf): Seq[MessageMapResult] =
-    Seq(Update(message.actorName, message))
+object ForwardingConfMapper extends MessageMapper(classOf[ForwardingConf]) {
+  def mapMessage(world: World, message: ForwardingConf): Seq[MessageMapResult] =
+    if(message.rules.isEmpty) Seq(Delete(message.actorName, classOf[ForwardingConf]))
+    else Seq(Update(message.actorName, message))
 }
 
-trait HttpServerApp extends ToStartApp with ProtocolsApp {
+trait InternetForwarderApp extends ProtocolsApp with MessageMappersApp {
+  def worldProvider: WorldProvider
+  lazy val internetForwarderConfig: ForwarderConfig = new ForwarderConfigImpl(worldProvider)
+  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def messageMappers: List[MessageMapper[_]] =
+    ForwardingConfMapper :: super.messageMappers
+}
+
+trait HttpServerApp extends ToStartApp with MessageMappersApp {
   def httpPort: Int
   def qMessages: QMessages
   def worldProvider: WorldProvider
+  def internetForwarderConfig: ForwarderConfig
   lazy val httpServer: CanStart = {
     val handler = new ReqHandler(Map(
       "GET" → new HttpGetHandler(worldProvider),
-      "POST" → new HttpPostHandler(worldProvider, qMessages)
+      "POST" → new HttpPostHandler(internetForwarderConfig,qMessages)
     ))
     new RHttpServer(httpPort, handler)
   }
   override def toStart: List[CanStart] = httpServer :: super.toStart
-  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
+  override def messageMappers: List[MessageMapper[_]] =
+    HttpPublishMapper :: super.messageMappers
 }

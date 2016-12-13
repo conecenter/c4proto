@@ -83,3 +83,11 @@ trait Reducer {
   def reduceRecover(world: World, recs: List[QRecord]): World
   def reduceCheck(world: World, rec: QRecord): (World, List[QRecord])
 }
+
+trait ReducerFactory {
+  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): Reducer
+}
+
+trait ActorFactory {
+  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): Executable with WorldProvider
+}
