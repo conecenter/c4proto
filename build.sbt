@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.3.2",
+  version := "0.4.0",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -60,46 +60,46 @@ lazy val `c4proto-api` = project.settings(publishSettings)
 lazy val `c4proto-types` = project.settings(publishSettings)
   .settings(description := s"$descr / additional data types to use in messages")
   .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
-lazy val `c4http-proto` = project.settings(publishSettings)
+lazy val `c4gate-proto` = project.settings(publishSettings)
   .settings(description := s"$descr / http message definitions")
   .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
 
-lazy val `c4event-source-base` = project.settings(publishSettings)
+lazy val `c4actor-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
 
-lazy val `c4event-source-base-examples` = project.settings(publishSettings)
+lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4event-source-base`,`c4proto-types`)
+  .dependsOn(`c4actor-base`,`c4proto-types`)
 
-lazy val `c4event-source-kafka` = project.settings(publishSettings)
+lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0")
-  .dependsOn(`c4event-source-base`)
+  .dependsOn(`c4actor-base`)
 
-lazy val `c4http-server` = project.settings(publishSettings)
+lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
   .enablePlugins(JavaServerAppPackaging)
-  .dependsOn(`c4http-proto`, `c4event-source-kafka`)
+  .dependsOn(`c4gate-proto`, `c4actor-kafka`)
 
-lazy val `c4http-consumer-example` = project.settings(publishSettings)
+lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .dependsOn(`c4event-source-kafka`, `c4http-proto`)
+  .dependsOn(`c4actor-kafka`, `c4gate-proto`)
 
 
-lazy val `c4http-sse` = project.settings(publishSettings)
+lazy val `c4gate-sse` = project.settings(publishSettings)
 lazy val `c4vdom-base` = project.settings(publishSettings)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
-  `c4event-source-base`,
-  `c4event-source-base-examples`,
-  `c4event-source-kafka`,
-  `c4http-consumer-example`,
-  `c4http-proto`,
-  `c4http-server`,
+  `c4actor-base`,
+  `c4actor-base-examples`,
+  `c4actor-kafka`,
+  `c4gate-consumer-example`,
+  `c4gate-proto`,
+  `c4gate-server`,
   `c4proto-api`,
   `c4proto-macros`,
   `c4proto-types`

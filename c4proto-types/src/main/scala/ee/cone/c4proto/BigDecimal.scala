@@ -1,3 +1,4 @@
+
 package ee.cone.c4proto
 
 import scala.annotation.StaticAnnotation

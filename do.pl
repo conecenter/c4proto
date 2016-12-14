@@ -7,8 +7,8 @@ sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 my @tasks;
 
 push @tasks, ["es_examples", sub{
-    sy("sbt 'c4event-source-base-examples/run-main ee.cone.c4proto.ProtoAdapterTest' ");
-    sy("sbt 'c4event-source-base-examples/run-main ee.cone.c4proto.AssemblerTest' ");
+    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
+    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
 }];
 
 push @tasks, ["setup_kafka", sub{
@@ -17,25 +17,26 @@ push @tasks, ["setup_kafka", sub{
     sy("tar -xzf kafka_2.11-0.10.1.0.tgz")
 }];
 push @tasks, ["run_kafka", sub{
-    sy("cd tmp/kafka_2.11-0.10.1.0");
+    chdir "tmp/kafka_2.11-0.10.1.0" or die $!;
     sy("bin/zookeeper-server-start.sh config/zookeeper.properties 1> zookeeper.log 2> zookeeper.error.log &");
     sy("bin/kafka-server-start.sh config/server.properties 1> kafka.log 2> kafka.error.log &");
 }];
-push @tasks, ["http_server_stage", sub{
-    sy("sbt clean c4http-server/stage");
+push @tasks, ["gate_server_stage", sub{
+    sy("sbt clean c4gate-server/stage");
 }];
-push @tasks, ["http_server_run", sub{
-    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4HTTP_PORT=8067 C4SSE_PORT=8068 c4http-server/target/universal/stage/bin/c4http-server");
+push @tasks, ["gate_server_run", sub{
+    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4HTTP_PORT=8067 C4SSE_PORT=8068 c4gate-server/target/universal/stage/bin/c4gate-server");
 }];
-push @tasks, ["http_consumer_run", sub{
-    sy("sbt c4http-consumer-example/run")
+push @tasks, ["gate_consumer_run", sub{
+    sy("sbt c4gate-consumer-example/run")
 }];
-push @tasks, ["http_post_get_check", sub{
-    sy("curl http://127.0.0.1:8067/abc -X POST -d 10");
+push @tasks, ["gate_post_get_check", sub{
+    my $v = int(rand()*10);
+    sy("curl http://127.0.0.1:8067/abc -X POST -d $v");
     sleep 1;
     sy("curl http://127.0.0.1:8067/abc");
 }];
-push @tasks, ["http_sse_check", sub{
+push @tasks, ["gate_sse_check", sub{
     sy("nc 127.0.0.1 8068");
 }];
 
