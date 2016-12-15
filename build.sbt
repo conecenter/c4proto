@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.4.0",
+  version := "0.4.1",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -90,6 +90,10 @@ lazy val `c4gate-consumer-example` = project.settings(publishSettings)
 
 
 lazy val `c4gate-sse` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .dependsOn(`c4gate-proto`, `c4actor-base`)
+
+
 lazy val `c4vdom-base` = project.settings(publishSettings)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this

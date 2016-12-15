@@ -31,18 +31,12 @@ class TestConsumerApp extends ServerApp
 }
 
 class PostMessageMapper(gateActorName: ActorName) extends MessageMapper(classOf[HttpRequestValue]){
-  def mapMessage(world: World, req: HttpRequestValue): Seq[MessageMapResult] = {
-    val next: String = try {
-      val prev = new String(req.body.toByteArray, "UTF-8")
-      (prev.toLong * 3).toString
-    } catch {
-      case r: Exception ⇒
-        //throw new Exception("die")
-        "###"
-    }
+  def mapMessage(res: MessageMapping, req: HttpRequestValue): MessageMapping = {
+    val prev = new String(req.body.toByteArray, "UTF-8")
+    val next = (prev.toLong * 3).toString
     val body = okio.ByteString.encodeUtf8(next)
     val resp = HttpRequestValue(req.path, Nil, body)
-    Seq(Send(gateActorName,resp))
+    res.add(Send(gateActorName,resp))
   }
 }
 
@@ -70,10 +64,12 @@ class TcpEventBroadcaster(appActorName: ActorName, gateActorName: ActorName)(
 }
 
 object TcpStatusMapper extends MessageMapper(classOf[TcpStatus]){
-  def mapMessage(world: World, message: TcpStatus): Seq[MessageMapResult] = {
+  def mapMessage(res: MessageMapping, message: TcpStatus): MessageMapping = {
     val srcId = message.connectionKey
-    if(message.error.isEmpty) Seq(Update(srcId, TcpStatus(srcId,""))) // to update world
-    else Seq(Delete(srcId, classOf[TcpStatus])) //to delete from world
+    res.add(
+      if(message.error.isEmpty) Update(srcId, TcpStatus(srcId,""))
+      else Delete(srcId, classOf[TcpStatus])
+    )
   }
 }
 

@@ -29,7 +29,7 @@ trait MessageMappersApp {
 }
 
 trait QMessageMapper {
-  def mapMessage(world: World, rec: QRecord): Seq[QRecord]
+  def mapMessage(res: MessageMapping, rec: QRecord): MessageMapping
 }
 
 trait QMessages {
@@ -44,9 +44,19 @@ case class Delete[M<:Product](srcId: SrcId, value: Class[M]) extends MessageMapR
 case class Send[M<:Product](actorName: ActorName, value: M) extends MessageMapResult
 
 abstract class MessageMapper[M](val mClass: Class[M]) {
-  def mapMessage(world: World, message: M): Seq[MessageMapResult]
+  def mapMessage(res: MessageMapping, message: M): MessageMapping
+}
+
+trait MessageMapping {
+  def world: World
+  def add(out: MessageMapResult*): MessageMapping
+  def toSend: Seq[QRecord]
 }
 
 trait ActorFactory[R] {
   def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): R
+}
+
+trait QMessageMapperFactory {
+  def create(messageMappers: List[MessageMapper[_]]): QMessageMapper
 }

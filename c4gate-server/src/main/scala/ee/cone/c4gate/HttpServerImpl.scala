@@ -70,15 +70,17 @@ class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
 }
 
 object HttpPublishMapper extends MessageMapper(classOf[HttpRequestValue]) {
-  def mapMessage(world: World, message: HttpRequestValue): Seq[MessageMapResult] =
-    Seq(Update(message.path, message))
+  def mapMessage(res: MessageMapping, message: HttpRequestValue): MessageMapping =
+    res.add(Update(message.path, message))
 }
 
 
 object ForwardingConfMapper extends MessageMapper(classOf[ForwardingConf]) {
-  def mapMessage(world: World, message: ForwardingConf): Seq[MessageMapResult] =
-    if(message.rules.isEmpty) Seq(Delete(message.actorName, classOf[ForwardingConf]))
-    else Seq(Update(message.actorName, message))
+  def mapMessage(res: MessageMapping, message: ForwardingConf): MessageMapping =
+    res.add(
+      if(message.rules.isEmpty) Delete(message.actorName, classOf[ForwardingConf])
+      else Update(message.actorName, message)
+    )
 }
 
 trait InternetForwarderApp extends ProtocolsApp with MessageMappersApp {

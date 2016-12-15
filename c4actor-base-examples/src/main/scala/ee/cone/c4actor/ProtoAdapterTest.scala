@@ -12,10 +12,10 @@ object ProtoAdapterTest extends App {
   val group0 = Group(Some(leader0), List(worker0,worker1))
   //
   val testMessageMapper = new MessageMapper(classOf[Group]) {
-    def mapMessage(world: World, group1: Group): Seq[MessageMapResult] = {
+    def mapMessage(res: MessageMapping, group1: Group): MessageMapping = {
       assert(group0==group1)
       println("OK",group1)
-      Nil
+      res
     }
   }
   val testActorName = ActorName("")
@@ -26,10 +26,15 @@ object ProtoAdapterTest extends App {
     def messageMappers: List[MessageMapper[_]] = testMessageMapper :: Nil
   }
   val qMessageMapper =
-    app.qMessageMapperFactory.create(testActorName, testMessageMapper :: Nil)
+    app.qMessageMapperFactory.create(testMessageMapper :: Nil)
   //
   val rec = app.qMessages.toRecord(None, Send(testActorName,group0))
-  qMessageMapper.mapMessage(Map(), rec)
+  val mapping = new MessageMapping {
+    def world = Map()
+    def toSend = ???
+    def add(out: MessageMapResult*) = ???
+  }
+  qMessageMapper.mapMessage(mapping, rec)
 }
 
 @protocol object MyProtocol extends Protocol {

@@ -86,26 +86,22 @@ class TcpServerImpl(
 }
 
 class WriteEventCommandMapper(sseServer: TcpServer) extends MessageMapper(classOf[TcpWrite]) {
-  def mapMessage(world: World, command: TcpWrite): Seq[MessageMapResult] = {
+  def mapMessage(res: MessageMapping, command: TcpWrite): MessageMapping = {
     val key = command.connectionKey
     sseServer.senderByKey(key) match {
       case Some(sender) ⇒
         sender.add(command.body.toByteArray)
-        Nil
+        res
       case None ⇒
-        sseServer.targets.map(Send(_,TcpStatus(key, "agent not found")))
+        res.add(sseServer.targets.map(Send(_,TcpStatus(key, "agent not found"))):_*)
     }
   }
 }
 
 class DisconnectEventCommandMapper(sseServer: TcpServer) extends MessageMapper(classOf[TcpDisconnect]) {
-  def mapMessage(world: World, command: TcpDisconnect): Seq[MessageMapResult] = {
+  def mapMessage(res: MessageMapping, command: TcpDisconnect): MessageMapping = {
     val key = command.connectionKey
-    sseServer.senderByKey(key) match {
-      case Some(sender) ⇒
-        sender.close()
-        Nil
-      case None ⇒ Nil
-    }
+    sseServer.senderByKey(key).foreach(sender⇒sender.close())
+    res
   }
 }

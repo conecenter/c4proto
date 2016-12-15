@@ -20,11 +20,12 @@ import scala.collection.immutable.Map
 
 trait KafkaApp extends ToStartApp {
   def bootstrapServers: String
-  def qReducerFactory: ActorFactory[Reducer]
+  def qReducer: Reducer
+  def qMessageMapperFactory: QMessageMapperFactory
   lazy val kafkaRawQSender: KafkaRawQSender = new KafkaRawQSender(bootstrapServers)()
   def rawQSender: RawQSender with Executable = kafkaRawQSender
   lazy val actorFactory: ActorFactory[Executable with WorldProvider] =
-    new KafkaActorFactory(bootstrapServers)(qReducerFactory, kafkaRawQSender)
+    new KafkaActorFactory(bootstrapServers)(qReducer, qMessageMapperFactory, kafkaRawQSender)
   override def toStart: List[Executable] = rawQSender :: super.toStart
 }
 
@@ -65,15 +66,15 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
   def value: Array[Byte] = rec.value
 }
 
-class KafkaActorFactory(bootstrapServers: String)(qReducerFactory: ActorFactory[Reducer], kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
+class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, qMessageMapperFactory: QMessageMapperFactory, kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
   def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): Executable with WorldProvider = {
-    val reducer = qReducerFactory.create(actorName, messageMappers)
-    new KafkaActor(bootstrapServers, actorName)(reducer, kafkaRawQSender)()
+    val qMessageMapper = qMessageMapperFactory.create(messageMappers)
+    new KafkaActor(bootstrapServers, actorName)(reducer, qMessageMapper, kafkaRawQSender)()
   }
 }
 
 class KafkaActor(bootstrapServers: String, actorName: ActorName)(
-  reducer: Reducer, rawQSender: KafkaRawQSender
+  reducer: Reducer, qMessageMapper: QMessageMapper, rawQSender: KafkaRawQSender
 )(
   alive: AtomicBoolean = new AtomicBoolean(true),
   worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
@@ -131,15 +132,11 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
           case Nil ⇒ ()
           case rawRecs ⇒
             val recs = rawRecs.map(new KafkaQConsumerRecordAdapter(inboxTopicName,_))
-            val (nextWorld, toSend) =
-              ((localWorldRef.get,Nil:List[QRecord]) /: recs){ (s,rec) ⇒
-                val (prevWorld,prevToSend) = s
-                val (world,toSend) = reducer.reduceCheck(prevWorld, rec)
-                (world, toSend ::: prevToSend)
-              }
-            val metadata = toSend.map(rawQSender.sendStart)
+            val mapping = reducer.createMessageMapping(actorName, localWorldRef.get)
+            val res = (mapping /: recs)(qMessageMapper.mapMessage)
+            val metadata = res.toSend.reverse.map(rawQSender.sendStart)
             metadata.foreach(_.get())
-            localWorldRef.set(nextWorld)
+            localWorldRef.set(res.world)
             val offset = new OffsetAndMetadata(rawRecs.last.offset + 1)
             consumer.commitSync(singletonMap(Single(inboxTopicPartition), offset))
         }

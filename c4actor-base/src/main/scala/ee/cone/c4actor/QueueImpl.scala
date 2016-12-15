@@ -53,27 +53,31 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
 }
 
-class QMessageMapperFactory(qAdapterRegistry: QAdapterRegistry, qMessages: QMessages) extends ActorFactory[QMessageMapper] {
-  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): QMessageMapper = {
+
+class QMessageMapperFactoryImpl(qAdapterRegistry: QAdapterRegistry) extends QMessageMapperFactory {
+  def create(messageMappers: List[MessageMapper[_]]): QMessageMapper = {
     val receiveById =
       messageMappers.groupBy(cl ⇒ qAdapterRegistry.byName(cl.mClass.getName).id)
         .asInstanceOf[Map[Long, List[MessageMapper[Object]]]]
-    new QMessageMapperImpl(actorName)(qAdapterRegistry,qMessages,receiveById)
+    new QMessageMapperImpl(qAdapterRegistry,receiveById)
   }
 }
 
-class QMessageMapperImpl(actorName: ActorName)(
+class QMessageMapperImpl(
     qAdapterRegistry: QAdapterRegistry,
-    qMessages: QMessages,
     receiveById: Map[Long, List[MessageMapper[Object]]]
 ) extends QMessageMapper {
-  def mapMessage(world: World, rec: QRecord): Seq[QRecord] = {
+  def mapMessage(mapping: MessageMapping, rec: QRecord): MessageMapping = try {
     val key = qAdapterRegistry.keyAdapter.decode(rec.key)
     val valueAdapter = qAdapterRegistry.byId(key.valueTypeId)
     val value = valueAdapter.decode(rec.value)
-    receiveById.getOrElse(key.valueTypeId,Nil).flatMap(mapper ⇒
-      mapper.mapMessage(world, value).map(qMessages.toRecord(Option(actorName),_))
-    )
+    val mappers = receiveById.getOrElse(key.valueTypeId,Nil)
+    val res = (mapping /: mappers)((res,mapper)⇒mapper.mapMessage(res,value))
+    val errors = ErrorsKey.of(res.world)
+    if(errors.nonEmpty) throw new Exception(errors.toString)
+    res
+  } catch {
+    case e: Exception ⇒ mapping.add() // ??? exception to record
   }
 }
 
