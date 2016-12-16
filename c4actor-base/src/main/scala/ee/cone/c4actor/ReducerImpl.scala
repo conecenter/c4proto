@@ -2,12 +2,14 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.World
 
-class MessageMappingImpl(reducer: ReducerImpl, val actorName: ActorName, val world: World, val toSend: List[QRecord]) extends MessageMapping {
+import scala.collection.immutable.Queue
+
+class MessageMappingImpl(reducer: ReducerImpl, val actorName: ActorName, val world: World, val toSend: Queue[QRecord]) extends MessageMapping {
   def add[M<:Product](out: LEvent[M]*): MessageMapping = {
     val nextToSend = out.map(reducer.qMessages.toRecord).toList
     val stateTopicName = StateTopicName(actorName)
     val nextWorld = reducer.reduceRecover(world, nextToSend.filter(_.topic==stateTopicName))
-    new MessageMappingImpl(reducer, actorName, nextWorld, nextToSend.reverse ::: toSend)
+    new MessageMappingImpl(reducer, actorName, nextWorld, toSend.enqueue(nextToSend))
   }
 }
 
@@ -19,5 +21,5 @@ class ReducerImpl(
     treeAssembler.replace(world, diff)
   }
   def createMessageMapping(actorName: ActorName, world: World): MessageMapping =
-    new MessageMappingImpl(this, actorName, world, Nil)
+    new MessageMappingImpl(this, actorName, world, Queue.empty)
 }

@@ -134,7 +134,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
             val recs = rawRecs.map(new KafkaQConsumerRecordAdapter(inboxTopicName,_))
             val mapping = reducer.createMessageMapping(actorName, localWorldRef.get)
             val res = (mapping /: recs)(qMessageMapper.mapMessage)
-            val metadata = res.toSend.reverse.map(rawQSender.sendStart)
+            val metadata = res.toSend.map(rawQSender.sendStart)
             metadata.foreach(_.get())
             localWorldRef.set(res.world)
             val offset = new OffsetAndMetadata(rawRecs.last.offset + 1)
