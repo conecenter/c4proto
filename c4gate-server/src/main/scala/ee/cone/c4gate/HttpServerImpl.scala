@@ -44,7 +44,7 @@ class HttpPostHandler(forwarder: ForwarderConfig, qMessages: QMessages) extends 
     val req = HttpRequestValue(path, headers, body)
     val targets = forwarder.targets(path)
     if(targets.isEmpty) throw new Exception("no handler")
-    targets.foreach(actorName ⇒ qMessages.send(Send(actorName, req)))
+    targets.foreach(actorName ⇒ qMessages.send(LEvent.update(actorName, path, req)))
     Array.empty[Byte]
   }
 }
@@ -70,17 +70,14 @@ class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
 }
 
 object HttpPublishMapper extends MessageMapper(classOf[HttpRequestValue]) {
-  def mapMessage(res: MessageMapping, message: HttpRequestValue): MessageMapping =
-    res.add(Update(message.path, message))
+  def mapMessage(res: MessageMapping, message: LEvent[HttpRequestValue]): MessageMapping =
+    res.add(message)
 }
 
 
 object ForwardingConfMapper extends MessageMapper(classOf[ForwardingConf]) {
-  def mapMessage(res: MessageMapping, message: ForwardingConf): MessageMapping =
-    res.add(
-      if(message.rules.isEmpty) Delete(message.actorName, classOf[ForwardingConf])
-      else Update(message.actorName, message)
-    )
+  def mapMessage(res: MessageMapping, message: LEvent[ForwardingConf]): MessageMapping =
+    res.add(message)
 }
 
 trait InternetForwarderApp extends ProtocolsApp with MessageMappersApp {

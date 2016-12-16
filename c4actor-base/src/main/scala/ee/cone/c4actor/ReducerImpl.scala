@@ -2,9 +2,9 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.World
 
-class MessageMappingImpl(reducer: ReducerImpl, actorName: ActorName, val world: World, val toSend: List[QRecord]) extends MessageMapping {
-  def add(out: MessageMapResult*): MessageMapping = {
-    val nextToSend = out.map(reducer.qMessages.toRecord(Option(actorName),_)).toList
+class MessageMappingImpl(reducer: ReducerImpl, val actorName: ActorName, val world: World, val toSend: List[QRecord]) extends MessageMapping {
+  def add[M<:Product](out: LEvent[M]*): MessageMapping = {
+    val nextToSend = out.map(reducer.qMessages.toRecord).toList
     val stateTopicName = StateTopicName(actorName)
     val nextWorld = reducer.reduceRecover(world, nextToSend.filter(_.topic==stateTopicName))
     new MessageMappingImpl(reducer, actorName, nextWorld, nextToSend.reverse ::: toSend)

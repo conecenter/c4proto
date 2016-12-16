@@ -4,6 +4,7 @@ package ee.cone.c4actor
 import PCProtocol.{RawChildNode,RawParentNode}
 import ee.cone.c4actor.Types.{Index, SrcId, Values}
 import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4actor.LEvent._
 
 @protocol object PCProtocol extends Protocol {
   @Id(0x0003) case class RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
@@ -51,11 +52,11 @@ object AssemblerTest extends App {
   val indexFactory = new IndexFactoryImpl
   val app = new AssemblerTestApp
   val testActorName = ActorName("")
-  var recs = Update("1", RawParentNode("1","P-1")) ::
-    List("2","3").map(srcId ⇒ Update(srcId, RawChildNode(srcId,"1",s"C-$srcId")))
+  var recs = update(testActorName,"1", RawParentNode("1","P-1")) ::
+    List("2","3").map(srcId ⇒ update(testActorName,srcId, RawChildNode(srcId,"1",s"C-$srcId")))
 
   val diff: Map[WorldKey[_], Index[Object, Object]] =
-    app.qMessages.toTree(recs.map(app.qMessages.toRecord(Some(testActorName),_)))
+    app.qMessages.toTree(recs.map(app.qMessages.toRecord(_)))
   val world = app.treeAssembler.replace(Map.empty,diff)
   val shouldDiff = Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(

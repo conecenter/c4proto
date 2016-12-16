@@ -14,23 +14,15 @@ class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[B
 
 class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
   import qAdapterRegistry._
-  def send[M<:Product](message: Send[M]): Unit =
-    getRawQSender().send(toRecord(None, message))
-  def toRecord(currentActorName: Option[ActorName], message: MessageMapResult): QRecord = {
-    val(topic, selectedSrcId, selectedClass, selectedValue) = message match {
-      case Update(srcId, value) ⇒
-        (StateTopicName(currentActorName.get), srcId, value.getClass, Option(value))
-      case Delete(srcId, cl) ⇒
-        (StateTopicName(currentActorName.get), srcId, cl, None:Option[Product])
-      case Send(actorName, value) ⇒
-        (InboxTopicName(actorName), "", value.getClass, Option(value))
-    }
+  def send[M<:Product](message: LEvent[M]): Unit =
+    getRawQSender().send(toRecord(message))
+  def toRecord[M<:Product](message: LEvent[M]): QRecord = {
     val valueAdapter =
-      byName(selectedClass.getName).asInstanceOf[ProtoAdapter[Product] with HasId]
+      byName(message.className).asInstanceOf[ProtoAdapter[Product] with HasId]
     val rawKey =
-      keyAdapter.encode(QProtocol.TopicKey(selectedSrcId, valueAdapter.id))
-    val rawValue = selectedValue.map(valueAdapter.encode).getOrElse(Array.empty)
-    new QRecordImpl(topic, rawKey, rawValue)
+      keyAdapter.encode(QProtocol.TopicKey(message.srcId, valueAdapter.id))
+    val rawValue = message.value.map(valueAdapter.encode).getOrElse(Array.empty)
+    new QRecordImpl(message.to, rawKey, rawValue)
   }
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]] = records.map {
     rec ⇒ (qAdapterRegistry.keyAdapter.decode(rec.key), rec)
@@ -58,21 +50,23 @@ class QMessageMapperFactoryImpl(qAdapterRegistry: QAdapterRegistry) extends QMes
   def create(messageMappers: List[MessageMapper[_]]): QMessageMapper = {
     val receiveById =
       messageMappers.groupBy(cl ⇒ qAdapterRegistry.byName(cl.mClass.getName).id)
-        .asInstanceOf[Map[Long, List[MessageMapper[Object]]]]
+        .asInstanceOf[Map[Long, List[MessageMapper[Product]]]]
     new QMessageMapperImpl(qAdapterRegistry,receiveById)
   }
 }
 
 class QMessageMapperImpl(
     qAdapterRegistry: QAdapterRegistry,
-    receiveById: Map[Long, List[MessageMapper[Object]]]
+    receiveById: Map[Long, List[MessageMapper[Product]]]
 ) extends QMessageMapper {
   def mapMessage(mapping: MessageMapping, rec: QRecord): MessageMapping = try {
     val key = qAdapterRegistry.keyAdapter.decode(rec.key)
     val valueAdapter = qAdapterRegistry.byId(key.valueTypeId)
-    val value = valueAdapter.decode(rec.value)
+    val value = if(rec.value.length > 0) Some(valueAdapter.decode(rec.value).asInstanceOf[Product]) else None
     val mappers = receiveById.getOrElse(key.valueTypeId,Nil)
-    val res = (mapping /: mappers)((res,mapper)⇒mapper.mapMessage(res,value))
+    val className = qAdapterRegistry.nameById(key.valueTypeId)
+    val message = LEvent(StateTopicName(mapping.actorName), key.srcId, className, value)
+    val res = (mapping /: mappers)((res,mapper)⇒mapper.mapMessage(res,message))
     val errors = ErrorsKey.of(res.world)
     if(errors.nonEmpty) throw new Exception(errors.toString)
     res

@@ -33,24 +33,28 @@ trait QMessageMapper {
 }
 
 trait QMessages {
-  def toRecord(actorName: Option[ActorName], message: MessageMapResult): QRecord
+  def toRecord[M<:Product](message: LEvent[M]): QRecord
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]]
-  def send[M<:Product](message: Send[M]): Unit
+  def send[M<:Product](message: LEvent[M]): Unit
 }
 
-sealed trait MessageMapResult
-case class Update[M<:Product](srcId: SrcId, value: M) extends MessageMapResult
-case class Delete[M<:Product](srcId: SrcId, value: Class[M]) extends MessageMapResult
-case class Send[M<:Product](actorName: ActorName, value: M) extends MessageMapResult
+case class LEvent[M<:Product](to: TopicName, srcId: SrcId, className: String, value: Option[M])
+object LEvent {
+  def update[M<:Product](to: ActorName, srcId: SrcId, value: M): LEvent[M] =
+    LEvent(InboxTopicName(to), srcId, value.getClass.getName,  Option(value))
+  def delete[M<:Product](to: ActorName, srcId: SrcId, cl: Class[M]): LEvent[M] =
+    LEvent(InboxTopicName(to), srcId, cl.getName,  None)
+}
 
-abstract class MessageMapper[M](val mClass: Class[M]) {
-  def mapMessage(res: MessageMapping, message: M): MessageMapping
+abstract class MessageMapper[M<:Product](val mClass: Class[M]) {
+  def mapMessage(res: MessageMapping, message: LEvent[M]): MessageMapping
 }
 
 trait MessageMapping {
   def world: World
-  def add(out: MessageMapResult*): MessageMapping
+  def add[M<:Product](out: LEvent[M]*): MessageMapping
   def toSend: Seq[QRecord]
+  def actorName: ActorName
 }
 
 trait ActorFactory[R] {

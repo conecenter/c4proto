@@ -10,7 +10,6 @@ trait SenderToAgent {
 
 trait TcpServer {
   def senderByKey(key: String): Option[SenderToAgent]
-  def targets: List[ActorName]
 }
 
 trait ForwarderConfig {

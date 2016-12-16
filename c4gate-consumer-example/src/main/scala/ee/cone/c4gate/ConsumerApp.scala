@@ -31,12 +31,13 @@ class TestConsumerApp extends ServerApp
 }
 
 class PostMessageMapper(gateActorName: ActorName) extends MessageMapper(classOf[HttpRequestValue]){
-  def mapMessage(res: MessageMapping, req: HttpRequestValue): MessageMapping = {
+  def mapMessage(res: MessageMapping, message: LEvent[HttpRequestValue]): MessageMapping = {
+    val req = message.value.get
     val prev = new String(req.body.toByteArray, "UTF-8")
     val next = (prev.toLong * 3).toString
     val body = okio.ByteString.encodeUtf8(next)
-    val resp = HttpRequestValue(req.path, Nil, body)
-    res.add(Send(gateActorName,resp))
+    val resp = HttpRequestValue(message.srcId, Nil, body)
+    res.add(LEvent.update(gateActorName, message.srcId, resp))
   }
 }
 
@@ -44,7 +45,7 @@ class TcpEventBroadcaster(appActorName: ActorName, gateActorName: ActorName)(
     getWorld: ()⇒World, qMessages: QMessages
 ) extends Executable {
   def run(executionContext: ExecutionContext): Unit = {
-    qMessages.send(Send(gateActorName, ForwardingConf(appActorName.value, List(
+    qMessages.send(LEvent.update(gateActorName, appActorName.value, ForwardingConf(appActorName.value, List(
       ForwardingRule("/"),
       ForwardingRule(":sse")
     ))))
@@ -54,9 +55,8 @@ class TcpEventBroadcaster(appActorName: ActorName, gateActorName: ActorName)(
       val size = s"${connections.size}\n"
       val sizeBody = okio.ByteString.encodeUtf8(size)
       println(size)
-      connections.values.flatten.foreach{ connection ⇒
-        val message = TcpWrite(connection.connectionKey,sizeBody)
-        qMessages.send(Send(gateActorName, message))
+      connections.keys.foreach{ key ⇒
+        qMessages.send(LEvent.update(gateActorName, key, TcpWrite(key,sizeBody)))
       }
       Thread.sleep(3000)
     }
@@ -64,13 +64,8 @@ class TcpEventBroadcaster(appActorName: ActorName, gateActorName: ActorName)(
 }
 
 object TcpStatusMapper extends MessageMapper(classOf[TcpStatus]){
-  def mapMessage(res: MessageMapping, message: TcpStatus): MessageMapping = {
-    val srcId = message.connectionKey
-    res.add(
-      if(message.error.isEmpty) Update(srcId, TcpStatus(srcId,""))
-      else Delete(srcId, classOf[TcpStatus])
-    )
-  }
+  def mapMessage(res: MessageMapping, message: LEvent[TcpStatus]): MessageMapping =
+    res.add(message)
 }
 
 object ConsumerTest extends Main((new TestConsumerApp).execution.run)
