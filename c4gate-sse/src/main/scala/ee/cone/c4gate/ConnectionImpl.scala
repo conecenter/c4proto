@@ -1,21 +1,26 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.Types.World
-import ee.cone.c4actor.{delete, LEvent$, MessageMapper, update}
-import ee.cone.c4gate.InternetProtocol.TcpStatus
+import ee.cone.c4actor.Types.{Index, SrcId, World}
+import ee.cone.c4actor._
+import ee.cone.c4gate.InternetProtocol.{TcpStatus, TcpWrite}
 
-object TcpStatusMapper extends MessageMapper(classOf[TcpStatus]){
-  def mapMessage(world: World, message: TcpStatus): Seq[LEvent] = {
-    val srcId = message.connectionKey
-    if(message.error.isEmpty) Seq(update(srcId, TcpStatus(srcId,"")))
-    else {
-      val body = okio.ByteString.encodeUtf8(size)
-      Seq(delete(srcId, classOf[TcpStatus]))
-    }
-
-
-
-
+class SSETcpStatusMapper(
+  gateActorName: ActorName, allowOriginOption: Option[String]
+) extends MessageMapper(classOf[TcpStatus]){
+  def mapMessage(
+    res: MessageMapping,
+    message: LEvent[TcpStatus]
+  ): MessageMapping = {
+    val srcId = message.srcId
+    val connections: Index[SrcId, TcpStatus] =
+      By.srcId(classOf[TcpStatus]).of(res.world)
+    (if(message.value.nonEmpty && connections.contains(srcId)){
+      val allowOrigin =
+        allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
+      val headerString = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
+      val headerMessage = TcpWrite(srcId,okio.ByteString.encodeUtf8(headerString))
+      res.add(LEvent.update(gateActorName, message.srcId, headerMessage))
+    } else res).add(message)
   }
 }
 

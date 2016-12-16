@@ -13,6 +13,7 @@ case class ActorName(value: String)
 sealed trait TopicName
 case class InboxTopicName(actorName: ActorName) extends TopicName
 case class StateTopicName(actorName: ActorName) extends TopicName
+case object InstantTopicName extends TopicName
 
 trait QRecord {
   def topic: TopicName
