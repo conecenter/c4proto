@@ -1,31 +1,52 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.Types.{Index, SrcId, World}
 import ee.cone.c4actor._
-import ee.cone.c4gate.InternetProtocol.{TcpStatus, TcpWrite}
+import ee.cone.c4gate.InternetProtocol.{HttpRequestValue, TcpStatus, TcpWrite}
 
 class SSETcpStatusMapper(
-  gateActorName: ActorName, allowOriginOption: Option[String]
+  sseMessages: SSEMessages
 ) extends MessageMapper(classOf[TcpStatus]){
-  def mapMessage(
-    res: MessageMapping,
-    message: LEvent[TcpStatus]
-  ): MessageMapping = {
-    val srcId = message.srcId
-    val connections: Index[SrcId, TcpStatus] =
-      By.srcId(classOf[TcpStatus]).of(res.world)
-    (if(message.value.nonEmpty && connections.contains(srcId)){
-      val allowOrigin =
-        allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
-      val headerString = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
-      val headerMessage = TcpWrite(srcId,okio.ByteString.encodeUtf8(headerString))
-      res.add(LEvent.update(gateActorName, message.srcId, headerMessage))
-    } else res).add(message)
+  def mapMessage(res: MessageMapping, message: LEvent[TcpStatus]): MessageMapping = {
+    if(!changing(mClass,res,message)) res
+    val toSend = message.value.map(_⇒sseMessages.header(message.srcId)).toSeq
+    res.add(toSend:_*).add(message)
+  }
+  def changing[M](cl: Class[M], res: MessageMapping, message: LEvent[M]): Boolean =
+    message.value.toList == By.srcId(cl).of(res.world).getOrElse(message.srcId,Nil).toList
+}
+
+class SSEMessages(gateActorName: ActorName, allowOriginOption: Option[String]) {
+  def header(connectionKey: String): LEvent[TcpWrite] = {
+    val allowOrigin =
+      allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
+    val headerString = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
+    message(connectionKey, headerString)
+  }
+  def message(connectionKey: String, event: String, data: String): LEvent[TcpWrite] = {
+    val escapedData = data.replaceAllLiterally("\n","\ndata: ")
+    message(connectionKey, s"event: $event\ndata: $escapedData\n\n")
+  }
+  private def message(connectionKey: String, data: String): LEvent[TcpWrite] = {
+    val bytes = okio.ByteString.encodeUtf8(data)
+    val msg = TcpWrite(connectionKey,bytes)
+    LEvent.update(gateActorName, connectionKey, msg)
   }
 }
 
-//q-poll -> FromAlienDictMessage
-//ShowToAlien -> sendToAlien
-// /connection X-r-connection -> q-add
+class SSEHttpRequestValueMapper() extends MessageMapper(classOf[HttpRequestValue]) {
+  override def mapMessage(res: MessageMapping, message: LEvent[HttpRequestValue]): MessageMapping = {
+    if(message.srcId != "/connection") return res
+    res.add(message.copy(value=Some(message.value.get.copy(index=9))))
+
+    val headers = message.value.get.headers.flatMap(h ⇒
+      if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
+    ).toMap
+    val connectionKey = headers("X-r-connection")
+    ???
+  }
+}
+
+// /connection X-r-connection -> q-add -> q-poll -> FromAlienDictMessage
+// (0/1-1) ShowToAlien -> sendToAlien
 
 //(World,Msg) => (WorldWithChanges,Seq[Send])

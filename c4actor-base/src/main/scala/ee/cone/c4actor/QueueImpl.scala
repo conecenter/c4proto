@@ -66,7 +66,10 @@ class QMessageMapperImpl(
     val mappers = receiveById.getOrElse(key.valueTypeId,Nil)
     val className = qAdapterRegistry.nameById(key.valueTypeId)
     val message = LEvent(StateTopicName(mapping.actorName), key.srcId, className, value)
-    val res = (mapping /: mappers)((res,mapper)⇒mapper.mapMessage(res,message))
+    val results = mappers.map(_.mapMessage(mapping,message)).filterNot(mapping eq _)
+    val res = if(mappers.isEmpty) mapping.add(message) // pass to state by default
+      else if(results.isEmpty) mapping else Single(results) // only one mapper may change stuff
+    //val res = (mapping /: mappers)((res,mapper)⇒mapper.mapMessage(res,message))
     val errors = ErrorsKey.of(res.world)
     if(errors.nonEmpty) throw new Exception(errors.toString)
     res
