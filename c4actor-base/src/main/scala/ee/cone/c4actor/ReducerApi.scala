@@ -8,9 +8,14 @@ case object ErrorsKey extends WorldKey[Index[SrcId,String]](Map.empty)
 
 trait Reducer {
   def reduceRecover(world: World, recs: List[QRecord]): World
-  def createMessageMapping(actorName: ActorName, world: World): MessageMapping
+  def createMessageMapping(topicName: TopicName, world: World): MessageMapping
 }
 
-trait WorldProvider {
-  def world: World
+trait WorldObserver {
+  def activate(getWorld: ()⇒World): Seq[WorldObserver]
 }
+
+trait WorldObserverApp {
+  def initialWorldObservers: List[WorldObserver] = Nil
+}
+

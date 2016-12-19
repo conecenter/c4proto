@@ -4,13 +4,12 @@ import ee.cone.c4actor.Types.World
 
 import scala.collection.immutable.Queue
 
-class MessageMappingImpl(reducer: ReducerImpl, val actorName: ActorName, val world: World, val toSend: Queue[QRecord]) extends MessageMapping {
+class MessageMappingImpl(reducer: ReducerImpl, val topicName: TopicName, val world: World, val toSend: Queue[QRecord]) extends MessageMapping {
   def add[M<:Product](out: LEvent[M]*): MessageMapping = {
     val nextToSend = out.map(reducer.qMessages.toRecord).toList
     //??? insert here: application groups,  case object InstantTopicName extends TopicName
-    val stateTopicName = StateTopicName(actorName)
-    val nextWorld = reducer.reduceRecover(world, nextToSend.filter(_.topic==stateTopicName))
-    new MessageMappingImpl(reducer, actorName, nextWorld, toSend.enqueue(nextToSend))
+    val nextWorld = reducer.reduceRecover(world, nextToSend.filter(_.topic==topicName))
+    new MessageMappingImpl(reducer, topicName, nextWorld, toSend.enqueue(nextToSend))
   }
 }
 
@@ -21,6 +20,37 @@ class ReducerImpl(
     val diff = qMessages.toTree(recs)
     treeAssembler.replace(world, diff)
   }
-  def createMessageMapping(actorName: ActorName, world: World): MessageMapping =
-    new MessageMappingImpl(this, actorName, world, Queue.empty)
+  def createMessageMapping(topicName: TopicName, world: World): MessageMapping =
+    new MessageMappingImpl(this, topicName, world, Queue.empty)
 }
+
+class SerialWorldObserver extends WorldObserver {
+  def activate(getWorld: () ⇒ World): Seq[WorldObserver] = {
+    val world = getWorld()
+    ???
+  }
+}
+
+
+/*
+
+Task[T]
+  offset: Long
+  value: Product
+
+MultiUpdate
+  updates: List[Update]
+
+Update
+    key: TopicKey
+    fromVal: bs
+    toVal: bs
+
+
+          val qMessageMapper = qMessageMapperFactory.create(messageMappers)
+qMessageMapper: QMessageMapper, rawQSender: KafkaRawQSender,
+            val mapping = reducer.createMessageMapping(topicName, localWorldRef.get)
+            val res = (mapping /: recs)(qMessageMapper.mapMessage)
+            val metadata = res.toSend.map(rawQSender.sendStart)
+            metadata.foreach(_.get())
+            */

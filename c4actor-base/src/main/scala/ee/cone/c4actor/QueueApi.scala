@@ -5,7 +5,24 @@ import ee.cone.c4actor.Types.{Index, SrcId, World}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object QProtocol extends Protocol {
-  @Id(0x0010) case class TopicKey(@Id(0x0011) srcId: String, @Id(0x0012) valueTypeId: Long)
+  @Id(0x0010) case class TopicKey(
+      @Id(0x0011) srcId: String,
+      @Id(0x0012) valueTypeId: Long
+  )
+  @Id(0x0013) case class Task(
+      @Id(0x0012) valueTypeId: Long,
+      @Id(0x0014) value: okio.ByteString,
+      @Id(0x0015) offset: Long
+  )
+  @Id(0x0016) case class Commit(
+      @Id(0x0017) check: List[Update],
+      @Id(0x0018) update: List[Update]
+  )
+  case class Update(
+      @Id(0x0011) srcId: String,
+      @Id(0x0012) valueTypeId: Long,
+      @Id(0x0014) value: okio.ByteString
+  )
 }
 
 case class TopicName(value: String)
@@ -43,10 +60,10 @@ case class LEvent[M<:Product](
   offset: Option[Long]
 )
 object LEvent {
-  def update[M<:Product](to: ActorName, srcId: SrcId, value: M): LEvent[M] =
-    LEvent(InboxTopicName(to), srcId, value.getClass.getName,  Option(value), None)
-  def delete[M<:Product](to: ActorName, srcId: SrcId, cl: Class[M]): LEvent[M] =
-    LEvent(InboxTopicName(to), srcId, cl.getName,  None, None)
+  def update[M<:Product](to: TopicName, srcId: SrcId, value: M): LEvent[M] =
+    LEvent(to, srcId, value.getClass.getName,  Option(value), None)
+  def delete[M<:Product](to: TopicName, srcId: SrcId, cl: Class[M]): LEvent[M] =
+    LEvent(to, srcId, cl.getName,  None, None)
 }
 
 abstract class MessageMapper[M<:Product](val mClass: Class[M]) {
@@ -57,11 +74,7 @@ trait MessageMapping {
   def world: World
   def add[M<:Product](out: LEvent[M]*): MessageMapping
   def toSend: Seq[QRecord]
-  def actorName: ActorName
-}
-
-trait ActorFactory[R] {
-  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): R
+  def topicName: TopicName
 }
 
 trait QMessageMapperFactory {

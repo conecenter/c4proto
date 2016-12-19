@@ -1,7 +1,6 @@
 
 package ee.cone.c4actor
 
-import java.util.Collections.singletonMap
 import java.util.concurrent.{CompletableFuture, Future}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
@@ -22,11 +21,13 @@ trait KafkaApp extends ToStartApp {
   def bootstrapServers: String
   def qReducer: Reducer
   def qMessageMapperFactory: QMessageMapperFactory
+  def worldTopicName: TopicName
+  def initialWorldObservers: List[WorldObserver]
   lazy val kafkaRawQSender: KafkaRawQSender = new KafkaRawQSender(bootstrapServers)()
   def rawQSender: RawQSender with Executable = kafkaRawQSender
-  lazy val actorFactory: ActorFactory[Executable with WorldProvider] =
-    new KafkaActorFactory(bootstrapServers)(qReducer, qMessageMapperFactory, kafkaRawQSender)
-  override def toStart: List[Executable] = rawQSender :: super.toStart
+  lazy val observableWorld: Executable =
+    new KafkaActor(bootstrapServers, worldTopicName)(qReducer, initialWorldObservers)
+  override def toStart: List[Executable] = observableWorld :: rawQSender :: super.toStart
 }
 
 ////
@@ -49,12 +50,8 @@ class KafkaRawQSender(bootstrapServers: String)(
     ))
     ctx.onShutdown(() ⇒ producer.get.close())
   }
-  def topicNameToString(topicName: TopicName): String = topicName match {
-    case InboxTopicName(ActorName(n)) ⇒ s"$n.inbox"
-    case StateTopicName(ActorName(n)) ⇒ s"$n.state"
-  }
   def sendStart(rec: QRecord): Future[RecordMetadata] =
-    producer.get.send(new ProducerRecord(topicNameToString(rec.topic), 0, rec.key, rec.value))
+    producer.get.send(new ProducerRecord(rec.topic.value, 0, rec.key, rec.value))
   def send(rec: QRecord): Unit = sendStart(rec).get()
 }
 
@@ -67,26 +64,11 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
   def offset: Option[Long] = Option(rec.offset)
 }
 
-class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, qMessageMapperFactory: QMessageMapperFactory, kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
-  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): Executable with WorldProvider = {
-    val qMessageMapper = qMessageMapperFactory.create(messageMappers)
-    new KafkaActor(bootstrapServers, actorName)(reducer, qMessageMapper, kafkaRawQSender)()
-  }
-}
-
-trait WorldObserver {
-  def activate(worldProvider: WorldProvider): Unit
-}
-
 class KafkaActor(bootstrapServers: String, topicName: TopicName)(
-  reducer: Reducer, qMessageMapper: QMessageMapper, rawQSender: KafkaRawQSender,
-  observers: List[WorldObserver]
-)(
-  alive: AtomicBoolean = new AtomicBoolean(true),
-  worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
-) extends Executable with WorldProvider {
-  def world: World = worldFuture.get.get
+  reducer: Reducer, initialObservers: List[WorldObserver]
+) extends Executable {
   def run(ctx: ExecutionContext): Unit = {
+    val alive: AtomicBoolean = new AtomicBoolean(true)
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
       "bootstrap.servers" → bootstrapServers,
@@ -101,10 +83,11 @@ class KafkaActor(bootstrapServers: String, topicName: TopicName)(
       consumer.wakeup()
     }
     try {
-      val topicPartition = List(new TopicPartition(rawQSender.topicNameToString(topicName), 0))
+      val topicPartition = List(new TopicPartition(topicName.value, 0))
       consumer.assign(topicPartition.asJava)
       val recoverUntil = Single(consumer.endOffsets(topicPartition.asJava).asScala.values.toList)//?hang
       consumer.seekToBeginning(topicPartition.asJava)
+      val worldRef = new AtomicReference[World](Map())
       Iterator.continually{
         if(Thread.interrupted || !alive.get) throw new InterruptedException
         val recs = consumer.poll(200 /*timeout*/).asScala
@@ -112,27 +95,17 @@ class KafkaActor(bootstrapServers: String, topicName: TopicName)(
         val recoveryMode =
           consumer.position(Single(topicPartition)) < recoverUntil
         (recs, recoveryMode)
-      }.scanLeft((Queue.empty[QRecord],Map():World)){ (prev, recsMode) ⇒
-        val(prevQueue,prevWorld) = prev
+      }.scanLeft((Queue.empty[QRecord],initialObservers)){ (prev, recsMode) ⇒
+        val(prevQueue,prevObservers) = prev
         val(recs, recoveryMode) = recsMode
         val queue = prevQueue.enqueue[QRecord](recs)
-        if(recoveryMode || queue.isEmpty) (queue, prevWorld)
-        else (Queue.empty, reducer.reduceRecover(prevWorld, queue.toList))
-      }.foreach{
-        case (_,world) if world.nonEmpty ⇒
-          if(worldFuture.isDone) worldFuture.get.set(world)
-          else worldFuture.complete(new AtomicReference(world))
-          observers.foreach(_.activate(this))
-        case _ ⇒ ()
-      }
-/*
-            val mapping = reducer.createMessageMapping(topicName, localWorldRef.get)
-            val res = (mapping /: recs)(qMessageMapper.mapMessage)
-            val metadata = res.toSend.map(rawQSender.sendStart)
-            metadata.foreach(_.get())
-            */
-
-
+        if(recoveryMode) (queue, prevObservers) // || queue.isEmpty
+        else {
+          worldRef.set(reducer.reduceRecover(worldRef.get, queue.toList))
+          val observers = prevObservers.flatMap(_.activate(()⇒worldRef.get))
+          (Queue.empty, observers)
+        }
+      }.foreach(_⇒())
     } finally {
       consumer.close()
     }

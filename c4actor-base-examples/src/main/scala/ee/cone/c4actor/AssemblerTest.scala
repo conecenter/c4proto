@@ -13,6 +13,7 @@ import ee.cone.c4actor.LEvent._
 
 case object ChildNodeByParent extends WorldKey[Index[SrcId,RawChildNode]](Map.empty)
 case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
+case object ParentNodeWithChildrenBySrcId extends WorldKey[Index[SrcId,ParentNodeWithChildren]](Map.empty)
 
 class ChildNodeByParentJoin extends Join1(
   By.srcId(classOf[RawChildNode]), ChildNodeByParent
@@ -24,7 +25,7 @@ class ChildNodeByParentJoin extends Join1(
 }
 
 class ParentNodeWithChildrenJoin extends Join2(
-  ChildNodeByParent, By.srcId(classOf[RawParentNode]), By.srcId(classOf[ParentNodeWithChildren])
+  ChildNodeByParent, By.srcId(classOf[RawParentNode]), ParentNodeWithChildrenBySrcId
 ) {
   def join(
     childNodeByParent: Values[RawChildNode],

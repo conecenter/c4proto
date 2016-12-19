@@ -2,7 +2,7 @@
 package ee.cone.c4gate
 
 import java.net.InetSocketAddress
-
+import java.util.concurrent.CompletableFuture
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4gate.InternetProtocol._
@@ -17,11 +17,18 @@ trait RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte]
 }
 
-class HttpGetHandler(getWorld: ()⇒World) extends RHttpHandler {
+class HttpGetHandler(
+  worldFuture: CompletableFuture[()⇒World] = new CompletableFuture()
+) extends RHttpHandler with WorldObserver {
+  def activate(getWorld: () ⇒ World): Seq[WorldObserver] = {
+    worldFuture.complete(getWorld)
+    Nil
+  }
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val path = httpExchange.getRequestURI.getPath
     val publishedByPath = By.srcId(classOf[HttpRequestValue])
-    Single(publishedByPath.of(getWorld())(path)).body.toByteArray
+    val world = worldFuture.get.apply()
+    Single(publishedByPath.of(world)(path)).body.toByteArray
   }
 }
 
@@ -89,14 +96,15 @@ trait InternetForwarderApp extends ProtocolsApp with MessageMappersApp {
     ForwardingConfMapper :: super.messageMappers
 }
 
-trait HttpServerApp extends ToStartApp with MessageMappersApp {
+trait HttpServerApp extends ToStartApp with MessageMappersApp with WorldObserverApp {
+
   def httpPort: Int
   def qMessages: QMessages
-  def worldProvider: WorldProvider
   def internetForwarderConfig: ForwarderConfig
+  lazy val httpGetHandler = new HttpGetHandler
   lazy val httpServer: Executable = {
     val handler = new ReqHandler(Map(
-      "GET" → new HttpGetHandler(()⇒worldProvider.world),
+      "GET" → httpGetHandler,
       "POST" → new HttpPostHandler(internetForwarderConfig,qMessages)
     ))
     new RHttpServer(httpPort, handler)
@@ -104,4 +112,6 @@ trait HttpServerApp extends ToStartApp with MessageMappersApp {
   override def toStart: List[Executable] = httpServer :: super.toStart
   override def messageMappers: List[MessageMapper[_]] =
     HttpPublishMapper :: super.messageMappers
+  override def initialWorldObservers: List[WorldObserver] =
+    httpGetHandler :: super.initialWorldObservers
 }

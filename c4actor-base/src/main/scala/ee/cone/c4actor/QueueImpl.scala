@@ -43,13 +43,13 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
       }.map { case (srcId, keysEventsI) ⇒
         val (topicKey, rec) = keysEventsI.last
         val rawValue = rec.value
-        (srcId: Object) →
-          (if(rawValue.length > 0) valueAdapter.decode(rawValue) ::
-            Nil else Nil)
+        (srcId: Object) → (
+          if(rawValue.length == 0) Nil
+          else List(withOffset(valueAdapter.decode(rawValue), rec.offset.get))
+        )
       }
   }
 }
-
 
 class QMessageMapperFactoryImpl(qAdapterRegistry: QAdapterRegistry) extends QMessageMapperFactory {
   def create(messageMappers: List[MessageMapper[_]]): QMessageMapper = {
@@ -70,7 +70,7 @@ class QMessageMapperImpl(
     val value = if(rec.value.length > 0) Some(valueAdapter.decode(rec.value).asInstanceOf[Product]) else None
     val mappers = receiveById.getOrElse(key.valueTypeId,Nil)
     val className = qAdapterRegistry.nameById(key.valueTypeId)
-    val message = LEvent(StateTopicName(mapping.actorName), key.srcId, className, value, rec.offset)
+    val message = LEvent(mapping.topicName, key.srcId, className, value, rec.offset)
     val results = mappers.map(_.mapMessage(mapping,message)).filterNot(mapping eq _)
     val res = if(mappers.isEmpty) mapping.add(message) // pass to state by default
       else if(results.isEmpty) mapping else Single(results) // only one mapper may change stuff

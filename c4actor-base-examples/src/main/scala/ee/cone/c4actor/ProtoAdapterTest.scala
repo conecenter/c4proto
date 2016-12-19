@@ -33,7 +33,7 @@ object ProtoAdapterTest extends App {
     def world = Map()
     def toSend = ???
     def add[M<:Product](out: LEvent[M]*): MessageMapping = ???
-    def actorName: ActorName = testActorName
+    def topicName: ActorName = testActorName
   }
   qMessageMapper.mapMessage(mapping, rec)
 }

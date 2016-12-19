@@ -88,7 +88,7 @@ class WriteEventCommandMapper(sseServer: TcpServer) extends MessageMapper(classO
       case Some(sender) ⇒
         sender.add(message.value.get.body.toByteArray)
         res
-      case None ⇒ res.add(LEvent.delete(res.actorName,key,classOf[TcpStatus]))
+      case None ⇒ res.add(LEvent.delete(res.topicName,key,classOf[TcpStatus]))
     }
   }
 }

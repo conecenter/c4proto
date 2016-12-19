@@ -37,7 +37,7 @@ class SSEMessages(gateActorName: ActorName, allowOriginOption: Option[String]) {
 class SSEHttpRequestValueMapper() extends MessageMapper(classOf[HttpRequestValue]) {
   override def mapMessage(res: MessageMapping, message: LEvent[HttpRequestValue]): MessageMapping = {
     val task = HttpRequestTask(message.offset.get, message.value)
-    res.add(LEvent.update(res.actorName, task.offset.toString, task))
+    res.add(LEvent.update(res.topicName, task.offset.toString, task))
   }
 }
 
