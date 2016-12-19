@@ -1,7 +1,8 @@
 package ee.cone.c4gate
 
+import ee.cone.c4actor.Types.{Values, World}
 import ee.cone.c4actor._
-import ee.cone.c4gate.InternetProtocol.{HttpRequestValue, TcpStatus, TcpWrite}
+import ee.cone.c4gate.InternetProtocol.{HttpRequestTask, HttpRequestValue, TcpStatus, TcpWrite}
 
 class SSETcpStatusMapper(
   sseMessages: SSEMessages
@@ -35,16 +36,53 @@ class SSEMessages(gateActorName: ActorName, allowOriginOption: Option[String]) {
 
 class SSEHttpRequestValueMapper() extends MessageMapper(classOf[HttpRequestValue]) {
   override def mapMessage(res: MessageMapping, message: LEvent[HttpRequestValue]): MessageMapping = {
-    if(message.srcId != "/connection") return res
-    res.add(message.copy(value=Some(message.value.get.copy(index=9))))
+    val task = HttpRequestTask(message.offset.get, message.value)
+    res.add(LEvent.update(res.actorName, task.offset.toString, task))
+  }
+}
 
-    val headers = message.value.get.headers.flatMap(h ⇒
+case class TaskExecutorState(from: Long, lastTx: Option[MessageMapping])
+
+class SSEHttpRequestTaskExecutor(
+  getWorld: ()⇒World, reducer: Reducer, actorName: ActorName
+) extends Executable {
+  def run(ctx: ExecutionContext) = {
+
+    Iterator.iterate(TaskExecutorState(0,None)){ state ⇒
+      val tx = reducer.createMessageMapping(actorName, getWorld())
+
+
+      state.copy(lastTx = Some(tx))
+    }.foreach(state⇒state.lastTx)
+
+    ( /: Iterator.continually(getWorld())){ (state, world)⇒
+      val tasks = By.srcId(classOf[HttpRequestTask]).of(world).values
+        .flatten.toSeq.filter(_.offset>=state.from).sortBy(_.offset) //.map(_.request.get)
+      //import InternetProtocol._
+      val req = tasks.collectFirst{
+        case HttpRequestTask(offset,request) if ⇒ _.path == "/connection"
+      }
+      if(req.isE)
+
+
+      state
+    }
+
+
+
+
+
+
+
+
+    val headers = req.headers.flatMap(h ⇒
       if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
     ).toMap
     val connectionKey = headers("X-r-connection")
     ???
   }
 }
+
 
 // /connection X-r-connection -> q-add -> q-poll -> FromAlienDictMessage
 // (0/1-1) ShowToAlien -> sendToAlien

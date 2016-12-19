@@ -16,7 +16,7 @@ import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.JavaConverters.mapAsJavaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.JavaConverters.mapAsScalaMapConverter
-import scala.collection.immutable.Map
+import scala.collection.immutable.{Map, Queue}
 
 trait KafkaApp extends ToStartApp {
   def bootstrapServers: String
@@ -64,6 +64,7 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
   def topic: TopicName = topicName
   def key: Array[Byte] = rec.key
   def value: Array[Byte] = rec.value
+  def offset: Option[Long] = Option(rec.offset)
 }
 
 class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, qMessageMapperFactory: QMessageMapperFactory, kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
@@ -73,22 +74,24 @@ class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, qMessageMapp
   }
 }
 
-class KafkaActor(bootstrapServers: String, actorName: ActorName)(
-  reducer: Reducer, qMessageMapper: QMessageMapper, rawQSender: KafkaRawQSender
+trait WorldObserver {
+  def activate(worldProvider: WorldProvider): Unit
+}
+
+class KafkaActor(bootstrapServers: String, topicName: TopicName)(
+  reducer: Reducer, qMessageMapper: QMessageMapper, rawQSender: KafkaRawQSender,
+  observers: List[WorldObserver]
 )(
   alive: AtomicBoolean = new AtomicBoolean(true),
   worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
 ) extends Executable with WorldProvider {
-  private def poll(consumer: Consumer[Array[Byte], Array[Byte]]) =
-    consumer.poll(1000 /*timeout*/).asScala
   def world: World = worldFuture.get.get
-  type BConsumer = Consumer[Array[Byte], Array[Byte]]
-  private def initConsumer(ctx: ExecutionContext): BConsumer = {
+  def run(ctx: ExecutionContext): Unit = {
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
       "bootstrap.servers" → bootstrapServers,
       "enable.auto.commit" → "false",
-      "group.id" → actorName.value //?pos
+      "group.id" → topicName.value //?pos
     )
     val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
@@ -97,54 +100,43 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       alive.set(false)
       consumer.wakeup()
     }
-    consumer
-  }
-  private def checkInterrupt() =
-    if(Thread.interrupted || !alive.get) throw new InterruptedException
-  private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {
-    val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
-    //?hang
-    consumer.seekToBeginning(part.asJava)
-    var currentWorld: World = Map()
-    while(consumer.position(Single(part)) < until) {
-      checkInterrupt()
-      val recs = poll(consumer).map(new KafkaQConsumerRecordAdapter(topicName,_))
-      currentWorld = reducer.reduceRecover(currentWorld, recs.toList)
-    }
-    new AtomicReference(currentWorld)
-  }
-  def run(ctx: ExecutionContext): Unit = {
-    val consumer = initConsumer(ctx)
     try {
-      val inboxTopicName = InboxTopicName(actorName)
-      val stateTopicName = StateTopicName(actorName)
-      val inboxTopicPartition = List(new TopicPartition(rawQSender.topicNameToString(inboxTopicName), 0))
-      val stateTopicPartition = List(new TopicPartition(rawQSender.topicNameToString(stateTopicName), 0))
-      consumer.assign((inboxTopicPartition ::: stateTopicPartition).asJava)
-      consumer.pause(inboxTopicPartition.asJava)
-      val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
-      consumer.pause(stateTopicPartition.asJava)
-      consumer.resume(inboxTopicPartition.asJava)
-      worldFuture.complete(localWorldRef)
-      while(true){
-        checkInterrupt()
-        poll(consumer).toList match {
-          case Nil ⇒ ()
-          case rawRecs ⇒
-            val recs = rawRecs.map(new KafkaQConsumerRecordAdapter(inboxTopicName,_))
-            val mapping = reducer.createMessageMapping(actorName, localWorldRef.get)
+      val topicPartition = List(new TopicPartition(rawQSender.topicNameToString(topicName), 0))
+      consumer.assign(topicPartition.asJava)
+      val recoverUntil = Single(consumer.endOffsets(topicPartition.asJava).asScala.values.toList)//?hang
+      consumer.seekToBeginning(topicPartition.asJava)
+      Iterator.continually{
+        if(Thread.interrupted || !alive.get) throw new InterruptedException
+        val recs = consumer.poll(200 /*timeout*/).asScala
+          .map(new KafkaQConsumerRecordAdapter(topicName,_)).toList
+        val recoveryMode =
+          consumer.position(Single(topicPartition)) < recoverUntil
+        (recs, recoveryMode)
+      }.scanLeft((Queue.empty[QRecord],Map():World)){ (prev, recsMode) ⇒
+        val(prevQueue,prevWorld) = prev
+        val(recs, recoveryMode) = recsMode
+        val queue = prevQueue.enqueue[QRecord](recs)
+        if(recoveryMode || queue.isEmpty) (queue, prevWorld)
+        else (Queue.empty, reducer.reduceRecover(prevWorld, queue.toList))
+      }.foreach{
+        case (_,world) if world.nonEmpty ⇒
+          if(worldFuture.isDone) worldFuture.get.set(world)
+          else worldFuture.complete(new AtomicReference(world))
+          observers.foreach(_.activate(this))
+        case _ ⇒ ()
+      }
+/*
+            val mapping = reducer.createMessageMapping(topicName, localWorldRef.get)
             val res = (mapping /: recs)(qMessageMapper.mapMessage)
             val metadata = res.toSend.map(rawQSender.sendStart)
             metadata.foreach(_.get())
-            localWorldRef.set(res.world)
-            val offset = new OffsetAndMetadata(rawRecs.last.offset + 1)
-            consumer.commitSync(singletonMap(Single(inboxTopicPartition), offset))
-        }
-        //! if consumer.commitSync() after loop, if single fails then all recent will be re-consumed
-      }
+            */
+
+
     } finally {
       consumer.close()
     }
   }
 }
+
 

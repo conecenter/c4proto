@@ -10,7 +10,12 @@ import ee.cone.c4proto.{HasId, Protocol}
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[Byte]) extends QRecord
+class QRecordImpl(
+  val topic: TopicName,
+  val key: Array[Byte],
+  val value: Array[Byte],
+  val offset: Option[Long]
+) extends QRecord
 
 class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
   import qAdapterRegistry._
@@ -22,7 +27,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     val rawKey =
       keyAdapter.encode(QProtocol.TopicKey(message.srcId, valueAdapter.id))
     val rawValue = message.value.map(valueAdapter.encode).getOrElse(Array.empty)
-    new QRecordImpl(message.to, rawKey, rawValue)
+    new QRecordImpl(message.to, rawKey, rawValue, None)
   }
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]] = records.map {
     rec ⇒ (qAdapterRegistry.keyAdapter.decode(rec.key), rec)
@@ -65,7 +70,7 @@ class QMessageMapperImpl(
     val value = if(rec.value.length > 0) Some(valueAdapter.decode(rec.value).asInstanceOf[Product]) else None
     val mappers = receiveById.getOrElse(key.valueTypeId,Nil)
     val className = qAdapterRegistry.nameById(key.valueTypeId)
-    val message = LEvent(StateTopicName(mapping.actorName), key.srcId, className, value)
+    val message = LEvent(StateTopicName(mapping.actorName), key.srcId, className, value, rec.offset)
     val results = mappers.map(_.mapMessage(mapping,message)).filterNot(mapping eq _)
     val res = if(mappers.isEmpty) mapping.add(message) // pass to state by default
       else if(results.isEmpty) mapping else Single(results) // only one mapper may change stuff

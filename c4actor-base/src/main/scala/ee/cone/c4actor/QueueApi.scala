@@ -8,16 +8,13 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   @Id(0x0010) case class TopicKey(@Id(0x0011) srcId: String, @Id(0x0012) valueTypeId: Long)
 }
 
-case class ActorName(value: String)
-
-sealed trait TopicName
-case class InboxTopicName(actorName: ActorName) extends TopicName
-case class StateTopicName(actorName: ActorName) extends TopicName
+case class TopicName(value: String)
 
 trait QRecord {
   def topic: TopicName
   def key: Array[Byte]
   def value: Array[Byte]
+  def offset: Option[Long]
 }
 
 trait RawQSender {
@@ -38,12 +35,18 @@ trait QMessages {
   def send[M<:Product](message: LEvent[M]): Unit
 }
 
-case class LEvent[M<:Product](to: TopicName, srcId: SrcId, className: String, value: Option[M])
+case class LEvent[M<:Product](
+  to: TopicName,
+  srcId: SrcId,
+  className: String,
+  value: Option[M],
+  offset: Option[Long]
+)
 object LEvent {
   def update[M<:Product](to: ActorName, srcId: SrcId, value: M): LEvent[M] =
-    LEvent(InboxTopicName(to), srcId, value.getClass.getName,  Option(value))
+    LEvent(InboxTopicName(to), srcId, value.getClass.getName,  Option(value), None)
   def delete[M<:Product](to: ActorName, srcId: SrcId, cl: Class[M]): LEvent[M] =
-    LEvent(InboxTopicName(to), srcId, cl.getName,  None)
+    LEvent(InboxTopicName(to), srcId, cl.getName,  None, None)
 }
 
 abstract class MessageMapper[M<:Product](val mClass: Class[M]) {
