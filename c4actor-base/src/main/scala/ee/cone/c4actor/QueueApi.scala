@@ -10,17 +10,18 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
       @Id(0x0012) valueTypeId: Long
   )
   @Id(0x0013) case class Task(
+      @Id(0x0011) srcId: String,
       @Id(0x0012) valueTypeId: Long,
       @Id(0x0014) value: okio.ByteString,
       @Id(0x0015) offset: Long
   )
   @Id(0x0016) case class Commit(
-      @Id(0x0017) check: List[Update],
       @Id(0x0018) update: List[Update]
   )
   case class Update(
       @Id(0x0011) srcId: String,
       @Id(0x0012) valueTypeId: Long,
+      @Id(0x0017) oldValue: okio.ByteString,
       @Id(0x0014) value: okio.ByteString
   )
 }
