@@ -2,7 +2,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor.Types.{Index, SrcId, Values, World}
 import ee.cone.c4actor._
-import ee.cone.c4gate.InternetProtocol.{HttpRequestValue, TcpConnected, TcpWrite}
+import ee.cone.c4gate.InternetProtocol.{HttpRequestValue, TcpConnected, TcpDisconnect, TcpWrite}
 
 class SSETcpStatusHandler(
   sseMessages: SSEMessages
@@ -22,51 +22,82 @@ trait Observer {
 case object OffsetWorldKey extends WorldKey[Long](0)
 
 case class SSEMessages(actorName: ActorName, gateActorName: ActorName, allowOriginOption: Option[String], needWorldOffset: Long)(reducer: Reducer) extends Observer {
-  def header(connectionKey: String): LEvent[TcpWrite] = {
+  private def header(connectionKey: String): TcpWrite = {
     val allowOrigin =
       allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
     val headerString = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
     message(connectionKey, headerString)
   }
-  def message(connectionKey: String, event: String, data: String): LEvent[TcpWrite] = {
+  def message(connectionKey: String, event: String, data: String): TcpWrite = {
     val escapedData = data.replaceAllLiterally("\n","\ndata: ")
     message(connectionKey, s"event: $event\ndata: $escapedData\n\n")
   }
-  private def message(connectionKey: String, data: String): LEvent[TcpWrite] = {
+  private def message(connectionKey: String, data: String): TcpWrite = {
     val bytes = okio.ByteString.encodeUtf8(data)
     val msg = TcpWrite(connectionKey,bytes)
-    LEvent.update(gateActorName, connectionKey, msg)
+    LEvent.update(gateActorName, "", msg)
   }
   def activate(getWorld: ()⇒World): Seq[Observer] = {
     val world = getWorld()
     if(OffsetWorldKey.of(world) < needWorldOffset) return Seq(this)
     //
     val tx = reducer.createMessageMapping(actorName, world)
-    val tcpConnectedBySrcId = By.srcId(classOf[TcpConnected]).of(world)
-    (tx /: tcpConnectedBySrcId.values){ (tx, connected) ⇒ }
+    val time = System.currentTimeMillis()
+    Some(tx).map( tx ⇒ tx.add(
+      By.srcId(classOf[SSEConnection]).of(tx.world).values.flatten.flatMap{ conn ⇒
+        conn.state match{
+          case None ⇒
+            LEvent.update(tx.actorName,conn.connectionKey,SSEConnectionState(conn.connectionKey,time,0)) ::
+            LEvent.update(gateActorName, "", header(conn.connectionKey)) ::
+            LEvent.update(gateActorName, "", message("connect",conn.connectionKey)) ::
+            Nil
+          case Some(state@SSEConnectionState(_,pingTime,pongTime)) ⇒
+            if(Math.max(pingTime,pongTime) + 5000 > time) Nil
+            else if(pingTime < pongTime)
+              LEvent.update(tx.actorName,conn.connectionKey,state.copy(pingTime=time)) ::
+              LEvent.update(gateActorName, "", message("ping",conn.connectionKey)) ::
+              Nil
+            else
+              LEvent.delete(tx.actorName,conn.connectionKey,classOf[TcpConnected]) ::
+              LEvent.delete(tx.actorName,conn.connectionKey,classOf[SSEConnectionState]) ::
+              LEvent.update(gateActorName,"",TcpDisconnect(conn.connectionKey)) ::
+              Nil
+        }
+      }.toSeq:_*
+    ))
 
-    connections.keys.foreach{ key ⇒
-      qMessages.send(LEvent.update(gateActorName, key, TcpWrite(key,sizeBody)))
-    }
+
+
 
 
     Seq(this)
   }
 }
 
-case class SSEConnection(connectionKey: String)
-case class FreshConnection(connectionKey: String)
+
+
+case class SSEConnectionState(connectionKey: String, pingTime: Long, pongTime: Long)
+case class SSEConnection(connectionKey: String, state: Option[SSEConnectionState])
+
+object Single {
+  def apply[C](l: List[C]): C = if(l.tail.nonEmpty) throw new Exception else l.head
+  def option[C](l: List[C]): Option[C] = if(l.isEmpty) None else Option(apply(l))
+  def list[C](l: List[C]): List[C] = if(l.isEmpty || l.tail.isEmpty) l else throw new Exception
+}
+
+//case class FreshConnection(connectionKey: String)
 class FreshConnectionJoin extends Join2(
   By.srcId(classOf[TcpConnected]),
-  By.srcId(classOf[SSEConnection]),
-  By.srcId(classOf[FreshConnection])
+  By.srcId(classOf[SSEConnectionState]),
+  By.srcId(classOf[SSEConnection])
 ) {
   def join(
-    a1: Values[TcpConnected],
-    a2: Values[SSEConnection]
-  ) = ???
-  def sort(values: Iterable[FreshConnection]) = ???
+    tcpConnected: Values[TcpConnected],
+    states: Values[SSEConnectionState]
+  ) = tcpConnected.map(_.connectionKey).map(c⇒c→SSEConnection(c,Single.option(states)))
+  def sort(nodes: Iterable[SSEConnection]) = Single.list(nodes.toList)
 }
+
 
 class SSEHttpRequestValueHandler() extends MessageHandler
 (classOf[HttpRequestValue]) {

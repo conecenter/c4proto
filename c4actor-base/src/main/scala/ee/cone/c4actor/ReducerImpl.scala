@@ -6,6 +6,7 @@ import scala.collection.immutable.Queue
 
 class MessageMappingImpl(reducer: ReducerImpl, val actorName: ActorName, val world: World, val toSend: Queue[QRecord]) extends MessageMapping {
   def add[M<:Product](out: LEvent[M]*): MessageMapping = {
+    if(out.isEmpty) return this
     val nextToSend = out.map(reducer.qMessages.toRecord).toList
     //??? insert here: application groups,  case object InstantTopicName extends TopicName
     val stateTopicName = StateTopicName(actorName)
