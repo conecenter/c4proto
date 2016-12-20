@@ -47,32 +47,29 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
 
 
 class QMessageMapperFactoryImpl(qAdapterRegistry: QAdapterRegistry) extends QMessageMapperFactory {
-  def create(messageMappers: List[MessageMapper[_]]): QMessageMapper = {
+  def create(messageHandlers: List[MessageHandler[_]]): QMessageMapper = {
     val receiveById =
-      messageMappers.groupBy(cl ⇒ qAdapterRegistry.byName(cl.mClass.getName).id)
-        .asInstanceOf[Map[Long, List[MessageMapper[Product]]]]
+      messageHandlers.groupBy(cl ⇒ qAdapterRegistry.byName(cl.mClass.getName).id)
+        .asInstanceOf[Map[Long, List[MessageHandler[Product]]]]
     new QMessageMapperImpl(qAdapterRegistry,receiveById)
   }
 }
 
 class QMessageMapperImpl(
     qAdapterRegistry: QAdapterRegistry,
-    receiveById: Map[Long, List[MessageMapper[Product]]]
+    receiveById: Map[Long, List[MessageHandler[Product]]]
 ) extends QMessageMapper {
   def mapMessage(mapping: MessageMapping, rec: QRecord): MessageMapping = try {
     val key = qAdapterRegistry.keyAdapter.decode(rec.key)
     val valueAdapter = qAdapterRegistry.byId(key.valueTypeId)
     val value = if(rec.value.length > 0) Some(valueAdapter.decode(rec.value).asInstanceOf[Product]) else None
     val mappers = receiveById.getOrElse(key.valueTypeId,Nil)
-    val className = qAdapterRegistry.nameById(key.valueTypeId)
-    val message = LEvent(StateTopicName(mapping.actorName), key.srcId, className, value)
-    val results = mappers.map(_.mapMessage(mapping,message)).filterNot(mapping eq _)
-    val res = if(mappers.isEmpty) mapping.add(message) // pass to state by default
-      else if(results.isEmpty) mapping else Single(results) // only one mapper may change stuff
-    //val res = (mapping /: mappers)((res,mapper)⇒mapper.mapMessage(res,message))
-    val errors = ErrorsKey.of(res.world)
-    if(errors.nonEmpty) throw new Exception(errors.toString)
-    res
+    mappers.foreach(_.handleMessage(value.get))
+    if(mappers.nonEmpty) mapping else {
+      val className = qAdapterRegistry.nameById(key.valueTypeId)
+      val message = LEvent(StateTopicName(mapping.actorName), key.srcId, className, value)
+      mapping.add(message) // pass to state by default
+    }
   } catch {
     case e: Exception ⇒ mapping.add() // ??? exception to record
   }

@@ -16,9 +16,9 @@ class TestConsumerApp extends ServerApp
   private def gateActorName = ActorName("http-gate")
   def bootstrapServers: String = "localhost:9092"
 
-  private lazy val postMessageMapper = new PostMessageMapper(gateActorName)
+  private lazy val postMessageHandler = new PostMessageHandler(gateActorName)
   private lazy val worldProvider: WorldProvider with Executable =
-    actorFactory.create(appActorName, messageMappers)
+    actorFactory.create(appActorName, messageHandlers)
   private lazy val tcpEventBroadcaster =
     new TcpEventBroadcaster(appActorName,gateActorName)(()⇒worldProvider.world, qMessages)
 
@@ -26,18 +26,17 @@ class TestConsumerApp extends ServerApp
   override def toStart: List[Executable] =
     worldProvider :: tcpEventBroadcaster :: super.toStart
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
-  def messageMappers: List[MessageMapper[_]] =
-    postMessageMapper :: TcpStatusMapper :: Nil
+  def messageHandlers: List[MessageHandler[_]] =
+    postMessageHandler :: Nil
 }
 
-class PostMessageMapper(gateActorName: ActorName) extends MessageMapper(classOf[HttpRequestValue]){
-  def mapMessage(res: MessageMapping, message: LEvent[HttpRequestValue]): MessageMapping = {
-    val req = message.value.get
+class PostMessageHandler(gateActorName: ActorName) extends MessageHandler(classOf[HttpRequestValue]){
+  def handleMessage(req: HttpRequestValue): Unit = {
     val prev = new String(req.body.toByteArray, "UTF-8")
     val next = (prev.toLong * 3).toString
     val body = okio.ByteString.encodeUtf8(next)
-    val resp = HttpRequestValue(message.srcId, Nil, body)
-    res.add(LEvent.update(gateActorName, message.srcId, resp))
+    val resp = HttpRequestValue(req.path, Nil, body)
+    //res.add(LEvent.update(gateActorName, req.path, resp))
   }
 }
 
@@ -49,23 +48,24 @@ class TcpEventBroadcaster(appActorName: ActorName, gateActorName: ActorName)(
       ForwardingRule("/"),
       ForwardingRule(":sse")
     ))))
-    while(true){
-      val connections: Index[SrcId, TcpStatus] =
-        By.srcId(classOf[TcpStatus]).of(getWorld())
+    Iterator.iterate(Map():Index[SrcId, HttpRequestValue]){ prevRequests ⇒
+      val connections: Index[SrcId, TcpConnected] =
+        By.srcId(classOf[TcpConnected]).of(getWorld())
       val size = s"${connections.size}\n"
       val sizeBody = okio.ByteString.encodeUtf8(size)
       println(size)
       connections.keys.foreach{ key ⇒
         qMessages.send(LEvent.update(gateActorName, key, TcpWrite(key,sizeBody)))
       }
-      Thread.sleep(3000)
-    }
-  }
-}
+      ////
+      val requests: Index[SrcId, HttpRequestValue] =
+         By.srcId(classOf[HttpRequestValue]).of(getWorld())
+      //requests.foreach{ case }
 
-object TcpStatusMapper extends MessageMapper(classOf[TcpStatus]){
-  def mapMessage(res: MessageMapping, message: LEvent[TcpStatus]): MessageMapping =
-    res.add(message)
+      requests
+    }.foreach(_⇒ Thread.sleep(3000))
+    //qMessages.send(LEvent.delete(actorName, key, classOf[TcpConnected]))
+  }
 }
 
 object ConsumerTest extends Main((new TestConsumerApp).execution.run)

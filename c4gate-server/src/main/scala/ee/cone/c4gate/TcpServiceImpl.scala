@@ -40,25 +40,24 @@ class ChannelHandler(
   }
 }
 
-trait SSEServerApp extends ToStartApp with MessageMappersApp {
+trait SSEServerApp extends ToStartApp with MessageHandlersApp {
   def ssePort: Int
   def internetForwarderConfig: ForwarderConfig
   def qMessages: QMessages
-  def sseActorName: ActorName
 
   lazy val sseServer: TcpServer with Executable =
-    new TcpServerImpl(ssePort, qMessages, sseActorName)
+    new TcpServerImpl(ssePort, qMessages, internetForwarderConfig)
   override def toStart: List[Executable] = sseServer :: super.toStart
   private lazy val sseWriteEventCommandMapper =
-    new WriteEventCommandMapper(sseServer)
+    new WriteEventCommandHandler(sseServer)
   private lazy val sseDisconnectEventCommandMapper =
-    new TcpStatusCommandMapper(sseServer, internetForwarderConfig)
-  override def messageMappers: List[MessageMapper[_]] =
-    sseWriteEventCommandMapper :: sseDisconnectEventCommandMapper :: super.messageMappers
+    new TcpStatusCommandHandler(sseServer)
+  override def messageHandlers: List[MessageHandler[_]] =
+    sseWriteEventCommandMapper :: sseDisconnectEventCommandMapper :: super.messageHandlers
 }
 
 class TcpServerImpl(
-  port: Int, qMessages: QMessages, actorName: ActorName
+  port: Int, qMessages: QMessages, forwarder: ForwarderConfig
 ) extends TcpServer with Executable {
   val channels: TrieMap[String,ChannelHandler] = TrieMap()
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
@@ -69,36 +68,26 @@ class TcpServerImpl(
       def completed(ch: AsynchronousSocketChannel, att: Unit): Unit = Trace {
         listener.accept[Unit]((), this)
         val key = UUID.randomUUID.toString
-
         channels += key → new ChannelHandler(ch, () ⇒ channels -= key, { error ⇒
           println(error.getStackTrace.toString)
-          qMessages.send(LEvent.delete(actorName, key, classOf[TcpStatus]))
         })
-        qMessages.send(LEvent.update(actorName, key, TcpStatus(key)))
+        forwarder.targets(":sse").foreach(actorName ⇒
+          qMessages.send(LEvent.update(actorName, key, TcpConnected(key)))
+        )
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
   }
 }
 
-class WriteEventCommandMapper(sseServer: TcpServer) extends MessageMapper(classOf[TcpWrite]) {
-  def mapMessage(res: MessageMapping, message: LEvent[TcpWrite]): MessageMapping = {
-    val key = message.srcId
-    sseServer.senderByKey(key) match {
-      case Some(sender) ⇒
-        sender.add(message.value.get.body.toByteArray)
-        res
-      case None ⇒ res.add(LEvent.delete(res.actorName,key,classOf[TcpStatus]))
-    }
+class WriteEventCommandHandler(sseServer: TcpServer) extends MessageHandler(classOf[TcpWrite]) {
+  def handleMessage(message: TcpWrite): Unit = {
+    sseServer.senderByKey(message.connectionKey).get.add(message.body.toByteArray)
   }
 }
 
-class TcpStatusCommandMapper(sseServer: TcpServer, forwarder: ForwarderConfig) extends MessageMapper(classOf[TcpStatus]) {
-  def mapMessage(res: MessageMapping, message: LEvent[TcpStatus]): MessageMapping = {
-    if(message.value.isEmpty)
-      sseServer.senderByKey(message.srcId).foreach(sender⇒sender.close())
-    (res.add(message) /: forwarder.targets(":sse"))((res,actorName) ⇒
-      res.add(message.copy(to=InboxTopicName(actorName)))
-    )
+class TcpStatusCommandHandler(sseServer: TcpServer) extends MessageHandler(classOf[TcpDisconnect]) {
+  def handleMessage(message: TcpDisconnect): Unit = {
+    sseServer.senderByKey(message.connectionKey).foreach(sender⇒sender.close())
   }
 }

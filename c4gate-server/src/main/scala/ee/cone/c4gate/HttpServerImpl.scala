@@ -69,27 +69,14 @@ class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
   }
 }
 
-object HttpPublishMapper extends MessageMapper(classOf[HttpRequestValue]) {
-  def mapMessage(res: MessageMapping, message: LEvent[HttpRequestValue]): MessageMapping =
-    res.add(message)
-}
-
-
-object ForwardingConfMapper extends MessageMapper(classOf[ForwardingConf]) {
-  def mapMessage(res: MessageMapping, message: LEvent[ForwardingConf]): MessageMapping =
-    res.add(message)
-}
-
-trait InternetForwarderApp extends ProtocolsApp with MessageMappersApp {
+trait InternetForwarderApp extends ProtocolsApp {
   def worldProvider: WorldProvider
   lazy val internetForwarderConfig: ForwarderConfig =
     new ForwarderConfigImpl(()⇒worldProvider.world)
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
-  override def messageMappers: List[MessageMapper[_]] =
-    ForwardingConfMapper :: super.messageMappers
 }
 
-trait HttpServerApp extends ToStartApp with MessageMappersApp {
+trait HttpServerApp extends ToStartApp {
   def httpPort: Int
   def qMessages: QMessages
   def worldProvider: WorldProvider
@@ -102,6 +89,4 @@ trait HttpServerApp extends ToStartApp with MessageMappersApp {
     new RHttpServer(httpPort, handler)
   }
   override def toStart: List[Executable] = httpServer :: super.toStart
-  override def messageMappers: List[MessageMapper[_]] =
-    HttpPublishMapper :: super.messageMappers
 }

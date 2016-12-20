@@ -24,8 +24,8 @@ trait RawQSender {
   def send(rec: QRecord): Unit
 }
 
-trait MessageMappersApp {
-  def messageMappers: List[MessageMapper[_]] = Nil
+trait MessageHandlersApp {
+  def messageHandlers: List[MessageHandler[_]] = Nil
 }
 
 trait QMessageMapper {
@@ -46,8 +46,8 @@ object LEvent {
     LEvent(InboxTopicName(to), srcId, cl.getName,  None)
 }
 
-abstract class MessageMapper[M<:Product](val mClass: Class[M]) {
-  def mapMessage(res: MessageMapping, message: LEvent[M]): MessageMapping
+abstract class MessageHandler[M<:Product](val mClass: Class[M]) {
+  def handleMessage(message: M): Unit
 }
 
 trait MessageMapping {
@@ -58,9 +58,9 @@ trait MessageMapping {
 }
 
 trait ActorFactory[R] {
-  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): R
+  def create(actorName: ActorName, messageHandlers: List[MessageHandler[_]]): R
 }
 
 trait QMessageMapperFactory {
-  def create(messageMappers: List[MessageMapper[_]]): QMessageMapper
+  def create(messageHandlers: List[MessageHandler[_]]): QMessageMapper
 }

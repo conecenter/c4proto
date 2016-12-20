@@ -67,8 +67,8 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
 }
 
 class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, qMessageMapperFactory: QMessageMapperFactory, kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
-  def create(actorName: ActorName, messageMappers: List[MessageMapper[_]]): Executable with WorldProvider = {
-    val qMessageMapper = qMessageMapperFactory.create(messageMappers)
+  def create(actorName: ActorName, messageHandlers: List[MessageHandler[_]]): Executable with WorldProvider = {
+    val qMessageMapper = qMessageMapperFactory.create(messageHandlers)
     new KafkaActor(bootstrapServers, actorName)(reducer, qMessageMapper, kafkaRawQSender)()
   }
 }
