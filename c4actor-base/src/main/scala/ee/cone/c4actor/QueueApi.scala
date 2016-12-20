@@ -6,25 +6,29 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object QProtocol extends Protocol {
   @Id(0x0010) case class TopicKey(
-      @Id(0x0011) srcId: String,
-      @Id(0x0012) valueTypeId: Long
+    @Id(0x0011) srcId: String,
+    @Id(0x0012) valueTypeId: Long,
+    @Id(0x0013) topicName: String //isTask
   )
-  @Id(0x0013) case class Task(
-      @Id(0x0011) srcId: String,
-      @Id(0x0012) valueTypeId: Long,
-      @Id(0x0014) value: okio.ByteString,
-      @Id(0x0015) offset: Long
+  @Id(0x0014) case class Commit(
+    @Id(0x0015) comment: String
   )
-  @Id(0x0016) case class Commit(
-      @Id(0x0018) update: List[Update]
+  @Id(0x0016) case class Updates(
+    @Id(0x0017) updates: List[Update]
   )
   case class Update(
-      @Id(0x0011) srcId: String,
-      @Id(0x0012) valueTypeId: Long,
-      @Id(0x0017) oldValue: okio.ByteString,
-      @Id(0x0014) value: okio.ByteString
+    @Id(0x0018) key: TopicKey,
+    @Id(0x0019) oldValue: okio.ByteString,
+    @Id(0x001A) value: okio.ByteString
   )
 }
+
+case class Task(
+  srcId: String,
+  valueTypeId: Long,
+  value: Product,
+  offset: Long
+)
 
 case class TopicName(value: String)
 
