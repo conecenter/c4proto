@@ -6,6 +6,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
 
+import ee.cone.c4actor.Types.World
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4actor._
 
@@ -40,23 +41,23 @@ class ChannelHandler(
   }
 }
 
-trait SSEServerApp extends ToStartApp with MessageHandlersApp {
+trait SSEServerApp extends ToStartApp {
   def ssePort: Int
   def qMessages: QMessages
+  def reducer: Reducer
+  def worldProvider: WorldProvider
 
   lazy val sseServer: TcpServer with Executable =
-    new TcpServerImpl(ssePort, qMessages)
+    new TcpServerImpl(ssePort, qMessages, reducer, ()⇒worldProvider.world)
   override def toStart: List[Executable] = sseServer :: super.toStart
   private lazy val sseWriteEventCommandMapper =
     new WriteEventCommandHandler(sseServer)
   private lazy val sseDisconnectEventCommandMapper =
     new TcpStatusCommandHandler(sseServer)
-  override def messageHandlers: List[MessageHandler[_]] =
-    sseWriteEventCommandMapper :: sseDisconnectEventCommandMapper :: super.messageHandlers
 }
 
 class TcpServerImpl(
-  port: Int, qMessages: QMessages
+  port: Int, qMessages: QMessages, reducer: Reducer, getWorld: ()⇒World
 ) extends TcpServer with Executable {
   val channels: TrieMap[String,ChannelHandler] = TrieMap()
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
@@ -70,8 +71,7 @@ class TcpServerImpl(
         channels += key → new ChannelHandler(ch, () ⇒ channels -= key, { error ⇒
           println(error.getStackTrace.toString)
         })
-        // qMessages.send(LEvent.update(key, TcpConnected(key)))
-        ???
+        qMessages.send(reducer.createTx(getWorld()).add(LEvent.update(key, TcpConnected(key))))
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })

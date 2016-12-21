@@ -19,8 +19,8 @@ object ProtoAdapterTest extends App {
       new RawQSender { def send(rec: QRecord): Long = 0 }
     override def protocols: List[Protocol] = MyProtocol :: super.protocols
   }
-  class MyMapping(val world: World, val toSend: Seq[Update]) extends MessageMapping {
-    def add[M<:Product](out: LEvent[M]*): MessageMapping = {
+  class MyMapping(val world: World, val toSend: Seq[Update]) extends WorldTx {
+    def add[M<:Product](out: LEvent[M]*): WorldTx = {
       val ups = out.map(msg⇒app.qMessages.toUpdate(msg))
       new MyMapping(app.qMessages.toTree(ups.map(u⇒app.qMessages.toRecord(NoTopicName,u))),ups)
     }

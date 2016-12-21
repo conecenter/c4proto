@@ -25,7 +25,7 @@ class HttpGetHandler(getWorld: ()⇒World) extends RHttpHandler {
   }
 }
 
-class HttpPostHandler(qMessages: QMessages) extends RHttpHandler {
+class HttpPostHandler(qMessages: QMessages, reducer: Reducer, getWorld: ()⇒World) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val headers = httpExchange.getRequestHeaders.asScala
       .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
@@ -33,8 +33,7 @@ class HttpPostHandler(qMessages: QMessages) extends RHttpHandler {
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
     val req = HttpRequestValue(path, headers, body)
-    // qMessages.send(LEvent.update(path, req))
-    ???
+    qMessages.send(reducer.createTx(getWorld()).add(LEvent.update(path, req)))
     Array.empty[Byte]
   }
 }
@@ -68,11 +67,12 @@ trait InternetForwarderApp extends ProtocolsApp {
 trait HttpServerApp extends ToStartApp {
   def httpPort: Int
   def qMessages: QMessages
+  def reducer: Reducer
   def worldProvider: WorldProvider
   lazy val httpServer: Executable = {
     val handler = new ReqHandler(Map(
       "GET" → new HttpGetHandler(()⇒worldProvider.world),
-      "POST" → new HttpPostHandler(qMessages)
+      "POST" → new HttpPostHandler(qMessages,reducer,()⇒worldProvider.world)
     ))
     new RHttpServer(httpPort, handler)
   }

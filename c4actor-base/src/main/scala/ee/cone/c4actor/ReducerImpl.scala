@@ -5,13 +5,13 @@ import ee.cone.c4actor.Types.World
 
 import scala.collection.immutable.Queue
 
-class MessageMappingImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Update]) extends MessageMapping {
-  def add[M<:Product](out: LEvent[M]*): MessageMapping = {
+class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Update]) extends WorldTx {
+  def add[M<:Product](out: LEvent[M]*): WorldTx = {
     if(out.isEmpty) return this
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
     //??? insert here: application groups,  case object InstantTopicName extends TopicName
     val nextWorld = reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
-    new MessageMappingImpl(reducer, nextWorld, toSend.enqueue(nextToSend))
+    new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend))
   }
 }
 
@@ -34,6 +34,6 @@ class ReducerImpl(
           (prevWorld,prevQueue) // ??? exception to record
       }
     }
-  def createMessageMapping(world: World): MessageMapping =
-    new MessageMappingImpl(this, world, Queue.empty)
+  def createTx(world: World): WorldTx =
+    new WorldTxImpl(this, world, Queue.empty)
 }

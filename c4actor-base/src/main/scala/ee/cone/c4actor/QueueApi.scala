@@ -41,10 +41,6 @@ trait RawQSender {
   def send(rec: QRecord): Long
 }
 
-trait MessageHandlersApp {
-  def messageHandlers: List[MessageHandler[_]] = Nil
-}
-
 case object OffsetWorldKey extends WorldKey[Long](0)
 
 trait QMessages {
@@ -52,7 +48,7 @@ trait QMessages {
   def toRecord(topicName: TopicName, update: Update): QRecord
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord]
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]]
-  def send[M<:Product](tx: MessageMapping): Option[Long]
+  def send[M<:Product](tx: WorldTx): Option[Long]
 }
 
 case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])
@@ -63,16 +59,16 @@ object LEvent {
     LEvent(srcId, cl.getName,  None)
 }
 
-abstract class MessageHandler[M<:Product](val mClass: Class[M]) {
-  def handleMessage(message: M): Unit
-}
-
-trait MessageMapping {
+trait WorldTx {
   def world: World
-  def add[M<:Product](out: LEvent[M]*): MessageMapping
+  def add[M<:Product](out: LEvent[M]*): WorldTx
   def toSend: Seq[Update]
 }
 
 trait ActorFactory[R] {
-  def create(actorName: ActorName, messageHandlers: List[MessageHandler[_]]): R
+  def create(actorName: ActorName, observer: Observer): R
+}
+
+trait Observer {
+  def activate(getTx: ()⇒WorldTx): Seq[Observer]
 }

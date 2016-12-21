@@ -7,18 +7,16 @@ import ee.cone.c4gate.InternetProtocol.{HttpRequestValue, TcpConnected, TcpDisco
 class SSETcpStatusHandler(
   sseMessages: SSEMessages
 ) {
-  def mapMessage(res: MessageMapping, message: LEvent[TcpConnected]): MessageMapping = {
+  def mapMessage(res: WorldTx, message: LEvent[TcpConnected]): WorldTx = {
     if(!changing(mClass,res,message)) res
     val toSend = message.value.map(_⇒sseMessages.header(message.srcId)).toSeq
     res.add(toSend:_*).add(message)
   }
-  def changing[M](cl: Class[M], res: MessageMapping, message: LEvent[M]): Boolean =
+  def changing[M](cl: Class[M], res: WorldTx, message: LEvent[M]): Boolean =
     message.value.toList == By.srcId(cl).of(res.world).getOrElse(message.srcId,Nil).toList
 }
 
-trait Observer {
-  def activate(getWorld: ()⇒World): Seq[Observer]
-}
+
 
 
 case class SSEMessages(allowOriginOption: Option[String], needWorldOffset: Long)(reducer: Reducer) extends Observer {
@@ -41,7 +39,7 @@ case class SSEMessages(allowOriginOption: Option[String], needWorldOffset: Long)
     val world = getWorld()
     if(OffsetWorldKey.of(world) < needWorldOffset) return Seq(this)
     //
-    val tx = reducer.createMessageMapping(world)
+    val tx = reducer.createTx(world)
     val time = System.currentTimeMillis()
     Some(tx).map( tx ⇒ tx.add(
       By.srcId(classOf[SSEConnection]).of(tx.world).values.flatten.flatMap{ conn ⇒

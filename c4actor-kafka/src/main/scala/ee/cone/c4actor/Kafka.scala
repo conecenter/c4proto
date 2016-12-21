@@ -67,7 +67,7 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
 }
 
 class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
-  def create(actorName: ActorName, messageHandlers: List[MessageHandler[_]]): Executable with WorldProvider = {
+  def create(actorName: ActorName, observer: Observer): Executable with WorldProvider = {
     new KafkaActor(bootstrapServers, actorName)(reducer, kafkaRawQSender)()
   }
 }

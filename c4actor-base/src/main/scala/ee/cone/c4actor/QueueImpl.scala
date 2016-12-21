@@ -15,7 +15,7 @@ class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[B
 
 class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender, setOffset: (Object,Long)⇒Object) extends QMessages {
   import qAdapterRegistry._
-  def send[M<:Product](tx: MessageMapping): Option[Long] = {
+  def send[M<:Product](tx: WorldTx): Option[Long] = {
     val updates = tx.toSend.toList
     if(updates.isEmpty) return None
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates(updates))
