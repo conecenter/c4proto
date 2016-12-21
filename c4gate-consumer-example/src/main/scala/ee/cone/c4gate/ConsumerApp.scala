@@ -1,9 +1,10 @@
 
 package ee.cone.c4gate
 
+import java.util.UUID
+
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
-import ee.cone.c4actor.Types.{Index, SrcId, World}
 import ee.cone.c4proto._
 
 class TestConsumerApp extends ServerApp
@@ -14,54 +15,38 @@ class TestConsumerApp extends ServerApp
 {
   private def appActorName = ActorName("http-test")
   def bootstrapServers: String = "localhost:9092"
-
-  private lazy val postMessageHandler = new PostMessageHandler
   private lazy val worldProvider: WorldProvider with Executable =
-    actorFactory.create(appActorName, messageHandlers)
-  private lazy val tcpEventBroadcaster =
-    new TcpEventBroadcaster(()⇒worldProvider.world, qMessages)
-
-
-  override def toStart: List[Executable] =
-    worldProvider :: tcpEventBroadcaster :: super.toStart
+    actorFactory.create(appActorName, new SerialObserver(0)(qMessages,testConsumerTxTransform))
+  private lazy val testConsumerTxTransform = new TestConsumerTxTransform
+  override def toStart: List[Executable] = worldProvider :: super.toStart
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
-  def messageHandlers: List[MessageHandler[_]] =
-    postMessageHandler :: Nil
+
   def setOffset(task: Object, offset: Long): AnyRef = {task;???}
 }
 
-class PostMessageHandler extends MessageHandler(classOf[HttpRequestValue]){
-  def handleMessage(req: HttpRequestValue): Unit = {
-    val prev = new String(req.body.toByteArray, "UTF-8")
-    val next = (prev.toLong * 3).toString
-    val body = okio.ByteString.encodeUtf8(next)
-    val resp = HttpRequestValue(req.path, Nil, body)
-    //res.add(LEvent.update(gateActorName, req.path, resp))
-  }
-}
-
-class TcpEventBroadcaster(
-    getWorld: ()⇒World, qMessages: QMessages
-) extends Executable {
-  def run(executionContext: ExecutionContext): Unit = {
-    Iterator.iterate(Map():Index[SrcId, HttpRequestValue]){ prevRequests ⇒
-      val connections: Index[SrcId, TcpConnected] =
-        By.srcId(classOf[TcpConnected]).of(getWorld())
-      val size = s"${connections.size}\n"
-      val sizeBody = okio.ByteString.encodeUtf8(size)
-      println(size)
-      connections.keys.foreach{ key ⇒
-        //qMessages.send(LEvent.update(key, TcpWrite(key,sizeBody)))
-        ???
-      }
-      ////
-      val requests: Index[SrcId, HttpRequestValue] =
-         By.srcId(classOf[HttpRequestValue]).of(getWorld())
-      //requests.foreach{ case }
-
-      requests
-    }.foreach(_⇒ Thread.sleep(3000))
-    //qMessages.send(LEvent.delete(actorName, key, classOf[TcpConnected]))
+class TestConsumerTxTransform extends TxTransform {
+  def transform(tx: WorldTx): WorldTx = {
+    val posts = By.srcId(classOf[HttpPost]).of(tx.world).values.flatten.toSeq
+    val respEvents = posts.sortBy(_.offset).flatMap { req ⇒
+      val prev = new String(req.body.toByteArray, "UTF-8")
+      val next = (prev.toLong * 3).toString
+      val body = okio.ByteString.encodeUtf8(next)
+      val resp = HttpPublication(req.path, Nil, body)
+      LEvent.delete(req.srcId, classOf[HttpPost]) ::
+      LEvent.update(resp.path, resp) ::
+      Nil
+    }
+    val connections =
+      By.srcId(classOf[TcpConnection]).of(tx.world).values.flatten.toSeq
+    val size = s"${connections.size}\n"
+    val sizeBody = okio.ByteString.encodeUtf8(size)
+    println(size)
+    val broadEvents = connections.flatMap { connection ⇒
+      val key = UUID.randomUUID.toString
+      LEvent.update(key, TcpWrite(key, connection.connectionKey, sizeBody)) ::
+      Nil
+    }
+    tx.add(respEvents: _*).add(broadEvents: _*)
   }
 }
 

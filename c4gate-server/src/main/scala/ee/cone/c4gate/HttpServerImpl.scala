@@ -2,7 +2,7 @@
 package ee.cone.c4gate
 
 import java.net.InetSocketAddress
-
+import java.util.UUID
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4gate.InternetProtocol._
@@ -20,7 +20,7 @@ trait RHttpHandler {
 class HttpGetHandler(getWorld: ()⇒World) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val path = httpExchange.getRequestURI.getPath
-    val publishedByPath = By.srcId(classOf[HttpRequestValue])
+    val publishedByPath = By.srcId(classOf[HttpPublication])
     Single(publishedByPath.of(getWorld())(path)).body.toByteArray
   }
 }
@@ -32,8 +32,8 @@ class HttpPostHandler(qMessages: QMessages, reducer: Reducer, getWorld: ()⇒Wor
     val buffer = new okio.Buffer
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
-    val req = HttpRequestValue(path, headers, body)
-    qMessages.send(reducer.createTx(getWorld()).add(LEvent.update(path, req)))
+    val req = HttpPost(UUID.randomUUID.toString, path, headers, body, 0) // offset ???
+    qMessages.send(reducer.createTx(getWorld()).add(LEvent.update(req.srcId, req)))
     Array.empty[Byte]
   }
 }

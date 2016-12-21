@@ -1,13 +1,15 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.Types.{Index, SrcId, Values, World}
+import java.util.UUID
+
+import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
-import ee.cone.c4gate.InternetProtocol.{HttpRequestValue, TcpConnected, TcpDisconnect, TcpWrite}
+import ee.cone.c4gate.InternetProtocol.{TcpConnection, TcpWrite}
 
 class SSETcpStatusHandler(
   sseMessages: SSEMessages
 ) {
-  def mapMessage(res: WorldTx, message: LEvent[TcpConnected]): WorldTx = {
+  def mapMessage(res: WorldTx, message: LEvent[TcpConnection]): WorldTx = {
     if(!changing(mClass,res,message)) res
     val toSend = message.value.map(_⇒sseMessages.header(message.srcId)).toSeq
     res.add(toSend:_*).add(message)
@@ -15,6 +17,8 @@ class SSETcpStatusHandler(
   def changing[M](cl: Class[M], res: WorldTx, message: LEvent[M]): Boolean =
     message.value.toList == By.srcId(cl).of(res.world).getOrElse(message.srcId,Nil).toList
 }
+
+
 
 
 
@@ -32,43 +36,31 @@ case class SSEMessages(allowOriginOption: Option[String], needWorldOffset: Long)
   }
   private def message(connectionKey: String, data: String): TcpWrite = {
     val bytes = okio.ByteString.encodeUtf8(data)
-    val msg = TcpWrite(connectionKey,bytes)
-    LEvent.update(???, msg)
+    val key = UUID.randomUUID.toString
+    TcpWrite(key,connectionKey,bytes)
   }
-  def activate(getWorld: ()⇒World): Seq[Observer] = {
-    val world = getWorld()
-    if(OffsetWorldKey.of(world) < needWorldOffset) return Seq(this)
-    //
-    val tx = reducer.createTx(world)
+  def activate(tx: ⇒ WorldTx): WorldTx = {
     val time = System.currentTimeMillis()
-    Some(tx).map( tx ⇒ tx.add(
-      By.srcId(classOf[SSEConnection]).of(tx.world).values.flatten.flatMap{ conn ⇒
-        conn.state match{
-          case None ⇒
-            LEvent.update(conn.connectionKey,SSEConnectionState(conn.connectionKey,time,0)) ::
-            LEvent.update(???, header(conn.connectionKey)) ::
-            LEvent.update(???, message("connect",conn.connectionKey)) ::
+    val events = By.srcId(classOf[SSEConnection]).of(tx.world).values.flatten.flatMap{ conn ⇒
+      conn.state match{
+        case None ⇒
+          LEvent.update(conn.connectionKey,SSEConnectionState(conn.connectionKey,time,0)) ::
+          LEvent.update(???, header(conn.connectionKey)) ::
+          LEvent.update(???, message("connect",conn.connectionKey)) ::
+          Nil
+        case Some(state@SSEConnectionState(_,pingTime,pongTime)) ⇒
+          if(Math.max(pingTime,pongTime) + 5000 > time) Nil
+          else if(pingTime < pongTime)
+            LEvent.update(conn.connectionKey,state.copy(pingTime=time)) ::
+            LEvent.update(???, message("ping",conn.connectionKey)) ::
             Nil
-          case Some(state@SSEConnectionState(_,pingTime,pongTime)) ⇒
-            if(Math.max(pingTime,pongTime) + 5000 > time) Nil
-            else if(pingTime < pongTime)
-              LEvent.update(conn.connectionKey,state.copy(pingTime=time)) ::
-              LEvent.update(???, message("ping",conn.connectionKey)) ::
-              Nil
-            else
-              LEvent.delete(conn.connectionKey,classOf[TcpConnected]) ::
-              LEvent.delete(conn.connectionKey,classOf[SSEConnectionState]) ::
-              LEvent.update(???,TcpDisconnect(conn.connectionKey)) ::
-              Nil
-        }
-      }.toSeq:_*
-    ))
-
-
-
-
-
-    Seq(this)
+          else
+            LEvent.delete(conn.connectionKey,classOf[TcpConnection]) ::
+            LEvent.delete(conn.connectionKey,classOf[SSEConnectionState]) ::
+            Nil
+      }
+    }.toSeq
+    tx.add(events:_*)
   }
 }
 
@@ -85,12 +77,12 @@ object Single {
 
 //case class FreshConnection(connectionKey: String)
 class FreshConnectionJoin extends Join2(
-  By.srcId(classOf[TcpConnected]),
+  By.srcId(classOf[TcpConnection]),
   By.srcId(classOf[SSEConnectionState]),
   By.srcId(classOf[SSEConnection])
 ) {
   def join(
-    tcpConnected: Values[TcpConnected],
+    tcpConnected: Values[TcpConnection],
     states: Values[SSEConnectionState]
   ) = tcpConnected.map(_.connectionKey).map(c⇒c→SSEConnection(c,Single.option(states)))
   def sort(nodes: Iterable[SSEConnection]) = Single.list(nodes.toList)

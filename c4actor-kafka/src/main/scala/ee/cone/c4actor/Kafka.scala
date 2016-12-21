@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.{Consumer, ConsumerRecord, KafkaConsume
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 
+import scala.annotation.tailrec
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.JavaConverters.mapAsJavaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
@@ -73,13 +74,16 @@ class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, kafkaRawQSen
 }
 
 class KafkaActor(bootstrapServers: String, actorName: ActorName)(
-  reducer: Reducer, rawQSender: KafkaRawQSender
+  reducer: Reducer, rawQSender: KafkaRawQSender, initialObserver: Observer
 )(
   alive: AtomicBoolean = new AtomicBoolean(true),
   worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
 ) extends Executable with WorldProvider {
-  private def poll(consumer: Consumer[Array[Byte], Array[Byte]]) =
-    consumer.poll(1000 /*timeout*/).asScala
+  private def iterator(consumer: Consumer[Array[Byte], Array[Byte]]) = Iterator.continually{
+    if(Thread.interrupted || !alive.get) throw new InterruptedException
+    consumer.poll(200 /*timeout*/).asScala
+      .map(new KafkaQConsumerRecordAdapter(NoTopicName, _)).toList
+  }
   def world: World = worldFuture.get.get
   type BConsumer = Consumer[Array[Byte], Array[Byte]]
   private def initConsumer(ctx: ExecutionContext): BConsumer = {
@@ -98,19 +102,16 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     }
     consumer
   }
-  private def checkInterrupt() =
-    if(Thread.interrupted || !alive.get) throw new InterruptedException
   private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {
     val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
     //?hang
     consumer.seekToBeginning(part.asJava)
-    var currentWorld: World = Map()
-    while(consumer.position(Single(part)) < until) {
-      checkInterrupt()
-      val recs = poll(consumer).map(new KafkaQConsumerRecordAdapter(topicName,_))
-      currentWorld = reducer.reduceRecover(currentWorld, recs.toList)
+    val recsIterator = iterator(consumer).flatten
+    @tailrec def toQueue(queue: Queue[QRecord] = Queue.empty): Queue[QRecord] = {
+      val rec = recsIterator.next()
+      if(rec.offset.get + 1 >= until) queue.enqueue(rec) else toQueue(queue.enqueue(rec))
     }
-    new AtomicReference(currentWorld)
+    new AtomicReference(reducer.reduceRecover(Map(), toQueue().toList))
   }
   def run(ctx: ExecutionContext): Unit = {
     val consumer = initConsumer(ctx)
@@ -125,23 +126,19 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       consumer.pause(stateTopicPartition.asJava)
       consumer.resume(inboxTopicPartition.asJava)
       worldFuture.complete(localWorldRef)
-      while(true){
-        checkInterrupt()
-        poll(consumer).toList match {
+      iterator(consumer).scanLeft(Seq(initialObserver)){ (prevObservers, recs) ⇒
+        recs match {
           case Nil ⇒ ()
-          case rawRecs ⇒
-            val inboxRecs = rawRecs.map(new KafkaQConsumerRecordAdapter(inboxTopicName,_))
+          case inboxRecs ⇒
             val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, inboxRecs)
             val metadata = queue.map(rawQSender.sendStart)
             metadata.foreach(_.get())
-            val offset: java.lang.Long = rawRecs.last.offset + 1
+            val offset: java.lang.Long = inboxRecs.last.offset.get + 1
             localWorldRef.set(world + (OffsetWorldKey → offset))
             consumer.commitSync(singletonMap(Single(inboxTopicPartition), new OffsetAndMetadata(offset)))
-            ???
-            //observers
         }
-        //! if consumer.commitSync() after loop, if single fails then all recent will be re-consumed
-      }
+        prevObservers.flatMap(_.activate(()⇒reducer.createTx(localWorldRef.get)))
+      }.foreach(_⇒())
     } finally {
       consumer.close()
     }

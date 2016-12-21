@@ -52,7 +52,7 @@ class AssemblerTestApp extends QMessagesApp with TreeAssemblerApp {
 object AssemblerTest extends App {
   val indexFactory = new IndexFactoryImpl
   val app = new AssemblerTestApp
-  var recs = update("1", RawParentNode("1","P-1")) ::
+  val recs = update("1", RawParentNode("1","P-1")) ::
     List("2","3").map(srcId ⇒ update(srcId, RawChildNode(srcId,"1",s"C-$srcId")))
 
   val diff: Map[WorldKey[_], Index[Object, Object]] =

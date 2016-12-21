@@ -65,10 +65,20 @@ trait WorldTx {
   def toSend: Seq[Update]
 }
 
+/*
+trait WorldTxManager {
+  def createTx(): WorldTx
+  def commit(tx: WorldTx): Unit
+}*/
+
 trait ActorFactory[R] {
   def create(actorName: ActorName, observer: Observer): R
 }
 
 trait Observer {
   def activate(getTx: ()⇒WorldTx): Seq[Observer]
+}
+
+trait TxTransform {
+  def transform(tx: WorldTx): WorldTx
 }

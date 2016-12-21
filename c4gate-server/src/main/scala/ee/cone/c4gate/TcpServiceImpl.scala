@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
 
-import ee.cone.c4actor.Types.World
+import ee.cone.c4actor.Types.{SrcId, Values, World}
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4actor._
 
@@ -49,11 +49,10 @@ trait SSEServerApp extends ToStartApp {
 
   lazy val sseServer: TcpServer with Executable =
     new TcpServerImpl(ssePort, qMessages, reducer, ()⇒worldProvider.world)
+  lazy val tcpTxTransform = new TcpTxTransform(sseServer)
+  ??? //reg
+
   override def toStart: List[Executable] = sseServer :: super.toStart
-  private lazy val sseWriteEventCommandMapper =
-    new WriteEventCommandHandler(sseServer)
-  private lazy val sseDisconnectEventCommandMapper =
-    new TcpStatusCommandHandler(sseServer)
 }
 
 class TcpServerImpl(
@@ -71,21 +70,27 @@ class TcpServerImpl(
         channels += key → new ChannelHandler(ch, () ⇒ channels -= key, { error ⇒
           println(error.getStackTrace.toString)
         })
-        qMessages.send(reducer.createTx(getWorld()).add(LEvent.update(key, TcpConnected(key))))
+        qMessages.send(reducer.createTx(getWorld()).add(LEvent.update(key, TcpConnection(key))))
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
   }
 }
 
-class WriteEventCommandHandler(sseServer: TcpServer) extends MessageHandler(classOf[TcpWrite]) {
-  def handleMessage(message: TcpWrite): Unit = {
-    sseServer.senderByKey(message.connectionKey).get.add(message.body.toByteArray)
-  }
-}
-
-class TcpStatusCommandHandler(sseServer: TcpServer) extends MessageHandler(classOf[TcpDisconnect]) {
-  def handleMessage(message: TcpDisconnect): Unit = {
-    sseServer.senderByKey(message.connectionKey).foreach(sender⇒sender.close())
+class TcpTxTransform(sseServer: TcpServer) extends TxTransform {
+  def transform(tx: WorldTx): WorldTx = {
+    val writes = By.srcId(classOf[TcpWrite]).of(tx.world).values.flatten.toSeq
+    val writeEvents = writes.sortBy(_.offset).map{ message ⇒
+      sseServer.senderByKey(message.connectionKey).foreach(s⇒s.add(message.body.toByteArray))
+      LEvent.delete(message.srcId, classOf[TcpWrite])
+    }
+    val disconnects = By.srcId(classOf[TcpDisconnect]).of(tx.world).values.flatten.toSeq
+    val disconnectEvents = disconnects.flatMap{ disconnect ⇒
+      sseServer.senderByKey(disconnect.connectionKey).foreach(sender⇒sender.close())
+      LEvent.delete(disconnect.connectionKey, classOf[TcpDisconnect]) ::
+      LEvent.delete(disconnect.connectionKey, classOf[TcpConnection]) ::
+      Nil
+    }
+    tx.add(writeEvents:_*).add(disconnectEvents:_*)
   }
 }
