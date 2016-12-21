@@ -7,10 +7,9 @@ import ee.cone.c4proto.Protocol
 trait QMessagesApp extends ProtocolsApp {
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   def rawQSender: RawQSender
+  def setOffset(task: Object, offset: Long): Object
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
-  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
-  lazy val qMessageMapperFactory: QMessageMapperFactory =
-    new QMessageMapperFactoryImpl(qAdapterRegistry)
+  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender, setOffset)
 }
 
 trait QReducerApp {

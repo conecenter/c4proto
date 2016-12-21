@@ -25,16 +25,7 @@ class HttpGetHandler(getWorld: ()⇒World) extends RHttpHandler {
   }
 }
 
-class ForwarderConfigImpl(getWorld: ()⇒World) extends ForwarderConfig {
-  def targets(path: String): List[ActorName] =
-    By.srcId(classOf[ForwardingConf]).of(getWorld()).collect{
-      case (actorName, confList)
-        if confList.flatMap(_.rules).exists(r ⇒ path.startsWith(r.path)) ⇒
-        ActorName(actorName)
-    }.toList.sortBy(_.value)
-}
-
-class HttpPostHandler(forwarder: ForwarderConfig, qMessages: QMessages) extends RHttpHandler {
+class HttpPostHandler(qMessages: QMessages) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val headers = httpExchange.getRequestHeaders.asScala
       .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
@@ -42,9 +33,8 @@ class HttpPostHandler(forwarder: ForwarderConfig, qMessages: QMessages) extends 
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
     val req = HttpRequestValue(path, headers, body)
-    val targets = forwarder.targets(path)
-    if(targets.isEmpty) throw new Exception("no handler")
-    targets.foreach(actorName ⇒ qMessages.send(LEvent.update(actorName, path, req)))
+    // qMessages.send(LEvent.update(path, req))
+    ???
     Array.empty[Byte]
   }
 }
@@ -71,8 +61,7 @@ class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
 
 trait InternetForwarderApp extends ProtocolsApp {
   def worldProvider: WorldProvider
-  lazy val internetForwarderConfig: ForwarderConfig =
-    new ForwarderConfigImpl(()⇒worldProvider.world)
+  //()⇒worldProvider.world
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
 }
 
@@ -80,11 +69,10 @@ trait HttpServerApp extends ToStartApp {
   def httpPort: Int
   def qMessages: QMessages
   def worldProvider: WorldProvider
-  def internetForwarderConfig: ForwarderConfig
   lazy val httpServer: Executable = {
     val handler = new ReqHandler(Map(
       "GET" → new HttpGetHandler(()⇒worldProvider.world),
-      "POST" → new HttpPostHandler(internetForwarderConfig,qMessages)
+      "POST" → new HttpPostHandler(qMessages)
     ))
     new RHttpServer(httpPort, handler)
   }

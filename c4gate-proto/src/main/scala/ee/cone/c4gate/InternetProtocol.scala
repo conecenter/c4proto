@@ -12,8 +12,8 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   )
   //2A
   case class Header(@Id(0x0024) key: String, @Id(0x0025) value: String)
-  @Id(0x002B) case class ForwardingConf(@Id(0x002C) actorName: String, @Id(0x002D) rules: List[ForwardingRule])
-  case class ForwardingRule(@Id(0x0021) path: String)
+
+
   @Id(0x0026) case class TcpWrite(@Id(0x0027) connectionKey: String, @Id(0x0023) body: okio.ByteString)
   @Id(0x0028) case class TcpConnected(@Id(0x0027) connectionKey: String)
   @Id(0x0029) case class TcpDisconnect(@Id(0x0027) connectionKey: String)

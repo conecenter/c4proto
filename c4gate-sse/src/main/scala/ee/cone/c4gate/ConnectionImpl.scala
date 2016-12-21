@@ -19,9 +19,9 @@ class SSETcpStatusHandler(
 trait Observer {
   def activate(getWorld: ()⇒World): Seq[Observer]
 }
-case object OffsetWorldKey extends WorldKey[Long](0)
 
-case class SSEMessages(actorName: ActorName, gateActorName: ActorName, allowOriginOption: Option[String], needWorldOffset: Long)(reducer: Reducer) extends Observer {
+
+case class SSEMessages(allowOriginOption: Option[String], needWorldOffset: Long)(reducer: Reducer) extends Observer {
   private def header(connectionKey: String): TcpWrite = {
     val allowOrigin =
       allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
@@ -35,32 +35,32 @@ case class SSEMessages(actorName: ActorName, gateActorName: ActorName, allowOrig
   private def message(connectionKey: String, data: String): TcpWrite = {
     val bytes = okio.ByteString.encodeUtf8(data)
     val msg = TcpWrite(connectionKey,bytes)
-    LEvent.update(gateActorName, "", msg)
+    LEvent.update(???, msg)
   }
   def activate(getWorld: ()⇒World): Seq[Observer] = {
     val world = getWorld()
     if(OffsetWorldKey.of(world) < needWorldOffset) return Seq(this)
     //
-    val tx = reducer.createMessageMapping(actorName, world)
+    val tx = reducer.createMessageMapping(world)
     val time = System.currentTimeMillis()
     Some(tx).map( tx ⇒ tx.add(
       By.srcId(classOf[SSEConnection]).of(tx.world).values.flatten.flatMap{ conn ⇒
         conn.state match{
           case None ⇒
-            LEvent.update(tx.actorName,conn.connectionKey,SSEConnectionState(conn.connectionKey,time,0)) ::
-            LEvent.update(gateActorName, "", header(conn.connectionKey)) ::
-            LEvent.update(gateActorName, "", message("connect",conn.connectionKey)) ::
+            LEvent.update(conn.connectionKey,SSEConnectionState(conn.connectionKey,time,0)) ::
+            LEvent.update(???, header(conn.connectionKey)) ::
+            LEvent.update(???, message("connect",conn.connectionKey)) ::
             Nil
           case Some(state@SSEConnectionState(_,pingTime,pongTime)) ⇒
             if(Math.max(pingTime,pongTime) + 5000 > time) Nil
             else if(pingTime < pongTime)
-              LEvent.update(tx.actorName,conn.connectionKey,state.copy(pingTime=time)) ::
-              LEvent.update(gateActorName, "", message("ping",conn.connectionKey)) ::
+              LEvent.update(conn.connectionKey,state.copy(pingTime=time)) ::
+              LEvent.update(???, message("ping",conn.connectionKey)) ::
               Nil
             else
-              LEvent.delete(tx.actorName,conn.connectionKey,classOf[TcpConnected]) ::
-              LEvent.delete(tx.actorName,conn.connectionKey,classOf[SSEConnectionState]) ::
-              LEvent.update(gateActorName,"",TcpDisconnect(conn.connectionKey)) ::
+              LEvent.delete(conn.connectionKey,classOf[TcpConnected]) ::
+              LEvent.delete(conn.connectionKey,classOf[SSEConnectionState]) ::
+              LEvent.update(???,TcpDisconnect(conn.connectionKey)) ::
               Nil
         }
       }.toSeq:_*

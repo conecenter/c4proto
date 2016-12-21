@@ -1,8 +1,10 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.World
 import ee.cone.c4proto.{Id, Protocol, protocol, scale}
+
 
 object ProtoAdapterTest extends App {
   import MyProtocol._
@@ -11,30 +13,23 @@ object ProtoAdapterTest extends App {
   val worker1 = Person("worker1", Some(20))
   val group0 = Group(Some(leader0), List(worker0,worker1))
   //
-  val testMessageHandler = new MessageHandler(classOf[Group]) {
-    def handleMessage(message: Group): Unit = {
-      assert(group0==message)
-      println("OK",message)
+  val app = new QMessagesApp {
+    def setOffset(task: Object, offset: Long): AnyRef = task
+    def rawQSender: RawQSender =
+      new RawQSender { def send(rec: QRecord): Long = 0 }
+    override def protocols: List[Protocol] = MyProtocol :: super.protocols
+  }
+  class MyMapping(val world: World, val toSend: Seq[Update]) extends MessageMapping {
+    def add[M<:Product](out: LEvent[M]*): MessageMapping = {
+      val ups = out.map(msg⇒app.qMessages.toUpdate(msg))
+      new MyMapping(app.qMessages.toTree(ups.map(u⇒app.qMessages.toRecord(NoTopicName,u))),ups)
     }
   }
-  val testActorName = ActorName("")
-  val app = new QMessagesApp {
-    def rawQSender: RawQSender =
-      new RawQSender { def send(rec: QRecord): Unit = () }
-    override def protocols: List[Protocol] = MyProtocol :: super.protocols
-    def messageHandlers: List[MessageHandler[_]] = testMessageHandler :: Nil
-  }
-  val qMessageMapper =
-    app.qMessageMapperFactory.create(testMessageHandler :: Nil)
   //
-  val rec = app.qMessages.toRecord(LEvent.update(testActorName,"",group0))
-  val mapping = new MessageMapping {
-    def world = Map()
-    def toSend = ???
-    def add[M<:Product](out: LEvent[M]*): MessageMapping = ???
-    def actorName: ActorName = testActorName
-  }
-  qMessageMapper.mapMessage(mapping, rec)
+  val world = new MyMapping(Map(),Nil).add(LEvent.update("",group0)).world
+  val group1 = Single(By.srcId(classOf[Group]).of(world)(""))
+  assert(group0==group1)
+  println("OK",group1)
 }
 
 @protocol object MyProtocol extends Protocol {
@@ -49,3 +44,4 @@ object ProtoAdapterTest extends App {
     @Id(0x0006) worker: List[Person]
   )
 }
+

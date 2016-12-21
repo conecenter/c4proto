@@ -2,6 +2,7 @@
 package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
+import ee.cone.c4actor.QProtocol.{TopicKey, Update, Updates}
 import ee.cone.c4actor.Types.{Index, SrcId, World}
 import ee.cone.c4proto.{HasId, Protocol}
 
@@ -10,20 +11,37 @@ import ee.cone.c4proto.{HasId, Protocol}
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[Byte]) extends QRecord
+class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[Byte], val offset: Option[Long]) extends QRecord
 
-class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
+class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender, setOffset: (Object,Long)⇒Object) extends QMessages {
   import qAdapterRegistry._
-  def send[M<:Product](message: LEvent[M]): Unit =
-    getRawQSender().send(toRecord(message))
-  def toRecord[M<:Product](message: LEvent[M]): QRecord = {
+  def send[M<:Product](tx: MessageMapping): Option[Long] = {
+    val updates = tx.toSend.toList
+    if(updates.isEmpty) return None
+    val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates(updates))
+    val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue,None)
+    Option(getRawQSender().send(rec))
+  }
+  def toUpdate[M<:Product](message: LEvent[M]): Update = {
     val valueAdapter =
       byName(message.className).asInstanceOf[ProtoAdapter[Product] with HasId]
-    val rawKey =
-      keyAdapter.encode(QProtocol.TopicKey(message.srcId, valueAdapter.id))
-    val rawValue = message.value.map(valueAdapter.encode).getOrElse(Array.empty)
-    new QRecordImpl(message.to, rawKey, rawValue)
+    val bytes = message.value.map(valueAdapter.encode).getOrElse(Array.empty)
+    val byteString = okio.ByteString.of(bytes,0,bytes.length)
+    Update(message.srcId, valueAdapter.id, byteString)
   }
+  def toRecord(topicName: TopicName, update: Update): QRecord = {
+    val rawKey = keyAdapter.encode(TopicKey(update.srcId, update.valueTypeId))
+    val rawValue = update.value.toByteArray
+    new QRecordImpl(topicName, rawKey, rawValue, None)
+  }
+  def toRecords(actorName: ActorName, rec: QRecord): List[QRecord] = {
+    if(rec.key.length > 0) throw new Exception
+    val updates = qAdapterRegistry.updatesAdapter.decode(rec.value).updates
+    val relevantUpdates =
+      updates.filter(u⇒qAdapterRegistry.byId.contains(u.valueTypeId))
+    relevantUpdates.map(toRecord(StateTopicName(actorName),_))
+  }
+
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]] = records.map {
     rec ⇒ (qAdapterRegistry.keyAdapter.decode(rec.key), rec)
   }.groupBy {
@@ -39,13 +57,13 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
         val (topicKey, rec) = keysEventsI.last
         val rawValue = rec.value
         (srcId: Object) →
-          (if(rawValue.length > 0) valueAdapter.decode(rawValue) ::
+          (if(rawValue.length > 0) setOffset(valueAdapter.decode(rawValue), rec.offset.get) ::
             Nil else Nil)
       }
   }
 }
 
-
+/*
 class QMessageMapperFactoryImpl(qAdapterRegistry: QAdapterRegistry) extends QMessageMapperFactory {
   def create(messageHandlers: List[MessageHandler[_]]): QMessageMapper = {
     val receiveById =
@@ -54,6 +72,7 @@ class QMessageMapperFactoryImpl(qAdapterRegistry: QAdapterRegistry) extends QMes
     new QMessageMapperImpl(qAdapterRegistry,receiveById)
   }
 }
+
 
 class QMessageMapperImpl(
     qAdapterRegistry: QAdapterRegistry,
@@ -67,19 +86,21 @@ class QMessageMapperImpl(
     mappers.foreach(_.handleMessage(value.get))
     if(mappers.nonEmpty) mapping else {
       val className = qAdapterRegistry.nameById(key.valueTypeId)
-      val message = LEvent(StateTopicName(mapping.actorName), key.srcId, className, value)
+      val message = LEvent(key.srcId, className, value)
       mapping.add(message) // pass to state by default
     }
   } catch {
     case e: Exception ⇒ mapping.add() // ??? exception to record
   }
 }
+*/
 
 class QAdapterRegistry(
     val adapters: List[ProtoAdapter[_] with HasId],
     val byName: Map[String,ProtoAdapter[_] with HasId],
     val byId: Map[Long,ProtoAdapter[Object]],
     val keyAdapter: ProtoAdapter[QProtocol.TopicKey],
+    val updatesAdapter: ProtoAdapter[QProtocol.Updates],
     val nameById: Map[Long,String]
 )
 
@@ -90,10 +111,12 @@ object QAdapterRegistry {
       adapters.map(a ⇒ a.className → a).toMap
     val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
+    val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
+      .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
     val byId: Map[Long,ProtoAdapter[Object]] =
       adapters.map(a ⇒ a.id → a.asInstanceOf[ProtoAdapter[Object]]).toMap
     val nameById = adapters.map(a ⇒ a.id → a.className).toMap
-    new QAdapterRegistry(adapters, byName, byId, keyAdapter, nameById)
+    new QAdapterRegistry(adapters, byName, byId, keyAdapter, updatesAdapter, nameById)
   }
 }
 

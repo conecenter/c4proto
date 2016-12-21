@@ -42,11 +42,10 @@ class ChannelHandler(
 
 trait SSEServerApp extends ToStartApp with MessageHandlersApp {
   def ssePort: Int
-  def internetForwarderConfig: ForwarderConfig
   def qMessages: QMessages
 
   lazy val sseServer: TcpServer with Executable =
-    new TcpServerImpl(ssePort, qMessages, internetForwarderConfig)
+    new TcpServerImpl(ssePort, qMessages)
   override def toStart: List[Executable] = sseServer :: super.toStart
   private lazy val sseWriteEventCommandMapper =
     new WriteEventCommandHandler(sseServer)
@@ -57,7 +56,7 @@ trait SSEServerApp extends ToStartApp with MessageHandlersApp {
 }
 
 class TcpServerImpl(
-  port: Int, qMessages: QMessages, forwarder: ForwarderConfig
+  port: Int, qMessages: QMessages
 ) extends TcpServer with Executable {
   val channels: TrieMap[String,ChannelHandler] = TrieMap()
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
@@ -71,9 +70,8 @@ class TcpServerImpl(
         channels += key → new ChannelHandler(ch, () ⇒ channels -= key, { error ⇒
           println(error.getStackTrace.toString)
         })
-        forwarder.targets(":sse").foreach(actorName ⇒
-          qMessages.send(LEvent.update(actorName, key, TcpConnected(key)))
-        )
+        // qMessages.send(LEvent.update(key, TcpConnected(key)))
+        ???
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })

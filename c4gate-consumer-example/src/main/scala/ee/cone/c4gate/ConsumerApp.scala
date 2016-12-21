@@ -13,14 +13,13 @@ class TestConsumerApp extends ServerApp
   with KafkaApp
 {
   private def appActorName = ActorName("http-test")
-  private def gateActorName = ActorName("http-gate")
   def bootstrapServers: String = "localhost:9092"
 
-  private lazy val postMessageHandler = new PostMessageHandler(gateActorName)
+  private lazy val postMessageHandler = new PostMessageHandler
   private lazy val worldProvider: WorldProvider with Executable =
     actorFactory.create(appActorName, messageHandlers)
   private lazy val tcpEventBroadcaster =
-    new TcpEventBroadcaster(appActorName,gateActorName)(()⇒worldProvider.world, qMessages)
+    new TcpEventBroadcaster(()⇒worldProvider.world, qMessages)
 
 
   override def toStart: List[Executable] =
@@ -28,9 +27,10 @@ class TestConsumerApp extends ServerApp
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
   def messageHandlers: List[MessageHandler[_]] =
     postMessageHandler :: Nil
+  def setOffset(task: Object, offset: Long): AnyRef = {task;???}
 }
 
-class PostMessageHandler(gateActorName: ActorName) extends MessageHandler(classOf[HttpRequestValue]){
+class PostMessageHandler extends MessageHandler(classOf[HttpRequestValue]){
   def handleMessage(req: HttpRequestValue): Unit = {
     val prev = new String(req.body.toByteArray, "UTF-8")
     val next = (prev.toLong * 3).toString
@@ -40,14 +40,10 @@ class PostMessageHandler(gateActorName: ActorName) extends MessageHandler(classO
   }
 }
 
-class TcpEventBroadcaster(appActorName: ActorName, gateActorName: ActorName)(
+class TcpEventBroadcaster(
     getWorld: ()⇒World, qMessages: QMessages
 ) extends Executable {
   def run(executionContext: ExecutionContext): Unit = {
-    qMessages.send(LEvent.update(gateActorName, appActorName.value, ForwardingConf(appActorName.value, List(
-      ForwardingRule("/"),
-      ForwardingRule(":sse")
-    ))))
     Iterator.iterate(Map():Index[SrcId, HttpRequestValue]){ prevRequests ⇒
       val connections: Index[SrcId, TcpConnected] =
         By.srcId(classOf[TcpConnected]).of(getWorld())
@@ -55,7 +51,8 @@ class TcpEventBroadcaster(appActorName: ActorName, gateActorName: ActorName)(
       val sizeBody = okio.ByteString.encodeUtf8(size)
       println(size)
       connections.keys.foreach{ key ⇒
-        qMessages.send(LEvent.update(gateActorName, key, TcpWrite(key,sizeBody)))
+        //qMessages.send(LEvent.update(key, TcpWrite(key,sizeBody)))
+        ???
       }
       ////
       val requests: Index[SrcId, HttpRequestValue] =

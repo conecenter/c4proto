@@ -40,23 +40,23 @@ class ParentNodeWithChildrenJoin extends Join2(
 
 class AssemblerTestApp extends QMessagesApp with TreeAssemblerApp {
   def rawQSender: RawQSender =
-    new RawQSender { def send(rec: QRecord): Unit = () }
+    new RawQSender { def send(rec: QRecord): Long = 0 }
   override def protocols: List[Protocol] = PCProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     indexFactory.createJoinMapIndex(new ChildNodeByParentJoin) ::
     indexFactory.createJoinMapIndex(new ParentNodeWithChildrenJoin) ::
     super.dataDependencies
+  def setOffset(task: Object, offset: Long): AnyRef = task
 }
 
 object AssemblerTest extends App {
   val indexFactory = new IndexFactoryImpl
   val app = new AssemblerTestApp
-  val testActorName = ActorName("")
-  var recs = update(testActorName,"1", RawParentNode("1","P-1")) ::
-    List("2","3").map(srcId ⇒ update(testActorName,srcId, RawChildNode(srcId,"1",s"C-$srcId")))
+  var recs = update("1", RawParentNode("1","P-1")) ::
+    List("2","3").map(srcId ⇒ update(srcId, RawChildNode(srcId,"1",s"C-$srcId")))
 
   val diff: Map[WorldKey[_], Index[Object, Object]] =
-    app.qMessages.toTree(recs.map(app.qMessages.toRecord(_)))
+    app.qMessages.toTree(recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec))))
   val world = app.treeAssembler.replace(Map.empty,diff)
   val shouldDiff = Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(

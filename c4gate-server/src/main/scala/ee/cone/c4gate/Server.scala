@@ -20,6 +20,7 @@ class HttpGatewayApp extends ServerApp
   lazy val worldProvider: WorldProvider with Executable =
     actorFactory.create(sseActorName, messageHandlers)
   override def toStart: List[Executable] = worldProvider :: super.toStart
+  def setOffset(task: Object, offset: Long): AnyRef = {task;???}
 }
 
 object HttpGateway extends Main((new HttpGatewayApp).execution.run)

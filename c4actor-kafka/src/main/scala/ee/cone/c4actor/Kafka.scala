@@ -16,16 +16,15 @@ import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.JavaConverters.mapAsJavaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.JavaConverters.mapAsScalaMapConverter
-import scala.collection.immutable.Map
+import scala.collection.immutable.{Map, Queue}
 
 trait KafkaApp extends ToStartApp {
   def bootstrapServers: String
   def qReducer: Reducer
-  def qMessageMapperFactory: QMessageMapperFactory
   lazy val kafkaRawQSender: KafkaRawQSender = new KafkaRawQSender(bootstrapServers)()
   def rawQSender: RawQSender with Executable = kafkaRawQSender
   lazy val actorFactory: ActorFactory[Executable with WorldProvider] =
-    new KafkaActorFactory(bootstrapServers)(qReducer, qMessageMapperFactory, kafkaRawQSender)
+    new KafkaActorFactory(bootstrapServers)(qReducer, kafkaRawQSender)
   override def toStart: List[Executable] = rawQSender :: super.toStart
 }
 
@@ -50,12 +49,12 @@ class KafkaRawQSender(bootstrapServers: String)(
     ctx.onShutdown(() ⇒ producer.get.close())
   }
   def topicNameToString(topicName: TopicName): String = topicName match {
-    case InboxTopicName(ActorName(n)) ⇒ s"$n.inbox"
+    case InboxTopicName() ⇒ "inbox"
     case StateTopicName(ActorName(n)) ⇒ s"$n.state"
   }
   def sendStart(rec: QRecord): Future[RecordMetadata] =
     producer.get.send(new ProducerRecord(topicNameToString(rec.topic), 0, rec.key, rec.value))
-  def send(rec: QRecord): Unit = sendStart(rec).get()
+  def send(rec: QRecord): Long = sendStart(rec).get().offset()
 }
 
 ////
@@ -64,17 +63,17 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
   def topic: TopicName = topicName
   def key: Array[Byte] = rec.key
   def value: Array[Byte] = rec.value
+  def offset: Option[Long] = Option(rec.offset)
 }
 
-class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, qMessageMapperFactory: QMessageMapperFactory, kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
+class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
   def create(actorName: ActorName, messageHandlers: List[MessageHandler[_]]): Executable with WorldProvider = {
-    val qMessageMapper = qMessageMapperFactory.create(messageHandlers)
-    new KafkaActor(bootstrapServers, actorName)(reducer, qMessageMapper, kafkaRawQSender)()
+    new KafkaActor(bootstrapServers, actorName)(reducer, kafkaRawQSender)()
   }
 }
 
 class KafkaActor(bootstrapServers: String, actorName: ActorName)(
-  reducer: Reducer, qMessageMapper: QMessageMapper, rawQSender: KafkaRawQSender
+  reducer: Reducer, rawQSender: KafkaRawQSender
 )(
   alive: AtomicBoolean = new AtomicBoolean(true),
   worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
@@ -116,7 +115,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
   def run(ctx: ExecutionContext): Unit = {
     val consumer = initConsumer(ctx)
     try {
-      val inboxTopicName = InboxTopicName(actorName)
+      val inboxTopicName = InboxTopicName()
       val stateTopicName = StateTopicName(actorName)
       val inboxTopicPartition = List(new TopicPartition(rawQSender.topicNameToString(inboxTopicName), 0))
       val stateTopicPartition = List(new TopicPartition(rawQSender.topicNameToString(stateTopicName), 0))
@@ -131,14 +130,15 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
         poll(consumer).toList match {
           case Nil ⇒ ()
           case rawRecs ⇒
-            val recs = rawRecs.map(new KafkaQConsumerRecordAdapter(inboxTopicName,_))
-            val mapping = reducer.createMessageMapping(actorName, localWorldRef.get)
-            val res = (mapping /: recs)(qMessageMapper.mapMessage)
-            val metadata = res.toSend.map(rawQSender.sendStart)
+            val inboxRecs = rawRecs.map(new KafkaQConsumerRecordAdapter(inboxTopicName,_))
+            val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, inboxRecs)
+            val metadata = queue.map(rawQSender.sendStart)
             metadata.foreach(_.get())
-            localWorldRef.set(res.world)
-            val offset = new OffsetAndMetadata(rawRecs.last.offset + 1)
-            consumer.commitSync(singletonMap(Single(inboxTopicPartition), offset))
+            val offset: java.lang.Long = rawRecs.last.offset + 1
+            localWorldRef.set(world + (OffsetWorldKey → offset))
+            consumer.commitSync(singletonMap(Single(inboxTopicPartition), new OffsetAndMetadata(offset)))
+            ???
+            //observers
         }
         //! if consumer.commitSync() after loop, if single fails then all recent will be re-consumed
       }
