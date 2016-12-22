@@ -78,9 +78,10 @@ trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
 }
 
 trait HttpServerApp extends ToStartApp {
-  def httpPort: Int
+  def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
+  private lazy val httpPort = config.get("C4HTTP_PORT").toInt
   lazy val httpServer: Executable = {
     val handler = new ReqHandler(Map(
       "GET" → new HttpGetHandler(worldProvider),

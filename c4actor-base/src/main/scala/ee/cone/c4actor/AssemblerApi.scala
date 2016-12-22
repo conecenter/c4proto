@@ -6,8 +6,9 @@ import Types._
 import scala.collection.immutable.Map
 
 object Single {
-  def apply[C](l: List[C]): C =
-    if(l.tail.nonEmpty) throw new Exception("single expected") else l.head
+  def apply[C](l: List[C]): C = if(l.tail.nonEmpty) throw new Exception else l.head
+  def option[C](l: List[C]): Option[C] = if(l.isEmpty) None else Option(apply(l))
+  def list[C](l: List[C]): List[C] = if(l.isEmpty || l.tail.isEmpty) l else throw new Exception
 }
 
 trait IndexFactory {

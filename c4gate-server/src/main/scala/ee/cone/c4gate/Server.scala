@@ -4,6 +4,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 
 class HttpGatewayApp extends ServerApp
+  with EnvConfigApp
   with QMessagesApp
   with TreeAssemblerApp
   with QReducerApp
@@ -11,12 +12,7 @@ class HttpGatewayApp extends ServerApp
   with HttpServerApp
   with SSEServerApp
   with KafkaApp
-{
-  def bootstrapServers: String = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
-  def httpPort: Int = Option(System.getenv("C4HTTP_PORT")).get.toInt
-  def ssePort: Int = Option(System.getenv("C4SSE_PORT")).get.toInt
-  def mainActorName: ActorName = ActorName("http-gate")
-}
+  with SerialObserversApp
 
 object HttpGateway extends Main((new HttpGatewayApp).execution.run)
 

@@ -23,6 +23,10 @@ trait ServerApp {
   lazy val execution: Executable = new ExecutionImpl(toStart)
 }
 
+trait EnvConfigApp {
+  lazy val config: Config = new EnvConfigImpl
+}
+
 ////
 
 trait TreeAssemblerApp extends DataDependenciesApp {

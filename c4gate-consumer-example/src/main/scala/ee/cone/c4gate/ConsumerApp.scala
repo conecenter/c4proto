@@ -5,9 +5,11 @@ import java.util.UUID
 
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
+import ee.cone.c4gate.TestClockProtocol.ClockData
 import ee.cone.c4proto._
 
 class TestConsumerApp extends ServerApp
+  with EnvConfigApp
   with QMessagesApp
   with TreeAssemblerApp
   with QReducerApp
@@ -15,17 +17,32 @@ class TestConsumerApp extends ServerApp
   with TxTransformsApp
   with SerialObserversApp
 {
-  def mainActorName = ActorName("http-test")
-  def bootstrapServers: String = "localhost:9092"
+  //"http-test-0" "localhost:9092"
   private lazy val testConsumerTxTransform = new TestConsumerTxTransform
-  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def protocols: List[Protocol] = TestClockProtocol :: InternetProtocol :: super.protocols
   override def txTransforms: List[TxTransform] = testConsumerTxTransform :: super.txTransforms
 }
 
+/*
+tmp/kafka_2.11-0.10.1.0/bin/kafka-simple-consumer-shell.sh --broker-list localhost:9092 --topic inbox
+tmp/kafka_2.11-0.10.1.0/bin/kafka-topics.sh  --zookeeper localhost:2181 --describe
+tmp/kafka_2.11-0.10.1.0/bin/kafka-topics.sh  --zookeeper localhost:2181 --delete --topic inbox
+?tmp/kafka_2.11-0.10.1.0/bin/kafka-consumer-offset-checker.sh --zookeeper localhost:2181  --topic inbox --group http-test
+?ConsumerGroupCommand
+tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --describe --entity-type topics --entity-name inbox
+...kafka-console-consumer.sh --key-deserializer
+*/
 
+@protocol object TestClockProtocol extends Protocol {
+  @Id(0x0001) case class ClockData(@Id(0x0002) key: String, @Id(0x0003) seconds: Long)
+}
 
 class TestConsumerTxTransform extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
+    val seconds = System.currentTimeMillis / 1000
+    if(By.srcId(classOf[ClockData]).of(tx.world).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
+
+    val clockEvent = LEvent.update(ClockData("",seconds))
     val posts = By.srcId(classOf[HttpPost]).of(tx.world).values.flatten.toSeq
     val respEvents = posts.sortBy(_.time).flatMap { req ⇒
       val prev = new String(req.body.toByteArray, "UTF-8")
@@ -41,10 +58,10 @@ class TestConsumerTxTransform extends TxTransform {
     println(size)
     val broadEvents = connections.flatMap { connection ⇒
       val key = UUID.randomUUID.toString
-      LEvent.update(TcpWrite(key, connection.connectionKey, sizeBody, System.currentTimeMillis)) ::
+      LEvent.update(TcpWrite(key, connection.connectionKey, sizeBody, seconds)) ::
       Nil
     }
-    tx.add(respEvents: _*).add(broadEvents: _*)
+    tx.add(Seq(clockEvent) ++ respEvents ++ broadEvents: _*)
   }
 }
 

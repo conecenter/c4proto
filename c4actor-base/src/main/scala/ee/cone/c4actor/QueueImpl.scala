@@ -20,7 +20,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   def send[M<:Product](tx: WorldTx): Option[Long] = {
     val updates = tx.toSend.toList
     if(updates.isEmpty) return None
-    val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates(updates))
+    val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
     Option(getRawQSender().send(rec))
   }

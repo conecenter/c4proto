@@ -16,6 +16,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0013) value: okio.ByteString
   )
   @Id(0x0014) case class Updates(
+      @Id(0x0011) srcId: String, //dummy
       @Id(0x0015) updates: List[Update]
   )
 }

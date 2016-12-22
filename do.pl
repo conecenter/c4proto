@@ -25,10 +25,10 @@ push @tasks, ["gate_server_stage", sub{
     sy("sbt clean c4gate-server/stage");
 }];
 push @tasks, ["gate_server_run", sub{
-    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4HTTP_PORT=8067 C4SSE_PORT=8068 c4gate-server/target/universal/stage/bin/c4gate-server");
+    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4STATE_TOPIC_PREFIX=http-gate-0 C4HTTP_PORT=8067 C4SSE_PORT=8068 c4gate-server/target/universal/stage/bin/c4gate-server");
 }];
 push @tasks, ["gate_consumer_run", sub{
-    sy("sbt c4gate-consumer-example/run")
+    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4STATE_TOPIC_PREFIX=http-test-0 sbt c4gate-consumer-example/run")
 }];
 push @tasks, ["gate_post_get_check", sub{
     my $v = int(rand()*10);

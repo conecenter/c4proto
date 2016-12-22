@@ -1,9 +1,10 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.World
+import ee.cone.c4actor.Types.{Values, World}
 
-import scala.collection.immutable.Queue
+import scala.Iterable
+import scala.collection.immutable.{Iterable, Queue}
 
 class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Update]) extends WorldTx {
   def add[M<:Product](out: LEvent[M]*): WorldTx = {
@@ -18,7 +19,10 @@ class ReducerImpl(
   val qMessages: QMessages, treeAssembler: TreeAssembler
 ) extends Reducer {
   def reduceRecover(world: World, recs: List[QRecord]): World = {
+    println("assembling...4")
     val diff = qMessages.toTree(recs)
+    if(diff.size < 100) println(diff)
+    println("assembling...5")
     treeAssembler.replace(world, diff)
   }
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord]) =

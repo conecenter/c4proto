@@ -5,6 +5,7 @@ import java.util.Collections.singletonMap
 import java.util.concurrent.{CompletableFuture, Future}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
+import ee.cone.c4actor.QProtocol.{Update, Updates}
 import ee.cone.c4actor.Types.World
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
@@ -22,15 +23,17 @@ import scala.collection.immutable.{Map, Queue}
 //trait InitialObserversApp
 
 trait KafkaApp extends ToStartApp {
-  def bootstrapServers: String
+  def config: Config
+  def qMessages: QMessages
   def qReducer: Reducer
   def initialObservers: List[Observer]
-  def mainActorName: ActorName
 
+  private lazy val bootstrapServers = config.get("C4BOOTSTRAP_SERVERS")
+  private lazy val mainActorName = ActorName(config.get("C4STATE_TOPIC_PREFIX"))
   lazy val kafkaRawQSender: KafkaRawQSender = new KafkaRawQSender(bootstrapServers)()
   def rawQSender: RawQSender with Executable = kafkaRawQSender
   lazy val kafkaConsumer: Executable =
-    new KafkaActor(bootstrapServers, mainActorName)(qReducer, kafkaRawQSender, initialObservers)()
+    new KafkaActor(bootstrapServers, mainActorName)(qMessages, qReducer, kafkaRawQSender, initialObservers)()
 
   override def toStart: List[Executable] = kafkaConsumer :: rawQSender :: super.toStart
 }
@@ -74,7 +77,7 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
 }
 
 class KafkaActor(bootstrapServers: String, actorName: ActorName)(
-  reducer: Reducer, rawQSender: KafkaRawQSender, initialObservers: List[Observer]
+    qMessages: QMessages, reducer: Reducer, rawQSender: KafkaRawQSender, initialObservers: List[Observer]
 )(
   alive: AtomicBoolean = new AtomicBoolean(true)
 ) extends Executable {
@@ -101,15 +104,22 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     consumer
   }
   private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {
+    rawQSender.send(qMessages.toRecord(topicName,qMessages.toUpdate(LEvent.delete(Updates("",Nil))))) //! prevents hanging on empty topic
     val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
-    //?hang
     consumer.seekToBeginning(part.asJava)
     val recsIterator = iterator(consumer).flatten
     @tailrec def toQueue(queue: Queue[QRecord] = Queue.empty): Queue[QRecord] = {
       val rec = recsIterator.next()
-      if(rec.offset.get + 1 >= until) queue.enqueue(rec) else toQueue(queue.enqueue(rec))
+      val offset = rec.offset.get + 1
+      if(offset % 100000 == 0) println(offset)
+      if(offset >= until) queue.enqueue(rec) else toQueue(queue.enqueue(rec))
     }
-    new AtomicReference(reducer.reduceRecover(Map(), toQueue().toList))
+    println("assembling...1")
+    val recsQueue = toQueue()
+    println("assembling...2")
+    val recsList = recsQueue.toList
+    println("assembling...3")
+    new AtomicReference(reducer.reduceRecover(Map(), recsList))
   }
   def run(ctx: ExecutionContext): Unit = {
     val consumer = initConsumer(ctx)
@@ -120,7 +130,9 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       val stateTopicPartition = List(new TopicPartition(rawQSender.topicNameToString(stateTopicName), 0))
       consumer.assign((inboxTopicPartition ::: stateTopicPartition).asJava)
       consumer.pause(inboxTopicPartition.asJava)
+      println("starting world recover...")
       val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
+      println("world recovered")
       consumer.pause(stateTopicPartition.asJava)
       consumer.resume(inboxTopicPartition.asJava)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒

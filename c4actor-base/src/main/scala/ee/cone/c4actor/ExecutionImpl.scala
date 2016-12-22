@@ -38,3 +38,10 @@ class Main(f: ExecutionContext⇒Unit) {
     }
   } finally System.exit(0)
 }
+
+
+class EnvConfigImpl extends Config {
+  def get(key: String): String =
+    Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
+}
+

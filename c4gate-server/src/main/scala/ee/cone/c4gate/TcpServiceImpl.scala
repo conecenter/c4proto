@@ -42,10 +42,11 @@ class ChannelHandler(
 }
 
 trait SSEServerApp extends ToStartApp with TxTransformsApp {
-  def ssePort: Int
+  def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
 
+  private lazy val ssePort = config.get("C4SSE_PORT").toInt
   lazy val sseServer: TcpServer with Executable =
     new TcpServerImpl(ssePort, qMessages, worldProvider)
   lazy val tcpTxTransform = new TcpTxTransform(sseServer)
@@ -79,8 +80,11 @@ class TcpServerImpl(
 class TcpTxTransform(sseServer: TcpServer) extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
     val writes = By.srcId(classOf[TcpWrite]).of(tx.world)
+    println(".2")
     val writeEvents = writes.values.flatten.toSeq.sortBy(_.priority).map{ message ⇒
+      println(".0")
       sseServer.senderByKey(message.connectionKey).foreach(s⇒s.add(message.body.toByteArray))
+      println(".1")
       LEvent.delete(message)
     }
     val disconnects = By.srcId(classOf[TcpDisconnect]).of(tx.world)

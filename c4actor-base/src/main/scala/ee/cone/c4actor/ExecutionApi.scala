@@ -12,6 +12,10 @@ trait Executable {
 
 class ExecutionContext(val executors: ExecutorService, val onShutdown: (()⇒Unit)⇒Unit)
 
+trait Config {
+  def get(key: String): String
+}
+
 ////
 
 object Trace { //m. b. to util
