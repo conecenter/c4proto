@@ -11,7 +11,3 @@ trait Reducer {
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord])
   def createTx(world: World): WorldTx
 }
-
-trait WorldProvider {
-  def world: World
-}

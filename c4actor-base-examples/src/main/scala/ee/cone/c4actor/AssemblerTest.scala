@@ -46,14 +46,13 @@ class AssemblerTestApp extends QMessagesApp with TreeAssemblerApp {
     indexFactory.createJoinMapIndex(new ChildNodeByParentJoin) ::
     indexFactory.createJoinMapIndex(new ParentNodeWithChildrenJoin) ::
     super.dataDependencies
-  def setOffset(task: Object, offset: Long): AnyRef = task
 }
 
 object AssemblerTest extends App {
   val indexFactory = new IndexFactoryImpl
   val app = new AssemblerTestApp
-  val recs = update("1", RawParentNode("1","P-1")) ::
-    List("2","3").map(srcId ⇒ update(srcId, RawChildNode(srcId,"1",s"C-$srcId")))
+  val recs = update(RawParentNode("1","P-1")) ::
+    List("2","3").map(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
 
   val diff: Map[WorldKey[_], Index[Object, Object]] =
     app.qMessages.toTree(recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec))))

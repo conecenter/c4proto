@@ -9,7 +9,6 @@ class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Upda
   def add[M<:Product](out: LEvent[M]*): WorldTx = {
     if(out.isEmpty) return this
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
-    //??? insert here: application groups,  case object InstantTopicName extends TopicName
     val nextWorld = reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
     new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend))
   }

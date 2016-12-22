@@ -7,9 +7,8 @@ import ee.cone.c4proto.Protocol
 trait QMessagesApp extends ProtocolsApp {
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   def rawQSender: RawQSender
-  def setOffset(task: Object, offset: Long): Object
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
-  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender, setOffset)
+  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
 }
 
 trait QReducerApp {
@@ -38,4 +37,11 @@ trait TreeAssemblerApp extends DataDependenciesApp {
 
 trait ProtocolsApp {
   def protocols: List[Protocol] = Nil
+}
+
+trait SerialObserversApp extends InitialObserversApp {
+  def txTransforms: List[TxTransform]
+  def qMessages: QMessages
+  private lazy val serialObservers = txTransforms.map(new SerialObserver(0)(qMessages,_))
+  override def initialObservers: List[Observer] = serialObservers ::: super.initialObservers
 }

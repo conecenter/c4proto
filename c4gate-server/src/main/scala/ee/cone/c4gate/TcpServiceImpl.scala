@@ -41,22 +41,20 @@ class ChannelHandler(
   }
 }
 
-trait SSEServerApp extends ToStartApp {
+trait SSEServerApp extends ToStartApp with TxTransformsApp {
   def ssePort: Int
   def qMessages: QMessages
-  def reducer: Reducer
   def worldProvider: WorldProvider
 
   lazy val sseServer: TcpServer with Executable =
-    new TcpServerImpl(ssePort, qMessages, reducer, ()⇒worldProvider.world)
+    new TcpServerImpl(ssePort, qMessages, worldProvider)
   lazy val tcpTxTransform = new TcpTxTransform(sseServer)
-  ??? //reg
-
+  override def txTransforms: List[TxTransform] = tcpTxTransform :: super.txTransforms
   override def toStart: List[Executable] = sseServer :: super.toStart
 }
 
 class TcpServerImpl(
-  port: Int, qMessages: QMessages, reducer: Reducer, getWorld: ()⇒World
+  port: Int, qMessages: QMessages, worldProvider: WorldProvider
 ) extends TcpServer with Executable {
   val channels: TrieMap[String,ChannelHandler] = TrieMap()
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
@@ -70,7 +68,8 @@ class TcpServerImpl(
         channels += key → new ChannelHandler(ch, () ⇒ channels -= key, { error ⇒
           println(error.getStackTrace.toString)
         })
-        qMessages.send(reducer.createTx(getWorld()).add(LEvent.update(key, TcpConnection(key))))
+        val tx = worldProvider.createTx().add(LEvent.update(TcpConnection(key)))
+        qMessages.send(tx)
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
@@ -79,17 +78,17 @@ class TcpServerImpl(
 
 class TcpTxTransform(sseServer: TcpServer) extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
-    val writes = By.srcId(classOf[TcpWrite]).of(tx.world).values.flatten.toSeq
-    val writeEvents = writes.sortBy(_.offset).map{ message ⇒
+    val writes = By.srcId(classOf[TcpWrite]).of(tx.world)
+    val writeEvents = writes.values.flatten.toSeq.sortBy(_.priority).map{ message ⇒
       sseServer.senderByKey(message.connectionKey).foreach(s⇒s.add(message.body.toByteArray))
-      LEvent.delete(message.srcId, classOf[TcpWrite])
+      LEvent.delete(message)
     }
-    val disconnects = By.srcId(classOf[TcpDisconnect]).of(tx.world).values.flatten.toSeq
-    val disconnectEvents = disconnects.flatMap{ disconnect ⇒
+    val disconnects = By.srcId(classOf[TcpDisconnect]).of(tx.world)
+    val connections = By.srcId(classOf[TcpConnection]).of(tx.world)
+    val disconnectEvents = disconnects.values.flatten.toSeq.flatMap{ disconnect ⇒
       sseServer.senderByKey(disconnect.connectionKey).foreach(sender⇒sender.close())
-      LEvent.delete(disconnect.connectionKey, classOf[TcpDisconnect]) ::
-      LEvent.delete(disconnect.connectionKey, classOf[TcpConnection]) ::
-      Nil
+      LEvent.delete(disconnect) ::
+        connections.getOrElse(disconnect.connectionKey,Nil).map(LEvent.delete)
     }
     tx.add(writeEvents:_*).add(disconnectEvents:_*)
   }

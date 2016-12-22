@@ -11,15 +11,17 @@ import ee.cone.c4proto.{HasId, Protocol}
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[Byte], val offset: Option[Long]) extends QRecord
+class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[Byte]) extends QRecord {
+  def offset: Option[Long] = None
+}
 
-class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender, setOffset: (Object,Long)⇒Object) extends QMessages {
+class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
   import qAdapterRegistry._
   def send[M<:Product](tx: WorldTx): Option[Long] = {
     val updates = tx.toSend.toList
     if(updates.isEmpty) return None
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates(updates))
-    val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue,None)
+    val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
     Option(getRawQSender().send(rec))
   }
   def toUpdate[M<:Product](message: LEvent[M]): Update = {
@@ -32,7 +34,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   def toRecord(topicName: TopicName, update: Update): QRecord = {
     val rawKey = keyAdapter.encode(TopicKey(update.srcId, update.valueTypeId))
     val rawValue = update.value.toByteArray
-    new QRecordImpl(topicName, rawKey, rawValue, None)
+    new QRecordImpl(topicName, rawKey, rawValue)
   }
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord] = {
     if(rec.key.length > 0) throw new Exception
@@ -57,43 +59,11 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
         val (topicKey, rec) = keysEventsI.last
         val rawValue = rec.value
         (srcId: Object) →
-          (if(rawValue.length > 0) setOffset(valueAdapter.decode(rawValue), rec.offset.get) ::
+          (if(rawValue.length > 0) valueAdapter.decode(rawValue) ::
             Nil else Nil)
       }
   }
 }
-
-/*
-class QMessageMapperFactoryImpl(qAdapterRegistry: QAdapterRegistry) extends QMessageMapperFactory {
-  def create(messageHandlers: List[MessageHandler[_]]): QMessageMapper = {
-    val receiveById =
-      messageHandlers.groupBy(cl ⇒ qAdapterRegistry.byName(cl.mClass.getName).id)
-        .asInstanceOf[Map[Long, List[MessageHandler[Product]]]]
-    new QMessageMapperImpl(qAdapterRegistry,receiveById)
-  }
-}
-
-
-class QMessageMapperImpl(
-    qAdapterRegistry: QAdapterRegistry,
-    receiveById: Map[Long, List[MessageHandler[Product]]]
-) extends QMessageMapper {
-  def mapMessage(mapping: MessageMapping, rec: QRecord): MessageMapping = try {
-    val key = qAdapterRegistry.keyAdapter.decode(rec.key)
-    val valueAdapter = qAdapterRegistry.byId(key.valueTypeId)
-    val value = if(rec.value.length > 0) Some(valueAdapter.decode(rec.value).asInstanceOf[Product]) else None
-    val mappers = receiveById.getOrElse(key.valueTypeId,Nil)
-    mappers.foreach(_.handleMessage(value.get))
-    if(mappers.nonEmpty) mapping else {
-      val className = qAdapterRegistry.nameById(key.valueTypeId)
-      val message = LEvent(key.srcId, className, value)
-      mapping.add(message) // pass to state by default
-    }
-  } catch {
-    case e: Exception ⇒ mapping.add() // ??? exception to record
-  }
-}
-*/
 
 class QAdapterRegistry(
     val adapters: List[ProtoAdapter[_] with HasId],
@@ -121,11 +91,15 @@ object QAdapterRegistry {
 }
 
 class SerialObserver(needWorldOffset: Long)(qMessages: QMessages, transform: TxTransform) extends Observer {
-  def activate(getTx: () ⇒ WorldTx): Seq[Observer] = {
+  def activate(getTx: () ⇒ WorldTx): Seq[Observer] = try {
     val tx = getTx()
     if(OffsetWorldKey.of(tx.world) < needWorldOffset) return Seq(this)
     val offset = qMessages.send(transform.transform(tx))
     Seq(offset.map(o⇒new SerialObserver(o+1)(qMessages,transform)).getOrElse(this))
+  } catch {
+    case e: Exception ⇒
+      e.printStackTrace() //??? |Nil|throw
+      Seq(this)
   }
 }
 

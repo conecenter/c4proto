@@ -15,12 +15,7 @@ class HttpGatewayApp extends ServerApp
   def bootstrapServers: String = Option(System.getenv("C4BOOTSTRAP_SERVERS")).get
   def httpPort: Int = Option(System.getenv("C4HTTP_PORT")).get.toInt
   def ssePort: Int = Option(System.getenv("C4SSE_PORT")).get.toInt
-
-  def sseActorName: ActorName = ActorName("http-gate")
-  lazy val worldProvider: WorldProvider with Executable =
-    actorFactory.create(sseActorName, observer)
-  override def toStart: List[Executable] = worldProvider :: super.toStart
-  def setOffset(task: Object, offset: Long): AnyRef = {task;???}
+  def mainActorName: ActorName = ActorName("http-gate")
 }
 
 object HttpGateway extends Main((new HttpGatewayApp).execution.run)

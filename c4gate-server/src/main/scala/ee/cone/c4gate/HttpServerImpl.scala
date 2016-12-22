@@ -3,6 +3,7 @@ package ee.cone.c4gate
 
 import java.net.InetSocketAddress
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4gate.InternetProtocol._
@@ -17,23 +18,25 @@ trait RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte]
 }
 
-class HttpGetHandler(getWorld: ()⇒World) extends RHttpHandler {
+class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val path = httpExchange.getRequestURI.getPath
     val publishedByPath = By.srcId(classOf[HttpPublication])
-    Single(publishedByPath.of(getWorld())(path)).body.toByteArray
+    val tx = worldProvider.createTx()
+    Single(publishedByPath.of(tx.world)(path)).body.toByteArray
   }
 }
 
-class HttpPostHandler(qMessages: QMessages, reducer: Reducer, getWorld: ()⇒World) extends RHttpHandler {
+class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val headers = httpExchange.getRequestHeaders.asScala
       .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
     val buffer = new okio.Buffer
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
-    val req = HttpPost(UUID.randomUUID.toString, path, headers, body, 0) // offset ???
-    qMessages.send(reducer.createTx(getWorld()).add(LEvent.update(req.srcId, req)))
+    val req = HttpPost(UUID.randomUUID.toString, path, headers, body,  System.currentTimeMillis)
+    val tx = worldProvider.createTx().add(LEvent.update(req))
+    qMessages.send(tx)
     Array.empty[Byte]
   }
 }
@@ -58,21 +61,30 @@ class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
   }
 }
 
-trait InternetForwarderApp extends ProtocolsApp {
-  def worldProvider: WorldProvider
-  //()⇒worldProvider.world
+class WorldProviderImpl(
+  worldFuture: CompletableFuture[()⇒WorldTx] = new CompletableFuture()
+) extends WorldProvider with Observer {
+  def createTx(): WorldTx = worldFuture.get.apply()
+  def activate(getTx: () ⇒ WorldTx): Seq[Observer] = {
+    worldFuture.complete(getTx)
+    Nil
+  }
+}
+
+trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
+  lazy val worldProvider: WorldProvider with Observer = new WorldProviderImpl
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def initialObservers: List[Observer] = worldProvider :: super.initialObservers
 }
 
 trait HttpServerApp extends ToStartApp {
   def httpPort: Int
   def qMessages: QMessages
-  def reducer: Reducer
   def worldProvider: WorldProvider
   lazy val httpServer: Executable = {
     val handler = new ReqHandler(Map(
-      "GET" → new HttpGetHandler(()⇒worldProvider.world),
-      "POST" → new HttpPostHandler(qMessages,reducer,()⇒worldProvider.world)
+      "GET" → new HttpGetHandler(worldProvider),
+      "POST" → new HttpPostHandler(qMessages,worldProvider)
     ))
     new RHttpServer(httpPort, handler)
   }

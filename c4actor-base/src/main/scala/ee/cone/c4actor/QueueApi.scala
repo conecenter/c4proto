@@ -18,7 +18,6 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   @Id(0x0014) case class Updates(
       @Id(0x0015) updates: List[Update]
   )
-
 }
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
@@ -53,10 +52,10 @@ trait QMessages {
 
 case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])
 object LEvent {
-  def update[M<:Product](srcId: SrcId, value: M): LEvent[M] =
-    LEvent(srcId, value.getClass.getName,  Option(value))
-  def delete[M<:Product](srcId: SrcId, cl: Class[M]): LEvent[M] =
-    LEvent(srcId, cl.getName,  None)
+  def update[M<:Product](value: M): LEvent[M] =
+    LEvent(value.productElement(0).toString, value.getClass.getName, Option(value))
+  def delete[M<:Product](value: M): LEvent[M] =
+    LEvent(value.productElement(0).toString, value.getClass.getName, None)
 }
 
 trait WorldTx {
@@ -65,20 +64,18 @@ trait WorldTx {
   def toSend: Seq[Update]
 }
 
-/*
-trait WorldTxManager {
-  def createTx(): WorldTx
-  def commit(tx: WorldTx): Unit
-}*/
-
-trait ActorFactory[R] {
-  def create(actorName: ActorName, observer: Observer): R
-}
-
 trait Observer {
   def activate(getTx: ()⇒WorldTx): Seq[Observer]
 }
 
 trait TxTransform {
   def transform(tx: WorldTx): WorldTx
+}
+
+trait InitialObserversApp {
+  def initialObservers: List[Observer] = Nil
+}
+
+trait TxTransformsApp {
+  def txTransforms: List[TxTransform] = Nil
 }

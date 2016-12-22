@@ -12,29 +12,27 @@ class TestConsumerApp extends ServerApp
   with TreeAssemblerApp
   with QReducerApp
   with KafkaApp
+  with TxTransformsApp
+  with SerialObserversApp
 {
-  private def appActorName = ActorName("http-test")
+  def mainActorName = ActorName("http-test")
   def bootstrapServers: String = "localhost:9092"
-  private lazy val worldProvider: WorldProvider with Executable =
-    actorFactory.create(appActorName, new SerialObserver(0)(qMessages,testConsumerTxTransform))
   private lazy val testConsumerTxTransform = new TestConsumerTxTransform
-  override def toStart: List[Executable] = worldProvider :: super.toStart
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
-
-  def setOffset(task: Object, offset: Long): AnyRef = {task;???}
+  override def txTransforms: List[TxTransform] = testConsumerTxTransform :: super.txTransforms
 }
+
+
 
 class TestConsumerTxTransform extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
     val posts = By.srcId(classOf[HttpPost]).of(tx.world).values.flatten.toSeq
-    val respEvents = posts.sortBy(_.offset).flatMap { req ⇒
+    val respEvents = posts.sortBy(_.time).flatMap { req ⇒
       val prev = new String(req.body.toByteArray, "UTF-8")
       val next = (prev.toLong * 3).toString
       val body = okio.ByteString.encodeUtf8(next)
       val resp = HttpPublication(req.path, Nil, body)
-      LEvent.delete(req.srcId, classOf[HttpPost]) ::
-      LEvent.update(resp.path, resp) ::
-      Nil
+      LEvent.delete(req) :: LEvent.update(resp) :: Nil
     }
     val connections =
       By.srcId(classOf[TcpConnection]).of(tx.world).values.flatten.toSeq
@@ -43,7 +41,7 @@ class TestConsumerTxTransform extends TxTransform {
     println(size)
     val broadEvents = connections.flatMap { connection ⇒
       val key = UUID.randomUUID.toString
-      LEvent.update(key, TcpWrite(key, connection.connectionKey, sizeBody)) ::
+      LEvent.update(TcpWrite(key, connection.connectionKey, sizeBody, System.currentTimeMillis)) ::
       Nil
     }
     tx.add(respEvents: _*).add(broadEvents: _*)

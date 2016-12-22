@@ -19,14 +19,20 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.immutable.{Map, Queue}
 
+//trait InitialObserversApp
+
 trait KafkaApp extends ToStartApp {
   def bootstrapServers: String
   def qReducer: Reducer
+  def initialObservers: List[Observer]
+  def mainActorName: ActorName
+
   lazy val kafkaRawQSender: KafkaRawQSender = new KafkaRawQSender(bootstrapServers)()
   def rawQSender: RawQSender with Executable = kafkaRawQSender
-  lazy val actorFactory: ActorFactory[Executable with WorldProvider] =
-    new KafkaActorFactory(bootstrapServers)(qReducer, kafkaRawQSender)
-  override def toStart: List[Executable] = rawQSender :: super.toStart
+  lazy val kafkaConsumer: Executable =
+    new KafkaActor(bootstrapServers, mainActorName)(qReducer, kafkaRawQSender, initialObservers)()
+
+  override def toStart: List[Executable] = kafkaConsumer :: rawQSender :: super.toStart
 }
 
 ////
@@ -67,24 +73,16 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
   def offset: Option[Long] = Option(rec.offset)
 }
 
-class KafkaActorFactory(bootstrapServers: String)(reducer: Reducer, kafkaRawQSender: KafkaRawQSender) extends ActorFactory[Executable with WorldProvider] {
-  def create(actorName: ActorName, observer: Observer): Executable with WorldProvider = {
-    new KafkaActor(bootstrapServers, actorName)(reducer, kafkaRawQSender)()
-  }
-}
-
 class KafkaActor(bootstrapServers: String, actorName: ActorName)(
-  reducer: Reducer, rawQSender: KafkaRawQSender, initialObserver: Observer
+  reducer: Reducer, rawQSender: KafkaRawQSender, initialObservers: List[Observer]
 )(
-  alive: AtomicBoolean = new AtomicBoolean(true),
-  worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
-) extends Executable with WorldProvider {
+  alive: AtomicBoolean = new AtomicBoolean(true)
+) extends Executable {
   private def iterator(consumer: Consumer[Array[Byte], Array[Byte]]) = Iterator.continually{
     if(Thread.interrupted || !alive.get) throw new InterruptedException
     consumer.poll(200 /*timeout*/).asScala
       .map(new KafkaQConsumerRecordAdapter(NoTopicName, _)).toList
   }
-  def world: World = worldFuture.get.get
   type BConsumer = Consumer[Array[Byte], Array[Byte]]
   private def initConsumer(ctx: ExecutionContext): BConsumer = {
     val deserializer = new ByteArrayDeserializer
@@ -125,8 +123,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
       consumer.pause(stateTopicPartition.asJava)
       consumer.resume(inboxTopicPartition.asJava)
-      worldFuture.complete(localWorldRef)
-      iterator(consumer).scanLeft(Seq(initialObserver)){ (prevObservers, recs) ⇒
+      iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
         recs match {
           case Nil ⇒ ()
           case inboxRecs ⇒
