@@ -36,8 +36,11 @@ push @tasks, ["gate_post_get_check", sub{
     sleep 1;
     sy("curl http://127.0.0.1:8067/abc");
 }];
-push @tasks, ["gate_sse_check", sub{
+push @tasks, ["gate_tcp_check", sub{
     sy("nc 127.0.0.1 8068");
+}];
+push @tasks, ["gate_sse_consumer_run", sub{
+    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4STATE_TOPIC_PREFIX=sse-test-0 sbt c4gate-sse-example/run")
 }];
 
 if($ARGV[0]) {

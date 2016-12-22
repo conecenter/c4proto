@@ -22,7 +22,8 @@ class TestSSEApp extends ServerApp
   private lazy val testSSETxTransform = new TestSSETxTransform(sseMessages)
   override def txTransforms: List[TxTransform] =
     testSSETxTransform :: super.txTransforms
-  override def protocols: List[Protocol] = TestClockProtocol :: super.protocols
+  override def protocols: List[Protocol] =
+    TestClockProtocol :: InternetProtocol :: super.protocols
 }
 
 @protocol object TestClockProtocol extends Protocol {

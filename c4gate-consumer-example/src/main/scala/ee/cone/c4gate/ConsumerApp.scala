@@ -30,8 +30,13 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-topics.sh  --zookeeper localhost:2181 --delete
 ?tmp/kafka_2.11-0.10.1.0/bin/kafka-consumer-offset-checker.sh --zookeeper localhost:2181  --topic inbox --group http-test
 ?ConsumerGroupCommand
 tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --describe --entity-type topics --entity-name inbox
+
 ...kafka-console-consumer.sh --key-deserializer
+
+curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 */
+
+
 
 @protocol object TestClockProtocol extends Protocol {
   @Id(0x0001) case class ClockData(@Id(0x0002) key: String, @Id(0x0003) seconds: Long)
