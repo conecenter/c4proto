@@ -10,38 +10,53 @@ push @tasks, ["es_examples", sub{
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
 }];
-
-push @tasks, ["setup_kafka", sub{
+push @tasks, ["setup_run_kafka", sub{
     (-e $_ or mkdir $_) and chdir $_ or die for "tmp";
-    sy("wget http://www-eu.apache.org/dist/kafka/0.10.1.0/kafka_2.11-0.10.1.0.tgz");
-    sy("tar -xzf kafka_2.11-0.10.1.0.tgz")
-}];
-push @tasks, ["run_kafka", sub{
-    chdir "tmp/kafka_2.11-0.10.1.0" or die $!;
+    my $kafka = "kafka_2.11-0.10.1.0";
+    if(!-e $kafka){
+        sy("wget http://www-eu.apache.org/dist/kafka/0.10.1.0/$kafka.tgz");
+        sy("tar -xzf $kafka.tgz")
+    }
+    chdir $kafka or die $!;
     sy("bin/zookeeper-server-start.sh config/zookeeper.properties 1> zookeeper.log 2> zookeeper.error.log &");
     sy("bin/kafka-server-start.sh config/server.properties 1> kafka.log 2> kafka.error.log &");
 }];
-push @tasks, ["gate_server_stage", sub{
-    sy("sbt clean c4gate-server/stage");
+push @tasks, ["stage", sub{
+    sy("sbt clean stage");
+    chdir "client" or die $!;
+    sy("npm install");
+    sy("./node_modules/webpack/bin/webpack.js")
 }];
+my $http_port = 8067;
+my $sse_port = 8068;
+my $env = "C4BOOTSTRAP_SERVERS=localhost:9092 ";
+sub staged{"$_[0]/target/universal/stage/bin/$_[0]"}
+#sbt $_[0]/run
 push @tasks, ["gate_server_run", sub{
-    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4STATE_TOPIC_PREFIX=http-gate-0 C4HTTP_PORT=8067 C4SSE_PORT=8068 c4gate-server/target/universal/stage/bin/c4gate-server");
+    sy("$env C4STATE_TOPIC_PREFIX=http-gate-0 C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ".staged("c4gate-server"));
 }];
-push @tasks, ["gate_consumer_run", sub{
-    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4STATE_TOPIC_PREFIX=http-test-0 sbt c4gate-consumer-example/run")
+push @tasks, ["gate_test_consumer_run", sub{
+    sy("$env C4STATE_TOPIC_PREFIX=http-test-0 ".staged("c4gate-consumer-example"))
 }];
 push @tasks, ["gate_post_get_check", sub{
     my $v = int(rand()*10);
-    sy("curl http://127.0.0.1:8067/abc -X POST -d $v");
+    sy("curl http://127.0.0.1:$http_port/abc -X POST -d $v");
     sleep 1;
-    sy("curl http://127.0.0.1:8067/abc");
+    sy("curl http://127.0.0.1:$http_port/abc");
+    print " -- should be posted * 3\n";
 }];
 push @tasks, ["gate_tcp_check", sub{
-    sy("nc 127.0.0.1 8068");
+    sy("nc 127.0.0.1 $sse_port");
 }];
 push @tasks, ["gate_sse_consumer_run", sub{
-    sy("C4BOOTSTRAP_SERVERS=localhost:9092 C4STATE_TOPIC_PREFIX=sse-test-0 sbt c4gate-sse-example/run")
+    sy("$env C4STATE_TOPIC_PREFIX=sse-test-0 ".staged("c4gate-sse-example"))
 }];
+push @tasks, ["gate_publish", sub{
+    sy("$env C4PUBLISH_DIR=./client/build/test ".staged("c4gate-publish"))
+}];
+
+
+
 
 if($ARGV[0]) {
     $ARGV[0] eq $$_[0] and $$_[1]->() for @tasks;

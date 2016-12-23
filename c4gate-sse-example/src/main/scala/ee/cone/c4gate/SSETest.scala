@@ -12,7 +12,7 @@ class TestSSEApp extends ServerApp
   with QMessagesApp
   with TreeAssemblerApp
   with QReducerApp
-  with KafkaApp
+  with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
   with SSEApp
 {

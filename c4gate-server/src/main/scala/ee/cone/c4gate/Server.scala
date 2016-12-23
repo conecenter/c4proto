@@ -11,7 +11,7 @@ class HttpGatewayApp extends ServerApp
   with InternetForwarderApp
   with HttpServerApp
   with SSEServerApp
-  with KafkaApp
+  with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
 
 object HttpGateway extends Main((new HttpGatewayApp).execution.run)

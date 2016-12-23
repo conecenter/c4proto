@@ -13,7 +13,7 @@ class TestConsumerApp extends ServerApp
   with QMessagesApp
   with TreeAssemblerApp
   with QReducerApp
-  with KafkaApp
+  with KafkaProducerApp with KafkaConsumerApp
   with TxTransformsApp
   with SerialObserversApp
 {

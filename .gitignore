@@ -20,3 +20,6 @@ project/plugins/project/
 
 .idea
 tmp/
+
+build
+node_modules
