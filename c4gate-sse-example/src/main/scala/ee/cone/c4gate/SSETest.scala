@@ -19,7 +19,10 @@ class TestSSEApp extends ServerApp
   def sseAllowOrigin: Option[String] = Option("*")
   //"sse-test"
 
-  private lazy val testSSETxTransform = new TestSSETxTransform(sseMessages)
+  private lazy val testSSETxTransform = {
+    println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
+    new TestSSETxTransform(sseMessages)
+  }
   override def txTransforms: List[TxTransform] =
     testSSETxTransform :: super.txTransforms
   override def protocols: List[Protocol] =

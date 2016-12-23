@@ -29,11 +29,11 @@ push @tasks, ["stage", sub{
 }];
 my $http_port = 8067;
 my $sse_port = 8068;
-my $env = "C4BOOTSTRAP_SERVERS=localhost:9092 ";
+my $env = "C4BOOTSTRAP_SERVERS=localhost:9092 C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
 sub staged{"$_[0]/target/universal/stage/bin/$_[0]"}
 #sbt $_[0]/run
 push @tasks, ["gate_server_run", sub{
-    sy("$env C4STATE_TOPIC_PREFIX=http-gate-0 C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ".staged("c4gate-server"));
+    sy("$env C4STATE_TOPIC_PREFIX=http-gate-0 ".staged("c4gate-server"));
 }];
 push @tasks, ["gate_test_consumer_run", sub{
     sy("$env C4STATE_TOPIC_PREFIX=http-test-0 ".staged("c4gate-consumer-example"))

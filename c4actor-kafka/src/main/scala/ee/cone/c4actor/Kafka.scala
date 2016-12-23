@@ -121,11 +121,8 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       if(offset % 100000 == 0) println(offset)
       if(offset >= until) queue.enqueue(rec) else toQueue(queue.enqueue(rec))
     }
-    println("assembling...1")
     val recsQueue = toQueue()
-    println("assembling...2")
     val recsList = recsQueue.toList
-    println("assembling...3")
     new AtomicReference(reducer.reduceRecover(Map(), recsList))
   }
   def run(ctx: ExecutionContext): Unit = {

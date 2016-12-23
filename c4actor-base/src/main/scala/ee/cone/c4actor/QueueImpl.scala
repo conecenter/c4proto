@@ -20,6 +20,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   def send[M<:Product](tx: WorldTx): Option[Long] = {
     val updates = tx.toSend.toList
     if(updates.isEmpty) return None
+    println(s"sending: ${updates.size}")
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
     Option(getRawQSender().send(rec))
@@ -94,7 +95,9 @@ class SerialObserver(needWorldOffset: Long)(qMessages: QMessages, transform: TxT
   def activate(getTx: () ⇒ WorldTx): Seq[Observer] = try {
     val tx = getTx()
     if(OffsetWorldKey.of(tx.world) < needWorldOffset) return Seq(this)
-    val offset = qMessages.send(transform.transform(tx))
+    val nTx = transform.transform(tx)
+    //println(s"ntx:${nTx.toSend.size}")
+    val offset = qMessages.send(nTx)
     Seq(offset.map(o⇒new SerialObserver(o+1)(qMessages,transform)).getOrElse(this))
   } catch {
     case e: Exception ⇒

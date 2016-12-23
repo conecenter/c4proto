@@ -36,14 +36,14 @@ class SSEMessagesImpl(allowOriginOption: Option[String]) extends SSEMessages {
 }
 
 class SSETxTransform(sseMessages: SSEMessages) extends TxTransform {
-  def transform(tx: WorldTx): WorldTx = tx.add(
-    By.srcId(classOf[SSEConnection]).of(tx.world).values.flatten.flatMap{ conn ⇒
+  def transform(tx: WorldTx): WorldTx = {
+    val events = By.srcId(classOf[SSEConnection]).of(tx.world).values.flatten.toSeq.flatMap{ conn ⇒
       conn.state match{
         case None ⇒
           val time = System.currentTimeMillis()
           LEvent.update(ConnectionPingState(conn.connectionKey,time)) ::
-          LEvent.update(sseMessages.message(conn.connectionKey,"connect",conn.connectionKey,0)) ::
-          Nil
+            LEvent.update(sseMessages.message(conn.connectionKey,"connect",conn.connectionKey,0)) ::
+            Nil
         case Some(state@ConnectionPingState(_,pingTime)) ⇒
           val time = System.currentTimeMillis()
           if(pingTime + 5000 > time) Nil else {
@@ -51,16 +51,17 @@ class SSETxTransform(sseMessages: SSEMessages) extends TxTransform {
               conn.posts.filter(post ⇒ post.headers.get("X-r-action").contains("pong"))
             if(pongs.nonEmpty)
               LEvent.update(ConnectionPingState(conn.connectionKey,time)) ::
-              LEvent.update(sseMessages.message(conn.connectionKey,"ping",conn.connectionKey,1)) ::
-              pongs.map(pong⇒LEvent.update(pong.request))
+                LEvent.update(sseMessages.message(conn.connectionKey,"ping",conn.connectionKey,1)) ::
+                pongs.map(pong⇒LEvent.delete(pong.request))
             else
               LEvent.update(TcpDisconnect(conn.connectionKey)) ::
-              LEvent.delete(state) ::
-              Nil
+                LEvent.delete(state) ::
+                Nil
           }
       }
-    }.toSeq:_*
-  )
+    }
+    tx.add(events:_*)
+  }
 }
 
 /*

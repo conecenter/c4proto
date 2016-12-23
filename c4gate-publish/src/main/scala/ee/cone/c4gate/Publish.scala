@@ -30,6 +30,7 @@ class Publishing(qMessages: QMessages, reducer: Reducer, fromDir: String) extend
     val depth = Integer.MAX_VALUE
     val options = java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS)
     Files.walkFileTree(fromPath, options, depth, visitor)
+    ctx.serving.complete(())
   }
 }
 
@@ -39,7 +40,7 @@ class PublishFileVisitor(qMessages: QMessages, reducer: Reducer, fromPath: Path)
     val path = s"/${fromPath.relativize(file)}"
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
-    val contentType = ext.collect{
+    val contentType = ext.collect{ //not finished on gate-server side
       case "html" ⇒ "text/html; charset=UTF-8"
       case "js" ⇒ "application/javascript"
       case "ico" ⇒ "image/x-icon"

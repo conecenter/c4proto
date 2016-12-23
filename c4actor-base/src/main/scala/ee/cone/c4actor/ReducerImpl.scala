@@ -20,7 +20,6 @@ class ReducerImpl(
 ) extends Reducer {
   def reduceRecover(world: World, recs: List[QRecord]): World = {
     val diff = qMessages.toTree(recs)
-    if(diff.size < 8) println(diff) else println(diff.take(7),"...")
     treeAssembler.replace(world, diff)
   }
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord]) =
@@ -28,6 +27,7 @@ class ReducerImpl(
       val(prevWorld,prevQueue) = s
       try {
         val stateRecs = qMessages.toRecords(actorName, inboxRec)
+        //println(stateRecs.size)
         (reduceRecover(prevWorld,stateRecs), prevQueue.enqueue(stateRecs))
       } catch {
         case e: Exception ⇒
