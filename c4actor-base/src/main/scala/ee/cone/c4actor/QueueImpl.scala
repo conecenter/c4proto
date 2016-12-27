@@ -91,18 +91,3 @@ object QAdapterRegistry {
   }
 }
 
-class SerialObserver(needWorldOffset: Long)(qMessages: QMessages, transform: TxTransform) extends Observer {
-  def activate(getTx: () ⇒ WorldTx): Seq[Observer] = try {
-    val tx = getTx()
-    if(OffsetWorldKey.of(tx.world) < needWorldOffset) return Seq(this)
-    val nTx = transform.transform(tx)
-    //println(s"ntx:${nTx.toSend.size}")
-    val offset = qMessages.send(nTx)
-    Seq(offset.map(o⇒new SerialObserver(o+1)(qMessages,transform)).getOrElse(this))
-  } catch {
-    case e: Exception ⇒
-      e.printStackTrace() //??? |Nil|throw
-      Seq(this)
-  }
-}
-

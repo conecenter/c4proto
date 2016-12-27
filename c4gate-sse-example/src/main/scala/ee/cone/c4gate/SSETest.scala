@@ -36,12 +36,12 @@ class TestSSEApp extends ServerApp
 class TestSSETxTransform(sseMessages: SSEMessages) extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
     val seconds = System.currentTimeMillis / 1000
-    if(By.srcId(classOf[ClockData]).of(tx.world).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
+    if(tx.get(classOf[ClockData]).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
     val events =
       LEvent.update(ClockData("",seconds)) ::
-      By.srcId(classOf[SSEConnection]).of(tx.world).values.flatten.filter(_.state.nonEmpty).map { conn ⇒
+      tx.get(classOf[SSEConnection]).values.flatten.filter(_.state.nonEmpty).map { conn ⇒
         LEvent.update(sseMessages.message(conn.connectionKey,"show",seconds.toString,seconds))
       }.toList
-    tx.add(events:_*)
+    tx.add(events)
   }
 }

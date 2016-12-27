@@ -21,9 +21,8 @@ trait RHttpHandler {
 class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val path = httpExchange.getRequestURI.getPath
-    val publishedByPath = By.srcId(classOf[HttpPublication])
     val tx = worldProvider.createTx()
-    Single(publishedByPath.of(tx.world)(path)).body.toByteArray
+    Single(tx.get(classOf[HttpPublication])(path)).body.toByteArray
   }
 }
 
@@ -35,7 +34,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
     val req = HttpPost(UUID.randomUUID.toString, path, headers, body,  System.currentTimeMillis)
-    val tx = worldProvider.createTx().add(LEvent.update(req))
+    val tx = worldProvider.createTx().add(Seq(LEvent.update(req)))
     //println(s"ht:${tx.toSend.size}")
     qMessages.send(tx)
     Array.empty[Byte]
@@ -63,17 +62,19 @@ class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
 }
 
 class WorldProviderImpl(
+  reducer: Reducer,
   worldFuture: CompletableFuture[()⇒WorldTx] = new CompletableFuture()
 ) extends WorldProvider with Observer {
   def createTx(): WorldTx = worldFuture.get.apply()
-  def activate(getTx: () ⇒ WorldTx): Seq[Observer] = {
-    worldFuture.complete(getTx)
+  def activate(getWorld: () ⇒ World): Seq[Observer] = {
+    worldFuture.complete(()⇒reducer.createTx(getWorld()))
     Nil
   }
 }
 
 trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
-  lazy val worldProvider: WorldProvider with Observer = new WorldProviderImpl
+  def qReducer: Reducer
+  lazy val worldProvider: WorldProvider with Observer = new WorldProviderImpl(qReducer)
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
   override def initialObservers: List[Observer] = worldProvider :: super.initialObservers
 }

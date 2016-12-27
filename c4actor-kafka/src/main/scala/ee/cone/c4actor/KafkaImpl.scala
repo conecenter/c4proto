@@ -123,7 +123,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
             localWorldRef.set(world + (OffsetWorldKey → offset))
             consumer.commitSync(singletonMap(Single(inboxTopicPartition), new OffsetAndMetadata(offset)))
         }
-        prevObservers.flatMap(_.activate(()⇒reducer.createTx(localWorldRef.get)))
+        prevObservers.flatMap(_.activate(()⇒localWorldRef.get))
       }.foreach(_⇒())
     } finally {
       consumer.close()

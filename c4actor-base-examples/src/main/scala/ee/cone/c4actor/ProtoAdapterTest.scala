@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.World
+import ee.cone.c4actor.Types.{Index, SrcId, World}
 import ee.cone.c4proto.{Id, Protocol, protocol, scale}
 
 
@@ -18,15 +18,16 @@ object ProtoAdapterTest extends App {
       new RawQSender { def send(rec: QRecord): Long = 0 }
     override def protocols: List[Protocol] = MyProtocol :: super.protocols
   }
-  class MyMapping(val world: World, val toSend: Seq[Update]) extends WorldTx {
-    def add[M<:Product](out: LEvent[M]*): WorldTx = {
+  class MyTx(world: World, val toSend: Seq[Update]) extends WorldTx {
+    def get[Item](cl: Class[Item]): Index[SrcId,Item] = By.srcId(cl).of(world)
+    def add[M <: Product](out: Iterable[LEvent[M]]): WorldTx = {
       val ups = out.map(msg⇒app.qMessages.toUpdate(msg))
-      new MyMapping(app.qMessages.toTree(ups.map(u⇒app.qMessages.toRecord(NoTopicName,u))),ups)
+      new MyTx(app.qMessages.toTree(ups.map(u⇒app.qMessages.toRecord(NoTopicName,u))),ups.toSeq)
     }
   }
   //
-  val world = new MyMapping(Map(),Nil).add(LEvent.update(group0)).world
-  val group1 = Single(By.srcId(classOf[Group]).of(world)(""))
+  val tx = new MyTx(Map(),Nil).add(Seq(LEvent.update(group0)))
+  val group1 = Single(tx.get(classOf[Group])(""))
   assert(group0==group1)
   println("OK",group1)
 }

@@ -15,7 +15,8 @@ case object ChildNodeByParent extends WorldKey[Index[SrcId,RawChildNode]](Map.em
 case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
 
 class ChildNodeByParentJoin extends Join1(
-  By.srcId(classOf[RawChildNode]), ChildNodeByParent
+  By.srcId(classOf[RawChildNode]),
+  ChildNodeByParent
 ) {
   def join(rawChildNode: Values[RawChildNode]): Values[(SrcId,RawChildNode)] =
     rawChildNode.map(child ⇒ child.parentSrcId → child)
@@ -24,7 +25,9 @@ class ChildNodeByParentJoin extends Join1(
 }
 
 class ParentNodeWithChildrenJoin extends Join2(
-  ChildNodeByParent, By.srcId(classOf[RawParentNode]), By.srcId(classOf[ParentNodeWithChildren])
+  ChildNodeByParent,
+  By.srcId(classOf[RawParentNode]),
+  By.srcId(classOf[ParentNodeWithChildren])
 ) {
   def join(
     childNodeByParent: Values[RawChildNode],

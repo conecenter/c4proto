@@ -48,7 +48,7 @@ class PublishFileVisitor(qMessages: QMessages, reducer: Reducer, fromPath: Path)
     val headers = contentType.map(Header("Content-Type",_)).toList
     val bytes = Files.readAllBytes(file)
     val byteString = okio.ByteString.of(bytes,0,bytes.length)
-    qMessages.send(tx.add(LEvent.update(HttpPublication(path,headers,byteString))))
+    qMessages.send(tx.add(Seq(LEvent.update(HttpPublication(path,headers,byteString)))))
     println(s"$path published")
     FileVisitResult.CONTINUE
   }

@@ -45,19 +45,18 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 class TestConsumerTxTransform extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
     val seconds = System.currentTimeMillis / 1000
-    if(By.srcId(classOf[ClockData]).of(tx.world).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
+    if(tx.get(classOf[ClockData]).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
 
     val clockEvent = LEvent.update(ClockData("",seconds))
-    val posts = By.srcId(classOf[HttpPost]).of(tx.world).values.flatten.toSeq
-    val respEvents = posts.sortBy(_.time).flatMap { req ⇒
+    val posts = tx.get(classOf[HttpPost]).values.flatten
+    val respEvents = posts.toSeq.sortBy(_.time).flatMap { req ⇒
       val prev = new String(req.body.toByteArray, "UTF-8")
       val next = (prev.toLong * 3).toString
       val body = okio.ByteString.encodeUtf8(next)
       val resp = HttpPublication(req.path, Nil, body)
       LEvent.delete(req) :: LEvent.update(resp) :: Nil
     }
-    val connections =
-      By.srcId(classOf[TcpConnection]).of(tx.world).values.flatten.toSeq
+    val connections = tx.get(classOf[TcpConnection]).values.flatten
     val size = s"${connections.size}\n"
     val sizeBody = okio.ByteString.encodeUtf8(size)
     println(size)
@@ -66,7 +65,7 @@ class TestConsumerTxTransform extends TxTransform {
       LEvent.update(TcpWrite(key, connection.connectionKey, sizeBody, seconds)) ::
       Nil
     }
-    tx.add(Seq(clockEvent) ++ respEvents ++ broadEvents: _*)
+    tx.add(Seq(clockEvent) ++ respEvents ++ broadEvents)
   }
 }
 

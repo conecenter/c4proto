@@ -59,14 +59,17 @@ object LEvent {
     LEvent(value.productElement(0).toString, value.getClass.getName, None)
 }
 
+
+//trait LocalState
+
 trait WorldTx {
-  def world: World
-  def add[M<:Product](out: LEvent[M]*): WorldTx
+  def get[Item](cl: Class[Item]): Index[SrcId,Item]
+  def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx
   def toSend: Seq[Update]
 }
 
 trait Observer {
-  def activate(getTx: ()⇒WorldTx): Seq[Observer]
+  def activate(getTx: ()⇒World): Seq[Observer]
 }
 
 trait TxTransform {

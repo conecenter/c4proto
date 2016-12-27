@@ -65,7 +65,7 @@ class TcpServerImpl(
   def run(ctx: ExecutionContext): Unit = {
     val tx = worldProvider.createTx()
     qMessages.send(tx.add(
-      By.srcId(classOf[TcpConnection]).of(tx.world).values.flatten.map(LEvent.delete).toSeq:_*
+      tx.get(classOf[TcpConnection]).values.flatten.map(LEvent.delete)
     ))
     val address = new InetSocketAddress(port)
     val listener = AsynchronousServerSocketChannel.open().bind(address)
@@ -76,12 +76,12 @@ class TcpServerImpl(
         channels += key → new ChannelHandler(ch, {() ⇒
           channels -= key
           val tx = worldProvider.createTx()
-          qMessages.send(tx.add(LEvent.delete(TcpConnection(key))))
+          qMessages.send(tx.add(Seq(LEvent.delete(TcpConnection(key)))))
         }, { error ⇒
           println(error.getStackTrace.toString)
         })
         val tx = worldProvider.createTx()
-        qMessages.send(tx.add(LEvent.update(TcpConnection(key))))
+        qMessages.send(tx.add(Seq(LEvent.update(TcpConnection(key)))))
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
@@ -90,13 +90,13 @@ class TcpServerImpl(
 
 class TcpTxTransform(sseServer: TcpServer) extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
-    val writes = By.srcId(classOf[TcpWrite]).of(tx.world).values.flatten.toSeq
-    val disconnects = By.srcId(classOf[TcpDisconnect]).of(tx.world).values.flatten.toSeq
-    writes.sortBy(_.priority).foreach { message ⇒
+    val writes = tx.get(classOf[TcpWrite]).values.flatten
+    val disconnects = tx.get(classOf[TcpDisconnect]).values.flatten
+    writes.toSeq.sortBy(_.priority).foreach { message ⇒
       val sender = sseServer.senderByKey(message.connectionKey)
       sender.foreach(s⇒s.add(message.body.toByteArray))
     }
     disconnects.map(_.connectionKey).flatMap(sseServer.senderByKey).foreach(_.close())
-    tx.add(writes.map(LEvent.delete) ++ disconnects.map(LEvent.delete):_*)
+    tx.add(writes.map(LEvent.delete) ++ disconnects.map(LEvent.delete))
   }
 }

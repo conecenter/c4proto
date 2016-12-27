@@ -2,9 +2,8 @@
 package ee.cone.c4gate
 
 import SSEProtocol.ConnectionPongState
-import ee.cone.c4actor.LEvent
+import ee.cone.c4actor.{LEvent, TxTransform}
 import ee.cone.c4proto.{Id, Protocol, protocol}
-
 import ee.cone.c4gate.InternetProtocol.TcpWrite
 
 trait SSEMessages {
@@ -24,8 +23,7 @@ trait SSEMessages {
   )
 }
 
-trait SSEConnection {
+trait SSEConnection extends TxTransform {
   def connectionKey: String
-  def wishes(time: Long): Seq[LEvent[_]]
   def pongState: Option[ConnectionPongState]
 }

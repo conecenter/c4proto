@@ -61,6 +61,7 @@ trait ProtocolsApp {
 trait SerialObserversApp extends InitialObserversApp {
   def txTransforms: List[TxTransform]
   def qMessages: QMessages
-  private lazy val serialObservers = txTransforms.map(new SerialObserver(0)(qMessages,_))
+  def qReducer: Reducer
+  private lazy val serialObservers = txTransforms.map(new SerialObserver(0)(qMessages,qReducer,_))
   override def initialObservers: List[Observer] = serialObservers ::: super.initialObservers
 }

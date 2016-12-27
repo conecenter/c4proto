@@ -19,5 +19,4 @@ object Types {
 object By {
   case class It[K,V](typeChar: Char, className: String) extends WorldKey[Index[K,V]](Map.empty)
   def srcId[V](cl: Class[V]): WorldKey[Index[SrcId,V]] = It[SrcId,V]('S', cl.getName)
-  def unit[V](cl: Class[V]): WorldKey[Index[Unit,V]] = It[Unit,V]('U', cl.getName)
 }
