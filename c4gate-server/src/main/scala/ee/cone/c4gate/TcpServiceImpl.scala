@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
 
-import ee.cone.c4actor.Types.{SrcId, Values, World}
+import ee.cone.c4actor.Types.{SrcId, Values}
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4actor._
 
@@ -44,17 +44,20 @@ class ChannelHandler(
   }
 }
 
-trait SSEServerApp extends ToStartApp with TxTransformsApp {
+trait SSEServerApp extends ToStartApp with DataDependenciesApp {
   def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
+  def indexFactory: IndexFactory
 
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
-  lazy val sseServer: TcpServer with Executable =
-    new TcpServerImpl(ssePort, qMessages, worldProvider)
-  lazy val tcpTxTransform = new TcpTxTransform(sseServer)
-  override def txTransforms: List[TxTransform] = tcpTxTransform :: super.txTransforms
+  private lazy val sseServer = new TcpServerImpl(ssePort, qMessages, worldProvider)
+  private lazy val tcpWriteByConnectionJoin = new TcpWriteByConnectionJoin
+  private lazy val tcpConnectionTxTransformJoin = new TcpConnectionTxTransformJoin(sseServer)
   override def toStart: List[Executable] = sseServer :: super.toStart
+  override def dataDependencies: List[DataDependencyTo[_]] =
+    tcpWriteByConnectionJoin :: tcpConnectionTxTransformJoin ::
+    super.dataDependencies
 }
 
 class TcpServerImpl(
@@ -88,15 +91,54 @@ class TcpServerImpl(
   }
 }
 
-class TcpTxTransform(sseServer: TcpServer) extends TxTransform {
+case class TcpConnectionTxTransform(
+  connectionKey: SrcId,
+  tcpDisconnects: Values[TcpDisconnect],
+  writes: Values[TcpWrite]
+)(tcpServer: TcpServer) extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
-    val writes = tx.get(classOf[TcpWrite]).values.flatten
-    val disconnects = tx.get(classOf[TcpDisconnect]).values.flatten
-    writes.toSeq.sortBy(_.priority).foreach { message ⇒
-      val sender = sseServer.senderByKey(message.connectionKey)
-      sender.foreach(s⇒s.add(message.body.toByteArray))
-    }
-    disconnects.map(_.connectionKey).flatMap(sseServer.senderByKey).foreach(_.close())
-    tx.add(writes.map(LEvent.delete) ++ disconnects.map(LEvent.delete))
+    def sender = tcpServer.senderByKey(connectionKey)
+    for(d ← tcpDisconnects; s ← sender) s.close()
+    for(message ← writes; s ← sender) s.add(message.body.toByteArray)
+    tx.add(writes.map(LEvent.delete))
   }
+}
+
+case class TcpWriteByConnection(connectionKey: SrcId, write: TcpWrite)
+
+class TcpWriteByConnectionJoin extends Join1(
+  By.srcId(classOf[TcpWrite]),
+  By.srcId(classOf[TcpWriteByConnection])
+){
+  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
+    List(c.productElement(0).toString → c)
+  def join(writes: Values[TcpWrite]): Values[(SrcId, TcpWriteByConnection)] =
+    writes.flatMap(write⇒withKey(TcpWriteByConnection(write.connectionKey,write)))
+  def sort(values: Iterable[TcpWriteByConnection]): List[TcpWriteByConnection] =
+    values.toList.sortBy(_.write.priority)
+}
+
+class TcpConnectionTxTransformJoin(tcpServer: TcpServer) extends Join3(
+  By.srcId(classOf[TcpConnection]),
+  By.srcId(classOf[TcpDisconnect]),
+  By.srcId(classOf[TcpWriteByConnection]),
+  By.srcId(classOf[TxTransform])
+) {
+  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
+    List(c.productElement(0).toString → c)
+  def join(
+      tcpConnections: Values[TcpConnection],
+      tcpDisconnects: Values[TcpDisconnect],
+      writes: Values[TcpWriteByConnection]
+  ) =
+    if(Seq(tcpConnections,tcpDisconnects,writes).forall(_.isEmpty)) Nil
+    else if(tcpConnections.isEmpty){
+      val zombies = tcpDisconnects ++ writes.map(_.write)
+      val key = tcpDisconnects.map(_.connectionKey) ++ writes.map(_.connectionKey)
+      withKey(SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
+    }
+    else withKey(TcpConnectionTxTransform(
+      Single(tcpConnections).connectionKey, tcpDisconnects, writes.map(_.write)
+    )(tcpServer))
+  def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)
 }

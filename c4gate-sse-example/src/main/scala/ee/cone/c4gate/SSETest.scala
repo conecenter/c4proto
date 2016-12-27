@@ -38,10 +38,11 @@ class TestSSETxTransform(sseMessages: SSEMessages) extends TxTransform {
     val seconds = System.currentTimeMillis / 1000
     if(tx.get(classOf[ClockData]).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
     val events =
-      LEvent.update(ClockData("",seconds)) ::
+      Seq(LEvent.update(ClockData("",seconds))) ++
       tx.get(classOf[SSEConnection]).values.flatten.filter(_.state.nonEmpty).map { conn ⇒
         LEvent.update(sseMessages.message(conn.connectionKey,"show",seconds.toString,seconds))
       }.toList
     tx.add(events)
   }
 }
+

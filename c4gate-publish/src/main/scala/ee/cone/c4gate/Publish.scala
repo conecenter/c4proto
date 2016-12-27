@@ -36,7 +36,7 @@ class Publishing(qMessages: QMessages, reducer: Reducer, fromDir: String) extend
 
 class PublishFileVisitor(qMessages: QMessages, reducer: Reducer, fromPath: Path) extends SimpleFileVisitor[Path] {
   override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
-    val tx = reducer.createTx(Map())
+    val tx = reducer.createTx(Map(),Map())
     val path = s"/${fromPath.relativize(file)}"
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))

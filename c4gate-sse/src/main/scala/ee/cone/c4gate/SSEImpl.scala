@@ -23,12 +23,14 @@ class SSEMessagesImpl(allowOriginOption: Option[String]) extends SSEMessages {
   }
 }
 
+/*
 class SSETxTransform(sseMessages: SSEMessages) extends TxTransform {
   def transform(tx: WorldTx): WorldTx =
     (tx /: tx.get(classOf[SSEConnection]).values.flatten)(
       (tx,connection) ⇒ connection.transform(tx)
     )
 }
+*/
 
 case class WorkingSSEConnection(
   connectionKey: String,
@@ -67,21 +69,16 @@ case class FreshSSEConnection(connectionKey: String)(sseMessages: SSEMessages) e
   def pongState: Option[ConnectionPongState] = None
 }
 
-case class ZombieSSEConnection(connectionKey: String, zombies: List[Product]) extends SSEConnection {
-  def transform(tx: WorldTx): WorldTx = tx.add(zombies.map(LEvent.delete))
-  def pongState: Option[ConnectionPongState] = None
-}
-
-
 class SSEConnectionJoin(sseMessages: SSEMessages) extends Join5(
   By.srcId(classOf[TcpConnection]),
   By.srcId(classOf[TcpDisconnect]),
   By.srcId(classOf[ConnectionPingState]),
   By.srcId(classOf[ConnectionPongState]),
   By.srcId(classOf[HttpPostByConnection]),
-  By.srcId(classOf[SSEConnection])
+  By.srcId(classOf[TxTransform])
 ) {
-  private def withKey(c: SSEConnection): Values[(SrcId,SSEConnection)] = List(c.connectionKey → c)
+  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
+    List(c.productElement(0).toString → c)
   def join(
     tcpConnections: Values[TcpConnection],
     tcpDisconnects: Values[TcpDisconnect],
@@ -95,7 +92,7 @@ class SSEConnectionJoin(sseMessages: SSEMessages) extends Join5(
       val key: Seq[String] =
         pingStates.map(_.connectionKey) ++ pongStates.map(_.connectionKey) ++
         posts.map(_.connectionKey)
-      withKey(ZombieSSEConnection(key.head, zombies))
+      withKey(SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
     }
     else if(pingStates.isEmpty) withKey(FreshSSEConnection(
       Single(tcpConnections).connectionKey
@@ -106,7 +103,7 @@ class SSEConnectionJoin(sseMessages: SSEMessages) extends Join5(
       Single.option(pongStates),
       posts
     )(sseMessages))
-  def sort(nodes: Iterable[SSEConnection]) = Single.list(nodes.toList)
+  def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)
 }
 
 

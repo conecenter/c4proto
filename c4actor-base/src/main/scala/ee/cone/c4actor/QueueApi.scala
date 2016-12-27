@@ -59,10 +59,9 @@ object LEvent {
     LEvent(value.productElement(0).toString, value.getClass.getName, None)
 }
 
-
-//trait LocalState
-
 trait WorldTx {
+  def local: World
+  def setLocal[Item<:Object](key: WorldKey[Item], value: Item): WorldTx
   def get[Item](cl: Class[Item]): Index[SrcId,Item]
   def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx
   def toSend: Seq[Update]

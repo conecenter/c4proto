@@ -67,7 +67,7 @@ class WorldProviderImpl(
 ) extends WorldProvider with Observer {
   def createTx(): WorldTx = worldFuture.get.apply()
   def activate(getWorld: () ⇒ World): Seq[Observer] = {
-    worldFuture.complete(()⇒reducer.createTx(getWorld()))
+    worldFuture.complete(()⇒reducer.createTx(getWorld(),Map()))
     Nil
   }
 }
