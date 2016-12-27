@@ -2,11 +2,11 @@ package ee.cone.c4gate
 
 import java.util.UUID
 
+import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4gate.SSEProtocol.{ConnectionPingState, ConnectionPongState}
-import ee.cone.c4proto.{Id, Protocol, protocol}
 
 class SSEMessagesImpl(allowOriginOption: Option[String]) extends SSEMessages {
   def message(connectionKey: String, event: String, data: String, priority: Long): TcpWrite = {
@@ -32,31 +32,49 @@ class SSETxTransform(sseMessages: SSEMessages) extends TxTransform {
   }
 }
 
-
-@protocol object SSEProtocol extends Protocol {
-  @Id(0x0030) case class ConnectionPingState(
-      @Id(0x0031) connectionKey: String,
-      @Id(0x0032) time: Long
-  )
-  @Id(0x0033) case class ConnectionPongState(
-      @Id(0x0031) connectionKey: String,
-      @Id(0x0032) time: Long,
-      @Id(0x0034) sessionKey: String,
-      @Id(0x0035) locationHash: String
-  )
+case class WorkingSSEConnection(
+  connectionKey: String,
+  pingState: ConnectionPingState,
+  pongState: Option[ConnectionPongState],
+  posts: List[HttpPostByConnection]
+)(sseMessages: SSEMessages) extends SSEConnection {
+  def wishes(time: Long): Seq[LEvent[_]] = {
+    val pongs =
+      posts.filter(post ⇒ post.headers.get("X-r-action").contains("pong"))
+    val toNextPongState = for(
+      pong ← pongs.reverse.headOption;
+      sessionKey ← pong.headers.get("X-r-session");
+      locationHash ← pong.headers.get("X-r-location-hash")
+    ) yield update(ConnectionPongState(
+      pong.connectionKey,
+      time,
+      sessionKey,
+      locationHash
+    ))
+    val keepAlive =
+      if(pingState.time + 5000 > time) Nil
+      else if(toNextPongState.nonEmpty || pongState.exists(_.time > pingState.time)) Seq(
+        update(ConnectionPingState(connectionKey, time)),
+        update(sseMessages.message(connectionKey, "ping", connectionKey, 1))
+      )
+      else Seq(update(TcpDisconnect(connectionKey)))
+    pongs.map(_.request).map(delete) ++ toNextPongState ++ keepAlive
+  }
 }
 
-/*
-case class SSEConnection(
-    connectionKey: String,
-    connection: TcpConnection,
-    pingState: ConnectionPingState,
-    pongState: ConnectionPongState,
-    posts: List[HttpPostByConnection]
-)*/
-case class SSEConnection(connectionKey: String, state: Option[ConnectionPongState])(
-    val wishes: Long⇒Seq[LEvent[_]]
-)
+case class FreshSSEConnection(connectionKey: String)(sseMessages: SSEMessages) extends SSEConnection {
+  def wishes(time: Long): Seq[LEvent[_]] = Seq(
+    update(ConnectionPingState(connectionKey, time)),
+    update(sseMessages.message(connectionKey, "connect", connectionKey, 0))
+  )
+  def pongState: Option[ConnectionPongState] = None
+}
+
+case class ZombieSSEConnection(connectionKey: String, zombies: List[Product]) extends SSEConnection {
+  def wishes(time: Long): Seq[LEvent[_]] = zombies.map(LEvent.delete)
+  def pongState: Option[ConnectionPongState] = None
+}
+
 
 class SSEConnectionJoin(sseMessages: SSEMessages) extends Join5(
   By.srcId(classOf[TcpConnection]),
@@ -73,47 +91,29 @@ class SSEConnectionJoin(sseMessages: SSEMessages) extends Join5(
     pingStates: Values[ConnectionPingState],
     pongStates: Values[ConnectionPongState],
     posts: Values[HttpPostByConnection]
-  ) = {
+  ) =
     if(Seq(tcpConnected,tcpDisconnects,pingStates,pongStates,posts).forall(_.isEmpty)) Nil
     else if(tcpConnected.isEmpty){ //purge
       val zombies = tcpDisconnects ++ pingStates ++ pongStates ++ posts.map(_.request)
       val key: Seq[String] = tcpDisconnects.map(_.connectionKey) ++
         pingStates.map(_.connectionKey) ++ pongStates.map(_.connectionKey) ++
         posts.map(_.connectionKey)
-      withKey(SSEConnection(key.head,None)(_⇒zombies.map(LEvent.delete)))
+      withKey(ZombieSSEConnection(key.head, zombies))
     }
     else if(tcpDisconnects.nonEmpty) Nil //wait for disconnect
-    else if(pingStates.isEmpty){ //init
-      val k = Single(tcpConnected).connectionKey
-      withKey(SSEConnection(k,None)(
-        time⇒Seq(ConnectionPingState(k,time),sseMessages.message(k,"connect",k,0)).map(LEvent.update)
-      ))
-    }
-    else {
-      val k = Single(tcpConnected).connectionKey
-      val pongState = Single.option(pongStates)
-      val wishes = (time:Long) ⇒ {
-        val pongs = posts.filter(post ⇒ post.headers.get("X-r-action").contains("pong"))
-        val nextState = for(
-          pong ← pongs.reverse.headOption;
-          sessionKey ← pong.headers.get("X-r-session");
-          locationHash ← pong.headers.get("X-r-location-hash")
-        ) yield ConnectionPongState(pong.connectionKey,time,sessionKey,locationHash)
-        //
-        val pingTime: Long = Single(pingStates).time
-        val keepAlive = if(pingTime + 5000 > time) Nil
-          else if(nextState.nonEmpty || pongState.exists(_.time > pingTime))
-            Seq(ConnectionPingState(k,time), sseMessages.message(k,"ping",k,1))
-          else Seq(TcpDisconnect(k))
-        //
-        pongs.map(LEvent.delete) ++ nextState.map(LEvent.update) ++ keepAlive.map(LEvent.update)
-      }
-      withKey(SSEConnection(k,pongState)(wishes))
-    }
-  }
-
+    else if(pingStates.isEmpty) withKey(FreshSSEConnection(
+      Single(tcpConnected).connectionKey
+    )(sseMessages))
+    else withKey(WorkingSSEConnection(
+      Single(tcpConnected).connectionKey,
+      Single(pingStates),
+      Single.option(pongStates),
+      posts
+    )(sseMessages))
   def sort(nodes: Iterable[SSEConnection]) = Single.list(nodes.toList)
 }
+
+
 
 case class HttpPostByConnection(
     connectionKey: String,
