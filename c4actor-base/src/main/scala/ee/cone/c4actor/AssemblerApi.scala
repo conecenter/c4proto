@@ -26,10 +26,6 @@ trait DataDependencyTo[To] {
   def outputWorldKey: WorldKey[To]
 }
 
-trait DataDependenciesApp {
-  def dataDependencies: List[DataDependencyTo[_]] = Nil
-}
-
 trait Join[Result,JoinKey,MapKey]
   extends DataDependencyFrom[Index[JoinKey,Object]]
   with DataDependencyTo[Index[MapKey,Result]]

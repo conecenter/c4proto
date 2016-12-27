@@ -3,6 +3,21 @@ package ee.cone.c4actor
 
 import ee.cone.c4proto.Protocol
 
+trait DataDependenciesApp {
+  def dataDependencies: List[DataDependencyTo[_]] = Nil
+}
+
+trait ToStartApp {
+  def toStart: List[Executable] = Nil
+}
+
+trait InitialObserversApp {
+  def initialObservers: List[Observer] = Nil
+}
+
+trait TxTransformsApp {
+  def txTransforms: List[TxTransform] = Nil
+}
 
 trait QMessagesApp extends ProtocolsApp {
   override def protocols: List[Protocol] = QProtocol :: super.protocols

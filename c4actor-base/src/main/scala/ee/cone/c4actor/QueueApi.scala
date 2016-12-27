@@ -72,11 +72,3 @@ trait Observer {
 trait TxTransform {
   def transform(tx: WorldTx): WorldTx
 }
-
-trait InitialObserversApp {
-  def initialObservers: List[Observer] = Nil
-}
-
-trait TxTransformsApp {
-  def txTransforms: List[TxTransform] = Nil
-}

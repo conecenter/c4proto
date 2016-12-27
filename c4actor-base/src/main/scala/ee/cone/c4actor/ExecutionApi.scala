@@ -2,10 +2,6 @@ package ee.cone.c4actor
 
 import java.util.concurrent.{CompletableFuture, ExecutorService}
 
-trait ToStartApp {
-  def toStart: List[Executable] = Nil
-}
-
 trait Executable {
   def run(ctx: ExecutionContext): Unit
 }

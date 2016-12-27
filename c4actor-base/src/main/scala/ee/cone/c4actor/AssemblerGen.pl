@@ -7,7 +7,7 @@ print FF "
 package ee.cone.c4actor
 import Types._
 ";
-for my $n(1..3) {
+for my $n(1..5) {
     my $jm = sub { my ($m,$c) = @_; my $r = join ', ', map{&$m()} 1..$n; $r ? \"$r$c" : \$r };
     print FF qq^
 abstract class Join$n\[${&$jm(sub{"T$_"},', ')}R,TK,RK](
