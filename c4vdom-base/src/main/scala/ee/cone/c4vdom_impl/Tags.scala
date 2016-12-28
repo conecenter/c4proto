@@ -12,7 +12,7 @@ case class TextContentElement(content: String) extends VDomValue {
   }
 }
 
-case class DivButton()(val onClick:Option[()=>Unit]) extends VDomValue with OnClickReceiver {
+case class DivButton()(val onClick:Option[VDomState⇒VDomState]) extends VDomValue with OnClickReceiver {
   def appendJson(builder: MutableJsonBuilder)={
     builder.startObject()
     builder.append("tp").append("div")
@@ -52,7 +52,7 @@ class TagsImpl(
     child[OfDiv](key, StyledValue(tagName, attr.toList), children)
   def div(key: VDomKey, attr: TagStyle*)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     tag(key, DivTagName, attr:_*)(children)
-  def divButton(key:VDomKey)(action:()=>Unit)(children: List[ChildPair[OfDiv]])=
+  def divButton(key:VDomKey)(action:VDomState⇒VDomState)(children: List[ChildPair[OfDiv]])=
     child[OfDiv](key,DivButton()(Some(action)), children)
 }
 

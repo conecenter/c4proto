@@ -4,7 +4,7 @@ import ee.cone.c4actor._
 
 trait SSEApp extends DataDependenciesApp {
   def indexFactory: IndexFactory
-  def sseConfig: SSEConfig
+  def sseConfig: SSEUI
   //
   private lazy val httpPostByConnectionJoin = indexFactory.createJoinMapIndex(new HttpPostByConnectionJoin)
   private lazy val sseConnectionJoin = indexFactory.createJoinMapIndex(new SSEConnectionJoin(sseConfig))

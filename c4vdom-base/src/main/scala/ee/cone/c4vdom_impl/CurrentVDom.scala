@@ -4,17 +4,23 @@ import java.util.Base64
 
 import ee.cone.c4vdom._
 
-trait View {
+/*trait View {
   def view(path: String): List[ChildPair[_]]
-}
+}*/
 
-class CurrentVDom(
+
+
+class CurrentVDomImpl(
   diff: Diff,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
-  child: ChildPairFactory,
-  rootView: View
-) {
+  child: ChildPairFactory
+) extends CurrentVDom {
+  //def until(value: Long) = if(value < until) until = value
+  private def relocate(state: VDomState, message: Map[String,String]) =
+    for(hash ← message.get("X-r-location-hash") if hash != state.hashFromAlien)
+      yield state.copy(hashFromAlien = hash, hashTarget = hash)
+  //dispatches incoming message // can close / set refresh time
   private def dispatch(state: VDomState, message: Map[String,String]) =
     for(pathStr <- message.get("X-r-vdom-path")) yield {
       if(state.until <= 0) throw new Exception("invalid VDom")
@@ -30,33 +36,32 @@ class CurrentVDom(
         case v => throw new Exception(s"$path ($v) can not receive $message")
       }
     }
-  private def ack(state: VDomState, message: Map[String,String]) =
-    for(hash ← message.get("X-r-location-hash"))
-      yield state.copy(hashFromAlien = hash)
-  private def relocate(state: VDomState, message: Map[String,String]) =
+  private def setLastMessage(state: VDomState, message: Map[String,String]) =
     for(connection ← message.get("X-r-connection"); index ← message.get("X-r-index"))
       yield state.copy(ackFromAlien = connection :: index :: Nil)
-  private def showToAlien(state: VDomState) = if(
+  private def handlers =
+    List[(VDomState,Map[String,String])⇒Option[VDomState]](setLastMessage,relocate,dispatch)
+  def fromAlien(state: VDomState, message: Map[String,String]): VDomState =
+    (state /: handlers)((state,f)⇒f(state).getOrElse(state))
+  def toAlien(state: VDomState)(view: ()⇒List[ChildPair[_]]): (VDomState,List[(String,String)]) = if(
     state.value != wasNoValue &&
     state.until > System.currentTimeMillis &&
     state.hashOfLastView == state.hashFromAlien
   ) (state,Nil) else {
     val rootAttributes = List("ackMessage" → ("ackMessage" :: state.ackFromAlien))
-    val nextDom = child("root", RootElement(rootAttributes), rootView.view(state.hashFromAlien)).asInstanceOf[VPair].value
-    val nextState = state.copy(value=nextDom, until=Long.MaxValue, hashOfLastView=state.hashFromAlien)
+    val rootElement = RootElement(rootAttributes)
+    val nextDom = child("root", rootElement, view()) //state.hashFromAlien
+      .asInstanceOf[VPair].value
+    val nextState =
+      state.copy(value=nextDom, until=Long.MaxValue, hashOfLastView=state.hashFromAlien)
     val diffTree = diff.diff(state.value, nextState.value)
-    val commands = diffTree.map(d=>("showDiff", jsonToString(d))).toList
-    (nextState, commands)
+    val diffCommands = diffTree.map(d=>("showDiff", jsonToString(d))).toList
+    val relocateCommands = if(state.hashFromAlien==state.hashTarget) Nil
+      else List("relocateHash"→state.hashTarget)
+    (nextState, diffCommands ::: relocateCommands)
   }
 
-  //def until(value: Long) = if(value < until) until = value
-  def interact(state: VDomState, message: Option[Map[String,String]]): List[(String,String)] = {
-    (state /: List[(VDomState,Map[String,String])⇒Option[VDomState]](dispatch,ack,relocate))((state,f)⇒f(state).getOrElse(state))
-    if(state.lastDispatchedMessage("X-r-index") >= message("X-r-index") ) state
-    ).copy(lastDispatchedMessage = message)
-    message.foreach(dispatch) //dispatches incoming message // can close / set refresh time
-    showToAlien()
-  }
+
   /*
   private lazy val PathSplit = """(.*)(/[^/]*)""".r
   private def view(pathPrefix: String, pathPostfix: String): List[ChildPair[_]] =

@@ -11,21 +11,20 @@ import ee.cone.c4gate.SSEProtocol.InitDone
 case object SSEMessagePriorityKey extends WorldKey[Long](0)
 case object SSEPingTimeKey extends WorldKey[Long](0)
 case object SSEPongTimeKey extends WorldKey[Long](0)
-case object SSEPongHeadersKey extends WorldKey[Map[String,String]](Map.empty)
 case object SSELocationHash extends WorldKey[String]("")
 
 case class WorkingSSEConnection(
   connectionKey: String, initDone: Boolean,
   posts: List[HttpPostByConnection]
-)(config: SSEConfig) extends TxTransform with SSESend {
-  def relocate(tx: WorldTx, value: String): WorldTx = {
+)(sseUI: SSEui) extends TxTransform /*with SSESend*/ {
+  /*def relocate(tx: WorldTx, value: String): WorldTx = {
     if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
-  }
-  def message(tx: WorldTx, event: String, data: String): WorldTx = {
+  }*/
+  private def message(tx: WorldTx, event: String, data: String): WorldTx = {
     val priority = SSEMessagePriorityKey.of(tx.local)
     val header = if(priority > 0) "" else {
       val allowOrigin =
-        config.allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
+        sseUI.allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
       s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
     }
     val escapedData = data.replaceAllLiterally("\n","\ndata: ")
@@ -35,33 +34,39 @@ case class WorkingSSEConnection(
     tx.add(Seq(update(TcpWrite(key,connectionKey,bytes,priority))))
       .setLocal(SSEMessagePriorityKey,priority+1)
   }
+  private def toAlien(tx: WorldTx): WorldTx = {
+    val (nTx,messages) = sseUI.toAlien(tx)
+    (nTx /: messages) { (tx, msg) ⇒ msg match {
+      case (event,data) ⇒ message(tx,event,data)
+    }}
+  }
+  private def pingAge(tx: WorldTx): Long =
+    System.currentTimeMillis - SSEPingTimeKey.of(tx.local)
+  private def pongAge(tx: WorldTx): Long =
+    System.currentTimeMillis - SSEPongTimeKey.of(tx.local)
   def transform(tx: WorldTx): WorldTx = Some(tx).map{ tx ⇒
     if(initDone) tx
     else message(tx, "connect", connectionKey)
         .add(Seq(update(InitDone(connectionKey))))
           .setLocal(SSEPingTimeKey, System.currentTimeMillis)
   }.map{ tx ⇒
-    val pongs =
-      posts.filter(post ⇒ post.headers.get("X-r-action").contains("pong"))
-    if(pongs.isEmpty) tx
-    else tx.add(pongs.map(_.request).map(delete))
-      .setLocal(SSEPongTimeKey, System.currentTimeMillis)
-      .setLocal(SSEPongHeadersKey, pongs.reverse.head.headers)
+    if(pingAge(tx) < 5000) tx
+    else message(tx, "ping", connectionKey)
+      .setLocal(SSEPingTimeKey, System.currentTimeMillis)
   }.map{ tx ⇒
-    val time = System.currentTimeMillis
-    val pingTime = SSEPingTimeKey.of(tx.local)
-    val pongTime = SSEPongTimeKey.of(tx.local)
-    if(pingTime + 5000 > time) tx
-    else if(pongTime >= pingTime) // ! >=
-      message(tx, "ping", connectionKey)
-        .setLocal(SSEPingTimeKey, System.currentTimeMillis)
+    if(posts.nonEmpty){
+      (tx /: posts) { (tx, post) ⇒
+        toAlien(sseUI.fromAlien(tx, post))
+        .add(Seq(delete(post.request)))
+        .setLocal(SSEPongTimeKey, System.currentTimeMillis)
+      }
+    }
+    else if(pingAge(tx) < 2000 || pongAge(tx) < 5000) toAlien(tx)
     else tx.add(Seq(update(TcpDisconnect(connectionKey))))
-  }.map{ tx ⇒
-    config.alienExchange(tx.setLocal(SSESendKey, Some(this)))
   }.get
 }
 
-class SSEConnectionJoin(config: SSEConfig) extends Join4(
+class SSEConnectionJoin(sseUI: SSEui) extends Join4(
   By.srcId(classOf[TcpConnection]),
   By.srcId(classOf[TcpDisconnect]),
   By.srcId(classOf[InitDone]),
@@ -84,16 +89,11 @@ class SSEConnectionJoin(config: SSEConfig) extends Join4(
     }
     else withKey(WorkingSSEConnection(
       Single(tcpConnections).connectionKey, initDone.nonEmpty, posts
-    )(config))
+    )(sseUI))
   def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)
 }
 
-case class HttpPostByConnection(
-    connectionKey: String,
-    index: Int,
-    headers: Map[String,String],
-    request: HttpPost
-)
+
 class HttpPostByConnectionJoin extends Join1(
   By.srcId(classOf[HttpPost]),
   By.srcId(classOf[HttpPostByConnection])

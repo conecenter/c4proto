@@ -48,11 +48,17 @@ trait Color {
 
 ////
 
-trait CurrentView {
-  def until(value: Long): Unit
+trait CurrentVDom {
+  def fromAlien(state: VDomState, message: Map[String,String]): VDomState
+  def toAlien(state: VDomState)(view: ()⇒List[ChildPair[_]]): (VDomState,List[(String,String)])
 }
 
-case class VDomState(value: VDomValue, until: Long, hashOfLastView: String, hashFromAlien: String, ackFromAlien: List[String])
+case class VDomState(
+    value: VDomValue,
+    until: Long,
+    hashOfLastView: String, hashFromAlien: String, hashTarget: String,
+    ackFromAlien: List[String]
+)
 
 trait OnClickReceiver {
   def onClick: Option[VDomState⇒VDomState]
