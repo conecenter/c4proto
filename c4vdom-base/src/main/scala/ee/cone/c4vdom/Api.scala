@@ -49,21 +49,17 @@ trait Color {
 ////
 
 trait CurrentView {
-  def invalidate(): Unit
   def until(value: Long): Unit
-  def relocate(value: String): Unit
 }
 
+case class VDomState(value: VDomValue, until: Long, hashOfLastView: String, hashFromAlien: String, ackFromAlien: List[String])
+
 trait OnClickReceiver {
-  def onClick: Option[()⇒Unit]
+  def onClick: Option[VDomState⇒VDomState]
 }
 
 trait OnChangeReceiver {
-  def onChange: Option[String⇒Unit]
-}
-
-trait OnResizeReceiver{
-  def onResize: Option[String⇒Unit]
+  def onChange: Option[(VDomState,String)⇒VDomState]
 }
 
 ////

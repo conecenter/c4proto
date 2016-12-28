@@ -6,74 +6,65 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
-import ee.cone.c4gate.SSEProtocol.{ConnectionPingState, ConnectionPongState}
+import ee.cone.c4gate.SSEProtocol.InitDone
 
-class SSEMessagesImpl(allowOriginOption: Option[String]) extends SSEMessages {
-  def message(connectionKey: String, event: String, data: String, priority: Long): TcpWrite = {
+case object SSEMessagePriorityKey extends WorldKey[Long](0)
+case object SSEPingTimeKey extends WorldKey[Long](0)
+case object SSEPongTimeKey extends WorldKey[Long](0)
+case object SSEPongHeadersKey extends WorldKey[Map[String,String]](Map.empty)
+case object SSELocationHash extends WorldKey[String]("")
+
+case class WorkingSSEConnection(
+  connectionKey: String, initDone: Boolean,
+  posts: List[HttpPostByConnection]
+)(config: SSEConfig) extends TxTransform with SSESend {
+  def relocate(tx: WorldTx, value: String): WorldTx = {
+    if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
+  }
+  def message(tx: WorldTx, event: String, data: String): WorldTx = {
+    val priority = SSEMessagePriorityKey.of(tx.local)
     val header = if(priority > 0) "" else {
       val allowOrigin =
-        allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
+        config.allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
       s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
     }
     val escapedData = data.replaceAllLiterally("\n","\ndata: ")
     val str = s"${header}event: $event\ndata: $escapedData\n\n"
     val bytes = okio.ByteString.encodeUtf8(str)
     val key = UUID.randomUUID.toString
-    TcpWrite(key,connectionKey,bytes,priority)
+    tx.add(Seq(update(TcpWrite(key,connectionKey,bytes,priority))))
+      .setLocal(SSEMessagePriorityKey,priority+1)
   }
-}
-
-/*
-class SSETxTransform(sseMessages: SSEMessages) extends TxTransform {
-  def transform(tx: WorldTx): WorldTx =
-    (tx /: tx.get(classOf[SSEConnection]).values.flatten)(
-      (tx,connection) ⇒ connection.transform(tx)
-    )
-}
-*/
-
-case class WorkingSSEConnection(
-  connectionKey: String,
-  pingState: ConnectionPingState,
-  pongState: Option[ConnectionPongState],
-  posts: List[HttpPostByConnection]
-)(sseMessages: SSEMessages) extends SSEConnection {
   def transform(tx: WorldTx): WorldTx = Some(tx).map{ tx ⇒
-    val time = System.currentTimeMillis
+    if(initDone) tx
+    else message(tx, "connect", connectionKey)
+        .add(Seq(update(InitDone(connectionKey))))
+          .setLocal(SSEPingTimeKey, System.currentTimeMillis)
+  }.map{ tx ⇒
     val pongs =
       posts.filter(post ⇒ post.headers.get("X-r-action").contains("pong"))
-    val toNextPongState = for(
-      pong ← pongs.reverse.headOption;
-      sessionKey ← pong.headers.get("X-r-session");
-      locationHash ← pong.headers.get("X-r-location-hash")
-    ) yield update(
-      ConnectionPongState(connectionKey, time, sessionKey, locationHash)
-    )
-    tx.add(pongs.map(_.request).map(delete) ++ toNextPongState)
+    if(pongs.isEmpty) tx
+    else tx.add(pongs.map(_.request).map(delete))
+      .setLocal(SSEPongTimeKey, System.currentTimeMillis)
+      .setLocal(SSEPongHeadersKey, pongs.reverse.head.headers)
   }.map{ tx ⇒
     val time = System.currentTimeMillis
-    if(pingState.time + 5000 > time) tx
-    else if(pongState.exists(_.time > pingState.time)) tx.add(Seq(
-      update(ConnectionPingState(connectionKey, time)),
-      update(sseMessages.message(connectionKey, "ping", connectionKey, 1))
-    ))
+    val pingTime = SSEPingTimeKey.of(tx.local)
+    val pongTime = SSEPongTimeKey.of(tx.local)
+    if(pingTime + 5000 > time) tx
+    else if(pongTime >= pingTime) // ! >=
+      message(tx, "ping", connectionKey)
+        .setLocal(SSEPingTimeKey, System.currentTimeMillis)
     else tx.add(Seq(update(TcpDisconnect(connectionKey))))
+  }.map{ tx ⇒
+    config.alienExchange(tx.setLocal(SSESendKey, Some(this)))
   }.get
 }
 
-case class FreshSSEConnection(connectionKey: String)(sseMessages: SSEMessages) extends SSEConnection {
-  def transform(tx: WorldTx): WorldTx = tx.add(Seq(
-    update(ConnectionPingState(connectionKey, System.currentTimeMillis)),
-    update(sseMessages.message(connectionKey, "connect", connectionKey, 0))
-  ))
-  def pongState: Option[ConnectionPongState] = None
-}
-
-class SSEConnectionJoin(sseMessages: SSEMessages) extends Join5(
+class SSEConnectionJoin(config: SSEConfig) extends Join4(
   By.srcId(classOf[TcpConnection]),
   By.srcId(classOf[TcpDisconnect]),
-  By.srcId(classOf[ConnectionPingState]),
-  By.srcId(classOf[ConnectionPongState]),
+  By.srcId(classOf[InitDone]),
   By.srcId(classOf[HttpPostByConnection]),
   By.srcId(classOf[TxTransform])
 ) {
@@ -82,31 +73,20 @@ class SSEConnectionJoin(sseMessages: SSEMessages) extends Join5(
   def join(
     tcpConnections: Values[TcpConnection],
     tcpDisconnects: Values[TcpDisconnect],
-    pingStates: Values[ConnectionPingState],
-    pongStates: Values[ConnectionPongState],
+    initDone: Values[InitDone],
     posts: Values[HttpPostByConnection]
   ) =
-    if(Seq(tcpConnections,pingStates,pongStates,posts).forall(_.isEmpty)) Nil
+    if(Seq(tcpConnections,initDone,posts).forall(_.isEmpty)) Nil
     else if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
-      val zombies = pingStates ++ pongStates ++ posts.map(_.request)
-      val key: Seq[String] =
-        pingStates.map(_.connectionKey) ++ pongStates.map(_.connectionKey) ++
-        posts.map(_.connectionKey)
+      val zombies = initDone ++ posts.map(_.request)
+      val key = initDone.map(_.connectionKey) ++ posts.map(_.connectionKey)
       withKey(SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
     }
-    else if(pingStates.isEmpty) withKey(FreshSSEConnection(
-      Single(tcpConnections).connectionKey
-    )(sseMessages))
     else withKey(WorkingSSEConnection(
-      Single(tcpConnections).connectionKey,
-      Single(pingStates),
-      Single.option(pongStates),
-      posts
-    )(sseMessages))
+      Single(tcpConnections).connectionKey, initDone.nonEmpty, posts
+    )(config))
   def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)
 }
-
-
 
 case class HttpPostByConnection(
     connectionKey: String,

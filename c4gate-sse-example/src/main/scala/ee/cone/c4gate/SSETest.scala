@@ -33,7 +33,7 @@ class TestSSEApp extends ServerApp
   @Id(0x0001) case class ClockData(@Id(0x0002) key: String, @Id(0x0003) seconds: Long)
 }
 
-class TestSSETxTransform(sseMessages: SSEMessages) extends TxTransform {
+class TestSSETxTransform(sseMessages: SSESend) extends TxTransform {
   def transform(tx: WorldTx): WorldTx = {
     val seconds = System.currentTimeMillis / 1000
     if(tx.get(classOf[ClockData]).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
