@@ -17,13 +17,15 @@ class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[B
 
 class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
   import qAdapterRegistry._
-  def send[M<:Product](tx: WorldTx): Option[Long] = {
-    val updates = tx.toSend.toList
-    if(updates.isEmpty) return None
+  // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
+  def send[M<:Product](local: World): World = {
+    val updates = TxKey.of(local).toSend.toList
+    if(updates.isEmpty) return local
     println(s"sending: ${updates.size}")
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
-    Option(getRawQSender().send(rec))
+    val offset = getRawQSender().send(rec)
+    OffsetWorldKey.transform(_⇒offset+1)(local)
   }
   def toUpdate[M<:Product](message: LEvent[M]): Update = {
     val valueAdapter =

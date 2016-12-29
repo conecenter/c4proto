@@ -1,5 +1,7 @@
 package ee.cone.c4gate
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import ee.cone.c4actor.LEvent._
@@ -8,9 +10,9 @@ import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4gate.SSEProtocol.InitDone
 
-case object SSEMessagePriorityKey extends WorldKey[Long](0)
-case object SSEPingTimeKey extends WorldKey[Long](0)
-case object SSEPongTimeKey extends WorldKey[Long](0)
+case object SSEMessagePriorityKey extends WorldKey[java.lang.Long](0L)
+case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
+case object SSEPongTimeKey extends WorldKey[Instant](Instant.MIN)
 case object SSELocationHash extends WorldKey[String]("")
 
 case class WorkingSSEConnection(
@@ -20,8 +22,8 @@ case class WorkingSSEConnection(
   /*def relocate(tx: WorldTx, value: String): WorldTx = {
     if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
   }*/
-  private def message(tx: WorldTx, event: String, data: String): WorldTx = {
-    val priority = SSEMessagePriorityKey.of(tx.local)
+  private def message(event: String, data: String)(local: World): World = {
+    val priority = SSEMessagePriorityKey.of(local)
     val header = if(priority > 0) "" else {
       val allowOrigin =
         sseUI.allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
@@ -31,39 +33,48 @@ case class WorkingSSEConnection(
     val str = s"${header}event: $event\ndata: $escapedData\n\n"
     val bytes = okio.ByteString.encodeUtf8(str)
     val key = UUID.randomUUID.toString
-    tx.add(Seq(update(TcpWrite(key,connectionKey,bytes,priority))))
-      .setLocal(SSEMessagePriorityKey,priority+1)
+    Some(local)
+      .map(SSEMessagePriorityKey.transform(_+1))
+      .map(add(Seq(update(TcpWrite(key,connectionKey,bytes,priority))))).get
   }
-  private def toAlien(tx: WorldTx): WorldTx = {
-    val (nTx,messages) = sseUI.toAlien(tx)
-    (nTx /: messages) { (tx, msg) ⇒ msg match {
-      case (event,data) ⇒ message(tx,event,data)
+
+  private def toAlien(local: World): World = {
+    val (nLocal,messages) = sseUI.toAlien(local)
+    (nLocal /: messages) { (local, msg) ⇒ msg match {
+      case (event,data) ⇒ message(event,data)(local)
     }}
   }
-  private def pingAge(tx: WorldTx): Long =
-    System.currentTimeMillis - SSEPingTimeKey.of(tx.local)
-  private def pongAge(tx: WorldTx): Long =
-    System.currentTimeMillis - SSEPongTimeKey.of(tx.local)
-  def transform(tx: WorldTx): WorldTx = Some(tx).map{ tx ⇒
-    if(initDone) tx
-    else message(tx, "connect", connectionKey)
-        .add(Seq(update(InitDone(connectionKey))))
-          .setLocal(SSEPingTimeKey, System.currentTimeMillis)
-  }.map{ tx ⇒
-    if(pingAge(tx) < 5000) tx
-    else message(tx, "ping", connectionKey)
-      .setLocal(SSEPingTimeKey, System.currentTimeMillis)
-  }.map{ tx ⇒
-    if(posts.nonEmpty){
-      (tx /: posts) { (tx, post) ⇒
-        toAlien(sseUI.fromAlien(tx, post))
-        .add(Seq(delete(post.request)))
-        .setLocal(SSEPongTimeKey, System.currentTimeMillis)
-      }
-    }
-    else if(pingAge(tx) < 2000 || pongAge(tx) < 5000) toAlien(tx)
-    else tx.add(Seq(update(TcpDisconnect(connectionKey))))
-  }.get
+
+  private def pingAge(local: World): Long =
+    ChronoUnit.SECONDS.between(SSEPingTimeKey.of(local), Instant.now)
+  private def pongAge(local: World): Long =
+    ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
+
+  private def needInit(local: World): World = if(initDone) local else Some(local)
+    .map(message("connect", connectionKey))
+    .map(add(Seq(update(InitDone(connectionKey)))))
+    .map(SSEPingTimeKey.transform(_⇒Instant.now)).get
+
+  private def needPing(local: World): World =
+    if(pingAge(local) < 5) local else Some(local)
+      .map(message("ping", connectionKey))
+      .map(SSEPingTimeKey.transform(_⇒Instant.now)).get
+
+  private def handlePosts(local: World): World =
+    (Option(local) /: posts) { (localOpt, post) ⇒ localOpt
+        .map(sseUI.fromAlien(post)).map(toAlien)
+        .map(add(Seq(delete(post.request))))
+        .map(SSEPongTimeKey.transform(_⇒Instant.now))
+    }.get
+
+  def transform(local: World): World = Some(local)
+    .map(needInit)
+    .map(needPing)
+    .map(local ⇒
+      if(posts.nonEmpty) handlePosts(local)
+      else if(pingAge(local) < 2 || pongAge(local) < 5) toAlien(local)
+      else add(Seq(update(TcpDisconnect(connectionKey))))(local)
+    ).get
 }
 
 class SSEConnectionJoin(sseUI: SSEui) extends Join4(
@@ -83,7 +94,7 @@ class SSEConnectionJoin(sseUI: SSEui) extends Join4(
   ) =
     if(Seq(tcpConnections,initDone,posts).forall(_.isEmpty)) Nil
     else if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
-      val zombies = initDone ++ posts.map(_.request)
+      val zombies: List[Product] = initDone ++ posts.map(_.request)
       val key = initDone.map(_.connectionKey) ++ posts.map(_.connectionKey)
       withKey(SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
     }

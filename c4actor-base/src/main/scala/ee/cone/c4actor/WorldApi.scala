@@ -4,9 +4,20 @@ import ee.cone.c4actor.Types.{Index, SrcId, World}
 
 import scala.collection.immutable.Map
 
-abstract class WorldKey[Item](default: Item) {
-  def of(world: World): Item = world.getOrElse(this, default).asInstanceOf[Item]
+trait Lens[C,I] {
+  def of(container: C): I
+  def transform(f: I⇒I)(container: C): C
 }
+
+abstract class WorldKey[Item<:Object](default: Item) extends Lens[World,Item] {
+  def of(world: World): Item = world.getOrElse(this, default).asInstanceOf[Item]
+  def transform(f: Item⇒Item)(world: World): World = world + (this → f(of(world)))
+}
+/*
+class Transform(val get: World) {
+  def apply[Item<:Object](key: WorldKey[Item])(f: Item⇒Item): Transform =
+    new Transform(get + (key → f(key.of(get))))
+}*/
 
 object Types {
   type Values[V] = List[V]

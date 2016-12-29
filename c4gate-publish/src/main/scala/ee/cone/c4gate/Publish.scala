@@ -3,6 +3,7 @@ package ee.cone.c4gate
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file._
 
+import ee.cone.c4actor.Types.World
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.Protocol
@@ -36,7 +37,6 @@ class Publishing(qMessages: QMessages, reducer: Reducer, fromDir: String) extend
 
 class PublishFileVisitor(qMessages: QMessages, reducer: Reducer, fromPath: Path) extends SimpleFileVisitor[Path] {
   override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
-    val tx = reducer.createTx(Map(),Map())
     val path = s"/${fromPath.relativize(file)}"
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
@@ -48,7 +48,10 @@ class PublishFileVisitor(qMessages: QMessages, reducer: Reducer, fromPath: Path)
     val headers = contentType.map(Header("Content-Type",_)).toList
     val bytes = Files.readAllBytes(file)
     val byteString = okio.ByteString.of(bytes,0,bytes.length)
-    qMessages.send(tx.add(Seq(LEvent.update(HttpPublication(path,headers,byteString)))))
+    Option(Map():World)
+      .map(reducer.createTx(Map()))
+      .map(LEvent.add(Seq(LEvent.update(HttpPublication(path,headers,byteString)))))
+      .foreach(qMessages.send)
     println(s"$path published")
     FileVisitResult.CONTINUE
   }

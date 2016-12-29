@@ -41,14 +41,14 @@ trait RawQSender {
   def send(rec: QRecord): Long
 }
 
-case object OffsetWorldKey extends WorldKey[Long](0)
+case object OffsetWorldKey extends WorldKey[java.lang.Long](0L)
 
 trait QMessages {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toRecord(topicName: TopicName, update: Update): QRecord
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord]
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]]
-  def send[M<:Product](tx: WorldTx): Option[Long]
+  def send[M<:Product](local: World): World
 }
 
 case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])
@@ -57,12 +57,12 @@ object LEvent {
     LEvent(value.productElement(0).toString, value.getClass.getName, Option(value))
   def delete[M<:Product](value: M): LEvent[M] =
     LEvent(value.productElement(0).toString, value.getClass.getName, None)
+  def add[M<:Product](out: Iterable[LEvent[M]]): World⇒World =
+    TxKey.transform(_.add(out))
 }
 
 trait WorldTx {
-  def local: World
-  def setLocal[Item<:Object](key: WorldKey[Item], value: Item): WorldTx
-  def get[Item](cl: Class[Item]): Index[SrcId,Item]
+  def world: World
   def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx
   def toSend: Seq[Update]
 }
@@ -72,5 +72,12 @@ trait Observer {
 }
 
 trait TxTransform {
-  def transform(tx: WorldTx): WorldTx
+  def transform(local: World): World
 }
+
+object NoWorldTx extends WorldTx {
+  def world: World = Map.empty
+  def add[M <: Product](out: Iterable[LEvent[M]]): WorldTx = throw new Exception
+  def toSend: Seq[Update] = Nil
+}
+case object TxKey extends WorldKey[WorldTx](NoWorldTx)

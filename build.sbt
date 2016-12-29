@@ -87,7 +87,7 @@ lazy val `c4gate-server` = project.settings(publishSettings)
 lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .dependsOn(`c4actor-kafka`, `c4gate-proto`)
-  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+  //.settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `c4gate-sse` = project.settings(publishSettings)
@@ -97,7 +97,7 @@ lazy val `c4gate-sse` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .dependsOn(`c4actor-kafka`, `c4gate-sse`)
-  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+  //.settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `c4gate-publish` = project.settings(publishSettings)
@@ -107,6 +107,8 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 
 
 lazy val `c4vdom-base` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
@@ -121,7 +123,8 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-sse-example`,
   `c4proto-api`,
   `c4proto-macros`,
-  `c4proto-types`
+  `c4proto-types`,
+  `c4vdom-base`
 )
 
 

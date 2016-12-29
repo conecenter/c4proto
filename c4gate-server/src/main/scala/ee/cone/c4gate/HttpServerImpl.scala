@@ -21,8 +21,9 @@ trait RHttpHandler {
 class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Array[Byte] = {
     val path = httpExchange.getRequestURI.getPath
-    val tx = worldProvider.createTx()
-    Single(tx.get(classOf[HttpPublication])(path)).body.toByteArray
+    val local = worldProvider.createTx()
+    val world = TxKey.of(local).world
+    Single(By.srcId(classOf[HttpPublication]).of(world)(path)).body.toByteArray
   }
 }
 
@@ -34,9 +35,11 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val body = buffer.readFrom(httpExchange.getRequestBody).readByteString()
     val path = httpExchange.getRequestURI.getPath
     val req = HttpPost(UUID.randomUUID.toString, path, headers, body,  System.currentTimeMillis)
-    val tx = worldProvider.createTx().add(Seq(LEvent.update(req)))
+    Option(worldProvider.createTx())
+      .map(LEvent.add(Seq(LEvent.update(req))))
+      .foreach(qMessages.send)
     //println(s"ht:${tx.toSend.size}")
-    qMessages.send(tx)
+
     Array.empty[Byte]
   }
 }
@@ -63,11 +66,11 @@ class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
 
 class WorldProviderImpl(
   reducer: Reducer,
-  worldFuture: CompletableFuture[()⇒WorldTx] = new CompletableFuture()
+  worldFuture: CompletableFuture[()⇒World] = new CompletableFuture()
 ) extends WorldProvider with Observer {
-  def createTx(): WorldTx = worldFuture.get.apply()
+  def createTx(): World = worldFuture.get.apply()
   def activate(getWorld: () ⇒ World): Seq[Observer] = {
-    worldFuture.complete(()⇒reducer.createTx(getWorld(),Map()))
+    worldFuture.complete(()⇒reducer.createTx(getWorld())(Map()))
     Nil
   }
 }

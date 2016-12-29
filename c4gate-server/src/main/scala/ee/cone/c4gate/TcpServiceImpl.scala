@@ -6,7 +6,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
 
-import ee.cone.c4actor.Types.{SrcId, Values}
+import ee.cone.c4actor.Types.{SrcId, Values, World}
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4actor._
 
@@ -66,10 +66,14 @@ class TcpServerImpl(
 ) extends TcpServer with Executable {
   def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
   def run(ctx: ExecutionContext): Unit = {
-    val tx = worldProvider.createTx()
-    qMessages.send(tx.add(
-      tx.get(classOf[TcpConnection]).values.flatten.map(LEvent.delete)
-    ))
+    Option(worldProvider.createTx())
+      .map { local ⇒
+        val world = TxKey.of(local).world
+        val connections =  By.srcId(classOf[TcpConnection]).of(world).values.flatten
+        LEvent.add(connections.map(LEvent.delete))(local)
+      }
+      .foreach(qMessages.send)
+
     val address = new InetSocketAddress(port)
     val listener = AsynchronousServerSocketChannel.open().bind(address)
     listener.accept[Unit]((), new CompletionHandler[AsynchronousSocketChannel,Unit] {
@@ -78,13 +82,15 @@ class TcpServerImpl(
         val key = UUID.randomUUID.toString
         channels += key → new ChannelHandler(ch, {() ⇒
           channels -= key
-          val tx = worldProvider.createTx()
-          qMessages.send(tx.add(Seq(LEvent.delete(TcpConnection(key)))))
+          Option(worldProvider.createTx())
+            .map(LEvent.add(Seq(LEvent.delete(TcpConnection(key)))))
+            .foreach(qMessages.send)
         }, { error ⇒
           println(error.getStackTrace.toString)
         })
-        val tx = worldProvider.createTx()
-        qMessages.send(tx.add(Seq(LEvent.update(TcpConnection(key)))))
+        Option(worldProvider.createTx())
+          .map(LEvent.add(Seq(LEvent.update(TcpConnection(key)))))
+          .foreach(qMessages.send)
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })
@@ -96,11 +102,11 @@ case class TcpConnectionTxTransform(
   tcpDisconnects: Values[TcpDisconnect],
   writes: Values[TcpWrite]
 )(tcpServer: TcpServer) extends TxTransform {
-  def transform(tx: WorldTx): WorldTx = {
+  def transform(local: World): World = {
     def sender = tcpServer.senderByKey(connectionKey)
     for(d ← tcpDisconnects; s ← sender) s.close()
     for(message ← writes; s ← sender) s.add(message.body.toByteArray)
-    tx.add(writes.map(LEvent.delete))
+    LEvent.add(writes.map(LEvent.delete))(local)
   }
 }
 

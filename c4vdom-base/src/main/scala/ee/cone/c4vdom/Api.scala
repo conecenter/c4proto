@@ -48,9 +48,9 @@ trait Color {
 
 ////
 
-trait CurrentVDom {
-  def fromAlien(state: VDomState, message: Map[String,String]): VDomState
-  def toAlien(state: VDomState)(view: ()⇒List[ChildPair[_]]): (VDomState,List[(String,String)])
+trait CurrentVDom[State] {
+  def fromAlien(state: State, message: Map[String,String]): State
+  def toAlien(state: State)(view: ()⇒List[ChildPair[_]]): (State,List[(String,String)])
 }
 
 case class VDomState(
@@ -60,12 +60,12 @@ case class VDomState(
     ackFromAlien: List[String]
 )
 
-trait OnClickReceiver {
-  def onClick: Option[VDomState⇒VDomState]
+trait OnClickReceiver[State] {
+  def onClick: Option[Any⇒State]
 }
 
-trait OnChangeReceiver {
-  def onChange: Option[(VDomState,String)⇒VDomState]
+trait OnChangeReceiver[State] {
+  def onChange: Option[(Any,String)⇒State]
 }
 
 ////

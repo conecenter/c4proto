@@ -1,7 +1,7 @@
 
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{WorldTx}
+import ee.cone.c4actor.Types.World
 
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
@@ -13,5 +13,5 @@ trait TcpServer {
 }
 
 trait WorldProvider {
-  def createTx(): WorldTx
+  def createTx(): World
 }

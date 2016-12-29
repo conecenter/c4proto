@@ -7,5 +7,5 @@ import scala.collection.immutable.{Map, Queue}
 trait Reducer {
   def reduceRecover(world: World, recs: List[QRecord]): World
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord])
-  def createTx(world: World, local: World): WorldTx
+  def createTx(world: World): World ⇒ World
 }

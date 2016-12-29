@@ -1,5 +1,6 @@
 package ee.cone.c4gate
 
+import ee.cone.c4actor.Types.World
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol.TcpWrite
 import ee.cone.c4gate.TestClockProtocol.ClockData
@@ -23,8 +24,6 @@ class TestSSEApp extends ServerApp
     println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
     new TestSSETxTransform(sseMessages)
   }
-  override def txTransforms: List[TxTransform] =
-    testSSETxTransform :: super.txTransforms
   override def protocols: List[Protocol] =
     TestClockProtocol :: InternetProtocol :: super.protocols
 }
@@ -34,7 +33,7 @@ class TestSSEApp extends ServerApp
 }
 
 class TestSSETxTransform(sseMessages: SSESend) extends TxTransform {
-  def transform(tx: WorldTx): WorldTx = {
+  def transform(local: World): World = {
     val seconds = System.currentTimeMillis / 1000
     if(tx.get(classOf[ClockData]).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
     val events =

@@ -18,16 +18,12 @@ object ProtoAdapterTest extends App {
       new RawQSender { def send(rec: QRecord): Long = 0 }
     override def protocols: List[Protocol] = MyProtocol :: super.protocols
   }
-  class MyTx(world: World, val toSend: Seq[Update]) extends WorldTx {
-    def get[Item](cl: Class[Item]): Index[SrcId,Item] = By.srcId(cl).of(world)
-    def add[M <: Product](out: Iterable[LEvent[M]]): WorldTx = {
-      val ups = out.map(msg⇒app.qMessages.toUpdate(msg))
-      new MyTx(app.qMessages.toTree(ups.map(u⇒app.qMessages.toRecord(NoTopicName,u))),ups.toSeq)
-    }
-  }
   //
-  val tx = new MyTx(Map(),Nil).add(Seq(LEvent.update(group0)))
-  val group1 = Single(tx.get(classOf[Group])(""))
+  val lEvent = LEvent.update(group0)
+  val update = app.qMessages.toUpdate(lEvent)
+  val rec = app.qMessages.toRecord(NoTopicName,update)
+  val world = app.qMessages.toTree(Seq(rec))
+  val group1 = Single(By.srcId(classOf[Group]).of(world)(""))
   assert(group0==group1)
   println("OK",group1)
 }

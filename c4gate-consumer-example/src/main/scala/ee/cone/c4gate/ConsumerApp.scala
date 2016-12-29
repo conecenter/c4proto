@@ -1,12 +1,14 @@
 
 package ee.cone.c4gate
 
+import java.time.Instant
 import java.util.UUID
 
+import ee.cone.c4actor.Types.{Index, SrcId, Values, World}
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
-import ee.cone.c4gate.TestClockProtocol.ClockData
 import ee.cone.c4proto._
+import ee.cone.c4actor.LEvent._
 
 class TestConsumerApp extends ServerApp
   with EnvConfigApp
@@ -14,13 +16,16 @@ class TestConsumerApp extends ServerApp
   with TreeAssemblerApp
   with QReducerApp
   with KafkaProducerApp with KafkaConsumerApp
-  with TxTransformsApp
+  with DataDependenciesApp
   with SerialObserversApp
 {
   //"http-test-0" "localhost:9092"
-  private lazy val testConsumerTxTransform = new TestConsumerTxTransform
-  override def protocols: List[Protocol] = TestClockProtocol :: InternetProtocol :: super.protocols
-  override def txTransforms: List[TxTransform] = testConsumerTxTransform :: super.txTransforms
+  private lazy val testJoins =
+    List(new TestHttpPostHandlerJoin, new AllTcpConnectionsJoin, new GateTesterJoin)
+      .map(indexFactory.createJoinMapIndex(_))
+  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def dataDependencies: List[DataDependencyTo[_]] =
+    testJoins ::: super.dataDependencies
 }
 
 /*
@@ -38,34 +43,72 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 
 
 
-@protocol object TestClockProtocol extends Protocol {
-  @Id(0x0001) case class ClockData(@Id(0x0002) key: String, @Id(0x0003) seconds: Long)
+case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform {
+  def transform(local: World): World = {
+    val prev = new String(post.body.toByteArray, "UTF-8")
+    val next = (prev.toLong * 3).toString
+    val body = okio.ByteString.encodeUtf8(next)
+    val resp = HttpPublication(post.path, Nil, body)
+    add(Seq(delete(post), update(resp)))(local)
+  }
 }
 
-class TestConsumerTxTransform extends TxTransform {
-  def transform(tx: WorldTx): WorldTx = {
-    val seconds = System.currentTimeMillis / 1000
-    if(tx.get(classOf[ClockData]).getOrElse("",Nil).exists(_.seconds==seconds)) return tx
+class TestHttpPostHandlerJoin extends Join1(
+  By.srcId(classOf[HttpPost]),
+  By.srcId(classOf[TxTransform])
+){
+  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
+    List(c.productElement(0).toString → c)
+  def join(posts: Values[HttpPost]): Values[(SrcId, TxTransform)] =
+    posts.map(post⇒TestHttpPostHandler(post.srcId,post)).flatMap(withKey)
+  def sort(values: Iterable[TxTransform]): List[TxTransform] = Single.list(values.toList)
+}
 
-    val clockEvent = LEvent.update(ClockData("",seconds))
-    val posts = tx.get(classOf[HttpPost]).values.flatten
-    val respEvents = posts.toSeq.sortBy(_.time).flatMap { req ⇒
-      val prev = new String(req.body.toByteArray, "UTF-8")
-      val next = (prev.toLong * 3).toString
-      val body = okio.ByteString.encodeUtf8(next)
-      val resp = HttpPublication(req.path, Nil, body)
-      LEvent.delete(req) :: LEvent.update(resp) :: Nil
-    }
-    val connections = tx.get(classOf[TcpConnection]).values.flatten
+////
+
+case object TestTimerKey extends WorldKey[java.lang.Long](0L)
+
+case class TcpConnectionByUnit(noKey: String, connection: TcpConnection)
+
+class AllTcpConnectionsJoin extends Join1(
+  By.srcId(classOf[TcpConnection]),
+  By.srcId(classOf[TcpConnectionByUnit])
+){
+  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
+    List(c.productElement(0).toString → c)
+  def join(items: Values[TcpConnection]): Values[(SrcId, TcpConnectionByUnit)] =
+    items.map(TcpConnectionByUnit("",_)).flatMap(withKey)
+  def sort(values: Iterable[TcpConnectionByUnit]): List[TcpConnectionByUnit] =
+    values.toList.sortBy(_.connection.connectionKey)
+}
+
+class GateTesterJoin extends Join1(
+  By.srcId(classOf[TcpConnectionByUnit]),
+  By.srcId(classOf[TxTransform])
+){
+  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
+    List(c.productElement(0).toString → c)
+  def join(
+    connections: Values[TcpConnectionByUnit]
+  ): Values[(SrcId, TxTransform)] =
+    withKey(GateTester("GateTester",connections.map(_.connection)))
+  def sort(values: Iterable[TxTransform]): List[TxTransform] = Single.list(values.toList)
+}
+
+case class GateTester(id: String, connections: Values[TcpConnection]) extends TxTransform {
+  def transform(local: World): World = {
+    val seconds = System.currentTimeMillis / 1000
+    if(TestTimerKey.of(local) == seconds) return local
     val size = s"${connections.size}\n"
     val sizeBody = okio.ByteString.encodeUtf8(size)
     println(size)
     val broadEvents = connections.flatMap { connection ⇒
       val key = UUID.randomUUID.toString
-      LEvent.update(TcpWrite(key, connection.connectionKey, sizeBody, seconds)) ::
-      Nil
+      Seq(update(TcpWrite(key, connection.connectionKey, sizeBody, seconds)))
     }
-    tx.add(Seq(clockEvent) ++ respEvents ++ broadEvents)
+    Option(local)
+      .map(add(broadEvents))
+      .map(TestTimerKey.transform(_⇒seconds)).get
   }
 }
 
