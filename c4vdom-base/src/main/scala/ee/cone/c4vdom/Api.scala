@@ -48,6 +48,11 @@ trait Color {
 
 ////
 
+trait Lens[C,I] {
+  def of(container: C): I
+  def transform(f: I⇒I)(container: C): C
+}
+
 trait CurrentVDom[State] {
   def fromAlien(state: State, message: Map[String,String]): State
   def toAlien(state: State)(view: ()⇒List[ChildPair[_]]): (State,List[(String,String)])

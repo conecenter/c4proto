@@ -15,5 +15,5 @@ case class HttpPostByConnection(
 trait SSEui {
   def allowOriginOption: Option[String]
   def fromAlien(post: HttpPostByConnection)(local: World): World
-  def toAlien(tx: World): (World, List[(String, String)])
+  def toAlien(local: World): (World, List[(String, String)])
 }

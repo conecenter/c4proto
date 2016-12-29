@@ -96,7 +96,7 @@ lazy val `c4gate-sse` = project.settings(publishSettings)
 
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .dependsOn(`c4actor-kafka`, `c4gate-sse`)
+  .dependsOn(`c4actor-kafka`, `c4gate-sse`, `c4vdom-base`)
   //.settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
   .enablePlugins(JavaServerAppPackaging)
 
