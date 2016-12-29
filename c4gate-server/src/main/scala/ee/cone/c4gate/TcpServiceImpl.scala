@@ -141,9 +141,9 @@ class TcpConnectionTxTransformJoin(tcpServer: TcpServer) extends Join3(
     else if(tcpConnections.isEmpty){
       val zombies = tcpDisconnects ++ writes.map(_.write)
       val key = tcpDisconnects.map(_.connectionKey) ++ writes.map(_.connectionKey)
-      withKey(SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
+      withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
     }
-    else withKey(TcpConnectionTxTransform(
+    else withKey[Product with TxTransform](TcpConnectionTxTransform(
       Single(tcpConnections).connectionKey, tcpDisconnects, writes.map(_.write)
     )(tcpServer))
   def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)

@@ -49,7 +49,7 @@ case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform
     val next = (prev.toLong * 3).toString
     val body = okio.ByteString.encodeUtf8(next)
     val resp = HttpPublication(post.path, Nil, body)
-    add(Seq(delete(post), update(resp)))(local)
+    add[Product](Seq(delete(post), update(resp)))(local)
   }
 }
 
@@ -91,7 +91,7 @@ class GateTesterJoin extends Join1(
   def join(
     connections: Values[TcpConnectionByUnit]
   ): Values[(SrcId, TxTransform)] =
-    withKey(GateTester("GateTester",connections.map(_.connection)))
+    withKey[Product with TxTransform](GateTester("GateTester",connections.map(_.connection)))
   def sort(values: Iterable[TxTransform]): List[TxTransform] = Single.list(values.toList)
 }
 

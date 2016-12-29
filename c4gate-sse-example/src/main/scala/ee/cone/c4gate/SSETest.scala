@@ -3,9 +3,8 @@ package ee.cone.c4gate
 import ee.cone.c4actor.Types.World
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol.TcpWrite
-import ee.cone.c4gate.TestClockProtocol.ClockData
 import ee.cone.c4proto.{Id, Protocol, protocol}
-
+/*
 object TestSSE extends Main((new TestSSEApp).execution.run)
 
 class TestSSEApp extends ServerApp
@@ -44,4 +43,4 @@ class TestSSETxTransform(sseMessages: SSESend) extends TxTransform {
     tx.add(events)
   }
 }
-
+*/

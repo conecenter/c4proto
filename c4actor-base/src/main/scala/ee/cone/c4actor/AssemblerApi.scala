@@ -50,4 +50,4 @@ trait TreeAssembler {
   def replace(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World
 }
 
-class OriginalWorldPart[A](val outputWorldKey: WorldKey[A]) extends DataDependencyTo[A]
+class OriginalWorldPart[A<:Object](val outputWorldKey: WorldKey[A]) extends DataDependencyTo[A]

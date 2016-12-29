@@ -8,7 +8,6 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
-import ee.cone.c4gate.SSEProtocol.InitDone
 
 case object SSEMessagePriorityKey extends WorldKey[java.lang.Long](0L)
 case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
@@ -52,7 +51,7 @@ case class WorkingSSEConnection(
 
   private def needInit(local: World): World = if(initDone) local else Some(local)
     .map(message("connect", connectionKey))
-    .map(add(Seq(update(InitDone(connectionKey)))))
+    .map(add(Seq(update(AppLevelInitDone(connectionKey)))))
     .map(SSEPingTimeKey.transform(_⇒Instant.now)).get
 
   private def needPing(local: World): World =
@@ -80,7 +79,7 @@ case class WorkingSSEConnection(
 class SSEConnectionJoin(sseUI: SSEui) extends Join4(
   By.srcId(classOf[TcpConnection]),
   By.srcId(classOf[TcpDisconnect]),
-  By.srcId(classOf[InitDone]),
+  By.srcId(classOf[AppLevelInitDone]),
   By.srcId(classOf[HttpPostByConnection]),
   By.srcId(classOf[TxTransform])
 ) {
@@ -89,16 +88,16 @@ class SSEConnectionJoin(sseUI: SSEui) extends Join4(
   def join(
     tcpConnections: Values[TcpConnection],
     tcpDisconnects: Values[TcpDisconnect],
-    initDone: Values[InitDone],
+    initDone: Values[AppLevelInitDone],
     posts: Values[HttpPostByConnection]
   ) =
     if(Seq(tcpConnections,initDone,posts).forall(_.isEmpty)) Nil
     else if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
       val zombies: List[Product] = initDone ++ posts.map(_.request)
       val key = initDone.map(_.connectionKey) ++ posts.map(_.connectionKey)
-      withKey(SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
+      withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
     }
-    else withKey(WorkingSSEConnection(
+    else withKey[Product with TxTransform](WorkingSSEConnection(
       Single(tcpConnections).connectionKey, initDone.nonEmpty, posts
     )(sseUI))
   def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)

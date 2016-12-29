@@ -41,6 +41,7 @@ class KafkaRawQSender(bootstrapServers: String)(
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ "inbox"
     case StateTopicName(ActorName(n)) ⇒ s"$n.state"
+    case NoTopicName ⇒ throw new Exception
   }
   def sendStart(rec: QRecord): Future[RecordMetadata] =
     producer.get.send(new ProducerRecord(topicNameToString(rec.topic), 0, rec.key, rec.value))

@@ -58,6 +58,6 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(qMessages:
   }
 }
 
-case class SimpleTxTransform(key: String, todo: List[LEvent[Product]]) extends TxTransform {
-  def transform(local: World): World = LEvent.add(todo:Iterable[LEvent[Product]])(local)
+case class SimpleTxTransform[P<:Product](key: String, todo: List[LEvent[P]]) extends TxTransform {
+  def transform(local: World): World = LEvent.add(todo:Iterable[LEvent[P]])(local)
 }

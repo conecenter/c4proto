@@ -9,9 +9,10 @@ trait Lens[C,I] {
   def transform(f: I⇒I)(container: C): C
 }
 
-abstract class WorldKey[Item<:Object](default: Item) extends Lens[World,Item] {
+abstract class WorldKey[Item](default: Item) extends Lens[World,Item] {
   def of(world: World): Item = world.getOrElse(this, default).asInstanceOf[Item]
-  def transform(f: Item⇒Item)(world: World): World = world + (this → f(of(world)))
+  def transform(f: Item⇒Item)(world: World): World =
+    world + (this → f(of(world)).asInstanceOf[Object])
 }
 /*
 class Transform(val get: World) {
