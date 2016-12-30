@@ -5,9 +5,6 @@ import ee.cone.c4actor._
 
 class HttpGatewayApp extends ServerApp
   with EnvConfigApp
-  with QMessagesApp
-  with TreeAssemblerApp
-  with QReducerApp
   with InternetForwarderApp
   with HttpServerApp
   with SSEServerApp

@@ -13,9 +13,6 @@ object Publish extends Main(new PublishApp().execution.run)
 //todo un-publish/check
 class PublishApp extends ServerApp
   with EnvConfigApp
-  with QMessagesApp
-  with QReducerApp
-  with TreeAssemblerApp
   with KafkaProducerApp
 {
   private lazy val publishDir = config.get("C4PUBLISH_DIR")

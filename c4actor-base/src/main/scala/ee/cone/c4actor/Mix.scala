@@ -15,43 +15,28 @@ trait InitialObserversApp {
   def initialObservers: List[Observer] = Nil
 }
 
-trait QMessagesApp extends ProtocolsApp {
-  override def protocols: List[Protocol] = QProtocol :: super.protocols
-  def rawQSender: RawQSender
-  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
-  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
-}
-
-trait QReducerApp {
-  def treeAssembler: TreeAssembler
-  def qMessages: QMessages
-  lazy val qReducer: Reducer =
-    new ReducerImpl(qMessages, treeAssembler)
-}
-
-trait ServerApp {
-  def toStart: List[Executable]
-  lazy val execution: Executable = new ExecutionImpl(toStart)
+trait ProtocolsApp {
+  def protocols: List[Protocol] = Nil
 }
 
 trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
 }
 
-////
-
-trait TreeAssemblerApp extends DataDependenciesApp {
-  def protocols: List[Protocol]
+trait ServerApp extends ProtocolsApp with DataDependenciesApp {
+  def toStart: List[Executable]
+  def rawQSender: RawQSender
+  //
+  lazy val execution: Executable = new ExecutionImpl(toStart)
+  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
+  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
+  lazy val qReducer: Reducer = new ReducerImpl(qMessages, treeAssembler, ()⇒dataDependencies)
   lazy val indexFactory: IndexFactory = new IndexFactoryImpl
+  lazy val treeAssembler: TreeAssembler = TreeAssemblerImpl
+  //
+  override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     ProtocolDataDependencies(protocols) ::: super.dataDependencies
-  lazy val treeAssembler: TreeAssembler = TreeAssemblerImpl(dataDependencies)
-}
-
-////
-
-trait ProtocolsApp {
-  def protocols: List[Protocol] = Nil
 }
 
 trait SerialObserversApp extends InitialObserversApp {

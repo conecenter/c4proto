@@ -6,6 +6,7 @@ import java.util.concurrent.{CompletableFuture, Future}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
 import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.TreeAssemblerTypes.Replace
 import ee.cone.c4actor.Types.World
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
@@ -97,7 +98,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     }
     val recsQueue = toQueue()
     val recsList = recsQueue.toList
-    new AtomicReference(reducer.reduceRecover(Map(), recsList))
+    new AtomicReference(reducer.reduceRecover(reducer.createWorld(Map()), recsList))
   }
   def run(ctx: ExecutionContext): Unit = {
     val consumer = initConsumer(ctx)

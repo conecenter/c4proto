@@ -2,6 +2,7 @@
 package ee.cone.c4actor
 
 import Types._
+import ee.cone.c4actor.TreeAssemblerTypes.Replace
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.Map
@@ -94,8 +95,8 @@ case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: Lis
   }
 }
 
-object TreeAssemblerImpl {
-  def apply(rules: List[DataDependencyTo[_]]): TreeAssembler = {
+object TreeAssemblerImpl extends TreeAssembler {
+  def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
     val add =
@@ -121,21 +122,14 @@ object TreeAssemblerImpl {
     }
     val expressionsByPriority: List[WorldPartExpression] =
       (ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]]() /: expressions)(regOne).items.reverse
-    new TreeAssemblerImpl(add, expressionsByPriority)
-  }
-}
-
-class TreeAssemblerImpl(
-    add: PatchMap[WorldKey[_],Object,Index[Object,Object]],
-    expressionsByPriority: List[WorldPartExpression]
-) extends TreeAssembler {
-  def replace(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World = {
-    val diff = replaced.mapValues(_.mapValues(_⇒true))
-    val current = add.many(prev, replaced)
-    val transition = WorldTransition(prev,diff,current)
-    (transition /: expressionsByPriority)((transition,handler) ⇒
-      handler.transform(transition)
-    ).current
+    replaced ⇒ prevWorld ⇒ {
+      val diff = replaced.mapValues(_.mapValues(_⇒true))
+      val current = add.many(prevWorld, replaced)
+      val transition = WorldTransition(prevWorld,diff,current)
+      (transition /: expressionsByPriority)((transition,handler) ⇒
+        handler.transform(transition)
+      ).current
+    }
   }
 }
 

@@ -61,7 +61,7 @@ case class WorkingSSEConnection(
 
   private def handlePosts(local: World): World =
     (Option(local) /: posts) { (localOpt, post) ⇒ localOpt
-        .map(sseUI.fromAlien(post)).map(toAlien)
+        .map(sseUI.fromAlien(post.headers.get)).map(toAlien)
         .map(add(Seq(delete(post.request))))
         .map(SSEPongTimeKey.transform(_⇒Instant.now))
     }.get

@@ -13,16 +13,15 @@ object ProtoAdapterTest extends App {
   val worker1 = Person("worker1", Some(20))
   val group0 = Group("", Some(leader0), List(worker0,worker1))
   //
-  val app = new QMessagesApp {
-    def rawQSender: RawQSender =
-      new RawQSender { def send(rec: QRecord): Long = 0 }
-    override def protocols: List[Protocol] = MyProtocol :: super.protocols
-  }
+  val protocols: List[Protocol] = MyProtocol :: QProtocol :: Nil
+  val rawQSender = new RawQSender { def send(rec: QRecord): Long = 0 }
+  val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
+  val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
   //
   val lEvent = LEvent.update(group0)
-  val update = app.qMessages.toUpdate(lEvent)
-  val rec = app.qMessages.toRecord(NoTopicName,update)
-  val world = app.qMessages.toTree(Seq(rec))
+  val update = qMessages.toUpdate(lEvent)
+  val rec = qMessages.toRecord(NoTopicName,update)
+  val world = qMessages.toTree(Seq(rec))
   val group1 = Single(By.srcId(classOf[Group]).of(world)(""))
   assert(group0==group1)
   println("OK",group1)

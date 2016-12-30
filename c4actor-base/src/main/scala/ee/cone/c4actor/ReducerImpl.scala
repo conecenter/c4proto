@@ -1,6 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.TreeAssemblerTypes.Replace
 import ee.cone.c4actor.Types.{Index, SrcId, World}
 
 import scala.collection.immutable.{Map, Queue}
@@ -14,13 +15,17 @@ class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Upda
   }
 }
 
+case object TreeAssemblerKey extends WorldKey[Replace](_⇒throw new Exception)
+
 class ReducerImpl(
-  val qMessages: QMessages, treeAssembler: TreeAssembler
+  val qMessages: QMessages,
+  treeAssembler: TreeAssembler,
+  getDependencies: ()⇒List[DataDependencyTo[_]]
 ) extends Reducer {
-  def reduceRecover(world: World, recs: List[QRecord]): World = {
-    val diff = qMessages.toTree(recs)
-    treeAssembler.replace(world, diff)
-  }
+  def createWorld: World ⇒ World =
+    TreeAssemblerKey.transform(_⇒treeAssembler.replace(getDependencies()))
+  def reduceRecover(world: World, recs: List[QRecord]): World =
+    TreeAssemblerKey.of(world)(qMessages.toTree(recs))(world)
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord]) =
     ((world,Queue.empty[QRecord]) /: inboxRecs){ (s,inboxRec) ⇒
       val(prevWorld,prevQueue) = s
@@ -59,5 +64,5 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(qMessages:
 }
 
 case class SimpleTxTransform[P<:Product](key: String, todo: List[LEvent[P]]) extends TxTransform {
-  def transform(local: World): World = LEvent.add(todo:Iterable[LEvent[P]])(local)
+  def transform(local: World): World = LEvent.add(todo)(local)
 }

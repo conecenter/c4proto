@@ -57,7 +57,7 @@ object LEvent {
     LEvent(value.productElement(0).toString, value.getClass.getName, Option(value))
   def delete[M<:Product](value: M): LEvent[M] =
     LEvent(value.productElement(0).toString, value.getClass.getName, None)
-  def add[M<:Product](out: Iterable[LEvent[M]]): World⇒World =
+  def add[M<:Product](out: Seq[LEvent[M]]): World⇒World =
     TxKey.transform(_.add(out))
 }
 

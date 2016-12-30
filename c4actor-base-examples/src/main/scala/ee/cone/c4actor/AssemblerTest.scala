@@ -41,7 +41,7 @@ class ParentNodeWithChildrenJoin extends Join2(
     if(nodes.size <= 1) nodes.toList else throw new Exception("PK")
 }
 
-class AssemblerTestApp extends QMessagesApp with TreeAssemblerApp {
+class AssemblerTestApp extends ServerApp with ToStartApp {
   def rawQSender: RawQSender =
     new RawQSender { def send(rec: QRecord): Long = 0 }
   override def protocols: List[Protocol] = PCProtocol :: super.protocols
@@ -57,9 +57,11 @@ object AssemblerTest extends App {
   val recs = update(RawParentNode("1","P-1")) ::
     List("2","3").map(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
 
-  val diff: Map[WorldKey[_], Index[Object, Object]] =
-    app.qMessages.toTree(recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec))))
-  val world = app.treeAssembler.replace(Map.empty,diff)
+  val world = app.qReducer.reduceRecover(
+    app.qReducer.createWorld(Map()),
+    recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec)))
+  )
+  /*
   val shouldDiff = Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
       "1" -> List(RawParentNode("1","P-1"))
@@ -69,9 +71,9 @@ object AssemblerTest extends App {
       "3" -> List(RawChildNode("3","1","C-3"))
     )
   )
+  assert(diff==shouldDiff)*/
   println(world)
-  assert(diff==shouldDiff)
-  assert(world==Map(
+  assert(world.filter{ case (k,v) ⇒ v.isInstanceOf[Map[_,_]] }==Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
       "1" -> List(RawParentNode("1","P-1"))
     ),

@@ -12,11 +12,7 @@ import ee.cone.c4actor.LEvent._
 
 class TestConsumerApp extends ServerApp
   with EnvConfigApp
-  with QMessagesApp
-  with TreeAssemblerApp
-  with QReducerApp
   with KafkaProducerApp with KafkaConsumerApp
-  with DataDependenciesApp
   with SerialObserversApp
 {
   //"http-test-0" "localhost:9092"

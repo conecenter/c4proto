@@ -69,7 +69,7 @@ class TcpServerImpl(
     Option(worldProvider.createTx())
       .map { local ⇒
         val world = TxKey.of(local).world
-        val connections =  By.srcId(classOf[TcpConnection]).of(world).values.flatten
+        val connections =  By.srcId(classOf[TcpConnection]).of(world).values.flatten.toSeq
         LEvent.add(connections.map(LEvent.delete))(local)
       }
       .foreach(qMessages.send)

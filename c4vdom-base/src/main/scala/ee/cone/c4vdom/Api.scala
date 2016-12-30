@@ -48,14 +48,18 @@ trait Color {
 
 ////
 
-trait Lens[C,I] {
+trait VDomLens[C,I] {
   def of(container: C): I
   def transform(f: I⇒I)(container: C): C
 }
 
+trait RootView[State] {
+  def view(state: State): (List[ChildPair[_]], Long)
+}
+
 trait CurrentVDom[State] {
-  def fromAlien(state: State, message: Map[String,String]): State
-  def toAlien(state: State)(view: ()⇒List[ChildPair[_]]): (State,List[(String,String)])
+  def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State
+  def toAlien: State ⇒ (State,List[(String,String)])
 }
 
 case class VDomState(
@@ -66,11 +70,11 @@ case class VDomState(
 )
 
 trait OnClickReceiver[State] {
-  def onClick: Option[Any⇒State]
+  def onClick: Option[State ⇒ State]
 }
 
 trait OnChangeReceiver[State] {
-  def onChange: Option[(Any,String)⇒State]
+  def onChange: Option[String ⇒ State ⇒ State]
 }
 
 ////

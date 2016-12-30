@@ -4,52 +4,59 @@ import java.util.Base64
 
 import ee.cone.c4vdom._
 
-/*trait View {
-  def view(path: String): List[ChildPair[_]]
-}*/
-
 class CurrentVDomImpl[State](
   diff: Diff,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory,
-  vDomStateKey: Lens[State,Option[VDomState]]
+  view: RootView[State],
+  vDomStateKey: VDomLens[State,Option[VDomState]]
 ) extends CurrentVDom[State] {
+
+  private type Message = String ⇒ Option[String]
+  private type Handler = Message ⇒ State ⇒ Option[State]
   //def until(value: Long) = if(value < until) until = value
-  private def relocate(state: State, message: Map[String,String]): Option[State] =
-    for(hash ← message.get("X-r-location-hash") if hash != vDomStateKey.of(state).get.hashFromAlien)
+  private def relocate: Handler = message ⇒ state ⇒
+    for(hash ← message("X-r-location-hash") if hash != vDomStateKey.of(state).get.hashFromAlien)
       yield vDomStateKey.transform(vStateOpt ⇒ Option(vStateOpt.get.copy(
         hashFromAlien = hash, hashTarget = hash
       )))(state)
   //dispatches incoming message // can close / set refresh time
-  private def dispatch(state: State, message: Map[String,String]): Option[State] =
-    for(pathStr <- message.get("X-r-vdom-path")) yield {
+  private def dispatch: Handler = message ⇒ state ⇒
+    for(pathStr <- message("X-r-vdom-path")) yield {
       if(vDomStateKey.of(state).get.until <= 0) throw new Exception("invalid VDom")
       val path = pathStr.split("/").toList match {
         case "" :: parts => parts
         case _ => Never()
       }
-      ((message.get("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
-        case (Some("click"), Some(v: OnClickReceiver[_])) => v.onClick.get(state)
+      ((message("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
+        case (Some("click"), Some(v: OnClickReceiver[_])) => v.onClick.get
         case (Some("change"), Some(v: OnChangeReceiver[_])) =>
-          val decoded = UTF8String(Base64.getDecoder.decode(message("X-r-vdom-value-base64")))
-          v.onChange.get(state,decoded)
+          val decoded = UTF8String(Base64.getDecoder.decode(message("X-r-vdom-value-base64").get))
+          v.onChange.get(decoded)
         case v => throw new Exception(s"$path ($v) can not receive $message")
-      }).asInstanceOf[State]
+      }).asInstanceOf[State=>State](state)
     }
-  private def setLastMessage(state: State, message: Map[String,String]): Option[State] =
-    for(connection ← message.get("X-r-connection"); index ← message.get("X-r-index"))
+  private def handleLastMessage: Handler = message ⇒ state ⇒
+    for(connection ← message("X-r-connection"); index ← message("X-r-index"))
       yield vDomStateKey.transform(vStateOpt ⇒ Option(vStateOpt.get.copy(
         ackFromAlien = connection :: index :: Nil
       )))(state)
-  private def handlers =
-    List[(State,Map[String,String])⇒Option[State]](setLastMessage,relocate,dispatch)
+  private def handlers = List[Handler](handleLastMessage,relocate,dispatch)
   private def init(state: State): State =
     if(vDomStateKey.of(state).nonEmpty) state
     else vDomStateKey.transform(_⇒Option(VDomState(wasNoValue,0,"","","",Nil)))(state)
-  def fromAlien(state: State, message: Map[String,String]): State =
-    (init(state) /: handlers)((state,f)⇒f(state,message).getOrElse(state))
-  def toAlien(state: State)(view: ()⇒List[ChildPair[_]]): (State,List[(String,String)]) =
+
+
+  def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State =
+    message ⇒ state ⇒ (init(state) /: handlers)((state,f)⇒f(message)(state).getOrElse(state))
+
+  def toAlien: (State) ⇒ (State, List[(String, String)]) = ???
+
+
+
+
+  def toAlien(state: State): (State,List[(String,String)]) =
     Option(state).map(init).map{ state ⇒
       val vState = vDomStateKey.of(state).get
       if(
@@ -61,12 +68,11 @@ class CurrentVDomImpl[State](
           if(vState.ackFromAlien.isEmpty) Nil
           else List("ackMessage" → ("ackMessage" :: vState.ackFromAlien))
         val rootElement = RootElement(rootAttributes)
-        val nextDom = child("root", rootElement, view()) //state.hashFromAlien
+        val (viewRes, until) = view.view(state)
+        val nextDom = child("root", rootElement, viewRes)
           .asInstanceOf[VPair].value
         val nextState = vDomStateKey.transform(vStateOpt ⇒ Option(vStateOpt.get.copy(
-          value=nextDom,
-          until=Long.MaxValue,
-          hashOfLastView=vState.hashFromAlien
+          value=nextDom, until=until, hashOfLastView=vState.hashFromAlien
         )))(state)
         val diffTree = diff.diff(vState.value, vDomStateKey.of(nextState).get.value)
         val diffCommands = diffTree.map(d=>("showDiff", jsonToString(d))).toList

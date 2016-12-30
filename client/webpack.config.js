@@ -29,7 +29,7 @@ function config(kind,name) {
 }
 
 module.exports = [
-    //config("test","react-app"),
+    config("test","react-app"),
     //config("test","material-app"),
     //config("test","btn"),
     config("test","sse")/*,

@@ -2,6 +2,7 @@
 package ee.cone.c4actor
 
 import Types._
+import ee.cone.c4actor.TreeAssemblerTypes.Replace
 
 import scala.collection.immutable.Map
 
@@ -46,8 +47,12 @@ case class WorldTransition(
   current: World
 )
 
-trait TreeAssembler {
-  def replace(prev: World, replaced: Map[WorldKey[_],Index[Object,Object]]): World
+class OriginalWorldPart[A<:Object](val outputWorldKey: WorldKey[A]) extends DataDependencyTo[A]
+
+object TreeAssemblerTypes {
+  type Replace = Map[WorldKey[_],Index[Object,Object]] ⇒ World ⇒ World
 }
 
-class OriginalWorldPart[A<:Object](val outputWorldKey: WorldKey[A]) extends DataDependencyTo[A]
+trait TreeAssembler {
+  def replace: List[DataDependencyTo[_]] ⇒ Replace
+}
