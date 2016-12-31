@@ -31,7 +31,7 @@ class IndexFactoryImpl extends IndexFactory {
       new PatchMap[MapKey,Values[Value],MultiSet[Value]](
         Nil,_.isEmpty,
         (v,d)⇒join.sort(add.many(d, v, 1).flatMap{ case(node,count) ⇒
-          if(count<0) throw new Exception
+          if(count<0) throw new Exception(s"$node -- $count")
           List.fill(count)(node)
         })
       )
@@ -126,9 +126,9 @@ object TreeAssemblerImpl extends TreeAssembler {
       val diff = replaced.mapValues(_.mapValues(_⇒true))
       val current = add.many(prevWorld, replaced)
       val transition = WorldTransition(prevWorld,diff,current)
-      (transition /: expressionsByPriority)((transition,handler) ⇒
+      (transition /: expressionsByPriority) { (transition, handler) ⇒
         handler.transform(transition)
-      ).current
+      }.current
     }
   }
 }

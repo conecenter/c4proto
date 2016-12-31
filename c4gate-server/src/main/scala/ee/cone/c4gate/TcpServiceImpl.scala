@@ -52,11 +52,10 @@ trait SSEServerApp extends ToStartApp with DataDependenciesApp {
 
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
   private lazy val sseServer = new TcpServerImpl(ssePort, qMessages, worldProvider)
-  private lazy val tcpWriteByConnectionJoin = new TcpWriteByConnectionJoin
-  private lazy val tcpConnectionTxTransformJoin = new TcpConnectionTxTransformJoin(sseServer)
   override def toStart: List[Executable] = sseServer :: super.toStart
   override def dataDependencies: List[DataDependencyTo[_]] =
-    tcpWriteByConnectionJoin :: tcpConnectionTxTransformJoin ::
+    indexFactory.createJoinMapIndex(new TcpWriteByConnectionJoin) ::
+    indexFactory.createJoinMapIndex(new TcpConnectionTxTransformJoin(sseServer)) ::
     super.dataDependencies
 }
 
@@ -136,15 +135,17 @@ class TcpConnectionTxTransformJoin(tcpServer: TcpServer) extends Join3(
       tcpConnections: Values[TcpConnection],
       tcpDisconnects: Values[TcpDisconnect],
       writes: Values[TcpWriteByConnection]
-  ) =
-    if(Seq(tcpConnections,tcpDisconnects,writes).forall(_.isEmpty)) Nil
-    else if(tcpConnections.isEmpty){
-      val zombies = tcpDisconnects ++ writes.map(_.write)
+  ) = {
+    if(tcpConnections.isEmpty){
+      val zombies = (tcpDisconnects ++ writes.map(_.write)).take(4096)
       val key = tcpDisconnects.map(_.connectionKey) ++ writes.map(_.connectionKey)
       withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
     }
-    else withKey[Product with TxTransform](TcpConnectionTxTransform(
-      Single(tcpConnections).connectionKey, tcpDisconnects, writes.map(_.write)
-    )(tcpServer))
+    else {
+      withKey[Product with TxTransform](TcpConnectionTxTransform(
+        Single(tcpConnections).connectionKey, tcpDisconnects, writes.map(_.write)
+      )(tcpServer))
+    }
+  }
   def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)
 }

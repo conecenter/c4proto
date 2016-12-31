@@ -43,10 +43,17 @@ class ReducerImpl(
     TxKey.transform(_⇒new WorldTxImpl(this, world, Queue.empty))
 }
 
+object WorldStats {
+  def make(world: World) = world.collect{ case (worldKey, index:Index[_,_]) ⇒
+    s"$worldKey : ${index.size} : ${index.values.flatten.size}"
+  }.mkString("\n")
+}
+
 class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(qMessages: QMessages, reducer: Reducer) extends Observer {
   def activate(getWorld: () ⇒ World): Seq[Observer] = try {
     val world = getWorld()
     val transforms: Index[SrcId, TxTransform] = By.srcId(classOf[TxTransform]).of(world)
+    //println(WorldStats.make(world))
     val nLocalStates = transforms.map{ case (key, transformList) ⇒
       key → localStates.get(key).orElse(Option(Map():World)).map{ local ⇒
         if(OffsetWorldKey.of(world) < OffsetWorldKey.of(local)) local else Option(local)

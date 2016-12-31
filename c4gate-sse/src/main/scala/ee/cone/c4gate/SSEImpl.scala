@@ -91,8 +91,7 @@ class SSEConnectionJoin(sseUI: SSEui) extends Join4(
     initDone: Values[AppLevelInitDone],
     posts: Values[HttpPostByConnection]
   ) =
-    if(Seq(tcpConnections,initDone,posts).forall(_.isEmpty)) Nil
-    else if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
+    if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
       val zombies: List[Product] = initDone ++ posts.map(_.request)
       val key = initDone.map(_.connectionKey) ++ posts.map(_.connectionKey)
       withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.map(LEvent.delete)))

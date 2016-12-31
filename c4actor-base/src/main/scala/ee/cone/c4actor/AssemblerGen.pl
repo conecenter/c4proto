@@ -17,6 +17,7 @@ abstract class Join$n\[${&$jm(sub{"T$_"},', ')}R,TK,RK](
   def join(${&$jm(sub{"a$_: Values[T$_]"},'')}): Values[(RK,R)]
   //
   def joins(in: Seq[Values[Object]]): Iterable[(RK,R)] = in match {
+    case Seq(${&$jm(sub{"Nil"},'')}) => Nil
     case Seq(${&$jm(sub{"a$_"},'')}) ⇒
       join(${&$jm(sub{"a$_.asInstanceOf[Values[T$_]]"},'')})
   }

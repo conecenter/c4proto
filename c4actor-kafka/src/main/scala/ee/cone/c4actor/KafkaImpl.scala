@@ -26,6 +26,7 @@ class KafkaRawQSender(bootstrapServers: String)(
 ) extends RawQSender with Executable {
   def run(ctx: ExecutionContext): Unit = {
     val props = Map[String, Object](
+      //"max.request.size" → "10000000",
       "bootstrap.servers" → bootstrapServers,
       "acks" → "all",
       "retries" → "0",

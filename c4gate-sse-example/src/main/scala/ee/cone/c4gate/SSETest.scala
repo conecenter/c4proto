@@ -1,15 +1,7 @@
 package ee.cone.c4gate
 
-import java.util.UUID
-
-import ee.cone.c4actor.Types.{SrcId, World}
+import ee.cone.c4actor.Types.World
 import ee.cone.c4actor._
-import ee.cone.c4gate.TestTodoProtocol.Task
-import ee.cone.c4proto.{Id, Protocol, protocol}
-import ee.cone.c4actor.LEvent._
-import ee.cone.c4vdom.{ChildPair, CurrentVDom, RootView, VDomState}
-import ee.cone.c4vdom
-import ee.cone.c4vdom_mix.VDomApp
 
 object TestSSE extends Main((new TestSSEApp).execution.run)
 
