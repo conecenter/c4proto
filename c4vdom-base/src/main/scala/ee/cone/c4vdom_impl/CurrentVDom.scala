@@ -51,12 +51,7 @@ class CurrentVDomImpl[State](
   def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State =
     message ⇒ state ⇒ (init(state) /: handlers)((state,f)⇒f(message)(state).getOrElse(state))
 
-  def toAlien: (State) ⇒ (State, List[(String, String)]) = ???
-
-
-
-
-  def toAlien(state: State): (State,List[(String,String)]) =
+  def toAlien: (State) ⇒ (State, List[(String, String)]) = state ⇒
     Option(state).map(init).map{ state ⇒
       val vState = vDomStateKey.of(state).get
       if(

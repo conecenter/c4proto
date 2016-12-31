@@ -23,6 +23,7 @@ class TestTodoApp extends ServerApp
     new TestTodoRootView(testTags)
   }
   lazy val testTags = new TestTags[World](childPairFactory,tagJsonUtils)
+  override def protocols: List[Protocol] = TestTodoProtocol :: super.protocols
 }
 
 @protocol object TestTodoProtocol extends Protocol {

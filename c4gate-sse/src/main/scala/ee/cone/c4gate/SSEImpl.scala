@@ -66,13 +66,17 @@ case class WorkingSSEConnection(
         .map(SSEPongTimeKey.transform(_⇒Instant.now))
     }.get
 
+  private def disconnect(local: World): World =
+    add(Seq(update(TcpDisconnect(connectionKey))))(local)
+
   def transform(local: World): World = Some(local)
     .map(needInit)
     .map(needPing)
     .map(local ⇒
-      if(posts.nonEmpty) handlePosts(local)
+      if(ErrorKey.of(local).nonEmpty) disconnect(local)
+      else if(posts.nonEmpty) handlePosts(local)
       else if(pingAge(local) < 2 || pongAge(local) < 5) toAlien(local)
-      else add(Seq(update(TcpDisconnect(connectionKey))))(local)
+      else disconnect(local)
     ).get
 }
 

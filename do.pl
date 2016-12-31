@@ -35,24 +35,27 @@ sub staged{"$_[0]/target/universal/stage/bin/$_[0]"}
 push @tasks, ["gate_server_run", sub{
     sy("$env C4STATE_TOPIC_PREFIX=http-gate-0 ".staged("c4gate-server"));
 }];
-push @tasks, ["gate_test_consumer_run", sub{
+push @tasks, ["test_post_get_tcp_service_run", sub{
     sy("$env C4STATE_TOPIC_PREFIX=http-test-0 ".staged("c4gate-consumer-example"))
 }];
-push @tasks, ["gate_post_get_check", sub{
+push @tasks, ["test_post_get_check", sub{
     my $v = int(rand()*10);
     sy("curl http://127.0.0.1:$http_port/abc -X POST -d $v");
     sleep 1;
     sy("curl http://127.0.0.1:$http_port/abc");
     print " -- should be posted * 3\n";
 }];
-push @tasks, ["gate_tcp_check", sub{
+push @tasks, ["test_tcp_check", sub{
     sy("nc 127.0.0.1 $sse_port");
-}];
-push @tasks, ["gate_sse_consumer_run", sub{
-    sy("$env C4STATE_TOPIC_PREFIX=sse-test-0 ".staged("c4gate-sse-example"))
 }];
 push @tasks, ["gate_publish", sub{
     sy("$env C4PUBLISH_DIR=./client/build/test ".staged("c4gate-publish"))
+}];
+push @tasks, ["test_consumer_sse_service_run", sub{
+    sy("$env C4STATE_TOPIC_PREFIX=sse-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestSSE' ")
+}];
+push @tasks, ["test_consumer_todo_service_run", sub{
+    sy("$env C4STATE_TOPIC_PREFIX=todo-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestTodo' ")
 }];
 
 

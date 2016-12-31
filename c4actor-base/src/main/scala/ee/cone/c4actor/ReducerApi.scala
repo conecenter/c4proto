@@ -10,3 +10,5 @@ trait Reducer {
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord])
   def createTx(world: World): World ⇒ World
 }
+
+case object ErrorKey extends WorldKey[Option[Exception]](None)

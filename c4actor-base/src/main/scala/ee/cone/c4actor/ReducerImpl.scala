@@ -50,23 +50,25 @@ object WorldStats {
 }
 
 class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(qMessages: QMessages, reducer: Reducer) extends Observer {
-  def activate(getWorld: () ⇒ World): Seq[Observer] = try {
+  def activate(getWorld: () ⇒ World): Seq[Observer] = {
     val world = getWorld()
     val transforms: Index[SrcId, TxTransform] = By.srcId(classOf[TxTransform]).of(world)
     //println(WorldStats.make(world))
     val nLocalStates = transforms.map{ case (key, transformList) ⇒
       key → localStates.get(key).orElse(Option(Map():World)).map{ local ⇒
-        if(OffsetWorldKey.of(world) < OffsetWorldKey.of(local)) local else Option(local)
-          .map(reducer.createTx(world))
-          .map(local ⇒ (local /: transformList)((local,transform)⇒transform.transform(local)))
-          .map(qMessages.send).get
+        if(OffsetWorldKey.of(world) < OffsetWorldKey.of(local)) local else try {
+          Option(local)
+            .map(reducer.createTx(world))
+            .map(local ⇒ (local /: transformList) ((local, transform) ⇒ transform.transform(local)))
+            .map(qMessages.send).get
+        } catch {
+          case e: Exception ⇒
+            e.printStackTrace() //??? |Nil|throw
+            ErrorKey.transform(_⇒Some(e))(Map():World)
+        }
       }.get
     }
     Seq(new SerialObserver(nLocalStates)(qMessages,reducer))
-  } catch {
-    case e: Exception ⇒
-      e.printStackTrace() //??? |Nil|throw
-      Seq(this)
   }
 }
 
