@@ -34,7 +34,7 @@ case class WorkingSSEConnection(
     val key = UUID.randomUUID.toString
     Some(local)
       .map(SSEMessagePriorityKey.transform(_+1))
-      .map(add(Seq(update(TcpWrite(key,connectionKey,bytes,priority))))).get
+      .map(add(update(TcpWrite(key,connectionKey,bytes,priority)))).get
   }
 
   private def toAlien(local: World): World = {
@@ -51,7 +51,7 @@ case class WorkingSSEConnection(
 
   private def needInit(local: World): World = if(initDone) local else Some(local)
     .map(message("connect", connectionKey))
-    .map(add(Seq(update(AppLevelInitDone(connectionKey)))))
+    .map(add(update(AppLevelInitDone(connectionKey))))
     .map(SSEPingTimeKey.transform(_⇒Instant.now)).get
 
   private def needPing(local: World): World =
@@ -62,12 +62,12 @@ case class WorkingSSEConnection(
   private def handlePosts(local: World): World =
     (Option(local) /: posts) { (localOpt, post) ⇒ localOpt
         .map(sseUI.fromAlien(post.headers.get)).map(toAlien)
-        .map(add(Seq(delete(post.request))))
+        .map(add(delete(post.request)))
         .map(SSEPongTimeKey.transform(_⇒Instant.now))
     }.get
 
   private def disconnect(local: World): World =
-    add(Seq(update(TcpDisconnect(connectionKey))))(local)
+    add(update(TcpDisconnect(connectionKey)))(local)
 
   def transform(local: World): World = Some(local)
     .map(needInit)
@@ -98,7 +98,7 @@ class SSEConnectionJoin(sseUI: SSEui) extends Join4(
     if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
       val zombies: List[Product] = initDone ++ posts.map(_.request)
       val key = initDone.map(_.connectionKey) ++ posts.map(_.connectionKey)
-      withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
+      withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.flatMap(LEvent.delete)))
     }
     else withKey[Product with TxTransform](WorkingSSEConnection(
       Single(tcpConnections).connectionKey, initDone.nonEmpty, posts

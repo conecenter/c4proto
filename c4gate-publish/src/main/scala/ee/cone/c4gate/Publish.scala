@@ -48,7 +48,7 @@ class PublishFileVisitor(qMessages: QMessages, reducer: Reducer, fromPath: Path)
     val world = reducer.createWorld(Map())
     Option(Map():World)
       .map(reducer.createTx(world))
-      .map(LEvent.add(Seq(LEvent.update(HttpPublication(path,headers,byteString)))))
+      .map(LEvent.add(LEvent.update(HttpPublication(path,headers,byteString))))
       .foreach(qMessages.send)
     println(s"$path published")
     FileVisitResult.CONTINUE

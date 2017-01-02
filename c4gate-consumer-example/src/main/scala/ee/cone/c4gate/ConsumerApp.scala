@@ -45,7 +45,7 @@ case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform
     val next = (prev.toLong * 3).toString
     val body = okio.ByteString.encodeUtf8(next)
     val resp = HttpPublication(post.path, Nil, body)
-    add[Product](Seq(delete(post), update(resp)))(local)
+    add(delete[Product](post) ++ update[Product](resp))(local)
   }
 }
 
@@ -100,7 +100,7 @@ case class GateTester(id: String, connections: Values[TcpConnection]) extends Tx
     println(size)
     val broadEvents = connections.flatMap { connection ⇒
       val key = UUID.randomUUID.toString
-      Seq(update(TcpWrite(key, connection.connectionKey, sizeBody, seconds)))
+      update(TcpWrite(key, connection.connectionKey, sizeBody, seconds))
     }
     Option(local)
       .map(add(broadEvents))

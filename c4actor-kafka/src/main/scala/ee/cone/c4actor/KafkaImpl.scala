@@ -87,7 +87,9 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     consumer
   }
   private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {
-    rawQSender.send(qMessages.toRecord(topicName,qMessages.toUpdate(LEvent.delete(Updates("",Nil))))) //! prevents hanging on empty topic
+    LEvent.delete(Updates("",Nil)).foreach(ev⇒
+      rawQSender.send(qMessages.toRecord(topicName,qMessages.toUpdate(ev)))
+    ) //! prevents hanging on empty topic
     val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
     consumer.seekToBeginning(part.asJava)
     val recsIterator = iterator(consumer).flatten

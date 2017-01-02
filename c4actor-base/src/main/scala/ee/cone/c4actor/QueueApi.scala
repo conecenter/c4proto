@@ -53,10 +53,10 @@ trait QMessages {
 
 case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])
 object LEvent {
-  def update[M<:Product](value: M): LEvent[M] =
-    LEvent(value.productElement(0).toString, value.getClass.getName, Option(value))
-  def delete[M<:Product](value: M): LEvent[M] =
-    LEvent(value.productElement(0).toString, value.getClass.getName, None)
+  def update[M<:Product](value: M): Seq[LEvent[M]] =
+    Seq(LEvent(value.productElement(0).toString, value.getClass.getName, Option(value)))
+  def delete[M<:Product](value: M): Seq[LEvent[M]] =
+    Seq(LEvent(value.productElement(0).toString, value.getClass.getName, None))
   def add[M<:Product](out: Seq[LEvent[M]]): World⇒World =
     TxKey.transform(_.add(out))
 }

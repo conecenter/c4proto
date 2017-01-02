@@ -44,16 +44,16 @@ class TestTodoRootView(tags: TestTags[World]) extends RootView[World] {
         task.srcId,
         List(
           tags.input("comments", task.comments,
-            value ⇒ add(Seq(update(task.copy(comments=value))))
+            value ⇒ add(update(task.copy(comments=value)))
             //value ⇒ (task:Task) ⇒ task.copy(comments=value)
           ),
-          tags.button("remove", "-", add(Seq(delete(task))))
+          tags.button("remove", "-", add(delete(task)))
         )
       )
     }
     val btnList = List(
       tags.button("add", "+",
-        add(Seq(update(Task(UUID.randomUUID.toString,System.currentTimeMillis,""))))
+        add(update(Task(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )
     )
     val res = List(btnList,taskLines).flatten

@@ -54,12 +54,12 @@ class AssemblerTestApp extends ServerApp with ToStartApp {
 object AssemblerTest extends App {
   val indexFactory = new IndexFactoryImpl
   val app = new AssemblerTestApp
-  val recs = update(RawParentNode("1","P-1")) ::
-    List("2","3").map(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
+  val recs = update(RawParentNode("1","P-1")) ++
+    List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
 
   val world = app.qReducer.reduceRecover(
     app.qReducer.createWorld(Map()),
-    recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec)))
+    recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec))).toList
   )
   /*
   val shouldDiff = Map(

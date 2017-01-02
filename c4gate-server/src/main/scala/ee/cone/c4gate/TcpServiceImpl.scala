@@ -69,7 +69,7 @@ class TcpServerImpl(
       .map { local ⇒
         val world = TxKey.of(local).world
         val connections =  By.srcId(classOf[TcpConnection]).of(world).values.flatten.toSeq
-        LEvent.add(connections.map(LEvent.delete))(local)
+        LEvent.add(connections.flatMap(LEvent.delete))(local)
       }
       .foreach(qMessages.send)
 
@@ -82,13 +82,13 @@ class TcpServerImpl(
         channels += key → new ChannelHandler(ch, {() ⇒
           channels -= key
           Option(worldProvider.createTx())
-            .map(LEvent.add(Seq(LEvent.delete(TcpConnection(key)))))
+            .map(LEvent.add(LEvent.delete(TcpConnection(key))))
             .foreach(qMessages.send)
         }, { error ⇒
           println(error.getStackTrace.toString)
         })
         Option(worldProvider.createTx())
-          .map(LEvent.add(Seq(LEvent.update(TcpConnection(key)))))
+          .map(LEvent.add(LEvent.update(TcpConnection(key))))
           .foreach(qMessages.send)
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
@@ -105,7 +105,7 @@ case class TcpConnectionTxTransform(
     def sender = tcpServer.senderByKey(connectionKey)
     for(d ← tcpDisconnects; s ← sender) s.close()
     for(message ← writes; s ← sender) s.add(message.body.toByteArray)
-    LEvent.add(writes.map(LEvent.delete))(local)
+    LEvent.add(writes.flatMap(LEvent.delete))(local)
   }
 }
 
@@ -139,7 +139,7 @@ class TcpConnectionTxTransformJoin(tcpServer: TcpServer) extends Join3(
     if(tcpConnections.isEmpty){
       val zombies = (tcpDisconnects ++ writes.map(_.write)).take(4096)
       val key = tcpDisconnects.map(_.connectionKey) ++ writes.map(_.connectionKey)
-      withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.map(LEvent.delete)))
+      withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.flatMap(LEvent.delete)))
     }
     else {
       withKey[Product with TxTransform](TcpConnectionTxTransform(

@@ -36,7 +36,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val path = httpExchange.getRequestURI.getPath
     val req = HttpPost(UUID.randomUUID.toString, path, headers, body,  System.currentTimeMillis)
     Option(worldProvider.createTx())
-      .map(LEvent.add(Seq(LEvent.update(req))))
+      .map(LEvent.add(LEvent.update(req)))
       .foreach(qMessages.send)
     //println(s"ht:${tx.toSend.size}")
 
