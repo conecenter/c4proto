@@ -23,7 +23,7 @@ class ReducerImpl(
   getDependencies: ()⇒List[DataDependencyTo[_]]
 ) extends Reducer {
   def createWorld: World ⇒ World =
-    TreeAssemblerKey.transform(_⇒treeAssembler.replace(getDependencies()))
+    TreeAssemblerKey.modify(_⇒treeAssembler.replace(getDependencies()))
   def reduceRecover(world: World, recs: List[QRecord]): World =
     TreeAssemblerKey.of(world)(qMessages.toTree(recs))(world)
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord]) =
@@ -40,7 +40,7 @@ class ReducerImpl(
       }
     }
   def createTx(world: World): World ⇒ World =
-    TxKey.transform(_⇒new WorldTxImpl(this, world, Queue.empty))
+    TxKey.modify(_⇒new WorldTxImpl(this, world, Queue.empty))
 }
 
 object WorldStats {
@@ -64,7 +64,7 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(qMessages:
         } catch {
           case e: Exception ⇒
             e.printStackTrace() //??? |Nil|throw
-            ErrorKey.transform(_⇒Some(e))(Map():World)
+            ErrorKey.modify(_⇒Some(e))(Map():World)
         }
       }.get
     }

@@ -21,10 +21,11 @@ case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
 class TestSSEui extends SSEui {
   def allowOriginOption: Option[String] = Some("*")
+  def postURL: String = "/connection"
   def fromAlien: (String ⇒ Option[String]) ⇒ World ⇒ World = _ ⇒ identity
   def toAlien: World ⇒ (World, List[(String, String)]) = local ⇒ {
     val seconds = System.currentTimeMillis / 1000
     if(TestTimerKey.of(local) == seconds) (local,Nil)
-    else (TestTimerKey.transform(_⇒seconds)(local), List("show"→seconds.toString))
+    else (TestTimerKey.modify(_⇒seconds)(local), List("show"→seconds.toString))
   }
 }

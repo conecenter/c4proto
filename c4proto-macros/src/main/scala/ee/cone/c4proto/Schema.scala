@@ -48,6 +48,13 @@ class protocol extends StaticAnnotation {
                   empty = "0",
                   resultType = "Long"
                 )
+              case t"Boolean" ⇒
+                ProtoType(
+                  encodeStatement = (s"if(prep_$propName)", s"prep_$propName)"),
+                  serializerType = "com.squareup.wire.ProtoAdapter.BOOL",
+                  empty = "false",
+                  resultType = "Boolean"
+                )
               case t"okio.ByteString" ⇒
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName.size > 0)", s"prep_$propName)"),

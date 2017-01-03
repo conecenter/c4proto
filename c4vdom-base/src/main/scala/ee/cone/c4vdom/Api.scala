@@ -50,7 +50,7 @@ trait Color {
 
 trait VDomLens[C,I] {
   def of(container: C): I
-  def transform(f: I⇒I)(container: C): C
+  def modify(f: I⇒I)(container: C): C
 }
 
 trait RootView[State] {

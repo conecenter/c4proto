@@ -6,12 +6,12 @@ import scala.collection.immutable.Map
 
 trait Lens[C,I] {
   def of(container: C): I
-  def transform(f: I⇒I)(container: C): C
+  def modify(f: I⇒I)(container: C): C
 }
 
 abstract class WorldKey[Item](default: Item) extends Lens[World,Item] {
   def of(world: World): Item = world.getOrElse(this, default).asInstanceOf[Item]
-  def transform(f: Item⇒Item)(world: World): World =
+  def modify(f: Item⇒Item)(world: World): World =
     world + (this → f(of(world)).asInstanceOf[Object])
 }
 /*

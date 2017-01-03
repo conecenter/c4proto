@@ -104,7 +104,7 @@ case class GateTester(id: String, connections: Values[TcpConnection]) extends Tx
     }
     Option(local)
       .map(add(broadEvents))
-      .map(TestTimerKey.transform(_⇒seconds)).get
+      .map(TestTimerKey.modify(_⇒seconds)).get
   }
 }
 

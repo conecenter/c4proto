@@ -58,7 +58,7 @@ object LEvent {
   def delete[M<:Product](value: M): Seq[LEvent[M]] =
     Seq(LEvent(value.productElement(0).toString, value.getClass.getName, None))
   def add[M<:Product](out: Seq[LEvent[M]]): World⇒World =
-    TxKey.transform(_.add(out))
+    TxKey.modify(_.add(out))
 }
 
 trait WorldTx {

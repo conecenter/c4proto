@@ -18,8 +18,9 @@ function getConnectionState(orDo){ return connectionState || orDo() }
 function getConnectionKey(orDo){ return getConnectionState(orDo).key || orDo() }
 function connect(data) {
     console.log("conn: "+data)
-    var nextMessageIndex = 0
-    connectionState = { key: data, nextMessageIndex: ()=>nextMessageIndex++ }
+    let nextMessageIndex = 0
+    const [key,postURL] = data.split(" ")
+    connectionState = { key, postURL, nextMessageIndex: ()=>nextMessageIndex++ }
     sessionKey(() => sessionStorage.setItem("sessionKey", getConnectionKey(never)))
     getLoadKey(() => { loadKeyState = getConnectionKey(never) })
     localStorage.setItem(loadKeyForSession(), getLoadKey(never))
@@ -37,7 +38,7 @@ function send(headers){
     headers["X-r-connection"] = getConnectionKey(never)
     headers["X-r-index"] = getConnectionState(never).nextMessageIndex()
     //todo: contron message delivery at server
-    fetch("/connection",{method:"post",headers})
+    fetch(getConnectionState(never).postURL, {method:"post", headers})
     return headers
 }
 function relocateHash(data) { 

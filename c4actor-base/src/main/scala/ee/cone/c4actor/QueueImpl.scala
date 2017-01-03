@@ -25,7 +25,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
     val offset = getRawQSender().send(rec)
-    OffsetWorldKey.transform(_⇒offset+1)(local)
+    OffsetWorldKey.modify(_⇒offset+1)(local)
   }
   def toUpdate[M<:Product](message: LEvent[M]): Update = {
     val valueAdapter =

@@ -14,6 +14,7 @@ case class HttpPostByConnection(
 
 trait SSEui {
   def allowOriginOption: Option[String]
+  def postURL: String
   def fromAlien: (String⇒Option[String]) ⇒ World ⇒ World
   def toAlien: World ⇒ (World, List[(String, String)])
 }

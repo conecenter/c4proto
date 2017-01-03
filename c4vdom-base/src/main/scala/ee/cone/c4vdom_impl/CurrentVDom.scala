@@ -18,7 +18,7 @@ class CurrentVDomImpl[State](
   //def until(value: Long) = if(value < until) until = value
   private def relocate: Handler = message ⇒ state ⇒
     for(hash ← message("X-r-location-hash") if hash != vDomStateKey.of(state).get.hashFromAlien)
-      yield vDomStateKey.transform(vStateOpt ⇒ Option(vStateOpt.get.copy(
+      yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
         hashFromAlien = hash, hashTarget = hash
       )))(state)
   //dispatches incoming message // can close / set refresh time
@@ -39,13 +39,13 @@ class CurrentVDomImpl[State](
     }
   private def handleLastMessage: Handler = message ⇒ state ⇒
     for(connection ← message("X-r-connection"); index ← message("X-r-index"))
-      yield vDomStateKey.transform(vStateOpt ⇒ Option(vStateOpt.get.copy(
+      yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
         ackFromAlien = connection :: index :: Nil
       )))(state)
   private def handlers = List[Handler](handleLastMessage,relocate,dispatch)
   private def init(state: State): State =
     if(vDomStateKey.of(state).nonEmpty) state
-    else vDomStateKey.transform(_⇒Option(VDomState(wasNoValue,0,"","","",Nil)))(state)
+    else vDomStateKey.modify(_⇒Option(VDomState(wasNoValue,0,"","","",Nil)))(state)
 
 
   def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State =
@@ -66,7 +66,7 @@ class CurrentVDomImpl[State](
         val (viewRes, until) = view.view(state)
         val nextDom = child("root", rootElement, viewRes)
           .asInstanceOf[VPair].value
-        val nextState = vDomStateKey.transform(vStateOpt ⇒ Option(vStateOpt.get.copy(
+        val nextState = vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
           value=nextDom, until=until, hashOfLastView=vState.hashFromAlien
         )))(state)
         val diffTree = diff.diff(vState.value, vDomStateKey.of(nextState).get.value)

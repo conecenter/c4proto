@@ -33,7 +33,7 @@ case class WorkingSSEConnection(
     val bytes = okio.ByteString.encodeUtf8(str)
     val key = UUID.randomUUID.toString
     Some(local)
-      .map(SSEMessagePriorityKey.transform(_+1))
+      .map(SSEMessagePriorityKey.modify(_+1))
       .map(add(update(TcpWrite(key,connectionKey,bytes,priority)))).get
   }
 
@@ -50,20 +50,20 @@ case class WorkingSSEConnection(
     ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
 
   private def needInit(local: World): World = if(initDone) local else Some(local)
-    .map(message("connect", connectionKey))
+    .map(message("connect", s"$connectionKey ${sseUI.postURL}"))
     .map(add(update(AppLevelInitDone(connectionKey))))
-    .map(SSEPingTimeKey.transform(_⇒Instant.now)).get
+    .map(SSEPingTimeKey.modify(_⇒Instant.now)).get
 
   private def needPing(local: World): World =
     if(pingAge(local) < 5) local else Some(local)
       .map(message("ping", connectionKey))
-      .map(SSEPingTimeKey.transform(_⇒Instant.now)).get
+      .map(SSEPingTimeKey.modify(_⇒Instant.now)).get
 
   private def handlePosts(local: World): World =
     (Option(local) /: posts) { (localOpt, post) ⇒ localOpt
         .map(sseUI.fromAlien(post.headers.get)).map(toAlien)
         .map(add(delete(post.request)))
-        .map(SSEPongTimeKey.transform(_⇒Instant.now))
+        .map(SSEPongTimeKey.modify(_⇒Instant.now))
     }.get
 
   private def disconnect(local: World): World =
