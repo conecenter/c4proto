@@ -69,7 +69,7 @@ class JoinMapIndex[JoinKey,MapKey,Value<:Object](
       inputWorldKeys.map(getIndex)
     (res /: ids){(res: Map[MapKey,MultiSet[Value]], id: JoinKey)⇒
       val args = worldParts.map(_.getOrElse(id, Nil))
-      add.many(res, join.joins(args))
+      add.many(res, join.joins(id, args))
     }
   }
   def transform(transition: WorldTransition): WorldTransition = {

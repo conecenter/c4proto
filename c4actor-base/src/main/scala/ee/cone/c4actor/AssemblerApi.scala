@@ -31,7 +31,7 @@ trait Join[Result,JoinKey,MapKey]
   extends DataDependencyFrom[Index[JoinKey,Object]]
   with DataDependencyTo[Index[MapKey,Result]]
 {
-  def joins(in: Seq[Values[Object]]): Iterable[(MapKey,Result)]
+  def joins(key: JoinKey, in: Seq[Values[Object]]): Iterable[(MapKey,Result)]
   def sort(values: Iterable[Result]): List[Result]
 }
 

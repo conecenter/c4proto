@@ -1,10 +1,35 @@
 
 package ee.cone.c4actor
 
-import PCProtocol.{RawChildNode,RawParentNode}
+import PCProtocol.{RawChildNode, RawParentNode}
 import ee.cone.c4actor.Types.{Index, SrcId, Values}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, assemble, protocol}
 import ee.cone.c4actor.LEvent._
+
+////
+
+trait Assemble
+class by[T] //@by[SrcId]
+case class MacroJoinKey[K,V](keyAlias: String, keyClassName: String, valueClassName: String)
+  extends WorldKey[Index[K,V]](Map.empty)
+
+trait JoinX[Result,JoinKey,MapKey]
+  extends DataDependencyFrom[Index[JoinKey,Object]]
+    with DataDependencyTo[Index[MapKey,Result]]
+{
+  def joins(key: JoinKey, in: Seq[Values[Object]]): Iterable[(MapKey,Result)]
+}
+
+@assemble object TestAssemble extends Assemble {
+  type ParentSrcId = SrcId
+  def join(
+    key: SrcId,
+    rawChildNode: Values[RawChildNode]
+  ): Values[(ParentSrcId,RawChildNode)] =
+    rawChildNode.map(child ⇒ child.parentSrcId → child)
+}
+
+////
 
 @protocol object PCProtocol extends Protocol {
   @Id(0x0003) case class RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
