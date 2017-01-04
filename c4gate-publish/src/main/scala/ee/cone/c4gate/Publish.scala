@@ -3,8 +3,8 @@ package ee.cone.c4gate
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file._
 
-import ee.cone.c4actor.Types.World
 import ee.cone.c4actor._
+import ee.cone.c4assemble.Types.World
 import ee.cone.c4gate.InternetProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.Protocol
 

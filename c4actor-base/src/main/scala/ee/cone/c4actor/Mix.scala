@@ -1,6 +1,8 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
 trait DataDependenciesApp {
@@ -19,11 +21,16 @@ trait ProtocolsApp {
   def protocols: List[Protocol] = Nil
 }
 
+trait AssemblesApp {
+  def assembles: List[Assemble] = Nil
+}
+
+
 trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
 }
 
-trait ServerApp extends ProtocolsApp with DataDependenciesApp {
+trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp {
   def toStart: List[Executable]
   def rawQSender: RawQSender
   //
@@ -33,9 +40,11 @@ trait ServerApp extends ProtocolsApp with DataDependenciesApp {
   lazy val qReducer: Reducer = new ReducerImpl(qMessages, treeAssembler, ()⇒dataDependencies)
   lazy val indexFactory: IndexFactory = new IndexFactoryImpl
   lazy val treeAssembler: TreeAssembler = TreeAssemblerImpl
+  private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
+    assembleDataDependencies :::
     ProtocolDataDependencies(protocols) ::: super.dataDependencies
 }
 

@@ -4,11 +4,13 @@ package ee.cone.c4gate
 import java.time.Instant
 import java.util.UUID
 
-import ee.cone.c4actor.Types.{Index, SrcId, Values, World}
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
+import ee.cone.c4assemble.{Assemble, DataDependencyTo, Single, WorldKey}
+import ee.cone.c4assemble.Types.{Values, World}
 
 class TestConsumerApp extends ServerApp
   with EnvConfigApp
@@ -16,12 +18,8 @@ class TestConsumerApp extends ServerApp
   with SerialObserversApp
 {
   //"http-test-0" "localhost:9092"
-  private lazy val testJoins =
-    List(new TestHttpPostHandlerJoin, new AllTcpConnectionsJoin, new GateTesterJoin)
-      .map(indexFactory.createJoinMapIndex(_))
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
-  override def dataDependencies: List[DataDependencyTo[_]] =
-    testJoins ::: super.dataDependencies
+  override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
 
 /*
@@ -47,6 +45,10 @@ case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform
     val resp = HttpPublication(post.path, Nil, body)
     add(delete[Product](post) ++ update[Product](resp))(local)
   }
+}
+
+@assemble class TestAssemble extends Assemble {
+
 }
 
 class TestHttpPostHandlerJoin extends Join1(

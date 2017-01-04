@@ -7,7 +7,8 @@ import java.util.concurrent.CompletableFuture
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4gate.InternetProtocol._
-import ee.cone.c4actor.Types.World
+import ee.cone.c4assemble.Types.World
+import ee.cone.c4assemble.Single
 import ee.cone.c4actor._
 import ee.cone.c4proto._
 

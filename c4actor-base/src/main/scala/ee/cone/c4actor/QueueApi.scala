@@ -1,9 +1,12 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.{Index, SrcId, World}
+import scala.collection.immutable.Map
 import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4assemble.Types.{Index, World}
+import ee.cone.c4assemble.{MacroJoinKey, WorldKey}
+import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.Types.SrcId
 
 @protocol object QProtocol extends Protocol {
   @Id(0x0010) case class TopicKey(
@@ -49,6 +52,16 @@ trait QMessages {
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord]
   def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]]
   def send[M<:Product](local: World): World
+}
+
+object Types {
+  type SrcId = String
+}
+
+object By {
+  def srcId[V](cl: Class[V]): WorldKey[Index[SrcId,V]] = srcId[V](cl.getName)
+  def srcId[V](className: String): WorldKey[Index[SrcId,V]] =
+    MacroJoinKey("SrcId", classOf[SrcId].getName, className)
 }
 
 case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])

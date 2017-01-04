@@ -7,6 +7,8 @@ import java.util.UUID
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
+import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.{Assemble, Single, WorldKey, by}
 import ee.cone.c4gate.InternetProtocol._
 
 case object SSEMessagePriorityKey extends WorldKey[java.lang.Long](0L)
@@ -80,51 +82,37 @@ case class WorkingSSEConnection(
     ).get
 }
 
-class SSEConnectionJoin(sseUI: SSEui) extends Join4(
-  By.srcId(classOf[TcpConnection]),
-  By.srcId(classOf[TcpDisconnect]),
-  By.srcId(classOf[AppLevelInitDone]),
-  By.srcId(classOf[HttpPostByConnection]),
-  By.srcId(classOf[TxTransform])
-) {
-  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
-    List(c.productElement(0).toString → c)
-  def join(
-    tcpConnections: Values[TcpConnection],
-    tcpDisconnects: Values[TcpDisconnect],
-    initDone: Values[AppLevelInitDone],
-    posts: Values[HttpPostByConnection]
-  ) =
-    if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
-      val zombies: List[Product] = initDone ++ posts.map(_.request)
-      val key = initDone.map(_.connectionKey) ++ posts.map(_.connectionKey)
-      withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.flatMap(LEvent.delete)))
-    }
-    else withKey[Product with TxTransform](WorkingSSEConnection(
-      Single(tcpConnections).connectionKey, initDone.nonEmpty, posts
-    )(sseUI))
-  def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)
-}
-
-
-class HttpPostByConnectionJoin extends Join1(
-  By.srcId(classOf[HttpPost]),
-  By.srcId(classOf[HttpPostByConnection])
-){
-  def join(
+@assemble class SSEAssemble(sseUI: SSEui) extends Assemble {
+  def joinHttpPostByConnection(
+    key: SrcId,
     posts: Values[HttpPost]
-  ) = posts.flatMap( post ⇒
+  ): Values[(SrcId,HttpPostByConnection)] = posts.flatMap( post ⇒
     if(post.path != "/connection") Nil else {
       val headers = post.headers.flatMap(h ⇒
         if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
       ).toMap
       val index = try { headers.get("X-r-index").map(_.toInt) }
-        catch { case _: Exception ⇒ None }
+      catch { case _: Exception ⇒ None }
       val connectionKey = headers.get("X-r-connection")
       for(k ← connectionKey; i ← index) yield k → HttpPostByConnection(k,i,headers,post)
     }
   )
-  def sort(nodes: Iterable[HttpPostByConnection]) = nodes.toList.sortBy(_.index)
+  def sortHttpPostByConnection: Iterable[HttpPostByConnection] ⇒ List[HttpPostByConnection] =
+    _.toList.sortBy(_.index)
+  def joinTxTransform(
+    key: SrcId,
+    tcpConnections: Values[TcpConnection],
+    tcpDisconnects: Values[TcpDisconnect],
+    initDone: Values[AppLevelInitDone],
+    posts: Values[HttpPostByConnection]
+  ): Values[(SrcId,TxTransform)] = List(key → (
+    if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
+      val zombies: List[Product] = initDone ++ posts.map(_.request)
+      SimpleTxTransform(key, zombies.flatMap(LEvent.delete))
+    }
+    else WorkingSSEConnection(key, initDone.nonEmpty, posts)(sseUI)
+  ))
+  def sortTxTransform: Iterable[TxTransform] ⇒ List[TxTransform] = Single.list
 }
 
 

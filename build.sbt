@@ -60,18 +60,24 @@ lazy val `c4proto-api` = project.settings(publishSettings)
 lazy val `c4proto-types` = project.settings(publishSettings)
   .settings(description := s"$descr / additional data types to use in messages")
   .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+
+lazy val `c4assemble-macros` = project.settings(publishSettings ++ metaMacroSettings)
+  .settings(description := s"$descr")
+lazy val `c4assemble-runtime` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+
 lazy val `c4gate-proto` = project.settings(publishSettings)
   .settings(description := s"$descr / http message definitions")
   .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
 
 lazy val `c4actor-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`,`c4assemble-runtime`)
 
 lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`,`c4proto-types`)
+  .dependsOn(`c4actor-base`,`c4proto-types`,`c4assemble-macros`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
@@ -92,7 +98,7 @@ lazy val `c4gate-consumer-example` = project.settings(publishSettings)
 
 lazy val `c4gate-sse` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .dependsOn(`c4gate-proto`, `c4actor-base`)
+  .dependsOn(`c4gate-proto`, `c4actor-base`, `c4assemble-macros`)
 
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
@@ -115,6 +121,8 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4actor-base`,
   `c4actor-base-examples`,
   `c4actor-kafka`,
+  `c4assemble-macros`,
+  `c4assemble-runtime`,
   `c4gate-consumer-example`,
   `c4gate-proto`,
   `c4gate-publish`,
@@ -126,7 +134,3 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4proto-types`,
   `c4vdom-base`
 )
-
-
-
-

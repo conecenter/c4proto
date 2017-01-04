@@ -1,8 +1,8 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.Types.{Index, SrcId, World}
-
-import scala.collection.immutable.{Map, Queue}
+import scala.collection.immutable.Queue
+import ee.cone.c4assemble.Types.World
+import ee.cone.c4assemble.WorldKey
 
 trait Reducer {
   def createWorld: World ⇒ World

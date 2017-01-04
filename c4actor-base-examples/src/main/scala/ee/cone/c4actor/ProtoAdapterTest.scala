@@ -1,6 +1,7 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4assemble.Single
 import ee.cone.c4proto.{Id, Protocol, protocol, scale}
 
 

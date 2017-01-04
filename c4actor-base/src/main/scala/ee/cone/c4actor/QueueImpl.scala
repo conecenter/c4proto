@@ -3,7 +3,9 @@ package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.QProtocol.{TopicKey, Update, Updates}
-import ee.cone.c4actor.Types.{Index, SrcId, World}
+import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4assemble.Types.{Index, World}
+import ee.cone.c4assemble.WorldKey
 import ee.cone.c4proto.{HasId, Protocol}
 
 /*Future[RecordMetadata]*/
@@ -54,7 +56,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }.map {
     case (valueTypeId, keysEvents) ⇒
       val worldKey: WorldKey[Index[SrcId,Object]] =
-        By.It[SrcId,Object]('S',qAdapterRegistry.nameById(valueTypeId))
+        By.srcId[Object](qAdapterRegistry.nameById(valueTypeId))
       val valueAdapter = qAdapterRegistry.byId(valueTypeId)
       worldKey → keysEvents.groupBy {
         case (topicKey, _) ⇒ topicKey.srcId

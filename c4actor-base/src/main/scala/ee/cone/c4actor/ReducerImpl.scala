@@ -1,8 +1,11 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.TreeAssemblerTypes.Replace
-import ee.cone.c4actor.Types.{Index, SrcId, World}
+import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4assemble.TreeAssemblerTypes.Replace
+import ee.cone.c4assemble.Types.{Index, World}
+import ee.cone.c4assemble._
+import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Queue}
 
@@ -44,8 +47,9 @@ class ReducerImpl(
 }
 
 object WorldStats {
-  def make(world: World) = world.collect{ case (worldKey, index:Index[_,_]) ⇒
-    s"$worldKey : ${index.size} : ${index.values.flatten.size}"
+  def make(world: World): String = world.collect{ case (worldKey, index:Map[_,_]) ⇒
+    val sz = index.values.collect { case s: Seq[_] ⇒ s.size }.sum
+    s"$worldKey : ${index.size} : $sz"
   }.mkString("\n")
 }
 
@@ -74,4 +78,11 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(qMessages:
 
 case class SimpleTxTransform[P<:Product](key: String, todo: List[LEvent[P]]) extends TxTransform {
   def transform(local: World): World = LEvent.add(todo)(local)
+}
+
+object ProtocolDataDependencies {
+  def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
+    protocols.flatMap(_.adapters).map{ adapter ⇒
+      new OriginalWorldPart(By.srcId(adapter.className))
+    }
 }

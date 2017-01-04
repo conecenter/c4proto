@@ -2,78 +2,47 @@
 package ee.cone.c4actor
 
 import PCProtocol.{RawChildNode, RawParentNode}
-import ee.cone.c4actor.Types.{Index, SrcId, Values}
-import ee.cone.c4proto.{Id, Protocol, assemble, protocol}
+import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4actor.LEvent._
+import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.{Assemble, _}
+import ee.cone.c4proto
 
-////
-
-trait Assemble
-class by[T] //@by[SrcId]
-case class MacroJoinKey[K,V](keyAlias: String, keyClassName: String, valueClassName: String)
-  extends WorldKey[Index[K,V]](Map.empty)
-
-trait JoinX[Result,JoinKey,MapKey]
-  extends DataDependencyFrom[Index[JoinKey,Object]]
-    with DataDependencyTo[Index[MapKey,Result]]
-{
-  def joins(key: JoinKey, in: Seq[Values[Object]]): Iterable[(MapKey,Result)]
-}
-
-@assemble object TestAssemble extends Assemble {
-  type ParentSrcId = SrcId
-  def join(
-    key: SrcId,
-    rawChildNode: Values[RawChildNode]
-  ): Values[(ParentSrcId,RawChildNode)] =
-    rawChildNode.map(child ⇒ child.parentSrcId → child)
-}
-
-////
-
-@protocol object PCProtocol extends Protocol {
+@protocol object PCProtocol extends c4proto.Protocol {
   @Id(0x0003) case class RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
   @Id(0x0001) case class RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }
 
-case object ChildNodeByParent extends WorldKey[Index[SrcId,RawChildNode]](Map.empty)
 case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
-
-class ChildNodeByParentJoin extends Join1(
-  By.srcId(classOf[RawChildNode]),
-  ChildNodeByParent
-) {
-  def join(rawChildNode: Values[RawChildNode]): Values[(SrcId,RawChildNode)] =
+@assemble class TestAssemble extends Assemble {
+  type ParentSrcId = SrcId
+  def joinChildNodeByParent(
+    key: SrcId,
+    rawChildNode: Values[RawChildNode]
+  ): Values[(ParentSrcId,RawChildNode)] =
     rawChildNode.map(child ⇒ child.parentSrcId → child)
-  def sort(nodes: Iterable[RawChildNode]): List[RawChildNode] =
-    nodes.toList.sortBy(_.srcId)
-}
-
-class ParentNodeWithChildrenJoin extends Join2(
-  ChildNodeByParent,
-  By.srcId(classOf[RawParentNode]),
-  By.srcId(classOf[ParentNodeWithChildren])
-) {
-  def join(
-    childNodeByParent: Values[RawChildNode],
+  def joinParentNodeWithChildren(
+    key: SrcId,
+    @by[ParentSrcId] childNodes: Values[RawChildNode],
     rawParentNode: Values[RawParentNode]
-  ): Values[(SrcId,ParentNodeWithChildren)] = {
+  ): Values[(SrcId,ParentNodeWithChildren)] =
     rawParentNode.map(parent ⇒
-      parent.srcId → ParentNodeWithChildren(parent.caption, childNodeByParent)
+      parent.srcId → ParentNodeWithChildren(parent.caption, childNodes)
     )
-  }
-  def sort(nodes: Iterable[ParentNodeWithChildren]): List[ParentNodeWithChildren] =
-    if(nodes.size <= 1) nodes.toList else throw new Exception("PK")
+  def sortRawChildNode:
+    Iterable[RawChildNode] ⇒ List[RawChildNode] =
+    _.toList.sortBy(_.srcId)
+  def sortParentNodeWithChildren:
+    Iterable[ParentNodeWithChildren] ⇒ List[ParentNodeWithChildren] =
+    Single.list
 }
 
 class AssemblerTestApp extends ServerApp with ToStartApp {
   def rawQSender: RawQSender =
     new RawQSender { def send(rec: QRecord): Long = 0 }
   override def protocols: List[Protocol] = PCProtocol :: super.protocols
-  override def dataDependencies: List[DataDependencyTo[_]] =
-    indexFactory.createJoinMapIndex(new ChildNodeByParentJoin) ::
-    indexFactory.createJoinMapIndex(new ParentNodeWithChildrenJoin) ::
-    super.dataDependencies
+  override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
 
 object AssemblerTest extends App {
@@ -81,11 +50,10 @@ object AssemblerTest extends App {
   val app = new AssemblerTestApp
   val recs = update(RawParentNode("1","P-1")) ++
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
-
-  val world = app.qReducer.reduceRecover(
-    app.qReducer.createWorld(Map()),
-    recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec))).toList
-  )
+  val rawRecs = recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec))).toList
+  //println(app.qMessages.toTree(rawRecs))
+  val emptyWorld = app.qReducer.createWorld(Map())
+  val world = app.qReducer.reduceRecover(emptyWorld, rawRecs)
   /*
   val shouldDiff = Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
@@ -98,7 +66,7 @@ object AssemblerTest extends App {
   )
   assert(diff==shouldDiff)*/
   println(world)
-  assert(world.filter{ case (k,v) ⇒ v.isInstanceOf[Map[_,_]] }==Map(
+  Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
       "1" -> List(RawParentNode("1","P-1"))
     ),
@@ -106,14 +74,13 @@ object AssemblerTest extends App {
       "2" -> List(RawChildNode("2","1","C-2")),
       "3" -> List(RawChildNode("3","1","C-3"))
     ),
-    ChildNodeByParent -> Map(
-      "1" -> List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
-    ),
     By.srcId(classOf[ParentNodeWithChildren]) -> Map(
       "1" -> List(ParentNodeWithChildren(
         "P-1",
         List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
       ))
     )
-  ))
+  ).foreach{
+    case (k,v) ⇒ assert(world(k)==v)
+  }
 }

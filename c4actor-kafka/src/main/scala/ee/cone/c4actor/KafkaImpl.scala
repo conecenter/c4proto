@@ -5,9 +5,9 @@ import java.util.Collections.singletonMap
 import java.util.concurrent.{CompletableFuture, Future}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
-import ee.cone.c4actor.QProtocol.{Update, Updates}
-import ee.cone.c4actor.TreeAssemblerTypes.Replace
-import ee.cone.c4actor.Types.World
+import ee.cone.c4actor.QProtocol.Updates
+import ee.cone.c4assemble.Single
+import ee.cone.c4assemble.Types.World
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.{Consumer, ConsumerRecord, KafkaConsumer, OffsetAndMetadata}

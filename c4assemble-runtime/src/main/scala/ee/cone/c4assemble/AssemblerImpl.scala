@@ -1,9 +1,8 @@
 
-package ee.cone.c4actor
+package ee.cone.c4assemble
 
 import Types._
-import ee.cone.c4actor.TreeAssemblerTypes.Replace
-import ee.cone.c4proto.Protocol
+import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
 import scala.collection.immutable.Map
 
@@ -20,7 +19,7 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
 }
 
 class IndexFactoryImpl extends IndexFactory {
-  def createJoinMapIndex[Value<:Object,TK,MapKey](join: Join[Value,TK,MapKey]):
+  def createJoinMapIndex[Value<:Object,TK,MapKey](join: Join[Value,TK,MapKey], sort: Iterable[Value]⇒Values[Value]):
     WorldPartExpression
       with DataDependencyFrom[Index[TK, Object]]
       with DataDependencyTo[Index[MapKey, Value]]
@@ -30,7 +29,7 @@ class IndexFactoryImpl extends IndexFactory {
     val addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]] =
       new PatchMap[MapKey,Values[Value],MultiSet[Value]](
         Nil,_.isEmpty,
-        (v,d)⇒join.sort(add.many(d, v, 1).flatMap{ case(node,count) ⇒
+        (v,d)⇒sort(add.many(d, v, 1).flatMap{ case(node,count) ⇒
           if(count<0) throw new Exception(s"$node -- $count")
           List.fill(count)(node)
         })
@@ -107,6 +106,7 @@ object TreeAssemblerImpl extends TreeAssembler {
       //handlerLists.list(WorldPartExpressionKey)
     val originals: Set[WorldKey[_]] =
       rules.collect{ case e: OriginalWorldPart[_] ⇒ e.outputWorldKey }.toSet
+    println(s"rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}")
     val byOutput: Map[WorldKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
     def regOne(
@@ -116,7 +116,7 @@ object TreeAssemblerImpl extends TreeAssembler {
       if(priorities.contains(handler)) priorities
       else (priorities /: handler.inputWorldKeys.flatMap{ k ⇒
         byOutput.getOrElse(k,
-          if(originals(k)) Nil else throw new Exception(s"undefined $k")
+          if(originals(k)) Nil else throw new Exception(s"undefined $k in $originals")
         )
       })(regOne).add(handler)
     }
@@ -133,7 +133,23 @@ object TreeAssemblerImpl extends TreeAssembler {
   }
 }
 
-object ProtocolDataDependencies {
-  def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters).map(adapter⇒new OriginalWorldPart(By.It('S',adapter.className)))
+
+class SortsImpl(values: Map[String,Iterable[_] ⇒ Values[_]]) extends Sorts {
+  def get[R](cl: Class[R]): Iterable[R] ⇒ Values[R] = {
+    val name = cl.getName
+    values.getOrElse(name,throw new Exception(s"undefined sort for $name"))
+      .asInstanceOf[Iterable[R] ⇒ Values[R]]
+  }
+  def add[R](cl: Class[R], value: Iterable[R] ⇒ Values[R]): Sorts = {
+    val name = cl.getName
+    if(values.contains(name)) throw new Exception(s"redefined sort for $name")
+    new SortsImpl(values + (name→value.asInstanceOf[Iterable[_] ⇒ Values[_]]))
+  }
+}
+
+object AssembleDataDependencies {
+  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] = {
+    val sorts = ((new SortsImpl(Map()):Sorts) /: assembles)((sorts,assemble)⇒assemble.sorts(sorts))
+    assembles.flatMap(assemble⇒assemble.dataDependencies(indexFactory,sorts))
+  }
 }
