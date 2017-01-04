@@ -1,7 +1,7 @@
 
 package ee.cone.c4gate
 
-import ee.cone.c4actor.Types.World
+import ee.cone.c4assemble.Types.World
 
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit

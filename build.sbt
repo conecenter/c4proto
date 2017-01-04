@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.6.1",
+  version := "0.7.0",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -68,16 +68,18 @@ lazy val `c4assemble-runtime` = project.settings(publishSettings)
 
 lazy val `c4gate-proto` = project.settings(publishSettings)
   .settings(description := s"$descr / http message definitions")
-  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+  .settings(metaMacroSettings)
+  .dependsOn(`c4proto-macros`,`c4proto-api`)
 
 lazy val `c4actor-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`,`c4assemble-runtime`)
+  .settings(metaMacroSettings)
+  .dependsOn(`c4proto-macros`,`c4assemble-macros`,`c4proto-api`,`c4assemble-runtime`)
 
 lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`,`c4proto-types`,`c4assemble-macros`)
+  .dependsOn(`c4actor-base`,`c4proto-types`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
@@ -87,23 +89,25 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4assemble-macros`,`c4gate-proto`, `c4actor-kafka`)
   .enablePlugins(JavaServerAppPackaging)
-  .dependsOn(`c4gate-proto`, `c4actor-kafka`)
 
 lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .dependsOn(`c4actor-kafka`, `c4gate-proto`)
-  //.settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+  .settings(metaMacroSettings)
+  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-proto`)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `c4gate-sse` = project.settings(publishSettings)
   .settings(description := s"$descr")
+  .settings(metaMacroSettings)
   .dependsOn(`c4gate-proto`, `c4actor-base`, `c4assemble-macros`)
 
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .dependsOn(`c4actor-kafka`, `c4gate-sse`, `c4vdom-base`)
-  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+  .settings(metaMacroSettings)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4gate-sse`, `c4vdom-base`)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `c4gate-publish` = project.settings(publishSettings)

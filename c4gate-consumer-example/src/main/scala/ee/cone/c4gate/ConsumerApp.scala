@@ -9,7 +9,7 @@ import ee.cone.c4actor._
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4assemble.{Assemble, DataDependencyTo, Single, WorldKey}
+import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Values, World}
 
 class TestConsumerApp extends ServerApp
@@ -35,9 +35,18 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --descri
 curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 */
 
+@assemble class TestAssemble extends Assemble {
+  def joinTestHttpPostHandler(key: SrcId, posts: Values[HttpPost]): Values[(SrcId, TxTransform)] =
+    posts.map(post⇒key→TestHttpPostHandler(post))
+  def joinAllTcpConnections(key: SrcId, items: Values[TcpConnection]): Values[(Unit, TcpConnection)] =
+    items.map(()→_)
+  def sortTcpConnection: Unit ⇒ Iterable[TcpConnection] ⇒ List[TcpConnection] =
+    _ ⇒ _.toList.sortBy(_.connectionKey)
+  def joinGateTester(key: Unit, connections: Values[TcpConnection]): Values[(SrcId, TxTransform)] =
+    List("GateTester"→GateTester(connections))
+}
 
-
-case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform {
+case class TestHttpPostHandler(post: HttpPost) extends TxTransform {
   def transform(local: World): World = {
     val prev = new String(post.body.toByteArray, "UTF-8")
     val next = (prev.toLong * 3).toString
@@ -47,53 +56,9 @@ case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform
   }
 }
 
-@assemble class TestAssemble extends Assemble {
-
-}
-
-class TestHttpPostHandlerJoin extends Join1(
-  By.srcId(classOf[HttpPost]),
-  By.srcId(classOf[TxTransform])
-){
-  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
-    List(c.productElement(0).toString → c)
-  def join(posts: Values[HttpPost]): Values[(SrcId, TxTransform)] =
-    posts.map(post⇒TestHttpPostHandler(post.srcId,post)).flatMap(withKey)
-  def sort(values: Iterable[TxTransform]): List[TxTransform] = Single.list(values.toList)
-}
-
-////
-
 case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
-case class TcpConnectionByUnit(noKey: String, connection: TcpConnection)
-
-class AllTcpConnectionsJoin extends Join1(
-  By.srcId(classOf[TcpConnection]),
-  By.srcId(classOf[TcpConnectionByUnit])
-){
-  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
-    List(c.productElement(0).toString → c)
-  def join(items: Values[TcpConnection]): Values[(SrcId, TcpConnectionByUnit)] =
-    items.map(TcpConnectionByUnit("",_)).flatMap(withKey)
-  def sort(values: Iterable[TcpConnectionByUnit]): List[TcpConnectionByUnit] =
-    values.toList.sortBy(_.connection.connectionKey)
-}
-
-class GateTesterJoin extends Join1(
-  By.srcId(classOf[TcpConnectionByUnit]),
-  By.srcId(classOf[TxTransform])
-){
-  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
-    List(c.productElement(0).toString → c)
-  def join(
-    connections: Values[TcpConnectionByUnit]
-  ): Values[(SrcId, TxTransform)] =
-    withKey[Product with TxTransform](GateTester("GateTester",connections.map(_.connection)))
-  def sort(values: Iterable[TxTransform]): List[TxTransform] = Single.list(values.toList)
-}
-
-case class GateTester(id: String, connections: Values[TcpConnection]) extends TxTransform {
+case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
   def transform(local: World): World = {
     val seconds = System.currentTimeMillis / 1000
     if(TestTimerKey.of(local) == seconds) return local

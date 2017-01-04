@@ -4,7 +4,7 @@ import java.util.UUID
 
 import ee.cone.c4actor.LEvent.{add, delete, update}
 import ee.cone.c4actor._
-import ee.cone.c4actor.Types.World
+import ee.cone.c4assemble.Types.World
 import ee.cone.c4gate.TestTodoProtocol.Task
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4vdom.{ChildPair, RootView}

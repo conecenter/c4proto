@@ -31,11 +31,11 @@ case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
       parent.srcId → ParentNodeWithChildren(parent.caption, childNodes)
     )
   def sortRawChildNode:
-    Iterable[RawChildNode] ⇒ List[RawChildNode] =
-    _.toList.sortBy(_.srcId)
+    ParentSrcId ⇒ Iterable[RawChildNode] ⇒ List[RawChildNode] =
+    _ ⇒ _.toList.sortBy(_.srcId)
   def sortParentNodeWithChildren:
-    Iterable[ParentNodeWithChildren] ⇒ List[ParentNodeWithChildren] =
-    Single.list
+    SrcId ⇒ Iterable[ParentNodeWithChildren] ⇒ List[ParentNodeWithChildren] =
+    _ ⇒ Single.list
 }
 
 class AssemblerTestApp extends ServerApp with ToStartApp {

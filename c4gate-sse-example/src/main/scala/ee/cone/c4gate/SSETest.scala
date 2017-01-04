@@ -1,7 +1,8 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.Types.World
 import ee.cone.c4actor._
+import ee.cone.c4assemble.Types.World
+import ee.cone.c4assemble.WorldKey
 
 object TestSSE extends Main((new TestSSEApp).execution.run)
 

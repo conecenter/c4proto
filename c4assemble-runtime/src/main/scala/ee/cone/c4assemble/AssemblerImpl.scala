@@ -6,10 +6,10 @@ import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
 import scala.collection.immutable.Map
 
-class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
+class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (K,V,DV)⇒V) {
   def one(res: Map[K,V], key: K, diffV: DV): Map[K,V] = {
     val prevV = res.getOrElse(key,empty)
-    val nextV = op(prevV,diffV)
+    val nextV = op(key,prevV,diffV)
     if(isEmpty(nextV)) res - key else res + (key → nextV)
   }
   def many(res: Map[K,V], keys: Iterable[K], value: DV): Map[K,V] =
@@ -19,25 +19,25 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
 }
 
 class IndexFactoryImpl extends IndexFactory {
-  def createJoinMapIndex[Value<:Object,TK,MapKey](join: Join[Value,TK,MapKey], sort: Iterable[Value]⇒Values[Value]):
+  def createJoinMapIndex[Value<:Object,TK,MapKey](join: Join[Value,TK,MapKey], sort: MapKey⇒Iterable[Value]⇒Values[Value]):
     WorldPartExpression
       with DataDependencyFrom[Index[TK, Object]]
       with DataDependencyTo[Index[MapKey, Value]]
   = {
     val add: PatchMap[Value,Int,Int] =
-      new PatchMap[Value,Int,Int](0,_==0,(v,d)⇒v+d)
+      new PatchMap[Value,Int,Int](0,_==0,(k,v,d)⇒v+d)
     val addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]] =
       new PatchMap[MapKey,Values[Value],MultiSet[Value]](
         Nil,_.isEmpty,
-        (v,d)⇒sort(add.many(d, v, 1).flatMap{ case(node,count) ⇒
+        (k,v,d)⇒sort(k)(add.many(d, v, 1).flatMap{ case(node,count) ⇒
           if(count<0) throw new Exception(s"$node -- $count")
           List.fill(count)(node)
         })
       )
     val addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
-      new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))
+      new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(k,v,d)⇒add.one(v, d, +1))
     val subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
-      new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
+      new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(k,v,d)⇒add.one(v, d, -1))
     new JoinMapIndex[TK,MapKey,Value](
       join, addNestedPatch, addNestedDiff, subNestedDiff
     )
@@ -97,9 +97,9 @@ case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: Lis
 object TreeAssemblerImpl extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
-      new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
+      new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(k,v,d)⇒d)
     val add =
-      new PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,replace.many)
+      new PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,(k,v,d)⇒replace.many(v,d))
           .asInstanceOf[PatchMap[WorldKey[_],Object,Index[Object,Object]]]
     val expressions/*: Seq[WorldPartExpression]*/ =
       rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
@@ -134,17 +134,13 @@ object TreeAssemblerImpl extends TreeAssembler {
 }
 
 
-class SortsImpl(values: Map[String,Iterable[_] ⇒ Values[_]]) extends Sorts {
-  def get[R](cl: Class[R]): Iterable[R] ⇒ Values[R] = {
-    val name = cl.getName
-    values.getOrElse(name,throw new Exception(s"undefined sort for $name"))
-      .asInstanceOf[Iterable[R] ⇒ Values[R]]
-  }
-  def add[R](cl: Class[R], value: Iterable[R] ⇒ Values[R]): Sorts = {
-    val name = cl.getName
-    if(values.contains(name)) throw new Exception(s"redefined sort for $name")
-    new SortsImpl(values + (name→value.asInstanceOf[Iterable[_] ⇒ Values[_]]))
-  }
+class SortsImpl(values: World) extends Sorts {
+  def get[K,V](key: WorldKey[Index[K,V]]): K ⇒ Iterable[V] ⇒ Values[V] =
+    values.getOrElse(key,throw new Exception(s"undefined sort for $key"))
+      .asInstanceOf[K ⇒ Iterable[V] ⇒ Values[V]]
+  def add[K,V](key: WorldKey[Index[K,V]], value: K ⇒ Iterable[V] ⇒ Values[V]): Sorts =
+    if(values.contains(key)) throw new Exception(s"redefined sort for $key")
+    else new SortsImpl(values + (key→value))
 }
 
 object AssembleDataDependencies {

@@ -8,7 +8,7 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, Single, WorldKey, by}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.InternetProtocol._
 
 case object SSEMessagePriorityKey extends WorldKey[java.lang.Long](0L)
@@ -97,8 +97,9 @@ case class WorkingSSEConnection(
       for(k ← connectionKey; i ← index) yield k → HttpPostByConnection(k,i,headers,post)
     }
   )
-  def sortHttpPostByConnection: Iterable[HttpPostByConnection] ⇒ List[HttpPostByConnection] =
-    _.toList.sortBy(_.index)
+  def sortHttpPostByConnection:
+    SrcId ⇒ Iterable[HttpPostByConnection] ⇒ List[HttpPostByConnection] =
+    _ ⇒ _.toList.sortBy(_.index)
   def joinTxTransform(
     key: SrcId,
     tcpConnections: Values[TcpConnection],
@@ -106,13 +107,10 @@ case class WorkingSSEConnection(
     initDone: Values[AppLevelInitDone],
     posts: Values[HttpPostByConnection]
   ): Values[(SrcId,TxTransform)] = List(key → (
-    if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty){ //purge
-      val zombies: List[Product] = initDone ++ posts.map(_.request)
-      SimpleTxTransform(key, zombies.flatMap(LEvent.delete))
-    }
+    if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty) //purge
+      SimpleTxTransform((initDone ++ posts.map(_.request)).flatMap(LEvent.delete))
     else WorkingSSEConnection(key, initDone.nonEmpty, posts)(sseUI)
   ))
-  def sortTxTransform: Iterable[TxTransform] ⇒ List[TxTransform] = Single.list
 }
 
 

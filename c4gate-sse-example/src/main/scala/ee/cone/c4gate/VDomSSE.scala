@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.Types.World
-import ee.cone.c4actor.WorldKey
+import ee.cone.c4assemble.Types.World
+import ee.cone.c4assemble.WorldKey
 import ee.cone.c4vdom
 import ee.cone.c4vdom.{CurrentVDom, VDomState}
 import ee.cone.c4vdom_mix.VDomApp

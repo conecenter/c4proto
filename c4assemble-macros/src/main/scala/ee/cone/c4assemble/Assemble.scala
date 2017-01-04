@@ -4,14 +4,14 @@ import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
 
 sealed trait RuleDef
-case class JoinDef(params: Seq[JoinType], in: JoinType, out: JoinType) extends RuleDef
-case class JoinType(name: String, key: String, value: String)
-case class SortDef(name: String, value: String) extends RuleDef
+case class JoinDef(params: Seq[AType], in: AType, out: AType) extends RuleDef
+case class AType(name: String, key: String, value: String)
+case class SortDef(param: AType) extends RuleDef
 
 @compileTimeOnly("not expanded")
 class assemble extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
-    val q"class $objectName extends ..$ext { ..$stats }" = defn
+    val q"class $className (...$paramss) extends ..$ext { ..$stats }" = defn
     val rules: List[RuleDef] = stats.toList.flatMap {
       case q"type $tname = $tpe" ⇒ None
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${Type.Name(outKeyType)},${Type.Name(outValType)})] = $expr" ⇒
@@ -22,13 +22,14 @@ class assemble extends StaticAnnotation {
               case Nil ⇒ inKeyType
               case mod"@by[${Type.Name(annInKeyType)}]" :: Nil ⇒ annInKeyType
             }
-            JoinType(paramName, annInKeyType, inValType)
+            AType(paramName, annInKeyType, inValType)
         }
-        Option(JoinDef(joinDefParams,JoinType("",inKeyType,"Object"),JoinType(defName,outKeyType,outValType)))
-      case q"def ${Term.Name(defName)}: Iterable[${Type.Name(inType)}] ⇒ List[${Type.Name(outType)}] = $expr" if inType==outType ⇒
-        Option(SortDef(defName,inType))
+        Option(JoinDef(joinDefParams,AType("",inKeyType,"Object"),AType(defName,outKeyType,outValType)))
+      case q"def ${Term.Name(defName)}: ${Type.Name(inKeyType)} ⇒ Iterable[${Type.Name(inValType)}] ⇒ List[${Type.Name(outValType)}] = $expr"
+        if inValType==outValType ⇒
+        Option(SortDef(AType(defName,inKeyType,inValType)))
     }
-    def expr(joinType: JoinType): String = {
+    def expr(joinType: AType): String = {
       import joinType._
       s"""MacroJoinKey("$key",classOf[$key].getName,classOf[$value].getName)"""
     }
@@ -42,15 +43,15 @@ class assemble extends StaticAnnotation {
            |    case Seq(${params.map(_.name).mkString(",")}) ⇒
            |      ${out.name}(key, ${params.map(param ⇒ s"${param.name}.asInstanceOf[Values[${param.value}]]").mkString(",")})
            |  }
-           |), sorts.get(classOf[${out.value}]))
+           |), sorts.get(${expr(out)}))
          """.stripMargin
     }.mkString(s"override def dataDependencies = (indexFactory,sorts) ⇒ List(",",",")")
     val sortImpl = rules.collect{
-      case SortDef(name,value) ⇒ s".add(classOf[$value],$name)"
+      case SortDef(param@AType(defName,inKeyType,inValType)) ⇒ s".add(${expr(param)},$defName)"
     }.mkString(s"override def sorts = sorts ⇒ sorts","","")
 
     val res = q"""
-      object $objectName extends ..$ext {
+      class $className (...$paramss) extends ..$ext {
         ..$stats;
         ${joinImpl.parse[Stat].get};
         ${sortImpl.parse[Stat].get};

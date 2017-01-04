@@ -6,9 +6,11 @@ import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
 
-import ee.cone.c4actor.Types.{SrcId, Values, World}
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4actor._
+import ee.cone.c4assemble._
+import ee.cone.c4assemble.Types.{Values, World}
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.Queue
@@ -44,19 +46,15 @@ class ChannelHandler(
   }
 }
 
-trait SSEServerApp extends ToStartApp with DataDependenciesApp {
+trait SSEServerApp extends ToStartApp with AssemblesApp {
   def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
-  def indexFactory: IndexFactory
 
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
   private lazy val sseServer = new TcpServerImpl(ssePort, qMessages, worldProvider)
   override def toStart: List[Executable] = sseServer :: super.toStart
-  override def dataDependencies: List[DataDependencyTo[_]] =
-    indexFactory.createJoinMapIndex(new TcpWriteByConnectionJoin) ::
-    indexFactory.createJoinMapIndex(new TcpConnectionTxTransformJoin(sseServer)) ::
-    super.dataDependencies
+  override def assembles: List[Assemble] = new TcpAssemble(sseServer) :: super.assembles
 }
 
 class TcpServerImpl(
@@ -109,43 +107,20 @@ case class TcpConnectionTxTransform(
   }
 }
 
-case class TcpWriteByConnection(connectionKey: SrcId, write: TcpWrite)
-
-class TcpWriteByConnectionJoin extends Join1(
-  By.srcId(classOf[TcpWrite]),
-  By.srcId(classOf[TcpWriteByConnection])
-){
-  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
-    List(c.productElement(0).toString → c)
-  def join(writes: Values[TcpWrite]): Values[(SrcId, TcpWriteByConnection)] =
-    writes.flatMap(write⇒withKey(TcpWriteByConnection(write.connectionKey,write)))
-  def sort(values: Iterable[TcpWriteByConnection]): List[TcpWriteByConnection] =
-    values.toList.sortBy(_.write.priority)
-}
-
-class TcpConnectionTxTransformJoin(tcpServer: TcpServer) extends Join3(
-  By.srcId(classOf[TcpConnection]),
-  By.srcId(classOf[TcpDisconnect]),
-  By.srcId(classOf[TcpWriteByConnection]),
-  By.srcId(classOf[TxTransform])
-) {
-  private def withKey[P<:Product](c: P): Values[(SrcId,P)] =
-    List(c.productElement(0).toString → c)
-  def join(
-      tcpConnections: Values[TcpConnection],
-      tcpDisconnects: Values[TcpDisconnect],
-      writes: Values[TcpWriteByConnection]
-  ) = {
-    if(tcpConnections.isEmpty){
-      val zombies = (tcpDisconnects ++ writes.map(_.write)).take(4096)
-      val key = tcpDisconnects.map(_.connectionKey) ++ writes.map(_.connectionKey)
-      withKey[Product with TxTransform](SimpleTxTransform(key.head, zombies.flatMap(LEvent.delete)))
-    }
-    else {
-      withKey[Product with TxTransform](TcpConnectionTxTransform(
-        Single(tcpConnections).connectionKey, tcpDisconnects, writes.map(_.write)
-      )(tcpServer))
-    }
-  }
-  def sort(nodes: Iterable[TxTransform]) = Single.list(nodes.toList)
+@assemble class TcpAssemble(tcpServer: TcpServer) extends Assemble {
+  type ConnectionKey = SrcId
+  def joinTcpWrite(key: SrcId, writes: Values[TcpWrite]): Values[(ConnectionKey, TcpWrite)] =
+    writes.map(write⇒write.connectionKey→write)
+  def sortTcpWrite: ConnectionKey ⇒ Iterable[TcpWrite] ⇒ List[TcpWrite] =
+    _ ⇒ _.toList.sortBy(_.priority)
+  def joinTxTransform(
+    key: SrcId,
+    tcpConnections: Values[TcpConnection],
+    tcpDisconnects: Values[TcpDisconnect],
+    @by[ConnectionKey] writes: Values[TcpWrite]
+  ): Values[(SrcId,TxTransform)] = List(key → (
+    if(tcpConnections.isEmpty)
+      SimpleTxTransform((tcpDisconnects ++ writes).take(4096).flatMap(LEvent.delete))
+    else TcpConnectionTxTransform(key, tcpDisconnects, writes)(tcpServer)
+  ))
 }

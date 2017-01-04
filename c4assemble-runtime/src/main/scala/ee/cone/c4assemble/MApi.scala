@@ -32,7 +32,7 @@ case class WorldTransition(
 )
 
 trait IndexFactory {
-  def createJoinMapIndex[R<:Object,TK,RK](join: Join[R,TK,RK], sort: Iterable[R]⇒Values[R]):
+  def createJoinMapIndex[R<:Object,TK,RK](join: Join[R,TK,RK], sort: RK⇒Iterable[R]⇒Values[R]):
   WorldPartExpression
     with DataDependencyFrom[Index[TK, Object]]
     with DataDependencyTo[Index[RK, R]]
@@ -54,8 +54,8 @@ class Join[Result,JoinKey,MapKey](
   with DataDependencyTo[Index[MapKey,Result]]
 
 trait Sorts {
-  def get[R](cl: Class[R]): Iterable[R] ⇒ Values[R]
-  def add[R](cl: Class[R], value: Iterable[R] ⇒ Values[R]): Sorts
+  def get[K,V](key: WorldKey[Index[K,V]]): K ⇒ Iterable[V] ⇒ Values[V]
+  def add[K,V](key: WorldKey[Index[K,V]], value: K ⇒ Iterable[V] ⇒ Values[V]): Sorts
 }
 
 trait Assemble {

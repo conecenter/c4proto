@@ -76,7 +76,7 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(qMessages:
   }
 }
 
-case class SimpleTxTransform[P<:Product](key: String, todo: List[LEvent[P]]) extends TxTransform {
+case class SimpleTxTransform[P<:Product](todo: List[LEvent[P]]) extends TxTransform {
   def transform(local: World): World = LEvent.add(todo)(local)
 }
 
@@ -85,4 +85,9 @@ object ProtocolDataDependencies {
     protocols.flatMap(_.adapters).map{ adapter ⇒
       new OriginalWorldPart(By.srcId(adapter.className))
     }
+}
+
+@assemble class TxTransformAssemble extends Assemble {
+  def sortTxTransform: SrcId ⇒ Iterable[TxTransform] ⇒ List[TxTransform] =
+    _ ⇒ Single.list
 }
