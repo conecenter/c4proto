@@ -6,7 +6,6 @@ import scala.meta._
 sealed trait RuleDef
 case class JoinDef(params: Seq[AType], in: AType, out: AType) extends RuleDef
 case class AType(name: String, key: String, value: String)
-case class SortDef(param: AType) extends RuleDef
 
 @compileTimeOnly("not expanded")
 class assemble extends StaticAnnotation {
@@ -24,37 +23,30 @@ class assemble extends StaticAnnotation {
             }
             AType(paramName, annInKeyType, inValType)
         }
-        Option(JoinDef(joinDefParams,AType("",inKeyType,"Object"),AType(defName,outKeyType,outValType)))
-      case q"def ${Term.Name(defName)}: ${Type.Name(inKeyType)} ⇒ Iterable[${Type.Name(inValType)}] ⇒ List[${Type.Name(outValType)}] = $expr"
-        if inValType==outValType ⇒
-        Option(SortDef(AType(defName,inKeyType,inValType)))
+        Option(JoinDef(joinDefParams,AType("",inKeyType,"Product"),AType(defName,outKeyType,outValType)))
     }
-    def expr(joinType: AType): String = {
-      import joinType._
-      s"""MacroJoinKey("$key",classOf[$key].getName,classOf[$value].getName)"""
+    def expr(genType: AType, specType: AType): String = {
+
+      s"""MacroJoinKey[${genType.key},${genType.value}]("${specType.key}",classOf[${specType.key}].getName,classOf[${specType.value}].getName)"""
     }
     val joinImpl = rules.collect{
       case JoinDef(params,in,out) ⇒
         s"""
-           |indexFactory.createJoinMapIndex(new Join[${out.value},${in.key},${out.key}](
-           |  Seq(${params.map(expr).mkString(",")}), ${expr(out)},
+           |indexFactory.createJoinMapIndex[${in.value},${out.value},${in.key},${out.key}](new Join[${in.value},${out.value},${in.key},${out.key}](
+           |  Seq(${params.map(expr(in,_)).mkString(",")}), ${expr(out,out)},
            |  (key,in) ⇒ in match {
            |    case Seq(${params.map(_ ⇒ "Nil").mkString(",")}) ⇒ Nil
            |    case Seq(${params.map(_.name).mkString(",")}) ⇒
            |      ${out.name}(key, ${params.map(param ⇒ s"${param.name}.asInstanceOf[Values[${param.value}]]").mkString(",")})
            |  }
-           |), sorts.get(${expr(out)}))
+           |))
          """.stripMargin
-    }.mkString(s"override def dataDependencies = (indexFactory,sorts) ⇒ List(",",",")")
-    val sortImpl = rules.collect{
-      case SortDef(param@AType(defName,inKeyType,inValType)) ⇒ s".add(${expr(param)},$defName)"
-    }.mkString(s"override def sorts = sorts ⇒ sorts","","")
+    }.mkString(s"override def dataDependencies = indexFactory ⇒ List(",",",")")
 
     val res = q"""
       class $className (...$paramss) extends ..$ext {
         ..$stats;
         ${joinImpl.parse[Stat].get};
-        ${sortImpl.parse[Stat].get};
       }"""
     //println(res)
     res

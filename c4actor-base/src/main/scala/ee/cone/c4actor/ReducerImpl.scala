@@ -86,8 +86,3 @@ object ProtocolDataDependencies {
       new OriginalWorldPart(By.srcId(adapter.className))
     }
 }
-
-@assemble class TxTransformAssemble extends Assemble {
-  def sortTxTransform: SrcId ⇒ Iterable[TxTransform] ⇒ List[TxTransform] =
-    _ ⇒ Single.list
-}

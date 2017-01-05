@@ -97,9 +97,6 @@ case class WorkingSSEConnection(
       for(k ← connectionKey; i ← index) yield k → HttpPostByConnection(k,i,headers,post)
     }
   )
-  def sortHttpPostByConnection:
-    SrcId ⇒ Iterable[HttpPostByConnection] ⇒ List[HttpPostByConnection] =
-    _ ⇒ _.toList.sortBy(_.index)
   def joinTxTransform(
     key: SrcId,
     tcpConnections: Values[TcpConnection],
@@ -109,7 +106,7 @@ case class WorkingSSEConnection(
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty) //purge
       SimpleTxTransform((initDone ++ posts.map(_.request)).flatMap(LEvent.delete))
-    else WorkingSSEConnection(key, initDone.nonEmpty, posts)(sseUI)
+    else WorkingSSEConnection(key, initDone.nonEmpty, posts.sortBy(_.index))(sseUI)
   ))
 }
 

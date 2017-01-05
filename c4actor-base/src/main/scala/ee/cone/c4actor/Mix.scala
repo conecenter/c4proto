@@ -40,7 +40,6 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   private lazy val treeAssembler: TreeAssembler = TreeAssemblerImpl
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   //
-  override def assembles: List[Assemble] = new TxTransformAssemble :: super.assembles
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::

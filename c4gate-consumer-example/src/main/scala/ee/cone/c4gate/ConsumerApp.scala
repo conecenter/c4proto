@@ -40,8 +40,6 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
     posts.map(post⇒key→TestHttpPostHandler(post))
   def joinAllTcpConnections(key: SrcId, items: Values[TcpConnection]): Values[(Unit, TcpConnection)] =
     items.map(()→_)
-  def sortTcpConnection: Unit ⇒ Iterable[TcpConnection] ⇒ List[TcpConnection] =
-    _ ⇒ _.toList.sortBy(_.connectionKey)
   def joinGateTester(key: Unit, connections: Values[TcpConnection]): Values[(SrcId, TxTransform)] =
     List("GateTester"→GateTester(connections))
 }

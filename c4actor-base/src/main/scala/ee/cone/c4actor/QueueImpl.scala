@@ -55,8 +55,8 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     case (topicKey, _) ⇒ topicKey.valueTypeId
   }.map {
     case (valueTypeId, keysEvents) ⇒
-      val worldKey: WorldKey[Index[SrcId,Object]] =
-        By.srcId[Object](qAdapterRegistry.nameById(valueTypeId))
+      val worldKey: WorldKey[Index[SrcId,Product]] =
+        By.srcId[Product](qAdapterRegistry.nameById(valueTypeId))
       val valueAdapter = qAdapterRegistry.byId(valueTypeId)
       worldKey → keysEvents.groupBy {
         case (topicKey, _) ⇒ topicKey.srcId
