@@ -53,6 +53,7 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
 trait SerialObserversApp extends InitialObserversApp {
   def qMessages: QMessages
   def qReducer: Reducer
-  private lazy val serialObserver = new SerialObserver(Map.empty)(qMessages,qReducer)
+  def initLocals: List[InitLocal]
+  private lazy val serialObserver = new SerialObserver(Map.empty)(qMessages,qReducer,initLocals)
   override def initialObservers: List[Observer] = serialObserver :: super.initialObservers
 }

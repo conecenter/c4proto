@@ -64,7 +64,7 @@ class TcpServerImpl(
   port: Int, qMessages: QMessages, worldProvider: WorldProvider,
   channels: TrieMap[String,ChannelHandler] = TrieMap()
 ) extends InitLocal with Executable {
-  def initLocal: World ⇒ World = GetSenderKey.modify(_=>channels.get)
+  def initLocal: World ⇒ World = GetSenderKey.set(channels.get)
   def run(ctx: ExecutionContext): Unit = {
     Option(worldProvider.createTx())
       .map { local ⇒

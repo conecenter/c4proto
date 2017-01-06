@@ -43,11 +43,8 @@ class CurrentVDomImpl[State](
         ackFromAlien = connection :: index :: Nil
       )))(state)
   private def handlers = List[Handler](handleLastMessage,relocate,dispatch)
-  private def init(state: State): State =
-    if(vDomStateKey.of(state).nonEmpty) state
-    else vDomStateKey.modify(_⇒Option(VDomState(wasNoValue,0,"","","",Nil)))(state)
-
-
+  private def init: State ⇒ State =
+    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,"","","",Nil))))
   def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State =
     message ⇒ state ⇒ (init(state) /: handlers)((state,f)⇒f(message)(state).getOrElse(state))
 

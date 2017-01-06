@@ -12,13 +12,13 @@ object Types {
 
 trait Lens[C,I] {
   def of(container: C): I
-  def modify(f: I⇒I)(container: C): C
+  def modify(f: I⇒I): C⇒C
 }
 
 abstract class WorldKey[Item](default: Item) extends Lens[World,Item] {
   def of(world: World): Item = world.getOrElse(this, default).asInstanceOf[Item]
-  def modify(f: Item⇒Item)(world: World): World =
-    world + (this → f(of(world)).asInstanceOf[Object])
+  def modify(f: Item⇒Item): World ⇒ World = world ⇒ set(f(of(world)))(world)
+  def set(value: Item): World ⇒ World = _ + (this → value.asInstanceOf[Object])
 }
 
 

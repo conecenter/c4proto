@@ -11,22 +11,20 @@ class TestSSEApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
   with SSEApp
+  with InitLocalsApp
 {
-  lazy val sseUI: SSEui = {
+  override def initLocals: List[InitLocal] = {
     println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
-    new TestSSEui
+    NoProxySSEConfig :: TestSSEui :: super.initLocals
   }
 }
 
 case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
-class TestSSEui extends SSEui with InitLocal {
-  def allowOriginOption: Option[String] = Some("*")
-  def postURL: String = "/connection"
-  def fromAlien: (String ⇒ Option[String]) ⇒ World ⇒ World = _ ⇒ identity
-  def toAlien: World ⇒ (World, List[(String, String)]) = local ⇒ {
+object TestSSEui extends InitLocal {
+  def initLocal: World ⇒ World = ToAlienKey.set(local ⇒ {
     val seconds = System.currentTimeMillis / 1000
     if(TestTimerKey.of(local) == seconds) (local,Nil)
-    else (TestTimerKey.modify(_⇒seconds)(local), List("show"→seconds.toString))
-  }
+    else (TestTimerKey.set(seconds)(local), List("show"→seconds.toString))
+  })
 }

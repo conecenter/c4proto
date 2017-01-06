@@ -14,7 +14,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 class TestConsumerApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
-  with SerialObserversApp
+  with SerialObserversApp with InitLocalsApp
 {
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
@@ -65,9 +65,7 @@ case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
       val key = UUID.randomUUID.toString
       update(TcpWrite(key, connection.connectionKey, sizeBody, seconds))
     }
-    Option(local)
-      .map(add(broadEvents))
-      .map(TestTimerKey.modify(_⇒seconds)).get
+    add(broadEvents).andThen(TestTimerKey.set(seconds))(local)
   }
 }
 

@@ -26,7 +26,7 @@ class ReducerImpl(
   getDependencies: ()⇒List[DataDependencyTo[_]]
 ) extends Reducer {
   def createWorld: World ⇒ World =
-    TreeAssemblerKey.modify(_⇒treeAssembler.replace(getDependencies()))
+    TreeAssemblerKey.set(treeAssembler.replace(getDependencies()))
   def reduceRecover(world: World, recs: List[QRecord]): World =
     TreeAssemblerKey.of(world)(qMessages.toTree(recs))(world)
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord]) =
@@ -43,7 +43,7 @@ class ReducerImpl(
       }
     }
   def createTx(world: World): World ⇒ World =
-    TxKey.modify(_⇒new WorldTxImpl(this, world, Queue.empty))
+    TxKey.set(new WorldTxImpl(this, world, Queue.empty))
 }
 
 object WorldStats {
@@ -53,26 +53,29 @@ object WorldStats {
   }.mkString("\n")
 }
 
-class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(qMessages: QMessages, reducer: Reducer) extends Observer {
+class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
+    qMessages: QMessages, reducer: Reducer, initLocals: List[InitLocal]
+) extends Observer {
+  private def createLocal() =
+    ((Map():World) /: initLocals)((local,initLocal)⇒initLocal.initLocal(local))
   def activate(getWorld: () ⇒ World): Seq[Observer] = {
     val world = getWorld()
     val transforms: Index[SrcId, TxTransform] = By.srcId(classOf[TxTransform]).of(world)
     //println(WorldStats.make(world))
     val nLocalStates = transforms.map{ case (key, transformList) ⇒
-      key → localStates.get(key).orElse(Option(Map():World)).map{ local ⇒
+      key → localStates.get(key).orElse(Option(createLocal())).map{ local ⇒
         if(OffsetWorldKey.of(world) < OffsetWorldKey.of(local)) local else try {
-          Option(local)
-            .map(reducer.createTx(world))
-            .map(local ⇒ (local /: transformList) ((local, transform) ⇒ transform.transform(local)))
-            .map(qMessages.send).get
+            reducer.createTx(world)
+            .andThen(local ⇒ (local /: transformList) ((local, transform) ⇒ transform.transform(local)))
+            .andThen(qMessages.send)(local)
         } catch {
           case e: Exception ⇒
             e.printStackTrace() //??? |Nil|throw
-            ErrorKey.modify(_⇒Some(e))(Map():World)
+            ErrorKey.set(Some(e))(createLocal())
         }
       }.get
     }
-    Seq(new SerialObserver(nLocalStates)(qMessages,reducer))
+    Seq(new SerialObserver(nLocalStates)(qMessages,reducer,initLocals))
   }
 }
 

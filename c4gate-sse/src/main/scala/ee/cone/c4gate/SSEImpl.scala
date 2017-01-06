@@ -16,7 +16,12 @@ case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
 case object SSEPongTimeKey extends WorldKey[Instant](Instant.MIN)
 case object SSELocationHash extends WorldKey[String]("")
 
-
+case class HttpPostByConnection(
+    connectionKey: String,
+    index: Int,
+    headers: Map[String,String],
+    request: HttpPost
+)
 
 case class WorkingSSEConnection(
   connectionKey: String, initDone: Boolean,
@@ -25,7 +30,7 @@ case class WorkingSSEConnection(
   /*def relocate(tx: WorldTx, value: String): WorldTx = {
     if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
   }*/
-  private def message(event: String, data: String)(local: World): World = {
+  private def message(event: String, data: String): World ⇒ World = local ⇒ {
     val priority = SSEMessagePriorityKey.of(local)
     val header = if(priority > 0) "" else {
       val allowOrigin =
@@ -36,9 +41,8 @@ case class WorkingSSEConnection(
     val str = s"${header}event: $event\ndata: $escapedData\n\n"
     val bytes = okio.ByteString.encodeUtf8(str)
     val key = UUID.randomUUID.toString
-    Some(local)
-      .map(SSEMessagePriorityKey.modify(_+1))
-      .map(add(update(TcpWrite(key,connectionKey,bytes,priority)))).get
+    SSEMessagePriorityKey.set(priority+1)
+      .andThen(add(update(TcpWrite(key,connectionKey,bytes,priority))))(local)
   }
 
   private def toAlien(local: World): World = {
@@ -53,22 +57,22 @@ case class WorkingSSEConnection(
   private def pongAge(local: World): Long =
     ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
 
-  private def needInit(local: World): World = if(initDone) local else Some(local)
-    .map(message("connect", s"$connectionKey ${PostURLKey.of(local).get}"))
-    .map(add(update(AppLevelInitDone(connectionKey))))
-    .map(SSEPingTimeKey.modify(_⇒Instant.now)).get
+  private def needInit(local: World): World = if(initDone) local
+    else message("connect", s"$connectionKey ${PostURLKey.of(local).get}")
+    .andThen(add(update(AppLevelInitDone(connectionKey))))
+    .andThen(SSEPingTimeKey.set(Instant.now))(local)
 
   private def needPing(local: World): World =
-    if(pingAge(local) < 5) local else Some(local)
-      .map(message("ping", connectionKey))
-      .map(SSEPingTimeKey.modify(_⇒Instant.now)).get
+    if(pingAge(local) < 5) local
+    else message("ping", connectionKey)
+      .andThen(SSEPingTimeKey.set(Instant.now))(local)
 
   private def handlePosts(local: World): World =
-    (Option(local) /: posts) { (localOpt, post) ⇒ localOpt
-        .map(FromAlienKey.of(local)(post.headers.get)).map(toAlien)
-        .map(add(delete(post.request)))
-        .map(SSEPongTimeKey.modify(_⇒Instant.now))
-    }.get
+    (local /: posts) { (local, post) ⇒
+        FromAlienKey.of(local)(post.headers.get).andThen(toAlien)
+        .andThen(add(delete(post.request)))
+        .andThen(SSEPongTimeKey.set(Instant.now))(local)
+    }
 
   private def disconnect(local: World): World =
     add(update(TcpDisconnect(connectionKey)))(local)
@@ -112,6 +116,11 @@ case class WorkingSSEConnection(
   ))
 }
 
+object NoProxySSEConfig extends InitLocal {
+  def initLocal: World ⇒ World =
+    AllowOriginKey.set(Option("*"))
+    .andThen(PostURLKey.set(Option("/connection")))
+}
 
 // /connection X-r-connection -> q-add -> q-poll -> FromAlienDictMessage
 // (0/1-1) ShowToAlien -> sendToAlien
