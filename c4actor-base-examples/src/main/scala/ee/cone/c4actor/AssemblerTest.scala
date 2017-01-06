@@ -30,12 +30,6 @@ case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
     rawParentNode.map(parent ⇒
       parent.srcId → ParentNodeWithChildren(parent.caption, childNodes)
     )
-  def sortRawChildNode:
-    ParentSrcId ⇒ Iterable[RawChildNode] ⇒ List[RawChildNode] =
-    _ ⇒ _.toList.sortBy(_.srcId)
-  def sortParentNodeWithChildren:
-    SrcId ⇒ Iterable[ParentNodeWithChildren] ⇒ List[ParentNodeWithChildren] =
-    _ ⇒ Single.list
 }
 
 class AssemblerTestApp extends ServerApp with ToStartApp {

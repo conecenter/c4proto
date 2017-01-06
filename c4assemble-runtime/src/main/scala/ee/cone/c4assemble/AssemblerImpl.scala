@@ -6,10 +6,10 @@ import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
 import scala.collection.immutable.Map
 
-class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (K,V,DV)⇒V) {
+class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
   def one(res: Map[K,V], key: K, diffV: DV): Map[K,V] = {
     val prevV = res.getOrElse(key,empty)
-    val nextV = op(key,prevV,diffV)
+    val nextV = op(prevV,diffV)
     if(isEmpty(nextV)) res - key else res + (key → nextV)
   }
   def many(res: Map[K,V], keys: Iterable[K], value: DV): Map[K,V] =
@@ -19,52 +19,52 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (K,V,DV)⇒V) {
 }
 
 class IndexFactoryImpl extends IndexFactory {
-  def createJoinMapIndex[Value<:Object,TK,MapKey](join: Join[Value,TK,MapKey], sort: MapKey⇒Iterable[Value]⇒Values[Value]):
+  def createJoinMapIndex[T,R<:Product,TK,RK](join: Join[T,R,TK,RK]):
     WorldPartExpression
-      with DataDependencyFrom[Index[TK, Object]]
-      with DataDependencyTo[Index[MapKey, Value]]
+      with DataDependencyFrom[Index[TK, T]]
+      with DataDependencyTo[Index[RK, R]]
   = {
-    val add: PatchMap[Value,Int,Int] =
-      new PatchMap[Value,Int,Int](0,_==0,(k,v,d)⇒v+d)
-    val addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]] =
-      new PatchMap[MapKey,Values[Value],MultiSet[Value]](
+    val add: PatchMap[R,Int,Int] =
+      new PatchMap[R,Int,Int](0,_==0,(v,d)⇒v+d)
+    val addNestedPatch: PatchMap[RK,Values[R],MultiSet[R]] =
+      new PatchMap[RK,Values[R],MultiSet[R]](
         Nil,_.isEmpty,
-        (k,v,d)⇒sort(k)(add.many(d, v, 1).flatMap{ case(node,count) ⇒
+        (v,d)⇒add.many(d, v, 1).flatMap{ case(node,count) ⇒
           if(count<0) throw new Exception(s"$node -- $count")
           List.fill(count)(node)
-        })
+        }.toList.sortBy(e ⇒ e.productElement(0) match { case s: String ⇒ s })
       )
-    val addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
-      new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(k,v,d)⇒add.one(v, d, +1))
-    val subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value] =
-      new PatchMap[MapKey,MultiSet[Value],Value](Map.empty,_.isEmpty,(k,v,d)⇒add.one(v, d, -1))
-    new JoinMapIndex[TK,MapKey,Value](
+    val addNestedDiff: PatchMap[RK,MultiSet[R],R] =
+      new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))
+    val subNestedDiff: PatchMap[RK,MultiSet[R],R] =
+      new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
+    new JoinMapIndex[T,TK,RK,R](
       join, addNestedPatch, addNestedDiff, subNestedDiff
     )
   }
 }
 
-class JoinMapIndex[JoinKey,MapKey,Value<:Object](
-  join: Join[Value,JoinKey,MapKey],
+class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
+  join: Join[T,Value,JoinKey,MapKey],
   addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value]
 ) extends WorldPartExpression
-  with DataDependencyFrom[Index[JoinKey, Object]]
+  with DataDependencyFrom[Index[JoinKey, T]]
   with DataDependencyTo[Index[MapKey, Value]]
 {
-  def inputWorldKeys: Seq[WorldKey[Index[JoinKey, Object]]] = join.inputWorldKeys
+  def inputWorldKeys: Seq[WorldKey[Index[JoinKey, T]]] = join.inputWorldKeys
   def outputWorldKey: WorldKey[Index[MapKey, Value]] = join.outputWorldKey
 
   private def setPart[V](res: World, part: Map[MapKey,V]) =
     (res + (outputWorldKey → part)).asInstanceOf[Map[WorldKey[_],Map[Object,V]]]
 
   def recalculateSome(
-    getIndex: WorldKey[Index[JoinKey,Object]]⇒Index[JoinKey,Object],
+    getIndex: WorldKey[Index[JoinKey,T]]⇒Index[JoinKey,T],
     add: PatchMap[MapKey,MultiSet[Value],Value],
     ids: Set[JoinKey], res: Map[MapKey,MultiSet[Value]]
   ): Map[MapKey,MultiSet[Value]] = {
-    val worldParts: Seq[Index[JoinKey,Object]] =
+    val worldParts: Seq[Index[JoinKey,T]] =
       inputWorldKeys.map(getIndex)
     (res /: ids){(res: Map[MapKey,MultiSet[Value]], id: JoinKey)⇒
       val args = worldParts.map(_.getOrElse(id, Nil))
@@ -97,9 +97,9 @@ case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: Lis
 object TreeAssemblerImpl extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
-      new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(k,v,d)⇒d)
+      new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
     val add =
-      new PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,(k,v,d)⇒replace.many(v,d))
+      new PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,replace.many)
           .asInstanceOf[PatchMap[WorldKey[_],Object,Index[Object,Object]]]
     val expressions/*: Seq[WorldPartExpression]*/ =
       rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
@@ -133,19 +133,7 @@ object TreeAssemblerImpl extends TreeAssembler {
   }
 }
 
-
-class SortsImpl(values: World) extends Sorts {
-  def get[K,V](key: WorldKey[Index[K,V]]): K ⇒ Iterable[V] ⇒ Values[V] =
-    values.getOrElse(key,throw new Exception(s"undefined sort for $key"))
-      .asInstanceOf[K ⇒ Iterable[V] ⇒ Values[V]]
-  def add[K,V](key: WorldKey[Index[K,V]], value: K ⇒ Iterable[V] ⇒ Values[V]): Sorts =
-    if(values.contains(key)) throw new Exception(s"redefined sort for $key")
-    else new SortsImpl(values + (key→value))
-}
-
 object AssembleDataDependencies {
-  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] = {
-    val sorts = ((new SortsImpl(Map()):Sorts) /: assembles)((sorts,assemble)⇒assemble.sorts(sorts))
-    assembles.flatMap(assemble⇒assemble.dataDependencies(indexFactory,sorts))
-  }
+  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] =
+    assembles.flatMap(assemble⇒assemble.dataDependencies(indexFactory))
 }

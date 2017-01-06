@@ -59,9 +59,9 @@ object Types {
 }
 
 object By {
-  def srcId[V](cl: Class[V]): WorldKey[Index[SrcId,V]] = srcId[V](cl.getName)
-  def srcId[V](className: String): WorldKey[Index[SrcId,V]] =
-    MacroJoinKey("SrcId", classOf[SrcId].getName, className)
+  def srcId[V<:Product](cl: Class[V]): WorldKey[Index[SrcId,V]] = srcId[V](cl.getName)
+  def srcId[V<:Product](className: String): WorldKey[Index[SrcId,V]] =
+    MacroJoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
 }
 
 case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])
@@ -84,7 +84,7 @@ trait Observer {
   def activate(getTx: ()⇒World): Seq[Observer]
 }
 
-trait TxTransform {
+trait TxTransform extends Product {
   def transform(local: World): World
 }
 

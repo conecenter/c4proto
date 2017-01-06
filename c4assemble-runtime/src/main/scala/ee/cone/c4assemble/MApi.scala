@@ -32,9 +32,9 @@ case class WorldTransition(
 )
 
 trait IndexFactory {
-  def createJoinMapIndex[R<:Object,TK,RK](join: Join[R,TK,RK], sort: RK⇒Iterable[R]⇒Values[R]):
+  def createJoinMapIndex[T,R<:Product,TK,RK](join: Join[T,R,TK,RK]):
   WorldPartExpression
-    with DataDependencyFrom[Index[TK, Object]]
+    with DataDependencyFrom[Index[TK, T]]
     with DataDependencyTo[Index[RK, R]]
 }
 
@@ -46,24 +46,18 @@ trait DataDependencyTo[To] {
   def outputWorldKey: WorldKey[To]
 }
 
-class Join[Result,JoinKey,MapKey](
-  val inputWorldKeys: Seq[WorldKey[Index[JoinKey, Object]]],
-  val outputWorldKey: WorldKey[Index[MapKey, Result]],
-  val joins: (JoinKey, Seq[Values[Object]]) ⇒ Iterable[(MapKey,Result)]
-) extends DataDependencyFrom[Index[JoinKey,Object]]
-  with DataDependencyTo[Index[MapKey,Result]]
-
-trait Sorts {
-  def get[K,V](key: WorldKey[Index[K,V]]): K ⇒ Iterable[V] ⇒ Values[V]
-  def add[K,V](key: WorldKey[Index[K,V]], value: K ⇒ Iterable[V] ⇒ Values[V]): Sorts
-}
+class Join[T,R,TK,RK](
+  val inputWorldKeys: Seq[WorldKey[Index[TK, T]]],
+  val outputWorldKey: WorldKey[Index[RK, R]],
+  val joins: (TK, Seq[Values[T]]) ⇒ Iterable[(RK,R)]
+) extends DataDependencyFrom[Index[TK,T]]
+  with DataDependencyTo[Index[RK,R]]
 
 trait Assemble {
-  def sorts: Sorts⇒Sorts = ???
-  def dataDependencies: (IndexFactory, Sorts) ⇒ List[DataDependencyTo[_]] = ???
+  def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = ???
 }
 
-case class MacroJoinKey[K,V](keyAlias: String, keyClassName: String, valueClassName: String)
+case class MacroJoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
   extends WorldKey[Index[K,V]](Map.empty)
 
 class by[T]

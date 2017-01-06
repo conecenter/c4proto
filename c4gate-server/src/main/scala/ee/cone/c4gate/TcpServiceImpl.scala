@@ -111,8 +111,6 @@ case class TcpConnectionTxTransform(
   type ConnectionKey = SrcId
   def joinTcpWrite(key: SrcId, writes: Values[TcpWrite]): Values[(ConnectionKey, TcpWrite)] =
     writes.map(write⇒write.connectionKey→write)
-  def sortTcpWrite: ConnectionKey ⇒ Iterable[TcpWrite] ⇒ List[TcpWrite] =
-    _ ⇒ _.toList.sortBy(_.priority)
   def joinTxTransform(
     key: SrcId,
     tcpConnections: Values[TcpConnection],
@@ -121,6 +119,6 @@ case class TcpConnectionTxTransform(
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(tcpConnections.isEmpty)
       SimpleTxTransform((tcpDisconnects ++ writes).take(4096).flatMap(LEvent.delete))
-    else TcpConnectionTxTransform(key, tcpDisconnects, writes)(tcpServer)
+    else TcpConnectionTxTransform(key, tcpDisconnects, writes.sortBy(_.priority))(tcpServer)
   ))
 }
