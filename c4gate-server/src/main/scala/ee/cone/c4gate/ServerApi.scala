@@ -8,10 +8,6 @@ trait SenderToAgent {
   def close()
 }
 
-trait TcpServer {
-  def senderByKey(key: String): Option[SenderToAgent]
-}
-
 trait WorldProvider {
   def createTx(): World
 }

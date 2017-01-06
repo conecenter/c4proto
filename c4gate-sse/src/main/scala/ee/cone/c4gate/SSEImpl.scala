@@ -16,10 +16,12 @@ case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
 case object SSEPongTimeKey extends WorldKey[Instant](Instant.MIN)
 case object SSELocationHash extends WorldKey[String]("")
 
+
+
 case class WorkingSSEConnection(
   connectionKey: String, initDone: Boolean,
   posts: List[HttpPostByConnection]
-)(sseUI: SSEui) extends TxTransform /*with SSESend*/ {
+) extends TxTransform /*with SSESend*/ {
   /*def relocate(tx: WorldTx, value: String): WorldTx = {
     if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
   }*/
@@ -27,7 +29,7 @@ case class WorkingSSEConnection(
     val priority = SSEMessagePriorityKey.of(local)
     val header = if(priority > 0) "" else {
       val allowOrigin =
-        sseUI.allowOriginOption.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
+        AllowOriginKey.of(local).map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
       s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
     }
     val escapedData = data.replaceAllLiterally("\n","\ndata: ")
@@ -40,7 +42,7 @@ case class WorkingSSEConnection(
   }
 
   private def toAlien(local: World): World = {
-    val (nLocal,messages) = sseUI.toAlien(local)
+    val (nLocal,messages) = ToAlienKey.of(local)(local)
     (nLocal /: messages) { (local, msg) ⇒ msg match {
       case (event,data) ⇒ message(event,data)(local)
     }}
@@ -52,7 +54,7 @@ case class WorkingSSEConnection(
     ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
 
   private def needInit(local: World): World = if(initDone) local else Some(local)
-    .map(message("connect", s"$connectionKey ${sseUI.postURL}"))
+    .map(message("connect", s"$connectionKey ${PostURLKey.of(local).get}"))
     .map(add(update(AppLevelInitDone(connectionKey))))
     .map(SSEPingTimeKey.modify(_⇒Instant.now)).get
 
@@ -63,7 +65,7 @@ case class WorkingSSEConnection(
 
   private def handlePosts(local: World): World =
     (Option(local) /: posts) { (localOpt, post) ⇒ localOpt
-        .map(sseUI.fromAlien(post.headers.get)).map(toAlien)
+        .map(FromAlienKey.of(local)(post.headers.get)).map(toAlien)
         .map(add(delete(post.request)))
         .map(SSEPongTimeKey.modify(_⇒Instant.now))
     }.get
@@ -82,7 +84,7 @@ case class WorkingSSEConnection(
     ).get
 }
 
-@assemble class SSEAssemble(sseUI: SSEui) extends Assemble {
+@assemble class SSEAssemble extends Assemble {
   def joinHttpPostByConnection(
     key: SrcId,
     posts: Values[HttpPost]
@@ -106,7 +108,7 @@ case class WorkingSSEConnection(
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty) //purge
       SimpleTxTransform((initDone ++ posts.map(_.request)).flatMap(LEvent.delete))
-    else WorkingSSEConnection(key, initDone.nonEmpty, posts.sortBy(_.index))(sseUI)
+    else WorkingSSEConnection(key, initDone.nonEmpty, posts.sortBy(_.index))
   ))
 }
 
@@ -115,3 +117,20 @@ case class WorkingSSEConnection(
 // (0/1-1) ShowToAlien -> sendToAlien
 
 //(World,Msg) => (WorldWithChanges,Seq[Send])
+
+/* embed plan:
+TcpWrite to many conns
+dispatch to service by sse.js
+posts to connections and sseUI-s
+vdom emb host/guest
+subscr? cli or serv
+RootViewResult(...,subviews)
+/
+@ FromAlien(sessionKey,locationHash)
+/
+@@ Embed(headers)
+@ UIResult(srcId {connectionKey|embedHash}, needChildEmbeds, connectionKeys)
+/
+TxTr(embedHash,embed,connections)
+
+ */

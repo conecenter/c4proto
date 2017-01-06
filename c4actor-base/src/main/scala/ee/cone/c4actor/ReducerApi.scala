@@ -12,3 +12,7 @@ trait Reducer {
 }
 
 case object ErrorKey extends WorldKey[Option[Exception]](None)
+
+trait InitLocal {
+  def initLocal: World ⇒ World
+}

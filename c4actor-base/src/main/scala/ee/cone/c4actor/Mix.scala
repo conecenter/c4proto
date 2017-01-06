@@ -24,6 +24,10 @@ trait AssemblesApp {
   def assembles: List[Assemble] = Nil
 }
 
+trait InitLocalsApp {
+  def initLocals: List[InitLocal] = Nil
+}
+
 trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
 }

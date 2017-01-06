@@ -46,7 +46,7 @@ class ChannelHandler(
   }
 }
 
-trait SSEServerApp extends ToStartApp with AssemblesApp {
+trait SSEServerApp extends ToStartApp with AssemblesApp with InitLocalsApp {
   def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
@@ -54,14 +54,17 @@ trait SSEServerApp extends ToStartApp with AssemblesApp {
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
   private lazy val sseServer = new TcpServerImpl(ssePort, qMessages, worldProvider)
   override def toStart: List[Executable] = sseServer :: super.toStart
-  override def assembles: List[Assemble] = new TcpAssemble(sseServer) :: super.assembles
+  override def assembles: List[Assemble] = new TcpAssemble :: super.assembles
+  override def initLocals: List[InitLocal] = sseServer :: super.initLocals
 }
+
+case object GetSenderKey extends WorldKey[String⇒Option[SenderToAgent]](_⇒None)
 
 class TcpServerImpl(
   port: Int, qMessages: QMessages, worldProvider: WorldProvider,
   channels: TrieMap[String,ChannelHandler] = TrieMap()
-) extends TcpServer with Executable {
-  def senderByKey(key: String): Option[SenderToAgent] = channels.get(key)
+) extends InitLocal with Executable {
+  def initLocal: World ⇒ World = GetSenderKey.modify(_=>channels.get)
   def run(ctx: ExecutionContext): Unit = {
     Option(worldProvider.createTx())
       .map { local ⇒
@@ -98,16 +101,16 @@ case class TcpConnectionTxTransform(
   connectionKey: SrcId,
   tcpDisconnects: Values[TcpDisconnect],
   writes: Values[TcpWrite]
-)(tcpServer: TcpServer) extends TxTransform {
+) extends TxTransform {
   def transform(local: World): World = {
-    def sender = tcpServer.senderByKey(connectionKey)
+    def sender = GetSenderKey.of(local)(connectionKey)
     for(d ← tcpDisconnects; s ← sender) s.close()
     for(message ← writes; s ← sender) s.add(message.body.toByteArray)
     LEvent.add(writes.flatMap(LEvent.delete))(local)
   }
 }
 
-@assemble class TcpAssemble(tcpServer: TcpServer) extends Assemble {
+@assemble class TcpAssemble extends Assemble {
   type ConnectionKey = SrcId
   def joinTcpWrite(key: SrcId, writes: Values[TcpWrite]): Values[(ConnectionKey, TcpWrite)] =
     writes.map(write⇒write.connectionKey→write)
@@ -119,6 +122,6 @@ case class TcpConnectionTxTransform(
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(tcpConnections.isEmpty)
       SimpleTxTransform((tcpDisconnects ++ writes).take(4096).flatMap(LEvent.delete))
-    else TcpConnectionTxTransform(key, tcpDisconnects, writes.sortBy(_.priority))(tcpServer)
+    else TcpConnectionTxTransform(key, tcpDisconnects, writes.sortBy(_.priority))
   ))
 }

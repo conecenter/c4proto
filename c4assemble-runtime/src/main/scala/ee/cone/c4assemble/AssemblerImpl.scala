@@ -32,7 +32,10 @@ class IndexFactoryImpl extends IndexFactory {
         (v,d)⇒add.many(d, v, 1).flatMap{ case(node,count) ⇒
           if(count<0) throw new Exception(s"$node -- $count")
           List.fill(count)(node)
-        }.toList.sortBy(e ⇒ e.productElement(0) match { case s: String ⇒ s })
+        }.toList.sortBy(e ⇒ e.productElement(0) match {
+          case s: String ⇒ s
+          case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
+        })
       )
     val addNestedDiff: PatchMap[RK,MultiSet[R],R] =
       new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))

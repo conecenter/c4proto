@@ -20,7 +20,7 @@ class TestSSEApp extends ServerApp
 
 case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
-class TestSSEui extends SSEui {
+class TestSSEui extends SSEui with InitLocal {
   def allowOriginOption: Option[String] = Some("*")
   def postURL: String = "/connection"
   def fromAlien: (String ⇒ Option[String]) ⇒ World ⇒ World = _ ⇒ identity
