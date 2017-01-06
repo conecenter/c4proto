@@ -6,6 +6,7 @@ function pong(){
     const headers = { 
         "X-r-action": "pong", 
         "X-r-session": sessionKey(never),
+        "X-r-location-search": location.search.substr(1),
         "X-r-location-hash": location.hash.substr(1)
     }
     send(headers)

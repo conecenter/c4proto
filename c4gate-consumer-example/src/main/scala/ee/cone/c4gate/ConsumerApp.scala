@@ -1,7 +1,6 @@
 
 package ee.cone.c4gate
 
-import java.time.Instant
 import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
@@ -17,7 +16,6 @@ class TestConsumerApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
 {
-  //"http-test-0" "localhost:9092"
   override def protocols: List[Protocol] = InternetProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
