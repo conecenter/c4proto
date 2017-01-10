@@ -115,6 +115,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       println("starting world recover...")
       val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
       println("world recovered")
+      println(WorldStats.make(localWorldRef.get))
       consumer.pause(stateTopicPartition.asJava)
       consumer.resume(inboxTopicPartition.asJava)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
