@@ -1,7 +1,7 @@
 
 export default function SSEConnection(address,handlers,reconnectTimeout){
-    var eventSource
-    var closedCount = 0
+    let eventSource
+    let closedCount = 0
 
     function isStateClosed(v){ return v === 2 }
     function checkReconnect(){
