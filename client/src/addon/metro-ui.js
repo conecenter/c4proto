@@ -121,9 +121,7 @@ const GotoButton=React.createClass({
 const TabSet=React.createClass({
     render:function(){
         var style={
-            borderBottom:'1px solid #ffe0b2',
-            marginLeft:'.3125rem',
-            marginRight:'.3125rem',
+            borderBottom:'0.05rem solid',         
             overflow:'hidden',
             display:'flex',
             marginTop:'0rem',
@@ -240,12 +238,14 @@ const VKTd = React.createClass({
         },
 });
 const VirtualKeyboard = React.createClass({
-    getInitialState:function(){
+   /* getInitialState:function(){
         return {numeric:true};
-    },
-    switchMode:function(){
-        if(this.state.numeric) this.setState({numeric:false});
-        else this.setState({numeric:true});
+    },*/
+    switchMode:function(e){
+        //if(this.state.numeric) this.setState({numeric:false});
+        //else this.setState({numeric:true});
+		if(this.props.onClick)
+			this.props.onClick(e);
     },
     render:function(){
         var tableStyle={
@@ -269,10 +269,7 @@ const VirtualKeyboard = React.createClass({
             marginTop:'-0.3rem',
             marginLeft:'auto',
             marginRight:'auto',
-        };
-        var inlineBlockStyle={
-            //display:'inline-block',
-        };
+        };        
         var aKeyRowStyle={
             //marginBottom:'.3125rem',
             //display:'flex',
@@ -294,23 +291,31 @@ const VirtualKeyboard = React.createClass({
             left:'0.57rem',
 
         };
-        Object.assign(aKeyCellStyle,inlineBlockStyle);
+		var specialTdStyle=Object.assign({},tdStyle,this.props.specialKeyStyle);
+		var specialAKeyCellStyle=Object.assign({},aKeyCellStyle,this.props.specialKeyStyle);
+       
         var result;
-        if(this.state.numeric)
+        if(!this.props.alphaNumeric)
             result=React.createElement("table",{style:tableStyle,key:"1"},
 				React.createElement("tbody",{key:"1"},[
+				   React.createElement("tr",{key:"0"},[
+					   React.createElement(VKTd,{colSpan:"2",style:specialTdStyle,key:"1"},'<-'),
+					   React.createElement("td",{key:"2"},''),
+					   React.createElement(VKTd,{colSpan:"2",style:specialTdStyle,key:"3",onClick:this.switchMode},'ABC...'),
+				   ]),
 				   React.createElement("tr",{key:"1"},[
-					   React.createElement(VKTd,{style:tdStyle,key:"1"},'F1'),
-					   React.createElement(VKTd,{style:tdStyle,key:"2"},'F2'),
-					   React.createElement(VKTd,{style:tdStyle,key:"3"},'F3'),
-					   React.createElement(VKTd,{colSpan:'2',style:tdStyle,key:"4",onClick:this.switchMode},'ABC...'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"1"},'F1'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"2"},'F2'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"3"},'F3'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"4"},'F4'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"5"},'F5'),					   
 				   ]),
 				   React.createElement("tr",{key:"2"},[
-					   React.createElement(VKTd,{style:tdStyle,key:"1"},'F6'),
-					   React.createElement(VKTd,{style:tdStyle,key:"2"},'F7'),
-					   React.createElement(VKTd,{style:tdStyle,key:"3"},'F8'),
-					   React.createElement(VKTd,{style:tdStyle,key:"4"},'F9'),
-					   React.createElement(VKTd,{style:tdStyle,key:"5"},'<-'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"1"},'F6'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"2"},'F7'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"3"},'F8'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"4"},'F9'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"5"},'F10'),					   
 				   ]),
 				   React.createElement("tr",{key:"3"},[
 					   React.createElement(VKTd,{style:tdStyle,key:"1"},'7'),
@@ -340,18 +345,18 @@ const VirtualKeyboard = React.createClass({
                 React.createElement("table",{style:aTableStyle,key:"1"},
 					React.createElement("tbody",{key:"1"},[
 						React.createElement("tr",{key:"1"},[
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"1"},'F1'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"2"},'F2'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"3"},'F3'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"4"},'F4'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"1"},'F1'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"2"},'F2'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"3"},'F3'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"4"},'F4'),
 						   // React.createElement(VKTd,{style:aKeyCellStyle},'F5'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"5"},'F6'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"6"},'F7'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"7"},'F8'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"8"},'F9'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"9"},'F10'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"5"},'F6'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"6"},'F7'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"7"},'F8'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"8"},'F9'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"9"},'F10'),
 							//React.createElement(VKTd,{onClick:function(){},style:Object.assign({},aKeyCellStyle,{width:'0rem',visibility:'hidden'})},''),
-							React.createElement(VKTd,{onClick:this.switchMode,style:aKeyCellStyle,key:"10"},'123...'),
+							React.createElement(VKTd,{onClick:this.switchMode,style:specialAKeyCellStyle,key:"10"},'123...'),
 						])
 					])
 				),
@@ -384,7 +389,7 @@ const VirtualKeyboard = React.createClass({
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"8"},'I'),
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"9"},'O'),
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"10"},'P'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"11"},'<-'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"11"},'<-'),
 						]),
 					])
 				),
@@ -446,6 +451,8 @@ const TerminalElement=React.createClass({
         var style={
             fontSize:'0.8rem',
         };
+		if(this.props.style)
+			Object.assign(style,this.props.style);
         return React.createElement("div",{id:'terminal',style:style},null);
     },
 });
@@ -492,7 +499,7 @@ const THElement = React.createClass({
             verticalAlign:'middle',
         };        
 		if(this.props.style)
-			Object.assign(thStyle.this.props.style);
+			Object.assign(thStyle,this.props.style);
 		return React.createElement("th",{style:thStyle},this.props.children);
 	}	
 });
