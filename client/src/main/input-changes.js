@@ -1,11 +1,21 @@
 
-export default function InputChanges(sender, vDom, DiffPrepare){
-    
+function ctxToArray(ctx,res){
+    if(ctx){
+        ctxToArray(ctx.parent, res)
+        if(ctx.key) res.push(ctx.key)
+    }
+    return res
+}
+
+function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
+
+export default function InputChanges(sender, DiffPrepare){
     const changes = {}
     const set = (ctx,value,now) => {
-        const path = vDom.ctxToArray(ctx,[])
+        const path = ctxToArray(ctx,[])
         const path_str = path.join("/")
-        const diff = DiffPrepare(vDom.localState)
+        const rCtx = rootCtx(ctx)
+        const diff = DiffPrepare(rCtx.localState)
         diff.jump(path)
         diff.addIfChanged("value", value)
         diff.apply()
@@ -18,7 +28,7 @@ export default function InputChanges(sender, vDom, DiffPrepare){
             key !== sent["X-r-connection"] ? clear() : 
             index < sent["X-r-index"] ? null : clear()
         const clear = () => {
-            const diff = DiffPrepare(vDom.localState)
+            const diff = DiffPrepare(rCtx.localState)
             diff.jump(path.slice(0,-1))
             diff.addIfChanged("at", {}) //fix if resets alien props
             diff.apply()

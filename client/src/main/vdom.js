@@ -42,26 +42,32 @@ export default function VDom(parentElement){
         })
     }
     function showDiff(data){
-        const diff = JSON.parse(data)
-        setupIncomingDiff({ value: diff })
+        const ctx = JSON.parse(data)
+        if(!branches[data.branchKey])
+            branches = {...branches, [data.branchKey]: createBranch()}
+        const rootComponent = branches[data.branchKey]
+        const localState = {
+            get(){ return rootComponent.state.local || {} },
+            update(diff){
+                const local = update(rootComponent.state.local || {}, diff)
+                rootComponent.setState({local})
+            }
+        }
+        setupIncomingDiff({...ctx, localState})
         const incoming = update(rootComponent.state.incoming || {}, diff)
         rootComponent.setState({incoming})
     }
-    
-    const rootNativeElement = document.createElement("div")
-    parentElement.appendChild(rootNativeElement)
-    const rootVirtualElement = React.createElement(RootComponent,null)
-    const rootComponent = ReactDOM.render(rootVirtualElement, rootNativeElement)
-    const localState = {
-        get(){ return rootComponent.state.local || {} },
-        update(diff){
-            const local = update(rootComponent.state.local || {}, diff)
-            rootComponent.setState({local}) 
-        }
+    let branches = {}
+
+    function createBranch(){
+        const rootNativeElement = document.createElement("div")
+        parentElement.appendChild(rootNativeElement)
+        const rootVirtualElement = React.createElement(RootComponent,null)
+        return ReactDOM.render(rootVirtualElement, rootNativeElement)
     }
     function transformBy(add){ merge(activeTransforms, add.transforms) }
     const receivers = {showDiff}
-    return ({receivers,localState,ctxToArray,transformBy})
+    return ({receivers,transformBy})
 }
 
 function merge(to, from){
@@ -71,12 +77,4 @@ function merge(to, from){
             merge(to[key],from[key])
         else never()
     })
-}
-
-function ctxToArray(ctx,res){ 
-    if(ctx){
-        ctxToArray(ctx.parent, res)
-        if(ctx.key) res.push(ctx.key)
-    }
-    return res
 }
