@@ -19,7 +19,7 @@ export default function VDomMix(feedback){
 
 /*
 json wrap { value: diff, branchKey }
-!InputChanges/changes by rCtx.branchKey
-?VDomSender rCtx.branchKey
+"X-r-vdom-branch"
+?X-r-index not by connection; X-r-connection-b;   branch-key branch-version actor
 ?bind/positioning
 */

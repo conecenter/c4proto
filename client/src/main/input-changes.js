@@ -13,8 +13,9 @@ export default function InputChanges(sender, DiffPrepare){
     const changes = {}
     const set = (ctx,value,now) => {
         const path = ctxToArray(ctx,[])
-        const path_str = path.join("/")
         const rCtx = rootCtx(ctx)
+
+        const path_str = rCtx.branchKey + "/" + path.join("/")
         const diff = DiffPrepare(rCtx.localState)
         diff.jump(path)
         diff.addIfChanged("value", value)
@@ -25,7 +26,7 @@ export default function InputChanges(sender, DiffPrepare){
             if(!sent) sent = sender.send(ctx, "change", value) 
         }
         const ack = (key,index) => !sent ? null : 
-            key !== sent["X-r-connection"] ? clear() : 
+            key !== sent["X-r-connection-b"] ? clear() :
             index < sent["X-r-index"] ? null : clear()
         const clear = () => {
             const diff = DiffPrepare(rCtx.localState)

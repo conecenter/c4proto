@@ -38,7 +38,7 @@ class CurrentVDomImpl[State](
       }).asInstanceOf[State=>State](state)
     }
   private def handleLastMessage: Handler = message ⇒ state ⇒
-    for(connection ← message("X-r-connection"); index ← message("X-r-index"))
+    for(connection ← message("X-r-connection-b"); index ← message("X-r-index"))
       yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
         ackFromAlien = connection :: index :: Nil
       )))(state)
