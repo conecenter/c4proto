@@ -101,20 +101,16 @@ const GotoButton=React.createClass({
 	onTouchEnd:function(e){
 		this.setState({touch:false});
 	},
-    render:function(){
-
-        var newStyle={
-            backgroundColor:this.state.mouseOver?'#fff3e0':'#fafafa',
-        };
+    render:function(){		
         var selStyle={
-            backgroundColor:this.props.accent?'#fff3e0':'#fafafa',
-			outline:this.state.touch?'0.1rem solid blue':'none',
+            outline:this.state.touch?'0.1rem solid blue':'none',
 			outlineOffset:'-0.1rem',
-        }
-        if(!this.props.accent)
-            Object.assign(selStyle,newStyle);
+        }        
+        
 		if(this.props.style)
 			Object.assign(selStyle,this.props.style);
+		if(this.state.mouseOver)
+			Object.assign(selStyle,this.props.overStyle);
         return React.createElement(button,{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
     }
 });
@@ -177,6 +173,7 @@ const Chip = React.createClass({
             cursor:'default',
             width:'3.8rem',
             display:'block',
+			marginBottom:'0.1rem',
         };
 
         return React.createElement('input',{style:newStyle,readOnly:'readonly',value:this.props.children},null);
@@ -230,6 +227,7 @@ const VKTd = React.createClass({
             fontStyle:'inherit',
             fontSize:'0.7em',
             backgroundColor:'inherit',
+			verticalAlign:'top',
 			outline:this.state.touch?'0.1rem solid blue':'none',
         };
         return React.createElement("td",{style:this.props.style,
@@ -259,8 +257,8 @@ const VirtualKeyboard = React.createClass({
             //padding:'0 .3125rem',
             textAlign:'center',
             verticalAlign:'middle',
-            border:'1px solid',
-            backgroundColor:'pink',
+            border:'0.01rem solid',
+            backgroundColor:'#eeeeee',
             height:'2.2rem',
         };
         var aTableStyle={
@@ -280,10 +278,10 @@ const VirtualKeyboard = React.createClass({
             //margin:'0 0.5rem',
             verticalAlign:'middle',
             height:'1.4rem',
-            border:'1px solid',
-            backgroundColor:'pink',
+            border:'0.01rem solid',
+            backgroundColor:'#eeeeee',
             minWidth:'1.1em',
-            paddingBottom:'0.1rem',
+            //paddingBottom:'0.1rem',
         };
         var aTableLastStyle={
             marginBottom:'-0.275rem',
@@ -570,8 +568,9 @@ const MJobCell = React.createClass({
         return {data:null};
     },
 	signal:function(data){
-		const gData=(data!=undefined&&parseInt(data)>=0?data:null);
-		this.setState({data:gData});
+		//const gData=(data!=undefined&&parseInt(data)>=0?data:null);
+		const gData=(data?data:null);
+		this.setState({data:gData});		
 	},
     componentDidMount:function(){
 		if(window.CustomMeasurer)
@@ -601,28 +600,35 @@ const MJobCell = React.createClass({
 			padding:'0px',
 			margin:'0px',
 			flexBasis:'7rem',
+			flexGrow:'1',
 		};
         Object.assign(style,this.props.style);
-        return React.createElement(TDElement,{key:"wEl",odd:this.props.odd,style},
-			React.createElement('div',{style:{display:'flex',flexWrap:'noWrap'}},[
-				React.createElement(ControlledInput,{key:"1",style:inpStyle,onChange:this.onChange,data:this.state.data},null),
+		const buttonText=this.props.buttonText?this.props.buttonText:"Save";
+		const idleText = (this.props.idleText?this.props.idleText:"");
+		const waitText = (this.props.waitText?this.props.waitText:"");
+		const statusText = (this.state.data==null?idleText:waitText);
+        return React.createElement(TDElement,{key:"wEl",odd:this.props.odd,style},[
+			React.createElement(ControlledComparator,{key:"1",onChange:this.onChange,data:this.state.data},null),
+			React.createElement('div',{key:"2",style:{display:'flex',flexWrap:'noWrap'}},[				
+				React.createElement("input",{type:"text",readOnly:"readonly",key:"3",style:inpStyle,value:statusText},null),
 				(this.state.data!=null?
-				React.createElement(CommonButton,{key:"2",onClick:this.onClick},"Save"):null),
-			])
-        );
+				React.createElement(GotoButton,{key:"2",onClick:this.onClick,style:this.props.buttonStyle,overStyle:this.props.buttonOverStyle},buttonText):null),
+			]),
+        ]);
     },
 });
-const ControlledInput = React.createClass({
+
+const ControlledComparator = React.createClass({
 	componentDidUpdate:function(prevP,prevS){
 		if(this.props.onChange&&prevP.data!==this.props.data){			
-			const e={target:this.input};
-			console.log(this.input);
+			const e={target:{value:this.props.data}};
+			console.log("change w");
 			this.props.onChange(e);
 		}
 	},
 	render:function(){		
-		const value = this.props.data!=null?this.props.data:"";
-		return React.createElement('input',{ref:(ref)=>{this.input=ref},key:"1",readOnly:'readonly',style:this.props.style,value},null);
+		//const value = this.props.data!=null?this.props.data:"";
+		return React.createElement('span',{key:"1"},null);
 	},
 });
 const MetroUi={tp:{
