@@ -8,8 +8,6 @@ import ee.cone.c4vdom.{CurrentVDom, VDomState}
 import ee.cone.c4vdom_mix.VDomApp
 
 trait VDomSSEApp extends SSEApp with VDomApp with InitLocalsApp {
-  def allowOriginOption: Option[String]
-  //
   type VDomStateContainer = World
   lazy val vDomStateKey: c4vdom.VDomLens[World,Option[VDomState]] = VDomStateKey
   private lazy val sseUI = new TestVDomUI(currentVDom)

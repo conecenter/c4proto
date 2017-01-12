@@ -17,7 +17,6 @@ class TestTodoApp extends ServerApp
   with SerialObserversApp
   with VDomSSEApp
 {
-  lazy val allowOriginOption = Some("*")
   lazy val rootView: RootView[World] = {
     println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/react-app.html")
     new TestTodoRootView(testTags)

@@ -16,12 +16,3 @@ export default function VDomMix(feedback){
     //vDom.transformBy(FieldPopup(vDom,DiffPrepare,sender))
     return vDom
 }
-
-/*
-json wrap { value: diff, branchKey }
-"X-r-vdom-branch"
-
-
-?branch-key branch-version actor
-?bind/positioning
-*/

@@ -67,7 +67,9 @@ class CurrentVDomImpl[State](
           value=nextDom, until=until, hashOfLastView=vState.hashFromAlien
         )))(state)
         val diffTree = diff.diff(vState.value, vDomStateKey.of(nextState).get.value)
-        val diffCommands = diffTree.map(d=>("showDiff", jsonToString(d))).toList
+        val diffCommands = diffTree.map(d=>
+          ("showDiff", jsonToString(BranchDiff(branchKey,d)))
+        ).toList
         val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
         else List("relocateHash"→vState.hashTarget)
         (nextState, diffCommands ::: relocateCommands)
@@ -88,7 +90,7 @@ class CurrentVDomImpl[State](
 }
 
 case class RootElement(conf: List[(String,List[String])]) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder) = {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
     conf.foreach{ case (k,v) ⇒
@@ -97,6 +99,16 @@ case class RootElement(conf: List[(String,List[String])]) extends VDomValue {
       v.foreach(builder.append)
       builder.end()
     }
+    builder.end()
+  }
+}
+
+case class BranchDiff(key: String, value: VDomValue) extends VDomValue {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
+    builder.startObject()
+    builder.append("branchKey").append(key)
+    builder.append("value")
+    value.appendJson(builder)
     builder.end()
   }
 }

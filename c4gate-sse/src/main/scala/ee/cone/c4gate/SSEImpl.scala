@@ -18,10 +18,29 @@ case object SSELocationHash extends WorldKey[String]("")
 
 case class HttpPostByConnection(
     connectionKey: String,
-    index: Int,
+    index: Long,
     headers: Map[String,String],
     request: HttpPost
 )
+
+object SSEMessage {
+  def connect(connectionKey: String, data: String): World ⇒ World = local ⇒ {
+    val allowOrigin =
+      AllowOriginKey.of(local).map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
+    val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
+    send(connectionKey, "connect", data, header, -1)(local)
+  }
+  def message(connectionKey: String, event: String, data: String): World ⇒ World = local ⇒
+    send(connectionKey, event, data, "", SSEMessagePriorityKey.of(local))(local)
+  private def send(connectionKey: String, event: String, data: String, header: String, priority: Long): World ⇒ World = {
+    val escapedData = data.replaceAllLiterally("\n","\ndata: ")
+    val str = s"${header}event: $event\ndata: $escapedData\n\n"
+    val bytes = okio.ByteString.encodeUtf8(str)
+    val key = UUID.randomUUID.toString
+    SSEMessagePriorityKey.set(priority+1)
+      .andThen(add(update(TcpWrite(key,connectionKey,bytes,priority))))
+  }
+}
 
 case class WorkingSSEConnection(
   connectionKey: String, initDone: Boolean,
@@ -30,25 +49,70 @@ case class WorkingSSEConnection(
   /*def relocate(tx: WorldTx, value: String): WorldTx = {
     if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
   }*/
-  private def message(event: String, data: String): World ⇒ World = local ⇒ {
-    val priority = SSEMessagePriorityKey.of(local)
-    val header = if(priority > 0) "" else {
-      val allowOrigin =
-        AllowOriginKey.of(local).map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
-      s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
+  import SSEMessage._
+
+  private def pingAge(local: World): Long =
+    ChronoUnit.SECONDS.between(SSEPingTimeKey.of(local), Instant.now)
+  private def pongAge(local: World): Long =
+    ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
+
+  private def needInit(local: World): World = if(initDone) local
+  else connect(connectionKey, s"$connectionKey ${PostURLKey.of(local).get}")
+    .andThen(add(update(AppLevelInitDone(connectionKey))))
+    .andThen(SSEPingTimeKey.set(Instant.now))(local)
+
+  private def needPing(local: World): World =
+    if(pingAge(local) < 5) local
+    else message(connectionKey,"ping", connectionKey)
+      .andThen(SSEPingTimeKey.set(Instant.now))(local)
+
+  private def handlePosts(local: World): World =
+    (local /: posts) { (local, post) ⇒
+      //FromAlienKey.of(local)(post.headers.get).andThen(toAlien)
+      relocate
+        .andThen(add(delete(post.request)))
+        .andThen(SSEPongTimeKey.set(Instant.now))(local)
     }
-    val escapedData = data.replaceAllLiterally("\n","\ndata: ")
-    val str = s"${header}event: $event\ndata: $escapedData\n\n"
-    val bytes = okio.ByteString.encodeUtf8(str)
-    val key = UUID.randomUUID.toString
-    SSEMessagePriorityKey.set(priority+1)
-      .andThen(add(update(TcpWrite(key,connectionKey,bytes,priority))))(local)
-  }
+
+  private def disconnect(local: World): World =
+    add(update(TcpDisconnect(connectionKey)))(local)
+
+  def transform(local: World): World = Some(local)
+    .map(needInit)
+    .map(needPing)
+    .map(local ⇒
+      if(ErrorKey.of(local).nonEmpty) disconnect(local)
+      else if(posts.nonEmpty) handlePosts(local)
+      else if(pingAge(local) < 2 || pongAge(local) < 5) local
+      else disconnect(local)
+    ).get
+}
+
+case class FromAlien(
+  connectionKey: SrcId,
+  sessionKey: SrcId,
+  locationSearch: String,
+  locationHash: String
+)
+/*
+"X-r-session": sessionKey(never),
+"X-r-location-search": location.search.substr(1),
+"X-r-location-hash": location.hash.substr(1)
+*/
+/*
+case class WorkingSSEConnection(
+  connectionKey: String, initDone: Boolean,
+  posts: List[HttpPostByConnection]
+) extends TxTransform /*with SSESend*/ {
+  /*def relocate(tx: WorldTx, value: String): WorldTx = {
+    if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
+  }*/
+  import SSEMessage._
 
   private def toAlien(local: World): World = {
     val (nLocal,messages) = ToAlienKey.of(local)(local)
     (nLocal /: messages) { (local, msg) ⇒ msg match {
-      case (event,data) ⇒ message(event,data)(local)
+      case (event,data) ⇒ message(connectionKey,event,data)(local)
     }}
   }
 
@@ -58,13 +122,13 @@ case class WorkingSSEConnection(
     ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
 
   private def needInit(local: World): World = if(initDone) local
-    else message("connect", s"$connectionKey ${PostURLKey.of(local).get}")
+    else connect(connectionKey, s"$connectionKey ${PostURLKey.of(local).get}")
     .andThen(add(update(AppLevelInitDone(connectionKey))))
     .andThen(SSEPingTimeKey.set(Instant.now))(local)
 
   private def needPing(local: World): World =
     if(pingAge(local) < 5) local
-    else message("ping", connectionKey)
+    else message(connectionKey,"ping", connectionKey)
       .andThen(SSEPingTimeKey.set(Instant.now))(local)
 
   private def handlePosts(local: World): World =
@@ -87,22 +151,33 @@ case class WorkingSSEConnection(
       else disconnect(local)
     ).get
 }
+*/
+
+
+object HttpPostParse {
+  def apply(post: HttpPost): Option[(String,Long,Map[String,String])] =
+    if(post.path != "/connection") None else {
+      val headers = post.headers.flatMap(h ⇒
+        if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
+      ).toMap
+      for(action ← headers.get("X-r-action"))
+        yield (action, headers("X-r-index").toLong, headers)
+    }
+}
 
 @assemble class SSEAssemble extends Assemble {
   def joinHttpPostByConnection(
     key: SrcId,
     posts: Values[HttpPost]
-  ): Values[(SrcId,HttpPostByConnection)] = posts.flatMap( post ⇒
-    if(post.path != "/connection") Nil else {
-      val headers = post.headers.flatMap(h ⇒
-        if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
-      ).toMap
-      val index = try { headers.get("X-r-index").map(_.toInt) }
-      catch { case _: Exception ⇒ None }
-      val connectionKey = headers.get("X-r-connection")
-      for(k ← connectionKey; i ← index) yield k → HttpPostByConnection(k,i,headers,post)
-    }
-  )
+  ): Values[(SrcId,HttpPostByConnection)] = for(
+    post ← posts;
+    (action,index,headers) ← HttpPostParse(post) if action == "pong"
+  ) yield {
+    val k = headers("X-r-connection")
+    //val hash = headers("X-r-location-hash")
+    k → HttpPostByConnection(k,index,headers,post)
+  }
+
   def joinTxTransform(
     key: SrcId,
     tcpConnections: Values[TcpConnection],
@@ -142,4 +217,9 @@ RootViewResult(...,subviews)
 /
 TxTr(embedHash,embed,connections)
 
- */
+next:
+"X-r-vdom-branch"
+
+?errors in embed
+?bind/positioning: ref=['embed','parent',key]
+*/
