@@ -25,9 +25,10 @@ export default function InputChanges(sender, DiffPrepare){
         const send = () => { 
             if(!sent) sent = sender.send(ctx, "change", value) 
         }
-        const ack = (key,index) => !sent ? null : 
-            key !== sent["X-r-connection-b"] ? clear() :
-            index < sent["X-r-index"] ? null : clear()
+        const ack = aCtx => !sent ? null :
+            rootCtx(aCtx).branchKey !== rCtx.branchKey ? null :
+            aCtx.value[1] !== sent["X-r-connection"] ? clear() : //old agent index
+            parseInt(aCtx.value[2]) < sent["X-r-index"] ? null : clear();
         const clear = () => {
             const diff = DiffPrepare(rCtx.localState)
             diff.jump(path.slice(0,-1))
@@ -41,8 +42,9 @@ export default function InputChanges(sender, DiffPrepare){
     }
     const sendDeferred = 
         () => Object.keys(changes).forEach(path_str=>changes[path_str].send())
-    const ack = 
-        (key, index) => Object.keys(changes).forEach(path_str=>changes[path_str].ack(key, index))
+    const ack =
+    //rootCtx(aCtx).branchKey, aCtx.value[1], parseInt(aCtx.value[2])
+        ctx => Object.keys(changes).forEach(path_str=>changes[path_str].ack(ctx))
     
     const onChange = {
         "local": ctx => event => set(ctx, event.target.value, false),
@@ -52,7 +54,7 @@ export default function InputChanges(sender, DiffPrepare){
         "send": ctx => event => sendDeferred()
     }
     const ackMessage = {
-        "ackMessage": ctx => { ack(ctx.value[1], parseInt(ctx.value[2])); return "" }
+        "ackMessage": ctx => { ack(ctx); return "" }
     }
     const transforms = {onChange,onBlur,ackMessage}
     

@@ -20,6 +20,8 @@ export default function VDomMix(feedback){
 /*
 json wrap { value: diff, branchKey }
 "X-r-vdom-branch"
-?X-r-index not by connection; X-r-connection-b;   branch-key branch-version actor
+
+
+?branch-key branch-version actor
 ?bind/positioning
 */

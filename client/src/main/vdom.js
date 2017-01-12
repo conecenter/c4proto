@@ -42,10 +42,10 @@ export default function VDom(parentElement){
         })
     }
     function showDiff(data){
-        const ctx = JSON.parse(data)
-        if(!branches[data.branchKey])
-            branches = {...branches, [data.branchKey]: createBranch()}
-        const rootComponent = branches[data.branchKey]
+        const parsed = JSON.parse(data)
+        if(!branches[parsed.branchKey])
+            branches = {...branches, [parsed.branchKey]: createBranch()}
+        const rootComponent = branches[parsed.branchKey]
         const localState = {
             get(){ return rootComponent.state.local || {} },
             update(diff){
@@ -53,8 +53,9 @@ export default function VDom(parentElement){
                 rootComponent.setState({local})
             }
         }
-        setupIncomingDiff({...ctx, localState})
-        const incoming = update(rootComponent.state.incoming || {}, diff)
+        const ctx = {...parsed, localState}
+        setupIncomingDiff(ctx)
+        const incoming = update(rootComponent.state.incoming || {}, ctx.value)
         rootComponent.setState({incoming})
     }
     let branches = {}
