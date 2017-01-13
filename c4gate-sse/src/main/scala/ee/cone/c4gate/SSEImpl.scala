@@ -4,12 +4,16 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 
+import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
+import ee.cone.c4gate.BranchProtocol.{BranchResult, BranchSeed, Subscription}
 import ee.cone.c4gate.InternetProtocol._
+import ee.cone.c4proto
+import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
 
 case object SSEMessagePriorityKey extends WorldKey[java.lang.Long](0L)
 case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
@@ -88,12 +92,70 @@ case class WorkingSSEConnection(
     ).get
 }
 
-case class FromAlien(
+////
+
+object CreateBranchSeed {
+  def apply(value: Product): BranchSeed = {
+    val registry: QAdapterRegistry = ???
+    val valueAdapter = registry.byName(value.getClass.getName).asInstanceOf[ProtoAdapter[Product] with HasId]
+    val bytes = valueAdapter.encode(value)
+    val byteString = okio.ByteString.of(bytes,0,bytes.length)
+    BranchSeed(???,valueAdapter.id, byteString)
+  }
+}
+
+case class BranchSeedSubscription(
+  srcId: SrcId,
   connectionKey: SrcId,
-  sessionKey: SrcId,
-  locationSearch: String,
-  locationHash: String
+  seed: BranchSeed
 )
+
+case class BranchMaker(seed: BranchSeed, connectionKeys: Set[SrcId]) extends TxTransform {
+  def transform(local: World): World = ???
+}
+
+@assemble class BranchAssemble extends Assemble { //todo reg
+  type SeedHash = SrcId
+  def joinRichBranchSeed(
+    key: SrcId,
+    branchResults: Values[BranchResult]
+  ): Values[(SeedHash,BranchSeedSubscription)] =
+    for(branchResult ← branchResults; seed ← branchResult.children; subscription ← branchResult.subscriptions)
+      yield seed.hash → BranchSeedSubscription(s"${subscription.connectionKey}/${seed.hash}", subscription.connectionKey, seed)
+  def joinTxTransform(
+    key: SrcId,
+    @by[SeedHash] subscriptions: Values[BranchSeedSubscription]
+  ): Values[(SrcId,TxTransform)] =
+    List(key → BranchMaker(subscriptions.head.seed, subscriptions.map(_.connectionKey).toSet))
+
+  //: Values[(SrcId,TxTransform)] = ???
+}
+
+@protocol object BranchProtocol extends c4proto.Protocol { //todo reg
+  case class Subscription(
+    @Id(???) connectionKey: SrcId
+  )
+  case class BranchSeed(
+    @Id(???) hash: String,
+    @Id(???) valueTypeId: Long,
+    @Id(???) value: okio.ByteString
+  )
+  @Id(???) case class BranchResult(
+    @Id(???) srcId: String,
+    @Id(???) children: List[BranchSeed],
+    @Id(???) subscriptions: List[Subscription]
+  )
+
+  @Id(???) case class FromAlien(
+    @Id(???) connectionKey: SrcId,
+    @Id(???) sessionKey: SrcId,
+    @Id(???) locationSearch: String,
+    @Id(???) locationHash: String
+  )
+
+}
+
+
 /*
 "X-r-session": sessionKey(never),
 "X-r-location-search": location.search.substr(1),
