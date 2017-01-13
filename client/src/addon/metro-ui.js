@@ -210,8 +210,10 @@ const VKTd = React.createClass({
             this.props.onClick(ev);
             return;
         }
-        var event=new KeyboardEvent("keypress",{key:this.props.children})
-        window.dispatchEvent(event);
+		if(this.props.fkey){
+			var event=new KeyboardEvent("keypress",{key:this.props.fkey})
+			window.dispatchEvent(event);
+		}
     },
 	onTouchStart:function(e){
 		this.setState({touch:true});
@@ -229,6 +231,7 @@ const VKTd = React.createClass({
             backgroundColor:'inherit',
 			verticalAlign:'top',
 			outline:this.state.touch?'0.1rem solid blue':'none',
+			color:'inherit',
         };
         return React.createElement("td",{style:this.props.style,
                             colSpan:this.props.colSpan,rowSpan:this.props.rowSpan,onClick:this.onClick},
@@ -290,51 +293,68 @@ const VirtualKeyboard = React.createClass({
 
         };
 		var specialTdStyle=Object.assign({},tdStyle,this.props.specialKeyStyle);
+		var specialTdAccentStyle=Object.assign({},tdStyle,this.props.specialKeyAccentStyle);
 		var specialAKeyCellStyle=Object.assign({},aKeyCellStyle,this.props.specialKeyStyle);
-       
+		var specialAKeyCellAccentStyle=Object.assign({},aKeyCellStyle,this.props.specialKeyAccentStyle);
+		const backSpaceFillColor=this.props.alphaNumeric?(specialAKeyCellAccentStyle.color?specialAKeyCellAccentStyle.color:"#000"):(specialTdAccentStyle.color?specialTdAccentStyle.color:"#000");
+		const enterFillColor=this.props.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
+		const upFillColor=this.props.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
+		const downFillColor=this.props.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
+		const backSpaceSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+backSpaceFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M896 470v84h-604l152 154-60 60-256-256 256-256 60 60-152 154h604z" /></g></svg>';
+		const enterSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+enterFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M810 298h86v256h-648l154 154-60 60-256-256 256-256 60 60-154 154h562v-172z" /></g></svg>';
+		const upSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+upFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 658l-60-60 256-256 256 256-60 60-196-196z" /></g></svg>';
+		const downSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+downFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 334l196 196 196-196 60 60-256 256-256-256z" /></g></svg>';
+		const backSpaceSvgData="data:image/svg+xml;base64,"+window.btoa(backSpaceSvg);
+		const enterSvgData="data:image/svg+xml;base64,"+window.btoa(enterSvg);
+		const upSvgData="data:image/svg+xml;base64,"+window.btoa(upSvg);
+		const downSvgData="data:image/svg+xml;base64,"+window.btoa(downSvg);
+		const backSpaceEl = React.createElement("img",{src:backSpaceSvgData,style:{width:"100%",height:"100%"}},null);
+		const enterEl = React.createElement("img",{src:enterSvgData,style:{width:"100%",height:"100%"}},null);
+		const upEl = React.createElement("img",{src:upSvgData,style:{width:"100%",height:"100%"}},null);
+		const downEl = React.createElement("img",{src:downSvgData,style:{width:"100%",height:"100%"}},null);
         var result;
         if(!this.props.alphaNumeric)
             result=React.createElement("table",{style:tableStyle,key:"1"},
 				React.createElement("tbody",{key:"1"},[
 				   React.createElement("tr",{key:"0"},[
-					   React.createElement(VKTd,{colSpan:"2",style:specialTdStyle,key:"1"},'<-'),
+					   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"1",fkey:"<-"},backSpaceEl),
 					   React.createElement("td",{key:"2"},''),
-					   React.createElement(VKTd,{colSpan:"2",style:specialTdStyle,key:"3",onClick:this.switchMode},'ABC...'),
+					   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
 				   ]),
 				   React.createElement("tr",{key:"1"},[
-					   React.createElement(VKTd,{style:specialTdStyle,key:"1"},'F1'),
-					   React.createElement(VKTd,{style:specialTdStyle,key:"2"},'F2'),
-					   React.createElement(VKTd,{style:specialTdStyle,key:"3"},'F3'),
-					   React.createElement(VKTd,{style:specialTdStyle,key:"4"},'F4'),
-					   React.createElement(VKTd,{style:specialTdStyle,key:"5"},'F5'),					   
+					   React.createElement(VKTd,{style:specialTdStyle,key:"1",fkey:"F1"},'F1'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"2",fkey:"F2"},'F2'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"3",fkey:"F3"},'F3'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"4",fkey:"F4"},'F4'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"5",fkey:"F5"},'F5'),					   
 				   ]),
 				   React.createElement("tr",{key:"2"},[
-					   React.createElement(VKTd,{style:specialTdStyle,key:"1"},'F6'),
-					   React.createElement(VKTd,{style:specialTdStyle,key:"2"},'F7'),
-					   React.createElement(VKTd,{style:specialTdStyle,key:"3"},'F8'),
-					   React.createElement(VKTd,{style:specialTdStyle,key:"4"},'F9'),
-					   React.createElement(VKTd,{style:specialTdStyle,key:"5"},'F10'),					   
+					   React.createElement(VKTd,{style:specialTdStyle,key:"1",fkey:"F6"},'F6'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"2",fkey:"F7"},'F7'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"3",fkey:"F8"},'F8'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"4",fkey:"F9"},'F9'),
+					   React.createElement(VKTd,{style:specialTdStyle,key:"5",fkey:"F10"},'F10'),					   
 				   ]),
 				   React.createElement("tr",{key:"3"},[
-					   React.createElement(VKTd,{style:tdStyle,key:"1"},'7'),
-					   React.createElement(VKTd,{style:tdStyle,key:"2"},'8'),
-					   React.createElement(VKTd,{style:tdStyle,key:"3"},'9'),
-					   React.createElement(VKTd,{colSpan:'2',style:tdStyle,key:"4"},'^'),
+					   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"7"},'7'),
+					   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"8"},'8'),
+					   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"9"},'9'),
+					   React.createElement(VKTd,{colSpan:'2',style:tdStyle,key:"4",fkey:"^"},upEl),
 				   ]),
 				   React.createElement("tr",{key:"4"},[
-					   React.createElement(VKTd,{style:tdStyle,key:"1"},'4'),
-					   React.createElement(VKTd,{style:tdStyle,key:"2"},'5'),
-					   React.createElement(VKTd,{style:tdStyle,key:"3"},'6'),
-					   React.createElement(VKTd,{colSpan:'2',style:tdStyle,key:"4"},'v'),
+					   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"4"},'4'),
+					   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"5"},'5'),
+					   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"6"},'6'),
+					   React.createElement(VKTd,{colSpan:'2',style:tdStyle,key:"4",fkey:"v"},downEl),
 				   ]),
 				   React.createElement("tr",{key:"5"},[
-					   React.createElement(VKTd,{style:tdStyle,key:"1"},'1'),
-					   React.createElement(VKTd,{style:tdStyle,key:"2"},'2'),
-					   React.createElement(VKTd,{style:tdStyle,key:"3"},'3'),
-					   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:tdStyle,key:"4"},'enter'),
+					   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"1"},'1'),
+					   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"2"},'2'),
+					   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"3"},'3'),
+					   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:tdStyle,key:"4",fkey:"enter"},enterEl),
 				   ]),
 				   React.createElement("tr",{key:"6"},[
-					   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1"},'0'),
+					   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
 				   ]),
 			   ])
 			);
@@ -343,87 +363,87 @@ const VirtualKeyboard = React.createClass({
                 React.createElement("table",{style:aTableStyle,key:"1"},
 					React.createElement("tbody",{key:"1"},[
 						React.createElement("tr",{key:"1"},[
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"1"},'F1'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"2"},'F2'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"3"},'F3'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"4"},'F4'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"1",fkey:"F1"},'F1'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"2",fkey:"F2"},'F2'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"3",fkey:"F3"},'F3'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"4",fkey:"F4"},'F4'),
 						   // React.createElement(VKTd,{style:aKeyCellStyle},'F5'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"5"},'F6'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"6"},'F7'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"7"},'F8'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"8"},'F9'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"9"},'F10'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"5",fkey:"F6"},'F6'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"6",fkey:"F7"},'F7'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"7",fkey:"F8"},'F8'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"8",fkey:"F9"},'F9'),
+							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"9",fkey:"F10"},'F10'),
 							//React.createElement(VKTd,{onClick:function(){},style:Object.assign({},aKeyCellStyle,{width:'0rem',visibility:'hidden'})},''),
-							React.createElement(VKTd,{onClick:this.switchMode,style:specialAKeyCellStyle,key:"10"},'123...'),
+							React.createElement(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'),
 						])
 					])
 				),
                 React.createElement("table",{style:aTableStyle,key:"2"},
 					React.createElement("tbody",{key:"1"},[
 						React.createElement("tr",{key:"1"},[
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"1"},'1'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"2"},'2'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"3"},'3'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"4"},'4'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"5"},'5'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"6"},'6'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"7"},'7'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"8"},'8'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"9"},'9'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"10"},'0'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"1",fkey:"1"},'1'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"2",fkey:"2"},'2'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"3",fkey:"3"},'3'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"4",fkey:"4"},'4'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"5",fkey:"5"},'5'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"6",fkey:"6"},'6'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"7",fkey:"7"},'7'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"8",fkey:"8"},'8'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"9",fkey:"9"},'9'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"10",fkey:"0"},'0'),
 						]),
 					])
 				),
                 React.createElement("table",{style:aTableStyle,key:"3"},
 					React.createElement("tbody",{key:"1"},[
 						React.createElement("tr",{key:"1"},[
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"1"},'Q'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"2"},'W'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"3"},'E'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"4"},'R'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"5"},'T'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"6"},'Y'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"7"},'U'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"8"},'I'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"9"},'O'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"10"},'P'),
-							React.createElement(VKTd,{style:specialAKeyCellStyle,key:"11"},'<-'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"1",fkey:"Q"},'Q'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"2",fkey:"W"},'W'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"3",fkey:"E"},'E'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"4",fkey:"R"},'R'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"5",fkey:"T"},'T'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"6",fkey:"Y"},'Y'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"7",fkey:"U"},'U'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"8",fkey:"I"},'I'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"9",fkey:"O"},'O'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"10",fkey:"P"},'P'),
+							React.createElement(VKTd,{style:specialAKeyCellAccentStyle,key:"11",fkey:"<-"},backSpaceEl),
 						]),
 					])
 				),
                 React.createElement("table",{style:Object.assign({},aTableStyle,{position:'relative',left:'0.18rem'}),key:"4"},
 					React.createElement("tbody",{key:"1"},[
 						React.createElement("tr",{key:"1"},[
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"1"},'A'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"2"},'S'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"3"},'D'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"4"},'F'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"5"},'G'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"6"},'H'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"7"},'J'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"8"},'K'),
-							React.createElement(VKTd,{style:aKeyCellStyle,key:"9"},'L'),
-							React.createElement(VKTd,{style:aKeyCellStyle,rowSpan:"2",key:"10"},'enter'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"1",fkey:"A"},'A'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"2",fkey:"S"},'S'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"3",fkey:"D"},'D'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"4",fkey:"F"},'F'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"5",fkey:"G"},'G'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"6",fkey:"H"},'H'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"7",fkey:"J"},'J'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"8",fkey:"K"},'K'),
+							React.createElement(VKTd,{style:aKeyCellStyle,key:"9",fkey:"L"},'L'),
+							React.createElement(VKTd,{style:aKeyCellStyle,rowSpan:"2",key:"10",fkey:"enter"},enterEl),
 						]),
 						React.createElement("tr",{key:"2"},[
 							React.createElement("td",{style:Object.assign({},aKeyCellStyle,{backgroundColor:'transparent',border:'none'}),colSpan:"9",key:"1"},[
 								React.createElement("table",{style:Object.assign({},aTableStyle,aTableLastStyle),key:"1"},
 									React.createElement("tbody",{key:"1"},[
 										React.createElement("tr",{key:"1"},[
-											React.createElement(VKTd,{style:aKeyCellStyle,key:"1"},'Z'),
-											React.createElement(VKTd,{style:aKeyCellStyle,key:"2"},'X'),
-											React.createElement(VKTd,{style:aKeyCellStyle,key:"3"},'C'),
-											React.createElement(VKTd,{style:aKeyCellStyle,key:"4"},'V'),
-											React.createElement(VKTd,{style:aKeyCellStyle,key:"5"},'B'),
-											React.createElement(VKTd,{style:aKeyCellStyle,key:"6"},'N'),
-											React.createElement(VKTd,{style:aKeyCellStyle,key:"7"},'M'),
-											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{minWidth:'2rem'}),key:"8"},'^'),
+											React.createElement(VKTd,{style:aKeyCellStyle,key:"1",fkey:"Z"},'Z'),
+											React.createElement(VKTd,{style:aKeyCellStyle,key:"2",fkey:"X"},'X'),
+											React.createElement(VKTd,{style:aKeyCellStyle,key:"3",fkey:"C"},'C'),
+											React.createElement(VKTd,{style:aKeyCellStyle,key:"4",fkey:"V"},'V'),
+											React.createElement(VKTd,{style:aKeyCellStyle,key:"5",fkey:"B"},'B'),
+											React.createElement(VKTd,{style:aKeyCellStyle,key:"6",fkey:"N"},'N'),
+											React.createElement(VKTd,{style:aKeyCellStyle,key:"7",fkey:"M"},'M'),
+											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{minWidth:'2rem'}),key:"8",fkey:"^"},upEl),
 										]),
 										React.createElement("tr",{key:"2"},[
 											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{visibility:"hidden"}),colSpan:"1",key:"1"},''),
-											React.createElement(VKTd,{style:aKeyCellStyle,colSpan:"5",key:"2"},'SPACE'),
+											React.createElement(VKTd,{style:aKeyCellStyle,colSpan:"5",key:"2",fkey:"SPACE"},'SPACE'),
 											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{visibility:"hidden"}),colSpan:"1",key:"3"},''),
-											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{minWidth:'2rem'}),key:"4"},'v'),
+											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{minWidth:'2rem'}),key:"4",fkey:"v"},downEl),
 										]),
 									])
 								),
