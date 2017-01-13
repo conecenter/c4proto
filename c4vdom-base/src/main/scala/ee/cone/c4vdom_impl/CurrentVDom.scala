@@ -38,13 +38,14 @@ class CurrentVDomImpl[State](
       }).asInstanceOf[State=>State](state)
     }
   private def handleLastMessage: Handler = message ⇒ state ⇒
-    for(connection ← message("X-r-connection"); index ← message("X-r-index"))
+    for(connection ← message("X-r-connection"); index ← message("X-r-index"); search ← message("X-r-location-search") )
       yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
-        ackFromAlien = connection :: index :: Nil
+        ackFromAlien = connection :: index :: Nil,
+        searchFromAlien = search
       )))(state)
   private def handlers = List[Handler](handleLastMessage,relocate,dispatch)
   private def init: State ⇒ State =
-    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,"","","",Nil))))
+    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,"","","","",Nil))))
   def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State =
     message ⇒ state ⇒ (init(state) /: handlers)((state,f)⇒f(message)(state).getOrElse(state))
 

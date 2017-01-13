@@ -98,8 +98,11 @@ const GotoButton=React.createClass({
 	onTouchStart:function(e){
 		this.setState({touch:true});
 	},
-	onTouchEnd:function(e){
-		this.setState({touch:false});
+	onTouchEnd:function(e){		
+		this.setState({touch:false});		
+	},
+	componentWillReceiveProps:function(nextProps){
+		this.setState({mouseOver:false,touch:false});
 	},
     render:function(){		
         var selStyle={
@@ -110,7 +113,7 @@ const GotoButton=React.createClass({
 		if(this.props.style)
 			Object.assign(selStyle,this.props.style);
 		if(this.state.mouseOver)
-			Object.assign(selStyle,this.props.overStyle);
+			Object.assign(selStyle,this.props.overStyle);		
         return React.createElement(button,{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
     }
 });
@@ -295,7 +298,7 @@ const VirtualKeyboard = React.createClass({
 		var specialTdStyle=Object.assign({},tdStyle,this.props.specialKeyStyle);
 		var specialTdAccentStyle=Object.assign({},tdStyle,this.props.specialKeyAccentStyle);
 		var specialAKeyCellStyle=Object.assign({},aKeyCellStyle,this.props.specialKeyStyle);
-		var specialAKeyCellAccentStyle=Object.assign({},aKeyCellStyle,this.props.specialKeyAccentStyle);
+		var specialAKeyCellAccentStyle=Object.assign({},aKeyCellStyle,this.props.specialKeyAccentStyle);		
 		const backSpaceFillColor=this.props.alphaNumeric?(specialAKeyCellAccentStyle.color?specialAKeyCellAccentStyle.color:"#000"):(specialTdAccentStyle.color?specialTdAccentStyle.color:"#000");
 		const enterFillColor=this.props.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
 		const upFillColor=this.props.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
@@ -317,7 +320,7 @@ const VirtualKeyboard = React.createClass({
             result=React.createElement("table",{style:tableStyle,key:"1"},
 				React.createElement("tbody",{key:"1"},[
 				   React.createElement("tr",{key:"0"},[
-					   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"1",fkey:"<-"},backSpaceEl),
+					   React.createElement(VKTd,{colSpan:"2",style:Object.assign({},specialTdAccentStyle,{height:"auto"}),key:"1",fkey:"<-"},backSpaceEl),
 					   React.createElement("td",{key:"2"},''),
 					   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
 				   ]),
@@ -339,19 +342,19 @@ const VirtualKeyboard = React.createClass({
 					   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"7"},'7'),
 					   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"8"},'8'),
 					   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"9"},'9'),
-					   React.createElement(VKTd,{colSpan:'2',style:tdStyle,key:"4",fkey:"^"},upEl),
+					   React.createElement(VKTd,{colSpan:'2',style:Object.assign({},tdStyle,{height:"auto"}),key:"4",fkey:"^"},upEl),
 				   ]),
 				   React.createElement("tr",{key:"4"},[
 					   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"4"},'4'),
 					   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"5"},'5'),
 					   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"6"},'6'),
-					   React.createElement(VKTd,{colSpan:'2',style:tdStyle,key:"4",fkey:"v"},downEl),
+					   React.createElement(VKTd,{colSpan:'2',style:Object.assign({},tdStyle,{height:"auto"}),key:"4",fkey:"v"},downEl),
 				   ]),
 				   React.createElement("tr",{key:"5"},[
 					   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"1"},'1'),
 					   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"2"},'2'),
 					   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"3"},'3'),
-					   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:tdStyle,key:"4",fkey:"enter"},enterEl),
+					   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:Object.assign({},tdStyle,{height:"auto"}),key:"4",fkey:"enter"},enterEl),
 				   ]),
 				   React.createElement("tr",{key:"6"},[
 					   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
@@ -407,7 +410,7 @@ const VirtualKeyboard = React.createClass({
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"8",fkey:"I"},'I'),
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"9",fkey:"O"},'O'),
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"10",fkey:"P"},'P'),
-							React.createElement(VKTd,{style:specialAKeyCellAccentStyle,key:"11",fkey:"<-"},backSpaceEl),
+							React.createElement(VKTd,{style:Object.assign({},specialAKeyCellAccentStyle,{height:"auto"}),key:"11",fkey:"<-"},backSpaceEl),
 						]),
 					])
 				),
@@ -423,7 +426,7 @@ const VirtualKeyboard = React.createClass({
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"7",fkey:"J"},'J'),
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"8",fkey:"K"},'K'),
 							React.createElement(VKTd,{style:aKeyCellStyle,key:"9",fkey:"L"},'L'),
-							React.createElement(VKTd,{style:aKeyCellStyle,rowSpan:"2",key:"10",fkey:"enter"},enterEl),
+							React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{height:"auto"}),rowSpan:"2",key:"10",fkey:"enter"},enterEl),
 						]),
 						React.createElement("tr",{key:"2"},[
 							React.createElement("td",{style:Object.assign({},aKeyCellStyle,{backgroundColor:'transparent',border:'none'}),colSpan:"9",key:"1"},[
@@ -437,13 +440,13 @@ const VirtualKeyboard = React.createClass({
 											React.createElement(VKTd,{style:aKeyCellStyle,key:"5",fkey:"B"},'B'),
 											React.createElement(VKTd,{style:aKeyCellStyle,key:"6",fkey:"N"},'N'),
 											React.createElement(VKTd,{style:aKeyCellStyle,key:"7",fkey:"M"},'M'),
-											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{minWidth:'2rem'}),key:"8",fkey:"^"},upEl),
+											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{minWidth:'2rem',height:"auto"}),key:"8",fkey:"^"},upEl),
 										]),
 										React.createElement("tr",{key:"2"},[
 											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{visibility:"hidden"}),colSpan:"1",key:"1"},''),
 											React.createElement(VKTd,{style:aKeyCellStyle,colSpan:"5",key:"2",fkey:"SPACE"},'SPACE'),
 											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{visibility:"hidden"}),colSpan:"1",key:"3"},''),
-											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{minWidth:'2rem'}),key:"4",fkey:"v"},downEl),
+											React.createElement(VKTd,{style:Object.assign({},aKeyCellStyle,{minWidth:'2rem',height:"auto"}),key:"4",fkey:"v"},downEl),
 										]),
 									])
 								),
@@ -465,13 +468,20 @@ const TerminalElement=React.createClass({
 		if(window.CustomTerminal)
 			CustomTerminal.destroy();       
     },
+	componentDidUpdate:function(prevProps, prevState){
+		if(window.CustomTerminal){
+			CustomTerminal.destroy();
+			CustomTerminal.init(this.props.host,this.props.port,this.props.username,this.props.password);
+			console.log("reinit term");
+		}
+	},
     render:function(){
         var style={
             fontSize:'0.8rem',
         };
 		if(this.props.style)
 			Object.assign(style,this.props.style);
-        return React.createElement("div",{id:'terminal',style:style},null);
+        return React.createElement("div",{id:'terminal',version:this.props.version,style:style},null);
     },
 });
 
@@ -631,6 +641,8 @@ const MJobCell = React.createClass({
 			React.createElement(ControlledComparator,{key:"1",onChange:this.onChange,data:this.state.data},null),
 			React.createElement('div',{key:"2",style:{display:'flex',flexWrap:'noWrap'}},[				
 				React.createElement("input",{type:"text",readOnly:"readonly",key:"3",style:inpStyle,value:statusText},null),
+				(this.props.time&&this.props.time.length>0?
+				React.createElement("span",{style:{key:"time",marginRight:"1rem",lineHeight:"1"}},this.props.time):null),
 				(this.state.data!=null?
 				React.createElement(GotoButton,{key:"2",onClick:this.onClick,style:this.props.buttonStyle,overStyle:this.props.buttonOverStyle},buttonText):null),
 			]),
