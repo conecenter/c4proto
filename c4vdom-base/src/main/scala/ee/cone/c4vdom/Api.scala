@@ -59,14 +59,12 @@ trait RootView[State] {
 }
 
 trait CurrentVDom[State] {
-  def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State
-  def toAlien: State ⇒ (State,List[(String,String)])
+  def activate: List[Map[String,String]] ⇒ State ⇒ State
 }
 
 case class VDomState(
     value: VDomValue,
     until: Long,
-    hashOfLastView: String, hashFromAlien: String, hashTarget: String,
     ackFromAlien: List[String]
 )
 

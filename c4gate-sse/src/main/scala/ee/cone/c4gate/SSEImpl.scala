@@ -10,17 +10,19 @@ import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
-import ee.cone.c4gate.BranchProtocol.{BranchResult, BranchSeed, Subscription}
+import ee.cone.c4gate.BranchProtocol.{BranchResult, BranchSeed, FromAlien, Subscription}
 import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4proto
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
 
+import scala.collection.immutable.Queue
+
 case object SSEMessagePriorityKey extends WorldKey[java.lang.Long](0L)
 case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
 case object SSEPongTimeKey extends WorldKey[Instant](Instant.MIN)
-case object SSELocationHash extends WorldKey[String]("")
+//case object SSELocationHash extends WorldKey[String]("")
 
-case class HttpPostByConnection(
+case class HttpPongByConnection(
     connectionKey: String,
     index: Long,
     headers: Map[String,String],
@@ -48,49 +50,54 @@ object SSEMessage {
 
 case class WorkingSSEConnection(
   connectionKey: String, initDone: Boolean,
-  posts: List[HttpPostByConnection]
+  posts: List[HttpPongByConnection],
+  branchResults: Values[BranchResult]
 ) extends TxTransform /*with SSESend*/ {
-  /*def relocate(tx: WorldTx, value: String): WorldTx = {
-    if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
-  }*/
   import SSEMessage._
 
   private def pingAge(local: World): Long =
     ChronoUnit.SECONDS.between(SSEPingTimeKey.of(local), Instant.now)
   private def pongAge(local: World): Long =
     ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
+  private def pingAgeUpdate: World ⇒ World = SSEPingTimeKey.set(Instant.now)
+  private def pongAgeUpdate: World ⇒ World = SSEPongTimeKey.set(Instant.now)
 
   private def needInit(local: World): World = if(initDone) local
   else connect(connectionKey, s"$connectionKey ${PostURLKey.of(local).get}")
     .andThen(add(update(AppLevelInitDone(connectionKey))))
-    .andThen(SSEPingTimeKey.set(Instant.now))(local)
+    .andThen(pingAgeUpdate)(local)
 
   private def needPing(local: World): World =
     if(pingAge(local) < 5) local
-    else message(connectionKey,"ping", connectionKey)
-      .andThen(SSEPingTimeKey.set(Instant.now))(local)
+    else message(connectionKey, "ping", connectionKey).andThen(pingAgeUpdate)(local)
 
-  private def handlePosts(local: World): World =
-    (local /: posts) { (local, post) ⇒
-      //FromAlienKey.of(local)(post.headers.get).andThen(toAlien)
-      relocate
-        .andThen(add(delete(post.request)))
-        .andThen(SSEPongTimeKey.set(Instant.now))(local)
-    }
-
-  private def disconnect(local: World): World =
-    add(update(TcpDisconnect(connectionKey)))(local)
+  private def disconnect: World ⇒ World = add(update(TcpDisconnect(connectionKey)))
+  private def rmPongs: World ⇒ World = add(posts.flatMap(pong⇒delete(pong.request)))
+  private def relocate: World ⇒ World = local ⇒ {
+    val headers = posts.last.headers
+    val seed = CreateBranchSeed(FromAlien(
+      connectionKey,
+      headers("X-r-session"),
+      headers("X-r-location-search"),
+      headers("X-r-location-hash")
+    ))
+    val res = BranchResult(connectionKey, List(seed), List(Subscription(connectionKey)))
+    if(branchResults == List(res)) local else add(update(res))(local) //todo checkUpdate()?
+    //todo relocate toAlien
+  }
 
   def transform(local: World): World = Some(local)
     .map(needInit)
     .map(needPing)
     .map(local ⇒
       if(ErrorKey.of(local).nonEmpty) disconnect(local)
-      else if(posts.nonEmpty) handlePosts(local)
-      else if(pingAge(local) < 2 || pongAge(local) < 5) local
-      else disconnect(local)
+      else if(posts.nonEmpty) relocate.andThen(rmPongs).andThen(pongAgeUpdate)(local)
+      else if(pingAge(local) > 2 && pongAge(local) > 5) disconnect(local)
+      else local
     ).get
 }
+
+
 
 ////
 
@@ -100,7 +107,7 @@ object CreateBranchSeed {
     val valueAdapter = registry.byName(value.getClass.getName).asInstanceOf[ProtoAdapter[Product] with HasId]
     val bytes = valueAdapter.encode(value)
     val byteString = okio.ByteString.of(bytes,0,bytes.length)
-    BranchSeed(???,valueAdapter.id, byteString)
+    BranchSeed(???, valueAdapter.id, byteString)
   }
 }
 
@@ -116,12 +123,14 @@ case class BranchMaker(seed: BranchSeed, connectionKeys: Set[SrcId]) extends TxT
 
 @assemble class BranchAssemble extends Assemble { //todo reg
   type SeedHash = SrcId
+
   def joinRichBranchSeed(
     key: SrcId,
     branchResults: Values[BranchResult]
   ): Values[(SeedHash,BranchSeedSubscription)] =
     for(branchResult ← branchResults; seed ← branchResult.children; subscription ← branchResult.subscriptions)
       yield seed.hash → BranchSeedSubscription(s"${subscription.connectionKey}/${seed.hash}", subscription.connectionKey, seed)
+
   def joinTxTransform(
     key: SrcId,
     @by[SeedHash] subscriptions: Values[BranchSeedSubscription]
@@ -155,66 +164,59 @@ case class BranchMaker(seed: BranchSeed, connectionKeys: Set[SrcId]) extends TxT
 
 }
 
+/*
+def relocate(tx: WorldTx, value: String): WorldTx = {
+    if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
+}
 
+case object RelocateHashKey extends WorldKey[String ⇒ World ⇒ World](_⇒throw new Exception)
+
+trait RelocateHash {
+  def relocateHash(value: String): World ⇒ World = SSEMessage.message(connectionKey,"relocateHash",value)
+}*/
 /*
 "X-r-session": sessionKey(never),
 "X-r-location-search": location.search.substr(1),
 "X-r-location-hash": location.hash.substr(1)
 */
-/*
+
+case object MultiCastKey extends WorldKey[Queue[(String,String)]](Queue.empty)
+
 case class WorkingSSEConnection(
   connectionKey: String, initDone: Boolean,
-  posts: List[HttpPostByConnection]
+  posts: List[HttpPostBySeed]
 ) extends TxTransform /*with SSESend*/ {
-  /*def relocate(tx: WorldTx, value: String): WorldTx = {
-    if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
-  }*/
-  import SSEMessage._
+
 
   private def toAlien(local: World): World = {
-    val (nLocal,messages) = ToAlienKey.of(local)(local)
-    (nLocal /: messages) { (local, msg) ⇒ msg match {
-      case (event,data) ⇒ message(connectionKey,event,data)(local)
+    val nLocal = MultiCastKey.set(Queue.empty).andThen(ToAlienKey.of(local))(local)
+    (nLocal /: MultiCastKey.of(nLocal)) { (local, msg) ⇒ msg match {
+      case (event,data) ⇒ SSEMessage.message(connectionKey,event,data)(local)
     }}
   }
-
-  private def pingAge(local: World): Long =
-    ChronoUnit.SECONDS.between(SSEPingTimeKey.of(local), Instant.now)
-  private def pongAge(local: World): Long =
-    ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
-
-  private def needInit(local: World): World = if(initDone) local
-    else connect(connectionKey, s"$connectionKey ${PostURLKey.of(local).get}")
-    .andThen(add(update(AppLevelInitDone(connectionKey))))
-    .andThen(SSEPingTimeKey.set(Instant.now))(local)
-
-  private def needPing(local: World): World =
-    if(pingAge(local) < 5) local
-    else message(connectionKey,"ping", connectionKey)
-      .andThen(SSEPingTimeKey.set(Instant.now))(local)
 
   private def handlePosts(local: World): World =
     (local /: posts) { (local, post) ⇒
         FromAlienKey.of(local)(post.headers.get).andThen(toAlien)
-        .andThen(add(delete(post.request)))
-        .andThen(SSEPongTimeKey.set(Instant.now))(local)
+          .andThen()
+        .andThen(add(delete(post.request)))(local)
     }
 
-  private def disconnect(local: World): World =
-    add(update(TcpDisconnect(connectionKey)))(local)
+  def transform(local: World): World = MultiCastKey.set(Queue.empty)
+      .andThen(AlienExchangeKey.of(local))
+      .andThen(local ⇒
+        (local /: MultiCastKey.of(local)).map{ (local, msg) ⇒
+          val (event,data) = msg
+          SSEMessage.message(connectionKey,event,data)(local)
+        }
+      )
+      .andThen(local ⇒
+        posts.map(post⇒ post.headers("X-r-connection"))
+      )
 
-  def transform(local: World): World = Some(local)
-    .map(needInit)
-    .map(needPing)
-    .map(local ⇒
-      if(ErrorKey.of(local).nonEmpty) disconnect(local)
-      else if(posts.nonEmpty) handlePosts(local)
-      else if(pingAge(local) < 2 || pongAge(local) < 5) toAlien(local)
-      else disconnect(local)
-    ).get
 }
-*/
 
+//todo error in view
 
 object HttpPostParse {
   def apply(post: HttpPost): Option[(String,Long,Map[String,String])] =
@@ -231,13 +233,13 @@ object HttpPostParse {
   def joinHttpPostByConnection(
     key: SrcId,
     posts: Values[HttpPost]
-  ): Values[(SrcId,HttpPostByConnection)] = for(
+  ): Values[(SrcId,HttpPongByConnection)] = for(
     post ← posts;
     (action,index,headers) ← HttpPostParse(post) if action == "pong"
   ) yield {
     val k = headers("X-r-connection")
     //val hash = headers("X-r-location-hash")
-    k → HttpPostByConnection(k,index,headers,post)
+    k → HttpPongByConnection(k,index,headers,post)
   }
 
   def joinTxTransform(
@@ -245,11 +247,12 @@ object HttpPostParse {
     tcpConnections: Values[TcpConnection],
     tcpDisconnects: Values[TcpDisconnect],
     initDone: Values[AppLevelInitDone],
-    posts: Values[HttpPostByConnection]
+    posts: Values[HttpPongByConnection],
+    branchResults: Values[BranchResult]
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty) //purge
       SimpleTxTransform((initDone ++ posts.map(_.request)).flatMap(LEvent.delete))
-    else WorkingSSEConnection(key, initDone.nonEmpty, posts.sortBy(_.index))
+    else WorkingSSEConnection(key, initDone.nonEmpty, posts.sortBy(_.index), branchResults)
   ))
 }
 

@@ -4,8 +4,8 @@ import ReactDOM        from 'react-dom'
 import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 import update          from 'react/lib/update'
 
-export default function VDom(parentElement){
-    const activeTransforms = {}
+export default function VDom(parentElement, transforms){
+    const activeTransforms = mergeAll(transforms)
     const Traverse = React.createClass({
         mixins: [PureRenderMixin],
         render(){
@@ -66,16 +66,19 @@ export default function VDom(parentElement){
         const rootVirtualElement = React.createElement(RootComponent,null)
         return ReactDOM.render(rootVirtualElement, rootNativeElement)
     }
-    function transformBy(add){ merge(activeTransforms, add.transforms) }
     const receivers = {showDiff}
-    return ({receivers,transformBy})
+    return ({receivers})
 }
 
-function merge(to, from){
-    Object.keys(from).forEach(key=>{
-        if(!to[key]) to[key] = from[key] 
-        else if(to[key].constructor===Object && from[key].constructor===Object) 
-            merge(to[key],from[key])
-        else never()
+function mergeAll(list){
+    const to = {}
+    list.forEach(from=>{
+        Object.keys(from).forEach(key=>{
+            if(!to[key]) to[key] = from[key]
+            else if(to[key].constructor===Object && from[key].constructor===Object)
+                merge(to[key],from[key])
+            else never()
+        })
     })
+    return to
 }

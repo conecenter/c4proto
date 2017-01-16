@@ -11,10 +11,9 @@ function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
 export default function InputChanges(sender, DiffPrepare){
     const changes = {}
-    const set = (ctx,value,now) => {
+    const set = (ctx,value) => {
         const path = ctxToArray(ctx,[])
         const rCtx = rootCtx(ctx)
-
         const path_str = rCtx.branchKey + "/" + path.join("/")
         const diff = DiffPrepare(rCtx.localState)
         diff.jump(path)
@@ -23,12 +22,15 @@ export default function InputChanges(sender, DiffPrepare){
         console.log("input-change added")
         var sent = null
         const send = () => { 
-            if(!sent) sent = sender.send(ctx, "change", value) 
+            if(!sent) sent = sender.send(ctx, {
+                "X-r-action": "change",
+                "X-r-vdom-value-base64": btoa(unescape(encodeURIComponent(value)))
+            })
         }
-        const ack = aCtx => !sent ? null :
-            rootCtx(aCtx).branchKey !== rCtx.branchKey ? null :
-            aCtx.value[1] !== sent["X-r-connection"] ? clear() : //old agent index
-            parseInt(aCtx.value[2]) < sent["X-r-index"] ? null : clear();
+        const ack = (branchKey,index) => sent &&
+            branchKey === sent["X-r-branch"] &&
+            parseInt(index) >= parseInt(sent["X-r-index"]) &&
+            clear();
         const clear = () => {
             const diff = DiffPrepare(rCtx.localState)
             diff.jump(path.slice(0,-1))
@@ -38,25 +40,26 @@ export default function InputChanges(sender, DiffPrepare){
             delete changes[path_str]
         }
         changes[path_str] = {send,ack}
-        if(now) send()
     }
     const sendDeferred = 
         () => Object.keys(changes).forEach(path_str=>changes[path_str].send())
-    const ack =
-    //rootCtx(aCtx).branchKey, aCtx.value[1], parseInt(aCtx.value[2])
-        ctx => Object.keys(changes).forEach(path_str=>changes[path_str].ack(ctx))
-    
+
     const onChange = {
-        "local": ctx => event => set(ctx, event.target.value, false),
-        "send": ctx => event => set(ctx, event.target.value, true)
+        "local": ctx => event => set(ctx, event.target.value),
+        "send": ctx => event => { set(ctx, event.target.value); sendDeferred() }
     }
     const onBlur = {
         "send": ctx => event => sendDeferred()
     }
-    const ackMessage = {
-        "ackMessage": ctx => { ack(ctx); return "" }
+    const onCheck={
+        "send": ctx => event => { set(ctx, event.target.checked?"Y":""); sendDeferred() }
     }
-    const transforms = {onChange,onBlur,ackMessage}
-    
-    return ({transforms})
+    const ackChange = data => {
+        const [branchKey,indexStr] = data.split(" ")
+        Object.keys(changes).forEach(path_str=>changes[path_str].ack(branchKey,indexStr))
+    }
+
+    const transforms = {onChange,onBlur,onCheck}
+    const receivers = {ackChange}
+    return ({transforms,receivers})
 }

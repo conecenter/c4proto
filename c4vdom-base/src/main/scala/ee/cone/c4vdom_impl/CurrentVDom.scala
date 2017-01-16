@@ -4,58 +4,60 @@ import java.util.Base64
 
 import ee.cone.c4vdom._
 
+import scala.collection.immutable.Queue
+
 class CurrentVDomImpl[State](
   diff: Diff,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory,
   view: RootView[State],
-  vDomStateKey: VDomLens[State,Option[VDomState]]
+  vDomStateKey: VDomLens[State,Option[VDomState]],
+  multiCastKey: VDomLens[State,Queue[(String,String)]]
 ) extends CurrentVDom[State] {
 
-  private type Message = String ⇒ Option[String]
-  private type Handler = Message ⇒ State ⇒ Option[State]
+  private type Message = Map[String,String]
+  private type Handler = Message ⇒ State ⇒ State
   //def until(value: Long) = if(value < until) until = value
-  private def relocate: Handler = message ⇒ state ⇒
+  /*private def relocate: Handler = message ⇒ state ⇒
     for(hash ← message("X-r-location-hash") if hash != vDomStateKey.of(state).get.hashFromAlien)
       yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
         hashFromAlien = hash, hashTarget = hash
-      )))(state)
+      )))(state)*/
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = message ⇒ state ⇒
-    for(pathStr <- message("X-r-vdom-path")) yield {
-      if(vDomStateKey.of(state).get.until <= 0) throw new Exception("invalid VDom")
-      val path = pathStr.split("/").toList match {
-        case "" :: parts => parts
-        case _ => Never()
-      }
-      ((message("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
-        case (Some("click"), Some(v: OnClickReceiver[_])) => v.onClick.get
-        case (Some("change"), Some(v: OnChangeReceiver[_])) =>
-          val decoded = UTF8String(Base64.getDecoder.decode(message("X-r-vdom-value-base64").get))
-          v.onChange.get(decoded)
-        case v => throw new Exception(s"$path ($v) can not receive $message")
-      }).asInstanceOf[State=>State](state)
+  private def dispatch: Handler = message ⇒ state ⇒ {
+    val pathStr = message("X-r-vdom-path")
+    if(vDomStateKey.of(state).get.until <= 0) throw new Exception("invalid VDom")
+    val path = pathStr.split("/").toList match {
+      case "" :: parts => parts
+      case _ => Never()
     }
-  private def handleLastMessage: Handler = message ⇒ state ⇒
-    for(connection ← message("X-r-connection"); index ← message("X-r-index"))
-      yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
-        ackFromAlien = connection :: index :: Nil
-      )))(state)
-  private def handlers = List[Handler](handleLastMessage,relocate,dispatch)
+    ((message("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
+      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get
+      case ("change", Some(v: OnChangeReceiver[_])) =>
+        val decoded = UTF8String(Base64.getDecoder.decode(message("X-r-vdom-value-base64")))
+        v.onChange.get(decoded)
+      case v => throw new Exception(s"$path ($v) can not receive $message")
+    }).asInstanceOf[State=>State](state)
+  }
+  private def handleLastMessage: Handler = message ⇒
+    vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
+      ackFromAlien = message("X-r-connection") :: message("X-r-index") :: Nil
+    )))
   private def init: State ⇒ State =
-    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,"","","",Nil))))
-  def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State =
-    message ⇒ state ⇒ (init(state) /: handlers)((state,f)⇒f(message)(state).getOrElse(state))
+    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Nil))))
 
-  def toAlien: (State) ⇒ (State, List[(String, String)]) = state ⇒
-    Option(state).map(init).map{ state ⇒
+  def activate: List[Map[String,String]] ⇒ State ⇒ State = messages ⇒ (identity[State] /: (
+    if(messages.isEmpty) List(init,toAlien)
+    else for(m ← messages; f ← List(init, handleLastMessage(m), dispatch(m), toAlien)) yield f
+  ))((a,b)⇒ a andThen b)
+
+  def toAlien: State ⇒ State = state ⇒ {
       val vState = vDomStateKey.of(state).get
       if(
         vState.value != wasNoValue &&
-          vState.until > System.currentTimeMillis &&
-          vState.hashOfLastView == vState.hashFromAlien
-      ) (state,Nil) else {
+          vState.until > System.currentTimeMillis
+      ) state else {
         val rootAttributes =
           if(vState.ackFromAlien.isEmpty) Nil
           else List("ackMessage" → ("ackMessage" :: vState.ackFromAlien))
@@ -63,18 +65,21 @@ class CurrentVDomImpl[State](
         val (viewRes, until) = view.view(state)
         val nextDom = child("root", rootElement, viewRes)
           .asInstanceOf[VPair].value
-        val nextState = vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
-          value=nextDom, until=until, hashOfLastView=vState.hashFromAlien
-        )))(state)
-        val diffTree = diff.diff(vState.value, vDomStateKey.of(nextState).get.value)
-        val diffCommands = diffTree.map(d=>
-          ("showDiff", jsonToString(BranchDiff(branchKey,d)))
-        ).toList
-        val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
-        else List("relocateHash"→vState.hashTarget)
-        (nextState, diffCommands ::: relocateCommands)
+        vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(value=nextDom, until=until)))
+          .andThen{ state ⇒
+            val diffCommands = diff.diff(vState.value, vDomStateKey.of(state).get.value).map(d=>
+              ("showDiff", jsonToString(BranchDiff(/*branchKey*/ ???,d)))
+            ).toList
+            multiCastKey.modify(_.enqueue(diffCommands))
+          }
+
+
+
+        //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
+        //else List("relocateHash"→vState.hashTarget)
+        (nextState, diffCommands)
       }
-    }.get
+    }
 
 
 

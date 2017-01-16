@@ -8,5 +8,5 @@ import ee.cone.c4gate.InternetProtocol.HttpPost
 case object AllowOriginKey extends WorldKey[Option[String]](None)
 case object PostURLKey extends WorldKey[Option[String]](None)
 
-case object ToAlienKey extends WorldKey[World ⇒ (World, List[(String, String)])](_⇒throw new Exception)
-case object FromAlienKey extends WorldKey[(String⇒Option[String]) ⇒ World ⇒ World](_⇒identity)
+
+case object AlienExchangeKey extends WorldKey[List[Map[String,String]] ⇒ World ⇒ World](_⇒identity)
