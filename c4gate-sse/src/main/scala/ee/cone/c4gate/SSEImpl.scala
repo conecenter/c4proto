@@ -22,7 +22,8 @@ case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
 case object SSEPongTimeKey extends WorldKey[Instant](Instant.MIN)
 //case object SSELocationHash extends WorldKey[String]("")
 
-case class HttpPongByConnection(
+case class RichHttpPost(
+    srcId: String,
     connectionKey: String,
     index: Long,
     headers: Map[String,String],
@@ -50,7 +51,7 @@ object SSEMessage {
 
 case class WorkingSSEConnection(
   connectionKey: String, initDone: Boolean,
-  posts: List[HttpPongByConnection],
+  posts: List[RichHttpPost],
   branchResults: Values[BranchResult]
 ) extends TxTransform /*with SSESend*/ {
   import SSEMessage._
@@ -180,39 +181,23 @@ trait RelocateHash {
 "X-r-location-hash": location.hash.substr(1)
 */
 
-case object MultiCastKey extends WorldKey[Queue[(String,String)]](Queue.empty)
+case object MultiCastKey extends WorldKey[(String,String,String)⇒World⇒World](_⇒throw new Exception)
 
 case class WorkingSSEConnection(
-  connectionKey: String, initDone: Boolean,
-  posts: List[HttpPostBySeed]
+  branchKey: String,
+  posts: List[RichHttpPost],
+  connectionKeys: List[SrcId]
 ) extends TxTransform /*with SSESend*/ {
 
 
-  private def toAlien(local: World): World = {
-    val nLocal = MultiCastKey.set(Queue.empty).andThen(ToAlienKey.of(local))(local)
-    (nLocal /: MultiCastKey.of(nLocal)) { (local, msg) ⇒ msg match {
-      case (event,data) ⇒ SSEMessage.message(connectionKey,event,data)(local)
-    }}
-  }
 
-  private def handlePosts(local: World): World =
-    (local /: posts) { (local, post) ⇒
-        FromAlienKey.of(local)(post.headers.get).andThen(toAlien)
-          .andThen()
-        .andThen(add(delete(post.request)))(local)
-    }
 
-  def transform(local: World): World = MultiCastKey.set(Queue.empty)
-      .andThen(AlienExchangeKey.of(local))
-      .andThen(local ⇒
-        (local /: MultiCastKey.of(local)).map{ (local, msg) ⇒
-          val (event,data) = msg
-          SSEMessage.message(connectionKey,event,data)(local)
-        }
-      )
-      .andThen(local ⇒
-        posts.map(post⇒ post.headers("X-r-connection"))
-      )
+
+
+  def transform(local: World): World =
+      AlienExchangeKey.of(local)(posts.map(_.headers), connectionKeys)
+      .andThen(add(posts.flatMap(post⇒delete(post.request))))(local)
+
 
 }
 
@@ -233,13 +218,13 @@ object HttpPostParse {
   def joinHttpPostByConnection(
     key: SrcId,
     posts: Values[HttpPost]
-  ): Values[(SrcId,HttpPongByConnection)] = for(
+  ): Values[(SrcId,RichHttpPost)] = for(
     post ← posts;
     (action,index,headers) ← HttpPostParse(post) if action == "pong"
   ) yield {
     val k = headers("X-r-connection")
     //val hash = headers("X-r-location-hash")
-    k → HttpPongByConnection(k,index,headers,post)
+    k → RichHttpPost(k,index,headers,post)
   }
 
   def joinTxTransform(
@@ -247,7 +232,7 @@ object HttpPostParse {
     tcpConnections: Values[TcpConnection],
     tcpDisconnects: Values[TcpDisconnect],
     initDone: Values[AppLevelInitDone],
-    posts: Values[HttpPongByConnection],
+    posts: Values[RichHttpPost],
     branchResults: Values[BranchResult]
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty) //purge

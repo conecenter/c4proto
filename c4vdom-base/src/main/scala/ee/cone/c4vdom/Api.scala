@@ -51,7 +51,7 @@ trait Color {
 trait VDomLens[C,I] {
   def of(container: C): I
   def modify(f: I⇒I): C⇒C
-  //def set(value: I): C⇒C
+  def set(value: I): C⇒C
 }
 
 trait RootView[State] {
@@ -59,14 +59,10 @@ trait RootView[State] {
 }
 
 trait CurrentVDom[State] {
-  def activate: List[Map[String,String]] ⇒ State ⇒ State
+  def activate: (List[Map[String,String]],List[String]) ⇒ State ⇒ State
 }
 
-case class VDomState(
-    value: VDomValue,
-    until: Long,
-    ackFromAlien: List[String]
-)
+case class VDomState(value: VDomValue, until: Long, connectionKeys: List[String])
 
 trait OnClickReceiver[State] {
   def onClick: Option[State ⇒ State]

@@ -9,7 +9,7 @@ function ctxToArray(ctx,res){
 
 function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
-export default function InputChanges(sender, DiffPrepare){
+export default function VDomChanges(sender, DiffPrepare){
     const changes = {}
     const set = (ctx,value) => {
         const path = ctxToArray(ctx,[])

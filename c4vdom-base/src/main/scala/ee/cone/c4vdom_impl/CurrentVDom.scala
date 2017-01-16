@@ -13,17 +13,15 @@ class CurrentVDomImpl[State](
   child: ChildPairFactory,
   view: RootView[State],
   vDomStateKey: VDomLens[State,Option[VDomState]],
-  multiCastKey: VDomLens[State,Queue[(String,String)]]
+  relocateKey: VDomLens[State,String],
+  send: (String,String,String)⇒State⇒State
 ) extends CurrentVDom[State] {
-
   private type Message = Map[String,String]
   private type Handler = Message ⇒ State ⇒ State
-  //def until(value: Long) = if(value < until) until = value
-  /*private def relocate: Handler = message ⇒ state ⇒
-    for(hash ← message("X-r-location-hash") if hash != vDomStateKey.of(state).get.hashFromAlien)
-      yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
-        hashFromAlien = hash, hashTarget = hash
-      )))(state)*/
+
+  private def init: State ⇒ State =
+    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Nil))))
+
   //dispatches incoming message // can close / set refresh time
   private def dispatch: Handler = message ⇒ state ⇒ {
     val pathStr = message("X-r-vdom-path")
@@ -40,48 +38,55 @@ class CurrentVDomImpl[State](
       case v => throw new Exception(s"$path ($v) can not receive $message")
     }).asInstanceOf[State=>State](state)
   }
-  private def handleLastMessage: Handler = message ⇒
-    vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
-      ackFromAlien = message("X-r-connection") :: message("X-r-index") :: Nil
-    )))
-  private def init: State ⇒ State =
-    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Nil))))
 
-  def activate: List[Map[String,String]] ⇒ State ⇒ State = messages ⇒ (identity[State] /: (
-    if(messages.isEmpty) List(init,toAlien)
-    else for(m ← messages; f ← List(init, handleLastMessage(m), dispatch(m), toAlien)) yield f
+  private def relocate: Handler = message ⇒ state ⇒ relocateKey.of(state) match {
+    case "" ⇒ state
+    case hash ⇒
+      send(message("X-r-connection"), "relocateHash", hash)
+        .andThen(relocateKey.set(""))(state)
+  }
+
+  def activate: (List[Map[String,String]],List[String]) ⇒ State ⇒ State = (messages,connectionKeys) ⇒ (identity[State] /: (
+    if(messages.isEmpty) List(init,toAlien(connectionKeys))
+    else for(m ← messages; f ← List(init, dispatch(m), relocate(m), toAlien(connectionKeys), ackChange(m))) yield f
   ))((a,b)⇒ a andThen b)
 
-  def toAlien: State ⇒ State = state ⇒ {
-      val vState = vDomStateKey.of(state).get
-      if(
-        vState.value != wasNoValue &&
-          vState.until > System.currentTimeMillis
-      ) state else {
-        val rootAttributes =
-          if(vState.ackFromAlien.isEmpty) Nil
-          else List("ackMessage" → ("ackMessage" :: vState.ackFromAlien))
-        val rootElement = RootElement(rootAttributes)
-        val (viewRes, until) = view.view(state)
-        val nextDom = child("root", rootElement, viewRes)
-          .asInstanceOf[VPair].value
-        vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(value=nextDom, until=until)))
-          .andThen{ state ⇒
-            val diffCommands = diff.diff(vState.value, vDomStateKey.of(state).get.value).map(d=>
-              ("showDiff", jsonToString(BranchDiff(/*branchKey*/ ???,d)))
-            ).toList
-            multiCastKey.modify(_.enqueue(diffCommands))
-          }
+  private def diffSend(prev: VDomValue, next: VDomValue, connectionKeys: List[String]): State ⇒ State = {
+    if(connectionKeys.isEmpty) return identity[State]
+    val diffTree = diff.diff(prev, next)
+    if(diffTree.isEmpty) return identity[State]
+    val diffStr = jsonToString(BranchDiff(/*branchKey*/ ???,diffTree.get))
+    val sends = connectionKeys.map(send(_,"showDiff",diffStr))
+    (identity[State] /: sends)(_ andThen _)
+  }
 
-
-
-        //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
-        //else List("relocateHash"→vState.hashTarget)
-        (nextState, diffCommands)
-      }
+  private def toAlien(connectionKeys: List[String]): State ⇒ State = state ⇒ {
+    val vState = vDomStateKey.of(state).get
+    if(
+      vState.value != wasNoValue &&
+        vState.until > System.currentTimeMillis
+    ) state else {
+      val (viewRes, until) = view.view(state)
+      val nextDom = child("root", RootElement, viewRes).asInstanceOf[VPair].value
+      val freshTo = connectionKeys.filterNot(vState.connectionKeys.toSet)
+      vDomStateKey.set(Option(VDomState(nextDom, until, connectionKeys)))
+        .andThen(diffSend(vState.value, nextDom, vState.connectionKeys))
+        .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
     }
+  }
+
+  private def ackChange: Handler = message ⇒ if(message("X-r-action") == "change") {
+    val connectionKey = message("X-r-connection")
+    val branchKey = message("X-r-branch")
+    val index = message("X-r-index")
+    send(connectionKey,"ackChange",s"$branchKey $index")
+  } else identity[State]
 
 
+
+
+  //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
+  //else List("relocateHash"→vState.hashTarget)
 
   /*
   private lazy val PathSplit = """(.*)(/[^/]*)""".r
@@ -94,16 +99,10 @@ class CurrentVDomImpl[State](
   */
 }
 
-case class RootElement(conf: List[(String,List[String])]) extends VDomValue {
+case object RootElement extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
-    conf.foreach{ case (k,v) ⇒
-      builder.append(k)
-      builder.startArray()
-      v.foreach(builder.append)
-      builder.end()
-    }
     builder.end()
   }
 }

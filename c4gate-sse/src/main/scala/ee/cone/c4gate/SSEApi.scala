@@ -9,4 +9,4 @@ case object AllowOriginKey extends WorldKey[Option[String]](None)
 case object PostURLKey extends WorldKey[Option[String]](None)
 
 
-case object AlienExchangeKey extends WorldKey[List[Map[String,String]] ⇒ World ⇒ World](_⇒identity)
+case object AlienExchangeKey extends WorldKey[(List[Map[String,String]],List[String]) ⇒ World ⇒ World]((_,_)⇒identity)
