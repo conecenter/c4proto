@@ -62,7 +62,7 @@ trait CurrentVDom[State] {
   def activate: (List[Map[String,String]],List[String]) ⇒ State ⇒ State
 }
 
-case class VDomState(value: VDomValue, until: Long, connectionKeys: List[String])
+case class VDomState(value: VDomValue, until: Long, connectionKeys: Set[String])
 
 trait OnClickReceiver[State] {
   def onClick: Option[State ⇒ State]

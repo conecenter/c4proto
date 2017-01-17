@@ -46,12 +46,12 @@ class CurrentVDomImpl[State](
         .andThen(relocateKey.set(""))(state)
   }
 
-  def activate: (List[Map[String,String]],List[String]) ⇒ State ⇒ State = (messages,connectionKeys) ⇒ (identity[State] /: (
+  def activate: (List[Map[String,String]],Set[String]) ⇒ State ⇒ State = (messages,connectionKeys) ⇒ (identity[State] /: (
     if(messages.isEmpty) List(init,toAlien(connectionKeys))
     else for(m ← messages; f ← List(init, dispatch(m), relocate(m), toAlien(connectionKeys), ackChange(m))) yield f
   ))((a,b)⇒ a andThen b)
 
-  private def diffSend(prev: VDomValue, next: VDomValue, connectionKeys: List[String]): State ⇒ State = {
+  private def diffSend(prev: VDomValue, next: VDomValue, connectionKeys: Set[String]): State ⇒ State = {
     if(connectionKeys.isEmpty) return identity[State]
     val diffTree = diff.diff(prev, next)
     if(diffTree.isEmpty) return identity[State]
@@ -60,7 +60,7 @@ class CurrentVDomImpl[State](
     (identity[State] /: sends)(_ andThen _)
   }
 
-  private def toAlien(connectionKeys: List[String]): State ⇒ State = state ⇒ {
+  private def toAlien(connectionKeys: Set[String]): State ⇒ State = state ⇒ {
     val vState = vDomStateKey.of(state).get
     if(
       vState.value != wasNoValue &&
@@ -68,7 +68,7 @@ class CurrentVDomImpl[State](
     ) state else {
       val (viewRes, until) = view.view(state)
       val nextDom = child("root", RootElement, viewRes).asInstanceOf[VPair].value
-      val freshTo = connectionKeys.filterNot(vState.connectionKeys.toSet)
+      val freshTo = connectionKeys -- vState.connectionKeys
       vDomStateKey.set(Option(VDomState(nextDom, until, connectionKeys)))
         .andThen(diffSend(vState.value, nextDom, vState.connectionKeys))
         .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)

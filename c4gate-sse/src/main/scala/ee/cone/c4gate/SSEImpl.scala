@@ -15,22 +15,17 @@ import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4proto
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
 
-import scala.collection.immutable.Queue
+
 
 case object SSEMessagePriorityKey extends WorldKey[java.lang.Long](0L)
 case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
 case object SSEPongTimeKey extends WorldKey[Instant](Instant.MIN)
 //case object SSELocationHash extends WorldKey[String]("")
 
-case class RichHttpPost(
-    srcId: String,
-    connectionKey: String,
-    index: Long,
-    headers: Map[String,String],
-    request: HttpPost
-)
 
-object SSEMessage {
+
+
+object SSEMessageImpl extends SSEMessage {
   def connect(connectionKey: String, data: String): World ⇒ World = local ⇒ {
     val allowOrigin =
       AllowOriginKey.of(local).map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
@@ -49,12 +44,32 @@ object SSEMessage {
   }
 }
 
+case class RichHttpPosts(posts: Values[RichHttpPost]) { //todo api
+  def remove: World ⇒ World = add(posts.flatMap(post⇒delete(post.request)))
+}
+
+object UpdateBranchResult { //todo api
+  def apply(wasBranchResults: Values[BranchResult], newBranchResult: BranchResult): World ⇒ World =
+    if(wasBranchResults == List(newBranchResult)) identity else add(update(newBranchResult)) //todo checkUpdate()?
+}
+
+object CreateBranchSeed { //todo api
+  def apply(value: Product): BranchSeed = {
+    val registry: QAdapterRegistry = ???
+    val valueAdapter = registry.byName(value.getClass.getName).asInstanceOf[ProtoAdapter[Product] with HasId]
+    val bytes = valueAdapter.encode(value)
+    val byteString = okio.ByteString.of(bytes,0,bytes.length)
+    BranchSeed(???, valueAdapter.id, byteString)
+  }
+}
+
+
 case class WorkingSSEConnection(
   connectionKey: String, initDone: Boolean,
   posts: List[RichHttpPost],
   branchResults: Values[BranchResult]
 ) extends TxTransform /*with SSESend*/ {
-  import SSEMessage._
+  import SSEMessageImpl._
 
   private def pingAge(local: World): Long =
     ChronoUnit.SECONDS.between(SSEPingTimeKey.of(local), Instant.now)
@@ -73,8 +88,7 @@ case class WorkingSSEConnection(
     else message(connectionKey, "ping", connectionKey).andThen(pingAgeUpdate)(local)
 
   private def disconnect: World ⇒ World = add(update(TcpDisconnect(connectionKey)))
-  private def rmPongs: World ⇒ World = add(posts.flatMap(pong⇒delete(pong.request)))
-  private def relocate: World ⇒ World = local ⇒ {
+  private def relocate: World ⇒ World = {
     val headers = posts.last.headers
     val seed = CreateBranchSeed(FromAlien(
       connectionKey,
@@ -83,7 +97,7 @@ case class WorkingSSEConnection(
       headers("X-r-location-hash")
     ))
     val res = BranchResult(connectionKey, List(seed), List(Subscription(connectionKey)))
-    if(branchResults == List(res)) local else add(update(res))(local) //todo checkUpdate()?
+    UpdateBranchResult(branchResults, res)
     //todo relocate toAlien
   }
 
@@ -92,24 +106,11 @@ case class WorkingSSEConnection(
     .map(needPing)
     .map(local ⇒
       if(ErrorKey.of(local).nonEmpty) disconnect(local)
-      else if(posts.nonEmpty) relocate.andThen(rmPongs).andThen(pongAgeUpdate)(local)
+      else if(posts.nonEmpty)
+        relocate.andThen(RichHttpPosts(posts).remove).andThen(pongAgeUpdate)(local)
       else if(pingAge(local) > 2 && pongAge(local) > 5) disconnect(local)
       else local
     ).get
-}
-
-
-
-////
-
-object CreateBranchSeed {
-  def apply(value: Product): BranchSeed = {
-    val registry: QAdapterRegistry = ???
-    val valueAdapter = registry.byName(value.getClass.getName).asInstanceOf[ProtoAdapter[Product] with HasId]
-    val bytes = valueAdapter.encode(value)
-    val byteString = okio.ByteString.of(bytes,0,bytes.length)
-    BranchSeed(???, valueAdapter.id, byteString)
-  }
 }
 
 case class BranchSeedSubscription(
@@ -118,127 +119,63 @@ case class BranchSeedSubscription(
   seed: BranchSeed
 )
 
-case class BranchMaker(seed: BranchSeed, connectionKeys: Set[SrcId]) extends TxTransform {
-  def transform(local: World): World = ???
+case class BranchMaker(task: BranchTask) extends TxTransform {
+  def transform(local: World): World = AlienExchangeKey.of(local)(task)(local)
 }
 
-@assemble class BranchAssemble extends Assemble { //todo reg
-  type SeedHash = SrcId
 
-  def joinRichBranchSeed(
-    key: SrcId,
-    branchResults: Values[BranchResult]
-  ): Values[(SeedHash,BranchSeedSubscription)] =
-    for(branchResult ← branchResults; seed ← branchResult.children; subscription ← branchResult.subscriptions)
-      yield seed.hash → BranchSeedSubscription(s"${subscription.connectionKey}/${seed.hash}", subscription.connectionKey, seed)
-
-  def joinTxTransform(
-    key: SrcId,
-    @by[SeedHash] subscriptions: Values[BranchSeedSubscription]
-  ): Values[(SrcId,TxTransform)] =
-    List(key → BranchMaker(subscriptions.head.seed, subscriptions.map(_.connectionKey).toSet))
-
-  //: Values[(SrcId,TxTransform)] = ???
-}
-
-@protocol object BranchProtocol extends c4proto.Protocol { //todo reg
-  case class Subscription(
-    @Id(???) connectionKey: SrcId
-  )
-  case class BranchSeed(
-    @Id(???) hash: String,
-    @Id(???) valueTypeId: Long,
-    @Id(???) value: okio.ByteString
-  )
-  @Id(???) case class BranchResult(
-    @Id(???) srcId: String,
-    @Id(???) children: List[BranchSeed],
-    @Id(???) subscriptions: List[Subscription]
-  )
-
-  @Id(???) case class FromAlien(
-    @Id(???) connectionKey: SrcId,
-    @Id(???) sessionKey: SrcId,
-    @Id(???) locationSearch: String,
-    @Id(???) locationHash: String
-  )
-
-}
-
-/*
-def relocate(tx: WorldTx, value: String): WorldTx = {
-    if(SSELocationHash.of(tx.local) == value) tx else message(tx,"relocateHash",value)
-}
-
-case object RelocateHashKey extends WorldKey[String ⇒ World ⇒ World](_⇒throw new Exception)
-
-trait RelocateHash {
-  def relocateHash(value: String): World ⇒ World = SSEMessage.message(connectionKey,"relocateHash",value)
-}*/
-/*
-"X-r-session": sessionKey(never),
-"X-r-location-search": location.search.substr(1),
-"X-r-location-hash": location.hash.substr(1)
-*/
-
-case object MultiCastKey extends WorldKey[(String,String,String)⇒World⇒World](_⇒throw new Exception)
-
-case class WorkingSSEConnection(
-  branchKey: String,
-  posts: List[RichHttpPost],
-  connectionKeys: List[SrcId]
-) extends TxTransform /*with SSESend*/ {
-
-
-
-
-
-
-  def transform(local: World): World =
-      AlienExchangeKey.of(local)(posts.map(_.headers), connectionKeys)
-      .andThen(add(posts.flatMap(post⇒delete(post.request))))(local)
-
-
-}
 
 //todo error in view
 
-object HttpPostParse {
-  def apply(post: HttpPost): Option[(String,Long,Map[String,String])] =
-    if(post.path != "/connection") None else {
+@assemble class SSEAssemble extends Assemble {
+  type BranchKey = SrcId
+
+  def joinHttpPostByBranch(
+    key: SrcId,
+    posts: Values[HttpPost]
+  ): Values[(BranchKey,RichHttpPost)] =
+    for(post ← posts if post.path == "/connection") yield {
       val headers = post.headers.flatMap(h ⇒
         if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
       ).toMap
-      for(action ← headers.get("X-r-action"))
-        yield (action, headers("X-r-index").toLong, headers)
+      val k = headers.getOrElse("X-r-branch", headers("X-r-connection"))
+      k → RichHttpPost(post.srcId,headers("X-r-index").toLong,headers,post)
     }
-}
 
-@assemble class SSEAssemble extends Assemble {
-  def joinHttpPostByConnection(
+  def joinBranchSeedSubscription(
     key: SrcId,
-    posts: Values[HttpPost]
-  ): Values[(SrcId,RichHttpPost)] = for(
-    post ← posts;
-    (action,index,headers) ← HttpPostParse(post) if action == "pong"
-  ) yield {
-    val k = headers("X-r-connection")
-    //val hash = headers("X-r-location-hash")
-    k → RichHttpPost(k,index,headers,post)
-  }
+    branchResults: Values[BranchResult]
+  ): Values[(BranchKey,BranchSeedSubscription)] =
+    for(branchResult ← branchResults; seed ← branchResult.children; subscription ← branchResult.subscriptions)
+      yield seed.hash → BranchSeedSubscription(
+        s"${subscription.connectionKey}/${seed.hash}",
+        subscription.connectionKey,
+        seed
+      )
 
   def joinTxTransform(
     key: SrcId,
     tcpConnections: Values[TcpConnection],
     tcpDisconnects: Values[TcpDisconnect],
     initDone: Values[AppLevelInitDone],
-    posts: Values[RichHttpPost],
+    @by[BranchKey] posts: Values[RichHttpPost],
+    @by[BranchKey] subscriptions: Values[BranchSeedSubscription],
     branchResults: Values[BranchResult]
   ): Values[(SrcId,TxTransform)] = List(key → (
-    if(tcpConnections.isEmpty || tcpDisconnects.nonEmpty) //purge
-      SimpleTxTransform((initDone ++ posts.map(_.request)).flatMap(LEvent.delete))
-    else WorkingSSEConnection(key, initDone.nonEmpty, posts.sortBy(_.index), branchResults)
+    if(tcpConnections.nonEmpty && tcpDisconnects.isEmpty)
+      WorkingSSEConnection(key, initDone.nonEmpty, posts.sortBy(_.index), branchResults)
+    else if(subscriptions.nonEmpty)
+      BranchMaker(
+        key,
+        subscriptions.head.seed,
+        posts.sortBy(_.index),
+        subscriptions.map(_.connectionKey).toSet,
+        branchResults
+      )
+    else
+      SimpleTxTransform((initDone ++ posts.map(_.request) ++ branchResults).flatMap(LEvent.delete)) //purge
   ))
+
 }
 
 object NoProxySSEConfig extends InitLocal {
