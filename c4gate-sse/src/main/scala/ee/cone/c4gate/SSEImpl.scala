@@ -25,24 +25,7 @@ case object SSEPongTimeKey extends WorldKey[Instant](Instant.MIN)
 
 
 
-object SSEMessageImpl extends SSEMessage {
-  def connect(connectionKey: String, data: String): World ⇒ World = local ⇒ {
-    val allowOrigin =
-      AllowOriginKey.of(local).map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
-    val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
-    send(connectionKey, "connect", data, header, -1)(local)
-  }
-  def message(connectionKey: String, event: String, data: String): World ⇒ World = local ⇒
-    send(connectionKey, event, data, "", SSEMessagePriorityKey.of(local))(local)
-  private def send(connectionKey: String, event: String, data: String, header: String, priority: Long): World ⇒ World = {
-    val escapedData = data.replaceAllLiterally("\n","\ndata: ")
-    val str = s"${header}event: $event\ndata: $escapedData\n\n"
-    val bytes = okio.ByteString.encodeUtf8(str)
-    val key = UUID.randomUUID.toString
-    SSEMessagePriorityKey.set(priority+1)
-      .andThen(add(update(TcpWrite(key,connectionKey,bytes,priority))))
-  }
-}
+
 
 case class RichHttpPosts(posts: Values[RichHttpPost]) { //todo api
   def remove: World ⇒ World = add(posts.flatMap(post⇒delete(post.request)))

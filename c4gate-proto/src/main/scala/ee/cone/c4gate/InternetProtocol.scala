@@ -29,4 +29,16 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   @Id(0x0029) case class TcpDisconnect(@Id(0x0027) connectionKey: String)
   @Id(0x002E) case class AppLevelInitDone(@Id(0x0027) connectionKey: String)
 
+  @Id(???) case class FromAlien(
+      @Id(???) sessionKey: String,
+      @Id(???) locationSearch: String,
+      @Id(???) locationHash: String
+  )
+  @Id(???) case class ToAlienWrite(
+    @Id(0x002A) srcId: String,
+    @Id(???) sessionKey: String,
+    @Id(???) event: String,
+    @Id(???) data: String,
+    @Id(0x002B) priority: Long
+  )
 }

@@ -10,8 +10,7 @@ import ee.cone.c4proto
 import ee.cone.c4proto.{Id, protocol}
 
 
-case object AllowOriginKey extends WorldKey[Option[String]](None)
-case object PostURLKey extends WorldKey[Option[String]](None)
+
 
 
 case object AlienExchangeKey extends WorldKey[BranchTask ⇒ World ⇒ World](_⇒identity)
@@ -47,12 +46,7 @@ case class BranchTask(
     @Id(???) subscriptions: List[Subscription]
   )
 
-  @Id(???) case class FromAlien(
-    @Id(???) connectionKey: SrcId,
-    @Id(???) sessionKey: SrcId,
-    @Id(???) locationSearch: String,
-    @Id(???) locationHash: String
-  )
+
 
 }
 

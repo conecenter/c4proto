@@ -10,7 +10,10 @@ class HttpGatewayApp extends ServerApp
   with SSEServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
-
+{
+  def httpHandlers: List[RHttpHandler] =
+    pongHandler :: new HttpPostHandler(qMessages,worldProvider) :: Nil
+}
 object HttpGateway extends Main((new HttpGatewayApp).execution.run)
 
 // I>P -- to agent, cmd>evl
