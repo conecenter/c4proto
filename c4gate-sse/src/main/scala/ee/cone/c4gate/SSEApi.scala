@@ -5,7 +5,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.WorldKey
 import ee.cone.c4gate.BranchProtocol.{BranchResult, BranchSeed}
-import ee.cone.c4gate.InternetProtocol.HttpPost
+import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4proto
 import ee.cone.c4proto.{Id, protocol}
 
@@ -24,10 +24,10 @@ case class RichHttpPost(
 
 case class BranchTask(
   branchKey: String,
-  seed: BranchSeed,
+  seed: Option[DecodedBranchSeed],
   posts: List[RichHttpPost],
   sessionKeys: Set[SrcId],
-  branchResults: Values[BranchResult]
+  branchResults: Values[DecodedBranchResult]
 )
 //todo .andThen(RichHttpPosts(task.posts).remove)
 
@@ -41,7 +41,8 @@ case class BranchTask(
     @Id(???) value: okio.ByteString
   )
   @Id(???) case class BranchResult(
-    @Id(???) srcId: String,
+    @Id(???) hash: String,
+    @Id(???) parent: Option[BranchSeed],
     @Id(???) children: List[BranchSeed],
     @Id(???) subscriptions: List[Subscription]
   )
