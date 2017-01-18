@@ -5,9 +5,10 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4gate.InternetProtocol.{TcpConnection, TcpDisconnect, TcpWrite}
+import ee.cone.c4gate.TcpProtocol._
+import ee.cone.c4proto.Protocol
 
-trait TcpServerApp extends ToStartApp with AssemblesApp with InitLocalsApp {
+trait TcpServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with ProtocolsApp {
   def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
@@ -17,6 +18,7 @@ trait TcpServerApp extends ToStartApp with AssemblesApp with InitLocalsApp {
   override def toStart: List[Executable] = tcpServer :: super.toStart
   override def assembles: List[Assemble] = new TcpAssemble :: super.assembles
   override def initLocals: List[InitLocal] = tcpServer :: super.initLocals
+  override def protocols: List[Protocol] = TcpProtocol :: super.protocols
 }
 
 class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends TcpHandler {

@@ -6,11 +6,8 @@ import java.nio.ByteBuffer
 import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketChannel, CompletionHandler}
 import java.util.UUID
 
-import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4gate.InternetProtocol._
 import ee.cone.c4actor._
-import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.World
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.Queue

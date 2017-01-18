@@ -55,7 +55,7 @@ class CurrentVDomImpl[State](
     if(connectionKeys.isEmpty) return identity[State]
     val diffTree = diff.diff(prev, next)
     if(diffTree.isEmpty) return identity[State]
-    val diffStr = jsonToString(BranchDiff(/*branchKey*/ ???,diffTree.get))
+    val diffStr = jsonToString(BranchDiff(???, /*branchKey*/ ???,diffTree.get))
     val sends = connectionKeys.map(send(_,"showDiff",diffStr))
     (identity[State] /: sends)(_ andThen _)
   }
@@ -107,9 +107,10 @@ case object RootElement extends VDomValue {
   }
 }
 
-case class BranchDiff(key: String, value: VDomValue) extends VDomValue {
+case class BranchDiff(postURL: String, key: String, value: VDomValue) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
+    builder.append("postURL").append(postURL)
     builder.append("branchKey").append(key)
     builder.append("value")
     value.appendJson(builder)

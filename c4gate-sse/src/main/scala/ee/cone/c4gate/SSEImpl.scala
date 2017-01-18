@@ -2,7 +2,6 @@ package ee.cone.c4gate
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.util.UUID
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.LEvent._
@@ -10,22 +9,12 @@ import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
-import ee.cone.c4gate.BranchProtocol.{BranchResult, BranchSeed, FromAlien, Subscription}
-import ee.cone.c4gate.InternetProtocol._
-import ee.cone.c4proto
-import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
+import ee.cone.c4gate.BranchProtocol.{BranchResult, BranchSeed, Subscription}
+import ee.cone.c4gate.AlienProtocol._
+import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4proto.HasId
 
-
-
-case object SSEMessagePriorityKey extends WorldKey[java.lang.Long](0L)
-case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
-case object SSEPongTimeKey extends WorldKey[Instant](Instant.MIN)
-//case object SSELocationHash extends WorldKey[String]("")
-
-
-
-
-
+case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
 
 case class RichHttpPosts(posts: Values[RichHttpPost]) { //todo api
   def remove: World ⇒ World = add(posts.flatMap(post⇒delete(post.request)))
@@ -46,71 +35,26 @@ object CreateBranchSeed { //todo api
   }
 }
 
-
-case class WorkingSSEConnection(
-  connectionKey: String, initDone: Boolean,
-  posts: List[RichHttpPost],
-  branchResults: Values[BranchResult]
-) extends TxTransform /*with SSESend*/ {
-  import SSEMessageImpl._
-
-  private def pingAge(local: World): Long =
-    ChronoUnit.SECONDS.between(SSEPingTimeKey.of(local), Instant.now)
-  private def pongAge(local: World): Long =
-    ChronoUnit.SECONDS.between(SSEPongTimeKey.of(local), Instant.now)
-  private def pingAgeUpdate: World ⇒ World = SSEPingTimeKey.set(Instant.now)
-  private def pongAgeUpdate: World ⇒ World = SSEPongTimeKey.set(Instant.now)
-
-  private def needInit(local: World): World = if(initDone) local
-  else connect(connectionKey, s"$connectionKey ${PostURLKey.of(local).get}")
-    .andThen(add(update(AppLevelInitDone(connectionKey))))
-    .andThen(pingAgeUpdate)(local)
-
-  private def needPing(local: World): World =
-    if(pingAge(local) < 5) local
-    else message(connectionKey, "ping", connectionKey).andThen(pingAgeUpdate)(local)
-
-  private def disconnect: World ⇒ World = add(update(TcpDisconnect(connectionKey)))
-  private def relocate: World ⇒ World = {
-    val headers = posts.last.headers
-    val seed = CreateBranchSeed(FromAlien(
-      connectionKey,
-      headers("X-r-session"),
-      headers("X-r-location-search"),
-      headers("X-r-location-hash")
-    ))
-    val res = BranchResult(connectionKey, List(seed), List(Subscription(connectionKey)))
-    UpdateBranchResult(branchResults, res)
-    //todo relocate toAlien
-  }
-
-  def transform(local: World): World = Some(local)
-    .map(needInit)
-    .map(needPing)
-    .map(local ⇒
-      if(ErrorKey.of(local).nonEmpty) disconnect(local)
-      else if(posts.nonEmpty)
-        relocate.andThen(RichHttpPosts(posts).remove).andThen(pongAgeUpdate)(local)
-      else if(pingAge(local) > 2 && pongAge(local) > 5) disconnect(local)
-      else local
-    ).get
-}
-
-case class BranchSeedSubscription(
-  srcId: SrcId,
-  connectionKey: SrcId,
-  seed: BranchSeed
-)
+case class BranchSeedSubscription(srcId: SrcId, sessionKey: SrcId, seed: BranchSeed)
 
 case class BranchMaker(task: BranchTask) extends TxTransform {
   def transform(local: World): World = AlienExchangeKey.of(local)(task)(local)
 }
 
 
-
+//todo relocate toAlien
 //todo error in view
 
-@assemble class SSEAssemble extends Assemble {
+object CreateBranchSeedSubscription {
+  def apply(seed: BranchSeed, subscription: Subscription): (SrcId,BranchSeedSubscription) =
+    seed.hash → BranchSeedSubscription(
+      s"${subscription.sessionKey}/${seed.hash}",
+      subscription.sessionKey,
+      seed
+    )
+}
+
+@assemble class BranchAssemble extends Assemble {
   type BranchKey = SrcId
 
   def joinHttpPostByBranch(
@@ -121,26 +65,25 @@ case class BranchMaker(task: BranchTask) extends TxTransform {
       val headers = post.headers.flatMap(h ⇒
         if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
       ).toMap
-      val k = headers.getOrElse("X-r-branch", headers("X-r-connection"))
-      k → RichHttpPost(post.srcId,headers("X-r-index").toLong,headers,post)
+      headers("X-r-branch") → RichHttpPost(post.srcId,headers("X-r-index").toLong,headers,post)
     }
 
-  def joinBranchSeedSubscription(
+  def joinFromAlienToBranchSeedSubscription(
+    key: SrcId,
+    fromAliens: Values[FromAlien]
+  ): Values[(BranchKey,BranchSeedSubscription)] =
+    for(fromAlien ← fromAliens)
+      yield CreateBranchSeedSubscription(CreateBranchSeed(fromAlien), Subscription(fromAlien.sessionKey))
+
+  def joinBranchResultToBranchSeedSubscription(
     key: SrcId,
     branchResults: Values[BranchResult]
   ): Values[(BranchKey,BranchSeedSubscription)] =
     for(branchResult ← branchResults; seed ← branchResult.children; subscription ← branchResult.subscriptions)
-      yield seed.hash → BranchSeedSubscription(
-        s"${subscription.connectionKey}/${seed.hash}",
-        subscription.connectionKey,
-        seed
-      )
+      yield CreateBranchSeedSubscription(seed,subscription)
 
   def joinTxTransform(
     key: SrcId,
-    tcpConnections: Values[TcpConnection],
-    tcpDisconnects: Values[TcpDisconnect],
-    initDone: Values[AppLevelInitDone],
     @by[BranchKey] posts: Values[RichHttpPost],
     @by[BranchKey] subscriptions: Values[BranchSeedSubscription],
     branchResults: Values[BranchResult]
@@ -152,7 +95,7 @@ case class BranchMaker(task: BranchTask) extends TxTransform {
         key,
         subscriptions.head.seed,
         posts.sortBy(_.index),
-        subscriptions.map(_.connectionKey).toSet,
+        subscriptions.map(_.sessionKey).toSet,
         branchResults
       )
     else
@@ -161,11 +104,6 @@ case class BranchMaker(task: BranchTask) extends TxTransform {
 
 }
 
-object NoProxySSEConfig extends InitLocal {
-  def initLocal: World ⇒ World =
-    AllowOriginKey.set(Option("*"))
-    .andThen(PostURLKey.set(Option("/connection")))
-}
 
 // /connection X-r-connection -> q-add -> q-poll -> FromAlienDictMessage
 // (0/1-1) ShowToAlien -> sendToAlien

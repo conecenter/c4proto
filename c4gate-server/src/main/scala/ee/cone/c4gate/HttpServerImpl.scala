@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import ee.cone.c4gate.InternetProtocol._
+import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4assemble.Types.World
 import ee.cone.c4assemble.Single
 import ee.cone.c4actor._
@@ -79,7 +79,7 @@ class WorldProviderImpl(
 trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
   def qReducer: Reducer
   lazy val worldProvider: WorldProvider with Observer = new WorldProviderImpl(qReducer)
-  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] = worldProvider :: super.initialObservers
 }
 

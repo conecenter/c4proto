@@ -13,6 +13,7 @@ class HttpGatewayApp extends ServerApp
 {
   def httpHandlers: List[RHttpHandler] =
     pongHandler :: new HttpPostHandler(qMessages,worldProvider) :: Nil
+  def sseConfig: SSEConfig = NoProxySSEConfig
 }
 object HttpGateway extends Main((new HttpGatewayApp).execution.run)
 

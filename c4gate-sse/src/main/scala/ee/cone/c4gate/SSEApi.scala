@@ -26,14 +26,14 @@ case class BranchTask(
   branchKey: String,
   seed: BranchSeed,
   posts: List[RichHttpPost],
-  connectionKeys: Set[SrcId],
+  sessionKeys: Set[SrcId],
   branchResults: Values[BranchResult]
 )
 //todo .andThen(RichHttpPosts(task.posts).remove)
 
 @protocol object BranchProtocol extends c4proto.Protocol { //todo reg
   case class Subscription(
-    @Id(???) connectionKey: SrcId
+    @Id(???) sessionKey: String
   )
   case class BranchSeed(
     @Id(???) hash: String,
@@ -50,6 +50,6 @@ case class BranchTask(
 
 }
 
-trait SSEMessage {
-  def message(connectionKey: String, event: String, data: String): World ⇒ World
+trait AlienMessage {
+  def message(sessionKey: String, event: String, data: String): World ⇒ World
 }

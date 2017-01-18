@@ -20,3 +20,8 @@ trait TcpHandler {
   def afterConnect(key: String): Unit
   def afterDisconnect(key: String): Unit
 }
+
+trait SSEConfig {
+  def allowOrigin: Option[String]
+  def pongURL: String
+}
