@@ -165,7 +165,7 @@ function MetroUi(){
 				backgroundColor:'white',
 				border:'1px #b6b6b6 dashed',
 				margin:'5px',
-				padding:'1.25rem 1.825rem 1.25rem 2.5rem',
+				padding:'0.5rem 1.825rem 1.25rem 0.5rem',
 			};
 			return React.createElement("div",{style:style},this.props.children);
 		}
@@ -469,16 +469,16 @@ function MetroUi(){
 	const TerminalElement=React.createClass({   
 		componentDidMount:function(){
 			if(window.CustomTerminal)
-				CustomTerminal.init(this.props.host,this.props.port,this.props.username,this.props.password);
+				CustomTerminal.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.version||0));
 		},
 		componentWillUnmount:function(){
 			if(window.CustomTerminal)
-				CustomTerminal.destroy();       
+				CustomTerminal.destroy();			
 		},
 		componentDidUpdate:function(prevProps, prevState){
 			if(window.CustomTerminal){
-				CustomTerminal.destroy();
-				CustomTerminal.init(this.props.host,this.props.port,this.props.username,this.props.password);
+				CustomTerminal.destroy(this.props.version);				
+				CustomTerminal.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.version);
 				console.log("reinit term");
 			}
 		},
@@ -606,8 +606,7 @@ function MetroUi(){
 		},
 		signal:function(data){
 			//const gData=(data!=undefined&&parseInt(data)>=0?data:null);
-			const gData=(data?data:null);
-			console.log(gData)
+			const gData=(data?data:null);			
 			this.setState({data:gData});		
 		},
 		componentDidMount:function(){
@@ -646,7 +645,7 @@ function MetroUi(){
 			};
 			Object.assign(style,this.props.style);		
 			const statusText = (this.props.statusText?this.props.statusText:"");
-			console.log(this.props.onChange,this.state.data,this.state.version)
+			
 			return React.createElement(TDElement,{key:"wEl",odd:this.props.odd,style},[
 				React.createElement(ControlledComparator,{key:"1",onChange:this.onChange,data:this.state.data},null),
 				React.createElement('div',{key:"2",style:{display:'flex',flexWrap:'noWrap'}},[				
