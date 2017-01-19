@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
 import java.time.Instant
-import java.time.temporal.ChronoUnit.SECONDS.between
+
 
 import com.sun.net.httpserver.HttpExchange
 import ee.cone.c4actor.Types.SrcId
@@ -89,12 +89,13 @@ case class SessionTxTransform( //todo session/pongs purge
     val sender = GetSenderKey.of(local)(connectionKey)
     if(sender.isEmpty) return local
     val now = Instant.now
-    if(between(lastPongTime,now)>2) {
+    import java.time.temporal.ChronoUnit.SECONDS
+    if(SECONDS.between(lastPongTime,now)>2) {
       sender.get.close()
       return local
     }
     Some(local).map{ local ⇒
-      if(between(SSEPingTimeKey.of(local), now) < 1) local
+      if(SECONDS.between(SSEPingTimeKey.of(local), now) < 1) local
       else {
         SSEMessage.message(sender.get, "ping", connectionKey)
         SSEPingTimeKey.set(now)(local)

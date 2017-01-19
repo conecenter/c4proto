@@ -5,7 +5,8 @@ import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4gate.InternetProtocol._
+import ee.cone.c4gate.HttpProtocol._
+import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble._
@@ -16,7 +17,7 @@ class TestConsumerApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp with InitLocalsApp
 {
-  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def protocols: List[Protocol] = HttpProtocol :: TcpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
 

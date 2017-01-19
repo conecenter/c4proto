@@ -4,23 +4,20 @@ import java.util.Base64
 
 import ee.cone.c4vdom._
 
-import scala.collection.immutable.Queue
-
 class CurrentVDomImpl[State](
   diff: Diff,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory,
-  view: RootView[State],
+
   vDomStateKey: VDomLens[State,Option[VDomState]],
-  relocateKey: VDomLens[State,String],
-  send: (String,String,String)⇒State⇒State
+  relocateKey: VDomLens[State,String]
 ) extends CurrentVDom[State] {
   private type Message = Map[String,String]
   private type Handler = Message ⇒ State ⇒ State
 
   private def init: State ⇒ State =
-    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Nil))))
+    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Set.empty))))
 
   //dispatches incoming message // can close / set refresh time
   private def dispatch: Handler = message ⇒ state ⇒ {
@@ -39,50 +36,63 @@ class CurrentVDomImpl[State](
     }).asInstanceOf[State=>State](state)
   }
 
-  private def relocate: Handler = message ⇒ state ⇒ relocateKey.of(state) match {
+  private def relocate(task: BranchTask[State]): Handler = message ⇒ state ⇒ relocateKey.of(state) match {
     case "" ⇒ state
     case hash ⇒
-      send(message("X-r-connection"), "relocateHash", hash)
+    //todo pass to parent branch or alien
+      task.directSessionKey.map(task.message(_, "relocateHash", hash)).getOrElse(???)
         .andThen(relocateKey.set(""))(state)
   }
 
-  def activate: (List[Map[String,String]],Set[String]) ⇒ State ⇒ State = (messages,connectionKeys) ⇒ (identity[State] /: (
-    if(messages.isEmpty) List(init,toAlien(connectionKeys))
-    else for(m ← messages; f ← List(init, dispatch(m), relocate(m), toAlien(connectionKeys), ackChange(m))) yield f
+  def activate: BranchTask[State] ⇒ State ⇒ State = task ⇒ (identity[State] _ /: (
+    if(task.getPosts.isEmpty) List(init,toAlien(task))
+    else for(m ← task.getPosts; f ← List(init, dispatch(m), relocate(task)(m), toAlien(task), ackChange(task)(m))) yield f
   ))((a,b)⇒ a andThen b)
 
-  private def diffSend(prev: VDomValue, next: VDomValue, connectionKeys: Set[String]): State ⇒ State = {
-    if(connectionKeys.isEmpty) return identity[State]
+  private def diffSend(prev: VDomValue, next: VDomValue, sessionKeys: Set[String], task: BranchTask[State]): State ⇒ State = {
+    if(sessionKeys.isEmpty) return identity[State]
     val diffTree = diff.diff(prev, next)
     if(diffTree.isEmpty) return identity[State]
-    val diffStr = jsonToString(BranchDiff(???, /*branchKey*/ ???,diffTree.get))
-    val sends = connectionKeys.map(send(_,"showDiff",diffStr))
-    (identity[State] /: sends)(_ andThen _)
+    val diffStr = jsonToString(BranchDiff("/connection", task.branchKey,diffTree.get))
+    val sends = sessionKeys.map(task.message(_,"showDiff",diffStr))
+    (identity[State] _ /: sends)(_ andThen _)
   }
 
-  private def toAlien(connectionKeys: Set[String]): State ⇒ State = state ⇒ {
+  private def toAlien(task: BranchTask[State]): State ⇒ State = state ⇒ {
     val vState = vDomStateKey.of(state).get
     if(
       vState.value != wasNoValue &&
         vState.until > System.currentTimeMillis
-    ) state else {
-      val (viewRes, until) = view.view(state)
-      val nextDom = child("root", RootElement, viewRes).asInstanceOf[VPair].value
-      val freshTo = connectionKeys -- vState.connectionKeys
-      vDomStateKey.set(Option(VDomState(nextDom, until, connectionKeys)))
-        .andThen(diffSend(vState.value, nextDom, vState.connectionKeys))
-        .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
+    ) state
+    /*else if(task.sessionKeys.isEmpty){
+      task.updateResult(Nil)(state)
+    }*/
+    else {
+      val viewRes = task.view(state)
+      val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
+      val GatherResult(until,seeds) = gather(GatherResult(0,Nil),vPair)
+      val nextDom = vPair.value
+      val(keepTo,freshTo) = task.sessionKeys.partition(vState.sessionKeys)
+      vDomStateKey.set(Option(VDomState(nextDom, until, task.sessionKeys)))
+        .andThen(diffSend(vState.value, nextDom, keepTo, task))
+        .andThen(diffSend(wasNoValue, nextDom, freshTo, task))
+        .andThen(task.updateResult(seeds))(state)
     }
   }
 
-  private def ackChange: Handler = message ⇒ if(message("X-r-action") == "change") {
-    val connectionKey = message("X-r-connection")
+  private def ackChange(task: BranchTask[State]): Handler = message ⇒ if(message("X-r-action") == "change") {
+    val sessionKey = message("X-r-session")
     val branchKey = message("X-r-branch")
     val index = message("X-r-index")
-    send(connectionKey,"ackChange",s"$branchKey $index")
+    task.message(sessionKey,"ackChange",s"$branchKey $index")
   } else identity[State]
 
-
+  private def gather(acc: GatherResult, pair: VPair): GatherResult = pair.value match {
+    case n: MapVDomValue ⇒ (acc /: n.pairs)(gather)
+    case SeedElement(seed) ⇒ acc.copy(seeds = seed :: acc.seeds)
+    case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
+    case _ ⇒ acc
+  }
 
 
   //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
@@ -97,6 +107,26 @@ class CurrentVDomImpl[State](
           view(nextPrefix,s"$nextPostfix$pathPostfix")
       })
   */
+}
+
+case class GatherResult(until: Long, seeds: List[Product])
+
+case class UntilElement(until: Long) extends VDomValue {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
+    builder.startObject()
+    builder.append("tp").append("span")
+    builder.end()
+  }
+}
+
+
+case class SeedElement(seed: Product) extends VDomValue {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
+    builder.startObject()
+    builder.append("tp").append("Seed")
+    builder.append("hash").append(seed.productElement(0).toString)
+    builder.end()
+  }
 }
 
 case object RootElement extends VDomValue {

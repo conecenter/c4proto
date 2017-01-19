@@ -2,6 +2,9 @@ package ee.cone.c4gate
 
 
 import java.net.URL
+import java.nio.ByteBuffer
+import java.security.MessageDigest
+import java.util.UUID
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.LEvent._
@@ -53,19 +56,29 @@ case class BranchTaskImpl(
 
   def rmPosts: World ⇒ World =
     add(posts.flatMap(post⇒delete(post.request)))
+
+  def message(sessionKey: String, event: String, data: String): World ⇒ World = local ⇒
+    add(update(ToAlienWrite(UUID.randomUUID.toString,sessionKey,event,data,ToAlienPriorityKey.of(local))))
+      .andThen(ToAlienPriorityKey.modify(_+1))(local)
+
+
 }
 
 object CreateSeedSubscription {
-  def apply(seed: BranchSeed, sessionKey: SrcId): (SrcId,BranchSeedSubscription) =
+  def apply(seed: BranchSeed, sessionKey: SrcId): (SrcId,
+    BranchSeedSubscription) =
     sessionKey → BranchSeedSubscription(s"$sessionKey/${seed.hash}", seed, sessionKey)
 }
 
 class BranchOperations(registry: QAdapterRegistry) {
+  private def toBytes(value: Long) = ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
+
   def toSeed(value: Product): BranchSeed = {
     val valueAdapter = registry.byName(value.getClass.getName).asInstanceOf[ProtoAdapter[Product] with HasId]
     val bytes = valueAdapter.encode(value)
     val byteString = okio.ByteString.of(bytes,0,bytes.length)
-    BranchSeed(???, valueAdapter.id, byteString)
+    val id = UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes)
+    BranchSeed(id.toString, valueAdapter.id, byteString)
   }
   def decode(seed: BranchSeed): Product = {
     val valueAdapter = registry.byId(seed.valueTypeId).asInstanceOf[ProtoAdapter[Product] with HasId]

@@ -3,9 +3,8 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.World
-import ee.cone.c4gate.BranchProtocol._
-import ee.cone.c4proto
-import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4gate.BranchProtocol.BranchSeed
+import ee.cone.c4proto._
 
 //case object AlienExchangeKey extends WorldKey[BranchTask ⇒ World ⇒ World](_⇒identity)
 
@@ -19,20 +18,21 @@ trait BranchTask extends Product {
 }
 
 //todo .andThen(RichHttpPosts(task.posts).remove)
+//todo reg
 
-@protocol object BranchProtocol extends c4proto.Protocol { //todo reg
+@protocol object BranchProtocol extends Protocol {
   case class Subscription(
-    @Id(???) sessionKey: String
+    @Id(0x0040) sessionKey: String
   )
   case class BranchSeed(
-    @Id(???) hash: String,
-    @Id(???) valueTypeId: Long,
-    @Id(???) value: okio.ByteString
+    @Id(0x0041) hash: String,
+    @Id(0x0042) valueTypeId: Long,
+    @Id(0x0043) value: okio.ByteString
   )
-  @Id(???) case class BranchResult(
-    @Id(???) hash: String,
-    @Id(???) parent: Option[BranchSeed],
-    @Id(???) children: List[BranchSeed],
-    @Id(???) subscriptions: List[Subscription]
+  @Id(0x0044) case class BranchResult(
+    @Id(0x0041) hash: String,
+    @Id(0x0045) parent: Option[BranchSeed],
+    @Id(0x0046) children: List[BranchSeed],
+    @Id(0x0047) subscriptions: List[Subscription]
   )
 }

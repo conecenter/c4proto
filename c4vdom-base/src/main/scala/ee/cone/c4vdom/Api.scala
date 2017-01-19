@@ -54,15 +54,22 @@ trait VDomLens[C,I] {
   def set(value: I): C⇒C
 }
 
-trait RootView[State] {
-  def view(state: State): (List[ChildPair[_]], Long)
+trait BranchTask[State] extends Product {
+  def branchKey: String
+  def getPosts: List[Map[String,String]]
+  def sessionKeys: Set[String]
+  def directSessionKey: Option[String]
+  def updateResult(newChildren: List[Product]): State ⇒ State
+  //def rmPosts: State ⇒ State //todo call
+  def message(sessionKey: String, event: String, data: String): State ⇒ State
+  def view: State ⇒ List[ChildPair[_]]
 }
 
 trait CurrentVDom[State] {
-  def activate: (List[Map[String,String]],List[String]) ⇒ State ⇒ State
+  def activate: BranchTask[State] ⇒ State ⇒ State
 }
 
-case class VDomState(value: VDomValue, until: Long, connectionKeys: Set[String])
+case class VDomState(value: VDomValue, until: Long, sessionKeys: Set[String])
 
 trait OnClickReceiver[State] {
   def onClick: Option[State ⇒ State]
