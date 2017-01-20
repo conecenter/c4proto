@@ -28,7 +28,7 @@ class ReducerImpl(
   def createWorld: World ⇒ World =
     TreeAssemblerKey.set(treeAssembler.replace(getDependencies()))
   def reduceRecover(world: World, recs: List[QRecord]): World =
-    TreeAssemblerKey.of(world)(qMessages.toTree(recs))(world)
+    TreeAssemblerKey.of(world)(qMessages.toTree(recs).asInstanceOf[Map[WorldKey[_],Index[Object,Object]]])(world)
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord]) =
     ((world,Queue.empty[QRecord]) /: inboxRecs){ (s,inboxRec) ⇒
       val(prevWorld,prevQueue) = s

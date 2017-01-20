@@ -14,6 +14,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.BranchProtocol.{BranchResult, BranchSeed, Subscription}
 import ee.cone.c4gate.AlienProtocol._
+import ee.cone.c4gate.BranchTypes.{BranchKey, LocationHash}
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4proto.HasId
 
@@ -60,14 +61,12 @@ case class BranchTaskImpl(
   def message(sessionKey: String, event: String, data: String): World ⇒ World = local ⇒
     add(update(ToAlienWrite(UUID.randomUUID.toString,sessionKey,event,data,ToAlienPriorityKey.of(local))))
       .andThen(ToAlienPriorityKey.modify(_+1))(local)
-
-
 }
 
 object CreateSeedSubscription {
   def apply(seed: BranchSeed, sessionKey: SrcId): (SrcId,
     BranchSeedSubscription) =
-    sessionKey → BranchSeedSubscription(s"$sessionKey/${seed.hash}", seed, sessionKey)
+    seed.hash → BranchSeedSubscription(s"$sessionKey/${seed.hash}", seed, sessionKey)
 }
 
 class BranchOperations(registry: QAdapterRegistry) {
@@ -86,15 +85,17 @@ class BranchOperations(registry: QAdapterRegistry) {
   }
 }
 
+object BranchTypes {
+  type BranchKey = SrcId
+  type LocationHash = SrcId
+}
+
 @assemble class SessionAssemble(operations: BranchOperations, host: String, file: String) extends Assemble {
   //todo reg
-  type SessionKey = SrcId
-  type LocationHash = SrcId
-
   def mapBranchSeedSubscriptionBySessionKey(
     key: SrcId,
     fromAliens: Values[FromAlien]
-  ): Values[(SessionKey,BranchSeedSubscription)] =
+  ): Values[(BranchKey,BranchSeedSubscription)] =
     for(fromAlien ← fromAliens)
       yield CreateSeedSubscription(operations.toSeed(fromAlien), fromAlien.sessionKey)
 
@@ -110,10 +111,7 @@ class BranchOperations(registry: QAdapterRegistry) {
     ) yield url.getRef → task
 }
 
-@assemble class BranchAssemble(operations: BranchOperations) extends Assemble { //todo reg
-  type BranchKey = SrcId
-  type SessionKey = SrcId
-
+@assemble class BranchAssemble(operations: BranchOperations) extends Assemble {
   def mapHttpPostByBranch(
     key: SrcId,
     posts: Values[HttpPost]
@@ -128,19 +126,12 @@ class BranchOperations(registry: QAdapterRegistry) {
   def mapBranchSeedSubscriptionBySessionKey(
     key: SrcId,
     branchResults: Values[BranchResult]
-  ): Values[(SessionKey,BranchSeedSubscription)] =
+  ): Values[(BranchKey,BranchSeedSubscription)] =
     for(
       branchResult ← branchResults;
       subscription ← branchResult.subscriptions;
       child ← branchResult.children
     ) yield CreateSeedSubscription(child, subscription.sessionKey)
-
-  def mapBranchSeedSubscriptionByBranchKey(
-    key: SrcId,
-    fromAliens: Values[FromAlien],
-    @by[SessionKey] seedSubscriptions: Values[BranchSeedSubscription]
-  ): Values[(BranchKey,BranchSeedSubscription)] =
-    for(fromAlien ← fromAliens; s ← seedSubscriptions) yield s.seed.hash → s
 
   def joinBranchTask(
     key: SrcId,

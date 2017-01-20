@@ -3,11 +3,15 @@ package ee.cone.c4gate
 import java.util.UUID
 
 import ee.cone.c4actor.LEvent.{add, delete, update}
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.World
+import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4gate.BranchTypes.LocationHash
 import ee.cone.c4gate.TestTodoProtocol.Task
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4vdom.{ChildPair, RootView}
+import ee.cone.c4vdom_impl.UntilElement
 
 object TestTodo extends Main((new TestTodoApp).execution.run)
 
@@ -33,8 +37,19 @@ class TestTodoApp extends ServerApp
   )
 }
 
-class TestTodoRootView(tags: TestTags[World]) extends RootView[World] {
-  def view(local: World): (List[ChildPair[_]], Long) = {
+@assemble class TestTodoAssemble extends Assemble {
+  def join(
+    key: SrcId,
+    @by[LocationHash] tasks: Values[BranchTask]
+  ): Values[(SrcId,View)] =
+    for(task ← tasks if key == "") task.branchKey →
+
+
+
+}
+
+class TestTodoRootView(tags: TestTags[World]) extends View {
+  def view(local: World): List[ChildPair[_]] = {
     val startTime = System.currentTimeMillis
     val world = TxKey.of(local).world
     val tasks = By.srcId(classOf[Task]).of(world).values.flatten.toSeq.sortBy(-_.createdAt)
@@ -58,7 +73,7 @@ class TestTodoRootView(tags: TestTags[World]) extends RootView[World] {
     val res = List(btnList,taskLines).flatten
     val endTime = System.currentTimeMillis
     val until = endTime+(endTime-startTime)*10
-    (res,until)
+    child(UntilElement(until)) :: res
   }
 }
 

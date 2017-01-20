@@ -27,12 +27,12 @@ class assemble extends StaticAnnotation {
     }
     def expr(genType: AType, specType: AType): String = {
 
-      s"""MacroJoinKey[${genType.key},${genType.value}]("${specType.key}",classOf[${specType.key}].getName,classOf[${specType.value}].getName)"""
+      s"""ee.cone.c4assemble.JoinKey[${genType.key},${genType.value}]("${specType.key}",classOf[${specType.key}].getName,classOf[${specType.value}].getName)"""
     }
     val joinImpl = rules.collect{
       case JoinDef(params,in,out) ⇒
         s"""
-           |indexFactory.createJoinMapIndex[${in.value},${out.value},${in.key},${out.key}](new Join[${in.value},${out.value},${in.key},${out.key}](
+           |indexFactory.createJoinMapIndex[${in.value},${out.value},${in.key},${out.key}](new ee.cone.c4assemble.Join[${in.value},${out.value},${in.key},${out.key}](
            |  Seq(${params.map(expr(in,_)).mkString(",")}), ${expr(out,out)},
            |  (key,in) ⇒ in match {
            |    case Seq(${params.map(_ ⇒ "Nil").mkString(",")}) ⇒ Nil

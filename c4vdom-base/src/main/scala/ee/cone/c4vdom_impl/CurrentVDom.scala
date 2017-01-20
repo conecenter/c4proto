@@ -111,23 +111,6 @@ class CurrentVDomImpl[State](
 
 case class GatherResult(until: Long, seeds: List[Product])
 
-case class UntilElement(until: Long) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder): Unit = {
-    builder.startObject()
-    builder.append("tp").append("span")
-    builder.end()
-  }
-}
-
-
-case class SeedElement(seed: Product) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder): Unit = {
-    builder.startObject()
-    builder.append("tp").append("Seed")
-    builder.append("hash").append(seed.productElement(0).toString)
-    builder.end()
-  }
-}
 
 case object RootElement extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {

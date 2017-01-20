@@ -65,6 +65,8 @@ trait BranchTask[State] extends Product {
   def view: State ⇒ List[ChildPair[_]]
 }
 
+
+
 trait CurrentVDom[State] {
   def activate: BranchTask[State] ⇒ State ⇒ State
 }

@@ -57,7 +57,7 @@ trait Assemble {
   def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = ???
 }
 
-case class MacroJoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
+case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
   extends WorldKey[Index[K,V]](Map.empty)
 
 class by[T]

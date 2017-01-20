@@ -42,17 +42,38 @@ case class StyledValue(tagName: TagName, styles: List[TagStyle]) extends VDomVal
   }
 }
 
+case class UntilElement(until: Long) extends VDomValue {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
+    builder.startObject()
+    builder.append("tp").append("span")
+    builder.end()
+  }
+}
+
+case class SeedElement(seed: Product) extends VDomValue {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
+    builder.startObject()
+    builder.append("tp").append("Seed")
+    builder.append("hash").append(seed.productElement(0).toString)
+    builder.end()
+  }
+}
+
+
 class TagsImpl(
   child: ChildPairFactory,
   utils: TagJsonUtils
 ) extends Tags {
-  def text(key: VDomKey, text: String) =
+  def text(key: VDomKey, text: String): ChildPair[OfDiv] =
     child[OfDiv](key, TextContentElement(text), Nil)
   def tag(key: VDomKey, tagName: TagName, attr: TagStyle*)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     child[OfDiv](key, StyledValue(tagName, attr.toList), children)
   def div(key: VDomKey, attr: TagStyle*)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     tag(key, DivTagName, attr:_*)(children)
-  def divButton[State](key:VDomKey)(action:Any⇒State)(children: List[ChildPair[OfDiv]])=
+  def divButton[State](key:VDomKey)(action:Any⇒State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     child[OfDiv](key,DivButton()(Some(action)), children)
+  def until(key: VDomKey, until: Long): ChildPair[OfDiv] =
+    child[OfDiv](key,UntilElement(until), Nil)
+  def seed(product: Product): ChildPair[OfDiv] = ???
 }
 

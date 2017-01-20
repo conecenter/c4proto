@@ -9,6 +9,7 @@ import ee.cone.c4proto._
 //case object AlienExchangeKey extends WorldKey[BranchTask ⇒ World ⇒ World](_⇒identity)
 
 trait BranchTask extends Product {
+  def branchKey: SrcId
   def product: Product
   def getPosts: List[Map[String,String]]
   def sessionKeys: Set[SrcId]
