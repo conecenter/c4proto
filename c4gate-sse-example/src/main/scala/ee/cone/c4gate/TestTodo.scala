@@ -7,7 +7,6 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4gate.BranchTypes.LocationHash
 import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4vdom.ChildPair
@@ -19,6 +18,7 @@ class TestTodoApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
+  with BranchApp
   with VDomSSEApp
 {
 
@@ -26,7 +26,10 @@ class TestTodoApp extends ServerApp
 
   lazy val testTags = new TestTags[World](childPairFactory,tagJsonUtils)
   override def protocols: List[Protocol] = TestTodoProtocol :: super.protocols
-  override def assembles: List[Assemble] = new TestTodoAssemble :: super.assembles
+  override def assembles: List[Assemble] =
+    new TestTodoAssemble ::
+    new FromAlienBranchAssemble(branchOperations, "localhost", "/react-app.html") ::
+    super.assembles
 }
 
 @protocol object TestTodoProtocol extends Protocol {
@@ -38,25 +41,25 @@ class TestTodoApp extends ServerApp
 }
 
 @assemble class TestTodoAssemble extends Assemble {
+  type LocationHash = SrcId
   type All = SrcId
+
   def joinTodoTasks(
     key: SrcId,
     todoTasks: Values[TodoTask]
   ): Values[(All,TodoTask)] =
     for(todoTask ← todoTasks) yield "" → todoTask
 
-
   def joinView(
     key: SrcId,
-    @by[LocationHash] branchTasks: Values[BranchTask],
+    @by[LocationHash] senders: Values[BranchTask],
     @by[All] todoTasks: Values[TodoTask]
-  ): Values[(SrcId,TxTransform)] =
-    for(branchTask ← branchTasks if key == "")
-      yield key → branchTask.withHandler(TestTodoRootView(branchTask,todoTasks.sortBy(-_.createdAt)))
-
+  ): Values[(SrcId,View)] =
+    for(sender ← senders if key == "")
+      yield key → TestTodoRootView(sender,todoTasks.sortBy(-_.createdAt))
 }
 
-case class TestTodoRootView(branchTask: BranchTask, todoTasks: Values[TodoTask])/*(tags: TestTags[World])*/ extends View {
+case class TestTodoRootView(sender: BranchTask, todoTasks: Values[TodoTask])/*(tags: TestTags[World])*/ extends View {
   def view: World ⇒ List[ChildPair[_]] = local ⇒ {
     val startTime = System.currentTimeMillis
     val tags = TestTagsKey.of(local).get

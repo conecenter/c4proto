@@ -74,7 +74,7 @@ case class VDomHandlerImpl[State](
     else {
       val viewRes: List[ChildPair[_]] = view.view(state)
       val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
-      val until = viewRes.collectFirst{ case UntilElement(u) ⇒ u }.getOrElse(0)
+      val until: Long = viewRes.collect{ case v: VPair ⇒ v.value }.collectFirst{ case UntilElement(u) ⇒ u }.getOrElse(0L)
       val nextDom = vPair.value
       val newSessionKeys = sender.sessionKeys(state)
       val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)

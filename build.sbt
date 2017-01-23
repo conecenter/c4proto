@@ -99,15 +99,15 @@ lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-proto`)
   .enablePlugins(JavaServerAppPackaging)
 
-lazy val `c4gate-branch` = project.settings(publishSettings)
+lazy val `c4actor-branch` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4gate-proto`, `c4actor-base`, `c4assemble-macros`)
+  .dependsOn(`c4actor-base`, `c4assemble-macros`)
 
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4gate-branch`, `c4vdom-base`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4actor-branch`, `c4vdom-base`, `c4gate-proto`)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `c4gate-publish` = project.settings(publishSettings)
@@ -124,6 +124,7 @@ lazy val `c4vdom-base` = project.settings(publishSettings)
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
   `c4actor-base-examples`,
+  `c4actor-branch`,
   `c4actor-kafka`,
   `c4assemble-macros`,
   `c4assemble-runtime`,
@@ -131,7 +132,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-proto`,
   `c4gate-publish`,
   `c4gate-server`,
-  `c4gate-branch`,
   `c4gate-sse-example`,
   `c4proto-api`,
   `c4proto-macros`,
