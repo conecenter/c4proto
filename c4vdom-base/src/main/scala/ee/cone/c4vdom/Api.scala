@@ -54,6 +54,7 @@ trait VDomLens[C,I] {
   def set(value: I): C⇒C
 }
 
+/*
 trait BranchTask[State] extends Product {
   def branchKey: String
   def getPosts: List[Map[String,String]]
@@ -64,11 +65,22 @@ trait BranchTask[State] extends Product {
   def message(sessionKey: String, event: String, data: String): State ⇒ State
   def view: State ⇒ List[ChildPair[_]]
 }
+*/
 
+trait VDomView[State] extends Product {
+  def view: State ⇒ List[ChildPair[_]]
+}
 
+trait VDomSender[State] {
+  def branchKey: String
+  def send: (String, String, String) ⇒ State ⇒ State
+  def sessionKeys: State ⇒ Set[String]
+}
 
-trait CurrentVDom[State] {
-  def activate: BranchTask[State] ⇒ State ⇒ State
+trait VDomHandler[State] {
+  type Handler = (String⇒String) ⇒ State ⇒ State
+  def exchange: Handler
+  def seeds: State ⇒ List[Product]
 }
 
 case class VDomState(value: VDomValue, until: Long, sessionKeys: Set[String])

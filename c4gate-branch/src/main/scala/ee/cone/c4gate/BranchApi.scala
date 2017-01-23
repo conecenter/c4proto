@@ -1,6 +1,7 @@
 
 package ee.cone.c4gate
 
+import ee.cone.c4actor.TxTransform
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.World
 import ee.cone.c4gate.BranchProtocol.BranchResult
@@ -8,14 +9,16 @@ import ee.cone.c4proto._
 
 //case object AlienExchangeKey extends WorldKey[BranchTask ⇒ World ⇒ World](_⇒identity)
 
-trait BranchTask extends Product {
+trait BranchSender {
   def branchKey: SrcId
-  def product: Product
-  def getPosts: List[Map[String,String]]
   def sessionKeys: World ⇒ Set[SrcId]
-  def updateResult(newChildren: List[BranchResult]): World ⇒ World
-  def rmPosts: World ⇒ World
-  def message(sessionKey: String, event: String, data: String): World ⇒ World
+  def send: (String, String, String) ⇒ World ⇒ World
+}
+
+trait BranchTask extends TxTransform {
+  def sender: BranchSender
+  def product: Product
+  def withHandler(handler: BranchHandler): BranchTask
 }
 
 //todo .andThen(RichHttpPosts(task.posts).remove)

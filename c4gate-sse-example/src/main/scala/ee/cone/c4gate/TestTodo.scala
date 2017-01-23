@@ -10,8 +10,8 @@ import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.BranchTypes.LocationHash
 import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
-import ee.cone.c4vdom.{ChildPair, RootView, Tags, VDomLens}
-import ee.cone.c4vdom_impl.UntilElement
+import ee.cone.c4vdom.ChildPair
+
 
 object TestTodo extends Main((new TestTodoApp).execution.run)
 
@@ -50,17 +50,17 @@ class TestTodoApp extends ServerApp
     key: SrcId,
     @by[LocationHash] branchTasks: Values[BranchTask],
     @by[All] todoTasks: Values[TodoTask]
-  ): Values[(SrcId,View)] =
+  ): Values[(SrcId,TxTransform)] =
     for(branchTask ← branchTasks if key == "")
-      yield branchTask.branchKey → TestTodoRootView(branchTask,todoTasks.sortBy(-_.createdAt))
+      yield key → branchTask.withHandler(TestTodoRootView(branchTask,todoTasks.sortBy(-_.createdAt)))
 
 }
 
 case class TestTodoRootView(branchTask: BranchTask, todoTasks: Values[TodoTask])/*(tags: TestTags[World])*/ extends View {
   def view: World ⇒ List[ChildPair[_]] = local ⇒ {
     val startTime = System.currentTimeMillis
-    val tags: TestTags[World] = ??? //TxKey.of(local).world
-    val mTags: Tags = ???
+    val tags = TestTagsKey.of(local).get
+    val mTags = TagsKey.of(local).get
     val taskLines = todoTasks.map { task =>
       tags.div(
         task.srcId,

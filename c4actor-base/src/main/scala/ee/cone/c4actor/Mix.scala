@@ -39,7 +39,7 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   lazy val execution: Executable = new ExecutionImpl(toStart)
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
   lazy val qReducer: Reducer = new ReducerImpl(qMessages, treeAssembler, ()⇒dataDependencies)
-  private lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
+  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl
   private lazy val treeAssembler: TreeAssembler = TreeAssemblerImpl
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)

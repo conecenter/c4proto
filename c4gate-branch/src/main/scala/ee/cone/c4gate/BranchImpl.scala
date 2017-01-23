@@ -29,26 +29,19 @@ case class RichHttpPost(
   request: HttpPost
 )
 
-case class BranchTaskImpl(
-  branchKey: String,
-  seed: Option[BranchResult],
-  product: Product,
-  posts: List[RichHttpPost],
-  wasBranchResults: Values[BranchResult]
-) extends BranchTask {
-  //def transform(local: World): World = AlienExchangeKey.of(local)(task)(local)
-  def getPosts: List[Map[String,String]] = posts.map(_.headers)
 
-  def updateResult(newChildren: List[BranchResult]): World ⇒ World = {
-    val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
-    if(wasBranchResults == newBranchResult) identity
-    else add(wasBranchResults.flatMap(delete) ::: newBranchResult.flatMap(update))
-  }
+trait BranchHandler extends Product {
+  def exchange: (String⇒String) ⇒ World ⇒ World
+  def seeds: World ⇒ List[BranchResult]
+}
 
-  def rmPosts: World ⇒ World =
-    add(posts.flatMap(post⇒delete(post.request)))
+case class VoidBranchHandler() extends BranchHandler {
+  def exchange: (String⇒String) ⇒ World ⇒ World = _⇒identity
+  def seeds: World ⇒ List[BranchResult] = _⇒Nil
+}
 
-  def message(sessionKey: String, event: String, data: String): World ⇒ World = local ⇒
+case class BranchSenderImpl(branchKey: String) extends BranchSender {
+  def send: (String,String,String) ⇒ World ⇒ World = (sessionKey,event,data) ⇒ local ⇒
     add(update(ToAlienWrite(UUID.randomUUID.toString,sessionKey,event,data,ToAlienPriorityKey.of(local))))
       .andThen(ToAlienPriorityKey.modify(_+1))(local)
 
@@ -61,6 +54,32 @@ case class BranchTaskImpl(
       )
     find(branchKey).toSet
   }
+}
+
+case class BranchTaskImpl(
+  branchKey: String,
+  seed: Option[BranchResult],
+  product: Product,
+  posts: List[RichHttpPost],
+  wasBranchResults: Values[BranchResult],
+  handler: BranchHandler = VoidBranchHandler()
+) extends BranchTask {
+  def sender: BranchSender = BranchSenderImpl(branchKey)
+  def withHandler(handler: BranchHandler): BranchTask = copy(handler=handler)
+  def updateResult(newChildren: List[BranchResult]): World ⇒ World = {
+    val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
+    if(wasBranchResults == newBranchResult) identity
+    else add(wasBranchResults.flatMap(delete) ::: newBranchResult.flatMap(update))
+  }
+  def rmPosts: World ⇒ World =
+    add(posts.flatMap(post⇒delete(post.request)))
+  def transform(local: World): World =
+    if(posts.isEmpty) handler.exchange(_⇒"")(local)
+    else {
+      (identity[World] _ /: (for(m ← posts) yield handler.exchange(m.headers.getOrElse(_,""))))((a,b)⇒ a andThen b)
+        .andThen(local ⇒ updateResult(handler.seeds(local))(local))
+        .andThen(rmPosts)(local)
+    }
 }
 
 class BranchOperations(registry: QAdapterRegistry) {
@@ -116,13 +135,7 @@ object BranchRel {
     key: SrcId,
     tasks: Values[BranchTask]
   ): Values[(SrcId,TxTransform)] =
-    for(task ← tasks if task.product == None)
-      yield task.branchKey → PurgeBranches(task.branchKey,task)
-}
-
-case class PurgeBranches(branchKey: SrcId, task: BranchTask) extends TxTransform {
-  def transform(local: World): World =
-    task.updateResult(Nil).andThen(task.rmPosts)(local)
+    for(task ← tasks if task.product == None) yield key → task
 }
 
 @assemble class BranchAssemble(operations: BranchOperations) extends Assemble {

@@ -4,7 +4,10 @@ import java.util.Base64
 
 import ee.cone.c4vdom._
 
-class CurrentVDomImpl[State](
+case class VDomHandlerImpl[State](
+  sender: VDomSender[State],
+  view: VDomView[State]
+)(
   diff: Diff,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
@@ -12,53 +15,54 @@ class CurrentVDomImpl[State](
 
   vDomStateKey: VDomLens[State,Option[VDomState]],
   relocateKey: VDomLens[State,String]
-) extends CurrentVDom[State] {
-  private type Message = Map[String,String]
-  private type Handler = Message ⇒ State ⇒ State
+) extends VDomHandler[State] {
 
-  private def init: State ⇒ State =
+  private def init: Handler = _ ⇒
     vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Set.empty))))
 
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = message ⇒ state ⇒ {
-    val pathStr = message("X-r-vdom-path")
+  private def dispatch: Handler = get ⇒ state ⇒ if(get("X-r-action").isEmpty) state else {
+    val pathStr = get("X-r-vdom-path")
     if(vDomStateKey.of(state).get.until <= 0) throw new Exception("invalid VDom")
     val path = pathStr.split("/").toList match {
       case "" :: parts => parts
       case _ => Never()
     }
-    ((message("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
+    ((get("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
       case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get
       case ("change", Some(v: OnChangeReceiver[_])) =>
-        val decoded = UTF8String(Base64.getDecoder.decode(message("X-r-vdom-value-base64")))
+        val decoded = UTF8String(Base64.getDecoder.decode(get("X-r-vdom-value-base64")))
         v.onChange.get(decoded)
-      case v => throw new Exception(s"$path ($v) can not receive $message")
+      case v => throw new Exception(s"$path ($v) can not receive")
     }).asInstanceOf[State=>State](state)
   }
 
-  private def relocate(task: BranchTask[State]): Handler = message ⇒ state ⇒ relocateKey.of(state) match {
+  //todo invalidate until by default
+  private def relocate: Handler = exchange ⇒ state ⇒ relocateKey.of(state) match {
     case "" ⇒ state
-    case hash ⇒
+    case hash ⇒ state
     //todo pass to parent branch or alien
-      task.directSessionKey.map(task.message(_, "relocateHash", hash)).getOrElse(???)
-        .andThen(relocateKey.set(""))(state)
+      /*
+      task.directSessionKey.map(exchange.send(_, "relocateHash", hash)).getOrElse(???)
+        .andThen(relocateKey.set(""))(state)*/
   }
 
-  def activate: BranchTask[State] ⇒ State ⇒ State = task ⇒ (identity[State] _ /: (
-    if(task.getPosts.isEmpty) List(init,toAlien(task))
-    else for(m ← task.getPosts; f ← List(init, dispatch(m), relocate(task)(m), toAlien(task), ackChange(task)(m))) yield f
-  ))((a,b)⇒ a andThen b)
+  def exchange: Handler = m ⇒ init(m)
+      .andThen(dispatch(m))
+      .andThen(relocate(m))
+      .andThen(toAlien(m))
+      .andThen(ackChange(m))
 
-  private def diffSend(prev: VDomValue, next: VDomValue, sessionKeys: Set[String], task: BranchTask[State]): State ⇒ State = {
+  private def diffSend(prev: VDomValue, next: VDomValue, sessionKeys: Set[String]): State ⇒ State = {
     if(sessionKeys.isEmpty) return identity[State]
     val diffTree = diff.diff(prev, next)
     if(diffTree.isEmpty) return identity[State]
-    val diffStr = jsonToString(BranchDiff("/connection", task.branchKey,diffTree.get))
-    val sends = sessionKeys.map(task.message(_,"showDiff",diffStr))
+    val diffStr = jsonToString(BranchDiff("/connection", sender.branchKey,diffTree.get))
+    val sends = sessionKeys.map(sender.send(_,"showDiff",diffStr))
     (identity[State] _ /: sends)(_ andThen _)
   }
 
-  private def toAlien(task: BranchTask[State]): State ⇒ State = state ⇒ {
+  private def toAlien: Handler = exchange ⇒ state ⇒ {
     val vState = vDomStateKey.of(state).get
     if(
       vState.value != wasNoValue &&
@@ -68,29 +72,31 @@ class CurrentVDomImpl[State](
       task.updateResult(Nil)(state)
     }*/
     else {
-      val viewRes = task.view(state)
+      val viewRes: List[ChildPair[_]] = view.view(state)
       val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
-      val GatherResult(until,seeds) = gather(GatherResult(0,Nil),vPair)
+      val until = viewRes.collectFirst{ case UntilElement(u) ⇒ u }.getOrElse(0)
       val nextDom = vPair.value
-      val(keepTo,freshTo) = task.sessionKeys.partition(vState.sessionKeys)
-      vDomStateKey.set(Option(VDomState(nextDom, until, task.sessionKeys)))
-        .andThen(diffSend(vState.value, nextDom, keepTo, task))
-        .andThen(diffSend(wasNoValue, nextDom, freshTo, task))
-        .andThen(task.updateResult(seeds))(state)
+      val newSessionKeys = sender.sessionKeys(state)
+      val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)
+      vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys)))
+        .andThen(diffSend(vState.value, nextDom, keepTo))
+        .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
     }
   }
 
-  private def ackChange(task: BranchTask[State]): Handler = message ⇒ if(message("X-r-action") == "change") {
-    val sessionKey = message("X-r-session")
-    val branchKey = message("X-r-branch")
-    val index = message("X-r-index")
-    task.message(sessionKey,"ackChange",s"$branchKey $index")
+  private def ackChange: Handler = get ⇒ if(get("X-r-action") == "change") {
+    val sessionKey = get("X-r-session")
+    val branchKey = get("X-r-branch")
+    val index = get("X-r-index")
+    sender.send(sessionKey,"ackChange",s"$branchKey $index")
   } else identity[State]
 
-  private def gather(acc: GatherResult, pair: VPair): GatherResult = pair.value match {
-    case n: MapVDomValue ⇒ (acc /: n.pairs)(gather)
-    case SeedElement(seed) ⇒ acc.copy(seeds = seed :: acc.seeds)
-    case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
+  def seeds: State ⇒ List[Product] =
+    state ⇒ gatherSeeds(Nil, vDomStateKey.of(state).get.value)
+  private def gatherSeeds(acc: List[Product], value: VDomValue): List[Product] = value match {
+    case n: MapVDomValue ⇒ (acc /: n.pairs.map(_.value))(gatherSeeds)
+    case SeedElement(seed) ⇒ seed :: acc
+    //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
     case _ ⇒ acc
   }
 
@@ -109,7 +115,7 @@ class CurrentVDomImpl[State](
   */
 }
 
-case class GatherResult(until: Long, seeds: List[Product])
+
 
 
 case object RootElement extends VDomValue {
