@@ -21,8 +21,12 @@ trait VDomSSEApp extends BranchApp with VDomApp with InitLocalsApp with Assemble
       TagsKey.set(Option(tags))
       .andThen(TestTagsKey.set(Option(testTags)))
   }
-  lazy val createVDomBranchHandler: (BranchTask,View)⇒BranchTask = (task,view) ⇒
-    task.withHandler(VDomBranchHandler(VDomHandlerImpl(VDomBranchSender(task.sender),view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,vDomStateKey,relocateKey)))
+  lazy val createVDomBranchHandler: (BranchTask,View)⇒BranchTask = (task,view) ⇒ {
+    val sender = VDomBranchSender(task.sender)
+    val handler = VDomHandlerImpl(sender,view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,vDomStateKey,relocateKey)
+    task.withHandler(VDomBranchHandler(handler))
+
+  }
 
   override def assembles: List[Assemble] = new VDomAssemble(createVDomBranchHandler) :: super.assembles
   override def initLocals: List[InitLocal] = sseUI :: super.initLocals
@@ -62,17 +66,3 @@ case class VDomBranchHandler(pass: VDomHandler[World]) extends BranchHandler {
   def exchange: ((String) ⇒ String) ⇒ (World) ⇒ World = pass.exchange
   def seeds: World ⇒ List[BranchResult] = pass.seeds.andThen(_.collect{ case r: BranchResult ⇒ r })
 }
-
-/*
-case class VDomView(branchKey: SrcId, sender: BranchSender, views:
-Values[View]) extends BranchHandler {
-  def exchange: (String⇒String) ⇒ World ⇒ World = post ⇒ local ⇒
-    CurrentVDomKey.of(local).get.exchange(new Exchange[World] {
-      def get: String ⇒ String = post
-      def send: (String, String, String) ⇒ World ⇒ World = sender.send
-      def sessionKeys: World ⇒ Set[String] = sender.sessionKeys
-    })(local)
-  def seeds: World ⇒ List[BranchResult] = local ⇒
-    CurrentVDomKey.of(local).get
-      .seeds(local)
-}*/

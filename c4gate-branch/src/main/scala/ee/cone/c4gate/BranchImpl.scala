@@ -29,12 +29,6 @@ case class RichHttpPost(
   request: HttpPost
 )
 
-
-trait BranchHandler extends Product {
-  def exchange: (String⇒String) ⇒ World ⇒ World
-  def seeds: World ⇒ List[BranchResult]
-}
-
 case class VoidBranchHandler() extends BranchHandler {
   def exchange: (String⇒String) ⇒ World ⇒ World = _⇒identity
   def seeds: World ⇒ List[BranchResult] = _⇒Nil
