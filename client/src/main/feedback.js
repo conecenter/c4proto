@@ -39,7 +39,7 @@ function send(headers){
     headers["X-r-connection"] = getConnectionKey(never)
     headers["X-r-index"] = getConnectionState(never).nextMessageIndex()
     //todo: contron message delivery at server
-    fetch(getConnectionState(never).postURL, {method:"post", headers})
+    fetch((window.feedbackUrlPrefix||"")+getConnectionState(never).postURL, {method:"post", headers})
     return headers
 }
 function relocateHash(data) { 
