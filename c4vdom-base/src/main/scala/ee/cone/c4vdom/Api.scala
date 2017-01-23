@@ -67,7 +67,6 @@ case class VDomState(
     value: VDomValue,
     until: Long,
     hashOfLastView: String, hashFromAlien: String, hashTarget: String,
-    searchFromAlien: String,
     ackFromAlien: List[String]
 )
 
