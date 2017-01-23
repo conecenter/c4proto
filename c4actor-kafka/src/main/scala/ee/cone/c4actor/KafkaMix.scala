@@ -4,7 +4,8 @@ package ee.cone.c4actor
 trait KafkaProducerApp extends ToStartApp {
   def config: Config
   lazy val bootstrapServers: String = config.get("C4BOOTSTRAP_SERVERS")
-  lazy val kafkaProducer: KafkaRawQSender = new KafkaRawQSender(bootstrapServers)()
+  lazy val inboxTopicPrefix: String = config.get("C4INBOX_TOPIC_PREFIX")
+  lazy val kafkaProducer: KafkaRawQSender = new KafkaRawQSender(bootstrapServers,inboxTopicPrefix)()
   def rawQSender: RawQSender with Executable = kafkaProducer
   override def toStart: List[Executable] = rawQSender :: super.toStart
 }

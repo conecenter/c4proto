@@ -21,7 +21,7 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.immutable.{Map, Queue}
 
-class KafkaRawQSender(bootstrapServers: String)(
+class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] = new CompletableFuture()
 ) extends RawQSender with Executable {
   def run(ctx: ExecutionContext): Unit = {
@@ -41,7 +41,7 @@ class KafkaRawQSender(bootstrapServers: String)(
     ctx.onShutdown(() ⇒ producer.get.close())
   }
   def topicNameToString(topicName: TopicName): String = topicName match {
-    case InboxTopicName() ⇒ "inbox"
+    case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
     case StateTopicName(ActorName(n)) ⇒ s"$n.state"
     case NoTopicName ⇒ throw new Exception
   }

@@ -2,6 +2,13 @@
 
 use strict;
 
+my $kafka_port = 9092;
+
+my $port_prefix = $ENV{C4PORT_PREFIX} || 8000;
+my $inbox_prefix = "i$port_prefix";
+my $http_port = $port_prefix+67;
+my $sse_port = $port_prefix+68;
+
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 
 my @tasks;
@@ -27,9 +34,8 @@ push @tasks, ["stage", sub{
     sy("npm install");
     sy("./node_modules/webpack/bin/webpack.js")
 }];
-my $http_port = 8067;
-my $sse_port = 8068;
-my $env = "C4BOOTSTRAP_SERVERS=localhost:9092 C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
+
+my $env = "C4BOOTSTRAP_SERVERS=127.0.0.1:$kafka_port C4INBOX_TOPIC_PREFIX=$inbox_prefix C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
 sub staged{"$_[0]/target/universal/stage/bin/$_[0]"}
 #sbt $_[0]/run
 push @tasks, ["gate_server_run", sub{
