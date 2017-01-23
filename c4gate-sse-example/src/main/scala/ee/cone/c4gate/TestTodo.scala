@@ -8,9 +8,9 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.BranchTypes.LocationHash
-import ee.cone.c4gate.TestTodoProtocol.Task
+import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
-import ee.cone.c4vdom.{ChildPair, RootView}
+import ee.cone.c4vdom.{ChildPair, RootView, Tags, VDomLens}
 import ee.cone.c4vdom_impl.UntilElement
 
 object TestTodo extends Main((new TestTodoApp).execution.run)
@@ -21,16 +21,16 @@ class TestTodoApp extends ServerApp
   with SerialObserversApp
   with VDomSSEApp
 {
-  lazy val rootView: RootView[World] = {
-    println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/react-app.html")
-    new TestTodoRootView(testTags)
-  }
+
+  //  println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/react-app.html")
+
   lazy val testTags = new TestTags[World](childPairFactory,tagJsonUtils)
   override def protocols: List[Protocol] = TestTodoProtocol :: super.protocols
+  override def assembles: List[Assemble] = new TestTodoAssemble :: super.assembles
 }
 
 @protocol object TestTodoProtocol extends Protocol {
-  @Id(0x0001) case class Task(
+  @Id(0x0001) case class TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,
     @Id(0x0004) comments: String
@@ -38,22 +38,30 @@ class TestTodoApp extends ServerApp
 }
 
 @assemble class TestTodoAssemble extends Assemble {
-  def join(
+  type All = SrcId
+  def joinTodoTasks(
     key: SrcId,
-    @by[LocationHash] tasks: Values[BranchTask]
+    todoTasks: Values[TodoTask]
+  ): Values[(All,TodoTask)] =
+    for(todoTask ← todoTasks) yield "" → todoTask
+
+
+  def joinView(
+    key: SrcId,
+    @by[LocationHash] branchTasks: Values[BranchTask],
+    @by[All] todoTasks: Values[TodoTask]
   ): Values[(SrcId,View)] =
-    for(task ← tasks if key == "") task.branchKey →
-
-
+    for(branchTask ← branchTasks if key == "")
+      yield branchTask.branchKey → TestTodoRootView(branchTask,todoTasks.sortBy(-_.createdAt))
 
 }
 
-class TestTodoRootView(tags: TestTags[World]) extends View {
-  def view(local: World): List[ChildPair[_]] = {
+case class TestTodoRootView(branchTask: BranchTask, todoTasks: Values[TodoTask])/*(tags: TestTags[World])*/ extends View {
+  def view: World ⇒ List[ChildPair[_]] = local ⇒ {
     val startTime = System.currentTimeMillis
-    val world = TxKey.of(local).world
-    val tasks = By.srcId(classOf[Task]).of(world).values.flatten.toSeq.sortBy(-_.createdAt)
-    val taskLines = tasks.map { task =>
+    val tags: TestTags[World] = ??? //TxKey.of(local).world
+    val mTags: Tags = ???
+    val taskLines = todoTasks.map { task =>
       tags.div(
         task.srcId,
         List(
@@ -67,13 +75,13 @@ class TestTodoRootView(tags: TestTags[World]) extends View {
     }
     val btnList = List(
       tags.button("add", "+",
-        add(update(Task(UUID.randomUUID.toString,System.currentTimeMillis,"")))
+        add(update(TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )
     )
     val res = List(btnList,taskLines).flatten
     val endTime = System.currentTimeMillis
     val until = endTime+(endTime-startTime)*10
-    child(UntilElement(until)) :: res
+    mTags.until("until",until) :: res
   }
 }
 
