@@ -119,6 +119,32 @@ function MetroUi(){
 			return React.createElement(button,{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
+	const MenuItem=React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false,touch:false};
+		},
+		mouseOver:function(e){
+			this.setState({mouseOver:true});
+			if(this.props.OnClick)
+				this.props.OnClick(e);
+		},
+		mouseOut:function(e){
+			this.setState({mouseOver:false});
+			if(this.props.OnClick)
+				this.props.OnClick(e);
+		},
+		render:function(){		
+			var selStyle={
+
+			};        
+			
+			if(this.props.style)
+				Object.assign(selStyle,this.props.style);
+			if(this.state.mouseOver)
+				Object.assign(selStyle,this.props.overStyle);		
+			return React.createElement("div",{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+		}
+	});
 	const TabSet=React.createClass({
 		render:function(){
 			var style={
