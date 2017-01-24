@@ -72,8 +72,9 @@ class TagsImpl(
     tag(key, DivTagName, attr:_*)(children)
   def divButton[State](key:VDomKey)(action:Any⇒State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     child[OfDiv](key,DivButton()(Some(action)), children)
-  def until(key: VDomKey, until: Long): ChildPair[OfDiv] =
-    child[OfDiv](key,UntilElement(until), Nil)
-  def seed(product: Product): ChildPair[OfDiv] = ???
+  def until(until: Long): ChildPair[OfDiv] =
+    child[OfDiv]("until",UntilElement(until), Nil)
+  def seed(product: Product): ChildPair[OfDiv] =
+    child[OfDiv](product.productElement(0).toString,SeedElement(product), Nil)
 }
 

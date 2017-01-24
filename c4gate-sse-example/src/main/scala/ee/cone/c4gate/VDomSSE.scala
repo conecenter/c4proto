@@ -10,7 +10,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, Single, WorldKey, assemble}
 import ee.cone.c4actor.BranchProtocol.BranchResult
-import ee.cone.c4gate.AlienProtocol.{FromAlien, ToAlienWrite}
+import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4proto.Protocol
 import ee.cone.c4vdom._
@@ -31,11 +31,14 @@ trait VDomSSEApp extends BranchApp with VDomApp with InitLocalsApp with Assemble
       .andThen(CreateVDomHandlerKey.set((sender,view) ⇒
         VDomHandlerImpl(sender,view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,vDomStateKey,relocateKey)
       ))
+      .andThen(BranchOperationsKey.set(Option(branchOperations)))
   }
-  override def assembles: List[Assemble] = new VDomAssemble :: super.assembles
+  override def assembles: List[Assemble] = new VDomAssemble :: new MessageFromAlienAssemble :: super.assembles
   override def initLocals: List[InitLocal] = sseUI :: super.initLocals
-  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
+  override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
 }
+
+case object BranchOperationsKey extends  WorldKey[Option[BranchOperations]](None)
 
 case object VDomStateKey extends WorldKey[Option[VDomState]](None)
   with VDomLens[World, Option[VDomState]]
@@ -50,50 +53,7 @@ case object TestTagsKey extends WorldKey[Option[TestTags[World]]](None)
 
 trait View extends VDomView[World]
 
-case class MessageFromAlienImpl(
-    srcId: String,
-    index: Long,
-    headers: Map[String,String],
-    request: HttpPost
-) extends MessageFromAlien {
-  def rm: World ⇒ World = add(delete(request))
-}
-
-@assemble class FromAlienBranchAssemble(operations: BranchOperations, host: String, file: String) extends Assemble {
-  type LocationHash = SrcId
-  // more rich session may be joined
-  //todo reg
-  def fromAliensToSeeds(
-      key: SrcId,
-      fromAliens: Values[FromAlien]
-  ): Values[(BranchKey, BranchRel)] =
-  for (fromAlien ← fromAliens; child ← Option(operations.toSeed(fromAlien)))
-    yield operations.toRel(child, fromAlien.sessionKey, parentIsSession = true)
-
-  def mapBranchTaskByLocationHash(
-      key: SrcId,
-      tasks: Values[BranchTask]
-  ): Values[(LocationHash, BranchTask)] =
-    for (
-      task ← tasks;
-      url ← Option(task.product).collect { case s: FromAlien ⇒ new URL(s.location) }
-      if url.getHost == host && url.getFile == file;
-      ref ← Option(url.getRef)
-    ) yield url.getRef → task
-}
-
 @assemble class VDomAssemble extends Assemble {
-  def mapHttpPostByBranch(
-      key: SrcId,
-      posts: Values[HttpPost]
-  ): Values[(BranchKey,MessageFromAlien)] =
-    for(post ← posts if post.path == "/connection") yield {
-      val headers = post.headers.flatMap(h ⇒
-        if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
-      ).toMap
-      headers("X-r-branch") → MessageFromAlienImpl(post.srcId,headers("X-r-index").toLong,headers,post)
-    }
-
   def joinBranchHandler(
     key: SrcId,
     tasks: Values[BranchTask],

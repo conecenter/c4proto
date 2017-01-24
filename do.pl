@@ -45,9 +45,9 @@ push @tasks, ["test_post_get_check", sub{
     sy("curl http://127.0.0.1:$http_port/abc");
     print " -- should be posted * 3\n";
 }];
-push @tasks, ["test_tcp_check", sub{
-    sy("nc 127.0.0.1 $sse_port");
-}];
+#push @tasks, ["test_tcp_check", sub{
+#    sy("nc 127.0.0.1 $sse_port");
+#}];
 push @tasks, ["gate_publish", sub{
     sy("$env C4PUBLISH_DIR=./client/build/test ".staged("c4gate-publish"))
 }];

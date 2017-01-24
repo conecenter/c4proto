@@ -21,9 +21,6 @@ class TestTodoApp extends ServerApp
   with BranchApp
   with VDomSSEApp
 {
-
-  //  println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/react-app.html")
-
   lazy val testTags = new TestTags[World](childPairFactory,tagJsonUtils)
   override def protocols: List[Protocol] = TestTodoProtocol :: super.protocols
   override def assembles: List[Assemble] =
@@ -41,7 +38,6 @@ class TestTodoApp extends ServerApp
 }
 
 @assemble class TestTodoAssemble extends Assemble {
-  type LocationHash = SrcId
   type All = SrcId
 
   def joinTodoTasks(
@@ -52,14 +48,14 @@ class TestTodoApp extends ServerApp
 
   def joinView(
     key: SrcId,
-    @by[LocationHash] senders: Values[BranchTask],
+    fromAliens: Values[FromAlienTask],
     @by[All] todoTasks: Values[TodoTask]
   ): Values[(SrcId,View)] =
-    for(sender ← senders if key == "")
-      yield key → TestTodoRootView(sender,todoTasks.sortBy(-_.createdAt))
+    for(fromAlien ← fromAliens)
+      yield key → TestTodoRootView(todoTasks.sortBy(-_.createdAt))
 }
 
-case class TestTodoRootView(sender: BranchTask, todoTasks: Values[TodoTask])/*(tags: TestTags[World])*/ extends View {
+case class TestTodoRootView(todoTasks: Values[TodoTask])/*(tags: TestTags[World])*/ extends View {
   def view: World ⇒ List[ChildPair[_]] = local ⇒ {
     val startTime = System.currentTimeMillis
     val tags = TestTagsKey.of(local).get
@@ -84,7 +80,7 @@ case class TestTodoRootView(sender: BranchTask, todoTasks: Values[TodoTask])/*(t
     val res = List(btnList,taskLines).flatten
     val endTime = System.currentTimeMillis
     val until = endTime+(endTime-startTime)*10
-    mTags.until("until",until) :: res
+    mTags.until(until) :: res
   }
 }
 

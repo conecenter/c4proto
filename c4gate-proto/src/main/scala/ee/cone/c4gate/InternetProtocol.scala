@@ -39,9 +39,9 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0034) data: String,
     @Id(0x0035) priority: Long
   )
-  @Id(0x0036) case class FromAlien(
-      @Id(0x0032) sessionKey: String,
-      @Id(0x0037) location: String
+  @Id(0x0036) case class FromAlienState(
+    @Id(0x0032) sessionKey: String,
+    @Id(0x0037) location: String
   )
   //39
 }

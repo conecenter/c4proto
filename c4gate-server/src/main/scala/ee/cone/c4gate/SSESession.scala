@@ -41,11 +41,11 @@ class PongHandler(
     if(httpExchange.getRequestMethod != "POST") return false
     if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
     val headers = httpExchange.getRequestHeaders.asScala.mapValues(v⇒Single(v.asScala.toList))
-    val session = FromAlien(headers("X-r-session"), headers("X-r-location"))
+    val session = FromAlienState(headers("X-r-session"), headers("X-r-location"))
     pongs(session.sessionKey) = (headers("X-r-connection"), Instant.now)
     Option(worldProvider.createTx()).filter{ local ⇒
       val world = TxKey.of(local).world
-      val was = By.srcId(classOf[FromAlien]).of(world).getOrElse(session.sessionKey,Nil)
+      val was = By.srcId(classOf[FromAlienState]).of(world).getOrElse(session.sessionKey,Nil)
       was != List(session)
     }.map(LEvent.add(LEvent.update(session))).foreach(qMessages.send)
     httpExchange.sendResponseHeaders(200, 0)
@@ -79,7 +79,7 @@ case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
 
 case class SessionTxTransform( //todo session/pongs purge
     sessionKey: SrcId,
-    fromAlien: FromAlien,
+    fromAlien: FromAlienState,
     writes: Values[ToAlienWrite]
 ) extends TxTransform {
   def transform(local: World): World = {
@@ -116,7 +116,7 @@ case class SessionTxTransform( //todo session/pongs purge
     writes.map(write⇒write.sessionKey→write)
   def joinTxTransform(
     key: SrcId,
-    fromAliens: Values[FromAlien],
+    fromAliens: Values[FromAlienState],
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(fromAliens.isEmpty) SimpleTxTransform(writes.flatMap(LEvent.delete))

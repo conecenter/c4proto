@@ -8,6 +8,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, WorldKey, assemble, by}
 import ee.cone.c4gate.AlienProtocol.ToAlienWrite
+import ee.cone.c4proto.Protocol
 
 object TestSSE extends Main((new TestSSEApp).execution.run)
 
@@ -19,19 +20,20 @@ class TestSSEApp extends ServerApp
   with InitLocalsApp
 {
   override def assembles: List[Assemble] =
+    new MessageFromAlienAssemble ::
     new FromAlienBranchAssemble(branchOperations, "localhost", "/sse-app.html") ::
     new TestSSEAssemble ::
     super.assembles
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
+  override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
 }
 
 case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
 @assemble class TestSSEAssemble extends Assemble {
-  type LocationHash = SrcId
   def joinView(
     key: SrcId,
-    @by[LocationHash] tasks: Values[BranchTask]
+    tasks: Values[BranchTask]
   ): Values[(SrcId,BranchHandler)] =
     for(task ← tasks) yield task.branchKey → TestSSEHandler(task)
 }
