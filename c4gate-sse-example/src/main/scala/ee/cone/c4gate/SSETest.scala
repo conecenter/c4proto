@@ -21,7 +21,7 @@ class TestSSEApp extends ServerApp
 {
   override def assembles: List[Assemble] =
     new MessageFromAlienAssemble ::
-    new FromAlienBranchAssemble(branchOperations, "localhost", "/sse-app.html") ::
+    new FromAlienBranchAssemble(branchOperations, "localhost", "/sse.html") ::
     new TestSSEAssemble ::
     super.assembles
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")

@@ -63,14 +63,12 @@ object SSEMessage {
 
 class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHandler {
   override def beforeServerStart(): Unit = ()
-  override def afterConnect(connectionKey: String): Unit = {
+  override def afterConnect(connectionKey: String, sender: SenderToAgent): Unit = {
     val allowOrigin =
       config.allowOrigin.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
     val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
     val data = s"$connectionKey ${config.pongURL}"
-    val local = worldProvider.createTx()
-    val sender = GetSenderKey.of(local)(connectionKey)
-    SSEMessage.message(sender.get, "connect", data, header)
+    SSEMessage.message(sender, "connect", data, header)
   }
   override def afterDisconnect(key: String): Unit = ()
 }

@@ -13,11 +13,11 @@ trait WorldProvider {
   def createTx(): World
 }
 
-case object GetSenderKey extends WorldKey[String⇒Option[SenderToAgent]](_⇒None)
+case object GetSenderKey extends WorldKey[String⇒Option[SenderToAgent]](_⇒throw new Exception)
 
 trait TcpHandler {
   def beforeServerStart(): Unit
-  def afterConnect(key: String): Unit
+  def afterConnect(key: String, sender: SenderToAgent): Unit
   def afterDisconnect(key: String): Unit
 }
 

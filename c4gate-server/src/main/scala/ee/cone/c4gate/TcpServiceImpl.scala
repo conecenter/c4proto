@@ -57,13 +57,14 @@ class TcpServerImpl(
       def completed(ch: AsynchronousSocketChannel, att: Unit): Unit = Trace {
         listener.accept[Unit]((), this)
         val key = UUID.randomUUID.toString
-        channels += key → new ChannelHandler(ch, {() ⇒
+        val sender = new ChannelHandler(ch, {() ⇒
           channels -= key
           tcpHandler.afterDisconnect(key)
         }, { error ⇒
           println(error.getStackTrace.toString)
         })
-        tcpHandler.afterConnect(key)
+        channels += key → sender
+        tcpHandler.afterConnect(key, sender)
       }
       def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
     })

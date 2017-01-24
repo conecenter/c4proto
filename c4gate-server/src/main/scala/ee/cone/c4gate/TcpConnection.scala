@@ -29,7 +29,7 @@ class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends
     val connections =  By.srcId(classOf[TcpConnection]).of(world).values.flatten.toSeq
     LEvent.add(connections.flatMap(LEvent.delete))(local)
   }
-  override def afterConnect(key: String): Unit =
+  override def afterConnect(key: String, sender: SenderToAgent): Unit =
     changeWorld(LEvent.add(LEvent.delete(TcpConnection(key))))
   override def afterDisconnect(key: String): Unit =
     changeWorld(LEvent.add(LEvent.update(TcpConnection(key))))
