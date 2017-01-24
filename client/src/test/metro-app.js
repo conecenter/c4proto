@@ -11,4 +11,10 @@ const vdom = VDomMix(feedback)
 const metroUi = MetroUi();
 vdom.transformBy({transforms:metroUi.transforms})
 const receivers = [feedback.receivers, vdom.receivers,metroUi.receivers,{fail}]
-SSEConnection(window.sseUrl||"http://localhost:8068/sse", receivers, 5)
+if(parseInt(location.port)&&parseInt(location.port)!=80){
+	SSEConnection(window.sseUrl||(location.protocol+"//"+location.hostname+":"+(parseInt(location.port)+1)+"/sse"), receivers, 5)
+}
+else
+{
+	SSEConnection(window.sseUrl||(location.protocol+"//"+location.host+"/sse"), receivers, 5)
+}

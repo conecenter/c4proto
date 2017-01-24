@@ -39,7 +39,7 @@ my $env = "C4BOOTSTRAP_SERVERS=127.0.0.1:$kafka_port C4INBOX_TOPIC_PREFIX=$inbox
 sub staged{"$_[0]/target/universal/stage/bin/$_[0]"}
 #sbt $_[0]/run
 push @tasks, ["gate_server_run", sub{
-    sy("$env C4STATE_TOPIC_PREFIX=http-gate-0 ".staged("c4gate-server"));
+    sy("$env C4STATE_TOPIC_PREFIX=http-gate-$port_prefix ".staged("c4gate-server"));
 }];
 push @tasks, ["test_post_get_tcp_service_run", sub{
     sy("$env C4STATE_TOPIC_PREFIX=http-test-0 ".staged("c4gate-consumer-example"))
