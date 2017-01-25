@@ -11,6 +11,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.BranchTypes._
 
+import Function.chain
 import scala.collection.immutable.Queue
 
 case class VoidBranchHandler() extends BranchHandler {
@@ -52,26 +53,23 @@ case class BranchTxTransform(
     val index = By.srcId(classOf[BranchResult]).of(world)
     def gather(branchKey: SrcId): List[String] = {
       val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash)
-      (branchKey :: children).mkString(" ") :: children.flatMap(gather)
+      (branchKey :: children).mkString(",") :: children.flatMap(gather)
     }
-    val newReport = gather(branchKey).mkString("\n")
+    val newReport = gather(branchKey).mkString(";")
     if(newReport == ReportAliveBranchesKey.of(local)) local
     else ReportAliveBranchesKey.set(newReport)
       .andThen(SendToAlienKey.of(local)(sessionKey,"branches",newReport))(local)
   }.getOrElse(local)
 
-  private def rmPosts: World ⇒ World =
-    (identity[World] _ /: posts)((f,post)⇒f.andThen(post.rm))
-  private def getPosts: List[String⇒String] = posts.map(m⇒(k:String)⇒m.headers.getOrElse(k,""))
+    //(identity[World] _ /: posts)((f,post)⇒f.andThen(post.rm))
+  private def getPosts: Seq[String⇒String] =
+    if(posts.isEmpty) Seq((_:String)⇒"")
+    else posts.map(m⇒(k:String)⇒m.headers.getOrElse(k,""))
 
   def transform(local: World): World =
-    if(posts.isEmpty) handler.exchange(_⇒"")(local)
-    else {
-      (identity[World] _ /: (for(m ← getPosts) yield handler.exchange(m)))((a,b)⇒ a andThen b)
-        .andThen(saveResult)
-        .andThen(reportAliveBranches)
-        .andThen(rmPosts)(local)
-    }
+    chain(getPosts.map(handler.exchange))
+      .andThen(saveResult).andThen(reportAliveBranches)
+      .andThen(chain(posts.map(_.rm)))(local)
 }
 
 class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations {

@@ -43,9 +43,9 @@ export default function VDom(parentElement, transforms){
     }
     function showDiff(data){
         const parsed = JSON.parse(data)
-        if(!branches[parsed.branchKey])
-            branches = {...branches, [parsed.branchKey]: createBranch()}
-        const rootComponent = branches[parsed.branchKey]
+        if(!branchesByKey[parsed.branchKey])
+            branchesByKey = {...branchesByKey, [parsed.branchKey]: createBranch()}
+        const rootComponent = branchesByKey[parsed.branchKey].component
         const localState = {
             get(){ return rootComponent.state.local || {} },
             update(diff){
@@ -58,15 +58,21 @@ export default function VDom(parentElement, transforms){
         const incoming = update(rootComponent.state.incoming || {}, ctx.value)
         rootComponent.setState({incoming})
     }
-    let branches = {}
+    function branches(data){
+        //const active = new Set(data.split(";").map(res=>res.split(",")[0]))
+            //ReactDOM.unmountComponentAtNode(rootNativeElement)
+    }
+
+    let branchesByKey = {}
 
     function createBranch(){
         const rootNativeElement = document.createElement("div")
         parentElement.appendChild(rootNativeElement)
         const rootVirtualElement = React.createElement(RootComponent,null)
-        return ReactDOM.render(rootVirtualElement, rootNativeElement)
+        const component = ReactDOM.render(rootVirtualElement, rootNativeElement)
+        return {rootNativeElement,component}
     }
-    const receivers = {showDiff}
+    const receivers = {showDiff,branches}
     return ({receivers})
 }
 

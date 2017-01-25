@@ -9,6 +9,8 @@ import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl.{JsonToStringImpl, VDomHandlerImpl, WasNoValueImpl}
 import ee.cone.c4vdom_mix.VDomApp
 
+import Function.chain
+
 trait VDomSSEApp extends AlienExchangeApp with BranchApp with VDomApp with InitLocalsApp with AssemblesApp {
   def tags: Tags
 
@@ -17,13 +19,14 @@ trait VDomSSEApp extends AlienExchangeApp with BranchApp with VDomApp with InitL
   lazy val relocateKey: VDomLens[World, String] = RelocateKey
   private lazy val testTags = new TestTags[World](childPairFactory, tagJsonUtils)
   private lazy val sseUI = new InitLocal {
-    def initLocal: World ⇒ World =
-      TagsKey.set(Option(tags))
-      .andThen(TestTagsKey.set(Option(testTags)))
-      .andThen(CreateVDomHandlerKey.set((sender,view) ⇒
+    def initLocal: World ⇒ World = chain(Seq(
+      TagsKey.set(Option(tags)),
+      TestTagsKey.set(Option(testTags)),
+      CreateVDomHandlerKey.set((sender,view) ⇒
         VDomHandlerImpl(sender,view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,tags,vDomStateKey,relocateKey)
-      ))
-      .andThen(BranchOperationsKey.set(Option(branchOperations)))
+      ),
+      BranchOperationsKey.set(Option(branchOperations))
+    ))
   }
   override def assembles: List[Assemble] = new VDomAssemble :: super.assembles
   override def initLocals: List[InitLocal] = sseUI :: super.initLocals

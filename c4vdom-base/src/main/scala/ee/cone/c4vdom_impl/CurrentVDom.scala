@@ -6,6 +6,8 @@ import ee.cone.c4vdom._
 
 import scala.collection.immutable.Queue
 
+import Function.chain
+
 case class VDomHandlerImpl[State](
   sender: VDomSender[State],
   view: VDomView[State]
@@ -50,19 +52,16 @@ case class VDomHandlerImpl[State](
         .andThen(relocateKey.set(""))(state)*/
   }
 
-  def exchange: Handler = m ⇒ init(m)
-      .andThen(dispatch(m))
-      .andThen(relocate(m))
-      .andThen(toAlien(m))
-      .andThen(ackChange(m))
+  def exchange: Handler =
+    m ⇒ chain(Seq(init,dispatch,relocate,toAlien,ackChange).map(_(m)))
+
 
   private def diffSend(prev: VDomValue, next: VDomValue, sessionKeys: Set[String]): State ⇒ State = {
     if(sessionKeys.isEmpty) return identity[State]
     val diffTree = diff.diff(prev, next)
     if(diffTree.isEmpty) return identity[State]
     val diffStr = jsonToString(BranchDiff("/connection", sender.branchKey,diffTree.get))
-    val sends = sessionKeys.map(sender.send(_,"showDiff",diffStr))
-    (identity[State] _ /: sends)(_ andThen _)
+    chain(sessionKeys.map(sender.send(_,"showDiff",diffStr)).toSeq)
   }
 
   private def toAlien: Handler = exchange ⇒ state ⇒ {
