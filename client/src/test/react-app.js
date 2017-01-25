@@ -8,6 +8,6 @@ import VDomMix       from "../main/vdom-mix"
 function fail(data){ alert(data) }
 
 const feedback = Feedback()
-const vdom = VDomMix(feedback)
-const receivers = [feedback.receivers, vdom.receivers, {fail}]
+const vdom = VDomMix(feedback,[])
+const receivers = vdom.receivers.concat([feedback.receivers,{fail}])
 SSEConnection("http://localhost:8068/sse", receivers, 5)

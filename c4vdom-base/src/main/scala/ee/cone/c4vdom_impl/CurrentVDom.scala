@@ -4,6 +4,8 @@ import java.util.Base64
 
 import ee.cone.c4vdom._
 
+import scala.collection.immutable.Queue
+
 case class VDomHandlerImpl[State](
   sender: VDomSender[State],
   view: VDomView[State]
@@ -12,6 +14,7 @@ case class VDomHandlerImpl[State](
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory,
+  tags: Tags,
 
   vDomStateKey: VDomLens[State,Option[VDomState]],
   relocateKey: VDomLens[State,String]
@@ -72,9 +75,8 @@ case class VDomHandlerImpl[State](
       task.updateResult(Nil)(state)
     }*/
     else {
-      val viewRes: List[ChildPair[_]] = view.view(state)
+      val (until,viewRes) = tags.getUntil(view.view(state))
       val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
-      val until: Long = viewRes.collect{ case v: VPair ⇒ v.value }.collectFirst{ case UntilElement(u) ⇒ u }.getOrElse(0L)
       val nextDom = vPair.value
       val newSessionKeys = sender.sessionKeys(state)
       val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)

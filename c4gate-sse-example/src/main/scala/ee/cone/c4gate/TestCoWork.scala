@@ -16,14 +16,13 @@ class TestCoWorkApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
-  with BranchApp
   with VDomSSEApp
 {
   lazy val testTags = new TestTags[World](childPairFactory,tagJsonUtils)
   override def protocols: List[Protocol] = TestCoWorkProtocol :: super.protocols
   override def assembles: List[Assemble] =
     new TestCoWorkAssemble ::
-      new FromAlienBranchAssemble(branchOperations, "localhost", "/react-app.html") ::
+      new FromAlienTaskAssemble("localhost", "/react-app.html") ::
       super.assembles
 }
 

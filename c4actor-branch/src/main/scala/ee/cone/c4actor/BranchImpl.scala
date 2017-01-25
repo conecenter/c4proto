@@ -11,35 +11,55 @@ import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.BranchTypes._
 
+import scala.collection.immutable.Queue
+
 case class VoidBranchHandler() extends BranchHandler {
   def exchange: (String⇒String) ⇒ World ⇒ World = _⇒identity
   def seeds: World ⇒ List[BranchResult] = _⇒Nil
 }
 
-case class BranchTaskImpl(branchKey: String, product: Product) extends BranchTask {
-  def sessionKeys: World ⇒ Set[SrcId] = local ⇒ {
-    val world = TxKey.of(local).world
-    val relIndex = By.srcId(classOf[BranchRel]).of(world)
-    def find(branchKey: SrcId): List[SrcId] =
-      relIndex.getOrElse(branchKey,Nil).flatMap(rel⇒
-        if(rel.parentIsSession) rel.parentSrcId :: Nil else find(rel.parentSrcId)
-      )
-    find(branchKey).toSet
-  }
+case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask {
+  def sessionKeys: World ⇒ Set[SrcId] = local ⇒ seeds.flatMap(rel⇒
+    if(rel.parentIsSession) rel.parentSrcId :: Nil
+    else {
+      val world = TxKey.of(local).world
+      val index = By.srcId(classOf[BranchTask]).of(world)
+      index.getOrElse(rel.parentSrcId,Nil).flatMap(_.sessionKeys(local))
+    }
+  ).toSet
 }
+
+case object ReportAliveBranchesKey extends WorldKey[String]("")
+
 
 case class BranchTxTransform(
   branchKey: String,
   seed: Option[BranchResult],
+  sessionKey: Option[SrcId],
   posts: List[MessageFromAlien],
   wasBranchResults: Values[BranchResult],
   handler: BranchHandler = VoidBranchHandler()
 ) extends TxTransform {
-  private def updateResult(newChildren: List[BranchResult]): World ⇒ World = {
+  private def saveResult: World ⇒ World = local ⇒ {
+    val newChildren = handler.seeds(local)
     val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
-    if(wasBranchResults == newBranchResult) identity
-    else add(wasBranchResults.flatMap(delete) ::: newBranchResult.flatMap(update))
+    if(wasBranchResults == newBranchResult) local
+    else add(wasBranchResults.flatMap(delete) ::: newBranchResult.flatMap(update))(local)
   }
+
+  private def reportAliveBranches: World ⇒ World = local ⇒ sessionKey.map{ sessionKey ⇒
+    val world = TxKey.of(local).world
+    val index = By.srcId(classOf[BranchResult]).of(world)
+    def gather(branchKey: SrcId): List[String] = {
+      val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash)
+      (branchKey :: children).mkString(" ") :: children.flatMap(gather)
+    }
+    val newReport = gather(branchKey).mkString("\n")
+    if(newReport == ReportAliveBranchesKey.of(local)) local
+    else ReportAliveBranchesKey.set(newReport)
+      .andThen(SendToAlienKey.of(local)(sessionKey,"branches",newReport))(local)
+  }.getOrElse(local)
+
   private def rmPosts: World ⇒ World =
     (identity[World] _ /: posts)((f,post)⇒f.andThen(post.rm))
   private def getPosts: List[String⇒String] = posts.map(m⇒(k:String)⇒m.headers.getOrElse(k,""))
@@ -48,7 +68,8 @@ case class BranchTxTransform(
     if(posts.isEmpty) handler.exchange(_⇒"")(local)
     else {
       (identity[World] _ /: (for(m ← getPosts) yield handler.exchange(m)))((a,b)⇒ a andThen b)
-        .andThen(local ⇒ updateResult(handler.seeds(local))(local))
+        .andThen(saveResult)
+        .andThen(reportAliveBranches)
         .andThen(rmPosts)(local)
     }
 }
@@ -75,11 +96,11 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     for(branchResult ← branchResults; child ← branchResult.children)
       yield operations.toRel(child, branchResult.hash, parentIsSession=false)
 
-  def joinBranchTaskSender(
+  def joinBranchTask(
       key: SrcId,
       @by[BranchKey] seeds: Values[BranchRel]
   ): Values[(SrcId,BranchTask)] =
-    List(key → BranchTaskImpl(key,
+    List(key → BranchTaskImpl(key, seeds,
       seeds.headOption.map(_.seed).map(seed⇒registry.byId(seed.valueTypeId).decode(seed.value.toByteArray)).getOrElse(None)
     ))
 
@@ -92,6 +113,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
   ): Values[(SrcId,TxTransform)] =
     List(key → BranchTxTransform(key,
       seeds.headOption.map(_.seed),
+      seeds.find(_.parentIsSession).map(_.parentSrcId),
       posts.sortBy(_.index),
       wasBranchResults,
       Single.option(handlers).getOrElse(VoidBranchHandler())

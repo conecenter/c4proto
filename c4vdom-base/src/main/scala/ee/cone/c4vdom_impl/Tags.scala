@@ -42,13 +42,7 @@ case class StyledValue(tagName: TagName, styles: List[TagStyle]) extends VDomVal
   }
 }
 
-case class UntilElement(until: Long) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder): Unit = {
-    builder.startObject()
-    builder.append("tp").append("span")
-    builder.end()
-  }
-}
+case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
 
 case class SeedElement(seed: Product) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
@@ -72,8 +66,12 @@ class TagsImpl(
     tag(key, DivTagName, attr:_*)(children)
   def divButton[State](key:VDomKey)(action:Any⇒State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     child[OfDiv](key,DivButton()(Some(action)), children)
-  def until(until: Long): ChildPair[OfDiv] =
-    child[OfDiv]("until",UntilElement(until), Nil)
+  def until(until: Long): ChildPair[OfDiv] = UntilPair("until",until)
+  def getUntil[C](pairs: List[ChildPair[_]]): (Long, List[ChildPair[_]]) =
+    (pairs.collect{ case u: UntilPair ⇒ u.until } match {
+        case Nil ⇒ 0L
+        case l ⇒ l.min
+    }, pairs.filterNot(_.isInstanceOf[UntilPair]))
   def seed(product: Product): ChildPair[OfDiv] =
     child[OfDiv](product.productElement(0).toString,SeedElement(product), Nil)
 }

@@ -18,14 +18,13 @@ class TestTodoApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
-  with BranchApp
   with VDomSSEApp
 {
   lazy val testTags = new TestTags[World](childPairFactory,tagJsonUtils)
   override def protocols: List[Protocol] = TestTodoProtocol :: super.protocols
   override def assembles: List[Assemble] =
     new TestTodoAssemble ::
-    new FromAlienBranchAssemble(branchOperations, "localhost", "/react-app.html") ::
+    new FromAlienTaskAssemble("localhost", "/react-app.html") ::
     super.assembles
 }
 
@@ -38,28 +37,21 @@ class TestTodoApp extends ServerApp
 }
 
 @assemble class TestTodoAssemble extends Assemble {
-  type All = SrcId
-
-  def joinTodoTasks(
-    key: SrcId,
-    todoTasks: Values[TodoTask]
-  ): Values[(All,TodoTask)] =
-    for(todoTask ← todoTasks) yield "" → todoTask
-
   def joinView(
     key: SrcId,
-    fromAliens: Values[FromAlienTask],
-    @by[All] todoTasks: Values[TodoTask]
+    fromAliens: Values[FromAlienTask]
   ): Values[(SrcId,View)] =
-    for(fromAlien ← fromAliens)
-      yield key → TestTodoRootView(todoTasks.sortBy(-_.createdAt))
+    for(fromAlien ← fromAliens) yield key → TestTodoRootView()
 }
 
-case class TestTodoRootView(todoTasks: Values[TodoTask])/*(tags: TestTags[World])*/ extends View {
+case class TestTodoRootView()/*(tags: TestTags[World])*/ extends View {
   def view: World ⇒ List[ChildPair[_]] = local ⇒ {
     val startTime = System.currentTimeMillis
     val tags = TestTagsKey.of(local).get
     val mTags = TagsKey.of(local).get
+
+    val world = TxKey.of(local).world
+    val todoTasks = By.srcId(classOf[TodoTask]).of(world).values.flatten.toList.sortBy(-_.createdAt)
     val taskLines = todoTasks.map { task =>
       tags.div(
         task.srcId,
@@ -79,7 +71,8 @@ case class TestTodoRootView(todoTasks: Values[TodoTask])/*(tags: TestTags[World]
     )
     val res = List(btnList,taskLines).flatten
     val endTime = System.currentTimeMillis
-    val until = endTime+(endTime-startTime)*10
+    val until = endTime+Math.max((endTime-startTime)*10, 500)
+    //println(s"res $res $todoTasks")
     mTags.until(until) :: res
   }
 }

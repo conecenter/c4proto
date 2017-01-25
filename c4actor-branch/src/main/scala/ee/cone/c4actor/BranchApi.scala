@@ -4,6 +4,7 @@ package ee.cone.c4actor
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.World
+import ee.cone.c4assemble.WorldKey
 import ee.cone.c4proto._
 
 object BranchTypes {
@@ -43,3 +44,5 @@ case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, paren
     @Id(0x0044) children: List[BranchResult]
   )
 }
+
+case object SendToAlienKey extends WorldKey[(String,String,String)⇒World⇒World]((_,_,_)⇒throw new Exception)

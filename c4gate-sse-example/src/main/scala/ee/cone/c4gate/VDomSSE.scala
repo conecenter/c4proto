@@ -1,23 +1,15 @@
 package ee.cone.c4gate
 
-import java.net.URL
-import java.util.UUID
-
-import ee.cone.c4actor.BranchTypes.BranchKey
-import ee.cone.c4actor.LEvent.{add, delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, Single, WorldKey, assemble}
+import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
 import ee.cone.c4actor.BranchProtocol.BranchResult
-import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
-import ee.cone.c4gate.HttpProtocol.HttpPost
-import ee.cone.c4proto.Protocol
 import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl.{JsonToStringImpl, VDomHandlerImpl, WasNoValueImpl}
 import ee.cone.c4vdom_mix.VDomApp
 
-trait VDomSSEApp extends BranchApp with VDomApp with InitLocalsApp with AssemblesApp with ProtocolsApp {
+trait VDomSSEApp extends AlienExchangeApp with BranchApp with VDomApp with InitLocalsApp with AssemblesApp {
   def tags: Tags
 
   type VDomStateContainer = World
@@ -29,13 +21,12 @@ trait VDomSSEApp extends BranchApp with VDomApp with InitLocalsApp with Assemble
       TagsKey.set(Option(tags))
       .andThen(TestTagsKey.set(Option(testTags)))
       .andThen(CreateVDomHandlerKey.set((sender,view) ⇒
-        VDomHandlerImpl(sender,view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,vDomStateKey,relocateKey)
+        VDomHandlerImpl(sender,view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,tags,vDomStateKey,relocateKey)
       ))
       .andThen(BranchOperationsKey.set(Option(branchOperations)))
   }
-  override def assembles: List[Assemble] = new VDomAssemble :: new MessageFromAlienAssemble :: super.assembles
+  override def assembles: List[Assemble] = new VDomAssemble :: super.assembles
   override def initLocals: List[InitLocal] = sseUI :: super.initLocals
-  override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
 }
 
 case object BranchOperationsKey extends  WorldKey[Option[BranchOperations]](None)
@@ -68,9 +59,8 @@ case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
 case class VDomBranchSender(pass: BranchTask) extends VDomSender[World] {
   def branchKey: String = pass.branchKey
   def sessionKeys: World ⇒ Set[String] = pass.sessionKeys
-  def send: (String,String,String) ⇒ World ⇒ World = (sessionKey,event,data) ⇒ local ⇒
-    add(update(ToAlienWrite(UUID.randomUUID.toString,sessionKey,event,data,ToAlienPriorityKey.of(local))))
-      .andThen(ToAlienPriorityKey.modify(_+1))(local)
+  def send: (String,String,String) ⇒ World ⇒ World =
+    (sessionKey,event,data) ⇒ local ⇒ SendToAlienKey.of(local)(sessionKey,event,data)(local)
 }
 
 case object CreateVDomHandlerKey extends WorldKey[(VDomSender[World],VDomView[World])⇒VDomHandler[World]]((_,_)⇒throw new Exception)

@@ -2,6 +2,7 @@ package ee.cone.c4gate
 
 import java.time.Instant
 
+import java.time.temporal.ChronoUnit.SECONDS
 
 import com.sun.net.httpserver.HttpExchange
 import ee.cone.c4actor.Types.SrcId
@@ -30,19 +31,25 @@ trait SSEServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with 
   override def protocols: List[Protocol] = AlienProtocol :: super.protocols
 }
 
-case object LastPongKey extends WorldKey[String⇒Option[(String,Instant)]](_⇒None)
+case object LastPongKey extends WorldKey[String⇒Option[Instant]](_⇒None)
 
 class PongHandler(
     qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
-    pongs: TrieMap[String,(String,Instant)] = TrieMap()
+    pongs: TrieMap[String,Instant] = TrieMap()
 ) extends RHttpHandler with InitLocal {
   def initLocal: (World) ⇒ World = LastPongKey.set(pongs.get)
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
     val headers = httpExchange.getRequestHeaders.asScala.mapValues(v⇒Single(v.asScala.toList))
-    val session = FromAlienState(headers("X-r-session"), headers("X-r-location"))
-    pongs(session.sessionKey) = (headers("X-r-connection"), Instant.now)
+    val now = Instant.now
+    val session = FromAlienState(
+      headers("X-r-session"),
+      headers("X-r-location"),
+      headers("X-r-connection"),
+      now.getEpochSecond / 100 * 100
+    )
+    pongs(session.sessionKey) = now
     Option(worldProvider.createTx()).filter{ local ⇒
       val world = TxKey.of(local).world
       val was = By.srcId(classOf[FromAlienState]).of(world).getOrElse(session.sessionKey,Nil)
@@ -81,37 +88,40 @@ case class SessionTxTransform( //todo session/pongs purge
     writes: Values[ToAlienWrite]
 ) extends TxTransform {
   def transform(local: World): World = {
-    val lastPong = LastPongKey.of(local)(fromAlien.sessionKey)
-    if(lastPong.isEmpty) return local
-    val Some((connectionKey,lastPongTime)) = lastPong
-    val sender = GetSenderKey.of(local)(connectionKey)
-    if(sender.isEmpty) return local
     val now = Instant.now
-    import java.time.temporal.ChronoUnit.SECONDS
-    if(SECONDS.between(lastPongTime,now)>2) {
-      sender.get.close()
-      return local
+    val lastPongTime = LastPongKey.of(local)(sessionKey)
+      .getOrElse(Instant.ofEpochSecond(fromAlien.lastPongSecond))
+    val lastPongAge = SECONDS.between(lastPongTime,now)
+    val sender = GetSenderKey.of(local)(fromAlien.connectionKey)
+
+    if(lastPongAge>2) {
+      sender.foreach(_.close())
+      if(lastPongAge>120) LEvent.add(LEvent.delete(fromAlien))(local) else local
     }
-    Some(local).map{ local ⇒
-      if(SECONDS.between(SSEPingTimeKey.of(local), now) < 1) local
-      else {
-        SSEMessage.message(sender.get, "ping", connectionKey)
-        SSEPingTimeKey.set(now)(local)
-      }
-    }.map { local ⇒
-      for(m ← writes) SSEMessage.message(sender.get, m.event, m.data)
-      LEvent.add(writes.flatMap(LEvent.delete))(local)
-    }.get
+    else sender.map( sender ⇒
+      ((local:World) ⇒
+        if(SECONDS.between(SSEPingTimeKey.of(local), now) < 1) local
+        else {
+          SSEMessage.message(sender, "ping", fromAlien.connectionKey)
+          SSEPingTimeKey.set(now)(local)
+        }
+      ).andThen{ local ⇒
+        for(m ← writes) SSEMessage.message(sender, m.event, m.data)
+        LEvent.add(writes.flatMap(LEvent.delete))(local)
+      }(local)
+    ).getOrElse(local)
   }
 }
 
 @assemble class SSEAssemble extends Assemble {
   type SessionKey = SrcId
+
   def joinToAlienWrite(
     key: SrcId,
     writes: Values[ToAlienWrite]
   ): Values[(SessionKey, ToAlienWrite)] =
     writes.map(write⇒write.sessionKey→write)
+
   def joinTxTransform(
     key: SrcId,
     fromAliens: Values[FromAlienState],

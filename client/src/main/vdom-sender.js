@@ -6,7 +6,7 @@ export default function VDomSender(feedback){ // todo: may be we need a queue to
         ctx => !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")
     const send = (ctx, req) => feedback.send(rootCtx(ctx).postURL, {
         ...req,
-        "X-r-vdom-branch": rootCtx(ctx).branchKey,
+        "X-r-branch": rootCtx(ctx).branchKey,
         "X-r-vdom-path": ctxToPath(ctx)
     })
     return ({send})

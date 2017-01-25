@@ -17,15 +17,13 @@ class TestSSEApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
   with BranchApp
-  with InitLocalsApp
+  with AlienExchangeApp
 {
   override def assembles: List[Assemble] =
-    new MessageFromAlienAssemble ::
-    new FromAlienBranchAssemble(branchOperations, "localhost", "/sse.html") ::
+    new FromAlienTaskAssemble("localhost", "/sse.html") ::
     new TestSSEAssemble ::
     super.assembles
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
-  override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
 }
 
 case object TestTimerKey extends WorldKey[java.lang.Long](0L)
@@ -34,8 +32,10 @@ case object TestTimerKey extends WorldKey[java.lang.Long](0L)
   def joinView(
     key: SrcId,
     tasks: Values[BranchTask]
-  ): Values[(SrcId,BranchHandler)] =
+  ): Values[(SrcId,BranchHandler)] = {
+    println(s"joinView ${tasks}")
     for(task ← tasks) yield task.branchKey → TestSSEHandler(task)
+  }
 }
 
 case class TestSSEHandler(task: BranchTask) extends BranchHandler {
@@ -46,6 +46,7 @@ case class TestSSEHandler(task: BranchTask) extends BranchHandler {
       val messages = task.sessionKeys(local).toSeq.map { sessionKey ⇒
         ToAlienWrite(s"${UUID.randomUUID}",sessionKey,"show",s"$seconds",0)
       }
+      println(s"TestSSEHandler ${task.sessionKeys(local)}")
       TestTimerKey.set(seconds).andThen(add(messages.flatMap(update)))(local)
     }
   }

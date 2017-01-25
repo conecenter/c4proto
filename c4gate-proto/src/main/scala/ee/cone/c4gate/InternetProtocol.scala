@@ -41,7 +41,9 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   )
   @Id(0x0036) case class FromAlienState(
     @Id(0x0032) sessionKey: String,
-    @Id(0x0037) location: String
+    @Id(0x0037) location: String,
+    @Id(0x0039) connectionKey: String, // we need to affect branchKey
+    @Id(0x0038) lastPongSecond: Long //do we need to affect branchKey by this?
   )
-  //39
+  //3A
 }

@@ -12,6 +12,7 @@ import scala.collection.immutable.{Map, Queue}
 class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Update]) extends WorldTx {
   def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx = {
     if(out.isEmpty) return this
+    println(s"add ${out.toList}")
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
     val nextWorld = reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
     new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend))

@@ -12,6 +12,6 @@ export default function VDomMix(feedback,transforms){
     const vDom = VDom(document.body,
         transforms.concat(clicks.transforms).concat(changes.transforms)
     )
-    const receivers = vDom.receivers.concat(changes.receivers)
+    const receivers = [].concat(vDom.receivers).concat(changes.receivers)
     return {receivers}
 }
