@@ -119,7 +119,38 @@ function MetroUi(){
 			return React.createElement(button,{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
-	const MenuItem=React.createClass({
+	const MenuBarElement=React.createClass({
+		getInitialState:function(){
+			return {};
+		},
+		render:function(){
+			var style={
+				display:'flex',
+				flexWrap:'nowrap',
+				justifyContent:'flex-start',
+				backgroundColor:'#c0ced8',
+			};
+			if(this.props.style) Object.assign(style,this.props.style);
+			return React.createElement("div",{style:style},this.props.children)
+		}
+	});
+	const MenuDropdownElement=React.createClass({
+		getInitialState:function(){
+			return {};
+		},
+		render:function(){
+			var style={
+				position:'absolute',
+				top:'100%',
+				borderRadius:'5%',
+				width:'7em',
+				boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
+			};
+			if(this.props.style) Object.assign(style,this.props.style);
+			return React.createElement("div",{style:style},this.props.children)
+		}
+	});
+	const FolderMenuElement=React.createClass({
 		getInitialState:function(){
 			return {mouseOver:false,touch:false};
 		},
@@ -135,7 +166,14 @@ function MetroUi(){
 		},
 		render:function(){		
 			var selStyle={
-
+				position:'relative',
+				//border:'0.1em solid black',
+				borderRadius:'5%',
+				marginRight:'1em',
+				minWidth:'7em',
+				textAlign:'center',
+				verticalAlign:'middle',
+				backgroundColor:'#c0ced8',
 			};        
 			
 			if(this.props.style)
@@ -143,6 +181,32 @@ function MetroUi(){
 			if(this.state.mouseOver)
 				Object.assign(selStyle,this.props.overStyle);		
 			return React.createElement("div",{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+		}
+	});
+	const ExecutableMenuElement=React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
+		mouseOver:function(){
+			this.setState({mouseOver:true});
+		},
+		mouseOut:function(){
+			this.setState({mouseOver:false});
+		},
+		onClick:function(e){
+			if(this.props.onClick)
+				this.props.onClick(e);
+		},
+		render:function(){
+			var newStyle={
+                minWidth:'7em',
+                textAlign:'center',
+                verticalAlign:'middle',
+                height:'2.5em',
+                lineHeight:'2.5em',
+                backgroundColor:'#c0ced8',
+			};
+			return React.createElement("div",{style:newStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick},this.props.children);
 		}
 	});
 	const TabSet=React.createClass({
@@ -766,7 +830,7 @@ function MetroUi(){
 	const transforms= {
 		tp:{
 		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, StatusElement, VirtualKeyboard, TerminalElement,MJobCell,IconCheck,ConnectionState,
-		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,		
+		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 		},
 	};
 	const receivers = {
