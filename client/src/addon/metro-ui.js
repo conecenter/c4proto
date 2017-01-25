@@ -9,8 +9,8 @@ function MetroUi(){
 		render:function(){
 			var style={
 				display:'flex',
-				flexWrap:this.props.wrap?'wrap':'nowrap',
-			};
+				flexWrap:this.props.flexWrap?this.props.flexWrap:'nowrap',
+			};			
 			if(this.props.style) Object.assign(style,this.props.style);
 			return React.createElement("div",{style:style},this.props.children)
 		}
@@ -110,6 +110,7 @@ function MetroUi(){
 			var selStyle={
 				outline:this.state.touch?'0.1rem solid blue':'none',
 				outlineOffset:'-0.1rem',
+				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
 			}        
 			
 			if(this.props.style)
@@ -253,9 +254,9 @@ function MetroUi(){
 		render:function(){
 			var style={
 				backgroundColor:'white',
-				border:'1px #b6b6b6 dashed',
-				margin:'5px',
-				padding:'0.5rem 1.825rem 1.25rem 0.5rem',
+				border:'0.02rem #b6b6b6 dashed',
+				margin:'0.4rem',
+				padding:'0.5rem 0.5rem 1.25rem 0.5rem',
 			};
 			return React.createElement("div",{style:style},this.props.children);
 		}
@@ -268,7 +269,7 @@ function MetroUi(){
 				color:'white',
 				textAlign:'center',
 				borderRadius:'0.58rem',
-				border:'1px solid '+(this.props.on?'#ffa500':'#eeeeee'),
+				border:'0.02rem solid '+(this.props.on?'#ffa500':'#eeeeee'),
 				backgroundColor:(this.props.on?'#ffa500':'#eeeeee'),
 				cursor:'default',
 				width:'3.8rem',
@@ -776,8 +777,9 @@ function MetroUi(){
 		let pingerTimeout=null;
 		let callback=null;
 		function ping(){			
-			if(pingerTimeout) clearTimeout(pingerTimeout);
-			pingerTimeout=setTimeout(function(){callback(false)},10000);
+			if(pingerTimeout){clearTimeout(pingerTimeout); pingerTimeout = null;}
+			if(!callback) return;
+			pingerTimeout=setTimeout(function(){if(callback) callback(false);},10000);
 			callback(true);
 		};		
 		function regCallback(func){
@@ -826,11 +828,165 @@ function MetroUi(){
 			
 		},
 	});
-
+	const InputElement = React.createClass({
+		onChange:function(e){
+			if(this.props.onChange&&!this.props.readOnly)
+				this.props.onChange(e);
+		},
+		onBlur:function(e){
+			if(this.props.onBlur&&!this.props.readOnly)
+				this.props.onBlur(e)
+		},
+		render:function(){
+			var labelStyle={
+				color:"rgb(33,33,33)",
+			};
+			var contStyle={
+				width:"100%",				
+				padding:"0.4rem 0.3125rem",
+				boxSizing:"border-box",
+			};
+			var inpContStyle={
+				display:"flex",
+				height:"auto",
+				lineHeight:"1",
+				margin:"0.124rem 0rem",
+				position:"relative",
+				verticalAlign:"middle",
+				width:"100%",
+			};
+			var inp2ContStyle={
+				flex:"1 1 0%",
+				height:"auto",
+				minHeight:"100%",
+				overflow:"hidden",				
+			};
+			var inputStyle={
+				textOverflow:"ellipsis",
+				margin:"0rem",
+				verticalAlign:"top",
+				color:"rgb(33,33,33)",
+				border:"0.01rem solid rgb(182, 182, 182)",
+				height:"auto",
+				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
+				width:"100%",
+				zIndex:"0",
+				boxSizing:"border-box",
+				MozAppearence:"none",
+				whiteSpace:"nowrap",
+				overflow:"hidden",
+				fontSize:"inherit",
+				backgroundColor:this.props.readOnly?"#eeeeee":"transparent",
+			};
+			if(this.props.inputStyle)
+				Object.assign(inputStyle,this.props.inputStyle);
+			var inputProps = {key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value};
+			if(this.props.readOnly)
+				Object.assign(inputProps,{readOnly:"readOnly"});
+			return React.createElement("div",{style:contStyle},[
+				React.createElement("label",{key:"1",style:labelStyle},this.props.label),
+				React.createElement("div",{key:"2",style:inpContStyle},
+					React.createElement("div",{key:"1",style:inp2ContStyle},
+						React.createElement("input",inputProps,null)
+					)
+				)
+			]);			
+		},
+	});
+	const DropDownElement = React.createClass({
+		onChange:function(e){
+			if(this.props.onChange)
+				this.props.onChange(e);
+		},
+		onClick:function(e){
+			if(this.props.onClick)
+				this.props.onClick(e);
+		},
+		render:function(){
+			var labelStyle={
+				color:"rgb(33,33,33)",
+			};
+			var contStyle={
+				width:"100%",				
+				padding:"0.4rem 0.3125rem",
+				boxSizing:"border-box",
+			};
+			var inpContStyle={
+				display:"flex",
+				height:"auto",
+				lineHeight:"1",
+				margin:"0.124rem 0rem",
+				position:"relative",
+				verticalAlign:"middle",
+				width:"100%",
+			};
+			var inp2ContStyle={
+				flex:"1 1 0%",
+				height:"auto",
+				minHeight:"100%",
+				overflow:"hidden",				
+			};
+			var inputStyle={
+				textOverflow:"ellipsis",
+				margin:"0rem",
+				verticalAlign:"top",
+				color:"rgb(33,33,33)",
+				border:"0.01rem solid rgb(182, 182, 182)",
+				height:"auto",
+				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
+				width:"100%",
+				zIndex:"0",
+				boxSizing:"border-box",
+				MozAppearence:"none",
+				whiteSpace:"nowrap",
+				overflow:"hidden",
+				fontSize:"inherit",				
+			};
+			const popupStyle={
+				position:"absolute",
+				border: "0.02rem solid #ccc",
+				width: "100%",
+				overflow: "auto",
+				maxHeight: "10rem",				
+				backgroundColor: "white",
+				zIndex: "1"				
+			};
+			const openButtonStyle={
+				minHeight:"",
+				height:"100%",
+				padding:"0rem",
+			};
+			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
+				flex:"0 1 auto"
+			});
+			const buttonImageStyle={
+				width:"1rem",
+			};
+			if(this.props.inputStyle)
+				Object.assign(inputStyle,this.props.inputStyle);			
+			const buttonImage = this.props.url?React.createElement("img",{key:"buttonImg",src:this.props.url,style:buttonImageStyle},null):"A";
+			const labelEl=this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;
+			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null;
+			return React.createElement("div",{style:contStyle},[
+				labelEl,
+				React.createElement("div",{key:"2",style:inpContStyle},[
+					React.createElement("div",{key:"1",style:inp2ContStyle},[
+						React.createElement("input",{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
+						popupWrapEl					
+					]),
+					React.createElement("div",{key:"2",style:openButtonWrapperStyle},
+						React.createElement(GotoButton,{key:"1",style:openButtonStyle,onClick:this.onClick},buttonImage)
+					)
+				])
+			]);			
+		},
+	});	
 	const transforms= {
 		tp:{
 		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, StatusElement, VirtualKeyboard, TerminalElement,MJobCell,IconCheck,ConnectionState,
-		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
+		InputElement,DropDownElement,
+		MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
+		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
 		},
 	};
 	const receivers = {
