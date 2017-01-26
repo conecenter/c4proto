@@ -805,7 +805,7 @@ function MetroUi(){
 	});	
 	const transforms= {
 		tp:{
-		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, StatusElement, VirtualKeyboard,
+		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
 		InputElement,DropDownElement,Chip,
 		MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,

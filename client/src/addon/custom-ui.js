@@ -162,13 +162,14 @@ function CustomUi(ui){
 		componentDidMount:function(){					
 			if(PingReceiver)
 				PingReceiver.regCallback(this.signal);
+			this.toggleOverlay(!this.state.on);			
 		},
 		componentWillUnmount:function(){
 			if(PingReceiver)
 				PingReceiver.unregCallback();
 		},
-		componentDidUpdate:function(prevProps,prevState){
-			if(this.state.on){
+		toggleOverlay:function(on){
+			if(on){
 				const el=document.createElement("div");
 				const style={
 					position:"fixed",
@@ -183,8 +184,12 @@ function CustomUi(ui){
 				document.body.appendChild(el);
 			}
 			else{
-				document.body.removeChild(document.querySelector(".overlayMain"));
+				const el=document.querySelector(".overlayMain");
+				if(el)	document.body.removeChild(el);
 			}
+		},
+		componentDidUpdate:function(prevProps,prevState){			
+			this.toggleOverlay(!this.state.on);			
 		},
 		render:function(){
 			var style={
