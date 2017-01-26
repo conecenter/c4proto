@@ -785,7 +785,9 @@ function MetroUi(){
 				width:"1rem",
 			};
 			if(this.props.inputStyle)
-				Object.assign(inputStyle,this.props.inputStyle);			
+				Object.assign(inputStyle,this.props.inputStyle);
+			if(this.props.style)
+				Object.assign(contStyle,this.props.style);
 			const buttonImage = this.props.url?React.createElement("img",{key:"buttonImg",src:this.props.url,style:buttonImageStyle},null):"A";
 			const labelEl=this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;
 			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null;
@@ -802,11 +804,37 @@ function MetroUi(){
 				])
 			]);			
 		},
-	});	
+	});
+	const FocusableElement = React.createClass({
+		onFocus:function(e){
+			if(this.props.onChange)
+				this.props.onChange({target:{value:"focus"}});
+		},
+		onBlur:function(e){
+			if(this.props.onChange)
+				this.props.onChange({target:{value:"blur"}});
+		},
+		componentDidMount:function(){
+			if(!this.el) return;
+			this.el.addEventListener("focus",this.onFocus,true);
+			this.el.addEventListener("blur",this.onBlur,true);
+		},
+		componentWillUnmount:function(){
+			if(!this.el) return;
+			this.el.removeEventListener("focus",this.onFocus);
+			this.el.removeEventListener("blur",this.onBlur);
+		},
+		render:function(){
+			const style={
+				display:"inline-block",
+			};
+			return React.createElement("div",{ref:ref=>this.el=ref,style:style},this.props.children);
+		}
+	});
 	const transforms= {
 		tp:{
 		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
-		InputElement,DropDownElement,Chip,
+		InputElement,DropDownElement,Chip,FocusableElement,
 		MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
 		},

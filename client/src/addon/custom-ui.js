@@ -169,6 +169,7 @@ function CustomUi(ui){
 				PingReceiver.unregCallback();
 		},
 		toggleOverlay:function(on){
+			if(!this.props.overlay) return;
 			if(on){
 				const el=document.createElement("div");
 				const style={
