@@ -767,7 +767,7 @@ function MetroUi(){
 			const popupStyle={
 				position:"absolute",
 				border: "0.02rem solid #ccc",
-				width: "100%",
+				minWidth: "100%",
 				overflow: "auto",
 				maxHeight: "10rem",				
 				backgroundColor: "white",
