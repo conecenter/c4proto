@@ -44,7 +44,7 @@ export default function VDom(parentElement, transforms){
     function showDiff(data){
         const parsed = JSON.parse(data)
         if(!branchesByKey[parsed.branchKey])
-            branchesByKey = {...branchesByKey, [parsed.branchKey]: createBranch()}
+            branchesByKey[parsed.branchKey] = createBranch()
         const rootComponent = branchesByKey[parsed.branchKey].component
         const localState = {
             get(){ return rootComponent.state.local || {} },
@@ -59,11 +59,16 @@ export default function VDom(parentElement, transforms){
         rootComponent.setState({incoming})
     }
     function branches(data){
-        //const active = new Set(data.split(";").map(res=>res.split(",")[0]))
-            //ReactDOM.unmountComponentAtNode(rootNativeElement)
+        const active = new Set(data.split(";").map(res=>res.split(",")[0]))
+        Object.keys(branchesByKey).filter(k=>!active.has(k)).forEach(k=>{
+            const el = branchesByKey[k].rootNativeElement
+            parentElement.removeChild(el)
+            ReactDOM.unmountComponentAtNode(el)
+            delete branchesByKey[k]
+        })
     }
 
-    let branchesByKey = {}
+    const branchesByKey = {}
 
     function createBranch(){
         const rootNativeElement = document.createElement("div")
