@@ -3,8 +3,9 @@ package ee.cone.c4gate
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
+import ee.cone.c4assemble.{Assemble, WorldKey, assemble, by}
 import ee.cone.c4actor.BranchProtocol.BranchResult
+import ee.cone.c4actor.BranchTypes.BranchKey
 import ee.cone.c4vdom._
 import ee.cone.c4vdom_impl.{JsonToStringImpl, VDomHandlerImpl, WasNoValueImpl}
 import ee.cone.c4vdom_mix.VDomApp
@@ -23,13 +24,13 @@ trait VDomSSEApp extends AlienExchangeApp with BranchApp with VDomApp with InitL
       TagsKey.set(Option(tags)),
       TestTagsKey.set(Option(testTags)),
       CreateVDomHandlerKey.set((sender,view) ⇒
-        VDomHandlerImpl(sender,view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,tags,vDomStateKey,relocateKey)
+        VDomHandlerImpl(sender,view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,VDomUntilImpl,vDomStateKey,relocateKey)
       ),
       BranchOperationsKey.set(Option(branchOperations))
     ))
   }
   override def assembles: List[Assemble] = new VDomAssemble :: super.assembles
-  override def initLocals: List[InitLocal] = sseUI :: super.initLocals
+  override def initLocals: List[InitLocal] = sseUI :: DefaultUntilPolicyInit :: super.initLocals
 }
 
 case object BranchOperationsKey extends  WorldKey[Option[BranchOperations]](None)
@@ -69,7 +70,37 @@ case class VDomBranchSender(pass: BranchTask) extends VDomSender[World] {
 case object CreateVDomHandlerKey extends WorldKey[(VDomSender[World],VDomView[World])⇒VDomHandler[World]]((_,_)⇒throw new Exception)
 
 case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[World], view: VDomView[World]) extends BranchHandler {
-  def vHandler: World ⇒ VDomHandler[World] = local ⇒ CreateVDomHandlerKey.of(local)(sender,view)
-  def exchange: ((String) ⇒ String) ⇒ (World) ⇒ World = message ⇒ local ⇒ vHandler(local).exchange(message)(local)
-  def seeds: World ⇒ List[BranchResult] = local ⇒ vHandler(local).seeds(local).collect{ case r: BranchResult ⇒ r }
+  def vHandler: World ⇒ VDomHandler[World] =
+    local ⇒ CreateVDomHandlerKey.of(local)(sender,view)
+  def exchange: (String ⇒ String) ⇒ World ⇒ World =
+    message ⇒ local ⇒ {
+      //println(s"act ${message("X-r-action")}")
+      vHandler(local).exchange(message)(local)
+    }
+  def seeds: World ⇒ List[BranchResult] =
+    local ⇒ vHandler(local).seeds(local).collect{ case r: BranchResult ⇒ r }
+}
+
+////
+
+object VDomUntilImpl extends VDomUntil {
+  def get(pairs: List[ChildPair[_]]): (Long, List[ChildPair[_]]) =
+    (pairs.collect{ case u: UntilPair ⇒ u.until } match {
+      case Nil ⇒ 0L
+      case l ⇒ l.min
+    }, pairs.filterNot(_.isInstanceOf[UntilPair]))
+}
+
+case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
+
+case object UntilPolicyKey extends WorldKey[(()⇒List[ChildPair[_]])⇒List[ChildPair[_]]](_⇒throw new Exception)
+
+object DefaultUntilPolicyInit extends InitLocal {
+  def initLocal: World ⇒ World = UntilPolicyKey.set{ view ⇒
+    val startTime = System.currentTimeMillis
+    val res = view()
+    val endTime = System.currentTimeMillis
+    val until = endTime+Math.max((endTime-startTime)*10, 500)
+    UntilPair("until",until) :: res
+  }
 }

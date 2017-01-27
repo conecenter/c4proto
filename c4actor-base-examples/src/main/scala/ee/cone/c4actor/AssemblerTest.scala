@@ -14,7 +14,7 @@ import ee.cone.c4proto
   @Id(0x0001) case class RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }
 
-case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
+case class ParentNodeWithChildren(srcId: String, caption: String, children: List[RawChildNode])
 @assemble class TestAssemble extends Assemble {
   type ParentSrcId = SrcId
   def joinChildNodeByParent(
@@ -28,7 +28,7 @@ case class ParentNodeWithChildren(caption: String, children: List[RawChildNode])
     rawParentNode: Values[RawParentNode]
   ): Values[(SrcId,ParentNodeWithChildren)] =
     rawParentNode.map(parent ⇒
-      parent.srcId → ParentNodeWithChildren(parent.caption, childNodes)
+      parent.srcId → ParentNodeWithChildren(parent.srcId, parent.caption, childNodes)
     )
 }
 
@@ -69,7 +69,7 @@ object AssemblerTest extends App {
       "3" -> List(RawChildNode("3","1","C-3"))
     ),
     By.srcId(classOf[ParentNodeWithChildren]) -> Map(
-      "1" -> List(ParentNodeWithChildren(
+      "1" -> List(ParentNodeWithChildren("1",
         "P-1",
         List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
       ))

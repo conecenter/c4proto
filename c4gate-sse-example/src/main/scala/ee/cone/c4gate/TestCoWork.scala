@@ -39,15 +39,15 @@ class TestCoWorkApp extends ServerApp
     tasks: Values[FromAlienTask]
   ): Values[(SrcId,View)] =
     for(
-      task ← tasks
-    ) yield task.branchKey → (
-      if(task.locationHash == "leader") TestCoLeaderView()
-      else TestCoWorkerView(task.fromAlienState.sessionKey)
-    )
-
+      task ← tasks;
+      view ← Option(task.locationHash).collect{
+        case "leader" ⇒ TestCoLeaderView(task.branchKey)
+        case "worker" ⇒ TestCoWorkerView(task.branchKey,task.fromAlienState.sessionKey)
+      }
+    ) yield task.branchKey → view
 }
 
-case class TestCoWorkerView(sessionKey: SrcId) extends View {
+case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
   def view: World ⇒ List[ChildPair[_]] = local ⇒ {
     val world = TxKey.of(local).world
     val contents = By.srcId(classOf[Content]).of(world)
@@ -60,8 +60,8 @@ case class TestCoWorkerView(sessionKey: SrcId) extends View {
   }
 }
 
-case class TestCoLeaderView() extends View {
-  def view: World ⇒ List[ChildPair[_]] = local ⇒ {
+case class TestCoLeaderView(branchKey: SrcId) extends View {
+  def view: World ⇒ List[ChildPair[_]] = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val world = TxKey.of(local).world
     val fromAlienTasks = By.srcId(classOf[FromAlienTask]).of(world)
     val mTags = TagsKey.of(local).get

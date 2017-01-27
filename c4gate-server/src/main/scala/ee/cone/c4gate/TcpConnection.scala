@@ -59,7 +59,7 @@ case class TcpConnectionTxTransform(
       @by[ConnectionKey] writes: Values[TcpWrite]
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(tcpConnections.isEmpty)
-      SimpleTxTransform((tcpDisconnects ++ writes).take(4096).flatMap(LEvent.delete))
+      SimpleTxTransform(key, (tcpDisconnects ++ writes).take(4096).flatMap(LEvent.delete))
     else TcpConnectionTxTransform(key, tcpDisconnects, writes.sortBy(_.priority))
   ))
 }

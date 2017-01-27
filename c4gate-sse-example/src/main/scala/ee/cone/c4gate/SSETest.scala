@@ -34,11 +34,11 @@ case object TestTimerKey extends WorldKey[java.lang.Long](0L)
     tasks: Values[BranchTask]
   ): Values[(SrcId,BranchHandler)] = {
     println(s"joinView ${tasks}")
-    for(task ← tasks) yield task.branchKey → TestSSEHandler(task)
+    for(task ← tasks) yield task.branchKey → TestSSEHandler(task.branchKey, task)
   }
 }
 
-case class TestSSEHandler(task: BranchTask) extends BranchHandler {
+case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler {
   def exchange: (String ⇒ String) ⇒ World ⇒ World = message ⇒ local ⇒ {
     val seconds = System.currentTimeMillis / 1000
     if(TestTimerKey.of(local) == seconds) local

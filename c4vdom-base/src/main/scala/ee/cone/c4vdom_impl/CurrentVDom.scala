@@ -16,7 +16,7 @@ case class VDomHandlerImpl[State](
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory,
-  tags: Tags,
+  vDomUntil: VDomUntil,
 
   vDomStateKey: VDomLens[State,Option[VDomState]],
   relocateKey: VDomLens[State,String]
@@ -28,7 +28,6 @@ case class VDomHandlerImpl[State](
   //dispatches incoming message // can close / set refresh time
   private def dispatch: Handler = get ⇒ state ⇒ if(get("X-r-action").isEmpty) state else {
     val pathStr = get("X-r-vdom-path")
-    if(vDomStateKey.of(state).get.until <= 0) throw new Exception("invalid VDom")
     val path = pathStr.split("/").toList match {
       case "" :: parts => parts
       case _ => Never()
@@ -66,6 +65,7 @@ case class VDomHandlerImpl[State](
 
   private def toAlien: Handler = exchange ⇒ state ⇒ {
     val vState = vDomStateKey.of(state).get
+
     if(
       vState.value != wasNoValue &&
         vState.until > System.currentTimeMillis
@@ -74,14 +74,18 @@ case class VDomHandlerImpl[State](
       task.updateResult(Nil)(state)
     }*/
     else {
-      val (until,viewRes) = tags.getUntil(view.view(state))
-      val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
-      val nextDom = vPair.value
       val newSessionKeys = sender.sessionKeys(state)
-      val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)
-      vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys)))
-        .andThen(diffSend(vState.value, nextDom, keepTo))
-        .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
+      if(newSessionKeys.isEmpty) init(exchange)(state)
+      else {
+        val (until,viewRes) = vDomUntil.get(view.view(state))
+        val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
+        val nextDom = vPair.value
+
+        val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)
+        vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys)))
+          .andThen(diffSend(vState.value, nextDom, keepTo))
+          .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
+      }
     }
   }
 

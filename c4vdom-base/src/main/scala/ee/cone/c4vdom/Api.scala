@@ -85,6 +85,10 @@ trait VDomHandler[State] {
 
 case class VDomState(value: VDomValue, until: Long, sessionKeys: Set[String])
 
+trait VDomUntil {
+  def get(pairs: List[ChildPair[_]]): (Long, List[ChildPair[_]])
+}
+
 trait OnClickReceiver[State] {
   def onClick: Option[State ⇒ State]
 }

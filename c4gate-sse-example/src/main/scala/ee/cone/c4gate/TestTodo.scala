@@ -2,11 +2,12 @@ package ee.cone.c4gate
 
 import java.util.UUID
 
+import ee.cone.c4actor.BranchTypes.BranchKey
 import ee.cone.c4actor.LEvent.{add, delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, WorldKey, assemble, by}
 import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4vdom.ChildPair
@@ -41,15 +42,18 @@ class TestTodoApp extends ServerApp
     key: SrcId,
     fromAliens: Values[FromAlienTask]
   ): Values[(SrcId,View)] =
-    for(fromAlien ← fromAliens) yield key → TestTodoRootView()
+    for(
+      fromAlien ← fromAliens;
+      view ← Option(fromAlien.locationHash).collect{
+        case "todo" ⇒ TestTodoRootView(fromAlien.branchKey)
+      }
+    ) yield fromAlien.branchKey → view
 }
 
-case class TestTodoRootView()/*(tags: TestTags[World])*/ extends View {
-  def view: World ⇒ List[ChildPair[_]] = local ⇒ {
-    val startTime = System.currentTimeMillis
+case class TestTodoRootView(branchKey: SrcId)/*(tags: TestTags[World])*/ extends View {
+  def view: World ⇒ List[ChildPair[_]] = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val tags = TestTagsKey.of(local).get
     val mTags = TagsKey.of(local).get
-
     val world = TxKey.of(local).world
     val todoTasks = By.srcId(classOf[TodoTask]).of(world).values.flatten.toList.sortBy(-_.createdAt)
     val taskLines = todoTasks.map { task =>
@@ -69,11 +73,7 @@ case class TestTodoRootView()/*(tags: TestTags[World])*/ extends View {
         add(update(TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )
     )
-    val res = List(btnList,taskLines).flatten
-    val endTime = System.currentTimeMillis
-    val until = endTime+Math.max((endTime-startTime)*10, 500)
-    //println(s"res $res $todoTasks")
-    mTags.until(until) :: res
+    List(btnList,taskLines).flatten
   }
 }
 

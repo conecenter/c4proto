@@ -41,7 +41,7 @@ class PongHandler(
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
-    val headers = httpExchange.getRequestHeaders.asScala.mapValues(v⇒Single(v.asScala.toList))
+    val headers = httpExchange.getRequestHeaders.asScala.map{ case(k,v) ⇒ k→Single(v.asScala.toList) }
     val now = Instant.now
     val session = FromAlienState(
       headers("X-r-session"),
@@ -127,7 +127,7 @@ case class SessionTxTransform( //todo session/pongs purge
     fromAliens: Values[FromAlienState],
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(SrcId,TxTransform)] = List(key → (
-    if(fromAliens.isEmpty) SimpleTxTransform(writes.flatMap(LEvent.delete))
+    if(fromAliens.isEmpty) SimpleTxTransform(key, writes.flatMap(LEvent.delete))
     else SessionTxTransform(key, Single(fromAliens), writes.sortBy(_.priority))
   ))
 }

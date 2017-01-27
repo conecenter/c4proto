@@ -30,7 +30,7 @@ class IndexFactoryImpl extends IndexFactory {
       new PatchMap[RK,Values[R],MultiSet[R]](
         Nil,_.isEmpty,
         (v,d)⇒add.many(d, v, 1).flatMap{ case(node,count) ⇒
-          if(count<0) throw new Exception(s"$node -- $count")
+          if(count<0) throw new Exception(s"$node -- $d -- $v")
           List.fill(count)(node)
         }.toList.sortBy(e ⇒ e.productElement(0) match {
           case s: String ⇒ s
@@ -75,17 +75,26 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
     }
   }
   def transform(transition: WorldTransition): WorldTransition = {
+    //println(s"rule $outputWorldKey <- $inputWorldKeys")
     val ids = (Set.empty[JoinKey] /: inputWorldKeys)((res,key) ⇒
       res ++ transition.diff.getOrElse(key, Map.empty).keys.asInstanceOf[Set[JoinKey]]
     )
     if (ids.isEmpty){ return transition }
     val prevOutput = recalculateSome(_.of(transition.prev), subNestedDiff, ids, Map.empty)
     val indexDiff = recalculateSome(_.of(transition.current), addNestedDiff, ids, prevOutput)
+
+    //val diffStats = indexDiff.map{case (k,v)⇒s"$k ${v.values.mkString(",")}"}
+    //println(s"""indexDiff $diffStats""")
     if (indexDiff.isEmpty){ return transition }
+
     val currentIndex: Index[MapKey,Value] = outputWorldKey.of(transition.current)
     val nextIndex: Index[MapKey,Value] = addNestedPatch.many(currentIndex, indexDiff)
     val next: World = setPart(transition.current, nextIndex)
-    val diff = setPart(transition.diff, indexDiff.mapValues(_⇒true))
+
+    val currentDiff = transition.diff.getOrElse(outputWorldKey,Map.empty).asInstanceOf[Map[MapKey, Boolean]]
+    val nextDiff: Map[MapKey, Boolean] = currentDiff ++ indexDiff.transform((_,_)⇒true)
+    val diff = setPart(transition.diff, nextDiff)
+
     WorldTransition(transition.prev, diff, next)
   }
 }
@@ -126,7 +135,7 @@ object TreeAssemblerImpl extends TreeAssembler {
     val expressionsByPriority: List[WorldPartExpression] =
       (ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]]() /: expressions)(regOne).items.reverse
     replaced ⇒ prevWorld ⇒ {
-      val diff = replaced.mapValues(_.mapValues(_⇒true))
+      val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
       val current = add.many(prevWorld, replaced)
       val transition = WorldTransition(prevWorld,diff,current)
       (transition /: expressionsByPriority) { (transition, handler) ⇒

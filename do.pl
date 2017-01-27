@@ -57,7 +57,9 @@ push @tasks, ["test_consumer_sse_service_run", sub{
 push @tasks, ["test_consumer_todo_service_run", sub{
     sy("$env C4STATE_TOPIC_PREFIX=todo-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestTodo' ")
 }];
-
+push @tasks, ["test_consumer_cowork_service_run", sub{
+    sy("$env C4STATE_TOPIC_PREFIX=cowork-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestCoWork' ")
+}];
 
 
 

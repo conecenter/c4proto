@@ -6,18 +6,12 @@ import java.util.UUID
 
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.{Index, Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.BranchTypes._
 
 import Function.chain
-import scala.collection.immutable.Queue
-
-case class VoidBranchHandler() extends BranchHandler {
-  def exchange: (String⇒String) ⇒ World ⇒ World = _⇒identity
-  def seeds: World ⇒ List[BranchResult] = _⇒Nil
-}
 
 case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask {
   def sessionKeys: World ⇒ Set[SrcId] = local ⇒ seeds.flatMap(rel⇒
@@ -38,14 +32,22 @@ case class BranchTxTransform(
   seed: Option[BranchResult],
   sessionKey: Option[SrcId],
   posts: List[MessageFromAlien],
-  wasBranchResults: Values[BranchResult],
-  handler: BranchHandler = VoidBranchHandler()
+  handler: BranchHandler
 ) extends TxTransform {
   private def saveResult: World ⇒ World = local ⇒ {
+    //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
+    //println(s"BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
+    val world = TxKey.of(local).world
+    val index = By.srcId(classOf[BranchResult]).of(world)
+    val wasBranchResults = index.getOrElse(branchKey,Nil)
+    val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
-    val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
-    if(wasBranchResults == newBranchResult) local
-    else add(wasBranchResults.flatMap(delete) ::: newBranchResult.flatMap(update))(local)
+
+    if(wasChildren == newChildren) local
+    else {
+      val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
+      add(wasBranchResults.flatMap(delete) ::: newBranchResult.flatMap(update))(local)
+    }
   }
 
   private def reportAliveBranches: World ⇒ World = local ⇒ sessionKey.map{ sessionKey ⇒
@@ -67,7 +69,8 @@ case class BranchTxTransform(
     else posts.map(m⇒(k:String)⇒m.headers.getOrElse(k,""))
 
   def transform(local: World): World =
-    chain(getPosts.map(handler.exchange))
+    if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
+    else chain(getPosts.map(handler.exchange))
       .andThen(saveResult).andThen(reportAliveBranches)
       .andThen(chain(posts.map(_.rm)))(local)
 }
@@ -96,26 +99,29 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
 
   def joinBranchTask(
       key: SrcId,
+      wasBranchResults: Values[BranchResult],
       @by[BranchKey] seeds: Values[BranchRel]
-  ): Values[(SrcId,BranchTask)] =
-    List(key → BranchTaskImpl(key, seeds,
-      seeds.headOption.map(_.seed).map(seed⇒registry.byId(seed.valueTypeId).decode(seed.value.toByteArray)).getOrElse(None)
-    ))
+  ): Values[(SrcId,BranchTask)] = {
+    val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
+    val product = registry.byId(seed.valueTypeId).decode(seed.value.toByteArray)
+    //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
+    List(key → BranchTaskImpl(key, seeds, product))
+  }
+
 
   def joinTxTransform(
     key: SrcId,
-    wasBranchResults: Values[BranchResult],
     @by[BranchKey] seeds: Values[BranchRel],
     @by[BranchKey] posts: Values[MessageFromAlien],
     handlers: Values[BranchHandler]
   ): Values[(SrcId,TxTransform)] =
-    List(key → BranchTxTransform(key,
-      seeds.headOption.map(_.seed),
-      seeds.find(_.parentIsSession).map(_.parentSrcId),
-      posts.sortBy(_.index),
-      wasBranchResults,
-      Single.option(handlers).getOrElse(VoidBranchHandler())
-    ))
+    for(handler ← Single.option(handlers).toList)
+      yield key → BranchTxTransform(key,
+        seeds.headOption.map(_.seed),
+        seeds.find(_.parentIsSession).map(_.parentSrcId),
+        posts.sortBy(_.index),
+        handler
+      )
 }
 
 //todo relocate toAlien
