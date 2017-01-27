@@ -144,7 +144,7 @@ function MetroUi(){
 				position:'absolute',
 				top:'100%',
 				borderRadius:'5%',
-				width:'7em',
+				minWidth:'7em',
 				boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
 			};
 			if(this.props.style) Object.assign(style,this.props.style);
@@ -153,35 +153,50 @@ function MetroUi(){
 	});
 	const FolderMenuElement=React.createClass({
 		getInitialState:function(){
-			return {mouseOver:false,touch:false};
+			return {mouseEnter:false,touch:false};
 		},
-		mouseOver:function(e){
-			this.setState({mouseOver:true});
-			if(this.props.OnClick)
-				this.props.OnClick(e);
+        mouseOver:function(){
+            this.setState({mouseOver:true});
+        },
+        mouseOut:function(){
+            this.setState({mouseOver:false});
+        },
+		mouseEnter:function(e){
+			this.setState({mouseEnter:true});
+            if(this.props.onChange)
+                this.props.onChange({target:{value:"mouseEnter"}});
+
 		},
-		mouseOut:function(e){
-			this.setState({mouseOver:false});
-			if(this.props.OnClick)
-				this.props.OnClick(e);
+		mouseLeave:function(e){
+			this.setState({mouseEnter:false});
+            if(this.props.onChange)
+                this.props.onChange({target:{value:"mouseLeave"}});
+		},
+		onClick:function(e){
+		    if(this.props.onClick) this.props.onClick(e);
 		},
 		render:function(){		
 			var selStyle={
 				position:'relative',
-				//border:'0.1em solid black',
-				borderRadius:'5%',
-				marginRight:'1em',
-				minWidth:'7em',
-				textAlign:'center',
-				verticalAlign:'middle',
-				backgroundColor:'#c0ced8',
+                marginRight:'1em',
+                backgroundColor:'#c0ced8',
+                whiteSpace:'nowrap'
 			};        
 			
 			if(this.props.style)
 				Object.assign(selStyle,this.props.style);
-			if(this.state.mouseOver)
+			console.log(this.state);
+			if(this.state.mouseEnter)
 				Object.assign(selStyle,this.props.overStyle);		
-			return React.createElement("div",{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return React.createElement("div",{
+			    style:selStyle,
+			    onMouseEnter:this.mouseEnter,
+			    onMouseLeave:this.mouseLeave,
+			    onClick:this.onClick,
+			    //onChange:this.props.onChange,
+			    //onTouchStart:this.onTouchStart,
+			    //onTouchEnd:this.onTouchEnd
+			},this.props.children);
 		}
 	});
 	const ExecutableMenuElement=React.createClass({
@@ -201,13 +216,16 @@ function MetroUi(){
 		render:function(){
 			var newStyle={
                 minWidth:'7em',
-                textAlign:'center',
-                verticalAlign:'middle',
                 height:'2.5em',
-                lineHeight:'2.5em',
                 backgroundColor:'#c0ced8',
+                cursor:'pointer',
 			};
-			return React.createElement("div",{style:newStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick},this.props.children);
+
+        if(this.props.style)
+            Object.assign(newStyle,this.props.style);
+        if(this.state.mouseOver)
+            Object.assign(newStyle,this.props.overStyle);
+		return React.createElement("div",{style:newStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick},this.props.children);
 		}
 	});
 	const TabSet=React.createClass({
