@@ -393,7 +393,7 @@ function MetroUi(){
 			const enterEl = React.createElement("img",{src:enterSvgData,style:{width:"100%",height:"100%"}},null);
 			const upEl = React.createElement("img",{src:upSvgData,style:{width:"100%",height:"100%"}},null);
 			const downEl = React.createElement("img",{src:downSvgData,style:{width:"100%",height:"100%"}},null);
-			var result;
+			var result;			
 			if(!this.props.alphaNumeric)
 				result=React.createElement("table",{style:tableStyle,key:"1"},
 					React.createElement("tbody",{key:"1"},[
@@ -402,26 +402,28 @@ function MetroUi(){
 						   React.createElement("td",{key:"2"},''),
 						   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
 					   ]),
+					   !this.props.simple?
 					   React.createElement("tr",{key:"1"},[
 						   React.createElement(VKTd,{style:specialTdStyle,key:"1",fkey:"F1"},'F1'),
 						   React.createElement(VKTd,{style:specialTdStyle,key:"2",fkey:"F2"},'F2'),
 						   React.createElement(VKTd,{style:specialTdStyle,key:"3",fkey:"F3"},'F3'),
 						   React.createElement(VKTd,{style:specialTdStyle,key:"4",fkey:"F4"},'F4'),
 						   React.createElement(VKTd,{style:specialTdStyle,key:"5",fkey:"F5"},'F5'),					   
-					   ]),
+					   ]):null,
+					   !this.props.simple?
 					   React.createElement("tr",{key:"2"},[
 						   React.createElement(VKTd,{style:specialTdStyle,key:"1",fkey:"F6"},'F6'),
 						   React.createElement(VKTd,{style:specialTdStyle,key:"2",fkey:"F7"},'F7'),
 						   React.createElement(VKTd,{style:specialTdStyle,key:"3",fkey:"F8"},'F8'),
 						   React.createElement(VKTd,{style:specialTdStyle,key:"4",fkey:"F9"},'F9'),
 						   React.createElement(VKTd,{style:specialTdStyle,key:"5",fkey:"F10"},'F10'),					   
-					   ]),
+					   ]):null,
 					   React.createElement("tr",{key:"3"},[
 						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"7"},'7'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"8"},'8'),
 						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"9"},'9'),
 						   React.createElement(VKTd,{colSpan:'2',style:Object.assign({},tdStyle,{height:"2rem"}),key:"4",fkey:"^"},upEl),
-					   ]),
+					   ]),					   
 					   React.createElement("tr",{key:"4"},[
 						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"4"},'4'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"5"},'5'),
@@ -768,10 +770,10 @@ function MetroUi(){
 				position:"absolute",
 				border: "0.02rem solid #ccc",
 				minWidth: "100%",
-				overflow: "auto",
+				overflow: "auto",				
 				maxHeight: "10rem",				
 				backgroundColor: "white",
-				zIndex: "1"				
+				zIndex: "5"				
 			};
 			const openButtonStyle={
 				minHeight:"",
@@ -813,6 +815,7 @@ function MetroUi(){
 		onBlur:function(e){
 			if(this.props.onChange)
 				this.props.onChange({target:{value:"blur"}});
+			console.log(e)
 		},
 		componentDidMount:function(){
 			if(!this.el) return;
@@ -828,13 +831,26 @@ function MetroUi(){
 			const style={
 				display:"inline-block",
 			};
-			return React.createElement("div",{ref:ref=>this.el=ref,style:style},this.props.children);
+			return React.createElement("div",{ref:ref=>this.el=ref,style:style,tabIndex:"0"},this.props.children);
 		}
+	});
+	const PopupElement = React.createClass({
+		render:function(){
+			var style={
+				position:"fixed",
+				zIndex:"6",
+				border:"0.02rem solid #eee",
+				backgroundColor:"white",
+			};
+			if(this.props.style)
+				Object.assign(style,this.props.style);
+			return React.createElement("div",{style:style},this.props.children);
+		}		
 	});
 	const transforms= {
 		tp:{
 		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
-		InputElement,DropDownElement,Chip,FocusableElement,
+		InputElement,DropDownElement,Chip,FocusableElement,PopupElement,
 		MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
 		},
