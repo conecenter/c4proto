@@ -1,5 +1,7 @@
 package ee.cone.c4gate
 
+import java.net.URL
+
 import ee.cone.c4actor.LEvent.{add, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -27,9 +29,9 @@ class TestCoWorkApp extends ServerApp
 }
 
 @protocol object TestCoWorkProtocol extends Protocol {
-  @Id(0x0001) case class Content(
-    @Id(0x0002) sessionKey: String,
-    @Id(0x0003) value: String
+  @Id(0x0005) case class Content(
+    @Id(0x0006) sessionKey: String,
+    @Id(0x0007) value: String
   )
 }
 
@@ -63,11 +65,20 @@ case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
 case class TestCoLeaderView(branchKey: SrcId) extends View {
   def view: World ⇒ List[ChildPair[_]] = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val world = TxKey.of(local).world
-    val fromAlienTasks = By.srcId(classOf[FromAlienTask]).of(world)
+    val fromAlienStates = By.srcId(classOf[FromAlienState]).of(world)
     val mTags = TagsKey.of(local).get
+    val tags = TestTagsKey.of(local).get
     val branchOperations = BranchOperationsKey.of(local).get
-    val workers = fromAlienTasks.values.flatten.filter(_.locationHash != "leader")
-    val fromAliens = workers.map(_.fromAlienState).toList.sortBy(_.sessionKey)
-    fromAliens.map(branchOperations.toSeed).map(mTags.seed)
+    val fromAliens = for(
+      fromAlien ← fromAlienStates.values.flatten;
+      url ← Option(new URL(fromAlien.location));
+      ref ← Option(url.getRef) if ref != "leader"
+    ) yield fromAlien
+    tags.button("add", "stats",{ local ⇒
+      val world = TxKey.of(local).world
+      println(WorldStats.make(world))
+      local
+    }) ::
+    fromAliens.toList.sortBy(_.sessionKey).map(branchOperations.toSeed).map(mTags.seed)
   }
 }
