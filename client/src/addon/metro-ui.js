@@ -146,6 +146,7 @@ function MetroUi(){
 				borderRadius:'5%',
 				minWidth:'7em',
 				boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
+				zIndex: '10',
 			};
 			if(this.props.style) Object.assign(style,this.props.style);
 			return React.createElement("div",{style:style},this.props.children)
