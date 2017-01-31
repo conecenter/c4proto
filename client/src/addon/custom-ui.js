@@ -59,7 +59,7 @@ function CustomUi(ui){
 		signal:function(data){
 			//const gData=(data!=undefined&&parseInt(data)>=0?data:null);
 			const gData=(data?data:null);			
-			this.setState({data:gData});		
+			this.setState({data:gData});			
 		},
 		componentDidMount:function(){
 			if(window.CustomMeasurer)
@@ -169,6 +169,7 @@ function CustomUi(ui){
 				PingReceiver.unregCallback();
 		},
 		toggleOverlay:function(on){
+			if(!this.props.overlay) return;
 			if(on){
 				const el=document.createElement("div");
 				const style={
@@ -208,14 +209,14 @@ function CustomUi(ui){
 			const imageSvgData = "data:image/svg+xml;base64,"+window.btoa(imageSvg);
 			
 			return React.createElement("div",{style:style},
-				React.createElement("img",{style:iconStyle,src:imageSvgData},null)
+				React.createElement("img",{key:"1",style:iconStyle,src:imageSvgData},null)
 				);
 			
 		},
 	});
 	const transforms= {
 		tp:{
-		TerminalElement,MJobCell,IconCheck,ConnectionState	
+		StatusElement,TerminalElement,MJobCell,IconCheck,ConnectionState	
 		},
 	};
 	const receivers = {
