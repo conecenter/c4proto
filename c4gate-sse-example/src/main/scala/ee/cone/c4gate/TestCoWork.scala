@@ -76,11 +76,12 @@ case class TestCoLeaderView(branchKey: SrcId) extends View {
       url ← Option(new URL(fromAlien.location));
       ref ← Option(url.getRef) if ref != "leader"
     ) yield fromAlien
-    divButton("add"){ local ⇒
-      val world = TxKey.of(local).world
-      println(WorldStats.make(world))
-      local
-    }(List(text("caption","stats"))) ::
+    divButton("add")(printStats)(List(text("caption","stats"))) ::
     fromAliens.toList.sortBy(_.sessionKey).map(branchOperations.toSeed).map(seed)
+  }
+  private def printStats: World ⇒ World = local ⇒ {
+    val world = TxKey.of(local).world
+    println(WorldStats.make(world))
+    local
   }
 }
