@@ -297,7 +297,7 @@ function MetroUi(){
 				return;
 			}
 			if(this.props.fkey){
-				var event=new KeyboardEvent("keypress",{key:this.props.fkey})
+				var event=new KeyboardEvent("keydown",{key:this.props.fkey})
 				window.dispatchEvent(event);
 			}
 		},
@@ -350,6 +350,7 @@ function MetroUi(){
 				backgroundColor:'#eeeeee',
 				height:'2.2rem',
 				width:'2rem',
+				overflow:"hidden",
 			};
 			var aTableStyle={
 				fontSize:'1.55rem',
@@ -371,6 +372,7 @@ function MetroUi(){
 				border:'0.01rem solid',
 				backgroundColor:'#eeeeee',
 				minWidth:'1.1em',
+				overflow:"hidden",
 				//paddingBottom:'0.1rem',
 			};
 			var aTableLastStyle={
@@ -814,6 +816,9 @@ function MetroUi(){
 			});
 			const buttonImageStyle={
 				width:"1rem",
+				verticalAlign:"middle",
+				display:"inline",
+				height:"100%",
 			};
 			if(this.props.inputStyle)
 				Object.assign(inputStyle,this.props.inputStyle);
@@ -840,7 +845,7 @@ function MetroUi(){
 		},
 	});
 	const InputVK = React.createClass({
-		handleKeypress:function(e){
+		handleKeydown:function(e){
 			//console.log(lastFInput,this.el)
 			if(!lastFInputManager.contains(this.el)) return;
 			if(e.key.length==1){
@@ -851,23 +856,27 @@ function MetroUi(){
 					case "enter":break;
 					case "backspace":
 						this.reportChange(this.props.value.slice(0,-1));
+						//e.preventDefault();
 						break;
 					default: break;
 				}
 			}			
+		},
+		onChange:function(e){
+			e.preventDefault();
 		},
 		reportChange:function(value){
 			if(this.props.onChange)
 				this.props.onChange({target:{value}});
 		},
 		componentDidMount:function(){				
-			window.addEventListener("keypress",this.handleKeypress);
+			window.addEventListener("keydown",this.handleKeydown);
 		},
 		componentWillUnmount:function(){
-			window.removeEventListener("keypress",this.handleKeypress);
+			window.removeEventListener("keydown",this.handleKeydown);
 		},
 		render:function(){			
-			return React.createElement("input",{ref:(ref)=>this.el=ref,style:this.props.style,readOnly:"readOnly",onBlur:this.props.onBlur,onClick:this.props.onClick,value:this.props.value},null);
+			return React.createElement("input",{ref:(ref)=>this.el=ref,style:this.props.style,onChange:this.onChange,onBlur:this.props.onBlur,onClick:this.props.onClick,value:this.props.value},null);
 		}
 	});
 	const lastFInputManager=function(){
@@ -924,9 +933,11 @@ function MetroUi(){
 			this.el.removeEventListener("blur",this.onBlur);
 		},
 		render:function(){
-			const style={
+			var style={
 				display:"inline-block",
 			};
+			if(this.props.style)
+				Object.assign(style,this.props.style);
 			return React.createElement("div",{ref:ref=>this.el=ref,style:style,tabIndex:"0"},this.props.children);
 		}
 	});
@@ -943,11 +954,92 @@ function MetroUi(){
 			return React.createElement("div",{style:style},this.props.children);
 		}		
 	});
-	
+	const Checkbox = React.createClass({
+		onClick:function(e){
+			if(this.props.onClick)
+				this.props.onClick(e);
+		},
+		render:function(){
+			var contStyle={
+				flexGrow:"0",
+				minHeight:"2.8125rem",
+				position:"relative",
+				maxWidth:"100%",
+				padding:"0.4rem 0.3125rem",
+				flexShrink:"1",
+				boxSizing:"border-box",
+				lineHeight:"1",
+				
+			};
+			var cont2Style={
+				border:"none",
+				display:"inline-block",
+				lineHeight:"100%",
+				margin:"0rem",
+				marginBottom:"0.55rem",
+				outline:"none",
+				position:"absolute",
+				whiteSpace:"nowrap",
+				width:"calc(100% - 1rem)",
+				cursor:"pointer",
+				bottom:"0rem",
+			};
+			var checkBoxStyle={
+				border:"0.02rem #b6b6b6 solid",
+				color:"#212121",
+				display:"inline-block",
+				height:"1.625rem",
+				lineHeight:"100%",
+				margin:"0rem 0.02rem 0rem 0rem",
+				padding:"0rem",
+				position:"relative",
+				verticalAlign:"middle",
+				width:"1.625rem",
+				boxSizing:"border-box",
+				backgroundColor:"white",
+			};
+			var labelStyle={
+				maxWidth:"calc(100% - 2.165rem)",
+				padding:"0rem 0.3125rem",
+				verticalAlign:"middle",
+				cursor:"pointer",
+				display:"inline-block",
+				lineHeight:"1.3",
+				overflow:"hidden",
+				textOverflow:"ellipsis",
+				whiteSpace:"nowrap",
+				boxSizing:"border-box",
+			};
+			const imageStyle = {
+				position:"absolute",
+				bottom:"0rem",
+				height:"90%",
+				width:"100%",
+			};
+			if(this.props.style)
+				Object.assign(contStyle,this.props.style);
+			if(this.props.innerStyle)
+				Object.assign(cont2Style,this.props.innerStyle);
+			if(this.props.checkBoxStyle)
+				Object.assign(checkBoxStyle,this.props.checkBoxStyle);
+			if(this.props.labelStyle)
+				Object.assign(labelStyle,this.props.labelStyle);
+			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
+			const svgData="data:image/svg+xml;base64,"+window.btoa(svg);			
+			const checkImage = this.props.on?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
+			
+			return React.createElement("div",{style:contStyle},
+				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick},[
+					React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
+					React.createElement("label",{style:labelStyle,key:"2"},this.props.label)
+				])
+			);
+		}
+	});
 	const transforms= {
 		tp:{
 		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
-		InputElement,DropDownElement,Chip,FocusableElement,PopupElement,
+		InputElement,DropDownElement,Chip,FocusableElement,PopupElement,Checkbox,
 		MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
 		},
