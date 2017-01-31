@@ -129,7 +129,8 @@ function MetroUi(){
 				display:'flex',
 				flexWrap:'nowrap',
 				justifyContent:'flex-start',
-				backgroundColor:'#c0ced8',
+				//backgroundColor:'#c0ced8',
+				verticalAlign:'middle',
 			};
 			if(this.props.style) Object.assign(style,this.props.style);
 			return React.createElement("div",{style:style},this.props.children)
@@ -139,14 +140,19 @@ function MetroUi(){
 		getInitialState:function(){
 			return {};
 		},
+		componentDidUpdate(prevProps,prevState){
+		    console.log(prevProps,this.props)
+		},
 		render:function(){
 			var style={
 				position:'absolute',
-				top:'100%',
 				borderRadius:'5%',
 				minWidth:'7em',
 				boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
-				zIndex: '10',
+				zIndex:'10',
+				transitionProperty:'all',
+				transitionDuration:'0.15s',
+				transformOrigin:'50% 0%',
 			};
 			if(this.props.style) Object.assign(style,this.props.style);
 			return React.createElement("div",{style:style},this.props.children)
@@ -156,37 +162,38 @@ function MetroUi(){
 		getInitialState:function(){
 			return {mouseEnter:false,touch:false};
 		},
-        mouseOver:function(){
-            this.setState({mouseOver:true});
-        },
-        mouseOut:function(){
-            this.setState({mouseOver:false});
-        },
+//        mouseOver:function(){
+//            this.setState({mouseOver:true});
+//        },
+//        mouseOut:function(){
+//            this.setState({mouseOver:false});
+//        },
 		mouseEnter:function(e){
 			this.setState({mouseEnter:true});
-            if(this.props.onChange)
-                this.props.onChange({target:{value:"mouseEnter"}});
+//            if(this.props.onChange)
+//                this.props.onChange({target:{value:"mouseEnter"}});
 
 		},
 		mouseLeave:function(e){
 			this.setState({mouseEnter:false});
-            if(this.props.onChange)
-                this.props.onChange({target:{value:"mouseLeave"}});
+//            if(this.props.onChange)
+//                this.props.onChange({target:{value:"mouseLeave"}});
 		},
 		onClick:function(e){
-		    if(this.props.onClick) this.props.onClick(e);
+		    if(this.props.onClick)
+		        this.props.onClick(e);
 		},
 		render:function(){		
 			var selStyle={
 				position:'relative',
-                marginRight:'1em',
                 backgroundColor:'#c0ced8',
-                whiteSpace:'nowrap'
+                whiteSpace:'nowrap',
+                paddingRight:'0.8em',
 			};        
 			
 			if(this.props.style)
 				Object.assign(selStyle,this.props.style);
-			console.log(this.state);
+			//console.log(this.state);
 			if(this.state.mouseEnter)
 				Object.assign(selStyle,this.props.overStyle);		
 			return React.createElement("div",{
@@ -204,11 +211,18 @@ function MetroUi(){
 		getInitialState:function(){
 			return {mouseOver:false};
 		},
-		mouseOver:function(){
-			this.setState({mouseOver:true});
+//		mouseOver:function(){
+//			this.setState({mouseOver:true});
+//		},
+//		mouseOut:function(){
+//			this.setState({mouseOver:false});
+//		},
+		mouseEnter:function(e){
+			this.setState({mouseEnter:true});
+
 		},
-		mouseOut:function(){
-			this.setState({mouseOver:false});
+		mouseLeave:function(e){
+			this.setState({mouseEnter:false});
 		},
 		onClick:function(e){
 			if(this.props.onClick)
@@ -224,9 +238,16 @@ function MetroUi(){
 
         if(this.props.style)
             Object.assign(newStyle,this.props.style);
-        if(this.state.mouseOver)
+        if(this.state.mouseEnter)
             Object.assign(newStyle,this.props.overStyle);
-		return React.createElement("div",{style:newStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick},this.props.children);
+		return React.createElement("div",{
+            style:newStyle,
+    //		onMouseOver:this.mouseOver,
+    //		onMouseOut:this.mouseOut,
+            onMouseEnter:this.mouseEnter,
+            onMouseLeave:this.mouseLeave,
+            onClick:this.onClick
+		},this.props.children);
 		}
 	});
 	const TabSet=React.createClass({
@@ -821,11 +842,58 @@ function MetroUi(){
 				])
 			]);			
 		},
-	});	
+	});
+	const FocusableElement = React.createClass({
+    		onFocus:function(e){
+    			console.log("focus",this.el,e.target);
+    			if(!this.focus) this.reportChange("focus");
+    			this.focus=true;
+    		},
+    		reportChange:function(state){
+    			if(this.props.onChange)
+    				this.props.onChange({target:{value:state}});
+    		},
+    		onBlur:function(e){
+    			this.focus=false;
+    			console.log("blur",this.el,e.target);
+    			setTimeout(function(){if(!this.focus)this.reportChange("blur");}.bind(this),400);
+    		},
+    		componentDidMount:function(){
+    			if(!this.el) return;
+    			this.el.addEventListener("focus",this.onFocus,true);
+    			this.el.addEventListener("blur",this.onBlur,true);
+
+    		},
+    		componentWillUnmount:function(){
+    			if(!this.el) return;
+    			this.el.removeEventListener("focus",this.onFocus);
+    			this.el.removeEventListener("blur",this.onBlur);
+    		},
+    		render:function(){
+    			const style={
+    				display:"inline-block",
+    				outline:'none',
+    			};
+    			return React.createElement("div",{ref:ref=>this.el=ref,style:style,tabIndex:"0"},this.props.children);
+    		}
+    	});
+    const PopupElement = React.createClass({
+    		render:function(){
+    			var style={
+    				position:"fixed",
+    				zIndex:"6",
+    				border:"0.02rem solid #eee",
+    				backgroundColor:"white",
+    			};
+    			if(this.props.style)
+    				Object.assign(style,this.props.style);
+    			return React.createElement("div",{style:style},this.props.children);
+    		}
+    	});
 	const transforms= {
 		tp:{
 		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
-		InputElement,DropDownElement,Chip,
+		InputElement,DropDownElement,Chip,FocusableElement,PopupElement,
 		MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
 		},
