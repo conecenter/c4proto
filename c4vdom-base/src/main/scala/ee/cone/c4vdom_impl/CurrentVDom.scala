@@ -4,9 +4,22 @@ import java.util.Base64
 
 import ee.cone.c4vdom._
 
-import scala.collection.immutable.Queue
-
 import Function.chain
+
+class VDomHandlerFactoryImpl(
+  diff: Diff,
+  jsonToString: JsonToString,
+  wasNoValue: WasNoVDomValue,
+  child: ChildPairFactory
+) extends VDomHandlerFactory {
+  def create[State](
+    sender: VDomSender[State],
+    view: VDomView[State],
+    vDomUntil: VDomUntil,
+    vDomStateKey: VDomLens[State,Option[VDomState]]
+  ): VDomHandler[State] =
+    VDomHandlerImpl(sender,view)(diff,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
+}
 
 case class VDomHandlerImpl[State](
   sender: VDomSender[State],
@@ -18,8 +31,8 @@ case class VDomHandlerImpl[State](
   child: ChildPairFactory,
   vDomUntil: VDomUntil,
 
-  vDomStateKey: VDomLens[State,Option[VDomState]],
-  relocateKey: VDomLens[State,String]
+  vDomStateKey: VDomLens[State,Option[VDomState]]
+  //relocateKey: VDomLens[State,String]
 ) extends VDomHandler[State] {
 
   private def init: Handler = _ ⇒
@@ -42,14 +55,14 @@ case class VDomHandlerImpl[State](
   }
 
   //todo invalidate until by default
-  private def relocate: Handler = exchange ⇒ state ⇒ relocateKey.of(state) match {
+  private def relocate: Handler = exchange ⇒ state ⇒ state /*relocateKey.of(state) match {
     case "" ⇒ state
     case hash ⇒ state
     //todo pass to parent branch or alien
       /*
       task.directSessionKey.map(exchange.send(_, "relocateHash", hash)).getOrElse(???)
         .andThen(relocateKey.set(""))(state)*/
-  }
+  }*/
 
   def exchange: Handler =
     m ⇒ chain(Seq(init,dispatch,relocate,toAlien,ackChange).map(_(m)))

@@ -1,26 +1,18 @@
-package ee.cone.c4gate
+package ee.cone.c4ui
 
 import java.net.URL
 import java.util.UUID
 
 import ee.cone.c4actor.BranchTypes.BranchKey
 import ee.cone.c4actor.LEvent.{add, delete, update}
-import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.HttpPost
-import ee.cone.c4proto.Protocol
 
-trait AlienExchangeApp extends InitLocalsApp with ProtocolsApp with AssemblesApp {
-  def branchOperations: BranchOperations
-  //
-  override def initLocals: List[InitLocal] = SendToAlienInit :: super.initLocals
-  override def assembles: List[Assemble] = new FromAlienBranchAssemble(branchOperations) :: new MessageFromAlienAssemble :: super.assembles
-  override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
-}
-
+case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
 object SendToAlienInit extends InitLocal {
   def initLocal: World ⇒ World = SendToAlienKey.set(
     (sessionKey,event,data) ⇒ local ⇒ {
@@ -54,8 +46,6 @@ case class MessageFromAlienImpl(
     }
 }
 
-case class FromAlienTask(branchKey: SrcId, fromAlienState: FromAlienState, locationHash: String)
-
 @assemble class FromAlienBranchAssemble(operations: BranchOperations) extends Assemble {
   // more rich session may be joined
   //todo reg
@@ -66,6 +56,7 @@ case class FromAlienTask(branchKey: SrcId, fromAlienState: FromAlienState, locat
   for(fromAlien ← fromAliens; child ← Option(operations.toSeed(fromAlien)))
     yield operations.toRel(child, fromAlien.sessionKey, parentIsSession = true)
 }
+
 @assemble class FromAlienTaskAssemble(host: String, file: String) extends Assemble {
   def mapBranchTaskByLocationHash(
     key: SrcId,

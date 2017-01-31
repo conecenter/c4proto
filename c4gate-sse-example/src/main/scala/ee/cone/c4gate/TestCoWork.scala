@@ -10,7 +10,9 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.TestCoWorkProtocol.Content
 import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4ui._
 import ee.cone.c4vdom.ChildPair
+import ee.cone.c4vdom.Types.ViewRes
 
 object TestCoWork extends Main((new TestCoWorkApp).execution.run)
 
@@ -18,9 +20,9 @@ class TestCoWorkApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp
-  with VDomSSEApp
+  with UIApp
+  with TestTagsApp
 {
-  lazy val testTags = new TestTags[World](childPairFactory,tagJsonUtils)
   override def protocols: List[Protocol] = TestCoWorkProtocol :: super.protocols
   override def assembles: List[Assemble] =
     new TestCoWorkAssemble ::
@@ -49,36 +51,36 @@ class TestCoWorkApp extends ServerApp
     ) yield task.branchKey → view
 }
 
+case object ContentValueText extends TextInputLens[Content](_.value,v⇒_.copy(value=v))
+
 case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
-  def view: World ⇒ List[ChildPair[_]] = local ⇒ {
+  def view: World ⇒ ViewRes = local ⇒ {
     val world = TxKey.of(local).world
     val contents = By.srcId(classOf[Content]).of(world)
     val content = Single(contents.getOrElse(sessionKey,List(Content(sessionKey,""))))
     val tags = TestTagsKey.of(local).get
-    val input = tags.input("value", content.value,
-      value ⇒ add(update(content.copy(value=value)))
-    )
-    List(input)
+    val input = tags.toInput("value", ContentValueText)
+    List(input(content))
   }
 }
 
 case class TestCoLeaderView(branchKey: SrcId) extends View {
-  def view: World ⇒ List[ChildPair[_]] = local ⇒ UntilPolicyKey.of(local){ ()⇒
+  def view: World ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val world = TxKey.of(local).world
     val fromAlienStates = By.srcId(classOf[FromAlienState]).of(world)
-    val mTags = TagsKey.of(local).get
-    val tags = TestTagsKey.of(local).get
+    val tags = TagsKey.of(local).get
+    import tags._
     val branchOperations = BranchOperationsKey.of(local).get
     val fromAliens = for(
       fromAlien ← fromAlienStates.values.flatten;
       url ← Option(new URL(fromAlien.location));
       ref ← Option(url.getRef) if ref != "leader"
     ) yield fromAlien
-    tags.button("add", "stats",{ local ⇒
+    divButton("add"){ local ⇒
       val world = TxKey.of(local).world
       println(WorldStats.make(world))
       local
-    }) ::
-    fromAliens.toList.sortBy(_.sessionKey).map(branchOperations.toSeed).map(mTags.seed)
+    }(List(text("caption","stats"))) ::
+    fromAliens.toList.sortBy(_.sessionKey).map(branchOperations.toSeed).map(seed)
   }
 }

@@ -23,6 +23,7 @@ trait MutableJsonBuilder {
 
 object Types {
   type VDomKey = String
+  type ViewRes = List[ChildPair[_]]
 }
 
 trait ChildPair[C] {
@@ -30,7 +31,7 @@ trait ChildPair[C] {
 }
 
 trait ChildPairFactory {
-  def apply[C](key: VDomKey, theElement: VDomValue, elements: List[ChildPair[_]]): ChildPair[C]
+  def apply[C](key: VDomKey, theElement: VDomValue, elements: ViewRes): ChildPair[C]
 }
 
 ////
@@ -49,26 +50,13 @@ trait Color {
 ////
 
 trait VDomLens[C,I] {
-  def of(container: C): I
-  def modify(f: I⇒I): C⇒C
-  def set(value: I): C⇒C
+  def of: C⇒I
+  def modify: (I⇒I) ⇒ C⇒C
+  def set: I⇒C⇒C
 }
-
-/*
-trait BranchTask[State] extends Product {
-  def branchKey: String
-  def getPosts: List[Map[String,String]]
-  def sessionKeys: Set[String]
-  def directSessionKey: Option[String]
-  def updateResult(newChildren: List[Product]): State ⇒ State
-  //def rmPosts: State ⇒ State //todo call
-  def message(sessionKey: String, event: String, data: String): State ⇒ State
-  def view: State ⇒ List[ChildPair[_]]
-}
-*/
 
 trait VDomView[State] extends Product {
-  def view: State ⇒ List[ChildPair[_]]
+  def view: State ⇒ ViewRes
 }
 
 trait VDomSender[State] {
@@ -83,10 +71,19 @@ trait VDomHandler[State] {
   def seeds: State ⇒ List[Product]
 }
 
+trait VDomHandlerFactory {
+  def create[State](
+    sender: VDomSender[State],
+    view: VDomView[State],
+    vDomUntil: VDomUntil,
+    vDomStateKey: VDomLens[State,Option[VDomState]]
+  ): VDomHandler[State]
+}
+
 case class VDomState(value: VDomValue, until: Long, sessionKeys: Set[String])
 
 trait VDomUntil {
-  def get(pairs: List[ChildPair[_]]): (Long, List[ChildPair[_]])
+  def get(pairs: ViewRes): (Long, ViewRes)
 }
 
 trait OnClickReceiver[State] {

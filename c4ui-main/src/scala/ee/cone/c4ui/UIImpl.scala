@@ -1,52 +1,33 @@
-package ee.cone.c4gate
+package ee.cone.c4ui
 
+import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, WorldKey, assemble, by}
-import ee.cone.c4actor.BranchProtocol.BranchResult
-import ee.cone.c4actor.BranchTypes.BranchKey
+import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
+import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
-import ee.cone.c4vdom_impl.{JsonToStringImpl, VDomHandlerImpl, WasNoValueImpl}
-import ee.cone.c4vdom_mix.VDomApp
 
-import Function.chain
+import scala.Function.chain
 
-trait VDomSSEApp extends AlienExchangeApp with BranchApp with VDomApp with InitLocalsApp with AssemblesApp {
-  def tags: Tags
-
-  type VDomStateContainer = World
-  lazy val vDomStateKey: VDomLens[World,Option[VDomState]] = VDomStateKey
-  lazy val relocateKey: VDomLens[World, String] = RelocateKey
-  private lazy val testTags = new TestTags[World](childPairFactory, tagJsonUtils)
-  private lazy val sseUI = new InitLocal {
-    def initLocal: World ⇒ World = chain(Seq(
-      TagsKey.set(Option(tags)),
-      TestTagsKey.set(Option(testTags)),
-      CreateVDomHandlerKey.set((sender,view) ⇒
-        VDomHandlerImpl(sender,view)(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory,VDomUntilImpl,vDomStateKey,relocateKey)
-      ),
-      BranchOperationsKey.set(Option(branchOperations))
-    ))
-  }
-  override def assembles: List[Assemble] = new VDomAssemble :: super.assembles
-  override def initLocals: List[InitLocal] = sseUI :: DefaultUntilPolicyInit :: super.initLocals
+class UIInit(
+  tags: Tags,
+  vDomHandlerFactory: VDomHandlerFactory,
+  branchOperations: BranchOperations
+) extends InitLocal {
+  def initLocal: World ⇒ World = chain(Seq(
+    TagsKey.set(Option(tags)),
+    CreateVDomHandlerKey.set((sender,view) ⇒
+      vDomHandlerFactory.create(sender,view,VDomUntilImpl,VDomStateKey)
+    ),
+    BranchOperationsKey.set(Option(branchOperations))
+  ))
 }
-
-case object BranchOperationsKey extends  WorldKey[Option[BranchOperations]](None)
 
 case object VDomStateKey extends WorldKey[Option[VDomState]](None)
   with VDomLens[World, Option[VDomState]]
-case object RelocateKey extends WorldKey[String]("")
-  with VDomLens[World, String]
-
-
-case object TagsKey extends WorldKey[Option[Tags]](None)
-case object TestTagsKey extends WorldKey[Option[TestTags[World]]](None)
-
-////
-
-trait View extends VDomView[World]
+//case object RelocateKey extends WorldKey[String]("")
+//  with VDomLens[World, String]
 
 @assemble class VDomAssemble extends Assemble {
   def joinBranchHandler(
@@ -57,8 +38,6 @@ trait View extends VDomView[World]
     for(task ← tasks; view ← views) yield task.branchKey →
       VDomBranchHandler(task.branchKey, VDomBranchSender(task),view)
 }
-
-case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
 
 case class VDomBranchSender(pass: BranchTask) extends VDomSender[World] {
   def branchKey: String = pass.branchKey
@@ -84,7 +63,7 @@ case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[World], view: 
 ////
 
 object VDomUntilImpl extends VDomUntil {
-  def get(pairs: List[ChildPair[_]]): (Long, List[ChildPair[_]]) =
+  def get(pairs: ViewRes): (Long, ViewRes) =
     (pairs.collect{ case u: UntilPair ⇒ u.until } match {
       case Nil ⇒ 0L
       case l ⇒ l.min
@@ -92,8 +71,6 @@ object VDomUntilImpl extends VDomUntil {
 }
 
 case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
-
-case object UntilPolicyKey extends WorldKey[(()⇒List[ChildPair[_]])⇒List[ChildPair[_]]](_⇒throw new Exception)
 
 object DefaultUntilPolicyInit extends InitLocal {
   def initLocal: World ⇒ World = UntilPolicyKey.set{ view ⇒

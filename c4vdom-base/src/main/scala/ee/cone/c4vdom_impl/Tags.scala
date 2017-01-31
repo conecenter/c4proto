@@ -12,7 +12,7 @@ case class TextContentElement(content: String) extends VDomValue {
   }
 }
 
-case class DivButton[State]()(val onClick:Option[Any⇒State]) extends VDomValue with OnClickReceiver[State] {
+case class DivButton[State]()(val onClick:Option[State⇒State]) extends VDomValue with OnClickReceiver[State] {
   def appendJson(builder: MutableJsonBuilder)={
     builder.startObject()
     builder.append("tp").append("div")
@@ -58,11 +58,11 @@ class TagsImpl(
 ) extends Tags {
   def text(key: VDomKey, text: String): ChildPair[OfDiv] =
     child[OfDiv](key, TextContentElement(text), Nil)
-  def tag(key: VDomKey, tagName: TagName, attr: TagStyle*)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv](key, StyledValue(tagName, attr.toList), children)
-  def div(key: VDomKey, attr: TagStyle*)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    tag(key, DivTagName, attr:_*)(children)
-  def divButton[State](key:VDomKey)(action:Any⇒State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+  def tag(key: VDomKey, tagName: TagName, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+    child[OfDiv](key, StyledValue(tagName, attr), children)
+  def div(key: VDomKey, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+    tag(key, DivTagName, attr)(children)
+  def divButton[State](key:VDomKey)(action:State⇒State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     child[OfDiv](key,DivButton()(Some(action)), children)
   def seed(product: Product): ChildPair[OfDiv] =
     child[OfDiv](product.productElement(0).toString,SeedElement(product), Nil)

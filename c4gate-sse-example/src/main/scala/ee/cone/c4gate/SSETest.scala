@@ -8,7 +8,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, WorldKey, assemble, by}
 import ee.cone.c4gate.AlienProtocol.ToAlienWrite
-import ee.cone.c4proto.Protocol
+import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
 object TestSSE extends Main((new TestSSEApp).execution.run)
 
