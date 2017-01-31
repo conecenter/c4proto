@@ -4,8 +4,8 @@ import ReactDOM        from 'react-dom'
 import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 import update          from 'react/lib/update'
 
-export default function VDom(parentElement){
-    const activeTransforms = {}
+export default function VDom(parentElement, transforms){
+    const activeTransforms = mergeAll(transforms)
     const Traverse = React.createClass({
         mixins: [PureRenderMixin],
         render(){
@@ -42,41 +42,54 @@ export default function VDom(parentElement){
         })
     }
     function showDiff(data){
-        const diff = JSON.parse(data)
-        setupIncomingDiff({ value: diff })
-        const incoming = update(rootComponent.state.incoming || {}, diff)
+        const parsed = JSON.parse(data)
+        if(!branchesByKey[parsed.branchKey])
+            branchesByKey[parsed.branchKey] = createBranch()
+        const rootComponent = branchesByKey[parsed.branchKey].component
+        const localState = {
+            get(){ return rootComponent.state.local || {} },
+            update(diff){
+                const local = update(rootComponent.state.local || {}, diff)
+                rootComponent.setState({local})
+            }
+        }
+        const ctx = {...parsed, localState}
+        setupIncomingDiff(ctx)
+        const incoming = update(rootComponent.state.incoming || {}, ctx.value)
         rootComponent.setState({incoming})
     }
-    
-    const rootNativeElement = document.createElement("div")
-    parentElement.appendChild(rootNativeElement)
-    const rootVirtualElement = React.createElement(RootComponent,null)
-    const rootComponent = ReactDOM.render(rootVirtualElement, rootNativeElement)
-    const localState = {
-        get(){ return rootComponent.state.local || {} },
-        update(diff){
-            const local = update(rootComponent.state.local || {}, diff)
-            rootComponent.setState({local}) 
-        }
+    function branches(data){
+        const active = new Set(data.split(";").map(res=>res.split(",")[0]))
+        Object.keys(branchesByKey).filter(k=>!active.has(k)).forEach(k=>{
+            const el = branchesByKey[k].rootNativeElement
+            parentElement.removeChild(el)
+            ReactDOM.unmountComponentAtNode(el)
+            delete branchesByKey[k]
+        })
     }
-    function transformBy(add){ merge(activeTransforms, add.transforms) }
-    const receivers = {showDiff}
-    return ({receivers,localState,ctxToArray,transformBy})
+
+    const branchesByKey = {}
+
+    function createBranch(){
+        const rootNativeElement = document.createElement("div")
+        parentElement.appendChild(rootNativeElement)
+        const rootVirtualElement = React.createElement(RootComponent,null)
+        const component = ReactDOM.render(rootVirtualElement, rootNativeElement)
+        return {rootNativeElement,component}
+    }
+    const receivers = {showDiff,branches}
+    return ({receivers})
 }
 
-function merge(to, from){
-    Object.keys(from).forEach(key=>{
-        if(!to[key]) to[key] = from[key] 
-        else if(to[key].constructor===Object && from[key].constructor===Object) 
-            merge(to[key],from[key])
-        else never()
+function mergeAll(list){
+    const to = {}
+    list.forEach(from=>{
+        Object.keys(from).forEach(key=>{
+            if(!to[key]) to[key] = from[key]
+            else if(to[key].constructor===Object && from[key].constructor===Object)
+                merge(to[key],from[key])
+            else never()
+        })
     })
-}
-
-function ctxToArray(ctx,res){ 
-    if(ctx){
-        ctxToArray(ctx.parent, res)
-        if(ctx.key) res.push(ctx.key)
-    }
-    return res
+    return to
 }

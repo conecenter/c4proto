@@ -1,4 +1,6 @@
 
+
+
 export default function DiffPrepare(localState){
     const imm_tree = localState.get()
     function getDeepNode(branch, path){

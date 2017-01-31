@@ -5,7 +5,7 @@ import java.nio.file._
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.World
-import ee.cone.c4gate.InternetProtocol.{Header, HttpPublication}
+import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.Protocol
 
 object Publish extends Main(new PublishApp().execution.run)
@@ -18,7 +18,7 @@ class PublishApp extends ServerApp
   private lazy val publishDir = config.get("C4PUBLISH_DIR")
   private lazy val publishing = new Publishing(qMessages,qReducer,publishDir)
   override def toStart: List[Executable] = publishing :: super.toStart
-  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
 }
 
 class Publishing(qMessages: QMessages, reducer: Reducer, fromDir: String) extends Executable {
@@ -49,7 +49,7 @@ class PublishFileVisitor(qMessages: QMessages, reducer: Reducer, fromPath: Path)
     Option(Map():World)
       .map(reducer.createTx(world))
       .map(LEvent.add(LEvent.update(HttpPublication(path,headers,byteString))))
-      .foreach(qMessages.send)
+      .foreach(m⇒qMessages.send(m))
     println(s"$path published")
     FileVisitResult.CONTINUE
   }

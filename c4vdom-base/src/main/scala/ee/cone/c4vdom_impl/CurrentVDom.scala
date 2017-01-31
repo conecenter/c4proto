@@ -4,77 +4,123 @@ import java.util.Base64
 
 import ee.cone.c4vdom._
 
-class CurrentVDomImpl[State](
+import Function.chain
+
+class VDomHandlerFactoryImpl(
+  diff: Diff,
+  jsonToString: JsonToString,
+  wasNoValue: WasNoVDomValue,
+  child: ChildPairFactory
+) extends VDomHandlerFactory {
+  def create[State](
+    sender: VDomSender[State],
+    view: VDomView[State],
+    vDomUntil: VDomUntil,
+    vDomStateKey: VDomLens[State,Option[VDomState]]
+  ): VDomHandler[State] =
+    VDomHandlerImpl(sender,view)(diff,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
+}
+
+case class VDomHandlerImpl[State](
+  sender: VDomSender[State],
+  view: VDomView[State]
+)(
   diff: Diff,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory,
-  view: RootView[State],
+  vDomUntil: VDomUntil,
+
   vDomStateKey: VDomLens[State,Option[VDomState]]
-) extends CurrentVDom[State] {
+  //relocateKey: VDomLens[State,String]
+) extends VDomHandler[State] {
 
-  private type Message = String ⇒ Option[String]
-  private type Handler = Message ⇒ State ⇒ Option[State]
-  //def until(value: Long) = if(value < until) until = value
-  private def relocate: Handler = message ⇒ state ⇒
-    for(hash ← message("X-r-location-hash") if hash != vDomStateKey.of(state).get.hashFromAlien)
-      yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
-        hashFromAlien = hash, hashTarget = hash
-      )))(state)
+  private def init: Handler = _ ⇒
+    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Set.empty))))
+
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = message ⇒ state ⇒
-    for(pathStr <- message("X-r-vdom-path")) yield {
-      if(vDomStateKey.of(state).get.until <= 0) throw new Exception("invalid VDom")
-      val path = pathStr.split("/").toList match {
-        case "" :: parts => parts
-        case _ => Never()
-      }
-      ((message("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
-        case (Some("click"), Some(v: OnClickReceiver[_])) => v.onClick.get
-        case (Some("change"), Some(v: OnChangeReceiver[_])) =>
-          val decoded = UTF8String(Base64.getDecoder.decode(message("X-r-vdom-value-base64").get))
-          v.onChange.get(decoded)
-        case v => throw new Exception(s"$path ($v) can not receive $message")
-      }).asInstanceOf[State=>State](state)
+  private def dispatch: Handler = get ⇒ state ⇒ if(get("X-r-action").isEmpty) state else {
+    val pathStr = get("X-r-vdom-path")
+    val path = pathStr.split("/").toList match {
+      case "" :: parts => parts
+      case _ => Never()
     }
-  private def handleLastMessage: Handler = message ⇒ state ⇒
-    for(connection ← message("X-r-connection"); index ← message("X-r-index"))
-      yield vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
-        ackFromAlien = connection :: index :: Nil
-      )))(state)
-  private def handlers = List[Handler](handleLastMessage,relocate,dispatch)
-  private def init: State ⇒ State =
-    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,"","","",Nil))))
-  def fromAlien: (String⇒Option[String]) ⇒ State ⇒ State =
-    message ⇒ state ⇒ (init(state) /: handlers)((state,f)⇒f(message)(state).getOrElse(state))
+    ((get("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
+      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get
+      case ("change", Some(v: OnChangeReceiver[_])) =>
+        val decoded = UTF8String(Base64.getDecoder.decode(get("X-r-vdom-value-base64")))
+        v.onChange.get(decoded)
+      case v => throw new Exception(s"$path ($v) can not receive")
+    }).asInstanceOf[State=>State](state)
+  }
 
-  def toAlien: (State) ⇒ (State, List[(String, String)]) = state ⇒
-    Option(state).map(init).map{ state ⇒
-      val vState = vDomStateKey.of(state).get
-      if(
-        vState.value != wasNoValue &&
-          vState.until > System.currentTimeMillis &&
-          vState.hashOfLastView == vState.hashFromAlien
-      ) (state,Nil) else {
-        val rootAttributes =
-          if(vState.ackFromAlien.isEmpty) Nil
-          else List("ackMessage" → ("ackMessage" :: vState.ackFromAlien))
-        val rootElement = RootElement(rootAttributes)
-        val (viewRes, until) = view.view(state)
-        val nextDom = child("root", rootElement, viewRes)
-          .asInstanceOf[VPair].value
-        val nextState = vDomStateKey.modify(vStateOpt ⇒ Option(vStateOpt.get.copy(
-          value=nextDom, until=until, hashOfLastView=vState.hashFromAlien
-        )))(state)
-        val diffTree = diff.diff(vState.value, vDomStateKey.of(nextState).get.value)
-        val diffCommands = diffTree.map(d=>("showDiff", jsonToString(d))).toList
-        val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
-        else List("relocateHash"→vState.hashTarget)
-        (nextState, diffCommands ::: relocateCommands)
+  //todo invalidate until by default
+  private def relocate: Handler = exchange ⇒ state ⇒ state /*relocateKey.of(state) match {
+    case "" ⇒ state
+    case hash ⇒ state
+    //todo pass to parent branch or alien
+      /*
+      task.directSessionKey.map(exchange.send(_, "relocateHash", hash)).getOrElse(???)
+        .andThen(relocateKey.set(""))(state)*/
+  }*/
+
+  def exchange: Handler =
+    m ⇒ chain(Seq(init,dispatch,relocate,toAlien,ackChange).map(_(m)))
+
+
+  private def diffSend(prev: VDomValue, next: VDomValue, sessionKeys: Set[String]): State ⇒ State = {
+    if(sessionKeys.isEmpty) return identity[State]
+    val diffTree = diff.diff(prev, next)
+    if(diffTree.isEmpty) return identity[State]
+    val diffStr = jsonToString(BranchDiff("/connection", sender.branchKey,diffTree.get))
+    chain(sessionKeys.map(sender.send(_,"showDiff",diffStr)).toSeq)
+  }
+
+  private def toAlien: Handler = exchange ⇒ state ⇒ {
+    val vState = vDomStateKey.of(state).get
+
+    if(
+      vState.value != wasNoValue &&
+        vState.until > System.currentTimeMillis
+    ) state
+    /*else if(task.sessionKeys.isEmpty){
+      task.updateResult(Nil)(state)
+    }*/
+    else {
+      val newSessionKeys = sender.sessionKeys(state)
+      if(newSessionKeys.isEmpty) init(exchange)(state)
+      else {
+        val (until,viewRes) = vDomUntil.get(view.view(state))
+        val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
+        val nextDom = vPair.value
+
+        val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)
+        vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys)))
+          .andThen(diffSend(vState.value, nextDom, keepTo))
+          .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
       }
-    }.get
+    }
+  }
+
+  private def ackChange: Handler = get ⇒ if(get("X-r-action") == "change") {
+    val sessionKey = get("X-r-session")
+    val branchKey = get("X-r-branch")
+    val index = get("X-r-index")
+    sender.send(sessionKey,"ackChange",s"$branchKey $index")
+  } else identity[State]
+
+  def seeds: State ⇒ List[Product] =
+    state ⇒ gatherSeeds(Nil, vDomStateKey.of(state).get.value)
+  private def gatherSeeds(acc: List[Product], value: VDomValue): List[Product] = value match {
+    case n: MapVDomValue ⇒ (acc /: n.pairs.map(_.value))(gatherSeeds)
+    case SeedElement(seed) ⇒ seed :: acc
+    //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
+    case _ ⇒ acc
+  }
 
 
+  //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
+  //else List("relocateHash"→vState.hashTarget)
 
   /*
   private lazy val PathSplit = """(.*)(/[^/]*)""".r
@@ -87,16 +133,24 @@ class CurrentVDomImpl[State](
   */
 }
 
-case class RootElement(conf: List[(String,List[String])]) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder) = {
+
+
+
+case object RootElement extends VDomValue {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
-    conf.foreach{ case (k,v) ⇒
-      builder.append(k)
-      builder.startArray()
-      v.foreach(builder.append)
-      builder.end()
-    }
+    builder.end()
+  }
+}
+
+case class BranchDiff(postURL: String, key: String, value: VDomValue) extends VDomValue {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
+    builder.startObject()
+    builder.append("postURL").append(postURL)
+    builder.append("branchKey").append(key)
+    builder.append("value")
+    value.appendJson(builder)
     builder.end()
   }
 }
