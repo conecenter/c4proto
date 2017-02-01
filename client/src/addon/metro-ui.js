@@ -340,6 +340,8 @@ function MetroUi(){
 				var event=new KeyboardEvent("keydown",{key:this.props.fkey})
 				window.dispatchEvent(event);
 			}
+			if(this.props.onChange)
+				this.props.onChange({target:{value:this.props.fkey}});
 		},
 		onTouchStart:function(e){
 			this.setState({touch:true});
@@ -448,24 +450,24 @@ function MetroUi(){
 				result=React.createElement("table",{style:tableStyle,key:"1"},
 					React.createElement("tbody",{key:"1"},[					  				   					  
 					   React.createElement("tr",{key:"3"},[
-						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"7"},'7'),
-						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"8"},'8'),
-						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"9"},'9'),
-						   React.createElement(VKTd,{rowSpan:'2',style:Object.assign({},specialTdAccentStyle,{height:"2rem"}),key:"4",fkey:"backspace"},backSpaceEl)
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"1",fkey:"7"},'7'),
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"2",fkey:"8"},'8'),
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"3",fkey:"9"},'9'),
+						   React.createElement(VKTd,{rowSpan:'2',onChange:this.props.onChange,style:Object.assign({},specialTdAccentStyle,{height:"2rem"}),key:"4",fkey:"backspace"},backSpaceEl)
 					   ]),					   
 					   React.createElement("tr",{key:"4"},[
-						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"4"},'4'),
-						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"5"},'5'),
-						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"6"},'6'),						   
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"1",fkey:"4"},'4'),
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"2",fkey:"5"},'5'),
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"3",fkey:"6"},'6'),						   
 					   ]),
 					   React.createElement("tr",{key:"5"},[
-						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"1"},'1'),
-						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"2"},'2'),
-						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"3"},'3'),
-						   React.createElement(VKTd,{rowSpan:'2',style:Object.assign({},tdStyle,{height:"90%"}),key:"13",fkey:"enter"},enterEl),
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"1",fkey:"1"},'1'),
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"2",fkey:"2"},'2'),
+						   React.createElement(VKTd,{style:tdStyle,onChange:this.props.onChange,key:"3",fkey:"3"},'3'),
+						   React.createElement(VKTd,{rowSpan:'2',onChange:this.props.onChange,style:Object.assign({},tdStyle,{height:"90%"}),key:"13",fkey:"enter"},enterEl),
 					   ]),
 					   React.createElement("tr",{key:"6"},[
-						   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
+						   React.createElement(VKTd,{colSpan:'3',onChange:this.props.onChange,style:tdStyle,key:"1",fkey:"0"},'0'),
 					   ]),
 				   ])
 				); 
@@ -782,7 +784,7 @@ function MetroUi(){
 				labelEl,
 				React.createElement("div",{key:"2",style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-						React.createElement(InputVK,{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null)
+						React.createElement("input",{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null)
 					)
 				)
 			]);			
@@ -874,7 +876,7 @@ function MetroUi(){
 				labelEl,
 				React.createElement("div",{key:"2",style:inpContStyle},[
 					React.createElement("div",{key:"1",style:inp2ContStyle},[
-						React.createElement(InputVK,{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
+						React.createElement("input",{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
 						popupWrapEl					
 					]),
 					React.createElement("div",{key:"2",style:openButtonWrapperStyle},
@@ -884,7 +886,7 @@ function MetroUi(){
 			]);			
 		},
 	});
-
+	/*
 	const InputVK = React.createClass({
 		handleKeydown:function(e){
 			//console.log(lastFInput,this.el)
@@ -895,6 +897,7 @@ function MetroUi(){
 			else{
 				switch(e.key.toLowerCase()){
 					case "enter":break;
+					case "delete":
 					case "backspace":
 						this.reportChange(this.props.value.slice(0,-1));
 						//e.preventDefault();
@@ -919,7 +922,8 @@ function MetroUi(){
 		render:function(){			
 			return React.createElement("input",{ref:(ref)=>this.el=ref,style:this.props.style,onChange:this.onChange,onBlur:this.props.onBlur,onClick:this.props.onClick,value:this.props.value},null);
 		}
-	});
+	});*/
+	/*
 	const lastFInputManager=function(){
 		var elements=[];
 		function reg(el,p){
@@ -934,21 +938,16 @@ function MetroUi(){
 			return elements.findIndex(function(e){return e.el.indexOf(el)>=0})>=0;
 		};
 		return {reg,unreg,contains};
-	}();
+	}();*/
 	const FocusableElement = React.createClass({		
 		onFocus:function(e){
-			clearTimeout(this.timeout);
-			if(e.target.tagName=="INPUT"){				
-				lastFInputManager.reg(e.target,this.el);						
-			}				
+			clearTimeout(this.timeout);						
 			if(!this.focus) this.reportChange("focus");			
 			this.focus=true;			
 		},
 		reportChange:function(state){
 			if(this.props.onChange){
-				this.props.onChange({target:{value:state}});
-				if(state=="blur")
-					lastFInputManager.unreg(this.el);
+				this.props.onChange({target:{value:state}});				
 			}
 		},
 		delaySend:function(){
@@ -1037,7 +1036,7 @@ function MetroUi(){
 				verticalAlign:"middle",
 				width:"1.625rem",
 				boxSizing:"border-box",
-				backgroundColor:"white",
+				backgroundColor:this.props.readOnly?"#eeeeee":"white",
 			};
 			var labelStyle={
 				maxWidth:"calc(100% - 2.165rem)",
