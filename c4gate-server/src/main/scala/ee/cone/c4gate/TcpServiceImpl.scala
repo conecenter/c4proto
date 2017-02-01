@@ -16,12 +16,12 @@ class ChannelHandler(
   channel: AsynchronousSocketChannel, unregister: ()⇒Unit, fail: Throwable⇒Unit
 ) extends CompletionHandler[Integer,Unit] with SenderToAgent {
   private var queue: Queue[Array[Byte]] = Queue.empty
-  private var activeElement: Option[Array[Byte]] = None
+  private var activeElement: Option[ByteBuffer] = None
   private def startWrite(): Unit =
     queue.dequeueOption.foreach{ case (element,nextQueue) ⇒
       queue = nextQueue
-      activeElement = Option(element)
-      channel.write[Unit](ByteBuffer.wrap(element), (), this)
+      activeElement = Option(ByteBuffer.wrap(element))
+      channel.write[Unit](activeElement.get, (), this)
     }
   def add(data: Array[Byte]): Unit = synchronized {
     queue = queue.enqueue(data)
@@ -29,8 +29,11 @@ class ChannelHandler(
   }
   def completed(result: Integer, att: Unit): Unit = Trace {
     synchronized {
-      activeElement = None
-      startWrite()
+      if(activeElement.get.hasRemaining) channel.write[Unit](activeElement.get, (), this)
+      else {
+        activeElement = None
+        startWrite()
+      }
     }
   }
   def failed(exc: Throwable, att: Unit): Unit = {
