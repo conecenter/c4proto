@@ -22,10 +22,7 @@ export default function VDomChanges(sender, DiffPrepare){
         console.log("input-change added")
         var sent = null
         const send = () => { 
-            if(!sent) sent = sender.send(ctx, {
-                "X-r-action": "change",
-                "X-r-vdom-value-base64": btoa(unescape(encodeURIComponent(value)))
-            })
+            if(!sent) sent = sender.send(ctx,"change",value)
         }
         const ack = (branchKey,index) => sent &&
             branchKey === sent["X-r-branch"] &&

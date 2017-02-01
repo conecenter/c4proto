@@ -11,7 +11,6 @@ import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.c4vdom.VDomLens
 
 object TestTodo extends Main((new TestTodoApp).execution.run)
 
