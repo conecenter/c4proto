@@ -20,7 +20,7 @@ class ExecutionImpl(
   }
 }
 
-class Main(f: ExecutionContext⇒Unit) {
+class Main(f: ExecutionContext⇒Unit) { // todo integrate with c3 deploy_time
   private def onShutdown(f: ()⇒Unit): Unit =
     Runtime.getRuntime.addShutdownHook(new Thread(){
       override def run(): Unit = f()

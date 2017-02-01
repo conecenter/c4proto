@@ -21,8 +21,8 @@ export default function VDomChanges(sender, DiffPrepare){
         diff.apply()
         console.log("input-change added")
         var sent = null
-        const send = () => { 
-            if(!sent) sent = sender.send(ctx,"change",value)
+        const send = () => {
+            if(!sent) sent = sender.send(ctx,"change",value) // todo fix bug, ask aku
         }
         const ack = (branchKey,index) => sent &&
             branchKey === sent["X-r-branch"] &&

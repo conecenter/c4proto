@@ -41,11 +41,15 @@ export default function VDom(parentElement, transforms){
             else if(key === "$set") setupIncomingDiff({ value, parent: ctx })
         })
     }
-    function showDiff(data){
-        const parsed = JSON.parse(data)
-        if(!branchesByKey[parsed.branchKey])
-            branchesByKey[parsed.branchKey] = createBranch()
-        const rootComponent = branchesByKey[parsed.branchKey].component
+
+
+
+
+    function showDiff(){
+        const rootNativeElement = document.createElement("div")
+        parentElement.appendChild(rootNativeElement)
+        const rootVirtualElement = React.createElement(RootComponent,null)
+        const rootComponent = ReactDOM.render(rootVirtualElement, rootNativeElement)
         const localState = {
             get(){ return rootComponent.state.local || {} },
             update(diff){
@@ -53,31 +57,42 @@ export default function VDom(parentElement, transforms){
                 rootComponent.setState({local})
             }
         }
-        const ctx = {...parsed, localState}
-        setupIncomingDiff(ctx)
-        const incoming = update(rootComponent.state.incoming || {}, ctx.value)
-        rootComponent.setState({incoming})
+        function remove(state){
+            parentElement.removeChild(rootNativeElement)
+            ReactDOM.unmountComponentAtNode(rootNativeElement)
+        }
+        function receive(state,parsed){
+            const ctx = {...parsed, localState}
+            setupIncomingDiff(ctx)
+            const incoming = update(rootComponent.state.incoming || {}, ctx.value)
+            rootComponent.setState({incoming})
+            return state
+        }
+        return {remove}
     }
+    const branchConstructors = {showDiff}
+    return ({branchConstructors})
+}
+/*
+function showDiff(data){
+        const parsed = JSON.parse(data)
+        if(!branchesByKey[parsed.branchKey])
+            branchesByKey[parsed.branchKey] = createBranch()
+        const rootComponent = branchesByKey[parsed.branchKey].component
+    }
+*/
+
+function Branches(){
+    const branchesByKey = {}
     function branches(data){
         const active = new Set(data.split(";").map(res=>res.split(",")[0]))
         Object.keys(branchesByKey).filter(k=>!active.has(k)).forEach(k=>{
-            const el = branchesByKey[k].rootNativeElement
-            parentElement.removeChild(el)
-            ReactDOM.unmountComponentAtNode(el)
+            branchesByKey[k].remove()
             delete branchesByKey[k]
         })
     }
 
-    const branchesByKey = {}
-
-    function createBranch(){
-        const rootNativeElement = document.createElement("div")
-        parentElement.appendChild(rootNativeElement)
-        const rootVirtualElement = React.createElement(RootComponent,null)
-        const component = ReactDOM.render(rootVirtualElement, rootNativeElement)
-        return {rootNativeElement,component}
-    }
-    const receivers = {showDiff,branches}
+    const receivers = {branches}
     return ({receivers})
 }
 
