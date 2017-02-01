@@ -87,7 +87,7 @@ trait VDomUntil {
 }
 
 trait OnClickReceiver[State] {
-  def onClick: Option[State ⇒ State]
+  def onClick: Option[String ⇒ State ⇒ State]
 }
 
 trait OnChangeReceiver[State] {

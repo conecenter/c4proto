@@ -4,7 +4,7 @@ import ee.cone.c4vdom._
 import ee.cone.c4vdom.Types._
 
 case class TextContentElement(content: String) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder) = {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
     builder.append("content").append(content)
@@ -12,11 +12,11 @@ case class TextContentElement(content: String) extends VDomValue {
   }
 }
 
-case class DivButton[State]()(val onClick:Option[State⇒State]) extends VDomValue with OnClickReceiver[State] {
-  def appendJson(builder: MutableJsonBuilder)={
+case class DivButton[State]()(val onClick:Option[String⇒State⇒State]) extends VDomValue with OnClickReceiver[State] {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("div")
-    onClick.foreach(_⇒ builder.append("onClick").append("send"))
+    onClick.foreach(_⇒ builder.append("onClick").append("sendThen"))
     builder.append("style"); {
       builder.startObject()
       builder.append("cursor").append("pointer")
@@ -28,7 +28,7 @@ case class DivButton[State]()(val onClick:Option[State⇒State]) extends VDomVal
 
 case object DivTagName extends TagName("div")
 case class StyledValue(tagName: TagName, styles: List[TagStyle]) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder) = {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append(tagName.name)
     if(styles.nonEmpty){
@@ -51,7 +51,6 @@ case class SeedElement(seed: Product) extends VDomValue {
   }
 }
 
-
 class TagsImpl(
   child: ChildPairFactory,
   utils: TagJsonUtils
@@ -63,7 +62,7 @@ class TagsImpl(
   def div(key: VDomKey, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     tag(key, DivTagName, attr)(children)
   def divButton[State](key:VDomKey)(action:State⇒State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv](key,DivButton()(Some(action)), children)
+    child[OfDiv](key,DivButton()(Some((_:String)⇒action)), children)
   def seed(product: Product): ChildPair[OfDiv] =
     child[OfDiv](product.productElement(0).toString,SeedElement(product), Nil)
 }

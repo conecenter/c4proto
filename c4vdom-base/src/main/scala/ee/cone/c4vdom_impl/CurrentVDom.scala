@@ -45,11 +45,10 @@ case class VDomHandlerImpl[State](
       case "" :: parts => parts
       case _ => Never()
     }
+    val decoded = UTF8String(Base64.getDecoder.decode(get("X-r-vdom-value-base64")))
     ((get("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
-      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get
-      case ("change", Some(v: OnChangeReceiver[_])) =>
-        val decoded = UTF8String(Base64.getDecoder.decode(get("X-r-vdom-value-base64")))
-        v.onChange.get(decoded)
+      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get(decoded)
+      case ("change", Some(v: OnChangeReceiver[_])) => v.onChange.get(decoded)
       case v => throw new Exception(s"$path ($v) can not receive")
     }).asInstanceOf[State=>State](state)
   }
