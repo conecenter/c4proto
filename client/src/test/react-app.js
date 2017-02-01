@@ -9,5 +9,5 @@ function fail(data){ alert(data) }
 
 const feedback = Feedback()
 const vdom = VDomMix(feedback,[])
-const receivers = vdom.receivers.concat([feedback.receivers,{fail}])
-SSEConnection("http://localhost:8068/sse", receivers, 5)
+const receiversList = vdom.receiversList.concat([feedback.receivers,{fail}])
+SSEConnection("http://localhost:8068/sse", receiversList, 5)

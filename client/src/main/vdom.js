@@ -87,7 +87,7 @@ function mergeAll(list){
         Object.keys(from).forEach(key=>{
             if(!to[key]) to[key] = from[key]
             else if(to[key].constructor===Object && from[key].constructor===Object)
-                merge(to[key],from[key])
+                Object.assign(to[key],from[key])
             else never()
         })
     })

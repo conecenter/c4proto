@@ -8,16 +8,15 @@ import CustomUi 	 from "../addon/custom-ui"
 function fail(data){ alert(data) }
 
 const feedback = Feedback()
-const vdom = VDomMix(feedback)
 const metroUi = MetroUi();
 const customUi = CustomUi(metroUi);
-vdom.transformBy({transforms:metroUi.transforms})
-vdom.transformBy({transforms:customUi.transforms})
-const receivers = [feedback.receivers, vdom.receivers,metroUi.receivers,customUi.receivers,{fail}]
+const vdom = VDomMix(feedback,[metroUi.transforms,customUi.transforms])
+const receiversList = vdom.receiversList.concat([feedback.receivers,metroUi.receivers,customUi.receivers,{fail}])
+
 if(parseInt(location.port)&&parseInt(location.port)!=80){
-	SSEConnection(window.sseUrl||(location.protocol+"//"+location.hostname+":"+(parseInt(location.port)+1)+"/sse"), receivers, 5)
+	SSEConnection(window.sseUrl||(location.protocol+"//"+location.hostname+":"+(parseInt(location.port)+1)+"/sse"), receiversList, 5)
 }
 else
 {
-	SSEConnection(window.sseUrl||(location.protocol+"//"+location.host+"/sse"), receivers, 5)
+	SSEConnection(window.sseUrl||(location.protocol+"//"+location.host+"/sse"), receiversList, 5)
 }
