@@ -782,7 +782,7 @@ function MetroUi(){
 				labelEl,
 				React.createElement("div",{key:"2",style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-						React.createElement(InputVK,{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null)
+						React.createElement("input",{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null)
 					)
 				)
 			]);			
@@ -907,7 +907,7 @@ function MetroUi(){
 				labelEl,
 				React.createElement("div",{key:"2",style:inpContStyle},[
 					React.createElement("div",{key:"1",style:inp2ContStyle},[
-						React.createElement(InputVK,{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
+						React.createElement("input",{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
 						popupWrapEl					
 					]),
 					React.createElement("div",{key:"2",style:openButtonWrapperStyle},

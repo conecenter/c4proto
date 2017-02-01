@@ -12,6 +12,7 @@ import scala.collection.immutable.{Map, Queue}
 class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Update]) extends WorldTx {
   def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx = {
     if(out.isEmpty) return this
+    //println(s"add ${out.toList}")
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
     val nextWorld = reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
     new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend))
@@ -27,8 +28,11 @@ class ReducerImpl(
 ) extends Reducer {
   def createWorld: World ⇒ World =
     TreeAssemblerKey.set(treeAssembler.replace(getDependencies()))
-  def reduceRecover(world: World, recs: List[QRecord]): World =
-    TreeAssemblerKey.of(world)(qMessages.toTree(recs))(world)
+  def reduceRecover(world: World, recs: List[QRecord]): World = {
+    //println(s"recs ${recs.size}")
+    TreeAssemblerKey.of(world)(qMessages.toTree(recs).asInstanceOf[Map[WorldKey[_],Index[Object,Object]]])(world)
+  }
+
   def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord]) =
     ((world,Queue.empty[QRecord]) /: inboxRecs){ (s,inboxRec) ⇒
       val(prevWorld,prevQueue) = s
@@ -79,7 +83,7 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
   }
 }
 
-case class SimpleTxTransform[P<:Product](todo: List[LEvent[P]]) extends TxTransform {
+case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: List[LEvent[P]]) extends TxTransform {
   def transform(local: World): World = LEvent.add(todo)(local)
 }
 

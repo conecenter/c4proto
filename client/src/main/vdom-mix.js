@@ -1,18 +1,17 @@
 
 import VDom          from "../main/vdom"
 import VDomSender    from "../main/vdom-sender"
-import Transforms    from "../main/vdom-transforms"
-import InputChanges  from "../main/input-changes"
+import VDomClicks    from "../main/vdom-clicks"
+import VDomChanges   from "../main/vdom-changes"
 import DiffPrepare   from "../main/diff-prepare"
-//import GridWatcher   from "../main/grid-watcher"
-//import FieldPopup    from "../main/field-popup"
 
-export default function VDomMix(feedback, componentClasses){
+export default function VDomMix(feedback,transformsList){
     const sender = VDomSender(feedback)
-    const vDom = VDom(document.body)
-    vDom.transformBy(InputChanges(sender, vDom, DiffPrepare))
-    vDom.transformBy(Transforms(sender))
-    //vDom.transformBy(GridWatcher(vDom, DiffPrepare))
-    //vDom.transformBy(FieldPopup(vDom,DiffPrepare,sender))
-    return vDom
+    const clicks = VDomClicks(sender)
+    const changes = VDomChanges(sender, DiffPrepare)
+    const vDom = VDom(document.body,
+        transformsList.concat(clicks.transforms).concat(changes.transforms)
+    )
+    const receiversList = [].concat(vDom.receivers).concat(changes.receivers)
+    return {receiversList}
 }

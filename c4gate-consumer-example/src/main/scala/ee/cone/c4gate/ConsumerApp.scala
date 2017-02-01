@@ -5,7 +5,8 @@ import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4gate.InternetProtocol._
+import ee.cone.c4gate.HttpProtocol._
+import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble._
@@ -16,7 +17,7 @@ class TestConsumerApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with SerialObserversApp with InitLocalsApp
 {
-  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def protocols: List[Protocol] = HttpProtocol :: TcpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
 
@@ -35,14 +36,15 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 
 @assemble class TestAssemble extends Assemble {
   def joinTestHttpPostHandler(key: SrcId, posts: Values[HttpPost]): Values[(SrcId, TxTransform)] =
-    posts.map(post⇒key→TestHttpPostHandler(post))
+    posts.map(post⇒post.srcId→TestHttpPostHandler(post.srcId,post))
+/*
   def joinAllTcpConnections(key: SrcId, items: Values[TcpConnection]): Values[(Unit, TcpConnection)] =
     items.map(()→_)
   def joinGateTester(key: Unit, connections: Values[TcpConnection]): Values[(SrcId, TxTransform)] =
-    List("GateTester"→GateTester(connections))
+    List("GateTester"→GateTester(connections))*/
 }
 
-case class TestHttpPostHandler(post: HttpPost) extends TxTransform {
+case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform {
   def transform(local: World): World = {
     val prev = new String(post.body.toByteArray, "UTF-8")
     val next = (prev.toLong * 3).toString
@@ -52,6 +54,7 @@ case class TestHttpPostHandler(post: HttpPost) extends TxTransform {
   }
 }
 
+/*
 case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
 case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
@@ -68,6 +71,7 @@ case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
     add(broadEvents).andThen(TestTimerKey.set(seconds))(local)
   }
 }
+*/
 
 object ConsumerTest extends Main((new TestConsumerApp).execution.run)
 

@@ -44,6 +44,7 @@ class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends Mut
   private def start(isObjectFlag: Long, c: Char): MutableJsonBuilder = {
     startElement()
     push(isObjectFlag)
+    //result.append('\n')
     result.append(c)
     this
   }

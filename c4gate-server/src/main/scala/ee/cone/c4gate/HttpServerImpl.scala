@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import ee.cone.c4gate.InternetProtocol._
+import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4assemble.Types.World
 import ee.cone.c4assemble.Single
 import ee.cone.c4actor._
@@ -16,20 +16,25 @@ import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 trait RHttpHandler {
-  def handle(httpExchange: HttpExchange): Array[Byte]
+  def handle(httpExchange: HttpExchange): Boolean
 }
 
 class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
-  def handle(httpExchange: HttpExchange): Array[Byte] = {
+  def handle(httpExchange: HttpExchange): Boolean = {
+    if(httpExchange.getRequestMethod != "GET") return false
     val path = httpExchange.getRequestURI.getPath
     val local = worldProvider.createTx()
     val world = TxKey.of(local).world
-    Single(By.srcId(classOf[HttpPublication]).of(world)(path)).body.toByteArray
+    val bytes = Single(By.srcId(classOf[HttpPublication]).of(world)(path)).body.toByteArray
+    httpExchange.sendResponseHeaders(200, bytes.length)
+    if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
+    true
   }
 }
 
 class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler {
-  def handle(httpExchange: HttpExchange): Array[Byte] = {
+  def handle(httpExchange: HttpExchange): Boolean = {
+    if(httpExchange.getRequestMethod != "POST") return false
     val headers = httpExchange.getRequestHeaders.asScala
       .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
     val buffer = new okio.Buffer
@@ -39,19 +44,14 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     Option(worldProvider.createTx())
       .map(LEvent.add(LEvent.update(req)))
       .foreach(qMessages.send)
-    //println(s"ht:${tx.toSend.size}")
-
-    Array.empty[Byte]
+    httpExchange.sendResponseHeaders(200, 0)
+    true
   }
 }
 
-class ReqHandler(
-  handlerByMethod: Map[String,RHttpHandler]
-) extends HttpHandler {
+class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
   def handle(httpExchange: HttpExchange) = Trace{ try {
-    val bytes: Array[Byte] = handlerByMethod(httpExchange.getRequestMethod).handle(httpExchange)
-    httpExchange.sendResponseHeaders(200, bytes.length)
-    if(bytes.length > 0) httpExchange.getResponseBody.write(bytes)
+    handlers.find(_.handle(httpExchange))
   } finally httpExchange.close() }
 }
 
@@ -79,21 +79,17 @@ class WorldProviderImpl(
 trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
   def qReducer: Reducer
   lazy val worldProvider: WorldProvider with Observer = new WorldProviderImpl(qReducer)
-  override def protocols: List[Protocol] = InternetProtocol :: super.protocols
+  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] = worldProvider :: super.initialObservers
 }
 
 trait HttpServerApp extends ToStartApp {
   def config: Config
-  def qMessages: QMessages
   def worldProvider: WorldProvider
+  def httpHandlers: List[RHttpHandler]
   private lazy val httpPort = config.get("C4HTTP_PORT").toInt
-  lazy val httpServer: Executable = {
-    val handler = new ReqHandler(Map(
-      "GET" → new HttpGetHandler(worldProvider),
-      "POST" → new HttpPostHandler(qMessages,worldProvider)
-    ))
-    new RHttpServer(httpPort, handler)
-  }
+  lazy val httpServer: Executable =
+    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers))
+
   override def toStart: List[Executable] = httpServer :: super.toStart
 }
