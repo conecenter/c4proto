@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import scala.collection.immutable.Map
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4assemble.Types.{Index, World}
-import ee.cone.c4assemble.{MacroJoinKey, WorldKey}
+import ee.cone.c4assemble.{JoinKey, WorldKey}
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
 
@@ -50,7 +50,7 @@ trait QMessages {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toRecord(topicName: TopicName, update: Update): QRecord
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord]
-  def toTree(records: Iterable[QRecord]): Map[WorldKey[_],Index[Object,Object]]
+  def toTree(records: Iterable[QRecord]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]]
   def send[M<:Product](local: World): World
 }
 
@@ -61,7 +61,7 @@ object Types {
 object By {
   def srcId[V<:Product](cl: Class[V]): WorldKey[Index[SrcId,V]] = srcId[V](cl.getName)
   def srcId[V<:Product](className: String): WorldKey[Index[SrcId,V]] =
-    MacroJoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
+    JoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
 }
 
 case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])

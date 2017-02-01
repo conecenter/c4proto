@@ -1,7 +1,7 @@
 package ee.cone.c4vdom_impl
 
 import ee.cone.c4vdom.{ChildPair, ChildPairFactory, MutableJsonBuilder, VDomValue}
-import ee.cone.c4vdom.Types.VDomKey
+import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 
 case class ChildOrderPair(value: VDomValue) extends VPair { //priv
   def jsonKey = "chl"
@@ -26,7 +26,7 @@ class ChildPairFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends Ch
   def apply[C](
     key: VDomKey,
     theElement: VDomValue,
-    elements: List[ChildPair[_]]
+    elements: ViewRes
   ): ChildPair[C] = ChildPairImpl[C](key, createMapValue(
     TheElementPair(theElement) :: (
       if(elements.isEmpty) Nil

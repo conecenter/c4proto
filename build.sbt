@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.7.3",
+  version := "0.8.1",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -99,15 +99,15 @@ lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-proto`)
   .enablePlugins(JavaServerAppPackaging)
 
-lazy val `c4gate-sse` = project.settings(publishSettings)
+lazy val `c4actor-branch` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4gate-proto`, `c4actor-base`, `c4assemble-macros`)
+  .dependsOn(`c4actor-base`, `c4assemble-macros`)
 
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4gate-sse`, `c4vdom-base`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `c4gate-publish` = project.settings(publishSettings)
@@ -119,11 +119,16 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4vdom-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
 
+lazy val `c4ui-main` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-proto`)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
   `c4actor-base-examples`,
+  `c4actor-branch`,
   `c4actor-kafka`,
   `c4assemble-macros`,
   `c4assemble-runtime`,
@@ -131,10 +136,10 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-proto`,
   `c4gate-publish`,
   `c4gate-server`,
-  `c4gate-sse`,
   `c4gate-sse-example`,
   `c4proto-api`,
   `c4proto-macros`,
   `c4proto-types`,
-  `c4vdom-base`
+  `c4vdom-base`,
+  `c4ui-main`
 )

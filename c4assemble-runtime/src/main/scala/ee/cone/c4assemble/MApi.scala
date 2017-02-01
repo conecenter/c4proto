@@ -11,14 +11,15 @@ object Types {
 }
 
 trait Lens[C,I] {
-  def of(container: C): I
-  def modify(f: I⇒I): C⇒C
+  def of: C ⇒ I
+  def modify: (I⇒I) ⇒ C⇒C
+  def set: I ⇒ C⇒C
 }
 
 abstract class WorldKey[Item](default: Item) extends Lens[World,Item] {
-  def of(world: World): Item = world.getOrElse(this, default).asInstanceOf[Item]
-  def modify(f: Item⇒Item): World ⇒ World = world ⇒ set(f(of(world)))(world)
-  def set(value: Item): World ⇒ World = _ + (this → value.asInstanceOf[Object])
+  def of: World ⇒ Item = world ⇒ world.getOrElse(this, default).asInstanceOf[Item]
+  def modify: (Item⇒Item) ⇒ World ⇒ World = f ⇒ world ⇒ set(f(of(world)))(world)
+  def set: Item ⇒ World ⇒ World = value ⇒ _ + (this → value.asInstanceOf[Object])
 }
 
 
@@ -57,7 +58,7 @@ trait Assemble {
   def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = ???
 }
 
-case class MacroJoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
+case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
   extends WorldKey[Index[K,V]](Map.empty)
 
 class by[T]

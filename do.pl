@@ -51,9 +51,9 @@ push @tasks, ["test_post_get_check", sub{
     sy("curl http://127.0.0.1:$http_port/abc");
     print " -- should be posted * 3\n";
 }];
-push @tasks, ["test_tcp_check", sub{
-    sy("nc 127.0.0.1 $sse_port");
-}];
+#push @tasks, ["test_tcp_check", sub{
+#    sy("nc 127.0.0.1 $sse_port");
+#}];
 push @tasks, ["gate_publish", sub{
     sy("$env C4PUBLISH_DIR=./client/build/test ".staged("c4gate-publish"))
 }];
@@ -63,7 +63,9 @@ push @tasks, ["test_consumer_sse_service_run", sub{
 push @tasks, ["test_consumer_todo_service_run", sub{
     sy("$env C4STATE_TOPIC_PREFIX=todo-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestTodo' ")
 }];
-
+push @tasks, ["test_consumer_cowork_service_run", sub{
+    sy("$env C4STATE_TOPIC_PREFIX=cowork-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestCoWork' ")
+}];
 
 
 
