@@ -788,6 +788,39 @@ function MetroUi(){
 			]);			
 		},
 	});
+
+	const InputSingle = React.createClass({
+    		onChange:function(e){
+    			if(this.props.onChange&&!this.props.readOnly)
+    				this.props.onChange(e);
+    		},
+    		onBlur:function(e){
+    			if(this.props.onBlur&&!this.props.readOnly)
+    				this.props.onBlur(e)
+    		},
+    		render:function(){
+    			var inputStyle={
+    				textOverflow:"ellipsis",
+    				margin:"0rem",
+    				verticalAlign:"top",
+    				color:"rgb(33,33,33)",
+    				border:"0.01rem solid rgb(182, 182, 182)",
+    				height:"auto",
+    				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
+    				width:"100%",
+    				zIndex:"0",
+    				boxSizing:"border-box",
+    				MozAppearence:"none",
+    				whiteSpace:"nowrap",
+    				overflow:"hidden",
+    				fontSize:"inherit",
+    			};
+    			if(this.props.inputStyle)
+    				Object.assign(inputStyle,this.props.style);
+    			return
+    				React.createElement(InputVK,{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null);
+    		},
+    	});
 	const DropDownElement = React.createClass({
 		onChange:function(e){
 			if(this.props.onChange)
