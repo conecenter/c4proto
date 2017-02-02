@@ -10,11 +10,11 @@ export default function VDomMix(feedback,transforms){
     const sender = VDomSender(feedback)
     const clicks = VDomClicks(sender)
     const changes = VDomChanges(sender, DiffPrepare)
-    const activeTransforms = mergeAll([transforms,clicks.transforms,changes.transforms])
+    const seeds = VDomSeeds()
+    const activeTransforms = mergeAll([transforms,clicks.transforms,changes.transforms,seeds.transforms])
     const vDom = VDom(document.body,activeTransforms)
-    const receivers = changes.receivers
-    const branchHandlers = vDom.branchHandlers
-    return {receivers,branchHandlers}
+    const branchHandlers = mergeAll(vDom.branchHandlers,changes.branchHandlers)
+    return {branchHandlers}
 }
 
 

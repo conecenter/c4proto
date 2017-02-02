@@ -243,7 +243,12 @@ export function DragAndDropCanvasSetup(canvas){
         const mainScale = canvas.zoomToScale(zoom)
         //const rPos = canvas.calcPos(dir=>(prPos[dir]+viewPos[dir])/mainScale)
         const rPos = canvas.calcPos(dir=>mousePosDiff[dir]/mainScale)
-        canvas.fromServer().send({ color:(color?color:""), mapX: rPos.x+"", mapY: rPos.y+"", eventType});
+        canvas.fromServer().send({
+            "X-r-canvas-color":(color?color:""),
+            "X-r-canvas-mapX": rPos.x+"",
+            "X-r-canvas-mapY": rPos.y+"",
+            "X-r-canvas-eventType": eventType
+        });
         console.log(eventType,(color?color:""),rPos);
         if(!color) return false;
         return true;

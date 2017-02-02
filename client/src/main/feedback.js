@@ -1,10 +1,11 @@
 
-var loadKeyState, connectionState;
+let loadKeyState, connectionState;
+let nextMessageIndex = 0
 
 function never(){ throw new Exception() }
 function pong(){
     send(getConnectionState(never).pongURL, {
-        "X-r-session": sessionKey(never),
+        "X-r-connection": getConnectionKey(never),
         "X-r-location": location+""
     })
     console.log("pong")
@@ -16,9 +17,8 @@ function getConnectionState(orDo){ return connectionState || orDo() }
 function getConnectionKey(orDo){ return getConnectionState(orDo).key || orDo() }
 function connect(data) {
     console.log("conn: "+data)
-    let nextMessageIndex = 0
     const [key,pongURL] = data.split(" ")
-    connectionState = { key, pongURL, nextMessageIndex: ()=>nextMessageIndex++ }
+    connectionState = { key, pongURL }
     sessionKey(() => sessionStorage.setItem("sessionKey", getConnectionKey(never)))
     getLoadKey(() => { loadKeyState = getConnectionKey(never) })
     localStorage.setItem(loadKeyForSession(), getLoadKey(never))
@@ -32,9 +32,12 @@ function ping(data) {
         location.reload()
     } else if(getConnectionKey(never) === data) pong() // was not reconnected
 }
-function send(url,headers){
-    headers["X-r-connection"] = getConnectionKey(never)
-    headers["X-r-index"] = getConnectionState(never).nextMessageIndex()
+function send(url,inHeaders){
+    const headers = {
+        ...inHeaders,
+        "X-r-session": sessionKey(never),
+        "X-r-index": nextMessageIndex++
+    }
     //todo: contron message delivery at server
     fetch((window.feedbackUrlPrefix||"")+url, {method:"post", headers})
     return headers

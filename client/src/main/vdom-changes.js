@@ -51,12 +51,12 @@ export default function VDomChanges(sender, DiffPrepare){
     const onCheck={
         "send": ctx => event => { set(ctx, event.target.checked?"Y":""); sendDeferred() }
     }
-    const ackChange = data => {
-        const [branchKey,indexStr] = data.split(" ")
-        Object.keys(changes).forEach(path_str=>changes[path_str].ack(branchKey,indexStr))
+    const ackChange = data => state => {
+        Object.keys(changes).forEach(path_str=>changes[path_str].ack(state.branchKey,data))
+        return state
     }
 
     const transforms = {onChange,onBlur,onCheck}
-    const receivers = {ackChange}
-    return ({transforms,receivers})
+    const branchHandlers = {ackChange}
+    return ({transforms,branchHandlers})
 }

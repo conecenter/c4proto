@@ -54,7 +54,8 @@ export default function VDom(parentElement, activeTransforms){
         return ({...state,rootComponent,remove})
     }
 
-    function showDiff(existingState,parsed){
+    const showDiff = data => existingState => {
+        const value = JSON.parse(data)
         const state = setupBranch(existingState)
         const rootComponent = state.rootComponent
         const localState = {
@@ -64,7 +65,9 @@ export default function VDom(parentElement, activeTransforms){
                 rootComponent.setState({local})
             }
         }
-        const ctx = {...parsed, localState}
+        const branchKey = state.branchKey
+        const modify = state.modify
+        const ctx = {value, localState, branchKey, modify}
         setupIncomingDiff(ctx)
         const incoming = update(rootComponent.state.incoming || {}, ctx.value) // todo: do we need state in component?
         rootComponent.setState({incoming})

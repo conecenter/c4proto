@@ -30,25 +30,13 @@ export function CanvasUtil(){
     return {cached,temp,setup}
 }
 
-export function CanvasManager(getCanvasData, util, mods){
-    function start(){ requestAnimationFrame(checkActivateAll) }
-    //let frames = 0
-    //setInterval(()=>{ console.log(frames); frames=0 },1000)
-    function checkActivateAll(){
-        const incomingCanvasData = getCanvasData()
-        requestAnimationFrame(checkActivateAll)
-        for(let containerKey in incomingCanvasData)
-            canvasData(containerKey)
-                .checkActivate(incomingCanvasData[containerKey])
-        //frames++
-    }
-    const canvasData = util.cached(containerKey=>util.setup(canvas=>mods(canvas), {
+export function CanvasFactory(util, mods){
+    return () => util.setup(canvas=>mods(canvas), {
         drag        : l => frame => l.forEach(s=>s(frame)),
         processFrame: l => (frame,prev) => l.map(s=>s(frame,prev)),
         setupContext: l => opt => util.setup(utx=>l.map(s=>s(utx)).concat(opt), {}),
         setupFrame  : l => () => util.setup(frame=>l.map(s=>s()), {})
-    }))
-    return {start}
+    })
 }
 
 
@@ -66,7 +54,7 @@ export function ResizeCanvasSetup(canvas,system){
     let wasSizes
     function woPx(value){ return value.substring(0,value.length-2) }
     function processFrame(frame,prev){
-        const div = canvas.fromServer().parentNode()
+        const div = canvas.fromServer().parentNode
         const canvasWidth = parseInt(woPx(getComputedStyle(div).width))
         if(!canvasWidth) return;
         const key = canvasWidth + ":" + ((Date.now()/1000)|0)
@@ -91,7 +79,7 @@ export function BaseCanvasSetup(util, canvas, system){
         }
         if(!document.body) return;
         const canvasElement = canvas.visibleElement()
-        const parentElement = canvas.fromServer().parentNode()
+        const parentElement = canvas.fromServer().parentNode
         if(!parentElement){
             if(canvasElement.parentNode) canvasElement.parentNode.removeChild(canvasElement)
             return
@@ -123,8 +111,8 @@ export function BaseCanvasSetup(util, canvas, system){
         }
     }
     function viewPositions(infinite){
-        const parentPos = canvas.elementPos(canvas.fromServer().parentNode())
-        const scrollPos = canvas.elementPos(canvas.fromServer().scrollNode())
+        const parentPos = canvas.elementPos(canvas.fromServer().parentNode)
+        const scrollPos = canvas.elementPos(canvas.fromServer().scrollNode)
         const vExternalPos = canvas.calcPos(dir=>Math.max(parentPos.pos[dir],scrollPos.pos[dir])|0)
         const canvasElement = canvas.visibleElement()
         const canvasPos = canvas.elementPos(canvasElement)
@@ -388,8 +376,13 @@ export function InteractiveCanvasSetup(canvas){
         })) return;
         const color = getImageData(mousePos)
         if(!color) return;
-        const rPos = canvas.relPos(canvas.fromServer().parentNode(), mousePos) // has zk id
-        canvas.fromServer().send({ color, relX: rPos.x+"", relY: rPos.y+"", eventType: "clickColor" })
+        const rPos = canvas.relPos(canvas.fromServer().parentNode, mousePos) // has zk id
+        canvas.fromServer().send({
+            "X-r-canvas-color": color,
+            "X-r-canvas-relX": rPos.x+"",
+            "X-r-canvas-relY": rPos.y+"",
+            "X-r-canvas-eventType": "clickColor"
+        })
     }
     function setupFrame(){
         return {color: getImageData(canvas.getMousePos())}

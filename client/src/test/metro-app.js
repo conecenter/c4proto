@@ -15,7 +15,7 @@ const metroUi = MetroUi();
 const customUi = CustomUi(metroUi);
 const vdom = VDomMix(feedback,mergeAll([metroUi.transforms,customUi.transforms]))
 const branches = Branches(vdom.branchHandlers)
-const receiversList = [].concat([branches.receivers,vdom.receivers,feedback.receivers,metroUi.receivers,customUi.receivers,{fail}])
+const receiversList = [].concat([branches.receivers,feedback.receivers,metroUi.receivers,customUi.receivers,{fail}])
 
 if(parseInt(location.port)&&parseInt(location.port)!=80){
 	SSEConnection(window.sseUrl||(location.protocol+"//"+location.hostname+":"+(parseInt(location.port)+1)+"/sse"), receiversList, 5)
@@ -24,3 +24,4 @@ else
 {
 	SSEConnection(window.sseUrl||(location.protocol+"//"+location.host+"/sse"), receiversList, 5)
 }
+branches.start()

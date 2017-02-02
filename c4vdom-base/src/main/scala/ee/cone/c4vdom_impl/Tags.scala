@@ -45,8 +45,13 @@ case class StyledValue(tagName: TagName, styles: List[TagStyle]) extends VDomVal
 case class SeedElement(seed: Product) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
-    builder.append("tp").append("Seed")
-    builder.append("hash").append(seed.productElement(0).toString)
+    builder.append("tp").append("div")
+    builder.append("ref");{
+      builder.startArray()
+      builder.append("seed")
+      builder.append(seed.productElement(0).toString)
+      builder.end()
+    }
     builder.end()
   }
 }

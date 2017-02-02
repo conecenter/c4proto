@@ -61,7 +61,7 @@ trait VDomView[State] extends Product {
 
 trait VDomSender[State] {
   def branchKey: String
-  def send: (String, String, String) ⇒ State ⇒ State
+  def send: (String, String, String, String) ⇒ State ⇒ State
   def sessionKeys: State ⇒ Set[String]
 }
 

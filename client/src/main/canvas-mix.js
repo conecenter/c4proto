@@ -1,7 +1,8 @@
 
 import * as Canvas from "canvas"
+import CanvasManager from "canvas-manager"
 
-export default function CanvasMix(getCanvasData, setupExtra){
+export default function CanvasMix(setupExtra){
     const util = Canvas.CanvasUtil()
     const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util)
     const mouseCanvasSystem = Canvas.MouseCanvasSystem(util)
@@ -12,7 +13,9 @@ export default function CanvasMix(getCanvasData, setupExtra){
          Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
          Canvas.InteractiveCanvasSetup(canvas)
     ].concat(setupExtra(canvas))
-    Canvas.CanvasManager(getCanvasData, util, setup).start()
+    const canvasManager = Canvas.CanvasManager(Canvas.CanvasFactory(util, setup))
+    const branchHandlers = canvasManager.branchHandlers
+    return {branchHandlers}
 }
 
 

@@ -119,8 +119,8 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4vdom-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
 
-lazy val `c4ui-canvas` = project.settings(publishSettings)
-  .settings(description := s"$descr")
+//lazy val `c4ui-canvas` = project.settings(publishSettings)
+//  .settings(description := s"$descr")
 
 lazy val `c4ui-main` = project.settings(publishSettings)
   .settings(description := s"$descr")
@@ -146,6 +146,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4proto-macros`,
   `c4proto-types`,
   `c4vdom-base`,
-  `c4ui-canvas`,
+  //`c4ui-canvas`,
   `c4ui-main`
 )
