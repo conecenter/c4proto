@@ -136,24 +136,24 @@ function CustomUi(ui){
 	
 	const PingReceiver = function(){
 		let pingerTimeout=null;
-		let callback=null;
+		let callbacks=[];
 		function ping(){			
 			if(pingerTimeout){clearTimeout(pingerTimeout); pingerTimeout = null;}
-			if(!callback) return;
-			pingerTimeout=setTimeout(function(){if(callback) callback(false);},10000);
-			callback(true);
+			if(!callbacks.length) return;
+			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o.func(false));},5000);
+			callbacks.forEach((o)=>o.func(true));
 		};		
-		function regCallback(func){
-			callback=func;
+		function regCallback(func,obj){
+			callbacks.push({obj,func});
 		};
-		function unregCallback(){
-			callback=null;
+		function unregCallback(obj){
+			callbacks=callbacks.filter((o)=>o.obj!=obj);
 		};
 		return {ping,regCallback,unregCallback};
 	}();
 	const ConnectionState = React.createClass({
 		getInitialState:function(){
-			return {on:false};
+			return {on:true};
 		},
 		signal:function(on){			
 			if(this.state.on!=on)
@@ -161,12 +161,12 @@ function CustomUi(ui){
 		},
 		componentDidMount:function(){					
 			if(PingReceiver)
-				PingReceiver.regCallback(this.signal);
+				PingReceiver.regCallback(this.signal,this);
 			this.toggleOverlay(!this.state.on);			
 		},
 		componentWillUnmount:function(){
 			if(PingReceiver)
-				PingReceiver.unregCallback();
+				PingReceiver.unregCallback(this);
 		},
 		toggleOverlay:function(on){
 			if(!this.props.overlay) return;
