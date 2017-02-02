@@ -63,16 +63,21 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask)(view: World�
   private type Handler = (String ⇒ String) ⇒ World ⇒ World
   def exchange: Handler =
     m ⇒ chain(Seq(dispatch,toAlien,ackChange).map(_(m)))
+  private def reset = CanvasStateKey.set(CanvasState())
   private def dispatch: Handler = message ⇒ local ⇒ message("X-r-canvas-eventType") match {
     case "" ⇒ local
-    case "canvasResize" ⇒ ???
-    case t ⇒ ???
+    case "canvasResize" ⇒
+
+      ???
+    case t ⇒
+      ???
+      reset(local)
   }
   private def toAlien: Handler = message ⇒ local ⇒ {
     val cState = CanvasStateKey.of(local)
     val newSessionKeys = task.sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(cState.sessionKeys)
-    if(newSessionKeys.isEmpty) CanvasStateKey.set(CanvasState())(local)
+    if(newSessionKeys.isEmpty) reset(local)
     else if(
       cState.value.nonEmpty &&
       cState.until > System.currentTimeMillis &&
