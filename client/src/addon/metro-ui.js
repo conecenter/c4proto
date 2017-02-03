@@ -2,6 +2,7 @@
 import React from 'react'
 
 function MetroUi(){
+
 	const FlexContainer = React.createClass({
 		getInitialState:function(){
 			return {};
@@ -789,36 +790,22 @@ function MetroUi(){
 		},
 	});
 
-	const InputSingle = React.createClass({
+	const InputSingleElement = React.createClass({
     		onChange:function(e){
-    			if(this.props.onChange&&!this.props.readOnly)
+    			if(this.props.onChange)
     				this.props.onChange(e);
     		},
     		onBlur:function(e){
-    			if(this.props.onBlur&&!this.props.readOnly)
+    			if(this.props.onBlur)
     				this.props.onBlur(e)
     		},
     		render:function(){
     			var inputStyle={
-    				textOverflow:"ellipsis",
-    				margin:"0rem",
-    				verticalAlign:"top",
-    				color:"rgb(33,33,33)",
-    				border:"0.01rem solid rgb(182, 182, 182)",
-    				height:"auto",
-    				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
-    				width:"100%",
-    				zIndex:"0",
-    				boxSizing:"border-box",
-    				MozAppearence:"none",
-    				whiteSpace:"nowrap",
-    				overflow:"hidden",
-    				fontSize:"inherit",
+                    width:'100%',
     			};
-    			if(this.props.inputStyle)
+    			if(this.props.style)
     				Object.assign(inputStyle,this.props.style);
-    			return
-    				React.createElement(InputVK,{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null);
+    			return React.createElement('input',{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null);
     		},
     	});
 	const DropDownElement = React.createClass({
@@ -1113,7 +1100,7 @@ function MetroUi(){
 	const transforms= {
 		tp:{
 		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
-		InputElement,DropDownElement,Chip,FocusableElement,PopupElement,Checkbox,
+		InputElement,InputSingleElement,DropDownElement,Chip,FocusableElement,PopupElement,Checkbox,
 		MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
 		},
