@@ -289,7 +289,7 @@ function CustomUi(ui){
 	const transforms= {
 		tp:{
 		StatusElement,TerminalElement,MJobCell,IconCheck,ConnectionState,
-		ColorPicker
+		ColorCreator
 		},
 	};
 	const receivers = {
