@@ -815,24 +815,6 @@ function MetroUi(sender){
 		},
 	});
 
-	const InputSingleElement = React.createClass({
-    		onChange:function(e){
-    			if(this.props.onChange)
-    				this.props.onChange(e);
-    		},
-    		onBlur:function(e){
-    			if(this.props.onBlur)
-    				this.props.onBlur(e)
-    		},
-    		render:function(){
-    			var inputStyle={
-                    width:'100%',
-    			};
-    			if(this.props.style)
-    				Object.assign(inputStyle,this.props.style);
-    			return React.createElement('input',{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null);
-    		},
-    	});
 	const DropDownElement = React.createClass({
 		onChange:function(e){
 			if(this.props.onChange)
@@ -850,6 +832,7 @@ function MetroUi(sender){
 				width:"100%",				
 				padding:"0.4rem 0.3125rem",
 				boxSizing:"border-box",
+				//...(this.props.style||{})
 			};
 			var inpContStyle={
 				display:"flex",
