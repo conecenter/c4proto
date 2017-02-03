@@ -39,6 +39,14 @@ export function CanvasFactory(util, mods){
     })
 }
 
+export function ExchangeCanvasSetup(canvas,feedback){
+    function sendToServer(req){
+        return feedback.send("/connection", {...req, "X-r-branch": state.fromServer().branchKey})
+    }
+    function onZoom(){} //todo to close popup?
+    function scrollNode(){ return document.body } //todo to limit?
+    return {sendToServer,onZoom,scrollNode}
+}
 
 export function ResizeCanvasSystem(util){
     const fontMeter = util.cached(()=>{
@@ -59,8 +67,13 @@ export function ResizeCanvasSetup(canvas,system){
         if(!canvasWidth) return;
         const key = canvasWidth + ":" + ((Date.now()/1000)|0)
         if(wasSizes !== key){ //int?
-            const font = parseInt(woPx(getComputedStyle(system.fontMeter()).height))
-            canvas.fromServer().reportSizes(font, canvasWidth)
+            const canvasFontSize = parseInt(woPx(getComputedStyle(system.fontMeter()).height))
+            const sizes = canvasFontSize+" "+canvasWidth
+            if(canvas.fromServer().acknowledgedSizes !== sizes)
+                canvas.sendToServer({
+                    "X-r-canvas-eventType": "canvasResize",
+                    "X-r-canvas-sizes": sizes
+                })
             wasSizes = key
         }
     }
@@ -112,7 +125,7 @@ export function BaseCanvasSetup(util, canvas, system){
     }
     function viewPositions(infinite){
         const parentPos = canvas.elementPos(canvas.fromServer().parentNode)
-        const scrollPos = canvas.elementPos(canvas.fromServer().scrollNode)
+        const scrollPos = canvas.elementPos(canvas.scrollNode())
         const vExternalPos = canvas.calcPos(dir=>Math.max(parentPos.pos[dir],scrollPos.pos[dir])|0)
         const canvasElement = canvas.visibleElement()
         const canvasPos = canvas.elementPos(canvasElement)
@@ -377,7 +390,7 @@ export function InteractiveCanvasSetup(canvas){
         const color = getImageData(mousePos)
         if(!color) return;
         const rPos = canvas.relPos(canvas.fromServer().parentNode, mousePos) // has zk id
-        canvas.fromServer().send({
+        canvas.sendToServer({
             "X-r-canvas-color": color,
             "X-r-canvas-relX": rPos.x+"",
             "X-r-canvas-relY": rPos.y+"",
@@ -425,7 +438,7 @@ export function DragViewPositionCanvasSetup(canvas){
         const mouseRelPos = canvas.relPos(canvas.visibleElement(), mousePos)
         const from = canvas.setupFrame()
         animation = animateChangingZoom(from, - Math.sign(ev.deltaY)/2, mouseRelPos)
-        canvas.fromServer().onZoom()
+        canvas.onZoom()
     }
     function limit(from, to){
         return value => Math.max(from, Math.min(value, to)) | 0

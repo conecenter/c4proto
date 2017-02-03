@@ -1,105 +1,74 @@
 
 package ee.cone.c4ui
 
-import ee.cone.c4actor.{BranchHandler, BranchProtocol, BranchTask, SendToAlienKey}
+import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.World
-import ee.cone.c4assemble.WorldKey
+import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.{Assemble, Single, WorldKey, assemble}
 
 import scala.Function.chain
 
-/*
-trait UIApp extends AlienExchangeApp with BranchApp with VDomApp with InitLocalsApp with AssemblesApp {
-  type VDomStateContainer = World
-  lazy val vDomStateKey: VDomLens[World,Option[VDomState]] = VDomStateKey
-  //lazy val relocateKey: VDomLens[World, String] = RelocateKey
-  private lazy val sseUI = new UIInit(tags,vDomHandlerFactory,branchOperations)
-  override def assembles: List[Assemble] = new VDomAssemble :: super.assembles
-  override def initLocals: List[InitLocal] = sseUI :: DefaultUntilPolicyInit :: super.initLocals
-}
-
-
-@assemble class VDomAssemble extends Assemble {
+@assemble class CanvasAssemble extends Assemble {
   def joinBranchHandler(
     key: SrcId,
     tasks: Values[BranchTask],
-    views: Values[View]
+    canvasHandlers: Values[CanvasHandler]
   ): Values[(SrcId,BranchHandler)] =
-    for(task ← tasks; view ← views) yield task.branchKey →
-      VDomBranchHandler(task.branchKey, VDomBranchSender(task),view)
+    for(task ← tasks; canvasHandler ← Single.list(canvasHandlers))
+      yield task.branchKey → CanvasBranchHandler(task.branchKey, task, canvasHandler)
 }
-case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[World], view: VDomView[World]) extends BranchHandler {
-  def vHandler: World ⇒ VDomHandler[World] =
-    local ⇒ CreateVDomHandlerKey.of(local)(sender,view)
-  def exchange: (String ⇒ String) ⇒ World ⇒ World =
-    message ⇒ local ⇒ {
-      //println(s"act ${message("X-r-action")}")
-      vHandler(local).exchange(message)(local)
-    }
-  def seeds: World ⇒ List[BranchResult] =
-    local ⇒ vHandler(local).seeds(local).collect{ case r: BranchResult ⇒ r }
-}
-case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler {
-  def exchange: (String ⇒ String) ⇒ World ⇒ World = message ⇒ local ⇒ {
-    val seconds = System.currentTimeMillis / 1000
-    if(TestTimerKey.of(local) == seconds) local
-    else {
-      val messages = task.sessionKeys(local).toSeq.map { sessionKey ⇒
-        ToAlienWrite(s"${UUID.randomUUID}",sessionKey,"show",s"$seconds",0)
-      }
-      println(s"TestSSEHandler ${task.sessionKeys(local)}")
-      TestTimerKey.set(seconds).andThen(add(messages.flatMap(update)))(local)
-    }
-  }
-  def seeds: World ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
-}
-*/
 
-case class CanvasState(value: String="", until: Long=0L, sessionKeys: Set[String]=Set.empty)
+case object CanvasSizesKey extends WorldKey[Option[CanvasSizes]](None)
+case class CanvasSizes(canvasFontSize: BigDecimal, canvasWidth: BigDecimal)
 
-case object CanvasStateKey extends WorldKey[CanvasState](CanvasState())
+case object CanvasSessionKeysKey extends WorldKey[Set[String]](Set.empty)
 
-case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask)(view: World⇒CanvasState) extends BranchHandler {
+case object CanvasContentKey extends WorldKey[Option[CanvasContent]](None)
+
+case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: CanvasHandler) extends BranchHandler {
   private type Handler = (String ⇒ String) ⇒ World ⇒ World
-  def exchange: Handler =
-    m ⇒ chain(Seq(dispatch,toAlien,ackChange).map(_(m)))
-  private def reset = CanvasStateKey.set(CanvasState())
-  private def dispatch: Handler = message ⇒ local ⇒ message("X-r-canvas-eventType") match {
-    case "" ⇒ local
-    case "canvasResize" ⇒
-
-      ???
-    case t ⇒
-      ???
-      reset(local)
-  }
-  private def toAlien: Handler = message ⇒ local ⇒ {
-    val cState = CanvasStateKey.of(local)
-    val newSessionKeys = task.sessionKeys(local)
-    val(keepTo,freshTo) = newSessionKeys.partition(cState.sessionKeys)
-    if(newSessionKeys.isEmpty) reset(local)
-    else if(
-      cState.value.nonEmpty &&
-      cState.until > System.currentTimeMillis &&
-      freshTo.isEmpty
-    ) local
-    else {
-      val nState = view(local)
-      val to = if(cState.value==nState.value) freshTo else newSessionKeys
-      val message = s"$branchKey ${nState.value}"
-      val send = SendToAlienKey.of(local)(_,"showCanvasData",message)
-      CanvasStateKey.set(nState.copy(sessionKeys = newSessionKeys))
-        .andThen(chain(to.map(send).toSeq))(local)
-    }
-  }
-  private def ackChange: Handler = message ⇒ local ⇒ if(message("X-r-canvas-eventType") == "canvasResize") {
+  def exchange: Handler = message ⇒ messageHandler(message).andThen(toAlien) //reset(local)
+  private def widthGap = 20
+  private def resize: (String ⇒ String) ⇒ World ⇒ World = message ⇒ local ⇒ {
     val sessionKey = message("X-r-session")
     val branchKey = message("X-r-branch")
-    val size = message("X-r-canvas-canvasFontSize")
-    val width = message("X-r-canvas-canvasWidth")
-    SendToAlienKey.of(local)(sessionKey,"ackCanvasResize",s"$branchKey $size $width")(local)
-  } else local
-
+    val sizes = message("X-r-canvas-sizes")
+    val Array(canvasFontSize,canvasWidth) = sizes.split(" ").map(BigDecimal(_))
+    val current = CanvasSizesKey.of(local)
+    val ack = SendToAlienKey.of(local)(sessionKey,"ackCanvasResize",s"$branchKey $sizes")
+    val resize = if(
+      current.nonEmpty &&
+      canvasFontSize == current.get.canvasFontSize &&
+      canvasWidth >= current.get.canvasWidth-widthGap &&
+      canvasWidth <= current.get.canvasWidth
+    ) Nil else List(
+      CanvasContentKey.set(None),
+      CanvasSizesKey.set(Option(CanvasSizes(canvasFontSize,canvasWidth)))
+    )
+    chain(ack :: resize)(local)
+  }
+  private def messageHandler: (String ⇒ String) ⇒ World ⇒ World = message ⇒ message("X-r-canvas-eventType") match {
+    case "" ⇒ identity[World]
+    case "canvasResize" ⇒ resize(message)
+    case _ ⇒ handler.messageHandler(message)
+  }
+  private def value: Option[CanvasContent] ⇒ String =
+    state ⇒ state.map(_.value).getOrElse("")
+  private def toAlien: World ⇒ World = local ⇒ {
+    val cState = CanvasContentKey.of(local)
+    val newSessionKeys = task.sessionKeys(local)
+    val(keepTo,freshTo) = newSessionKeys.partition(CanvasSessionKeysKey.of(local))
+    val nState = if(newSessionKeys.isEmpty) None else if(
+      cState.nonEmpty &&
+      cState.get.until > System.currentTimeMillis &&
+      freshTo.isEmpty
+    ) cState else Option(handler.view(local))
+    val to = if(value(cState)==value(nState)) freshTo else newSessionKeys
+    val send = SendToAlienKey.of(local)(_,"showCanvasData",s"$branchKey ${value(nState)}")
+    CanvasContentKey.set(nState)
+      .andThen(CanvasSessionKeysKey.set(newSessionKeys))
+      .andThen(chain(to.map(send).toSeq))(local)
+  }
   def seeds: World ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
 }
 

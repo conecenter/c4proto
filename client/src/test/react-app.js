@@ -14,6 +14,7 @@ function fail(data){ alert(data) }
 const feedback = Feedback()
 const vdom = VDomMix(feedback,{})
 const canvas = CanvasMix(canvas=>[
+    Canvas.ExchangeCanvasSetup(canvas,feedback),
     Canvas.TiledCanvasSetup(canvas),
     Canvas.DragViewPositionCanvasSetup(canvas),
     Canvas.NoOverlayCanvasSetup

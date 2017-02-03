@@ -8,7 +8,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
-import ee.cone.c4gate.TestCoWorkProtocol.Content
+import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.ChildPair
@@ -23,18 +23,11 @@ class TestCoWorkApp extends ServerApp
   with UIApp
   with TestTagsApp
 {
-  override def protocols: List[Protocol] = TestCoWorkProtocol :: super.protocols
+  override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
     new TestCoWorkAssemble ::
       new FromAlienTaskAssemble("localhost", "/react-app.html") ::
       super.assembles
-}
-
-@protocol object TestCoWorkProtocol extends Protocol {
-  @Id(0x0005) case class Content(
-    @Id(0x0006) sessionKey: String,
-    @Id(0x0007) value: String
-  )
 }
 
 @assemble class TestCoWorkAssemble extends Assemble {
@@ -50,8 +43,6 @@ class TestCoWorkApp extends ServerApp
       }
     ) yield task.branchKey → view
 }
-
-case object ContentValueText extends TextInputLens[Content](_.value,v⇒_.copy(value=v))
 
 case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
   def view: World ⇒ ViewRes = local ⇒ {

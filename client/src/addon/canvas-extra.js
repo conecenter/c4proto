@@ -31,7 +31,7 @@ export function OverlayCanvasSetup(canvas){
 
 export function ScrollViewPositionCanvasSetup(canvas){
     function handleWheel(ev){
-        const mainNode=canvas.fromServer().parentNode()
+        const mainNode=canvas.fromServer().parentNode
         var parentNode=mainNode.parentNode
         while(parentNode!=document){
             if(mainNode.getBoundingClientRect().height>parentNode.getBoundingClientRect().height){
@@ -243,7 +243,7 @@ export function DragAndDropCanvasSetup(canvas){
         const mainScale = canvas.zoomToScale(zoom)
         //const rPos = canvas.calcPos(dir=>(prPos[dir]+viewPos[dir])/mainScale)
         const rPos = canvas.calcPos(dir=>mousePosDiff[dir]/mainScale)
-        canvas.fromServer().send({
+        canvas.sendToServer({
             "X-r-canvas-color":(color?color:""),
             "X-r-canvas-mapX": rPos.x+"",
             "X-r-canvas-mapY": rPos.y+"",
