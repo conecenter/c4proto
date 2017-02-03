@@ -1056,7 +1056,7 @@ function MetroUi(sender){
 	const transforms= {
 		tp:{
 		DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
-		InputElement,InputSingleElement,DropDownElement,Chip,FocusableElement,PopupElement,Checkbox,
+		InputElement,DropDownElement,Chip,FocusableElement,PopupElement,Checkbox,
 		MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
 		},
