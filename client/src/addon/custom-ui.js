@@ -73,7 +73,57 @@ function CustomUi(ui){
 				]);
     		},
     	});
-
+		
+	const ColorPicker = ({onChange,style,children}) => React.createElement('div',{
+		style: {
+				width:"100%",
+				boxSizing:"border-box",
+				position:"relative",
+			}},[
+				React.createElement('div', {
+						key:'1',
+						style: {
+							minWidth:'1em',
+							height:'2em',
+							textShadow:'2px 2px 4px rgba(0, 0, 0, 0.4)',
+							color:'white',
+							padding:'0rem 0rem 0rem 0.2rem',
+							lineHeight:'2em',
+							verticalAlign:'middle',
+							...style
+						},
+						onClick: ev => onChange({ target:{value:""} })
+				}, null),
+				React.createElement('div', {
+						key:'2',
+						style: {
+							position:"absolute",
+							display:'flex',
+							flexWrap:'wrap',
+							minWidth:'25em',
+							top:'105%',
+						}
+				},children)
+			]
+	)
+	
+	const ColorItem = ({value,onChange,style}) => React.createElement('div',{
+		style: {
+			minWidth:'6em',
+			height:'2em',
+			textShadow:'2px 2px 4px rgba(0, 0, 0, 0.4)',
+			color:'white',
+			padding:'0rem 0rem 0rem 0.2rem',
+			lineHeight:'2em',
+			verticalAlign:'middle',
+			backgroundColor: value ? value : 'black',
+			...style
+		},
+		onClick: ev => onChange({ target: ({value}) })
+	},[
+		React.createElement('span',{}, value)
+	])
+	
 	const Chip=ui.transforms.tp.Chip;
 	const TDElement=ui.transforms.tp.TDElement;
 	
@@ -289,7 +339,7 @@ function CustomUi(ui){
 	const transforms= {
 		tp:{
 		StatusElement,TerminalElement,MJobCell,IconCheck,ConnectionState,
-		ColorCreator
+		ColorCreator,ColorItem,ColorPicker,
 		},
 	};
 	const receivers = {
