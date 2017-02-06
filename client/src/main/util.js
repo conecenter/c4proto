@@ -5,7 +5,7 @@ export function mergeAll(list){
             if(!to[key]) to[key] = from[key]
             else if(to[key].constructor===Object && from[key].constructor===Object)
                 merge(to[key],from[key])
-            else never()
+            else throw ["unable to merge",to[key],from[key]]
         })
     }
     const to = {}

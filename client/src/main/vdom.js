@@ -5,6 +5,7 @@ import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 import update          from 'react/lib/update'
 
 export default function VDom(parentElement, activeTransforms){
+    function never(){ throw ["traverse error"] }
     const Traverse = React.createClass({
         mixins: [PureRenderMixin],
         render(){

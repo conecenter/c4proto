@@ -20,6 +20,6 @@ function TestShow(){
 
     return ({show})
 }
-
-const receivers = [Feedback().receivers, TestShow()]
-SSEConnection("http://localhost:8068/sse",receivers,5)
+const feedback = Feedback(localStorage,sessionStorage,()=>document.location)
+const receivers = [feedback.receivers, TestShow()]
+SSEConnection(()=>new EventSource("http://localhost:8068/sse"),receivers,5)

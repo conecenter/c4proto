@@ -19,6 +19,7 @@ export function CanvasUtil(){
         }
         return {get,clearOlderThan}
     }
+    function never(){ throw ["not single"] }
     function setup(traits,joiningRules){
         const single = l => l.length === 1 ? l[0] : never()
         const h = {}
@@ -39,22 +40,28 @@ export function CanvasFactory(util, mods){
     })
 }
 
-export function ExchangeCanvasSetup(canvas,feedback){
+export function ExchangeCanvasSetup(canvas,feedback,scrollNode,createElement,appendToRoot){
     function sendToServer(req){
-        return feedback.send("/connection", {...req, "X-r-branch": state.fromServer().branchKey})
+        return feedback.send("/connection", {...req, "X-r-branch": canvas.fromServer().branchKey})
     }
     function onZoom(){} //todo to close popup?
-    function scrollNode(){ return document.body } //todo to limit?
-    return {sendToServer,onZoom,scrollNode}
-}
+    function appendChild(element){
+        appendToRoot(element)
+        canvasElement.style.position = "absolute"
+        canvasElement.style.zIndex = "554"
+    }
 
-export function ResizeCanvasSystem(util){
-    const fontMeter = util.cached(()=>{
-        const fontMeter = document.createElement('div')
-        fontMeter.style.cssText = "height:1em;padding:0px;margin:0px;position:absolute"
-        document.body.appendChild(fontMeter)
-        return fontMeter
-    })
+    return {sendToServer,onZoom,scrollNode,createElement,appendChild}
+}
+/*
+function ElementSystem(){
+    function createElement(tagName){ return document.createElement(tagName) }
+    function appendChild(element){ document.body.appendChild(element) }
+    return {createElement,appendChild}
+}
+*/
+export function ResizeCanvasSystem(util,createElement){
+    const fontMeter = util.cached(()=>createElement('div'))
     return {fontMeter}
 }
 
@@ -67,7 +74,12 @@ export function ResizeCanvasSetup(canvas,system){
         if(!canvasWidth) return;
         const key = canvasWidth + ":" + ((Date.now()/1000)|0)
         if(wasSizes !== key){ //int?
-            const canvasFontSize = parseInt(woPx(getComputedStyle(system.fontMeter()).height))
+            const fontMeter = system.fontMeter()
+            if(!fontMeter.parentElement){
+                fontMeter.style.cssText = "height:1em;padding:0px;margin:0px"
+                canvas.appendChild(fontMeter)
+            }
+            const canvasFontSize = parseInt(woPx(getComputedStyle(fontMeter).height))
             const sizes = canvasFontSize+" "+canvasWidth
             if(canvas.fromServer().acknowledgedSizes !== sizes)
                 canvas.sendToServer({
@@ -90,7 +102,6 @@ export function BaseCanvasSetup(util, canvas, system){
             fromServerData = fromServer
             updateFromServerVersion()
         }
-        if(!document.body) return;
         const canvasElement = canvas.visibleElement()
         const parentElement = canvas.fromServer().parentNode
         if(!parentElement){
@@ -111,11 +122,7 @@ export function BaseCanvasSetup(util, canvas, system){
     }
     function processFrame(frame, prev){
         const canvasElement = canvas.visibleElement()
-        if(!canvasElement.parentNode){
-            document.body.appendChild(canvasElement)
-            canvasElement.style.position = "absolute"
-            canvasElement.style.zIndex = "554"
-        }
+        if(!canvasElement.parentNode) canvas.appendChild(canvasElement)
         const same = canvas.compareFrames(frame,prev)
         const samePos = comparePos(same)
         if(!samePos(p=>p.viewExternalPos)){
@@ -146,7 +153,7 @@ export function BaseCanvasSetup(util, canvas, system){
         const p = element.getBoundingClientRect()
         return {pos:{x:p.left,y:p.top}, size:{x:p.width,y:p.height}, end:{x:p.right,y:p.bottom}}
     }
-    function createCanvas(){ return document.createElement('canvas') }
+    function createCanvas(){ return canvas.createElement('canvas') }
     function fixCanvasSize(canvasElement,size){
         canvasElement.width = size.x
         canvasElement.height = size.y
@@ -252,7 +259,7 @@ export function BaseCanvasSetup(util, canvas, system){
 
 export function ComplexFillCanvasSetup(util, canvas){
     const image = util.cached(url=>{
-        const image = document.createElement("img")
+        const image = canvas.createElement("img")
         image.onload = () => canvas.updateFromServerVersion()
         image.src = url
         return image

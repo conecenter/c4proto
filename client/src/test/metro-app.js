@@ -10,18 +10,18 @@ import Branches      from "../main/branches"
 
 function fail(data){ alert(data) }
 
-const feedback = Feedback()
+const feedback = Feedback(localStorage,sessionStorage,()=>document.location)
 const metroUi = MetroUi();
 const customUi = CustomUi(metroUi);
-const vdom = VDomMix(feedback,mergeAll([metroUi.transforms,customUi.transforms]))
+const vdom = VDomMix(feedback,mergeAll([metroUi.transforms,customUi.transforms]),document.body)
 const branches = Branches(vdom.branchHandlers)
 const receiversList = [].concat([branches.receivers,feedback.receivers,metroUi.receivers,customUi.receivers,{fail}])
 
 if(parseInt(location.port)&&parseInt(location.port)!=80){
-	SSEConnection(window.sseUrl||(location.protocol+"//"+location.hostname+":"+(parseInt(location.port)+1)+"/sse"), receiversList, 5)
+	SSEConnection(()=>new EventSource(window.sseUrl||(location.protocol+"//"+location.hostname+":"+(parseInt(location.port)+1)+"/sse")), receiversList, 5)
 }
 else
 {
-	SSEConnection(window.sseUrl||(location.protocol+"//"+location.host+"/sse"), receiversList, 5)
+	SSEConnection(()=>new EventSource(window.sseUrl||(location.protocol+"//"+location.host+"/sse")), receiversList, 5)
 }
-branches.start()
+branches.start(requestAnimationFrame)

@@ -1,4 +1,6 @@
 
+// use `npm outdated`
+
 var HtmlWebpackPlugin = require('html-webpack-plugin')
 
 function config(kind,name) {
@@ -10,13 +12,28 @@ function config(kind,name) {
         },
         module: { rules: [
             {
-                test: /\.jsx?$/,
-                exclude: /(node_modules|bower_components)/,
-                use: "babel-loader",
+                test: /\/src\/(main|extra)\/.*\.jsx?$/,
+                loader: "babel-loader",
                 options: {
-                    presets: ['es2015', {"modules": false}],
-                    plugins: ["transform-object-rest-spread","undeclared-variables-check"]
+                    presets: [
+                        ['es2015', {"modules": false}]
+                    ],
+                    plugins: ["transform-object-rest-spread","undeclared-variables-check"],
                     //plugins: ["transform-es2015-modules-commonjs","transform-es2015-literals"]
+                    cacheDirectory: true
+                }
+            },
+            {
+                test: /\/src\/test\/.*\.jsx?$/,
+                exclude: /(node_modules|bower_components)/,
+                loader: "babel-loader",
+                options: {
+                    presets: [
+                        ['es2015', {"modules": false}]
+                    ],
+                    plugins: ["transform-object-rest-spread"],
+                    //plugins: ["transform-es2015-modules-commonjs","transform-es2015-literals"]
+                    cacheDirectory: true
                 }
             }
         ]},

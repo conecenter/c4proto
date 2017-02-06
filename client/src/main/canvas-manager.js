@@ -1,7 +1,7 @@
 
 export default function CanvasManager(canvasFactory,feedback){
     const checkActivate = state => {
-        state.canvas.checkActivate(state.fromServer)
+        if(document.body) state.canvas.checkActivate(state.fromServer)
         return state
     }
     const setup = state => {
