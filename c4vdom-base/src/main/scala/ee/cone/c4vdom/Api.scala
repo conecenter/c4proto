@@ -2,6 +2,8 @@
 package ee.cone.c4vdom
 
 //import ee.cone.c4connection_api.EventKey
+import java.text.DecimalFormat
+
 import ee.cone.c4vdom.Types._
 
 trait ToJson {
@@ -16,6 +18,7 @@ trait MutableJsonBuilder {
   def startObject(): MutableJsonBuilder
   def end(): MutableJsonBuilder
   def append(value: String): MutableJsonBuilder
+  def append(value: Double, decimalFormat: DecimalFormat): MutableJsonBuilder
   def append(value: Boolean): MutableJsonBuilder
 }
 

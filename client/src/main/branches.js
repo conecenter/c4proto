@@ -23,14 +23,14 @@ export default function Branches(branchHandlers){
 
     function branches(data){
         const active = data.split(";").map(res=>res.split(",")).map(res=>[res[0],res.slice(1)])
-        const isActive = mergeAll(active.map([k,v]=>({[k]:v})))
+        const isActive = mergeAll(active.map(([k,v])=>({[k]:v})))
         Object.keys(branchesByKey).filter(k=>!isActive[k]).forEach(remove)
         //active.forEach([parentKey,childKeys] => childKeys.forEach(setParent(()=>branchesByKey[parentKey])))
     }
 
     const receivers = mergeAll(
         Object.entries(branchHandlers)
-            .map([eventName,handler] => ({[eventName]: toReceiver(handler)}))
+            .map(([eventName,handler]) => ({[eventName]: toReceiver(handler)}))
             .concat({branches})
     )
     //
@@ -40,7 +40,7 @@ export default function Branches(branchHandlers){
     function checkActivateAll(){
         requestAnimationFrame(checkActivateAll)
         Object.entries(branchesByKey).forEach(
-            [k,v]=>v.checkActivate && modify(k, v.checkActivate)
+            ([k,v])=>v.checkActivate && modify(k, v.checkActivate)
         )
         //frames++
     }

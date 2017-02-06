@@ -64,7 +64,7 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: Canv
       freshTo.isEmpty
     ) cState else Option(handler.view(local))
     val to = if(value(cState)==value(nState)) freshTo else newSessionKeys
-    val send = SendToAlienKey.of(local)(_,"showCanvasData",s"$branchKey ${value(nState)}")
+    val send = SendToAlienKey.of(local)(_:String,"showCanvasData",s"$branchKey ${value(nState)}")
     CanvasContentKey.set(nState)
       .andThen(CanvasSessionKeysKey.set(newSessionKeys))
       .andThen(chain(to.map(send).toSeq))(local)

@@ -7,7 +7,7 @@ trait CanvasContent {
   def until: Long
 }
 
-trait CanvasHandler {
+trait CanvasHandler extends  Product {
   def messageHandler: (String ⇒ String) ⇒ World ⇒ World
   def view: World⇒CanvasContent
 }

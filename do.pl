@@ -28,11 +28,17 @@ push @tasks, ["setup_run_kafka", sub{
     sy("bin/zookeeper-server-start.sh config/zookeeper.properties 1> zookeeper.log 2> zookeeper.error.log &");
     sy("bin/kafka-server-start.sh config/server.properties 1> kafka.log 2> kafka.error.log &");
 }];
+my $client = sub{
+    my($inst)=@_;
+    chdir "client" or die $!;
+    sy("npm install") if $inst;
+    sy("./node_modules/webpack/bin/webpack.js");
+    chdir ".." or die $!;
+};
+
 push @tasks, ["stage", sub{
     sy("sbt clean stage");
-    chdir "client" or die $!;
-    sy("npm install");
-    sy("./node_modules/webpack/bin/webpack.js")
+    &$client(1);
 }];
 
 my $env = "C4BOOTSTRAP_SERVERS=127.0.0.1:$kafka_port C4INBOX_TOPIC_PREFIX=$inbox_prefix C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
@@ -55,6 +61,7 @@ push @tasks, ["test_post_get_check", sub{
 #    sy("nc 127.0.0.1 $sse_port");
 #}];
 push @tasks, ["gate_publish", sub{
+    &$client(0);
     sy("$env C4PUBLISH_DIR=./client/build/test ".staged("c4gate-publish"))
 }];
 push @tasks, ["test_consumer_sse_service_run", sub{
@@ -66,7 +73,9 @@ push @tasks, ["test_consumer_todo_service_run", sub{
 push @tasks, ["test_consumer_cowork_service_run", sub{
     sy("$env C4STATE_TOPIC_PREFIX=cowork-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestCoWork' ")
 }];
-
+push @tasks, ["test_consumer_canvas_service_run", sub{
+    sy("$env C4STATE_TOPIC_PREFIX=canvas-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestCanvas' ")
+}];
 
 
 if($ARGV[0]) {

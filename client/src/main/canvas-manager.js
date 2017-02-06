@@ -17,12 +17,3 @@ export default function CanvasManager(canvasFactory,feedback){
     const branchHandlers = ({showCanvasData,ackCanvasResize}) // todo branches cleanup
     return ({branchHandlers})
 }
-
-/*
-from server:
-    width height
-    commands
-    zoomSteps
-    commandZoom
-    maxZoom
-*/

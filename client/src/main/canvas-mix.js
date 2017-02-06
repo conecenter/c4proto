@@ -1,6 +1,6 @@
 
-import * as Canvas from "canvas"
-import CanvasManager from "canvas-manager"
+import * as Canvas from "../main/canvas"
+import CanvasManager from "../main/canvas-manager"
 
 export default function CanvasMix(setupExtra){
     const util = Canvas.CanvasUtil()
@@ -15,7 +15,7 @@ export default function CanvasMix(setupExtra){
     ].concat(setupExtra(canvas))
     const canvasManager = Canvas.CanvasManager(Canvas.CanvasFactory(util, setup))
     const branchHandlers = canvasManager.branchHandlers
-    return {branchHandlers}
+    return ({branchHandlers})
 }
 
 

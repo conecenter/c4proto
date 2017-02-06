@@ -8,14 +8,14 @@ function config(kind,name) {
             path: "build/"+kind,
             filename: name + ".js"
         },
-        module: { loaders: [
+        module: { rules: [
             {
                 test: /\.jsx?$/,
                 exclude: /(node_modules|bower_components)/,
-                loader: "babel",
-                query: {
-                    presets: ['es2015'],
-                    plugins: ["transform-object-rest-spread"]
+                use: "babel-loader",
+                options: {
+                    presets: ['es2015', {"modules": false}],
+                    plugins: ["transform-object-rest-spread","undeclared-variables-check"]
                     //plugins: ["transform-es2015-modules-commonjs","transform-es2015-literals"]
                 }
             }

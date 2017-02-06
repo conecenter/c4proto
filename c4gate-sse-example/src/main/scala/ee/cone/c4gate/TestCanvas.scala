@@ -2,6 +2,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4ui.CanvasContent
 import java.net.URL
+import java.text.DecimalFormat
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -12,6 +13,7 @@ import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
+import ee.cone.c4vdom_impl.{JsonBuilderImpl, JsonToStringImpl}
 
 object TestCanvas extends Main((new TestCanvasApp).execution.run)
 
@@ -59,7 +61,7 @@ case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=
   ): Values[(SrcId,CanvasHandler)] =
     for (
       branchTask ← branchTasks;
-      state ← Option(branchTask.product).collect { case s: TestCanvasState ⇒ s };
+      state ← Option(branchTask.product).collect { case s: TestCanvasState ⇒ s }
     ) yield branchTask.branchKey → TestCanvasHandler(branchTask.branchKey, state.sessionKey)
 
 
@@ -68,15 +70,37 @@ case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=
 case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends CanvasHandler {
   def messageHandler: (String ⇒ String) ⇒ World ⇒ World = ???
   def view: World ⇒ CanvasContent = local ⇒ {
-    val res =
-      s"""
-         |
-         |
-         |
-       """.stripMargin
+    val decimalFormat = new DecimalFormat("#0.##")
+    val builder = new JsonBuilderImpl()
+    builder.startObject()
+    builder.append("width").append(1000,decimalFormat)
+    builder.append("height").append(1000,decimalFormat)
+    val maxScale = 10
+    val zoomSteps = 4096
+    val maxZoom = (Math.log(maxScale.toDouble)*zoomSteps).toInt
+    builder.append("zoomSteps").append(zoomSteps,decimalFormat)
+    builder.append("commandZoom").append(0,decimalFormat)
+    builder.append("maxZoom").append(maxZoom,decimalFormat)
+    builder.append("commands"); {
+      builder.startArray();
+      {
+        builder.startArray();builder.startArray()
+        builder.append(400,decimalFormat)
+        builder.append(400,decimalFormat)
+        builder.append(200,decimalFormat)
+        builder.append(200,decimalFormat)
+        builder.end();builder.append("rect");builder.end()
+      }
+      builder.end()
+    }
+    builder.end()
+    //
+    val res =builder.result.toString
     CanvasContentImpl(res,System.currentTimeMillis+1000)
   }
 }
+
+
 
 case class TestCanvasView(branchKey: SrcId, sessionKey: SrcId) extends View {
   def view: World ⇒ ViewRes = local ⇒ {
