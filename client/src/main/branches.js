@@ -1,12 +1,14 @@
 
 import {mergeAll}    from "../main/util"
 
-export default function Branches(branchHandlers){
+export default function Branches(log,branchHandlers){
     const branchesByKey = {}
     const modify = (branchKey,by) => {
-        branchesByKey[branchKey] =
-            by(branchesByKey[branchKey] || {branchKey, modify})
-        if(!branchesByKey[branchKey]) delete branchesByKey[branchKey]
+        const state = by(branchesByKey[branchKey] || {branchKey, modify})
+        //if(branchesByKey[branchKey]!==state) log({a:"mod",branchKey,state})
+        if(branchesByKey[branchKey]===state){}
+        else if(state) branchesByKey[branchKey] = state
+        else delete branchesByKey[branchKey]
     }
     //
     const remove = branchKey => modify(branchKey, state=>{
@@ -18,11 +20,13 @@ export default function Branches(branchHandlers){
         const i = data.indexOf(" ")
         const branchKey = data.substring(0,i)
         const body = data.substring(i+1)
+        //log({a:"recv",branchKey})
         modify(branchKey, branchHandler(body))
     }
 
     function branches(data){
         const active = data.split(";").map(res=>res.split(",")).map(res=>[res[0],res.slice(1)])
+        //log({a:"active",active})
         const isActive = mergeAll(active.map(([k,v])=>({[k]:v})))
         Object.keys(branchesByKey).filter(k=>!isActive[k]).forEach(remove)
         //active.forEach([parentKey,childKeys] => childKeys.forEach(setParent(()=>branchesByKey[parentKey])))

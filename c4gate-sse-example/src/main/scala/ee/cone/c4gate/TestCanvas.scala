@@ -12,8 +12,9 @@ import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
 import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
+import ee.cone.c4vdom.MutableJsonBuilder
 import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.c4vdom_impl.{JsonBuilderImpl, JsonToStringImpl}
+import ee.cone.c4vdom_impl.{HeightTagStyle, JsonBuilderImpl, JsonToStringImpl}
 
 object TestCanvas extends Main((new TestCanvasApp).execution.run)
 
@@ -84,12 +85,15 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
     builder.append("commands"); {
       builder.startArray();
       {
-        builder.startArray();builder.startArray()
+        startContext("preparingCtx")(builder)
+        builder.startArray()
         builder.append(400,decimalFormat)
         builder.append(400,decimalFormat)
         builder.append(200,decimalFormat)
         builder.append(200,decimalFormat)
-        builder.end();builder.append("rect");builder.end()
+        builder.end()
+        builder.append("rect")
+        endContext(builder)
       }
       builder.end()
     }
@@ -97,6 +101,16 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
     //
     val res =builder.result.toString
     CanvasContentImpl(res,System.currentTimeMillis+1000)
+  }
+  private def startContext(name: String)(builder: MutableJsonBuilder) = {
+    builder.startArray()
+    builder.append(name)
+    builder.startArray()
+  }
+  private def endContext(builder: MutableJsonBuilder) = {
+    builder.end()
+    builder.end()
+    builder.append("inContext")
   }
 }
 
@@ -108,12 +122,15 @@ case class TestCanvasView(branchKey: SrcId, sessionKey: SrcId) extends View {
     val canvasTasks = By.srcId(classOf[TestCanvasState]).of(world)
     val branchOperations = BranchOperationsKey.of(local).get
     val tags = TagsKey.of(local).get
+    val styles = TagStylesKey.of(local).get
     val tTags = TestTagsKey.of(local).get
     val canvasTask = Single(canvasTasks.getOrElse(sessionKey,List(TestCanvasState(sessionKey,"",""))))
     //
     val inputX = tTags.toInput("x", CanvasTaskX)
     val inputY = tTags.toInput("y", CanvasTaskY)
-    val canvasSeed = (t:TestCanvasState) ⇒ tags.seed(branchOperations.toSeed(t))
+    val canvasSeed = (t:TestCanvasState) ⇒ tags.seed(branchOperations.toSeed(t))(List(
+      tags.div("1",List(styles.height(512),styles.width(512)))(Nil)
+    ))
     List(inputX(canvasTask), inputY(canvasTask), canvasSeed(canvasTask))
   }
 }

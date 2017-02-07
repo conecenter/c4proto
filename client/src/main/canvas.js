@@ -44,7 +44,7 @@ export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,creat
     function sendToServer(req){
         return feedback.send("/connection", {
             ...req,
-            "X-r-branch": canvas.fromServer().branchKey
+            "X-r-branch": canvas.branchKey()
         })
     }
     function onZoom(){} //todo to close popup?
@@ -65,14 +65,14 @@ function ElementSystem(){
 */
 export function ResizeCanvasSystem(util,createElement){
     const fontMeter = util.cached(()=>createElement('div'))
-    return {fontMeter}
+    return ({fontMeter})
 }
 
 export function ResizeCanvasSetup(canvas,system,getComputedStyle){
     let wasSizes
     function woPx(value){ return value.substring(0,value.length-2) }
     function processFrame(frame,prev){
-        const div = canvas.fromServer().parentNode
+        const div = canvas.parentNode()
         const canvasWidth = parseInt(woPx(getComputedStyle(div).width))
         if(!canvasWidth) return;
         const key = canvasWidth + ":" + ((Date.now()/1000)|0)
@@ -84,7 +84,7 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
             }
             const canvasFontSize = parseInt(woPx(getComputedStyle(fontMeter).height))
             const sizes = canvasFontSize+" "+canvasWidth
-            if(canvas.fromServer().acknowledgedSizes !== sizes)
+            if(canvas.acknowledgedSizes() !== sizes)
                 canvas.sendToServer({
                     "X-r-canvas-eventType": "canvasResize",
                     "X-r-canvas-sizes": sizes
@@ -92,25 +92,30 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
             wasSizes = key
         }
     }
-    return {processFrame}
+    return ({processFrame})
 }
 
 export function BaseCanvasSetup(util, canvas, system){
     let lastFrame
-    let fromServerData
+    let currentState = {}
     let fromServerVersion = 0
-    function fromServer(){ return fromServerData }
-    function checkActivate(fromServer){
-        if(fromServerData !== fromServer){
-            fromServerData = fromServer
-            updateFromServerVersion()
-        }
-        if(!canvas.scrollNode()) return
+    function parentNode(){
+        const res = Object.values(currentState.parentNodes||{}).filter(v=>v)
+        return res.length === 1 ? res[0] : null
+    }
+    function acknowledgedSizes(){ return currentState.acknowledgedSizes }
+    function branchKey(){ return currentState.branchKey }
+    function fromServer(){ return currentState.parsed }
+    function checkActivate(state){
+        if(currentState.parsed !== state.parsed) updateFromServerVersion()
+        currentState = state
+
+        if(!canvas.scrollNode()) return state
         const canvasElement = canvas.visibleElement()
-        const parentElement = canvas.fromServer().parentNode
+        const parentElement = canvas.parentNode()
         if(!parentElement){
             if(canvasElement.parentNode) canvasElement.parentNode.removeChild(canvasElement)
-            return
+            return state
         }
         const newFrame = canvas.setupFrame()
         // in setupFrame we gather data from dom and place it to imm frame
@@ -119,6 +124,7 @@ export function BaseCanvasSetup(util, canvas, system){
         canvas.processFrame(newFrame, lastFrame)
         lastFrame = newFrame
         //console.log("canvas-gen-time",Date.now()-startTime)
+        return state
     }
     ////
     function setupFrame(){
@@ -135,7 +141,7 @@ export function BaseCanvasSetup(util, canvas, system){
         }
     }
     function viewPositions(infinite){
-        const parentPos = canvas.elementPos(canvas.fromServer().parentNode)
+        const parentPos = canvas.elementPos(canvas.parentNode())
         const scrollPos = canvas.elementPos(canvas.scrollNode())
         const vExternalPos = canvas.calcPos(dir=>Math.max(parentPos.pos[dir],scrollPos.pos[dir])|0)
         const canvasElement = canvas.visibleElement()
@@ -200,7 +206,7 @@ export function BaseCanvasSetup(util, canvas, system){
     ////
     //...commandZoom, maxZoom from server
     function zoomToScale(zoom){
-        return Math.exp(((zoom||0)-(fromServerData.commandZoom||0))/fromServerData.zoomSteps)
+        return Math.exp(((zoom||0)-(fromServer().commandZoom||0))/fromServer().zoomSteps)
     }
     function mapSize(){
         return { x: Math.round(canvas.fromServer().width), y: Math.round(canvas.fromServer().height) }
@@ -257,7 +263,8 @@ export function BaseCanvasSetup(util, canvas, system){
         setupContext,cleanContext,getContext,calcPos,fromServer,
         composingElement,visibleElement,mapSize,createCanvasWithSize,
         setupFrame,processFrame,viewPositions,composeFrameStart,
-        checkActivate, zoomToScale, compareFrames, elementPos, updateFromServerVersion
+        checkActivate, zoomToScale, compareFrames, elementPos, updateFromServerVersion,
+        parentNode, branchKey, acknowledgedSizes
     }
 }
 
@@ -292,7 +299,7 @@ export function ComplexFillCanvasSetup(util, canvas){
             }
         }
     }}
-    return {setupContext}
+    return ({setupContext})
 }
 
 export function SingleTileCanvasSetup(canvas){
@@ -300,7 +307,7 @@ export function SingleTileCanvasSetup(canvas){
         const mapSize = canvas.mapSize()
         compose({x:0,y:0},canvas.calcPos(dir=>(mapSize[dir]*tileScale)|0))
     }
-    return {forTiles}
+    return ({forTiles})
 }
 
 export function TiledCanvasSetup(canvas){
@@ -316,7 +323,7 @@ export function TiledCanvasSetup(canvas){
             for(let y = firstTilePos.y; y < viewEnd.y; y+=tileSize.y)
                 compose({x,y},tileSize)
     }
-    return {forTiles}
+    return ({forTiles})
 }
 
 export function MouseCanvasSystem(util,addEventListener){
@@ -400,7 +407,7 @@ export function InteractiveCanvasSetup(canvas){
         })) return;
         const color = getImageData(mousePos)
         if(!color) return;
-        const rPos = canvas.relPos(canvas.fromServer().parentNode, mousePos) // has zk id
+        const rPos = canvas.relPos(canvas.parentNode(), mousePos) // has zk id
         canvas.sendToServer({
             "X-r-canvas-color": color,
             "X-r-canvas-relX": rPos.x+"",

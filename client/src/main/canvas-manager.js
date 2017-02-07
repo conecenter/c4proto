@@ -1,19 +1,17 @@
 
 export default function CanvasManager(canvasFactory,feedback){
-    const checkActivate = state => {
-        state.canvas.checkActivate(state.fromServer)
-        return state
-    }
-    const setup = state => {
-        const canvas = state.canvas || canvasFactory()
-        const {parsed,branchKey,acknowledgedSizes} = state
-        const fromServer = {...parsed,branchKey,acknowledgedSizes}
-        return ({...state, fromServer, checkActivate, canvas})
-    }
-    const showCanvasData =
-        data => state => setup({...state, parsed: JSON.parse(data) })
+
+        //const {parsed,branchKey,acknowledgedSizes,parentNodes} = state
+        //const fromServer = {...parsed,branchKey,acknowledgedSizes,parentNodes}
+
+    const showCanvasData = data => state => ({
+        ...state,
+        parsed: JSON.parse(data),
+        canvas: state.canvas || canvasFactory(),
+        checkActivate: state => state.canvas.checkActivate(state)
+    })
     const ackCanvasResize =
-        acknowledgedSizes => state => setup({...state, acknowledgedSizes})
+        acknowledgedSizes => state => ({...state, acknowledgedSizes})
     const branchHandlers = ({showCanvasData,ackCanvasResize}) // todo branches cleanup
     return ({branchHandlers})
 }

@@ -31,7 +31,7 @@ export function OverlayCanvasSetup(canvas){
 
 export function ScrollViewPositionCanvasSetup(canvas){
     function handleWheel(ev){
-        const mainNode=canvas.fromServer().parentNode
+        const mainNode=canvas.parentNode()
         var parentNode=mainNode.parentNode
         while(parentNode!=document){
             if(mainNode.getBoundingClientRect().height>parentNode.getBoundingClientRect().height){

@@ -4,7 +4,7 @@ export default function activate(requestFrame,checkActivateList){
     //setInterval(()=>{ console.log(frames); frames=0 },1000)
     function checkActivateAll(){
         requestFrame(checkActivateAll)
-        checkActivateList.foreach(f=>f())
+        checkActivateList.forEach(f=>f())
         //frames++
     }
     requestFrame(checkActivateAll)

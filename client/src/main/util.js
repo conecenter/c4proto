@@ -9,6 +9,6 @@ export function mergeAll(list){
         })
     }
     const to = {}
-    list.forEach(from=>merge(from,to))
+    list.forEach(from=>merge(to,from))
     return to
 }

@@ -42,7 +42,8 @@ function config(kind,name) {
             title: name,
             hash: true,
             favicon: "./src/main/favicon.png"
-        })]
+        })],
+        devtool: "source-map" //"cheap-source-map"
     }
 }
 

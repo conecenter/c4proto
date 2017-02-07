@@ -2,11 +2,13 @@ package ee.cone.c4gate
 
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file._
+import java.util.zip.ZipOutputStream
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.World
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.Protocol
+import okio.{Buffer, GzipSink}
 
 object Publish extends Main(new PublishApp().execution.run)
 
@@ -42,15 +44,20 @@ class PublishFileVisitor(qMessages: QMessages, reducer: Reducer, fromPath: Path)
       case "js" ⇒ "application/javascript"
       case "ico" ⇒ "image/x-icon"
     }
-    val headers = contentType.map(Header("Content-Type",_)).toList
-    val bytes = Files.readAllBytes(file)
-    val byteString = okio.ByteString.of(bytes,0,bytes.length)
+    val headers = Header("Content-Encoding", "gzip") ::
+      contentType.map(Header("Content-Type",_)).toList
+    val body = Files.readAllBytes(file)
+    val sink = new Buffer
+    val gzipSink = new GzipSink(sink)
+    gzipSink.write(new Buffer().write(body), body.length)
+    gzipSink.close()
+    val byteString = sink.readByteString()
     val world = reducer.createWorld(Map())
     Option(Map():World)
       .map(reducer.createTx(world))
       .map(LEvent.add(LEvent.update(HttpPublication(path,headers,byteString))))
       .foreach(m⇒qMessages.send(m))
-    println(s"$path published")
+    println(s"$path (${byteString.size}) published")
     FileVisitResult.CONTINUE
   }
 }

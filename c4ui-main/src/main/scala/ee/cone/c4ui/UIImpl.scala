@@ -12,11 +12,13 @@ import scala.Function.chain
 
 class UIInit(
   tags: Tags,
+  styles: TagStyles,
   vDomHandlerFactory: VDomHandlerFactory,
   branchOperations: BranchOperations
 ) extends InitLocal {
   def initLocal: World ⇒ World = chain(Seq(
     TagsKey.set(Option(tags)),
+    TagStylesKey.set(Option(styles)),
     CreateVDomHandlerKey.set((sender,view) ⇒
       vDomHandlerFactory.create(sender,view,VDomUntilImpl,VDomStateKey)
     ),

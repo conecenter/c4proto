@@ -25,7 +25,10 @@ class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
     val path = httpExchange.getRequestURI.getPath
     val local = worldProvider.createTx()
     val world = TxKey.of(local).world
-    val bytes = Single(By.srcId(classOf[HttpPublication]).of(world)(path)).body.toByteArray
+    val publication = Single(By.srcId(classOf[HttpPublication]).of(world)(path))
+    val headers = httpExchange.getResponseHeaders
+    publication.headers.foreach(header⇒headers.add(header.key,header.value))
+    val bytes = publication.body.toByteArray
     httpExchange.sendResponseHeaders(200, bytes.length)
     if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
     true

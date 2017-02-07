@@ -1,10 +1,10 @@
 
-"use strict";
-
+import "babel-polyfill"
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
+import {VDomSender}  from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import CanvasMix     from "../main/canvas-mix"
@@ -16,10 +16,11 @@ const feedback = Feedback(localStorage,sessionStorage,document.location,fetch)
 window.onhashchange = () => feedback.pong()
 const transforms = {}
 const encode = value => btoa(unescape(encodeURIComponent(value)))
+const log = v => console.log(v)
 const sender = VDomSender(feedback,encode)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
-const vDom = VDomMix(sender,transforms,getRootElement,createElement)
+const vDom = VDomMix(log,sender,transforms,getRootElement,createElement)
 
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
@@ -33,8 +34,8 @@ const canvas = CanvasMix(util,canvas=>[
     Canvas.NoOverlayCanvasSetup
 ])
 
-const branches = Branches(mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
-const receiversList = [].concat([branches.receivers,feedback.receivers,{fail}])
+const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
+const receiversList = [branches.receivers,feedback.receivers,{fail}]
 const createEventSource = () => new EventSource("http://localhost:8068/sse")
 const connection = SSEConnection(createEventSource, receiversList, 5000)
 activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate])

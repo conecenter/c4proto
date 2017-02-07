@@ -30,10 +30,13 @@ push @tasks, ["setup_run_kafka", sub{
 }];
 my $client = sub{
     my($inst)=@_;
+    my $build_dir = "./client/build/test";
+    unlink or die $! for <$build_dir/*>;
     chdir "client" or die $!;
     sy("npm install") if $inst;
-    sy("./node_modules/webpack/bin/webpack.js");
+    sy("./node_modules/webpack/bin/webpack.js");# -d
     chdir ".." or die $!;
+    $build_dir
 };
 
 push @tasks, ["stage", sub{
@@ -61,8 +64,8 @@ push @tasks, ["test_post_get_check", sub{
 #    sy("nc 127.0.0.1 $sse_port");
 #}];
 push @tasks, ["gate_publish", sub{
-    &$client(0);
-    sy("$env C4PUBLISH_DIR=./client/build/test ".staged("c4gate-publish"))
+    my $build_dir = &$client(0);
+    sy("$env C4PUBLISH_DIR=$build_dir ".staged("c4gate-publish"))
 }];
 push @tasks, ["test_consumer_sse_service_run", sub{
     sy("$env C4STATE_TOPIC_PREFIX=sse-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestSSE' ")
