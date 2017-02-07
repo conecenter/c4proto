@@ -1,13 +1,14 @@
 
 let loadKeyState, connectionState;
 let nextMessageIndex = 0
-export default function Feedback(localStorage,sessionStorage,getLocation){
+
+export default function Feedback(localStorage,sessionStorage,location,fetch){
 
     function never(){ throw ["not ready"] }
     function pong(){
         send(getConnectionState(never).pongURL, {
             "X-r-connection": getConnectionKey(never),
-            "X-r-location": getLocation()+""
+            "X-r-location": location+""
         })
         //console.log("pong")
     }
@@ -23,14 +24,13 @@ export default function Feedback(localStorage,sessionStorage,getLocation){
         sessionKey(() => sessionStorage.setItem("sessionKey", getConnectionKey(never)))
         getLoadKey(() => { loadKeyState = getConnectionKey(never) })
         localStorage.setItem(loadKeyForSession(), getLoadKey(never))
-        window.onhashchange = () => pong()
         pong()
     }
     function ping(data) {
         //console.log("ping: "+data)
         if(localStorage.getItem(loadKeyForSession()) !== getLoadKey(never)) { // tab was refreshed/duplicated
             sessionStorage.clear()
-            getLocation().reload()
+            location.reload()
         } else if(getConnectionKey(never) === data) pong() // was not reconnected
     }
     function send(url,inHeaders){
@@ -40,13 +40,13 @@ export default function Feedback(localStorage,sessionStorage,getLocation){
             "X-r-index": nextMessageIndex++
         }
         //todo: contron message delivery at server
-        fetch((window.feedbackUrlPrefix||"")+url, {method:"post", headers})
+        fetch(url, {method:"post", headers})
         return headers
     }
     function relocateHash(data) {
-        getLocation().href = "#"+data
+        location.href = "#"+data
     }
 
     const receivers = {connect,ping,relocateHash}
-    return ({receivers,send}) 
+    return ({receivers,send,pong})
 }

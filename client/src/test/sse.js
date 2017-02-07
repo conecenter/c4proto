@@ -3,6 +3,7 @@
 
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
+import activate      from "../main/activator"
 
 function TestShow(){
     var dataToShow
@@ -20,6 +21,9 @@ function TestShow(){
 
     return ({show})
 }
-const feedback = Feedback(localStorage,sessionStorage,()=>document.location)
+const feedback = Feedback(localStorage,sessionStorage,document.location,fetch)
+window.onhashchange = () => feedback.pong()
 const receivers = [feedback.receivers, TestShow()]
-SSEConnection(()=>new EventSource("http://localhost:8068/sse"),receivers,5)
+const createEventSource = () => new EventSource("http://localhost:8068/sse")
+const connection = SSEConnection(createEventSource, receiversList, 5000)
+activate(requestAnimationFrame, [connection.checkActivate])

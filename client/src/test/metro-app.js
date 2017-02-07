@@ -2,26 +2,34 @@
 
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
+import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
-import MetroUi 		 from "../addon/metro-ui"
-import CustomUi 	 from "../addon/custom-ui"
+import MetroUi       from "../extra/metro-ui"
+import CustomUi      from "../extra/custom-ui"
 import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 
 function fail(data){ alert(data) }
 
-const feedback = Feedback(localStorage,sessionStorage,()=>document.location)
+const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
+const feedback = Feedback(localStorage,sessionStorage,document.location,send)
+window.onhashchange = () => feedback.pong()
+const sender = VDomSender(feedback,encode)
 const metroUi = MetroUi();
 const customUi = CustomUi(metroUi);
-const vdom = VDomMix(feedback,mergeAll([metroUi.transforms,customUi.transforms]),document.body)
+const transforms = mergeAll([metroUi.transforms,customUi.transforms])
+const encode = value => btoa(unescape(encodeURIComponent(value)))
+const getRootElement = () => document.body
+const createElement = n => document.createElement(n)
+const vdom = VDomMix(sender,transforms,getRootElement,createElement)
 const branches = Branches(vdom.branchHandlers)
 const receiversList = [].concat([branches.receivers,feedback.receivers,metroUi.receivers,customUi.receivers,{fail}])
 
-if(parseInt(location.port)&&parseInt(location.port)!=80){
-	SSEConnection(()=>new EventSource(window.sseUrl||(location.protocol+"//"+location.hostname+":"+(parseInt(location.port)+1)+"/sse")), receiversList, 5)
+const composeUrl = () => {
+    const port = parseInt(location.port)
+    const hostPort = port && port != 80 ? location.hostname+":"+(port+1) : location.host
+    return location.protocol+"//"+hostPort+"/sse"
 }
-else
-{
-	SSEConnection(()=>new EventSource(window.sseUrl||(location.protocol+"//"+location.host+"/sse")), receiversList, 5)
-}
-branches.start(requestAnimationFrame)
+const createEventSource = () => new EventSource(window.sseUrl||composeUrl())
+const connection = SSEConnection(createEventSource, receiversList, 5000)
+activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate])

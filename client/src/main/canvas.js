@@ -40,15 +40,18 @@ export function CanvasFactory(util, mods){
     })
 }
 
-export function ExchangeCanvasSetup(canvas,feedback,scrollNode,createElement,appendToRoot){
+export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,createElement){
     function sendToServer(req){
-        return feedback.send("/connection", {...req, "X-r-branch": canvas.fromServer().branchKey})
+        return feedback.send("/connection", {
+            ...req,
+            "X-r-branch": canvas.fromServer().branchKey
+        })
     }
     function onZoom(){} //todo to close popup?
     function appendChild(element){
-        appendToRoot(element)
-        canvasElement.style.position = "absolute"
-        canvasElement.style.zIndex = "554"
+        rootElement().appendChild(element)
+        element.style.position = "absolute"
+        element.style.zIndex = "554"
     }
 
     return {sendToServer,onZoom,scrollNode,createElement,appendChild}
@@ -65,7 +68,7 @@ export function ResizeCanvasSystem(util,createElement){
     return {fontMeter}
 }
 
-export function ResizeCanvasSetup(canvas,system){
+export function ResizeCanvasSetup(canvas,system,getComputedStyle){
     let wasSizes
     function woPx(value){ return value.substring(0,value.length-2) }
     function processFrame(frame,prev){
@@ -102,6 +105,7 @@ export function BaseCanvasSetup(util, canvas, system){
             fromServerData = fromServer
             updateFromServerVersion()
         }
+        if(!canvas.scrollNode()) return
         const canvasElement = canvas.visibleElement()
         const parentElement = canvas.fromServer().parentNode
         if(!parentElement){
@@ -315,7 +319,7 @@ export function TiledCanvasSetup(canvas){
     return {forTiles}
 }
 
-export function MouseCanvasSystem(util){
+export function MouseCanvasSystem(util,addEventListener){
     let currentDrag = noDrag
     let mousePos = { x:0, y:0, t:0 }
     const needMouseWindowListeners = util.cached(()=>{

@@ -47,9 +47,7 @@ function config(kind,name) {
 }
 
 module.exports = [
+//    config("test","metro-app"),
     config("test","react-app"),
-    config("test","metro-app"),
-    //config("test","btn"),
-    config("test","sse")/*,
-    config("test","hello")*/
+    config("test","sse")
 ]

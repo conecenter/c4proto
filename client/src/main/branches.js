@@ -33,18 +33,12 @@ export default function Branches(branchHandlers){
             .map(([eventName,handler]) => ({[eventName]: toReceiver(handler)}))
             .concat({branches})
     )
-    //
-    function start(requestFrame){
-        //let frames = 0
-        //setInterval(()=>{ console.log(frames); frames=0 },1000)
-        function checkActivateAll(){
-            requestFrame(checkActivateAll)
-            Object.entries(branchesByKey).forEach(
-                ([k,v])=>v.checkActivate && modify(k, v.checkActivate)
-            )
-            //frames++
-        }
-        requestFrame(checkActivateAll)
+
+    function checkActivate(){
+        Object.entries(branchesByKey).forEach(
+            ([k,v])=>v.checkActivate && modify(k, v.checkActivate)
+        )
     }
-    return ({receivers,start})
+
+    return ({receivers,checkActivate})
 }

@@ -4,7 +4,7 @@ import ReactDOM        from 'react-dom'
 import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 import update          from 'react/lib/update'
 
-export default function VDom(parentElement, activeTransforms){
+export default function VDom(getRootElement, createElement, activeTransforms){
     function never(){ throw ["traverse error"] }
     const Traverse = React.createClass({
         mixins: [PureRenderMixin],
@@ -43,13 +43,13 @@ export default function VDom(parentElement, activeTransforms){
     }
 
     function setupBranch(state){
-        if(existingState.remove) return state;
-        const rootNativeElement = document.createElement("div")
-        parentElement.appendChild(rootNativeElement)
+        if(state.remove) return state;
+        const rootNativeElement = createElement("div")
+        getRootElement().appendChild(rootNativeElement)
         const rootVirtualElement = React.createElement(RootComponent,null)
         const rootComponent = ReactDOM.render(rootVirtualElement, rootNativeElement)
         const remove = () => {
-            parentElement.removeChild(rootNativeElement)
+            rootNativeElement.parentElement.removeChild(rootNativeElement)
             ReactDOM.unmountComponentAtNode(rootNativeElement)
         }
         return ({...state,rootComponent,remove})
