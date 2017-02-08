@@ -128,7 +128,9 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
             val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, inboxRecs)
             val metadata = queue.map(rawQSender.sendStart)
             metadata.foreach(_.get())
+            localWorldRef.set(world)
         }
+        //println(s"so to receive: ${qMessages.worldOffset(localWorldRef.get)}")
         prevObservers.flatMap(_.activate(()⇒localWorldRef.get))
       }.foreach(_⇒())
     } finally {
