@@ -68,7 +68,7 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
     //println(WorldStats.make(world))
     val nLocalStates = transforms.map{ case (key, transformList) ⇒
       key → localStates.get(key).orElse(Option(createLocal())).map{ local ⇒
-        if(OffsetWorldKey.of(world) < OffsetWorldKey.of(local)) local else try {
+        if(qMessages.worldOffset(world) < OffsetWorldKey.of(local)) local else try {
             reducer.createTx(world)
             .andThen(local ⇒ (local /: transformList) ((local, transform) ⇒ transform.transform(local)))
             .andThen(qMessages.send)(local)

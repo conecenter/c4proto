@@ -114,20 +114,20 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       consumer.pause(inboxTopicPartition.asJava)
       println("starting world recover...")
       val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
-      println("world recovered")
+      val startOffset = qMessages.worldOffset(localWorldRef.get)
+      println(s"world recovered; inbox start offset: $startOffset")
       println(WorldStats.make(localWorldRef.get))
+      consumer.seek(Single(inboxTopicPartition),startOffset)
       consumer.pause(stateTopicPartition.asJava)
       consumer.resume(inboxTopicPartition.asJava)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
         recs match {
           case Nil ⇒ ()
           case inboxRecs ⇒
+            //println(s"offset received: ${inboxRecs.map(_.offset)}")
             val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, inboxRecs)
             val metadata = queue.map(rawQSender.sendStart)
             metadata.foreach(_.get())
-            val offset: java.lang.Long = inboxRecs.last.offset.get + 1
-            localWorldRef.set(world + (OffsetWorldKey → offset))
-            consumer.commitSync(singletonMap(Single(inboxTopicPartition), new OffsetAndMetadata(offset)))
         }
         prevObservers.flatMap(_.activate(()⇒localWorldRef.get))
       }.foreach(_⇒())

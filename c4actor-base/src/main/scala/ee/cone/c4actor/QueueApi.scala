@@ -22,6 +22,10 @@ import ee.cone.c4actor.Types.SrcId
       @Id(0x0011) srcId: String, //dummy
       @Id(0x0015) updates: List[Update]
   )
+  @Id(0x0016) case class Offset(
+    @Id(0x0011) srcId: String, //dummy
+    @Id(0x0017) value: Long
+  )
 }
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
@@ -52,6 +56,7 @@ trait QMessages {
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord]
   def toTree(records: Iterable[QRecord]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]]
   def send[M<:Product](local: World): World
+  def worldOffset: World ⇒ Long
 }
 
 object Types {
