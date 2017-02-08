@@ -1,7 +1,20 @@
 "use strict";
 import React from 'react'
+/*
+uglifyBody: style => {
+			const node = document.querySelector("#content");
+			if(node)
+			while (node.hasChildNodes())
+				node.removeChild(node.lastChild);
+			document.body.style.margin="0rem";
+			if(style)
+				Object.assign(document.documentElement.style,style);
 
-function MetroUi(){
+		},
+press: key => window.dispatchEvent(new KeyboardEvent("keydown",({key}))),
+svgSrc: svg => "data:image/svg+xml;base64,"+window.btoa(svg)
+*/
+function MetroUi({log,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
 	const FlexContainer = React.createClass({
 		getInitialState:function(){
 			return {};
@@ -141,28 +154,19 @@ function MetroUi(){
 			return React.createElement("div",{style:style},this.props.children)
 		}
 	});
-	const MenuDropdownElement=React.createClass({
-		getInitialState:function(){
-			return {};
-		},
-		componentDidUpdate(prevProps,prevState){
-		    console.log(prevProps,this.props)
-		},
-		render:function(){
-			var style={
-				position:'absolute',
-				borderRadius:'5%',
-				minWidth:'7em',
-				boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
-				zIndex:'10',
-				transitionProperty:'all',
-				transitionDuration:'0.15s',
-				transformOrigin:'50% 0%',
-			};
-			if(this.props.style) Object.assign(style,this.props.style);
-			return React.createElement("div",{style:style},this.props.children)
-		}
-	});
+	const MenuDropdownElement = ({style,children}) => React.createElement("div",{style:{
+        position:'absolute',
+        borderRadius:'5%',
+        minWidth:'7em',
+        boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
+        zIndex:'10',
+        transitionProperty:'all',
+        transitionDuration:'0.15s',
+        transformOrigin:'50% 0%',
+        ...style
+    }},children)
+
+
 	const FolderMenuElement=React.createClass({
 		getInitialState:function(){
 			return {mouseEnter:false,touch:false};
@@ -268,16 +272,7 @@ function MetroUi(){
 		}
 	});
 	const DocElement=React.createClass({
-		componentDidMount:function(){
-			const node=document.querySelector("#content");	
-			if(node)	
-			while (node.hasChildNodes()) 
-				node.removeChild(node.lastChild);
-			document.body.style.margin="0rem";
-			if(this.props.style)
-				Object.assign(document.documentElement.style,this.props.style);
-			
-		},
+		componentDidMount:function(){ uglifyBody(this.props.style) },
 		render:function(){		
 			return React.createElement("div");
 		}	
@@ -336,10 +331,7 @@ function MetroUi(){
 				this.props.onClick(ev);
 				return;
 			}
-			if(this.props.fkey){
-				var event=new KeyboardEvent("keydown",{key:this.props.fkey})
-				window.dispatchEvent(event);
-			}
+			if(this.props.fkey) press(this.props.fkey)
 		},
 		onTouchStart:function(e){
 			this.setState({touch:true});
@@ -435,10 +427,11 @@ function MetroUi(){
 			const enterSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+enterFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M810 298h86v256h-648l154 154-60 60-256-256 256-256 60 60-154 154h562v-172z" /></g></svg>';
 			const upSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+upFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 658l-60-60 256-256 256 256-60 60-196-196z" /></g></svg>';
 			const downSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+downFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 334l196 196 196-196 60 60-256 256-256-256z" /></g></svg>';
-			const backSpaceSvgData="data:image/svg+xml;base64,"+window.btoa(backSpaceSvg);
-			const enterSvgData="data:image/svg+xml;base64,"+window.btoa(enterSvg);
-			const upSvgData="data:image/svg+xml;base64,"+window.btoa(upSvg);
-			const downSvgData="data:image/svg+xml;base64,"+window.btoa(downSvg);
+
+			const backSpaceSvgData=svgSrc(backSpaceSvg);
+			const enterSvgData=svgSrc(enterSvg);
+			const upSvgData=svgSrc(upSvg);
+			const downSvgData=svgSrc(downSvg);
 			const backSpaceEl = React.createElement("img",{src:backSpaceSvgData,style:{width:"100%",height:"100%"}},null);
 			const enterEl = React.createElement("img",{src:enterSvgData,style:{width:"100%",height:"100%"}},null);
 			const upEl = React.createElement("img",{src:upSvgData,style:{width:"100%",height:"100%"}},null);
@@ -865,7 +858,7 @@ function MetroUi(){
 			if(this.props.style)
 				Object.assign(contStyle,this.props.style);
 			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="446.25px" height="446.25px" viewBox="0 0 446.25 446.25" style="fill: rgb(0, 0, 0);" xml:space="preserve"><path d="M318.75,280.5h-20.4l-7.649-7.65c25.5-28.05,40.8-66.3,40.8-107.1C331.5,73.95,257.55,0,165.75,0S0,73.95,0,165.75 S73.95,331.5,165.75,331.5c40.8,0,79.05-15.3,107.1-40.8l7.65,7.649v20.4L408,446.25L446.25,408L318.75,280.5z M165.75,280.5 C102,280.5,51,229.5,51,165.75S102,51,165.75,51S280.5,102,280.5,165.75S229.5,280.5,165.75,280.5z" style="fill: rgb(0, 0, 0);"></path></svg>';
-			const svgData="data:image/svg+xml;base64,"+window.btoa(svg);
+			const svgData=svgSrc(svg);
 			const urlData = this.props.url?this.props.url:svgData;
 			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);
 			const labelEl=this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;
@@ -911,10 +904,10 @@ function MetroUi(){
 				this.props.onChange({target:{value}});
 		},
 		componentDidMount:function(){				
-			window.addEventListener("keydown",this.handleKeydown);
+			addEventListener("keydown",this.handleKeydown);
 		},
 		componentWillUnmount:function(){
-			window.removeEventListener("keydown",this.handleKeydown);
+			removeEventListener("keydown",this.handleKeydown);
 		},
 		render:function(){			
 			return React.createElement("input",{ref:(ref)=>this.el=ref,style:this.props.style,onChange:this.onChange,onBlur:this.props.onBlur,onClick:this.props.onClick,value:this.props.value},null);
@@ -1066,7 +1059,7 @@ function MetroUi(){
 			if(this.props.labelStyle)
 				Object.assign(labelStyle,this.props.labelStyle);
 			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
-			const svgData="data:image/svg+xml;base64,"+window.btoa(svg);			
+			const svgData=svgSrc(svg);
 			const checkImage = this.props.on?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
 			
 			return React.createElement("div",{style:contStyle},
