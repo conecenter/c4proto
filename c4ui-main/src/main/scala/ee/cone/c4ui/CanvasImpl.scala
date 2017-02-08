@@ -23,8 +23,6 @@ case class CanvasSizes(canvasFontSize: BigDecimal, canvasWidth: BigDecimal)
 
 case object CanvasSessionKeysKey extends WorldKey[Set[String]](Set.empty)
 
-case object CanvasContentKey extends WorldKey[Option[CanvasContent]](None)
-
 case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: CanvasHandler) extends BranchHandler {
   private type Handler = (String ⇒ String) ⇒ World ⇒ World
   def exchange: Handler = message ⇒ messageHandler(message).andThen(toAlien) //reset(local)
@@ -47,7 +45,7 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: Canv
     )
     chain(ack :: resize)(local)
   }
-  private def messageHandler: (String ⇒ String) ⇒ World ⇒ World = message ⇒ message("X-r-canvas-eventType") match {
+  private def messageHandler: (String ⇒ String) ⇒ World ⇒ World = message ⇒ message("X-r-action") match {
     case "" ⇒ identity[World]
     case "canvasResize" ⇒ resize(message)
     case _ ⇒ handler.messageHandler(message)

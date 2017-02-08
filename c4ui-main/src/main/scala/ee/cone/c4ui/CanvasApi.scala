@@ -1,6 +1,9 @@
 package ee.cone.c4ui
 
 import ee.cone.c4assemble.Types.World
+import ee.cone.c4assemble.WorldKey
+
+case object CanvasContentKey extends WorldKey[Option[CanvasContent]](None)
 
 trait CanvasContent {
   def value: String

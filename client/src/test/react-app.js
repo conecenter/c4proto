@@ -25,13 +25,13 @@ const vDom = VDomMix(log,sender,transforms,getRootElement,createElement)
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
-const canvas = CanvasMix(util,canvas=>[
+const canvas = CanvasMix(log,util,canvas=>[
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
     Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement),
     Canvas.TiledCanvasSetup(canvas),
     Canvas.DragViewPositionCanvasSetup(canvas),
-    Canvas.NoOverlayCanvasSetup
+    Canvas.NoOverlayCanvasSetup(canvas)
 ])
 
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))

@@ -86,7 +86,7 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
             const sizes = canvasFontSize+" "+canvasWidth
             if(canvas.acknowledgedSizes() !== sizes)
                 canvas.sendToServer({
-                    "X-r-canvas-eventType": "canvasResize",
+                    "X-r-action": "canvasResize",
                     "X-r-canvas-sizes": sizes
                 })
             wasSizes = key
@@ -95,7 +95,7 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
     return ({processFrame})
 }
 
-export function BaseCanvasSetup(util, canvas, system){
+export function BaseCanvasSetup(log, util, canvas, system){
     let lastFrame
     let currentState = {}
     let fromServerVersion = 0
@@ -239,6 +239,7 @@ export function BaseCanvasSetup(util, canvas, system){
         ) return;
 
         const canvasElement = canvas.composingElement(ctxName)
+        //if(!samePos(p=>p.viewExternalSize)) log({viewExternalSize,ctxName})
         if(!samePos(p=>p.viewExternalSize)) fixCanvasSize(canvasElement,viewExternalSize)
         if(!viewExternalSize.x || !viewExternalSize.y) return;
         const ctx = canvas.getContext(canvasElement)
@@ -410,9 +411,9 @@ export function InteractiveCanvasSetup(canvas){
         const rPos = canvas.relPos(canvas.parentNode(), mousePos) // has zk id
         canvas.sendToServer({
             "X-r-canvas-color": color,
-            "X-r-canvas-relX": rPos.x+"",
-            "X-r-canvas-relY": rPos.y+"",
-            "X-r-canvas-eventType": "clickColor"
+            "X-r-canvas-rel-x": rPos.x+"",
+            "X-r-canvas-rel-y": rPos.y+"",
+            "X-r-action": "clickColor"
         })
     }
     function setupFrame(){

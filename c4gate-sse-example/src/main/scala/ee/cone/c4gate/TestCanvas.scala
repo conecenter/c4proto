@@ -74,7 +74,7 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
     val decimalFormat = new DecimalFormat("#0.##")
     val builder = new JsonBuilderImpl()
     builder.startObject()
-    builder.append("width").append(1000,decimalFormat)
+    builder.append("width").append(1000,decimalFormat) //map size
     builder.append("height").append(1000,decimalFormat)
     val maxScale = 10
     val zoomSteps = 4096
@@ -92,7 +92,7 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
         builder.append(200,decimalFormat)
         builder.append(200,decimalFormat)
         builder.end()
-        builder.append("rect")
+        builder.append("strokeRect")
         endContext(builder)
       }
       builder.end()
@@ -129,7 +129,7 @@ case class TestCanvasView(branchKey: SrcId, sessionKey: SrcId) extends View {
     val inputX = tTags.toInput("x", CanvasTaskX)
     val inputY = tTags.toInput("y", CanvasTaskY)
     val canvasSeed = (t:TestCanvasState) ⇒ tags.seed(branchOperations.toSeed(t))(List(
-      tags.div("1",List(styles.height(512),styles.width(512)))(Nil)
+      tags.div("1",List(styles.height(512),styles.widthAll))(Nil) //view size
     ))
     List(inputX(canvasTask), inputY(canvasTask), canvasSeed(canvasTask))
   }

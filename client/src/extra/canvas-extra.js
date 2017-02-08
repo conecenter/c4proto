@@ -245,9 +245,9 @@ export function DragAndDropCanvasSetup(canvas){
         const rPos = canvas.calcPos(dir=>mousePosDiff[dir]/mainScale)
         canvas.sendToServer({
             "X-r-canvas-color":(color?color:""),
-            "X-r-canvas-mapX": rPos.x+"",
-            "X-r-canvas-mapY": rPos.y+"",
-            "X-r-canvas-eventType": eventType
+            "X-r-canvas-map-x": rPos.x+"",
+            "X-r-canvas-map-y": rPos.y+"",
+            "X-r-action": eventType
         });
         console.log(eventType,(color?color:""),rPos);
         if(!color) return false;
