@@ -33,7 +33,7 @@ export function ScrollViewPositionCanvasSetup(canvas){
     function handleWheel(ev){
         const mainNode=canvas.parentNode()
         var parentNode=mainNode.parentNode
-        while(parentNode!=document){
+        while(parentNode){//!=document
             if(mainNode.getBoundingClientRect().height>parentNode.getBoundingClientRect().height){
                 parentNode.scrollTop=(parentNode.scrollTop+ev.deltaY*6)
             }
@@ -141,7 +141,7 @@ export function BoundTextCanvasSetup(canvas){
     return {setupContext}
 }
 
-export function DragAndDropCanvasSetup(canvas){
+export function DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener){
     let dragOverEl=undefined;
     let evColorList={};
     let dragGrabbed=undefined;
@@ -249,7 +249,7 @@ export function DragAndDropCanvasSetup(canvas){
             "X-r-canvas-map-y": rPos.y+"",
             "X-r-action": eventType
         });
-        console.log(eventType,(color?color:""),rPos);
+        log(eventType,(color?color:""),rPos);
         if(!color) return false;
         return true;
     };
@@ -271,7 +271,7 @@ export function DragAndDropCanvasSetup(canvas){
         const same = canvas.compareFrames(frame,prev);
 
         if(!mouseDownHandler&&Object.keys(evColorList).length){
-            window.addEventListener("keyup",handleKeyUp);
+            addEventListener("keyup",handleKeyUp);
             canvas.visibleElement().addEventListener("mousedown",handleMouseDown);
             mouseDownHandler=true;
         }
@@ -316,7 +316,7 @@ export function DragAndDropCanvasSetup(canvas){
     return {processFrame,setupContext,setupFrame,drag,extraDragIsActive,reportToServer};
 }
 
-export function TransitionCanvasSetup(canvas){
+export function TransitionCanvasSetup(canvas,log){
     const fadingCtx={};
     const dT=20;
     //const inSteps=20;
@@ -327,11 +327,11 @@ export function TransitionCanvasSetup(canvas){
     function checkSavedAnimCtx(i,_x,_y,_dt,t,r){
         if(!fadingCtx[i]){
            fadingCtx[i]={i,scale:r?0:mainScale,step:0,r,dt:_dt,pdt:_dt,t,x:_x,y:_y,pr:r};
-           console.log("new",i);
+           log("new",i);
         }
         const cFading=fadingCtx[i];
         if(cFading.pdt!=_dt||cFading.pr!=r) {
-            console.log("refresh",i);
+            log("refresh",i);
             fadingCtx[i]={i,scale:r?0:mainScale,step:0,r,dt:_dt,pdt:_dt,t,x:_x,y:_y,pr:r};
         }
         const {scale,step,prevScale,x,y,dt} = fadingCtx[i];
@@ -363,12 +363,12 @@ export function TransitionCanvasSetup(canvas){
                 //c.step=c.step+1;
                 animState++;
                 if(!c.r&&c.scale<=0) {
-                    console.log("done anim out");
+                    log("done anim out");
                     c.scale=0;
                     c.dt=1;
                 }
                 if(c.r&&c.scale>=mainScale){
-                    console.log("done anim in");
+                    log("done anim in");
                     c.scale=mainScale;
                     c.dt=1;
                 }

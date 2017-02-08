@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,setTimeout,clearTimeout}){ // () => window.CustomMeasurer ? [CustomMeasurer] : []
+export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,setTimeout,clearTimeout,toggleOverlay}){
 	const Chip=ui.transforms.tp.Chip;
 	const TDElement=ui.transforms.tp.TDElement;
 	
@@ -166,26 +166,7 @@ function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,setTimeout,clearT
 		},
 		toggleOverlay:function(on){
 			if(!this.props.overlay) return;
-			//toggleOverlay(on)
-
-			if(on){
-				const el=document.createElement("div");
-				const style={
-					position:"fixed",
-					top:"0rem",
-					left:"0rem",
-					width:"100vw",
-					height:"100vh",
-					backgroundColor:"rgba(0,0,0,0.4)",					
-				};
-				el.className="overlayMain";
-				Object.assign(el.style,style);
-				document.body.appendChild(el);
-			}
-			else{
-				const el=document.querySelector(".overlayMain");
-				if(el)	document.body.removeChild(el);
-			}
+			toggleOverlay(on)
 		},
 		componentDidUpdate:function(prevProps,prevState){			
 			this.toggleOverlay(!this.state.on);			
@@ -222,5 +203,3 @@ function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,setTimeout,clearT
 	};
 	return {transforms,receivers};
 }
-
-export default CustomUi

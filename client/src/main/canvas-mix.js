@@ -1,17 +1,21 @@
 
 import * as Canvas from "../main/canvas"
-import CanvasManager from "../main/canvas-manager"
 
-export default function CanvasMix(log,util,setupExtra){
-    const setup = canvas => [
+
+export function CanvasBaseMix(log,util){
+    return canvas => [
          Canvas.BaseCanvasSetup(log,util,canvas),
          Canvas.ComplexFillCanvasSetup(util,canvas),
          Canvas.InteractiveCanvasSetup(canvas)
-    ].concat(setupExtra(canvas))
-    const canvasManager = CanvasManager(Canvas.CanvasFactory(util, setup))
-    const branchHandlers = canvasManager.branchHandlers
-    return ({branchHandlers})
+    ]
 }
 
+export function CanvasSimpleMix(){
+    return canvas => [
+        Canvas.TiledCanvasSetup(canvas),
+        Canvas.DragViewPositionCanvasSetup(canvas),
+        Canvas.NoOverlayCanvasSetup(canvas)
+    ]
+}
 
 // \.\w+\s*=[^=]

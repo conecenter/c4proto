@@ -1,19 +1,15 @@
 "use strict";
 import React from 'react'
-/*
-uglifyBody: style => {
-			const node = document.querySelector("#content");
-			if(node)
-			while (node.hasChildNodes())
-				node.removeChild(node.lastChild);
-			document.body.style.margin="0rem";
-			if(style)
-				Object.assign(document.documentElement.style,style);
 
-		},
-press: key => window.dispatchEvent(new KeyboardEvent("keydown",({key}))),
-svgSrc: svg => "data:image/svg+xml;base64,"+window.btoa(svg)
+/*
+todo:
+replace createClass with lambda
+replace var-s with const
+replace assign with spread
+extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
+jsx?
 */
+
 function MetroUi({log,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
 	const FlexContainer = React.createClass({
 		getInitialState:function(){
@@ -154,17 +150,19 @@ function MetroUi({log,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventLi
 			return React.createElement("div",{style:style},this.props.children)
 		}
 	});
-	const MenuDropdownElement = ({style,children}) => React.createElement("div",{style:{
-        position:'absolute',
-        borderRadius:'5%',
-        minWidth:'7em',
-        boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
-        zIndex:'10',
-        transitionProperty:'all',
-        transitionDuration:'0.15s',
-        transformOrigin:'50% 0%',
-        ...style
-    }},children)
+	const MenuDropdownElement = ({style,children}) => React.createElement("div",{
+        style: {
+            position:'absolute',
+            borderRadius:'5%',
+            minWidth:'7em',
+            boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
+            zIndex:'10',
+            transitionProperty:'all',
+            transitionDuration:'0.15s',
+            transformOrigin:'50% 0%',
+            ...style
+        }
+    },children)
 
 
 	const FolderMenuElement=React.createClass({
@@ -1078,7 +1076,6 @@ function MetroUi({log,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventLi
 		TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
 		},
 	};
-	const receivers = {};
-	return {transforms,receivers};
+	return ({transforms});
 }
 export default MetroUi

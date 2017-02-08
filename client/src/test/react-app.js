@@ -7,35 +7,46 @@ import VDomMix       from "../main/vdom-mix"
 import {VDomSender}  from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
-import CanvasMix     from "../main/canvas-mix"
 import * as Canvas   from "../main/canvas"
+import CanvasManager from "../main/canvas-manager"
+
+import {CanvasBaseMix,CanvasSimpleMix} from "../main/canvas-mix"
+
 
 function fail(data){ alert(data) }
 
-const feedback = Feedback(localStorage,sessionStorage,document.location,fetch)
+const send = fetch
+
+const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
-const transforms = {}
 const encode = value => btoa(unescape(encodeURIComponent(value)))
-const log = v => console.log(v)
 const sender = VDomSender(feedback,encode)
+
+const log = v => console.log(v)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
-const vDom = VDomMix(log,sender,transforms,getRootElement,createElement)
 
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
-const canvas = CanvasMix(log,util,canvas=>[
+const exchangeMix = canvas => [
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement),
-    Canvas.TiledCanvasSetup(canvas),
-    Canvas.DragViewPositionCanvasSetup(canvas),
-    Canvas.NoOverlayCanvasSetup(canvas)
-])
+    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement)
+]
+const canvasBaseMix = CanvasBaseMix(log,util)
 
+const canvasMods = [canvasBaseMix,exchangeMix,CanvasSimpleMix()]
+
+const canvas = CanvasManager(Canvas.CanvasFactory(util, setup))
+
+const transforms = {}
+
+const vDom = VDomMix(log,sender,transforms,getRootElement,createElement)
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
+
 const receiversList = [branches.receivers,feedback.receivers,{fail}]
 const createEventSource = () => new EventSource("http://localhost:8068/sse")
+
 const connection = SSEConnection(createEventSource, receiversList, 5000)
 activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate])

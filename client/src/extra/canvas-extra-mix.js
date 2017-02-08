@@ -1,15 +1,13 @@
 
 import * as Canvas from "../main/canvas"
-import CanvasMix from "../main/canvas-mix"
-import * as CanvasExtra from "canvas-extra"
+import * as CanvasExtra from "../extra/canvas-extra"
 
-export default function CanvasExtraMix(log,util,setupExtra){ // Canvas.ExchangeCanvasSetup(canvas,feedback,()=>document.body)
-    return CanvasMix(log,util,canvas => [
+export default function CanvasExtraMix(log){ // Canvas.ExchangeCanvasSetup(canvas,feedback,()=>document.body)
+    return canvas => [
         Canvas.TiledCanvasSetup(canvas), //Canvas.SingleTileCanvasSetup
         Canvas.DragViewPositionCanvasSetup(canvas), //CanvasExtra.ScrollViewPositionCanvasSetup
         CanvasExtra.OverlayCanvasSetup(canvas), //Canvas.NoOverlayCanvasSetup
         CanvasExtra.BoundTextCanvasSetup(canvas),
-        CanvasExtra.DragAndDropCanvasSetup(canvas),
-        CanvasExtra.TransitionCanvasSetup(canvas)
-    ].concat(setupExtra(canvas)))
+        CanvasExtra.TransitionCanvasSetup(canvas,log)
+    ]
 }
