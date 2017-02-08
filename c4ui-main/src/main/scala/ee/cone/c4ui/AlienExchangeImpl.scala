@@ -48,7 +48,6 @@ case class MessageFromAlienImpl(
 
 @assemble class FromAlienBranchAssemble(operations: BranchOperations) extends Assemble {
   // more rich session may be joined
-  //todo reg
   def fromAliensToSeeds(
     key: SrcId,
     fromAliens: Values[FromAlienState]

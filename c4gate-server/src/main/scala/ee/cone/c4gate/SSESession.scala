@@ -82,7 +82,7 @@ class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHan
 
 case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
 
-case class SessionTxTransform( //todo session/pongs purge
+case class SessionTxTransform( //?t o d o session/pongs purge
     sessionKey: SrcId,
     fromAlien: FromAlienState,
     writes: Values[ToAlienWrite]

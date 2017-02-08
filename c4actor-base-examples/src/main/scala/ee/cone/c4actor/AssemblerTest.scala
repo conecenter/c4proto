@@ -30,6 +30,15 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: List
     rawParentNode.map(parent ⇒
       parent.srcId → ParentNodeWithChildren(parent.srcId, parent.caption, childNodes)
     )
+  /* todo:
+  IO[SrcId,ParentNodeWithChildren](
+    for(parent <- IO[SrcId,RawParentNode])
+      yield ParentNodeWithChildren(parent.srcId, parent.caption, IO[ParentSrcId,RawChildNode](
+        key => for(child <- IO[SrcId,RawChildNode]) yield child.parentSrcId → child
+      ))
+  )
+  */
+
 }
 
 class AssemblerTestApp extends ServerApp with ToStartApp {
