@@ -977,7 +977,7 @@ function MetroUi(sender){
 	const Checkbox = React.createClass({
 		onClick:function(e){
 			if(this.props.onChange)
-				this.props.onChange(target:{value:this.props.on?"":"checked"});
+				this.props.onChange({target:{value:(this.props.on?"":"checked")}});
 		},
 		render:function(){
 			var contStyle={
