@@ -38,7 +38,7 @@ const canvasBaseMix = CanvasBaseMix(log,util)
 
 const canvasMods = [canvasBaseMix,exchangeMix,CanvasSimpleMix()]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, setup))
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 
 const transforms = {}
 

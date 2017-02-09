@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,setTimeout,clearTimeout,toggleOverlay}){
+export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay}){
 	const ColorCreator = React.createClass({
     		onChange:function(e){
     			if(this.props.onChange)
@@ -35,7 +35,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,se
 						var coord = "x=" + relX + ", y=" + relY;
 						var p = ctx.getImageData(relX, relY, 1, 1).data;
 						//var hex = "#" + ("000000" + rgbToHex(p[0], p[1], p[2])).slice(-6);
-						console.log(coord, p);
+						log(coord, p);
 						//this.props.onChange()
 					}
 				}
@@ -314,12 +314,10 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,se
 				this.setState({on});
 		},
 		componentDidMount:function(){					
-			if(CustomMeasurer)
-				CustomMeasurer.regCallback(this.props.fkey,this.signal);			
+			customMeasurer().forEach(m=>m.regCallback(this.props.fkey,this.signal));
 		},
 		componentWillUnmount:function(){
-			if(CustomMeasurer)
-				CustomMeasurer.unregCallback(this.props.fkey);
+			customMeasurer().forEach(m=>m.unregCallback(this.props.fkey));
 		},
 		render:function(){
 			var style ={};
