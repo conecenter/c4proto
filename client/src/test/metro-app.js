@@ -41,9 +41,8 @@ const uglifyBody = style => {
     document.body.style.margin="0rem";
     if(style)
         Object.assign(document.documentElement.style,style);
-
 }
-const metroUi = MetroUi({log,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener});
+const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener});
 
 //customUi with hacks
 const toggleOverlay = on =>{
