@@ -815,6 +815,7 @@ function MetroUi(sender){
 			]);			
 		},
 	});
+
 	const DropDownElement = React.createClass({
 		onChange:function(e){
 			if(this.props.onChange)
@@ -832,6 +833,7 @@ function MetroUi(sender){
 				width:"100%",				
 				padding:"0.4rem 0.3125rem",
 				boxSizing:"border-box",
+				//...(this.props.style||{})
 			};
 			var inpContStyle={
 				display:"flex",
@@ -912,7 +914,7 @@ function MetroUi(sender){
 			]);			
 		},
 	});
-	
+
 	const FocusableElement = React.createClass({		
 		onFocus:function(e){
 			clearTimeout(this.timeout);						
@@ -1096,7 +1098,7 @@ function MetroUi(sender){
 			InputElement,DropDownElement,Chip,FocusableElement,PopupElement,Checkbox,
 			MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
 			TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
-			ConnectionState,
+			ConnectionState
 		},
 		onClickValue,
 	};
