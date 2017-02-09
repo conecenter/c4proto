@@ -646,6 +646,7 @@ function MetroUi(sender){
 				borderCollapse:'separate',
 				borderSpacing:'0px',
 				width:'100%',
+				lineHeight:"1.1",
 			};
 			if(this.props.style)
 				Object.assign(tableStyle.this.props.style);
@@ -697,7 +698,7 @@ function MetroUi(sender){
 				borderRight:'1px solid '+bColor,
 				borderTop:'1px solid '+bColor,
 				fontWeight:'bold',
-				padding:'0.5rem 1rem',
+				padding:'0.1rem 0.2rem',
 				verticalAlign:'middle',
 				fontSize:'1.7rem',
 			};
@@ -875,6 +876,7 @@ function MetroUi(sender){
 				backgroundColor: "white",
 				zIndex: "5",
 				boxSizing:"border-box",
+				overflowX:"hidden",
 			};
 			const openButtonStyle={
 				minHeight:"",
@@ -940,6 +942,8 @@ function MetroUi(sender){
 			if(!this.el) return;
 			this.el.addEventListener("focus",this.onFocus,true);
 			this.el.addEventListener("blur",this.onBlur,true);
+			if(this.props.onChange&&this.props.isFocused)
+				this.el.focus();
 			
 		},		
 		componentWillUnmount:function(){
@@ -972,8 +976,8 @@ function MetroUi(sender){
 	});
 	const Checkbox = React.createClass({
 		onClick:function(e){
-			if(this.props.onClick)
-				this.props.onClick(e);
+			if(this.props.onChange)
+				this.props.onChange(target:{value:this.props.on?"":"checked"});
 		},
 		render:function(){
 			var contStyle={
@@ -993,8 +997,7 @@ function MetroUi(sender){
 				lineHeight:"100%",
 				margin:"0rem",
 				marginBottom:"0.55rem",
-				outline:"none",
-				position:"absolute",
+				outline:"none",				
 				whiteSpace:"nowrap",
 				width:"calc(100% - 1rem)",
 				cursor:"pointer",
