@@ -4,6 +4,7 @@ import React from 'react'
 function CustomUi(ui){
 	const Chip=ui.transforms.tp.Chip;
 	const TDElement=ui.transforms.tp.TDElement;
+	const ConnectionState=ui.transforms.tp.ConnectionState;
 	
 	const StatusElement=React.createClass({
 		getInitialState:function(){
@@ -150,8 +151,9 @@ function CustomUi(ui){
 			callbacks=callbacks.filter((o)=>o.obj!=obj);
 		};
 		return {ping,regCallback,unregCallback};
-	}();
-	const ConnectionState = React.createClass({
+	}();	
+	
+	const DeviceConnectionState = React.createClass({
 		getInitialState:function(){
 			return {on:true};
 		},
@@ -193,30 +195,43 @@ function CustomUi(ui){
 			this.toggleOverlay(!this.state.on);			
 		},
 		render:function(){
-			var style={
-				borderRadius:"1rem",
-				border:"0.1rem solid black",
-				backgroundColor:this.state.on?"green":"red",		
-				display:'inline-block',
+			var style={				
 			};
-			var iconStyle={
-				position:'relative',
-				top:'-10%',
+			var iconStyle={				
 			};
-			Object.assign(style,this.props.style);
-			Object.assign(iconStyle,this.props.iconStyle);
-			const imageSvg='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 285.269 285.269" style="enable-background:new 0 0 285.269 285.269;" xml:space="preserve"> <path style="fill:black;" d="M272.867,198.634h-38.246c-0.333,0-0.659,0.083-0.986,0.108c-1.298-5.808-6.486-10.108-12.679-10.108 h-68.369c-7.168,0-13.318,5.589-13.318,12.757v19.243H61.553C44.154,220.634,30,206.66,30,189.262 c0-17.398,14.154-31.464,31.545-31.464l130.218,0.112c33.941,0,61.554-27.697,61.554-61.637s-27.613-61.638-61.554-61.638h-44.494 V14.67c0-7.168-5.483-13.035-12.651-13.035h-68.37c-6.193,0-11.381,4.3-12.679,10.108c-0.326-0.025-0.653-0.108-0.985-0.108H14.336 c-7.168,0-13.067,5.982-13.067,13.15v48.978c0,7.168,5.899,12.872,13.067,12.872h38.247c0.333,0,0.659-0.083,0.985-0.107 c1.298,5.808,6.486,10.107,12.679,10.107h68.37c7.168,0,12.651-5.589,12.651-12.757V64.634h44.494 c17.398,0,31.554,14.262,31.554,31.661c0,17.398-14.155,31.606-31.546,31.606l-130.218-0.04C27.612,127.862,0,155.308,0,189.248 s27.612,61.386,61.553,61.386h77.716v19.965c0,7.168,6.15,13.035,13.318,13.035h68.369c6.193,0,11.381-4.3,12.679-10.108 c0.327,0.025,0.653,0.108,0.986,0.108h38.246c7.168,0,12.401-5.982,12.401-13.15v-48.977 C285.269,204.338,280.035,198.634,272.867,198.634z M43.269,71.634h-24v-15h24V71.634z M43.269,41.634h-24v-15h24V41.634z M267.269,258.634h-24v-15h24V258.634z M267.269,228.634h-24v-15h24V228.634z"/></svg>';
-			const imageSvgData = "data:image/svg+xml;base64,"+window.btoa(imageSvg);
+			if(this.props.style) Object.assign(style,this.props.style);
+			if(this.props.iconStyle) Object.assign(iconStyle,this.props.iconStyle);			
 			
-			return React.createElement("div",{style:style},
-				React.createElement("img",{key:"1",style:iconStyle,src:imageSvgData},null)
-				);
-			
+			return React.createElement(ConnectionState,{on:this.state.on,style:style,iconStyle:iconStyle}, null);			
+		},
+	});
+	const CustomMeasurerConnectionState = React.createClass({
+		getInitialState:function(){
+			return {on:false};
+		},
+		signal:function(on){
+			if(this.state.on!=on)
+				this.setState({on});
+		},
+		componentDidMount:function(){					
+			if(CustomMeasurer)
+				CustomMeasurer.regCallback(this.props.fkey,this.signal);			
+		},
+		componentWillUnmount:function(){
+			if(CustomMeasurer)
+				CustomMeasurer.unregCallback(this.props.fkey);
+		},
+		render:function(){
+			var style ={};
+			var iconStyle ={};
+			if(this.props.style) Object.assign(style,this.props.style);
+			if(this.props.iconStyle) Object.assign(iconStyle,this.props.iconStyle);	
+			return React.createElement(ConnectionState,{on:this.state.on,style,iconStyle});
 		},
 	});
 	const transforms= {
 		tp:{
-		StatusElement,TerminalElement,MJobCell,IconCheck,ConnectionState	
+			StatusElement,TerminalElement,MJobCell,IconCheck,CustomMeasurerConnectionState,DeviceConnectionState,
 		},
 	};
 	const receivers = {
