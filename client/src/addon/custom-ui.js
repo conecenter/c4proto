@@ -145,9 +145,11 @@ function CustomUi(ui){
 		render:function(){
 			var newStyle={
 				marginTop:'.6125rem',
+				backgroundColor:this.state.lit?'#ffa500':'#eeeeee',
+				borderColor:this.state.lit?'#ffa500':'#eeeeee',				
 			};
 		
-			return React.createElement(Chip,{style:newStyle,on:this.state.lit},this.props.fkey);
+			return React.createElement(Chip,{style:newStyle},this.props.fkey);
 		}
 	});
 	const TerminalElement=React.createClass({   
