@@ -92,13 +92,14 @@ lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
   .settings(metaMacroSettings)
   .dependsOn(`c4assemble-macros`,`c4gate-proto`, `c4actor-kafka`)
-  .enablePlugins(JavaServerAppPackaging)
+  .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
 lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
   .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-proto`)
   .enablePlugins(JavaServerAppPackaging)
+
 
 lazy val `c4actor-branch` = project.settings(publishSettings)
   .settings(description := s"$descr")
