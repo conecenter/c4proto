@@ -41,7 +41,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: List
 
 }
 
-class AssemblerTestApp extends ServerApp with ToStartApp {
+class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with ParallelObserversApp {
   def rawQSender: RawQSender =
     new RawQSender { def send(rec: QRecord): Long = 0 }
   override def protocols: List[Protocol] = PCProtocol :: super.protocols

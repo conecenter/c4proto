@@ -14,7 +14,8 @@ lazy val publishSettings = Seq(
   bintrayOrganization := Some("conecenter2b"),  
   //bintrayOrganization in bintray.Keys.bintray := None,
   licenses := ourLicense,
-  fork := true //looks like sbt hangs for a minute on System.exit
+  fork := true, //looks like sbt hangs for a minute on System.exit
+  mainClass in Compile := Some("ee.cone.c4actor.ServerMain")
 )
 
 scalaVersion in ThisBuild := "2.11.8"

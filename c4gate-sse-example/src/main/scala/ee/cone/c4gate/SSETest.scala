@@ -10,12 +10,10 @@ import ee.cone.c4assemble.{Assemble, WorldKey, assemble, by}
 import ee.cone.c4gate.AlienProtocol.ToAlienWrite
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
-object TestSSE extends Main((new TestSSEApp).execution.run)
-
 class TestSSEApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
-  with SerialObserversApp
+  with ParallelObserversApp
   with BranchApp
   with AlienExchangeApp
 {

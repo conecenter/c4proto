@@ -32,10 +32,14 @@ class Main(f: ExecutionContext⇒Unit) { // todo integrate with c3 deploy_time
         pool.shutdown()
         pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
       })
-      f(new ExecutionContext(pool, onShutdown, new CompletableFuture))
+      f(new ExecutionContext(args.toList, pool, onShutdown, new CompletableFuture))
     }
   } finally System.exit(0)
 }
+
+object ServerMain extends Main(ctx⇒
+  Option(Class.forName(ctx.args.head)).get.newInstance().asInstanceOf[ServerApp].execution.run(ctx)
+)
 
 
 class EnvConfigImpl extends Config {

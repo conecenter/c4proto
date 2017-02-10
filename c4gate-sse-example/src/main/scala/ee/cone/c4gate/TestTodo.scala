@@ -12,12 +12,10 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
 
-object TestTodo extends Main((new TestTodoApp).execution.run)
-
 class TestTodoApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
-  with SerialObserversApp
+  with ParallelObserversApp
   with UIApp
   with TestTagsApp
 {

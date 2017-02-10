@@ -9,6 +9,9 @@ import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Queue}
 import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global // requires usage of `blocking{}`
+
+import Function.chain
 
 class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Update]) extends WorldTx {
   def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx = {
@@ -58,64 +61,59 @@ object WorldStats {
   }.mkString("\n")
 }
 
-class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
-    qMessages: QMessages, reducer: Reducer, initLocals: List[InitLocal]
-) extends Observer {
+class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[InitLocal]) {
   private def createLocal() =
     ((Map():World) /: initLocals)((local,initLocal)⇒initLocal.initLocal(local))
-  def activate(getWorld: () ⇒ World): Seq[Observer] = {
+  private def index = By.srcId(classOf[TxTransform]).of
+  def get(getWorld: () ⇒ World): Map[SrcId,World ⇒ World] =
+    index(getWorld()).transform{ case(key,_) ⇒ handle(getWorld,key) }
+  private def handle(getWorld: () ⇒ World, key: SrcId): World ⇒ World = ((local:World) ⇒
+    if(local.isEmpty) createLocal() else local
+    ).andThen{ local ⇒
     val world = getWorld()
-    val transforms: Index[SrcId, TxTransform] = By.srcId(classOf[TxTransform]).of(world)
-    //println(WorldStats.make(world))
-    val nLocalStates = transforms.map{ case (key, transformList) ⇒
-      key → localStates.get(key).orElse(Option(createLocal())).map{ local ⇒
-        //println(s"${qMessages.worldOffset(world)} < ${OffsetWorldKey.of(local)} ==> ${qMessages.worldOffset(world) < OffsetWorldKey.of(local)}")
-        if(qMessages.worldOffset(world) < OffsetWorldKey.of(local)) local else try {
-            reducer.createTx(world)
-            .andThen(local ⇒ (local /: transformList) ((local, transform) ⇒ transform.transform(local)))
-            .andThen(qMessages.send)(local)
-        } catch {
-          case e: Exception ⇒
-            e.printStackTrace() //??? |Nil|throw
-            ErrorKey.set(Some(e))(createLocal())
-        }
-      }.get
+    if(qMessages.worldOffset(world) < OffsetWorldKey.of(local)) local else try {
+      reducer.createTx(world)
+        .andThen(chain(index(world).getOrElse(key,Nil).map(t⇒t.transform(_))))
+        .andThen(qMessages.send)(local)
+    } catch {
+      case e: Exception ⇒
+        e.printStackTrace() //??? |Nil|throw
+        ErrorKey.set(Some(e))(createLocal())
+      case e: Throwable ⇒
+        e.printStackTrace()
+        throw e
     }
-    Seq(new SerialObserver(nLocalStates)(qMessages,reducer,initLocals))
   }
 }
 
-/*
-* in trans? in was? !isDone?
-*  0 0 x => -
-*  0 1 0 => del
-*  0 1 1 => keep same
-*  1 0 x => new
-*  1 1 x => chain
-* */
-
-class ParallelObserver(localStates: Map[SrcId,Future[World]])(
-    qMessages: QMessages, reducer: Reducer, initLocals: List[InitLocal]
+class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
+  transforms: TxTransforms
 ) extends Observer {
-  private def createLocal(): World =
-    ((Map():World) /: initLocals)((local,initLocal)⇒initLocal.initLocal(local))
-  private def handle: (() ⇒ World, SrcId) ⇒ World ⇒ World = ???
+  def activate(getWorld: () ⇒ World): Seq[Observer] = {
+    val nLocalStates = transforms.get(getWorld).transform{ case(key,handle) ⇒
+      handle(localStates.getOrElse(key,Map.empty))
+    }
+    Seq(new SerialObserver(nLocalStates)(transforms))
+  }
+}
+
+class ParallelObserver(localStates: Map[SrcId,List[Future[World]]])(
+  transforms: TxTransforms
+) extends Observer {
+  private def empty: List[Future[World]] = List(Future.successful(Map.empty))
 
   def activate(getWorld: () ⇒ World): Seq[Observer] = {
-    val transformKeys: Set[SrcId] = By.srcId(classOf[TxTransform]).of(getWorld()).keySet
-    val nLocalStates = (transformKeys ++ localStates.keySet).flatMap{ srcId ⇒
-      if(transformKeys(srcId)) Option(srcId →
-        localStates.getOrElse(srcId,Future(createLocal()))
-        .map(handle(getWorld,srcId))
-        .recover{
-          case e: Exception ⇒
-            e.printStackTrace() //??? |Nil|throw
-            ErrorKey.set(Some(e))(createLocal())
-        }
-      )
-      else localStates.get(srcId).filterNot(_.isCompleted).map(srcId→_)
-    }.toMap
-    Seq(new ParallelObserver(nLocalStates)(qMessages,reducer,initLocals))
+    val inProgressMap = localStates
+      .transform{ case(k,futures) ⇒ futures.filter(!_.isCompleted) }
+      .filter{ case(k,v) ⇒ v.nonEmpty }
+    val inProgress: SrcId ⇒ List[Future[World]] = inProgressMap.getOrElse(_,Nil)
+    val toAdd: Map[SrcId, List[Future[World]]] = transforms.get(getWorld)
+      .filterKeys(inProgress(_).size <= 1)
+      .transform{ case(key,handle) ⇒
+        localStates.getOrElse(key,empty).head.map(handle) :: inProgress(key)
+      }
+    val nLocalStates = inProgressMap ++ toAdd
+    Seq(new ParallelObserver(nLocalStates)(transforms))
   }
 }
 
@@ -129,3 +127,12 @@ object ProtocolDataDependencies {
       new OriginalWorldPart(By.srcId(adapter.className))
     }
 }
+
+/*
+* in trans? in was? !isDone?
+*  0 0 x => -
+*  0 1 0 => del
+*  0 1 1 => keep same
+*  1 0 x => new
+*  1 1 x => chain
+* */

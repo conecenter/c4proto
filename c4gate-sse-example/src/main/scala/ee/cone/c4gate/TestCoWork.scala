@@ -14,12 +14,10 @@ import ee.cone.c4ui._
 import ee.cone.c4vdom.ChildPair
 import ee.cone.c4vdom.Types.ViewRes
 
-object TestCoWork extends Main((new TestCoWorkApp).execution.run)
-
 class TestCoWorkApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
-  with SerialObserversApp
+  with ParallelObserversApp
   with UIApp
   with TestTagsApp
 {

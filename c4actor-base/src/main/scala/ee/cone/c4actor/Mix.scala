@@ -32,14 +32,17 @@ trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
 }
 
-trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp {
+trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp {
   def toStart: List[Executable]
   def rawQSender: RawQSender
+  def initLocals: List[InitLocal]
+  def txObserver: Observer
   //
   lazy val execution: Executable = new ExecutionImpl(toStart)
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
   lazy val qReducer: Reducer = new ReducerImpl(qMessages, treeAssembler, ()⇒dataDependencies)
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
+  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,qReducer,initLocals)
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl
   private lazy val treeAssembler: TreeAssembler = TreeAssemblerImpl
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
@@ -48,12 +51,15 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
     ProtocolDataDependencies(protocols) ::: super.dataDependencies
+  override def initialObservers: List[Observer] = txObserver :: super.initialObservers
 }
 
-trait SerialObserversApp extends InitialObserversApp {
-  def qMessages: QMessages
-  def qReducer: Reducer
-  def initLocals: List[InitLocal]
-  private lazy val serialObserver = new SerialObserver(Map.empty)(qMessages,qReducer,initLocals)
-  override def initialObservers: List[Observer] = serialObserver :: super.initialObservers
+trait SerialObserversApp {
+  def txTransforms: TxTransforms
+  lazy val txObserver = new SerialObserver(Map.empty)(txTransforms)
+}
+
+trait ParallelObserversApp {
+  def txTransforms: TxTransforms
+  lazy val txObserver = new ParallelObserver(Map.empty)(txTransforms)
 }

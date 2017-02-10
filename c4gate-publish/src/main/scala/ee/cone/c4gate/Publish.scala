@@ -10,12 +10,11 @@ import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.Protocol
 import okio.{Buffer, GzipSink}
 
-object Publish extends Main(new PublishApp().execution.run)
-
 //todo un-publish/check
 class PublishApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp
+  with InitLocalsApp with ParallelObserversApp
 {
   private lazy val publishDir = config.get("C4PUBLISH_DIR")
   private lazy val publishing = new Publishing(qMessages,qReducer,publishDir)

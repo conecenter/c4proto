@@ -16,12 +16,10 @@ import ee.cone.c4vdom.MutableJsonBuilder
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom_impl.{HeightTagStyle, JsonBuilderImpl, JsonToStringImpl}
 
-object TestCanvas extends Main((new TestCanvasApp).execution.run)
-
 class TestCanvasApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
-  with SerialObserversApp
+  with ParallelObserversApp
   with UIApp
   with TestTagsApp
   with CanvasApp
