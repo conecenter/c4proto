@@ -95,4 +95,14 @@ class SerialExecutor(
     }
   }
 }
+
+class SerialExecutor(
+  executor: ExecutorService
+) extends Runnable {
+  private var active: Option[Future[_]] = None
+  def activate(): Unit = synchronized {
+    if(active.forall(_.isDone)) active = Option(executor.submit(this))
+  }
+  def run(): Unit = ???
+}
 */

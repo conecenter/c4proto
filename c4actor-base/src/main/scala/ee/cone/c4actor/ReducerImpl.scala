@@ -8,6 +8,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Queue}
+import scala.concurrent.Future
 
 class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Update]) extends WorldTx {
   def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx = {
@@ -83,17 +84,41 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
     Seq(new SerialObserver(nLocalStates)(qMessages,reducer,initLocals))
   }
 }
+
 /*
-class SerialExecutor(
-  executor: ExecutorService
-) extends Runnable {
-  private var active: Option[Future[_]] = None
-  def activate(): Unit = synchronized {
-    if(active.forall(_.isDone)) active = Option(executor.submit(this))
+* in trans? in was? !isDone?
+*  0 0 x => -
+*  0 1 0 => del
+*  0 1 1 => keep same
+*  1 0 x => new
+*  1 1 x => chain
+* */
+
+class ParallelObserver(localStates: Map[SrcId,Future[World]])(
+    qMessages: QMessages, reducer: Reducer, initLocals: List[InitLocal]
+) extends Observer {
+  private def createLocal(): World =
+    ((Map():World) /: initLocals)((local,initLocal)⇒initLocal.initLocal(local))
+  private def handle: (() ⇒ World, SrcId) ⇒ World ⇒ World = ???
+
+  def activate(getWorld: () ⇒ World): Seq[Observer] = {
+    val transformKeys: Set[SrcId] = By.srcId(classOf[TxTransform]).of(getWorld()).keySet
+    val nLocalStates = (transformKeys ++ localStates.keySet).flatMap{ srcId ⇒
+      if(transformKeys(srcId)) Option(srcId →
+        localStates.getOrElse(srcId,Future(createLocal()))
+        .map(handle(getWorld,srcId))
+        .recover{
+          case e: Exception ⇒
+            e.printStackTrace() //??? |Nil|throw
+            ErrorKey.set(Some(e))(createLocal())
+        }
+      )
+      else localStates.get(srcId).filterNot(_.isCompleted).map(srcId→_)
+    }.toMap
+    Seq(new ParallelObserver(nLocalStates)(qMessages,reducer,initLocals))
   }
-  def run(): Unit = ???
 }
-*/
+
 case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: List[LEvent[P]]) extends TxTransform {
   def transform(local: World): World = LEvent.add(todo)(local)
 }
