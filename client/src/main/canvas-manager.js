@@ -10,6 +10,7 @@ export default function CanvasManager(canvasFactory,feedback){
         canvas: state.canvas || canvasFactory(),
         checkActivate: state => state.canvas.checkActivate(state)
     })
+
     const ackCanvasResize =
         acknowledgedSizes => state => ({...state, acknowledgedSizes})
     const branchHandlers = ({showCanvasData,ackCanvasResize}) // todo branches cleanup

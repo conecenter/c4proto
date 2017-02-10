@@ -67,7 +67,7 @@ const toggleOverlay = on =>{
 }
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
-const customUi = CustomUi(metroUi,{log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay});
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay});
 
 //canvas
 const util = Canvas.CanvasUtil()

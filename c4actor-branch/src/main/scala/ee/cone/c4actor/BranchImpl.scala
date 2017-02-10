@@ -103,9 +103,11 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
       @by[BranchKey] seeds: Values[BranchRel]
   ): Values[(SrcId,BranchTask)] = {
     val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
-    val product = registry.byId(seed.valueTypeId).decode(seed.value.toByteArray)
+    registry.byId.get(seed.valueTypeId).map(_.decode(seed.value.toByteArray))
+      .map(product => key → BranchTaskImpl(key, seeds, product)).toList
+    // may result in some garbage branches in the world?
+
     //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
-    List(key → BranchTaskImpl(key, seeds, product))
   }
 
 

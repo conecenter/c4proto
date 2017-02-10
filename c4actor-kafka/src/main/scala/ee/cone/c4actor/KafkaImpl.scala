@@ -45,8 +45,10 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
     case StateTopicName(ActorName(n)) ⇒ s"$n.state"
     case NoTopicName ⇒ throw new Exception
   }
-  def sendStart(rec: QRecord): Future[RecordMetadata] =
+  def sendStart(rec: QRecord): Future[RecordMetadata] = {
+    //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
     producer.get.send(new ProducerRecord(topicNameToString(rec.topic), 0, rec.key, rec.value))
+  }
   def send(rec: QRecord): Long = sendStart(rec).get().offset()
 }
 
@@ -74,8 +76,8 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
       "bootstrap.servers" → bootstrapServers,
-      "enable.auto.commit" → "false",
-      "group.id" → actorName.value //?pos
+      "enable.auto.commit" → "false"
+      //"group.id" → actorName.value //?pos
     )
     val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
@@ -115,7 +117,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       println("starting world recover...")
       val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
       val startOffset = qMessages.worldOffset(localWorldRef.get)
-      println(s"world recovered; inbox start offset: $startOffset")
+      println(s"world recovered; server [$bootstrapServers] inbox [${rawQSender.topicNameToString(inboxTopicName)}] from offset [$startOffset]")
       println(WorldStats.make(localWorldRef.get))
       consumer.seek(Single(inboxTopicPartition),startOffset)
       consumer.pause(stateTopicPartition.asJava)
@@ -123,6 +125,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
         recs match {
           case Nil ⇒ ()
+            //println("no new data")
           case inboxRecs ⇒
             //println(s"offset received: ${inboxRecs.map(_.offset)}")
             val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, inboxRecs)
@@ -130,7 +133,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
             metadata.foreach(_.get())
             localWorldRef.set(world)
         }
-        //println(s"so to receive: ${qMessages.worldOffset(localWorldRef.get)}")
+        //println(s"then to receive: ${qMessages.worldOffset(localWorldRef.get)}")
         prevObservers.flatMap(_.activate(()⇒localWorldRef.get))
       }.foreach(_⇒())
     } finally {
