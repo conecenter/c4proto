@@ -981,7 +981,7 @@ function MetroUi(sender){
 		render:function(){
 			var contStyle={
 				flexGrow:"0",
-				minHeight:"2.8125rem",
+				//minHeight:"2.8125rem",
 				position:"relative",
 				maxWidth:"100%",
 				padding:"0.4rem 0.3125rem",
@@ -995,7 +995,7 @@ function MetroUi(sender){
 				display:"inline-block",
 				lineHeight:"100%",
 				margin:"0rem",
-				marginBottom:"0.55rem",
+				//marginBottom:"0.55rem",
 				outline:"none",				
 				whiteSpace:"nowrap",
 				width:"calc(100% - 1rem)",
@@ -1044,11 +1044,11 @@ function MetroUi(sender){
 			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
 			const svgData="data:image/svg+xml;base64,"+window.btoa(svg);			
 			const checkImage = this.props.value&&this.props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
-			
+			const labelEl = this.props.label?React.createElement("label",{style:labelStyle,key:"2"},this.props.label):null;
 			return React.createElement("div",{style:contStyle},
 				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick},[
 					React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
-					React.createElement("label",{style:labelStyle,key:"2"},this.props.label)
+					labelEl
 				])
 			);
 		}
