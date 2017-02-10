@@ -83,7 +83,17 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
     Seq(new SerialObserver(nLocalStates)(qMessages,reducer,initLocals))
   }
 }
-
+/*
+class SerialExecutor(
+  executor: ExecutorService
+) extends Runnable {
+  private var active: Option[Future[_]] = None
+  def activate(): Unit = synchronized {
+    if(active.forall(_.isDone)) active = Option(executor.submit(this))
+  }
+  def run(): Unit = ???
+}
+*/
 case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: List[LEvent[P]]) extends TxTransform {
   def transform(local: World): World = LEvent.add(todo)(local)
 }
