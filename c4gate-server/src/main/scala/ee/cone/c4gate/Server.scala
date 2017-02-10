@@ -9,13 +9,12 @@ class HttpGatewayApp extends ServerApp
   with HttpServerApp
   with SSEServerApp
   with KafkaProducerApp with KafkaConsumerApp
-  with SerialObserversApp
+  with ParallelObserversApp
 {
   def httpHandlers: List[RHttpHandler] =
     pongHandler :: new HttpPostHandler(qMessages,worldProvider) :: Nil
   def sseConfig: SSEConfig = NoProxySSEConfig
 }
-object HttpGateway extends Main((new HttpGatewayApp).execution.run)
 
 // I>P -- to agent, cmd>evl
 // >P -- post, sse status

@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.8.1",
+  version := "0.8.2",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -14,7 +14,8 @@ lazy val publishSettings = Seq(
   bintrayOrganization := Some("conecenter2b"),  
   //bintrayOrganization in bintray.Keys.bintray := None,
   licenses := ourLicense,
-  fork := true //looks like sbt hangs for a minute on System.exit
+  fork := true, //looks like sbt hangs for a minute on System.exit
+  mainClass in Compile := Some("ee.cone.c4actor.ServerMain")
 )
 
 scalaVersion in ThisBuild := "2.11.8"
@@ -119,10 +120,15 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4vdom-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
 
+//lazy val `c4ui-canvas` = project.settings(publishSettings)
+//  .settings(description := s"$descr")
+
 lazy val `c4ui-main` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
   .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-proto`)
+
+
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
@@ -141,5 +147,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4proto-macros`,
   `c4proto-types`,
   `c4vdom-base`,
+  //`c4ui-canvas`,
   `c4ui-main`
 )

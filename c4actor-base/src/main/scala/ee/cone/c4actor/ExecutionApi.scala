@@ -7,6 +7,7 @@ trait Executable {
 }
 
 class ExecutionContext(
+    val args: List[String],
     val executors: ExecutorService,
     val onShutdown: (()⇒Unit)⇒Unit,
     val serving: CompletableFuture[Unit]

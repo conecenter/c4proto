@@ -3,23 +3,23 @@
 
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
+import activate      from "../main/activator"
 
 function TestShow(){
-    var dataToShow
-
+    let dataToShow
     function show(data){
-        // console.log((new Date).getTime() % 10000,event.data % 100)
-        dataToShow = data //+ " " + connectionKeyState + " " + sessionKey(function(){})
+        dataToShow = data
     }
-    function animationFrame(){
+    function checkActivate(){
         document.body.textContent = dataToShow
-        requestAnimationFrame(animationFrame)
     }
-
-    requestAnimationFrame(animationFrame)
-
-    return ({show})
+    const receivers = ({show})
+    return ({receivers,checkActivate})
 }
-
-const receivers = [Feedback().receivers, TestShow()]
-SSEConnection("http://localhost:8068/sse",receivers,5)
+const feedback = Feedback(localStorage,sessionStorage,document.location,fetch)
+window.onhashchange = () => feedback.pong()
+const testShow = TestShow()
+const receiversList = [feedback.receivers, testShow.receivers]
+const createEventSource = () => new EventSource("http://localhost:8068/sse")
+const connection = SSEConnection(createEventSource, receiversList, 5000)
+activate(requestAnimationFrame, [connection.checkActivate,testShow.checkActivate])

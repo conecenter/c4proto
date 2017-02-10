@@ -1,21 +1,20 @@
 
-export default function SSEConnection(address,handlers,reconnectTimeout){
+export default function SSEConnection(createEventSource,handlers,reconnectTimeout){
     let eventSource
-    let closedCount = 0
+    let lastOK = 0
 
     function isStateClosed(v){ return v === 2 }
-    function checkReconnect(){
+    function checkActivate(){
         if(eventSource){
-            closedCount = isStateClosed(eventSource.readyState) ? closedCount + 1 : 0
-            if(closedCount > 0) console.log("closedCount: "+closedCount)
-            if(closedCount > reconnectTimeout){
+            if(!isStateClosed(eventSource.readyState)) lastOK = Date.now()
+            if(Date.now() - lastOK > reconnectTimeout){
                 eventSource.close();
                 eventSource = null;
             }
         }
         if(!eventSource){
-            console.log("new EventSource")
-            eventSource = new EventSource(address);
+            //console.log("new EventSource")
+            eventSource = createEventSource();
             handlers.forEach(
                 handlerMap => Object.keys(handlerMap).forEach(
                     handlerName => eventSource.addEventListener(handlerName, 
@@ -25,7 +24,5 @@ export default function SSEConnection(address,handlers,reconnectTimeout){
             )
         }
     }
-
-    setInterval(checkReconnect,1000);
-    checkReconnect();
+    return ({checkActivate})
 }
