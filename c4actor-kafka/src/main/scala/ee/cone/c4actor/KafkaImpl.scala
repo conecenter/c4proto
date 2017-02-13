@@ -38,7 +38,7 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
     producer.complete(new KafkaProducer[Array[Byte], Array[Byte]](
       props.asJava, serializer, serializer
     ))
-    ctx.onShutdown(() ⇒ producer.get.close())
+    ctx.onShutdown("Producer",() ⇒ producer.get.close())
   }
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
@@ -82,10 +82,10 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
     )
-    ctx.onShutdown{() ⇒
+    ctx.onShutdown("Consumer",() ⇒ {
       alive.set(false)
       consumer.wakeup()
-    }
+    })
     consumer
   }
   private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {

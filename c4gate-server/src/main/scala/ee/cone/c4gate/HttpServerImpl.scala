@@ -61,7 +61,7 @@ class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
 class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
   def run(ctx: ExecutionContext): Unit = {
     val server: HttpServer = HttpServer.create(new InetSocketAddress(port),0)
-    ctx.onShutdown(()⇒server.stop(Int.MaxValue))
+    ctx.onShutdown("HttpServer",()⇒server.stop(Int.MaxValue))
     server.setExecutor(ctx.executors)
     server.createContext("/", handler)
     server.start()

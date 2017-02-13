@@ -29,7 +29,7 @@ class Publishing(qMessages: QMessages, reducer: Reducer, fromDir: String) extend
     val depth = Integer.MAX_VALUE
     val options = java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS)
     Files.walkFileTree(fromPath, options, depth, visitor)
-    ctx.serving.complete(())
+    ctx.complete(None)
   }
 }
 
