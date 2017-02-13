@@ -34,7 +34,7 @@ class RSSEServer(
   lifeCycleManager: ExecutionManager,
   createConnection: LifeCycle ⇒ CoMixBase
 ) extends CanStart {
-  private lazy val serverSocket = new ServerSocket(ssePort) //todo toClose
+  private lazy val serverSocket = new ServerSocket(ssePort) //t o d o toClose
   def start() = lifeCycleManager.submit{ ()=>
     while(true){
       val socket = serverSocket.accept()
@@ -94,5 +94,15 @@ class SerialExecutor(
       }))
     }
   }
+}
+
+class SerialExecutor(
+  executor: ExecutorService
+) extends Runnable {
+  private var active: Option[Future[_]] = None
+  def activate(): Unit = synchronized {
+    if(active.forall(_.isDone)) active = Option(executor.submit(this))
+  }
+  def run(): Unit = ???
 }
 */

@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-function CustomUi(ui){
+export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay}){
 	const ColorCreator = React.createClass({
     		onChange:function(e){
     			if(this.props.onChange)
@@ -35,7 +35,7 @@ function CustomUi(ui){
 						var coord = "x=" + relX + ", y=" + relY;
 						var p = ctx.getImageData(relX, relY, 1, 1).data;
 						//var hex = "#" + ("000000" + rgbToHex(p[0], p[1], p[2])).slice(-6);
-						console.log(coord, p);
+						log(coord, p);
 						//this.props.onChange()
 					}
 				}
@@ -123,7 +123,7 @@ function CustomUi(ui){
 	},[
 		React.createElement('span',{}, value)
 	])
-	
+
 	const Chip=ui.transforms.tp.Chip;
 	const TDElement=ui.transforms.tp.TDElement;
 	const ConnectionState=ui.transforms.tp.ConnectionState;
@@ -137,10 +137,10 @@ function CustomUi(ui){
 			else this.setState({lit:false});
 		},
 		componentDidMount:function(){
-			if(window.CustomMeasurer) CustomMeasurer.regCallback(this.props.fkey.toLowerCase(),this.signal);
+			customMeasurer().forEach(m=>m.regCallback(this.props.fkey.toLowerCase(),this.signal));
 		},
 		componentWillUnmount:function(){
-			if(window.CustomMeasurer) CustomMeasurer.unregCallback(this.props.fkey.toLowerCase());
+			customMeasurer().forEach(m=>m.unregCallback(this.props.fkey.toLowerCase()));
 		},    
 		render:function(){
 			var newStyle={
@@ -154,19 +154,17 @@ function CustomUi(ui){
 	});
 	const TerminalElement=React.createClass({   
 		componentDidMount:function(){
-			if(window.CustomTerminal)
-				CustomTerminal.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.version||0));
+			customTerminal().forEach(t=>t.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.version||0)));
 		},
 		componentWillUnmount:function(){
-			if(window.CustomTerminal)
-				CustomTerminal.destroy();			
+			customTerminal().forEach(t=>t.destroy());
 		},
 		componentDidUpdate:function(prevProps, prevState){
-			if(window.CustomTerminal){
-				CustomTerminal.destroy(this.props.version);				
-				CustomTerminal.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.version);
-				console.log("reinit term");
-			}
+			customTerminal().forEach(t=>{
+				t.destroy(this.props.version);
+				t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.version);
+				log("reinit term");
+			})
 		},
 		render:function(){
 			var style={
@@ -187,12 +185,10 @@ function CustomUi(ui){
 			this.setState({data:gData});			
 		},
 		componentDidMount:function(){
-			if(window.CustomMeasurer)
-				CustomMeasurer.regCallback(this.props.fkey,this.signal);        
+			customMeasurer().forEach(m=>m.regCallback(this.props.fkey,this.signal));
 		},
 		componentWillUnmount:function(){
-			if(window.CustomMeasurer)
-				CustomMeasurer.unregCallback(this.props.fkey);
+			customMeasurer().forEach(m=>m.unregCallback(this.props.fkey));
 		},
 		onChange:function(e){
 			if(this.props.onChange)
@@ -240,7 +236,7 @@ function CustomUi(ui){
 		componentDidUpdate:function(prevP,prevS){
 			if(this.props.onChange&&this.props.data&&prevP.data!==this.props.data){			
 				const e={target:{value:this.props.data}};
-				console.log("change w");
+				log("change w");
 				this.props.onChange(e);
 			}
 		},
@@ -254,7 +250,7 @@ function CustomUi(ui){
 			var style={};
 			Object.assign(style,this.props.style);
 			const imageSvg ='<svg version="1.1"  xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 30 30"><g><path fill="#3C763D" d="M22.553,7.684c-4.756,3.671-8.641,7.934-11.881,12.924c-0.938-1.259-1.843-2.539-2.837-3.756 C6.433,15.13,4.027,17.592,5.419,19.3c1.465,1.795,2.737,3.734,4.202,5.529c0.717,0.88,2.161,0.538,2.685-0.35 c3.175-5.379,7.04-9.999,11.973-13.806C26.007,9.339,24.307,6.33,22.553,7.684z"/></g></svg>';
-			const imageSvgData = "data:image/svg+xml;base64,"+window.btoa(imageSvg);
+			const imageSvgData = svgSrc(imageSvg);
 			return React.createElement("img",{style,src:imageSvgData},null);
 		},
 	});
@@ -296,24 +292,7 @@ function CustomUi(ui){
 		},
 		toggleOverlay:function(on){
 			if(!this.props.overlay) return;
-			if(on){
-				const el=document.createElement("div");
-				const style={
-					position:"fixed",
-					top:"0rem",
-					left:"0rem",
-					width:"100vw",
-					height:"100vh",
-					backgroundColor:"rgba(0,0,0,0.4)",					
-				};
-				el.className="overlayMain";
-				Object.assign(el.style,style);
-				document.body.appendChild(el);
-			}
-			else{
-				const el=document.querySelector(".overlayMain");
-				if(el)	document.body.removeChild(el);
-			}
+			toggleOverlay(on)
 		},
 		componentDidUpdate:function(prevProps,prevState){			
 			this.toggleOverlay(!this.state.on);			
@@ -324,8 +303,7 @@ function CustomUi(ui){
 			var iconStyle={				
 			};
 			if(this.props.style) Object.assign(style,this.props.style);
-			if(this.props.iconStyle) Object.assign(iconStyle,this.props.iconStyle);			
-			
+			if(this.props.iconStyle) Object.assign(iconStyle,this.props.iconStyle);
 			return React.createElement(ConnectionState,{on:this.state.on,style:style,iconStyle:iconStyle}, null);			
 		},
 	});
@@ -338,12 +316,10 @@ function CustomUi(ui){
 				this.setState({on});
 		},
 		componentDidMount:function(){					
-			if(CustomMeasurer)
-				CustomMeasurer.regCallback(this.props.fkey,this.signal);			
+			customMeasurer().forEach(m=>m.regCallback(this.props.fkey,this.signal));
 		},
 		componentWillUnmount:function(){
-			if(CustomMeasurer)
-				CustomMeasurer.unregCallback(this.props.fkey);
+			customMeasurer().forEach(m=>m.unregCallback(this.props.fkey));
 		},
 		render:function(){
 			var style ={};
@@ -364,5 +340,3 @@ function CustomUi(ui){
 	};
 	return {transforms,receivers};
 }
-
-export default CustomUi

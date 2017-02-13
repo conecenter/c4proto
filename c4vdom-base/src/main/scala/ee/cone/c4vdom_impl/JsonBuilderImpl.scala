@@ -1,5 +1,7 @@
 package ee.cone.c4vdom_impl
 
+import java.text.DecimalFormat
+
 import ee.cone.c4vdom.{MutableJsonBuilder, VDomValue}
 
 object JsonToStringImpl extends JsonToString {
@@ -71,6 +73,12 @@ class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends Mut
       j += 1
     }
     result.append('"')
+    endElement()
+    this
+  }
+  def append(value: Double, decimalFormat: DecimalFormat) = {
+    startElement()
+    result.append(decimalFormat.format(value))
     endElement()
     this
   }

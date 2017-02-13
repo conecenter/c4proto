@@ -71,33 +71,27 @@ case class VDomHandlerImpl[State](
     if(sessionKeys.isEmpty) return identity[State]
     val diffTree = diff.diff(prev, next)
     if(diffTree.isEmpty) return identity[State]
-    val diffStr = jsonToString(BranchDiff("/connection", sender.branchKey,diffTree.get))
-    chain(sessionKeys.map(sender.send(_,"showDiff",diffStr)).toSeq)
+    val diffStr = jsonToString(diffTree.get)
+    chain(sessionKeys.map(sender.send(_,"showDiff",sender.branchKey,diffStr)).toSeq)
   }
 
   private def toAlien: Handler = exchange ⇒ state ⇒ {
     val vState = vDomStateKey.of(state).get
-
-    if(
+    val newSessionKeys = sender.sessionKeys(state)
+    val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)
+    if(newSessionKeys.isEmpty) init(exchange)(state)
+    else if(
       vState.value != wasNoValue &&
-        vState.until > System.currentTimeMillis
+      vState.until > System.currentTimeMillis &&
+      freshTo.isEmpty
     ) state
-    /*else if(task.sessionKeys.isEmpty){
-      task.updateResult(Nil)(state)
-    }*/
     else {
-      val newSessionKeys = sender.sessionKeys(state)
-      if(newSessionKeys.isEmpty) init(exchange)(state)
-      else {
-        val (until,viewRes) = vDomUntil.get(view.view(state))
-        val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
-        val nextDom = vPair.value
-
-        val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)
-        vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys)))
-          .andThen(diffSend(vState.value, nextDom, keepTo))
-          .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
-      }
+      val (until,viewRes) = vDomUntil.get(view.view(state))
+      val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
+      val nextDom = vPair.value
+      vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys)))
+        .andThen(diffSend(vState.value, nextDom, keepTo))
+        .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
     }
   }
 
@@ -105,7 +99,7 @@ case class VDomHandlerImpl[State](
     val sessionKey = get("X-r-session")
     val branchKey = get("X-r-branch")
     val index = get("X-r-index")
-    sender.send(sessionKey,"ackChange",s"$branchKey $index")
+    sender.send(sessionKey,"ackChange",branchKey,index)
   } else identity[State]
 
   def seeds: State ⇒ List[Product] =
@@ -139,17 +133,6 @@ case object RootElement extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
-    builder.end()
-  }
-}
-
-case class BranchDiff(postURL: String, key: String, value: VDomValue) extends VDomValue {
-  def appendJson(builder: MutableJsonBuilder): Unit = {
-    builder.startObject()
-    builder.append("postURL").append(postURL)
-    builder.append("branchKey").append(key)
-    builder.append("value")
-    value.appendJson(builder)
     builder.end()
   }
 }

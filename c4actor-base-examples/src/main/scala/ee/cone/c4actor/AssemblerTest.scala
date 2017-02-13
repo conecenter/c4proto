@@ -30,9 +30,18 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: List
     rawParentNode.map(parent ⇒
       parent.srcId → ParentNodeWithChildren(parent.srcId, parent.caption, childNodes)
     )
+  /* todo:
+  IO[SrcId,ParentNodeWithChildren](
+    for(parent <- IO[SrcId,RawParentNode])
+      yield ParentNodeWithChildren(parent.srcId, parent.caption, IO[ParentSrcId,RawChildNode](
+        key => for(child <- IO[SrcId,RawChildNode]) yield child.parentSrcId → child
+      ))
+  )
+  */
+
 }
 
-class AssemblerTestApp extends ServerApp with ToStartApp {
+class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with ParallelObserversApp {
   def rawQSender: RawQSender =
     new RawQSender { def send(rec: QRecord): Long = 0 }
   override def protocols: List[Protocol] = PCProtocol :: super.protocols

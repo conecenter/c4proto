@@ -28,21 +28,38 @@ push @tasks, ["setup_run_kafka", sub{
     sy("bin/zookeeper-server-start.sh config/zookeeper.properties 1> zookeeper.log 2> zookeeper.error.log &");
     sy("bin/kafka-server-start.sh config/server.properties 1> kafka.log 2> kafka.error.log &");
 }];
+my $client = sub{
+    my($inst)=@_;
+    my $build_dir = "./client/build/test";
+    unlink or die $! for <$build_dir/*>;
+    chdir "client" or die $!;
+    sy("npm install") if $inst;
+    sy("./node_modules/webpack/bin/webpack.js");# -d
+    chdir ".." or die $!;
+    $build_dir
+};
+
 push @tasks, ["stage", sub{
     sy("sbt clean stage");
-    chdir "client" or die $!;
-    sy("npm install");
-    sy("./node_modules/webpack/bin/webpack.js")
+    &$client(1);
 }];
 
 my $env = "C4BOOTSTRAP_SERVERS=127.0.0.1:$kafka_port C4INBOX_TOPIC_PREFIX=$inbox_prefix C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
-sub staged{"$_[0]/target/universal/stage/bin/$_[0]"}
-#sbt $_[0]/run
-push @tasks, ["gate_server_run", sub{
-    sy("$env C4STATE_TOPIC_PREFIX=http-gate-$port_prefix ".staged("c4gate-server"));
+sub staged{
+    $ENV{C4NOSTAGE}?
+        "C4STATE_TOPIC_PREFIX=$_[1]-$port_prefix-0 sbt '$_[0]/run $_[1]'":
+        "C4STATE_TOPIC_PREFIX=$_[1]-$port_prefix-0 $_[0]/target/universal/stage/bin/$_[0] $_[1]"
+}
+push @tasks, ["gate_publish", sub{
+    my $build_dir = &$client(0);
+    sy("$env C4PUBLISH_DIR=$build_dir ".staged("c4gate-publish","ee.cone.c4gate.PublishApp"))
 }];
+push @tasks, ["gate_server_run", sub{
+    sy("$env ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
+}];
+
 push @tasks, ["test_post_get_tcp_service_run", sub{
-    sy("$env C4STATE_TOPIC_PREFIX=http-test-0 ".staged("c4gate-consumer-example"))
+    sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestConsumerApp"))
 }];
 push @tasks, ["test_post_get_check", sub{
     my $v = int(rand()*10);
@@ -54,19 +71,29 @@ push @tasks, ["test_post_get_check", sub{
 #push @tasks, ["test_tcp_check", sub{
 #    sy("nc 127.0.0.1 $sse_port");
 #}];
-push @tasks, ["gate_publish", sub{
-    sy("$env C4PUBLISH_DIR=./client/build/test ".staged("c4gate-publish"))
+push @tasks, ["test_actor_serial_service_run", sub{
+    sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestSerialApp"))
 }];
-push @tasks, ["test_consumer_sse_service_run", sub{
-    sy("$env C4STATE_TOPIC_PREFIX=sse-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestSSE' ")
+push @tasks, ["test_actor_parallel_service_run", sub{
+    sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestParallelApp"))
 }];
-push @tasks, ["test_consumer_todo_service_run", sub{
-    sy("$env C4STATE_TOPIC_PREFIX=todo-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestTodo' ")
-}];
-push @tasks, ["test_consumer_cowork_service_run", sub{
-    sy("$env C4STATE_TOPIC_PREFIX=cowork-test-0 sbt 'c4gate-sse-example/run-main ee.cone.c4gate.TestCoWork' ")
+push @tasks, ["test_actor_check", sub{
+    sy("curl http://127.0.0.1:$http_port/abc -X POST") for 0..11;
 }];
 
+
+push @tasks, ["test_ui_timer_service_run", sub{
+    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestSSEApp"))
+}];
+push @tasks, ["test_ui_todo_service_run", sub{
+    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestTodoApp"))
+}];
+push @tasks, ["test_ui_cowork_service_run", sub{
+    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCoWorkApp"))
+}];
+push @tasks, ["test_ui_canvas_service_run", sub{
+    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCanvasApp"))
+}];
 
 
 if($ARGV[0]) {

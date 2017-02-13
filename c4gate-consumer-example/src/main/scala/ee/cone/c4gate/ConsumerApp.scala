@@ -15,7 +15,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 class TestConsumerApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
-  with SerialObserversApp with InitLocalsApp
+  with ParallelObserversApp with InitLocalsApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: TcpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
@@ -73,7 +73,7 @@ case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
 }
 */
 
-object ConsumerTest extends Main((new TestConsumerApp).execution.run)
+
 
 
 

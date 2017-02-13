@@ -2,10 +2,10 @@
 package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.{TopicKey, Update, Updates}
+import ee.cone.c4actor.QProtocol.{Offset, TopicKey, Update, Updates}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Index, World}
-import ee.cone.c4assemble.WorldKey
+import ee.cone.c4assemble.{Single, WorldKey}
 import ee.cone.c4proto.{HasId, Protocol}
 
 /*Future[RecordMetadata]*/
@@ -27,6 +27,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
     val offset = getRawQSender().send(rec)
+    //println(s"offset sent: $offset")
     OffsetWorldKey.set(offset+1)(local)
   }
   def toUpdate[M<:Product](message: LEvent[M]): Update = {
@@ -43,11 +44,13 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord] = {
     if(rec.key.length > 0) throw new Exception
     val updates = qAdapterRegistry.updatesAdapter.decode(rec.value).updates
+    val offset = LEvent.update(Offset("",rec.offset.get + 1)).map(toUpdate)
     val relevantUpdates =
-      updates.filter(u⇒qAdapterRegistry.byId.contains(u.valueTypeId))
+      updates.filter(u⇒qAdapterRegistry.byId.contains(u.valueTypeId)) ++ offset
     relevantUpdates.map(toRecord(StateTopicName(actorName),_))
   }
-
+  def worldOffset: World ⇒ Long = world ⇒
+    Single(By.srcId(classOf[Offset]).of(world).getOrElse("",List(Offset("",0L)))).value
   def toTree(records: Iterable[QRecord]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]] = records.map {
     rec ⇒ (qAdapterRegistry.keyAdapter.decode(rec.key), rec)
   }.groupBy {
