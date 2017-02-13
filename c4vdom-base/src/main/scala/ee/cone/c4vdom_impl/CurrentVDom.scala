@@ -36,7 +36,7 @@ case class VDomHandlerImpl[State](
 ) extends VDomHandler[State] {
 
   private def init: Handler = _ ⇒
-    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Set.empty))))
+    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Set.empty,Map.empty))))
 
   //dispatches incoming message // can close / set refresh time
   private def dispatch: Handler = get ⇒ state ⇒ if(get("X-r-action").isEmpty) state else {
@@ -64,7 +64,7 @@ case class VDomHandlerImpl[State](
   }*/
 
   def exchange: Handler =
-    m ⇒ chain(Seq(init,dispatch,relocate,toAlien,ackChange).map(_(m)))
+    m ⇒ chain(Seq(init,dispatch,relocate,ackChange,toAlien).map(_(m)))
 
 
   private def diffSend(prev: VDomValue, next: VDomValue, sessionKeys: Set[String]): State ⇒ State = {
@@ -89,17 +89,21 @@ case class VDomHandlerImpl[State](
       val (until,viewRes) = vDomUntil.get(view.view(state))
       val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
       val nextDom = vPair.value
-      vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys)))
+      vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys, Map.empty)))
         .andThen(diffSend(vState.value, nextDom, keepTo))
-        .andThen(diffSend(wasNoValue, nextDom, freshTo))(state)
+        .andThen(diffSend(wasNoValue, nextDom, freshTo))
+        .andThen(chain(vState.ackChanges.map{ case(sessionKey,index) ⇒
+          sender.send(sessionKey,"ackChange",sender.branchKey,index)
+        }.toSeq))(state)
     }
   }
 
   private def ackChange: Handler = get ⇒ if(get("X-r-action") == "change") {
     val sessionKey = get("X-r-session")
-    val branchKey = get("X-r-branch")
     val index = get("X-r-index")
-    sender.send(sessionKey,"ackChange",branchKey,index)
+    vDomStateKey.modify(_.map(vState ⇒
+      vState.copy(ackChanges=vState.ackChanges + (sessionKey → index))
+    ))
   } else identity[State]
 
   def seeds: State ⇒ List[Product] =

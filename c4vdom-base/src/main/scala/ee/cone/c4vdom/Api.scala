@@ -83,7 +83,7 @@ trait VDomHandlerFactory {
   ): VDomHandler[State]
 }
 
-case class VDomState(value: VDomValue, until: Long, sessionKeys: Set[String])
+case class VDomState(value: VDomValue, until: Long, sessionKeys: Set[String], ackChanges: Map[String,String])
 
 trait VDomUntil {
   def get(pairs: ViewRes): (Long, ViewRes)
