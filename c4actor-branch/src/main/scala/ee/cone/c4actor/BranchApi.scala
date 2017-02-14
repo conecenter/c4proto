@@ -41,7 +41,8 @@ case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, paren
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,
     @Id(0x0043) value: okio.ByteString,
-    @Id(0x0044) children: List[BranchResult]
+    @Id(0x0044) children: List[BranchResult],
+    @Id(0x0045) position: String
   )
 }
 

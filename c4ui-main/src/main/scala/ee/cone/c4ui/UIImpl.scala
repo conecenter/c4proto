@@ -59,7 +59,9 @@ case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[World], view: 
       vHandler(local).exchange(message)(local)
     }
   def seeds: World ⇒ List[BranchResult] =
-    local ⇒ vHandler(local).seeds(local).collect{ case r: BranchResult ⇒ r }
+    local ⇒ vHandler(local).seeds(local).collect{
+      case (k: String, r: BranchResult) ⇒ r.copy(position=k)
+    }
 }
 
 ////

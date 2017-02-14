@@ -74,3 +74,20 @@ case class TestTodoRootView(branchKey: SrcId) extends View {
   }
 }
 
+/*
+branches:
+    BranchResult --> BranchRel-s
+    BranchResult [prev] + BranchRel-s --> BranchTask [decode]
+    ...
+    BranchHandler + BranchRel-s + MessageFromAlien-s -> TxTransform
+ui:
+    FromAlienState --> BranchRel [encode]
+    BranchTask --> FromAlienTask [match host etc]
+    BranchTask + View --> BranchHandler
+    BranchTask + CanvasHandler --> BranchHandler
+custom:
+    FromAlienTask --> View [match hash]
+    BranchTask --> CanvasHandler
+
+BranchResult --> BranchRel-s --> BranchTask --> [custom] --> BranchHandler --> TxTransform
+*/

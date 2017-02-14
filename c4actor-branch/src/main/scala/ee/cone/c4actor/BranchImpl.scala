@@ -6,7 +6,7 @@ import java.util.UUID
 
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
-import ee.cone.c4assemble.Types.{Index, Values, World}
+import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.BranchTypes._
@@ -22,6 +22,18 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
       index.getOrElse(rel.parentSrcId,Nil).flatMap(_.sessionKeys(local))
     }
   ).toSet
+  def relocate(to: String): World ⇒ World = local ⇒ {
+    val sends = seeds.map(rel⇒
+      if(rel.parentIsSession) SendToAlienKey.of(local)(rel.parentSrcId,"relocateHash",to)
+      else relocateSeed(rel.parentSrcId,rel.seed.position,to)
+    )
+    chain(sends)(local)
+  }
+
+  def relocateSeed(branchKey: String, position: String, to: String): World ⇒ World = {
+    println(s"relocateSeed: [$branchKey] [$position] [$to]")
+    identity
+  } //todo emulate post to branch?
 }
 
 case object ReportAliveBranchesKey extends WorldKey[String]("")
@@ -83,7 +95,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     val bytes = valueAdapter.encode(value)
     val byteString = okio.ByteString.of(bytes,0,bytes.length)
     val id = UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes)
-    BranchResult(id.toString, valueAdapter.id, byteString, Nil)
+    BranchResult(id.toString, valueAdapter.id, byteString, Nil, "")
   }
   def toRel(seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)

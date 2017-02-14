@@ -5,6 +5,7 @@ import java.util.Base64
 import ee.cone.c4vdom._
 
 import Function.chain
+import scala.collection.immutable.Queue
 
 class VDomHandlerFactoryImpl(
   diff: Diff,
@@ -106,14 +107,20 @@ case class VDomHandlerImpl[State](
     ))
   } else identity[State]
 
-  def seeds: State ⇒ List[Product] =
-    state ⇒ gatherSeeds(Nil, vDomStateKey.of(state).get.value)
-  private def gatherSeeds(acc: List[Product], value: VDomValue): List[Product] = value match {
-    case n: MapVDomValue ⇒ (acc /: n.pairs.map(_.value))(gatherSeeds)
-    case SeedElement(seed) ⇒ seed :: acc
+  def seeds: State ⇒ List[(String,Product)] =
+    state ⇒ gatherSeeds(Nil, Nil, vDomStateKey.of(state).get.value)
+  private def gatherSeeds(
+    acc: List[(String,Product)], path: List[String], value: VDomValue
+  ): List[(String,Product)] = value match {
+    case n: MapVDomValue ⇒
+      (acc /: n.pairs)((acc,pair)⇒gatherSeeds(acc, pair.jsonKey::path, pair.value))
+    case SeedElement(seed) ⇒ (path.reverse.map(e⇒s"/$e").mkString,seed) :: acc
     //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
     case _ ⇒ acc
   }
+
+
+
 
 
   //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil

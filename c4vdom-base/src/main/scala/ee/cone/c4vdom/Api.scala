@@ -71,7 +71,7 @@ trait VDomSender[State] {
 trait VDomHandler[State] {
   type Handler = (String⇒String) ⇒ State ⇒ State
   def exchange: Handler
-  def seeds: State ⇒ List[Product]
+  def seeds: State ⇒ List[(String,Product)]
 }
 
 trait VDomHandlerFactory {
