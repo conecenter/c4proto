@@ -4,7 +4,10 @@ package ee.cone.c4assemble
 import Types._
 import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
-import scala.collection.immutable.Map
+import scala.annotation.tailrec
+import scala.collection.immutable.{Map}
+
+import Function.tupled
 
 class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
   def one(res: Map[K,V], key: K, diffV: DV): Map[K,V] = {
@@ -29,13 +32,42 @@ class IndexFactoryImpl extends IndexFactory {
     val addNestedPatch: PatchMap[RK,Values[R],MultiSet[R]] =
       new PatchMap[RK,Values[R],MultiSet[R]](
         Nil,_.isEmpty,
-        (v,d)⇒add.many(d, v, 1).flatMap{ case(node,count) ⇒
-          if(count<0) throw new Exception(s"$node -- $d -- $v")
-          List.fill(count)(node)
-        }.toList.sortBy(e ⇒ e.productElement(0) match {
-          case s: String ⇒ s
-          case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
-        })
+        (v,d)⇒{
+          add.many(d, v, 1).flatMap{ case(node,count) ⇒
+            if(count<0) throw new Exception(s"$node -- $d -- $v")
+            List.fill(count)(node)
+          }.toList.sortBy(e ⇒ e.productElement(0) match {
+            case s: String ⇒ s
+            case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
+          })
+
+          /*
+          def getId(e: R) = e.productElement(0) match {
+            case s: String ⇒ s
+            case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
+          }
+          def fill(node: R, count: Int) = List.fill(Math.abs(count))(node)
+          @tailrec def merge(a: List[R], b: List[R], t: List[R]): List[R] = {
+            if(a.isEmpty)
+              t.reverse ::: b
+            else if(b.isEmpty)
+              t.reverse ::: a
+            else if(getId(a.head)<getId(b.head))
+              merge(a.tail, b, a.head :: t)
+            else
+              merge(a, b.tail, b.head :: t)
+          }
+          val(toAdd, toDel) = d.toList.partition{ case (_,count)=> count>0}
+          val toDelList = toDel.flatMap(tupled(fill))
+          val toAddList = toAdd.flatMap(tupled(fill))
+          merge(v.diff(toDelList), toAddList.sortBy(getId), Nil)
+old 2k madd 2499 ms sadd 67 ms
+old 5k madd 12891 ms sadd 123 ms
+new 2k madd 1096 ms sadd 98 ms
+new 5k madd 3128 ms sadd 173 ms
+new 10k madd 11581 ms sadd 334 ms
+*/
+        }
       )
     val addNestedDiff: PatchMap[RK,MultiSet[R],R] =
       new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))

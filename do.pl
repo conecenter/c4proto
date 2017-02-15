@@ -17,6 +17,9 @@ push @tasks, ["es_examples", sub{
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
 }];
+push @tasks, ["not_effective_join_bench", sub{
+    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
+}];
 push @tasks, ["setup_run_kafka", sub{
     (-e $_ or mkdir $_) and chdir $_ or die for "tmp";
     my $kafka = "kafka_2.11-0.10.1.0";
