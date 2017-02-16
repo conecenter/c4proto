@@ -1,12 +1,13 @@
 
 package ee.cone.c4assemble
 
+import java.util.Comparator
+
 import Types._
 import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
 import scala.annotation.tailrec
-import scala.collection.immutable.{Map}
-
+import scala.collection.immutable.Map
 import Function.tupled
 
 class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
@@ -33,13 +34,52 @@ class IndexFactoryImpl extends IndexFactory {
       new PatchMap[RK,Values[R],MultiSet[R]](
         Nil,_.isEmpty,
         (v,d)⇒{
+          /**/
           add.many(d, v, 1).flatMap{ case(node,count) ⇒
             if(count<0) throw new Exception(s"$node -- $d -- $v")
             List.fill(count)(node)
           }.toList.sortBy(e ⇒ e.productElement(0) match {
             case s: String ⇒ s
             case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
+          })/**/
+
+          /*
+          def getId(e: R) = e.productElement(0) match {
+            case s: String ⇒ s
+            case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
+          }
+          val toAddB = new collection.mutable.ArrayBuilder.ofRef[R]
+          val toDel = new collection.mutable.HashMap[R,Int]
+          d.foreach{ case (node,count)=>
+            if(count<0) toDel += node -> count else {
+              var i = count
+              while(i>0) {
+                toAddB += node
+                i -= 1
+              }
+            }
+          }
+          val toAdd = toAddB.result()
+          java.util.Arrays.sort(toAdd, new Comparator[R] {
+            def compare(o1: R, o2: R): Int = getId(o1).compareTo(getId(o2))
           })
+          val res = new collection.mutable.ArrayBuilder.ofRef[R]
+          var items = v
+          var index = 0
+          while(index < toAdd.length || items.nonEmpty) {
+            if (index >= toAdd.length || getId(items.head) < getId(toAdd(index))) {
+              if(toDel.contains(items.head)) toDel(items.head) = toDel(items.head) + 1
+              else res += items.head
+              items = items.tail
+            } else {
+              res += toAdd(index)
+              index += 1
+            }
+          }
+          res.result().toList
+*/
+
+
 
           /*
           def getId(e: R) = e.productElement(0) match {
