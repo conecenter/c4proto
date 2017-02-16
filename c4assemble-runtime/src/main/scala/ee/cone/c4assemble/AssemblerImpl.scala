@@ -43,70 +43,10 @@ class IndexFactoryImpl extends IndexFactory {
             case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
           })/**/
 
-          /*
-          def getId(e: R) = e.productElement(0) match {
-            case s: String ⇒ s
-            case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
-          }
-          val toAddB = new collection.mutable.ArrayBuilder.ofRef[R]
-          val toDel = new collection.mutable.HashMap[R,Int]
-          d.foreach{ case (node,count)=>
-            if(count<0) toDel += node -> count else {
-              var i = count
-              while(i>0) {
-                toAddB += node
-                i -= 1
-              }
-            }
-          }
-          val toAdd = toAddB.result()
-          java.util.Arrays.sort(toAdd, new Comparator[R] {
-            def compare(o1: R, o2: R): Int = getId(o1).compareTo(getId(o2))
-          })
-          val res = new collection.mutable.ArrayBuilder.ofRef[R]
-          var items = v
-          var index = 0
-          while(index < toAdd.length || items.nonEmpty) {
-            if (index >= toAdd.length || getId(items.head) < getId(toAdd(index))) {
-              if(toDel.contains(items.head)) toDel(items.head) = toDel(items.head) + 1
-              else res += items.head
-              items = items.tail
-            } else {
-              res += toAdd(index)
-              index += 1
-            }
-          }
-          res.result().toList
-*/
 
 
 
-          /*
-          def getId(e: R) = e.productElement(0) match {
-            case s: String ⇒ s
-            case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
-          }
-          def fill(node: R, count: Int) = List.fill(Math.abs(count))(node)
-          @tailrec def merge(a: List[R], b: List[R], t: List[R]): List[R] = {
-            if(a.isEmpty)
-              t.reverse ::: b
-            else if(b.isEmpty)
-              t.reverse ::: a
-            else if(getId(a.head)<getId(b.head))
-              merge(a.tail, b, a.head :: t)
-            else
-              merge(a, b.tail, b.head :: t)
-          }
-          val(toAdd, toDel) = d.toList.partition{ case (_,count)=> count>0}
-          val toDelList = toDel.flatMap(tupled(fill))
-          val toAddList = toAdd.flatMap(tupled(fill))
-          merge(v.diff(toDelList), toAddList.sortBy(getId), Nil)
-old 2k madd 2499 ms sadd 67 ms
-old 5k madd 12891 ms sadd 123 ms
-new 2k madd 1096 ms sadd 98 ms
-new 5k madd 3128 ms sadd 173 ms
-new 10k madd 11581 ms sadd 334 ms
-*/
+
         }
       )
     val addNestedDiff: PatchMap[RK,MultiSet[R],R] =
