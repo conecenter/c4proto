@@ -7,9 +7,7 @@ function ctxToArray(ctx,res){
     return res
 }
 
-function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
-
-export default function VDomChanges(sender, DiffPrepare){
+export default function VDomChanges(rootCtx, DiffPrepare){
     const changes = {}
     const set = (ctx,value) => {
         const path = ctxToArray(ctx,[])
@@ -22,7 +20,7 @@ export default function VDomChanges(sender, DiffPrepare){
         //console.log("input-change added")
         var sent = null
         const send = () => {
-            if(!sent) sent = sender.send(ctx,"change",value) // todo fix bug, ask aku
+            if(!sent) sent = rootCtx(ctx).send(ctx,"change",value) // todo fix bug, ask aku
         }
         const ack = (branchKey,index) => sent &&
             branchKey === sent["X-r-branch"] &&

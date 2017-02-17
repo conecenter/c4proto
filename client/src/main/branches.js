@@ -16,12 +16,18 @@ export default function Branches(log,branchHandlers){
         return null
     })
     //const setParent = parentBranch => branchKey => modify(branchKey, state=>({...state, parentBranch}))
-    const toReceiver = branchHandler => data => {
+
+    const toReceiver = branchHandler => (data,snd) => {
         const i = data.indexOf(" ")
         const branchKey = data.substring(0,i)
         const body = data.substring(i+1)
         //log({a:"recv",branchKey})
-        modify(branchKey, branchHandler(body))
+        const thenSend = state => {
+            if(!state.toSend) return state;
+            state.toSend.forEach(message=>snd(message.url,message.headers))
+            return ({...state, toSend:[]})
+        }
+        modify(branchKey, state=>thenSend(branchHandler(body)(state)))
     }
 
     function branches(data){

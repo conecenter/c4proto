@@ -41,7 +41,7 @@ export function CanvasFactory(util, modList){
     })
 }
 
-export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,createElement){
+export function ExchangeCanvasSetup(canvas,scrollNode,rootElement,createElement){
     function sendToServer(req){
         return feedback.send("/connection", {
             ...req,

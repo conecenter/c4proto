@@ -10,7 +10,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
+export default function MetroUi({log,rootCtx,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
 	const FlexContainer = React.createClass({
 		getInitialState:function(){
 			return {};
@@ -1164,7 +1164,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			)	
 		);
 	};	
-	const sendVk = ctx => (event,value) => {sender.send(ctx,"click",value);}
+	const sendVk = ctx => (event,value) => {rootCtx(ctx).send(ctx,"click",value);}
 	const onClickValue=({sendVk})
 	
 	const transforms= {

@@ -4,7 +4,7 @@ import ReactDOM        from 'react-dom'
 import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 import update          from 'react/lib/update'
 
-export default function VDom(getRootElement, createElement, activeTransforms){
+export default function VDom({getRootElement, createElement, activeTransforms, encode, rootCtx, ctxToPath}){
     function never(){ throw ["traverse error"] }
     const Traverse = React.createClass({
         mixins: [PureRenderMixin],
@@ -68,7 +68,13 @@ export default function VDom(getRootElement, createElement, activeTransforms){
         }
         const branchKey = state.branchKey
         const modify = state.modify
-        const ctx = {value, localState, branchKey, modify}
+        const send = (ctx, action, value) => state.send("/connection", { // todo: may be we need a queue to be sure server will receive messages in right order
+            "X-r-action": action,
+            "X-r-vdom-value-base64": encode(value),
+            "X-r-branch": rootCtx(ctx).branchKey,
+            "X-r-vdom-path": ctxToPath(ctx)
+        })
+        const ctx = {value, localState, branchKey, modify, send}
         setupIncomingDiff(ctx)
         const incoming = update(rootComponent.state.incoming || {}, ctx.value) // todo: do we need state in component?
         rootComponent.setState({incoming})
