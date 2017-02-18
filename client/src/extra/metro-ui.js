@@ -11,32 +11,19 @@ jsx?
 */
 
 export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
-	const FlexContainer = React.createClass({
-		getInitialState:function(){
-			return {};
-		},
-		render:function(){
-			var style={
-				display:'flex',
-				flexWrap:this.props.flexWrap?this.props.flexWrap:'nowrap',
-			};			
-			if(this.props.style) Object.assign(style,this.props.style);
-			return React.createElement("div",{style:style},this.props.children)
-		}
-	});
-	const FlexElement = React.createClass({
-		render:function(){
-			var style={
-				flexGrow:this.props.expand?'1':'0',
-				flexShrink:'1',
-				minWidth:'0px',
-				flexBasis:this.props.minWidth?this.props.minWidth:'auto',
-				maxWidth:this.props.maxWidth?this.props.maxWidth:'auto',
-			};
-			if(this.props.style) Object.assign(style,this.props.style);
-			return React.createElement("div",{style:style},this.props.children)
-		}
-	});
+	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
+		display:'flex',
+		flexWrap:flexWrap?flexWrap:'nowrap',
+		...style
+		}},children);
+	const FlexElement = ({expand,minWidth,maxWidth,style,children})=>React.createElement("div",{style:{
+		flexGrow:expand?'1':'0',
+		flexShrink:'1',
+		minWidth:'0px',
+		flexBasis:minWidth?minWidth:'auto',
+		maxWidth:maxWidth?maxWidth:'auto',
+		...style
+	}},children);
 	const button = React.createClass({    
 		onClick:function(e){
 			if(this.props.onClick){            
@@ -134,22 +121,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement(button,{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
-	const MenuBarElement=React.createClass({
-		getInitialState:function(){
-			return {};
-		},
-		render:function(){
-			var style={
-				display:'flex',
-				flexWrap:'nowrap',
-				justifyContent:'flex-start',
-				//backgroundColor:'#c0ced8',
-				verticalAlign:'middle',
-			};
-			if(this.props.style) Object.assign(style,this.props.style);
-			return React.createElement("div",{style:style},this.props.children)
-		}
-	});
+	const MenuBarElement=({style,children})=>React.createElement("div",{style:{
+		display:'flex',
+		flexWrap:'nowrap',
+		justifyContent:'flex-start',
+		//backgroundColor:'#c0ced8',
+		verticalAlign:'middle',
+		...style
+	}},children);
 	const MenuDropdownElement = ({style,children}) => React.createElement("div",{
         style: {
             position:'absolute',
@@ -257,71 +236,48 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},this.props.children);
 		}
 	});
-	const TabSet=React.createClass({
-		render:function(){
-			var style={
-				borderBottom:'0.05rem solid',         
-				overflow:'hidden',
-				display:'flex',
-				marginTop:'0rem',
-			};
-			Object.assign(style,this.props.style);
-			return React.createElement("div",{style:style},this.props.children);
-		}
-	});
+	const TabSet=({style,children})=>React.createElement("div",{style:{
+		borderBottom:'0.05rem solid',         
+		overflow:'hidden',
+		display:'flex',
+		marginTop:'0rem',
+		...style
+	}},children);
 	const DocElement=React.createClass({
 		componentDidMount:function(){ uglifyBody(this.props.style) },
 		render:function(){		
 			return React.createElement("div");
 		}	
 	});
-	const GrContainer= React.createClass({
-		render:function(){
-			var style={
-				boxSizing:'border-box',           
-				fontSize:'0.875rem',
-				lineHeight:'1.1rem',
-				margin:'0px auto',
-				paddingTop:'0.3125rem',
-			};
-			return React.createElement("div",{style:style},this.props.children);
-		}
-	});
-	const FlexGroup=React.createClass({
-		render:function(){
-			var style={
-				backgroundColor:'white',
-				border:'0.02rem #b6b6b6 dashed',
-				margin:'0.4rem',
-				padding:'0.5rem 0.5rem 1.25rem 0.5rem',
-			};
-			if(this.props.style)
-				Object.assign(style,this.props.style);
-			return React.createElement("div",{style:style},this.props.children);
-		}
-	});
-	const Chip = React.createClass({
-		render:function(){
-			var newStyle={
-				fontWeight:'bold',
-				fontSize:'1.4rem',
-				color:'white',
-				textAlign:'center',
-				borderRadius:'0.58rem',
-				border:'0.02rem solid #eeeeee',
-				backgroundColor:"white",
-				cursor:'default',
-				width:'3.8rem',
-				display:'block',
-				marginBottom:'0.1rem',
-			};
-			if(this.props.style)
-				Object.assign(newStyle,this.props.style);
-			const value = this.props.children|| this.props.value;
-			return React.createElement('input',{style:newStyle,readOnly:'readonly',value:value},null);
-		}
-	});
-	
+	const GrContainer= ({style,children})=>React.createElement("div",{style:{
+		boxSizing:'border-box',           
+		fontSize:'0.875rem',
+		lineHeight:'1.1rem',
+		margin:'0px auto',
+		paddingTop:'0.3125rem',
+		...style
+	}},children);
+	const FlexGroup=({style,children})=>React.createElement("div",{style:{
+		backgroundColor:'white',
+		border:'0.02rem #b6b6b6 dashed',
+		margin:'0.4rem',
+		padding:'0.5rem 0.5rem 1.25rem 0.5rem',
+		...style
+	}},children);
+	const Chip = ({value,style,children})=>React.createElement('input',{style:{
+		fontWeight:'bold',
+		fontSize:'1.4rem',
+		color:'white',
+		textAlign:'center',
+		borderRadius:'0.58rem',
+		border:'0.02rem solid #eeeeee',
+		backgroundColor:"white",
+		cursor:'default',
+		width:'3.8rem',
+		display:'block',
+		marginBottom:'0.1rem',
+		...style
+	},readOnly:'readonly',value:(children || value)},null);	
 	const VKTd = React.createClass({
 		getInitialState:function(){
 			return {touch:false};
@@ -352,9 +308,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				verticalAlign:'top',
 				outline:this.state.touch?'0.1rem solid blue':'none',
 				color:'inherit',
-			};
-			if(this.props.bStyle)
-				Object.assign(bStyle,this.props.bStyle);
+				...this.props.bStyle
+			};			
 			return React.createElement("td",{style:this.props.style,
 								colSpan:this.props.colSpan,rowSpan:this.props.rowSpan,onClick:this.onClick},
 								React.createElement("button",{style:bStyle,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children));
@@ -471,7 +426,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				result=React.createElement("table",{style:tableStyle,key:"1"},
 					React.createElement("tbody",{key:"1"},[
 					   React.createElement("tr",{key:"0"},[
-						   React.createElement(VKTd,{colSpan:"2",style:Object.assign({},specialTdAccentStyle,{height:"2rem"}),key:"1",fkey:"Backspace"},backSpaceEl),
+						   React.createElement(VKTd,{colSpan:"2",style:Object.assign({},specialTdAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"50%",fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
 						   React.createElement("td",{key:"2"},''),
 						   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
 					   ]),					   
@@ -498,13 +453,13 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"7"},'7'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"8"},'8'),
 						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"9"},'9'),
-						   React.createElement(VKTd,{colSpan:'2',style:Object.assign({},tdStyle,{height:"2rem",padding:"0px"}),key:"4",fkey:"ArrowUp"},upEl),
+						   React.createElement(VKTd,{colSpan:'2',style:Object.assign({},tdStyle,{minWidth:'2rem',height:"auto",padding:"0px"}),bStyle:{width:"50%",fontSize:""},key:"4",fkey:"ArrowUp"},upEl),
 					   ]),					   
 					   React.createElement("tr",{key:"4"},[
 						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"4"},'4'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"5"},'5'),
 						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"6"},'6'),
-						   React.createElement(VKTd,{colSpan:'2',style:Object.assign({},tdStyle,{height:"2rem",padding:"0px"}),key:"4",fkey:"ArrowDown"},downEl),
+						   React.createElement(VKTd,{colSpan:'2',style:Object.assign({},tdStyle,{minWidth:'2rem',height:"auto",padding:"0px"}),bStyle:{width:"50%",fontSize:""},key:"4",fkey:"ArrowDown"},downEl),
 					   ]),
 					   React.createElement("tr",{key:"5"},[
 						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"1"},'1'),
@@ -631,67 +586,37 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 	});	
 
-	const TableElement = React.createClass({
-		render:function(){
-			var tableStyle={
-				borderCollapse:'separate',
-				borderSpacing:'0px',
-				width:'100%',
-				lineHeight:"1.1",
-			};
-			if(this.props.style)
-				Object.assign(tableStyle.this.props.style);
-			return React.createElement("table",{style:tableStyle},this.props.children);
-		}	
-	});
-	const THeadElement = React.createClass({
-		render:function(){
-			var theadStyle={};
-			if(this.props.style)
-				Object.assign(theadStyle.this.props.style);
-			return React.createElement("thead",{style:theadStyle},this.props.children);
-		}	
-	});
-	const TBodyElement = React.createClass({
-		render:function(){
-			var tbodyStyle={};
-			if(this.props.style)
-				Object.assign(tbodyStyle.this.props.style);
-			return React.createElement("tbody",{style:tbodyStyle},this.props.children);
-		}	
-	});
-	const THElement = React.createClass({
-		render:function(){			
-			const thStyle={				
-				borderBottom:'1px solid #b6b6b6',
-				borderLeft:'none',
-				borderRight:'1px solid #b6b6b6',
-				borderTop:'1px solid #b6b6b6',
-				fontWeight:'bold',
-				padding:'1px 2px 1px 2px',
-				verticalAlign:'middle',
-				...this.props.style
-			};        			
-			return React.createElement("th",{style:thStyle},this.props.children);
-		}	
-	});
-	const TDElement = React.createClass({
-		render:function(){		
-			const tdStyle={				
-				borderLeft:'none',
-				borderRight:'1px solid #b6b6b6',
-				borderTop:'1px solid #b6b6b6',
-				fontWeight:'bold',
-				padding:'0.1rem 0.2rem',
-				verticalAlign:'middle',
-				fontSize:'1.7rem',
-				borderBottom:'none',
-				fontWeight:'normal',
-				...this.props.style
-			};			
-			return React.createElement("td",{style:tdStyle},this.props.children);
-		}	
-	});
+	const TableElement = ({style,children})=>React.createElement("table",{style:{
+		borderCollapse:'separate',
+		borderSpacing:'0px',
+		width:'100%',
+		lineHeight:"1.1",
+		...style
+	}},children);
+	const THeadElement = ({style,children})=>React.createElement("thead",{style:style},children);
+	const TBodyElement = ({style,children})=>React.createElement("tbody",{style:style},children);
+	const THElement = ({style,children})=>React.createElement("th",{style:{
+		borderBottom:'1px solid #b6b6b6',
+		borderLeft:'none',
+		borderRight:'1px solid #b6b6b6',
+		borderTop:'1px solid #b6b6b6',
+		fontWeight:'bold',
+		padding:'1px 2px 1px 2px',
+		verticalAlign:'middle',
+		...style
+	}},children);
+	const TDElement = ({style,children})=>React.createElement("td",{style:{
+		borderLeft:'none',
+		borderRight:'1px solid #b6b6b6',
+		borderTop:'1px solid #b6b6b6',
+		fontWeight:'bold',
+		padding:'0.1rem 0.2rem',
+		verticalAlign:'middle',
+		fontSize:'1.7rem',
+		borderBottom:'none',
+		fontWeight:'normal',
+		...style
+	}},children);
 	const TRElement = React.createClass({
 		getInitialState:function(){
 			return {touch:false,mouseOver:false};
@@ -743,15 +668,16 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.props.onBlur(e)
 		},
 		render:function(){
-			var labelStyle={
+			const labelStyle={
 				color:"rgb(33,33,33)",
 			};
-			var contStyle={
+			const contStyle={
 				width:"100%",				
 				padding:"0.4rem 0.3125rem",
 				boxSizing:"border-box",
-			};
-			var inpContStyle={
+				...this.props.style
+			};			
+			const inpContStyle={
 				display:"flex",
 				height:"auto",
 				lineHeight:"1",
@@ -760,19 +686,19 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				verticalAlign:"middle",
 				width:"100%",
 			};
-			var inp2ContStyle={
+			const inp2ContStyle={
 				flex:"1 1 0%",
 				height:"auto",
 				minHeight:"100%",
 				overflow:"hidden",				
 			};
-			var inputStyle={
+			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
 				border:"0.01rem solid rgb(182, 182, 182)",
-				height:"auto",
+				height:"100%",
 				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
 				width:"100%",
 				zIndex:"0",
@@ -782,21 +708,16 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflow:"hidden",
 				fontSize:"inherit",
 				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
-			};
-			if(this.props.inputStyle)
-				Object.assign(inputStyle,this.props.inputStyle);						
-			const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;
-			if(this.props.style)
-				Object.assign(contStyle,this.props.style);
+				...this.props.inputStyle
+			};								
+			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;			
 			const type = this.props.type?this.props.type:"text"
-			return React.createElement("div",{style:contStyle},[
-				labelEl,
-				React.createElement("div",{key:"2",style:inpContStyle},
+			return React.createElement("div",{style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
 						React.createElement("input",{key:"1",type,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null)
 					)
-				)
-			]);			
+				);
+					
 		},
 	});
 
@@ -810,13 +731,13 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.props.onClick(e);
 		},
 		render:function(){			
-			var contStyle={
+			const contStyle={
 				width:"100%",				
 				padding:"0.4rem 0.3125rem",
 				boxSizing:"border-box",
 				//...(this.props.style||{})
 			};
-			var inpContStyle={
+			const inpContStyle={
 				display:"flex",
 				height:"auto",
 				lineHeight:"1",
@@ -824,20 +745,21 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				position:"relative",
 				verticalAlign:"middle",
 				width:"100%",
+				...this.props.style
 			};
-			var inp2ContStyle={
+			const inp2ContStyle={
 				flex:"1 1 0%",
 				height:"auto",
 				minHeight:"100%",
 				overflow:"hidden",				
 			};
-			var inputStyle={
+			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
 				border:"0.01rem solid rgb(182, 182, 182)",
-				height:"auto",
+				height:"100%",
 				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
 				width:"100%",
 				zIndex:"0",
@@ -845,7 +767,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				MozAppearence:"none",
 				whiteSpace:"nowrap",
 				overflow:"hidden",
-				fontSize:"inherit",				
+				fontSize:"inherit",
+				...this.props.inputStyle
 			};
 			const popupStyle={
 				position:"absolute",
@@ -860,23 +783,24 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			};
 			const openButtonStyle={
 				minHeight:"",
+				minWidth:"1.5rem",
 				height:"100%",
-				padding:"0rem",
+				padding:"0.2rem",
+				lineHeight:"1",
 			};
 			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
 				flex:"0 1 auto"
 			});
 			const buttonImageStyle={
-				width:"1rem",
+				//width:"1.2rem",
 				verticalAlign:"middle",
 				display:"inline",
 				height:"100%",
+				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
+				transition:"all 200ms ease"				
 			};
-			if(this.props.inputStyle)
-				Object.assign(inputStyle,this.props.inputStyle);
-			if(this.props.style)
-				Object.assign(inpContStyle,this.props.style);
-			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="446.25px" height="446.25px" viewBox="0 0 446.25 446.25" style="fill: rgb(0, 0, 0);" xml:space="preserve"><path d="M318.75,280.5h-20.4l-7.649-7.65c25.5-28.05,40.8-66.3,40.8-107.1C331.5,73.95,257.55,0,165.75,0S0,73.95,0,165.75 S73.95,331.5,165.75,331.5c40.8,0,79.05-15.3,107.1-40.8l7.65,7.649v20.4L408,446.25L446.25,408L318.75,280.5z M165.75,280.5 C102,280.5,51,229.5,51,165.75S102,51,165.75,51S280.5,102,280.5,165.75S229.5,280.5,165.75,280.5z" style="fill: rgb(0, 0, 0);"></path></svg>';
+			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 306 306" xml:space="preserve"><polygon points="270.3,58.65 153,175.95 35.7,58.65 0,94.35 153,247.35 306,94.35"/></svg>'
+			//const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="446.25px" height="446.25px" viewBox="0 0 446.25 446.25" style="fill: rgb(0, 0, 0);" xml:space="preserve"><path d="M318.75,280.5h-20.4l-7.649-7.65c25.5-28.05,40.8-66.3,40.8-107.1C331.5,73.95,257.55,0,165.75,0S0,73.95,0,165.75 S73.95,331.5,165.75,331.5c40.8,0,79.05-15.3,107.1-40.8l7.65,7.649v20.4L408,446.25L446.25,408L318.75,280.5z M165.75,280.5 C102,280.5,51,229.5,51,165.75S102,51,165.75,51S280.5,102,280.5,165.75S229.5,280.5,165.75,280.5z" style="fill: rgb(0, 0, 0);"></path></svg>';
 			const svgData=svgSrc(svg);
 			const urlData = this.props.url?this.props.url:svgData;
 			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);			
@@ -942,35 +866,28 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			this.el.removeEventListener("blur",this.onBlur);
 		},
 		render:function(){
-			var style={
+			const style={
 				display:"inline-block",
 				outline:"none",
-			};
-			if(this.props.style)
-				Object.assign(style,this.props.style);
+				...this.props.style
+			};			
 			return React.createElement("div",{ref:ref=>this.el=ref,style:style,tabIndex:"0"},this.props.children);
 		}
 	});
-	const PopupElement = React.createClass({
-		render:function(){
-			var style={
-				position:"fixed",
-				zIndex:"6",
-				border:"0.02rem solid #eee",
-				backgroundColor:"white",
-			};
-			if(this.props.style)
-				Object.assign(style,this.props.style);
-			return React.createElement("div",{style:style},this.props.children);
-		}		
-	});
+	const PopupElement = ({style,children})=>React.createElement("div",{style:{
+		position:"fixed",
+		zIndex:"6",
+		border:"0.02rem solid #eee",
+		backgroundColor:"white",
+		...style
+	}},children);
 	const Checkbox = React.createClass({
 		onClick:function(e){
 			if(this.props.onChange)
 				this.props.onChange({target:{value:(this.props.value?"":"checked")}});
 		},
 		render:function(){
-			var contStyle={
+			const contStyle={
 				flexGrow:"0",
 				//minHeight:"2.8125rem",
 				position:"relative",
@@ -979,9 +896,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				flexShrink:"1",
 				boxSizing:"border-box",
 				lineHeight:"1",
-				
+				...this.props.style
 			};
-			var cont2Style={
+			const cont2Style={
 				border:"none",
 				display:"inline-block",
 				lineHeight:"100%",
@@ -992,8 +909,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				width:"calc(100% - 1rem)",
 				cursor:"pointer",
 				bottom:"0rem",
+				...this.props.innerStyle
 			};
-			var checkBoxStyle={
+			const checkBoxStyle={
 				border:"0.02rem #b6b6b6 solid",
 				color:"#212121",
 				display:"inline-block",
@@ -1006,8 +924,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				width:"1.625rem",
 				boxSizing:"border-box",
 				backgroundColor:this.props.onChange?"white":"#eeeeee",
+				...this.props.checkBoxStyle
 			};
-			var labelStyle={
+			const labelStyle={
 				maxWidth:"calc(100% - 2.165rem)",
 				padding:"0rem 0.3125rem",
 				verticalAlign:"middle",
@@ -1018,20 +937,13 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				textOverflow:"ellipsis",
 				whiteSpace:"nowrap",
 				boxSizing:"border-box",
+				...this.props.labelStyle
 			};
 			const imageStyle = {				
 				bottom:"0rem",
 				height:"90%",
 				width:"100%",
-			};
-			if(this.props.style)
-				Object.assign(contStyle,this.props.style);
-			if(this.props.innerStyle)
-				Object.assign(cont2Style,this.props.innerStyle);
-			if(this.props.checkBoxStyle)
-				Object.assign(checkBoxStyle,this.props.checkBoxStyle);
-			if(this.props.labelStyle)
-				Object.assign(labelStyle,this.props.labelStyle);
+			};			
 			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
 			const svgData=svgSrc(svg);
 			const checkImage = this.props.value&&this.props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
@@ -1051,7 +963,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.props.onChange({target:{value:(this.props.value?"":"checked")}});
 		},
 		render:function(){
-			var contStyle={
+			const contStyle={
 				flexGrow:"0",
 				minHeight:"2.8125em",
 				position:"relative",
@@ -1060,9 +972,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				flexShrink:"1",
 				boxSizing:"border-box",
 				lineHeight:"1",
-				
+				...this.props.style
 			};
-			var cont2Style={
+			const cont2Style={
 				border:"none",
 				display:"inline-block",
 				lineHeight:"100%",
@@ -1073,8 +985,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				width:"calc(100% - 1rem)",
 				cursor:"pointer",
 				bottom:"0rem",
+				...this.props.innerStyle
 			};
-			var checkBoxStyle={
+			const checkBoxStyle={
 				border:"0.02em #b6b6b6 solid",
 				color:"#212121",
 				display:"inline-block",
@@ -1088,8 +1001,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:this.props.onChange?"white":"#eeeeee",
 				textAlign:"center",				
 				borderRadius:"50%",
+				...this.props.checkBoxStyle
 			};
-			var labelStyle={
+			const labelStyle={
 				maxWidth:"calc(100% - 2.165em)",
 				padding:"0rem 0.3125em",				
 				cursor:"pointer",
@@ -1099,6 +1013,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				textOverflow:"ellipsis",
 				whiteSpace:"nowrap",
 				boxSizing:"border-box",
+				...this.props.labelStyle
 			};
 			const imageStyle = {								
 				height:"40%",
@@ -1108,16 +1023,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				borderRadius:"50%",
 				verticalAlign:"top",
 				marginTop:"0.2em",
-			};
-			if(this.props.style)
-				Object.assign(contStyle,this.props.style);
-			if(this.props.innerStyle)
-				Object.assign(cont2Style,this.props.innerStyle);
-			if(this.props.checkBoxStyle)
-				Object.assign(checkBoxStyle,this.props.checkBoxStyle);
-			if(this.props.labelStyle)
-				Object.assign(labelStyle,this.props.labelStyle);			
-			
+			};			
 			return React.createElement("div",{style:contStyle},
 				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick},[
 					React.createElement("span",{style:checkBoxStyle,key:"1"},React.createElement("div",{style:imageStyle,key:"checkImage"},null)),
