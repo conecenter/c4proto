@@ -1,81 +1,83 @@
 
-let loadKeyState, connectionState;
-let nextMessageIndex = 0
-let eventSource
-let lastOK = 0
-let wasLocation
-
 export default function SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send}){
-    function never(){ throw ["not ready"] }
-    function pong(snd){
-        snd(getConnectionState(never).pongURL, {
-            "X-r-connection": getConnectionKey(never),
-            "X-r-location": location+""
-        })
-        //console.log("pong")
-    }
-    function sessionKey(orDo){ return sessionStorage.getItem("sessionKey") || orDo() }
-    function getLoadKey(orDo){ return loadKeyState || orDo() }
-    function loadKeyForSession(){ return "loadKeyForSession-" + sessionKey(never) }
-    function getConnectionState(orDo){ return connectionState || orDo() }
-    function getConnectionKey(orDo){ return getConnectionState(orDo).key || orDo() }
-    function connect(data,snd) {
+    const never = () => { throw ["not ready"] }
+    const pong = state => state.addSend(state.pongURL||never(), {
+        "X-r-connection": state.connectionKey || never(),
+        "X-r-location": location+""
+    })(state)
+    const sessionKey = orDo => sessionStorage.getItem("sessionKey") || orDo()
+    const loadKeyForSession = () => "loadKeyForSession-" + sessionKey(never)
+    const connect = data => state => {
         //console.log("conn: "+data)
-        const [key,pongURL] = data.split(" ")
-        connectionState = { key, pongURL }
-        sessionKey(() => sessionStorage.setItem("sessionKey", getConnectionKey(never)))
-        getLoadKey(() => { loadKeyState = getConnectionKey(never) })
-        localStorage.setItem(loadKeyForSession(), getLoadKey(never))
-        pong(snd)
+        const [connectionKey,pongURL] = data.split(" ")
+        sessionKey(() => sessionStorage.setItem("sessionKey", connectionKey))
+        const loadKey = state.loadKey || connectionKey
+        localStorage.setItem(loadKeyForSession(), loadKey)
+        return pong({...state,pongURL,connectionKey,loadKey})
     }
-    function ping(data,snd) {
+    const ping = data => state => {
         //console.log("ping: "+data)
-        if(localStorage.getItem(loadKeyForSession()) !== getLoadKey(never)) { // tab was refreshed/duplicated
+        if(localStorage.getItem(loadKeyForSession()) !== (state.loadKey || never())) { // tab was refreshed/duplicated
             sessionStorage.clear()
             location.reload()
-        } else if(getConnectionKey(never) === data) pong(snd) // was not reconnected
+            return state
+        } else if((state.connectionKey || never()) === data) return pong(state) // was not reconnected
     }
-    function sendBack(url,inHeaders){
+    const checkSend = state => {
+        if(!state.toSend) return state
+        const snd = message => {
+            snd(message.prev)
+            send(message.url, message.options)
+        }
+        snd(state.toSend)
+        return {...state, toSend:null}
+    }
+    const addSend = (url,inHeaders) => state => { //todo: contron message delivery at server
+        const nextMessageIndex = (state.nextMessageIndex||0) + 1
         const headers = {
             ...inHeaders,
             "X-r-session": sessionKey(never),
-            "X-r-index": nextMessageIndex++
+            "X-r-index": nextMessageIndex
         }
-        //todo: contron message delivery at server
-        send(url, {method:"post", headers})
-        return headers
+        const prev = state.toSend
+        const options = {method:"post", headers}
+        const toSend = {url, options, prev}
+        return ({...state, nextMessageIndex, toSend})
     }
-    function relocateHash(data,snd) {
+    const init = state => state.addSend ? state : {...state, addSend}
+
+    const relocateHash = data => state => {
         location.href = "#"+data
+        return state
     }
-    function checkHash(snd){
-        if(wasLocation!==location.href){
-            wasLocation = location.href
-            pong(snd)
-        }
-    }
+    const checkHash = state => state.wasLocation === location.href ? state :
+            pong({...state, wasLocation: location.href })
+
     ////
-    function isStateClosed(v){ return v === 2 }
-    function checkActivate(){
-        if(eventSource){
-            if(!isStateClosed(eventSource.readyState)) lastOK = Date.now()
-            if(Date.now() - lastOK > reconnectTimeout){
-                eventSource.close();
-                eventSource = null;
-            }
-        }
-        if(!eventSource){
-            //console.log("new EventSource")
-            eventSource = createEventSource();
-            receiversList.concat({connect,ping,relocateHash}).forEach(
-                handlerMap => Object.keys(handlerMap).forEach(
-                    handlerName => eventSource.addEventListener(handlerName, 
-                        event => handlerMap[handlerName](event.data,sendBack)
-                    )
+    const isStateClosed = v => v === 2
+    const checkOK = state => !state.eventSource ? state :
+            isStateClosed(state.eventSource.readyState) ? state :
+            { ...state, eventSourceLastOK: Date.now() }
+
+    const checkClose = state => {
+        if(!state.eventSource || Date.now() - (state.eventSourceLastOK||0) < reconnectTimeout) return state
+        state.eventSource.close();
+        return ({...state, eventSource: null})
+    }
+    const checkCreate = state => {
+        if(state.eventSource) return state
+        const eventSource = createEventSource()
+        receiversList.concat({connect,ping,relocateHash}).forEach(
+            handlerMap => Object.keys(handlerMap).forEach(
+                handlerName => eventSource.addEventListener(handlerName,
+                    event => state.modify(chain([handlerMap[handlerName](event.data),checkSend]))
                 )
             )
-        }
-        checkHash(sendBack)
+        )
+        return ({...state, eventSource})
     }
+
+    const checkActivate = chain([init,checkOK,checkClose,checkCreate,checkHash,checkSend])
+
     return ({checkActivate})
 }

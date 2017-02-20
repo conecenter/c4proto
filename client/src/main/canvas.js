@@ -108,8 +108,8 @@ export function BaseCanvasSetup(log, util, canvas, system){
     function branchKey(){ return currentState.branchKey }
     function fromServer(){ return currentState.parsed }
     function checkActivate(state){
-        if(currentState.parsed !== state.parsed) updateFromServerVersion()
-        currentState = state
+        if(currentState.parsed !== state.branches[branchKey].parsed) updateFromServerVersion()
+        currentState = state.branches[branchKey]
 
         if(!canvas.scrollNode()) return state
         const canvasElement = canvas.visibleElement()

@@ -29,7 +29,7 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
                 React.createElement("div",null)
         }
     })
-    function setupIncomingDiff(ctx) {
+    function setupIncomingDiff(ctx,modify) {
         Object.keys(ctx.value).forEach(key => {
             const value = ctx.value[key]
             const trans = activeTransforms[key]
@@ -42,44 +42,43 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
         })
     }
 
-    function setupBranch(state){
-        if(state.remove) return state;
-        const rootNativeElement = createElement("div")
-        getRootElement().appendChild(rootNativeElement)
-        const rootVirtualElement = React.createElement(RootComponent,null)
-        const rootComponent = ReactDOM.render(rootVirtualElement, rootNativeElement)
-        const remove = () => {
-            rootNativeElement.parentElement.removeChild(rootNativeElement)
-            ReactDOM.unmountComponentAtNode(rootNativeElement)
-        }
-        return ({...state,rootComponent,remove})
-    }
+    const send = (ctx, action, value) => state => state.addSend("/connection", { // todo: may be we need a queue to be sure server will receive messages in right order
+        "X-r-action": action,
+        "X-r-vdom-value-base64": encode(value),
+        "X-r-branch": rootCtx(ctx).branchKey,
+        "X-r-vdom-path": ctxToPath(ctx)
+    })
 
-    const showDiff = data => existingState => {
+    //todo .send(...)(state); no .modify; no localState
+
+    const showDiff = (branchKey,data) => state => {
         const value = JSON.parse(data)
-        const state = setupBranch(existingState)
-        const rootComponent = state.rootComponent
-        const localState = {
-            get(){ return rootComponent.state.local || {} },
-            update(diff){
-                const local = update(rootComponent.state.local || {}, diff)
-                rootComponent.setState({local})
-            }
-        }
-        const branchKey = state.branchKey
-        const modify = state.modify
-        const send = (ctx, action, value) => state.send("/connection", { // todo: may be we need a queue to be sure server will receive messages in right order
-            "X-r-action": action,
-            "X-r-vdom-value-base64": encode(value),
-            "X-r-branch": rootCtx(ctx).branchKey,
-            "X-r-vdom-path": ctxToPath(ctx)
-        })
-        const ctx = {value, localState, branchKey, modify, send}
-        setupIncomingDiff(ctx)
-        const incoming = update(rootComponent.state.incoming || {}, ctx.value) // todo: do we need state in component?
-        rootComponent.setState({incoming})
+        //state.updateBranch(branchKey,{local})
+
+        const ctx = {value, branchKey, send}
+        setupIncomingDiff(ctx,state.modify)
+        const incoming = update(state.branches[branchKey].incoming || {}, ctx.value)
+        state.updateBranch(branchKey,{incoming})
         return state
     }
+
+    const init = state => {
+        if(state.rootNativeElement) return state
+        const rootNativeElement = createElement("div")
+        getRootElement().appendChild(rootNativeElement)
+        return ({...state, rootNativeElement})
+    }
+    const render = state => {
+        ReactDOM.render(React.createElement(Root,state), state.rootNativeElement)
+        return state
+    }
+    const checkActivate = chain([init,render])
     const branchHandlers = {showDiff}
-    return ({branchHandlers})
+    return ({branchHandlers,checkActivate})
 }
+
+/*
+const remove = () => {
+            rootNativeElement.parentElement.removeChild(rootNativeElement)
+            ReactDOM.unmountComponentAtNode(rootNativeElement)
+        }*/

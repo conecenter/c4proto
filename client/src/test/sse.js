@@ -9,8 +9,9 @@ function TestShow(){
     function show(data){
         dataToShow = data
     }
-    function checkActivate(){
+    function checkActivate(state){
         document.body.textContent = dataToShow
+        return state
     }
     const receivers = ({show})
     return ({receivers,checkActivate})

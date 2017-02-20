@@ -12,3 +12,5 @@ export function mergeAll(list){
     list.forEach(from=>merge(to,from))
     return to
 }
+
+export const chain = args => state => args.reduce((st,f) => f(st), state)

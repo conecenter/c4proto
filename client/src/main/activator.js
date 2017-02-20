@@ -1,11 +1,14 @@
 
 export default function activate(requestFrame,checkActivateList){
-    //let frames = 0
-    //setInterval(()=>{ console.log(frames); frames=0 },1000)
+    const modify = transform => { state = transform(state) }
+    let state = ({modify})
     function checkActivateAll(){
         requestFrame(checkActivateAll)
-        checkActivateList.forEach(f=>f())
-        //frames++
+        modify(chain(checkActivateList))
     }
     requestFrame(checkActivateAll)
 }
+
+//let frames = 0
+//setInterval(()=>{ console.log(frames); frames=0 },1000)
+//frames++
