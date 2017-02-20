@@ -10,13 +10,9 @@ export function VDomSeeds(log){
         const rCtx = rootCtx(ctx)
         const fromKey = rCtx.branchKey + ":" + ctxToPath(ctx)
         const branchKey = ctx.value[1]
-        rCtx.modify(branchKey, state=>({
-            ...state,
-            parentNodes:{
-                ...state.parentNodes,
-                [fromKey]: parentNode
-            }
-        }))
+        return transformNested("branches",transformNested(branchKey,transformNested("parentNodes",transformNested(fromKey,
+            v=>parentNode
+        ))))
     }
     const ref = ({seed})
     const transforms = ({ref})

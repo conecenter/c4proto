@@ -29,18 +29,28 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
                 React.createElement("div",null)
         }
     })
-    function setupIncomingDiff(ctx,modify) {
-        Object.keys(ctx.value).forEach(key => {
-            const value = ctx.value[key]
+
+    const toListener = modify => transform => ev => modify(transform(ev))
+    const setupIncomingDiff = (ctx,toListener) => {
+        const visit = ctx => mergeAll(Object.entries(ctx.value).map(([key,value])=>{
             const trans = activeTransforms[key]
             const handler = trans && value && (trans[value] || trans[value[0]])
-            if(handler) {
-                ctx.value[key] = key==="tp" ? handler : handler({ value, parent: ctx })
-            }
-            else if(key.substring(0,1)===":" || key === "at") setupIncomingDiff({ key, value, parent: ctx })
-            else if(key === "$set") setupIncomingDiff({ value, parent: ctx })
-        })
+            out = handler ? (key==="tp" ? handler : toListener(handler({ value, parent: ctx }))) :
+                key.substring(0,1)===":" || key === "at" ? visit({ key, value, parent: ctx }) :
+                key === "$set" ? visit({ value, parent: ctx }) : value
+            return ({[key]: out})
+        }))
+        return visit(ctx)
     }
+
+
+
+
+
+
+
+
+
 
     const send = (ctx, action, value) => state => state.addSend("/connection", { // todo: may be we need a queue to be sure server will receive messages in right order
         "X-r-action": action,
@@ -49,25 +59,25 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
         "X-r-vdom-path": ctxToPath(ctx)
     })
 
-    //todo .send(...)(state); no .modify; no localState
+    //todo: no .modify; no localState; .branchKey not in root; all transforms to real
 
     const showDiff = (branchKey,data) => state => {
         const value = JSON.parse(data)
-        //state.updateBranch(branchKey,{local})
-
         const ctx = {value, branchKey, send}
-        setupIncomingDiff(ctx,state.modify)
-        const incoming = update(state.branches[branchKey].incoming || {}, ctx.value)
-        state.updateBranch(branchKey,{incoming})
-        return state
+        const diff = setupIncomingDiff(ctx,toListener(state.modify))
+        return transformNested("branches",transformNested(branchKey,transformNested("incoming",
+            was=>update(was||{},diff)
+        )))(state)
     }
 
-    const init = state => {
-        if(state.rootNativeElement) return state
-        const rootNativeElement = createElement("div")
-        getRootElement().appendChild(rootNativeElement)
-        return ({...state, rootNativeElement})
+    const createRoot = () => {
+        const el = createElement("div")
+        getRootElement().appendChild(el)
+        return el
     }
+
+    const init = state => transformNested("rootNativeElement",v=> v || createRoot())
+
     const render = state => {
         ReactDOM.render(React.createElement(Root,state), state.rootNativeElement)
         return state

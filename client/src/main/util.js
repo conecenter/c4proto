@@ -14,3 +14,9 @@ export function mergeAll(list){
 }
 
 export const chain = args => state => args.reduce((st,f) => f(st), state)
+
+export const transformNested = (name,inner) => state => {
+    const was = state[name]
+    const will = inner(was)
+    return was===will ? state : {...state, [name]: will}
+}

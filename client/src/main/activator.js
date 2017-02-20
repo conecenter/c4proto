@@ -1,4 +1,6 @@
 
+// functional root
+
 export default function activate(requestFrame,checkActivateList){
     const modify = transform => { state = transform(state) }
     let state = ({modify})

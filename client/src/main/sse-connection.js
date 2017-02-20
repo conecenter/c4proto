@@ -1,4 +1,6 @@
 
+// functional mostly
+
 export default function SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send}){
     const never = () => { throw ["not ready"] }
     const pong = state => state.addSend(state.pongURL||never(), {
@@ -23,15 +25,14 @@ export default function SSEConnection({createEventSource,receiversList,reconnect
             return state
         } else if((state.connectionKey || never()) === data) return pong(state) // was not reconnected
     }
-    const checkSend = state => {
-        if(!state.toSend) return state
+    const checkSend = transformNested("toSend",toSend => {
         const snd = message => {
             snd(message.prev)
             send(message.url, message.options)
         }
-        snd(state.toSend)
-        return {...state, toSend:null}
-    }
+        if(toSend) snd(toSend)
+        return null
+    })
     const addSend = (url,inHeaders) => state => { //todo: contron message delivery at server
         const nextMessageIndex = (state.nextMessageIndex||0) + 1
         const headers = {
@@ -44,7 +45,8 @@ export default function SSEConnection({createEventSource,receiversList,reconnect
         const toSend = {url, options, prev}
         return ({...state, nextMessageIndex, toSend})
     }
-    const init = state => state.addSend ? state : {...state, addSend}
+
+    const init = transformNested("addSend", v => v || addSend)
 
     const relocateHash = data => state => {
         location.href = "#"+data

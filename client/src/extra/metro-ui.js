@@ -1164,7 +1164,7 @@ export default function MetroUi({log,rootCtx,setTimeout,clearTimeout,uglifyBody,
 			)	
 		);
 	};	
-	const sendVk = ctx => (event,value) => {rootCtx(ctx).send(ctx,"click",value);}
+	const sendVk = ctx => value => rootCtx(ctx).send(ctx,"click",value) //todo remove event from call
 	const onClickValue=({sendVk})
 	
 	const transforms= {

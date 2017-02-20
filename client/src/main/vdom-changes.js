@@ -1,53 +1,64 @@
 
-function ctxToArray(ctx,res){
-    if(ctx){
-        ctxToArray(ctx.parent, res)
-        if(ctx.key) res.push(ctx.key)
-    }
-    return res
-}
 
-export default function VDomChanges(rootCtx, DiffPrepare){
-    const changes = {}
-    const set = (ctx,value) => {
+
+
+export default function VDomChanges(rootCtx){
+    const ctxToTransform = (ctx,skip,res) => !ctx ? res :
+        ctx.key && skip>0 ? ctxToTransform(ctx.parent, skip-1, res)
+        ctx.key ? ctxToTransform(ctx.parent, skip, transformNested(ctx.key,res)) :
+        ctx.branchKey ? ctxToTransform(ctx.parent, skip,
+            transformNested("branches",transformNested(ctx.branchKey,transformNested("local",
+                res
+            )))
+        ) :
+        ctxToTransform(ctx.parent, skip, res)
+
+    //const changes = {}
+    const set = (ctx,value) => state => { //todo
         const path = ctxToArray(ctx,[])
         const rCtx = rootCtx(ctx)
-        const path_str = rCtx.branchKey + "/" + path.join("/")
-        const diff = DiffPrepare(rCtx.localState)
-        diff.jump(path)
-        diff.addIfChanged("value", value)
-        diff.apply()
+        const path_str = rCtx.branchKey + ctxToPath(ctx)
+
+
+
+        ctxToTransform(ctx,1,at=>({...at,value}))(state)
+
+
+
         //console.log("input-change added")
         var sent = null
         const send = () => {
-            if(!sent) sent = rootCtx(ctx).send(ctx,"change",value) // todo fix bug, ask aku
+            if(!sent) sent = vDomSend(ctx,"change",value)
         }
         const ack = (branchKey,index) => sent &&
             branchKey === sent["X-r-branch"] &&
             parseInt(index) >= parseInt(sent["X-r-index"]) &&
             clear();
         const clear = () => {
-            const diff = DiffPrepare(rCtx.localState)
-            diff.jump(path.slice(0,-1))
-            diff.addIfChanged("at", {}) //fix if resets alien props
-            diff.apply()
+
+            ctxToTransform(ctx,1,at=>({}))(state) //fix if resets alien props
+
+
+
+
             //console.log("input-change removed")
             delete changes[path_str]
         }
         changes[path_str] = {send,ack}
+        return state
     }
     const sendDeferred = 
-        () => Object.keys(changes).forEach(path_str=>changes[path_str].send())
+        state => Object.keys(changes).forEach(path_str=>changes[path_str].send()) //todo
 
     const onChange = {
         "local": ctx => event => set(ctx, event.target.value),
-        "send": ctx => event => { set(ctx, event.target.value); sendDeferred() }
+        "send": ctx => event => chain([set(ctx, event.target.value), sendDeferred])
     }
     const onBlur = {
-        "send": ctx => event => sendDeferred()
+        "send": ctx => event => sendDeferred
     }
     const onCheck={
-        "send": ctx => event => { set(ctx, event.target.checked?"Y":""); sendDeferred() }
+        "send": ctx => event => chain([set(ctx, event.target.checked?"Y":""), sendDeferred])
     }
     const ackChange = (branchKey,data) => state => {
         Object.keys(changes).forEach(path_str=>changes[path_str].ack(branchKey,data))
