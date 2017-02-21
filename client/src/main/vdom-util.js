@@ -5,7 +5,7 @@ export function ctxToPath(ctx){
     return !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")
 }
 
-export function VDomSeeds(log){
+export function VDomSeeds(log,transformNested){
     const seed = ctx => parentNode => {
         const rCtx = rootCtx(ctx)
         const fromKey = rCtx.branchKey + ":" + ctxToPath(ctx)

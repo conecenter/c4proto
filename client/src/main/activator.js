@@ -1,7 +1,7 @@
 
 // functional root
 
-export default function activate(requestFrame,checkActivateList){
+export default function activate(requestFrame,checkActivateList,chain){
     const modify = transform => { state = transform(state) }
     let state = ({modify})
     function checkActivateAll(){

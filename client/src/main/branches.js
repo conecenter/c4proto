@@ -3,7 +3,7 @@
 
 import {mergeAll}    from "../main/util"
 
-export default function Branches(log,branchHandlers){
+export default function Branches(log,branchHandlers,transformNested){
 
     const toReceiver = branchHandler => data => {
         const i = data.indexOf(" ")
@@ -24,12 +24,7 @@ export default function Branches(log,branchHandlers){
             .concat({branches})
     )
 
-    const checkActivate = state => chain(
-        Object.values(state.branches||{}).map(b=>b.checkActivate).filter(v=>v)
-    )(state)
-
-
 //todo .branchKey; branch .checkActivate
 
-    return ({receivers,checkActivate})
+    return ({receivers})
 }

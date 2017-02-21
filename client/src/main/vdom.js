@@ -4,14 +4,14 @@ import ReactDOM        from 'react-dom'
 import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 import update          from 'react/lib/update'
 
-export default function VDom({getRootElement, createElement, activeTransforms, encode, rootCtx, ctxToPath}){
+export default function VDom({getRootElement, createElement, activeTransforms, encode, rootCtx, ctxToPath, mergeAll}){
     function never(){ throw ["traverse error"] }
     const Traverse = React.createClass({
         mixins: [PureRenderMixin],
         render(){
             const incoming = this.props.incoming || never()
             const local = this.props.local || {}
-            const at = local.at && incoming.at ? Object.assign({}, incoming.at, local.at) : local.at || incoming.at || never() 
+            const at = local.at && incoming.at ? {...incoming.at, ...local.at} : local.at || incoming.at || never()
             const content =
                 incoming.chl ? incoming.chl.map(
                     key => React.createElement(Traverse, {key, incoming:incoming[key], local:local[key]})
@@ -20,22 +20,21 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
             return React.createElement(at.tp, at, content)
         }
     })
-    const RootComponent = React.createClass({
-        mixins: [PureRenderMixin],
-        getInitialState(){ return ({}) },
-        render(){ 
-            return this.state.incoming ? 
-                React.createElement(Traverse,{incoming: this.state.incoming, local: this.state.local }) : 
-                React.createElement("div",null)
-        }
-    })
+    const Root = ({branches}) => {
+        const items = Object.keys(branches).slice().sort()
+            .map(branchKey=>({...branches[branchKey],key:branchKey}))
+            .filter(branch=>branch.incoming || branch.local)
+            .map(branch=>React.createElement(Traverse,branch))
+        return React.createElement("div",items)
+    }
 
     const toListener = modify => transform => ev => modify(transform(ev))
     const setupIncomingDiff = (ctx,toListener) => {
         const visit = ctx => mergeAll(Object.entries(ctx.value).map(([key,value])=>{
             const trans = activeTransforms[key]
             const handler = trans && value && (trans[value] || trans[value[0]])
-            out = handler ? (key==="tp" ? handler : toListener(handler({ value, parent: ctx }))) :
+            const out = handler && key==="tp" ? handler :
+                handler ? toListener(handler({ value, parent: ctx }))) :
                 key.substring(0,1)===":" || key === "at" ? visit({ key, value, parent: ctx }) :
                 key === "$set" ? visit({ value, parent: ctx }) : value
             return ({[key]: out})
@@ -43,23 +42,12 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
         return visit(ctx)
     }
 
-
-
-
-
-
-
-
-
-
-    const send = (ctx, action, value) => state => state.addSend("/connection", { // todo: may be we need a queue to be sure server will receive messages in right order
+    const send = (ctx, action, value) => state => addSend("/connection", { // todo: may be we need a queue to be sure server will receive messages in right order
         "X-r-action": action,
         "X-r-vdom-value-base64": encode(value),
         "X-r-branch": rootCtx(ctx).branchKey,
         "X-r-vdom-path": ctxToPath(ctx)
     })
-
-    //todo: no .modify; no localState; .branchKey not in root; all transforms to real
 
     const showDiff = (branchKey,data) => state => {
         const value = JSON.parse(data)

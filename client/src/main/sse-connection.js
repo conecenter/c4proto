@@ -1,9 +1,9 @@
 
 // functional mostly
 
-export default function SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send}){
+export default function SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send,addSend}){
     const never = () => { throw ["not ready"] }
-    const pong = state => state.addSend(state.pongURL||never(), {
+    const pong = state => addSend(state.pongURL||never(), {
         "X-r-connection": state.connectionKey || never(),
         "X-r-location": location+""
     })(state)
@@ -25,28 +25,13 @@ export default function SSEConnection({createEventSource,receiversList,reconnect
             return state
         } else if((state.connectionKey || never()) === data) return pong(state) // was not reconnected
     }
-    const checkSend = transformNested("toSend",toSend => {
-        const snd = message => {
-            snd(message.prev)
-            send(message.url, message.options)
-        }
-        if(toSend) snd(toSend)
-        return null
+    const checkSend = transformNested("toSend",toSend => { //todo: control message delivery at server
+        toSend.forEach(message=>{
+            const headers = {...message.headers, "X-r-session": sessionKey(never)}
+            send(message.url, {method:"post",headers})
+        })
+        return []
     })
-    const addSend = (url,inHeaders) => state => { //todo: contron message delivery at server
-        const nextMessageIndex = (state.nextMessageIndex||0) + 1
-        const headers = {
-            ...inHeaders,
-            "X-r-session": sessionKey(never),
-            "X-r-index": nextMessageIndex
-        }
-        const prev = state.toSend
-        const options = {method:"post", headers}
-        const toSend = {url, options, prev}
-        return ({...state, nextMessageIndex, toSend})
-    }
-
-    const init = transformNested("addSend", v => v || addSend)
 
     const relocateHash = data => state => {
         location.href = "#"+data
@@ -79,7 +64,7 @@ export default function SSEConnection({createEventSource,receiversList,reconnect
         return ({...state, eventSource})
     }
 
-    const checkActivate = chain([init,checkOK,checkClose,checkCreate,checkHash,checkSend])
+    const checkActivate = chain([checkOK,checkClose,checkCreate,checkHash,checkSend])
 
     return ({checkActivate})
 }

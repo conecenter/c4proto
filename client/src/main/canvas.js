@@ -42,12 +42,6 @@ export function CanvasFactory(util, modList){
 }
 
 export function ExchangeCanvasSetup(canvas,scrollNode,rootElement,createElement){
-    function sendToServer(req){
-        return feedback.send("/connection", {
-            ...req,
-            "X-r-branch": canvas.branchKey()
-        })
-    }
     function onZoom(){} //todo to close popup?
     function appendChild(element){
         rootElement().appendChild(element)
@@ -55,7 +49,7 @@ export function ExchangeCanvasSetup(canvas,scrollNode,rootElement,createElement)
         element.style.zIndex = "554"
     }
 
-    return {sendToServer,onZoom,scrollNode,createElement,appendChild}
+    return {onZoom,scrollNode,createElement,appendChild}
 }
 /*
 function ElementSystem(){
@@ -96,20 +90,23 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
     return ({processFrame})
 }
 
-export function BaseCanvasSetup(log, util, canvas, system){
+export function BaseCanvasSetup(log, util, canvas, system, chain, addSend){
     let lastFrame
     let currentState = {}
     let fromServerVersion = 0
+    let toSend = []
     function parentNode(){
         const res = Object.values(currentState.parentNodes||{}).filter(v=>v)
         return res.length === 1 ? res[0] : null
     }
     function acknowledgedSizes(){ return currentState.acknowledgedSizes }
-    function branchKey(){ return currentState.branchKey }
+
     function fromServer(){ return currentState.parsed }
-    function checkActivate(state){
-        if(currentState.parsed !== state.branches[branchKey].parsed) updateFromServerVersion()
-        currentState = state.branches[branchKey]
+    function sendToServer(req){ toSend = [...toSend,req] }
+    const checkActivate = branchKey => state => {
+        const branch = state.branches[branchKey]
+        if(currentState.parsed !== branch.parsed) updateFromServerVersion()
+        currentState = branch
 
         if(!canvas.scrollNode()) return state
         const canvasElement = canvas.visibleElement()
@@ -125,7 +122,12 @@ export function BaseCanvasSetup(log, util, canvas, system){
         canvas.processFrame(newFrame, lastFrame)
         lastFrame = newFrame
         //console.log("canvas-gen-time",Date.now()-startTime)
-        return state
+
+        const sendAll = chain(toSend.map(
+            req => addSend("/connection", {...req, "X-r-branch": branchKey})
+        ))
+        toSend = []
+        return sendAll(state)
     }
     ////
     function setupFrame(){
@@ -266,7 +268,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
         composingElement,visibleElement,mapSize,createCanvasWithSize,
         setupFrame,processFrame,viewPositions,composeFrameStart,
         checkActivate, zoomToScale, compareFrames, elementPos, updateFromServerVersion,
-        parentNode, branchKey, acknowledgedSizes
+        parentNode, acknowledgedSizes, sendToServer
     }
 }
 

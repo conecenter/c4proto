@@ -20,3 +20,11 @@ export const transformNested = (name,inner) => state => {
     const will = inner(was)
     return was===will ? state : {...state, [name]: will}
 }
+
+export const addSend = (url,inHeaders) => state => {
+    const lastMessageIndex = (state.lastMessageIndex||0) + 1
+    const headers = {...inHeaders, "X-r-index": lastMessageIndex}
+    const prev = state.toSend || []
+    const toSend = [...prev,{url, headers}]
+    return ({...state, lastMessageIndex, toSend})
+}
