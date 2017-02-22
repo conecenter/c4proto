@@ -49,6 +49,13 @@ class TestTodoApp extends ServerApp
 
 case object TaskComments extends TextInputLens[TodoTask](_.comments,v⇒_.copy(comments=v))
 
+/*
+object MyPolicy {
+  def apply(sessionKey: SrcId)(view: World ⇒ ViewRes): World ⇒ ViewRes =
+}
+  def view: World ⇒ ViewRes = MyPolicy(""){local ⇒ ??? }
+*/
+
 case class TestTodoRootView(branchKey: SrcId) extends View {
   def view: World ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val tags = TestTagsKey.of(local).get

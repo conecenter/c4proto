@@ -2,12 +2,15 @@
 // functional root
 
 export default function activate(requestFrame,checkActivateList,chain){
-    const modify = transform => { state = transform(state) }
-    let state = ({modify})
-    function checkActivateAll(){
-        requestFrame(checkActivateAll)
-        modify(chain(checkActivateList))
+    const toListener = reduce => ev => {
+        state = reduce(ev)(state)
     }
+    let state = {toListener}
+    ////
+    const checkActivateAll = toListener(ev=>state=>{
+        requestFrame(checkActivateAll)
+        return chain(checkActivateList)(state)
+    })
     requestFrame(checkActivateAll)
 }
 

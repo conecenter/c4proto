@@ -1,68 +1,79 @@
 
 // functional mostly
 
-export default function SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send,addSend}){
+import {chain,addSend,connectionProp} from "../main/util"
+
+export default function SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send}){
     const never = () => { throw ["not ready"] }
-    const pong = state => addSend(state.pongURL||never(), {
-        "X-r-connection": state.connectionKey || never(),
-        "X-r-location": location+""
-    })(state)
+    const pong = connection => {
+        const url = connection.pongURL || never()
+        const headers = {
+            "X-r-connection": connection.connectionKey || never(),
+            "X-r-location": location+""
+        }
+        const options = ({headers})
+        return addSend({url,options})(connection)
+    }
     const sessionKey = orDo => sessionStorage.getItem("sessionKey") || orDo()
     const loadKeyForSession = () => "loadKeyForSession-" + sessionKey(never)
-    const connect = data => state => {
+    const connect = data => connectionProp.modify(connection => {
         //console.log("conn: "+data)
         const [connectionKey,pongURL] = data.split(" ")
         sessionKey(() => sessionStorage.setItem("sessionKey", connectionKey))
-        const loadKey = state.loadKey || connectionKey
+        const loadKey = connection.loadKey || connectionKey
         localStorage.setItem(loadKeyForSession(), loadKey)
-        return pong({...state,pongURL,connectionKey,loadKey})
-    }
-    const ping = data => state => {
+        return pong({...connection,pongURL,connectionKey,loadKey})
+    })
+    const ping = data => connectionProp.modify(connection => {
         //console.log("ping: "+data)
-        if(localStorage.getItem(loadKeyForSession()) !== (state.loadKey || never())) { // tab was refreshed/duplicated
+        if(localStorage.getItem(loadKeyForSession()) !== (connection.loadKey || never())) { // tab was refreshed/duplicated
             sessionStorage.clear()
             location.reload()
-            return state
-        } else if((state.connectionKey || never()) === data) return pong(state) // was not reconnected
-    }
-    const checkSend = transformNested("toSend",toSend => { //todo: control message delivery at server
-        toSend.forEach(message=>{
-            const headers = {...message.headers, "X-r-session": sessionKey(never)}
-            send(message.url, {method:"post",headers})
-        })
-        return []
+            return connection
+        } else if((connection.connectionKey || never()) === data) return pong(connection) // was not reconnected
     })
 
-    const relocateHash = data => state => {
-        location.href = "#"+data
-        return state
-    }
-    const checkHash = state => state.wasLocation === location.href ? state :
-            pong({...state, wasLocation: location.href })
+    const checkSend = connectionProp.modify(connection => { //todo: control message delivery at server
+        connection.toSend.forEach(message=>{
+            const [url,options] = message(sessionKey(never))
+            send(message.url, message.options)
+        })
+        return ({...connection,toSend:[]})
+    })
 
+    const relocateHash = data => connectionProp.modify(connection => {
+        location.href = "#"+data
+        return connection
+    })
+    const checkHash = connectionProp.modify(
+        connection => connection.wasLocation === location.href ?
+            connection : pong({...connection, wasLocation: location.href })
+    )
     ////
     const isStateClosed = v => v === 2
-    const checkOK = state => !state.eventSource ? state :
-            isStateClosed(state.eventSource.readyState) ? state :
-            { ...state, eventSourceLastOK: Date.now() }
-
-    const checkClose = state => {
-        if(!state.eventSource || Date.now() - (state.eventSourceLastOK||0) < reconnectTimeout) return state
-        state.eventSource.close();
-        return ({...state, eventSource: null})
-    }
-    const checkCreate = state => {
-        if(state.eventSource) return state
+    const checkOK = connectionProp.modify(
+        connection => !connection.eventSource ? connection :
+            isStateClosed(connection.eventSource.readyState) ? connection :
+            { ...connection, eventSourceLastOK: Date.now() }
+    )
+    const checkClose = connectionProp.modify(connection => {
+        if(!connection.eventSource) return connection
+        if(Date.now() - (connection.eventSourceLastOK||0) < reconnectTimeout) return connection
+        connection.eventSource.close();
+        return ({...connection, eventSource: null})
+    })
+    const checkCreate = state => connectionProp.modify(connection => {
+        if(connection.eventSource) return connection
         const eventSource = createEventSource()
         receiversList.concat({connect,ping,relocateHash}).forEach(
             handlerMap => Object.keys(handlerMap).forEach(
-                handlerName => eventSource.addEventListener(handlerName,
-                    event => state.modify(chain([handlerMap[handlerName](event.data),checkSend]))
-                )
+                handlerName => eventSource.addEventListener(handlerName, state.toListener(
+                    event => chain([handlerMap[handlerName](event.data),checkSend])
+                ))
             )
         )
-        return ({...state, eventSource})
-    }
+        return ({...connection, eventSource})
+    })(state)
 
     const checkActivate = chain([checkOK,checkClose,checkCreate,checkHash,checkSend])
 

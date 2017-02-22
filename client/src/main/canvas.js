@@ -1,4 +1,6 @@
 
+import {chain,branchProp,branchSend} from "../main/util"
+
 export function CanvasUtil(){
     function cached(recalculate){
         const data = {}
@@ -90,7 +92,7 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
     return ({processFrame})
 }
 
-export function BaseCanvasSetup(log, util, canvas, system, chain, addSend){
+export function BaseCanvasSetup(log, util, canvas, system){
     let lastFrame
     let currentState = {}
     let fromServerVersion = 0
@@ -104,7 +106,7 @@ export function BaseCanvasSetup(log, util, canvas, system, chain, addSend){
     function fromServer(){ return currentState.parsed }
     function sendToServer(req){ toSend = [...toSend,req] }
     const checkActivate = branchKey => state => {
-        const branch = state.branches[branchKey]
+        const branch = branchProp(branchKey).of(state)
         if(currentState.parsed !== branch.parsed) updateFromServerVersion()
         currentState = branch
 
@@ -124,7 +126,7 @@ export function BaseCanvasSetup(log, util, canvas, system, chain, addSend){
         //console.log("canvas-gen-time",Date.now()-startTime)
 
         const sendAll = chain(toSend.map(
-            req => addSend("/connection", {...req, "X-r-branch": branchKey})
+            req => branchSend({headers:{...req, "X-r-branch": branchKey}})
         ))
         toSend = []
         return sendAll(state)

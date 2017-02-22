@@ -1,9 +1,9 @@
 
 // functional?
 
-import {mergeAll}    from "../main/util"
+import {mergeAll,branchesProp}    from "../main/util"
 
-export default function Branches(log,branchHandlers,transformNested){
+export default function Branches(log,branchHandlers){
 
     const toReceiver = branchHandler => data => {
         const i = data.indexOf(" ")
@@ -12,7 +12,7 @@ export default function Branches(log,branchHandlers,transformNested){
         return branchHandler(branchKey,body)
     }
 
-    const branches = data => transformNested("branches", brs => {
+    const branches = data => branchesProp.modify(brs => {
         const active = data.split(";").map(res=>res.split(",")).map(res=>[res[0],res.slice(1)])
         //log({a:"active",active})
         return mergeAll(active.map( ([k,v]) => brs[k] ? {[k]:brs[k]} : {} ))

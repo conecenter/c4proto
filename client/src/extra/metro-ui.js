@@ -1,4 +1,8 @@
 "use strict";
+
+import {branchSend} from "../main/util"
+import {ctxMessage} from "../main/vdom-util"
+
 import React from 'react'
 
 /*
@@ -10,7 +14,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,rootCtx,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
+export default function MetroUi({log,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
 	const FlexContainer = React.createClass({
 		getInitialState:function(){
 			return {};
@@ -1164,7 +1168,7 @@ export default function MetroUi({log,rootCtx,setTimeout,clearTimeout,uglifyBody,
 			)	
 		);
 	};	
-	const sendVk = ctx => value => rootCtx(ctx).send(ctx,"click",value) //todo remove event from call
+	const sendVk = ctx => value => branchSend(ctxMessage(ctx,"click",value)) //todo remove event from call
 	const onClickValue=({sendVk})
 	
 	const transforms= {

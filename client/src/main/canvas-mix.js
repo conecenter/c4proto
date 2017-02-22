@@ -1,11 +1,10 @@
 
 import * as Canvas from "../main/canvas"
-import {chain,addSend}    from "../main/util"
 
 
 export function CanvasBaseMix(log,util){
     return canvas => [
-         Canvas.BaseCanvasSetup(log,util,canvas,chain,addSend),
+         Canvas.BaseCanvasSetup(log,util,canvas),
          Canvas.ComplexFillCanvasSetup(util,canvas),
          Canvas.InteractiveCanvasSetup(canvas)
     ]

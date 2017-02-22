@@ -1,20 +1,17 @@
 
+// functional
+
 export function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
 export function ctxToPath(ctx){
     return !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")
 }
 
-export function VDomSeeds(log,transformNested){
-    const seed = ctx => parentNode => {
-        const rCtx = rootCtx(ctx)
-        const fromKey = rCtx.branchKey + ":" + ctxToPath(ctx)
-        const branchKey = ctx.value[1]
-        return transformNested("branches",transformNested(branchKey,transformNested("parentNodes",transformNested(fromKey,
-            v=>parentNode
-        ))))
+export const ctxMessage = (ctx, action, value) => ({ // todo: may be we need a queue to be sure server will receive messages in right order
+    body: value,
+    headers: {
+        "X-r-action": action,
+        "X-r-branch": rootCtx(ctx).branchKey,
+        "X-r-vdom-path": ctxToPath(ctx)
     }
-    const ref = ({seed})
-    const transforms = ({ref})
-    return ({transforms})
-}
+})

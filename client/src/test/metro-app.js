@@ -3,8 +3,7 @@
 import SSEConnection from "../main/sse-connection"
 import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
-import {rootCtx}     from "../main/vdom-util"
-import {mergeAll,chain,addSend}    from "../main/util"
+import {mergeAll,chain}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
@@ -38,7 +37,7 @@ const uglifyBody = style => {
     if(style)
         Object.assign(document.documentElement.style,style);
 }
-const metroUi = MetroUi({log,rootCtx,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener});
+const metroUi = MetroUi({log,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener});
 
 //customUi with hacks
 const toggleOverlay = on =>{
@@ -79,13 +78,13 @@ const canvasBaseMix = CanvasBaseMix(log,util)
 const ddMix = canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener)
 const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods),transformNested,chain)
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods),chain)
 
 //transforms
 const transforms = mergeAll([metroUi.transforms,customUi.transforms])
 
 const vDom = VDomMix({log,encode,transforms,getRootElement,createElement})
-const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]),transformNested)
+const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
 
 const receiversList = [branches.receivers,customUi.receivers,{fail}]
 const composeUrl = () => {
@@ -96,5 +95,5 @@ const composeUrl = () => {
 const createEventSource = () => new EventSource(window.sseUrl||composeUrl())
 
 const reconnectTimeout = 5000
-const connection = SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send,addSend})
+const connection = SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send})
 activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate],chain)

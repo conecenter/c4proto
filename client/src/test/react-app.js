@@ -3,7 +3,7 @@ import "babel-polyfill"
 import SSEConnection from "../main/sse-connection"
 import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
-import {mergeAll,chain,addSend}    from "../main/util"
+import {mergeAll,chain}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
@@ -34,16 +34,16 @@ const canvasBaseMix = CanvasBaseMix(log,util)
 
 const canvasMods = [canvasBaseMix,exchangeMix,CanvasSimpleMix()]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods),transformNested,chain)
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods),chain)
 
 const transforms = {}
 
 const vDom = VDomMix({log,encode,transforms,getRootElement,createElement})
-const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]),transformNested)
+const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
 
 const receiversList = [branches.receivers,{fail}]
 const createEventSource = () => new EventSource("http://localhost:8068/sse")
 
 const reconnectTimeout = 5000
-const connection = SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send,addSend})
+const connection = SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send})
 activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate],chain)
