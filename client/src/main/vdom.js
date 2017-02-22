@@ -2,7 +2,6 @@
 // mostly functional
 
 import {chain,mergeAll,lensProp,branchProp,branchSend} from "../main/util"
-import {rootCtx,ctxToPath} from "../main/vdom-util"
 
 import React           from 'react'
 import ReactDOM        from 'react-dom'
