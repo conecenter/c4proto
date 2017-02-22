@@ -10,7 +10,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
+export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle}){
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -257,13 +257,56 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		paddingTop:'0.3125rem',
 		...style
 	}},children);
-	const FlexGroup=({style,children})=>React.createElement("div",{style:{
-		backgroundColor:'white',
-		border:'0.02rem #b6b6b6 dashed',
-		margin:'0.4rem',
-		padding:'0.5rem 0.5rem 1.25rem 0.5rem',
-		...style
-	}},children);
+	const FlexGroup = React.createClass({
+		getInitialState:function(){
+			return {captionOffset:"",containerMinHeight:""};
+		},
+		recalc:function(){
+			const block=this.captionEl.getBoundingClientRect();
+			const cs=getComputedStyle(this.groupEl);			
+			const containerMinHeight=(block.height + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';
+			const captionOffset=(-block.height)+'px';
+			this.setState({captionOffset,containerMinHeight});
+		},
+		componentDidMount:function(){
+			if(this.props.caption){
+				this.recalc();
+				addEventListener("resize",this.recalc);
+			}
+					
+		},
+		componentWillUnmount:function(){
+			if(this.props.caption){
+				removeEventListener("resize",this.recalc);
+			}
+		},
+		render:function(){
+			const style={
+				backgroundColor:'white',
+				border:'0.02rem #b6b6b6 dashed',
+				margin:'0.4rem',
+				padding:this.props.caption?'0.5rem 1rem 1.25rem 1rem':'0.5rem 0.5rem 1.25rem 0.5rem',
+				minHeight:this.state.containerMinHeight,
+				...this.props.style
+			};
+			const captionStyle={
+				color:"#727272",
+				lineHeight:"1",
+				marginLeft:"calc("+this.state.captionOffset+" - 0.9em)",
+				position:"absolute",
+				transform:"rotate(-90deg)",
+				transformOrigin:"100% 0px",
+				whiteSpace:"nowrap",
+				marginTop:"0.5em",
+				fontSize:"0.8em",
+				...this.props.captionStyle
+			};
+			return React.createElement("div",{ref:ref=>this.groupEl=ref,style:style},[			
+				React.createElement("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption),
+				this.props.children
+			])
+		}	
+	}); 
 	const Chip = ({value,style,children})=>React.createElement('input',{style:{
 		fontWeight:'bold',
 		fontSize:'1.4rem',

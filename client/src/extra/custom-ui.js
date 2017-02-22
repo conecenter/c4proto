@@ -163,8 +163,10 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 		componentDidUpdate:function(prevProps, prevState){
 			customTerminal().forEach(t=>{
 				log("term_update")
-				t.destroy(-1);
-				t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params);				
+				if(prevProps.version!=this.props.version){
+					t.destroy(-1);
+					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params);
+				}
 			})
 		},
 		render:function(){
