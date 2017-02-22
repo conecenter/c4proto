@@ -67,7 +67,7 @@ case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=
 }
 
 case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends CanvasHandler {
-  def messageHandler: (String ⇒ String) ⇒ World ⇒ World = ???
+  def messageHandler: BranchMessage ⇒ World ⇒ World = ???
   def view: World ⇒ CanvasContent = local ⇒ {
     val decimalFormat = new DecimalFormat("#0.##")
     val builder = new JsonBuilderImpl()

@@ -11,6 +11,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.HttpPost
+import okio.ByteString
 
 case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
 object SendToAlienInit extends InitLocal {
@@ -30,6 +31,8 @@ case class MessageFromAlienImpl(
   headers: Map[String,String],
   request: HttpPost
 ) extends MessageFromAlien {
+  def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
+  def body: ByteString = request.body
   def rm: World ⇒ World = add(delete(request))
 }
 

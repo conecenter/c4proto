@@ -1,11 +1,11 @@
 package ee.cone.c4vdom_impl
 
-import java.util.Base64
+//import java.util.Base64
 
 import ee.cone.c4vdom._
 
 import Function.chain
-import scala.collection.immutable.Queue
+
 
 class VDomHandlerFactoryImpl(
   diff: Diff,
@@ -13,16 +13,16 @@ class VDomHandlerFactoryImpl(
   wasNoValue: WasNoVDomValue,
   child: ChildPairFactory
 ) extends VDomHandlerFactory {
-  def create[State](
+  def create[State,Body<:Object](
     sender: VDomSender[State],
     view: VDomView[State],
     vDomUntil: VDomUntil,
     vDomStateKey: VDomLens[State,Option[VDomState]]
-  ): VDomHandler[State] =
+  ): VDomHandler[State,Body] =
     VDomHandlerImpl(sender,view)(diff,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
 }
 
-case class VDomHandlerImpl[State](
+case class VDomHandlerImpl[State,Body<:Object](
   sender: VDomSender[State],
   view: VDomView[State]
 )(
@@ -34,22 +34,22 @@ case class VDomHandlerImpl[State](
 
   vDomStateKey: VDomLens[State,Option[VDomState]]
   //relocateKey: VDomLens[State,String]
-) extends VDomHandler[State] {
+) extends VDomHandler[State,Body] {
 
   private def init: Handler = _ ⇒
     vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Set.empty,Map.empty))))
 
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = get ⇒ state ⇒ if(get("X-r-action").isEmpty) state else {
-    val pathStr = get("X-r-vdom-path")
+  private def dispatch: Handler = exchange ⇒ state ⇒ if(exchange.header("X-r-action").isEmpty) state else {
+    val pathStr = exchange.header("X-r-vdom-path")
     val path = pathStr.split("/").toList match {
       case "" :: parts => parts
       case _ => Never()
     }
-    val decoded = UTF8String(Base64.getDecoder.decode(get("X-r-vdom-value-base64")))
-    ((get("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
-      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get(decoded)
-      case ("change", Some(v: OnChangeReceiver[_])) => v.onChange.get(decoded)
+    //val decoded = UTF8String(Base64.getDecoder.decode(exchange("X-r-vdom-value-base64")))
+    ((exchange.header("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
+      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get(exchange.body)
+      case ("change", Some(v: OnChangeReceiver[_])) => v.onChange.get(exchange.body)
       case v => throw new Exception(s"$path ($v) can not receive")
     }).asInstanceOf[State=>State](state)
   }
@@ -99,9 +99,9 @@ case class VDomHandlerImpl[State](
     }
   }
 
-  private def ackChange: Handler = get ⇒ if(get("X-r-action") == "change") {
-    val sessionKey = get("X-r-session")
-    val index = get("X-r-index")
+  private def ackChange: Handler = exchange ⇒ if(exchange.header("X-r-action") == "change") {
+    val sessionKey = exchange.header("X-r-session")
+    val index = exchange.header("X-r-index")
     vDomStateKey.modify(_.map(vState ⇒
       vState.copy(ackChanges=vState.ackChanges + (sessionKey → index))
     ))

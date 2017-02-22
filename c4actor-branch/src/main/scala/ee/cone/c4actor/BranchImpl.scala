@@ -10,6 +10,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.BranchTypes._
+import okio.ByteString
 
 import Function.chain
 
@@ -38,6 +39,10 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
 
 case object ReportAliveBranchesKey extends WorldKey[String]("")
 
+case object EmptyBranchMessage extends BranchMessage {
+  override def header: String ⇒ String = _⇒""
+  override def body: ByteString = ByteString.EMPTY
+}
 
 case class BranchTxTransform(
   branchKey: String,
@@ -76,9 +81,8 @@ case class BranchTxTransform(
   }.getOrElse(local)
 
     //(identity[World] _ /: posts)((f,post)⇒f.andThen(post.rm))
-  private def getPosts: Seq[String⇒String] =
-    if(posts.isEmpty) Seq((_:String)⇒"")
-    else posts.map(m⇒(k:String)⇒m.headers.getOrElse(k,""))
+  private def getPosts: Seq[BranchMessage] =
+    if(posts.isEmpty) Seq(EmptyBranchMessage) else posts //.map(m⇒(k:String)⇒m.headers.getOrElse(k,""))
 
   def transform(local: World): World =
     if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)

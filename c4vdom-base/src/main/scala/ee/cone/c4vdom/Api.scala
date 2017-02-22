@@ -68,19 +68,24 @@ trait VDomSender[State] {
   def sessionKeys: State ⇒ Set[String]
 }
 
-trait VDomHandler[State] {
-  type Handler = (String⇒String) ⇒ State ⇒ State
+trait VDomMessage[Body<:Object] {
+  def header: String⇒String
+  def body: Body
+}
+
+trait VDomHandler[State,Body<:Object] {
+  type Handler = VDomMessage[Body] ⇒ State ⇒ State
   def exchange: Handler
   def seeds: State ⇒ List[(String,Product)]
 }
 
 trait VDomHandlerFactory {
-  def create[State](
+  def create[State,Body<:Object](
     sender: VDomSender[State],
     view: VDomView[State],
     vDomUntil: VDomUntil,
     vDomStateKey: VDomLens[State,Option[VDomState]]
-  ): VDomHandler[State]
+  ): VDomHandler[State,Body]
 }
 
 case class VDomState(value: VDomValue, until: Long, sessionKeys: Set[String], ackChanges: Map[String,String])
@@ -90,11 +95,11 @@ trait VDomUntil {
 }
 
 trait OnClickReceiver[State] {
-  def onClick: Option[String ⇒ State ⇒ State]
+  def onClick: Option[Object ⇒ State ⇒ State]
 }
 
 trait OnChangeReceiver[State] {
-  def onChange: Option[String ⇒ State ⇒ State]
+  def onChange: Option[Object ⇒ State ⇒ State]
 }
 
 ////
