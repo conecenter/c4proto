@@ -1,5 +1,5 @@
 
-import {chain,branchProp,branchSend,calcPos,elementPos} from "../main/util"
+import {chain,branchProp,branchSend,calcPos,elementPos,singleParentNode} from "../main/util"
 
 export function CanvasUtil(){
     function cached(recalculate){

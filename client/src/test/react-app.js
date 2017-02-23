@@ -3,7 +3,7 @@ import "babel-polyfill"
 import SSEConnection from "../main/sse-connection"
 import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
-import {mergeAll}    from "../main/util"
+import {chain,mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
@@ -45,6 +45,6 @@ const receiversList = [branches.receivers,{fail}]
 const createEventSource = () => new EventSource("http://localhost:8068/sse")
 
 const reconnectTimeout = 5000
-const checkActivate = branches.checkActivate
+const checkActivate = chain([vDom.checkActivate,canvas.checkActivate])
 const connection = SSEConnection({createEventSource,receiversList,checkActivate,reconnectTimeout,localStorage,sessionStorage,location,send})
 activate(requestAnimationFrame, connection.checkActivate)

@@ -4,7 +4,7 @@
 import {chain,addSend,connectionProp} from "../main/util"
 
 export default function SSEConnection({createEventSource,receiversList,checkActivate,reconnectTimeout,localStorage,sessionStorage,location,send}){
-    const never = () => { throw ["not ready"] }
+    const never = () => { throw "not ready" }
     const pong = connection => {
         const url = connection.pongURL || never()
         const headers = {
@@ -52,18 +52,18 @@ export default function SSEConnection({createEventSource,receiversList,checkActi
     ////
     const isStateClosed = v => v === 2
     const checkOK = connectionProp.modify(
-        connection => !connection.eventSource ? connection :
+        connection => !connection || !connection.eventSource ? connection :
             isStateClosed(connection.eventSource.readyState) ? connection :
             { ...connection, eventSourceLastOK: Date.now() }
     )
     const checkClose = connectionProp.modify(connection => {
-        if(!connection.eventSource) return connection
+        if(!connection || !connection.eventSource) return connection
         if(Date.now() - (connection.eventSourceLastOK||0) < reconnectTimeout) return connection
         connection.eventSource.close();
         return ({...connection, eventSource: null})
     })
     const checkCreate = state => connectionProp.modify(connection => {
-        if(connection.eventSource) return connection
+        if(connection && connection.eventSource) return connection
         const eventSource = createEventSource()
         receiversList.concat({connect,ping,relocateHash}).forEach(
             handlerMap => Object.keys(handlerMap).forEach(

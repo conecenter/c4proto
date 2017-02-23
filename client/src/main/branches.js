@@ -1,7 +1,7 @@
 
 // functional?
 
-import {mergeAll,branchesByKeyProp,branchesActiveProp}    from "../main/util"
+import {chain,mergeAll,branchesByKeyProp,branchesActiveProp}    from "../main/util"
 
 export default function Branches(log,branchHandlers){
 

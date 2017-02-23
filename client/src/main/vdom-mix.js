@@ -3,7 +3,7 @@ import VDom          from "../main/vdom"
 import VDomClicks    from "../main/vdom-clicks"
 import VDomChanges   from "../main/vdom-changes"
 import VDomSeeds     from "../main/vdom-seeds"
-import {mergeAll}    from "../main/util"
+import {chain,mergeAll}    from "../main/util"
 
 export default function VDomMix({log,encode,transforms,getRootElement,createElement}){
     const clicks = VDomClicks()
@@ -12,7 +12,8 @@ export default function VDomMix({log,encode,transforms,getRootElement,createElem
     const activeTransforms = mergeAll([transforms,clicks.transforms,changes.transforms,seeds.transforms])
     const vDom = VDom({getRootElement, createElement, activeTransforms, encode})
     const branchHandlers = mergeAll([vDom.branchHandlers,changes.branchHandlers])
-    return ({branchHandlers})
+    const checkActivate = chain([seeds.checkActivate,vDom.checkActivate])
+    return ({branchHandlers,checkActivate})
 }
 
 

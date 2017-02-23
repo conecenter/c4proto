@@ -95,6 +95,6 @@ const composeUrl = () => {
 const createEventSource = () => new EventSource(window.sseUrl||composeUrl())
 
 const reconnectTimeout = 5000
-const checkActivate = branches.checkActivate
+const checkActivate = chain([vDom.checkActivate,canvas.checkActivate])
 const connection = SSEConnection({createEventSource,receiversList,checkActivate,reconnectTimeout,localStorage,sessionStorage,location,send})
 activate(requestAnimationFrame, connection.checkActivate)

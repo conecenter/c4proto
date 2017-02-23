@@ -88,7 +88,7 @@ case class VDomHandlerImpl[State,Body<:Object](
     ) state
     else {
       val (until,viewRes) = vDomUntil.get(view.view(state))
-      val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
+      val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
       val nextDom = vPair.value
       vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys, Map.empty)))
         .andThen(diffSend(vState.value, nextDom, keepTo))
@@ -119,10 +119,6 @@ case class VDomHandlerImpl[State,Body<:Object](
     case _ ⇒ acc
   }
 
-
-
-
-
   //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
   //else List("relocateHash"→vState.hashTarget)
 
@@ -137,13 +133,16 @@ case class VDomHandlerImpl[State,Body<:Object](
   */
 }
 
-
-
-
-case object RootElement extends VDomValue {
+case class RootElement(branchKey: String) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
+    builder.append("ref");{
+      builder.startArray()
+      builder.append("root")
+      builder.append(branchKey)
+      builder.end()
+    }
     builder.end()
   }
 }
