@@ -1,4 +1,6 @@
 
+import {calcPos,elementPos} from "../main/util"
+
 export function OverlayCanvasSetup(canvas){
     function processFrame(frame, prev){
         const {color,viewPos,zoom} = frame
@@ -16,7 +18,7 @@ export function OverlayCanvasSetup(canvas){
         const dragEnded=frame.dragEnded
         const commands = canvas.fromServer().commands||[]
         const mainScale = canvas.zoomToScale(zoom)
-        const mainTranslate = canvas.calcPos(dir=>-viewPos[dir])
+        const mainTranslate = calcPos(dir=>-viewPos[dir])
         canvas.setupContext({ dragEnded,mainContextName, mainContext, overColor, mainTranslate, mainScale, commands }).draw()
     }
     function setupContext(utx){ return {
@@ -45,7 +47,7 @@ export function ScrollViewPositionCanvasSetup(canvas){
     }
     function setupFrame(){
         const {viewExternalSize,viewExternalPos,scrollPos,parentPos} = canvas.viewPositions(false)
-        const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
+        const viewPos = calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
         return {viewExternalSize,viewExternalPos,viewPos}
     }
     return {setupFrame,processFrame}
@@ -242,7 +244,7 @@ export function DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addE
         const {zoom,viewPos} = canvas.setupFrame()
         const mainScale = canvas.zoomToScale(zoom)
         //const rPos = canvas.calcPos(dir=>(prPos[dir]+viewPos[dir])/mainScale)
-        const rPos = canvas.calcPos(dir=>mousePosDiff[dir]/mainScale)
+        const rPos = calcPos(dir=>mousePosDiff[dir]/mainScale)
         canvas.sendToServer({
             "X-r-canvas-color":(color?color:""),
             "X-r-canvas-map-x": rPos.x+"",

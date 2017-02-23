@@ -13,7 +13,7 @@ export function mergeAll(list){
     return to
 }
 
-export const chain = args => state => args.reduce((st,f) => f(st), state)
+export const chain = args => state => args.reduce((st,f) => f ? f(st) : st, state)
 
 ////
 
@@ -38,9 +38,38 @@ export const lensProp = key => richLens({
 
 ////
 
-export const branchesProp = lensProp("branches")
-export const branchProp = branchKey => branchesProp.compose(lensProp(branchKey))
+export const branchesActiveProp = lensProp("branchesActive")
+export const branchesByKeyProp = lensProp("branchesByKey")
+export const branchProp = branchKey => branchesByKeyProp.compose(lensProp(branchKey))
 export const connectionProp = lensProp("connection")
+
+////
+
+const single = res => fail => res.length === 1 ? res[0] : fail()
+export const parentNodesProp = branchKey => lensProp("parentNodes").compose(lensProp(branchKey))
+export const singleParentNode = branchKey => state => {
+    const parentNodeMap = parentNodesProp(branchKey).of(state) || {}
+    return single(Object.values(parentNodeMap).filter(v=>v))(()=>null)
+}
+export const elementPos = element => {
+    const p = element.getBoundingClientRect()
+    return {
+        pos: {x:p.left,y:p.top},
+        size:{x:p.width,y:p.height},
+        end:{x:p.right,y:p.bottom}
+    }
+}
+export const calcPos = calc => ({ x:calc("x"), y:calc("y") })
+
+const localProp = lensProp("local")
+export const ctxToProp = (ctx,res) => (
+    ctx.key && res ? ctxToProp(ctx.parent, lensProp(ctx.key).compose(res) ) :
+    ctx.key ? ctxToProp(ctx.parent, lensProp(ctx.key) ) :
+    ctx.branchKey ? branchProp(ctx.branchKey).compose(localProp.compose(res)) :
+    ctxToProp(ctx.parent, res)
+)
+
+////
 
 export const branchSend = options => connectionProp.modify(addSend({url:"/connection", options}))
 

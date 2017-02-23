@@ -1,21 +1,13 @@
 
 // functional
 
-import {chain,lensProp,branchProp,branchesProp,connectionProp,branchSend} from "../main/util"
+import {chain,lensProp,branchProp,branchesActiveProp,connectionProp,branchSend,ctxToProp} from "../main/util"
 import {rootCtx,ctxToPath,ctxMessage} from "../main/vdom-util"
 
 export default function VDomChanges(){
-    const localProp = lensProp("local")
     const changesProp = lensProp("changes")
-    const ctxToProp = (ctx,skip,res) => (
-        ctx.key && skip>0 ? ctxToProp(ctx.parent, skip-1, res) :
-        ctx.key && res ? ctxToProp(ctx.parent, skip, lensProp(ctx.key).compose(res) ) :
-        ctx.key ? ctxToProp(ctx.parent, skip, lensProp(ctx.key) ) :
-        ctx.branchKey ? branchProp(ctx.branchKey).compose(localProp.compose(res)) :
-        ctxToProp(ctx.parent, skip, res)
-    )
     const ctxToChangesTransform = (ctx,change,at) => chain([
-        at ? ctxToProp(ctx,1,null).set(at) : st=>st, //fix if resets alien props
+        at ? ctxToProp(ctx,null).set(at) : st=>st, //fix if resets alien props
         branchProp(rootCtx(ctx).branchKey).compose(changesProp.compose(lensProp(ctxToPath(ctx)))).set(change)
     ])
 
@@ -34,7 +26,7 @@ export default function VDomChanges(){
     const clear = change => ctxToChangesTransform(change.ctx,null,{})
     const ackBranch = (branch,index) => chain(changes(branch).filter(isToAck(index)).map(clear))
 
-    const sendDeferred = state => chain(Object.values(branchesProp.of(state)).map(sendBranch))(state)
+    const sendDeferred = state => chain((branchesActiveProp.of(state)||[]).map(k=>sendBranch(branchProp(k).of(state))))(state)
     const onChange = {
         "local": ctx => event => set(ctx, event.target.value),
         "send": ctx => event => chain([set(ctx, event.target.value), sendDeferred])

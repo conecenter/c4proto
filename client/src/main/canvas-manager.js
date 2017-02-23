@@ -1,5 +1,5 @@
 
-import {branchesProp,branchProp,chain} from "../main/util"
+import {branchesActiveProp,branchProp,chain} from "../main/util"
 
 export default function CanvasManager(canvasFactory){
 
@@ -16,7 +16,10 @@ export default function CanvasManager(canvasFactory){
     }))
 
     const checkActivate = state => chain(
-        Object.entries(branchesProp.of(state)||{}).filter(([k,v])=>v.canvas).map(([k,v])=>v.canvas.checkActivate(k))
+        (branchesActiveProp.of(state)||[]).map(branchKey=>{
+            const branch = branchProp(branchKey)(state)
+            return branch && branch.canvas && branch.canvas.checkActivate(branchKey)
+        })
     )(state)
 
     const branchHandlers = ({showCanvasData,ackCanvasResize}) // todo branch cleanup

@@ -1,7 +1,7 @@
 
 // mostly functional
 
-import {chain,mergeAll,lensProp,branchProp,branchSend} from "../main/util"
+import {chain,mergeAll,lensProp,branchProp,branchesActiveProp,branchSend} from "../main/util"
 
 import React           from 'react'
 import ReactDOM        from 'react-dom'
@@ -24,15 +24,6 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
             return React.createElement(at.tp, at, content)
         }
     })
-    const Root = ({branches}) => {
-        const items = Object.keys(branches).slice().sort()
-            .map(branchKey=>({...branches[branchKey],key:branchKey}))
-            .filter(branch=>branch.incoming || branch.local)
-            .map(branch=>React.createElement(Traverse,branch))
-        return React.createElement("div",items)
-    }
-
-
     const setupIncomingDiff = (rValue,ctx) => state => {
         const visit = (pValue,ctx) => mergeAll(Object.entries(pValue).map(([key,value])=>{
             const trans = activeTransforms[key]
@@ -40,7 +31,7 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
             const out = handler && key==="tp" ? handler :
                 handler ? state.toListener(handler({ value, parent: ctx })) :
                 key.substring(0,1)===":" || key === "at" ? visit(value, { key, parent: ctx }) :
-                key === "$set" ? visit(value, { parent: ctx }) : value
+                key === "$set" ? visit(value, ctx) : value
             return ({[key]: out})
         }))
         return visit(rValue,ctx)
@@ -62,7 +53,11 @@ export default function VDom({getRootElement, createElement, activeTransforms, e
     const rootNativeElementProp = lensProp("rootNativeElement")
     const init = rootNativeElementProp.modify(v => v || createRoot())
     const render = state => {
-        ReactDOM.render(React.createElement(Root,state), state.rootNativeElement)
+        const items = (branchesActiveProp.of(state)||[]).map(key=>{
+            const branch = branchProp(key).of(state)
+            return branch.incoming && React.createElement(Traverse,{...branch,key})
+        }).filter(v=>v)
+        ReactDOM.render(React.createElement("div",{},items), rootNativeElementProp.of(state))
         return state
     }
     const checkActivate = chain([init,render])

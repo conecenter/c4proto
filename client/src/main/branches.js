@@ -1,7 +1,7 @@
 
 // functional?
 
-import {mergeAll,branchesProp}    from "../main/util"
+import {mergeAll,branchesByKeyProp,branchesActiveProp}    from "../main/util"
 
 export default function Branches(log,branchHandlers){
 
@@ -12,11 +12,12 @@ export default function Branches(log,branchHandlers){
         return branchHandler(branchKey,body)
     }
 
-    const branches = data => branchesProp.modify(brs => {
-        const active = data.split(";").map(res=>res.split(",")).map(res=>[res[0],res.slice(1)])
-        //log({a:"active",active})
-        return mergeAll(active.map( ([k,v]) => brs[k] ? {[k]:brs[k]} : {} ))
-    })
+    const branches = data => state => {
+        const active = data.split(";").map(res=>res.split(",")[0]) //.map(res=>res.split(",")).map(res=>[res[0],res.slice(1)])
+        const clear = brs => mergeAll(active.map( k => brs[k] ? {[k]:brs[k]} : {} ))
+        return chain([branchesByKeyProp.modify(clear),branchesActiveProp.set(active)])
+    }
+
 
     const receivers = mergeAll(
         Object.entries(branchHandlers)
