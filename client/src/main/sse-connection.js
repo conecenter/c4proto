@@ -3,7 +3,7 @@
 
 import {chain,addSend,connectionProp} from "../main/util"
 
-export default function SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send}){
+export default function SSEConnection({createEventSource,receiversList,checkActivate,reconnectTimeout,localStorage,sessionStorage,location,send}){
     const never = () => { throw ["not ready"] }
     const pong = connection => {
         const url = connection.pongURL || never()
@@ -75,7 +75,7 @@ export default function SSEConnection({createEventSource,receiversList,reconnect
         return ({...connection, eventSource})
     })(state)
 
-    const checkActivate = chain([checkOK,checkClose,checkCreate,checkHash,checkSend])
+    const outCheckActivate = chain([checkActivate,checkOK,checkClose,checkCreate,checkHash,checkSend])
 
-    return ({checkActivate})
+    return ({checkActivate:outCheckActivate})
 }

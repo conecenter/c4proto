@@ -3,7 +3,6 @@
 
 import SSEConnection from "../main/sse-connection"
 import activate      from "../main/activator"
-import {chain}    from "../main/util"
 
 function TestShow(){
     let dataToShow
@@ -22,5 +21,6 @@ const testShow = TestShow()
 const receiversList = [testShow.receivers]
 const createEventSource = () => new EventSource("http://localhost:8068/sse")
 const reconnectTimeout = 5000
-const connection = SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send})
-activate(requestAnimationFrame, [connection.checkActivate,testShow.checkActivate],chain)
+const checkActivate = testShow.checkActivate
+const connection = SSEConnection({createEventSource,receiversList,checkActivate,reconnectTimeout,localStorage,sessionStorage,location,send})
+activate(requestAnimationFrame, connection.checkActivate)

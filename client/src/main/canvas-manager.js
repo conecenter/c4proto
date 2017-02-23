@@ -1,7 +1,7 @@
 
-import {branchesProp,branchProp} from "../main/util"
+import {branchesProp,branchProp,chain} from "../main/util"
 
-export default function CanvasManager(canvasFactory,chain){
+export default function CanvasManager(canvasFactory){
 
         //const {parsed,branchKey,acknowledgedSizes,parentNodes} = state
         //const fromServer = {...parsed,branchKey,acknowledgedSizes,parentNodes}

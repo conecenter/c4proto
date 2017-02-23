@@ -3,7 +3,7 @@
 import SSEConnection from "../main/sse-connection"
 import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
-import {mergeAll,chain}    from "../main/util"
+import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
@@ -78,7 +78,7 @@ const canvasBaseMix = CanvasBaseMix(log,util)
 const ddMix = canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener)
 const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods),chain)
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 
 //transforms
 const transforms = mergeAll([metroUi.transforms,customUi.transforms])
@@ -95,5 +95,6 @@ const composeUrl = () => {
 const createEventSource = () => new EventSource(window.sseUrl||composeUrl())
 
 const reconnectTimeout = 5000
-const connection = SSEConnection({createEventSource,receiversList,reconnectTimeout,localStorage,sessionStorage,location,send})
-activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate],chain)
+const checkActivate = branches.checkActivate
+const connection = SSEConnection({createEventSource,receiversList,checkActivate,reconnectTimeout,localStorage,sessionStorage,location,send})
+activate(requestAnimationFrame, connection.checkActivate)

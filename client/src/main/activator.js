@@ -1,7 +1,7 @@
 
 // functional root
 
-export default function activate(requestFrame,checkActivateList,chain){
+export default function activate(requestFrame,checkActivate){
     const toListener = reduce => ev => {
         state = reduce(ev)(state)
     }
@@ -9,7 +9,7 @@ export default function activate(requestFrame,checkActivateList,chain){
     ////
     const checkActivateAll = toListener(ev=>state=>{
         requestFrame(checkActivateAll)
-        return chain(checkActivateList)(state)
+        return checkActivate(state)
     })
     requestFrame(checkActivateAll)
 }
