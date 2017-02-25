@@ -3,6 +3,12 @@
 
 import {chain,addSend,connectionProp} from "../main/util"
 
+// location.href,
+// close-reload, close-open-listen, storage, fetch
+
+
+
+
 export default function SSEConnection({createEventSource,receiversList,checkActivate,reconnectTimeout,localStorage,sessionStorage,location,send}){
     const never = () => { throw "not ready" }
     const pong = connection => {
@@ -30,7 +36,9 @@ export default function SSEConnection({createEventSource,receiversList,checkActi
             sessionStorage.clear()
             location.reload()
             return connection
-        } else if((connection.connectionKey || never()) === data) return pong(connection) // was not reconnected
+        }
+        if((connection.connectionKey || never()) === data) return pong(connection) // was not reconnected
+        return connection
     })
 
     const checkSend = connectionProp.modify(connection => { //todo: control message delivery at server
@@ -38,27 +46,22 @@ export default function SSEConnection({createEventSource,receiversList,checkActi
             const [url,options] = message(sessionKey(never))
             send(message.url, message.options)
         })
-        return ({...connection,toSend:[]})
+        return ({...connection,toSend:[],lastSendTime:Date.now()})
     })
 
-    const relocateHash = data => connectionProp.modify(connection => {
+    const relocateHash = data => state => {
         location.href = "#"+data
-        return connection
-    })
+        return state
+    }
     const checkHash = connectionProp.modify(
         connection => connection.wasLocation === location.href ?
             connection : pong({...connection, wasLocation: location.href })
     )
     ////
-    const isStateClosed = v => v === 2
-    const checkOK = connectionProp.modify(
-        connection => !connection || !connection.eventSource ? connection :
-            isStateClosed(connection.eventSource.readyState) ? connection :
-            { ...connection, eventSourceLastOK: Date.now() }
-    )
     const checkClose = connectionProp.modify(connection => {
         if(!connection || !connection.eventSource) return connection
-        if(Date.now() - (connection.eventSourceLastOK||0) < reconnectTimeout) return connection
+        const lastSendTime = Math.max(connection.eventSourceCreateTime||0,connection.lastSendTime||0)
+        if(Date.now() - lastSendTime < reconnectTimeout) return connection
         connection.eventSource.close();
         return ({...connection, eventSource: null})
     })
@@ -72,10 +75,11 @@ export default function SSEConnection({createEventSource,receiversList,checkActi
                 ))
             )
         )
-        return ({...connection, eventSource})
+        const eventSourceCreateTime = Date.now()
+        return ({...connection, eventSource, eventSourceCreateTime})
     })(state)
 
-    const outCheckActivate = chain([checkActivate,checkOK,checkClose,checkCreate,checkHash,checkSend])
+    const outCheckActivate = chain([checkActivate,checkClose,checkCreate,checkHash,checkSend])
 
     return ({checkActivate:outCheckActivate})
 }
