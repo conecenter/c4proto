@@ -43,9 +43,14 @@ export function CanvasFactory(util, modList){
 
 export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,createElement){
     function sendToServer(req){
-        return feedback.send("/connection", {
-            ...req,
-            "X-r-branch": canvas.branchKey()
+        return feedback.send({
+            url: "/connection",
+            options: {
+                headers: {
+                    ...req,
+                    "X-r-branch": canvas.branchKey()
+                }
+            }
         })
     }
     function onZoom(){} //todo to close popup?

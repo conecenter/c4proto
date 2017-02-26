@@ -37,7 +37,7 @@ case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 }
 
 case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler {
-  def exchange: (String ⇒ String) ⇒ World ⇒ World = message ⇒ local ⇒ {
+  def exchange: BranchMessage ⇒ World ⇒ World = message ⇒ local ⇒ {
     val seconds = System.currentTimeMillis / 1000
     if(TestTimerKey.of(local) == seconds) local
     else {

@@ -6,10 +6,11 @@ import java.util.UUID
 
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
-import ee.cone.c4assemble.Types.{Index, Values, World}
+import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.BranchTypes._
+import okio.ByteString
 
 import Function.chain
 
@@ -22,10 +23,26 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
       index.getOrElse(rel.parentSrcId,Nil).flatMap(_.sessionKeys(local))
     }
   ).toSet
+  def relocate(to: String): World ⇒ World = local ⇒ {
+    val sends = seeds.map(rel⇒
+      if(rel.parentIsSession) SendToAlienKey.of(local)(rel.parentSrcId,"relocateHash",to)
+      else relocateSeed(rel.parentSrcId,rel.seed.position,to)
+    )
+    chain(sends)(local)
+  }
+
+  def relocateSeed(branchKey: String, position: String, to: String): World ⇒ World = {
+    println(s"relocateSeed: [$branchKey] [$position] [$to]")
+    identity
+  } //todo emulate post to branch?
 }
 
 case object ReportAliveBranchesKey extends WorldKey[String]("")
 
+case object EmptyBranchMessage extends BranchMessage {
+  override def header: String ⇒ String = _⇒""
+  override def body: ByteString = ByteString.EMPTY
+}
 
 case class BranchTxTransform(
   branchKey: String,
@@ -63,10 +80,8 @@ case class BranchTxTransform(
       .andThen(SendToAlienKey.of(local)(sessionKey,"branches",newReport))(local)
   }.getOrElse(local)
 
-    //(identity[World] _ /: posts)((f,post)⇒f.andThen(post.rm))
-  private def getPosts: Seq[String⇒String] =
-    if(posts.isEmpty) Seq((_:String)⇒"")
-    else posts.map(m⇒(k:String)⇒m.headers.getOrElse(k,""))
+  private def getPosts: Seq[BranchMessage] =
+    if(posts.isEmpty) Seq(EmptyBranchMessage) else posts
 
   def transform(local: World): World =
     if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
@@ -83,7 +98,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     val bytes = valueAdapter.encode(value)
     val byteString = okio.ByteString.of(bytes,0,bytes.length)
     val id = UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes)
-    BranchResult(id.toString, valueAdapter.id, byteString, Nil)
+    BranchResult(id.toString, valueAdapter.id, byteString, Nil, "")
   }
   def toRel(seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)

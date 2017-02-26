@@ -24,13 +24,13 @@ case class CanvasSizes(canvasFontSize: BigDecimal, canvasWidth: BigDecimal)
 case object CanvasSessionKeysKey extends WorldKey[Set[String]](Set.empty)
 
 case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: CanvasHandler) extends BranchHandler {
-  private type Handler = (String ⇒ String) ⇒ World ⇒ World
+  private type Handler = BranchMessage ⇒ World ⇒ World
   def exchange: Handler = message ⇒ messageHandler(message).andThen(toAlien) //reset(local)
   private def widthGap = 20
-  private def resize: (String ⇒ String) ⇒ World ⇒ World = message ⇒ local ⇒ {
-    val sessionKey = message("X-r-session")
-    val branchKey = message("X-r-branch")
-    val sizes = message("X-r-canvas-sizes")
+  private def resize: Handler = message ⇒ local ⇒ {
+    val sessionKey = message.header("X-r-session")
+    val branchKey = message.header("X-r-branch")
+    val sizes = message.header("X-r-canvas-sizes")
     val Array(canvasFontSize,canvasWidth) = sizes.split(" ").map(BigDecimal(_))
     val current = CanvasSizesKey.of(local)
     val ack = SendToAlienKey.of(local)(sessionKey,"ackCanvasResize",s"$branchKey $sizes")
@@ -45,7 +45,7 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: Canv
     )
     chain(ack :: resize)(local)
   }
-  private def messageHandler: (String ⇒ String) ⇒ World ⇒ World = message ⇒ message("X-r-action") match {
+  private def messageHandler: Handler = message ⇒ message.header("X-r-action") match {
     case "" ⇒ identity[World]
     case "canvasResize" ⇒ resize(message)
     case _ ⇒ handler.messageHandler(message)

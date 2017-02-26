@@ -6,9 +6,14 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
 
     function never(){ throw ["not ready"] }
     function pong(){
-        send(getConnectionState(never).pongURL, {
-            "X-r-connection": getConnectionKey(never),
-            "X-r-location": location+""
+        send({
+            url: getConnectionState(never).pongURL,
+            options: {
+                headers: {
+                    "X-r-connection": getConnectionKey(never),
+                    "X-r-location": location+""
+                }
+            }
         })
         //console.log("pong")
     }
@@ -33,14 +38,15 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
             location.reload()
         } else if(getConnectionKey(never) === data) pong() // was not reconnected
     }
-    function send(url,inHeaders){
+    function send(message){
         const headers = {
-            ...inHeaders,
+            ...message.options.headers,
             "X-r-session": sessionKey(never),
             "X-r-index": nextMessageIndex++
         }
         //todo: contron message delivery at server
-        fetch(url, {method:"post", headers})
+        const options = {method:"post", ...message.options, headers}
+        fetch(message.url, {method:"post", options})
         return headers
     }
     function relocateHash(data) {

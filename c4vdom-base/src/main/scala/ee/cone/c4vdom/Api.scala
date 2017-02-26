@@ -68,10 +68,15 @@ trait VDomSender[State] {
   def sessionKeys: State ⇒ Set[String]
 }
 
+trait VDomMessage {
+  def header: String⇒String
+  def body: Object
+}
+
 trait VDomHandler[State] {
-  type Handler = (String⇒String) ⇒ State ⇒ State
+  type Handler = VDomMessage ⇒ State ⇒ State
   def exchange: Handler
-  def seeds: State ⇒ List[Product]
+  def seeds: State ⇒ List[(String,Product)]
 }
 
 trait VDomHandlerFactory {
@@ -90,11 +95,11 @@ trait VDomUntil {
 }
 
 trait OnClickReceiver[State] {
-  def onClick: Option[String ⇒ State ⇒ State]
+  def onClick: Option[Object ⇒ State ⇒ State]
 }
 
 trait OnChangeReceiver[State] {
-  def onChange: Option[String ⇒ State ⇒ State]
+  def onChange: Option[Object ⇒ State ⇒ State]
 }
 
 ////

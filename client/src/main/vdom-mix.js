@@ -9,7 +9,7 @@ import {mergeAll}    from "../main/util"
 export default function VDomMix(log,sender,transforms,getRootElement,createElement){
     const clicks = VDomClicks(sender)
     const changes = VDomChanges(sender, DiffPrepare)
-    const seeds = VDomSeeds(log)
+    const seeds = VDomSeeds(log, DiffPrepare)
     const activeTransforms = mergeAll([transforms,clicks.transforms,changes.transforms,seeds.transforms])
     const vDom = VDom(getRootElement,createElement,activeTransforms)
     const branchHandlers = mergeAll([vDom.branchHandlers,changes.branchHandlers])

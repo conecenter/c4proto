@@ -22,8 +22,7 @@ const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
-const encode = value => btoa(unescape(encodeURIComponent(value)))
-const sender = VDomSender(feedback,encode)
+const sender = VDomSender(feedback)
 
 const log = v => console.log(v)
 const getRootElement = () => document.body

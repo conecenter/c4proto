@@ -11,8 +11,13 @@ object BranchTypes {
   type BranchKey = SrcId
 }
 
+trait BranchMessage {
+  def header: String⇒String
+  def body: okio.ByteString
+}
+
 trait BranchHandler extends Product {
-  def exchange: (String⇒String) ⇒ World ⇒ World
+  def exchange: BranchMessage ⇒ World ⇒ World
   def seeds: World ⇒ List[BranchResult]
 }
 
@@ -22,10 +27,9 @@ trait BranchTask extends Product {
   def sessionKeys: World ⇒ Set[SrcId]
 }
 
-trait MessageFromAlien extends Product {
+trait MessageFromAlien extends BranchMessage with Product {
   def srcId: String
   def index: Long
-  def headers: Map[String,String]
   def rm: World ⇒ World
 }
 
@@ -41,7 +45,8 @@ case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, paren
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,
     @Id(0x0043) value: okio.ByteString,
-    @Id(0x0044) children: List[BranchResult]
+    @Id(0x0044) children: List[BranchResult],
+    @Id(0x0045) position: String
   )
 }
 

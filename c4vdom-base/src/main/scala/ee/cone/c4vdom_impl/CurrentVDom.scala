@@ -1,7 +1,5 @@
 package ee.cone.c4vdom_impl
 
-import java.util.Base64
-
 import ee.cone.c4vdom._
 
 import Function.chain
@@ -39,16 +37,16 @@ case class VDomHandlerImpl[State](
     vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Set.empty,Map.empty))))
 
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = get ⇒ state ⇒ if(get("X-r-action").isEmpty) state else {
-    val pathStr = get("X-r-vdom-path")
+  private def dispatch: Handler = exchange ⇒ state ⇒ if(exchange.header("X-r-action").isEmpty) state else {
+    val pathStr = exchange.header("X-r-vdom-path")
+
     val path = pathStr.split("/").toList match {
       case "" :: parts => parts
       case _ => Never()
     }
-    val decoded = UTF8String(Base64.getDecoder.decode(get("X-r-vdom-value-base64")))
-    ((get("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
-      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get(decoded)
-      case ("change", Some(v: OnChangeReceiver[_])) => v.onChange.get(decoded)
+    ((exchange.header("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
+      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get(exchange.body)
+      case ("change", Some(v: OnChangeReceiver[_])) => v.onChange.get(exchange.body)
       case v => throw new Exception(s"$path ($v) can not receive")
     }).asInstanceOf[State=>State](state)
   }
@@ -87,7 +85,7 @@ case class VDomHandlerImpl[State](
     ) state
     else {
       val (until,viewRes) = vDomUntil.get(view.view(state))
-      val vPair = child("root", RootElement, viewRes).asInstanceOf[VPair]
+      val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
       val nextDom = vPair.value
       vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys, Map.empty)))
         .andThen(diffSend(vState.value, nextDom, keepTo))
@@ -98,23 +96,25 @@ case class VDomHandlerImpl[State](
     }
   }
 
-  private def ackChange: Handler = get ⇒ if(get("X-r-action") == "change") {
-    val sessionKey = get("X-r-session")
-    val index = get("X-r-index")
+  private def ackChange: Handler = exchange ⇒ if(exchange.header("X-r-action") == "change") {
+    val sessionKey = exchange.header("X-r-session")
+    val index = exchange.header("X-r-index")
     vDomStateKey.modify(_.map(vState ⇒
       vState.copy(ackChanges=vState.ackChanges + (sessionKey → index))
     ))
   } else identity[State]
 
-  def seeds: State ⇒ List[Product] =
-    state ⇒ gatherSeeds(Nil, vDomStateKey.of(state).get.value)
-  private def gatherSeeds(acc: List[Product], value: VDomValue): List[Product] = value match {
-    case n: MapVDomValue ⇒ (acc /: n.pairs.map(_.value))(gatherSeeds)
-    case SeedElement(seed) ⇒ seed :: acc
-    //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
+  def seeds: State ⇒ List[(String,Product)] =
+    state ⇒ gatherSeeds(Nil, Nil, vDomStateKey.of(state).get.value)
+  private def gatherSeeds(
+    acc: List[(String,Product)], path: List[String], value: VDomValue
+  ): List[(String,Product)] = value match {
+    case n: MapVDomValue ⇒
+      (acc /: n.pairs)((acc,pair)⇒gatherSeeds(acc, pair.jsonKey::path, pair.value))
+    case SeedElement(seed) ⇒ (path.reverse.map(e⇒s"/$e").mkString,seed) :: acc
+     //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
     case _ ⇒ acc
   }
-
 
   //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
   //else List("relocateHash"→vState.hashTarget)
@@ -133,10 +133,16 @@ case class VDomHandlerImpl[State](
 
 
 
-case object RootElement extends VDomValue {
+case class RootElement(branchKey: String) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
+    builder.append("ref");{
+      builder.startArray()
+      builder.append("root")
+      builder.append(branchKey)
+      builder.end()
+    }
     builder.end()
   }
 }
