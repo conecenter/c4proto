@@ -59,7 +59,6 @@ case class BranchTxTransform(
     val wasBranchResults = index.getOrElse(branchKey,Nil)
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
-
     if(wasChildren == newChildren) local
     else {
       val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
@@ -69,7 +68,10 @@ case class BranchTxTransform(
 
   private def reportAliveBranches: World ⇒ World = local ⇒ {
     val wasReport = ReportAliveBranchesKey.of(local)
-    if(sessionKeys.isEmpty && wasReport.isEmpty) local else {
+    if(sessionKeys.isEmpty){
+      if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
+    }
+    else {
       val world = TxKey.of(local).world
       val index = By.srcId(classOf[BranchResult]).of(world)
       def gather(branchKey: SrcId): List[String] = {
@@ -77,10 +79,12 @@ case class BranchTxTransform(
         (branchKey :: children).mkString(",") :: children.flatMap(gather)
       }
       val newReport = gather(branchKey).mkString(";")
-      println(newReport)
       if(newReport == wasReport) local
-      else ReportAliveBranchesKey.set(newReport)
-        .andThen(SendToAlienKey.of(local)(sessionKey,"branches",newReport))(local)
+      else {
+        val send = SendToAlienKey.of(local)(_:SrcId,"branches",newReport)
+        val sendToAll = chain(sessionKeys.map(send))
+        ReportAliveBranchesKey.set(newReport).andThen(sendToAll)(local)
+      }
     }
   }
 
@@ -88,7 +92,6 @@ case class BranchTxTransform(
     if(posts.isEmpty) Seq(EmptyBranchMessage) else posts
 
   def transform(local: World): World = {
-    println(s"A: $branchKey")
     if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
     else chain(getPosts.map(handler.exchange))
       .andThen(saveResult).andThen(reportAliveBranches)

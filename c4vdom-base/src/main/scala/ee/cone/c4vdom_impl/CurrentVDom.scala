@@ -33,8 +33,8 @@ case class VDomHandlerImpl[State](
   //relocateKey: VDomLens[State,String]
 ) extends VDomHandler[State] {
 
-  private def init: Handler = _ ⇒
-    vDomStateKey.modify(_.orElse(Option(VDomState(wasNoValue,0,Set.empty,Map.empty))))
+  private def empty = Option(VDomState(wasNoValue,0,Set.empty,Map.empty))
+  private def init: Handler = _ ⇒ vDomStateKey.modify(_.orElse(empty))
 
   //dispatches incoming message // can close / set refresh time
   private def dispatch: Handler = exchange ⇒ state ⇒ if(exchange.header("X-r-action").isEmpty) state else {
@@ -77,7 +77,9 @@ case class VDomHandlerImpl[State](
     val vState = vDomStateKey.of(state).get
     val newSessionKeys = sender.sessionKeys(state)
     val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)
-    if(newSessionKeys.isEmpty) init(exchange)(state)
+    if(newSessionKeys.isEmpty){
+      vDomStateKey.set(empty)(state) //orElse in init bug
+    }
     else if(
       vState.value != wasNoValue &&
       vState.until > System.currentTimeMillis &&
@@ -104,8 +106,10 @@ case class VDomHandlerImpl[State](
     ))
   } else identity[State]
 
-  def seeds: State ⇒ List[(String,Product)] =
-    state ⇒ gatherSeeds(Nil, Nil, vDomStateKey.of(state).get.value)
+  def seeds: State ⇒ List[(String,Product)] = state ⇒ {
+    //println(vDomStateKey.of(state).get.value.getClass)
+    gatherSeeds(Nil, Nil, vDomStateKey.of(state).get.value)
+  }
   private def gatherSeeds(
     acc: List[(String,Product)], path: List[String], value: VDomValue
   ): List[(String,Product)] = value match {
