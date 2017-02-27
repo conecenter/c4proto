@@ -50,7 +50,7 @@ case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=
     for(
       task ← tasks;
       view ← Option(task.locationHash).collect{
-        case "rectangle" ⇒ TestCanvasView(task.branchKey,task.fromAlienState.sessionKey)
+        case "rectangle" ⇒ TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
       }
     ) yield task.branchKey → view
 
@@ -114,7 +114,7 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
 
 
 
-case class TestCanvasView(branchKey: SrcId, sessionKey: SrcId) extends View {
+case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
   def view: World ⇒ ViewRes = local ⇒ {
     val world = TxKey.of(local).world
     val canvasTasks = By.srcId(classOf[TestCanvasState]).of(world)
@@ -129,7 +129,10 @@ case class TestCanvasView(branchKey: SrcId, sessionKey: SrcId) extends View {
     val canvasSeed = (t:TestCanvasState) ⇒ tags.seed(branchOperations.toSeed(t))(List(
       tags.div("1",List(styles.height(512),styles.widthAll))(Nil) //view size
     ))
-    List(inputX(canvasTask), inputY(canvasTask), canvasSeed(canvasTask))
+    val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
+      List(tags.text("caption", "relocate"))
+    )
+    List(relocate, inputX(canvasTask), inputY(canvasTask), canvasSeed(canvasTask))
   }
 }
 

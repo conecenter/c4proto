@@ -32,12 +32,15 @@ class TestCoWorkApp extends ServerApp
   def joinView(
     key: SrcId,
     tasks: Values[FromAlienTask]
-  ): Values[(SrcId,View)] =
+  ): Values[(SrcId, View)] =
     for(
       task ← tasks;
-      view ← Option(task.locationHash).collect{
+      view ← Option(task.locationHash).collect {
         case "leader" ⇒ TestCoLeaderView(task.branchKey)
-        case "worker" ⇒ TestCoWorkerView(task.branchKey,task.fromAlienState.sessionKey)
+        case "worker" ⇒ TestCoWorkerView(
+          task.branchKey,
+          task.fromAlienState.sessionKey
+        )
       }
     ) yield task.branchKey → view
 }
@@ -46,7 +49,9 @@ case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
   def view: World ⇒ ViewRes = local ⇒ {
     val world = TxKey.of(local).world
     val contents = By.srcId(classOf[Content]).of(world)
-    val content = Single(contents.getOrElse(sessionKey,List(Content(sessionKey,""))))
+    val content = Single(
+      contents.getOrElse(sessionKey, List(Content(sessionKey, "")))
+    )
     val tags = TestTagsKey.of(local).get
     val input = tags.toInput("value", ContentValueText)
     List(input(content))
@@ -54,10 +59,11 @@ case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
 }
 
 case class TestCoLeaderView(branchKey: SrcId) extends View {
-  def view: World ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
+  def view: World ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local) { () ⇒
     val world = TxKey.of(local).world
     val fromAlienStates = By.srcId(classOf[FromAlienState]).of(world)
     val tags = TagsKey.of(local).get
+    val styles = TagStylesKey.of(local).get
     import tags._
     val branchOperations = BranchOperationsKey.of(local).get
     val fromAliens = for(
@@ -65,8 +71,12 @@ case class TestCoLeaderView(branchKey: SrcId) extends View {
       url ← Option(new URL(fromAlien.location));
       ref ← Option(url.getRef) if ref != "leader"
     ) yield fromAlien
-    divButton("add")(printStats)(List(text("caption","stats"))) ::
-    fromAliens.toList.sortBy(_.sessionKey).map(branchOperations.toSeed).map(seed(_)(Nil))
+    val seeds = fromAliens.toList.sortBy(_.sessionKey)
+      .map(branchOperations.toSeed)
+    divButton("add")(printStats)(List(text("caption", "stats"))) ::
+      seeds.map(seed(_)(List(
+        tags.div("1",List(styles.width(100), styles.height(100)))(Nil)
+      )))
   }
   private def printStats: World ⇒ World = local ⇒ {
     val world = TxKey.of(local).world

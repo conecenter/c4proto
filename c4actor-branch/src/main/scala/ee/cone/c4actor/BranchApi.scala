@@ -25,6 +25,7 @@ trait BranchTask extends Product {
   def branchKey: SrcId
   def product: Product
   def sessionKeys: World ⇒ Set[SrcId]
+  def relocate(to: String): World ⇒ World
 }
 
 trait MessageFromAlien extends BranchMessage with Product {

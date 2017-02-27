@@ -106,4 +106,5 @@ trait OnChangeReceiver[State] {
 
 trait TagJsonUtils {
   def appendInputAttributes(builder: MutableJsonBuilder, value: String, deferSend: Boolean): Unit
+  def appendStyles(builder: MutableJsonBuilder, styles: List[TagStyle]): Unit
 }

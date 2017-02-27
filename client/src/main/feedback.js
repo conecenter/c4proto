@@ -46,7 +46,7 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
         }
         //todo: contron message delivery at server
         const options = {method:"post", ...message.options, headers}
-        fetch(message.url, {method:"post", options})
+        fetch(message.url, {method:"post", ...options})
         return headers
     }
     function relocateHash(data) {

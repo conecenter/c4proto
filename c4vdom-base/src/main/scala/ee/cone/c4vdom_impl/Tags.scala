@@ -3,6 +3,9 @@ package ee.cone.c4vdom_impl
 import ee.cone.c4vdom._
 import ee.cone.c4vdom.Types._
 
+
+
+
 case class TextContentElement(content: String) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
@@ -27,17 +30,11 @@ case class DivButton[State]()(val onClick:Option[Object⇒State⇒State]) extend
 }
 
 case object DivTagName extends TagName("div")
-case class StyledValue(tagName: TagName, styles: List[TagStyle]) extends VDomValue {
+case class StyledValue(tagName: TagName, styles: List[TagStyle])(utils: TagJsonUtils) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append(tagName.name)
-    if(styles.nonEmpty){
-      builder.append("style"); {
-        builder.startObject()
-        styles.foreach(_.appendStyle(builder))
-        builder.end()
-      }
-    }
+    utils.appendStyles(builder, styles)
     builder.end()
   }
 }
@@ -63,7 +60,7 @@ class TagsImpl(
   def text(key: VDomKey, text: String): ChildPair[OfDiv] =
     child[OfDiv](key, TextContentElement(text), Nil)
   def tag(key: VDomKey, tagName: TagName, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv](key, StyledValue(tagName, attr), children)
+    child[OfDiv](key, StyledValue(tagName, attr)(utils), children)
   def div(key: VDomKey, attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     tag(key, DivTagName, attr)(children)
   def divButton[State](key:VDomKey)(action:State⇒State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =

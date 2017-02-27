@@ -82,7 +82,7 @@ push @tasks, ["test_actor_check", sub{
 }];
 
 
-push @tasks, ["test_ui_timer_service_run", sub{
+push @tasks, ["test_ui_timer_service_run", sub{ # http://localhost:8067/sse.html#
     sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestSSEApp"))
 }];
 push @tasks, ["test_ui_todo_service_run", sub{

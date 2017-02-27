@@ -68,5 +68,11 @@ case class MessageFromAlienImpl(
       task ← tasks;
       fromAlien ← Option(task.product).collect { case s: FromAlienState ⇒ s };
       url ← Option(new URL(fromAlien.location)) if url.getHost == host && url.getFile == file
-    ) yield task.branchKey → FromAlienTask(task.branchKey, fromAlien, Option(url.getRef).getOrElse(""))
+    ) yield task.branchKey → FromAlienTask(
+      task.branchKey,
+      task,
+      fromAlien,
+      Option(url.getQuery).getOrElse(""),
+      Option(url.getRef).getOrElse("")
+    )
 }
