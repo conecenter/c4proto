@@ -105,3 +105,7 @@ if($ARGV[0]) {
 #export PATH=$HOME/tools/jdk/bin:$HOME/tools/sbt/bin:$PATH
 #sbt show compile:dependencyClasspath
 #... ScalaCheck, Specs2, and ScalaTest
+
+#http://localhost:8067/react-app.html#todo
+#http://localhost:8067/react-app.html#rectangle
+#http://localhost:8067/react-app.html#leader

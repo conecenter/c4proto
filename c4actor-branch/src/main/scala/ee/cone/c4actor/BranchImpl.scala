@@ -47,7 +47,7 @@ case object EmptyBranchMessage extends BranchMessage {
 case class BranchTxTransform(
   branchKey: String,
   seed: Option[BranchResult],
-  sessionKey: Option[SrcId],
+  sessionKeys: List[SrcId],
   posts: List[MessageFromAlien],
   handler: BranchHandler
 ) extends TxTransform {
@@ -67,27 +67,33 @@ case class BranchTxTransform(
     }
   }
 
-  private def reportAliveBranches: World ⇒ World = local ⇒ sessionKey.map{ sessionKey ⇒
-    val world = TxKey.of(local).world
-    val index = By.srcId(classOf[BranchResult]).of(world)
-    def gather(branchKey: SrcId): List[String] = {
-      val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash)
-      (branchKey :: children).mkString(",") :: children.flatMap(gather)
+  private def reportAliveBranches: World ⇒ World = local ⇒ {
+    val wasReport = ReportAliveBranchesKey.of(local)
+    if(sessionKeys.isEmpty && wasReport.isEmpty) local else {
+      val world = TxKey.of(local).world
+      val index = By.srcId(classOf[BranchResult]).of(world)
+      def gather(branchKey: SrcId): List[String] = {
+        val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash)
+        (branchKey :: children).mkString(",") :: children.flatMap(gather)
+      }
+      val newReport = gather(branchKey).mkString(";")
+      println(newReport)
+      if(newReport == wasReport) local
+      else ReportAliveBranchesKey.set(newReport)
+        .andThen(SendToAlienKey.of(local)(sessionKey,"branches",newReport))(local)
     }
-    val newReport = gather(branchKey).mkString(";")
-    if(newReport == ReportAliveBranchesKey.of(local)) local
-    else ReportAliveBranchesKey.set(newReport)
-      .andThen(SendToAlienKey.of(local)(sessionKey,"branches",newReport))(local)
-  }.getOrElse(local)
+  }
 
   private def getPosts: Seq[BranchMessage] =
     if(posts.isEmpty) Seq(EmptyBranchMessage) else posts
 
-  def transform(local: World): World =
+  def transform(local: World): World = {
+    println(s"A: $branchKey")
     if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
     else chain(getPosts.map(handler.exchange))
       .andThen(saveResult).andThen(reportAliveBranches)
       .andThen(chain(posts.map(_.rm)))(local)
+  }
 }
 
 class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations {
@@ -135,7 +141,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     for(handler ← Single.option(handlers).toList)
       yield key → BranchTxTransform(key,
         seeds.headOption.map(_.seed),
-        seeds.find(_.parentIsSession).map(_.parentSrcId),
+        seeds.filter(_.parentIsSession).map(_.parentSrcId),
         posts.sortBy(_.index),
         handler
       )

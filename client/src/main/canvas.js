@@ -117,10 +117,10 @@ export function BaseCanvasSetup(log, util, canvas, system){
         currentState = state
 
         if(!canvas.scrollNode()) return state
-        const canvasElement = canvas.visibleElement()
+        //const canvasElement = canvas.visibleElement()
         const parentElement = canvas.parentNode()
         if(!parentElement){
-            if(canvasElement.parentNode) canvasElement.parentNode.removeChild(canvasElement)
+            //if(canvasElement.parentNode) canvasElement.parentNode.removeChild(canvasElement)
             return state
         }
         const newFrame = canvas.setupFrame()
@@ -132,6 +132,11 @@ export function BaseCanvasSetup(log, util, canvas, system){
         //console.log("canvas-gen-time",Date.now()-startTime)
         return state
     }
+    function remove() {
+        const canvasElement = canvas.visibleElement()
+        if(canvasElement.parentNode) canvasElement.parentNode.removeChild(canvasElement)
+    }
+
     ////
     function setupFrame(){
         return {startTime: Date.now(), fromServerVersion}
@@ -270,7 +275,8 @@ export function BaseCanvasSetup(log, util, canvas, system){
         setupContext,cleanContext,getContext,calcPos,fromServer,
         composingElement,visibleElement,mapSize,createCanvasWithSize,
         setupFrame,processFrame,viewPositions,composeFrameStart,
-        checkActivate, zoomToScale, compareFrames, elementPos, updateFromServerVersion,
+        checkActivate, remove,
+        zoomToScale, compareFrames, elementPos, updateFromServerVersion,
         parentNode, branchKey, acknowledgedSizes
     }
 }
