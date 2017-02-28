@@ -1,5 +1,6 @@
 "use strict";
 
+import "babel-polyfill"
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
@@ -42,7 +43,8 @@ const uglifyBody = style => {
     if(style)
         Object.assign(document.documentElement.style,style);
 }
-const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener});
+const getComputedStyle = n => window.getComputedStyle(n);
+const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle});
 
 //customUi with hacks
 const toggleOverlay = on =>{

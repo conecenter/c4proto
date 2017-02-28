@@ -10,7 +10,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener}){
+export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle}){
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -257,13 +257,77 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		paddingTop:'0.3125rem',
 		...style
 	}},children);
-	const FlexGroup=({style,children})=>React.createElement("div",{style:{
-		backgroundColor:'white',
-		border:'0.02rem #b6b6b6 dashed',
-		margin:'0.4rem',
-		padding:'0.5rem 0.5rem 1.25rem 0.5rem',
-		...style
-	}},children);
+	const FlexGroup = React.createClass({
+		getInitialState:function(){
+			return {rotated:false,captionOffset:"",containerMinHeight:""};
+		},
+		shouldRotate:function(){
+			const fToS=this.groupEl.getBoundingClientRect().width/parseInt(getComputedStyle(this.groupEl).fontSize);
+			const ftosS = parseInt(this.props.ftos);
+			if(!ftosS) return false;
+			if(fToS<ftosS && this.state.rotated){
+				this.setState({rotated:false});
+				return true;
+			}
+			else if(fToS> ftosS && !this.state.rotated){
+				this.setState({rotated:true});
+				return true;
+			}	
+			return false;
+		},
+		recalc:function(){			
+			
+			const block=this.captionEl.getBoundingClientRect();
+			const cs=getComputedStyle(this.groupEl);			
+			const containerMinHeight=(Math.max(block.height,block.width) + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';			
+			const captionOffset=(-Math.max(block.height,block.width))+'px';
+			this.setState({captionOffset,containerMinHeight});
+			this.shouldRotate();
+		},
+		componentDidMount:function(){
+			if(this.props.caption){
+				this.recalc();
+				addEventListener("resize",this.recalc);
+			}					
+		},
+		componentWillUnmount:function(){
+			if(this.props.caption){
+				removeEventListener("resize",this.recalc);
+			}
+		},
+		render:function(){
+			
+			const style={
+				backgroundColor:'white',
+				border:'0.02rem #b6b6b6 dashed',
+				margin:'0.4rem',
+				padding:this.props.caption?'0.5rem 1rem 1.25rem 1rem':'0.5rem 0.5rem 1.25rem 0.5rem',
+				minHeight:this.state.containerMinHeight,
+				...this.props.style
+			};
+			const captionStyle={
+				color:"#727272",
+				lineHeight:"1",
+				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 0.9em)":"0.9em",
+				position:this.state.rotated?"absolute":"static",
+				transform:this.state.rotated?"rotate(-90deg)":"none",
+				transformOrigin:"100% 0px",
+				whiteSpace:"nowrap",
+				marginTop:"0.5em",
+				fontSize:"0.8em",
+				display:"inline-block",
+				...this.props.captionStyle
+			};
+			const captionEl = this.props.caption? React.createElement("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption): null;
+			return React.createElement("div",{ref:ref=>this.groupEl=ref,style:style},[			
+				captionEl,
+				this.props.children
+			])
+		}	
+	}); 
+	FlexGroup.defaultProps = {
+		ftos:"16"		
+	};
 	const Chip = ({value,style,children})=>React.createElement('input',{style:{
 		fontWeight:'bold',
 		fontSize:'1.4rem',
@@ -349,6 +413,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				marginTop:'-0.2rem',
 				marginLeft:'auto',
 				marginRight:'auto',
+				lineHeight:'1.1',
 			};        
 			var aKeyRowStyle={
 				//marginBottom:'.3125rem',
@@ -370,7 +435,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				marginBottom:'0rem',
 				position:'relative',
 				left:'0.57rem',
-
+				lineHeight:'1',
 			};
 			if(this.props.style) Object.assign(tableStyle,this.props.style);
 			if(this.props.style) Object.assign(aTableStyle,this.props.style);
@@ -426,7 +491,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				result=React.createElement("table",{style:tableStyle,key:"1"},
 					React.createElement("tbody",{key:"1"},[
 					   React.createElement("tr",{key:"0"},[
-						   React.createElement(VKTd,{colSpan:"2",style:Object.assign({},specialTdAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"50%",fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
+						   React.createElement(VKTd,{colSpan:"2",style:Object.assign({},specialTdAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"60%",fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
 						   React.createElement("td",{key:"2"},''),
 						   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
 					   ]),					   
@@ -445,7 +510,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 						   React.createElement(VKTd,{style:specialTdStyle,key:"5",fkey:"F10"},'F10'),					   
 					   ]),
 					   React.createElement("tr",{key:"2-extras"},[
-						   React.createElement(VKTd,{style:specialTdAccentStyle,colSpan:"3",key:"1",fkey:"Tab"},'Tab'),
+						   React.createElement(VKTd,{style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
+						   React.createElement(VKTd,{style:tdStyle,key:"t",fkey:"T"},'T'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"."},'.'),
 						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"-"},'-'),						   
 					   ]),
@@ -504,7 +570,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:"8",fkey:"+"},'+'),
 								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:"9",fkey:","},','),
 								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:"10",fkey:"."},'.'),
-								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:Object.assign({},specialAKeyCellAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"50%",fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
+								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:Object.assign({},specialAKeyCellAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"60%",fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
 							]),
 						])
 					),
@@ -612,7 +678,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		fontWeight:'bold',
 		padding:'0.1rem 0.2rem',
 		verticalAlign:'middle',
-		fontSize:'1.7rem',
+		fontSize:'1rem',
 		borderBottom:'none',
 		fontWeight:'normal',
 		...style
@@ -861,6 +927,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},		
 		componentWillUnmount:function(){
 			if(!this.el) return;
+			clearTimeout(this.timeout);
 			this.timeout=null;
 			this.el.removeEventListener("focus",this.onFocus);
 			this.el.removeEventListener("blur",this.onBlur);

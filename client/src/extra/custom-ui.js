@@ -163,8 +163,10 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 		componentDidUpdate:function(prevProps, prevState){
 			customTerminal().forEach(t=>{
 				log("term_update")
-				t.destroy(-1);
-				t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params);				
+				if(prevProps.version!=this.props.version){
+					t.destroy(-1);
+					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params);
+				}
 			})
 		},
 		render:function(){
@@ -209,7 +211,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			};
 			const inpStyle={
 				border:'none',
-				fontSize:'1.7rem',
+				fontSize:'inherit',
 				width:'100%',
 				backgroundColor:'inherit',
 				padding:'0px',
