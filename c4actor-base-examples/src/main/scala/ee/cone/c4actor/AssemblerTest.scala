@@ -37,6 +37,14 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: List
         key => for(child <- IO[SrcId,RawChildNode]) yield child.parentSrcId → child
       ))
   )
+  ////////
+
+  Pairs[ParentSrcId,RawChildNode] =
+    for(child <- Values[SrcId,RawChildNode]) yield child.parentSrcId → child
+
+  Values[SrcId,ParentNodeWithChildren] =
+    for(parent <- Values[SrcId,RawParentNode])
+      yield ParentNodeWithChildren(parent.srcId, parent.caption, Values[ParentSrcId,RawChildNode])
   */
 
 }
