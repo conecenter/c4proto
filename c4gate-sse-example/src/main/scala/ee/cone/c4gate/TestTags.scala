@@ -15,7 +15,7 @@ abstract class ElementValue extends VDomValue {
 }
 
 case class InputTextElement[State](value: String, deferSend: Boolean)(
-  input: TagJsonUtils, val onChange: Option[String ⇒ State ⇒ State]
+  input: TagJsonUtils, val onChange: Option[Object ⇒ State ⇒ State]
 ) extends ElementValue with OnChangeReceiver[State] {
   def elementType = "input"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
@@ -31,7 +31,9 @@ class TestTags[State](
     model ⇒ input(key, attr.of(model), value⇒save(attr.set(value)(model)))
 
   private def input(key: VDomKey, value: String, change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
-    child[OfDiv](key, InputTextElement(value, deferSend=true)(inputAttributes, Some(change)), Nil)
+    child[OfDiv](key, InputTextElement(value, deferSend=true)(inputAttributes,
+      Some((o:Object)⇒change(o match { case bs: okio.ByteString ⇒ bs.utf8()}))
+    ), Nil)
 }
 
 abstract class TextInputLens[Model<:Product](val of: Model⇒String, val set: String⇒Model⇒Model)

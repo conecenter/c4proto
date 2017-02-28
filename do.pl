@@ -85,7 +85,7 @@ push @tasks, ["test_actor_check", sub{
 }];
 
 
-push @tasks, ["test_ui_timer_service_run", sub{
+push @tasks, ["test_ui_timer_service_run", sub{ # http://localhost:8067/sse.html#
     sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestSSEApp"))
 }];
 push @tasks, ["test_ui_todo_service_run", sub{
@@ -108,3 +108,7 @@ if($ARGV[0]) {
 #export PATH=$HOME/tools/jdk/bin:$HOME/tools/sbt/bin:$PATH
 #sbt show compile:dependencyClasspath
 #... ScalaCheck, Specs2, and ScalaTest
+
+#http://localhost:8067/react-app.html#todo
+#http://localhost:8067/react-app.html#rectangle
+#http://localhost:8067/react-app.html#leader

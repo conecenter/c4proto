@@ -1,5 +1,6 @@
 package ee.cone.c4ui
 
+import ee.cone.c4actor.BranchMessage
 import ee.cone.c4assemble.Types.World
 import ee.cone.c4assemble.WorldKey
 
@@ -11,6 +12,6 @@ trait CanvasContent {
 }
 
 trait CanvasHandler extends  Product {
-  def messageHandler: (String ⇒ String) ⇒ World ⇒ World
+  def messageHandler: BranchMessage ⇒ World ⇒ World
   def view: World⇒CanvasContent
 }

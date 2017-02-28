@@ -7,6 +7,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
+import okio.ByteString
 
 import scala.Function.chain
 
@@ -50,16 +51,23 @@ case class VDomBranchSender(pass: BranchTask) extends VDomSender[World] {
 
 case object CreateVDomHandlerKey extends WorldKey[(VDomSender[World],VDomView[World])⇒VDomHandler[World]]((_,_)⇒throw new Exception)
 
+case class VDomMessageImpl(message: BranchMessage) extends VDomMessage {
+  override def header: String ⇒ String = message.header
+  override def body: ByteString = message.body
+}
+
 case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[World], view: VDomView[World]) extends BranchHandler {
   def vHandler: World ⇒ VDomHandler[World] =
     local ⇒ CreateVDomHandlerKey.of(local)(sender,view)
-  def exchange: (String ⇒ String) ⇒ World ⇒ World =
+  def exchange: BranchMessage ⇒ World ⇒ World =
     message ⇒ local ⇒ {
       //println(s"act ${message("X-r-action")}")
-      vHandler(local).exchange(message)(local)
+      vHandler(local).exchange(VDomMessageImpl(message))(local)
     }
   def seeds: World ⇒ List[BranchResult] =
-    local ⇒ vHandler(local).seeds(local).collect{ case r: BranchResult ⇒ r }
+    local ⇒ vHandler(local).seeds(local).collect{
+      case (k: String, r: BranchResult) ⇒ r.copy(position=k)
+    }
 }
 
 ////

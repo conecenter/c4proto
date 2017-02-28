@@ -11,6 +11,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.HttpPost
+import okio.ByteString
 
 case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
 object SendToAlienInit extends InitLocal {
@@ -30,6 +31,8 @@ case class MessageFromAlienImpl(
   headers: Map[String,String],
   request: HttpPost
 ) extends MessageFromAlien {
+  def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
+  def body: ByteString = request.body
   def rm: World ⇒ World = add(delete(request))
 }
 
@@ -65,5 +68,11 @@ case class MessageFromAlienImpl(
       task ← tasks;
       fromAlien ← Option(task.product).collect { case s: FromAlienState ⇒ s };
       url ← Option(new URL(fromAlien.location)) if url.getHost == host && url.getFile == file
-    ) yield task.branchKey → FromAlienTask(task.branchKey, fromAlien, Option(url.getRef).getOrElse(""))
+    ) yield task.branchKey → FromAlienTask(
+      task.branchKey,
+      task,
+      fromAlien,
+      Option(url.getQuery).getOrElse(""),
+      Option(url.getRef).getOrElse("")
+    )
 }

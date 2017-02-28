@@ -6,10 +6,11 @@ import java.util.UUID
 
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
-import ee.cone.c4assemble.Types.{Index, Values, World}
+import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.BranchTypes._
+import okio.ByteString
 
 import Function.chain
 
@@ -22,15 +23,31 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
       index.getOrElse(rel.parentSrcId,Nil).flatMap(_.sessionKeys(local))
     }
   ).toSet
+  def relocate(to: String): World ⇒ World = local ⇒ {
+    val sends = seeds.map(rel⇒
+      if(rel.parentIsSession) SendToAlienKey.of(local)(rel.parentSrcId,"relocateHash",to)
+      else relocateSeed(rel.parentSrcId,rel.seed.position,to)
+    )
+    chain(sends)(local)
+  }
+
+  def relocateSeed(branchKey: String, position: String, to: String): World ⇒ World = {
+    println(s"relocateSeed: [$branchKey] [$position] [$to]")
+    identity
+  } //todo emulate post to branch?
 }
 
 case object ReportAliveBranchesKey extends WorldKey[String]("")
 
+case object EmptyBranchMessage extends BranchMessage {
+  override def header: String ⇒ String = _⇒""
+  override def body: ByteString = ByteString.EMPTY
+}
 
 case class BranchTxTransform(
   branchKey: String,
   seed: Option[BranchResult],
-  sessionKey: Option[SrcId],
+  sessionKeys: List[SrcId],
   posts: List[MessageFromAlien],
   handler: BranchHandler
 ) extends TxTransform {
@@ -42,7 +59,6 @@ case class BranchTxTransform(
     val wasBranchResults = index.getOrElse(branchKey,Nil)
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
-
     if(wasChildren == newChildren) local
     else {
       val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
@@ -50,29 +66,37 @@ case class BranchTxTransform(
     }
   }
 
-  private def reportAliveBranches: World ⇒ World = local ⇒ sessionKey.map{ sessionKey ⇒
-    val world = TxKey.of(local).world
-    val index = By.srcId(classOf[BranchResult]).of(world)
-    def gather(branchKey: SrcId): List[String] = {
-      val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash)
-      (branchKey :: children).mkString(",") :: children.flatMap(gather)
+  private def reportAliveBranches: World ⇒ World = local ⇒ {
+    val wasReport = ReportAliveBranchesKey.of(local)
+    if(sessionKeys.isEmpty){
+      if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
     }
-    val newReport = gather(branchKey).mkString(";")
-    if(newReport == ReportAliveBranchesKey.of(local)) local
-    else ReportAliveBranchesKey.set(newReport)
-      .andThen(SendToAlienKey.of(local)(sessionKey,"branches",newReport))(local)
-  }.getOrElse(local)
+    else {
+      val world = TxKey.of(local).world
+      val index = By.srcId(classOf[BranchResult]).of(world)
+      def gather(branchKey: SrcId): List[String] = {
+        val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash)
+        (branchKey :: children).mkString(",") :: children.flatMap(gather)
+      }
+      val newReport = gather(branchKey).mkString(";")
+      if(newReport == wasReport) local
+      else {
+        val send = SendToAlienKey.of(local)(_:SrcId,"branches",newReport)
+        val sendToAll = chain(sessionKeys.map(send))
+        ReportAliveBranchesKey.set(newReport).andThen(sendToAll)(local)
+      }
+    }
+  }
 
-    //(identity[World] _ /: posts)((f,post)⇒f.andThen(post.rm))
-  private def getPosts: Seq[String⇒String] =
-    if(posts.isEmpty) Seq((_:String)⇒"")
-    else posts.map(m⇒(k:String)⇒m.headers.getOrElse(k,""))
+  private def getPosts: Seq[BranchMessage] =
+    if(posts.isEmpty) Seq(EmptyBranchMessage) else posts
 
-  def transform(local: World): World =
+  def transform(local: World): World = {
     if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
     else chain(getPosts.map(handler.exchange))
       .andThen(saveResult).andThen(reportAliveBranches)
       .andThen(chain(posts.map(_.rm)))(local)
+  }
 }
 
 class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations {
@@ -83,7 +107,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     val bytes = valueAdapter.encode(value)
     val byteString = okio.ByteString.of(bytes,0,bytes.length)
     val id = UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes)
-    BranchResult(id.toString, valueAdapter.id, byteString, Nil)
+    BranchResult(id.toString, valueAdapter.id, byteString, Nil, "")
   }
   def toRel(seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
@@ -120,7 +144,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     for(handler ← Single.option(handlers).toList)
       yield key → BranchTxTransform(key,
         seeds.headOption.map(_.seed),
-        seeds.find(_.parentIsSession).map(_.parentSrcId),
+        seeds.filter(_.parentIsSession).map(_.parentSrcId),
         posts.sortBy(_.index),
         handler
       )
