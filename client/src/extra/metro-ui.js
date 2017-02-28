@@ -318,8 +318,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				display:"inline-block",
 				...this.props.captionStyle
 			};
+			const captionEl = this.props.caption? React.createElement("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption): null;
 			return React.createElement("div",{ref:ref=>this.groupEl=ref,style:style},[			
-				React.createElement("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption),
+				captionEl,
 				this.props.children
 			])
 		}	
@@ -412,6 +413,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				marginTop:'-0.2rem',
 				marginLeft:'auto',
 				marginRight:'auto',
+				lineHeight:'1.1',
 			};        
 			var aKeyRowStyle={
 				//marginBottom:'.3125rem',
@@ -433,7 +435,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				marginBottom:'0rem',
 				position:'relative',
 				left:'0.57rem',
-
+				lineHeight:'1',
 			};
 			if(this.props.style) Object.assign(tableStyle,this.props.style);
 			if(this.props.style) Object.assign(aTableStyle,this.props.style);
@@ -489,7 +491,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				result=React.createElement("table",{style:tableStyle,key:"1"},
 					React.createElement("tbody",{key:"1"},[
 					   React.createElement("tr",{key:"0"},[
-						   React.createElement(VKTd,{colSpan:"2",style:Object.assign({},specialTdAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"50%",fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
+						   React.createElement(VKTd,{colSpan:"2",style:Object.assign({},specialTdAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"60%",fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
 						   React.createElement("td",{key:"2"},''),
 						   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
 					   ]),					   
@@ -568,7 +570,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:"8",fkey:"+"},'+'),
 								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:"9",fkey:","},','),
 								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:"10",fkey:"."},'.'),
-								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:Object.assign({},specialAKeyCellAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"50%",fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
+								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:Object.assign({},specialAKeyCellAccentStyle,{height:"auto","width":"2em"}),bStyle:{width:"60%",fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
 							]),
 						])
 					),
