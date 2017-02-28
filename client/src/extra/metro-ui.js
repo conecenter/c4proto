@@ -259,21 +259,36 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	}},children);
 	const FlexGroup = React.createClass({
 		getInitialState:function(){
-			return {captionOffset:"",containerMinHeight:""};
+			return {rotated:false,captionOffset:"",containerMinHeight:""};
 		},
-		recalc:function(){
+		shouldRotate:function(){
+			const fToS=this.groupEl.getBoundingClientRect().width/parseInt(getComputedStyle(this.groupEl).fontSize);
+			const ftosS = parseInt(this.props.ftos);
+			if(!ftosS) return false;
+			if(fToS<ftosS && this.state.rotated){
+				this.setState({rotated:false});
+				return true;
+			}
+			else if(fToS> ftosS && !this.state.rotated){
+				this.setState({rotated:true});
+				return true;
+			}	
+			return false;
+		},
+		recalc:function(){			
+			
 			const block=this.captionEl.getBoundingClientRect();
 			const cs=getComputedStyle(this.groupEl);			
-			const containerMinHeight=(block.height + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';
-			const captionOffset=(-block.height)+'px';
+			const containerMinHeight=(Math.max(block.height,block.width) + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';			
+			const captionOffset=(-Math.max(block.height,block.width))+'px';
 			this.setState({captionOffset,containerMinHeight});
+			this.shouldRotate();
 		},
 		componentDidMount:function(){
 			if(this.props.caption){
 				this.recalc();
 				addEventListener("resize",this.recalc);
-			}
-					
+			}					
 		},
 		componentWillUnmount:function(){
 			if(this.props.caption){
@@ -281,6 +296,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			}
 		},
 		render:function(){
+			
 			const style={
 				backgroundColor:'white',
 				border:'0.02rem #b6b6b6 dashed',
@@ -292,13 +308,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const captionStyle={
 				color:"#727272",
 				lineHeight:"1",
-				marginLeft:"calc("+this.state.captionOffset+" - 0.9em)",
-				position:"absolute",
-				transform:"rotate(-90deg)",
+				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 0.9em)":"0.9em",
+				position:this.state.rotated?"absolute":"static",
+				transform:this.state.rotated?"rotate(-90deg)":"none",
 				transformOrigin:"100% 0px",
 				whiteSpace:"nowrap",
 				marginTop:"0.5em",
 				fontSize:"0.8em",
+				display:"inline-block",
 				...this.props.captionStyle
 			};
 			return React.createElement("div",{ref:ref=>this.groupEl=ref,style:style},[			
@@ -307,6 +324,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			])
 		}	
 	}); 
+	FlexGroup.defaultProps = {
+		ftos:"16"		
+	};
 	const Chip = ({value,style,children})=>React.createElement('input',{style:{
 		fontWeight:'bold',
 		fontSize:'1.4rem',
@@ -488,7 +508,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 						   React.createElement(VKTd,{style:specialTdStyle,key:"5",fkey:"F10"},'F10'),					   
 					   ]),
 					   React.createElement("tr",{key:"2-extras"},[
-						   React.createElement(VKTd,{style:specialTdAccentStyle,colSpan:"3",key:"1",fkey:"Tab"},'Tab'),
+						   React.createElement(VKTd,{style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
+						   React.createElement(VKTd,{style:tdStyle,key:"t",fkey:"T"},'T'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"."},'.'),
 						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"-"},'-'),						   
 					   ]),
@@ -655,7 +676,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		fontWeight:'bold',
 		padding:'0.1rem 0.2rem',
 		verticalAlign:'middle',
-		fontSize:'1.7rem',
+		fontSize:'1rem',
 		borderBottom:'none',
 		fontWeight:'normal',
 		...style
@@ -904,6 +925,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},		
 		componentWillUnmount:function(){
 			if(!this.el) return;
+			clearTimeout(this.timeout);
 			this.timeout=null;
 			this.el.removeEventListener("focus",this.onFocus);
 			this.el.removeEventListener("blur",this.onBlur);

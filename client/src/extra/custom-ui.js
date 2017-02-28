@@ -211,7 +211,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			};
 			const inpStyle={
 				border:'none',
-				fontSize:'1.7rem',
+				fontSize:'inherit',
 				width:'100%',
 				backgroundColor:'inherit',
 				padding:'0px',
