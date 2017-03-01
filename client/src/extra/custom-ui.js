@@ -237,7 +237,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	const ControlledComparator = React.createClass({
 		componentDidUpdate:function(prevP,prevS){
 			if(this.props.onChange&&this.props.data&&prevP.data!==this.props.data){			
-				const e={target:{value:this.props.data}};
+				const e={target:{value:this.props.data.toString()}};
 				log("change w");
 				this.props.onChange(e);
 			}
