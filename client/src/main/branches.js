@@ -7,9 +7,11 @@ export default function Branches(log,branchHandlers){
     const modify = (branchKey,by) => {
         const state = by(branchesByKey[branchKey] || {branchKey, modify})
         //if(branchesByKey[branchKey]!==state) log({a:"mod",branchKey,state})
-        if(branchesByKey[branchKey]===state){}
-        else if(state) branchesByKey[branchKey] = state
-        else delete branchesByKey[branchKey]
+        if(branchesByKey[branchKey]!==state){
+            log({state})
+            if(state) branchesByKey[branchKey] = state
+            else delete branchesByKey[branchKey]
+        }
     }
     //
     const remove = branchKey => modify(branchKey, state=>{

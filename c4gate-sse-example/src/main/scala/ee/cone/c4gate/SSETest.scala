@@ -1,14 +1,14 @@
 package ee.cone.c4gate
 
-import java.util.UUID
+import Function.chain
 
 import ee.cone.c4actor.LEvent.{add, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, WorldKey, assemble, by}
-import ee.cone.c4gate.AlienProtocol.ToAlienWrite
+import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
+
 
 class TestSSEApp extends ServerApp
   with EnvConfigApp
@@ -41,11 +41,10 @@ case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHand
     val seconds = System.currentTimeMillis / 1000
     if(TestTimerKey.of(local) == seconds) local
     else {
-      val messages = task.sessionKeys(local).toSeq.map { sessionKey ⇒
-        ToAlienWrite(s"${UUID.randomUUID}",sessionKey,"show",s"$seconds",0)
-      }
-      println(s"TestSSEHandler ${task.sessionKeys(local)}")
-      TestTimerKey.set(seconds).andThen(add(messages.flatMap(update)))(local)
+      val sessionKeys = task.sessionKeys(local).toSeq
+      val send = SendToAlienKey.of(local)(_:SrcId,"show",s"$seconds")
+      println(s"TestSSEHandler $sessionKeys")
+      TestTimerKey.set(seconds).andThen(chain(sessionKeys.map(send)))(local)
     }
   }
   def seeds: World ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
