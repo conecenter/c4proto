@@ -153,7 +153,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	});
 	const TerminalElement=React.createClass({   
 		componentDidMount:function(){
-			customTerminal().forEach(t=>t.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.params||0)));
+			customTerminal().forEach(t=>t.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.params||0),this.props.wrk,this.props.ps));
 			log("term mount")
 		},
 		componentWillUnmount:function(){
@@ -165,7 +165,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				log("term_update")
 				if(prevProps.version!=this.props.version){
 					t.destroy(-1);
-					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params);
+					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params,this.props.wrk,this.props.ps);
 				}
 			})
 		},
