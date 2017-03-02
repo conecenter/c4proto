@@ -1150,15 +1150,19 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const file = e.target.files[0];
 			reader.onload=(event)=>{				
 				if(this.props.onReadySend){
-					const blob = this.fInp.value+'|'+event.target.result;
+					const blob = event.target.result;
 					this.props.onReadySend(blob);
+				}
+				if(this.props.onClickValue){
+					this.props.onClickValue(null,this.fInp.value)
+					
 				}
 				this.setState({reading:false});
 			}
 			reader.onprogress=()=>this.setState({reading:true});
 			reader.onerror=()=>this.setState({reading:false});
 			
-			reader.readAsBinaryString(file);
+			reader.readAsArrayBuffer(file);
 			
 		},
 		render:function(){
