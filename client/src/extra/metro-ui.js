@@ -10,7 +10,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle}){
+export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader}){
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -1136,20 +1136,133 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				React.createElement("img",{key:"1",style:newIconStyle,src:imageSvgData},null)
 			)	
 		);
-	};	
-	const sendVk = ctx => (event,value) => {sender.send(ctx,"click",value);}
-	const onClickValue=({sendVk})
+	};
+	const FileUploadElement = React.createClass({
+		getInitialState:function(){
+			return {value:"",reading:false};
+		},
+		onClick:function(e){
+			if(this.fInp)
+				this.fInp.click();
+		},
+		onChange:function(e){
+			const reader= fileReader();
+			const file = e.target.files[0];
+			reader.onload=(event)=>{				
+				if(this.props.onReadySend){
+					const blob = this.fInp.value+'|'+event.target.result;
+					this.props.onReadySend(blob);
+				}
+				this.setState({reading:false});
+			}
+			reader.onprogress=()=>this.setState({reading:true});
+			reader.onerror=()=>this.setState({reading:false});
+			
+			reader.readAsBinaryString(file);
+			
+		},
+		render:function(){
+			const contStyle={
+				width:"100%",				
+				padding:"0.4rem 0.3125rem",
+				boxSizing:"border-box",
+				//...(this.props.style||{})
+			};
+			const inpContStyle={
+				display:"flex",
+				height:"auto",
+				lineHeight:"1",
+				margin:"0.124rem 0rem",
+				position:"relative",
+				verticalAlign:"middle",
+				width:"100%",
+				...this.props.style
+			};
+			const inp2ContStyle={
+				flex:"1 1 0%",
+				height:"auto",
+				minHeight:"100%",
+				overflow:"hidden",				
+			};
+			const inputStyle={
+				textOverflow:"ellipsis",
+				margin:"0rem",
+				verticalAlign:"top",
+				color:"rgb(33,33,33)",
+				border:"0.01rem solid rgb(182, 182, 182)",
+				height:"100%",
+				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
+				width:"100%",
+				zIndex:"0",
+				boxSizing:"border-box",
+				MozAppearence:"none",
+				whiteSpace:"nowrap",
+				overflow:"hidden",
+				fontSize:"inherit",
+				backgroundColor:this.state.reading?"#eeeeee":"",
+				...this.props.inputStyle
+			};
+			const popupStyle={
+				position:"absolute",
+				border: "0.02rem solid #000",
+				minWidth: "100%",
+				overflow: "auto",				
+				maxHeight: "10rem",				
+				backgroundColor: "white",
+				zIndex: "5",
+				boxSizing:"border-box",
+				overflowX:"hidden",
+			};
+			const openButtonStyle={
+				minHeight:"",
+				minWidth:"1.5rem",
+				height:"100%",
+				padding:"0.2rem",
+				lineHeight:"1",
+			};
+			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
+				flex:"0 1 auto"
+			});
+			const buttonImageStyle={
+				//width:"1.2rem",
+				verticalAlign:"middle",
+				display:"inline",
+				height:"100%",
+				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
+				transition:"all 200ms ease"				
+			};
+			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 510 510" style="enable-background:new 0 0 510 510;" xml:space="preserve"><path d="M204,51H51C22.95,51,0,73.95,0,102v306c0,28.05,22.95,51,51,51h408c28.05,0,51-22.95,51-51V153c0-28.05-22.95-51-51-51 H255L204,51z"/></svg>';
+			const svgData=svgSrc(svg);
+			const urlData = this.props.url?this.props.url:svgData;
+			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);		
+			return React.createElement("div",{style:inpContStyle,onClick:this.onClick},[
+				React.createElement("input",{key:"0",ref:(ref)=>this.fInp=ref,onChange:this.onChange,type:"file",style:{visibility:"hidden",position:"absolute",height:"1px",width:"1px"}},null),
+				React.createElement("div",{key:"1",style:inp2ContStyle},[					
+					React.createElement("input",{key:"1",type:"text",readOnly:"readOnly",style:inputStyle,value:this.props.inpValue},null)									
+				]),
+				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
+					React.createElement(GotoButton,{key:"1",style:openButtonStyle},buttonImage)
+				)
+			]);			
+		}
+	}); 
 	
+	
+	const sendVk = ctx => (event,value) => {sender.send(ctx,"click",value);}
+	const sendBlob = ctx => (value) => {sender.send(ctx,"change",value);}
+	const onClickValue=({sendVk});
+	const onReadySend=({sendBlob});
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,DropDownElement,DropDownWrapperElement,LabelElement,Chip,FocusableElement,PopupElement,Checkbox,
-            RadioButtonElement,
+            RadioButtonElement,FileUploadElement,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState
 		},
 		onClickValue,
+		onReadySend
 	};
 	return ({transforms});
 }
