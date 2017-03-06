@@ -23,7 +23,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   def send[M<:Product](local: World): World = {
     val updates = TxKey.of(local).toSend.toList
     if(updates.isEmpty) return local
-    println(s"sending: ${updates.size}")
+    println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
     val offset = getRawQSender().send(rec)

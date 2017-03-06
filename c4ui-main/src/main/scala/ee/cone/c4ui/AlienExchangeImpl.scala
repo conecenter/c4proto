@@ -17,12 +17,13 @@ case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
 object SendToAlienInit extends InitLocal {
   def initLocal: World ⇒ World = SendToAlienKey.set(
     (sessionKeys,event,data) ⇒ local ⇒ if(sessionKeys.isEmpty) local else {
-      val id = UUID.randomUUID.toString
       val priority = ToAlienPriorityKey.of(local)
       val messages = sessionKeys.zipWithIndex.flatMap{
         case (sessionKey,i) ⇒
+          val id = UUID.randomUUID.toString
           update(ToAlienWrite(id,sessionKey,event,data,priority+i))
       }
+      println(s"messages: $messages")
       ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(add(messages))(local)
     }
   )

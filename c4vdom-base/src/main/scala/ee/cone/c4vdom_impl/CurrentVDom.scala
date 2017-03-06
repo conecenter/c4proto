@@ -70,7 +70,7 @@ case class VDomHandlerImpl[State](
     val diffTree = diff.diff(prev, next)
     if(diffTree.isEmpty) return identity[State]
     val diffStr = jsonToString(diffTree.get)
-    send.get("showDiff",s"${sender.branchKey} diffStr")
+    send.get("showDiff",s"${sender.branchKey} $diffStr")
   }
 
   private def toAlien: Handler = exchange ⇒ state ⇒ {

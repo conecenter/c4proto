@@ -26,9 +26,12 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
     def sendingPart(to: Set[BranchRel]): Send =
       if(to.isEmpty) None
       else Some((eventName,data) ⇒ send(to.map(_.parentSrcId).toSeq, eventName, data))
-    val ackAll = chain(AckChangesKey.of(local).map{ case(sessionKey,index) ⇒
-      send(Seq(sessionKey),"ackChange",s"$branchKey $index")
-    }.toSeq).andThen(SessionKeysKey.set(newSessionKeys))
+    val ackAll =
+      chain(AckChangesKey.of(local).map{ case(sessionKey,index) ⇒
+        send(Seq(sessionKey),"ackChange",s"$branchKey $index")
+      }.toSeq)
+      .andThen(AckChangesKey.set(Map.empty))
+      .andThen(SessionKeysKey.set(newSessionKeys))
     (sendingPart(keepTo), sendingPart(freshTo), ackAll)
   }
 
@@ -116,8 +119,8 @@ case class BranchTxTransform(
 
   private def toAck: BranchMessage ⇒ World ⇒ World = exchange ⇒ {
     val sessionKey = exchange.header("X-r-session")
-    val index = exchange.header("X-r-index")
-    AckChangesKey.modify(_ + (sessionKey → index))
+    if(sessionKey.isEmpty) identity[World]
+    else AckChangesKey.modify(_ + (sessionKey → exchange.header("X-r-index")))
   }
 }
 
