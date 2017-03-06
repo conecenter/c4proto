@@ -788,6 +788,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				fontSize:"inherit",
 				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
 				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
+				textTransform:"inherit",
 				...this.props.inputStyle
 			};								
 			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;			
@@ -863,6 +864,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				whiteSpace:"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
+				textTransform:"inherit",
 				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
 				...this.props.inputStyle
 			};
@@ -926,6 +928,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	const LabelElement = ({style,onClick,label})=>React.createElement("label",{onClick,style:{
 		color:"rgb(33,33,33)",
 		cursor:onClick?"pointer":"auto",
+		textTransform:"none",
 		...style
 	}},label?label:null);
 
