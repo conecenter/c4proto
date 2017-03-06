@@ -89,9 +89,13 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		mouseOver:function(){
 			this.setState({mouseOver:true});
+			if(this.props.onMouseOver)
+				this.props.onMouseOver();
 		},
 		mouseOut:function(){
 			this.setState({mouseOver:false});
+			if(this.props.onMouseOut)
+				this.props.onMouseOut();
 		},
 		onTouchStart:function(e){
 			this.setState({touch:true});
@@ -725,6 +729,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	});
 	
 	const InputElement = React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
 		onChange:function(e){
 			if(this.props.onChange)
 				this.props.onChange(e);
@@ -732,6 +739,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onBlur:function(e){
 			if(this.props.onBlur)
 				this.props.onBlur(e)
+		},
+		onMouseOver:function(e){
+			this.setState({mouseOver:true});
+		},
+		onMouseOut:function(e){
+			this.setState({mouseOver:false});
 		},
 		render:function(){
 			const labelStyle={
@@ -763,7 +776,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				margin:"0rem",
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
-				border:"0.01rem solid rgb(182, 182, 182)",
+				border:"0.01rem solid",
 				height:"100%",
 				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
 				width:"100%",
@@ -773,14 +786,93 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				whiteSpace:"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
+				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
 				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
+				textTransform:"inherit",
 				...this.props.inputStyle
 			};								
 			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;			
 			const type = this.props.type?this.props.type:"text"
 			return React.createElement("div",{style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-						React.createElement("input",{key:"1",type,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null)
+						React.createElement("input",{key:"1",type,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
+					)
+				);
+					
+		},
+	});
+	
+	const TextArea = React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
+		onChange:function(e){
+			if(this.props.onChange)
+				this.props.onChange(e);			
+				
+		},
+		onBlur:function(e){
+			if(this.props.onBlur)
+				this.props.onBlur(e)
+		},
+		onMouseOver:function(e){
+			this.setState({mouseOver:true});
+		},
+		onMouseOut:function(e){
+			this.setState({mouseOver:false});
+		},
+		render:function(){
+			const labelStyle={
+				color:"rgb(33,33,33)",
+			};
+			const contStyle={
+				width:"100%",				
+				padding:"0.4rem 0.3125rem",
+				boxSizing:"border-box",
+				...this.props.style
+			};			
+			const inpContStyle={
+				display:"flex",
+				height:"auto",
+				lineHeight:"1",
+				margin:"0.124rem 0rem",
+				position:"relative",
+				verticalAlign:"middle",
+				width:"100%",
+			};
+			const inp2ContStyle={
+				flex:"1 1 0%",
+				height:"auto",
+				minHeight:"100%",
+				overflow:"hidden",				
+			};
+			const inputStyle={
+				textOverflow:"ellipsis",
+				margin:"0rem",
+				verticalAlign:"top",
+				color:"rgb(33,33,33)",
+				border:"0.01rem solid",
+				height:"100%",
+				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
+				width:"100%",
+				zIndex:"0",
+				boxSizing:"border-box",
+				MozAppearence:"none",
+				whiteSpace:"nowrap",
+				overflow:"hidden",
+				fontSize:"inherit",
+				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
+				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
+				textTransform:"inherit",
+				...this.props.inputStyle
+			};								
+			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;
+			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
+			const rows= this.props.rows?this.props.rows:"2";
+			log(this);
+			return React.createElement("div",{style:inpContStyle},
+					React.createElement("div",{key:"1",style:inp2ContStyle},
+						React.createElement("textarea",{key:"1",rows,readOnly,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.value)
 					)
 				);
 					
@@ -788,6 +880,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	});
 
 	const DropDownElement = React.createClass({
+		getInitialState:function(){
+			return {mouseOverI:false,mouseOverB:false};
+		},
 		onChange:function(e){
 			if(this.props.onChange)
 				this.props.onChange(e);
@@ -795,6 +890,18 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onClick:function(e){
 			if(this.props.onClick)
 				this.props.onClick(e);
+		},
+		onMouseOverI:function(){
+			this.setState({mouseOverI:true});
+		},
+		onMouseOutI:function(){
+			this.setState({mouseOverI:false});
+		},
+		onMouseOverB:function(){
+			this.setState({mouseOverB:true});
+		},
+		onMouseOutB:function(){
+			this.setState({mouseOverB:false});
 		},
 		render:function(){			
 			const contStyle={
@@ -824,7 +931,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				margin:"0rem",
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
-				border:"0.01rem solid rgb(182, 182, 182)",
+				border:"0.01rem solid",
 				height:"100%",
 				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
 				width:"100%",
@@ -834,6 +941,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				whiteSpace:"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
+				textTransform:"inherit",
+				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
 				...this.props.inputStyle
 			};
 			const popupStyle={
@@ -853,6 +962,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				height:"100%",
 				padding:"0.2rem",
 				lineHeight:"1",
+				backgroundColor:"transparent",
+				border:"0.01rem solid",
+				borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
 			};
 			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
 				flex:"0 1 auto"
@@ -861,9 +973,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				//width:"1.2rem",
 				verticalAlign:"middle",
 				display:"inline",
-				height:"100%",
+				height:"calc(100% - 0.2rem)",
 				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
-				transition:"all 200ms ease"				
+				transition:"all 200ms ease",
+				boxSizing:"border-box"
 			};
 			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 306 306" xml:space="preserve"><polygon points="270.3,58.65 153,175.95 35.7,58.65 0,94.35 153,247.35 306,94.35"/></svg>'
 			//const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="446.25px" height="446.25px" viewBox="0 0 446.25 446.25" style="fill: rgb(0, 0, 0);" xml:space="preserve"><path d="M318.75,280.5h-20.4l-7.649-7.65c25.5-28.05,40.8-66.3,40.8-107.1C331.5,73.95,257.55,0,165.75,0S0,73.95,0,165.75 S73.95,331.5,165.75,331.5c40.8,0,79.05-15.3,107.1-40.8l7.65,7.649v20.4L408,446.25L446.25,408L318.75,280.5z M165.75,280.5 C102,280.5,51,229.5,51,165.75S102,51,165.75,51S280.5,102,280.5,165.75S229.5,280.5,165.75,280.5z" style="fill: rgb(0, 0, 0);"></path></svg>';
@@ -873,11 +986,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null;
 			return React.createElement("div",{style:inpContStyle},[
 				React.createElement("div",{key:"1",style:inp2ContStyle},[
-					React.createElement("input",{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
+					React.createElement("input",{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null),
 					popupWrapEl					
 				]),
 				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
-					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onClick:this.onClick},buttonImage)
+					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB,onClick:this.onClick},buttonImage)
 				)
 			]);
 						
@@ -893,6 +1006,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	const LabelElement = ({style,onClick,label})=>React.createElement("label",{onClick,style:{
 		color:"rgb(33,33,33)",
 		cursor:onClick?"pointer":"auto",
+		textTransform:"none",
 		...style
 	}},label?label:null);
 
@@ -1139,7 +1253,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	};
 	const FileUploadElement = React.createClass({
 		getInitialState:function(){
-			return {value:"",reading:false};
+			return {value:"",reading:false,mouseOverI:false,mouseOverB:false};
 		},
 		onClick:function(e){
 			if(this.fInp)
@@ -1164,6 +1278,18 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			
 			reader.readAsArrayBuffer(file);
 			
+		},
+		onMouseOverB:function(e){
+			this.setState({mouseOverB:true});
+		},
+		onMouseOutB:function(e){
+			this.setState({mouseOverB:false});
+		},
+		onMouseOverI:function(e){
+			this.setState({mouseOverI:true});
+		},
+		onMouseOutI:function(e){
+			this.setState({mouseOverI:false});
 		},
 		render:function(){
 			const contStyle={
@@ -1193,7 +1319,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				margin:"0rem",
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
-				border:"0.01rem solid rgb(182, 182, 182)",
+				border:"0.01rem solid",
 				height:"100%",
 				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
 				width:"100%",
@@ -1204,6 +1330,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflow:"hidden",
 				fontSize:"inherit",
 				backgroundColor:this.state.reading?"#eeeeee":"",
+				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
 				...this.props.inputStyle
 			};
 			const popupStyle={
@@ -1223,6 +1350,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				height:"100%",
 				padding:"0.2rem",
 				lineHeight:"1",
+				border:"0.01rem solid",
+				borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
+				backgroundColor:"transparent",
 			};
 			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
 				flex:"0 1 auto"
@@ -1242,10 +1372,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement("div",{style:inpContStyle,onClick:this.onClick},[
 				React.createElement("input",{key:"0",ref:(ref)=>this.fInp=ref,onChange:this.onChange,type:"file",style:{visibility:"hidden",position:"absolute",height:"1px",width:"1px"}},null),
 				React.createElement("div",{key:"1",style:inp2ContStyle},[					
-					React.createElement("input",{key:"1",type:"text",readOnly:"readOnly",style:inputStyle,value:this.props.inpValue},null)									
+					React.createElement("input",{key:"1",type:"text",readOnly:"readOnly",style:inputStyle,value:this.props.inpValue,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null)									
 				]),
 				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
-					React.createElement(GotoButton,{key:"1",style:openButtonStyle},buttonImage)
+					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB},buttonImage)
 				)
 			]);			
 		}
@@ -1260,7 +1390,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		tp:{
             DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,DropDownElement,DropDownWrapperElement,LabelElement,Chip,FocusableElement,PopupElement,Checkbox,
-            RadioButtonElement,FileUploadElement,
+            RadioButtonElement,FileUploadElement,TextArea,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState
