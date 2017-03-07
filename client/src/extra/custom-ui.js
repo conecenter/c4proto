@@ -73,7 +73,9 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
     		},
     	});
 		
-	const ColorPicker = ({onChange,style,children}) => React.createElement('div',{
+	const ColorPicker = ({onChange,style,children,isOpen}) => 
+
+		React.createElement('div',{
 		style: {
 				width:"100%",
 				boxSizing:"border-box",
@@ -82,7 +84,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				React.createElement('div', {
 						key:'1',
 						style: {
-							minWidth:'1em',
+							minWidth:'6em',
 							height:'2em',
 							textShadow:'2px 2px 4px rgba(0, 0, 0, 0.4)',
 							color:'white',
@@ -93,16 +95,18 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 						},
 						onClick: ev => onChange({ target:{value:""} })
 				}, null),
-				React.createElement('div', {
+				isOpen?React.createElement('div', {
 						key:'2',
 						style: {
 							position:"absolute",
 							display:'flex',
 							flexWrap:'wrap',
-							minWidth:'25em',
-							top:'105%',
+							maxWidth:'25em',
+							top:'100%',
+							border:'1px solid grey',
+							zIndex: "5",
 						}
-				},children)
+				},children):null
 			]
 	)
 	
