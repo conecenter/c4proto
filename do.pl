@@ -2,14 +2,20 @@
 
 use strict;
 
-my $kafka_port = 9092;
+
 
 my $port_prefix = $ENV{C4PORT_PREFIX} || 8000;
-my $inbox_prefix = "i$port_prefix";
 my $http_port = $port_prefix+67;
 my $sse_port = $port_prefix+68;
+my $zoo_port = $port_prefix+81;
+my $kafka_port = $port_prefix+92;
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
+
+my $put_text = sub{
+    my($fn,$content)=@_;
+    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+};
 
 my @tasks;
 
@@ -27,9 +33,10 @@ push @tasks, ["setup_run_kafka", sub{
         sy("wget http://www-eu.apache.org/dist/kafka/0.10.1.0/$kafka.tgz");
         sy("tar -xzf $kafka.tgz")
     }
-    chdir $kafka or die $!;
-    sy("bin/zookeeper-server-start.sh config/zookeeper.properties 1> zookeeper.log 2> zookeeper.error.log &");
-    sy("bin/kafka-server-start.sh config/server.properties 1> kafka.log 2> kafka.error.log &");
+    &$put_text("zookeeper.properties","dataDir=../db-zookeeper\nclientPort=$zoo_port\n");
+    &$put_text("server.properties","listeners=PLAINTEXT://127.0.0.1:$kafka_port\nlog.dirs=../db-kafka-logs\nzookeeper.connect=127.0.0.1:$zoo_port\nlog.cleanup.policy=compact");
+    sy("$kafka/bin/zookeeper-server-start.sh -daemon zookeeper.properties");
+    sy("$kafka/bin/kafka-server-start.sh -daemon server.properties");
 }];
 my $client = sub{
     my($inst)=@_;
@@ -47,11 +54,11 @@ push @tasks, ["stage", sub{
     &$client(1);
 }];
 
-my $env = "C4BOOTSTRAP_SERVERS=127.0.0.1:$kafka_port C4INBOX_TOPIC_PREFIX=$inbox_prefix C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
+my $env = "C4BOOTSTRAP_SERVERS=127.0.0.1:$kafka_port C4INBOX_TOPIC_PREFIX='' C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
 sub staged{
     $ENV{C4NOSTAGE}?
-        "C4STATE_TOPIC_PREFIX=$_[1]-$port_prefix-0 sbt '$_[0]/run $_[1]'":
-        "C4STATE_TOPIC_PREFIX=$_[1]-$port_prefix-0 $_[0]/target/universal/stage/bin/$_[0] $_[1]"
+        "C4STATE_TOPIC_PREFIX=$_[1] sbt '$_[0]/run $_[1]'":
+        "C4STATE_TOPIC_PREFIX=$_[1] $_[0]/target/universal/stage/bin/$_[0] $_[1]"
 }
 push @tasks, ["gate_publish", sub{
     my $build_dir = &$client(0);

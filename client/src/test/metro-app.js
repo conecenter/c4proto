@@ -43,7 +43,8 @@ const uglifyBody = style => {
         Object.assign(document.documentElement.style,style);
 }
 const getComputedStyle = n => window.getComputedStyle(n);
-const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle});
+const fileReader = ()=> (new window.FileReader());
+const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader});
 
 //customUi with hacks
 const toggleOverlay = on =>{

@@ -1,6 +1,8 @@
 
 package ee.cone.c4actor
 
+import java.util.UUID
+
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.QProtocol.{Offset, TopicKey, Update, Updates}
 import ee.cone.c4actor.Types.SrcId
@@ -24,7 +26,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     val updates = TxKey.of(local).toSend.toList
     if(updates.isEmpty) return local
     println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
+    val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates(UUID.randomUUID.toString,updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
     val offset = getRawQSender().send(rec)
     //println(s"offset sent: $offset")
@@ -41,12 +43,14 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     val rawValue = update.value.toByteArray
     new QRecordImpl(topicName, rawKey, rawValue)
   }
+  def offsetUpdate(value: Long): List[Update] =
+    LEvent.update(Offset("", value)).toList.map(toUpdate)
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord] = {
-    if(rec.key.length > 0) throw new Exception
+    //if(rec.key.length > 0) throw new Exception
     val updates = qAdapterRegistry.updatesAdapter.decode(rec.value).updates
-    val offset = LEvent.update(Offset("",rec.offset.get + 1)).map(toUpdate)
     val relevantUpdates =
-      updates.filter(u⇒qAdapterRegistry.byId.contains(u.valueTypeId)) ++ offset
+      updates.filter(u ⇒ qAdapterRegistry.byId.contains(u.valueTypeId)) :::
+        offsetUpdate(rec.offset.get + 1)
     relevantUpdates.map(toRecord(StateTopicName(actorName),_))
   }
   def worldOffset: World ⇒ Long = world ⇒

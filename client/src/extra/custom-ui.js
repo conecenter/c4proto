@@ -73,7 +73,9 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
     		},
     	});
 		
-	const ColorPicker = ({onChange,style,children}) => React.createElement('div',{
+	const ColorPicker = ({onChange,style,children,isOpen}) => 
+
+		React.createElement('div',{
 		style: {
 				width:"100%",
 				boxSizing:"border-box",
@@ -82,7 +84,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				React.createElement('div', {
 						key:'1',
 						style: {
-							minWidth:'1em',
+							minWidth:'6em',
 							height:'2em',
 							textShadow:'2px 2px 4px rgba(0, 0, 0, 0.4)',
 							color:'white',
@@ -93,16 +95,18 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 						},
 						onClick: ev => onChange({ target:{value:""} })
 				}, null),
-				React.createElement('div', {
+				isOpen?React.createElement('div', {
 						key:'2',
 						style: {
 							position:"absolute",
 							display:'flex',
 							flexWrap:'wrap',
-							minWidth:'25em',
-							top:'105%',
+							maxWidth:'25em',
+							top:'100%',
+							border:'1px solid grey',
+							zIndex: "5",
 						}
-				},children)
+				},children):null
 			]
 	)
 	
@@ -153,7 +157,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	});
 	const TerminalElement=React.createClass({   
 		componentDidMount:function(){
-			customTerminal().forEach(t=>t.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.params||0)));
+			customTerminal().forEach(t=>t.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.params||0),this.props.wrk,this.props.ps));
 			log("term mount")
 		},
 		componentWillUnmount:function(){
@@ -163,9 +167,9 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 		componentDidUpdate:function(prevProps, prevState){
 			customTerminal().forEach(t=>{
 				log("term_update")
-				if(prevProps.version!=this.props.version){
+				if(prevProps.version!=this.props.version&&this.props.version!=0){
 					t.destroy(-1);
-					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params);
+					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params,this.props.wrk,this.props.ps);
 				}
 			})
 		},
@@ -237,7 +241,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	const ControlledComparator = React.createClass({
 		componentDidUpdate:function(prevP,prevS){
 			if(this.props.onChange&&this.props.data&&prevP.data!==this.props.data){			
-				const e={target:{value:this.props.data}};
+				const e={target:{value:this.props.data.toString()}};
 				log("change w");
 				this.props.onChange(e);
 			}

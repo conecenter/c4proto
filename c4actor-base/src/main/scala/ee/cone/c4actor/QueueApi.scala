@@ -52,6 +52,7 @@ case object OffsetWorldKey extends WorldKey[java.lang.Long](0L)
 
 trait QMessages {
   def toUpdate[M<:Product](message: LEvent[M]): Update
+  def offsetUpdate(value: Long): List[Update]
   def toRecord(topicName: TopicName, update: Update): QRecord
   def toRecords(actorName: ActorName, rec: QRecord): List[QRecord]
   def toTree(records: Iterable[QRecord]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]]
