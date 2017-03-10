@@ -94,14 +94,16 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     ) //! prevents hanging on empty topic
     val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
     consumer.seekToBeginning(part.asJava)
+
     val recsIterator = iterator(consumer).flatten
-    @tailrec def toQueue(queue: Queue[QRecord] = Queue.empty): Queue[QRecord] = {
+    @tailrec def toQueue(queue: Queue[QRecord]): Queue[QRecord] = {
       val rec = recsIterator.next()
       val offset = rec.offset.get + 1
       if(offset % 100000 == 0) println(offset)
       if(offset >= until) queue.enqueue(rec) else toQueue(queue.enqueue(rec))
     }
-    val recsQueue = toQueue()
+    val zeroRecord = qMessages.offsetUpdate(0L).map(qMessages.toRecord(topicName,_))
+    val recsQueue = toQueue(Queue(zeroRecord:_*))
     val recsList = recsQueue.toList
     new AtomicReference(reducer.reduceRecover(reducer.createWorld(Map()), recsList))
   }
