@@ -4,13 +4,23 @@ import {mergeAll}    from "../main/util"
 export default function Branches(log,branchHandlers){
     const branchesByKey = {}
     let active = []
-    const modify = (branchKey,by) => {
+    let toModify = []
+    const doModify = ({branchKey,by}) => {
         const state = by(branchesByKey[branchKey] || {branchKey, modify})
         //if(branchesByKey[branchKey]!==state) log({a:"mod",branchKey,state})
         if(branchesByKey[branchKey]!==state){
             log({state})
             if(state) branchesByKey[branchKey] = state
             else delete branchesByKey[branchKey]
+        }
+    }
+
+    const modify = (branchKey,by) => {
+        toModify = [...toModify,{branchKey,by}]
+        if(toModify.length > 1) return
+        while(toModify.length > 0){
+            doModify(toModify[0])
+            toModify = toModify.slice(1)
         }
     }
     //
