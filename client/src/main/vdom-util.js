@@ -89,7 +89,7 @@ export function VDomSeeds(log,DiffPrepare){
         if(!(d.pos.x||d.pos.y||d.size.x||d.size.y)) return state
         const box = {
             pos:  calcPos(dir => (wasBox ? wasBox.pos[dir] : 0) + d.pos[dir] ),
-            size: calcPos(dir => (wasBox ? wasBox.size[dir]: 0) + d.size[dir])
+            size: calcPos(dir => Math.max(0,(wasBox ? wasBox.size[dir]: 0) + d.size[dir]))
         }
         return setRootBox(box,ctx,{
             border: "1px solid blue",
