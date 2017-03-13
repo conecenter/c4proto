@@ -52,18 +52,8 @@ case class VDomHandlerImpl[State](
   }
 
   //todo invalidate until by default
-  private def relocate: Handler = exchange ⇒ state ⇒ state /*relocateKey.of(state) match {
-    case "" ⇒ state
-    case hash ⇒ state
-    //todo pass to parent branch or alien
-      /*
-      task.directSessionKey.map(exchange.send(_, "relocateHash", hash)).getOrElse(???)
-        .andThen(relocateKey.set(""))(state)*/
-  }*/
 
-  def exchange: Handler =
-    m ⇒ chain(Seq(init,dispatch,relocate,toAlien).map(_(m)))
-
+  def exchange: Handler = m ⇒ chain(Seq(init,dispatch,toAlien).map(_(m)))
 
   private def diffSend(prev: VDomValue, next: VDomValue, send: sender.Send): State ⇒ State = {
     if(send.isEmpty) return identity[State]
@@ -84,6 +74,7 @@ case class VDomHandlerImpl[State](
     else if(
       vState.value != wasNoValue &&
       vState.until > System.currentTimeMillis &&
+      exchange.header("X-r-action").isEmpty &&
       freshTo.isEmpty
     ) state
     else {

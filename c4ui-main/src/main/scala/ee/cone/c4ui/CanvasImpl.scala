@@ -23,7 +23,7 @@ case class CanvasSizes(canvasFontSize: BigDecimal, canvasWidth: BigDecimal)
 
 case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: CanvasHandler) extends BranchHandler {
   private type Handler = BranchMessage ⇒ World ⇒ World
-  def exchange: Handler = message ⇒ messageHandler(message).andThen(toAlien) //reset(local)
+  def exchange: Handler = message ⇒ messageHandler(message).andThen(toAlien(message)) //reset(local)
   private def widthGap = 20
   private def resize: Handler = message ⇒ local ⇒ {
     val sessionKey = message.header("X-r-session")
@@ -50,12 +50,13 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: Canv
   }
   private def value: Option[CanvasContent] ⇒ String =
     state ⇒ state.map(_.value).getOrElse("")
-  private def toAlien: World ⇒ World = local ⇒ {
+  private def toAlien: Handler = message ⇒ local ⇒ {
     val cState = CanvasContentKey.of(local)
     val (keepTo,freshTo,ackAll) = task.sending(local)
     val nState = if(keepTo.isEmpty && freshTo.isEmpty) None else if(
       cState.nonEmpty &&
       cState.get.until > System.currentTimeMillis &&
+      message.header("X-r-action").isEmpty &&
       freshTo.isEmpty
     ) cState else Option(handler.view(local))
     val sends = if(value(cState)==value(nState)) Seq(freshTo).flatten else Seq(keepTo,freshTo).flatten
