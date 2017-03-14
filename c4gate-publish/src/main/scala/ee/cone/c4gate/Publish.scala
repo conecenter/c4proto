@@ -10,39 +10,53 @@ import okio.{Buffer, GzipSink}
 
 //todo un-publish
 
-class PublishingObserver(qMessages: QMessages, reducer: Reducer, fromDir: String, mimeTypesStr: String, then: ()⇒Unit = ()⇒()) extends Observer {
+class PublishingObserver(
+  qMessages: QMessages,
+  reducer: Reducer,
+  fromDir: String,
+  mimeTypes: String⇒Option[String],
+  thenDo: ()⇒Unit
+) extends Observer {
   def activate(getWorld: () ⇒ World): Seq[Observer] = {
-    val mimeTypes = mimeTypesStr.split(":").grouped(2).map(l⇒l(0)→l(1)).toMap
-    val createTx: World⇒World = local ⇒ reducer.createTx(getWorld())(local)
+    println("publish started")
     val fromPath = Paths.get(fromDir)
-    val visitor = new PublishFileVisitor(qMessages,createTx,fromPath,mimeTypes.get)
+    val visitor = new PublishFileVisitor(qMessages,reducer,getWorld,fromPath,mimeTypes)
     val depth = Integer.MAX_VALUE
     val options = java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS)
     Files.walkFileTree(fromPath, options, depth, visitor)
+    println("publish finished")
+    thenDo()
     Nil
   }
 }
 
-class PublishFileVisitor(qMessages: QMessages, createTx: World⇒World, fromPath: Path, mimeTypes: String⇒Option[String]) extends SimpleFileVisitor[Path] {
+class PublishFileVisitor(
+  qMessages: QMessages,
+  reducer: Reducer,
+  getWorld: () ⇒ World,
+  fromPath: Path,
+  mimeTypes: String⇒Option[String]
+) extends SimpleFileVisitor[Path] {
   override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
     val path = s"/${fromPath.relativize(file)}"
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
     val headers = Header("Content-Encoding", "gzip") ::
-      mimeTypes(ext).map(Header("Content-Type",_)).toList
+      ext.flatMap(mimeTypes).map(Header("Content-Type",_)).toList
     val body = Files.readAllBytes(file)
     val sink = new Buffer
     val gzipSink = new GzipSink(sink)
     gzipSink.write(new Buffer().write(body), body.length)
     gzipSink.close()
     val byteString = sink.readByteString()
-    val local = createTx(Map())
+    val world = getWorld()
     val publication = HttpPublication(path,headers,byteString)
-    val world = TxKey.of(local).world
     val existingPublications = By.srcId(classOf[HttpPublication]).of(world)
+    println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.getOrElse(path,Nil).contains(publication)) {
       println(s"$path (${byteString.size}) exists")
     } else {
+      val local = reducer.createTx(world)(Map())
       LEvent.add(LEvent.update(publication)).andThen(qMessages.send)(local)
       println(s"$path (${byteString.size}) published")
     }

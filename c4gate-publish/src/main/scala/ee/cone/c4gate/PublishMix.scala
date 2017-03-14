@@ -3,27 +3,35 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4proto.Protocol
 
-/*ServerApp
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
+class PublishApp extends ServerApp
   with EnvConfigApp
-  with KafkaProducerApp
-  with InitLocalsApp with ParallelObserversApp*/
-/*
-  def mimeTypes: List[(String,String)] = List( //not finished on gate-server side
+  with KafkaProducerApp with KafkaConsumerApp
+  with InitLocalsApp
+  with PublishingApp
+{
+  def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
     "html" → "text/html; charset=UTF-8",
     "js" → "application/javascript",
     "ico" → "image/x-icon"
-  )*/
+  )
+  def txObserver = None
+  def doAfterPublish(): Unit =
+    if(config.get("C4PUBLISH_THEN_EXIT").nonEmpty) Future{ System.exit(0) }
+}
 
-trait PublishApp extends ProtocolsApp with InitialObserversApp
-{
+trait PublishingApp extends ProtocolsApp with InitialObserversApp {
   def config: Config
   def qMessages: QMessages
   def qReducer: Reducer
+  def mimeTypes: Map[String,String]
+  def doAfterPublish(): Unit
 
-  private lazy val publishMimeTypes = config.get("C4PUBLISH_MIME")
   private lazy val publishDir = config.get("C4PUBLISH_DIR")
   private lazy val publishingObserver =
-    new PublishingObserver(qMessages,qReducer,publishDir,publishMimeTypes)
+    new PublishingObserver(qMessages,qReducer,publishDir,mimeTypes.get,doAfterPublish)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers
