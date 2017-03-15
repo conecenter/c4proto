@@ -858,7 +858,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				zIndex:"0",
 				boxSizing:"border-box",
 				MozAppearence:"none",
-				whiteSpace:"nowrap",
+				//whiteSpace:"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
 				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
@@ -872,7 +872,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			//log(this);
 			return React.createElement("div",{style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-						React.createElement("textarea",{key:"1",rows,readOnly,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.value)
+						React.createElement("textarea",{key:"1",rows,readOnly,value:this.props.value,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
 					)
 				);
 					
