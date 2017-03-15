@@ -2,10 +2,11 @@
 package ee.cone.c4actor
 
 import java.util.Collections.singletonMap
+import java.util.UUID
 import java.util.concurrent.{CompletableFuture, Future}
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicReference}
 
-import ee.cone.c4actor.QProtocol.Updates
+import ee.cone.c4actor.QProtocol.{Leader, Updates}
 import ee.cone.c4assemble.Single
 import ee.cone.c4assemble.Types.World
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
@@ -59,6 +60,7 @@ class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Arra
   def key: Array[Byte] = rec.key
   def value: Array[Byte] = rec.value
   def offset: Option[Long] = Option(rec.offset)
+  //rec.timestamp()
 }
 
 class KafkaActor(bootstrapServers: String, actorName: ActorName)(
@@ -107,6 +109,13 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     val recsList = recsQueue.toList
     new AtomicReference(reducer.reduceRecover(reducer.createWorld(Map()), recsList))
   }
+  private def startIncarnation(world:  World): World⇒Boolean = {
+    val local = reducer.createTx(world)(Map())
+    val leader = Leader(actorName.value,UUID.randomUUID.toString)
+    LEvent.add(LEvent.update(leader)).andThen(qMessages.send)(local)
+    world ⇒ By.srcId(classOf[Leader]).of(world).getOrElse(actorName.value,Nil).contains(leader)
+  }
+
   def run(ctx: ExecutionContext): Unit = {
     val consumer = initConsumer(ctx)
     try {
@@ -124,6 +133,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       consumer.seek(Single(inboxTopicPartition),startOffset)
       consumer.pause(stateTopicPartition.asJava)
       consumer.resume(inboxTopicPartition.asJava)
+      val checkIncarnation = startIncarnation(localWorldRef.get)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
         recs match {
           case Nil ⇒ ()
@@ -136,7 +146,9 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
             localWorldRef.set(world)
         }
         //println(s"then to receive: ${qMessages.worldOffset(localWorldRef.get)}")
-        prevObservers.flatMap(_.activate(()⇒localWorldRef.get))
+        if(checkIncarnation(localWorldRef.get))
+            prevObservers.flatMap(_.activate(()⇒localWorldRef.get))
+        else prevObservers
       }.foreach(_⇒())
     } finally {
       consumer.close()

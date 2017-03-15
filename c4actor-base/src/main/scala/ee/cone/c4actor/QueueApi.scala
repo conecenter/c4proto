@@ -26,6 +26,10 @@ import ee.cone.c4actor.Types.SrcId
     @Id(0x0011) srcId: String, //dummy
     @Id(0x0017) value: Long
   )
+  @Id(0x0018) case class Leader(
+    @Id(0x0019) actorName: String,
+    @Id(0x001A) incarnationId: String
+  )
 }
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)

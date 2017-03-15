@@ -64,8 +64,8 @@ trait VDomView[State] extends Product {
 
 trait VDomSender[State] {
   def branchKey: String
-  def send: (String, String, String, String) ⇒ State ⇒ State
-  def sessionKeys: State ⇒ Set[String]
+  type Send = Option[(String,String) ⇒ State ⇒ State]
+  def sending: State ⇒ (Send,Send,State⇒State)
 }
 
 trait VDomMessage {
@@ -88,7 +88,7 @@ trait VDomHandlerFactory {
   ): VDomHandler[State]
 }
 
-case class VDomState(value: VDomValue, until: Long, sessionKeys: Set[String], ackChanges: Map[String,String])
+case class VDomState(value: VDomValue, until: Long)
 
 trait VDomUntil {
   def get(pairs: ViewRes): (Long, ViewRes)

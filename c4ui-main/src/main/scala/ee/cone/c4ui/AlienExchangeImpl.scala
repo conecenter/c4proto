@@ -16,11 +16,15 @@ import okio.ByteString
 case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
 object SendToAlienInit extends InitLocal {
   def initLocal: World ⇒ World = SendToAlienKey.set(
-    (sessionKey,event,data) ⇒ local ⇒ {
-      val id = UUID.randomUUID.toString
+    (sessionKeys,event,data) ⇒ local ⇒ if(sessionKeys.isEmpty) local else {
       val priority = ToAlienPriorityKey.of(local)
-      add(update(ToAlienWrite(id,sessionKey,event,data,priority)))
-        .andThen(ToAlienPriorityKey.modify(_+1))(local)
+      val messages = sessionKeys.zipWithIndex.flatMap{
+        case (sessionKey,i) ⇒
+          val id = UUID.randomUUID.toString
+          update(ToAlienWrite(id,sessionKey,event,data,priority+i))
+      }
+      println(s"messages: $messages")
+      ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(add(messages))(local)
     }
   )
 }

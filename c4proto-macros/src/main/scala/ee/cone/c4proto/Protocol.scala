@@ -30,49 +30,62 @@ class protocol extends StaticAnnotation {
           case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty ⇒
             pMods.copy(id=Option(id))
         })
+        val adapterOf: String=>String = {
+          case "Int" ⇒ "com.squareup.wire.ProtoAdapter.SINT32"
+          case "Long" ⇒ "com.squareup.wire.ProtoAdapter.SINT64"
+          case "Boolean" ⇒ "com.squareup.wire.ProtoAdapter.BOOL"
+          case "okio.ByteString" ⇒ "com.squareup.wire.ProtoAdapter.BYTES"
+          case "String" ⇒ "com.squareup.wire.ProtoAdapter.STRING"
+          case name ⇒ s"${name}ProtoAdapter"
+        }
         val props: List[ProtoProp] = params.map{
           case param"..$mods ${Term.Name(propName)}: $tpe = $v" ⇒
             val Seq(mod"@Id(${Lit(id:Int)})") = mods
             val pt: ProtoType = tpe.get match {
               case t"Int" ⇒
+                val name = "Int"
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName != 0)", s"prep_$propName)"),
-                  serializerType = "com.squareup.wire.ProtoAdapter.SINT32",
+                  serializerType = adapterOf(name),
                   empty = "0",
-                  resultType = "Int"
+                  resultType = name
                 )
               case t"Long" ⇒
+                val name = "Long"
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName != 0L)", s"prep_$propName)"),
-                  serializerType = "com.squareup.wire.ProtoAdapter.SINT64",
+                  serializerType = adapterOf(name),
                   empty = "0",
-                  resultType = "Long"
+                  resultType = name
                 )
               case t"Boolean" ⇒
+                val name = "Boolean"
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName)", s"prep_$propName)"),
-                  serializerType = "com.squareup.wire.ProtoAdapter.BOOL",
+                  serializerType = adapterOf(name),
                   empty = "false",
-                  resultType = "Boolean"
+                  resultType = name
                 )
               case t"okio.ByteString" ⇒
+                val name = "okio.ByteString"
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName.size > 0)", s"prep_$propName)"),
-                  serializerType = "com.squareup.wire.ProtoAdapter.BYTES",
+                  serializerType = adapterOf(name),
                   empty = "okio.ByteString.EMPTY",
-                  resultType = "okio.ByteString"
+                  resultType = name
                 )
               case t"String" ⇒
+                val name = "String"
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName.nonEmpty)", s"prep_$propName)"),
-                  serializerType = "com.squareup.wire.ProtoAdapter.STRING",
+                  serializerType = adapterOf(name),
                   empty = "\"\"",
-                  resultType = "String"
+                  resultType = name
                 )
               case t"Option[${Type.Name(name)}]" ⇒
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName.nonEmpty)", s"prep_$propName.get)"),
-                  serializerType = s"${name}ProtoAdapter",
+                  serializerType = adapterOf(name),
                   empty = "None",
                   resultType = s"Option[$name]",
                   reduce=("Option(", ")")
@@ -80,7 +93,7 @@ class protocol extends StaticAnnotation {
               case t"List[${Type.Name(name)}]" ⇒
                 ProtoType(
                   encodeStatement = (s"prep_$propName.foreach(item => ","item))"),
-                  serializerType = s"${name}ProtoAdapter",
+                  serializerType = adapterOf(name),
                   empty = "Nil",
                   resultType = s"List[$name]",
                   resultFix = s"prep_$propName.reverse",
@@ -91,7 +104,7 @@ class protocol extends StaticAnnotation {
                 ProtoType(
                   encodeStatement =
                     (s"if(prep_$propName.nonEmpty)", s"prep_$propName.get)"),
-                  serializerType = s"${name}ProtoAdapter",
+                  serializerType = adapterOf(name),
                   empty = "None",
                   resultType = s"Option[$name]",
                   reduce=("Option(", ")")

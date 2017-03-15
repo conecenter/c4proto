@@ -36,7 +36,7 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   def toStart: List[Executable]
   def rawQSender: RawQSender
   def initLocals: List[InitLocal]
-  def txObserver: Observer
+  def txObserver: Option[Observer]
   //
   lazy val execution: Executable = new ExecutionImpl(toStart)
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
@@ -51,15 +51,15 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
     ProtocolDataDependencies(protocols) ::: super.dataDependencies
-  override def initialObservers: List[Observer] = txObserver :: super.initialObservers
+  override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
 }
 
 trait SerialObserversApp {
   def txTransforms: TxTransforms
-  lazy val txObserver = new SerialObserver(Map.empty)(txTransforms)
+  lazy val txObserver = Option(new SerialObserver(Map.empty)(txTransforms))
 }
 
 trait ParallelObserversApp {
   def txTransforms: TxTransforms
-  lazy val txObserver = new ParallelObserver(Map.empty)(txTransforms)
+  lazy val txObserver = Option(new ParallelObserver(Map.empty)(txTransforms))
 }

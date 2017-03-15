@@ -14,9 +14,29 @@ import okio.ByteString
 
 import Function.chain
 
+case object SessionKeysKey extends WorldKey[Set[BranchRel]](Set.empty)
+
+case object AckChangesKey extends WorldKey[Map[String,String]](Map.empty)
+
 case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask {
-  def sessionKeys: World ⇒ Set[SrcId] = local ⇒ seeds.flatMap(rel⇒
-    if(rel.parentIsSession) rel.parentSrcId :: Nil
+  def sending: World ⇒ (Send,Send,World⇒World) = local ⇒ {
+    val newSessionKeys = sessionKeys(local)
+    val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
+    val send = SendToAlienKey.of(local)
+    def sendingPart(to: Set[BranchRel]): Send =
+      if(to.isEmpty) None
+      else Some((eventName,data) ⇒ send(to.map(_.parentSrcId).toSeq, eventName, data))
+    val ackAll =
+      chain(AckChangesKey.of(local).map{ case(sessionKey,index) ⇒
+        send(Seq(sessionKey),"ackChange",s"$branchKey $index")
+      }.toSeq)
+      .andThen(AckChangesKey.set(Map.empty))
+      .andThen(SessionKeysKey.set(newSessionKeys))
+    (sendingPart(keepTo), sendingPart(freshTo), ackAll)
+  }
+
+  def sessionKeys: World ⇒ Set[BranchRel] = local ⇒ seeds.flatMap(rel⇒
+    if(rel.parentIsSession) rel :: Nil
     else {
       val world = TxKey.of(local).world
       val index = By.srcId(classOf[BranchTask]).of(world)
@@ -24,11 +44,11 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
     }
   ).toSet
   def relocate(to: String): World ⇒ World = local ⇒ {
-    val sends = seeds.map(rel⇒
-      if(rel.parentIsSession) SendToAlienKey.of(local)(rel.parentSrcId,"relocateHash",to)
-      else relocateSeed(rel.parentSrcId,rel.seed.position,to)
-    )
-    chain(sends)(local)
+    val(toSessions, toNested) = seeds.partition(_.parentIsSession)
+    val sessionKeys = toSessions.map(_.parentSrcId)
+    val send = SendToAlienKey.of(local)(sessionKeys,"relocateHash",to)
+    val nest = toNested.map((rel:BranchRel) ⇒ relocateSeed(rel.parentSrcId,rel.seed.position,to))
+    send.andThen(chain(nest))(local)
   }
 
   def relocateSeed(branchKey: String, position: String, to: String): World ⇒ World = {
@@ -81,8 +101,7 @@ case class BranchTxTransform(
       val newReport = gather(branchKey).mkString(";")
       if(newReport == wasReport) local
       else {
-        val send = SendToAlienKey.of(local)(_:SrcId,"branches",newReport)
-        val sendToAll = chain(sessionKeys.map(send))
+        val sendToAll = SendToAlienKey.of(local)(sessionKeys,"branches",newReport)
         ReportAliveBranchesKey.set(newReport).andThen(sendToAll)(local)
       }
     }
@@ -93,9 +112,15 @@ case class BranchTxTransform(
 
   def transform(local: World): World = {
     if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
-    else chain(getPosts.map(handler.exchange))
+    else chain(getPosts.map(post⇒toAck(post).andThen(handler.exchange(post))))
       .andThen(saveResult).andThen(reportAliveBranches)
       .andThen(chain(posts.map(_.rm)))(local)
+  }
+
+  private def toAck: BranchMessage ⇒ World ⇒ World = exchange ⇒ {
+    val sessionKey = exchange.header("X-r-session")
+    if(sessionKey.isEmpty) identity[World]
+    else AckChangesKey.modify(_ + (sessionKey → exchange.header("X-r-index")))
   }
 }
 

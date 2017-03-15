@@ -24,7 +24,9 @@ trait BranchHandler extends Product {
 trait BranchTask extends Product {
   def branchKey: SrcId
   def product: Product
-  def sessionKeys: World ⇒ Set[SrcId]
+  def sessionKeys: World ⇒ Set[BranchRel]
+  type Send = Option[(String,String) ⇒ World ⇒ World]
+  def sending: World ⇒ (Send,Send,World⇒World)
   def relocate(to: String): World ⇒ World
 }
 
@@ -51,4 +53,4 @@ case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, paren
   )
 }
 
-case object SendToAlienKey extends WorldKey[(String,String,String)⇒World⇒World]((_,_,_)⇒throw new Exception)
+case object SendToAlienKey extends WorldKey[(Seq[String],String,String)⇒World⇒World]((_,_,_)⇒throw new Exception)

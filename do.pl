@@ -62,7 +62,7 @@ sub staged{
 }
 push @tasks, ["gate_publish", sub{
     my $build_dir = &$client(0);
-    sy("$env C4PUBLISH_DIR=$build_dir ".staged("c4gate-publish","ee.cone.c4gate.PublishApp"))
+    sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT=1 ".staged("c4gate-publish","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
     sy("$env ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));

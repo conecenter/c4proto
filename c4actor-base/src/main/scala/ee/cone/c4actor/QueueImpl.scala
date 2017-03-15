@@ -25,7 +25,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   def send[M<:Product](local: World): World = {
     val updates = TxKey.of(local).toSend.toList
     if(updates.isEmpty) return local
-    println(s"sending: ${updates.size}")
+    println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates(UUID.randomUUID.toString,updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
     val offset = getRawQSender().send(rec)
@@ -84,15 +84,17 @@ class QAdapterRegistry(
 )
 
 object QAdapterRegistry {
+  private def checkToMap[K,V](pairs: Seq[(K,V)]): Map[K,V] =
+    pairs.groupBy(_._1).transform((k,l)⇒Single(l.toList)._2)
   def apply(protocols: List[Protocol]): QAdapterRegistry = {
     val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
-    val byName = adapters.map(a ⇒ a.className → a).toMap
+    val byName = checkToMap(adapters.map(a ⇒ a.className → a))
     val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
     val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
-    val byId = adapters.map(a ⇒ a.id → a).toMap
-    val nameById = adapters.map(a ⇒ a.id → a.className).toMap
+    val byId = checkToMap(adapters.map(a ⇒ a.id → a))
+    val nameById = checkToMap(adapters.map(a ⇒ a.id → a.className))
     new QAdapterRegistry(adapters, byName, byId, keyAdapter, updatesAdapter, nameById)
   }
 }

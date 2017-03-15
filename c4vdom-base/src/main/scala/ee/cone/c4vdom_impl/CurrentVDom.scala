@@ -33,7 +33,7 @@ case class VDomHandlerImpl[State](
   //relocateKey: VDomLens[State,String]
 ) extends VDomHandler[State] {
 
-  private def empty = Option(VDomState(wasNoValue,0,Set.empty,Map.empty))
+  private def empty = Option(VDomState(wasNoValue,0))
   private def init: Handler = _ ⇒ vDomStateKey.modify(_.orElse(empty))
 
   //dispatches incoming message // can close / set refresh time
@@ -52,59 +52,43 @@ case class VDomHandlerImpl[State](
   }
 
   //todo invalidate until by default
-  private def relocate: Handler = exchange ⇒ state ⇒ state /*relocateKey.of(state) match {
-    case "" ⇒ state
-    case hash ⇒ state
-    //todo pass to parent branch or alien
-      /*
-      task.directSessionKey.map(exchange.send(_, "relocateHash", hash)).getOrElse(???)
-        .andThen(relocateKey.set(""))(state)*/
-  }*/
 
-  def exchange: Handler =
-    m ⇒ chain(Seq(init,dispatch,relocate,ackChange,toAlien).map(_(m)))
+  def exchange: Handler = m ⇒ chain(Seq(init,dispatch,toAlien).map(_(m)))
 
-
-  private def diffSend(prev: VDomValue, next: VDomValue, sessionKeys: Set[String]): State ⇒ State = {
-    if(sessionKeys.isEmpty) return identity[State]
+  private def diffSend(prev: VDomValue, next: VDomValue, send: sender.Send): State ⇒ State = {
+    if(send.isEmpty) return identity[State]
     val diffTree = diff.diff(prev, next)
     if(diffTree.isEmpty) return identity[State]
     val diffStr = jsonToString(diffTree.get)
-    chain(sessionKeys.map(sender.send(_,"showDiff",sender.branchKey,diffStr)).toSeq)
+    send.get("showDiff",s"${sender.branchKey} $diffStr")
   }
 
   private def toAlien: Handler = exchange ⇒ state ⇒ {
     val vState = vDomStateKey.of(state).get
-    val newSessionKeys = sender.sessionKeys(state)
-    val(keepTo,freshTo) = newSessionKeys.partition(vState.sessionKeys)
-    if(newSessionKeys.isEmpty){
+    val (keepTo,freshTo,ackAll) = sender.sending(state)
+
+
+    if(keepTo.isEmpty && freshTo.isEmpty){
       vDomStateKey.set(empty)(state) //orElse in init bug
     }
     else if(
       vState.value != wasNoValue &&
       vState.until > System.currentTimeMillis &&
+      exchange.header("X-r-action").isEmpty &&
       freshTo.isEmpty
     ) state
     else {
       val (until,viewRes) = vDomUntil.get(view.view(state))
       val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
       val nextDom = vPair.value
-      vDomStateKey.set(Option(VDomState(nextDom, until, newSessionKeys, Map.empty)))
+      vDomStateKey.set(Option(VDomState(nextDom, until)))
         .andThen(diffSend(vState.value, nextDom, keepTo))
         .andThen(diffSend(wasNoValue, nextDom, freshTo))
-        .andThen(chain(vState.ackChanges.map{ case(sessionKey,index) ⇒
-          sender.send(sessionKey,"ackChange",sender.branchKey,index)
-        }.toSeq))(state)
+        .andThen(ackAll)(state)
     }
   }
 
-  private def ackChange: Handler = exchange ⇒ if(exchange.header("X-r-action") == "change") {
-    val sessionKey = exchange.header("X-r-session")
-    val index = exchange.header("X-r-index")
-    vDomStateKey.modify(_.map(vState ⇒
-      vState.copy(ackChanges=vState.ackChanges + (sessionKey → index))
-    ))
-  } else identity[State]
+
 
   def seeds: State ⇒ List[(String,Product)] = state ⇒ {
     //println(vDomStateKey.of(state).get.value.getClass)
