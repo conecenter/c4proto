@@ -49,7 +49,28 @@ my $client = sub{
     $build_dir
 };
 
+push @tasks, ["setup_sbt_node", sub{
+    (-e $_ or mkdir $_) and chdir $_ or die for "tmp";
+    my $sbta = "sbt-0.13.13.tgz";
+    if(!-e $sbta){
+        sy("wget https://dl.bintray.com/sbt/native-packages/sbt/0.13.13/$sbta");
+        sy("tar -xzf $sbta");
+        sy("./sbt-launcher-packaging-0.13.13/bin/sbt update")
+    }
+    
+    my $nodea = "node-v6.10.0-linux-x64.tar.xz";
+    if(!-e $nodea){
+        sy("wget https://nodejs.org/dist/v6.10.0/$nodea");
+        sy("tar -xJf $nodea");
+    }
+    print qq{export PATH=tmp/sbt-launcher-packaging-0.13.13/bin:tmp/node-v6.10.0-linux-x64/bin:\$PATH\n};    
+}];
+
 push @tasks, ["stage", sub{
+
+
+
+
     sy("sbt clean stage");
     &$client(1);
 }];
