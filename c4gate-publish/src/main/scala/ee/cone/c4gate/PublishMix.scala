@@ -27,11 +27,11 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp {
   def qMessages: QMessages
   def qReducer: Reducer
   def mimeTypes: Map[String,String]
-  def doAfterPublish(): Unit
 
+  private lazy val publishThenExit = config.get("C4PUBLISH_THEN_EXIT").nonEmpty
   private lazy val publishDir = config.get("C4PUBLISH_DIR")
   private lazy val publishingObserver =
-    new PublishingObserver(qMessages,qReducer,publishDir,mimeTypes.get,doAfterPublish)
+    new PublishingObserver(qMessages,qReducer,publishDir,mimeTypes.get,publishThenExit)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers

@@ -73,8 +73,8 @@ class WorldProviderImpl(
   worldFuture: CompletableFuture[()⇒World] = new CompletableFuture()
 ) extends WorldProvider with Observer {
   def createTx(): World = worldFuture.get.apply()
-  def activate(getWorld: () ⇒ World): Seq[Observer] = {
-    worldFuture.complete(()⇒reducer.createTx(getWorld())(Map()))
+  def activate(ctx: ObserverContext): Seq[Observer] = {
+    worldFuture.complete(()⇒reducer.createTx(ctx.getWorld())(Map()))
     Nil
   }
 }

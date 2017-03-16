@@ -91,8 +91,10 @@ trait WorldTx {
 }
 
 trait Observer {
-  def activate(getTx: ()⇒World): Seq[Observer]
+  def activate(ctx: ObserverContext): Seq[Observer]
 }
+
+class ObserverContext(val executionContext: ExecutionContext, val getWorld: ()⇒World)
 
 trait TxTransform extends Product {
   def transform(local: World): World

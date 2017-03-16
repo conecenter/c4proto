@@ -15,17 +15,17 @@ class PublishingObserver(
   reducer: Reducer,
   fromDir: String,
   mimeTypes: String⇒Option[String],
-  thenDo: ()⇒Unit
+  thenStop: Boolean
 ) extends Observer {
-  def activate(getWorld: () ⇒ World): Seq[Observer] = {
+  def activate(ctx: ObserverContext): Seq[Observer] = {
     println("publish started")
     val fromPath = Paths.get(fromDir)
-    val visitor = new PublishFileVisitor(qMessages,reducer,getWorld,fromPath,mimeTypes)
+    val visitor = new PublishFileVisitor(qMessages,reducer,ctx.getWorld,fromPath,mimeTypes)
     val depth = Integer.MAX_VALUE
     val options = java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS)
     Files.walkFileTree(fromPath, options, depth, visitor)
     println("publish finished")
-    thenDo()
+    if(thenStop) ctx.executionContext.complete(None)
     Nil
   }
 }
