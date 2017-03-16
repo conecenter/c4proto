@@ -52,7 +52,7 @@ class PublishFileVisitor(
     val world = getWorld()
     val publication = HttpPublication(path,headers,byteString)
     val existingPublications = By.srcId(classOf[HttpPublication]).of(world)
-    println(s"${existingPublications.getOrElse(path,Nil).size}")
+    //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.getOrElse(path,Nil).contains(publication)) {
       println(s"$path (${byteString.size}) exists")
     } else {
