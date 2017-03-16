@@ -3,9 +3,6 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4proto.Protocol
 
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
-
 class PublishApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
@@ -18,8 +15,6 @@ class PublishApp extends ServerApp
     "ico" → "image/x-icon"
   )
   def txObserver = None
-  def doAfterPublish(): Unit =
-    if(config.get("C4PUBLISH_THEN_EXIT").nonEmpty) Future{ System.exit(0) }
 }
 
 trait PublishingApp extends ProtocolsApp with InitialObserversApp {
