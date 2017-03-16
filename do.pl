@@ -9,6 +9,7 @@ my $http_port = $port_prefix+67;
 my $sse_port = $port_prefix+68;
 my $zoo_port = $port_prefix+81;
 my $kafka_port = $port_prefix+92;
+my $build_dir = "./client/build/test";
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 
@@ -40,7 +41,6 @@ push @tasks, ["setup_run_kafka", sub{
 }];
 my $client = sub{
     my($inst)=@_;
-    my $build_dir = "./client/build/test";
     unlink or die $! for <$build_dir/*>;
     chdir "client" or die $!;
     sy("npm install") if $inst;
@@ -102,7 +102,7 @@ push @tasks, ["test_ui_cowork_service_run", sub{
     sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCoWorkApp"))
 }];
 push @tasks, ["test_ui_canvas_service_run", sub{
-    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCanvasApp"))
+    sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT='' ".staged("c4gate-sse-example","ee.cone.c4gate.TestCanvasApp"))
 }];
 
 

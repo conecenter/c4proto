@@ -14,6 +14,7 @@ class PublishApp extends ServerApp
     "js" → "application/javascript",
     "ico" → "image/x-icon"
   )
+  def fromStrings: List[(String,String)] = Nil
   def txObserver = None
 }
 
@@ -22,11 +23,12 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp {
   def qMessages: QMessages
   def qReducer: Reducer
   def mimeTypes: Map[String,String]
+  def fromStrings: List[(String,String)]
 
   private lazy val publishThenExit = config.get("C4PUBLISH_THEN_EXIT").nonEmpty
   private lazy val publishDir = config.get("C4PUBLISH_DIR")
   private lazy val publishingObserver =
-    new PublishingObserver(qMessages,qReducer,publishDir,mimeTypes.get,publishThenExit)
+    new PublishingObserver(qMessages,qReducer,publishDir,fromStrings,mimeTypes.get,publishThenExit)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers

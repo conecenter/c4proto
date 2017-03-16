@@ -16,6 +16,8 @@ import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.concurrent.TrieMap
 
+import java.nio.charset.StandardCharsets.UTF_8
+
 trait SSEServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with ProtocolsApp {
   def config: Config
   def qMessages: QMessages
@@ -64,7 +66,7 @@ object SSEMessage {
   def message(sender: SenderToAgent, event: String, data: String, header: String=""): Unit = {
     val escapedData = data.replaceAllLiterally("\n","\ndata: ")
     val str = s"${header}event: $event\ndata: $escapedData\n\n"
-    sender.add(str.getBytes("UTF-8"))
+    sender.add(str.getBytes(UTF_8))
   }
 }
 
