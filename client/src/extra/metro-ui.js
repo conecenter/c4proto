@@ -303,16 +303,16 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			
 			const style={
 				backgroundColor:'white',
-				border:'0.02rem #b6b6b6 dashed',
-				margin:'0.4rem',
-				padding:this.props.caption?'0.5rem 1rem 1.25rem 1rem':'0.5rem 0.5rem 1.25rem 0.5rem',
+				border:'0.02em #b6b6b6 dashed',
+				margin:'0.4em',
+				padding:this.props.caption?'0.5em 1em 1.25em 1.2em':'0.5em 0.5em 1.25em 0.5em',
 				minHeight:this.state.containerMinHeight,
 				...this.props.style
 			};
 			const captionStyle={
 				color:"#727272",
 				lineHeight:"1",
-				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 0.9em)":"0.9em",
+				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 1em)":"1em",
 				position:this.state.rotated?"absolute":"static",
 				transform:this.state.rotated?"rotate(-90deg)":"none",
 				transformOrigin:"100% 0px",
@@ -795,7 +795,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const type = this.props.type?this.props.type:"text"
 			return React.createElement("div",{style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-						React.createElement("input",{key:"1",type,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
+						React.createElement("input",{key:"1",type,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut, placeholder:(this.props.placeholder)?this.props.placeholder:''},null)
 					)
 				);
 					
@@ -858,7 +858,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				zIndex:"0",
 				boxSizing:"border-box",
 				MozAppearence:"none",
-				whiteSpace:"nowrap",
+				//whiteSpace:"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
 				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
@@ -869,10 +869,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;
 			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
 			const rows= this.props.rows?this.props.rows:"2";
-			log(this);
+			//log(this);
 			return React.createElement("div",{style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-						React.createElement("textarea",{key:"1",rows,readOnly,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.value)
+						React.createElement("textarea",{key:"1",rows,readOnly,value:this.props.value,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
 					)
 				);
 					
@@ -1063,6 +1063,15 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		...style
 	}},children);
 	const Checkbox = React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
+		onMouseOver:function(){
+			this.setState({mouseOver:true});
+		},
+		onMouseOut:function(){
+			this.setState({mouseOver:false});
+		},
 		onClick:function(e){
 			if(this.props.onChange)
 				this.props.onChange({target:{value:(this.props.value?"":"checked")}});
@@ -1093,7 +1102,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				...this.props.innerStyle
 			};
 			const checkBoxStyle={
-				border:"0.02rem #b6b6b6 solid",
+				border:"0.02rem solid",
 				color:"#212121",
 				display:"inline-block",
 				height:"1.625rem",
@@ -1104,6 +1113,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				verticalAlign:"middle",
 				width:"1.625rem",
 				boxSizing:"border-box",
+				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
 				backgroundColor:this.props.onChange?"white":"#eeeeee",
 				...this.props.checkBoxStyle
 			};
@@ -1130,7 +1140,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const checkImage = this.props.value&&this.props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
 			const labelEl = this.props.label?React.createElement("label",{style:labelStyle,key:"2"},this.props.label):null;
 			return React.createElement("div",{style:contStyle},
-				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick},[
+				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
 					React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
 					labelEl
 				])
