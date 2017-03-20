@@ -6,7 +6,7 @@ function ctxToPath(ctx){
 }
 
 export function VDomSender(feedback){ // todo: may be we need a queue to be sure server will receive messages in right order
-    const send = (ctx, action, value) => feedback.send({
+    const send = (ctx, value) => feedback.send({
         url: "/connection",
         options: {
             headers: {
