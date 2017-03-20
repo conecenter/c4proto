@@ -58,12 +58,13 @@ push @tasks, ["setup_sbt_node", sub{
         sy("./sbt-launcher-packaging-0.13.13/bin/sbt update")
     }
     
-    my $nodea = "node-v6.10.0-linux-x64.tar.xz";
-    if(!-e $nodea){
-        sy("wget https://nodejs.org/dist/v6.10.0/$nodea");
-        sy("tar -xJf $nodea");
-    }
-    print qq{export PATH=tmp/sbt-launcher-packaging-0.13.13/bin:tmp/node-v6.10.0-linux-x64/bin:\$PATH\n};    
+    #my $nodea = "node-v6.10.0-linux-x64.tar.xz";
+    #if(!-e $nodea){
+    #    sy("wget https://nodejs.org/dist/v6.10.0/$nodea");
+    #    sy("tar -xJf $nodea");
+    #}
+    #print qq{export PATH=tmp/sbt-launcher-packaging-0.13.13/bin:tmp/node-v6.10.0-linux-x64/bin:\$PATH\n};
+    print qq{export PATH=tmp/sbt-launcher-packaging-0.13.13/bin:\$PATH\n};
 }];
 
 push @tasks, ["stage", sub{

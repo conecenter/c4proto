@@ -36,17 +36,15 @@ case class VDomHandlerImpl[State](
   private def empty = Option(VDomState(wasNoValue,0))
   private def init: Handler = _ ⇒ vDomStateKey.modify(_.orElse(empty))
 
+  private def pathHeader: VDomMessage => String = _.header("X-r-vdom-path")
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = exchange ⇒ state ⇒ if(exchange.header("X-r-action").isEmpty) state else {
-    val pathStr = exchange.header("X-r-vdom-path")
-
-    val path = pathStr.split("/").toList match {
+  private def dispatch: Handler = exchange ⇒ state ⇒ if(pathHeader(exchange).isEmpty) state else {
+    val path = pathHeader(exchange).split("/").toList match {
       case "" :: parts => parts
       case _ => Never()
     }
-    ((exchange.header("X-r-action"), ResolveValue(vDomStateKey.of(state).get.value, path)) match {
-      case ("click", Some(v: OnClickReceiver[_])) => v.onClick.get(exchange.body)
-      case ("change", Some(v: OnChangeReceiver[_])) => v.onChange.get(exchange.body)
+    (ResolveValue(vDomStateKey.of(state).get.value, path) match {
+      case Some(v: Receiver[_]) => v.receive.get(exchange.body)
       case v => throw new Exception(s"$path ($v) can not receive")
     }).asInstanceOf[State=>State](state)
   }
@@ -74,7 +72,7 @@ case class VDomHandlerImpl[State](
     else if(
       vState.value != wasNoValue &&
       vState.until > System.currentTimeMillis &&
-      exchange.header("X-r-action").isEmpty &&
+      pathHeader(exchange).isEmpty &&
       freshTo.isEmpty
     ) state
     else {

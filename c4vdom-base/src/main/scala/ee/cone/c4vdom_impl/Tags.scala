@@ -15,11 +15,11 @@ case class TextContentElement(content: String) extends VDomValue {
   }
 }
 
-case class DivButton[State]()(val onClick:Option[Object⇒State⇒State]) extends VDomValue with OnClickReceiver[State] {
+case class DivButton[State]()(val receive:Option[Object⇒State⇒State]) extends VDomValue with Receiver[State] {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("div")
-    onClick.foreach(_⇒ builder.append("onClick").append("sendThen"))
+    receive.foreach(_⇒ builder.append("onClick").append("sendThen"))
     builder.append("style"); {
       builder.startObject()
       builder.append("cursor").append("pointer")

@@ -10,7 +10,6 @@ export function VDomSender(feedback){ // todo: may be we need a queue to be sure
         url: "/connection",
         options: {
             headers: {
-                "X-r-action": action,
                 "X-r-branch": rootCtx(ctx).branchKey,
                 "X-r-vdom-path": ctxToPath(ctx)
             },

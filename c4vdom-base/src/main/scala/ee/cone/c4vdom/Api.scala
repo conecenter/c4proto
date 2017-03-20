@@ -94,12 +94,8 @@ trait VDomUntil {
   def get(pairs: ViewRes): (Long, ViewRes)
 }
 
-trait OnClickReceiver[State] {
-  def onClick: Option[Object ⇒ State ⇒ State]
-}
-
-trait OnChangeReceiver[State] {
-  def onChange: Option[Object ⇒ State ⇒ State]
+trait Receiver[State] {
+  def receive: Option[Object ⇒ State ⇒ State]
 }
 
 ////
