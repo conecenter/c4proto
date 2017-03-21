@@ -470,6 +470,7 @@ export function DragViewPositionCanvasSetup(canvas){
         const from = canvas.setupFrame()
         animation = animateChangingZoom(from, - Math.sign(ev.deltaY)/2, mouseRelPos)
         canvas.onZoom()
+		ev.preventDefault();
     }
     function limit(from, to){
         return value => Math.max(from, Math.min(value, to)) | 0
