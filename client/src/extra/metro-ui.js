@@ -1151,9 +1151,18 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	});
 	
 	const RadioButtonElement = React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
 		onClick:function(e){
 			if(this.props.onChange)
 				this.props.onChange({target:{value:(this.props.value?"":"checked")}});
+		},
+		onMouseOver:function(){
+			this.setState({mouseOver:true});
+		},
+		onMouseOut:function(){
+			this.setState({mouseOver:false});
 		},
 		render:function(){
 			const contStyle={
@@ -1181,7 +1190,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				...this.props.innerStyle
 			};
 			const checkBoxStyle={
-				border:"0.02em #b6b6b6 solid",
+				border:"0.02em solid",
 				color:"#212121",
 				display:"inline-block",
 				height:"1em",
@@ -1192,6 +1201,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				width:"1em",
 				boxSizing:"border-box",
 				backgroundColor:this.props.onChange?"white":"#eeeeee",
+				borderColor:this.state.mouseOver?"black":"#b6b6b6",
 				textAlign:"center",				
 				borderRadius:"50%",
 				...this.props.checkBoxStyle
@@ -1219,7 +1229,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				marginLeft:"0.05em",
 			};			
 			return React.createElement("div",{style:contStyle},
-				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick},[
+				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
 					React.createElement("span",{style:checkBoxStyle,key:"1"},React.createElement("div",{style:imageStyle,key:"checkImage"},null)),
 					React.createElement("label",{style:labelStyle,key:"2"},this.props.label)
 				])
