@@ -57,6 +57,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				minHeight:'2rem',
 				minWidth:'1rem',
 				fontSize:'1rem',
+				alignSelf:'center',
 			};
 			if(this.props.style) Object.assign(style,this.props.style);
 			return React.createElement('button',{style:style,onClick:this.onClick,onMouseOut:this.mouseOut,onMouseOver:this.mouseOver,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
@@ -789,6 +790,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
 				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
 				textTransform:"inherit",
+				textAlign:"inherit",
 				...this.props.inputStyle
 			};								
 			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;			
@@ -1082,7 +1084,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				//minHeight:"2.8125rem",
 				position:"relative",
 				maxWidth:"100%",
-				padding:"0.4rem 0.3125rem",
+				padding:"0.4em 0.3125em",
 				flexShrink:"1",
 				boxSizing:"border-box",
 				lineHeight:"1",
@@ -1096,7 +1098,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				//marginBottom:"0.55rem",
 				outline:"none",				
 				whiteSpace:"nowrap",
-				width:"calc(100% - 1rem)",
+				width:"calc(100% - 1em)",
 				cursor:"pointer",
 				bottom:"0rem",
 				...this.props.innerStyle
@@ -1105,21 +1107,21 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				border:"0.02rem solid",
 				color:"#212121",
 				display:"inline-block",
-				height:"1.625rem",
+				height:"1.625em",
 				lineHeight:"100%",
 				margin:"0rem 0.02rem 0rem 0rem",
 				padding:"0rem",
 				position:"relative",
 				verticalAlign:"middle",
-				width:"1.625rem",
+				width:"1.625em",
 				boxSizing:"border-box",
 				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
 				backgroundColor:this.props.onChange?"white":"#eeeeee",
 				...this.props.checkBoxStyle
 			};
 			const labelStyle={
-				maxWidth:"calc(100% - 2.165rem)",
-				padding:"0rem 0.3125rem",
+				maxWidth:"calc(100% - 2.165em)",
+				padding:"0rem 0.3125em",
 				verticalAlign:"middle",
 				cursor:"pointer",
 				display:"inline-block",
@@ -1173,7 +1175,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				marginBottom:"0.55em",
 				outline:"none",				
 				whiteSpace:"nowrap",
-				width:"calc(100% - 1rem)",
+				width:"calc(100% - 1em)",
 				cursor:"pointer",
 				bottom:"0rem",
 				...this.props.innerStyle
@@ -1182,12 +1184,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				border:"0.02em #b6b6b6 solid",
 				color:"#212121",
 				display:"inline-block",
-				height:"0.7em",
+				height:"1em",
 				lineHeight:"100%",
 				margin:"0em 0.02em 0em 0em",
 				padding:"0rem",
 				position:"relative",				
-				width:"0.7em",
+				width:"1em",
 				boxSizing:"border-box",
 				backgroundColor:this.props.onChange?"white":"#eeeeee",
 				textAlign:"center",				
@@ -1207,13 +1209,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				...this.props.labelStyle
 			};
 			const imageStyle = {								
-				height:"40%",
-				width:"40%",
+				height:"60%",
+				width:"60%",
 				display:"inline-block",
 				backgroundColor:(this.props.value&&this.props.value.length>0)?"black":"transparent",
 				borderRadius:"50%",
 				verticalAlign:"top",
 				marginTop:"0.2em",
+				marginLeft:"0.05em",
 			};			
 			return React.createElement("div",{style:contStyle},
 				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick},[
