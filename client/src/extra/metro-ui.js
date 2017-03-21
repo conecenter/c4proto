@@ -1165,6 +1165,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			this.setState({mouseOver:false});
 		},
 		render:function(){
+			const isLabeled = this.props.label&&this.props.label.length>0;
 			const contStyle={
 				flexGrow:"0",
 				minHeight:"2.8125em",
@@ -1181,10 +1182,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				display:"inline-block",
 				lineHeight:"100%",
 				margin:"0em",
-				marginBottom:"0.55em",
+				//marginBottom:"0.55em",
 				outline:"none",				
 				whiteSpace:"nowrap",
-				width:"calc(100% - 1em)",
+				width:isLabeled?"calc(100% - 1em)":"auto",
 				cursor:"pointer",
 				bottom:"0rem",
 				...this.props.innerStyle
@@ -1219,19 +1220,21 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				...this.props.labelStyle
 			};
 			const imageStyle = {								
-				height:"60%",
-				width:"60%",
+				height:"0.5em",
+				width:"0.5em",
 				display:"inline-block",
 				backgroundColor:(this.props.value&&this.props.value.length>0)?"black":"transparent",
-				borderRadius:"50%",
+				borderRadius:"70%",
 				verticalAlign:"top",
-				marginTop:"0.2em",
-				marginLeft:"0.05em",
-			};			
+				marginTop:"0.22em",
+				//marginLeft:"0.05em",
+			};
+			
+			const labelEl = isLabeled?React.createElement("label",{style:labelStyle,key:"2"},this.props.label):null;
 			return React.createElement("div",{style:contStyle},
 				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
 					React.createElement("span",{style:checkBoxStyle,key:"1"},React.createElement("div",{style:imageStyle,key:"checkImage"},null)),
-					React.createElement("label",{style:labelStyle,key:"2"},this.props.label)
+					labelEl
 				])
 			);
 		}
