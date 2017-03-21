@@ -24,6 +24,23 @@ case class InputTextElement[State](value: String, deferSend: Boolean)(
   }
 }
 
+case class SignIn[State]()(input: TagJsonUtils) extends ElementValue with Receiver[State] {
+  def elementType: String = "SignIn"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
+    input.appendInputAttributes(builder, "", deferSend = true)
+  }
+  def receive: Option[(Object) ⇒ (State) ⇒ State] = Option(_⇒s⇒s)
+}
+
+case class ChangePassword[State]()(
+  input: TagJsonUtils, val receive: Option[Object ⇒ State ⇒ State]
+) extends ElementValue with Receiver[State] {
+  def elementType: String = "ChangePassword"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
+    input.appendInputAttributes(builder, "", deferSend = true)
+  }
+}
+
 class TestTags[State](
   child: ChildPairFactory, inputAttributes: TagJsonUtils, save: Product ⇒ State ⇒ State
 ) {
@@ -34,6 +51,11 @@ class TestTags[State](
     child[OfDiv](key, InputTextElement(value, deferSend=true)(inputAttributes,
       Some((o:Object)⇒change(o match { case bs: okio.ByteString ⇒ bs.utf8()}))
     ), Nil)
+
+  def signIn(): ChildPair[OfDiv] =
+    child[OfDiv]("signIn", SignIn()(inputAttributes), Nil)
+  def changePassword(change: Object ⇒ State ⇒ State): ChildPair[OfDiv] =
+    child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, Option(change)), Nil)
 }
 
 abstract class TextInputLens[Model<:Product](val of: Model⇒String, val set: String⇒Model⇒Model)

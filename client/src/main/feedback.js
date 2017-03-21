@@ -52,7 +52,11 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
     function relocateHash(data) {
         location.href = "#"+data
     }
+    function signedIn(data) {
+        sessionStorage.setItem("sessionKey",data)
+        location.reload()
+    }
 
-    const receivers = {connect,ping,relocateHash}
+    const receivers = {connect,ping,relocateHash,signedIn}
     return ({receivers,send,pong})
 }

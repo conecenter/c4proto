@@ -126,7 +126,9 @@ push @tasks, ["test_ui_cowork_service_run", sub{
 push @tasks, ["test_ui_canvas_service_run", sub{
     sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT='' ".staged("c4gate-sse-example","ee.cone.c4gate.TestCanvasApp"))
 }];
-
+push @tasks, ["test_ui_password_service_run", sub{
+    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestPasswordApp"))
+}];
 
 if($ARGV[0]) {
     $ARGV[0] eq $$_[0] and $$_[1]->() for @tasks;

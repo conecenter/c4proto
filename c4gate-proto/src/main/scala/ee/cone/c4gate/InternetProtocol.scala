@@ -47,3 +47,31 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   )
   //3A
 }
+
+@protocol object AuthProtocol extends Protocol {
+  case class SecureHash(
+    @Id(0x0050) iterations: Int,
+    @Id(0x0051) hashSizeInBytes: Int,
+    @Id(0x0052) salt: okio.ByteString,
+    @Id(0x0053) hash: okio.ByteString
+  )
+  @Id(0x0054) case class PasswordChangeRequest(
+    @Id(0x0055) srcId: String,
+    @Id(0x0056) hash: Option[SecureHash]
+  )
+  @Id(0x0057) case class PasswordHashOfUser(
+    @Id(0x0058) userName: String,
+    @Id(0x0056) hash: Option[SecureHash]
+  )
+  /*
+  @Id(0x0059) case class PasswordVerifiedRequest(
+    @Id(0x0055) srcId: String,
+    @Id(0x0058) userName: String
+  )*/
+
+
+  @Id(0x0059) case class AuthenticatedSession(
+    @Id(0x005A) sessionKey: String,
+    @Id(0x0058) userName: String
+  )
+}
