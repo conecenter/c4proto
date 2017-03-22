@@ -21,6 +21,7 @@ class TestCanvasApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UIApp
+  with PublishingApp
   with TestTagsApp
   with CanvasApp
 {
@@ -29,9 +30,19 @@ class TestCanvasApp extends ServerApp
     new TestCanvasAssemble ::
       new FromAlienTaskAssemble("localhost", "/react-app.html") ::
       super.assembles
+  def mimeTypes: Map[String, String] = Map(
+    "svg" → "image/svg+xml"
+  )
+  def fromStrings: List[(String, String)] = List(
+    "/test.svg" → s"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+      <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">
+      <circle cx="250" cy="250" r="210" fill="#fff" stroke="#000" stroke-width="8"/>
+      </svg>"""
+  )
 }
 
-case object CanvasTaskX extends TextInputLens[TestCanvasState](_.x,v⇒_.copy(x=v))
+case object CanvasTaskX extends TextInputLens[TestCanvasState](_.x,v⇒_.copy
+(x=v))
 case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=v))
 
 @protocol object TestCanvasProtocol extends Protocol {
@@ -83,14 +94,20 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
     builder.append("commands"); {
       builder.startArray();
       {
-        startContext("preparingCtx")(builder)
-        builder.startArray()
-        builder.append(400,decimalFormat)
-        builder.append(400,decimalFormat)
-        builder.append(200,decimalFormat)
-        builder.append(200,decimalFormat)
-        builder.end()
-        builder.append("strokeRect")
+        startContext("preparingCtx")(builder);
+        {
+          builder.startArray()
+          builder.append(400,decimalFormat)
+          builder.append(400,decimalFormat)
+          builder.append(200,decimalFormat)
+          builder.append(200,decimalFormat)
+          builder.end()
+          builder.append("strokeRect")
+        };
+        {
+          ???
+        }
+
         endContext(builder)
       }
       builder.end()

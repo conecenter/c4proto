@@ -42,6 +42,7 @@ export default function VDomChanges(sender, DiffPrepare){
         () => Object.keys(changes).forEach(path_str=>changes[path_str].send())
 
     const onChange = {
+
         "local": ctx => event => set(ctx, event.target.value),
         "send": ctx => event => { set(ctx, event.target.value); sendDeferred() }
     }
