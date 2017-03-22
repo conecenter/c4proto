@@ -95,7 +95,7 @@ trait VDomUntil {
 }
 
 trait Receiver[State] {
-  def receive: Option[Object ⇒ State ⇒ State]
+  def receive: Option[VDomMessage ⇒ State ⇒ State]
 }
 
 ////

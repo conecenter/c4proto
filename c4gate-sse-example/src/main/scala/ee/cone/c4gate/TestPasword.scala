@@ -50,14 +50,13 @@ case class TestPasswordRootView(fromAlienState: FromAlienState) extends View {
       List(tags.signIn())
     } else {
       List(
-        tags.changePassword(obj ⇒ local ⇒ obj match {
-          case v: okio.ByteString ⇒
-            val reqId = v.utf8()
-            val world = TxKey.of(local).world
-            val requests = By.srcId(classOf[PasswordChangeRequest]).of(world)
-            val updates = requests.getOrElse(reqId,Nil)
-              .flatMap(req⇒update(PasswordHashOfUser("test",req.hash)))
-            add(updates)(local)
+        tags.changePassword(message ⇒ local ⇒ {
+          val reqId = tags.messageStrBody(message)
+          val world = TxKey.of(local).world
+          val requests = By.srcId(classOf[PasswordChangeRequest]).of(world)
+          val updates = requests.getOrElse(reqId,Nil)
+            .flatMap(req⇒update(PasswordHashOfUser("test",req.hash)))
+          add(updates)(local)
         })
       ) ++ userName.map(n⇒mTags.text("hint",s"signed in as $n"))
     }

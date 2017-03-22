@@ -44,7 +44,7 @@ case class VDomHandlerImpl[State](
       case _ => Never()
     }
     (ResolveValue(vDomStateKey.of(state).get.value, path) match {
-      case Some(v: Receiver[_]) => v.receive.get(exchange.body)
+      case Some(v: Receiver[_]) => v.receive.get(exchange)
       case v => throw new Exception(s"$path ($v) can not receive")
     }).asInstanceOf[State=>State](state)
   }
