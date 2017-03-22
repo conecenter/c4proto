@@ -35,10 +35,22 @@ push @tasks, ["setup_run_kafka", sub{
         sy("tar -xzf $kafka.tgz")
     }
     &$put_text("zookeeper.properties","dataDir=../db-zookeeper\nclientPort=$zoo_port\n");
-    &$put_text("server.properties","listeners=PLAINTEXT://127.0.0.1:$kafka_port\nlog.dirs=../db-kafka-logs\nzookeeper.connect=127.0.0.1:$zoo_port\nlog.cleanup.policy=compact");
+    &$put_text("server.properties",join "\n",
+        "listeners=PLAINTEXT://127.0.0.1:$kafka_port",
+        "log.dirs=../db-kafka-logs",
+        "zookeeper.connect=127.0.0.1:$zoo_port",
+        "log.cleanup.policy=compact",
+        "message.max.bytes=3000000" #seems to be compressed
+    );
     sy("$kafka/bin/zookeeper-server-start.sh -daemon zookeeper.properties");
     sy("$kafka/bin/kafka-server-start.sh -daemon server.properties");
 }];
+push @tasks, ["stop_kafka", sub{
+    sy("tmp/kafka_2.11-0.10.1.0/bin/kafka-server-stop.sh")
+}];
+
+
+
 my $client = sub{
     my($inst)=@_;
     unlink or die $! for <$build_dir/*>;
@@ -111,6 +123,9 @@ push @tasks, ["test_actor_parallel_service_run", sub{
 }];
 push @tasks, ["test_actor_check", sub{
     sy("curl http://127.0.0.1:$http_port/abc -X POST") for 0..11;
+}];
+push @tasks, ["test_big_message_check", sub{
+    sy("dd if=/dev/zero of=tmp/test.bin bs=1M count=4 && curl http://127.0.0.1:8067/test -v -XPOST -T tmp/test.bin")
 }];
 
 

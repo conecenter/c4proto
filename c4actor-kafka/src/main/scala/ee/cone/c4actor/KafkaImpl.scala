@@ -27,13 +27,16 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
 ) extends RawQSender with Executable {
   def run(ctx: ExecutionContext): Unit = {
     val props = Map[String, Object](
-      //"max.request.size" → "10000000",
       "bootstrap.servers" → bootstrapServers,
       "acks" → "all",
       "retries" → "0",
       "batch.size" → "16384",
       "linger.ms" → "1",
-      "buffer.memory" → "33554432"
+      "buffer.memory" → "33554432",
+      "compression.type" → "lz4",
+      "max.request.size" → "10000000"
+      // max.request.size -- seems to be uncompressed
+      // + in broker config: message.max.bytes
     )
     val serializer = new ByteArraySerializer
     producer.complete(new KafkaProducer[Array[Byte], Array[Byte]](
