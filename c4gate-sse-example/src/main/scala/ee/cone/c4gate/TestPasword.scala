@@ -4,11 +4,12 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.AuthProtocol.{AuthenticatedSession, PasswordChangeRequest, PasswordHashOfUser}
+import ee.cone.c4gate.AuthProtocol.{PasswordChangeRequest, PasswordHashOfUser}
 import ee.cone.c4proto.Protocol
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.c4actor.LEvent.{add, delete, update}
+import ee.cone.c4actor.LEvent.{add,update}
+import ee.cone.c4gate.AlienProtocol.FromAlienState
 
 class TestPasswordApp extends ServerApp
   with EnvConfigApp
@@ -32,19 +33,18 @@ class TestPasswordApp extends ServerApp
     for(
       fromAlien ← fromAliens;
       view ← Option(fromAlien.locationHash).collect{
-        case "password" ⇒ TestPasswordRootView(fromAlien.fromAlienState.sessionKey)
+        case "password" ⇒ TestPasswordRootView(fromAlien.fromAlienState)
       }
     ) yield fromAlien.branchKey → view
 }
 
-case class TestPasswordRootView(sessionKey: SrcId) extends View {
+case class TestPasswordRootView(fromAlienState: FromAlienState) extends View {
   def view: World ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val tags = TestTagsKey.of(local).get
     val mTags = TagsKey.of(local).get
     val world = TxKey.of(local).world
     val freshDB = By.srcId(classOf[PasswordHashOfUser]).of(world).isEmpty
-    val sessions = By.srcId(classOf[AuthenticatedSession]).of(world)
-    val userName: Seq[String] = sessions.getOrElse(sessionKey,Nil).map(_.userName)
+    val userName = fromAlienState.userName
     println(userName,freshDB)
     if(userName.isEmpty && !freshDB){
       List(tags.signIn())
