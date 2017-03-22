@@ -20,7 +20,7 @@ export default function VDomChanges(sender, DiffPrepare){
         diff.addIfChanged("value", target.value)
         diff.apply()
         //console.log("input-change added")
-        var sent = null
+        let sent = null
         const send = () => {
             if(!sent) sent = sender.send(ctx,target) // todo fix bug, ask aku
         }

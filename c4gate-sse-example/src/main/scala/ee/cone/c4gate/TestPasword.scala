@@ -32,7 +32,7 @@ class TestPasswordApp extends ServerApp
     for(
       fromAlien ← fromAliens;
       view ← Option(fromAlien.locationHash).collect{
-        case "users" ⇒ TestPasswordRootView(fromAlien.fromAlienState.sessionKey)
+        case "password" ⇒ TestPasswordRootView(fromAlien.fromAlienState.sessionKey)
       }
     ) yield fromAlien.branchKey → view
 }
@@ -42,9 +42,10 @@ case class TestPasswordRootView(sessionKey: SrcId) extends View {
     val tags = TestTagsKey.of(local).get
     val mTags = TagsKey.of(local).get
     val world = TxKey.of(local).world
-    val freshDB = By.srcId(classOf[PasswordHashOfUser]).of(local).isEmpty
-    val sessions = By.srcId(classOf[AuthenticatedSession]).of(local)
+    val freshDB = By.srcId(classOf[PasswordHashOfUser]).of(world).isEmpty
+    val sessions = By.srcId(classOf[AuthenticatedSession]).of(world)
     val userName: Seq[String] = sessions.getOrElse(sessionKey,Nil).map(_.userName)
+    println(userName,freshDB)
     if(userName.isEmpty && !freshDB){
       List(tags.signIn())
     } else {

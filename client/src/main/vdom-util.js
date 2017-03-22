@@ -109,11 +109,11 @@ export function VDomSeeds(log,DiffPrepare){
 
 export const pairOfInputAttributes = ({value,onChange},headers) => {
     const values = (value+"\n").split("\n").slice(0,2)
-    return values.map(index=>({
-        value: values[index],
-        onChange: ev => onChange({
+    return values.map((value,index)=>({
+        key: "input_"+index, value,
+        onChange: ev => onChange({target:{
             headers,
             value: values.map((v,i)=>index===i?ev.target.value:values[i]).join("\n")
-        })
+        }})
     }))
 };
