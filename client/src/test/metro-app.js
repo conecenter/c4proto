@@ -56,6 +56,7 @@ const toggleOverlay = on =>{
             left:"0rem",
             width:"100vw",
             height:"100vh",
+			zIndex:"6666",
             backgroundColor:"rgba(0,0,0,0.4)",
         };
         el.className="overlayMain";
