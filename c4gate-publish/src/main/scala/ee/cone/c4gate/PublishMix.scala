@@ -3,9 +3,6 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4proto.Protocol
 
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
-
 class PublishApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
@@ -17,9 +14,8 @@ class PublishApp extends ServerApp
     "js" → "application/javascript",
     "ico" → "image/x-icon"
   )
+  def fromStrings: List[(String,String)] = Nil
   def txObserver = None
-  def doAfterPublish(): Unit =
-    if(config.get("C4PUBLISH_THEN_EXIT").nonEmpty) Future{ System.exit(0) }
 }
 
 trait PublishingApp extends ProtocolsApp with InitialObserversApp {
@@ -27,11 +23,12 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp {
   def qMessages: QMessages
   def qReducer: Reducer
   def mimeTypes: Map[String,String]
-  def doAfterPublish(): Unit
+  def fromStrings: List[(String,String)]
 
+  private lazy val publishThenExit = config.get("C4PUBLISH_THEN_EXIT").nonEmpty
   private lazy val publishDir = config.get("C4PUBLISH_DIR")
   private lazy val publishingObserver =
-    new PublishingObserver(qMessages,qReducer,publishDir,mimeTypes.get,doAfterPublish)
+    new PublishingObserver(qMessages,qReducer,publishDir,fromStrings,mimeTypes.get,publishThenExit)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers

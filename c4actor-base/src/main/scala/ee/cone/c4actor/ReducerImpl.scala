@@ -89,8 +89,8 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
 class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
   transforms: TxTransforms
 ) extends Observer {
-  def activate(getWorld: () ⇒ World): Seq[Observer] = {
-    val nLocalStates = transforms.get(getWorld).transform{ case(key,handle) ⇒
+  def activate(ctx: ObserverContext): Seq[Observer] = {
+    val nLocalStates = transforms.get(ctx.getWorld).transform{ case(key,handle) ⇒
       handle(localStates.getOrElse(key,Map.empty))
     }
     Seq(new SerialObserver(nLocalStates)(transforms))
@@ -102,12 +102,12 @@ class ParallelObserver(localStates: Map[SrcId,List[Future[World]]])(
 ) extends Observer {
   private def empty: List[Future[World]] = List(Future.successful(Map.empty))
 
-  def activate(getWorld: () ⇒ World): Seq[Observer] = {
+  def activate(ctx: ObserverContext): Seq[Observer] = {
     val inProgressMap = localStates
       .transform{ case(k,futures) ⇒ futures.filter(!_.isCompleted) }
       .filter{ case(k,v) ⇒ v.nonEmpty }
     val inProgress: SrcId ⇒ List[Future[World]] = inProgressMap.getOrElse(_,Nil)
-    val toAdd: Map[SrcId, List[Future[World]]] = transforms.get(getWorld)
+    val toAdd: Map[SrcId, List[Future[World]]] = transforms.get(ctx.getWorld)
       .filterKeys(inProgress(_).size <= 1)
       .transform{ case(key,handle) ⇒
         localStates.getOrElse(key,empty).head.map(handle) :: inProgress(key)

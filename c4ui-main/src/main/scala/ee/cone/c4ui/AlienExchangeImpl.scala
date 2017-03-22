@@ -23,7 +23,7 @@ object SendToAlienInit extends InitLocal {
           val id = UUID.randomUUID.toString
           update(ToAlienWrite(id,sessionKey,event,data,priority+i))
       }
-      println(s"messages: $messages")
+      //println(s"messages: $messages")
       ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(add(messages))(local)
     }
   )

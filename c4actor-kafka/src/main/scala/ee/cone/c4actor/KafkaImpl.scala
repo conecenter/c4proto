@@ -134,6 +134,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       consumer.pause(stateTopicPartition.asJava)
       consumer.resume(inboxTopicPartition.asJava)
       val checkIncarnation = startIncarnation(localWorldRef.get)
+      val observerContext = new ObserverContext(ctx, ()⇒localWorldRef.get)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
         recs match {
           case Nil ⇒ ()
@@ -147,7 +148,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
         }
         //println(s"then to receive: ${qMessages.worldOffset(localWorldRef.get)}")
         if(checkIncarnation(localWorldRef.get))
-            prevObservers.flatMap(_.activate(()⇒localWorldRef.get))
+            prevObservers.flatMap(_.activate(observerContext))
         else prevObservers
       }.foreach(_⇒())
     } finally {

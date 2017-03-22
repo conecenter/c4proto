@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.8.A",
+  version := "0.8.B",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -106,15 +106,15 @@ lazy val `c4actor-branch` = project.settings(publishSettings)
   .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`, `c4assemble-macros`)
 
-lazy val `c4gate-sse-example` = project.settings(publishSettings)
-  .settings(description := s"$descr")
-  .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`)
-  .enablePlugins(JavaServerAppPackaging)
-
 lazy val `c4gate-publish` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .dependsOn(`c4actor-kafka`, `c4gate-proto`)
+  .enablePlugins(JavaServerAppPackaging)
+
+lazy val `c4gate-sse-example` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`)
   .enablePlugins(JavaServerAppPackaging)
 
 
