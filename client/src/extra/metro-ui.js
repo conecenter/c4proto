@@ -306,14 +306,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:'white',
 				border:'0.02em #b6b6b6 dashed',
 				margin:'0.4em',
-				padding:this.props.caption?'0.5em 1em 1.25em 1.2em':'0.5em 0.5em 1.25em 0.5em',
+				padding:this.props.caption?'0.5em 1em 1.25em 1.6em':'0.5em 0.5em 1.25em 0.5em',
 				minHeight:this.state.containerMinHeight,
 				...this.props.style
 			};
 			const captionStyle={
 				color:"#727272",
 				lineHeight:"1",
-				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 1em)":"1em",
+				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 1.7em)":"1em",
 				position:this.state.rotated?"absolute":"static",
 				transform:this.state.rotated?"rotate(-90deg)":"none",
 				transformOrigin:"100% 0px",
@@ -793,11 +793,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				textAlign:"inherit",
 				...this.props.inputStyle
 			};								
-			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;			
+			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;
+			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const type = this.props.type?this.props.type:"text"
 			return React.createElement("div",{style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-						React.createElement("input",{key:"1",type,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
+						React.createElement("input",{key:"1",type,placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
 					)
 				);
 					
@@ -944,6 +945,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflow:"hidden",
 				fontSize:"inherit",
 				textTransform:"inherit",
+				backgroundColor:(this.props.onChange)?"":"#eeeeee",
 				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
 				...this.props.inputStyle
 			};
@@ -964,7 +966,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				height:"100%",
 				padding:"0.2rem",
 				lineHeight:"1",
-				backgroundColor:"transparent",
+				backgroundColor:this.props.onClick?"transparent":"#eeeeee",
 				border:"0.01rem solid",
 				borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
 			};
@@ -986,9 +988,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const urlData = this.props.url?this.props.url:svgData;
 			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);			
 			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null;
+			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			return React.createElement("div",{style:inpContStyle},[
 				React.createElement("div",{key:"1",style:inp2ContStyle},[
-					React.createElement("input",{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null),
+					React.createElement("input",{key:"1",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null),
 					popupWrapEl					
 				]),
 				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
