@@ -50,9 +50,11 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
     case StateTopicName(ActorName(n)) ⇒ s"$n.state"
     case NoTopicName ⇒ throw new Exception
   }
-  def sendStart(rec: QRecord): Future[RecordMetadata] = {
+  private def sendStart(rec: QRecord): Future[RecordMetadata] = {
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
-    producer.get.send(new ProducerRecord(topicNameToString(rec.topic), 0, rec.key, rec.value))
+    val value = if(rec.value.nonEmpty) rec.value else null
+    val topic = topicNameToString(rec.topic)
+    producer.get.send(new ProducerRecord(topic, 0, rec.key, value))
   }
   def send(recs: List[QRecord]): List[Long] = {
     val futures: List[Future[RecordMetadata]] = recs.map(sendStart)
@@ -65,7 +67,7 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
 class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Array[Byte], Array[Byte]]) extends QRecord {
   def topic: TopicName = topicName
   def key: Array[Byte] = rec.key
-  def value: Array[Byte] = rec.value
+  def value: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
   def offset: Option[Long] = Option(rec.offset)
   //rec.timestamp()
 }
@@ -149,8 +151,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
           case inboxRecs ⇒
             //println(s"offset received: ${inboxRecs.map(_.offset)}")
             val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, inboxRecs)
-            val metadata = queue.map(rawQSender.sendStart)
-            metadata.foreach(_.get())
+            rawQSender.send(queue.toList)
             localWorldRef.set(world)
         }
         //println(s"then to receive: ${qMessages.worldOffset(localWorldRef.get)}")

@@ -12,6 +12,9 @@ my $kafka_port = $port_prefix+92;
 my $build_dir = "./client/build/test";
 my $inbox_prefix = '';
 my $kafka = "kafka_2.11-0.10.1.0";
+my $curl_test = "curl http://127.0.0.1:$http_port/abc";
+my $bootstrap_server = "127.0.0.1:$kafka_port";
+
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 
@@ -60,7 +63,7 @@ push @tasks, ["not_effective_join_bench", sub{
 push @tasks, ["start_kafka", sub{
     &$put_text("tmp/zookeeper.properties","dataDir=db-zookeeper\nclientPort=$zoo_port\n");
     &$put_text("tmp/server.properties",join "\n",
-        "listeners=PLAINTEXT://127.0.0.1:$kafka_port",
+        "listeners=PLAINTEXT://$bootstrap_server",
         "log.dirs=db-kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
         "log.cleanup.policy=compact",
@@ -72,8 +75,11 @@ push @tasks, ["start_kafka", sub{
 push @tasks, ["stop_kafka", sub{
     sy("tmp/$kafka/bin/kafka-server-stop.sh")
 }];
-push @tasks, ["tail_inbox", sub{
-    sy("tmp/$kafka/bin/kafka-console-consumer.sh --zookeeper 127.0.0.1:$zoo_port --topic $inbox_prefix.inbox.log")
+push @tasks, ["inbox_log_tail", sub{
+    sy("tmp/$kafka/bin/kafka-console-consumer.sh --bootstrap-server $bootstrap_server --topic $inbox_prefix.inbox.log")
+}];
+push @tasks, ["inbox_test", sub{
+    sy("tmp/kafka_2.11-0.10.1.0/bin/kafka-verifiable-consumer.sh --broker-list $bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
 }];
 
 
@@ -94,7 +100,7 @@ push @tasks, ["stage", sub{
     &$client(1);
 }];
 
-my $env = "C4BOOTSTRAP_SERVERS=127.0.0.1:$kafka_port C4INBOX_TOPIC_PREFIX='$inbox_prefix' C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
+my $env = "C4BOOTSTRAP_SERVERS=$bootstrap_server C4INBOX_TOPIC_PREFIX='$inbox_prefix' C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
 sub staged{
     $ENV{C4NOSTAGE}?
         "C4STATE_TOPIC_PREFIX=$_[1] sbt '$_[0]/run $_[1]'":
@@ -113,9 +119,9 @@ push @tasks, ["test_post_get_tcp_service_run", sub{
 }];
 push @tasks, ["test_post_get_check", sub{
     my $v = int(rand()*10);
-    sy("curl http://127.0.0.1:$http_port/abc -X POST -d $v");
+    sy("$curl_test -X POST -d $v");
     sleep 1;
-    sy("curl http://127.0.0.1:$http_port/abc");
+    sy("$curl_test");
     print " -- should be posted * 3\n";
 }];
 #push @tasks, ["test_tcp_check", sub{
@@ -128,10 +134,10 @@ push @tasks, ["test_actor_parallel_service_run", sub{
     sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestParallelApp"))
 }];
 push @tasks, ["test_actor_check", sub{
-    sy("curl http://127.0.0.1:$http_port/abc -X POST") for 0..11;
+    sy("$curl_test -X POST") for 0..11;
 }];
 push @tasks, ["test_big_message_check", sub{
-    sy("dd if=/dev/zero of=tmp/test.bin bs=1M count=4 && curl http://127.0.0.1:8067/test -v -XPOST -T tmp/test.bin")
+    sy("dd if=/dev/zero of=tmp/test.bin bs=1M count=4 && $curl_test -v -XPOST -T tmp/test.bin")
 }];
 
 
@@ -167,3 +173,11 @@ if($ARGV[0]) {
 
 
 #tmp/kafka_2.11-0.10.1.0/bin/kafka-topics.sh --zookeeper 127.0.0.1:8081 --list
+
+#force compaction:?
+#min.cleanable.dirty.ratio=0.01
+#segment.ms=100
+#delete.retention.ms=100
+
+#tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --entity-name .inbox --describe
+#tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --entity-name .inbox --alter --add-config min.compaction.lag.ms=9223372036854775807
