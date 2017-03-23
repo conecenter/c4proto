@@ -61,10 +61,10 @@ push @tasks, ["not_effective_join_bench", sub{
 
 
 push @tasks, ["start_kafka", sub{
-    &$put_text("tmp/zookeeper.properties","dataDir=db-zookeeper\nclientPort=$zoo_port\n");
+    &$put_text("tmp/zookeeper.properties","dataDir=db4/zookeeper\nclientPort=$zoo_port\n");
     &$put_text("tmp/server.properties",join "\n",
         "listeners=PLAINTEXT://$bootstrap_server",
-        "log.dirs=db-kafka-logs",
+        "log.dirs=db4/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
         "log.cleanup.policy=compact",
         "message.max.bytes=3000000" #seems to be compressed
@@ -179,5 +179,6 @@ if($ARGV[0]) {
 #segment.ms=100
 #delete.retention.ms=100
 
-#tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --entity-name .inbox --describe
+#tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --describe
 #tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --entity-name .inbox --alter --add-config min.compaction.lag.ms=9223372036854775807
+#tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --entity-name .inbox.log --alter --add-config min.compaction.lag.ms=1000,segment.ms=60000,delete.retention.ms=60000
