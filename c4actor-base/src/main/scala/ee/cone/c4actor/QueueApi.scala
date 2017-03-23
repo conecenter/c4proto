@@ -75,7 +75,7 @@ object By {
     JoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
 }
 
-case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])
+case class LEvent[+M<:Product](srcId: SrcId, className: String, value: Option[M])
 object LEvent {
   def update[M<:Product](value: M): Seq[LEvent[M]] =
     Seq(LEvent(value.productElement(0).toString, value.getClass.getName, Option(value)))

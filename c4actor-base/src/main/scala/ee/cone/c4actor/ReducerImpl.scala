@@ -23,7 +23,8 @@ class WorldTxImpl(
     if(out.isEmpty) return this
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
     val nextWorld = reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
-    val nextToDebug = toDebug.enqueue(out).asInstanceOf[Queue[LEvent[Product]]]
+    val nextToDebug = (toDebug /: out)((q,e)⇒q.enqueue(e:LEvent[Product]))
+      //toDebug.enqueue(out).asInstanceOf[Queue[LEvent[Product]]]
     new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend), nextToDebug)
   }
 }
