@@ -44,14 +44,14 @@ case class VDomHandlerImpl[State](
       case _ => Never()
     }
     (ResolveValue(vDomStateKey.of(state).get.value, path) match {
-      case Some(v: Receiver[_]) => v.receive.get(exchange)
+      case Some(v: Receiver[_]) => v.receive(exchange)
       case v => throw new Exception(s"$path ($v) can not receive")
     }).asInstanceOf[State=>State](state)
   }
 
   //todo invalidate until by default
 
-  def exchange: Handler = m ⇒ chain(Seq(init,dispatch,toAlien).map(_(m)))
+  def receive: Handler = m ⇒ chain(Seq(init,dispatch,toAlien).map(_(m)))
 
   private def diffSend(prev: VDomValue, next: VDomValue, send: sender.Send): State ⇒ State = {
     if(send.isEmpty) return identity[State]

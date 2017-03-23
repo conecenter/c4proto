@@ -46,6 +46,7 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
   }
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
+    case LogTopicName() ⇒ s"$inboxTopicPrefix.inbox.log"
     case StateTopicName(ActorName(n)) ⇒ s"$n.state"
     case NoTopicName ⇒ throw new Exception
   }
@@ -53,7 +54,10 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
     producer.get.send(new ProducerRecord(topicNameToString(rec.topic), 0, rec.key, rec.value))
   }
-  def send(rec: QRecord): Long = sendStart(rec).get().offset()
+  def send(recs: List[QRecord]): List[Long] = {
+    val futures: List[Future[RecordMetadata]] = recs.map(sendStart)
+    futures.map(_.get().offset())
+  }
 }
 
 ////
@@ -95,7 +99,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
   }
   private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {
     LEvent.delete(Updates("",Nil)).foreach(ev⇒
-      rawQSender.send(qMessages.toRecord(topicName,qMessages.toUpdate(ev)))
+      rawQSender.send(List(qMessages.toRecord(topicName,qMessages.toUpdate(ev))))
     ) //! prevents hanging on empty topic
     val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
     consumer.seekToBeginning(part.asJava)

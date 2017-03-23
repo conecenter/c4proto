@@ -13,13 +13,18 @@ import scala.concurrent.ExecutionContext.Implicits.global // requires usage of `
 
 import Function.chain
 
-class WorldTxImpl(reducer: ReducerImpl, val world: World, val toSend: Queue[Update]) extends WorldTx {
+class WorldTxImpl(
+  reducer: ReducerImpl,
+  val world: World,
+  val toSend: Queue[Update],
+  val toDebug: Queue[LEvent[Product]]
+) extends WorldTx {
   def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx = {
     if(out.isEmpty) return this
-    //println(s"add ${out.toList}")
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
     val nextWorld = reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
-    new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend))
+    val nextToDebug = toDebug.enqueue(out).asInstanceOf[Queue[LEvent[Product]]]
+    new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend), nextToDebug)
   }
 }
 
@@ -51,7 +56,7 @@ class ReducerImpl(
       }
     }
   def createTx(world: World): World ⇒ World =
-    TxKey.set(new WorldTxImpl(this, world, Queue.empty))
+    TxKey.set(new WorldTxImpl(this, world, Queue.empty, Queue.empty))
 }
 
 object WorldStats {

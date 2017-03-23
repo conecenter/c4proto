@@ -60,7 +60,7 @@ case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[World], view: 
   def exchange: BranchMessage ⇒ World ⇒ World =
     message ⇒ local ⇒ {
       //println(s"act ${message("X-r-action")}")
-      vHandler(local).exchange(VDomMessageImpl(message))(local)
+      vHandler(local).receive(VDomMessageImpl(message))(local)
     }
   def seeds: World ⇒ List[BranchResult] =
     local ⇒ vHandler(local).seeds(local).collect{

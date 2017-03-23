@@ -15,7 +15,7 @@ abstract class ElementValue extends VDomValue {
 }
 
 case class InputTextElement[State](value: String, deferSend: Boolean)(
-  input: TagJsonUtils, val receive: Option[VDomMessage ⇒ State ⇒ State]
+  input: TagJsonUtils, val receive: VDomMessage ⇒ State ⇒ State
 ) extends ElementValue with Receiver[State] {
   def elementType = "input"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
@@ -29,11 +29,11 @@ case class SignIn[State]()(input: TagJsonUtils) extends ElementValue with Receiv
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     input.appendInputAttributes(builder, "", deferSend = true)
   }
-  def receive: Option[VDomMessage ⇒ State ⇒ State] = Option(_⇒s⇒s)
+  def receive: Handler = _⇒s⇒s
 }
 
 case class ChangePassword[State]()(
-  input: TagJsonUtils, val receive: Option[VDomMessage ⇒ State ⇒ State]
+  input: TagJsonUtils, val receive: VDomMessage ⇒ State ⇒ State
 ) extends ElementValue with Receiver[State] {
   def elementType: String = "ChangePassword"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
@@ -52,13 +52,13 @@ class TestTags[State](
 
   private def input(key: VDomKey, value: String, change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv](key, InputTextElement(value, deferSend=true)(inputAttributes,
-      Some((message:VDomMessage)⇒change(messageStrBody(message)))
+      (message:VDomMessage)⇒change(messageStrBody(message))
     ), Nil)
 
   def signIn(): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes), Nil)
   def changePassword(change: VDomMessage ⇒ State ⇒ State): ChildPair[OfDiv] =
-    child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, Option(change)), Nil)
+    child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
 }
 
 abstract class TextInputLens[Model<:Product](val of: Model⇒String, val set: String⇒Model⇒Model)

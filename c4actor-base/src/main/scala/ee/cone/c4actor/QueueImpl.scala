@@ -10,6 +10,10 @@ import ee.cone.c4assemble.Types.{Index, World}
 import ee.cone.c4assemble.{Single, WorldKey}
 import ee.cone.c4proto.{HasId, Protocol}
 
+import scala.collection.immutable.Seq
+
+import java.nio.charset.StandardCharsets.UTF_8
+
 /*Future[RecordMetadata]*/
 //producer.send(new ProducerRecord(topic, rawKey, rawValue))
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
@@ -23,13 +27,15 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   import qAdapterRegistry._
   // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: World): World = {
-    val updates = TxKey.of(local).toSend.toList
+    val tx = TxKey.of(local)
+    val updates: List[Update] = tx.toSend.toList
     if(updates.isEmpty) return local
-    println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates(UUID.randomUUID.toString,updates))
+    //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
+    val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
     val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
-    val offset = getRawQSender().send(rec)
-    //println(s"offset sent: $offset")
+    val debugStr = tx.toDebug.map(_.toString).mkString("\n---\n")
+    val debugRec = new QRecordImpl(LogTopicName(),Array.empty,debugStr.getBytes(UTF_8))
+    val List(offset,_)= getRawQSender().send(List(rec,debugRec))
     OffsetWorldKey.set(offset+1)(local)
   }
   def toUpdate[M<:Product](message: LEvent[M]): Update = {

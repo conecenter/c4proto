@@ -14,7 +14,7 @@ object ProtoAdapterTest extends App {
   val group0 = Group("", Some(leader0), List(worker0,worker1))
   //
   val protocols: List[Protocol] = MyProtocol :: QProtocol :: Nil
-  val rawQSender = new RawQSender { def send(rec: QRecord): Long = 0 }
+  val rawQSender = new RawQSender { def send(recs: List[QRecord]): List[Long] = Nil }
   val qAdapterRegistry: QAdapterRegistry = QAdapterRegistry(protocols)
   val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
   //
