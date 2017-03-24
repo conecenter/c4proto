@@ -24,3 +24,4 @@ tmp/
 build
 node_modules
 db-*
+db4

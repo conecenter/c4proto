@@ -10,7 +10,7 @@ case class AType(name: String, key: String, value: String)
 @compileTimeOnly("not expanded")
 class assemble extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
-    val q"class $className (...$paramss) extends ..$ext { ..$stats }" = defn
+    val q"class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" = defn
     val rules: List[RuleDef] = stats.toList.flatMap {
       case q"type $tname = $tpe" ⇒ None
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${Type.Name(outKeyType)},${Type.Name(outValType)})] = $expr" ⇒
@@ -25,9 +25,15 @@ class assemble extends StaticAnnotation {
         }
         Option(JoinDef(joinDefParams,AType("",inKeyType,"Product"),AType(defName,outKeyType,outValType)))
     }
+    //val classArg =
+    val classArgs = paramss.toList.flatten.collect{
+      case param"${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒
+        typeName -> argName
+    }.toMap
+    def classOfExpr(className: String) =
+      classArgs.getOrElse(className,s"classOf[$className]") + ".getName"
     def expr(genType: AType, specType: AType): String = {
-
-      s"""ee.cone.c4assemble.JoinKey[${genType.key},${genType.value}]("${specType.key}",classOf[${specType.key}].getName,classOf[${specType.value}].getName)"""
+      s"""ee.cone.c4assemble.JoinKey[${genType.key},${genType.value}]("${specType.key}",${classOfExpr(specType.key)},${classOfExpr(specType.value)})"""
     }
     val joinImpl = rules.collect{
       case JoinDef(params,in,out) ⇒
@@ -44,7 +50,7 @@ class assemble extends StaticAnnotation {
     }.mkString(s"override def dataDependencies = indexFactory ⇒ List(",",",")")
 
     val res = q"""
-      class $className (...$paramss) extends ..$ext {
+      class $className [..$tparams] (...$paramss) extends ..$ext {
         ..$stats;
         ${joinImpl.parse[Stat].get};
       }"""
