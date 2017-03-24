@@ -17,6 +17,7 @@ my $bootstrap_server = "127.0.0.1:$kafka_port";
 
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
+sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
 
 my $put_text = sub{
     my($fn,$content)=@_;
@@ -59,7 +60,6 @@ push @tasks, ["not_effective_join_bench", sub{
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
 }];
 
-
 push @tasks, ["start_kafka", sub{
     &$put_text("tmp/zookeeper.properties","dataDir=db4/zookeeper\nclientPort=$zoo_port\n");
     &$put_text("tmp/server.properties",join "\n",
@@ -67,6 +67,7 @@ push @tasks, ["start_kafka", sub{
         "log.dirs=db4/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
         "log.cleanup.policy=compact",
+        "log.segment.bytes=104857600",
         "message.max.bytes=3000000" #seems to be compressed
     );
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
@@ -75,6 +76,15 @@ push @tasks, ["start_kafka", sub{
 push @tasks, ["stop_kafka", sub{
     sy("tmp/$kafka/bin/kafka-server-stop.sh")
 }];
+
+my $inbox_configure = sub{
+    my $kafka_configs = "tmp/$kafka/bin/kafka-configs.sh --zookeeper 127.0.0.1:$zoo_port --entity-type topics ";
+    my $infinite_lag = "min.compaction.lag.ms=9223372036854775807";
+    sy("$kafka_configs --alter --entity-name .inbox --add-config $infinite_lag");
+    die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
+};
+push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
+
 push @tasks, ["inbox_log_tail", sub{
     sy("tmp/$kafka/bin/kafka-console-consumer.sh --bootstrap-server $bootstrap_server --topic $inbox_prefix.inbox.log")
 }];
@@ -111,6 +121,7 @@ push @tasks, ["gate_publish", sub{
     sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT=1 ".staged("c4gate-publish","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
+    &$inbox_configure();
     sy("$env ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
 }];
 
@@ -179,6 +190,6 @@ if($ARGV[0]) {
 #segment.ms=100
 #delete.retention.ms=100
 
-#tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --describe
-#tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --entity-name .inbox --alter --add-config min.compaction.lag.ms=9223372036854775807
-#tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper 127.0.0.1:8081 --entity-type topics --entity-name .inbox.log --alter --add-config min.compaction.lag.ms=1000,segment.ms=60000,delete.retention.ms=60000
+
+
+
