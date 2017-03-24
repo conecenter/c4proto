@@ -1412,8 +1412,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	}); 
 	
 	
-	const sendVk = ctx => (event,value) => {sender.send(ctx,"click",value);}
-	const sendBlob = ctx => (value) => {sender.send(ctx,"change",value);}
+	const sendVk = ctx => (event,value) => {sender.send(ctx,({value}));}
+	const sendBlob = ctx => (value) => {sender.send(ctx,({value}));}
 	const onClickValue=({sendVk});
 	const onReadySend=({sendBlob});
 	const transforms= {

@@ -33,7 +33,7 @@ class TestCanvasApp extends ServerApp
   def mimeTypes: Map[String, String] = Map(
     "svg" → "image/svg+xml"
   )
-  def fromStrings: List[(String, String)] = List(
+  def publishFromStrings: List[(String, String)] = List(
     "/test.svg" → s"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
       <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">
       <circle cx="250" cy="250" r="210" fill="#fff" stroke="#000" stroke-width="8"/>

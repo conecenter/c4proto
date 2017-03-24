@@ -6,15 +6,15 @@ function ctxToPath(ctx){
 }
 
 export function VDomSender(feedback){ // todo: may be we need a queue to be sure server will receive messages in right order
-    const send = (ctx, action, value) => feedback.send({
+    const send = (ctx, target) => feedback.send({
         url: "/connection",
         options: {
             headers: {
-                "X-r-action": action,
+                ...target.headers,
                 "X-r-branch": rootCtx(ctx).branchKey,
                 "X-r-vdom-path": ctxToPath(ctx)
             },
-            body: value
+            body: target.value
         },
     })
     return ({send})
@@ -106,3 +106,14 @@ export function VDomSeeds(log,DiffPrepare){
     const transforms = ({ref})
     return ({transforms})
 }
+
+export const pairOfInputAttributes = ({value,onChange},headers) => {
+    const values = (value+"\n").split("\n").slice(0,2)
+    return values.map((value,index)=>({
+        key: "input_"+index, value,
+        onChange: ev => onChange({target:{
+            headers,
+            value: values.map((v,i)=>index===i?ev.target.value:values[i]).join("\n")
+        }})
+    }))
+};

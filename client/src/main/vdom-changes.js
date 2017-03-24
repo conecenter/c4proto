@@ -11,18 +11,18 @@ function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
 export default function VDomChanges(sender, DiffPrepare){
     const changes = {}
-    const set = (ctx,value) => {
+    const set = (ctx,target) => {
         const path = ctxToArray(ctx,[])
         const rCtx = rootCtx(ctx)
         const path_str = rCtx.branchKey + "/" + path.join("/")
         const diff = DiffPrepare(rCtx.localState)
         diff.jump(path)
-        diff.addIfChanged("value", value)
+        diff.addIfChanged("value", target.value)
         diff.apply()
         //console.log("input-change added")
-        var sent = null
+        let sent = null
         const send = () => {
-            if(!sent) sent = sender.send(ctx,"change",value) // todo fix bug, ask aku
+            if(!sent) sent = sender.send(ctx,target) // todo fix bug, ask aku
         }
         const ack = (branchKey,index) => sent &&
             branchKey === sent["X-r-branch"] &&
@@ -42,22 +42,18 @@ export default function VDomChanges(sender, DiffPrepare){
         () => Object.keys(changes).forEach(path_str=>changes[path_str].send())
 
     const onChange = {
-
-        "local": ctx => event => set(ctx, event.target.value),
-        "send": ctx => event => { set(ctx, event.target.value); sendDeferred() }
+        "local": ctx => event => set(ctx, event.target),
+        "send": ctx => event => { set(ctx, event.target); sendDeferred() }
     }
     const onBlur = {
         "send": ctx => event => sendDeferred()
-    }
-    const onCheck={
-        "send": ctx => event => { set(ctx, event.target.checked?"Y":""); sendDeferred() }
     }
     const ackChange = data => state => {
         Object.keys(changes).forEach(path_str=>changes[path_str].ack(state.branchKey,data))
         return state
     }
 
-    const transforms = {onChange,onBlur,onCheck}
+    const transforms = {onChange,onBlur}
     const branchHandlers = {ackChange}
     return ({transforms,branchHandlers})
 }

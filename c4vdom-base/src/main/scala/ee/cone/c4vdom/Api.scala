@@ -73,9 +73,12 @@ trait VDomMessage {
   def body: Object
 }
 
-trait VDomHandler[State] {
+trait Receiver[State] {
   type Handler = VDomMessage ⇒ State ⇒ State
-  def exchange: Handler
+  def receive: Handler
+}
+
+trait VDomHandler[State] extends Receiver[State] {
   def seeds: State ⇒ List[(String,Product)]
 }
 
@@ -92,14 +95,6 @@ case class VDomState(value: VDomValue, until: Long)
 
 trait VDomUntil {
   def get(pairs: ViewRes): (Long, ViewRes)
-}
-
-trait OnClickReceiver[State] {
-  def onClick: Option[Object ⇒ State ⇒ State]
-}
-
-trait OnChangeReceiver[State] {
-  def onChange: Option[Object ⇒ State ⇒ State]
 }
 
 ////

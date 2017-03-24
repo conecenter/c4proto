@@ -1,7 +1,6 @@
 package ee.cone.c4gate
 
 import java.time.Instant
-
 import java.time.temporal.ChronoUnit.SECONDS
 
 import com.sun.net.httpserver.HttpExchange
@@ -15,8 +14,9 @@ import ee.cone.c4proto.Protocol
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.concurrent.TrieMap
-
 import java.nio.charset.StandardCharsets.UTF_8
+
+import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
 
 trait SSEServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with ProtocolsApp {
   def config: Config
@@ -45,18 +45,21 @@ class PongHandler(
     if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
     val headers = httpExchange.getRequestHeaders.asScala.map{ case(k,v) ⇒ k→Single(v.asScala.toList) }
     val now = Instant.now
+    val local = worldProvider.createTx()
+    val world = TxKey.of(local).world
+    val sessionKey = headers("X-r-session")
+    val userNames = By.srcId(classOf[AuthenticatedSession]).of(world).getOrElse(sessionKey,Nil).map(_.userName)
     val session = FromAlienState(
-      headers("X-r-session"),
+      sessionKey,
       headers("X-r-location"),
       headers("X-r-connection"),
-      now.getEpochSecond / 100 * 100
+      now.getEpochSecond / 100 * 100,
+      Single.option(userNames)
     )
     pongs(session.sessionKey) = now
-    Option(worldProvider.createTx()).filter{ local ⇒
-      val world = TxKey.of(local).world
-      val was = By.srcId(classOf[FromAlienState]).of(world).getOrElse(session.sessionKey,Nil)
-      was != List(session)
-    }.map(LEvent.add(LEvent.update(session))).foreach(qMessages.send)
+    val wasSession = By.srcId(classOf[FromAlienState]).of(world).getOrElse(session.sessionKey,Nil)
+    if(wasSession != List(session))
+      LEvent.add(LEvent.update(session)).andThen(qMessages.send)(local)
     httpExchange.sendResponseHeaders(200, 0)
     true
   }

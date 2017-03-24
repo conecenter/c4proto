@@ -27,13 +27,16 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
 ) extends RawQSender with Executable {
   def run(ctx: ExecutionContext): Unit = {
     val props = Map[String, Object](
-      //"max.request.size" → "10000000",
       "bootstrap.servers" → bootstrapServers,
       "acks" → "all",
       "retries" → "0",
       "batch.size" → "16384",
       "linger.ms" → "1",
-      "buffer.memory" → "33554432"
+      "buffer.memory" → "33554432",
+      "compression.type" → "lz4",
+      "max.request.size" → "10000000"
+      // max.request.size -- seems to be uncompressed
+      // + in broker config: message.max.bytes
     )
     val serializer = new ByteArraySerializer
     producer.complete(new KafkaProducer[Array[Byte], Array[Byte]](
@@ -43,14 +46,20 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
   }
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
+    case LogTopicName() ⇒ s"$inboxTopicPrefix.inbox.log"
     case StateTopicName(ActorName(n)) ⇒ s"$n.state"
     case NoTopicName ⇒ throw new Exception
   }
-  def sendStart(rec: QRecord): Future[RecordMetadata] = {
+  private def sendStart(rec: QRecord): Future[RecordMetadata] = {
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
-    producer.get.send(new ProducerRecord(topicNameToString(rec.topic), 0, rec.key, rec.value))
+    val value = if(rec.value.nonEmpty) rec.value else null
+    val topic = topicNameToString(rec.topic)
+    producer.get.send(new ProducerRecord(topic, 0, rec.key, value))
   }
-  def send(rec: QRecord): Long = sendStart(rec).get().offset()
+  def send(recs: List[QRecord]): List[Long] = {
+    val futures: List[Future[RecordMetadata]] = recs.map(sendStart)
+    futures.map(_.get().offset())
+  }
 }
 
 ////
@@ -58,7 +67,7 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
 class KafkaQConsumerRecordAdapter(topicName: TopicName, rec: ConsumerRecord[Array[Byte], Array[Byte]]) extends QRecord {
   def topic: TopicName = topicName
   def key: Array[Byte] = rec.key
-  def value: Array[Byte] = rec.value
+  def value: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
   def offset: Option[Long] = Option(rec.offset)
   //rec.timestamp()
 }
@@ -92,7 +101,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
   }
   private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {
     LEvent.delete(Updates("",Nil)).foreach(ev⇒
-      rawQSender.send(qMessages.toRecord(topicName,qMessages.toUpdate(ev)))
+      rawQSender.send(List(qMessages.toRecord(topicName,qMessages.toUpdate(ev))))
     ) //! prevents hanging on empty topic
     val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
     consumer.seekToBeginning(part.asJava)
@@ -142,8 +151,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
           case inboxRecs ⇒
             //println(s"offset received: ${inboxRecs.map(_.offset)}")
             val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, inboxRecs)
-            val metadata = queue.map(rawQSender.sendStart)
-            metadata.foreach(_.get())
+            rawQSender.send(queue.toList)
             localWorldRef.set(world)
         }
         //println(s"then to receive: ${qMessages.worldOffset(localWorldRef.get)}")

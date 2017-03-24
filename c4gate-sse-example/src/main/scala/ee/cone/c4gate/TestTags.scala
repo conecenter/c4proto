@@ -15,12 +15,29 @@ abstract class ElementValue extends VDomValue {
 }
 
 case class InputTextElement[State](value: String, deferSend: Boolean)(
-  input: TagJsonUtils, val onChange: Option[Object ⇒ State ⇒ State]
-) extends ElementValue with OnChangeReceiver[State] {
+  input: TagJsonUtils, val receive: VDomMessage ⇒ State ⇒ State
+) extends ElementValue with Receiver[State] {
   def elementType = "input"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     builder.append("type").append("text")
     input.appendInputAttributes(builder, value, deferSend)
+  }
+}
+
+case class SignIn[State]()(input: TagJsonUtils) extends ElementValue with Receiver[State] {
+  def elementType: String = "SignIn"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
+    input.appendInputAttributes(builder, "", deferSend = true)
+  }
+  def receive: Handler = _⇒s⇒s
+}
+
+case class ChangePassword[State]()(
+  input: TagJsonUtils, val receive: VDomMessage ⇒ State ⇒ State
+) extends ElementValue with Receiver[State] {
+  def elementType: String = "ChangePassword"
+  def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
+    input.appendInputAttributes(builder, "", deferSend = true)
   }
 }
 
@@ -30,10 +47,18 @@ class TestTags[State](
   def toInput[Model<:Product](key: VDomKey, attr: VDomLens[Model,String]): Model ⇒ ChildPair[OfDiv] =
     model ⇒ input(key, attr.of(model), value⇒save(attr.set(value)(model)))
 
+  def messageStrBody(o: VDomMessage): String =
+    o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
+
   private def input(key: VDomKey, value: String, change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv](key, InputTextElement(value, deferSend=true)(inputAttributes,
-      Some((o:Object)⇒change(o match { case bs: okio.ByteString ⇒ bs.utf8()}))
+      (message:VDomMessage)⇒change(messageStrBody(message))
     ), Nil)
+
+  def signIn(): ChildPair[OfDiv] =
+    child[OfDiv]("signIn", SignIn()(inputAttributes), Nil)
+  def changePassword(change: VDomMessage ⇒ State ⇒ State): ChildPair[OfDiv] =
+    child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
 }
 
 abstract class TextInputLens[Model<:Product](val of: Model⇒String, val set: String⇒Model⇒Model)

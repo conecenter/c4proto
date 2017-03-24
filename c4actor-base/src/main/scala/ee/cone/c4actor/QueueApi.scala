@@ -40,6 +40,7 @@ sealed trait TopicName
 case object NoTopicName extends TopicName
 case class InboxTopicName() extends TopicName
 case class StateTopicName(actorName: ActorName) extends TopicName
+case class LogTopicName() extends TopicName
 
 trait QRecord {
   def topic: TopicName
@@ -49,7 +50,7 @@ trait QRecord {
 }
 
 trait RawQSender {
-  def send(rec: QRecord): Long
+  def send(rec: List[QRecord]): List[Long]
 }
 
 case object OffsetWorldKey extends WorldKey[java.lang.Long](0L)
@@ -74,7 +75,7 @@ object By {
     JoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
 }
 
-case class LEvent[M<:Product](srcId: SrcId, className: String, value: Option[M])
+case class LEvent[+M<:Product](srcId: SrcId, className: String, value: Option[M])
 object LEvent {
   def update[M<:Product](value: M): Seq[LEvent[M]] =
     Seq(LEvent(value.productElement(0).toString, value.getClass.getName, Option(value)))
@@ -88,6 +89,7 @@ trait WorldTx {
   def world: World
   def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx
   def toSend: Seq[Update]
+  def toDebug: Seq[LEvent[Product]]
 }
 
 trait Observer {
@@ -104,5 +106,6 @@ object NoWorldTx extends WorldTx {
   def world: World = Map.empty
   def add[M <: Product](out: Iterable[LEvent[M]]): WorldTx = throw new Exception
   def toSend: Seq[Update] = Nil
+  def toDebug: Seq[LEvent[Product]] = Nil
 }
 case object TxKey extends WorldKey[WorldTx](NoWorldTx)
