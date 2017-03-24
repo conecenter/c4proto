@@ -536,7 +536,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"1"},'1'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"2"},'2'),
 						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"3"},'3'),
-						   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:Object.assign({},specialTdStyle,{height:"90%"}),key:"4",fkey:"Enter"},enterEl),
+						   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:Object.assign({},specialTdStyle,{height:"90%"}),bStyle:{width:"90%"},key:"4",fkey:"Enter"},enterEl),
 					   ]),
 					   React.createElement("tr",{key:"6"},[
 						   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
