@@ -362,7 +362,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			}
 			if(this.props.fkey) press(this.props.fkey)
 			if(this.props.onClickValue)
-				this.props.onClickValue(ev,this.props.fkey);
+				this.props.onClickValue("key",this.props.fkey);
 		},
 		onTouchStart:function(e){
 			this.setState({touch:true});
@@ -896,11 +896,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		onChange:function(e){
 			if(this.props.onChange)
-				this.props.onChange(e);
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}});
 		},
 		onClick:function(e){
-			if(this.props.onClick)
-				this.props.onClick(e);
+			if(this.props.onClickValue)
+				this.props.onClickValue("click");
 		},
 		onMouseOverI:function(){
 			this.setState({mouseOverI:true});
@@ -1304,10 +1304,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					const blob = event.target.result;
 					this.props.onReadySend(blob);
 				}
-				if(this.props.onClickValue){
-					this.props.onClickValue(null,this.fInp.value)
+				/*if(this.props.onClickValue){
+					this.props.onClickValue("click",this.fInp.value)
 					
-				}
+				}*/
 				this.setState({reading:false});
 			}
 			reader.onprogress=()=>this.setState({reading:true});
@@ -1419,9 +1419,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	}); 
 	
 	
-	const sendVk = ctx => (event,value) => {sender.send(ctx,({value}));}
+	//const sendVk = ctx => (event,value) => {sender.send(ctx,({value}));}
+	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
 	const sendBlob = ctx => (value) => {sender.send(ctx,({value}));}
-	const onClickValue=({sendVk});
+	const onClickValue=({sendVal});
+	
 	const onReadySend=({sendBlob});
 	const transforms= {
 		tp:{
@@ -1432,7 +1434,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState
 		},
-		onClickValue,
+		onClickValue,		
 		onReadySend
 	};
 	return ({transforms});
