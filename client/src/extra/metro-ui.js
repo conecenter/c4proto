@@ -295,6 +295,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				addEventListener("resize",this.recalc);
 			}					
 		},
+		componentDidUpdate:function(prevProps,prevState){			
+			if(prevProps.caption!=this.props.caption)
+				this.recalc();
+		},
 		componentWillUnmount:function(){
 			if(this.props.caption){
 				removeEventListener("resize",this.recalc);
@@ -358,7 +362,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			}
 			if(this.props.fkey) press(this.props.fkey)
 			if(this.props.onClickValue)
-				this.props.onClickValue(ev,this.props.fkey);
+				this.props.onClickValue("key",this.props.fkey);
 		},
 		onTouchStart:function(e){
 			this.setState({touch:true});
@@ -536,7 +540,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"1"},'1'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"2"},'2'),
 						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"3"},'3'),
-						   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:Object.assign({},specialTdStyle,{height:"90%"}),key:"4",fkey:"Enter"},enterEl),
+						   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:Object.assign({},specialTdStyle,{height:"90%"}),bStyle:{width:"90%"},key:"4",fkey:"Enter"},enterEl),
 					   ]),
 					   React.createElement("tr",{key:"6"},[
 						   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
@@ -747,6 +751,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onMouseOut:function(e){
 			this.setState({mouseOver:false});
 		},
+		componentDidUpdate:function(prevProps,prevState){			
+			log(this.props,prevProps);			
+		},
 		render:function(){
 			const labelStyle={
 				color:"rgb(33,33,33)",
@@ -798,7 +805,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const type = this.props.type?this.props.type:"text"
 			return React.createElement("div",{style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-          React.createElement("input",{key:"1",type,placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
+						React.createElement("input",{key:"1",type,placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
+
 					)
 				);
 					
@@ -888,11 +896,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		onChange:function(e){
 			if(this.props.onChange)
-				this.props.onChange(e);
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}});
 		},
 		onClick:function(e){
-			if(this.props.onClick)
-				this.props.onClick(e);
+			if(this.props.onClickValue)
+				this.props.onClickValue("click");
 		},
 		onMouseOverI:function(){
 			this.setState({mouseOverI:true});
@@ -1229,7 +1237,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:(this.props.value&&this.props.value.length>0)?"black":"transparent",
 				borderRadius:"70%",
 				verticalAlign:"top",
-				marginTop:"0.22em",
+				marginTop:"0.19em",
 				//marginLeft:"0.05em",
 			};
 			
@@ -1296,10 +1304,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					const blob = event.target.result;
 					this.props.onReadySend(blob);
 				}
-				if(this.props.onClickValue){
-					this.props.onClickValue(null,this.fInp.value)
+				/*if(this.props.onClickValue){
+					this.props.onClickValue("click",this.fInp.value)
 					
-				}
+				}*/
 				this.setState({reading:false});
 			}
 			reader.onprogress=()=>this.setState({reading:true});
@@ -1411,9 +1419,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	}); 
 	
 	
-	const sendVk = ctx => (event,value) => {sender.send(ctx,({value}));}
+	//const sendVk = ctx => (event,value) => {sender.send(ctx,({value}));}
+	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
 	const sendBlob = ctx => (value) => {sender.send(ctx,({value}));}
-	const onClickValue=({sendVk});
+	const onClickValue=({sendVal});
+	
 	const onReadySend=({sendBlob});
 	const transforms= {
 		tp:{
@@ -1424,7 +1434,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState
 		},
-		onClickValue,
+		onClickValue,		
 		onReadySend
 	};
 	return ({transforms});
