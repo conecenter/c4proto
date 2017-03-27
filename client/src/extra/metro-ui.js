@@ -295,6 +295,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				addEventListener("resize",this.recalc);
 			}					
 		},
+		componentDidUpdate:function(prevProps,prevState){			
+			if(prevProps.caption!=this.props.caption)
+				this.recalc();
+		},
 		componentWillUnmount:function(){
 			if(this.props.caption){
 				removeEventListener("resize",this.recalc);
@@ -746,6 +750,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		onMouseOut:function(e){
 			this.setState({mouseOver:false});
+		},
+		componentDidUpdate:function(prevProps,prevState){			
+			log(this.props,prevProps);			
 		},
 		render:function(){
 			const labelStyle={
@@ -1230,7 +1237,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:(this.props.value&&this.props.value.length>0)?"black":"transparent",
 				borderRadius:"70%",
 				verticalAlign:"top",
-				marginTop:"0.22em",
+				marginTop:"0.19em",
 				//marginLeft:"0.05em",
 			};
 			
