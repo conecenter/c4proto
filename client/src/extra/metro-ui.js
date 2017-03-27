@@ -1300,14 +1300,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const reader= fileReader();
 			const file = e.target.files[0];
 			reader.onload=(event)=>{				
-				if(this.props.onReadySend){
+				if(this.props.onReadySendBlob){
 					const blob = event.target.result;
-					this.props.onReadySend(blob);
-				}
-				/*if(this.props.onClickValue){
-					this.props.onClickValue("click",this.fInp.value)
-					
-				}*/
+					this.props.onReadySendBlob(this.fInp.value,blob);
+				}				
 				this.setState({reading:false});
 			}
 			reader.onprogress=()=>this.setState({reading:true});
@@ -1421,10 +1417,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	
 	//const sendVk = ctx => (event,value) => {sender.send(ctx,({value}));}
 	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
-	const sendBlob = ctx => (value) => {sender.send(ctx,({value}));}
+	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}
 	const onClickValue=({sendVal});
 	
-	const onReadySend=({sendBlob});
+	const onReadySendBlob=({sendBlob});
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
@@ -1435,7 +1431,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             ConnectionState
 		},
 		onClickValue,		
-		onReadySend
+		onReadySendBlob
 	};
 	return ({transforms});
 }
