@@ -1,6 +1,6 @@
 "use strict";
 import React from 'react'
-
+import {pairOfInputAttributes}  from "../main/vdom-util"
 /*
 todo:
 replace createClass with lambda
@@ -1300,14 +1300,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const reader= fileReader();
 			const file = e.target.files[0];
 			reader.onload=(event)=>{				
-				if(this.props.onReadySend){
+				if(this.props.onReadySendBlob){
 					const blob = event.target.result;
-					this.props.onReadySend(blob);
-				}
-				/*if(this.props.onClickValue){
-					this.props.onClickValue("click",this.fInp.value)
-					
-				}*/
+					this.props.onReadySendBlob(this.fInp.value,blob);
+				}				
 				this.setState({reading:false});
 			}
 			reader.onprogress=()=>this.setState({reading:true});
@@ -1418,13 +1414,50 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		}
 	}); 
 	
+	const ChangePassword = prop => {
+        const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"change"})
+		const defButtonStyle = {alignSelf:"flex-end",marginBottom:"0.524em"}
+		const disabledButtonStyle = {backgroundColor:"lightGrey",...defButtonStyle}
+		const buttonStyle = attributesA.value && attributesA.value === attributesB.value?{backgroundColor:"#c0ced8",...defButtonStyle}:disabledButtonStyle
+		const buttonOverStyle = attributesA.value && attributesA.value === attributesB.value?{backgroundColor:"#d4e2ec",...defButtonStyle}:disabledButtonStyle		
+		const onClick = attributesA.value && attributesA.value === attributesB.value? prop.onBlur:()=>{}
+        
+        return React.createElement("div",{style:{display:"flex"}},[
+			React.createElement(DropDownWrapperElement,{style:{flex:"1 1 0%"}},
+				React.createElement(LabelElement,{label:"New password"},null),
+				React.createElement(InputElement,{...attributesA,type:"password"},null)			
+			),
+			React.createElement(DropDownWrapperElement,{style:{flex:"1 1 0%"}},
+				React.createElement(LabelElement,{label:"Again"},null),
+				React.createElement(InputElement,{...attributesB,type:"password"},null)			
+			),            
+            React.createElement(GotoButton, {onClick, style:buttonStyle,overStyle:buttonOverStyle}, "Submit")
+        ])
+    }
+    const SignIn = prop => {
+        const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
+		const buttonStyle = {backgroundColor:"#c0ced8"}
+		const buttonOverStyle = {backgroundColor:"#d4e2ec"}
+        return React.createElement("div",{style:{margin:"1em 0em"}},[
+			React.createElement(DropDownWrapperElement,{},
+				React.createElement(LabelElement,{label:"Username"},null),
+				React.createElement(InputElement,{...attributesA},null)			
+			),
+			React.createElement(DropDownWrapperElement,{},
+				React.createElement(LabelElement,{label:"Password"},null),
+				React.createElement(InputElement,{...attributesB,type:"password"},null)			
+			),
+			React.createElement("div",{style:{textAlign:"right",paddingRight:"0.3125em"}},
+				React.createElement(GotoButton,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},"Login")
+			)			
+        ])
+	}
 	
-	//const sendVk = ctx => (event,value) => {sender.send(ctx,({value}));}
 	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
-	const sendBlob = ctx => (value) => {sender.send(ctx,({value}));}
+	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}
 	const onClickValue=({sendVal});
 	
-	const onReadySend=({sendBlob});
+	const onReadySendBlob=({sendBlob});
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
@@ -1432,10 +1465,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             RadioButtonElement,FileUploadElement,TextArea,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
-            ConnectionState
+            ConnectionState,
+			SignIn,ChangePassword
 		},
 		onClickValue,		
-		onReadySend
+		onReadySendBlob
 	};
 	return ({transforms});
 }
