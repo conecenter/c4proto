@@ -1453,6 +1453,63 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
         ])
 	}
 	
+	const FixedFloatingElement = React.createClass({
+		getInitialState:function(){
+			return {params:null};
+		},
+		findAnchorParent:function(){			
+			let parent = this.el.parentElement;
+			while(!parent&&parent.getBoundingClientRect().top<0) parent = parent.parentElement;
+			return parent;			
+		},
+		isOutOfView:function(){
+			if(!this.el) return;
+			const parentTop = this.el.parentElement.getBoundingClientRect().top;
+			return this.el.getBoundingClientRect().top<parentTop|| parentTop<0;
+		},
+		process:function(){
+			const isOutOfView = this.isOutOfView();
+			if(!isOutOfView&&this.state.params) {
+				//if(!this.state.float) return;
+				this.setState({params:null});
+				log("notout of view")
+				return;
+			}
+			else if(isOutOfView&&!this.state.params){
+				log("out of view")
+				const anchorNode = this.findAnchorParent();
+				const height = this.el.getBoundingClientRect().height + "px";
+				const width = this.el.getBoundingClientRect().width + "px";
+				this.setState({params:{height,width}});
+			}
+		},
+		componentDidMount:function(){
+			addEventListener("scroll",this.process);
+			this.process();
+		},
+		componentDidUpdate:function(prevProps,prevState){
+			//this.process();
+		},
+		componentWillUnmount:function(){
+			removeEventListener("scroll",this.process);
+		},
+		render:function(){
+			const style = {
+					...this.props.style,
+					height:this.state.params?this.state.params.height:"",					
+				};
+			const floaterStyle={
+				position:this.state.params?"fixed":"",
+				zIndex:"6669",
+				width:this.state.params?this.state.params.width:"",
+				boxShadow:this.state.params?"0px 1px 2px 0px rgba(0,0,0,0.5)":""
+			}	
+			return React.createElement("div",{ref:(ref)=>this.el=ref,style},
+				React.createElement("div",{style:floaterStyle},this.props.children)
+			);
+		}
+	})
+	
 	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}
 	const onClickValue=({sendVal});
@@ -1466,7 +1523,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
-			SignIn,ChangePassword
+			SignIn,ChangePassword,
+			FixedFloatingElement
 		},
 		onClickValue,		
 		onReadySendBlob
