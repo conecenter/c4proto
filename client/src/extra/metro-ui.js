@@ -1,6 +1,6 @@
 "use strict";
 import React from 'react'
-
+import {pairOfInputAttributes}  from "../main/vdom-util"
 /*
 todo:
 replace createClass with lambda
@@ -295,6 +295,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				addEventListener("resize",this.recalc);
 			}					
 		},
+		componentDidUpdate:function(prevProps,prevState){			
+			if(prevProps.caption!=this.props.caption)
+				this.recalc();
+		},
 		componentWillUnmount:function(){
 			if(this.props.caption){
 				removeEventListener("resize",this.recalc);
@@ -358,7 +362,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			}
 			if(this.props.fkey) press(this.props.fkey)
 			if(this.props.onClickValue)
-				this.props.onClickValue(ev,this.props.fkey);
+				this.props.onClickValue("key",this.props.fkey);
 		},
 		onTouchStart:function(e){
 			this.setState({touch:true});
@@ -536,7 +540,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 						   React.createElement(VKTd,{style:tdStyle,key:"1",fkey:"1"},'1'),
 						   React.createElement(VKTd,{style:tdStyle,key:"2",fkey:"2"},'2'),
 						   React.createElement(VKTd,{style:tdStyle,key:"3",fkey:"3"},'3'),
-						   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:Object.assign({},specialTdStyle,{height:"90%"}),key:"4",fkey:"Enter"},enterEl),
+						   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:Object.assign({},specialTdStyle,{height:"90%"}),bStyle:{width:"90%"},key:"4",fkey:"Enter"},enterEl),
 					   ]),
 					   React.createElement("tr",{key:"6"},[
 						   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
@@ -747,6 +751,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onMouseOut:function(e){
 			this.setState({mouseOver:false});
 		},
+		componentDidUpdate:function(prevProps,prevState){			
+			log(this.props,prevProps);			
+		},
 		render:function(){
 			const labelStyle={
 				color:"rgb(33,33,33)",
@@ -798,7 +805,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const type = this.props.type?this.props.type:"text"
 			return React.createElement("div",{style:inpContStyle},
 					React.createElement("div",{key:"1",style:inp2ContStyle},
-          React.createElement("input",{key:"1",type,placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
+						React.createElement("input",{key:"1",type,placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
+
 					)
 				);
 					
@@ -888,11 +896,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		onChange:function(e){
 			if(this.props.onChange)
-				this.props.onChange(e);
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}});
 		},
 		onClick:function(e){
-			if(this.props.onClick)
-				this.props.onClick(e);
+			if(this.props.onClickValue)
+				this.props.onClickValue("click");
 		},
 		onMouseOverI:function(){
 			this.setState({mouseOverI:true});
@@ -1229,7 +1237,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:(this.props.value&&this.props.value.length>0)?"black":"transparent",
 				borderRadius:"70%",
 				verticalAlign:"top",
-				marginTop:"0.22em",
+				marginTop:"0.19em",
 				//marginLeft:"0.05em",
 			};
 			
@@ -1292,14 +1300,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const reader= fileReader();
 			const file = e.target.files[0];
 			reader.onload=(event)=>{				
-				if(this.props.onReadySend){
+				if(this.props.onReadySendBlob){
 					const blob = event.target.result;
-					this.props.onReadySend(blob);
-				}
-				if(this.props.onClickValue){
-					this.props.onClickValue(null,this.fInp.value)
-					
-				}
+					this.props.onReadySendBlob(this.fInp.value,blob);
+				}				
 				this.setState({reading:false});
 			}
 			reader.onprogress=()=>this.setState({reading:true});
@@ -1410,11 +1414,50 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		}
 	}); 
 	
+	const ChangePassword = prop => {
+        const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"change"})
+		const defButtonStyle = {alignSelf:"flex-end",marginBottom:"0.524em"}
+		const disabledButtonStyle = {backgroundColor:"lightGrey",...defButtonStyle}
+		const buttonStyle = attributesA.value && attributesA.value === attributesB.value?{backgroundColor:"#c0ced8",...defButtonStyle}:disabledButtonStyle
+		const buttonOverStyle = attributesA.value && attributesA.value === attributesB.value?{backgroundColor:"#d4e2ec",...defButtonStyle}:disabledButtonStyle		
+		const onClick = attributesA.value && attributesA.value === attributesB.value? prop.onBlur:()=>{}
+        
+        return React.createElement("div",{style:{display:"flex"}},[
+			React.createElement(DropDownWrapperElement,{style:{flex:"1 1 0%"}},
+				React.createElement(LabelElement,{label:"New password"},null),
+				React.createElement(InputElement,{...attributesA,type:"password"},null)			
+			),
+			React.createElement(DropDownWrapperElement,{style:{flex:"1 1 0%"}},
+				React.createElement(LabelElement,{label:"Again"},null),
+				React.createElement(InputElement,{...attributesB,type:"password"},null)			
+			),            
+            React.createElement(GotoButton, {onClick, style:buttonStyle,overStyle:buttonOverStyle}, "Submit")
+        ])
+    }
+    const SignIn = prop => {
+        const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
+		const buttonStyle = {backgroundColor:"#c0ced8"}
+		const buttonOverStyle = {backgroundColor:"#d4e2ec"}
+        return React.createElement("div",{style:{margin:"1em 0em"}},[
+			React.createElement(DropDownWrapperElement,{},
+				React.createElement(LabelElement,{label:"Username"},null),
+				React.createElement(InputElement,{...attributesA},null)			
+			),
+			React.createElement(DropDownWrapperElement,{},
+				React.createElement(LabelElement,{label:"Password"},null),
+				React.createElement(InputElement,{...attributesB,type:"password"},null)			
+			),
+			React.createElement("div",{style:{textAlign:"right",paddingRight:"0.3125em"}},
+				React.createElement(GotoButton,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},"Login")
+			)			
+        ])
+	}
 	
-	const sendVk = ctx => (event,value) => {sender.send(ctx,({value}));}
-	const sendBlob = ctx => (value) => {sender.send(ctx,({value}));}
-	const onClickValue=({sendVk});
-	const onReadySend=({sendBlob});
+	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
+	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}
+	const onClickValue=({sendVal});
+	
+	const onReadySendBlob=({sendBlob});
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
@@ -1422,10 +1465,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             RadioButtonElement,FileUploadElement,TextArea,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
-            ConnectionState
+            ConnectionState,
+			SignIn,ChangePassword
 		},
-		onClickValue,
-		onReadySend
+		onClickValue,		
+		onReadySendBlob
 	};
 	return ({transforms});
 }
