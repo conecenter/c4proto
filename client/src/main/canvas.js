@@ -74,29 +74,29 @@ export function ResizeCanvasSystem(util,createElement){
     return ({fontMeter})
 }
 
+//state.changedSizes && index >= parseInt(state.changedSizes.sent["X-r-index"]) ? {...state, changedSizes: null} : state
 export function ResizeCanvasSetup(canvas,system,getComputedStyle){
-    let wasSizes
+    let sent
     function woPx(value){ return value.substring(0,value.length-2) }
     function processFrame(frame,prev){
         const div = canvas.parentNode()
         const canvasWidth = parseInt(woPx(getComputedStyle(div).width))
         if(!canvasWidth) return;
-        const key = canvasWidth + ":" + ((Date.now()/1000)|0)
-        if(wasSizes !== key){ //int?
-            const fontMeter = system.fontMeter()
-            if(!fontMeter.parentElement){
-                fontMeter.style.cssText = "height:1em;padding:0px;margin:0px"
-                canvas.appendChild(fontMeter)
-            }
-            const canvasFontSize = parseInt(woPx(getComputedStyle(fontMeter).height))
-            const sizes = canvasFontSize+" "+canvasWidth
-            if(canvas.acknowledgedSizes() !== sizes)
-                canvas.sendToServer({
-                    "X-r-action": "canvasResize",
-                    "X-r-canvas-sizes": sizes
-                })
-            wasSizes = key
+        const fontMeter = system.fontMeter()
+        if(!fontMeter.parentElement){
+            fontMeter.style.cssText = "height:1em;padding:0px;margin:0px"
+            canvas.appendChild(fontMeter)
         }
+        const canvasFontSize = parseInt(woPx(getComputedStyle(fontMeter).height))
+        const sizes = canvasFontSize+" "+canvasWidth
+        const wasSizes = sent && canvas.acknowledgedIndex() < sent.index ? sent.sizes : canvas.acknowledgedSizes()
+        if(wasSizes === sizes) return;
+        const sentH = canvas.sendToServer({
+            "X-r-action": "canvasResize",
+            "X-r-canvas-sizes": sizes
+        })
+        const index = parseInt(sentH["X-r-index"])
+        sent = {sizes,index}
     }
     return ({processFrame})
 }
@@ -110,6 +110,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
         return res.length === 1 ? res[0] : null
     }
     function acknowledgedSizes(){ return currentState.acknowledgedSizes }
+    function acknowledgedIndex(){ return currentState.acknowledgedIndex || 0 }
     function branchKey(){ return currentState.branchKey }
     function fromServer(){ return currentState.parsed }
     function checkActivate(state){
@@ -277,7 +278,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
         setupFrame,processFrame,viewPositions,composeFrameStart,
         checkActivate, remove,
         zoomToScale, compareFrames, elementPos, updateFromServerVersion,
-        parentNode, branchKey, acknowledgedSizes
+        parentNode, branchKey, acknowledgedSizes, acknowledgedIndex
     }
 }
 
