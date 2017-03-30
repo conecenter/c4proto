@@ -10,7 +10,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader}){
+export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset}){
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -126,14 +126,52 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement(button,{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
-	const MenuBarElement=({style,children})=>React.createElement("div",{style:{
-		display:'flex',
-		flexWrap:'nowrap',
-		justifyContent:'flex-start',
-		//backgroundColor:'#c0ced8',
-		verticalAlign:'middle',
-		...style
-	}},children);
+	const MenuBarElement=React.createClass({
+		getInitialState:function(){
+			return {fixedHeight:"",scrolled:false}
+		},
+		process:function(){
+			if(!this.el) return;
+			const height = this.el.getBoundingClientRect().height + "px";
+			if(height !== this.state.fixedHeight)
+				this.setState({fixedHeight:height});
+		},
+		onScroll:function(){
+			const scrolled = getPageYOffset()>0;
+			if(!this.state.scrolled&&scrolled) this.setState({scrolled}) 
+			else if(this.state.scrolled&&!scrolled) this.setState({scrolled})
+		},
+		componentWillUnmount:function(){
+			removeEventListener("scroll",this.onScroll);
+		},
+		componentDidUpdate:function(){
+			this.process();
+		},
+		componentDidMount:function(){
+			this.process();
+			addEventListener("scroll",this.onScroll);
+		},
+		render:function(){
+			const style = {
+				height:this.state.fixedHeight				
+			}
+			const barStyle = {
+				display:'flex',
+				flexWrap:'nowrap',
+				justifyContent:'flex-start',
+				//backgroundColor:'#c0ced8',
+				verticalAlign:'middle',
+				position:"fixed",
+				width:"100%",
+				zIndex:"6669",
+				boxShadow:this.state.scrolled?"0px 1px 2px 0px rgba(0,0,0,0.5)":"",
+				...this.props.style
+			}
+			return React.createElement("div",{style:style},				
+				React.createElement("div",{style:barStyle,ref:ref=>this.el=ref},this.props.children)
+			)
+		}		
+	});
 	const MenuDropdownElement = ({style,children}) => React.createElement("div",{
         style: {
             position:'absolute',
@@ -964,7 +1002,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflow: "auto",				
 				maxHeight: "10rem",				
 				backgroundColor: "white",
-				zIndex: "5",
+				zIndex: "666",
 				boxSizing:"border-box",
 				overflowX:"hidden",
 			};
@@ -1472,11 +1510,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			if(!isOutOfView&&this.state.params) {
 				//if(!this.state.float) return;
 				this.setState({params:null});
-				log("notout of view")
+				//log("notout of view")
 				return;
 			}
 			else if(isOutOfView&&!this.state.params){
-				log("out of view")
+				//log("out of view")
 				const anchorNode = this.findAnchorParent();
 				const height = this.el.getBoundingClientRect().height + "px";
 				const width = this.el.getBoundingClientRect().width + "px";
@@ -1523,8 +1561,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
-			SignIn,ChangePassword,
-			FixedFloatingElement
+			SignIn,ChangePassword			
 		},
 		onClickValue,		
 		onReadySendBlob
