@@ -73,7 +73,7 @@ case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[World], view: 
 object VDomUntilImpl extends VDomUntil {
   def get(pairs: ViewRes): (Long, ViewRes) =
     (pairs.collect{ case u: UntilPair ⇒ u.until } match {
-      case Nil ⇒ 0L
+      case l if l.isEmpty ⇒ 0L
       case l ⇒ l.min
     }, pairs.filterNot(_.isInstanceOf[UntilPair]))
 }

@@ -34,7 +34,7 @@ class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
     val world = TxKey.of(local).world
     val publicationsByPath = By.srcId(classOf[HttpPublication]).of(world)
     publicationsByPath.getOrElse(path,Nil).filter(_.until.forall(now<_)) match {
-      case publication :: Nil ⇒
+      case Seq(publication) ⇒
         val headers = httpExchange.getResponseHeaders
         publication.headers.foreach(header⇒headers.add(header.key,header.value))
         val bytes = publication.body.toByteArray

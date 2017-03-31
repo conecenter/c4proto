@@ -67,8 +67,8 @@ case object EmptyBranchMessage extends BranchMessage {
 case class BranchTxTransform(
   branchKey: String,
   seed: Option[BranchResult],
-  sessionKeys: List[SrcId],
-  posts: List[MessageFromAlien],
+  sessionKeys: Values[SrcId],
+  posts: Values[MessageFromAlien],
   handler: BranchHandler
 ) extends TxTransform {
   private def saveResult: World ⇒ World = local ⇒ {
@@ -82,7 +82,7 @@ case class BranchTxTransform(
     if(wasChildren == newChildren) local
     else {
       val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
-      add(wasBranchResults.flatMap(delete) ::: newBranchResult.flatMap(update))(local)
+      add(wasBranchResults.flatMap(delete) ++ newBranchResult.flatMap(update))(local)
     }
   }
 
@@ -95,7 +95,7 @@ case class BranchTxTransform(
       val world = TxKey.of(local).world
       val index = By.srcId(classOf[BranchResult]).of(world)
       def gather(branchKey: SrcId): List[String] = {
-        val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash)
+        val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash).toList
         (branchKey :: children).mkString(",") :: children.flatMap(gather)
       }
       val newReport = gather(branchKey).mkString(";")

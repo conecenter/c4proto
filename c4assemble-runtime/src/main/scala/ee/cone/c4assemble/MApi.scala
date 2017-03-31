@@ -5,7 +5,7 @@ import scala.collection.immutable.Map
 import Types._
 
 object Types {
-  type Values[V] = List[V]
+  type Values[V] = Seq[V]
   type Index[K,V] = Map[K,Values[V]]
   type World = Map[WorldKey[_],Object]
 }
