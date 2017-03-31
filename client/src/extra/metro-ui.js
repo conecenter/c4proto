@@ -164,6 +164,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				position:"fixed",
 				width:"100%",
 				zIndex:"6669",
+				top:"0rem",
 				boxShadow:this.state.scrolled?"0px 1px 2px 0px rgba(0,0,0,0.5)":"",
 				...this.props.style
 			}
@@ -704,9 +705,65 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		borderSpacing:'0px',
 		width:'100%',
 		lineHeight:"1.1",
+		minWidth:"0",
 		...style
 	}},children);
-	const THeadElement = ({style,children})=>React.createElement("thead",{style:style},children);
+	const THeadElement = React.createClass({
+		getInitialState:function(){
+			return {dims:null,floating:false};
+		},
+		findTable:function(){
+			if(!this.el) return;
+			let parent = this.el.parentElement;
+			while(parent&&parent.tagName!="TABLE") parent = parent.parentElement;
+			return parent;
+		},
+		onScroll:function(ev){
+			const tableEl  = this.findTable();
+			const target = ev.target;
+			if(!tableEl||target.lastElementChild != tableEl) return;
+			
+			const floating = target.getBoundingClientRect().top > tableEl.getBoundingClientRect().top;
+			if( floating&& !this.state.floating ) this.setState({floating});
+			else if(!floating && this.state.floating) this.setState({floating});	
+				
+		},
+		calcDims:function(){
+			if(!this.el) return;
+			const dim =this.el.getBoundingClientRect();
+			const height = dim.height +"px";
+			const width = dim.width +"px"			
+			this.setState({dims:{height,width}});
+		},
+		componentDidMount:function(){
+			//addEventListener("scroll",this.onScroll,true);
+			//this.calcDims();
+		},
+		componentDidUpdate:function(){},
+		componentWillUnmount:function(){
+			//removeEventListener("scroll",this.onScroll);
+		},
+		render:function(){
+			const height = this.state.floating&&this.state.dims?this.state.dims.height:"";
+			const width = this.state.floating&&this.state.dims?this.state.dims.width:"";
+			const style={
+				position:this.state.floating?"absolute":"",
+				height:height,
+				display:this.state.floating?"table":"",
+				width:width,				
+				...this.props.style
+			};
+			const expHeaderStyle ={
+				height: height,
+				display:this.state.floating?"block":"none",
+			};
+			
+			return this.state.floating?React.createElement("div",{style:expHeaderStyle},React.createElement("thead",{style:style},this.props.children)):React.createElement("thead",{ref:ref=>this.el=ref,style:style},this.props.children);
+				//React.createElement("div",{style:expHeaderStyle},null)
+			
+		}
+	});
+		
 	const TBodyElement = ({style,children})=>React.createElement("tbody",{style:style},children);
 	const THElement = ({style,children})=>React.createElement("th",{style:{
 		borderBottom:'1px solid #b6b6b6',
