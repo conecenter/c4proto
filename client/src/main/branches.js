@@ -43,10 +43,15 @@ export default function Branches(log,branchHandlers){
         //active.forEach([parentKey,childKeys] => childKeys.forEach(setParent(()=>branchesByKey[parentKey])))
     }
 
+    function ackChange(data){
+        const [branchKey,body] = splitFirst(" ", data)
+        modify(branchKey, v => v => (v.ackChange || (v=>v))(body)(v) )
+    }
+
     const receivers = mergeAll(
         Object.entries(branchHandlers)
             .map(([eventName,handler]) => ({[eventName]: toReceiver(handler)}))
-            .concat({branches})
+            .concat({branches,ackChange})
     )
 
     function checkActivate(){

@@ -9,17 +9,16 @@ export default function CanvasManager(canvasFactory,feedback){
 
 
     const showCanvasData = data => state => {
-        const [acknowledgedSizes,body] = splitFirst(" ", data)
         const canvas = state.canvas || canvasFactory()
         return ({
-            ...state, canvas, acknowledgedSizes,
-            remove: canvas.remove, checkActivate: canvas.checkActivate,
-            parsed: JSON.parse(body)
+            ...state, canvas,
+            remove: canvas.remove,
+            checkActivate: canvas.checkActivate,
+            ackChange: canvas.ackChange,
+            parsed: JSON.parse(data)
         })
     }
-
-    const ackChange = data => state => ({...state, acknowledgedIndex: parseInt(data)})
         //acknowledgedSizes => state => ({...state, acknowledgedSizes})
-    const branchHandlers = ({showCanvasData,ackChange}) // todo branches cleanup
+    const branchHandlers = ({showCanvasData}) // todo branches cleanup
     return ({branchHandlers})
 }
