@@ -14,7 +14,7 @@ import ee.cone.c4proto
   @Id(0x0001) case class RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }
 
-case class ParentNodeWithChildren(srcId: String, caption: String, children: List[RawChildNode])
+case class ParentNodeWithChildren(srcId: String, caption: String, children: Values[RawChildNode])
 @assemble class TestAssemble extends Assemble {
   type ParentSrcId = SrcId
   def joinChildNodeByParent(
