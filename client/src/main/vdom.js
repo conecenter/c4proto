@@ -4,7 +4,7 @@ import ReactDOM        from 'react-dom'
 import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 import update          from 'react/lib/update'
 
-export default function VDom(getRootElement, createElement, activeTransforms){
+export default function VDom(getRootElement, createElement, activeTransforms, changes){
     function never(){ throw ["traverse error"] }
     const Traverse = React.createClass({
         mixins: [PureRenderMixin],
@@ -52,7 +52,8 @@ export default function VDom(getRootElement, createElement, activeTransforms){
             rootNativeElement.parentElement.removeChild(rootNativeElement)
             ReactDOM.unmountComponentAtNode(rootNativeElement)
         }
-        return ({...state,rootComponent,remove})
+        const ackChange = changes && changes.ackChange
+        return ({...state,rootComponent,remove,ackChange})
     }
 
     const showDiff = data => existingState => {
