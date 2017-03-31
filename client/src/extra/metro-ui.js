@@ -10,7 +10,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader}){
+export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset}){
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -126,14 +126,53 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement(button,{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
-	const MenuBarElement=({style,children})=>React.createElement("div",{style:{
-		display:'flex',
-		flexWrap:'nowrap',
-		justifyContent:'flex-start',
-		//backgroundColor:'#c0ced8',
-		verticalAlign:'middle',
-		...style
-	}},children);
+	const MenuBarElement=React.createClass({
+		getInitialState:function(){
+			return {fixedHeight:"",scrolled:false}
+		},
+		process:function(){
+			if(!this.el) return;
+			const height = this.el.getBoundingClientRect().height + "px";
+			if(height !== this.state.fixedHeight)
+				this.setState({fixedHeight:height});
+		},
+		onScroll:function(){
+			const scrolled = getPageYOffset()>0;
+			if(!this.state.scrolled&&scrolled) this.setState({scrolled}) 
+			else if(this.state.scrolled&&!scrolled) this.setState({scrolled})
+		},
+		componentWillUnmount:function(){
+			removeEventListener("scroll",this.onScroll);
+		},
+		componentDidUpdate:function(){
+			this.process();
+		},
+		componentDidMount:function(){
+			this.process();
+			addEventListener("scroll",this.onScroll);
+		},
+		render:function(){
+			const style = {
+				height:this.state.fixedHeight				
+			}
+			const barStyle = {
+				display:'flex',
+				flexWrap:'nowrap',
+				justifyContent:'flex-start',
+				backgroundColor:'#2196f3',
+				verticalAlign:'middle',
+				position:"fixed",
+				width:"100%",
+				zIndex:"6669",
+				top:"0rem",
+				boxShadow:this.state.scrolled?"0px 1px 2px 0px rgba(0,0,0,0.5)":"",
+				...this.props.style
+			}
+			return React.createElement("div",{style:style},				
+				React.createElement("div",{style:barStyle,ref:ref=>this.el=ref},this.props.children)
+			)
+		}		
+	});
 	const MenuDropdownElement = ({style,children}) => React.createElement("div",{
         style: {
             position:'absolute',
@@ -666,9 +705,65 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		borderSpacing:'0px',
 		width:'100%',
 		lineHeight:"1.1",
+		minWidth:"0",
 		...style
 	}},children);
-	const THeadElement = ({style,children})=>React.createElement("thead",{style:style},children);
+	const THeadElement = React.createClass({
+		getInitialState:function(){
+			return {dims:null,floating:false};
+		},
+		findTable:function(){
+			if(!this.el) return;
+			let parent = this.el.parentElement;
+			while(parent&&parent.tagName!="TABLE") parent = parent.parentElement;
+			return parent;
+		},
+		onScroll:function(ev){
+			const tableEl  = this.findTable();
+			const target = ev.target;
+			if(!tableEl||target.lastElementChild != tableEl) return;
+			
+			const floating = target.getBoundingClientRect().top > tableEl.getBoundingClientRect().top;
+			if( floating&& !this.state.floating ) this.setState({floating});
+			else if(!floating && this.state.floating) this.setState({floating});	
+				
+		},
+		calcDims:function(){
+			if(!this.el) return;
+			const dim =this.el.getBoundingClientRect();
+			const height = dim.height +"px";
+			const width = dim.width +"px"			
+			this.setState({dims:{height,width}});
+		},
+		componentDidMount:function(){
+			//addEventListener("scroll",this.onScroll,true);
+			//this.calcDims();
+		},
+		componentDidUpdate:function(){},
+		componentWillUnmount:function(){
+			//removeEventListener("scroll",this.onScroll);
+		},
+		render:function(){
+			const height = this.state.floating&&this.state.dims?this.state.dims.height:"";
+			const width = this.state.floating&&this.state.dims?this.state.dims.width:"";
+			const style={
+				position:this.state.floating?"absolute":"",
+				height:height,
+				display:this.state.floating?"table":"",
+				width:width,				
+				...this.props.style
+			};
+			const expHeaderStyle ={
+				height: height,
+				display:this.state.floating?"block":"none",
+			};
+			
+			return this.state.floating?React.createElement("div",{style:expHeaderStyle},React.createElement("thead",{style:style},this.props.children)):React.createElement("thead",{ref:ref=>this.el=ref,style:style},this.props.children);
+				//React.createElement("div",{style:expHeaderStyle},null)
+			
+		}
+	});
+		
 	const TBodyElement = ({style,children})=>React.createElement("tbody",{style:style},children);
 	const THElement = ({style,children})=>React.createElement("th",{style:{
 		borderBottom:'1px solid #b6b6b6',
@@ -678,6 +773,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		fontWeight:'bold',
 		padding:'1px 2px 1px 2px',
 		verticalAlign:'middle',
+		overflow:"hidden",
+		textOverflow:"ellipsis",
 		...style
 	}},children);
 	const TDElement = ({style,children})=>React.createElement("td",{style:{
@@ -690,6 +787,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		fontSize:'1rem',
 		borderBottom:'none',
 		fontWeight:'normal',
+		overflow:"hidden",
+		textOverflow:"ellipsis",
 		...style
 	}},children);
 	const TRElement = React.createClass({
@@ -929,20 +1028,24 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				position:"relative",
 				verticalAlign:"middle",
 				width:"100%",
+				border:"0.01rem solid",
+				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
+				backgroundColor:(this.props.onChange)?"white":"#eeeeee",
 				...this.props.style
 			};
 			const inp2ContStyle={
 				flex:"1 1 0%",
 				height:"auto",
 				minHeight:"100%",
-				overflow:"hidden",				
+				overflow:"hidden",
+				backgroundColor:"inherit"
 			};
 			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
-				border:"0.01rem solid",
+				border:"none",
 				height:"100%",
 				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
 				width:"100%",
@@ -953,8 +1056,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflow:"hidden",
 				fontSize:"inherit",
 				textTransform:"inherit",
-				backgroundColor:(this.props.onChange)?"":"#eeeeee",
-				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
+				backgroundColor:"inherit",
 				...this.props.inputStyle
 			};
 			const popupStyle={
@@ -964,7 +1066,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflow: "auto",				
 				maxHeight: "10rem",				
 				backgroundColor: "white",
-				zIndex: "5",
+				zIndex: "666",
 				boxSizing:"border-box",
 				overflowX:"hidden",
 			};
@@ -974,9 +1076,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				height:"100%",
 				padding:"0.2rem",
 				lineHeight:"1",
-				backgroundColor:this.props.onClick?"transparent":"#eeeeee",
-				border:"0.01rem solid",
-				borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
+				backgroundColor:"inherit",
+				//backgroundColor:this.props.onClick?"":"#eeeeee",
+				//border:this.state.mouseOverB?"0.01rem solid":"none",
+				//borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
 			};
 			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
 				flex:"0 1 auto"
@@ -997,9 +1100,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);			
 			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null;
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			return React.createElement("div",{style:inpContStyle},[
+			return React.createElement("div",{style:inpContStyle,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},[
 				React.createElement("div",{key:"1",style:inp2ContStyle},[
-					React.createElement("input",{key:"1",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null),
+					React.createElement("input",{key:"1",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
 					popupWrapEl					
 				]),
 				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
@@ -1453,6 +1556,63 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
         ])
 	}
 	
+	const FixedFloatingElement = React.createClass({
+		getInitialState:function(){
+			return {params:null};
+		},
+		findAnchorParent:function(){			
+			let parent = this.el.parentElement;
+			while(!parent&&parent.getBoundingClientRect().top<0) parent = parent.parentElement;
+			return parent;			
+		},
+		isOutOfView:function(){
+			if(!this.el) return;
+			const parentTop = this.el.parentElement.getBoundingClientRect().top;
+			return this.el.getBoundingClientRect().top<parentTop|| parentTop<0;
+		},
+		process:function(){
+			const isOutOfView = this.isOutOfView();
+			if(!isOutOfView&&this.state.params) {
+				//if(!this.state.float) return;
+				this.setState({params:null});
+				//log("notout of view")
+				return;
+			}
+			else if(isOutOfView&&!this.state.params){
+				//log("out of view")
+				const anchorNode = this.findAnchorParent();
+				const height = this.el.getBoundingClientRect().height + "px";
+				const width = this.el.getBoundingClientRect().width + "px";
+				this.setState({params:{height,width}});
+			}
+		},
+		componentDidMount:function(){
+			addEventListener("scroll",this.process);
+			this.process();
+		},
+		componentDidUpdate:function(prevProps,prevState){
+			//this.process();
+		},
+		componentWillUnmount:function(){
+			removeEventListener("scroll",this.process);
+		},
+		render:function(){
+			const style = {
+					...this.props.style,
+					height:this.state.params?this.state.params.height:"",					
+				};
+			const floaterStyle={
+				position:this.state.params?"fixed":"",
+				zIndex:"6669",
+				width:this.state.params?this.state.params.width:"",
+				boxShadow:this.state.params?"0px 1px 2px 0px rgba(0,0,0,0.5)":""
+			}	
+			return React.createElement("div",{ref:(ref)=>this.el=ref,style},
+				React.createElement("div",{style:floaterStyle},this.props.children)
+			);
+		}
+	})
+	
 	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}
 	const onClickValue=({sendVal});
@@ -1466,7 +1626,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
-			SignIn,ChangePassword
+			SignIn,ChangePassword			
 		},
 		onClickValue,		
 		onReadySendBlob
