@@ -7,7 +7,8 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   @Id(0x002C) case class HttpPublication(
     @Id(0x0021) path: String,
     @Id(0x0022) headers: List[Header],
-    @Id(0x0023) body: okio.ByteString
+    @Id(0x0023) body: okio.ByteString,
+    @Id(0x002E) until: Option[Long]
   )
   @Id(0x0020) case class HttpPost(
     @Id(0x002A) srcId: String,
@@ -28,7 +29,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   )
   @Id(0x0028) case class TcpConnection(@Id(0x0027) connectionKey: String)
   @Id(0x0029) case class TcpDisconnect(@Id(0x0027) connectionKey: String)
-  //0x002E 0x002F
+  //0x002F
 }
 
 @protocol object AlienProtocol extends Protocol {

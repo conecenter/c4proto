@@ -29,14 +29,20 @@ class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "GET") return false
     val path = httpExchange.getRequestURI.getPath
+    val now = System.currentTimeMillis
     val local = worldProvider.createTx()
     val world = TxKey.of(local).world
-    val publication = Single(By.srcId(classOf[HttpPublication]).of(world)(path))
-    val headers = httpExchange.getResponseHeaders
-    publication.headers.foreach(header⇒headers.add(header.key,header.value))
-    val bytes = publication.body.toByteArray
-    httpExchange.sendResponseHeaders(200, bytes.length)
-    if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
+    val publicationsByPath = By.srcId(classOf[HttpPublication]).of(world)
+    publicationsByPath.getOrElse(path,Nil).filter(_.until.forall(now<_)) match {
+      case publication :: Nil ⇒
+        val headers = httpExchange.getResponseHeaders
+        publication.headers.foreach(header⇒headers.add(header.key,header.value))
+        val bytes = publication.body.toByteArray
+        httpExchange.sendResponseHeaders(200, bytes.length)
+        if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
+      case _ ⇒
+        httpExchange.sendResponseHeaders(404, 0)
+    }
     true
   }
 }
