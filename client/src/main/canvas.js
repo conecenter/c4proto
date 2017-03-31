@@ -90,7 +90,7 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
         }
         const canvasFontSize = parseInt(woPx(getComputedStyle(fontMeter).height))
         const sizes = canvasFontSize+","+canvasWidth
-        const wasSizes = sent && acknowledgedIndex < sent.index ? sent.sizes : canvas.fromServer().acknowledgedSizes
+        const wasSizes = sent && acknowledgedIndex < sent.index ? sent.sizes : canvas.fromServer().sizes
         if(wasSizes === sizes) return;
         const sentH = canvas.sendToServer({
             "X-r-action": "canvasResize",
