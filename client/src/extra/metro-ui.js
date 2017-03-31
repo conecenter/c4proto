@@ -159,7 +159,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				display:'flex',
 				flexWrap:'nowrap',
 				justifyContent:'flex-start',
-				//backgroundColor:'#c0ced8',
+				backgroundColor:'#2196f3',
 				verticalAlign:'middle',
 				position:"fixed",
 				width:"100%",
@@ -716,6 +716,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		fontWeight:'bold',
 		padding:'1px 2px 1px 2px',
 		verticalAlign:'middle',
+		overflow:"hidden",
+		textOverflow:"ellipsis",
 		...style
 	}},children);
 	const TDElement = ({style,children})=>React.createElement("td",{style:{
@@ -728,6 +730,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		fontSize:'1rem',
 		borderBottom:'none',
 		fontWeight:'normal',
+		overflow:"hidden",
+		textOverflow:"ellipsis",
 		...style
 	}},children);
 	const TRElement = React.createClass({
@@ -967,20 +971,24 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				position:"relative",
 				verticalAlign:"middle",
 				width:"100%",
+				border:"0.01rem solid",
+				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
+				backgroundColor:(this.props.onChange)?"white":"#eeeeee",
 				...this.props.style
 			};
 			const inp2ContStyle={
 				flex:"1 1 0%",
 				height:"auto",
 				minHeight:"100%",
-				overflow:"hidden",				
+				overflow:"hidden",
+				backgroundColor:"inherit"
 			};
 			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
-				border:"0.01rem solid",
+				border:"none",
 				height:"100%",
 				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
 				width:"100%",
@@ -991,8 +999,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflow:"hidden",
 				fontSize:"inherit",
 				textTransform:"inherit",
-				backgroundColor:(this.props.onChange)?"":"#eeeeee",
-				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
+				backgroundColor:"inherit",
 				...this.props.inputStyle
 			};
 			const popupStyle={
@@ -1012,9 +1019,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				height:"100%",
 				padding:"0.2rem",
 				lineHeight:"1",
-				backgroundColor:this.props.onClick?"transparent":"#eeeeee",
-				border:"0.01rem solid",
-				borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
+				backgroundColor:"inherit",
+				//backgroundColor:this.props.onClick?"":"#eeeeee",
+				//border:this.state.mouseOverB?"0.01rem solid":"none",
+				//borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
 			};
 			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
 				flex:"0 1 auto"
@@ -1035,9 +1043,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);			
 			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null;
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			return React.createElement("div",{style:inpContStyle},[
+			return React.createElement("div",{style:inpContStyle,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},[
 				React.createElement("div",{key:"1",style:inp2ContStyle},[
-					React.createElement("input",{key:"1",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null),
+					React.createElement("input",{key:"1",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
 					popupWrapEl					
 				]),
 				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
