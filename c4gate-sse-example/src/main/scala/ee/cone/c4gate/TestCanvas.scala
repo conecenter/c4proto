@@ -106,7 +106,7 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
           builder.append("strokeRect")
         };
         {
-          ???
+          //???
         }
 
         endContext(builder)

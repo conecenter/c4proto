@@ -9,7 +9,7 @@ export default function Branches(log,branchHandlers){
         const state = by(branchesByKey[branchKey] || {branchKey, modify})
         //if(branchesByKey[branchKey]!==state) log({a:"mod",branchKey,state})
         if(branchesByKey[branchKey]!==state){
-            log({state})
+            log({state,branchKey})
             if(state) branchesByKey[branchKey] = state
             else delete branchesByKey[branchKey]
         }
@@ -45,7 +45,7 @@ export default function Branches(log,branchHandlers){
 
     function ackChange(data){
         const [branchKey,body] = splitFirst(" ", data)
-        modify(branchKey, v => v => (v.ackChange || (v=>v))(body)(v) )
+        modify(branchKey, v => (v.ackChange || (data=>v=>v))(body)(v) )
     }
 
     const receivers = mergeAll(
