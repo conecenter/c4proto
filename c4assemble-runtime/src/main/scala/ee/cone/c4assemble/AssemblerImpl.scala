@@ -7,7 +7,7 @@ import Types._
 import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
 import scala.annotation.tailrec
-import scala.collection.immutable.Map
+import scala.collection.immutable.{Map, TreeMap, TreeSet}
 import Function.tupled
 
 class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
@@ -22,7 +22,73 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
     (res /: diff)((res, kv) ⇒ one(res, kv._1, kv._2))
 }
 
-class IndexFactoryImpl extends IndexFactory {
+class SimpleIndexValueMergerFactory extends IndexValueMergerFactory {
+  def create[R <: Product]: (Values[R],MultiSet[R]) ⇒ Values[R] = {
+    val add: PatchMap[R,Int,Int] = new PatchMap[R,Int,Int](0,_==0,(v,d)⇒v+d)
+    (value,delta) ⇒ add.many(delta, value, 1).flatMap{ case(node,count) ⇒
+      if(count<0) throw new Exception(s"$node -- $delta -- $value")
+      List.fill(count)(node)
+    }.toList.sortBy(ToPrimaryKey(_))
+  }
+}
+
+object ToPrimaryKey {
+  def apply(node: Product): String = node.productElement(0) match {
+    case s: String ⇒ s
+    case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
+  }
+}
+
+case class CachingSeq[R](list: List[R], multiSet: MultiSet[R]) extends Seq[R] {
+  def length: Int = list.size
+  def apply(idx: Int): R = list(idx)
+  def iterator: Iterator[R] = list.iterator
+}
+
+class CachingIndexValueMergerFactory(from: Int) extends IndexValueMergerFactory {
+  def create[R <: Product]: (Values[R], MultiSet[R]) ⇒ Values[R] = {
+    val add: PatchMap[R,Int,Int] = new PatchMap[R,Int,Int](0,_==0,(v,d)⇒v+d)
+    (value,delta) ⇒
+    val multiSet: MultiSet[R] = value match {
+      case value: CachingSeq[R] ⇒ add.many(value.multiSet, delta)
+      case s ⇒ add.many(delta, s, 1)
+    }
+    val list = multiSet.flatMap{ case(node,count) ⇒
+      if(count<0) throw new Exception(s"$node -- $delta -- $value")
+      List.fill(count)(node)
+    }.toList.sortBy(ToPrimaryKey(_))
+    if(list.size < from) list else CachingSeq(list,multiSet)
+  }
+}
+
+/*
+case class TreeSeq[V](orig: TreeSet[(V,Int)]) extends Seq[V] {
+  def length: Int = orig.size
+  def apply(idx: Int): V = orig.view(idx,idx+1).head._1
+  def iterator: Iterator[V] = orig.iterator.map(_._1)
+}
+
+class TreeIndexValueMergerFactory extends IndexValueMergerFactory {
+  def create[R <: Product]: (Values[R], MultiSet[R]) ⇒ Values[R] = {
+    (value,dMultiMap) ⇒
+      TreeSeq[R](value match {
+        case v: TreeSeq[R] ⇒ add(v.orig, dMultiMap)
+        case v ⇒ add(TreeSet.empty[(R,Int)], v.map(_→1) ++ dMultiMap)
+      })
+  }
+  private def add[R](orig: TreeSet[(R,Int)], dPairs: Iterable[(R,Int)]): TreeSet[(R,Int)] =
+    (orig /: dPairs){ (orig,dPair) ⇒
+      val (element,dCount) = dPair
+      @tailrec def chk(i: Int): Int = if(orig((element,i))) chk(i+1) else i
+      val count = chk(0)
+      if(dCount > 0) orig ++ (1 to dCount).map(i⇒(element,count+i))
+      else orig -- (dCount to -1).map(i⇒(element,count+i))
+    }
+}
+*/
+class IndexFactoryImpl(
+  merger: IndexValueMergerFactory
+) extends IndexFactory {
   def createJoinMapIndex[T,R<:Product,TK,RK](join: Join[T,R,TK,RK]):
     WorldPartExpression
       with DataDependencyFrom[Index[TK, T]]
@@ -30,25 +96,9 @@ class IndexFactoryImpl extends IndexFactory {
   = {
     val add: PatchMap[R,Int,Int] =
       new PatchMap[R,Int,Int](0,_==0,(v,d)⇒v+d)
+    val merge = merger.create[R]
     val addNestedPatch: PatchMap[RK,Values[R],MultiSet[R]] =
-      new PatchMap[RK,Values[R],MultiSet[R]](
-        Nil,_.isEmpty,
-        (v,d)⇒{
-          /**/
-          add.many(d, v, 1).flatMap{ case(node,count) ⇒
-            if(count<0) throw new Exception(s"$node -- $d -- $v")
-            List.fill(count)(node)
-          }.toList.sortBy(e ⇒ e.productElement(0) match {
-            case s: String ⇒ s
-            case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
-          })/**/
-
-
-
-
-
-        }
-      )
+      new PatchMap[RK,Values[R],MultiSet[R]](Nil,_.isEmpty, merge)
     val addNestedDiff: PatchMap[RK,MultiSet[R],R] =
       new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))
     val subNestedDiff: PatchMap[RK,MultiSet[R],R] =
