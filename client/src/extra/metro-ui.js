@@ -10,7 +10,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset}){
+export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,getInnerHeight}){
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -173,20 +173,48 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			)
 		}		
 	});
-	const MenuDropdownElement = ({style,children}) => React.createElement("div",{
-        style: {
-            position:'absolute',
-            borderRadius:'5%',
-            minWidth:'7em',
-            boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
-            zIndex:'10',
-            transitionProperty:'all',
-            transitionDuration:'0.15s',
-            transformOrigin:'50% 0%',
-            ...style
-        }
-    },children)
-
+	const MenuDropdownElement = React.createClass({
+		getInitialState:function(){
+			return {maxHeight:""};
+		},
+		calcMaxHeight:function(){
+			if(!this.el) return;
+			
+			const elTop = this.el.getBoundingClientRect().top;
+			const innerHeight = getInnerHeight();
+			if(this.props.isOpen&&parseFloat(this.state.maxHeight)!=innerHeight - elTop)						
+				this.setState({maxHeight:innerHeight - elTop + "px"});
+			//else if(!this.props.isOpen&&this.state.maxHeight.length>0)
+			//	this.setState({maxHeight:""});			
+		},
+		componentDidMount:function(){
+			//this.calcMaxHeight();
+		},
+		componentDidUpdate:function(){
+			//this.calcMaxHeight();
+		},
+		render:function(){
+			return React.createElement("div",{
+				ref:ref=>this.el=ref,
+				style: {
+					position:'absolute',
+					//borderRadius:'5%',
+					minWidth:'7em',
+					boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
+					zIndex:'6670',
+					transitionProperty:'all',
+					transitionDuration:'0.15s',
+					transformOrigin:'50% 0%',
+					//border:"0.5em solid #2196f3",
+					maxHeight:this.state.maxHeight,
+					//overflowY:"auto",
+					...this.props.style
+				}
+			},this.props.children);
+			
+		}		
+		
+	});
 
 	const FolderMenuElement=React.createClass({
 		getInitialState:function(){
@@ -212,6 +240,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onClick:function(e){
 		    if(this.props.onClick)
 		        this.props.onClick(e);
+			e.stopPropagation();			
 		},
 		render:function(){		
 			var selStyle={
@@ -219,6 +248,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
                 backgroundColor:'#c0ced8',
                 whiteSpace:'nowrap',
                 paddingRight:'0.8em',
+				cursor:"pointer"
 			};        
 			
 			if(this.props.style)
@@ -226,7 +256,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			//console.log(this.state);
 			if(this.state.mouseEnter)
 				Object.assign(selStyle,this.props.overStyle);		
-			return React.createElement("div",{
+			return React.createElement("div",{				
 			    style:selStyle,
 			    onMouseEnter:this.mouseEnter,
 			    onMouseLeave:this.mouseLeave,
@@ -897,6 +927,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
 				textTransform:"inherit",
 				textAlign:"inherit",
+				outline:"none",
 				...this.props.inputStyle
 			};								
 			//const labelEl = this.props.label?React.createElement("label",{key:"1",style:labelStyle},this.props.label):null;
@@ -1057,6 +1088,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				fontSize:"inherit",
 				textTransform:"inherit",
 				backgroundColor:"inherit",
+				outline:"none",
 				...this.props.inputStyle
 			};
 			const popupStyle={
@@ -1088,7 +1120,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				//width:"1.2rem",
 				verticalAlign:"middle",
 				display:"inline",
-				height:"calc(100% - 0.2rem)",
+				height:"auto",
 				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
 				transition:"all 200ms ease",
 				boxSizing:"border-box"
@@ -1400,6 +1432,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.fInp.click();
 		},
 		onChange:function(e){
+			if(this.state.reading) return;
 			const reader= fileReader();
 			const file = e.target.files[0];
 			reader.onload=(event)=>{				
@@ -1442,20 +1475,24 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				position:"relative",
 				verticalAlign:"middle",
 				width:"100%",
+				border:"0.01rem solid",
+				borderColor:this.state.mouseOverI?"black":"rgb(182,182,182)",
+				backgroundColor:(this.props.onReadySendBlob&&!this.state.reading)?"white":"#eeeeee",
 				...this.props.style
 			};
 			const inp2ContStyle={
 				flex:"1 1 0%",
 				height:"auto",
 				minHeight:"100%",
-				overflow:"hidden",				
+				overflow:"hidden",
+				backgroundColor:"inherit"
 			};
 			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
-				border:"0.01rem solid",
+				border:"none",
 				height:"100%",
 				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
 				width:"100%",
@@ -1465,11 +1502,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				whiteSpace:"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
-				backgroundColor:this.state.reading?"#eeeeee":"",
-				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
+				textTransform:"inherit",
+				backgroundColor:"inherit",
+				outline:"none",				
 				...this.props.inputStyle
 			};
-			const popupStyle={
+			/*const popupStyle={
 				position:"absolute",
 				border: "0.02rem solid #000",
 				minWidth: "100%",
@@ -1479,16 +1517,17 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				zIndex: "5",
 				boxSizing:"border-box",
 				overflowX:"hidden",
-			};
+			};*/
 			const openButtonStyle={
 				minHeight:"",
 				minWidth:"1.5rem",
 				height:"100%",
 				padding:"0.2rem",
 				lineHeight:"1",
-				border:"0.01rem solid",
-				borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
-				backgroundColor:"transparent",
+				backgroundColor:"inherit",
+				//border:"0.01rem solid",
+				//borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
+				//backgroundColor:"transparent",
 			};
 			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
 				flex:"0 1 auto"
@@ -1497,18 +1536,20 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				//width:"1.2rem",
 				verticalAlign:"middle",
 				display:"inline",
-				height:"100%",
-				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
-				transition:"all 200ms ease"				
+				height:"auto",
+				//transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
+				//transition:"all 200ms ease"
+				boxSizing:"border-box"
 			};
 			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 510 510" style="enable-background:new 0 0 510 510;" xml:space="preserve"><path d="M204,51H51C22.95,51,0,73.95,0,102v306c0,28.05,22.95,51,51,51h408c28.05,0,51-22.95,51-51V153c0-28.05-22.95-51-51-51 H255L204,51z"/></svg>';
 			const svgData=svgSrc(svg);
 			const urlData = this.props.url?this.props.url:svgData;
-			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);		
+			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);
+			const placeholder = this.props.placeholder?this.props.placeholder:"";			
 			return React.createElement("div",{style:inpContStyle,onClick:this.onClick},[
 				React.createElement("input",{key:"0",ref:(ref)=>this.fInp=ref,onChange:this.onChange,type:"file",style:{visibility:"hidden",position:"absolute",height:"1px",width:"1px"}},null),
 				React.createElement("div",{key:"1",style:inp2ContStyle},[					
-					React.createElement("input",{key:"1",type:"text",readOnly:"readOnly",style:inputStyle,value:this.props.inpValue,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null)									
+					React.createElement("input",{key:"1",placeholder:placeholder,type:"text",readOnly:"readOnly",style:inputStyle,value:this.props.inpValue,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null)									
 				]),
 				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
 					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB},buttonImage)
