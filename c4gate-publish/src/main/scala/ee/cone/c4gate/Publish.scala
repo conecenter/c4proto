@@ -1,5 +1,7 @@
 package ee.cone.c4gate
 
+import scala.collection.immutable.Seq
+
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file._
 

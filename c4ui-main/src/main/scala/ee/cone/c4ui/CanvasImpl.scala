@@ -52,7 +52,7 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: Canv
       message.header("X-r-action").isEmpty &&
       freshTo.isEmpty
     ) cState else Option(handler.view(local))
-    val sends = if(value(cState)==value(nState)) Seq(freshTo).flatten else Seq(keepTo,freshTo).flatten
+    val sends = if(value(cState)==value(nState)) List(freshTo).flatten else List(keepTo,freshTo).flatten
     val sendAll = chain(sends.map(_("showCanvasData",s"$branchKey ${value(nState)}")))
     CanvasContentKey.set(nState).andThen(sendAll).andThen(ackAll)(local)
   }

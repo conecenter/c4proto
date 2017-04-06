@@ -17,7 +17,7 @@ object Measure {
 object NotEffectiveAssemblerTest extends App {
   val app = new AssemblerTestApp
   val emptyWorld = app.qReducer.createWorld(Map())
-  val nodes = Seq(RawParentNode("1","P-1")) ++
+  val nodes = List(RawParentNode("1","P-1")) ++
     (1 to 10000).map(_.toString).map(srcId⇒RawChildNode(srcId,"0",s"C-$srcId"))
   val local = app.qReducer.createTx(emptyWorld)(Map())
 
@@ -26,7 +26,7 @@ object NotEffectiveAssemblerTest extends App {
   }.foreach(t⇒println(s"bad join with many add-s takes $t ms"))
 
   Measure { () ⇒
-    chain(Seq(add(nodes.flatMap(update))))(local)
+    chain(List(add(nodes.flatMap(update))))(local)
   }.foreach(t⇒println(s"bad join with single add takes $t ms"))
 }
 

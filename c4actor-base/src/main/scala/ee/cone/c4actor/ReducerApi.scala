@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import scala.collection.immutable.Queue
+import scala.collection.immutable.{Seq,Queue}
 import ee.cone.c4assemble.Types.World
 import ee.cone.c4assemble.WorldKey
 

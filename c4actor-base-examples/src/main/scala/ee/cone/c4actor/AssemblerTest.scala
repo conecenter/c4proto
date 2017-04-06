@@ -51,7 +51,8 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with ParallelObserversApp {
   override def indexValueMergerFactory: IndexValueMergerFactory =
-    new CachingIndexValueMergerFactory(16)
+    //new CachingIndexValueMergerFactory(16)
+    new TreeIndexValueMergerFactory(16)
   def rawQSender: RawQSender =
     new RawQSender { def send(recs: List[QRecord]): List[Long] = Nil }
   override def protocols: List[Protocol] = PCProtocol :: super.protocols

@@ -5,6 +5,8 @@ import scala.collection.immutable.Map
 import Types._
 import ee.cone.c4assemble.TreeAssemblerTypes.MultiSet
 
+import collection.immutable.{Iterable,Seq}
+
 object Types {
   type Values[V] = Seq[V]
   type Index[K,V] = Map[K,Values[V]]

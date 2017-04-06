@@ -18,6 +18,7 @@ import ee.cone.c4gate.AlienProtocol.ToAlienWrite
 import ee.cone.c4gate.AuthProtocol._
 import ee.cone.c4proto._
 
+import scala.collection.immutable.Seq
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
@@ -79,7 +80,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val post: okio.ByteString ⇒ HttpPost =
       HttpPost(requestId, path, headers, _, System.currentTimeMillis)
 
-    val requests: Seq[Product] = headerMap.get("X-r-auth") match {
+    val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
       case Some("change") ⇒
         val Array(password,again) = buffer.readUtf8().split("\n")

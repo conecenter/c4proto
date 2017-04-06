@@ -17,7 +17,7 @@ class UIInit(
   vDomHandlerFactory: VDomHandlerFactory,
   branchOperations: BranchOperations
 ) extends InitLocal {
-  def initLocal: World ⇒ World = chain(Seq(
+  def initLocal: World ⇒ World = chain(List(
     TagsKey.set(Option(tags)),
     TagStylesKey.set(Option(styles)),
     CreateVDomHandlerKey.set((sender,view) ⇒

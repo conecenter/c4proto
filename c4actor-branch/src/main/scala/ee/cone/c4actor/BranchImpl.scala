@@ -25,10 +25,10 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
     val send = SendToAlienKey.of(local)
     def sendingPart(to: Set[BranchRel]): Send =
       if(to.isEmpty) None
-      else Some((eventName,data) ⇒ send(to.map(_.parentSrcId).toSeq, eventName, data))
+      else Some((eventName,data) ⇒ send(to.map(_.parentSrcId).toList, eventName, data))
     val ackAll =
       chain(AckChangesKey.of(local).map{ case(sessionKey,index) ⇒
-        send(Seq(sessionKey),"ackChange",s"$branchKey $index")
+        send(List(sessionKey),"ackChange",s"$branchKey $index")
       }.toSeq)
       .andThen(AckChangesKey.set(Map.empty))
       .andThen(SessionKeysKey.set(newSessionKeys))
@@ -67,8 +67,8 @@ case object EmptyBranchMessage extends BranchMessage {
 case class BranchTxTransform(
   branchKey: String,
   seed: Option[BranchResult],
-  sessionKeys: Values[SrcId],
-  posts: Values[MessageFromAlien],
+  sessionKeys: List[SrcId],
+  posts: List[MessageFromAlien],
   handler: BranchHandler
 ) extends TxTransform {
   private def saveResult: World ⇒ World = local ⇒ {
@@ -107,8 +107,8 @@ case class BranchTxTransform(
     }
   }
 
-  private def getPosts: Seq[BranchMessage] =
-    if(posts.isEmpty) Seq(EmptyBranchMessage) else posts
+  private def getPosts: List[BranchMessage] =
+    if(posts.isEmpty) List(EmptyBranchMessage) else posts
 
   def transform(local: World): World = {
     if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
@@ -169,8 +169,8 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     for(handler ← Single.option(handlers).toList)
       yield key → BranchTxTransform(key,
         seeds.headOption.map(_.seed),
-        seeds.filter(_.parentIsSession).map(_.parentSrcId),
-        posts.sortBy(_.index),
+        seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
+        posts.sortBy(_.index).toList,
         handler
       )
 }

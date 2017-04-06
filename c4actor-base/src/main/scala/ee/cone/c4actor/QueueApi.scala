@@ -1,7 +1,7 @@
 
 package ee.cone.c4actor
 
-import scala.collection.immutable.Map
+import scala.collection.immutable.{Map,Seq}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4assemble.Types.{Index, World}
 import ee.cone.c4assemble.{JoinKey, WorldKey}
@@ -78,9 +78,9 @@ object By {
 case class LEvent[+M<:Product](srcId: SrcId, className: String, value: Option[M])
 object LEvent {
   def update[M<:Product](value: M): Seq[LEvent[M]] =
-    Seq(LEvent(value.productElement(0).toString, value.getClass.getName, Option(value)))
+    List(LEvent(value.productElement(0).toString, value.getClass.getName, Option(value)))
   def delete[M<:Product](value: M): Seq[LEvent[M]] =
-    Seq(LEvent(value.productElement(0).toString, value.getClass.getName, None))
+    List(LEvent(value.productElement(0).toString, value.getClass.getName, None))
   def add[M<:Product](out: Seq[LEvent[M]]): World⇒World =
     TxKey.modify(_.add(out))
 }
