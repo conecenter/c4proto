@@ -44,7 +44,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				const contStyle={
 					width:"100%",
 					boxSizing:"border-box",
-					position:"relative",
+					//position:"relative",
 				};
 				const popupStyle={
 					position:"absolute",
@@ -86,7 +86,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 						style: {
 							minWidth:'6em',
 							height:'2em',
-							textShadow:'2px 2px 4px rgba(0, 0, 0, 0.4)',
+							textShadow:'0.125em 0.125em 0.24em rgba(0, 0, 0, 0.4)',
 							color:'white',
 							padding:'0rem 0rem 0rem 0.2rem',
 							lineHeight:'2em',
@@ -102,8 +102,8 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 							display:'flex',
 							flexWrap:'wrap',
 							maxWidth:'25em',
-							top:'100%',
-							border:'1px solid grey',
+							//top:'100%',							
+							border:'0.06em solid grey',
 							zIndex: "5",
 						}
 				},children):null
@@ -371,7 +371,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				verticalAlign:"middle",
 			};
 			
-			return 	React.createElement("div",{style:{marginLeft:"0.3em",...contStyle}},[
+			return 	React.createElement("div",{style:{marginLeft:"1em",...contStyle}},[
 					React.createElement("span",{key:"2",style:textStyle},(this.state.batteryLevel*100) + "%"),
 					React.createElement("div",{key:"1",style:svgStyle},
 						React.createElement("svg",{
