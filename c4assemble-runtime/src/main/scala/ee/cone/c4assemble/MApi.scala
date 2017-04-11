@@ -3,9 +3,12 @@ package ee.cone.c4assemble
 
 import scala.collection.immutable.Map
 import Types._
+import ee.cone.c4assemble.TreeAssemblerTypes.MultiSet
+
+import collection.immutable.{Iterable,Seq}
 
 object Types {
-  type Values[V] = List[V]
+  type Values[V] = Seq[V]
   type Index[K,V] = Map[K,Values[V]]
   type World = Map[WorldKey[_],Object]
 }
@@ -37,6 +40,10 @@ trait IndexFactory {
   WorldPartExpression
     with DataDependencyFrom[Index[TK, T]]
     with DataDependencyTo[Index[RK, R]]
+}
+
+trait IndexValueMergerFactory {
+  def create[R <: Product]: (Values[R],MultiSet[R]) ⇒ Values[R]
 }
 
 trait DataDependencyFrom[From] {

@@ -3,14 +3,13 @@ package ee.cone.c4actor
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
-import ee.cone.c4assemble.Types.{Index, World}
+import ee.cone.c4assemble.Types.{Index, Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
-import scala.collection.immutable.{Map, Queue}
+import scala.collection.immutable.{Seq, Map, Queue}
 import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global // requires usage of `blocking{}`
-
+import scala.concurrent.ExecutionContext.Implicits.global
 import Function.chain
 
 class WorldTxImpl(
@@ -99,7 +98,7 @@ class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
     val nLocalStates = transforms.get(ctx.getWorld).transform{ case(key,handle) ⇒
       handle(localStates.getOrElse(key,Map.empty))
     }
-    Seq(new SerialObserver(nLocalStates)(transforms))
+    List(new SerialObserver(nLocalStates)(transforms))
   }
 }
 
@@ -119,11 +118,11 @@ class ParallelObserver(localStates: Map[SrcId,List[Future[World]]])(
         localStates.getOrElse(key,empty).head.map(handle) :: inProgress(key)
       }
     val nLocalStates = inProgressMap ++ toAdd
-    Seq(new ParallelObserver(nLocalStates)(transforms))
+    List(new ParallelObserver(nLocalStates)(transforms))
   }
 }
 
-case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: List[LEvent[P]]) extends TxTransform {
+case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) extends TxTransform {
   def transform(local: World): World = LEvent.add(todo)(local)
 }
 

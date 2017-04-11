@@ -83,6 +83,7 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
     val decimalFormat = new DecimalFormat("#0.##")
     val builder = new JsonBuilderImpl()
     builder.startObject()
+    CanvasSizesKey.of(local).foreach(s ⇒ builder.append("sizes").append(s.sizes))
     builder.append("width").append(1000,decimalFormat) //map size
     builder.append("height").append(1000,decimalFormat)
     val maxScale = 10
@@ -105,7 +106,7 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
           builder.append("strokeRect")
         };
         {
-          ???
+          //???
         }
 
         endContext(builder)

@@ -12,3 +12,8 @@ export function mergeAll(list){
     list.forEach(from=>merge(to,from))
     return to
 }
+
+export function splitFirst(splitter,data){
+    const i = data.indexOf(splitter)
+    return [data.substring(0,i), data.substring(i+1)]
+}

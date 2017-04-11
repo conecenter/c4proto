@@ -51,7 +51,7 @@ case class VDomHandlerImpl[State](
 
   //todo invalidate until by default
 
-  def receive: Handler = m ⇒ chain(Seq(init,dispatch,toAlien).map(_(m)))
+  def receive: Handler = m ⇒ chain(List(init,dispatch,toAlien).map(_(m)))
 
   private def diffSend(prev: VDomValue, next: VDomValue, send: sender.Send): State ⇒ State = {
     if(send.isEmpty) return identity[State]

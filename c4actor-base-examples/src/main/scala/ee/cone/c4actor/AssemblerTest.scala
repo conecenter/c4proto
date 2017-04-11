@@ -14,7 +14,7 @@ import ee.cone.c4proto
   @Id(0x0001) case class RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }
 
-case class ParentNodeWithChildren(srcId: String, caption: String, children: List[RawChildNode])
+case class ParentNodeWithChildren(srcId: String, caption: String, children: Values[RawChildNode])
 @assemble class TestAssemble extends Assemble {
   type ParentSrcId = SrcId
   def joinChildNodeByParent(
@@ -50,6 +50,9 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: List
 }
 
 class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with ParallelObserversApp {
+  override def indexValueMergerFactory: IndexValueMergerFactory =
+    //new CachingIndexValueMergerFactory(16)
+    new TreeIndexValueMergerFactory(16)
   def rawQSender: RawQSender =
     new RawQSender { def send(recs: List[QRecord]): List[Long] = Nil }
   override def protocols: List[Protocol] = PCProtocol :: super.protocols
@@ -57,7 +60,7 @@ class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with
 }
 
 object AssemblerTest extends App {
-  val indexFactory = new IndexFactoryImpl
+  val indexFactory = new IndexFactoryImpl(new SimpleIndexValueMergerFactory)
   val app = new AssemblerTestApp
   val recs = update(RawParentNode("1","P-1")) ++
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))

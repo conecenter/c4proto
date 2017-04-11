@@ -54,6 +54,5 @@ export default function VDomChanges(sender, DiffPrepare){
     }
 
     const transforms = {onChange,onBlur}
-    const branchHandlers = {ackChange}
-    return ({transforms,branchHandlers})
+    return ({transforms,ackChange})
 }

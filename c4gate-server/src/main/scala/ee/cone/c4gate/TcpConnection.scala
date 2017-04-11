@@ -26,7 +26,7 @@ class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends
     Option(worldProvider.createTx()).map(transform).foreach(qMessages.send)
   override def beforeServerStart(): Unit = changeWorld{ local ⇒
     val world = TxKey.of(local).world
-    val connections =  By.srcId(classOf[TcpConnection]).of(world).values.flatten.toSeq
+    val connections =  By.srcId(classOf[TcpConnection]).of(world).values.flatten.toList
     LEvent.add(connections.flatMap(LEvent.delete))(local)
   }
   override def afterConnect(key: String, sender: SenderToAgent): Unit =

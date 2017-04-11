@@ -1,5 +1,5 @@
 
-import {mergeAll}    from "../main/util"
+import {mergeAll,splitFirst}    from "../main/util"
 
 export default function Branches(log,branchHandlers){
     const branchesByKey = {}
@@ -9,7 +9,7 @@ export default function Branches(log,branchHandlers){
         const state = by(branchesByKey[branchKey] || {branchKey, modify})
         //if(branchesByKey[branchKey]!==state) log({a:"mod",branchKey,state})
         if(branchesByKey[branchKey]!==state){
-            log({state})
+            log({state,branchKey})
             if(state) branchesByKey[branchKey] = state
             else delete branchesByKey[branchKey]
         }
@@ -30,9 +30,7 @@ export default function Branches(log,branchHandlers){
     })
     //const setParent = parentBranch => branchKey => modify(branchKey, state=>({...state, parentBranch}))
     const toReceiver = branchHandler => data => {
-        const i = data.indexOf(" ")
-        const branchKey = data.substring(0,i)
-        const body = data.substring(i+1)
+        const [branchKey,body] = splitFirst(" ", data)
         log({a:"recv",branchKey,body})
         modify(branchKey, branchHandler(body))
     }
@@ -45,10 +43,15 @@ export default function Branches(log,branchHandlers){
         //active.forEach([parentKey,childKeys] => childKeys.forEach(setParent(()=>branchesByKey[parentKey])))
     }
 
+    function ackChange(data){
+        const [branchKey,body] = splitFirst(" ", data)
+        modify(branchKey, v => (v.ackChange || (data=>v=>v))(body)(v) )
+    }
+
     const receivers = mergeAll(
         Object.entries(branchHandlers)
             .map(([eventName,handler]) => ({[eventName]: toReceiver(handler)}))
-            .concat({branches})
+            .concat({branches,ackChange})
     )
 
     function checkActivate(){
