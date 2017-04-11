@@ -72,7 +72,8 @@ const toggleOverlay = on =>{
 }
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay});
+const getBattery = (callback) => navigator.getBattery().then(callback)
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery});
 
 //canvas
 const util = Canvas.CanvasUtil()

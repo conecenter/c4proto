@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay}){
+export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery}){
 	const ColorCreator = React.createClass({
     		onChange:function(e){
     			if(this.props.onChange)
@@ -330,10 +330,82 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			return React.createElement(ConnectionState,{on:this.state.on,style,iconStyle});
 		},
 	});
+	const BatteryState = React.createClass({
+		getInitialState:function(){
+			return {batteryLevel:0,isCharging:false};
+		},
+		onLevelChange:function(){
+			if(!this.battery) return;
+			this.setState({batteryLevel:this.battery.level});
+		},
+		onChargingChange:function(){
+			if(!this.battery) return;
+			this.setState({isCharging:this.battery.charging});
+		},
+		onBatteryInit:function(battery){
+			this.battery = battery;
+			this.battery.addEventListener("chargingchange",this.onChargingChange);
+			this.battery.addEventListener("levelchange",this.onLevelChange);
+			this.setState({batteryLevel:this.battery.level,isCharging:this.battery.charging});
+		},
+		componentDidMount:function(){
+			getBattery(this.onBatteryInit);
+		},
+		componentDidUpdate:function(){},
+		componentWillUnmount:function(){
+			if(!this.battery) return;
+			this.battery.removeEventListener("charginchange",this.onChargingChange);
+			this.battery.removeEventListener("levelchange",this.onLevelChange);
+		},
+		render:function(){
+			const contStyle={
+				display:"inline-block",
+				height:"1em",
+			};
+			const svgStyle = {				
+				width:"1em",
+				...contStyle
+			};
+			const textStyle={
+				fontSize:"0.7em",
+				verticalAlign:"middle",
+			};
+			
+			return 	React.createElement("div",{style:{marginLeft:"0.3em",...contStyle}},[
+					React.createElement("span",{key:"2",style:textStyle},(this.state.batteryLevel*100) + "%"),
+					React.createElement("div",{key:"1",style:svgStyle},
+						React.createElement("svg",{
+							key:"1",
+							xmlns:"http://www.w3.org/2000/svg", 
+							xmlnsXlink:"http://www.w3.org/1999/xlink",
+							version:"1.1",
+							x:"0px",
+							y:"0px",
+							viewBox:"0 0 60 60",
+							style:{enableBackground:"new 0 0 60 60",verticalAlign:"middle"},
+							xmlSpace:"preserve"},[
+								React.createElement("path",{key:"1",fill:"white",stroke:"white",d:"M42.536,4 H36V0H24 v4h-6.536 C15.554,4,14,5.554,14,7.464 v49.07 2C14,58.446,15.554,60,17.464,60 h25.071   C44.446,60,46,58.446,46,56.536 V7.464 C46,5.554,44.446,4,42.536,4z M44,56.536 C44,57.344,43.343,58,42.536,58 H17.464   C16.657,58,16,57.344,16,56.536V7.464C16,6.656,16.657,6,17.464,6H24h12h6.536C43.343,6,44,6.656,44,7.464V56.536z"},null),
+								React.createElement("rect",{
+									key:"_1",
+									fill:"white",
+									x:"15.4",
+									y:(57.8 - this.state.batteryLevel*52.6)+"",
+									width:"29.4",
+									height:"57.8"
+								},null),
+								React.createElement("path",{key:"2",fill:(this.state.isCharging?"black":"transparent"),d:"M37,29h-3V17.108c0.013-0.26-0.069-0.515-0.236-0.72c-0.381-0.467-1.264-0.463-1.642,0.004   c-0.026,0.032-0.05,0.066-0.072,0.103L22.15,32.474c-0.191,0.309-0.2,0.696-0.023,1.013C22.303,33.804,22.637,34,23,34h4   l0.002,12.929h0.001c0.001,0.235,0.077,0.479,0.215,0.657C27.407,47.833,27.747,48,28.058,48c0.305,0,0.636-0.16,0.825-0.398   c0.04-0.05,0.074-0.103,0.104-0.159l8.899-16.979c0.163-0.31,0.151-0.682-0.03-0.981S37.35,29,37,29z"},null),
+							]
+						)
+					)					
+				]);
+			
+		}
+	});
 	const transforms= {
 		tp:{
 			StatusElement,TerminalElement,MJobCell,IconCheck,CustomMeasurerConnectionState,DeviceConnectionState,
-			ColorCreator,ColorItem,ColorPicker
+			ColorCreator,ColorItem,ColorPicker,
+			BatteryState
 		},
 	};
 	const receivers = {
