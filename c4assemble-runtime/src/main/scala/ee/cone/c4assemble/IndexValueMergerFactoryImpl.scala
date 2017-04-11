@@ -80,3 +80,5 @@ class TreeIndexValueMergerFactory(from: Int) extends IndexValueMergerFactory {
   }
 }
 
+// if we need more: scala rrb vector, java...binarySearch
+// also consider: http://docs.scala-lang.org/overviews/collections/performance-characteristics.html
