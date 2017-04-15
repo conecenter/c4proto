@@ -47,7 +47,7 @@ case class MessageFromAlienImpl(
   ): Values[(BranchKey, MessageFromAlien)] =
     for(post ← posts if post.path == "/connection") yield {
       val headers = post.headers.flatMap(h ⇒
-        if(h.key.startsWith("X-r-")) Seq(h.key→h.value) else Nil
+        if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
       ).toMap
       headers("X-r-branch") → MessageFromAlienImpl(post.srcId,headers("X-r-index").toLong,headers,post)
     }

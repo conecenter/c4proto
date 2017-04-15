@@ -1,6 +1,8 @@
 
 package ee.cone.c4actor
 
+import scala.collection.immutable.Seq
+
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.World

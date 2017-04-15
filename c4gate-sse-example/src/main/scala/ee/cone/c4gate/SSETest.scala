@@ -42,7 +42,7 @@ case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHand
     if(TestTimerKey.of(local) == seconds) local
     else {
       val (keepTo,freshTo,ackAll) = task.sending(local)
-      val send = chain(Seq(keepTo,freshTo).flatten.map(_("show",s"$seconds")))
+      val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"$seconds")))
       println(s"TestSSEHandler $keepTo $freshTo")
       TestTimerKey.set(seconds).andThen(send).andThen(ackAll)(local)
     }

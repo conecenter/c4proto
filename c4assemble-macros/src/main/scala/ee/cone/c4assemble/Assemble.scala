@@ -1,5 +1,6 @@
 package ee.cone.c4assemble
 
+import scala.collection.immutable.Seq
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
 
@@ -39,7 +40,7 @@ class assemble extends StaticAnnotation {
       case JoinDef(params,in,out) ⇒
         s"""
            |indexFactory.createJoinMapIndex[${in.value},${out.value},${in.key},${out.key}](new ee.cone.c4assemble.Join[${in.value},${out.value},${in.key},${out.key}](
-           |  Seq(${params.map(expr(in,_)).mkString(",")}), ${expr(out,out)},
+           |  collection.immutable.Seq(${params.map(expr(in,_)).mkString(",")}), ${expr(out,out)},
            |  (key,in) ⇒ in match {
            |    case Seq(${params.map(_ ⇒ "Nil").mkString(",")}) ⇒ Nil
            |    case Seq(${params.map(_.name).mkString(",")}) ⇒

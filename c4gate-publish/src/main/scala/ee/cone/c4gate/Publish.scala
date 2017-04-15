@@ -1,5 +1,7 @@
 package ee.cone.c4gate
 
+import scala.collection.immutable.Seq
+
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file._
 
@@ -44,7 +46,7 @@ class PublishingObserver(
     gzipSink.close()
     val byteString = sink.readByteString()
     val world = ctx.getWorld()
-    val publication = HttpPublication(path,headers,byteString)
+    val publication = HttpPublication(path,headers,byteString,None)
     val existingPublications = By.srcId(classOf[HttpPublication]).of(world)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.getOrElse(path,Nil).contains(publication)) {

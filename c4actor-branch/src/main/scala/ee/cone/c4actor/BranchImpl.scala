@@ -25,10 +25,10 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
     val send = SendToAlienKey.of(local)
     def sendingPart(to: Set[BranchRel]): Send =
       if(to.isEmpty) None
-      else Some((eventName,data) ⇒ send(to.map(_.parentSrcId).toSeq, eventName, data))
+      else Some((eventName,data) ⇒ send(to.map(_.parentSrcId).toList, eventName, data))
     val ackAll =
       chain(AckChangesKey.of(local).map{ case(sessionKey,index) ⇒
-        send(Seq(sessionKey),"ackChange",s"$branchKey $index")
+        send(List(sessionKey),"ackChange",s"$branchKey $index")
       }.toSeq)
       .andThen(AckChangesKey.set(Map.empty))
       .andThen(SessionKeysKey.set(newSessionKeys))
@@ -82,7 +82,7 @@ case class BranchTxTransform(
     if(wasChildren == newChildren) local
     else {
       val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
-      add(wasBranchResults.flatMap(delete) ::: newBranchResult.flatMap(update))(local)
+      add(wasBranchResults.flatMap(delete) ++ newBranchResult.flatMap(update))(local)
     }
   }
 
@@ -95,7 +95,7 @@ case class BranchTxTransform(
       val world = TxKey.of(local).world
       val index = By.srcId(classOf[BranchResult]).of(world)
       def gather(branchKey: SrcId): List[String] = {
-        val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash)
+        val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash).toList
         (branchKey :: children).mkString(",") :: children.flatMap(gather)
       }
       val newReport = gather(branchKey).mkString(";")
@@ -107,8 +107,8 @@ case class BranchTxTransform(
     }
   }
 
-  private def getPosts: Seq[BranchMessage] =
-    if(posts.isEmpty) Seq(EmptyBranchMessage) else posts
+  private def getPosts: List[BranchMessage] =
+    if(posts.isEmpty) List(EmptyBranchMessage) else posts
 
   def transform(local: World): World = {
     if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
@@ -169,8 +169,8 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     for(handler ← Single.option(handlers).toList)
       yield key → BranchTxTransform(key,
         seeds.headOption.map(_.seed),
-        seeds.filter(_.parentIsSession).map(_.parentSrcId),
-        posts.sortBy(_.index),
+        seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
+        posts.sortBy(_.index).toList,
         handler
       )
 }

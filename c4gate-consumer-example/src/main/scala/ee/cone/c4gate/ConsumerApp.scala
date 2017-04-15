@@ -46,11 +46,14 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 
 case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform {
   def transform(local: World): World = {
-    val prev = new String(post.body.toByteArray, "UTF-8")
-    val next = (prev.toLong * 3).toString
-    val body = okio.ByteString.encodeUtf8(next)
-    val resp = HttpPublication(post.path, Nil, body)
-    add(delete[Product](post) ++ update[Product](resp))(local)
+    val resp = if(ErrorKey.of(local).nonEmpty) Nil else {
+      val prev = new String(post.body.toByteArray, "UTF-8")
+      val next = (prev.toLong * 3).toString
+      val body = okio.ByteString.encodeUtf8(next)
+      List(HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
+    }
+    println(resp)
+    add(delete[Product](post) ++ resp.flatMap(update[Product]))(local)
   }
 }
 

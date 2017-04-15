@@ -89,9 +89,34 @@ push @tasks, ["inbox_log_tail", sub{
     sy("tmp/$kafka/bin/kafka-console-consumer.sh --bootstrap-server $bootstrap_server --topic $inbox_prefix.inbox.log")
 }];
 push @tasks, ["inbox_test", sub{
-    sy("tmp/kafka_2.11-0.10.1.0/bin/kafka-verifiable-consumer.sh --broker-list $bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
+    sy("tmp/$kafka/bin/kafka-verifiable-consumer.sh --broker-list $bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
 }];
 
+=sk
+push @tasks, ["inbox_copy", sub{
+    my $from = $ENV{C4COPY_FROM} || die "C4COPY_FROM required";
+    &$put_text("tmp/copy.consumer.properties",join "\n",
+        "group.id=dummy-".rand(),
+        "bootstrap.servers=$from",
+        #"enable.auto.commit=false"
+    );
+    &$put_text("tmp/copy.producer.properties",join "\n",
+        "bootstrap.servers=$bootstrap_server",
+        "compression.type=lz4",
+        "max.request.size=10000000",
+        #"linger.ms=1000",
+        "batch.size=1000",
+    );
+    sy("tmp/$kafka/bin/kafka-mirror-maker.sh"
+        ." --consumer.config tmp/copy.consumer.properties"
+        ." --producer.config tmp/copy.producer.properties"
+        .qq[ --whitelist="$inbox_prefix\\.inbox"]
+        ." --num.streams 40"
+        #." --queue.size 2000"
+        #." --whitelist='.*'"
+    );
+}];
+=cut
 
 my $client = sub{
     my($inst)=@_;
@@ -132,7 +157,9 @@ push @tasks, ["test_post_get_check", sub{
     my $v = int(rand()*10);
     sy("$curl_test -X POST -d $v");
     sleep 1;
-    sy("$curl_test");
+    sy("$curl_test -v");
+    sleep 4;
+    sy("$curl_test -v");
     print " -- should be posted * 3\n";
 }];
 #push @tasks, ["test_tcp_check", sub{
@@ -190,6 +217,7 @@ if($ARGV[0]) {
 #segment.ms=100
 #delete.retention.ms=100
 
-
+#tar cvf - db4 | lz4 - db.tar.lz4
+#lz4 -d db.tar.lz4 | tar xf -
 
 

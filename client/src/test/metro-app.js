@@ -43,8 +43,10 @@ const uglifyBody = style => {
         Object.assign(document.documentElement.style,style);
 }
 const getComputedStyle = n => window.getComputedStyle(n);
+const getPageYOffset = ()=> window.pageYOffset;
 const fileReader = ()=> (new window.FileReader());
-const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader});
+const getInnerHeight =()=> window.innerHeight;
+const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,getInnerHeight});
 
 //customUi with hacks
 const toggleOverlay = on =>{
@@ -70,7 +72,8 @@ const toggleOverlay = on =>{
 }
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay});
+const getBattery = (callback) => navigator.getBattery().then(callback)
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery});
 
 //canvas
 const util = Canvas.CanvasUtil()

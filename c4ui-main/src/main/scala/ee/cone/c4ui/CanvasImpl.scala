@@ -19,30 +19,23 @@ import scala.Function.chain
 }
 
 case object CanvasSizesKey extends WorldKey[Option[CanvasSizes]](None)
-case class CanvasSizes(canvasFontSize: BigDecimal, canvasWidth: BigDecimal)
+case class CanvasSizes(sizes: String){
+  def canvasFontSize: BigDecimal = BigDecimal(sizes.split(",")(0))
+  def canvasWidth: BigDecimal = BigDecimal(sizes.split(",")(1))
+}
 
 case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: CanvasHandler) extends BranchHandler {
   private type Handler = BranchMessage ⇒ World ⇒ World
   def exchange: Handler = message ⇒ messageHandler(message).andThen(toAlien(message)) //reset(local)
-  private def widthGap = 20
-  private def resize: Handler = message ⇒ local ⇒ {
-    val sessionKey = message.header("X-r-session")
-    val branchKey = message.header("X-r-branch")
-    val sizes = message.header("X-r-canvas-sizes")
-    val Array(canvasFontSize,canvasWidth) = sizes.split(" ").map(BigDecimal(_))
-    val current = CanvasSizesKey.of(local)
-    val ack = SendToAlienKey.of(local)(Seq(sessionKey),"ackCanvasResize",s"$branchKey $sizes") //todo merge with ackChanges
-    val resize = if(
+  private def resize: Handler = message ⇒
+    CanvasSizesKey.set(Option(CanvasSizes(message.header("X-r-canvas-sizes"))))
+    /*
+    private def widthGap = 20
       current.nonEmpty &&
       canvasFontSize == current.get.canvasFontSize &&
       canvasWidth >= current.get.canvasWidth-widthGap &&
       canvasWidth <= current.get.canvasWidth
-    ) Nil else List(
-      CanvasContentKey.set(None),
-      CanvasSizesKey.set(Option(CanvasSizes(canvasFontSize,canvasWidth)))
-    )
-    chain(ack :: resize)(local)
-  }
+    */
   private def messageHandler: Handler = message ⇒ message.header("X-r-action") match {
     case "" ⇒ identity[World]
     case "canvasResize" ⇒ resize(message)
@@ -59,7 +52,7 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: Canv
       message.header("X-r-action").isEmpty &&
       freshTo.isEmpty
     ) cState else Option(handler.view(local))
-    val sends = if(value(cState)==value(nState)) Seq(freshTo).flatten else Seq(keepTo,freshTo).flatten
+    val sends = if(value(cState)==value(nState)) List(freshTo).flatten else List(keepTo,freshTo).flatten
     val sendAll = chain(sends.map(_("showCanvasData",s"$branchKey ${value(nState)}")))
     CanvasContentKey.set(nState).andThen(sendAll).andThen(ackAll)(local)
   }

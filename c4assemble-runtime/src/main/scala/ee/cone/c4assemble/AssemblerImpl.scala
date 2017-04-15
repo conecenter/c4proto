@@ -1,14 +1,12 @@
 
 package ee.cone.c4assemble
 
-import java.util.Comparator
+//import java.util.Comparator
 
 import Types._
 import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
-import scala.annotation.tailrec
-import scala.collection.immutable.Map
-import Function.tupled
+import scala.collection.immutable.{Iterable, Map, Seq}
 
 class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
   def one(res: Map[K,V], key: K, diffV: DV): Map[K,V] = {
@@ -22,7 +20,9 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
     (res /: diff)((res, kv) ⇒ one(res, kv._1, kv._2))
 }
 
-class IndexFactoryImpl extends IndexFactory {
+class IndexFactoryImpl(
+  merger: IndexValueMergerFactory
+) extends IndexFactory {
   def createJoinMapIndex[T,R<:Product,TK,RK](join: Join[T,R,TK,RK]):
     WorldPartExpression
       with DataDependencyFrom[Index[TK, T]]
@@ -30,25 +30,9 @@ class IndexFactoryImpl extends IndexFactory {
   = {
     val add: PatchMap[R,Int,Int] =
       new PatchMap[R,Int,Int](0,_==0,(v,d)⇒v+d)
+    val merge = merger.create[R]
     val addNestedPatch: PatchMap[RK,Values[R],MultiSet[R]] =
-      new PatchMap[RK,Values[R],MultiSet[R]](
-        Nil,_.isEmpty,
-        (v,d)⇒{
-          /**/
-          add.many(d, v, 1).flatMap{ case(node,count) ⇒
-            if(count<0) throw new Exception(s"$node -- $d -- $v")
-            List.fill(count)(node)
-          }.toList.sortBy(e ⇒ e.productElement(0) match {
-            case s: String ⇒ s
-            case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
-          })/**/
-
-
-
-
-
-        }
-      )
+      new PatchMap[RK,Values[R],MultiSet[R]](Nil,_.isEmpty, merge)
     val addNestedDiff: PatchMap[RK,MultiSet[R],R] =
       new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))
     val subNestedDiff: PatchMap[RK,MultiSet[R],R] =

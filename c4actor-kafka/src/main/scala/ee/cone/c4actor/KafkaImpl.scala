@@ -145,14 +145,10 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       val checkIncarnation = startIncarnation(localWorldRef.get)
       val observerContext = new ObserverContext(ctx, ()⇒localWorldRef.get)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
-        recs match {
-          case Nil ⇒ ()
-            //println("no new data")
-          case inboxRecs ⇒
-            //println(s"offset received: ${inboxRecs.map(_.offset)}")
-            val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, inboxRecs)
-            rawQSender.send(queue.toList)
-            localWorldRef.set(world)
+        if(recs.nonEmpty){
+          val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, recs)
+          rawQSender.send(queue.toList)
+          localWorldRef.set(world)
         }
         //println(s"then to receive: ${qMessages.worldOffset(localWorldRef.get)}")
         if(checkIncarnation(localWorldRef.get))
