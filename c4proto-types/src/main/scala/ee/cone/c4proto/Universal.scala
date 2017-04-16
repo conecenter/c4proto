@@ -23,9 +23,10 @@ object UniversalProtoAdapter extends ProtoAdapter[UniversalNode](FieldEncoding.L
   def decode(reader: ProtoReader): UniversalNode = throw new Exception("not implemented")
 }
 
-class IndentedParser(splitter: Char, propTypeRegistry: String⇒LinesToUniversalProp) {
+class IndentedParser(
+    splitter: Char, lineSplitter: String, propTypeRegistry: String⇒StringToUniversalProp.Converter) {
   def parse(data: okio.ByteString): UniversalNode = {
-    val lines = data.utf8().split('\n').toList
+    val lines = data.utf8().split(lineSplitter).toList
     if(lines.last != "") throw new Exception
     UniversalNode(parseProps(splitter, lines.init, Nil))
   }
@@ -37,24 +38,25 @@ class IndentedParser(splitter: Char, propTypeRegistry: String⇒LinesToUniversal
       val tag = Integer.parseInt(hex, 16)
       val value = lines.tail.takeWhile(_.head == splitter).map(_.tail)
       val prop =
-        if(typeName.nonEmpty) propTypeRegistry(typeName).create(tag,value)
+        if(typeName.nonEmpty) propTypeRegistry(typeName)(tag,value.mkString(lineSplitter))
         else UniversalPropImpl(tag,UniversalNode(parseProps(splitter, value, Nil)))(UniversalProtoAdapter)
       parseProps(splitter, lines.drop(value.size), prop :: res)
     }
 }
 
-trait LinesToUniversalProp {
-  def create(tag: Int, lines: List[String]): UniversalProp
+object StringToUniversalProp {
+  type Converter = (Int,String)⇒UniversalProp
 }
-/*
-object LinesToUniversalProp {
-  type Prop = (Int, List[String]) ⇒ UniversalProp
-  def String: Prop = (tag,lines) ⇒ UniversalPropImpl(tag,lines.mkString("\n"))(ProtoAdapter.STRING)
 
-
-
-  //case "Int" ⇒ "com.squareup.wire.ProtoAdapter.SINT32"
-  //case "okio.ByteString" ⇒ "com.squareup.wire.ProtoAdapter.BYTES"
+object StringToUniversalPropImpl {
+  def string(tag: Int, value: String): UniversalProp =
+    UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
+  def number(tag: Int, value: String): UniversalProp = {
+    val BigDecimalFactory(scale,bytes) = BigDecimal(value)
+    val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
+    val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)
+    UniversalPropImpl(tag,UniversalNode(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
+  }
+  def converters: List[(String,StringToUniversalProp.Converter)] =
+    ("String", string) :: ("Number", number _) :: Nil
 }
-*/
-
