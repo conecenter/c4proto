@@ -44,7 +44,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				const contStyle={
 					width:"100%",
 					boxSizing:"border-box",
-					//position:"relative",
+					position:"relative",
 				};
 				const popupStyle={
 					position:"absolute",
@@ -79,7 +79,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 		style: {
 				width:"100%",
 				boxSizing:"border-box",
-				position:"relative",
+				//position:"relative",
 			}},[
 				React.createElement('div', {
 						key:'1',
@@ -101,10 +101,10 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 							position:"absolute",
 							display:'flex',
 							flexWrap:'wrap',
-							maxWidth:'25em',
+							maxWidth:'24em',
 							//top:'100%',							
 							border:'0.06em solid grey',
-							zIndex: "5",
+							zIndex: "669",
 						}
 				},children):null
 			]
@@ -112,7 +112,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	
 	const ColorItem = ({value,onChange,style}) => React.createElement('div',{
 		style: {
-			minWidth:'6em',
+			width:'6em',
 			height:'2em',
 			textShadow:'2px 2px 4px rgba(0, 0, 0, 0.4)',
 			color:'white',
@@ -371,8 +371,10 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				verticalAlign:"middle",
 			};
 			
+			const statusColor = this.state.batteryLevel>0.2?"green":"red";
+			const batteryLevel = Math.round(this.state.batteryLevel*100);
 			return 	React.createElement("div",{style:{marginLeft:"1em",...contStyle}},[
-					React.createElement("span",{key:"2",style:textStyle},(this.state.batteryLevel*100) + "%"),
+					React.createElement("span",{key:"2",style:textStyle},batteryLevel + "%"),
 					React.createElement("div",{key:"1",style:svgStyle},
 						React.createElement("svg",{
 							key:"1",
@@ -386,12 +388,20 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 							xmlSpace:"preserve"},[
 								React.createElement("path",{key:"1",fill:"white",stroke:"white",d:"M42.536,4 H36V0H24 v4h-6.536 C15.554,4,14,5.554,14,7.464 v49.07 2C14,58.446,15.554,60,17.464,60 h25.071   C44.446,60,46,58.446,46,56.536 V7.464 C46,5.554,44.446,4,42.536,4z M44,56.536 C44,57.344,43.343,58,42.536,58 H17.464   C16.657,58,16,57.344,16,56.536V7.464C16,6.656,16.657,6,17.464,6H24h12h6.536C43.343,6,44,6.656,44,7.464V56.536z"},null),
 								React.createElement("rect",{
-									key:"_1",
+									key:"_2",
 									fill:"white",
 									x:"15.4",
-									y:(57.8 - this.state.batteryLevel*52.6)+"",
-									width:"29.4",
-									height:"57.8"
+									y:5.2 +"",
+									width:"28.8",
+									height:(52.6 - this.state.batteryLevel*52.6)+""
+								},null),
+								React.createElement("rect",{
+									key:"_1",
+									fill:statusColor,
+									x:"15.4",
+									y:5.2 + (52.6 - this.state.batteryLevel*52.6)+"",
+									width:"28.8",
+									height:(this.state.batteryLevel*52.6)+""
 								},null),
 								React.createElement("path",{key:"2",fill:(this.state.isCharging?"black":"transparent"),d:"M37,29h-3V17.108c0.013-0.26-0.069-0.515-0.236-0.72c-0.381-0.467-1.264-0.463-1.642,0.004   c-0.026,0.032-0.05,0.066-0.072,0.103L22.15,32.474c-0.191,0.309-0.2,0.696-0.023,1.013C22.303,33.804,22.637,34,23,34h4   l0.002,12.929h0.001c0.001,0.235,0.077,0.479,0.215,0.657C27.407,47.833,27.747,48,28.058,48c0.305,0,0.636-0.16,0.825-0.398   c0.04-0.05,0.074-0.103,0.104-0.159l8.899-16.979c0.163-0.31,0.151-0.682-0.03-0.981S37.35,29,37,29z"},null),
 							]
