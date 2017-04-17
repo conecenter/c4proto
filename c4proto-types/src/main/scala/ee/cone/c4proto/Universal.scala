@@ -2,8 +2,6 @@ package ee.cone.c4proto
 
 import com.squareup.wire.{FieldEncoding, ProtoAdapter, ProtoReader, ProtoWriter}
 
-import scala.annotation.tailrec
-
 case class UniversalNode(props: List[UniversalProp])
 sealed trait UniversalProp {
   def encodedSize: Int
@@ -33,13 +31,12 @@ class IndentedParser(
   //@tailrec final
   def parseProps(splitter: Char, lines: List[String], res: List[UniversalProp]): List[UniversalProp] =
     if(lines.isEmpty) res.reverse else {
-      val Array(key,typeName) = lines.head.split(splitter)
-      val ("0x", hex) = key.splitAt(2)
+      val ("0x", hex) = lines.head.splitAt(2)
       val tag = Integer.parseInt(hex, 16)
       val value = lines.tail.takeWhile(_.head == splitter).map(_.tail)
       val prop =
-        if(typeName.nonEmpty) propTypeRegistry(typeName)(tag,value.mkString(lineSplitter))
-        else UniversalPropImpl(tag,UniversalNode(parseProps(splitter, value, Nil)))(UniversalProtoAdapter)
+        if(value.head != "Node") propTypeRegistry(value.head)(tag,value.tail.mkString(lineSplitter))
+        else UniversalPropImpl(tag,UniversalNode(parseProps(splitter, value.tail, Nil)))(UniversalProtoAdapter)
       parseProps(splitter, lines.drop(value.size), prop :: res)
     }
 }
@@ -47,7 +44,7 @@ class IndentedParser(
 object StringToUniversalProp {
   type Converter = (Int,String)⇒UniversalProp
 }
-
+/*
 object StringToUniversalPropImpl {
   def string(tag: Int, value: String): UniversalProp =
     UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
@@ -60,3 +57,5 @@ object StringToUniversalPropImpl {
   def converters: List[(String,StringToUniversalProp.Converter)] =
     ("String", string) :: ("Number", number _) :: Nil
 }
+*/
+//protobuf universal draft

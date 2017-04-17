@@ -128,7 +128,7 @@ case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) 
 
 object ProtocolDataDependencies {
   def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters).map{ adapter ⇒
+    protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
       new OriginalWorldPart(By.srcId(adapter.className))
     }
 }
