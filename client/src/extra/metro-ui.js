@@ -205,7 +205,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					transitionProperty:'all',
 					transitionDuration:'0.15s',
 					transformOrigin:'50% 0%',
-					//border:"0.5em solid #2196f3",
+					border:"0.08em solid #2196f3",
 					maxHeight:this.state.maxHeight,
 					//overflowY:"auto",
 					...this.props.style
@@ -1022,7 +1022,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 
 	const DropDownElement = React.createClass({
 		getInitialState:function(){
-			return {mouseOverI:false,mouseOverB:false};
+			return {mouseOverI:false,mouseOverB:false,popupMinWidth:"0%"};
 		},
 		onChange:function(e){
 			if(this.props.onChange)
@@ -1044,6 +1044,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onMouseOutB:function(){
 			this.setState({mouseOverB:false});
 		},
+		componentDidMount:function(){
+			if(!this.cont) return;
+			const minWidth=this.cont.getBoundingClientRect().width;
+			this.setState({popupMinWidth:minWidth+"px"});
+		},
 		render:function(){			
 			const contStyle={
 				width:"100%",				
@@ -1056,7 +1061,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				height:"auto",
 				lineHeight:"1",
 				margin:"0.124rem 0rem",
-				position:"relative",
+				//position:"relative",
 				verticalAlign:"middle",
 				width:"100%",
 				border:"0.01rem solid",
@@ -1094,13 +1099,15 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const popupStyle={
 				position:"absolute",
 				border: "0.02rem solid #000",
-				minWidth: "100%",
+				minWidth: this.state.popupMinWidth,
 				overflow: "auto",				
 				maxHeight: "10rem",				
 				backgroundColor: "white",
 				zIndex: "666",
 				boxSizing:"border-box",
 				overflowX:"hidden",
+				marginLeft:"-0.06em",
+				lineHeight:"normal",
 			};
 			const openButtonStyle={
 				minHeight:"",
@@ -1132,7 +1139,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);			
 			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null;
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			return React.createElement("div",{style:inpContStyle,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},[
+			return React.createElement("div",{ref:(ref)=>this.cont=ref,style:inpContStyle,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},[
 				React.createElement("div",{key:"1",style:inp2ContStyle},[
 					React.createElement("input",{key:"1",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
 					popupWrapEl					
