@@ -391,8 +391,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				transform:this.state.rotated?"rotate(-90deg)":"none",
 				transformOrigin:"100% 0px",
 				whiteSpace:"nowrap",
-				marginTop:"0.5em",
-				fontSize:"0.8em",
+				marginTop:"1.5em",
+				fontSize:"0.875em",
 				display:"inline-block",
 				...this.props.captionStyle
 			};
