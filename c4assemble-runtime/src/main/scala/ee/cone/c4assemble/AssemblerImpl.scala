@@ -95,13 +95,6 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   }
 }
 
-case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: List[T]=Nil) {
-  def add(item: T): ReverseInsertionOrderSet[T] = {
-    if(contains(item)) throw new Exception(s"has $item")
-    ReverseInsertionOrderSet(contains + item, item :: items)
-  }
-}
-
 object TreeAssemblerImpl extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
@@ -117,19 +110,15 @@ object TreeAssemblerImpl extends TreeAssembler {
     println(s"rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}")
     val byOutput: Map[WorldKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
-    def regOne(
-        priorities: ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]],
-        handler: WorldPartExpression with DataDependencyFrom[_]
-    ): ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]] = {
-      if(priorities.contains(handler)) priorities
-      else (priorities /: handler.inputWorldKeys.flatMap{ k ⇒
-        byOutput.getOrElse(k,
-          if(originals(k)) Nil else throw new Exception(s"undefined $k in $originals")
-        )
-      })(regOne).add(handler)
-    }
     val expressionsByPriority: List[WorldPartExpression] =
-      (ReverseInsertionOrderSet[WorldPartExpression with DataDependencyFrom[_]]() /: expressions)(regOne).items.reverse
+      (new ByPriority[WorldPartExpression with DataDependencyFrom[_]](
+        _.inputWorldKeys.flatMap{ k ⇒
+          byOutput.getOrElse(k,
+            if(originals(k)) Nil else throw new Exception(s"undefined $k in $originals")
+          )
+        }.toList
+      ))(expressions)
+
     replaced ⇒ prevWorld ⇒ {
       val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
       val current = add.many(prevWorld, replaced)
