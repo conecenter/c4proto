@@ -1589,17 +1589,20 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
         const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
 		const buttonStyle = {backgroundColor:"#c0ced8"}
 		const buttonOverStyle = {backgroundColor:"#d4e2ec"}
+		const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
+		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
+		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
         return React.createElement("div",{style:{margin:"1em 0em"}},[
 			React.createElement(DropDownWrapperElement,{},
-				React.createElement(LabelElement,{label:"Username"},null),
+				React.createElement(LabelElement,{label:usernameCaption},null),
 				React.createElement(InputElement,{...attributesA},null)			
 			),
 			React.createElement(DropDownWrapperElement,{},
-				React.createElement(LabelElement,{label:"Password"},null),
+				React.createElement(LabelElement,{label:passwordCaption},null),
 				React.createElement(InputElement,{...attributesB,type:"password"},null)			
 			),
 			React.createElement("div",{style:{textAlign:"right",paddingRight:"0.3125em"}},
-				React.createElement(GotoButton,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},"Login")
+				React.createElement(GotoButton,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
 			)			
         ])
 	}
