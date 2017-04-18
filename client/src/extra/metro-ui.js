@@ -1572,17 +1572,19 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		const buttonStyle = attributesA.value && attributesA.value === attributesB.value?{backgroundColor:"#c0ced8",...defButtonStyle}:disabledButtonStyle
 		const buttonOverStyle = attributesA.value && attributesA.value === attributesB.value?{backgroundColor:"#d4e2ec",...defButtonStyle}:disabledButtonStyle		
 		const onClick = attributesA.value && attributesA.value === attributesB.value? prop.onBlur:()=>{}
-        
+        const passwordCaption = prop.passwordCaption?prop.passwordCaption:"New Password";
+		const passwordRepeatCaption = prop.passwordRepeatCaption?prop.passwordRepeatCaption:"Again";
+		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"Submit";
         return React.createElement("div",{style:{display:"flex"}},[
 			React.createElement(DropDownWrapperElement,{style:{flex:"1 1 0%"}},
-				React.createElement(LabelElement,{label:"New password"},null),
+				React.createElement(LabelElement,{label:passwordCaption},null),
 				React.createElement(InputElement,{...attributesA,type:"password"},null)			
 			),
 			React.createElement(DropDownWrapperElement,{style:{flex:"1 1 0%"}},
-				React.createElement(LabelElement,{label:"Again"},null),
+				React.createElement(LabelElement,{label:passwordRepeatCaption},null),
 				React.createElement(InputElement,{...attributesB,type:"password"},null)			
 			),            
-            React.createElement(GotoButton, {onClick, style:buttonStyle,overStyle:buttonOverStyle}, "Submit")
+            React.createElement(GotoButton, {onClick, style:buttonStyle,overStyle:buttonOverStyle}, buttonCaption)
         ])
     }
     const SignIn = prop => {
