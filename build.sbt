@@ -20,6 +20,8 @@ lazy val publishSettings = Seq(
 
 scalaVersion in ThisBuild := "2.11.8"
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // from https://github.com/scalameta/sbt-macro-example/blob/master/build.sbt
 
@@ -87,7 +89,7 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
-  .settings(metaMacroSettings)
+  .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
   .dependsOn(`c4assemble-macros`,`c4gate-proto`, `c4actor-kafka`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
