@@ -95,6 +95,13 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   }
 }
 
+class ByPriority[Item](uses: Item⇒List[Item]){
+  private def regOne(res: ReverseInsertionOrder[Item,Item], item: Item): ReverseInsertionOrder[Item,Item] =
+    if(res.map.contains(item)) res else (res /: uses(item))(regOne).add(item,item)
+  def apply(items: List[Item]): List[Item] =
+    (ReverseInsertionOrder[Item,Item]() /: items)(regOne).values.reverse
+}
+
 object TreeAssemblerImpl extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =

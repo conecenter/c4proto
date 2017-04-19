@@ -23,19 +23,13 @@ trait TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace
 }
 
-case class ReverseInsertionOrderSet[T](contains: Set[T]=Set.empty[T], items: List[T]=Nil) {
-  def add(item: T): ReverseInsertionOrderSet[T] = {
-    if(contains(item)) throw new Exception(s"has $item")
-    ReverseInsertionOrderSet(contains + item, item :: items)
+case class ReverseInsertionOrder[K,V](map: Map[K,V]=Map.empty[K,V], values: List[V]=Nil) {
+  def add(key: K, value: V): ReverseInsertionOrder[K,V] = {
+    if(map.contains(key)) throw new Exception(s"has $key")
+    ReverseInsertionOrder(map + (key→value), value :: values)
   }
 }
 
-class ByPriority[Item](uses: Item⇒List[Item]){
-  private def regOne(res: ReverseInsertionOrderSet[Item], item: Item): ReverseInsertionOrderSet[Item] =
-    if(res.contains(item)) res else (res /: uses(item))(regOne).add(item)
-  def apply(items: List[Item]): List[Item] =
-    (ReverseInsertionOrderSet[Item]() /: items)(regOne).items.reverse
-}
 
 ////
 // moment -> mod/index -> key/srcId -> value -> count
