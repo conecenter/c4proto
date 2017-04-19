@@ -881,7 +881,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			this.setState({mouseOver:false});
 		},
 		componentDidUpdate:function(prevProps,prevState){			
-			log(this.props,prevProps);			
+			//log(this.props,prevProps);			
 		},
 		render:function(){
 			const labelStyle={
@@ -1210,13 +1210,52 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement("div",{ref:ref=>this.el=ref,style:style,tabIndex:"0"},this.props.children);
 		}
 	});
-	const PopupElement = ({style,children})=>React.createElement("div",{style:{
-		position:"fixed",
-		zIndex:"6",
-		border:"0.02rem solid #eee",
-		backgroundColor:"white",
-		...style
-	}},children);
+	const PopupElement = React.createClass({
+		getInitialState:function(){
+			return {top:"",left:""};
+		},
+		calcPosition:function(){
+			if(!this.el) return;			
+			const sibling = this.el.previousElementSibling;			
+			if(!sibling) return;
+			const sRect = sibling.getBoundingClientRect();
+			const r = this.el.getBoundingClientRect();
+			let left="",top="";
+			switch(this.props.position){
+				case "Left":					
+					left = -r.width+"px";
+					top = "0px";
+					break;
+				case "Right":
+					left = sRect.width+"px";
+					top = "0px";					
+					break;
+				case "Top":
+					left = "0px";
+					top = -r.height+"px";
+					break;
+				case "Bottom":
+					left = "0px";
+					top = sRect.height+"px";
+			}
+			this.setState({top,left});			
+		},
+		componentDidMount:function(){
+			if(!this.props.position) return;
+			this.calcPosition();
+		},
+		render:function(){			
+			return React.createElement("div",{ref:ref=>this.el=ref,style:{
+				position:"fixed",
+				zIndex:"6",
+				border:"0.02rem solid #eee",
+				backgroundColor:"white",
+				top:this.state.top,
+				left:this.state.left,
+				...this.props.style
+			}},this.props.children);
+		}		
+	});
 	const Checkbox = React.createClass({
 		getInitialState:function(){
 			return {mouseOver:false};
@@ -1575,17 +1614,19 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
         const passwordCaption = prop.passwordCaption?prop.passwordCaption:"New Password";
 		const passwordRepeatCaption = prop.passwordRepeatCaption?prop.passwordRepeatCaption:"Again";
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"Submit";
-        return React.createElement("div",{style:{display:"flex"}},[
-			React.createElement(DropDownWrapperElement,{style:{flex:"1 1 0%"}},
-				React.createElement(LabelElement,{label:passwordCaption},null),
-				React.createElement(InputElement,{...attributesA,type:"password"},null)			
-			),
-			React.createElement(DropDownWrapperElement,{style:{flex:"1 1 0%"}},
-				React.createElement(LabelElement,{label:passwordRepeatCaption},null),
-				React.createElement(InputElement,{...attributesB,type:"password"},null)			
-			),            
-            React.createElement(GotoButton, {onClick, style:buttonStyle,overStyle:buttonOverStyle}, buttonCaption)
-        ])
+        return React.createElement("form",{onSubmit:(e)=>e.preventDefault()},
+			React.createElement("div",{key:"1",style:{display:"flex"}},[
+				React.createElement(DropDownWrapperElement,{key:"1",style:{flex:"1 1 0%"}},
+					React.createElement(LabelElement,{label:passwordCaption},null),
+					React.createElement(InputElement,{...attributesA,type:"password"},null)			
+				),
+				React.createElement(DropDownWrapperElement,{key:"2",style:{flex:"1 1 0%"}},
+					React.createElement(LabelElement,{label:passwordRepeatCaption},null),
+					React.createElement(InputElement,{...attributesB,type:"password"},null)			
+				),            
+				React.createElement(GotoButton, {key:"3",onClick, style:buttonStyle,overStyle:buttonOverStyle}, buttonCaption)
+			])
+		)
     }
     const SignIn = prop => {
         const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
@@ -1594,19 +1635,21 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
 		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
-        return React.createElement("div",{style:{margin:"1em 0em"}},[
-			React.createElement(DropDownWrapperElement,{},
-				React.createElement(LabelElement,{label:usernameCaption},null),
-				React.createElement(InputElement,{...attributesA},null)			
-			),
-			React.createElement(DropDownWrapperElement,{},
-				React.createElement(LabelElement,{label:passwordCaption},null),
-				React.createElement(InputElement,{...attributesB,type:"password"},null)			
-			),
-			React.createElement("div",{style:{textAlign:"right",paddingRight:"0.3125em"}},
-				React.createElement(GotoButton,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
-			)			
-        ])
+        return React.createElement("div",{style:{margin:"1em 0em"}},
+			React.createElement("form",{key:"form",onSubmit:e=>e.preventDefault()},[
+				React.createElement(DropDownWrapperElement,{key:"1"},
+					React.createElement(LabelElement,{label:usernameCaption},null),
+					React.createElement(InputElement,{...attributesA},null)			
+				),
+				React.createElement(DropDownWrapperElement,{key:"2"},
+					React.createElement(LabelElement,{label:passwordCaption},null),
+					React.createElement(InputElement,{...attributesB,type:"password"},null)			
+				),
+				React.createElement("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
+					React.createElement(GotoButton,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
+				)
+			])
+		)
 	}
 	
 	const FixedFloatingElement = React.createClass({
