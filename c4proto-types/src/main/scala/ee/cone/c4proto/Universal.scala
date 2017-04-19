@@ -1,5 +1,7 @@
 package ee.cone.c4proto
 
+import java.net.URLEncoder
+
 import com.squareup.wire.{FieldEncoding, ProtoAdapter, ProtoReader, ProtoWriter}
 
 case class UniversalNode(props: List[UniversalProp])
@@ -22,29 +24,34 @@ object UniversalProtoAdapter extends ProtoAdapter[UniversalNode](FieldEncoding.L
 }
 
 class IndentedParser(
-    splitter: Char, lineSplitter: String, propTypeRegistry: String⇒StringToUniversalProp.Converter) {
+  splitter: Char, lineSplitter: String,
+  propTypeRegistry: String⇒StringToUniversalProp.Converter
+) {
   def parse(data: okio.ByteString): UniversalNode = {
-    val lines = data.utf8().split(lineSplitter).toList
-    if(lines.last != "") throw new Exception
-    UniversalNode(parseProps(splitter, lines.init, Nil))
+    val lines = data.utf8().split(lineSplitter).filter(_.nonEmpty).toList
+    UniversalNode(parseProps(lines, Nil))
   }
   //@tailrec final
-  def parseProps(splitter: Char, lines: List[String], res: List[UniversalProp]): List[UniversalProp] =
+  private def parseProp(key: String, value: List[String]): UniversalProp = {
+    val ("0x", hex) = key.splitAt(2)
+    val tag = Integer.parseInt(hex, 16)
+    val handlerName :: valueLines = value
+    if(handlerName != "Node") propTypeRegistry(handlerName)(tag,valueLines.mkString(lineSplitter))
+    else UniversalPropImpl(tag,UniversalNode(parseProps(valueLines, Nil)))(UniversalProtoAdapter)
+  }
+  private def parseProps(lines: List[String], res: List[UniversalProp]): List[UniversalProp] =
     if(lines.isEmpty) res.reverse else {
-      val ("0x", hex) = lines.head.splitAt(2)
-      val tag = Integer.parseInt(hex, 16)
+      val key = lines.head
       val value = lines.tail.takeWhile(_.head == splitter).map(_.tail)
-      val prop =
-        if(value.head != "Node") propTypeRegistry(value.head)(tag,value.tail.mkString(lineSplitter))
-        else UniversalPropImpl(tag,UniversalNode(parseProps(splitter, value.tail, Nil)))(UniversalProtoAdapter)
-      parseProps(splitter, lines.drop(value.size), prop :: res)
+      val left = lines.tail.drop(value.size)
+      parseProps(left, parseProp(key, value) :: res)
     }
 }
 
 object StringToUniversalProp {
   type Converter = (Int,String)⇒UniversalProp
 }
-/*
+
 object StringToUniversalPropImpl {
   def string(tag: Int, value: String): UniversalProp =
     UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
@@ -55,7 +62,16 @@ object StringToUniversalPropImpl {
     UniversalPropImpl(tag,UniversalNode(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
   }
   def converters: List[(String,StringToUniversalProp.Converter)] =
-    ("String", string) :: ("Number", number _) :: Nil
+    ("String", string _) :: ("BigDecimal", number _) :: Nil
 }
-*/
+
+object PrettyProduct {
+  def encode(a: Any): String = encodeLines(a).map(l⇒s"$l\n").mkString
+  private def encodeLines(a: Any): List[String] = a match {
+    case p: Product ⇒
+      p.productPrefix :: p.productIterator.toList.flatMap(encodeLines).map(l⇒s" $l")
+    case o ⇒ URLEncoder.encode(o.toString, "UTF-8") :: Nil
+  }
+}
+
 //protobuf universal draft
