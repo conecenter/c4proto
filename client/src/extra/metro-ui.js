@@ -1709,6 +1709,21 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		}
 	})
 	
+	const DateTimePicker = React.createClass({		
+		render:function(){
+			const calWrapper=function(children){
+				const wrapperStyle={};
+				const gridStyle={};
+				return React.createElement("div",{style:wrapperStyle},
+					React.createElement("div",{style:gridStyle},
+						children
+					));
+			};
+			
+			return ;
+		}
+	});
+	
 	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}
 	const onClickValue=({sendVal});
@@ -1718,7 +1733,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		tp:{
             DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,DropDownElement,DropDownWrapperElement,LabelElement,Chip,FocusableElement,PopupElement,Checkbox,
-            RadioButtonElement,FileUploadElement,TextArea,
+            RadioButtonElement,FileUploadElement,TextArea,DateTimePicker,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
