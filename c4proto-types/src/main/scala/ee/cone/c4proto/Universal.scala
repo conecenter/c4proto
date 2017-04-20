@@ -1,18 +1,20 @@
 package ee.cone.c4proto
 
-import java.net.URLEncoder
-
 import com.squareup.wire.{FieldEncoding, ProtoAdapter, ProtoReader, ProtoWriter}
 
 case class UniversalNode(props: List[UniversalProp])
 sealed trait UniversalProp {
+  def tag: Int
+  def value: Object
+  def encodedValue: Array[Byte]
   def encodedSize: Int
   def encode(writer: ProtoWriter): Unit
 }
 
-case class UniversalPropImpl[T](tag: Int, value: T)(adapter: ProtoAdapter[T]) extends UniversalProp {
+case class UniversalPropImpl[T<:Object](tag: Int, value: T)(adapter: ProtoAdapter[T]) extends UniversalProp {
   def encodedSize: Int = adapter.encodedSizeWithTag(tag, value)
   def encode(writer: ProtoWriter): Unit = adapter.encodeWithTag(writer, tag, value)
+  def encodedValue: Array[Byte] = adapter.encode(value)
 }
 
 object UniversalProtoAdapter extends ProtoAdapter[UniversalNode](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalNode]) {
@@ -33,11 +35,11 @@ class IndentedParser(
   }
   //@tailrec final
   private def parseProp(key: String, value: List[String]): UniversalProp = {
-    val ("0x", hex) = key.splitAt(2)
+    val Array(xHex,handlerName) = key.split(splitter)
+    val ("0x", hex) = xHex.splitAt(2)
     val tag = Integer.parseInt(hex, 16)
-    val handlerName :: valueLines = value
-    if(handlerName != "Node") propTypeRegistry(handlerName)(tag,valueLines.mkString(lineSplitter))
-    else UniversalPropImpl(tag,UniversalNode(parseProps(valueLines, Nil)))(UniversalProtoAdapter)
+    if(handlerName != "Node") propTypeRegistry(handlerName)(tag,value.mkString(lineSplitter))
+    else UniversalPropImpl(tag,UniversalNode(parseProps(value, Nil)))(UniversalProtoAdapter)
   }
   private def parseProps(lines: List[String], res: List[UniversalProp]): List[UniversalProp] =
     if(lines.isEmpty) res.reverse else {
@@ -63,15 +65,6 @@ object StringToUniversalPropImpl {
   }
   def converters: List[(String,StringToUniversalProp.Converter)] =
     ("String", string _) :: ("BigDecimal", number _) :: Nil
-}
-
-object PrettyProduct {
-  def encode(a: Any): String = encodeLines(a).map(l⇒s"$l\n").mkString
-  private def encodeLines(a: Any): List[String] = a match {
-    case p: Product ⇒
-      p.productPrefix :: p.productIterator.toList.flatMap(encodeLines).map(l⇒s" $l")
-    case o ⇒ URLEncoder.encode(o.toString, "UTF-8") :: Nil
-  }
 }
 
 //protobuf universal draft
