@@ -75,6 +75,8 @@ const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const getBattery = (callback) => navigator.getBattery().then(callback)
 const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery});
 
+const activeElement=()=>document.activeElement; //todo: remove
+
 //canvas
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
@@ -82,7 +84,7 @@ const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
 const exchangeMix = canvas => [
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement)
+    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement,activeElement)
 ]
 const canvasBaseMix = CanvasBaseMix(log,util)
 

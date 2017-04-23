@@ -41,7 +41,7 @@ export function CanvasFactory(util, modList){
     })
 }
 
-export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,createElement){
+export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,createElement,activeElement){
     function sendToServer(req){
         return feedback.send({
             url: "/connection",
@@ -58,6 +58,14 @@ export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,creat
         rootElement().appendChild(element)
         element.style.position = "absolute"
         element.style.zIndex = "554"
+		element.style.outline = "none"
+		if(element.tagName == "CANVAS"){
+			element.tabIndex = "1"
+			element.onclick = ()=>{
+				const aElement = activeElement?activeElement():null;
+				if(aElement&&element!=aElement) aElement.blur&&aElement.blur();
+			}			
+		}
     }
 
     return {sendToServer,onZoom,scrollNode,createElement,appendChild}

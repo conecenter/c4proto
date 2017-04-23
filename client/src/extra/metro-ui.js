@@ -1708,22 +1708,528 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			);
 		}
 	})
-	
-	const DateTimePicker = React.createClass({		
+	const CalenderCell=React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
+		onMouseOver:function(){
+			this.setState({mouseOver:true});
+		},
+		onMouseOut:function(){
+			this.setState({mouseOver:false});
+		},
+		render:function(){											
+			const calDayCellStyle ={
+				width:"12.46201429%",
+				margin:"0 0 0 2.12765%",											
+				textAlign:"center",
+				border:!this.props.m?"0.04em solid #d4e2ec":"none",
+				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent"
+			};
+			const cellStyle={
+				cursor:"pointer",
+				padding:"0.3125em 0"												
+			};
+			const aCellStyle={
+				color:"#212121",											
+				textAlign:"center",
+				textDecoration:"none",																							
+			};
+			return React.createElement("div",{style:calDayCellStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},
+				React.createElement("div",{style:cellStyle},
+					React.createElement("a",{onClick:()=>log("set"),style:aCellStyle},this.props.curday)
+				)
+			);
+		}
+	});
+	const CalendarYM = React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
+		onMouseOver:function(){
+			this.setState({mouseOver:true});
+		},
+		onMouseOut:function(){
+			this.setState({mouseOver:false});
+		},
+		render:function(){
+			const style={
+				width:"12.46201429%",
+				margin:"0 0 0 2.12765%",						
+				textAlign:"center",
+				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent",
+				color:this.state.mouseOver?"#212112":"white",
+				...this.props.style
+			};
+			return React.createElement("div",{onClick:this.props.onClick,style,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.children);
+		}
+	});
+	const CalenderSetNow = React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
+		onMouseOver:function(){
+			this.setState({mouseOver:true});
+		},
+		onMouseOut:function(){
+			this.setState({mouseOver:false});
+		},
+		render:function(){			
+			const style={
+				border:"0.04em solid #d4e2ec",
+				color:"#212121",
+				cursor:"pointer",
+				display:"inline-block",
+				padding:".3125em 2.3125em",
+				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent",
+				...this.props.style
+			};
+			return React.createElement("div",{style,onClick:this.props.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.children);			
+		}
+	});
+	const CalenderTimeButton = React.createClass({
+		getInitialState:function(){
+			return {mouseOver:false};
+		},
+		onMouseOver:function(){
+			this.setState({mouseOver:true});
+		},
+		onMouseOut:function(){
+			this.setState({mouseOver:false});
+		},
+		render:function(){
+			const style = {
+				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent",
+				border:"0.04em solid #d4e2ec",
+				cursor:"pointer",
+				padding:"0.25em 0",
+				width:"2em",
+				fontSize:"1em"				
+			};			
+			return React.createElement("button",{style,onClick:this.props.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.children);			
+		}
+	});	
+	const DateTimePicker = React.createClass({
+		getInitialState:function(){
+			return {mouseOverI:false,mouseOverB:false};
+		},
+		onMouseOverI:function(){
+			this.setState({mouseOverI:true});
+		},
+		onMouseOutI:function(){
+			this.setState({mouseOverI:false});
+		},
+		onMouseOverB:function(){
+			this.setState({mouseOverB:true});
+		},
+		onMouseOutB:function(){
+			this.setState({mouseOverB:false});
+		},
+		onClick:function(e){
+			if(this.props.onClickValue)
+				this.props.onClickValue("click");
+		},
 		render:function(){
 			const calWrapper=function(children){
-				const wrapperStyle={};
-				const gridStyle={};
+				const wrapperStyle={
+					padding:".3125em",
+					backgroundColor:"white",
+					minWidth:"15.75em",
+					boxShadow:"0 0 0.3125em 0 rgba(0, 0, 0, 0.3)"
+				};
+				const gridStyle={
+					margin:"0px",
+					padding:"0px"
+				};
 				return React.createElement("div",{style:wrapperStyle},
 					React.createElement("div",{style:gridStyle},
 						children
 					));
 			};
 			
-			return ;
+			const changeYear=function(ajd){};
+			const changeMonth=function(ajd){};
+			const setCurrent = function(){};
+			const changeHour=function(adj){};
+			const changeMin=function(adj){};
+			
+			const ymSelectionRow=function(month,year){
+				const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+				const headerStyle={
+					width:"100%",
+					backgroundColor:"#005a7a",
+					color:"white",
+					margin:"0px",
+					display:"flex"
+				};
+				const aItem = function(c,s){
+					const aStyle={
+						cursor:"pointer",
+						display:"block",
+						textDecoration:"none",						
+						padding:"0.3125em",
+						...s
+					};
+					return React.createElement("a",{style:aStyle},c);
+				};				
+				const ymStyle = {
+					width:"41.64134286%",
+					whiteSpace:"nowrap"
+				};
+				return React.createElement("div",{key:"ymSelRow",style:headerStyle},[
+					React.createElement(CalendarYM,{onClick:changeYear(-1),key:"1",style:{margin:"0px"}},aItem("-")),
+					React.createElement(CalendarYM,{onClick:changeMonth(-1),key:"2"},aItem("〈")),
+					React.createElement(CalendarYM,{key:"3",style:ymStyle},aItem(monthNames[month]+" "+year,{padding:"0.325rem 0 0.325rem 0",cursor:"default"})),
+					React.createElement(CalendarYM,{onClick:changeMonth(1),key:"4"},aItem("〉")),
+					React.createElement(CalendarYM,{onClick:changeYear(1),key:"5"},aItem("+"))					
+				]);
+				
+			};
+			const dayNamesRow=function(){				
+				const dayNames  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+				const weekDaysStyle={
+					margin:"0 0 .3125em",
+					width:"100%",
+					display:"flex",
+					fontSize:"0.75em"
+				};
+				const dayOfWeekStyle={
+					width:"10.5%",
+					margin:"0 0 0 2.12765%",
+					padding:"0.3125em 0 0.3125em 0",					
+					textAlign:"center"
+				};
+				const dayStyle={
+					color:"#212121"
+				};
+				return React.createElement("div",{key:"dayNamesRow",style:weekDaysStyle},[
+					React.createElement("div",{key:"1",style:dayOfWeekStyle},React.createElement("div",{}," ")),
+					dayNames.map((day,i)=>
+						React.createElement("div",{key:"d"+i,style:dayOfWeekStyle},
+							React.createElement("div",{style:dayStyle},day)
+						)
+					)
+				]);
+				
+			};
+			const cal_makeDaysArr=function(month, year) {
+				function cal_daysInMonth(month, year) {
+					return 32 - new Date(year, month, 32).getDate();
+				}
+				const daysArray = [];
+				let dayOfWeek = new Date(year, month, 1).getDay();
+				const prevMDays = cal_daysInMonth(month ? month-1 : 11, year);
+				const currMDays = cal_daysInMonth(month, year);
+				
+				if (!dayOfWeek) dayOfWeek = 7;	// First week is from previous month
+				
+				for(let i = 1; i < dayOfWeek; i++)
+					daysArray.push(prevMDays - dayOfWeek + i + 1);
+
+				for(let i = 1; i <= currMDays; i++)
+					daysArray.push(i);
+
+				for(let i = 1; i <= 42-dayOfWeek-currMDays+1; i++)
+					daysArray.push(i);	
+					
+				return daysArray;
+			}
+			const rowsOfDays=function(dayArray,cDay){
+				const weeknum = dayArray.length/7;
+				let daynum  = 0;
+				const cal = cDay;				
+				//const firstWeekOfMonth = new Date(cal.year, cal.month, 1, 0, 0, 0, 0).getISOWeek();				
+				//let dayOfWeek;
+				let firstDayOfMonthTriger = true;
+				let firstDayOfMonth = new Date(cal.year, cal.month,1).getDay();
+				firstDayOfMonth = (firstDayOfMonth==0) ? firstDayOfMonth=6 : firstDayOfMonth-1;
+				//if (!firstDayOfMonth) dayOfWeek = 7;	// First week is from previous month
+				const dayInMonth = new Date(cal.year, (cal.month+1), 0).getDate();
+
+				const rows=[];
+				let w;
+				for(w = 0;w < weeknum;w++){
+					rows.push(React.createElement("tr",{key:""+w},
+					(()=>{
+						let weekNumber;
+						const curday = dayArray[daynum];
+						if(daynum >= dayInMonth + firstDayOfMonth){
+							weekNumber = new Date(cal.year, (cal.month+1), curday, 0, 0, 0, 0).getISOWeek();
+						}
+						else if(daynum < firstDayOfMonth){
+							weekNumber = new Date(cal.year, (cal.month-1), curday, 0, 0, 0, 0).getISOWeek();
+						} else {
+							weekNumber = new Date(cal.year, cal.month, curday, 0, 0, 0, 0).getISOWeek();
+						}
+						const weekNumStyle={
+							borderRight:"0.04em solid #212121",
+							padding:"0em 0em 0,3125em",
+							width:"10.5%",
+							verticalAlign:"top"
+						};
+						const weekNumCellStyle={							
+							textAlign:"center",
+							padding:"0.3125em",
+							margin:"0 0 0 2.12765%"							
+						};
+						const calRowStyle={
+							padding:"0em 0em .3125em .3125em",
+							margin:"0em",
+							width:"100%",
+							//display:"flex",
+						};
+						return [
+							React.createElement("td",{key:w+"1",style:weekNumStyle},
+								React.createElement("div",{style:weekNumCellStyle},
+									React.createElement("div",{},weekNumber)
+								)
+							),
+							React.createElement("td",{key:w+"2",style:calRowStyle},
+								React.createElement("div",{style:{...calRowStyle,padding:"0px",display:"flex"}},
+								(()=>{
+									const cells=[];									
+									for(let d = 0; d < 7; d++) {
+										const curday = dayArray[daynum];
+										if (daynum < 7 && curday > 20)
+											cells.push(React.createElement(CalenderCell,{key:d,curday,m:"p"}));
+										else if (daynum > 27 && curday < 20)
+											cells.push(React.createElement(CalenderCell,{key:d,curday,m:"n"}));
+										else
+											cells.push(React.createElement(CalenderCell,{key:d,curday}));
+										daynum++;
+									}
+									return cells;
+								})())
+							)	
+						];
+					})()	
+					));					
+				}		
+				const tableStyle={
+					width:"100%",
+					color:"#212121",
+					borderSpacing:"0em"
+				}
+				return React.createElement("table",{key:"rowsOfDays",style:tableStyle},
+					React.createElement("tbody",{},rows)
+				);
+			};
+			const timeSelect = function(_hours,_mins){
+				let hours=_hours.toString();
+				if(hours.length==1) hours='0'+hours;
+				let mins = _mins.toString();
+				if(mins.length==1) mins='0'+mins;
+				const tableStyle = {
+					width:"100%",
+					marginBottom:"1.5em",
+					marginTop:"1em",
+					borderCollapse:"collapse",
+					color:"#212121"
+				};				
+				return React.createElement("table",{key:"timeSelect",style:tableStyle},
+					React.createElement("tbody",{},[
+						React.createElement("tr",{key:1},[
+							React.createElement("td",{key:1,style:{textAlign:"right"}},
+								React.createElement(CalenderTimeButton,{onClick:changeHour(1)},"+")
+							),
+							React.createElement("td",{key:2,style:{textAlign:"center"}}),
+							React.createElement("td",{key:3,style:{textAlign:"left"}},
+								React.createElement(CalenderTimeButton,{onClick:changeMin(1)},"+")
+							)							
+						]),
+						React.createElement("tr",{key:2},[
+							React.createElement("td",{key:1,style:{textAlign:"right"}},hours),
+							React.createElement("td",{key:2,style:{textAlign:"center"}},":"),
+							React.createElement("td",{key:3,style:{textAlign:"left"}},mins),
+						]),
+						React.createElement("tr",{key:3},[
+							React.createElement("td",{key:1,style:{textAlign:"right"}},
+								React.createElement(CalenderTimeButton,{onClick:changeHour(-1)},"-")
+							),
+							React.createElement("td",{key:2,style:{textAlign:"center"}}),
+							React.createElement("td",{key:3,style:{textAlign:"left"}},
+								React.createElement(CalenderTimeButton,{onClick:changeMin(-1)},"-")
+							)	
+						])
+					])
+				);				
+			};
+			
+			const setNow = function(){				
+				return React.createElement(CalenderSetNow,{key:"setNow",onClick:setCurrent},"Today");				
+			};
+			const contStyle={
+				width:"100%",				
+				padding:"0.4rem 0.3125rem",
+				boxSizing:"border-box",
+				//...(this.props.style||{})
+			};
+			const inpContStyle={
+				display:"flex",
+				height:"auto",
+				lineHeight:"1",
+				margin:"0.124rem 0rem",
+				//position:"relative",
+				verticalAlign:"middle",
+				width:"100%",
+				border:"0.01rem solid",
+				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
+				backgroundColor:(this.props.onChange)?"white":"#eeeeee",
+				...this.props.style
+			};
+			const inp2ContStyle={
+				flex:"1 1 0%",
+				height:"auto",
+				minHeight:"100%",
+				overflow:"hidden",
+				backgroundColor:"inherit"
+			};
+			const popupStyle={
+				position:"absolute",
+				border: "0.02rem solid #000",																			
+				backgroundColor: "white",
+				zIndex: "666",
+				boxSizing:"border-box",
+				overflowX:"hidden",
+				marginLeft:"-0.06em",
+				lineHeight:"normal",
+			};			
+			const inputStyle={
+				textOverflow:"ellipsis",
+				margin:"0rem",
+				verticalAlign:"top",
+				color:"rgb(33,33,33)",
+				border:"none",
+				height:"100%",
+				padding:"0.2172rem 0.3125rem 0.2172rem 0.3125rem",
+				width:"100%",
+				zIndex:"0",
+				boxSizing:"border-box",
+				MozAppearence:"none",
+				whiteSpace:"nowrap",
+				overflow:"hidden",
+				fontSize:"inherit",
+				textTransform:"inherit",
+				backgroundColor:"inherit",
+				outline:"none",
+				...this.props.inputStyle
+			};
+			const openButtonStyle={
+				minHeight:"",
+				minWidth:"1.5rem",
+				height:"100%",
+				padding:"0.2rem",
+				lineHeight:"1",
+				backgroundColor:"inherit",
+				//backgroundColor:this.props.onClick?"":"#eeeeee",
+				//border:this.state.mouseOverB?"0.01rem solid":"none",
+				//borderColor:this.state.mouseOverB?"black":"rgb(182, 182, 182)",
+			};
+			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
+				flex:"0 1 auto"
+			});
+			const buttonImageStyle={
+				//width:"1.2rem",
+				verticalAlign:"middle",
+				display:"inline",
+				height:"auto",
+				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
+				transition:"all 200ms ease",
+				boxSizing:"border-box"
+			};
+			const placeholder = this.props.placeholder?this.props.placeholder:"";
+			const todayTimeSelWrapper = function(children){
+				return React.createElement("table",{key:"todayTimeSelWrapper",style:{width:"100%"}},
+					React.createElement("tbody",{},
+						React.createElement("tr",{},
+							React.createElement("td",{colSpan:"8"},
+								React.createElement("div",{style:{textAlign:"center"}},children)
+							)
+						)
+					)
+				);
+			};
+			const cWrapper=calWrapper([
+				ymSelectionRow(2,2017),
+				dayNamesRow(),
+				rowsOfDays(cal_makeDaysArr(2,2017),{year:2017,month:2}),
+				todayTimeSelWrapper([
+					timeSelect(12,0),
+					setNow()
+				])
+			]);
+			
+			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},cWrapper):null;
+			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">'
+				  +'<path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>'
+				  +'<g><path d="M481.082,138.431H14.713C6.587,138.431,0,131.843,0,123.718V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v50.894C495.795,131.844,489.208,138.431,481.082,138.431z M29.426,109.005h436.942v-36.18   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574V109.005z"/>'
+				  +'<path d="M144.238,282.415H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713c0,8.125-6.587,14.713-14.713,14.713H89.643v32.338   h54.595c8.126,0,14.713,6.589,14.713,14.713S152.364,282.415,144.238,282.415z"/></g>'
+				  +'<g><path d="M282.552,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C297.265,275.826,290.678,282.415,282.552,282.415z M227.957,252.988h39.882V220.65h-39.882V252.988z"/>'
+				  +'<path d="M144.238,406.06H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713s-6.587,14.713-14.713,14.713H89.643v32.338h54.595   c8.126,0,14.713,6.589,14.713,14.713S152.364,406.06,144.238,406.06z"/></g>'
+				  +'<path d="M282.552,406.06h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765  c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765  C297.265,399.471,290.678,406.06,282.552,406.06z M227.957,376.633h39.882v-32.338h-39.882V376.633z"/>'
+				  +'<g><path d="M420.864,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C435.577,275.826,428.99,282.415,420.864,282.415z M366.269,252.988h39.882V220.65h-39.882V252.988L366.269,252.988z"/>'
+				  +'<path d="M99.532,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C114.245,86.291,107.658,92.878,99.532,92.878z"/>'
+				  +'<path d="M247.897,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C262.61,86.291,256.023,92.878,247.897,92.878z"/>'
+				  +'<path d="M396.263,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C410.976,86.291,404.389,92.878,396.263,92.878z"/>'
+				  +'<path d="M389.88,504.653c-67.338,0-122.12-54.782-122.12-122.12s54.782-122.12,122.12-122.12   c36.752,0,71.2,16.321,94.512,44.78c5.15,6.285,4.229,15.556-2.058,20.706c-6.285,5.148-15.556,4.229-20.706-2.058   c-17.7-21.608-43.851-33.999-71.747-33.999c-51.111,0-92.693,41.582-92.693,92.693s41.582,92.693,92.693,92.693   s92.693-41.582,92.693-92.693c0-8.125,6.587-14.713,14.713-14.713c8.126,0,14.713,6.589,14.713,14.713   C512,449.87,457.218,504.653,389.88,504.653z"/>'
+				  +'<path d="M228.475,490.606H36c-19.85,0-36-16.151-36-36V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v164.701c0,8.125-6.587,14.713-14.713,14.713c-8.126,0-14.713-6.589-14.713-14.713V72.825   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574v381.781c0,3.625,2.949,6.574,6.574,6.574h192.474   c8.126,0,14.713,6.589,14.713,14.713C243.187,484.018,236.601,490.606,228.475,490.606z"/></g>'
+				  +'<polyline style="fill:#FFFFFF;" points="429.606,382.533 389.88,382.533 389.88,342.808 "/>'
+				  +'<path d="M429.606,397.247H389.88c-8.126,0-14.713-6.589-14.713-14.713v-39.726  c0-8.125,6.587-14.713,14.713-14.713s14.713,6.589,14.713,14.713v25.012h25.012c8.126,0,14.713,6.589,14.713,14.713  S437.732,397.247,429.606,397.247z"/>'
+				  +'</svg>';
+			const svgData=svgSrc(svg);	  
+			const urlData = this.props.url?this.props.url:svgData;
+			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);
+			
+			return React.createElement("div",{style:inpContStyle,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},[
+				React.createElement("div",{key:"1",style:inp2ContStyle},[
+					React.createElement("input",{key:"1",readOnly:"readOnly",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
+					popupWrapEl					
+				]),
+				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
+					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB,onClick:this.onClick},buttonImage)
+				)
+			]);
 		}
 	});
-	
+	DateTimePicker.defaultProps = {
+		open:true		
+	};
+	Date.prototype.getISOWeek =
+	  function(utc) {
+		var y = utc ? this.getUTCFullYear(): this.getFullYear();
+		var m = utc ? this.getUTCMonth() + 1: this.getMonth() + 1;
+		var d = utc ? this.getUTCDate() : this.getDate();
+		var w;
+		// If month jan. or feb.
+		if (m < 3) {
+		  var a = y - 1;
+		  var b = (a / 4 | 0) - (a / 100 | 0) + (a / 400 | 0);
+		  var c = ( (a - 1) / 4 | 0) - ( (a - 1) / 100 | 0) + ( (a - 1) / 400 | 0);
+		  var s = b - c;
+		  var e = 0;
+		  var f = d - 1 + 31 * (m - 1);
+		}
+		// If month mar. through dec.
+		else {
+		  var a = y;
+		  var b = (a / 4 | 0) - ( a / 100 | 0) + (a / 400 | 0);
+		  var c = ( (a - 1) / 4 | 0) - ( (a - 1) / 100 | 0) + ( (a - 1) / 400 | 0);
+		  var s = b - c;
+		  var e = s + 1;
+		  var f = d + ( (153 * (m - 3) + 2) / 5 | 0) + 58 + s;
+		}
+		var g = (a + b) % 7;
+		// ISO Weekday (0 is monday, 1 is tuesday etc.)
+		var d = (f + g - e) % 7;
+		var n = f + 3 - d;
+		if (n < 0)
+		  w = 53 - ( (g - s) / 5 | 0);
+		else if (n > 364 + s)
+		  w = 1;
+		else
+		  w = (n / 7 | 0) + 1;
+		return w;
+	  };
 	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}
 	const onClickValue=({sendVal});
