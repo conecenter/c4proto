@@ -53,13 +53,12 @@ object AuthOperations {
     val random = new SecureRandom()
     val salt = new Array[Byte](size)
     random.nextBytes(salt)
-    toImmutable(salt)
+    ToByteString(salt)
   }
-  private def toImmutable(data: Array[Byte]) = okio.ByteString.of(data,0,data.length)
   private def pbkdf2(password: String, template: SecureHash): SecureHash = {
     val spec = new PBEKeySpec(password.toCharArray, template.salt.toByteArray, template.iterations, template.hashSizeInBytes * 8)
     val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
-    template.copy(hash=toImmutable(skf.generateSecret(spec).getEncoded))
+    template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
   }
   def createHash(password: String): SecureHash =
     pbkdf2(password, SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))

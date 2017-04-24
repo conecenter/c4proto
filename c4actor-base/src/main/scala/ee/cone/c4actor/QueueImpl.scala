@@ -8,10 +8,9 @@ import ee.cone.c4actor.QProtocol.{Offset, TopicKey, Update, Updates}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Index, World}
 import ee.cone.c4assemble.{Single, WorldKey}
-import ee.cone.c4proto.{HasId, Protocol}
+import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 
 import scala.collection.immutable.Seq
-
 import java.nio.charset.StandardCharsets.UTF_8
 
 /*Future[RecordMetadata]*/
@@ -40,8 +39,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
   def toUpdate[M<:Product](message: LEvent[M]): Update = {
     val valueAdapter = byName(message.className)
-    val bytes = message.value.map(valueAdapter.encode).getOrElse(Array.empty)
-    val byteString = okio.ByteString.of(bytes,0,bytes.length)
+    val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
     Update(message.srcId, valueAdapter.id, byteString)
   }
   def toRecord(topicName: TopicName, update: Update): QRecord = {

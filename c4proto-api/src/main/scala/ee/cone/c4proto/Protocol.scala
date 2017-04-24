@@ -1,7 +1,10 @@
 
 package ee.cone.c4proto
 
+import java.nio.charset.StandardCharsets.UTF_8
+
 import com.squareup.wire.ProtoAdapter
+import okio.ByteString
 
 import scala.annotation.StaticAnnotation
 
@@ -18,4 +21,9 @@ trait HasId {
   def hasId: Boolean
   def className: String
   def props: List[MetaProp]
+}
+
+object ToByteString {
+  def apply(data: Array[Byte]): ByteString = ByteString.of(data,0,data.length)
+  def apply(v: String): ByteString = apply(v.getBytes(UTF_8))
 }

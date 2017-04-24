@@ -10,6 +10,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.BranchTypes._
+import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 import Function.chain
@@ -130,9 +131,8 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
   def toSeed(value: Product): BranchResult = {
     val valueAdapter = registry.byName(value.getClass.getName)
     val bytes = valueAdapter.encode(value)
-    val byteString = okio.ByteString.of(bytes,0,bytes.length)
     val id = UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes)
-    BranchResult(id.toString, valueAdapter.id, byteString, Nil, "")
+    BranchResult(id.toString, valueAdapter.id, ToByteString(bytes), Nil, "")
   }
   def toRel(seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)

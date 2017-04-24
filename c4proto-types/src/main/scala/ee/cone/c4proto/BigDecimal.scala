@@ -9,8 +9,8 @@ object BigDecimalFactory {
   def apply(scale: Int, bytes: okio.ByteString): BigDecimal =
     BigDecimal(new java.math.BigDecimal(new java.math.BigInteger(bytes.toByteArray), scale))
   def unapply(value: BigDecimal): Option[(Int,okio.ByteString)] = {
-    val bytes = value.bigDecimal.unscaledValue.toByteArray
-    Option((value.bigDecimal.scale, okio.ByteString.of(bytes,0,bytes.length)))
+    val byteString = ToByteString(value.bigDecimal.unscaledValue.toByteArray)
+    Option((value.bigDecimal.scale, byteString))
   }
 }
 
