@@ -7,7 +7,7 @@ import ee.cone.c4assemble.Types.{Index, Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
-import scala.collection.immutable.{Seq, Map, Queue}
+import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import Function.chain
@@ -18,13 +18,17 @@ class WorldTxImpl(
   val toSend: Queue[Update],
   val toDebug: Queue[LEvent[Product]]
 ) extends WorldTx {
-  def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx = {
+  private def nextWorld(nextToSend: List[Update]) =
+    reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
+  def add[M<:Product](out: Seq[LEvent[M]]): WorldTx = {
     if(out.isEmpty) return this
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
-    val nextWorld = reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
     val nextToDebug = (toDebug /: out)((q,e)⇒q.enqueue(e:LEvent[Product]))
-      //toDebug.enqueue(out).asInstanceOf[Queue[LEvent[Product]]]
-    new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend), nextToDebug)
+    new WorldTxImpl(reducer, nextWorld(nextToSend), toSend.enqueue(nextToSend), nextToDebug)
+  }
+  def add(nextToSend: List[Update]): WorldTx = {
+    if(nextToSend.isEmpty) return this
+    new WorldTxImpl(reducer, nextWorld(nextToSend), toSend.enqueue(nextToSend), toDebug)
   }
 }
 

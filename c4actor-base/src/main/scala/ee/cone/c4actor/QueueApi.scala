@@ -87,7 +87,8 @@ object LEvent {
 
 trait WorldTx {
   def world: World
-  def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx
+  def add[M<:Product](out: Seq[LEvent[M]]): WorldTx
+  def add(out: List[Update]): WorldTx
   def toSend: Seq[Update]
   def toDebug: Seq[LEvent[Product]]
 }
@@ -104,7 +105,8 @@ trait TxTransform extends Product {
 
 object NoWorldTx extends WorldTx {
   def world: World = Map.empty
-  def add[M <: Product](out: Iterable[LEvent[M]]): WorldTx = throw new Exception
+  def add[M<:Product](out: Seq[LEvent[M]]): WorldTx = throw new Exception
+  def add(out: List[Update]): WorldTx = throw new Exception
   def toSend: Seq[Update] = Nil
   def toDebug: Seq[LEvent[Product]] = Nil
 }

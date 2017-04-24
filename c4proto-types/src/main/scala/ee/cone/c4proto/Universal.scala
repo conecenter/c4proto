@@ -57,14 +57,19 @@ object StringToUniversalProp {
 object StringToUniversalPropImpl {
   def string(tag: Int, value: String): UniversalProp =
     UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
-  def number(tag: Int, value: String): UniversalProp = {
+  def long(tag: Int, value: String): UniversalProp =
+    UniversalPropImpl[java.lang.Long](tag,java.lang.Long.parseLong(value))(ProtoAdapter.SINT64)
+  def bigDecimal(tag: Int, value: String): UniversalProp = {
     val BigDecimalFactory(scale,bytes) = BigDecimal(value)
     val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
     val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)
     UniversalPropImpl(tag,UniversalNode(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
   }
-  def converters: List[(String,StringToUniversalProp.Converter)] =
-    ("String", string _) :: ("BigDecimal", number _) :: Nil
+  def converters: List[(String,StringToUniversalProp.Converter)] = List(
+    "String" → string,
+    "Long" → long,
+    "BigDecimal" → bigDecimal
+  )
 }
 
 //protobuf universal draft
