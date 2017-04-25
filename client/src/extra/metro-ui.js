@@ -1630,8 +1630,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
     }
     const SignIn = prop => {
         const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
-		const buttonStyle = {backgroundColor:"#c0ced8"}
-		const buttonOverStyle = {backgroundColor:"#d4e2ec"}
+		const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
+		const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
 		const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
 		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
@@ -1718,26 +1718,34 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onMouseOut:function(){
 			this.setState({mouseOver:false});
 		},
+		onClick:function(){
+			const value = this.props.m+":"+this.props.curday.toString();
+			if(this.props.onClickValue)
+				this.props.onClickValue("change",value);
+		},
 		render:function(){											
+			const isSel = this.props.curday == this.props.curSel;
 			const calDayCellStyle ={
 				width:"12.46201429%",
 				margin:"0 0 0 2.12765%",											
 				textAlign:"center",
 				border:!this.props.m?"0.04em solid #d4e2ec":"none",
-				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent"
+				backgroundColor:isSel?"transparent":(this.state.mouseOver?"#c0ced8":"transparent")				
 			};
 			const cellStyle={
 				cursor:"pointer",
-				padding:"0.3125em 0"												
+				padding:"0.3125em 0",
+				backgroundColor:isSel?"#ff3d00":"transparent"
 			};
 			const aCellStyle={
-				color:"#212121",											
+				color:isSel?"white":"#212121",											
 				textAlign:"center",
-				textDecoration:"none",																							
+				textDecoration:"none",				
 			};
-			return React.createElement("div",{style:calDayCellStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},
+			
+			return React.createElement("div",{onClick:this.onClick,style:calDayCellStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},
 				React.createElement("div",{style:cellStyle},
-					React.createElement("a",{onClick:()=>log("set"),style:aCellStyle},this.props.curday)
+					React.createElement("a",{style:aCellStyle},this.props.curday)
 				)
 			);
 		}
@@ -1804,11 +1812,239 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				cursor:"pointer",
 				padding:"0.25em 0",
 				width:"2em",
-				fontSize:"1em"				
+				fontSize:"1em",
+				outline:"none"
 			};			
 			return React.createElement("button",{style,onClick:this.props.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.children);			
 		}
-	});	
+	});
+	const DateTimePickerYMSel = function({month,year,onClickValue}){
+		const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+		const headerStyle={
+			width:"100%",
+			backgroundColor:"#005a7a",
+			color:"white",
+			margin:"0px",
+			display:"flex"
+		};
+		const aItem = function(c,s){
+			const aStyle={
+				cursor:"pointer",
+				display:"block",
+				textDecoration:"none",						
+				padding:"0.3125em",
+				...s
+			};
+			return React.createElement("a",{style:aStyle},c);
+		};				
+		const ymStyle = {
+			width:"41.64134286%",
+			whiteSpace:"nowrap"
+		};
+		const changeYear = (adj)=>()=>{
+			if(onClickValue) onClickValue("year",adj.toString())
+		}
+		const changeMonth = (adj)=>()=>{
+			if(onClickValue) onClickValue("month",adj.toString())
+		}
+		
+		const selMonth  = parseInt(month)?parseInt(month):0;
+		return React.createElement("div",{style:headerStyle},[
+			React.createElement(CalendarYM,{onClick:changeYear(-1),key:"1",style:{margin:"0px"}},aItem("-")),
+			React.createElement(CalendarYM,{onClick:changeMonth(-1),key:"2"},aItem("〈")),
+			React.createElement(CalendarYM,{key:"3",style:ymStyle},aItem(monthNames[selMonth]+" "+year,{padding:"0.325rem 0 0.325rem 0",cursor:"default"})),
+			React.createElement(CalendarYM,{onClick:changeMonth(1),key:"4"},aItem("〉")),
+			React.createElement(CalendarYM,{onClick:changeYear(1),key:"5"},aItem("+"))					
+		]);
+		
+	};
+	const DateTimePickerDaySel = ({month,year,curSel,onClickValue})=>{
+		const dayNames  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+		const weekDaysStyle={
+			margin:"0 0 .3125em",
+			width:"100%",
+			display:"flex",
+			fontSize:"0.75em"
+		};
+		const dayOfWeekStyle={
+			width:"10.5%",
+			margin:"0 0 0 2.12765%",
+			padding:"0.3125em 0 0.3125em 0",					
+			textAlign:"center"
+		};
+		const dayStyle={
+			color:"#212121"
+		};
+		const cal_makeDaysArr=function(month, year) {
+			function cal_daysInMonth(month, year) {
+				return 32 - new Date(year, month, 32).getDate();
+			}
+			const daysArray = [];
+			let dayOfWeek = new Date(year, month, 1).getDay();
+			const prevMDays = cal_daysInMonth(month ? month-1 : 11, year);
+			const currMDays = cal_daysInMonth(month, year);
+			
+			if (!dayOfWeek) dayOfWeek = 7;	// First week is from previous month
+			
+			for(let i = 1; i < dayOfWeek; i++)
+				daysArray.push(prevMDays - dayOfWeek + i + 1);
+
+			for(let i = 1; i <= currMDays; i++)
+				daysArray.push(i);
+
+			for(let i = 1; i <= 42-dayOfWeek-currMDays+1; i++)
+				daysArray.push(i);	
+				
+			return daysArray;
+		}
+		const rowsOfDays=function(dayArray,cDay){
+			const weeknum = dayArray.length/7;
+			let daynum  = 0;
+			const cal = cDay;				
+			//const firstWeekOfMonth = new Date(cal.year, cal.month, 1, 0, 0, 0, 0).getISOWeek();				
+			//let dayOfWeek;
+			let firstDayOfMonthTriger = true;
+			let firstDayOfMonth = new Date(cal.year, cal.month,1).getDay();
+			firstDayOfMonth = (firstDayOfMonth==0) ? firstDayOfMonth=6 : firstDayOfMonth-1;
+			//if (!firstDayOfMonth) dayOfWeek = 7;	// First week is from previous month
+			const dayInMonth = new Date(cal.year, (cal.month+1), 0).getDate();
+
+			const rows=[];
+			let w;
+			for(w = 0;w < weeknum;w++){
+				rows.push(React.createElement("tr",{key:""+w},
+				(()=>{
+					let weekNumber;
+					const curday = dayArray[daynum];
+					if(daynum >= dayInMonth + firstDayOfMonth){
+						weekNumber = new Date(cal.year, (cal.month+1), curday, 0, 0, 0, 0).getISOWeek();
+					}
+					else if(daynum < firstDayOfMonth){
+						weekNumber = new Date(cal.year, (cal.month-1), curday, 0, 0, 0, 0).getISOWeek();
+					} else {
+						weekNumber = new Date(cal.year, cal.month, curday, 0, 0, 0, 0).getISOWeek();
+					}
+					const weekNumStyle={
+						borderRight:"0.04em solid #212121",
+						padding:"0em 0em 0,3125em",
+						width:"10.5%",
+						verticalAlign:"top"
+					};
+					const weekNumCellStyle={							
+						textAlign:"center",
+						padding:"0.3125em",
+						margin:"0 0 0 2.12765%"							
+					};
+					const calRowStyle={
+						padding:"0em 0em .3125em .3125em",
+						margin:"0em",
+						width:"100%",
+						//display:"flex",
+					};
+					return [
+						React.createElement("td",{key:w+"1",style:weekNumStyle},
+							React.createElement("div",{style:weekNumCellStyle},
+								React.createElement("div",{},weekNumber)
+							)
+						),
+						React.createElement("td",{key:w+"2",style:calRowStyle},
+							React.createElement("div",{style:{...calRowStyle,padding:"0px",display:"flex"}},
+							(()=>{
+								const cells=[];									
+								for(let d = 0; d < 7; d++) {
+									const curday = dayArray[daynum];
+									if (daynum < 7 && curday > 20)
+										cells.push(React.createElement(CalenderCell,{key:d,curday,m:"p",onClickValue}));
+									else if (daynum > 27 && curday < 20)
+										cells.push(React.createElement(CalenderCell,{key:d,curday,m:"n",onClickValue}));
+									else
+										cells.push(React.createElement(CalenderCell,{key:d,curday,curSel,onClickValue}));
+									daynum++;
+								}
+								return cells;
+							})())
+						)	
+					];
+				})()	
+				));					
+			}		
+			const tableStyle={
+				width:"100%",
+				color:"#212121",
+				borderSpacing:"0em"
+			}
+			return React.createElement("table",{key:"rowsOfDays",style:tableStyle},
+				React.createElement("tbody",{},rows)
+			);
+		};
+		return React.createElement("div",{},[
+			React.createElement("div",{key:"daysRow",style:weekDaysStyle},[
+				React.createElement("div",{key:"1",style:dayOfWeekStyle},React.createElement("div",{}," ")),
+				dayNames.map((day,i)=>
+					React.createElement("div",{key:"d"+i,style:dayOfWeekStyle},
+						React.createElement("div",{style:dayStyle},day)
+					)
+				)
+			]),
+			rowsOfDays(cal_makeDaysArr(month,year),{month,year})
+		]);
+	}
+	const DateTimePickerTSelWrapper = ({children})=>{
+		return React.createElement("table",{key:"todayTimeSelWrapper",style:{width:"100%"}},
+			React.createElement("tbody",{},
+				React.createElement("tr",{},
+					React.createElement("td",{colSpan:"8"},
+						React.createElement("div",{style:{textAlign:"center"}},children)
+					)
+				)
+			)
+		);
+	};
+	const DateTimePickerTimeSel = ({hours,mins,onClickValue})=>{		
+		const adjHours = hours.length==1?'0'+hours:hours;
+		const adjMins = mins.length==1?'0'+mins:mins;
+		const tableStyle = {
+			width:"100%",
+			marginBottom:"1.5em",
+			marginTop:"1em",
+			borderCollapse:"collapse",
+			color:"#212121"
+		};
+		const changeHour = (adj)=>()=>{
+			if(onClickValue) onClickValue("hours",adj.toString());
+		}
+		const changeMin = (adj)=>()=>{
+			if(onClickValue) onClickValue("mins",adj.toString());
+		}
+		return React.createElement("table",{key:"timeSelect",style:tableStyle},
+			React.createElement("tbody",{},[
+				React.createElement("tr",{key:1},[
+					React.createElement("td",{key:1,style:{textAlign:"right"}},
+						React.createElement(CalenderTimeButton,{onClick:changeHour(1)},"+")
+					),
+					React.createElement("td",{key:2,style:{textAlign:"center"}}),
+					React.createElement("td",{key:3,style:{textAlign:"left"}},
+						React.createElement(CalenderTimeButton,{onClick:changeMin(1)},"+")
+					)							
+				]),
+				React.createElement("tr",{key:2},[
+					React.createElement("td",{key:1,style:{textAlign:"right"}},adjHours),
+					React.createElement("td",{key:2,style:{textAlign:"center"}},":"),
+					React.createElement("td",{key:3,style:{textAlign:"left"}},adjMins),
+				]),
+				React.createElement("tr",{key:3},[
+					React.createElement("td",{key:1,style:{textAlign:"right"}},
+						React.createElement(CalenderTimeButton,{onClick:changeHour(-1)},"-")
+					),
+					React.createElement("td",{key:2,style:{textAlign:"center"}}),
+					React.createElement("td",{key:3,style:{textAlign:"left"}},
+						React.createElement(CalenderTimeButton,{onClick:changeMin(-1)},"-")
+					)	
+				])
+			])
+		);				
+	};
+	const DateTimePickerNowSel = ({onClick,value})=>React.createElement(CalenderSetNow,{key:"setNow",onClick:onClick},value);
 	const DateTimePicker = React.createClass({
 		getInitialState:function(){
 			return {mouseOverI:false,mouseOverB:false};
@@ -1825,7 +2061,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onMouseOutB:function(){
 			this.setState({mouseOverB:false});
 		},
-		onClick:function(e){
+		onOpen:function(e){
 			if(this.props.onClickValue)
 				this.props.onClickValue("click");
 		},
@@ -1845,95 +2081,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					React.createElement("div",{style:gridStyle},
 						children
 					));
-			};
-			
-			const changeYear=function(ajd){};
-			const changeMonth=function(ajd){};
-			const setCurrent = function(){};
-			const changeHour=function(adj){};
-			const changeMin=function(adj){};
-			
-			const ymSelectionRow=function(month,year){
-				const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
-				const headerStyle={
-					width:"100%",
-					backgroundColor:"#005a7a",
-					color:"white",
-					margin:"0px",
-					display:"flex"
-				};
-				const aItem = function(c,s){
-					const aStyle={
-						cursor:"pointer",
-						display:"block",
-						textDecoration:"none",						
-						padding:"0.3125em",
-						...s
-					};
-					return React.createElement("a",{style:aStyle},c);
-				};				
-				const ymStyle = {
-					width:"41.64134286%",
-					whiteSpace:"nowrap"
-				};
-				return React.createElement("div",{key:"ymSelRow",style:headerStyle},[
-					React.createElement(CalendarYM,{onClick:changeYear(-1),key:"1",style:{margin:"0px"}},aItem("-")),
-					React.createElement(CalendarYM,{onClick:changeMonth(-1),key:"2"},aItem("〈")),
-					React.createElement(CalendarYM,{key:"3",style:ymStyle},aItem(monthNames[month]+" "+year,{padding:"0.325rem 0 0.325rem 0",cursor:"default"})),
-					React.createElement(CalendarYM,{onClick:changeMonth(1),key:"4"},aItem("〉")),
-					React.createElement(CalendarYM,{onClick:changeYear(1),key:"5"},aItem("+"))					
-				]);
-				
-			};
-			const dayNamesRow=function(){				
-				const dayNames  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-				const weekDaysStyle={
-					margin:"0 0 .3125em",
-					width:"100%",
-					display:"flex",
-					fontSize:"0.75em"
-				};
-				const dayOfWeekStyle={
-					width:"10.5%",
-					margin:"0 0 0 2.12765%",
-					padding:"0.3125em 0 0.3125em 0",					
-					textAlign:"center"
-				};
-				const dayStyle={
-					color:"#212121"
-				};
-				return React.createElement("div",{key:"dayNamesRow",style:weekDaysStyle},[
-					React.createElement("div",{key:"1",style:dayOfWeekStyle},React.createElement("div",{}," ")),
-					dayNames.map((day,i)=>
-						React.createElement("div",{key:"d"+i,style:dayOfWeekStyle},
-							React.createElement("div",{style:dayStyle},day)
-						)
-					)
-				]);
-				
-			};
-			const cal_makeDaysArr=function(month, year) {
-				function cal_daysInMonth(month, year) {
-					return 32 - new Date(year, month, 32).getDate();
-				}
-				const daysArray = [];
-				let dayOfWeek = new Date(year, month, 1).getDay();
-				const prevMDays = cal_daysInMonth(month ? month-1 : 11, year);
-				const currMDays = cal_daysInMonth(month, year);
-				
-				if (!dayOfWeek) dayOfWeek = 7;	// First week is from previous month
-				
-				for(let i = 1; i < dayOfWeek; i++)
-					daysArray.push(prevMDays - dayOfWeek + i + 1);
-
-				for(let i = 1; i <= currMDays; i++)
-					daysArray.push(i);
-
-				for(let i = 1; i <= 42-dayOfWeek-currMDays+1; i++)
-					daysArray.push(i);	
-					
-				return daysArray;
-			}
+			};			
 			const rowsOfDays=function(dayArray,cDay){
 				const weeknum = dayArray.length/7;
 				let daynum  = 0;
@@ -2014,50 +2162,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					React.createElement("tbody",{},rows)
 				);
 			};
-			const timeSelect = function(_hours,_mins){
-				let hours=_hours.toString();
-				if(hours.length==1) hours='0'+hours;
-				let mins = _mins.toString();
-				if(mins.length==1) mins='0'+mins;
-				const tableStyle = {
-					width:"100%",
-					marginBottom:"1.5em",
-					marginTop:"1em",
-					borderCollapse:"collapse",
-					color:"#212121"
-				};				
-				return React.createElement("table",{key:"timeSelect",style:tableStyle},
-					React.createElement("tbody",{},[
-						React.createElement("tr",{key:1},[
-							React.createElement("td",{key:1,style:{textAlign:"right"}},
-								React.createElement(CalenderTimeButton,{onClick:changeHour(1)},"+")
-							),
-							React.createElement("td",{key:2,style:{textAlign:"center"}}),
-							React.createElement("td",{key:3,style:{textAlign:"left"}},
-								React.createElement(CalenderTimeButton,{onClick:changeMin(1)},"+")
-							)							
-						]),
-						React.createElement("tr",{key:2},[
-							React.createElement("td",{key:1,style:{textAlign:"right"}},hours),
-							React.createElement("td",{key:2,style:{textAlign:"center"}},":"),
-							React.createElement("td",{key:3,style:{textAlign:"left"}},mins),
-						]),
-						React.createElement("tr",{key:3},[
-							React.createElement("td",{key:1,style:{textAlign:"right"}},
-								React.createElement(CalenderTimeButton,{onClick:changeHour(-1)},"-")
-							),
-							React.createElement("td",{key:2,style:{textAlign:"center"}}),
-							React.createElement("td",{key:3,style:{textAlign:"left"}},
-								React.createElement(CalenderTimeButton,{onClick:changeMin(-1)},"-")
-							)	
-						])
-					])
-				);				
-			};
-			
-			const setNow = function(){				
-				return React.createElement(CalenderSetNow,{key:"setNow",onClick:setCurrent},"Today");				
-			};
+						
 			const contStyle={
 				width:"100%",				
 				padding:"0.4rem 0.3125rem",
@@ -2132,34 +2237,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				//width:"1.2rem",
 				verticalAlign:"middle",
 				display:"inline",
-				height:"auto",
-				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
-				transition:"all 200ms ease",
+				height:"auto",				
 				boxSizing:"border-box"
 			};
-			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			const todayTimeSelWrapper = function(children){
-				return React.createElement("table",{key:"todayTimeSelWrapper",style:{width:"100%"}},
-					React.createElement("tbody",{},
-						React.createElement("tr",{},
-							React.createElement("td",{colSpan:"8"},
-								React.createElement("div",{style:{textAlign:"center"}},children)
-							)
-						)
-					)
-				);
-			};
-			const cWrapper=calWrapper([
-				ymSelectionRow(2,2017),
-				dayNamesRow(),
-				rowsOfDays(cal_makeDaysArr(2,2017),{year:2017,month:2}),
-				todayTimeSelWrapper([
-					timeSelect(12,0),
-					setNow()
-				])
-			]);
-			
-			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},cWrapper):null;
+			const placeholder = this.props.placeholder?this.props.placeholder:"";			
+			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},calWrapper(this.props.children)):null;
 			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">'
 				  +'<path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>'
 				  +'<g><path d="M481.082,138.431H14.713C6.587,138.431,0,131.843,0,123.718V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v50.894C495.795,131.844,489.208,138.431,481.082,138.431z M29.426,109.005h436.942v-36.18   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574V109.005z"/>'
@@ -2186,7 +2268,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					popupWrapEl					
 				]),
 				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
-					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB,onClick:this.onClick},buttonImage)
+					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB,onClick:this.onOpen},buttonImage)
 				)
 			]);
 		}
@@ -2231,7 +2313,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		return w;
 	  };
 	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
-	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}
+	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}	
 	const onClickValue=({sendVal});
 	
 	const onReadySendBlob=({sendBlob});
@@ -2239,7 +2321,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		tp:{
             DocElement,FlexContainer,FlexElement,GotoButton,CommonButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,DropDownElement,DropDownWrapperElement,LabelElement,Chip,FocusableElement,PopupElement,Checkbox,
-            RadioButtonElement,FileUploadElement,TextArea,DateTimePicker,
+            RadioButtonElement,FileUploadElement,TextArea,
+			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
