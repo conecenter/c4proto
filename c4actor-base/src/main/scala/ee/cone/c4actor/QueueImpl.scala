@@ -78,16 +78,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
 }
 
-class QAdapterRegistry(
-    val adapters: List[ProtoAdapter[Product] with HasId],
-    val byName: Map[String,ProtoAdapter[Product] with HasId],
-    val byId: Map[Long,ProtoAdapter[Product] with HasId],
-    val keyAdapter: ProtoAdapter[QProtocol.TopicKey],
-    val updatesAdapter: ProtoAdapter[QProtocol.Updates],
-    val nameById: Map[Long,String]
-)
-
-object QAdapterRegistry {
+object QAdapterRegistryFactory {
   private def checkToMap[K,V](pairs: Seq[(K,V)]): Map[K,V] =
     pairs.groupBy(_._1).transform((k,l)⇒Single(l.toList)._2)
   def apply(protocols: List[Protocol]): QAdapterRegistry = {
@@ -103,3 +94,6 @@ object QAdapterRegistry {
   }
 }
 
+class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends InitLocal {
+  def initLocal: World ⇒ World = QAdapterRegistryKey.set(()⇒qAdapterRegistry)
+}
