@@ -1,5 +1,7 @@
 package ee.cone.c4actor
 
+import java.time.Instant
+
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
@@ -80,14 +82,21 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
     if(local.isEmpty) createLocal() else local
     ).andThen{ local ⇒
     val world = getWorld()
-    if(qMessages.worldOffset(world) < OffsetWorldKey.of(local)) local else try {
+    if(
+      qMessages.worldOffset(world) < OffsetWorldKey.of(local) ||
+      Instant.now.isBefore(SleepUntilKey.of(local))
+    ) local else try {
       reducer.createTx(world)
         .andThen(chain(index(world).getOrElse(key,Nil).map(t⇒t.transform(_))))
         .andThen(qMessages.send)(local)
     } catch {
-      case e: Exception ⇒
-        e.printStackTrace() //??? |Nil|throw
-        ErrorKey.set(Some(e))(createLocal())
+      case exception: Exception ⇒
+        exception.printStackTrace() //??? |Nil|throw
+        val was = ErrorKey.of(local)
+        chain(List(
+          ErrorKey.set(exception :: was),
+          SleepUntilKey.set(Instant.now.plusSeconds(was.size))
+        ))(createLocal())
       case e: Throwable ⇒
         e.printStackTrace()
         throw e
