@@ -105,6 +105,11 @@ lazy val `c4actor-branch` = project.settings(publishSettings)
   .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`, `c4assemble-macros`)
 
+lazy val `c4actor-rdb` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-base`, `c4assemble-macros`, `c4proto-types`)
+
 lazy val `c4gate-publish` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .dependsOn(`c4actor-kafka`, `c4gate-proto`)
@@ -136,6 +141,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4actor-base-examples`,
   `c4actor-branch`,
   `c4actor-kafka`,
+  `c4actor-rdb`,
   `c4assemble-macros`,
   `c4assemble-runtime`,
   `c4gate-consumer-example`,
