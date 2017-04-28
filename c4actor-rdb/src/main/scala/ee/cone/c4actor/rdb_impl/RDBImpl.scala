@@ -1,9 +1,10 @@
 package ee.cone.c4actor.rdb_impl
 
 import com.squareup.wire.{FieldEncoding, ProtoAdapter, ProtoReader, ProtoWriter}
-
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
+import java.sql.PreparedStatement
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 
@@ -92,22 +93,33 @@ object ToExternalDBTypes {
   }
 }
 
+
+import DateToInstant._
+object DateToInstant {
+  val msPerDay: Int = 24 * 60 * 60 * 1000
+  val epoch = "to_date('19700101','yyyymmdd')"
+}
+
+
+
 case class ToExternalDBTx(srcId: SrcId, from: Option[HasState], to: Option[HasState]) extends TxTransform {
   private type Part = (String,Option[Object])
   private def function(name: String, args: List[List[Part]]): List[Part] =
     (name,None) :: args.zipWithIndex.flatMap{
       case(el,idx) ⇒ (if(idx==0) "(" else ",", None) :: el
     } ::: (")",None) :: Nil
-  private def bind(v: Object) = ("?",Option(v)) :: Nil
+  private def bind(code: String, v: Object) = (code,Option(v)) :: Nil
   private def commonName(args: List[List[Part]]) =
     Single(args.map{
       case (name,None) :: _ ⇒ name
       case _ ⇒ throw new Exception
     }.filter(_!="null").distinct)
   private def toStatement(p: Any): List[Part] = p match {
-    case v: String ⇒ bind(v)
-    case v: java.lang.Long ⇒ bind(v)
-    case v: BigDecimal ⇒ bind(v)
+    case v: String ⇒ bind("?",v)
+    case v: java.lang.Boolean ⇒ bind("?",v)
+    case v: java.lang.Long ⇒ bind("?",v)
+    case v: BigDecimal ⇒ bind("?",v)
+    case v: Instant ⇒ bind(s"$epoch + (?/$msPerDay)",new java.lang.Long(v.toEpochMilli))
     case Nil | None ⇒ ("null",None) :: Nil
     case Some(e) ⇒ toStatement(e)
     case l: List[_] ⇒
@@ -210,11 +222,34 @@ object FinallyClose {
   def apply[A<:AutoCloseable,T](o: A)(f: A⇒T): T = try f(o) finally o.close()
 }
 
+abstract class RDBType[T](val theClass: Class[T]) {
+  def bind(stm: PreparedStatement, pos: Int, value: T): Unit
+
+}
+class StringRDBType extends RDBType(classOf[String]) {
+  def bind(stm: PreparedStatement, pos: Int, value: String): Unit =
+    stm.setString(pos, value)
+}
+class BigDecimalRDBType extends RDBType(classOf[BigDecimal]) {
+  def bind(stm: PreparedStatement, pos: Int, value: BigDecimal): Unit =
+    stm.setBigDecimal(pos, value.bigDecimal)
+}
+class LongRDBType extends RDBType(classOf[java.lang.Long]) {
+  def bind(stm: PreparedStatement, pos: Int, value: java.lang.Long): Unit =
+    stm.setLong(pos, value)
+}
+class BooleanRDBType extends RDBType(classOf[java.lang.Boolean]) {
+  def bind(stm: PreparedStatement, pos: Int, value: java.lang.Boolean): Unit =
+    stm.setBoolean(pos, value)
+}
+
+
 class RConnectionImpl(conn: java.sql.Connection) extends RConnection {
   private def bindObjects(stmt: java.sql.PreparedStatement, bind: List[Object]) =
   //bind.zipWithIndex.foreach{ case (v,i) ⇒ stmt.setObject(i+1,v) }
     bind.zipWithIndex.foreach{
       case (v:String, i:Int) ⇒ stmt.setString(i+1, v)
+      case (v:java.lang.Boolean, i:Int) ⇒ stmt.setBoolean(i+1, v)
       case (v:java.lang.Long, i:Int) ⇒ stmt.setLong(i+1, v)
       case (v:BigDecimal, i:Int) ⇒ stmt.setBigDecimal(i+1, v.bigDecimal)
     }
@@ -329,8 +364,12 @@ class DDLGeneratorImpl(
         dropType(tNames, List(("",tName))),
         s"create type $tNames as table of $tName;"
       ))
-      val constructorArgs = props.map(prop ⇒ s"a${prop.propName} ${toDbName(prop.resultType, "t")}").mkString(", ")
-      val defaultArgs = attrs.map{ case(a,at) ⇒ if(at.endsWith("s")) s"case when $a is null then $at() else $a end" else a }.mkString(", ")
+      val constructorArgs = props.map(prop ⇒ s"a${prop.propName} ${toDbName(prop.resultType, "t")} default null").mkString(", ")
+      val defaultArgs = attrs.map{
+        case (a,"Boolean") ⇒ s"case when $a then 'T' else null end"
+        case (a,at) if at.endsWith("s") ⇒  s"case when $a is null then $at() else $a end"
+        case (a,_) ⇒ a
+      }.mkString(", ")
       val constructor = hooks.function(toDbName(name, "b"), constructorArgs, tName, bodyStatements(List(s"return $tName($defaultArgs);")))
 
       //
@@ -349,6 +388,7 @@ class DDLGeneratorImpl(
     //
     val needFunctions =
       options.collect{ case o: NeedCodeDBOption ⇒ o.needCode } :::
+        encode("Instant", esc("Long", s"chr(10) || round((rec - $epoch) * $msPerDay)")) ::
         List("String","Long","BigDecimal").map(n⇒encode(n, esc(n, "chr(10) || rec"))) :::
         needs.collect{ case f: NeedCode ⇒ f }
     val needFunctionNames = uniqueBy(needFunctions)(_.drop).keySet
@@ -444,10 +484,13 @@ object StringToUniversalPropImpl {
     val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)
     UniversalPropImpl(tag,UniversalNode(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
   }
+  def boolean(tag: Int, value: String): UniversalProp =
+    UniversalPropImpl[java.lang.Boolean](tag,value.nonEmpty)(ProtoAdapter.BOOL)
   def converters: List[(String,StringToUniversalProp.Converter)] = List(
     "String" → string,
     "Long" → long,
-    "BigDecimal" → bigDecimal
+    "BigDecimal" → bigDecimal,
+    "Boolean" → boolean
   )
 }
 
