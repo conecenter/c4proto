@@ -365,7 +365,7 @@ class DDLGeneratorImpl(
     val grants = for(
       user ← options.collect{ case o: UserDBOption ⇒ o.user };
       obj ← needs.collect{ case GrantExecute(n) ⇒ n }
-    ) yield s"grant execute on $obj to $user;"
+    ) yield s"grant execute on $obj to $user"
     //
     (dropTypes ::: createTypes ::: replaceFunctions ::: grants).map(l⇒s"$l")
   }
