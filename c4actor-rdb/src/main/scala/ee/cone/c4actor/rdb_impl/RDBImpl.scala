@@ -38,9 +38,10 @@ import scala.util.matching.Regex
 
 
 class ProtocolDBOption(val protocol: Protocol) extends ExternalDBOption
-class NeedCodeDBOption(val needCode: NeedCode) extends ExternalDBOption
+class NeedDBOption(val need: Need) extends ExternalDBOption
 class ToDBOption(val className: String, val code: String, val assemble: Assemble) extends ExternalDBOption
 class FromDBOption(val className: String) extends ExternalDBOption
+class UserDBOption(val user: String) extends ExternalDBOption
 
 class ExternalDBOptionFactoryImpl(qMessages: QMessages, util: DDLUtil) extends ExternalDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
@@ -48,7 +49,9 @@ class ExternalDBOptionFactoryImpl(qMessages: QMessages, util: DDLUtil) extends E
   def toDB[P <: Product](cl: Class[P], code: String): ExternalDBOption =
     new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(qMessages,cl))
   def createOrReplace(key: String, args: String, code: String): ExternalDBOption =
-    new NeedCodeDBOption(util.createOrReplace(key,args,code))
+    new NeedDBOption(util.createOrReplace(key,args,code))
+  def grantExecute(key: String): ExternalDBOption = new NeedDBOption(GrantExecute(key))
+  def dbUser(user: String): ExternalDBOption = new UserDBOption(user)
 }
 
 object ToExternalDBAssembles {
@@ -289,7 +292,9 @@ class DDLGeneratorImpl(
     val notFound = (setFromSql ++ mapToSql.keySet) -- adapters.map(_.className)
     if(notFound.nonEmpty) throw new Exception(s"adapters was not found: $notFound")
     //
-    val needs: List[Need] = adapters.flatMap{ adapter ⇒
+    val needs: List[Need] = options.collect{
+      case o: NeedDBOption ⇒ o.need
+    } ::: adapters.flatMap{ adapter ⇒
       val props = adapter.props
       val className = adapter.className
       val name = className.split("\\$").last
@@ -305,36 +310,38 @@ class DDLGeneratorImpl(
       val encodeNode = encode(name, esc("Node", encodeArgs))
       val encodeNodes = encode(names, s"res $longStrType;\n${bodyStatements(List(hooks.loop(encoderName(name)),"return res;"))}")
       //
-      val encodeExtOut =
-        for(n ← List(name) if isFromSql)
-          yield hooks.function(toDbName(n,"s"), recArg(n), longStrType,
-            bodyStatements(List(s"return ${encoderName(n)}(${getId(adapter.id)},rec);"))
-          )
+      val encodeExtOut = (for(n ← List(name) if isFromSql) yield {
+        val sName = toDbName(n,"s")
+        val f = hooks.function(sName, recArg(n), longStrType,
+          bodyStatements(List(s"return ${encoderName(n)}(${getId(adapter.id)},rec);"))
+        )
+        f :: GrantExecute(sName) :: Nil
+      }).flatten
       val handleExtIn = procToSql.toList.map(proc⇒
         hooks.function(toDbName(name,"r"), s"aFrom $tName, aTo $tName", "", proc)
       )
       //
-      def dropType(t: String, attr: List[(String,String)]) = DropType(
-        t.toLowerCase,
-        attr.map{ case (a,at) ⇒ DropTypeAttr(a.toLowerCase, at.toLowerCase) },
-        Nil
+      def theType(t: String, attr: List[(String,String)], body: String) = List(
+        GrantExecute(t),
+        NeedType(
+          DropType(
+            t.toLowerCase,
+            attr.map{ case (a,at) ⇒ DropTypeAttr(a.toLowerCase, at.toLowerCase) },
+            Nil
+          ),
+          s"create type $t as $body;"
+        )
       )
       val attrs = props.map(prop ⇒ (s"a${prop.propName}", toDbName(prop.resultType, "t", -1)))
       val attrStr = attrs.map{ case(a,at) ⇒ s"$a $at" }.mkString(", ")
-      val needType = NeedType(
-        dropType(tName,attrs),
-        s"create type $tName as ${hooks.objectType}($attrStr);"
-      )
-      val needTypes = if(tNames.endsWith("[]")) Nil else List(NeedType(
-        dropType(tNames, List(("",tName))),
-        s"create type $tNames as table of $tName;"
-      ))
+      val needType = theType(tName,attrs,s"${hooks.objectType}($attrStr)")
+      val needTypes = if(tNames.endsWith("[]")) Nil
+        else theType(tNames, List(("",tName)), s"table of $tName")
       val constructorArgs = props.map(prop ⇒ s"a${prop.propName} ${toDbName(prop.resultType, "t")}").mkString(", ")
       val defaultArgs = attrs.map{ case(a,at) ⇒ if(at.endsWith("s")) s"case when $a is null then $at() else $a end" else a }.mkString(", ")
       val constructor = hooks.function(toDbName(name, "b"), constructorArgs, tName, bodyStatements(List(s"return $tName($defaultArgs);")))
-
       //
-      needType :: needTypes ::: constructor :: encodeNode :: encodeNodes :: encodeExtOut ::: handleExtIn
+      needType ::: needTypes ::: constructor :: encodeNode :: encodeNodes :: encodeExtOut ::: handleExtIn
     }
     //
     val needCTypes = needs.collect{ case t:NeedType ⇒ t }
@@ -348,7 +355,6 @@ class DDLGeneratorImpl(
       needTypesFull.filterNot(wasTypesSet).reverse.map(t ⇒ ddlForType(t.copy(uses=Nil)))
     //
     val needFunctions =
-      options.collect{ case o: NeedCodeDBOption ⇒ o.needCode } :::
         List("String","Long","BigDecimal").map(n⇒encode(n, esc(n, "chr(10) || rec"))) :::
         needs.collect{ case f: NeedCode ⇒ f }
     val needFunctionNames = uniqueBy(needFunctions)(_.drop).keySet
@@ -356,7 +362,12 @@ class DDLGeneratorImpl(
       wasFunctionNameList.filterNot(needFunctionNames).map(n ⇒ s"drop $n") :::
         needFunctions.map(f ⇒ f.ddl)
     //
-    (dropTypes ::: createTypes ::: replaceFunctions).map(l⇒s"$l")
+    val grants = for(
+      user ← options.collect{ case o: UserDBOption ⇒ o.user };
+      obj ← needs.collect{ case GrantExecute(n) ⇒ n }
+    ) yield s"grant execute on $obj to $user;"
+    //
+    (dropTypes ::: createTypes ::: replaceFunctions ::: grants).map(l⇒s"$l")
   }
   private def orderedTypes(needTypesList: List[DropType]): (List[DropType],Set[DropType]) = {
     val needTypes = uniqueBy(needTypesList)(_.name)
