@@ -221,3 +221,21 @@ if($ARGV[0]) {
 #lz4 -d db.tar.lz4 | tar xf -
 
 
+=topic integrity
+use strict;
+use JSON::XS;
+my $e = JSON::XS->new;
+my $n = 0;
+my $c = 0;
+while(<>){
+  /records_consumed/ or next;
+  my $j = $e->decode($_);
+  $$j{name} eq "records_consumed" or next;
+  my($count,$min,$max) = @{$$j{partitions}[0]}{qw(count minOffset maxOffset)};
+  $count-1 == $max-$min or die $_;
+  $n == $min or die $_;
+  $n = $max + 1;
+  $c += $count;
+}
+print "count:$c\n";
+=cut
