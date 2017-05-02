@@ -10,4 +10,6 @@ trait ExternalDBOptionFactory {
   def fromDB[P<:Product](cl: Class[P]): ExternalDBOption
   def toDB[P<:Product](cl: Class[P], code: String): ExternalDBOption
   def createOrReplace(key: String, args: String, code: String): ExternalDBOption
+  def grantExecute(key: String): ExternalDBOption
+  def dbUser(user: String): ExternalDBOption
 }

@@ -18,6 +18,7 @@ trait Need
 case class DropType(name: String, attributes: List[DropTypeAttr], uses: List[DropType])
 case class DropTypeAttr(attrName: String, attrTypeName: String)
 case class NeedCode(drop: String,  ddl: String) extends Need
+case class GrantExecute(name: String) extends Need
 
 trait DDLUtil {
   def createOrReplace(key: String, args: String, code: String): NeedCode
