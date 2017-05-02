@@ -97,18 +97,17 @@ object ToExternalDBTypes {
 }
 
 object RDBTypes {
-  val msPerDay: Int = 24 * 60 * 60 * 1000
-  val epoch = "to_date('19700101','yyyymmdd')"
+  private val msPerDay: Int = 24 * 60 * 60 * 1000
+  private val epoch = "to_date('19700101','yyyymmdd')"
   //
   private def bind(code: String, v: Object) = (code,Option(v)) :: Nil
-  def toStatement(p: Any): List[(String,Option[Object])] = {
+  def toStatement(p: Any): List[(String,Option[Object])] = p match {
     case v: String ⇒ bind("?",v)
     case v: java.lang.Boolean ⇒ bind("?",v)
     case v: java.lang.Long ⇒ bind("?",v)
     case v: BigDecimal ⇒ bind("?",v.bigDecimal)
     case v: Instant ⇒ bind(s"$epoch + (?/$msPerDay)",new java.lang.Long(v.toEpochMilli))
   }
-  //
   def sysTypes: List[String] = List(
     classOf[String],
     classOf[java.lang.Boolean],
@@ -116,7 +115,6 @@ object RDBTypes {
     classOf[BigDecimal],
     classOf[Instant]
   ).map(_.getName.split("\\.").last)
-  //
   def constructorToTypeArg(tp: String): String⇒String = tp match {
     case "Boolean" ⇒ a ⇒ s"case when $a then 'T' else null end"
     case at if at.endsWith("s") ⇒  a ⇒ s"case when $a is null then $at() else $a end"
