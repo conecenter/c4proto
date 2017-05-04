@@ -107,14 +107,13 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     consumer.seekToBeginning(part.asJava)
 
     val recsIterator = iterator(consumer).flatten
-    @tailrec def toQueue(queue: Queue[QRecord]): Queue[QRecord] = {
+    @tailrec def toQueue(queue: Queue[QRecord], count: Long): Queue[QRecord] = {
+      if(count % 100000 == 0) println(count)
       val rec = recsIterator.next()
-      val offset = rec.offset.get + 1
-      if(offset % 100000 == 0) println(offset)
-      if(offset >= until) queue.enqueue(rec) else toQueue(queue.enqueue(rec))
+      if(rec.offset.get + 1 >= until) queue.enqueue(rec) else toQueue(queue.enqueue(rec), count+1L)
     }
     val zeroRecord = qMessages.offsetUpdate(0L).map(qMessages.toRecord(topicName,_))
-    val recsQueue = toQueue(Queue(zeroRecord:_*))
+    val recsQueue = toQueue(Queue(zeroRecord:_*),0)
     val recsList = recsQueue.toList
     new AtomicReference(reducer.reduceRecover(reducer.createWorld(Map()), recsList))
   }

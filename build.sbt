@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.9.7",
+  version := "0.9.8",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -83,7 +83,7 @@ lazy val `c4actor-base-examples` = project.settings(publishSettings)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0")
+  .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.2.0")
   .dependsOn(`c4actor-base`)
 
 lazy val `c4gate-server` = project.settings(publishSettings)

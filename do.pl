@@ -11,7 +11,8 @@ my $zoo_port = $port_prefix+81;
 my $kafka_port = $port_prefix+92;
 my $build_dir = "./client/build/test";
 my $inbox_prefix = '';
-my $kafka = "kafka_2.11-0.10.1.0";
+my $kafka_version = "0.10.2.0";
+my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "127.0.0.1:$kafka_port";
 
@@ -46,7 +47,7 @@ push @tasks, ["setup_sbt", sub{
 push @tasks, ["setup_kafka", sub{
     (-e $_ or mkdir $_) and chdir $_ or die for "tmp";
     if (!-e $kafka) {
-        sy("wget http://www-eu.apache.org/dist/kafka/0.10.1.0/$kafka.tgz");
+        sy("wget http://www-eu.apache.org/dist/kafka/$kafka_version/$kafka.tgz");
         sy("tar -xzf $kafka.tgz")
     }
 }];
@@ -68,10 +69,13 @@ push @tasks, ["start_kafka", sub{
         "zookeeper.connect=127.0.0.1:$zoo_port",
         "log.cleanup.policy=compact",
         "log.segment.bytes=104857600",
+        #"min.cleanable.dirty.ratio=0.01",
+        #"delete.retention.ms=100",
         "message.max.bytes=3000000" #seems to be compressed
     );
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
     sy("tmp/$kafka/bin/kafka-server-start.sh -daemon tmp/server.properties");
+    sy("jps");
 }];
 push @tasks, ["stop_kafka", sub{
     sy("tmp/$kafka/bin/kafka-server-stop.sh")
