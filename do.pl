@@ -61,6 +61,14 @@ push @tasks, ["not_effective_join_bench", sub{
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
 }];
 
+my $inbox_configure = sub{
+    my $kafka_configs = "tmp/$kafka/bin/kafka-configs.sh --zookeeper 127.0.0.1:$zoo_port --entity-type topics ";
+    my $infinite_lag = "min.compaction.lag.ms=9223372036854775807";
+    my $compression = "compression.type=producer";
+    sy("$kafka_configs --alter --entity-name .inbox --add-config $infinite_lag,$compression");
+    die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
+};
+
 push @tasks, ["start_kafka", sub{
     &$put_text("tmp/zookeeper.properties","dataDir=db4/zookeeper\nclientPort=$zoo_port\n");
     &$put_text("tmp/server.properties",join "\n",
@@ -68,25 +76,20 @@ push @tasks, ["start_kafka", sub{
         "log.dirs=db4/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
         "log.cleanup.policy=compact",
-        "log.segment.bytes=104857600",
-        #"min.cleanable.dirty.ratio=0.01",
-        #"delete.retention.ms=100",
+        "log.segment.bytes=104857600", #active segment is not compacting, so we reduce it
+        "log.cleaner.delete.retention.ms=3600000", #1h
+        "compression.type=uncompressed", #probably better compaction for .state topics
         "message.max.bytes=3000000" #seems to be compressed
     );
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
     sy("tmp/$kafka/bin/kafka-server-start.sh -daemon tmp/server.properties");
     sy("jps");
+    &$inbox_configure();
 }];
 push @tasks, ["stop_kafka", sub{
     sy("tmp/$kafka/bin/kafka-server-stop.sh")
 }];
 
-my $inbox_configure = sub{
-    my $kafka_configs = "tmp/$kafka/bin/kafka-configs.sh --zookeeper 127.0.0.1:$zoo_port --entity-type topics ";
-    my $infinite_lag = "min.compaction.lag.ms=9223372036854775807";
-    sy("$kafka_configs --alter --entity-name .inbox --add-config $infinite_lag");
-    die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
-};
 push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
 
 push @tasks, ["inbox_log_tail", sub{
