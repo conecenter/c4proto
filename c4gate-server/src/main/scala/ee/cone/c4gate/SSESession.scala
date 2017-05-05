@@ -25,9 +25,11 @@ trait SSEServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with 
   def sseConfig: SSEConfig
   lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig)
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
-  private lazy val sseServer = new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig))
+  private lazy val sseServer =
+    new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig))
   override def toStart: List[Executable] = sseServer :: super.toStart
-  override def assembles: List[Assemble] = new SSEAssemble :: super.assembles
+  override def assembles: List[Assemble] =
+    new SSEAssemble(sseConfig) :: super.assembles
   override def initLocals: List[InitLocal] =
     sseServer :: pongHandler :: super.initLocals
   override def protocols: List[Protocol] = AlienProtocol :: super.protocols
@@ -53,7 +55,7 @@ class PongHandler(
       sessionKey,
       headers("X-r-location"),
       headers("X-r-connection"),
-      now.getEpochSecond / 100 * 100,
+      now.getEpochSecond / sseConfig.stateRefreshPeriodSeconds * sseConfig.stateRefreshPeriodSeconds,
       Single.option(userNames)
     )
     pongs(session.sessionKey) = now
@@ -90,7 +92,8 @@ case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
 case class SessionTxTransform( //?todo session/pongs purge
     sessionKey: SrcId,
     fromAlien: FromAlienState,
-    writes: Values[ToAlienWrite]
+    writes: Values[ToAlienWrite],
+    purgePeriodSeconds: Int
 ) extends TxTransform {
   def transform(local: World): World = {
     val now = Instant.now
@@ -101,7 +104,8 @@ case class SessionTxTransform( //?todo session/pongs purge
 
     if(lastPongAge>2) { //reconnect<precision<purge
       sender.foreach(_.close())
-      if(lastPongAge>120) LEvent.add(LEvent.delete(fromAlien))(local) else local
+      if(lastPongAge>purgePeriodSeconds)
+        LEvent.add(LEvent.delete(fromAlien))(local) else local
     }
     else sender.map( sender ⇒
       ((local:World) ⇒
@@ -118,7 +122,7 @@ case class SessionTxTransform( //?todo session/pongs purge
   }
 }
 
-@assemble class SSEAssemble extends Assemble {
+@assemble class SSEAssemble(sseConfig: SSEConfig) extends Assemble {
   type SessionKey = SrcId
 
   def joinToAlienWrite(
@@ -133,11 +137,16 @@ case class SessionTxTransform( //?todo session/pongs purge
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(SrcId,TxTransform)] = List(key → (
     if(fromAliens.isEmpty) SimpleTxTransform(key, writes.flatMap(LEvent.delete))
-    else SessionTxTransform(key, Single(fromAliens), writes.sortBy(_.priority))
+    else SessionTxTransform(
+      key, Single(fromAliens), writes.sortBy(_.priority),
+      sseConfig.stateRefreshPeriodSeconds + sseConfig.tolerateOfflineSeconds
+    )
   ))
 }
 
 object NoProxySSEConfig extends SSEConfig {
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"
+  def stateRefreshPeriodSeconds: Int = 100
+  def tolerateOfflineSeconds: Int = 20
 }
