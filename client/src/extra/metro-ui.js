@@ -8,6 +8,20 @@ jsx?
 */
 
 export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,getInnerHeight}){
+	const GlobalStyles = (()=>{
+		let styles = {
+			outlineWidth:"0.04em",
+			outlineStyle:"solid",
+			outlineColor:"blue",
+			outlineOffset:"-0.1em",
+			boxShadow:"0 0 0.3125em 0 rgba(0, 0, 0, 0.3)",
+			borderWidth:"0.04em",
+			borderStyle:"solid",
+			borderSpacing:"0em",
+		}
+		const update = (newStyles) => styles = {...styles,...newStyles}
+		return {...styles,update};
+	})()
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -64,9 +78,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			this.setState({mouseOver:false,touch:false});
 		},
 		render:function(){		
-			const selStyle={
-				outline:this.state.touch?'0.1em solid blue':'none',
-				outlineOffset:'-0.1em',
+			const selStyle={				
+				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
+				outlineOffset:GlobalStyles.outlineOffset,
 				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
 				...this.props.style,
 				...(this.state.mouseOver?this.props.overStyle:null)
@@ -113,7 +127,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				width:"100%",
 				zIndex:"6669",
 				top:"0rem",
-				boxShadow:this.state.scrolled?"0px 1px 2px 0px rgba(0,0,0,0.5)":"",
+				boxShadow:this.state.scrolled?GlobalStyles.boxShadow:"",
 				...this.props.style
 			}
 			return React.createElement("div",{style:style},				
@@ -138,19 +152,19 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				style: {
 					position:'absolute',					
 					minWidth:'7em',
-					boxShadow:'0 0 1.25rem 0 rgba(0, 0, 0, 0.2)',
+					boxShadow:GlobalStyles.boxShadow,
 					zIndex:'6670',
 					transitionProperty:'all',
 					transitionDuration:'0.15s',
 					transformOrigin:'50% 0%',
-					border:"0.08em solid #2196f3",
+					borderWidth:GlobalStyles.borderWidth,
+					borderStyle:GlobalStyles.borderStyle,
+					borderColor:"#2196f3",					
 					maxHeight:this.state.maxHeight,					
 					...this.props.style
 				}
-			},this.props.children);
-			
-		}		
-		
+			},this.props.children);			
+		}				
 	});
 
 	const FolderMenuElement=React.createClass({
@@ -219,7 +233,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		}
 	});
 	const TabSet=({style,children})=>React.createElement("div",{style:{
-		borderBottom:'0.05rem solid',         
+		borderBottomWidth:GlobalStyles.borderWidth,
+		borderBottomStyle:GlobalStyles.borderStyle,		         
 		overflow:'hidden',
 		display:'flex',
 		marginTop:'0rem',
@@ -283,7 +298,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		render:function(){			
 			const style={
 				backgroundColor:'white',
-				border:'0.02em #b6b6b6 dashed',
+				borderColor:'#b6b6b6',
+				borderStyle:'dashed',
+				borderWidth:GlobalStyles.borderWidth,
 				margin:'0.4em',
 				padding:this.props.caption?'0.5em 1em 1.25em 1.6em':'0.5em 0.5em 1.25em 0.5em',
 				minHeight:this.state.containerMinHeight,
@@ -318,7 +335,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		color:'white',
 		textAlign:'center',
 		borderRadius:'0.58em',
-		border:'0.02em solid #eeeeee',
+		border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,		
 		backgroundColor:"white",
 		cursor:'default',
 		width:'3.8em',
@@ -328,7 +345,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	},readOnly:'readonly',value:(children || value)},null);	
 	const VKTd = React.createClass({
 		getInitialState:function(){
-			return {touch:false};
+			return {touch:false,mouseDown:false};
 		},
 		onClick:function(ev){
 			if(this.props.onClick){
@@ -345,6 +362,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onTouchEnd:function(e){
 			this.setState({touch:false});
 		},
+		onMouseDown:function(){this.setState({mouseDown:true})},
+		onMouseUp:function(){this.setState({mouseDown:false})},
 		render:function(){
 			const bStyle={
 				height:'100%',
@@ -354,13 +373,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				fontSize:'0.7em',
 				backgroundColor:'inherit',
 				verticalAlign:'top',
-				outline:this.state.touch?'0.1rem solid blue':'none',
+				outline:(this.state.touch||this.state.mouseDown)?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
+				//outlineOffset:GlobalStyles.outlineOffset,
 				color:'inherit',
 				...this.props.bStyle
 			};			
 			return React.createElement("td",{style:this.props.style,
-								colSpan:this.props.colSpan,rowSpan:this.props.rowSpan,onClick:this.onClick},
-								React.createElement("button",{style:bStyle,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children));
+				colSpan:this.props.colSpan,rowSpan:this.props.rowSpan,onClick:this.onClick},
+				React.createElement("button",{style:bStyle,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children));
 			},
 	});
 	const VirtualKeyboard = React.createClass({	  
@@ -369,9 +389,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.props.onChange({target:{value:""}});
 		},
 		render:function(){
+			const borderSpacing = '0.2em'
 			const tableStyle={
-				fontSize:'2em',
-				borderSpacing:'0.2em',
+				fontSize:'1.55em',
+				borderSpacing:borderSpacing,
 				marginTop:'-0.2em',
 				marginLeft:'auto',
 				marginRight:'auto',
@@ -380,7 +401,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const tdStyle={				
 				textAlign:'center',
 				verticalAlign:'middle',
-				border:'0.01em solid',
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,				
 				backgroundColor:'#eeeeee',
 				height:'2.2em',
 				width:'2em',
@@ -388,7 +409,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			};
 			const aTableStyle={
 				fontSize:'1.55em',
-				borderSpacing:'0.2em',
+				borderSpacing:borderSpacing,
 				marginTop:'-0.2em',
 				marginLeft:'auto',
 				marginRight:'auto',
@@ -399,16 +420,16 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				textAlign:'center',				
 				verticalAlign:'middle',
 				height:'1.4em',
-				border:'0.01em solid',
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				backgroundColor:'#eeeeee',
 				minWidth:'1.1em',
 				overflow:"hidden"				
 			};
 			const aTableLastStyle={
 				marginBottom:'0rem',
-				position:'relative',
-				left:'0.57em',
-				lineHeight:'1'
+				position:'relative',				
+				lineHeight:'1',
+				fontSize:""
 			};			
 			const specialTdStyle={...tdStyle,...this.props.specialKeyStyle};
 			const specialTdAccentStyle={...tdStyle,...this.props.specialKeyAccentStyle};
@@ -427,134 +448,132 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const enterSvgData=svgSrc(enterSvg);
 			const upSvgData=svgSrc(upSvg);
 			const downSvgData=svgSrc(downSvg);
-			const backSpaceEl = React.createElement("img",{src:backSpaceSvgData,style:{width:"100%",height:"100%",verticalAlign:"middle"}},null);
-			const enterEl = React.createElement("img",{src:enterSvgData,style:{width:"100%",height:"100%"}},null);
-			const upEl = React.createElement("img",{src:upSvgData,style:{width:"100%",height:"100%",verticalAlign:"middle"}},null);
-			const downEl = React.createElement("img",{src:downSvgData,style:{width:"100%",height:"100%",verticalAlign:"middle"}},null);
-			let result;
+			const backSpaceEl = React.createElement("img",{src:backSpaceSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
+			const enterEl = React.createElement("img",{src:enterSvgData,style:{width:"90%",height:"100%"}},null);
+			const upEl = React.createElement("img",{src:upSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
+			const downEl = React.createElement("img",{src:downSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);			 
 			if(this.props.simple && !this.props.alphaNumeric)
-				result=React.createElement("table",{style:tableStyle,key:"1"},
-					React.createElement("tbody",{key:"1"},[					  				   					  
-					   React.createElement("tr",{key:"3"},[
-							...[7,8,9].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString())),						  
-							React.createElement(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle,height:"2rem"},key:"4",fkey:"backspace"},backSpaceEl)
-					   ]),					   
-					   React.createElement("tr",{key:"4"},[
-							...[4,5,6].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString()))						  				   
-					   ]),
-					   React.createElement("tr",{key:"5"},[
-						   ...[1,2,3].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString())),
-						   React.createElement(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdStyle,height:"90%"},key:"13",fkey:"enter"},enterEl),
-					   ]),
-					   React.createElement("tr",{key:"6"},[
-						   React.createElement(VKTd,{colSpan:'3',onClickValue:this.props.onClickValue,style:tdStyle,key:"1",fkey:"0"},'0'),
-					   ]),
-				   ])
-				); 
+			return React.createElement("table",{style:tableStyle,key:"1"},
+				React.createElement("tbody",{key:"1"},[					  				   					  
+				   React.createElement("tr",{key:"3"},[
+						...[7,8,9].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString())),						  
+						React.createElement(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle,height:"2rem"},key:"4",fkey:"backspace"},backSpaceEl)
+				   ]),					   
+				   React.createElement("tr",{key:"4"},[
+						...[4,5,6].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString()))						  				   
+				   ]),
+				   React.createElement("tr",{key:"5"},[
+					   ...[1,2,3].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString())),
+					   React.createElement(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdStyle,height:"90%"},key:"13",fkey:"enter"},enterEl),
+				   ]),
+				   React.createElement("tr",{key:"6"},[
+					   React.createElement(VKTd,{colSpan:'3',onClickValue:this.props.onClickValue,style:tdStyle,key:"1",fkey:"0"},'0'),
+				   ]),
+			   ])
+			); 
 			else
 			if(!this.props.alphaNumeric && !this.props.simple)
-				result=React.createElement("table",{style:tableStyle,key:"1"},
-					React.createElement("tbody",{key:"1"},[
-					   React.createElement("tr",{key:"0"},[
-						   React.createElement(VKTd,{colSpan:"2",style:{...specialTdAccentStyle,height:"auto",width:"2em"},bStyle:{width:"60%",fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
-						   React.createElement("td",{key:"2"},''),
-						   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
-					   ]),					   
-					   React.createElement("tr",{key:"1"},[
-							...["F1","F2","F3","F4","F5"].map(e=>React.createElement(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   					   
-					   ]),					   
-					   React.createElement("tr",{key:"2"},[
-							...["F6","F7","F8","F9","F10"].map(e=>React.createElement(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   			   
-					   ]),
-					   React.createElement("tr",{key:"2-extras"},[
-						   React.createElement(VKTd,{style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-						   ...["T",".","-"].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e},e))						   						   
-					   ]),
-					   React.createElement("tr",{key:"3"},[
-							...[7,8,9].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-						   React.createElement(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"auto",padding:"0px"},bStyle:{width:"50%",fontSize:""},key:"4",fkey:"ArrowUp"},upEl),
-					   ]),					   
-					   React.createElement("tr",{key:"4"},[
-							...[4,5,6].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-						   React.createElement(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"auto",padding:"0px"},bStyle:{width:"50%",fontSize:""},key:"4",fkey:"ArrowDown"},downEl),
-					   ]),
-					   React.createElement("tr",{key:"5"},[
-							...[1,2,3].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-						   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:{...specialTdStyle,height:"90%"},bStyle:{width:"90%"},key:"4",fkey:"Enter"},enterEl),
-					   ]),
-					   React.createElement("tr",{key:"6"},[
-						   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
-					   ]),
-				   ])
-				);
+			return React.createElement("table",{style:tableStyle,key:"1"},
+				React.createElement("tbody",{key:"1"},[
+				   React.createElement("tr",{key:"0"},[
+					   React.createElement(VKTd,{colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
+					   React.createElement("td",{key:"2"},''),
+					   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
+				   ]),					   
+				   React.createElement("tr",{key:"1"},[
+						...["F1","F2","F3","F4","F5"].map(e=>React.createElement(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   					   
+				   ]),					   
+				   React.createElement("tr",{key:"2"},[
+						...["F6","F7","F8","F9","F10"].map(e=>React.createElement(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   			   
+				   ]),
+				   React.createElement("tr",{key:"2-extras"},[
+					   React.createElement(VKTd,{style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
+					   ...["T",".","-"].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e},e))						   						   
+				   ]),
+				   React.createElement("tr",{key:"3"},[
+						...[7,8,9].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   React.createElement(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowup",fkey:"ArrowUp"},upEl),
+				   ]),					   
+				   React.createElement("tr",{key:"4"},[
+						...[4,5,6].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   React.createElement(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowdown",fkey:"ArrowDown"},downEl),
+				   ]),
+				   React.createElement("tr",{key:"5"},[
+						...[1,2,3].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:{...specialTdStyle,height:"100%"},key:"4",fkey:"Enter"},enterEl),
+				   ]),
+				   React.createElement("tr",{key:"6"},[
+					   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
+				   ]),
+			   ])
+			);
 			else
-				result= React.createElement("div",{key:"1"},[ 
-					!this.props.simple?React.createElement("table",{style:aTableStyle,key:"1"},
-						React.createElement("tbody",{key:"1"},[
-							React.createElement("tr",{key:"1"},[
-								...["F1","F2","F3","F4","F5","F6","F7","F8","F9","F9"].map(e=>React.createElement(VKTd,{style:specialAKeyCellStyle,key:e,fkey:e},e)),																
-								React.createElement(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'),
-							])
+			return React.createElement("div",{key:"1"},[ 
+				!this.props.simple?React.createElement("table",{style:aTableStyle,key:"1"},
+					React.createElement("tbody",{key:"1"},[
+						React.createElement("tr",{key:"1"},[
+							...["F1","F2","F3","F4","F5","F6","F7","F8","F9","F10"].map(e=>React.createElement(VKTd,{style:specialAKeyCellStyle,key:e,fkey:e},e)),																
+							React.createElement(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'),
 						])
-					):null,
-					React.createElement("table",{style:aTableStyle,key:"2-extras"},
-						React.createElement("tbody",{key:"1"},[
-							React.createElement("tr",{key:"1"},[
-								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:specialAKeyCellAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-								...[":",";","/","*","-","+",",","."].map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
-								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,height:"auto",width:"2em"},bStyle:{width:"60%",fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
+					])
+				):null,
+				React.createElement("table",{style:aTableStyle,key:"2-extras"},
+					React.createElement("tbody",{key:"1"},[
+						React.createElement("tr",{key:"1"},[
+							React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:specialAKeyCellAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
+							...[":",";","/","*","-","+",",","."].map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
+							React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,height:"100%",width:"auto",minWidth:"2em"},bStyle:{fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
+						]),
+					])
+				),
+				React.createElement("table",{style:aTableStyle,key:"2"},
+					React.createElement("tbody",{key:"1"},[
+						React.createElement("tr",{key:"1"},[
+							...[1,2,3,4,5,6,7,8,9,0].map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e.toString()},e.toString()))								
+						]),
+					])
+				),
+				React.createElement("table",{style:aTableStyle,key:"3"},
+					React.createElement("tbody",{key:"1"},[
+						React.createElement("tr",{key:"1"},[
+							...Array.from("QWERTYUIOP").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e))															
+						]),
+					])
+				),
+				React.createElement("table",{style:{...aTableStyle,position:'relative',left:'0.18rem'},key:"4"},
+					React.createElement("tbody",{key:"1"},[
+						React.createElement("tr",{key:"1"},[
+							...Array.from("ASDFGHJKL").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
+							React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellStyle,minWidth:"2.5rem",height:"100%"},rowSpan:"2",key:"10",fkey:"Enter"},enterEl),
+						]),
+						React.createElement("tr",{key:"2"},[
+							React.createElement("td",{style:{...aKeyCellStyle,backgroundColor:'transparent',border:'none'},colSpan:"9",key:"1"},[
+								React.createElement("table",{style:{...aTableStyle,...aTableLastStyle},key:"1"},
+									React.createElement("tbody",{key:"1"},[
+										React.createElement("tr",{key:"1"},[
+											...Array.from("ZXCVBNM").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),												
+											React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"100%"},key:"8",fkey:"ArrowUp"},upEl),
+										]),
+										React.createElement("tr",{key:"2"},[
+											React.createElement(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"1"},''),
+											React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,colSpan:"5",key:"2",fkey:" "},'SPACE'),
+											React.createElement(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"3"},''),
+											React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"100%"},key:"4",fkey:"ArrowDown"},downEl),
+										]),
+									])
+								),
 							]),
-						])
-					),
-					React.createElement("table",{style:aTableStyle,key:"2"},
-						React.createElement("tbody",{key:"1"},[
-							React.createElement("tr",{key:"1"},[
-								...[1,2,3,4,5,6,7,8,9,0].map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e.toString()},e.toString()))								
-							]),
-						])
-					),
-					React.createElement("table",{style:aTableStyle,key:"3"},
-						React.createElement("tbody",{key:"1"},[
-							React.createElement("tr",{key:"1"},[
-								...Array.from("QWERTYUIOP").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e))															
-							]),
-						])
-					),
-					React.createElement("table",{style:{...aTableStyle,position:'relative',left:'0.18rem'},key:"4"},
-						React.createElement("tbody",{key:"1"},[
-							React.createElement("tr",{key:"1"},[
-								...Array.from("ASDFGHJKL").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
-								React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellStyle,minWidth:"2.5rem",height:"auto"},rowSpan:"2",key:"10",fkey:"Enter"},enterEl),
-							]),
-							React.createElement("tr",{key:"2"},[
-								React.createElement("td",{style:{...aKeyCellStyle,backgroundColor:'transparent',border:'none'},colSpan:"9",key:"1"},[
-									React.createElement("table",{style:{...aTableStyle,...aTableLastStyle},key:"1"},
-										React.createElement("tbody",{key:"1"},[
-											React.createElement("tr",{key:"1"},[
-												...Array.from("ZXCVBNM").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),												
-												React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"auto"},key:"8",fkey:"ArrowUp"},upEl),
-											]),
-											React.createElement("tr",{key:"2"},[
-												React.createElement(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"1"},''),
-												React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,colSpan:"5",key:"2",fkey:" "},'SPACE'),
-												React.createElement(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"3"},''),
-												React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"auto"},key:"4",fkey:"ArrowDown"},downEl),
-											]),
-										])
-									),
-								]),
-							]),
-						])
-					),
+						]),
+					])
+				),
 
-				]);
-			return result;
+			]);			
 		},
 	});	
 
 	const TableElement = ({style,children})=>React.createElement("table",{style:{
 		borderCollapse:'separate',
-		borderSpacing:'0px',
+		borderSpacing:GlobalStyles.borderSpacing,
 		width:'100%',
 		lineHeight:"1.1",
 		minWidth:"0",
@@ -607,10 +626,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		
 	const TBodyElement = ({style,children})=>React.createElement("tbody",{style:style},children);
 	const THElement = ({style,children})=>React.createElement("th",{style:{
-		borderBottom:'0.04em solid #b6b6b6',
+		borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 		borderLeft:'none',
-		borderRight:'0.04em solid #b6b6b6',
-		borderTop:'0.04em solid #b6b6b6',
+		borderRight:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+		borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 		fontWeight:'bold',
 		padding:'0.04em 0.08em 0.04em 0.08em',
 		verticalAlign:'middle',
@@ -620,8 +639,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	}},children);
 	const TDElement = ({style,children})=>React.createElement("td",{style:{
 		borderLeft:'none',
-		borderRight:'0.04em solid #b6b6b6',
-		borderTop:'0.04em solid #b6b6b6',
+		borderRight:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+		borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 		fontWeight:'bold',
 		padding:'0.1em 0.2em',
 		verticalAlign:'middle',
@@ -658,8 +677,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		render:function(){
 			const trStyle={
-				outline:this.state.touch?'0.1em solid blue':'none',
-				outlineOffset:'-0.1em',
+				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
+				outlineOffset:GlobalStyles.outlineOffset,
 				...(this.props.odd?{backgroundColor:'#fafafa'}:{backgroundColor:'#ffffff'}),
 				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
 				...this.props.style
@@ -689,184 +708,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		setFocus:function(){if(this.props.focus && this.inp) this.inp.focus()},
 		componentDidMount:function(){this.setFocus()},
 		componentDidUpdate:function(){this.setFocus()},
-		render:function(){
-			const labelStyle={
-				color:"rgb(33,33,33)",
-			};
-			const contStyle={
-				width:"100%",				
-				padding:"0.4em 0.3125em",
-				boxSizing:"border-box",
-				...this.props.style
-			};			
-			const inpContStyle={
-				display:"flex",
-				height:"auto",
-				lineHeight:"1",
-				margin:"0.124em 0rem",
-				position:"relative",
-				verticalAlign:"middle",
-				width:"100%",
-			};
-			const inp2ContStyle={
-				flex:"1 1 0%",
-				height:"auto",
-				minHeight:"100%",
-				overflow:"hidden",				
-			};
-			const inputStyle={
-				textOverflow:"ellipsis",
-				margin:"0rem",
-				verticalAlign:"top",
-				color:"rgb(33,33,33)",
-				border:"0.01em solid",
-				height:"100%",
-				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
-				width:"100%",
-				zIndex:"0",
-				boxSizing:"border-box",
-				MozAppearence:"none",
-				whiteSpace:"nowrap",
-				overflow:"hidden",
-				fontSize:"inherit",
-				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
-				textTransform:"inherit",
-				textAlign:"inherit",
-				outline:"none",
-				...this.props.inputStyle
-			};		
-			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			const type = this.props.type?this.props.type:"text"
-			return React.createElement("div",{style:inpContStyle},[					
-					React.createElement("div",{key:"xx",style:inp2ContStyle},
-						React.createElement("input",{key:"1",ref:(ref)=>this.inp=ref,type,placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
-
-					)
-				]);
-					
-		},
-	});
-	
-	const TextArea = React.createClass({
-		getInitialState:function(){
-			return {mouseOver:false};
-		},
-		onChange:function(e){
-			if(this.props.onChange)
-				this.props.onChange(e);				
-		},
-		onBlur:function(e){
-			if(this.props.onBlur)
-				this.props.onBlur(e)
-		},
-		onMouseOver:function(e){
-			this.setState({mouseOver:true});
-		},
-		onMouseOut:function(e){
-			this.setState({mouseOver:false});
-		},
-		setFocus:function(){if(this.props.focus && this.inp) this.inp.focus()},
-		componentDidMount:function(){this.setFocus()},
-		componentDidUpdate:function(){this.setFocus()},		
-		render:function(){
-			const labelStyle={
-				color:"rgb(33,33,33)",
-			};
-			const contStyle={
-				width:"100%",				
-				padding:"0.4em 0.3125em",
-				boxSizing:"border-box",
-				...this.props.style
-			};			
-			const inpContStyle={
-				display:"flex",
-				height:"auto",
-				lineHeight:"1",
-				margin:"0.124em 0rem",
-				position:"relative",
-				verticalAlign:"middle",
-				width:"100%",
-			};
-			const inp2ContStyle={
-				flex:"1 1 0%",
-				height:"auto",
-				minHeight:"100%",
-				overflow:"hidden",				
-			};
-			const inputStyle={
-				textOverflow:"ellipsis",
-				margin:"0rem",
-				verticalAlign:"top",
-				color:"rgb(33,33,33)",
-				border:"0.01em solid",
-				height:"100%",
-				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
-				width:"100%",
-				zIndex:"0",
-				boxSizing:"border-box",
-				MozAppearence:"none",				
-				overflow:"hidden",
-				fontSize:"inherit",
-				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
-				textTransform:"inherit",
-				...this.props.inputStyle
-			};			
-			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
-			const rows= this.props.rows?this.props.rows:"2";			
-			return React.createElement("div",{style:inpContStyle},
-					React.createElement("div",{key:"xxx",style:inp2ContStyle},
-						React.createElement("textarea",{key:"1",rows,ref:(ref)=>this.inp=ref,readOnly,value:this.props.value,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},null)
-					)
-				);
-					
-		},
-	});
-
-	const DropDownElement = React.createClass({
-		getInitialState:function(){
-			return {mouseOverI:false,mouseOverB:false,popupMinWidth:"0%"};
-		},
-		onChange:function(e){
-			if(this.props.onChange)
-				this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}});
-		},
-		onClick:function(e){
-			if(this.props.onClickValue)
-				this.props.onClickValue("click");
-		},
-		onMouseOverI:function(){
-			this.setState({mouseOverI:true});
-		},
-		onMouseOutI:function(){
-			this.setState({mouseOverI:false});
-		},
-		onMouseOverB:function(){
-			this.setState({mouseOverB:true});
-		},
-		onMouseOutB:function(){
-			this.setState({mouseOverB:false});
-		},
-		componentDidMount:function(){
-			if(!this.cont) return;
-			const minWidth = this.cont.getBoundingClientRect().width;
-			this.setState({popupMinWidth:minWidth});
-			this.setFocus()
-		},
-		componentDidUpdate:function(){
-			if(!this.cont) return;
-			const minWidth = this.cont.getBoundingClientRect().width;
-			if(Math.round(this.state.popupMinWidth) != Math.round(minWidth)) this.setState({popupMinWidth:minWidth});
-			this.setFocus()
-		},
-		setFocus:function(){if(this.props.focus && this.inp) this.inp.focus()},		
-		render:function(){			
-			const contStyle={
-				width:"100%",				
-				padding:"0.4em 0.3125em",
-				boxSizing:"border-box",				
-			};
+		render:function(){				
 			const inpContStyle={
 				display:"flex",
 				height:"auto",
@@ -874,17 +716,17 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				margin:"0.124em 0em",				
 				verticalAlign:"middle",
 				width:"100%",
-				border:"0.01em solid",
-				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
-				backgroundColor:(this.props.onChange)?"white":"#eeeeee",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
+				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
+				backgroundColor:(this.props.onChange||this.props.onBlur)?"white":"#eeeeee",
+				boxSizing:"border-box",
 				...this.props.style
 			};
 			const inp2ContStyle={
 				flex:"1 1 0%",
 				height:"auto",
 				minHeight:"100%",
-				overflow:"hidden",
-				backgroundColor:"inherit"
+				overflow:"hidden",				
 			};
 			const inputStyle={
 				textOverflow:"ellipsis",
@@ -905,7 +747,57 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:"inherit",
 				outline:"none",
 				...this.props.inputStyle
-			};
+			};		
+			const placeholder = this.props.placeholder?this.props.placeholder:"";
+			const inputType = this.props.inputType?this.props.inputType:"input"
+			const type = this.props.type?this.props.type:"text"
+			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
+			const rows= this.props.rows?this.props.rows:"2";		
+			return React.createElement("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
+					this.props.shadowElement?this.props.shadowElement():null,
+					React.createElement("div",{key:"xx",style:inp2ContStyle},[
+						React.createElement(inputType,{
+							key:"1",
+							ref:(ref)=>this.inp=ref,
+							type,rows,readOnly,placeholder,
+							style:inputStyle,							
+							onChange:this.onChange,onBlur:this.onBlur,value:this.props.value							
+							},null),
+						this.props.popupElement?this.props.popupElement():null
+					]),
+					this.props.buttonElement?this.props.buttonElement():null
+				]);
+					
+		},
+	});
+	
+	const TextArea = (props) => React.createElement(InputElement,{...props,inputType:"textarea"})
+
+
+	const DropDownElement = React.createClass({
+		getInitialState:function(){
+			return {popupMinWidth:0};
+		},
+		onChange:function(e){
+			if(this.props.onChange)
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}});
+		},
+		onClick:function(e){
+			if(this.props.onClickValue)
+				this.props.onClickValue("click");
+		},		
+		setPopupWidth:function(){
+			if(!this.cont||!this.cont.cont) return;
+			const minWidth = this.cont.cont.getBoundingClientRect().width;
+			if(Math.round(this.state.popupMinWidth) != Math.round(minWidth)) this.setState({popupMinWidth:minWidth});
+		},
+		componentDidMount:function(){
+			this.setPopupWidth()			
+		},
+		componentDidUpdate:function(){
+			this.setPopupWidth()			
+		},			
+		render:function(){			
 			const popupStyle={
 				position:"absolute",
 				border: "0.01em solid #000",
@@ -917,20 +809,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				boxSizing:"border-box",
 				overflowX:"hidden",
 				marginLeft:"-0.04em",
-				lineHeight:"normal",
+				lineHeight:"normal"
 			};
-			const openButtonStyle={
-				minHeight:"",
-				width:"1.5em",
-				height:"100%",
-				padding:"0.2em",
-				lineHeight:"1",
-				backgroundColor:"inherit",				
-			};
-			const openButtonWrapperStyle= {
-				flex:"0 1 auto",
-				...inp2ContStyle
-			};
+			
 			const buttonImageStyle={				
 				verticalAlign:"middle",
 				display:"inline",
@@ -942,21 +823,39 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 306 306" xml:space="preserve"><polygon points="270.3,58.65 153,175.95 35.7,58.65 0,94.35 153,247.35 306,94.35"/></svg>'
 			const svgData=svgSrc(svg);
 			const urlData = this.props.url?this.props.url:svgData;
-			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);			
-			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null;
+			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			return React.createElement("div",{ref:(ref)=>this.cont=ref,style:inpContStyle,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},[
-				React.createElement("div",{key:"1",style:inp2ContStyle},[
-					React.createElement("input",{key:"1",ref:(ref)=>this.inp=ref,placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
-					popupWrapEl					
-				]),
-				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
-					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB,onClick:this.onClick},buttonImage)
-				)
-			]);			
-		},
+			const buttonElement = () => [React.createElement(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
+			const popupElement = () => [this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null];
+			
+			return React.createElement(InputElement,{...this.props,ref:(ref)=>this.cont=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur});				
+		}
 	});
-	
+	const ButtonInputElement = React.createClass({
+		getInitialState:function(){return {mouseOver:false}},
+		onMouseOver:function(){this.setState({mouseOver:true})},
+		onMouseOut:function(){this.setState({mouseOver:false})},
+		render:function(){
+			const openButtonWrapperStyle= {				
+				flex:"1 1 0%",
+				height:"auto",
+				minHeight:"100%",
+				overflow:"hidden",
+				backgroundColor:"inherit",
+				flex:"0 1 auto",
+			};
+			const openButtonStyle={
+				minHeight:"",
+				width:"1.5em",
+				height:"100%",
+				padding:"0.2em",
+				lineHeight:"1",
+				backgroundColor:"inherit",				
+			};
+			return React.createElement("div",{key:"2",style:openButtonWrapperStyle},
+				React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut,onClick:this.props.onClick},this.props.children)
+		)}
+	})
 	const DropDownWrapperElement = ({style,children})=>React.createElement("div",{style:{
 		width:"100%",				
 		padding:"0.4em 0.3125em",
@@ -1051,7 +950,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement("div",{ref:ref=>this.el=ref,style:{
 				position:"fixed",
 				zIndex:"6",
-				border:"0.02em solid #eee",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,
 				backgroundColor:"white",
 				top:this.state.top,
 				left:this.state.left,
@@ -1097,7 +996,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				...this.props.innerStyle
 			};
 			const checkBoxStyle={
-				border:"0.02em solid",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				color:"#212121",
 				display:"inline-block",
 				height:"1.625em",
@@ -1130,10 +1029,13 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				height:"90%",
 				width:"100%",
 			};			
+			
 			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
 			const svgData=svgSrc(svg);
-			const checkImage = this.props.value&&this.props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
+			const defaultCheckImage = this.props.value&&this.props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
 			const labelEl = this.props.label?React.createElement("label",{style:labelStyle,key:"2"},this.props.label):null;
+			const checkImage = this.props.checkImage?this.props.checkImage:defaultCheckImage;
+			
 			return React.createElement("div",{style:contStyle},
 				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
 					React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
@@ -1143,94 +1045,34 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		}
 	});
 	
-	const RadioButtonElement = React.createClass({
-		getInitialState:function(){
-			return {mouseOver:false};
-		},
-		onClick:function(e){
-			if(this.props.onChange)
-				this.props.onChange({target:{value:(this.props.value?"":"checked")}});
-		},
-		onMouseOver:function(){
-			this.setState({mouseOver:true});
-		},
-		onMouseOut:function(){
-			this.setState({mouseOver:false});
-		},
-		render:function(){
-			const isLabeled = this.props.label&&this.props.label.length>0;
-			const contStyle={
-				flexGrow:"0",
-				minHeight:"2.8125em",
-				position:"relative",
-				maxWidth:"100%",
-				padding:"0.4em 0.3125em",
-				flexShrink:"1",
-				boxSizing:"border-box",
-				lineHeight:"1",
-				...this.props.style
-			};
-			const cont2Style={
-				border:"none",
-				display:"inline-block",
-				lineHeight:"100%",
-				margin:"0em",				
-				outline:"none",				
-				whiteSpace:"nowrap",
-				width:isLabeled?"calc(100% - 1em)":"auto",
-				cursor:"pointer",
-				bottom:"0rem",
-				...this.props.innerStyle
-			};
-			const checkBoxStyle={
-				border:"0.02em solid",
-				color:"#212121",
-				display:"inline-block",
-				height:"1em",
-				lineHeight:"100%",
-				margin:"0em 0.02em 0em 0em",
-				padding:"0rem",
-				position:"relative",				
-				width:"1em",
-				boxSizing:"border-box",
-				backgroundColor:this.props.onChange?"white":"#eeeeee",
-				borderColor:this.state.mouseOver?"black":"#b6b6b6",
-				textAlign:"center",				
-				borderRadius:"50%",
-				...this.props.checkBoxStyle
-			};
-			const labelStyle={
-				maxWidth:"calc(100% - 2.165em)",
-				padding:"0rem 0.3125em",				
-				cursor:"pointer",
-				display:"inline-block",
-				lineHeight:"1.3",
-				overflow:"hidden",
-				textOverflow:"ellipsis",
-				whiteSpace:"nowrap",
-				boxSizing:"border-box",
-				...this.props.labelStyle
-			};
-			const imageStyle = {								
-				height:"0.5em",
-				width:"0.5em",
-				display:"inline-block",
-				backgroundColor:(this.props.value&&this.props.value.length>0)?"black":"transparent",
-				borderRadius:"70%",
-				verticalAlign:"top",
-				marginTop:"0.19em",				
-			};
-			
-			const labelEl = isLabeled?React.createElement("label",{style:labelStyle,key:"2"},this.props.label):null;
-			return React.createElement("div",{style:contStyle},
-				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
-					React.createElement("span",{style:checkBoxStyle,key:"1"},React.createElement("div",{style:imageStyle,key:"checkImage"},null)),
-					labelEl
-				])
-			);
-		}
-	});
-	
+	const RadioButtonElement = (props) => {		
+		const isLabeled = this.props.label&&this.props.label.length>0;			
+		const cont2Style={
+			...!isLabeled?{width:"auto"}:null,				
+			...this.props.innerStyle
+		};
+		const checkBoxStyle={				
+			height:"1em",								
+			width:"1em",
+			boxSizing:"border-box",				
+			textAlign:"center",				
+			borderRadius:"50%",
+			verticalAlign:"baseline",
+			...this.props.checkBoxStyle
+		};			
+		const imageStyle = {								
+			height:"0.5em",
+			width:"0.5em",
+			display:"inline-block",
+			backgroundColor:(this.props.value&&this.props.value.length>0)?"black":"transparent",
+			borderRadius:"70%",
+			verticalAlign:"top",
+			marginTop:"0.19em",				
+		};
+		const checkImage = React.createElement("div",{style:imageStyle,key:"checkImage"},null);
+		
+		return React.createElement(Checkbox,{...this.props,checkImage,checkBoxStyle,});			
+	};	
 	const ConnectionState =({style,iconStyle,on})=>{
 		const newStyle={			
 			fontSize:"1.5em",
@@ -1240,7 +1082,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		};
 		const contStyle={
 			borderRadius:"1em",
-			border:"0.07em solid black",
+			border:`0.07em ${GlobalStyles.borderStyle} black`,
 			backgroundColor:on?"green":"red",		
 			display:'inline-block',
 			width:"1em",
@@ -1269,7 +1111,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	};
 	const FileUploadElement = React.createClass({
 		getInitialState:function(){
-			return {value:"",reading:false,mouseOverI:false,mouseOverB:false};
+			return {value:"",reading:false};
 		},
 		onClick:function(e){
 			if(this.fInp)
@@ -1291,77 +1133,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			
 			reader.readAsArrayBuffer(file);
 			
-		},
-		onMouseOverB:function(e){
-			this.setState({mouseOverB:true});
-		},
-		onMouseOutB:function(e){
-			this.setState({mouseOverB:false});
-		},
-		onMouseOverI:function(e){
-			this.setState({mouseOverI:true});
-		},
-		onMouseOutI:function(e){
-			this.setState({mouseOverI:false});
-		},
-		setFocus:function(){if(this.props.focus && this.inp) this.inp.focus()},
-		componentDidMount:function(){this.setFocus()},
-		componentDidUpdate:function(){this.setFocus()},
-		render:function(){
-			const contStyle={
-				width:"100%",				
-				padding:"0.4em 0.3125em",
-				boxSizing:"border-box",				
-			};
-			const inpContStyle={
-				display:"flex",
-				height:"auto",
-				lineHeight:"1",
-				margin:"0.124em 0rem",
-				position:"relative",
-				verticalAlign:"middle",
-				width:"100%",
-				border:"0.01em solid",
-				borderColor:this.state.mouseOverI?"black":"rgb(182,182,182)",
+		},						
+		render:function(){			
+			const style={				
 				backgroundColor:(this.props.onReadySendBlob&&!this.state.reading)?"white":"#eeeeee",
 				...this.props.style
-			};
-			const inp2ContStyle={
-				flex:"1 1 0%",
-				height:"auto",
-				minHeight:"100%",
-				overflow:"hidden",
-				backgroundColor:"inherit"
-			};
-			const inputStyle={
-				textOverflow:"ellipsis",
-				margin:"0rem",
-				verticalAlign:"top",
-				color:"rgb(33,33,33)",
-				border:"none",
-				height:"100%",
-				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
-				width:"100%",
-				zIndex:"0",
-				boxSizing:"border-box",
-				MozAppearence:"none",
-				whiteSpace:"nowrap",
-				overflow:"hidden",
-				fontSize:"inherit",
-				textTransform:"inherit",
-				backgroundColor:"inherit",
-				outline:"none",				
-				...this.props.inputStyle
 			};			
-			const openButtonStyle={
-				minHeight:"",
-				minWidth:"1.5em",
-				height:"100%",
-				padding:"0.2em",
-				lineHeight:"1",
-				backgroundColor:"inherit",				
-			};
-			const openButtonWrapperStyle= {...inp2ContStyle,flex:"0 1 auto"};
 			const buttonImageStyle={				
 				verticalAlign:"middle",
 				display:"inline",
@@ -1372,16 +1149,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const svgData=svgSrc(svg);
 			const urlData = this.props.url?this.props.url:svgData;
 			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);
-			const placeholder = this.props.placeholder?this.props.placeholder:"";			
-			return React.createElement("div",{style:inpContStyle,onClick:this.onClick},[
-				React.createElement("input",{key:"0",ref:(ref)=>this.fInp=ref,onChange:this.onChange,type:"file",style:{visibility:"hidden",position:"absolute",height:"1px",width:"1px"}},null),
-				React.createElement("div",{key:"1",style:inp2ContStyle},[					
-					React.createElement("input",{key:"1",ref:(ref)=>this.inp=ref,placeholder:placeholder,type:"text",readOnly:"readOnly",style:inputStyle,value:this.props.inpValue,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},null)									
-				]),
-				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
-					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB},buttonImage)
-				)
-			]);			
+			const placeholder = this.props.placeholder?this.props.placeholder:"";
+			const shadowElement = [React.createElement("input",{key:"0",ref:(ref)=>this.fInp=ref,onChange:this.onChange,type:"file",style:{visibility:"hidden",position:"absolute",height:"1px",width:"1px"}},null)];
+			const buttonElement = [React.createElement(ButtonInputElement,{key:"2"},buttonImage)];
+			
+			return React.createElement(InputElement,{...this.props,style,shadowElement,buttonElement,onChange:()=>{},onClick:()=>{}});
 		}
 	}); 
 	
@@ -1455,7 +1227,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				width:"12.46201429%",
 				margin:"0 0 0 2.12765%",											
 				textAlign:"center",
-				border:"0.04em solid",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				borderColor:!this.props.m?"#d4e2ec":"transparent",
 				backgroundColor:isSel?"transparent":(this.state.mouseOver?"#c0ced8":"transparent")				
 			};
@@ -1511,7 +1283,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		render:function(){			
 			const style={
-				border:"0.04em solid #d4e2ec",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #d4e2ec`,
 				color:"#212121",
 				cursor:"pointer",
 				display:"inline-block",
@@ -1535,7 +1307,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		render:function(){
 			const style = {
 				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent",
-				border:"0.04em solid #d4e2ec",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #d4e2ec`,
 				cursor:"pointer",
 				padding:"0.25em 0",
 				width:"2em",
@@ -1770,20 +1542,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	const DateTimePickerNowSel = ({onClick,value})=>React.createElement(CalenderSetNow,{key:"setNow",onClick:onClick},value);
 	const DateTimePicker = React.createClass({
 		getInitialState:function(){
-			return {mouseOverI:false,mouseOverB:false};
+			return {mouseOverI:false};
 		},
 		onMouseOverI:function(){
 			this.setState({mouseOverI:true});
 		},
 		onMouseOutI:function(){
 			this.setState({mouseOverI:false});
-		},
-		onMouseOverB:function(){
-			this.setState({mouseOverB:true});
-		},
-		onMouseOutB:function(){
-			this.setState({mouseOverB:false});
-		},
+		},		
 		onOpen:function(e){
 			if(this.props.onClickValue)
 				this.props.onClickValue("click");
@@ -1797,7 +1563,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					padding:".3125em",
 					backgroundColor:"white",
 					minWidth:"15.75em",
-					boxShadow:"0 0 0.3125em 0 rgba(0, 0, 0, 0.3)"
+					boxShadow:GlobalStyles.boxShadow
 				};
 				const gridStyle={
 					margin:"0px",
@@ -1821,7 +1587,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				margin:"0.124em 0rem",				
 				verticalAlign:"middle",
 				width:"100%",
-				border:"0.01em solid",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
 				backgroundColor:(this.props.onChange)?"white":"#eeeeee",
 				...this.props.style
@@ -1835,7 +1601,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			};
 			const popupStyle={
 				position:"absolute",
-				border: "0.02em solid #000",																			
+				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,																			
 				backgroundColor: "white",
 				zIndex: "666",
 				boxSizing:"border-box",
@@ -1862,18 +1628,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:"inherit",
 				outline:"none",
 				...this.props.inputStyle
-			};
-			const openButtonStyle={
-				minHeight:"",
-				minWidth:"1.5em",
-				height:"100%",
-				padding:"0.2em",
-				lineHeight:"1",
-				backgroundColor:"inherit",				
-			};
-			const openButtonWrapperStyle= Object.assign({},inp2ContStyle,{
-				flex:"0 1 auto"
-			});
+			};			
 			const buttonImageStyle={				
 				verticalAlign:"middle",
 				display:"inline",
@@ -1907,17 +1662,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					React.createElement("input",{key:"1",ref:(ref)=>this.inp=ref,readOnly:"readOnly",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
 					popupWrapEl					
 				]),
-				React.createElement("div",{key:"2",style:openButtonWrapperStyle},
-					React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOverB,onMouseOut:this.onMouseOutB,onClick:this.onOpen},buttonImage)
-				)
+				React.createElement(ButtonInputElement,{key:"2",onClick:this.onClick},buttonImage)					
 			]);
 		}
 	});
 	DateTimePicker.defaultProps = {
 		open:true		
 	};
-	Date.prototype.getISOWeek =
-	  function(utc) {
+	Date.prototype.getISOWeek = function(utc){
 		var y = utc ? this.getUTCFullYear(): this.getFullYear();
 		var m = utc ? this.getUTCMonth() + 1: this.getMonth() + 1;
 		var d = utc ? this.getUTCDate() : this.getDate();
@@ -1951,7 +1703,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		else
 		  w = (n / 7 | 0) + 1;
 		return w;
-	  };
+	};
 	const sendVal = ctx =>(action,value) =>{sender.send(ctx,({headers:{"X-r-action":action},value}));}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}	
 	const onClickValue=({sendVal});
