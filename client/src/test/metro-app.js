@@ -25,7 +25,7 @@ const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
 
-const log = v => console.log(v)
+const log = v => console.log("log",v)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
 

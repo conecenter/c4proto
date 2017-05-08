@@ -34,22 +34,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		flexBasis:minWidth?minWidth:'auto',
 		maxWidth:maxWidth?maxWidth:'auto',
 		...style
-	}},children);	
-	const button = (props) => React.createElement('button',{style:
-		{
-			border:'none',
-			cursor:'pointer',
-			paddingInlineStart:'0.4em',
-			paddingInlineEnd:'0.4em',
-			padding:'0 1em',
-			minHeight:'2em',
-			minWidth:'1em',
-			fontSize:'1em',
-			alignSelf:'center',
-			...props.style
-		},onClick:props.onClick,onMouseOut:props.onMouseOut,onMouseOver:props.onMouseOver,onTouchStart:props.onTouchStart,onTouchEnd:props.onTouchEnd},props.children);	
-	
-	const GotoButton=React.createClass({
+	}},children);
+	const ButtonElement=React.createClass({
 		getInitialState:function(){
 			return {mouseOver:false,touch:false};
 		},
@@ -78,14 +64,23 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			this.setState({mouseOver:false,touch:false});
 		},
 		render:function(){		
-			const selStyle={				
+			const style={
+				border:'none',
+				cursor:'pointer',
+				paddingInlineStart:'0.4em',
+				paddingInlineEnd:'0.4em',
+				padding:'0 1em',
+				minHeight:'2em',
+				minWidth:'1em',
+				fontSize:'1em',
+				alignSelf:'center',
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
 				outlineOffset:GlobalStyles.outlineOffset,
 				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
 				...this.props.style,
 				...(this.state.mouseOver?this.props.overStyle:null)
-			}				
-			return React.createElement(button,{style:selStyle,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			}	
+			return React.createElement("button",{style,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
 	const MenuBarElement=React.createClass({
@@ -654,11 +649,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	const TRElement = React.createClass({
 		getInitialState:function(){
 			return {touch:false,mouseOver:false};
-		},
-		onClick:function(e){
-			if(this.props.onClick)
-				this.props.onClick(e)
-		},
+		},		
 		onTouchStart:function(e){
 			if(this.props.onClick){
 				this.setState({touch:true});
@@ -683,21 +674,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
 				...this.props.style
 			};			
-			return React.createElement("tr",{style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return React.createElement("tr",{style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	});
-	
-	const InputElement = React.createClass({
+	const Interactive = React.createClass({
 		getInitialState:function(){
 			return {mouseOver:false};
-		},
-		onChange:function(e){
-			if(this.props.onChange)
-				this.props.onChange(e);
-		},
-		onBlur:function(e){
-			if(this.props.onBlur)
-				this.props.onBlur(e)
 		},
 		onMouseOver:function(e){
 			this.setState({mouseOver:true});
@@ -705,7 +687,17 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		onMouseOut:function(e){
 			this.setState({mouseOver:false});
 		},
+		render:function(){ 
+			return this.props.children({
+				onMouseOver:this.onMouseOver,
+				onMouseOut:this.onMouseOut,
+				mouseOver:this.state.mouseOver
+			});
+		}
+	});
+	const InputElementBase = React.createClass({			
 		setFocus:function(){if(this.props.focus && this.inp) this.inp.focus()},
+		onEnterKey:function(e){log(e);if(this.inp) this.inp.blur()},
 		componentDidMount:function(){this.setFocus()},
 		componentDidUpdate:function(){this.setFocus()},
 		render:function(){				
@@ -717,7 +709,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				verticalAlign:"middle",
 				width:"100%",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
-				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
+				borderColor:this.props.mouseOver?"black":"rgb(182, 182, 182)",
 				backgroundColor:(this.props.onChange||this.props.onBlur)?"white":"#eeeeee",
 				boxSizing:"border-box",
 				...this.props.style
@@ -752,8 +744,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const inputType = this.props.inputType?this.props.inputType:"input"
 			const type = this.props.type?this.props.type:"text"
 			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
-			const rows= this.props.rows?this.props.rows:"2";		
-			return React.createElement("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
+			const rows= this.props.rows?this.props.rows:"2";
+			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};			
+			return React.createElement("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					React.createElement("div",{key:"xx",style:inp2ContStyle},[
 						React.createElement(inputType,{
@@ -761,18 +754,16 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
 							style:inputStyle,							
-							onChange:this.onChange,onBlur:this.onBlur,value:this.props.value							
+							onChange:this.props.onChange,onBlur:this.props.onBlur,onKeyDown:this.onEnter,value:this.props.value							
 							},null),
 						this.props.popupElement?this.props.popupElement():null
 					]),
 					this.props.buttonElement?this.props.buttonElement():null
-				]);
-					
+				]);					
 		},
 	});
-	
-	const TextArea = (props) => React.createElement(InputElement,{...props,inputType:"textarea"})
-
+	const InputElement = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(InputElementBase,{...props,ref:props._ref,...actions}))
+	const TextAreaElement = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(InputElementBase,{...props,ref:props._ref,inputType:"textarea",...actions}))
 
 	const DropDownElement = React.createClass({
 		getInitialState:function(){
@@ -787,12 +778,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.props.onClickValue("click");
 		},		
 		setPopupWidth:function(){
-			if(!this.cont||!this.cont.cont) return;
-			const minWidth = this.cont.cont.getBoundingClientRect().width;
+			if(!this.inp||!this.inp.cont) return;
+			const minWidth = this.inp.cont.getBoundingClientRect().width;
 			if(Math.round(this.state.popupMinWidth) != Math.round(minWidth)) this.setState({popupMinWidth:minWidth});
 		},
 		componentDidMount:function(){
-			this.setPopupWidth()			
+			this.setPopupWidth()		
 		},
 		componentDidUpdate:function(){
 			this.setPopupWidth()			
@@ -800,7 +791,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		render:function(){			
 			const popupStyle={
 				position:"absolute",
-				border: "0.01em solid #000",
+				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,
 				width: this.state.popupMinWidth + "px",
 				overflow: "auto",				
 				maxHeight: "10em",				
@@ -809,7 +800,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				boxSizing:"border-box",
 				overflowX:"hidden",
 				marginLeft:"-0.04em",
-				lineHeight:"normal"
+				lineHeight:"normal",
+				...this.props.popupStyle
 			};
 			
 			const buttonImageStyle={				
@@ -818,7 +810,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				height:"auto",
 				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
 				transition:"all 200ms ease",
-				boxSizing:"border-box"
+				boxSizing:"border-box",
+				...this.props.buttonImageStyle
 			};
 			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 306 306" xml:space="preserve"><polygon points="270.3,58.65 153,175.95 35.7,58.65 0,94.35 153,247.35 306,94.35"/></svg>'
 			const svgData=svgSrc(svg);
@@ -828,7 +821,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const buttonElement = () => [React.createElement(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
 			const popupElement = () => [this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.children):null];
 			
-			return React.createElement(InputElement,{...this.props,ref:(ref)=>this.cont=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur});				
+			return React.createElement(InputElement,{...this.props,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur});				
 		}
 	});
 	const ButtonInputElement = React.createClass({
@@ -853,7 +846,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				backgroundColor:"inherit",				
 			};
 			return React.createElement("div",{key:"2",style:openButtonWrapperStyle},
-				React.createElement(GotoButton,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut,onClick:this.props.onClick},this.props.children)
+				React.createElement(ButtonElement,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut,onClick:this.props.onClick},this.props.children)
 		)}
 	})
 	const DropDownWrapperElement = ({style,children})=>React.createElement("div",{style:{
@@ -893,7 +886,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			if(!this.el) return;
 			this.el.addEventListener("focus",this.onFocus,true);
 			this.el.addEventListener("blur",this.onBlur,true);
-			if(this.props.onChange&&this.props.isFocused)
+			if(this.props.onChange&&this.props.focus)
 				this.el.focus();			
 		},		
 		componentWillUnmount:function(){
@@ -973,17 +966,18 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.props.onChange({target:{value:(this.props.value?"":"checked")}});
 		},
 		render:function(){
-			const contStyle={
+			const style={
 				flexGrow:"0",				
 				position:"relative",
 				maxWidth:"100%",
-				padding:"0.4em 0.3125em",
+				padding:"0.4em 0.3125em",				
 				flexShrink:"1",
 				boxSizing:"border-box",
 				lineHeight:"1",
+				...this.props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
 				...this.props.style
 			};
-			const cont2Style={
+			const innerStyle={
 				border:"none",
 				display:"inline-block",
 				lineHeight:"100%",
@@ -1001,7 +995,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				display:"inline-block",
 				height:"1.625em",
 				lineHeight:"100%",
-				margin:"0rem 0.02em 0rem 0rem",
+				margin:"0em 0.02em 0em 0em",
 				padding:"0rem",
 				position:"relative",
 				verticalAlign:"middle",
@@ -1009,6 +1003,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				boxSizing:"border-box",
 				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
 				backgroundColor:this.props.onChange?"white":"#eeeeee",
+				...this.props.altLabel?{height:"1.675em",width:"1.675em"}:null,
 				...this.props.checkBoxStyle
 			};
 			const labelStyle={
@@ -1036,8 +1031,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const labelEl = this.props.label?React.createElement("label",{style:labelStyle,key:"2"},this.props.label):null;
 			const checkImage = this.props.checkImage?this.props.checkImage:defaultCheckImage;
 			
-			return React.createElement("div",{style:contStyle},
-				React.createElement("span",{style:cont2Style,key:"1",onClick:this.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
+			return React.createElement("div",{style},
+				React.createElement("span",{style:innerStyle,key:"1",onClick:this.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
 					React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
 					labelEl
 				])
@@ -1046,10 +1041,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	});
 	
 	const RadioButtonElement = (props) => {		
-		const isLabeled = this.props.label&&this.props.label.length>0;			
-		const cont2Style={
+		const isLabeled = props.label&&props.label.length>0;			
+		const innerStyle={
 			...!isLabeled?{width:"auto"}:null,				
-			...this.props.innerStyle
+			...props.innerStyle
 		};
 		const checkBoxStyle={				
 			height:"1em",								
@@ -1058,20 +1053,20 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			textAlign:"center",				
 			borderRadius:"50%",
 			verticalAlign:"baseline",
-			...this.props.checkBoxStyle
+			...props.checkBoxStyle
 		};			
 		const imageStyle = {								
 			height:"0.5em",
 			width:"0.5em",
 			display:"inline-block",
-			backgroundColor:(this.props.value&&this.props.value.length>0)?"black":"transparent",
+			backgroundColor:(props.value&&props.value.length>0)?"black":"transparent",
 			borderRadius:"70%",
 			verticalAlign:"top",
 			marginTop:"0.19em",				
 		};
 		const checkImage = React.createElement("div",{style:imageStyle,key:"checkImage"},null);
 		
-		return React.createElement(Checkbox,{...this.props,checkImage,checkBoxStyle,});			
+		return React.createElement(Checkbox,{...props,innerStyle,checkImage,checkBoxStyle,});			
 	};	
 	const ConnectionState =({style,iconStyle,on})=>{
 		const newStyle={			
@@ -1177,7 +1172,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					React.createElement(LabelElement,{label:passwordRepeatCaption},null),
 					React.createElement(InputElement,{...attributesB,focus:false,type:"password"},null)			
 				),            
-				React.createElement(GotoButton, {key:"3",onClick, style:buttonStyle,overStyle:buttonOverStyle}, buttonCaption)
+				React.createElement(ButtonElement, {key:"3",onClick, style:buttonStyle,overStyle:buttonOverStyle}, buttonCaption)
 			])
 		)
     }
@@ -1199,7 +1194,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 					React.createElement(InputElement,{...attributesB,focus:false,type:"password"},null)			
 				),
 				React.createElement("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-					React.createElement(GotoButton,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
+					React.createElement(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
 				)
 			])
 		)
@@ -1540,135 +1535,53 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		);				
 	};
 	const DateTimePickerNowSel = ({onClick,value})=>React.createElement(CalenderSetNow,{key:"setNow",onClick:onClick},value);
-	const DateTimePicker = React.createClass({
-		getInitialState:function(){
-			return {mouseOverI:false};
-		},
-		onMouseOverI:function(){
-			this.setState({mouseOverI:true});
-		},
-		onMouseOutI:function(){
-			this.setState({mouseOverI:false});
-		},		
-		onOpen:function(e){
-			if(this.props.onClickValue)
-				this.props.onClickValue("click");
-		},
-		setFocus:function(){if(this.props.focus && this.inp) this.inp.focus()},
-		componentDidMount:function(){this.setFocus()},
-		componentDidUpdate:function(){this.setFocus()},
-		render:function(){
-			const calWrapper=function(children){
-				const wrapperStyle={
-					padding:".3125em",
-					backgroundColor:"white",
-					minWidth:"15.75em",
-					boxShadow:GlobalStyles.boxShadow
-				};
-				const gridStyle={
-					margin:"0px",
-					padding:"0px"
-				};
-				return React.createElement("div",{style:wrapperStyle},
-					React.createElement("div",{style:gridStyle},
-						children
-					));
+	const DateTimePicker = (props) => {		
+		const calWrapper=function(children){
+			const wrapperStyle={
+				padding:".3125em",
+				backgroundColor:"white",
+				minWidth:"15.75em",
+				boxShadow:GlobalStyles.boxShadow
 			};
-			
-			const contStyle={
-				width:"100%",				
-				padding:"0.4em 0.3125em",
-				boxSizing:"border-box",				
+			const gridStyle={
+				margin:"0px",
+				padding:"0px"
 			};
-			const inpContStyle={
-				display:"flex",
-				height:"auto",
-				lineHeight:"1",
-				margin:"0.124em 0rem",				
-				verticalAlign:"middle",
-				width:"100%",
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
-				borderColor:this.state.mouseOverI?"black":"rgb(182, 182, 182)",
-				backgroundColor:(this.props.onChange)?"white":"#eeeeee",
-				...this.props.style
-			};
-			const inp2ContStyle={
-				flex:"1 1 0%",
-				height:"auto",
-				minHeight:"100%",
-				overflow:"hidden",
-				backgroundColor:"inherit"
-			};
-			const popupStyle={
-				position:"absolute",
-				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,																			
-				backgroundColor: "white",
-				zIndex: "666",
-				boxSizing:"border-box",
-				overflowX:"hidden",
-				marginLeft:"-0.06em",
-				lineHeight:"normal",
-			};			
-			const inputStyle={
-				textOverflow:"ellipsis",
-				margin:"0rem",
-				verticalAlign:"top",
-				color:"rgb(33,33,33)",
-				border:"none",
-				height:"100%",
-				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
-				width:"100%",
-				zIndex:"0",
-				boxSizing:"border-box",
-				MozAppearence:"none",
-				whiteSpace:"nowrap",
-				overflow:"hidden",
-				fontSize:"inherit",
-				textTransform:"inherit",
-				backgroundColor:"inherit",
-				outline:"none",
-				...this.props.inputStyle
-			};			
-			const buttonImageStyle={				
-				verticalAlign:"middle",
-				display:"inline",
-				height:"auto",				
-				boxSizing:"border-box"
-			};
-			const placeholder = this.props.placeholder?this.props.placeholder:"";			
-			const popupWrapEl=this.props.open?React.createElement("div",{key:"popup",style:popupStyle},calWrapper(this.props.children)):null;
-			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">'
-				  +'<path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>'
-				  +'<g><path d="M481.082,138.431H14.713C6.587,138.431,0,131.843,0,123.718V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v50.894C495.795,131.844,489.208,138.431,481.082,138.431z M29.426,109.005h436.942v-36.18   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574V109.005z"/>'
-				  +'<path d="M144.238,282.415H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713c0,8.125-6.587,14.713-14.713,14.713H89.643v32.338   h54.595c8.126,0,14.713,6.589,14.713,14.713S152.364,282.415,144.238,282.415z"/></g>'
-				  +'<g><path d="M282.552,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C297.265,275.826,290.678,282.415,282.552,282.415z M227.957,252.988h39.882V220.65h-39.882V252.988z"/>'
-				  +'<path d="M144.238,406.06H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713s-6.587,14.713-14.713,14.713H89.643v32.338h54.595   c8.126,0,14.713,6.589,14.713,14.713S152.364,406.06,144.238,406.06z"/></g>'
-				  +'<path d="M282.552,406.06h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765  c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765  C297.265,399.471,290.678,406.06,282.552,406.06z M227.957,376.633h39.882v-32.338h-39.882V376.633z"/>'
-				  +'<g><path d="M420.864,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C435.577,275.826,428.99,282.415,420.864,282.415z M366.269,252.988h39.882V220.65h-39.882V252.988L366.269,252.988z"/>'
-				  +'<path d="M99.532,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C114.245,86.291,107.658,92.878,99.532,92.878z"/>'
-				  +'<path d="M247.897,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C262.61,86.291,256.023,92.878,247.897,92.878z"/>'
-				  +'<path d="M396.263,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C410.976,86.291,404.389,92.878,396.263,92.878z"/>'
-				  +'<path d="M389.88,504.653c-67.338,0-122.12-54.782-122.12-122.12s54.782-122.12,122.12-122.12   c36.752,0,71.2,16.321,94.512,44.78c5.15,6.285,4.229,15.556-2.058,20.706c-6.285,5.148-15.556,4.229-20.706-2.058   c-17.7-21.608-43.851-33.999-71.747-33.999c-51.111,0-92.693,41.582-92.693,92.693s41.582,92.693,92.693,92.693   s92.693-41.582,92.693-92.693c0-8.125,6.587-14.713,14.713-14.713c8.126,0,14.713,6.589,14.713,14.713   C512,449.87,457.218,504.653,389.88,504.653z"/>'
-				  +'<path d="M228.475,490.606H36c-19.85,0-36-16.151-36-36V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v164.701c0,8.125-6.587,14.713-14.713,14.713c-8.126,0-14.713-6.589-14.713-14.713V72.825   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574v381.781c0,3.625,2.949,6.574,6.574,6.574h192.474   c8.126,0,14.713,6.589,14.713,14.713C243.187,484.018,236.601,490.606,228.475,490.606z"/></g>'
-				  +'<polyline style="fill:#FFFFFF;" points="429.606,382.533 389.88,382.533 389.88,342.808 "/>'
-				  +'<path d="M429.606,397.247H389.88c-8.126,0-14.713-6.589-14.713-14.713v-39.726  c0-8.125,6.587-14.713,14.713-14.713s14.713,6.589,14.713,14.713v25.012h25.012c8.126,0,14.713,6.589,14.713,14.713  S437.732,397.247,429.606,397.247z"/>'
-				  +'</svg>';
-			const svgData=svgSrc(svg);	  
-			const urlData = this.props.url?this.props.url:svgData;
-			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);
-			
-			return React.createElement("div",{style:inpContStyle,onMouseOver:this.onMouseOverI,onMouseOut:this.onMouseOutI},[
-				React.createElement("div",{key:"1",style:inp2ContStyle},[
-					React.createElement("input",{key:"1",ref:(ref)=>this.inp=ref,readOnly:"readOnly",placeholder:placeholder,style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null),
-					popupWrapEl					
-				]),
-				React.createElement(ButtonInputElement,{key:"2",onClick:this.onClick},buttonImage)					
-			]);
-		}
-	});
-	DateTimePicker.defaultProps = {
-		open:true		
-	};
+			return React.createElement("div",{style:wrapperStyle},
+				React.createElement("div",{style:gridStyle},
+					children
+				));
+		};	
+		const popupStyle={
+			width:"auto",
+			maxHeight:"auto",
+			...props.popupStyle
+		};			
+		const buttonImageStyle={				
+			transform:"none",
+			...props.buttonImageStyle
+		};			
+		const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">'
+			  +'<path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>'
+			  +'<g><path d="M481.082,138.431H14.713C6.587,138.431,0,131.843,0,123.718V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v50.894C495.795,131.844,489.208,138.431,481.082,138.431z M29.426,109.005h436.942v-36.18   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574V109.005z"/>'
+			  +'<path d="M144.238,282.415H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713c0,8.125-6.587,14.713-14.713,14.713H89.643v32.338   h54.595c8.126,0,14.713,6.589,14.713,14.713S152.364,282.415,144.238,282.415z"/></g>'
+			  +'<g><path d="M282.552,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C297.265,275.826,290.678,282.415,282.552,282.415z M227.957,252.988h39.882V220.65h-39.882V252.988z"/>'
+			  +'<path d="M144.238,406.06H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713s-6.587,14.713-14.713,14.713H89.643v32.338h54.595   c8.126,0,14.713,6.589,14.713,14.713S152.364,406.06,144.238,406.06z"/></g>'
+			  +'<path d="M282.552,406.06h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765  c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765  C297.265,399.471,290.678,406.06,282.552,406.06z M227.957,376.633h39.882v-32.338h-39.882V376.633z"/>'
+			  +'<g><path d="M420.864,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C435.577,275.826,428.99,282.415,420.864,282.415z M366.269,252.988h39.882V220.65h-39.882V252.988L366.269,252.988z"/>'
+			  +'<path d="M99.532,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C114.245,86.291,107.658,92.878,99.532,92.878z"/>'
+			  +'<path d="M247.897,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C262.61,86.291,256.023,92.878,247.897,92.878z"/>'
+			  +'<path d="M396.263,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C410.976,86.291,404.389,92.878,396.263,92.878z"/>'
+			  +'<path d="M389.88,504.653c-67.338,0-122.12-54.782-122.12-122.12s54.782-122.12,122.12-122.12   c36.752,0,71.2,16.321,94.512,44.78c5.15,6.285,4.229,15.556-2.058,20.706c-6.285,5.148-15.556,4.229-20.706-2.058   c-17.7-21.608-43.851-33.999-71.747-33.999c-51.111,0-92.693,41.582-92.693,92.693s41.582,92.693,92.693,92.693   s92.693-41.582,92.693-92.693c0-8.125,6.587-14.713,14.713-14.713c8.126,0,14.713,6.589,14.713,14.713   C512,449.87,457.218,504.653,389.88,504.653z"/>'
+			  +'<path d="M228.475,490.606H36c-19.85,0-36-16.151-36-36V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v164.701c0,8.125-6.587,14.713-14.713,14.713c-8.126,0-14.713-6.589-14.713-14.713V72.825   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574v381.781c0,3.625,2.949,6.574,6.574,6.574h192.474   c8.126,0,14.713,6.589,14.713,14.713C243.187,484.018,236.601,490.606,228.475,490.606z"/></g>'
+			  +'<polyline style="fill:#FFFFFF;" points="429.606,382.533 389.88,382.533 389.88,342.808 "/>'
+			  +'<path d="M429.606,397.247H389.88c-8.126,0-14.713-6.589-14.713-14.713v-39.726  c0-8.125,6.587-14.713,14.713-14.713s14.713,6.589,14.713,14.713v25.012h25.012c8.126,0,14.713,6.589,14.713,14.713  S437.732,397.247,429.606,397.247z"/>'
+			  +'</svg>';
+		const svgData=svgSrc(svg);	  
+		const urlData = props.url?props.url:svgData;			
+		return React.createElement(DropDownElement,{...props,popupStyle,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
+	}
+	
 	Date.prototype.getISOWeek = function(utc){
 		var y = utc ? this.getUTCFullYear(): this.getFullYear();
 		var m = utc ? this.getUTCMonth() + 1: this.getMonth() + 1;
@@ -1711,11 +1624,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	const onReadySendBlob=({sendBlob});
 	const transforms= {
 		tp:{
-            DocElement,FlexContainer,FlexElement,GotoButton, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
+            DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,
 			DropDownElement,DropDownWrapperElement,
 			LabelElement,Chip,FocusableElement,PopupElement,Checkbox,
-            RadioButtonElement,FileUploadElement,TextArea,
+            RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
