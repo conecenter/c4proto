@@ -17,6 +17,7 @@ import scala.collection.concurrent.TrieMap
 import java.nio.charset.StandardCharsets.UTF_8
 
 import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
+import ee.cone.c4gate.HttpProtocol.HttpPost
 
 trait SSEServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with ProtocolsApp {
   def config: Config
@@ -142,11 +143,26 @@ case class SessionTxTransform( //?todo session/pongs purge
       sseConfig.stateRefreshPeriodSeconds + sseConfig.tolerateOfflineSeconds
     )
   ))
+
+  def joinPostsForQuote(
+    key: SrcId,
+    posts: Values[HttpPost]
+  ): Values[(SessionKey, HttpPost)] =
+    for(post ← posts; sessionHeader ← post.headers.find(_.key=="X-r-session"))
+      yield sessionHeader.value → post
+
+  def joinPostReject(
+    key: SrcId,
+    @by[SessionKey] posts: Values[HttpPost]
+  ): Values[(SrcId, HttpPostReject)] =
+    if(posts.size > sseConfig.sessionWaitingPosts) List(key → HttpPostReject(key)) else Nil
 }
 
-object NoProxySSEConfig extends SSEConfig {
+case class HttpPostReject(sessionKey: SrcId)
+
+case class NoProxySSEConfig(stateRefreshPeriodSeconds: Int) extends SSEConfig {
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"
-  def stateRefreshPeriodSeconds: Int = 100
-  def tolerateOfflineSeconds: Int = 20
+  def tolerateOfflineSeconds: Int = 60
+  def sessionWaitingPosts: Int = 8
 }
