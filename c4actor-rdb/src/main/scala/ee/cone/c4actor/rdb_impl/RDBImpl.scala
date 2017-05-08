@@ -172,7 +172,8 @@ case class ToExternalDBTx(srcId: SrcId, from: Option[HasState], to: Option[HasSt
       registry.byId.get(state.valueTypeId).map(_.decode(state.value.toByteArray))
     }
     val roots = List(decode(from),decode(to)).map(toStatement)
-    val fun = function(s"r${commonName(roots).drop(1)}", roots)
+    val retryCount = ErrorKey.of(local).size
+    val fun = function(s"r${commonName(roots).drop(1)}", RDBTypes.toStatement(new java.lang.Long(retryCount)) :: roots)
     val code = s"begin ${fun.map(_._1).mkString}; end;"
     val binds = fun.flatMap(_._2)
     println(code, binds)
@@ -368,7 +369,7 @@ class DDLGeneratorImpl(
         f :: GrantExecute(sName) :: Nil
       }).flatten
       val handleExtIn = procToSql.toList.map(proc⇒
-        hooks.function(toDbName(name,"r"), s"aFrom $tName, aTo $tName", "", proc)
+        hooks.function(toDbName(name,"r"), s"aRetry number, aFrom $tName, aTo $tName", "", proc)
       )
       //
       def theType(t: String, attr: List[(String,String)], body: String) = List(
