@@ -18,6 +18,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4proto
 import ee.cone.c4proto._
+import okio.ByteString
 
 import scala.util.matching.Regex
 
@@ -100,13 +101,12 @@ object RDBTypes {
   private val msPerDay: Int = 24 * 60 * 60 * 1000
   private val epoch = "to_date('19700101','yyyymmdd')"
   //
-  private def bind(code: String, v: Object) = (code,Option(v)) :: Nil
-  def toStatement(p: Any): List[(String,Option[Object])] = p match {
-    case v: String ⇒ bind("?",v)
-    case v: java.lang.Boolean ⇒ bind("?",v)
-    case v: java.lang.Long ⇒ bind("?",v)
-    case v: BigDecimal ⇒ bind("?",v.bigDecimal)
-    case v: Instant ⇒ bind(s"$epoch + (?/$msPerDay)",new java.lang.Long(v.toEpochMilli))
+  def encode(p: Object): String = p match {
+    case v: String ⇒ v
+    case v: java.lang.Boolean ⇒ if(v) "T" else ""
+    case v: java.lang.Long ⇒ v.toString
+    case v: BigDecimal ⇒ v.bigDecimal.toString
+    case v: Instant ⇒ v.toEpochMilli.toString
   }
   def sysTypes: List[String] = List(
     classOf[String],
@@ -114,7 +114,8 @@ object RDBTypes {
     classOf[java.lang.Long],
     classOf[BigDecimal],
     classOf[Instant]
-  ).map(_.getName.split("\\.").last)
+  ).map(shortName)
+  def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
   def constructorToTypeArg(tp: String): String⇒String = tp match {
     case "Boolean" ⇒ a ⇒ s"case when $a then 'T' else null end"
     case at if at.endsWith("s") ⇒  a ⇒ s"case when $a is null then $at() else $a end"
@@ -140,42 +141,37 @@ object RDBTypes {
   }
 }
 
-
+class ProtoToString(registry: QAdapterRegistry){
+  private def esc(id: Long, handler: String, value: String): String =
+    s"\n${HexStr(id)} $handler${value.replace("\n","\n ")}"
+  private def encode(id: Long, p: Any): String = p match {
+    case Nil | None ⇒ ""
+    case Some(e) ⇒ encode(id, e)
+    case l: List[_] ⇒ l.map(encode(id, _)).mkString
+    case p: Product ⇒
+      val adapter = registry.byName(p.getClass.getName)
+      esc(id, "Node", adapter.props.zipWithIndex.map{
+        case(prop,i) ⇒ encode(prop.id, p.productElement(i))
+      }.mkString)
+    case e: Object ⇒
+      esc(id, RDBTypes.shortName(e.getClass), s"\n${RDBTypes.encode(e)}")
+  }
+  def recode(valueTypeId: Long, value: ByteString): String =
+    registry.byId.get(valueTypeId).map{ adapter ⇒
+      encode(adapter.id, adapter.decode(value.toByteArray))
+    }.getOrElse("")
+}
 
 case class ToExternalDBTx(srcId: SrcId, from: Option[HasState], to: Option[HasState]) extends TxTransform {
-  private type Part = (String,Option[Object])
-  private def function(name: String, args: List[List[Part]]): List[Part] =
-    (name,None) :: args.zipWithIndex.flatMap{
-      case(el,idx) ⇒ (if(idx==0) "(" else ",", None) :: el
-    } ::: (")",None) :: Nil
-
-  private def commonName(args: List[List[Part]]) =
-    Single(args.map{
-      case (name,None) :: _ ⇒ name
-      case _ ⇒ throw new Exception
-    }.filter(_!="null").distinct)
-  private def toStatement(p: Any): List[Part] = p match {
-    case Nil | None ⇒ ("null",None) :: Nil
-    case Some(e) ⇒ toStatement(e)
-    case l: List[_] ⇒
-      val children = l.map(toStatement)
-      function(s"t${commonName(children).drop(1)}s", children) //???compat
-    case p: Product ⇒
-      val name = s"b${p.productPrefix.split("\\$").last}"
-      function(name, p.productIterator.map(toStatement).toList)
-    case e ⇒ RDBTypes.toStatement(e)
-  }
-
   def transform(local: World): World = WithJDBCKey.of(local){ conn ⇒
     val registry = QAdapterRegistryKey.of(local)()
-    def decode(states: Option[HasState]): Option[Product] = states.flatMap{ state ⇒
-      registry.byId.get(state.valueTypeId).map(_.decode(state.value.toByteArray))
-    }
-    val roots = List(decode(from),decode(to)).map(toStatement)
-    val retryCount = ErrorKey.of(local).size
-    val fun = function(s"r${commonName(roots).drop(1)}", RDBTypes.toStatement(new java.lang.Long(retryCount)) :: roots)
-    val code = s"begin ${fun.map(_._1).mkString}; end;"
-    val binds = fun.flatMap(_._2)
+    val protoToString = new ProtoToString(registry)
+    def recode(stateOpt: Option[HasState]): String = stateOpt.map{ state ⇒
+      protoToString.recode(state.valueTypeId, state.value)
+    }.getOrElse("")
+    val retryCount = new java.lang.Long(ErrorKey.of(local).size)
+    val code = s"begin receive(?,?,?,?); end;"
+    val binds = List(retryCount,srcId,recode(from),recode(to))
     println(code, binds)
     conn.execute(code, binds)
     LEvent.add(
@@ -298,6 +294,8 @@ object DDLUtilImpl extends DDLUtil {
     NeedCode(key.toLowerCase, s"create or replace $key${if(args.isEmpty) "" else s"($args)"} $code")
 }
 
+object HexStr { def apply(i: Long): String = "'0x%04x'".format(i) }
+
 class DDLGeneratorImpl(
   options: List[ExternalDBOption],
   hooks: DDLGeneratorHooks,
@@ -319,7 +317,6 @@ class DDLGeneratorImpl(
   private def returnIfNull = "if rec is null then return ''; end if;"
   private def esc(handler: String, expr: String) =
     bodyStatements(returnIfNull :: s"return chr(10) || key || ' ' || '$handler' || replace($expr, chr(10), chr(10)||' ');" :: Nil)
-  private def getId(i: Long) = "'0x%04x'".format(i)
   private def longStrType = toDbName("String","t",1)
   private def encoderName(dType: String) = toDbName(dType,"e")
   private def encode(name: String, body: String) =
@@ -352,7 +349,7 @@ class DDLGeneratorImpl(
       val tNames = toDbName(names,"t")
       //
       val encodeArgs = props.map{ prop ⇒
-        s"${encoderName(prop.resultType)}(${getId(prop.id)}, rec.a${prop.propName})"
+        s"${encoderName(prop.resultType)}(${HexStr(prop.id)}, rec.a${prop.propName})"
       }.mkString(" || ")
       val encodeNode = encode(name, esc("Node", encodeArgs))
       val encodeNodes = encode(names, s"res $longStrType;\n${bodyStatements(List(
@@ -364,7 +361,7 @@ class DDLGeneratorImpl(
       val encodeExtOut = (for(n ← List(name) if isFromSql) yield {
         val sName = toDbName(n,"s")
         val f = hooks.function(sName, recArg(n), longStrType,
-          bodyStatements(List(s"return ${encoderName(n)}(${getId(adapter.id)},rec);"))
+          bodyStatements(List(s"return ${encoderName(n)}(${HexStr(adapter.id)},rec);"))
         )
         f :: GrantExecute(sName) :: Nil
       }).flatten
