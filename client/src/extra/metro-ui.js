@@ -451,14 +451,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement("table",{style:tableStyle,key:"1"},
 				React.createElement("tbody",{key:"1"},[					  				   					  
 				   React.createElement("tr",{key:"3"},[
-						...[7,8,9].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString())),						  
+						...[7,8,9].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),						  
 						React.createElement(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle,height:"2rem"},key:"4",fkey:"backspace"},backSpaceEl)
 				   ]),					   
 				   React.createElement("tr",{key:"4"},[
-						...[4,5,6].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString()))						  				   
+						...[4,5,6].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString()))						  				   
 				   ]),
 				   React.createElement("tr",{key:"5"},[
-					   ...[1,2,3].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString},e.toString())),
+					   ...[1,2,3].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
 					   React.createElement(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdStyle,height:"90%"},key:"13",fkey:"enter"},enterEl),
 				   ]),
 				   React.createElement("tr",{key:"6"},[
@@ -697,7 +697,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	});
 	const InputElementBase = React.createClass({			
 		setFocus:function(){if(this.props.focus && this.inp) this.inp.focus()},
-		onEnterKey:function(e){log(e);if(this.inp) this.inp.blur()},
+		onEnterKey:function(e){if(this.inp &&e.keyCode == 13) this.inp.blur()},
 		componentDidMount:function(){this.setFocus()},
 		componentDidUpdate:function(){this.setFocus()},
 		render:function(){				
@@ -754,7 +754,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
 							style:inputStyle,							
-							onChange:this.props.onChange,onBlur:this.props.onBlur,onKeyDown:this.onEnter,value:this.props.value							
+							onChange:this.props.onChange,onBlur:this.props.onBlur,onKeyDown:this.onEnterKey,value:this.props.value							
 							},null),
 						this.props.popupElement?this.props.popupElement():null
 					]),
@@ -824,30 +824,37 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement(InputElement,{...this.props,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur});				
 		}
 	});
-	const ButtonInputElement = React.createClass({
+	/*const ButtonInputElementBase = React.createClass({
 		getInitialState:function(){return {mouseOver:false}},
 		onMouseOver:function(){this.setState({mouseOver:true})},
 		onMouseOut:function(){this.setState({mouseOver:false})},
 		render:function(){
-			const openButtonWrapperStyle= {				
-				flex:"1 1 0%",
-				height:"auto",
-				minHeight:"100%",
-				overflow:"hidden",
-				backgroundColor:"inherit",
-				flex:"0 1 auto",
-			};
-			const openButtonStyle={
-				minHeight:"",
-				width:"1.5em",
-				height:"100%",
-				padding:"0.2em",
-				lineHeight:"1",
-				backgroundColor:"inherit",				
-			};
+			
 			return React.createElement("div",{key:"2",style:openButtonWrapperStyle},
 				React.createElement(ButtonElement,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut,onClick:this.props.onClick},this.props.children)
 		)}
+	})*/
+	const ButtonInputElement = (props) => React.createElement(Interactive,{},(actions)=>{
+		const openButtonWrapperStyle= {				
+			flex:"1 1 0%",
+			height:"auto",
+			minHeight:"100%",
+			overflow:"hidden",
+			backgroundColor:"inherit",
+			flex:"0 1 auto",
+		};
+		const openButtonStyle={
+			minHeight:"",
+			width:"1.5em",
+			height:"100%",
+			padding:"0.2em",
+			lineHeight:"1",
+			backgroundColor:"inherit",				
+		};
+		
+		return React.createElement("div",{key:"inputButton",style:openButtonWrapperStyle},
+			React.createElement(ButtonElement,{...props,...actions,style:openButtonStyle})
+		);
 	})
 	const DropDownWrapperElement = ({style,children})=>React.createElement("div",{style:{
 		width:"100%",				
@@ -951,94 +958,80 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			}},this.props.children);
 		}		
 	});
-	const Checkbox = React.createClass({
-		getInitialState:function(){
-			return {mouseOver:false};
-		},
-		onMouseOver:function(){
-			this.setState({mouseOver:true});
-		},
-		onMouseOut:function(){
-			this.setState({mouseOver:false});
-		},
-		onClick:function(e){
-			if(this.props.onChange)
-				this.props.onChange({target:{value:(this.props.value?"":"checked")}});
-		},
-		render:function(){
-			const style={
-				flexGrow:"0",				
-				position:"relative",
-				maxWidth:"100%",
-				padding:"0.4em 0.3125em",				
-				flexShrink:"1",
-				boxSizing:"border-box",
-				lineHeight:"1",
-				...this.props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
-				...this.props.style
-			};
-			const innerStyle={
-				border:"none",
-				display:"inline-block",
-				lineHeight:"100%",
-				margin:"0rem",				
-				outline:"none",				
-				whiteSpace:"nowrap",
-				width:"calc(100% - 1em)",
-				cursor:"pointer",
-				bottom:"0rem",
-				...this.props.innerStyle
-			};
-			const checkBoxStyle={
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
-				color:"#212121",
-				display:"inline-block",
-				height:"1.625em",
-				lineHeight:"100%",
-				margin:"0em 0.02em 0em 0em",
-				padding:"0rem",
-				position:"relative",
-				verticalAlign:"middle",
-				width:"1.625em",
-				boxSizing:"border-box",
-				borderColor:this.state.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:this.props.onChange?"white":"#eeeeee",
-				...this.props.altLabel?{height:"1.675em",width:"1.675em"}:null,
-				...this.props.checkBoxStyle
-			};
-			const labelStyle={
-				maxWidth:"calc(100% - 2.165em)",
-				padding:"0rem 0.3125em",
-				verticalAlign:"middle",
-				cursor:"pointer",
-				display:"inline-block",
-				lineHeight:"1.3",
-				overflow:"hidden",
-				textOverflow:"ellipsis",
-				whiteSpace:"nowrap",
-				boxSizing:"border-box",
-				...this.props.labelStyle
-			};
-			const imageStyle = {				
-				bottom:"0rem",
-				height:"90%",
-				width:"100%",
-			};			
-			
-			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
-			const svgData=svgSrc(svg);
-			const defaultCheckImage = this.props.value&&this.props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
-			const labelEl = this.props.label?React.createElement("label",{style:labelStyle,key:"2"},this.props.label):null;
-			const checkImage = this.props.checkImage?this.props.checkImage:defaultCheckImage;
-			
-			return React.createElement("div",{style},
-				React.createElement("span",{style:innerStyle,key:"1",onClick:this.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
-					React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
-					labelEl
-				])
-			);
-		}
-	});
+	const Checkbox = (props) => React.createElement(Interactive,{},(actions)=>{
+		const style={
+			flexGrow:"0",				
+			position:"relative",
+			maxWidth:"100%",
+			padding:"0.4em 0.3125em",				
+			flexShrink:"1",
+			boxSizing:"border-box",
+			lineHeight:"1",
+			...props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
+			...props.style
+		};
+		const innerStyle={
+			border:"none",
+			display:"inline-block",
+			lineHeight:"100%",
+			margin:"0rem",				
+			outline:"none",				
+			whiteSpace:"nowrap",
+			width:"calc(100% - 1em)",
+			cursor:"pointer",
+			bottom:"0rem",
+			...props.innerStyle
+		};
+		const checkBoxStyle={
+			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
+			color:"#212121",
+			display:"inline-block",
+			height:"1.625em",
+			lineHeight:"100%",
+			margin:"0em 0.02em 0em 0em",
+			padding:"0rem",
+			position:"relative",
+			verticalAlign:"middle",
+			width:"1.625em",
+			boxSizing:"border-box",
+			borderColor:actions.mouseOver?"black":"rgb(182, 182, 182)",
+			backgroundColor:props.onChange?"white":"#eeeeee",
+			...props.altLabel?{height:"1.655em",width:"1.655em"}:null,
+			...props.checkBoxStyle
+		};
+		const labelStyle={
+			maxWidth:"calc(100% - 2.165em)",
+			padding:"0rem 0.3125em",
+			verticalAlign:"middle",
+			cursor:"pointer",
+			display:"inline-block",
+			lineHeight:"1.3",
+			overflow:"hidden",
+			textOverflow:"ellipsis",
+			whiteSpace:"nowrap",
+			boxSizing:"border-box",
+			...props.labelStyle
+		};
+		const imageStyle = {				
+			bottom:"0rem",
+			height:"90%",
+			width:"100%",
+		};			
+		const onClick = (e)=> {if(props.onChange) props.onChange({target:{value:(props.value?"":"checked")}})}
+		
+		const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
+		const svgData=svgSrc(svg);
+		const defaultCheckImage = props.value&&props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
+		const labelEl = props.label?React.createElement("label",{style:labelStyle,key:"2"},props.label):null;
+		const checkImage = props.checkImage?props.checkImage:defaultCheckImage;
+		const {onMouseOver,onMouseOut} = actions		
+		return React.createElement("div",{style},
+			React.createElement("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1",onClick},[
+				React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
+				labelEl
+			])
+		);
+	})
 	
 	const RadioButtonElement = (props) => {		
 		const isLabeled = props.label&&props.label.length>0;			
@@ -1200,119 +1193,78 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		)
 	}	
 	
-	const CalenderCell=React.createClass({
-		getInitialState:function(){
-			return {mouseOver:false};
-		},
-		onMouseOver:function(){
-			this.setState({mouseOver:true});
-		},
-		onMouseOut:function(){
-			this.setState({mouseOver:false});
-		},
-		onClick:function(){
-			const monthAdj = this.props.m=="p"?"-1":this.props.m=="n"?"1":"0"
-			const value = "month:"+monthAdj+";day:"+this.props.curday.toString();
-			if(this.props.onClickValue)
-				this.props.onClickValue("change",value);
-		},
-		render:function(){											
-			const isSel = this.props.curday == this.props.curSel;
-			const calDayCellStyle ={
-				width:"12.46201429%",
-				margin:"0 0 0 2.12765%",											
-				textAlign:"center",
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
-				borderColor:!this.props.m?"#d4e2ec":"transparent",
-				backgroundColor:isSel?"transparent":(this.state.mouseOver?"#c0ced8":"transparent")				
-			};
-			const cellStyle={
-				cursor:"pointer",
-				padding:"0.3125em 0",
-				backgroundColor:isSel?"#ff3d00":"transparent"
-			};
-			const aCellStyle={
-				color:isSel?"white":"#212121",											
-				textAlign:"center",
-				textDecoration:"none",				
-			};
-			
-			return React.createElement("div",{onClick:this.onClick,style:calDayCellStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},
-				React.createElement("div",{style:cellStyle},
-					React.createElement("a",{style:aCellStyle},this.props.curday)
-				)
-			);
+	const CalenderCell = (props) => React.createElement(Interactive,{},(actions)=>{		
+		const onClick = () =>{
+			const monthAdj = props.m=="p"?"-1":props.m=="n"?"1":"0"
+			const value = "month:"+monthAdj+";day:"+props.curday.toString();
+			if(props.onClickValue) props.onClickValue("change",value);
 		}
-	});
-	const CalendarYM = React.createClass({
-		getInitialState:function(){
-			return {mouseOver:false};
-		},
-		onMouseOver:function(){
-			this.setState({mouseOver:true});
-		},
-		onMouseOut:function(){
-			this.setState({mouseOver:false});
-		},
-		render:function(){
-			const style={
-				width:"12.46201429%",
-				margin:"0 0 0 2.12765%",						
-				textAlign:"center",
-				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent",
-				color:this.state.mouseOver?"#212112":"white",
-				...this.props.style
-			};
-			return React.createElement("div",{onClick:this.props.onClick,style,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.children);
-		}
-	});
-	const CalenderSetNow = React.createClass({
-		getInitialState:function(){
-			return {mouseOver:false};
-		},
-		onMouseOver:function(){
-			this.setState({mouseOver:true});
-		},
-		onMouseOut:function(){
-			this.setState({mouseOver:false});
-		},
-		render:function(){			
-			const style={
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #d4e2ec`,
-				color:"#212121",
-				cursor:"pointer",
-				display:"inline-block",
-				padding:".3125em 2.3125em",
-				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent",
-				...this.props.style
-			};
-			return React.createElement("div",{style,onClick:this.props.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.children);			
-		}
-	});
-	const CalenderTimeButton = React.createClass({
-		getInitialState:function(){
-			return {mouseOver:false};
-		},
-		onMouseOver:function(){
-			this.setState({mouseOver:true});
-		},
-		onMouseOut:function(){
-			this.setState({mouseOver:false});
-		},
-		render:function(){
-			const style = {
-				backgroundColor:this.state.mouseOver?"#c0ced8":"transparent",
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #d4e2ec`,
-				cursor:"pointer",
-				padding:"0.25em 0",
-				width:"2em",
-				fontSize:"1em",
-				outline:"none"
-			};			
-			return React.createElement("button",{style,onClick:this.props.onClick,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},this.props.children);			
-		}
-	});
-	const DateTimePickerYMSel = function({month,year,onClickValue}){
+		const isSel = props.curday == props.curSel;
+		const style ={
+			width:"12.46201429%",
+			margin:"0 0 0 2.12765%",											
+			textAlign:"center",
+			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
+			borderColor:!props.m?"#d4e2ec":"transparent",
+			backgroundColor:isSel?"transparent":(actions.mouseOver?"#c0ced8":"transparent")				
+		};
+		const cellStyle={
+			cursor:"pointer",
+			padding:"0.3125em 0",
+			backgroundColor:isSel?"#ff3d00":"transparent"
+		};
+		const aCellStyle={
+			color:isSel?"white":"#212121",											
+			textAlign:"center",
+			textDecoration:"none",				
+		};		
+		const {onMouseOver,onMouseOut} = actions
+		return React.createElement("div",{onClick,style,onMouseOver,onMouseOut},
+			React.createElement("div",{style:cellStyle},
+				React.createElement("a",{style:aCellStyle},props.curday)
+			)
+		);
+	})
+	const CalendarYM = (props) => React.createElement(Interactive,{},(actions) => {
+		const style={
+			width:"12.46201429%",
+			margin:"0 0 0 2.12765%",						
+			textAlign:"center",
+			backgroundColor:actions.mouseOver?"#c0ced8":"transparent",
+			color:actions.mouseOver?"#212112":"white",
+			...props.style
+		};
+		const {onMouseOver,onMouseOut} = actions
+		return React.createElement("div",{onClick:props.onClick,style,onMouseOver,onMouseOut},props.children);		
+	})
+	const CalenderSetNow = (props) => React.createElement(Interactive,{},(actions)=>{
+		const style={
+			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #d4e2ec`,
+			color:"#212121",
+			cursor:"pointer",
+			display:"inline-block",
+			padding:".3125em 2.3125em",
+			backgroundColor:actions.mouseOver?"#c0ced8":"transparent",
+			...props.style
+		};
+		const {onMouseOver,onMouseOut} = actions
+		return React.createElement("div",{style,onClick:props.onClick,onMouseOver,onMouseOut},props.children);
+	})
+	const CalenderTimeButton = (props) => React.createElement(Interactive,{},(actions)=>{
+		const style = {
+			backgroundColor:actions.mouseOver?"#c0ced8":"transparent",
+			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #d4e2ec`,
+			cursor:"pointer",
+			padding:"0.25em 0",
+			width:"2em",
+			fontSize:"1em",
+			outline:"none",
+			...props.style
+		};
+		const {onMouseOver,onMouseOut} = actions
+		return React.createElement("button",{style,onClick:props.onClick,onMouseOver,onMouseOut},props.children);
+	})
+	const DateTimePickerYMSel = ({month,year,onClickValue}) => {
 		const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
 		const headerStyle={
 			width:"100%",
@@ -1352,7 +1304,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		]);
 		
 	};
-	const DateTimePickerDaySel = ({month,year,curSel,onClickValue})=>{
+	const DateTimePickerDaySel = ({month,year,curSel,onClickValue}) => {
 		const dayNames  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 		const weekDaysStyle={
 			margin:"0 0 .3125em",
@@ -1391,7 +1343,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				
 			return daysArray;
 		}
-		const rowsOfDays=function(dayArray,cDay){
+		const rowsOfDays = (dayArray,cDay) => {
 			const weeknum = dayArray.length/7;
 			let daynum  = 0;
 			const cal = cDay;			
@@ -1479,7 +1431,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			rowsOfDays(cal_makeDaysArr(month,year),{month,year})
 		]);
 	}
-	const DateTimePickerTSelWrapper = ({children})=>{
+	const DateTimePickerTSelWrapper = (children) => {
 		return React.createElement("table",{key:"todayTimeSelWrapper",style:{width:"100%"}},
 			React.createElement("tbody",{},
 				React.createElement("tr",{},
@@ -1490,7 +1442,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			)
 		);
 	};
-	const DateTimePickerTimeSel = ({hours,mins,onClickValue})=>{		
+	const DateTimePickerTimeSel = ({hours,mins,onClickValue}) => {		
 		const adjHours = hours.length==1?'0'+hours:hours;
 		const adjMins = mins.length==1?'0'+mins:mins;
 		const tableStyle = {
@@ -1534,7 +1486,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			])
 		);				
 	};
-	const DateTimePickerNowSel = ({onClick,value})=>React.createElement(CalenderSetNow,{key:"setNow",onClick:onClick},value);
+	const DateTimePickerNowSel = ({onClick,value}) => React.createElement(CalenderSetNow,{key:"setNow",onClick:onClick},value);
 	const DateTimePicker = (props) => {		
 		const calWrapper=function(children){
 			const wrapperStyle={
