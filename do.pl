@@ -78,6 +78,7 @@ push @tasks, ["start_kafka", sub{
         "log.cleanup.policy=compact",
         "log.segment.bytes=104857600", #active segment is not compacting, so we reduce it
         "log.cleaner.delete.retention.ms=3600000", #1h
+        "log.roll.hours=1", #delete-s will be triggered to remove?
         "compression.type=uncompressed", #probably better compaction for .state topics
         "message.max.bytes=3000000" #seems to be compressed
     );
@@ -154,7 +155,7 @@ push @tasks, ["gate_publish", sub{
 }];
 push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
-    sy("$env ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
+    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
 }];
 
 push @tasks, ["test_post_get_tcp_service_run", sub{

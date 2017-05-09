@@ -13,7 +13,7 @@ class HttpGatewayApp extends ServerApp
 {
   def httpHandlers: List[RHttpHandler] =
     pongHandler :: new HttpPostHandler(qMessages,worldProvider) :: Nil
-  def sseConfig: SSEConfig = NoProxySSEConfig
+  def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
 }
 
 // I>P -- to agent, cmd>evl

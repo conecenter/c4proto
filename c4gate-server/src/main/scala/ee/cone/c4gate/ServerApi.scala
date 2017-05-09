@@ -26,4 +26,5 @@ trait SSEConfig {
   def pongURL: String
   def stateRefreshPeriodSeconds: Int
   def tolerateOfflineSeconds: Int
+  def sessionWaitingPosts: Int
 }
