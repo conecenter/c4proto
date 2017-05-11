@@ -10,6 +10,7 @@ import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
+import ScannerProxy  from "../extra/scanner-proxy"
 
 import {CanvasBaseMix} from "../main/canvas-mix"
 import * as CanvasExtra from "../extra/canvas-extra"
@@ -73,7 +74,10 @@ const toggleOverlay = on =>{
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const getBattery = (callback) => navigator.getBattery().then(callback)
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery});
+const Scanner = window.Scanner
+const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log})
+window.ScannerProxy = scannerProxy
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery,scannerProxy});
 
 const activeElement=()=>document.activeElement; //todo: remove
 

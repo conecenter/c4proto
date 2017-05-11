@@ -304,12 +304,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const captionStyle={
 				color:"#727272",
 				lineHeight:"1",
-				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 1.7em)":"1em",
+				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 1.7em)":"0em",
 				position:this.state.rotated?"absolute":"static",
 				transform:this.state.rotated?"rotate(-90deg)":"none",
 				transformOrigin:"100% 0px",
 				whiteSpace:"nowrap",
-				marginTop:"1.5em",
+				marginTop:this.state.rotated?"1.5em":"0em",
 				fontSize:"0.875em",
 				display:"inline-block",
 				...this.props.captionStyle
@@ -1264,8 +1264,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		const {onMouseOver,onMouseOut} = actions
 		return React.createElement("button",{style,onClick:props.onClick,onMouseOver,onMouseOut},props.children);
 	})
-	const DateTimePickerYMSel = ({month,year,onClickValue}) => {
-		const monthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+	const DateTimePickerYMSel = ({month,year,onClickValue,monthNames}) => {
+		const defaultMonthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
+		const aMonthNames = monthNames&&monthNames.length==12?monthNames:defaultMonthNames;
 		const headerStyle={
 			width:"100%",
 			backgroundColor:"#005a7a",
@@ -1298,14 +1299,15 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		return React.createElement("div",{style:headerStyle},[
 			React.createElement(CalendarYM,{onClick:changeYear(-1),key:"1",style:{margin:"0px"}},aItem("-")),
 			React.createElement(CalendarYM,{onClick:changeMonth(-1),key:"2"},aItem("〈")),
-			React.createElement(CalendarYM,{key:"3",style:ymStyle},aItem(monthNames[selMonth]+" "+year,{padding:"0.325em 0 0.325em 0",cursor:"default"})),
+			React.createElement(CalendarYM,{key:"3",style:ymStyle},aItem(aMonthNames[selMonth]+" "+year,{padding:"0.325em 0 0.325em 0",cursor:"default"})),
 			React.createElement(CalendarYM,{onClick:changeMonth(1),key:"4"},aItem("〉")),
 			React.createElement(CalendarYM,{onClick:changeYear(1),key:"5"},aItem("+"))					
 		]);
 		
 	};
-	const DateTimePickerDaySel = ({month,year,curSel,onClickValue}) => {
-		const dayNames  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+	const DateTimePickerDaySel = ({month,year,curSel,onClickValue,dayNames}) => {
+		const defaultDayNames  = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+		const aDayNames = dayNames&&dayNames.length>0?dayNames:defaultDayNames;
 		const weekDaysStyle={
 			margin:"0 0 .3125em",
 			width:"100%",
@@ -1422,7 +1424,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		return React.createElement("div",{},[
 			React.createElement("div",{key:"daysRow",style:weekDaysStyle},[
 				React.createElement("div",{key:"1",style:dayOfWeekStyle},React.createElement("div",{}," ")),
-				dayNames.map((day,i)=>
+				aDayNames.map((day,i)=>
 					React.createElement("div",{key:"d"+i,style:dayOfWeekStyle},
 						React.createElement("div",{style:dayStyle},day)
 					)
@@ -1431,7 +1433,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			rowsOfDays(cal_makeDaysArr(month,year),{month,year})
 		]);
 	}
-	const DateTimePickerTSelWrapper = (children) => {
+	const DateTimePickerTSelWrapper = ({children}) => {
 		return React.createElement("table",{key:"todayTimeSelWrapper",style:{width:"100%"}},
 			React.createElement("tbody",{},
 				React.createElement("tr",{},
@@ -1512,7 +1514,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		const buttonImageStyle={				
 			transform:"none",
 			...props.buttonImageStyle
-		};			
+		};
+		const inputStyle = {textAlign:"right"}
+		
 		const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">'
 			  +'<path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>'
 			  +'<g><path d="M481.082,138.431H14.713C6.587,138.431,0,131.843,0,123.718V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v50.894C495.795,131.844,489.208,138.431,481.082,138.431z M29.426,109.005h436.942v-36.18   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574V109.005z"/>'
@@ -1530,8 +1534,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			  +'<path d="M429.606,397.247H389.88c-8.126,0-14.713-6.589-14.713-14.713v-39.726  c0-8.125,6.587-14.713,14.713-14.713s14.713,6.589,14.713,14.713v25.012h25.012c8.126,0,14.713,6.589,14.713,14.713  S437.732,397.247,429.606,397.247z"/>'
 			  +'</svg>';
 		const svgData=svgSrc(svg);	  
-		const urlData = props.url?props.url:svgData;			
-		return React.createElement(DropDownElement,{...props,popupStyle,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
+		const urlData = props.url?props.url:svgData;				
+		return React.createElement(DropDownElement,{...props,inputStyle,popupStyle,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
 	}
 	
 	Date.prototype.getISOWeek = function(utc){
