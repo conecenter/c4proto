@@ -11,11 +11,10 @@ trait ExternalDBOptionsApp {
 }
 
 trait ToExternalDBSyncApp extends ExternalDBSyncApp with AssemblesApp with ProtocolsApp {
-  def qAdapterRegistry: QAdapterRegistry
   def externalDBOptions: List[ExternalDBOption]
 
   override def assembles: List[Assemble] =
-    ToExternalDBAssembles(qAdapterRegistry, externalDBOptions) ::: super.assembles
+    ToExternalDBAssembles(externalDBOptions) ::: super.assembles
   override def protocols: List[Protocol] = ToExternalDBProtocol :: super.protocols
 }
 
