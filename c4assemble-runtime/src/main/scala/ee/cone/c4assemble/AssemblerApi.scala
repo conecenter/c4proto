@@ -23,6 +23,14 @@ trait TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace
 }
 
+case class ReverseInsertionOrder[K,V](map: Map[K,V]=Map.empty[K,V], values: List[V]=Nil) {
+  def add(key: K, value: V): ReverseInsertionOrder[K,V] = {
+    if(map.contains(key)) throw new Exception(s"has $key")
+    ReverseInsertionOrder(map + (key→value), value :: values)
+  }
+}
+
+
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 

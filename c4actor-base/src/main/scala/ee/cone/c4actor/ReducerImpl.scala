@@ -1,5 +1,7 @@
 package ee.cone.c4actor
 
+import java.time.Instant
+
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
@@ -7,7 +9,7 @@ import ee.cone.c4assemble.Types.{Index, Values, World}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
-import scala.collection.immutable.{Seq, Map, Queue}
+import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 import Function.chain
@@ -18,13 +20,17 @@ class WorldTxImpl(
   val toSend: Queue[Update],
   val toDebug: Queue[LEvent[Product]]
 ) extends WorldTx {
-  def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx = {
+  private def nextWorld(nextToSend: List[Update]) =
+    reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
+  def add[M<:Product](out: Seq[LEvent[M]]): WorldTx = {
     if(out.isEmpty) return this
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
-    val nextWorld = reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
     val nextToDebug = (toDebug /: out)((q,e)⇒q.enqueue(e:LEvent[Product]))
-      //toDebug.enqueue(out).asInstanceOf[Queue[LEvent[Product]]]
-    new WorldTxImpl(reducer, nextWorld, toSend.enqueue(nextToSend), nextToDebug)
+    new WorldTxImpl(reducer, nextWorld(nextToSend), toSend.enqueue(nextToSend), nextToDebug)
+  }
+  def add(nextToSend: List[Update]): WorldTx = {
+    if(nextToSend.isEmpty) return this
+    new WorldTxImpl(reducer, nextWorld(nextToSend), toSend.enqueue(nextToSend), toDebug)
   }
 }
 
@@ -76,14 +82,21 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
     if(local.isEmpty) createLocal() else local
     ).andThen{ local ⇒
     val world = getWorld()
-    if(qMessages.worldOffset(world) < OffsetWorldKey.of(local)) local else try {
+    if(
+      qMessages.worldOffset(world) < OffsetWorldKey.of(local) ||
+      Instant.now.isBefore(SleepUntilKey.of(local))
+    ) local else try {
       reducer.createTx(world)
         .andThen(chain(index(world).getOrElse(key,Nil).map(t⇒t.transform(_))))
         .andThen(qMessages.send)(local)
     } catch {
-      case e: Exception ⇒
-        e.printStackTrace() //??? |Nil|throw
-        ErrorKey.set(Some(e))(createLocal())
+      case exception: Exception ⇒
+        exception.printStackTrace() //??? |Nil|throw
+        val was = ErrorKey.of(local)
+        chain(List(
+          ErrorKey.set(exception :: was),
+          SleepUntilKey.set(Instant.now.plusSeconds(was.size))
+        ))(createLocal())
       case e: Throwable ⇒
         e.printStackTrace()
         throw e
@@ -128,7 +141,7 @@ case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) 
 
 object ProtocolDataDependencies {
   def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters).map{ adapter ⇒
+    protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
       new OriginalWorldPart(By.srcId(adapter.className))
     }
 }

@@ -8,10 +8,9 @@ import ee.cone.c4actor.QProtocol.{Offset, TopicKey, Update, Updates}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Index, World}
 import ee.cone.c4assemble.{Single, WorldKey}
-import ee.cone.c4proto.{HasId, Protocol}
+import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 
 import scala.collection.immutable.Seq
-
 import java.nio.charset.StandardCharsets.UTF_8
 
 /*Future[RecordMetadata]*/
@@ -40,8 +39,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
   def toUpdate[M<:Product](message: LEvent[M]): Update = {
     val valueAdapter = byName(message.className)
-    val bytes = message.value.map(valueAdapter.encode).getOrElse(Array.empty)
-    val byteString = okio.ByteString.of(bytes,0,bytes.length)
+    val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
     Update(message.srcId, valueAdapter.id, byteString)
   }
   def toRecord(topicName: TopicName, update: Update): QRecord = {
@@ -80,20 +78,11 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
 }
 
-class QAdapterRegistry(
-    val adapters: List[ProtoAdapter[Product] with HasId],
-    val byName: Map[String,ProtoAdapter[Product] with HasId],
-    val byId: Map[Long,ProtoAdapter[Product] with HasId],
-    val keyAdapter: ProtoAdapter[QProtocol.TopicKey],
-    val updatesAdapter: ProtoAdapter[QProtocol.Updates],
-    val nameById: Map[Long,String]
-)
-
-object QAdapterRegistry {
+object QAdapterRegistryFactory {
   private def checkToMap[K,V](pairs: Seq[(K,V)]): Map[K,V] =
     pairs.groupBy(_._1).transform((k,l)⇒Single(l.toList)._2)
   def apply(protocols: List[Protocol]): QAdapterRegistry = {
-    val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
+    val adapters = protocols.flatMap(_.adapters.filter(_.hasId)).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
     val byName = checkToMap(adapters.map(a ⇒ a.className → a))
     val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
@@ -105,3 +94,6 @@ object QAdapterRegistry {
   }
 }
 
+class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends InitLocal {
+  def initLocal: World ⇒ World = QAdapterRegistryKey.set(()⇒qAdapterRegistry)
+}

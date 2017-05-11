@@ -53,13 +53,12 @@ object AuthOperations {
     val random = new SecureRandom()
     val salt = new Array[Byte](size)
     random.nextBytes(salt)
-    toImmutable(salt)
+    ToByteString(salt)
   }
-  private def toImmutable(data: Array[Byte]) = okio.ByteString.of(data,0,data.length)
   private def pbkdf2(password: String, template: SecureHash): SecureHash = {
     val spec = new PBEKeySpec(password.toCharArray, template.salt.toByteArray, template.iterations, template.hashSizeInBytes * 8)
     val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
-    template.copy(hash=toImmutable(skf.generateSecret(spec).getEncoded))
+    template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
   }
   def createHash(password: String): SecureHash =
     pbkdf2(password, SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))
@@ -80,6 +79,14 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val post: okio.ByteString ⇒ HttpPost =
       HttpPost(requestId, path, headers, _, System.currentTimeMillis)
 
+    val world = TxKey.of(local).world
+    val sessionKey = headerMap.get("X-r-session")
+
+    if(By.srcId(classOf[HttpPostReject]).of(world).getOrElse(sessionKey.getOrElse(""),Nil).nonEmpty){
+      httpExchange.sendResponseHeaders(429, 0) //Too Many Requests
+      return true
+    }
+
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
       case Some("change") ⇒
@@ -92,13 +99,12 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         )
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
-        val world = TxKey.of(local).world
         val hashesByUser = By.srcId(classOf[PasswordHashOfUser]).of(world)
         val hash = Single.option(hashesByUser.getOrElse(userName,Nil)).map(_.hash.get)
         val endTime = System.currentTimeMillis() + 1000
         val hashOK = hash.exists(pass⇒AuthOperations.verify(password,pass))
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
-        val currentSessionKey = headerMap("X-r-session")
+        val currentSessionKey = sessionKey.get
         val newId = UUID.randomUUID.toString
         post(okio.ByteString.EMPTY) ::
         (if(hashOK) List(

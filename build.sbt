@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.9.4",
+  version := "0.9.8",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -19,6 +19,8 @@ lazy val publishSettings = Seq(
 )
 
 scalaVersion in ThisBuild := "2.11.8"
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // from https://github.com/scalameta/sbt-macro-example/blob/master/build.sbt
@@ -81,13 +83,13 @@ lazy val `c4actor-base-examples` = project.settings(publishSettings)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.1.0")
+  .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.2.0")
   .dependsOn(`c4actor-base`)
 
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
-  .settings(metaMacroSettings)
+  .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
   .dependsOn(`c4assemble-macros`,`c4gate-proto`, `c4actor-kafka`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
@@ -102,6 +104,11 @@ lazy val `c4actor-branch` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`, `c4assemble-macros`)
+
+lazy val `c4actor-rdb` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-base`, `c4assemble-macros`, `c4proto-types`)
 
 lazy val `c4gate-publish` = project.settings(publishSettings)
   .settings(description := s"$descr")
@@ -134,6 +141,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4actor-base-examples`,
   `c4actor-branch`,
   `c4actor-kafka`,
+  `c4actor-rdb`,
   `c4assemble-macros`,
   `c4assemble-runtime`,
   `c4gate-consumer-example`,

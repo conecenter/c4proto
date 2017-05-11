@@ -24,4 +24,7 @@ trait TcpHandler {
 trait SSEConfig {
   def allowOrigin: Option[String]
   def pongURL: String
+  def stateRefreshPeriodSeconds: Int
+  def tolerateOfflineSeconds: Int
+  def sessionWaitingPosts: Int
 }

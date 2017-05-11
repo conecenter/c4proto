@@ -60,7 +60,6 @@ class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with
 }
 
 object AssemblerTest extends App {
-  val indexFactory = new IndexFactoryImpl(new SimpleIndexValueMergerFactory)
   val app = new AssemblerTestApp
   val recs = update(RawParentNode("1","P-1")) ++
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))

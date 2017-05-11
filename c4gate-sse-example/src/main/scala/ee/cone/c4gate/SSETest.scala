@@ -1,7 +1,8 @@
 package ee.cone.c4gate
 
-import Function.chain
+import java.time.Instant
 
+import Function.chain
 import ee.cone.c4actor.LEvent.{add, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -24,8 +25,6 @@ class TestSSEApp extends ServerApp
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 }
 
-case object TestTimerKey extends WorldKey[java.lang.Long](0L)
-
 @assemble class TestSSEAssemble extends Assemble {
   def joinView(
     key: SrcId,
@@ -38,14 +37,11 @@ case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
 case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler {
   def exchange: BranchMessage ⇒ World ⇒ World = message ⇒ local ⇒ {
-    val seconds = System.currentTimeMillis / 1000
-    if(TestTimerKey.of(local) == seconds) local
-    else {
-      val (keepTo,freshTo,ackAll) = task.sending(local)
-      val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"$seconds")))
-      println(s"TestSSEHandler $keepTo $freshTo")
-      TestTimerKey.set(seconds).andThen(send).andThen(ackAll)(local)
-    }
+    val now = Instant.now
+    val (keepTo,freshTo,ackAll) = task.sending(local)
+    val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
+    println(s"TestSSEHandler $keepTo $freshTo")
+    SleepUntilKey.set(now.plusSeconds(1)).andThen(send).andThen(ackAll)(local)
   }
   def seeds: World ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
 }

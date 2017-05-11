@@ -11,7 +11,8 @@ my $zoo_port = $port_prefix+81;
 my $kafka_port = $port_prefix+92;
 my $build_dir = "./client/build/test";
 my $inbox_prefix = '';
-my $kafka = "kafka_2.11-0.10.1.0";
+my $kafka_version = "0.10.2.0";
+my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "127.0.0.1:$kafka_port";
 
@@ -46,7 +47,7 @@ push @tasks, ["setup_sbt", sub{
 push @tasks, ["setup_kafka", sub{
     (-e $_ or mkdir $_) and chdir $_ or die for "tmp";
     if (!-e $kafka) {
-        sy("wget http://www-eu.apache.org/dist/kafka/0.10.1.0/$kafka.tgz");
+        sy("wget http://www-eu.apache.org/dist/kafka/$kafka_version/$kafka.tgz");
         sy("tar -xzf $kafka.tgz")
     }
 }];
@@ -60,6 +61,14 @@ push @tasks, ["not_effective_join_bench", sub{
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
 }];
 
+my $inbox_configure = sub{
+    my $kafka_configs = "tmp/$kafka/bin/kafka-configs.sh --zookeeper 127.0.0.1:$zoo_port --entity-type topics ";
+    my $infinite_lag = "min.compaction.lag.ms=9223372036854775807";
+    my $compression = "compression.type=producer";
+    sy("$kafka_configs --alter --entity-name .inbox --add-config $infinite_lag,$compression");
+    die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
+};
+
 push @tasks, ["start_kafka", sub{
     &$put_text("tmp/zookeeper.properties","dataDir=db4/zookeeper\nclientPort=$zoo_port\n");
     &$put_text("tmp/server.properties",join "\n",
@@ -67,22 +76,21 @@ push @tasks, ["start_kafka", sub{
         "log.dirs=db4/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
         "log.cleanup.policy=compact",
-        "log.segment.bytes=104857600",
+        "log.segment.bytes=104857600", #active segment is not compacting, so we reduce it
+        "log.cleaner.delete.retention.ms=3600000", #1h
+        "log.roll.hours=1", #delete-s will be triggered to remove?
+        "compression.type=uncompressed", #probably better compaction for .state topics
         "message.max.bytes=3000000" #seems to be compressed
     );
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
     sy("tmp/$kafka/bin/kafka-server-start.sh -daemon tmp/server.properties");
+    sy("jps");
+    &$inbox_configure();
 }];
 push @tasks, ["stop_kafka", sub{
     sy("tmp/$kafka/bin/kafka-server-stop.sh")
 }];
 
-my $inbox_configure = sub{
-    my $kafka_configs = "tmp/$kafka/bin/kafka-configs.sh --zookeeper 127.0.0.1:$zoo_port --entity-type topics ";
-    my $infinite_lag = "min.compaction.lag.ms=9223372036854775807";
-    sy("$kafka_configs --alter --entity-name .inbox --add-config $infinite_lag");
-    die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
-};
 push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
 
 push @tasks, ["inbox_log_tail", sub{
@@ -147,7 +155,7 @@ push @tasks, ["gate_publish", sub{
 }];
 push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
-    sy("$env ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
+    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
 }];
 
 push @tasks, ["test_post_get_tcp_service_run", sub{
@@ -221,3 +229,21 @@ if($ARGV[0]) {
 #lz4 -d db.tar.lz4 | tar xf -
 
 
+=topic integrity
+use strict;
+use JSON::XS;
+my $e = JSON::XS->new;
+my $n = 0;
+my $c = 0;
+while(<>){
+  /records_consumed/ or next;
+  my $j = $e->decode($_);
+  $$j{name} eq "records_consumed" or next;
+  my($count,$min,$max) = @{$$j{partitions}[0]}{qw(count minOffset maxOffset)};
+  $count-1 == $max-$min or die $_;
+  $n == $min or die $_;
+  $n = $max + 1;
+  $c += $count;
+}
+print "count:$c\n";
+=cut

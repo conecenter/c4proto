@@ -10,7 +10,8 @@ case class ProtoProp(
   initDecodeStatement: String,
   decodeCase: String,
   constructArg: String,
-  resultFix: String
+  resultFix: String,
+  metaProp: String
 )
 case class ProtoType(
   encodeStatement: (String,String), serializerType: String, empty: String, resultType: String,
@@ -120,7 +121,8 @@ class protocol extends StaticAnnotation {
               initDecodeStatement = s"var prep_$propName: ${pt.resultType} = ${pt.empty}",
               decodeCase = s"case $id => prep_$propName = ${pt.reduce._1} ${pt.serializerType}.decode(reader) ${pt.reduce._2}",
               constructArg = s"prep_$propName",
-              resultFix = if(pt.resultFix.nonEmpty) s"prep_$propName = ${pt.resultFix}" else ""
+              resultFix = if(pt.resultFix.nonEmpty) s"prep_$propName = ${pt.resultFix}" else "",
+              metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName","${pt.resultType}")"""
             )
         }.toList
         val Sys = "Sys(.*)".r
@@ -130,8 +132,10 @@ class protocol extends StaticAnnotation {
           object ${resultType}ProtoAdapter extends com.squareup.wire.ProtoAdapter[$resultType](
             com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
             classOf[$resultType]
-          ) ${protoMods.id.map(_⇒"with ee.cone.c4proto.HasId").getOrElse("")} {
-            ${protoMods.id.map(i⇒s"def id = $i; def className = classOf[$resultType].getName").getOrElse("")}
+          ) with ee.cone.c4proto.HasId {
+            def id = ${protoMods.id.getOrElse("throw new Exception")}
+            def hasId = ${protoMods.id.nonEmpty}
+            def className = classOf[$resultType].getName
             def encodedSize(value: $resultType): Int = {
               val $struct = value
               var res = 0;
@@ -155,9 +159,10 @@ class protocol extends StaticAnnotation {
               ${props.map(_.resultFix).mkString("\n")};
               $struct
             }
+            def props = List(${props.map(_.metaProp).mkString(",")})
           }
         """
-        val regAdapter = protoMods.id.map(_⇒s"${resultType}ProtoAdapter").getOrElse("")
+        val regAdapter = s"${resultType}ProtoAdapter"
         ProtoMessage(regAdapter, adapterImpl) :: Nil
     }.toList
     val res = q"""

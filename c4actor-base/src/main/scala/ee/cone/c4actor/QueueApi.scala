@@ -1,8 +1,10 @@
 
 package ee.cone.c4actor
 
-import scala.collection.immutable.{Map,Seq}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import com.squareup.wire.ProtoAdapter
+
+import scala.collection.immutable.{Map, Seq}
+import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
 import ee.cone.c4assemble.Types.{Index, World}
 import ee.cone.c4assemble.{JoinKey, WorldKey}
 import ee.cone.c4actor.QProtocol.Update
@@ -87,7 +89,8 @@ object LEvent {
 
 trait WorldTx {
   def world: World
-  def add[M<:Product](out: Iterable[LEvent[M]]): WorldTx
+  def add[M<:Product](out: Seq[LEvent[M]]): WorldTx
+  def add(out: List[Update]): WorldTx
   def toSend: Seq[Update]
   def toDebug: Seq[LEvent[Product]]
 }
@@ -104,8 +107,20 @@ trait TxTransform extends Product {
 
 object NoWorldTx extends WorldTx {
   def world: World = Map.empty
-  def add[M <: Product](out: Iterable[LEvent[M]]): WorldTx = throw new Exception
+  def add[M<:Product](out: Seq[LEvent[M]]): WorldTx = throw new Exception
+  def add(out: List[Update]): WorldTx = throw new Exception
   def toSend: Seq[Update] = Nil
   def toDebug: Seq[LEvent[Product]] = Nil
 }
 case object TxKey extends WorldKey[WorldTx](NoWorldTx)
+
+case object QAdapterRegistryKey extends WorldKey[()⇒QAdapterRegistry](()⇒throw new Exception)
+
+class QAdapterRegistry(
+  val adapters: List[ProtoAdapter[Product] with HasId],
+  val byName: Map[String,ProtoAdapter[Product] with HasId],
+  val byId: Map[Long,ProtoAdapter[Product] with HasId],
+  val keyAdapter: ProtoAdapter[QProtocol.TopicKey],
+  val updatesAdapter: ProtoAdapter[QProtocol.Updates],
+  val nameById: Map[Long,String]
+)
