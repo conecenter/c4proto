@@ -7,7 +7,7 @@ import ee.cone.c4assemble.ReverseInsertionOrder
 
 import scala.util.matching.Regex
 
-object RDBTypes {
+object DDLTypes {
   private val msPerDay: Int = 24 * 60 * 60 * 1000
   private val epoch = "to_date('19700101','yyyymmdd')"
   //
@@ -79,12 +79,7 @@ class DDLGeneratorImpl(
     wasTypes: List[DropType],
     wasFunctionNameList: List[String]
   ): List[String] = {
-    val setFromSql: Set[String] =
-      uniqueBy(options.collect{ case o: FromDBOption ⇒ o.className })(i⇒i).keySet
-    val mapToSql: Map[String, String] =
-      uniqueBy(options.collect{ case o: ToDBOption ⇒ o })(_.className)
-        .transform((k,v)⇒v.code)
-    val adapters = options.collect{ case o: ProtocolDBOption ⇒ o.protocol.adapters }.flatten
+
     val notFound = (setFromSql ++ mapToSql.keySet) -- adapters.map(_.className)
     if(notFound.nonEmpty) throw new Exception(s"adapters was not found: $notFound")
     //
@@ -141,7 +136,7 @@ class DDLGeneratorImpl(
         props.map(prop ⇒ s"a${prop.propName} ${toDbName(prop.resultType, "t")} default null")
           .mkString(", ")
       val defaultArgs =
-        attrs.map{case (n,t)⇒ RDBTypes.constructorToTypeArg(t)(n)}
+        attrs.map{case (n,t)⇒ DDLTypes.constructorToTypeArg(t)(n)}
           .mkString(", ")
       val constructor = hooks.function(toDbName(name, "b"), constructorArgs, tName, bodyStatements(List(
         s"return $tName($defaultArgs);"
@@ -161,7 +156,7 @@ class DDLGeneratorImpl(
       needTypesFull.filterNot(wasTypesSet).reverse.map(t ⇒ ddlForType(t.copy(uses=Nil)))
     //
     val needFunctions =
-      RDBTypes.sysTypes.map(t⇒encode(t, esc(t, s"chr(10) || ${RDBTypes.encodeExpression(t)("rec")}"))) :::
+      DDLTypes.sysTypes.map(t⇒encode(t, esc(t, s"chr(10) || ${DDLTypes.encodeExpression(t)("rec")}"))) :::
         needs.collect{ case f: NeedCode ⇒ f }
     val needFunctionNames = uniqueBy(needFunctions)(_.drop).keySet
     val replaceFunctions =
@@ -177,7 +172,7 @@ class DDLGeneratorImpl(
   }
   private def orderedTypes(needTypesList: List[DropType]): (List[DropType],Set[DropType]) = {
     val needTypes = uniqueBy(needTypesList)(_.name)
-    val isSysType = RDBTypes.sysTypes.map(t⇒toDbName(t,"t").toLowerCase).toSet
+    val isSysType = DDLTypes.sysTypes.map(t⇒toDbName(t,"t").toLowerCase).toSet
     def regType(res: ReverseInsertionOrder[String,DropType], name: String): ReverseInsertionOrder[String,DropType] = {
       if(res.map.contains(name)) res else {
         val needType = needTypes(name)
@@ -194,13 +189,46 @@ class DDLGeneratorImpl(
   }
 
 
-
+  private def shortName(className: String) = className.split("\\$").last
 
   def generate() = {
+    val fromSqlNames: List[String] =
+      options.collect{ case o: FromDBOption ⇒ shortName(o.className) }.distinct
+    val toSql: List[(String,String)] =
+      options.collect{ case o: ToDBOption ⇒ (shortName(o.className),o.code) }
+    val toSqlNames: List[String] = toSql.map(_._1)
+    val toSqlMap: Map[String,String] = toSql.groupBy(_._1).transform{ (k,vs) ⇒
+      val List((_,v)) = vs.distinct
+      v
+    }
+    val adapters =
+      options.collect{ case o: ProtocolDBOption ⇒ o.protocol.adapters }.flatten
+        .groupBy(a⇒shortName(a.className))
 
 
 
+
+
+
+
+
+
+    regOrdered(resolve)("_dispatch" :: )
   }
+  private type Reg = ReverseInsertionOrder[String,NeedWithUses]
+  private def reg(resolve: String⇒NeedWithUses)(res: Reg, name: String): Reg =
+    if(res.map.contains(name)) res else {
+      val need = resolve(name)
+      val codeParts = need.ddl.split("\\^")
+      val useNames = codeParts.grouped(2).flatMap(_.tail).toList
+      val resWithUses = (res /: useNames)(reg(resolve))
+      val uses = useNames.map(resWithUses.map)
+      resWithUses.add(name, need.copy(ddl=codeParts.mkString, uses=uses))
+    }
+  private def regOrdered(resolve: String⇒NeedWithUses)(names: List[String]) =
+    (ReverseInsertionOrder[String,NeedWithUses]() /: names)(reg(resolve)).values
+
 
 }
 
+case class NeedWithUses(drop: String, ddl: String, uses: List[NeedWithUses])
