@@ -10,6 +10,7 @@ import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
+import ScannerProxy  from "../extra/scanner-proxy"
 
 import {CanvasBaseMix} from "../main/canvas-mix"
 import * as CanvasExtra from "../extra/canvas-extra"
@@ -25,7 +26,7 @@ const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
 
-const log = v => console.log(v)
+const log = v => console.log("log",v)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
 
@@ -73,7 +74,12 @@ const toggleOverlay = on =>{
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const getBattery = (callback) => navigator.getBattery().then(callback)
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery});
+const Scanner = window.Scanner
+const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log})
+window.ScannerProxy = scannerProxy
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery,scannerProxy});
+
+const activeElement=()=>document.activeElement; //todo: remove
 
 //canvas
 const util = Canvas.CanvasUtil()
@@ -82,7 +88,7 @@ const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
 const exchangeMix = canvas => [
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement)
+    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement,activeElement)
 ]
 const canvasBaseMix = CanvasBaseMix(log,util)
 

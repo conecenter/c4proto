@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery}){
+export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery,scannerProxy}){
 	const ColorCreator = React.createClass({
     		onChange:function(e){
     			if(this.props.onChange)
@@ -410,12 +410,30 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				]);
 			
 		}
+	});	
+	const ScannerProxyElement = React.createClass({
+		sendCallback:function(data){
+			if(this.props.onChange)
+				this.props.onChange({target:{value:data}})
+		},
+		componentDidMount:function(){
+			scannerProxy.reg(this.props.fkey,this.sendCallback)
+		},
+		componentWillUnmount:function(){
+			scannerProxy.unReg(this.props.fkey)
+		},
+		render:function(){
+			return React.createElement("span");
+		}
 	});
+	ScannerProxyElement.defaultProps = {
+		fkey:""		
+	};
 	const transforms= {
 		tp:{
 			StatusElement,TerminalElement,MJobCell,IconCheck,CustomMeasurerConnectionState,DeviceConnectionState,
 			ColorCreator,ColorItem,ColorPicker,
-			BatteryState
+			BatteryState,ScannerProxyElement
 		},
 	};
 	const receivers = {
