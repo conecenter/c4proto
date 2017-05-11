@@ -1,7 +1,6 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4actor._
 import ee.cone.c4actor.rdb_impl._
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.Protocol
@@ -10,7 +9,7 @@ trait ExternalDBOptionsApp {
   def externalDBOptions: List[ExternalDBOption] = Nil
 }
 
-trait ToExternalDBSyncApp extends ExternalDBSyncApp with AssemblesApp with ProtocolsApp {
+trait ToExternalDBSyncApp extends RDBSyncApp with AssemblesApp with ProtocolsApp {
   def externalDBOptions: List[ExternalDBOption]
 
   override def assembles: List[Assemble] =
@@ -18,8 +17,8 @@ trait ToExternalDBSyncApp extends ExternalDBSyncApp with AssemblesApp with Proto
   override def protocols: List[Protocol] = ToExternalDBProtocol :: super.protocols
 }
 
-trait FromExternalDBSyncApp extends ExternalDBSyncApp with ExternalDBOptionsApp with ProtocolsApp with AssemblesApp {
-  import externalDBOptionFactory._
+trait FromExternalDBSyncApp extends RDBSyncApp with ExternalDBOptionsApp with ProtocolsApp with AssemblesApp {
+  import rdbOptionFactory._
   override def externalDBOptions: List[ExternalDBOption] =
     dbProtocol(FromExternalDBProtocol) ::
       fromDB(classOf[FromExternalDBProtocol.DBOffset]) ::
@@ -28,15 +27,13 @@ trait FromExternalDBSyncApp extends ExternalDBSyncApp with ExternalDBOptionsApp 
   override def protocols: List[Protocol] = FromExternalDBProtocol :: super.protocols
 }
 
-trait ExternalDBSyncApp extends ToStartApp with InitLocalsApp {
+trait RDBSyncApp extends ToStartApp with InitLocalsApp {
   def qMessages: QMessages
   def externalDBFactory: ExternalDBFactory
   def externalDBOptions: List[ExternalDBOption]
-  def ddlGeneratorHooks: DDLGeneratorHooks
 
-  lazy val ddlGenerator = new DDLGeneratorImpl(externalDBOptions,ddlGeneratorHooks)
-  lazy val ddlUtil = DDLUtilImpl
-  lazy val externalDBOptionFactory = new ExternalDBOptionFactoryImpl(qMessages,ddlUtil)
+  lazy val rdbOptionFactory = new RDBOptionFactoryImpl(qMessages)
+
   private lazy val externalDBSyncClient = new ExternalDBSyncClient(externalDBFactory)
   override def initLocals: List[InitLocal] = externalDBSyncClient :: super.initLocals
   override def toStart: List[Executable] = externalDBSyncClient :: super.toStart

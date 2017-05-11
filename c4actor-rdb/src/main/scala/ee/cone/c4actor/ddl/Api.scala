@@ -1,5 +1,7 @@
 package ee.cone.c4actor.ddl
 
+import ee.cone.c4actor.ExternalDBOption
+
 trait Need
 case class DropType(name: String, attributes: List[DropTypeAttr], uses: List[DropType])
 case class DropTypeAttr(attrName: String, attrTypeName: String)
@@ -21,4 +23,12 @@ trait DDLGeneratorHooks {
 
 trait DDLGenerator {
   def generate(wasTypes: List[DropType], wasFunctionNameList: List[String]): List[String]
+}
+
+////
+
+trait DDLGeneratorOptionFactory {
+  def createOrReplace(key: String, args: String, code: String): ExternalDBOption
+  def grantExecute(key: String): ExternalDBOption
+  def dbUser(user: String): ExternalDBOption
 }

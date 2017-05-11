@@ -3,10 +3,8 @@ package ee.cone.c4actor.rdb_impl
 import com.squareup.wire.{FieldEncoding, ProtoAdapter, ProtoReader, ProtoWriter}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
-import java.sql.{CallableStatement, PreparedStatement}
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 
 import FromExternalDBProtocol.DBOffset
 import ToExternalDBProtocol.HasState
@@ -20,69 +18,13 @@ import ee.cone.c4proto
 import ee.cone.c4proto._
 import okio.ByteString
 
-import scala.util.matching.Regex
 
-object RDBTypes {
-  private val msPerDay: Int = 24 * 60 * 60 * 1000
-  private val epoch = "to_date('19700101','yyyymmdd')"
-  //
-  def encode(p: Object): String = p match {
-    case v: String ⇒ v
-    case v: java.lang.Boolean ⇒ if(v) "T" else ""
-    case v: java.lang.Long ⇒ v.toString
-    case v: BigDecimal ⇒ v.bigDecimal.toString
-    case v: Instant ⇒ v.toEpochMilli.toString
-  }
-  def sysTypes: List[String] = List(
-    classOf[String],
-    classOf[java.lang.Boolean],
-    classOf[java.lang.Long],
-    classOf[BigDecimal],
-    classOf[Instant]
-  ).map(shortName)
-  def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
-  def constructorToTypeArg(tp: String): String⇒String = tp match {
-    case "Boolean" ⇒ a ⇒ s"case when $a then 'T' else null end"
-    case at if at.endsWith("s") ⇒  a ⇒ s"case when $a is null then $at() else $a end"
-    case _ ⇒ a ⇒ a
-  }
-  def encodeExpression(tp: String): String⇒String = tp match {
-    case "Instant" ⇒ a ⇒ s"round(($a - $epoch) * $msPerDay)"
-    case "Boolean" ⇒ a ⇒ s"(case when $a then 'T' else '' end)"
-    case "String"|"Long"|"BigDecimal" ⇒ a ⇒ a
-  }
-  def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
-    case "String" ⇒
-      UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
-    case "Boolean" ⇒
-      UniversalPropImpl[java.lang.Boolean](tag,value.nonEmpty)(ProtoAdapter.BOOL)
-    case "Long" | "Instant" ⇒
-      UniversalPropImpl[java.lang.Long](tag,java.lang.Long.parseLong(value))(ProtoAdapter.SINT64)
-    case "BigDecimal" ⇒
-      val BigDecimalFactory(scale,bytes) = BigDecimal(value)
-      val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
-      val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)
-      UniversalPropImpl(tag,UniversalNode(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
-  }
-}
 
-////
-
-class ProtocolDBOption(val protocol: Protocol) extends ExternalDBOption
-class NeedDBOption(val need: Need) extends ExternalDBOption
-class ToDBOption(val className: String, val code: String, val assemble: Assemble) extends ExternalDBOption
-class FromDBOption(val className: String) extends ExternalDBOption
-class UserDBOption(val user: String) extends ExternalDBOption
-
-class ExternalDBOptionFactoryImpl(qMessages: QMessages, util: DDLUtil) extends ExternalDBOptionFactory {
+class RDBOptionFactoryImpl(qMessages: QMessages) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: String): ExternalDBOption =
     new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(qMessages,cl))
-  def createOrReplace(key: String, args: String, code: String): ExternalDBOption =
-    new NeedDBOption(util.createOrReplace(key,args,code))
-  def grantExecute(key: String): ExternalDBOption = new NeedDBOption(GrantExecute(key))
-  def dbUser(user: String): ExternalDBOption = new UserDBOption(user)
 }
 
 ////
@@ -282,4 +224,28 @@ class ProtoToString(registry: QAdapterRegistry){
     }.getOrElse("")
 }
 
-//protobuf universal draft
+////
+
+object RDBTypes {
+  def encode(p: Object): String = p match {
+    case v: String ⇒ v
+    case v: java.lang.Boolean ⇒ if(v) "T" else ""
+    case v: java.lang.Long ⇒ v.toString
+    case v: BigDecimal ⇒ v.bigDecimal.toString
+    case v: Instant ⇒ v.toEpochMilli.toString
+  }
+  def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
+  def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
+    case "String" ⇒
+      UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
+    case "Boolean" ⇒
+      UniversalPropImpl[java.lang.Boolean](tag,value.nonEmpty)(ProtoAdapter.BOOL)
+    case "Long" | "Instant" ⇒
+      UniversalPropImpl[java.lang.Long](tag,java.lang.Long.parseLong(value))(ProtoAdapter.SINT64)
+    case "BigDecimal" ⇒
+      val BigDecimalFactory(scale,bytes) = BigDecimal(value)
+      val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
+      val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)
+      UniversalPropImpl(tag,UniversalNode(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
+  }
+}

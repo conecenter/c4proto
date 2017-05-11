@@ -1,9 +1,45 @@
 package ee.cone.c4actor.ddl
 
-import ee.cone.c4actor.ExternalDBOption
+import java.time.Instant
+
+import ee.cone.c4actor._
 import ee.cone.c4assemble.ReverseInsertionOrder
 
 import scala.util.matching.Regex
+
+object RDBTypes {
+  private val msPerDay: Int = 24 * 60 * 60 * 1000
+  private val epoch = "to_date('19700101','yyyymmdd')"
+  //
+  def sysTypes: List[String] = List(
+    classOf[String],
+    classOf[java.lang.Boolean],
+    classOf[java.lang.Long],
+    classOf[BigDecimal],
+    classOf[Instant]
+  ).map(shortName)
+  def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
+  def constructorToTypeArg(tp: String): String⇒String = tp match {
+    case "Boolean" ⇒ a ⇒ s"case when $a then 'T' else null end"
+    case at if at.endsWith("s") ⇒  a ⇒ s"case when $a is null then $at() else $a end"
+    case _ ⇒ a ⇒ a
+  }
+  def encodeExpression(tp: String): String⇒String = tp match {
+    case "Instant" ⇒ a ⇒ s"round(($a - $epoch) * $msPerDay)"
+    case "Boolean" ⇒ a ⇒ s"(case when $a then 'T' else '' end)"
+    case "String"|"Long"|"BigDecimal" ⇒ a ⇒ a
+  }
+}
+
+class NeedDBOption(val need: Need) extends ExternalDBOption
+class UserDBOption(val user: String) extends ExternalDBOption
+
+class DDLGeneratorOptionFactoryImpl(util: DDLUtil) extends DDLGeneratorOptionFactory {
+  def createOrReplace(key: String, args: String, code: String): ExternalDBOption =
+    new NeedDBOption(util.createOrReplace(key,args,code))
+  def grantExecute(key: String): ExternalDBOption = new NeedDBOption(GrantExecute(key))
+  def dbUser(user: String): ExternalDBOption = new UserDBOption(user)
+}
 
 case class NeedType(drop: DropType, ddl: String) extends Need
 
@@ -11,8 +47,6 @@ object DDLUtilImpl extends DDLUtil {
   def createOrReplace(key: String, args: String, code: String): NeedCode =
     NeedCode(key.toLowerCase, s"create or replace $key${if(args.isEmpty) "" else s"($args)"} $code")
 }
-
-object HexStr { def apply(i: Long): String = "'0x%04x'".format(i) }
 
 class DDLGeneratorImpl(
   options: List[ExternalDBOption],
@@ -158,5 +192,15 @@ class DDLGeneratorImpl(
     val ordered = (ReverseInsertionOrder[String,DropType]() /: needTypesList.map(_.name))(regType).values //complex first
     (ordered,ordered.toSet)
   }
+
+
+
+
+  def generate() = {
+
+
+
+  }
+
 }
 
