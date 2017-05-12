@@ -206,21 +206,24 @@ class DDLGeneratorImpl(
         .groupBy(a⇒shortName(a.className))
 
 
+    def resolve(name: String): NeedWithUses = {
+      val mod: String = name.take(1)
+
+    }
 
 
 
 
 
 
-
-    regOrdered(resolve)("_dispatch" :: )
+    regOrdered(resolve)("_dispatch" :: fromSqlNames.map(toDbName(_,"s")))
   }
   private type Reg = ReverseInsertionOrder[String,NeedWithUses]
   private def reg(resolve: String⇒NeedWithUses)(res: Reg, name: String): Reg =
     if(res.map.contains(name)) res else {
       val need = resolve(name)
       val codeParts = need.ddl.split("\\^")
-      val useNames = codeParts.grouped(2).flatMap(_.tail).toList
+      val useNames = codeParts.grouped(2).flatMap(_.tail).filter(name!=_).toList
       val resWithUses = (res /: useNames)(reg(resolve))
       val uses = useNames.map(resWithUses.map)
       resWithUses.add(name, need.copy(ddl=codeParts.mkString, uses=uses))
@@ -231,4 +234,4 @@ class DDLGeneratorImpl(
 
 }
 
-case class NeedWithUses(drop: String, ddl: String, uses: List[NeedWithUses])
+case class NeedWithUses(need: Need, ddl: String, uses: List[NeedWithUses])
