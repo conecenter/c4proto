@@ -42,6 +42,7 @@ class DDLGeneratorOptionFactoryImpl(util: DDLUtil) extends DDLGeneratorOptionFac
 }
 
 case class NeedType(drop: DropType, ddl: String) extends Need
+case class NeedDispatch(when: List[String]) extends Need
 
 object DDLUtilImpl extends DDLUtil {
   def createOrReplace(key: String, args: String, code: String): NeedCode =
@@ -64,16 +65,42 @@ class DDLGeneratorImpl(
     if(v.size > 1) throw new Exception(s"$k is redefined")
     v.head
   }
+  private def indent(l: String) = s"  $l"
   protected def bodyStatements(statements: List[String]): String =
-    s"begin\n${statements.map(l⇒s"  $l\n").mkString("")}end;"
+    s"begin\n${statements.map(l⇒s"${indent(l)}\n").mkString("")}end;"
   private def returnIfNull = "if rec is null then return ''; end if;"
   private def esc(handler: String, expr: String) =
     bodyStatements(returnIfNull :: s"return chr(10) || key || ' ' || '$handler' || replace($expr, chr(10), chr(10)||' ');" :: Nil)
   private def longStrType = toDbName("String","t",1)
+  private def strType = toDbName("String","t")
   private def encoderName(dType: String) = toDbName(dType,"e")
   private def encode(name: String, body: String) =
-    hooks.function(encoderName(name),s"key ${toDbName("String","t")}, ${recArg(name)}",longStrType,body)
+    hooks.function(encoderName(name),s"key $strType, ${recArg(name)}",longStrType,body)
   private def recArg(name: String) = s"rec ${toDbName(name,"t")}"
+  private def shortName(className: String) = className.split("\\$").last
+
+  private def decoderName(name: String) = toDbName("String","d")
+  private def decode(name: String, body: String) =
+    hooks.function(
+      decoderName(name),
+      s"aLines tParams, aFrom  binary_integer, aTo binary_integer, aLev binary_integer",
+      toDbName(name,"t"),
+      body
+    )
+  private def gatherBody(init: String, from: String, to: String, statements: List[String]): String =
+    s"fRes $init;\nfPos binary_integer := $from;\nfTo binary_integer := $to;\n${bodyStatements(
+      "while fPos <= fTo loop" ::
+        (statements ::: "fPos := fPos + 1;" :: Nil).map(indent) :::
+        "end loop;" :: "return fRes" :: Nil
+    )}"
+  private def caseStatement(key: String, whens: List[String]): List[String] =
+    s"case $key" :: whens.map(indent) ::: "end case;" :: Nil
+  private def hexWhen(id: Long, statements: List[String]): List[String] =
+    s"when ${HexStr(id)} then" :: statements.map(indent)
+
+  private def declareDo(vars: List[String], statements: List[String]): List[String] =
+    "declare" :: vars.map(indent) ::: "begin" :: statements.map(indent) ::: "end;" :: Nil
+
 
   def generate(
     wasTypes: List[DropType],
@@ -81,9 +108,9 @@ class DDLGeneratorImpl(
   ): List[String] = {
     val setFromSql: Set[String] =
       uniqueBy(options.collect{ case o: FromDBOption ⇒ o.className })(i⇒i).keySet
+    val toSql = options.collect{ case o: ToDBOption ⇒ o }
     val mapToSql: Map[String, String] =
-      uniqueBy(options.collect{ case o: ToDBOption ⇒ o })(_.className)
-        .transform((k,v)⇒v.code)
+      uniqueBy(toSql)(_.className).transform((k,v)⇒v.code)
     val adapters = options.collect{ case o: ProtocolDBOption ⇒ o.protocol.adapters }.flatten
     val notFound = (setFromSql ++ mapToSql.keySet) -- adapters.map(_.className)
     if(notFound.nonEmpty) throw new Exception(s"adapters was not found: $notFound")
@@ -110,6 +137,29 @@ class DDLGeneratorImpl(
         "return res;"
       ))}")
       //
+      val decodeNode = decode(name,
+        gatherBody(s"${toDbName(name,"t",-1)} := ${toDbName(name, "b")}()","aFrom","aTo",
+          declareDo(
+            List(
+              "fLast binary_integer := getLevel(aLines,fPos+1,fTo,aLev+1);"
+            ),
+            caseStatement("regexp_substr(trim(alines(fPos)), '^\\S+')",props.flatMap{ prop ⇒
+              val decoder = decoderName(prop.resultType)
+              val args = "(aLines, fPos+1, fLast, aLev+1)"
+              val field = s"fRes.a${prop.propName}"
+              hexWhen(prop.id,
+                if(decoder.endsWith("s")) List(
+                  s"$field.extend;",
+                  s"$field($field.last) := ${decoder.dropRight(1)}$args;"
+                )
+                else List(s"$field := $decoder$args;")
+              )
+            }) :::
+            List("fPos := fLast;")
+          )
+        )
+      )
+      //
       val encodeExtOut = (for(n ← List(name) if isFromSql) yield {
         val sName = toDbName(n,"s")
         val f = hooks.function(sName, recArg(n), longStrType,
@@ -117,9 +167,16 @@ class DDLGeneratorImpl(
         )
         f :: GrantExecute(sName) :: Nil
       }).flatten
-      val handleExtIn = procToSql.toList.map(proc⇒
-        hooks.function(toDbName(name,"r"), s"aRetry number, aFrom $tName, aTo $tName", "", proc)
-      )
+      val handleExtIn = procToSql.toList.map { proc ⇒
+        NeedDispatch(hexWhen(adapter.id,
+          declareDo(
+            List("aFrom","aTo").map(src⇒
+              s"$src ${toDbName(name, "t")} := ${toDbName(name, "d")}(${src}Lines,3,${src}Lines.count,1);"
+            ),
+            List(proc)
+          )
+        ))
+      }
       //
       def theType(t: String, attr: List[(String,String)], body: String) = List(
         GrantExecute(t),
@@ -147,7 +204,8 @@ class DDLGeneratorImpl(
         s"return $tName($defaultArgs);"
       )))
       //
-      needType ::: needTypes ::: constructor :: encodeNode :: encodeNodes :: encodeExtOut ::: handleExtIn
+      needType ::: needTypes ::: constructor ::
+        encodeNode :: encodeNodes :: encodeExtOut ::: decodeNode :: handleExtIn
     }
     //
     val needCTypes = needs.collect{ case t:NeedType ⇒ t }
@@ -160,7 +218,18 @@ class DDLGeneratorImpl(
     val createTypes =
       needTypesFull.filterNot(wasTypesSet).reverse.map(t ⇒ ddlForType(t.copy(uses=Nil)))
     //
+    val needDispatch: NeedCode = hooks.function(
+      "_dispatch",s"aSrcId $strType, aFromLines tParams, aToLines tParams","",{
+        bodyStatements(
+          caseStatement("aSrcId",
+            needs.collect{ case d: NeedDispatch ⇒ d.when }.flatten :::
+              List("else null;")
+          )
+        )
+      }
+    )
     val needFunctions =
+      needDispatch ::
       RDBTypes.sysTypes.map(t⇒encode(t, esc(t, s"chr(10) || ${RDBTypes.encodeExpression(t)("rec")}"))) :::
         needs.collect{ case f: NeedCode ⇒ f }
     val needFunctionNames = uniqueBy(needFunctions)(_.drop).keySet
@@ -192,15 +261,5 @@ class DDLGeneratorImpl(
     val ordered = (ReverseInsertionOrder[String,DropType]() /: needTypesList.map(_.name))(regType).values //complex first
     (ordered,ordered.toSet)
   }
-
-
-
-
-  def generate() = {
-
-
-
-  }
-
 }
 
