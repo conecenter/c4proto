@@ -94,7 +94,7 @@ case class ToExternalDBTx(txSrcId: SrcId, from: Option[HasState], to: Option[Has
       val (valueTypeId,srcId) =
         Single(List(from,to).flatten.map(s⇒(s.valueTypeId,s.srcId)).distinct)
       val List(delay:java.lang.Long) = conn.procedure("upd")
-        .in(Thread.currentThread.getName).in(HexStr(valueTypeId)).in(srcId)
+        .in(Thread.currentThread.getName).in(Hex(valueTypeId)).in(srcId)
         .in(recode(from)).in(recode(to)).outLong.call()
       if(delay > 0)
         RDBSleepUntilKey.set((now.plusMillis(delay),to))(local)
@@ -205,7 +205,7 @@ class IndentedParser(
 
 class ProtoToString(registry: QAdapterRegistry){
   private def esc(id: Long, handler: String, value: String): String =
-    s"\n${HexStr(id)} $handler${value.replace("\n","\n ")}"
+    s"\n${Hex(id)} $handler${value.replace("\n","\n ")}"
   private def encode(id: Long, p: Any): String = p match {
     case Nil | None ⇒ ""
     case Some(e) ⇒ encode(id, e)
@@ -225,6 +225,8 @@ class ProtoToString(registry: QAdapterRegistry){
 }
 
 ////
+
+object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
 object RDBTypes {
   def encode(p: Object): String = p match {

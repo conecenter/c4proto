@@ -29,4 +29,3 @@ trait RConnection {
   def executeQuery(code: String, cols: List[String], bind: List[Object]): List[Map[String,Object]]
 }
 
-object HexStr { def apply(i: Long): String = "'0x%04x'".format(i) }
