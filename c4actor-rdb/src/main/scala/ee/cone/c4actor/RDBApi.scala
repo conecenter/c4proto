@@ -9,9 +9,9 @@ trait ExternalDBOption
 trait RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption
   def fromDB[P<:Product](cl: Class[P]): ExternalDBOption
-  def toDB[P<:Product](cl: Class[P], code: String): ExternalDBOption
+  def toDB[P<:Product](cl: Class[P], code: List[String]): ExternalDBOption
 }
 
 class ProtocolDBOption(val protocol: Protocol) extends ExternalDBOption
-class ToDBOption(val className: String, val code: String, val assemble: Assemble) extends ExternalDBOption
+class ToDBOption(val className: String, val code: List[String], val assemble: Assemble) extends ExternalDBOption
 class FromDBOption(val className: String) extends ExternalDBOption

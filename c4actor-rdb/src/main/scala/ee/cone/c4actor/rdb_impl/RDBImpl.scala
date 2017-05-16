@@ -23,7 +23,7 @@ import okio.ByteString
 class RDBOptionFactoryImpl(qMessages: QMessages) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
-  def toDB[P <: Product](cl: Class[P], code: String): ExternalDBOption =
+  def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
     new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(qMessages,cl))
 }
 
