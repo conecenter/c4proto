@@ -102,6 +102,17 @@ class ByPriority[Item](uses: Item⇒List[Item]){
     (ReverseInsertionOrder[Item,Item]() /: items)(regOne).values.reverse
 }
 
+/*
+class ByPriority0[K,V](
+  uses: (ReverseInsertionOrder[K,V],K)⇒(ReverseInsertionOrder[K,V],V)
+){
+  private def regOne(res: ReverseInsertionOrder[K,V], item: Item): ReverseInsertionOrder[K,V] =
+    if(res.map.contains(item)) res else (res /: uses(item))(regOne).add(item,item)
+  def apply(items: List[Item]): List[Item] =
+    (ReverseInsertionOrder[K,V]() /: items)(regOne).values.reverse
+}
+*/
+
 object TreeAssemblerImpl extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
