@@ -94,8 +94,13 @@ case class ToExternalDBTx(txSrcId: SrcId, from: Option[HasState], to: Option[Has
       val (valueTypeId,srcId) =
         Single(List(from,to).flatten.map(s⇒(s.valueTypeId,s.srcId)).distinct)
       val List(delay:java.lang.Long) = conn.procedure("upd")
-        .in(Thread.currentThread.getName).in(Hex(valueTypeId)).in(srcId)
-        .in(recode(from)).in(recode(to)).outLong.call()
+        .in(Thread.currentThread.getName)
+        .in(Hex(valueTypeId))
+        .in(srcId)
+        .in(recode(from))
+        .in(recode(to))
+        .outLong
+        .call()
       if(delay > 0)
         RDBSleepUntilKey.set((now.plusMillis(delay),to))(local)
       else LEvent.add(
