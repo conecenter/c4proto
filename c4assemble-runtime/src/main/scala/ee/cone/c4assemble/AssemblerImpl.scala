@@ -95,21 +95,12 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   }
 }
 
+/*
 class ByPriority[Item](uses: Item⇒List[Item]){
   private def regOne(res: ReverseInsertionOrder[Item,Item], item: Item): ReverseInsertionOrder[Item,Item] =
     if(res.map.contains(item)) res else (res /: uses(item))(regOne).add(item,item)
   def apply(items: List[Item]): List[Item] =
     (ReverseInsertionOrder[Item,Item]() /: items)(regOne).values.reverse
-}
-
-/*
-class ByPriority0[K,V](
-  uses: (ReverseInsertionOrder[K,V],K)⇒(ReverseInsertionOrder[K,V],V)
-){
-  private def regOne(res: ReverseInsertionOrder[K,V], item: Item): ReverseInsertionOrder[K,V] =
-    if(res.map.contains(item)) res else (res /: uses(item))(regOne).add(item,item)
-  def apply(items: List[Item]): List[Item] =
-    (ReverseInsertionOrder[K,V]() /: items)(regOne).values.reverse
 }
 */
 
@@ -129,13 +120,17 @@ object TreeAssemblerImpl extends TreeAssembler {
     val byOutput: Map[WorldKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
     val expressionsByPriority: List[WorldPartExpression] =
-      (new ByPriority[WorldPartExpression with DataDependencyFrom[_]](
-        _.inputWorldKeys.flatMap{ k ⇒
+      (new ByPriority[
+        WorldPartExpression with DataDependencyFrom[_],
+        WorldPartExpression with DataDependencyFrom[_]
+      ](item⇒(
+        item.inputWorldKeys.flatMap{ k ⇒
           byOutput.getOrElse(k,
             if(originals(k)) Nil else throw new Exception(s"undefined $k in $originals")
           )
-        }.toList
-      ))(expressions)
+        }.toList,
+        _ ⇒ item
+      )))(expressions).reverse
 
     replaced ⇒ prevWorld ⇒ {
       val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
