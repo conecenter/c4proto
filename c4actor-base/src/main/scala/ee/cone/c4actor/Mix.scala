@@ -42,9 +42,10 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   lazy val qReducer: Reducer = new ReducerImpl(qMessages, treeAssembler, ()⇒dataDependencies)
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,qReducer,initLocals)
+  lazy val byPriority: ByPriority = ByPriorityImpl
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory)
-  private lazy val treeAssembler: TreeAssembler = TreeAssemblerImpl
+  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   //

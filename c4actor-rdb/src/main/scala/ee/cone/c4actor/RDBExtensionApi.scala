@@ -18,7 +18,7 @@ trait RDBBind {
   def in(value: String): RDBBind
   def in(value: Long): RDBBind
   def in(value: Boolean): RDBBind
-  def outLong: RDBBind
+  def outLongOption: RDBBind
   def outText: RDBBind
   def call(): List[Object]
 }

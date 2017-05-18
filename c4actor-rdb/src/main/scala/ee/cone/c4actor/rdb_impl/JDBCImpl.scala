@@ -35,16 +35,19 @@ abstract class RDBBindImpl extends RDBBind {
   def code(wasCode: String): String
   def execute(stmt: java.sql.CallableStatement): List[Object]
   //
-  private def inObject(value: Object) = new InObjectRDBBind(this, value)
+  private def inObject(value: Object) = {
+    //println(Thread.currentThread.getName,"bind",value)
+    new InObjectRDBBind(this, value)
+  }
   def in(value: Long): RDBBind = inObject(value:java.lang.Long)
   def in(value: Boolean): RDBBind = inObject(value:java.lang.Boolean)
   def in(value: String): RDBBind =
     if(value.length < 1000) inObject(value) else new InTextRDBBind(this, value)
-  def outLong: RDBBind = new OutLongRDBBind(this)
+  def outLongOption: RDBBind = new OutLongRDBBind(this)
   def outText: RDBBind = new OutTextRDBBind(this)
-  def call(): List[Object] = {
+  def call(): List[Object] = concurrent.blocking {
     val theCode = code("")
-    println(theCode)
+    println(Thread.currentThread.getName,"code",theCode)
     FinallyClose(connection.prepareCall(theCode))(execute).reverse
   }
 }
@@ -70,7 +73,7 @@ class OutLongRDBBind(val prev: RDBBindImpl) extends ArgRDBBind {
   def execute(stmt: CallableStatement): List[Object] = {
     stmt.registerOutParameter(index,java.sql.Types.BIGINT)
     val res = prev.execute(stmt)
-    stmt.getObject(index) :: res
+    Option(stmt.getObject(index)) :: res
   }
 }
 
@@ -78,8 +81,10 @@ class OutTextRDBBind(val prev: RDBBindImpl) extends ArgRDBBind {
   def execute(stmt: CallableStatement): List[Object] = {
     stmt.registerOutParameter(index,java.sql.Types.CLOB)
     val res = prev.execute(stmt)
-    FinallyClose[java.sql.Clob,List[Object]](stmt.getClob(index), _.free()){ clob ⇒
-      clob.getSubString(1,toIntExact(clob.length())) :: res
+    FinallyClose[Option[java.sql.Clob],List[Object]](
+      Option(stmt.getClob(index)), _.foreach(_.free())
+    ){ clob ⇒
+      clob.map(c⇒c.getSubString(1,toIntExact(c.length()))).getOrElse("") :: res
     }
   }
 }
@@ -113,18 +118,22 @@ class RConnectionImpl(conn: java.sql.Connection) extends RConnection {
 
   def procedure(name: String): RDBBind = new MainRDBBind(conn, name)
 
-  def execute(code: String): Unit =
-    FinallyClose(conn.prepareStatement(code)){ stmt ⇒
+  def execute(code: String): Unit = concurrent.blocking {
+    FinallyClose(conn.prepareStatement(code)) { stmt ⇒
       println(code)
       stmt.execute()
       //println(stmt.getWarnings)
     }
+  }
 
-  def executeQuery(code: String, cols: List[String], bind: List[Object]): List[Map[String,Object]] = {
+  def executeQuery(
+    code: String, cols: List[String], bind: List[Object]
+  ): List[Map[String,Object]] = concurrent.blocking {
     //println(s"code:: [$code]")
     //conn.prepareCall(code).re
     FinallyClose(conn.prepareStatement(code)) { stmt ⇒
       bindObjects(stmt, bind)
+
       FinallyClose(stmt.executeQuery()) { rs ⇒
         var res: List[Map[String, Object]] = Nil
         while(rs.next()) res = cols.map(cn ⇒ cn → rs.getObject(cn)).toMap :: res

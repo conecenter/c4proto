@@ -88,19 +88,23 @@ case class ToExternalDBTx(txSrcId: SrcId, from: Option[HasState], to: Option[Has
     else WithJDBCKey.of(local){ conn ⇒
       val registry = QAdapterRegistryKey.of(local)()
       val protoToString = new ProtoToString(registry)
-      def recode(stateOpt: Option[HasState]): String = stateOpt.map{ state ⇒
+      def recode(stateOpt: Option[HasState]) = stateOpt.map{ state ⇒
         protoToString.recode(state.valueTypeId, state.value)
-      }.getOrElse("")
-      val (valueTypeId,srcId) =
-        Single(List(from,to).flatten.map(s⇒(s.valueTypeId,s.srcId)).distinct)
-      val List(delay:java.lang.Long) = conn.procedure("upd")
+      }.getOrElse(("",""))
+      val(fromSrcId,fromText) = recode(from)
+      val(toSrcId,toText) = recode(to)
+      val srcId = Single(List(fromSrcId,toSrcId).filter(_.nonEmpty).distinct)
+      val valueTypeId = Single(List(from,to).flatten.map(_.valueTypeId).distinct)
+      val List(Some(delay:java.lang.Long),errMsg:String) = conn.procedure("upd")
         .in(Thread.currentThread.getName)
         .in(Hex(valueTypeId))
         .in(srcId)
-        .in(recode(from))
-        .in(recode(to))
-        .outLong
+        .in(fromText)
+        .in(toText)
+        .outLongOption
+        .outText
         .call()
+      if(errMsg.nonEmpty) println(s"External DB Error: $errMsg")
       if(delay > 0)
         RDBSleepUntilKey.set((now.plusMillis(delay),to))(local)
       else LEvent.add(
@@ -134,12 +138,14 @@ case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform {
       Single.option(By.srcId(classOf[DBOffset]).of(world).getOrElse(srcId,Nil))
         .getOrElse(DBOffset(srcId, 0L))
     //println("offset",offset)//, By.srcId(classOf[Invoice]).of(world).size)
-    val List(nextOffsetValue: java.lang.Long, textEncoded: String) =
-      conn.procedure("poll").in(offset.value).outLong.outText.call()
+    val List(Some(nextOffsetValue: java.lang.Long), textEncoded: String) =
+      conn.procedure("poll").in(offset.value).outLongOption.outText.call()
     val updateOffset = List(DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
       .map(n⇒LEvent.add(LEvent.update(n)))
-    val updateWorld = if(textEncoded.isEmpty) Nil else
+    val updateWorld = if(textEncoded.isEmpty) Nil else {
+      println("textEncoded",textEncoded)
       List(TxKey.modify(_.add((new IndentedParser).toUpdates(textEncoded))))
+    }
     Function.chain(updateOffset ::: updateWorld)(local)
   }
 }
@@ -223,10 +229,12 @@ class ProtoToString(registry: QAdapterRegistry){
     case e: Object ⇒
       esc(id, RDBTypes.shortName(e.getClass), s"\n${RDBTypes.encode(e)}")
   }
-  def recode(valueTypeId: Long, value: ByteString): String =
+  def recode(valueTypeId: Long, value: ByteString): (String,String) =
     registry.byId.get(valueTypeId).map{ adapter ⇒
-      encode(adapter.id, adapter.decode(value.toByteArray))
-    }.getOrElse("")
+      val decoded = adapter.decode(value.toByteArray)
+      val srcId = decoded.productElement(0) match{ case s: String ⇒ s }
+      (srcId,encode(adapter.id, decoded))
+    }.getOrElse(("",""))
 }
 
 ////

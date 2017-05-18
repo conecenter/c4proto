@@ -80,7 +80,7 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
     index(getWorld()).transform{ case(key,_) ⇒ handle(getWorld,key) }
   private def handle(getWorld: () ⇒ World, key: SrcId): World ⇒ World = ((local:World) ⇒
     if(local.isEmpty) createLocal() else local
-    ).andThen{ local ⇒
+  ).andThen{ local ⇒
     val world = getWorld()
     if(
       qMessages.worldOffset(world) < OffsetWorldKey.of(local) ||
@@ -91,6 +91,7 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
         .andThen(qMessages.send)(local)
     } catch {
       case exception: Exception ⇒
+        println(s"Tx failed [$key][${Thread.currentThread.getName}]")
         exception.printStackTrace() //??? |Nil|throw
         val was = ErrorKey.of(local)
         chain(List(

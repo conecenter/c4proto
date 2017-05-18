@@ -104,7 +104,7 @@ class ByPriority[Item](uses: Item⇒List[Item]){
 }
 */
 
-object TreeAssemblerImpl extends TreeAssembler {
+class TreeAssemblerImpl(byPriority: ByPriority) extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
@@ -120,7 +120,7 @@ object TreeAssemblerImpl extends TreeAssembler {
     val byOutput: Map[WorldKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
     val expressionsByPriority: List[WorldPartExpression] =
-      (new ByPriority[
+      byPriority.byPriority[
         WorldPartExpression with DataDependencyFrom[_],
         WorldPartExpression with DataDependencyFrom[_]
       ](item⇒(
@@ -130,7 +130,16 @@ object TreeAssemblerImpl extends TreeAssembler {
           )
         }.toList,
         _ ⇒ item
-      )))(expressions).reverse
+      ))(expressions).reverse
+
+    println(
+      expressionsByPriority.zipWithIndex.flatMap{ case (expr: DataDependencyTo[_] with DataDependencyFrom[_],i) ⇒
+        def name(k: WorldKey[_]) = k match {
+          case k: Product ⇒ s"${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}"
+        }
+        expr.inputWorldKeys.map(k ⇒ s""" "${name(k)}" -> "${name(expr.outputWorldKey)}" [label=$i];""")
+      }.mkString("digraph assemble {\n","\n","\n}")
+    )
 
     replaced ⇒ prevWorld ⇒ {
       val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
