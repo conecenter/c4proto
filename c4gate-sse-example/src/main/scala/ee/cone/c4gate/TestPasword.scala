@@ -17,6 +17,7 @@ class TestPasswordApp extends ServerApp
   with ParallelObserversApp
   with UIApp
   with TestTagsApp
+  with UMLClientsApp
 {
   override def protocols: List[Protocol] = AuthProtocol :: super.protocols
   override def assembles: List[Assemble] =

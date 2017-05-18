@@ -8,6 +8,7 @@ class PublishApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with InitLocalsApp
   with PublishingApp
+  with UMLClientsApp
 {
   def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
     "html" → "text/html; charset=UTF-8",

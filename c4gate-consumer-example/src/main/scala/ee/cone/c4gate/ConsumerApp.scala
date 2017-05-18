@@ -16,6 +16,7 @@ class TestConsumerApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with InitLocalsApp
+  with UMLClientsApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: TcpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles

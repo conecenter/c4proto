@@ -17,6 +17,7 @@ class TestSSEApp extends ServerApp
   with ParallelObserversApp
   with BranchApp
   with AlienExchangeApp
+  with UMLClientsApp
 {
   override def assembles: List[Assemble] =
     new FromAlienTaskAssemble("localhost", "/sse.html") ::

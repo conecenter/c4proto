@@ -49,7 +49,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with ParallelObserversApp {
+class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with ParallelObserversApp with UMLClientsApp {
   override def indexValueMergerFactory: IndexValueMergerFactory =
     //new CachingIndexValueMergerFactory(16)
     new TreeIndexValueMergerFactory(16)

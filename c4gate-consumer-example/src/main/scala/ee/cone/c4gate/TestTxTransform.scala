@@ -15,6 +15,7 @@ abstract class TestTxTransformApp extends ServerApp
   with EnvConfigApp
   with KafkaProducerApp with KafkaConsumerApp
   with InitLocalsApp
+  with UMLClientsApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles
