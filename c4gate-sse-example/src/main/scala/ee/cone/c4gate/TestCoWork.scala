@@ -20,6 +20,7 @@ class TestCoWorkApp extends ServerApp
   with ParallelObserversApp
   with UIApp
   with TestTagsApp
+  with UMLClientsApp
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =

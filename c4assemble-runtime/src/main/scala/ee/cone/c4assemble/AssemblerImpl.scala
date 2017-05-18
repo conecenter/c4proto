@@ -104,7 +104,7 @@ class ByPriority[Item](uses: Item⇒List[Item]){
 }
 */
 
-class TreeAssemblerImpl(byPriority: ByPriority) extends TreeAssembler {
+class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit]) extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
@@ -132,14 +132,22 @@ class TreeAssemblerImpl(byPriority: ByPriority) extends TreeAssembler {
         _ ⇒ item
       ))(expressions).reverse
 
-    println(
-      expressionsByPriority.zipWithIndex.flatMap{ case (expr: DataDependencyTo[_] with DataDependencyFrom[_],i) ⇒
-        def name(k: WorldKey[_]) = k match {
-          case k: Product ⇒ s"${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}"
-        }
-        expr.inputWorldKeys.map(k ⇒ s""" "${name(k)}" -> "${name(expr.outputWorldKey)}" [label=$i];""")
-      }.mkString("digraph assemble {\n","\n","\n}")
-    )
+    umlClients.foreach(_{
+      val expressions = expressionsByPriority
+        .map{ case e: DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
+      val keyAliases: List[(WorldKey[_], String)] =
+        expressions.flatMap[WorldKey[_],List[WorldKey[_]]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
+          .distinct.zipWithIndex.map{ case (k,i) ⇒ (k,s"wk$i")}
+      val keyToAlias: Map[WorldKey[_], String] = keyAliases.toMap
+      List(
+        for((k:Product,a) ← keyAliases) yield
+          s"(${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}) as $a",
+        for((e,eIndex) ← expressions.zipWithIndex; k ← e.inputWorldKeys)
+          yield s"${keyToAlias(k)} --> $eIndex",
+        for((e,eIndex) ← expressions.zipWithIndex)
+          yield s"$eIndex --> ${keyToAlias(e.outputWorldKey)}"
+      ).flatten.mkString("@startuml\n","\n","\n@enduml")
+    })
 
     replaced ⇒ prevWorld ⇒ {
       val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
