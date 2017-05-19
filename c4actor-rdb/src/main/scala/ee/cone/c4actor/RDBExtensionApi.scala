@@ -14,17 +14,17 @@ trait RConnectionPool {
   def doWith[T](f: RConnection⇒T): T
 }
 
-trait RDBBind {
-  def in(value: String): RDBBind
-  def in(value: Long): RDBBind
-  def in(value: Boolean): RDBBind
-  def outLongOption: RDBBind
-  def outText: RDBBind
-  def call(): List[Object]
+trait RDBBind[R] {
+  def in(value: String): RDBBind[R]
+  def in(value: Long): RDBBind[R]
+  def in(value: Boolean): RDBBind[R]
+  def call(): R
 }
 
 trait RConnection {
-  def procedure(name: String): RDBBind
+  def outUnit(name: String): RDBBind[Unit]
+  def outLongOption(name: String): RDBBind[Option[Long]]
+  def outText(name: String): RDBBind[String]
   def execute(code: String): Unit
   def executeQuery(code: String, cols: List[String], bind: List[Object]): List[Map[String,Object]]
 }

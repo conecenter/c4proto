@@ -29,39 +29,37 @@ object FinallyClose {
   def apply[A,T](o: A, close: A⇒Unit)(f: A⇒T): T = try f(o) finally close(o)
 }
 
-abstract class RDBBindImpl extends RDBBind {
+abstract class RDBBindImpl[R] extends RDBBind[R] {
   def connection: java.sql.Connection
   def index: Int
   def code(wasCode: String): String
-  def execute(stmt: java.sql.CallableStatement): List[Object]
+  def execute(stmt: java.sql.CallableStatement): R
   //
   private def inObject(value: Object) = {
     //println(Thread.currentThread.getName,"bind",value)
-    new InObjectRDBBind(this, value)
+    new InObjectRDBBind[R](this, value)
   }
-  def in(value: Long): RDBBind = inObject(value:java.lang.Long)
-  def in(value: Boolean): RDBBind = inObject(value:java.lang.Boolean)
-  def in(value: String): RDBBind =
+  def in(value: Long): RDBBind[R] = inObject(value:java.lang.Long)
+  def in(value: Boolean): RDBBind[R] = inObject(value:java.lang.Boolean)
+  def in(value: String): RDBBind[R] =
     if(value.length < 1000) inObject(value) else new InTextRDBBind(this, value)
-  def outLongOption: RDBBind = new OutLongRDBBind(this)
-  def outText: RDBBind = new OutTextRDBBind(this)
-  def call(): List[Object] = concurrent.blocking {
+  def call(): R = concurrent.blocking {
     val theCode = code("")
     println(Thread.currentThread.getName,"code",theCode)
-    FinallyClose(connection.prepareCall(theCode))(execute).reverse
+    FinallyClose(connection.prepareCall(theCode))(execute)
   }
 }
 
-class InObjectRDBBind(val prev: RDBBindImpl, value: Object) extends ArgRDBBind {
-  def execute(stmt: CallableStatement): List[Object] = {
+class InObjectRDBBind[R](val prev: RDBBindImpl[R], value: Object) extends ArgRDBBind[R] {
+  def execute(stmt: CallableStatement): R = {
     stmt.setObject(index,value)
     prev.execute(stmt)
   }
 }
 
-class InTextRDBBind(val prev: RDBBindImpl, value: String) extends ArgRDBBind {
-  def execute(stmt: CallableStatement): List[Object] = {
-    FinallyClose[java.sql.Clob,List[Object]](connection.createClob(), _.free()){ clob ⇒
+class InTextRDBBind[R](val prev: RDBBindImpl[R], value: String) extends ArgRDBBind[R] {
+  def execute(stmt: CallableStatement): R = {
+    FinallyClose[java.sql.Clob,R](connection.createClob(), _.free()){ clob ⇒
       clob.setString(1,value)
       stmt.setClob(index,clob)
       prev.execute(stmt)
@@ -69,54 +67,58 @@ class InTextRDBBind(val prev: RDBBindImpl, value: String) extends ArgRDBBind {
   }
 }
 
-class OutLongRDBBind(val prev: RDBBindImpl) extends ArgRDBBind {
-  def execute(stmt: CallableStatement): List[Object] = {
-    stmt.registerOutParameter(index,java.sql.Types.BIGINT)
-    val res = prev.execute(stmt)
-    Option(stmt.getObject(index)) :: res
-  }
-}
-
-class OutTextRDBBind(val prev: RDBBindImpl) extends ArgRDBBind {
-  def execute(stmt: CallableStatement): List[Object] = {
-    stmt.registerOutParameter(index,java.sql.Types.CLOB)
-    val res = prev.execute(stmt)
-    FinallyClose[Option[java.sql.Clob],List[Object]](
-      Option(stmt.getClob(index)), _.foreach(_.free())
-    ){ clob ⇒
-      clob.map(c⇒c.getSubString(1,toIntExact(c.length()))).getOrElse("") :: res
-    }
-  }
-}
-
-abstract class ArgRDBBind extends RDBBindImpl {
-  def prev: RDBBindImpl
+abstract class ArgRDBBind[R] extends RDBBindImpl[R] {
+  def prev: RDBBindImpl[R]
   def connection: Connection = prev.connection
   def index: Int = prev.index + 1
   def code(wasCode: String): String =
     prev.code(if(wasCode.isEmpty) "?" else s"?,$wasCode")
 }
 
-class MainRDBBind(
+class OutUnitRDBBind(
   val connection: java.sql.Connection, name: String
-) extends RDBBindImpl {
+) extends RDBBindImpl[Unit] {
   def index = 0
-  def code(wasCode: String): String =
-    s"begin ${if(wasCode.isEmpty) name else s"$name($wasCode)"}; end;"
-  def execute(stmt: CallableStatement): List[Object] = {
+  def code(wasCode: String): String = s"{call $name ($wasCode)}"
+  def execute(stmt: CallableStatement): Unit = stmt.execute()
+}
+
+class OutLongRDBBind(
+  val connection: java.sql.Connection, name: String
+) extends RDBBindImpl[Option[Long]] {
+  def index = 1
+  def code(wasCode: String): String = s"{? = call $name ($wasCode)}"
+  def execute(stmt: CallableStatement): Option[Long] = {
+    stmt.registerOutParameter(index,java.sql.Types.BIGINT)
     stmt.execute()
-    Nil
+    Option(stmt.getLong(index))
   }
 }
 
-//def prepare(stmt: java.sql.CallableStatement, )
+class OutTextRDBBind(
+  val connection: java.sql.Connection, name: String
+) extends RDBBindImpl[String] {
+  def index = 1
+  def code(wasCode: String): String = s"{? = call $name ($wasCode)}"
+  def execute(stmt: CallableStatement): String = {
+    stmt.registerOutParameter(index,java.sql.Types.CLOB)
+    stmt.execute()
+    FinallyClose[Option[java.sql.Clob],String](
+      Option(stmt.getClob(index)), _.foreach(_.free())
+    ){ clob ⇒
+      clob.map(c⇒c.getSubString(1,toIntExact(c.length()))).getOrElse("")
+    }
+  }
+}
 
 class RConnectionImpl(conn: java.sql.Connection) extends RConnection {
 
   private def bindObjects(stmt: java.sql.PreparedStatement, bind: List[Object]) =
     bind.zipWithIndex.foreach{ case (v,i) ⇒ stmt.setObject(i+1,v) }
 
-  def procedure(name: String): RDBBind = new MainRDBBind(conn, name)
+  def outUnit(name: String): RDBBind[Unit] = new OutUnitRDBBind(conn, name)
+  def outLongOption(name: String): RDBBind[Option[Long]] = new OutLongRDBBind(conn, name)
+  def outText(name: String): RDBBind[String] = new OutTextRDBBind(conn, name)
 
   def execute(code: String): Unit = concurrent.blocking {
     FinallyClose(conn.prepareStatement(code)) { stmt ⇒

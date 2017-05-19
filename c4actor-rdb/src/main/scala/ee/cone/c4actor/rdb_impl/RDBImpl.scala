@@ -68,24 +68,41 @@ object ToExternalDBAssembles {
 }
 
 @assemble class ToExternalDBTxAssemble extends Assemble {
-  def join(
+  type TypeHex = String
+  def joinTasks(
     key: SrcId,
     @by[NeedSrcId] needStates: Values[HasState],
     hasStates: Values[HasState]
-  ): Values[(SrcId, TxTransform)] = {
-    if (hasStates == needStates) Nil else
-      List(key → ToExternalDBTx(key, Single.option(hasStates), Single.option(needStates)))
+  ): Values[(TypeHex, ToExternalDBTask)] = {
+    if (hasStates == needStates) Nil else {
+      val typeHex = Hex(Single((hasStates ++ needStates).map(_.valueTypeId).distinct))
+      List(typeHex → ToExternalDBTask(key, typeHex, Single.option(hasStates), Single.option(needStates)))
+    }
   }
+  def join(
+    key: SrcId,
+    @by[TypeHex] tasks: Values[ToExternalDBTask]
+  ): Values[(SrcId,TxTransform)] = List(key → ToExternalDBTx(key, tasks.toList))
 }
 
-case object RDBSleepUntilKey extends WorldKey[(Instant,Option[HasState])]((Instant.MIN,None))
+case class ToExternalDBTask(
+  srcId: SrcId,
+  typeHex: String,
+  from: Option[HasState],
+  to: Option[HasState]
+)
 
-case class ToExternalDBTx(txSrcId: SrcId, from: Option[HasState], to: Option[HasState]) extends TxTransform {
+case object RDBSleepUntilKey extends WorldKey[Map[SrcId,(Instant,Option[HasState])]](Map.empty)
+
+case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends TxTransform {
   def transform(local: World): World = {
     val now = Instant.now()
-    val (until,wasTo) = RDBSleepUntilKey.of(local)
-    if(to == wasTo && now.isBefore(until)) local
-    else WithJDBCKey.of(local){ conn ⇒
+    tasks.find{ task ⇒
+      val skip = RDBSleepUntilKey.of(local)
+      val(until,wasTo) = skip.getOrElse(task.srcId, (Instant.MIN,None))
+      until.isBefore(now) || task.to != wasTo
+    }.map{ task ⇒ WithJDBCKey.of(local) { conn ⇒
+      import task.{from,to}
       val registry = QAdapterRegistryKey.of(local)()
       val protoToString = new ProtoToString(registry)
       def recode(stateOpt: Option[HasState]) = stateOpt.map{ state ⇒
@@ -94,25 +111,28 @@ case class ToExternalDBTx(txSrcId: SrcId, from: Option[HasState], to: Option[Has
       val(fromSrcId,fromText) = recode(from)
       val(toSrcId,toText) = recode(to)
       val srcId = Single(List(fromSrcId,toSrcId).filter(_.nonEmpty).distinct)
-      val valueTypeId = Single(List(from,to).flatten.map(_.valueTypeId).distinct)
-      val List(Some(delay:java.lang.Long),errMsg:String) = conn.procedure("upd")
+      val delay = conn.outLongOption("upd")
         .in(Thread.currentThread.getName)
-        .in(Hex(valueTypeId))
+        .in(typeHex)
         .in(srcId)
         .in(fromText)
         .in(toText)
-        .outLongOption
-        .outText
-        .call()
-      if(errMsg.nonEmpty) println(s"External DB Error: $errMsg")
-      if(delay > 0)
-        RDBSleepUntilKey.set((now.plusMillis(delay),to))(local)
-      else LEvent.add(
-        from.toList.flatMap(LEvent.delete) ++ to.toList.flatMap(LEvent.update)
+        .call().getOrElse(0L)
+
+      println("delay",delay)
+      if(delay > 0L) RDBSleepUntilKey.modify(m ⇒
+        m + (task.srcId→(now.plusMillis(delay)→to))
       )(local)
-    }
+      else RDBSleepUntilKey.modify(m ⇒
+        m - task.srcId
+      ).andThen(LEvent.add(
+        from.toList.flatMap(LEvent.delete) ++ to.toList.flatMap(LEvent.update)
+      ))(local)
+    }}.getOrElse(local)
   }
 }
+
+
 
 ////
 
@@ -137,21 +157,16 @@ case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform {
     val offset =
       Single.option(By.srcId(classOf[DBOffset]).of(world).getOrElse(srcId,Nil))
         .getOrElse(DBOffset(srcId, 0L))
-    //println("offset",offset)//, By.srcId(classOf[Invoice]).of(world).size)
-    val List(Some(nextOffsetValue: java.lang.Long), textEncoded: String) =
-      conn.procedure("poll").in(offset.value).outLongOption.outText.call()
-    val updateOffset = List(DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
-      .map(n⇒LEvent.add(LEvent.update(n)))
-    val updateWorld = if(textEncoded.isEmpty) Nil else {
+    println("offset",offset)//, By.srcId(classOf[Invoice]).of(world).size)
+    val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
+    //val updateOffset = List(DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
+    //  .map(n⇒LEvent.add(LEvent.update(n)))
+    if(textEncoded.isEmpty) local else {
       println("textEncoded",textEncoded)
-      List(TxKey.modify(_.add((new IndentedParser).toUpdates(textEncoded))))
+      TxKey.modify(_.add((new IndentedParser).toUpdates(textEncoded)))(local)
     }
-    Function.chain(updateOffset ::: updateWorld)(local)
   }
 }
-
-////
-
 
 ////
 
