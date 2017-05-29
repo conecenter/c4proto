@@ -17,6 +17,7 @@ import * as CanvasExtra from "../extra/canvas-extra"
 import CanvasExtraMix from "../extra/canvas-extra-mix"
 import MetroUi       from "../extra/metro-ui"
 import CustomUi      from "../extra/custom-ui"
+import CryptoElements from "../extra/crypto-elements"
 
 function fail(data){ alert(data) }
 
@@ -46,8 +47,8 @@ const uglifyBody = style => {
 const getComputedStyle = n => window.getComputedStyle(n);
 const getPageYOffset = ()=> window.pageYOffset;
 const fileReader = ()=> (new window.FileReader());
-const getInnerHeight =()=> window.innerHeight;
-const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,getInnerHeight});
+
+const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,createElement});
 
 //customUi with hacks
 const toggleOverlay = on =>{
@@ -73,9 +74,11 @@ const toggleOverlay = on =>{
 }
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
-const getBattery = (callback) => navigator.getBattery().then(callback)
+const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
 const Scanner = window.Scanner
-const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log})
+const innerHeight = () => window.innerHeight
+const scrollBy = (x,y) => window.scrollBy(x,y)
+const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,document,scrollBy})
 window.ScannerProxy = scannerProxy
 const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery,scannerProxy});
 
@@ -97,8 +100,11 @@ const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 
+const cryptoElements = CryptoElements({log,hwcrypto:window.hwcrypto,atob});
+
+
 //transforms
-const transforms = mergeAll([metroUi.transforms,customUi.transforms])
+const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms])
 
 const vDom = VDomMix(console.log,sender,transforms,getRootElement,createElement)
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
@@ -106,7 +112,9 @@ const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandler
 const receiversList = [
     branches.receivers,
     feedback.receivers,
+	metroUi.receivers,
     customUi.receivers,
+	cryptoElements.receivers,
     {fail}
 ]
 const composeUrl = () => {
@@ -117,4 +125,4 @@ const composeUrl = () => {
 const createEventSource = () => new EventSource(window.sseUrl||composeUrl())
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)
-activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate])
+activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate,metroUi.checkActivate])
