@@ -31,7 +31,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		if(isReactRoot(el) || !el.parentNode) return el
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
-	}
+	}	
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -822,7 +822,13 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 
 	const DropDownElement = React.createClass({
 		getInitialState:function(){
-			return {popupMinWidth:0};
+			return {popupMinWidth:0,left:null,top:null};
+		},
+		recalc:function(){
+			if(!this.inp) return null;
+			const rect = this.inp.getBoundingClientRect()
+			if(Math.round(this.state.left)!=Math.round(rect.left)||Math.round(this.state.top)!=Math.round(rect.bottom))
+				this.setState({left:rect.left,top:rect.bottom})
 		},
 		onChange:function(e){
 			if(this.props.onChange)
@@ -833,15 +839,21 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.props.onClickValue("click");
 		},		
 		setPopupWidth:function(){
-			if(!this.inp||!this.inp.cont) return;
+			if(!this.inp||!this.inp.cont) return null;
 			const minWidth = this.inp.cont.getBoundingClientRect().width;
-			if(Math.round(this.state.popupMinWidth) != Math.round(minWidth)) this.setState({popupMinWidth:minWidth});
+			if(Math.round(this.state.popupMinWidth) != Math.round(minWidth)) return {popupMinWidth:minWidth};
+		},
+		state:function(){
+			const nW = this.setPopupWidth()
+			const nR = this.recalc()
+			const state = {...nW,...nR}
+			if(Object.keys(state).length>0) this.setState(state)
 		},
 		componentDidMount:function(){
-			this.setPopupWidth()		
+			this.state()
 		},
 		componentDidUpdate:function(){
-			this.setPopupWidth()			
+			this.state()
 		},			
 		render:function(){			
 			const popupStyle={
@@ -856,6 +868,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflowX:"hidden",
 				marginLeft:"-0.04em",
 				lineHeight:"normal",
+				left:this.state.left?this.state.left+"px":"",
+				top:this.state.top?this.state.top+"px":"",
 				...this.props.popupStyle
 			};
 			

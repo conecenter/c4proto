@@ -72,43 +72,68 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				]);
     		},
     	});
-		
-	const ColorPicker = ({onChange,style,children,isOpen}) => 
-
-		React.createElement('div',{
-		style: {
-				width:"100%",
-				boxSizing:"border-box",
-				//position:"relative",
-			}},[
-				React.createElement('div', {
-						key:'1',
-						style: {
-							minWidth:'6em',
-							height:'2em',
-							textShadow:'0.125em 0.125em 0.24em rgba(0, 0, 0, 0.4)',
-							color:'white',
-							padding:'0rem 0rem 0rem 0.2rem',
-							lineHeight:'2em',
-							verticalAlign:'middle',
-							...style
-						},
-						onClick: ev => onChange({ target:{value:""} })
-				}, null),
-				isOpen?React.createElement('div', {
-						key:'2',
-						style: {
-							position:"absolute",
-							display:'flex',
-							flexWrap:'wrap',
-							maxWidth:'24em',
-							//top:'100%',							
-							border:'0.06em solid grey',
-							zIndex: "669",
-						}
-				},children):null
-			]
-	)
+	const getHeightLimiter = function(el){
+		if(el.className=="heightLimiter" || el.parentNode) return el
+		const parentEl = el.parentNode
+		return getHeightLimiter(parentEl)
+	}
+	const ColorPicker = React.createClass({
+		getInitialState:function(){
+			return {left:null,top:null}
+		},
+		recalc:function(){
+			if(!this.el) return
+			const rect = this.el.getBoundingClientRect()
+			if(Math.round(this.state.left)!=Math.round(rect.left)||Math.round(this.state.top)!=Math.round(rect.bottom))
+				this.setState({left:rect.left,top:rect.bottom})
+		},
+		componentDidMount:function(){
+			this.recalc()
+		},
+		componentDidUpdate:function(){
+			this.recalc()
+		},
+		render:function(){
+			const {onChange,style,children,isOpen} = this.props
+			return React.createElement('div',{
+				style: {
+						width:"100%",
+						boxSizing:"border-box",
+						//position:"relative",
+					}},[
+						React.createElement('div', {
+								key:'1',
+								ref:ref=>this.el=ref,
+								style: {
+									minWidth:'6em',
+									height:'2em',
+									textShadow:'0.125em 0.125em 0.24em rgba(0, 0, 0, 0.4)',
+									color:'white',
+									padding:'0rem 0rem 0rem 0.2rem',
+									lineHeight:'2em',
+									verticalAlign:'middle',
+									...style
+								},
+								onClick: ev => onChange({ target:{value:""} })
+						}, null),
+						isOpen?React.createElement('div', {
+								key:'2',
+								style: {
+									position:"absolute",
+									display:'flex',
+									flexWrap:'wrap',
+									maxWidth:'24em',
+									left:this.state.left?this.state.left+"px":"",
+									top:this.state.top?this.state.top+"px":"",
+									//top:'100%',							
+									border:'0.06em solid grey',
+									zIndex: "669",
+								}
+						},children):null
+					]
+			)
+		}
+	})		
 	
 	const ColorItem = ({value,onChange,style}) => React.createElement('div',{
 		style: {
