@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function CryptoElements({log,hwcrypto,atob}){
+export default function CryptoElements({log,hwcrypto,atob,parentWindow}){
 	
 	const DigiModule = function(){
 		const callbacksAcc = [];
@@ -20,7 +20,7 @@ export default function CryptoElements({log,hwcrypto,atob}){
 					log(certificate)
 					callback(certificate)										
 				},
-				error=>log(error)
+				error=>parentWindow&&parentWindow().digisign.sendError(error.toString())
 			)
 		}
 		return {reg,requestCertificate}
@@ -49,7 +49,7 @@ export default function CryptoElements({log,hwcrypto,atob}){
 			  log(signature);
 			  if(this.props.onReadySendBlob)
 				  this.props.onReadySendBlob("signature",signature.value)
-		    }, error => log(error));
+		    }, error => parentWindow&&parentWindow().digisign.sendError(error.toString()));
 			return true;
 		},
 		signDigest:function(digest64){			

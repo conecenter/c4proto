@@ -99,8 +99,8 @@ const ddMix = canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterva
 const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
-
-const cryptoElements = CryptoElements({log,hwcrypto:window.hwcrypto,atob});
+const parentWindow = ()=> parent
+const cryptoElements = CryptoElements({log,hwcrypto:window.hwcrypto,atob,parentWindow});
 
 
 //transforms

@@ -365,7 +365,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		fontSize:'1.4em',
 		color:'white',
 		textAlign:'center',
-		borderRadius:'0.58em',
+		borderRadius:'0.28em',
 		border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,		
 		backgroundColor:"white",
 		cursor:'default',
@@ -825,8 +825,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return {popupMinWidth:0,left:null,top:null};
 		},
 		recalc:function(){
-			if(!this.inp) return null;
-			const rect = this.inp.getBoundingClientRect()
+			if(!this.inp||!this.inp.cont) return null;
+			const rect = this.inp.cont.getBoundingClientRect()
 			if(Math.round(this.state.left)!=Math.round(rect.left)||Math.round(this.state.top)!=Math.round(rect.bottom))
 				this.setState({left:rect.left,top:rect.bottom})
 		},
@@ -843,17 +843,17 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const minWidth = this.inp.cont.getBoundingClientRect().width;
 			if(Math.round(this.state.popupMinWidth) != Math.round(minWidth)) return {popupMinWidth:minWidth};
 		},
-		state:function(){
+		mixState:function(){
 			const nW = this.setPopupWidth()
 			const nR = this.recalc()
 			const state = {...nW,...nR}
 			if(Object.keys(state).length>0) this.setState(state)
 		},
 		componentDidMount:function(){
-			this.state()
+			this.mixState()
 		},
 		componentDidUpdate:function(){
-			this.state()
+			this.mixState()
 		},			
 		render:function(){			
 			const popupStyle={
