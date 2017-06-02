@@ -100,7 +100,7 @@ const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 const parentWindow = ()=> parent
-const cryptoElements = CryptoElements({log,hwcrypto:window.hwcrypto,atob,parentWindow});
+const cryptoElements = CryptoElements({log,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
 
 
 //transforms
