@@ -84,7 +84,7 @@ export default function CryptoElements({log,ui,hwcrypto,atob,parentWindow}){
 			return React.createElement("span",{id:"signDigest"});
 		}
 	})
-	let called = false
+	let sentPositiveAuth = false
 	const ReportDigiStatusElement = React.createClass({
 		getInitialState:function(){
 			return {width:0}
@@ -93,16 +93,19 @@ export default function CryptoElements({log,ui,hwcrypto,atob,parentWindow}){
 			const halves = statusMsg.trim().split(':')
 			this.setState({width:(halves[0]*100/halves[1])})
 			if(halves.length == 2 && halves[0] == halves[1]){
-				sendPositiveAuth()
+				if(!sentPositiveAuth){
+					sendPositiveAuth()					
+					sentPositiveAuth = true;
+				}
 			}
 			return true;
 		},
 		componentDidMount:function(){
-			called = this.call(this.props.statusMsg)
+			this.call(this.props.statusMsg)
 		},
 		componentDidUpdate:function(prevProps,_){
 			if(this.props.statusMsg!=prevProps.statusMsg){
-				called = this.call(this.props.statusMsg)
+				this.call(this.props.statusMsg)
 			}
 		},
 		render:function(){

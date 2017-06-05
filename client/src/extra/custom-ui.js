@@ -71,12 +71,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 					])*/
 				]);
     		},
-    	});
-	const getHeightLimiter = function(el){
-		if(el.className=="heightLimiter" || el.parentNode) return el
-		const parentEl = el.parentNode
-		return getHeightLimiter(parentEl)
-	}
+    	});	
 	const ColorPicker = React.createClass({
 		getInitialState:function(){
 			return {left:null,top:null}
@@ -152,7 +147,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 		React.createElement('span',{}, value)
 	])
 
-	const Chip=ui.transforms.tp.Chip;
+	const ChipElement=ui.transforms.tp.ChipElement;
 	const TDElement=ui.transforms.tp.TDElement;
 	const ConnectionState=ui.transforms.tp.ConnectionState;
 	
@@ -180,7 +175,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				borderColor:this.state.lit?'#ffa500':'#eeeeee',				
 			};
 		
-			return React.createElement(Chip,{style,onClick:this.onClick},this.props.fkey);
+			return React.createElement(ChipElement,{style,onClick:this.onClick},this.props.fkey);
 		}
 	});
 	const TerminalElement=React.createClass({   

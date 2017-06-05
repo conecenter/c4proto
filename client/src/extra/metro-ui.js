@@ -360,20 +360,44 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	FlexGroup.defaultProps = {
 		bp:"15"
 	};
-	const Chip = ({value,style,onClick,children})=>React.createElement('input',{style:{
-		fontWeight:'bold',
-		fontSize:'1.4em',
+	const ChipElement = ({value,style,onClick,children}) => React.createElement("div",{style:{
+		fontWeight:'600',
+		fontSize:'1em',
 		color:'white',
 		textAlign:'center',
 		borderRadius:'0.28em',
 		border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,		
-		backgroundColor:"white",
+		backgroundColor:"#eee",
 		cursor:'default',
-		width:'3.8em',
-		display:'block',
-		marginBottom:'0.1rem',
+		//width:'3.8em',
+		display:'inline-block',				
+		margin:'0 0.1em',
+		verticalAlign:"top",
+		paddingTop:"0em",
+		paddingBottom:"0em",
+		paddingLeft:"0.8em",
+		paddingRight:children?"0em":"0.8em",
+		height:"1em",
 		...style
-	},readOnly:'readonly',value:(children || value),onClick},null);	
+	}},onClick,[value,children])
+	const ChipDeleteElement = ({style,onClick}) =>React.createElement(Interactive,{},(actions)=>React.createElement("div",{style:{
+			//"float":"right",
+			color:"#666",
+			width:"0.8em",
+			cursor:"pointer",
+			height:"100%",
+			display:"inline-block",
+			borderRadius:"0 0.3em 0.3em 0",
+			backgroundColor:actions.mouseOver?"rgb(33, 150, 243)":"transparent",
+			color:actions.mouseOver?"#fff":"#666",
+			...style
+		},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut},React.createElement("span",{style:{
+			fontSize:"0.5em",
+			position:"relative",
+			bottom:"calc(50% - 0.5em)"
+		},onClick},"x"))
+	)	
+	
 	const VKTd = React.createClass({
 		getInitialState:function(){
 			return {touch:false,mouseDown:false};
@@ -772,7 +796,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				flex:"1 1 0%",
 				height:"auto",
 				minHeight:"100%",
-				overflow:"hidden",				
+				overflow:"hidden",
+				display:"flex"
 			};
 			const inputStyle={
 				textOverflow:"ellipsis",
@@ -780,19 +805,20 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				verticalAlign:"top",
 				color:"rgb(33,33,33)",
 				border:"none",
-				height:"100%",
+				height:this.props.div?"auto":"100%",
 				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
 				width:"100%",
 				zIndex:"0",
 				boxSizing:"border-box",
 				MozAppearence:"none",
-				whiteSpace:"nowrap",
+				whiteSpace:this.props.div?"normal":"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
 				textTransform:"inherit",
 				backgroundColor:"inherit",
 				outline:"none",
 				textAlign:"inherit",
+				display:this.props.div?"inline-block":"",
 				...this.props.inputStyle
 			};		
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
@@ -800,7 +826,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const type = this.props.type?this.props.type:"text"
 			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
 			const rows= this.props.rows?this.props.rows:"2";			
-			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};			
+			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
+			const overRideInputStyle = this.props.div?{flex:"1 1 0%"}:{}
 			return React.createElement("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					React.createElement("div",{key:"xx",style:inp2ContStyle},[
@@ -808,9 +835,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 							key:"1",
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
-							style:inputStyle,							
+							style:{...inputStyle,...overRideInputStyle},							
 							onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
-							},this.props.div?this.props.value:null),
+							},this.props.div?this.props.inputChildren:null),
+						this.props.div?
+						React.createElement("input",{style:{...inputStyle,flex:"1 1 20%"},key:"input",onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:this.props.value}):
+						null,	
 						this.props.popupElement?this.props.popupElement():null
 					]),
 					this.props.buttonElement?this.props.buttonElement():null
@@ -866,7 +896,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				zIndex: "666",
 				boxSizing:"border-box",
 				overflowX:"hidden",
-				marginLeft:"-0.04em",
+				//marginLeft:"",
 				lineHeight:"normal",
 				left:this.state.left?this.state.left+"px":"",
 				top:this.state.top?this.state.top+"px":"",
@@ -888,29 +918,20 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const buttonElement = () => [React.createElement(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
-			const value = this.props.div? this.props.children[0]:this.props.value
+			const value = this.props.value
+			const inputChildren = this.props.div? this.props.children[0]: null
 			const popupElement = () => [this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.div?this.props.children[1]:this.props.children):null];
 			
-			return React.createElement(InputElement,{...this.props,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur});							
+			return React.createElement(InputElement,{...this.props,inputChildren,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur});							
 		}
-	});
-	/*const ButtonInputElementBase = React.createClass({
-		getInitialState:function(){return {mouseOver:false}},
-		onMouseOver:function(){this.setState({mouseOver:true})},
-		onMouseOut:function(){this.setState({mouseOver:false})},
-		render:function(){
-			
-			return React.createElement("div",{key:"2",style:openButtonWrapperStyle},
-				React.createElement(ButtonElement,{key:"1",style:openButtonStyle,onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut,onClick:this.props.onClick},this.props.children)
-		)}
-	})*/
+	});	
 	const ButtonInputElement = (props) => React.createElement(Interactive,{},(actions)=>{
 		const openButtonWrapperStyle= {				
 			flex:"1 1 0%",
 			height:"auto",
 			minHeight:"100%",
 			overflow:"hidden",
-			backgroundColor:"inherit",
+			backgroundColor:"transparent",
 			flex:"0 1 auto",
 		};
 		const openButtonStyle={
@@ -1891,7 +1912,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,AnchorElement,HeightLimitElement,
 			DropDownElement,DropDownWrapperElement,
-			LabelElement,Chip,FocusableElement,PopupElement,Checkbox,
+			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
 			DateTimeClockElement,
