@@ -15,9 +15,9 @@ export default function CryptoElements({log,ui,hwcrypto,atob,parentWindow}){
 		const digisign = parentWindow().digisign
 		return digisign&&digisign.preptext
 	}
-	const sendPositiveAuth = function(){
+	const sendPositiveSign = function(){
 		const digisign = parentWindow().digisign
-		digisign&&digisign.sendPositiveAuth()
+		digisign&&digisign.sendPositiveSign()
 	}
 	const DigiModule = function(){
 		const callbacksAcc = [];
@@ -84,7 +84,7 @@ export default function CryptoElements({log,ui,hwcrypto,atob,parentWindow}){
 			return React.createElement("span",{id:"signDigest"});
 		}
 	})
-	let sentPositiveAuth = false
+	let sentPositiveSign = false
 	const ReportDigiStatusElement = React.createClass({
 		getInitialState:function(){
 			return {width:0}
@@ -93,9 +93,9 @@ export default function CryptoElements({log,ui,hwcrypto,atob,parentWindow}){
 			const halves = statusMsg.trim().split(':')
 			this.setState({width:(halves[0]*100/halves[1])})
 			if(halves.length == 2 && halves[0] == halves[1]){
-				if(!sentPositiveAuth){
-					sendPositiveAuth()					
-					sentPositiveAuth = true;
+				if(!sentPositiveSign){
+					sendPositiveSign()					
+					sentPositiveSign = true;
 				}
 			}
 			return true;
