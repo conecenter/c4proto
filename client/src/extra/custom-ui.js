@@ -175,7 +175,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				borderColor:this.state.lit?'#ffa500':'#eeeeee',				
 			};
 		
-			return React.createElement(ChipElement,{style,onClick:this.onClick},this.props.fkey);
+			return React.createElement(ChipElement,{style,onClick:this.onClick,value:this.props.fkey});
 		}
 	});
 	const TerminalElement=React.createClass({   

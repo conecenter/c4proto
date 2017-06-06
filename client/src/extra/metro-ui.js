@@ -99,9 +99,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		process:function(){
 			if(!this.el) return;
-			const height = this.el.getBoundingClientRect().height + "px";
-			if(height !== this.state.fixedHeight)
-				this.setState({fixedHeight:height});
+			const height = this.el.getBoundingClientRect().height + "px";			
+			if(height !== this.state.fixedHeight) this.setState({fixedHeight:height});			
 		},
 		onScroll:function(){
 			const scrolled = getPageYOffset()>0;
@@ -120,7 +119,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		render:function(){
 			const style = {
-				height:this.state.fixedHeight				
+				height:this.state.fixedHeight,				
 			}
 			const barStyle = {
 				display:'flex',
@@ -136,10 +135,18 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				...this.props.style
 			}
 			return React.createElement("div",{style:style},				
-				React.createElement("div",{style:barStyle,ref:ref=>this.el=ref},this.props.children)
+				React.createElement("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref},this.props.children)
 			)
 		}		
 	});
+	const getParentNode = function(childNode,className){
+		let parentNode = childNode.parentNode;
+		while(parentNode!=null&&parentNode!=undefined){
+			if(parentNode.classList.contains(className)) break;
+			parentNode = parentNode.parentNode;
+		}
+		return parentNode;
+	}
 	const MenuDropdownElement = React.createClass({
 		getInitialState:function(){
 			return {maxHeight:"",rightOffset:0};
@@ -153,8 +160,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		componentDidMount:function(){
 			if(!this.el) return
-			const reactRoot = getReactRoot(this.el)
-			const maxRight = reactRoot.getBoundingClientRect().right
+			const menuRoot = getParentNode(this.el,"menuBar");
+			const maxRight = menuRoot.getBoundingClientRect().right
 			const elRight = this.el.getBoundingClientRect().right
 			if(elRight>maxRight) this.setState({rightOffset:elRight - maxRight})
 		},
@@ -379,7 +386,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		paddingRight:children?"0em":"0.8em",
 		height:"1em",
 		...style
-	}},onClick,[value,children])
+	},onClick},[value,children])
 	const ChipDeleteElement = ({style,onClick}) =>React.createElement(Interactive,{},(actions)=>React.createElement("div",{style:{
 			//"float":"right",
 			color:"#666",
@@ -819,7 +826,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				outline:"none",
 				textAlign:"inherit",
 				display:this.props.div?"inline-block":"",
-				...this.props.inputStyle
+				...this.props.inputStyle				
 			};		
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const inputType = this.props.inputType;//this.props.inputType?this.props.inputType:"input"
@@ -1264,6 +1271,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
 		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
+		const styleA = {
+			...attributesA.style,
+			//textTransform:"none"
+		}
 		const styleB = {
 			...attributesB.style,
 			textTransform:"none"
@@ -1272,7 +1283,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			React.createElement("form",{key:"form",onSubmit:e=>e.preventDefault()},[
 				React.createElement(DropDownWrapperElement,{key:"1"},
 					React.createElement(LabelElement,{label:usernameCaption},null),
-					React.createElement(InputElement,{...attributesA,focus:prop.focus},null)			
+					React.createElement(InputElement,{...attributesA,style:styleA,focus:prop.focus},null)			
 				),
 				React.createElement(DropDownWrapperElement,{key:"2"},
 					React.createElement(LabelElement,{label:passwordCaption},null),
