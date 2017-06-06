@@ -1,6 +1,8 @@
 
 package ee.cone.c4assemble
 
+// see Topological sorting
+
 //import java.util.Comparator
 
 import Types._

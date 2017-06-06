@@ -49,6 +49,79 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
+/*
+object LifeTypes {
+  type MortalSrcId = SrcId
+}
+
+@assemble class LifeAssemble[Parent,Child](
+  classOfParent: Class[Parent],
+  classOfChild: Class[Child]
+) extends Assemble {
+  import LifeTypes.ParentSrcId
+  def join(
+    key: SrcId,
+    parents: Values[Parent],
+    @by[ParentSrcId] children: Values[Child]
+  ): Values[(SrcId,TxTransform)] = ???
+}
+*/
+
+
+
+
+/*
+object LifeTypes {
+  type MortalSrcId = SrcId
+}
+
+trait GiveLifeRulesApp {
+  def emptyGiveLifeRules: GiveLifeRules
+  def giveLifeRules: GiveLifeRules = emptyGiveLifeRules
+}
+trait GiveLifeRules {
+  def add[Giver,Mortal](rule: GiveLifeRule[Giver,Mortal]): GiveLifeRules
+}
+abstract class GiveLifeRule[Giver,Mortal](to: Giver ⇒ List[Mortal]) extends Product
+
+
+case class GiveLifeRulesImpl() extends GiveLifeRules {
+  def add[Giver, Mortal](rule: GiveLifeRule[Giver, Mortal]): GiveLifeRules = ???
+}
+
+
+object ToPrimaryKey {
+  def apply(p: Product): SrcId = p.productElement(0) match{ case s: String ⇒ s }
+}
+@assemble class GiveLifeAssemble[Giver<:Product,Mortal<:Product](
+  classOfGiver: Class[Giver],
+  classOfMortal: Class[Mortal],
+  f: Giver ⇒ List[Mortal]
+) extends Assemble {
+  import LifeTypes.MortalSrcId
+  def join(
+    key: SrcId,
+    givers: Values[Giver]
+  ): Values[(MortalSrcId,Mortal)] =
+    for(giver ← givers; mortal ← f(giver)) yield ToPrimaryKey(mortal) → mortal
+}
+
+@assemble class MortalAssemble[Mortal<:Product](
+  classOfMortal: Class[Mortal]
+) extends Assemble {
+  import LifeTypes.MortalSrcId
+  def join(
+    key: SrcId,
+    mortals: Values[Mortal],
+    @by[MortalSrcId] lives: Values[Mortal]
+  ): Values[(SrcId,TxTransform)] =
+    if(mortals.nonEmpty && lives.isEmpty) {
+      val pk = s"kill/${classOfMortal.getName}/$key"
+      List(pk → SimpleTxTransform[Product](pk, mortals.flatMap(LEvent.delete)))
+    } else Nil
+}
+*/
+
 class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with ParallelObserversApp with UMLClientsApp {
   override def indexValueMergerFactory: IndexValueMergerFactory =
     //new CachingIndexValueMergerFactory(16)
