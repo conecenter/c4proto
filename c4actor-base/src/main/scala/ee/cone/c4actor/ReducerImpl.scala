@@ -136,10 +136,6 @@ class ParallelObserver(localStates: Map[SrcId,List[Future[World]]])(
   }
 }
 
-case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) extends TxTransform {
-  def transform(local: World): World = LEvent.add(todo)(local)
-}
-
 object ProtocolDataDependencies {
   def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
     protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒

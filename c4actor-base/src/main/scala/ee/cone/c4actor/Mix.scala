@@ -71,3 +71,7 @@ trait ParallelObserversApp {
   def txTransforms: TxTransforms
   lazy val txObserver = Option(new ParallelObserver(Map.empty)(txTransforms))
 }
+
+trait MortalFactoryApp extends AssemblesApp {
+  def mortal: MortalFactory = MortalFactoryImpl
+}
