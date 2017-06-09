@@ -56,3 +56,7 @@ case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, paren
 }
 
 case object SendToAlienKey extends WorldKey[(Seq[String],String,String)⇒World⇒World]((_,_,_)⇒throw new Exception)
+
+trait BranchError {
+  def message: String
+}
