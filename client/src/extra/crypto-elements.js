@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function CryptoElements({log,ui,hwcrypto,atob,parentWindow}){
+export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWindow}){
 	const FlexGroup = ui.transforms.tp.FlexGroup
 	const sendError = function(msg){
 		const digisign = parentWindow().digisign
@@ -40,11 +40,27 @@ export default function CryptoElements({log,ui,hwcrypto,atob,parentWindow}){
 			)
 		}
 		return {reg,requestCertificate}
-	}()	
+	}()
+	const sendToServer = (type,value) =>{
+		const app = "digisign"
+		feedback.send({
+			url:"/connection",
+			options:{
+				headers:{
+					"X-r-app":app,
+					"X-r-type":type,
+					"X-r-mdkey":getIdKey(),
+					"X-r-branch":`${app}_placeholder`
+				},
+				body:value
+			}
+		})
+	}
 	const UserCertificateElement = React.createClass({
-		onCertificate:function(certificate){			
-			if(this.props.onReadySendBlob)						
-				this.props.onReadySendBlob(getIdKey(),certificate.encoded);
+		onCertificate:function(certificate){
+			sendToServer("certificate",certificate.encoded)
+			//if(this.props.onReadySendBlob)						
+			//	this.props.onReadySendBlob(getIdKey(),certificate.encoded);
 		},
 		componentDidMount:function(){
 			DigiModule.requestCertificate(this.onCertificate);
@@ -55,16 +71,17 @@ export default function CryptoElements({log,ui,hwcrypto,atob,parentWindow}){
 		render:function(){
 			return React.createElement("span",{id:"userCert"});
 		}
-	});
+	});	
 	let signedDigest = false
 	const SignDigestElement = React.createClass({
 		onCertificate:function(certificate){
 			const digest64 = this.props.digest
 			const digest = Uint8Array.from(atob(digest64), c => c.charCodeAt(0))			
 			hwcrypto.sign(certificate, {type: 'SHA-256', value: digest}, {}).then(signature => {			  
-			  log(signature);
-			  if(this.props.onReadySendBlob)
-				  this.props.onReadySendBlob(getIdKey(),signature.value)
+				log(signature);
+				sendToServer("signature",signature.value)
+			  //if(this.props.onReadySendBlob)
+			//	  this.props.onReadySendBlob(getIdKey(),signature.value)
 		    }, error =>sendError(error.toString()));
 			return true;
 		},

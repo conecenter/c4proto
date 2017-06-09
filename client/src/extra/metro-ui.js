@@ -8,7 +8,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,createElement}){
+export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect}){
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -16,7 +16,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			outlineColor:"blue",
 			outlineOffset:"-0.1em",
 			boxShadow:"0 0 0.3125em 0 rgba(0, 0, 0, 0.3)",
-			borderWidth:"0.04em",
+			borderWidth:"1px",
 			borderStyle:"solid",
 			borderSpacing:"0em",
 		}
@@ -154,7 +154,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		calcMaxHeight:function(){
 			if(!this.el) return;			
 			const elTop = this.el.getBoundingClientRect().top;
-			const innerHeight = getReactRoot(this.el).height//getInnerHeight();
+			const innerHeight = getWindowRect().height;
 			if(this.props.isOpen&&parseFloat(this.state.maxHeight)!=innerHeight - elTop)						
 				this.setState({maxHeight:innerHeight - elTop + "px"});				
 		},
@@ -368,7 +368,6 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		bp:"15"
 	};
 	const ChipElement = ({value,style,onClick,children}) => React.createElement("div",{style:{
-		fontWeight:'600',
 		fontSize:'1em',
 		color:'white',
 		textAlign:'center',
@@ -380,28 +379,27 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		display:'inline-block',				
 		margin:'0 0.1em',
 		verticalAlign:"top",
-		paddingTop:"0em",
-		paddingBottom:"0em",
-		paddingLeft:"0.8em",
-		paddingRight:children?"0em":"0.8em",
-		height:"1em",
+		paddingTop:"0.05em",
+		paddingBottom:"0.2em",
+		paddingLeft:"0.3em",
+		paddingRight:children?"0em":"0.8em",		
+		whiteSpace:"nowrap",
 		...style
 	},onClick},[value,children])
 	const ChipDeleteElement = ({style,onClick}) =>React.createElement(Interactive,{},(actions)=>React.createElement("div",{style:{
 			//"float":"right",
-			color:"#666",
+			//color:"#666",
 			width:"0.8em",
 			cursor:"pointer",
-			height:"100%",
+			//height:"100%",
 			display:"inline-block",
-			borderRadius:"0 0.3em 0.3em 0",
-			backgroundColor:actions.mouseOver?"rgb(33, 150, 243)":"transparent",
-			color:actions.mouseOver?"#fff":"#666",
+			//borderRadius:"0 0.3em 0.3em 0",
+			//backgroundColor:"transparent",			
 			...style
 		},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut},React.createElement("span",{style:{
-			fontSize:"0.5em",
+			fontSize:"0.7em",
 			position:"relative",
-			bottom:"calc(50% - 0.5em)"
+			bottom:"calc(0.1em)"
 		},onClick},"x"))
 	)	
 	
@@ -688,6 +686,59 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	});
 		
 	const TBodyElement = ({style,children})=>React.createElement("tbody",{style:style},children);
+	const DragDropManager = (()=>{
+		let cNode = null;
+		let cNodeData = null;
+		const mouseHitPoint = {x:0,y:0}
+		const release = () => {
+			if(!cNode) return false;			
+			bodyManager.remove(cNode);			
+			cNode = null;
+			removeEventListener("mousemove",onMouseMove)
+			removeEventListener("mouseup",onMouseUp)
+			removeEventListener("touchend",onMouseUp)
+			removeEventListener("touchmove",onMouseMove)
+			return false;
+		}
+		const onMouseMove = (event) => {
+			if(!cNode) return;			
+			cNode.style.top = mouseHitPoint.top - mouseHitPoint.y + event.clientY + "px"
+			cNode.style.left = mouseHitPoint.left - mouseHitPoint.x + event.clientX + "px"
+			event.preventDefault();
+		}
+		const onMouseUp = (event) => {
+			release();
+		}
+		
+		const dragStart = (x,y,node,data) => {			
+			cNode = bodyManager.createElement("table")
+			cNodeData = data;
+			cNode.appendChild(node.parentNode.cloneNode(true));
+			const parentRect = node.parentNode.getBoundingClientRect();			
+			cNode.style.width = node.parentNode.getBoundingClientRect().width + "px";
+			cNode.style.position="absolute";
+			cNode.style.top = parentRect.top + "px"
+			cNode.style.left = parentRect.left + "px"
+			cNode.style.opacity = "0.7"
+			cNode.style.pointerEvents = "none";
+			bodyManager.add(cNode)
+			mouseHitPoint.x = x
+			mouseHitPoint.y = y
+			mouseHitPoint.top = parentRect.top
+			mouseHitPoint.left = parentRect.left
+			addEventListener("mousemove",onMouseMove)
+			addEventListener("touchmove",onMouseMove)
+			addEventListener("mouseup",onMouseUp)
+			addEventListener("touchend",onMouseUp)
+			return ({release});
+		}
+		const getData = () => cNodeData
+		const onDrag = () => cNode&&true
+		
+		return {dragStart,getData,onDrag}
+	})()
+	
+	
 	const THElement = React.createClass({
 		getInitialState:function(){
 			return {last:false}
@@ -703,9 +754,28 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		componentDidUpdate:function(){
 			this.checkForSibling()
 		},
+		componentWillUnmount:function(){
+			if(this.dragBinding) this.dragBinding.release();
+		},
+		onMouseDown:function(e){
+			if(!this.props.draggable) return;
+			if(!this.el) return;
+			this.dragBinding = DragDropManager.dragStart(e.clientX,e.clientY,this.el,this.props.dragData);
+			if(this.props.dragData && this.props.onClickValue)
+				this.props.onClickValue("","")
+			e.preventDefault();
+		},
+		onMouseUp:function(e){
+			if(!this.props.droppable) return;
+			const data = DragDropManager.onDrag()&&DragDropManager.getData()
+			if(data && this.props.onClickValue)
+				this.props.onClickValue("",data)
+		},
 		render:function(){
 			const {style,colSpan,children} = this.props
-			return React.createElement("th",{style:{
+			const nodeType = this.props.nodeType?this.props.nodeType:"th"
+			const hightlight = this.props.droppable&&this.props.mouseOver&&DragDropManager.onDrag()
+			return React.createElement(nodeType,{style:{
 				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 				borderLeft:'none',
 				borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
@@ -715,11 +785,26 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				verticalAlign:'middle',
 				overflow:"hidden",				
 				textOverflow:"ellipsis",
+				cursor:this.props.draggable?"move":"auto",
+				backgroundColor:hightlight?"blue":"transparent",				
 				...style
-			},colSpan,ref:ref=>this.el=ref},children)
+			},colSpan,
+			ref:ref=>this.el=ref,
+			onMouseDown:this.onMouseDown,
+			onTouchStart:this.onMouseDown,			
+			onMouseOver:this.props.onMouseOver,
+			onMouseOut:this.props.onMouseOut,
+			onMouseUp:this.onMouseUp,
+			onTouchEnd:this.onMouseUp,
+			},children)
 		}
 	})
-	const TDElement = ({style,colSpan,children}) => React.createElement(THElement,{style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...style},colSpan},children)	
+	const TDElement = (props) =>{		
+		if(props.droppable)
+			return React.createElement(Interactive,{},actions=>React.createElement(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",...actions}))
+		else	
+			return React.createElement(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td"})
+	}	
 	const TRElement = React.createClass({
 		getInitialState:function(){
 			return {touch:false,mouseOver:false};
@@ -826,27 +911,31 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				outline:"none",
 				textAlign:"inherit",
 				display:this.props.div?"inline-block":"",
+				fontFamily:"inherit",
 				...this.props.inputStyle				
 			};		
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const inputType = this.props.inputType;//this.props.inputType?this.props.inputType:"input"
 			const type = this.props.type?this.props.type:"text"
 			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
-			const rows= this.props.rows?this.props.rows:"2";			
+			const rows= this.props.rows?this.props.rows:"2";
+			const content = this.props.content;
 			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
-			const overRideInputStyle = this.props.div?{flex:"1 1 0%"}:{}
+			const overRideInputStyle = this.props.div?{flex:"0 1 auto",padding:"0.24em 0.1em",width:"auto"}:{}
+			const overRideCont2Style = this.props.div?{flexWrap:"wrap"}:{}
 			return React.createElement("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
-					React.createElement("div",{key:"xx",style:inp2ContStyle},[
+					React.createElement("div",{key:"xx",style:{...inp2ContStyle,...overRideCont2Style}},[
 						React.createElement(inputType,{
 							key:"1",
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
+							content,
 							style:{...inputStyle,...overRideInputStyle},							
 							onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
 							},this.props.div?this.props.inputChildren:null),
 						this.props.div?
-						React.createElement("input",{style:{...inputStyle,flex:"1 1 20%"},key:"input",onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:this.props.value}):
+						React.createElement("input",{style:{...inputStyle,flex:"1 1 20%",alignSelf:"flex-end"},key:"input",onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:this.props.value}):
 						null,	
 						this.props.popupElement?this.props.popupElement():null
 					]),
@@ -855,17 +944,73 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 	});
 	const InputElement = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(InputElementBase,{...props,ref:props._ref,inputType:props.div?"div":"input",...actions}))	
-	const TextAreaElement = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(InputElementBase,{...props,ref:props._ref,inputType:"textarea",...actions}))
-
+	const TextAreaElement = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
+		inputStyle:{
+			whiteSpace:"normal",
+			...props.inputStyle
+		},
+		...actions}))
+	const LabeledTextElement = (props) => React.createElement(InputElementBase,{
+		...props,
+		onKeyDown:()=>false,
+		inputType:"div",
+		inputStyle:{
+			...props.inputStyle,
+			display:"inline-block"
+		},
+		style:{
+			...props.style,
+			backgroundColor:"transparent",
+			borderColor:"transparent",
+			lineHeight:"normal"
+		},
+		content:props.value
+		})
 	const DropDownElement = React.createClass({
 		getInitialState:function(){
 			return {popupMinWidth:0,left:null,top:null};
 		},
-		recalc:function(){
-			if(!this.inp||!this.inp.cont) return null;
+		getPopupPos:function(){
+			if(!this.inp||!this.inp.cont) return {};
 			const rect = this.inp.cont.getBoundingClientRect()
-			if(Math.round(this.state.left)!=Math.round(rect.left)||Math.round(this.state.top)!=Math.round(rect.bottom))
-				this.setState({left:rect.left,top:rect.bottom})
+			let res = {}
+			if(this.pop){
+				const popRect = this.pop.getBoundingClientRect()
+				const windowRect = getWindowRect()								
+				const rightEdge = rect.right + popRect.width
+				const leftEdge = rect.left - popRect.width
+				const bottomEdge = rect.bottom + popRect.height
+				const topEdge = rect.top - popRect.height;
+				if(bottomEdge<=windowRect.bottom){					//bottom
+					const leftOffset = 0//rect.left - popRect.left
+					const topOffset = rect.height
+					//log("a")					
+					if(this.state.top!=topOffset||this.state.left!=leftOffset)
+						res = {...res,left:leftOffset,top:topOffset}
+				}
+				else if(topEdge>windowRect.top){	//top
+					const topOffset = - popRect.height
+					const leftOffset = 0//rect.left - popRect.left;
+					//log("b")					
+					if(this.state.top!=topOffset||this.state.left!=leftOffset)
+						res = {...res,left:leftOffset,top:topOffset}				
+				}
+				else if(leftEdge>windowRect.left){	//left
+					const leftOffset = - popRect.width;
+					const topOffset = - popRect.height/2;
+					//log("c")					
+					if(this.state.left!=leftOffset||this.state.top!=topOffset)
+						res = {...res,left:leftOffset,top:topOffset}
+				}
+				else if(rightEdge<=windowRect.right){
+					const leftOffset = rect.width;
+					const topOffset = - popRect.height/2;
+					//log("d")					
+					if(this.state.left!=leftOffset||this.state.top!=topOffset)
+						res = {...res,left:leftOffset,top:topOffset}
+				}
+			}
+			return res;
 		},
 		onChange:function(e){
 			if(this.props.onChange)
@@ -875,15 +1020,17 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			if(this.props.onClickValue)
 				this.props.onClickValue("click");
 		},		
-		setPopupWidth:function(){
-			if(!this.inp||!this.inp.cont) return null;
+		getPopupWidth:function(){
+			if(!this.inp||!this.inp.cont) return {};
 			const minWidth = this.inp.cont.getBoundingClientRect().width;
 			if(Math.round(this.state.popupMinWidth) != Math.round(minWidth)) return {popupMinWidth:minWidth};
+			return {};
 		},
 		mixState:function(){
-			const nW = this.setPopupWidth()
-			const nR = this.recalc()
+			const nW = this.getPopupWidth()
+			const nR = this.getPopupPos()
 			const state = {...nW,...nR}
+			//log(state)
 			if(Object.keys(state).length>0) this.setState(state)
 		},
 		componentDidMount:function(){
@@ -892,11 +1039,12 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		componentDidUpdate:function(){
 			this.mixState()
 		},			
-		render:function(){			
+		render:function(){
+			//const topPosStyle = this.state.bottom?{top:'',marginTop:-this.state.bottom+"px"}:{top:this.state.top?this.state.top+getPageYOffset()+"px":''}
 			const popupStyle={
 				position:"absolute",
 				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,
-				width: this.state.popupMinWidth + "px",
+				minWidth: this.state.popupMinWidth + "px",
 				overflow: "auto",				
 				maxHeight: "10em",				
 				backgroundColor: "white",
@@ -905,8 +1053,10 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflowX:"hidden",
 				//marginLeft:"",
 				lineHeight:"normal",
-				left:this.state.left?this.state.left+"px":"",
-				top:this.state.top?this.state.top+"px":"",
+				marginLeft:`calc(-${GlobalStyles.borderWidth} + ${this.state.left?this.state.left+"px":"0px"})`,
+				marginTop:`calc(-${GlobalStyles.borderWidth} + ${this.state.top?this.state.top+"px":"0px"})`,
+				//left:this.state.left?this.state.left+"px":"",
+				//top:this.state.top?this.state.top + getPageYOffset() + "px":"",
 				...this.props.popupStyle
 			};
 			
@@ -927,7 +1077,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const buttonElement = () => [React.createElement(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
 			const value = this.props.value
 			const inputChildren = this.props.div? this.props.children[0]: null
-			const popupElement = () => [this.props.open?React.createElement("div",{key:"popup",style:popupStyle},this.props.div?this.props.children[1]:this.props.children):null];
+			const popupElement = () => [this.props.open?React.createElement("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},this.props.div?this.props.children[1]:this.props.children):null];
 			
 			return React.createElement(InputElement,{...this.props,inputChildren,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur});							
 		}
@@ -1906,7 +2056,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	
 	
 	const download = (data) =>{
-		const anchor = createElement("a")
+		const anchor = bodyManager.createElement("a")
 		anchor.href = data
 		anchor.download = data.split('/').reverse()[0]
 		anchor.click()
@@ -1922,7 +2072,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,AnchorElement,HeightLimitElement,
-			DropDownElement,DropDownWrapperElement,
+			DropDownElement,DropDownWrapperElement,LabeledTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,

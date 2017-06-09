@@ -47,8 +47,14 @@ const uglifyBody = style => {
 const getComputedStyle = n => window.getComputedStyle(n);
 const getPageYOffset = ()=> window.pageYOffset;
 const fileReader = ()=> (new window.FileReader());
-
-const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,createElement});
+const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth});
+const bodyManager = (()=>{
+	const add = (node) => document.body.appendChild(node)
+	const remove = (node) => document.body.removeChild(node)
+	const createElement = (type) => document.createElement(type)
+	return {add,remove,createElement}
+})()
+const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect});
 
 //customUi with hacks
 const toggleOverlay = on =>{
@@ -100,7 +106,7 @@ const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 const parentWindow = ()=> parent
-const cryptoElements = CryptoElements({log,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
+const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
 
 
 //transforms
