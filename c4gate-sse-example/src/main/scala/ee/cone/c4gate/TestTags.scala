@@ -24,12 +24,13 @@ case class InputTextElement[State](value: String, deferSend: Boolean)(
   }
 }
 
-case class SignIn[State]()(input: TagJsonUtils) extends ElementValue with Receiver[State] {
+case class SignIn[State]()(
+  input: TagJsonUtils, val receive: VDomMessage ⇒ State ⇒ State
+) extends ElementValue with Receiver[State] {
   def elementType: String = "SignIn"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     input.appendInputAttributes(builder, "", deferSend = true)
   }
-  def receive: Handler = _⇒s⇒s
 }
 
 case class ChangePassword[State]()(
@@ -55,8 +56,10 @@ class TestTags[State](
       (message:VDomMessage)⇒change(messageStrBody(message))
     ), Nil)
 
-  def signIn(): ChildPair[OfDiv] =
-    child[OfDiv]("signIn", SignIn()(inputAttributes), Nil)
+  def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
+    child[OfDiv]("signIn", SignIn()(inputAttributes,
+      (message:VDomMessage)⇒change(messageStrBody(message))
+    ), Nil)
   def changePassword(change: VDomMessage ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
 }

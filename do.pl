@@ -62,6 +62,9 @@ push @tasks, ["not_effective_join_bench", sub{
 }];
 
 my $inbox_configure = sub{
+    my $kafka_topics = "tmp/$kafka/bin/kafka-topics.sh --zookeeper 127.0.0.1:$zoo_port --topic .inbox";
+    sy("$kafka_topics --create --partitions 1 --replication-factor 1")
+        if 0 > index syf("$kafka_topics --list"), ".inbox";
     my $kafka_configs = "tmp/$kafka/bin/kafka-configs.sh --zookeeper 127.0.0.1:$zoo_port --entity-type topics ";
     my $infinite_lag = "min.compaction.lag.ms=9223372036854775807";
     my $compression = "compression.type=producer";

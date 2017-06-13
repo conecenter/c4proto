@@ -49,7 +49,12 @@ case class TestPasswordRootView(fromAlienState: FromAlienState) extends View {
     val userName = fromAlienState.userName
     println(userName,freshDB)
     if(userName.isEmpty && !freshDB){
-      List(tags.signIn())
+      List(tags.signIn(newSessionKey ⇒ local ⇒ {
+        if(newSessionKey.isEmpty) throw new Exception with BranchError {
+          def message: String = "Bad username or password"
+        }
+        local
+      }))
     } else {
       List(
         tags.changePassword(message ⇒ local ⇒ {

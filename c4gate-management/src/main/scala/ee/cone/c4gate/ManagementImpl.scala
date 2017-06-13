@@ -26,11 +26,11 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform {
     val WorldKeyAlias = """(\w+),(\w+)""".r
     val worldKeyAlias = headers("X-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
-    val index: Index[Any, Product] = Single.option(world.keys.toList.collect{
+    val (indexStr,index): (String,Index[Any, Product]) = Single.option(world.keys.toList.collect{
       case worldKey@JoinKey(`alias`,keyClassName,valueClassName)
-        if valueClassName.split("\\.").last == keyClassAlias ⇒
-        worldKey.of(world)
-    }).getOrElse(Map.empty)
+        if valueClassName.split("\\W").last == keyClassAlias ⇒
+        (s"$worldKey",worldKey.of(world))
+    }).getOrElse(("[index not found]",Map.empty))
     val res: List[String] = headers("X-r-selection") match {
       case k if k.startsWith(":") ⇒ k.tail :: valueLines(index)(k.tail)
       case "keys" ⇒ index.keys.map(_.toString).toList.sorted
@@ -38,7 +38,7 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform {
         case(ks,k) ⇒ ks :: valueLines(index)(k)
       }
     }
-    res.map(indent).mkString("\n")
+    (s"REPORT $indexStr" :: res.map(indent) ::: "END" :: Nil).mkString("\n")
   }
   def transform(local: World): World = {
     if(ErrorKey.of(local).isEmpty) println(report(local))
