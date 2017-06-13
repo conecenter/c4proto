@@ -25,6 +25,7 @@ class TestCanvasApp extends ServerApp
   with TestTagsApp
   with CanvasApp
   with UMLClientsApp
+  with ManagementApp
 {
   override def protocols: List[Protocol] = TestCanvasProtocol :: super.protocols
   override def assembles: List[Assemble] =

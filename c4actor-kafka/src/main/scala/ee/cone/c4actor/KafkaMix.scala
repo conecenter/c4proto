@@ -18,7 +18,7 @@ trait KafkaConsumerApp extends ToStartApp {
   def bootstrapServers: String
   def kafkaProducer: KafkaRawQSender
   //
-  private lazy val mainActorName = ActorName(config.get("C4STATE_TOPIC_PREFIX"))
+  lazy val mainActorName = ActorName(config.get("C4STATE_TOPIC_PREFIX"))
   lazy val kafkaConsumer: Executable =
     new KafkaActor(bootstrapServers, mainActorName)(qMessages, qReducer, kafkaProducer, initialObservers)()
   //

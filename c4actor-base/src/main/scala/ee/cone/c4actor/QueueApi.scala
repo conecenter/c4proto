@@ -95,6 +95,10 @@ trait WorldTx {
   def toDebug: Seq[LEvent[Product]]
 }
 
+trait ProgressObserver {
+  def progress(): Observer
+}
+
 trait Observer {
   def activate(ctx: ObserverContext): Seq[Observer]
 }

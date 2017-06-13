@@ -88,6 +88,8 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     val props: Map[String, Object] = Map(
       "bootstrap.servers" → bootstrapServers,
       "enable.auto.commit" → "false"
+      //"receive.buffer.bytes" → "1000000",
+      //"max.poll.records" → "10001"
       //"group.id" → actorName.value //?pos
     )
     val consumer = new KafkaConsumer[Array[Byte], Array[Byte]](
@@ -121,11 +123,14 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     val recsList = recsQueue.toList
     new AtomicReference(reducer.reduceRecover(reducer.createWorld(Map()), recsList))
   }
-  private def startIncarnation(world:  World): World⇒Boolean = {
+  private def startIncarnation(world:  World): (Long,World⇒Boolean) = {
     val local = reducer.createTx(world)(Map())
     val leader = Leader(actorName.value,UUID.randomUUID.toString)
-    LEvent.add(LEvent.update(leader)).andThen(qMessages.send)(local)
-    world ⇒ By.srcId(classOf[Leader]).of(world).getOrElse(actorName.value,Nil).contains(leader)
+    val nLocal = LEvent.add(LEvent.update(leader)).andThen(qMessages.send)(local)
+    (
+      OffsetWorldKey.of(nLocal),
+      world ⇒ By.srcId(classOf[Leader]).of(world).getOrElse(actorName.value,Nil).contains(leader)
+    )
   }
 
   def run(ctx: ExecutionContext): Unit = {
@@ -137,15 +142,15 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       val stateTopicPartition = List(new TopicPartition(rawQSender.topicNameToString(stateTopicName), 0))
       consumer.assign((inboxTopicPartition ::: stateTopicPartition).asJava)
       consumer.pause(inboxTopicPartition.asJava)
+      println(s"server [$bootstrapServers] inbox [${rawQSender.topicNameToString(inboxTopicName)}]")
       println("starting world recover...")
       val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
       val startOffset = qMessages.worldOffset(localWorldRef.get)
-      println(s"world recovered; server [$bootstrapServers] inbox [${rawQSender.topicNameToString(inboxTopicName)}] from offset [$startOffset]")
-      println(WorldStats.make(localWorldRef.get))
+      println(s"world state recovered, next offset [$startOffset]")
       consumer.seek(Single(inboxTopicPartition),startOffset)
       consumer.pause(stateTopicPartition.asJava)
       consumer.resume(inboxTopicPartition.asJava)
-      val checkIncarnation = startIncarnation(localWorldRef.get)
+      val (incarnationNextOffset,checkIncarnation) = startIncarnation(localWorldRef.get)
       val observerContext = new ObserverContext(ctx, ()⇒localWorldRef.get)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
         if(recs.nonEmpty){
@@ -156,7 +161,14 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
         //println(s"then to receive: ${qMessages.worldOffset(localWorldRef.get)}")
         if(checkIncarnation(localWorldRef.get))
             prevObservers.flatMap(_.activate(observerContext))
-        else prevObservers
+        else prevObservers.map{
+          case p: ProgressObserver ⇒
+            val np = p.progress()
+            if(p != np) println(s"loaded ${recs.lastOption.map(_.offset).getOrElse("?")}/${incarnationNextOffset-1}")
+            np
+          case o ⇒ o
+        }
+
       }.foreach(_⇒())
     } finally {
       consumer.close()

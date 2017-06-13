@@ -53,12 +53,14 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
+  private lazy val statsObserver = new StatsObserver(None)
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
     ProtocolDataDependencies(protocols.distinct) ::: super.dataDependencies
-  override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
+  override def initialObservers: List[Observer] =
+    statsObserver :: txObserver.toList ::: super.initialObservers
   override def initLocals: List[InitLocal] = localQAdapterRegistryInit :: super.initLocals
 }
 

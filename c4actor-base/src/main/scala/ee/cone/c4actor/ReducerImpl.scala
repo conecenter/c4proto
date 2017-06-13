@@ -120,7 +120,6 @@ class ParallelObserver(localStates: Map[SrcId,List[Future[World]]])(
   transforms: TxTransforms
 ) extends Observer {
   private def empty: List[Future[World]] = List(Future.successful(Map.empty))
-
   def activate(ctx: ObserverContext): Seq[Observer] = {
     val inProgressMap = localStates
       .transform{ case(k,futures) ⇒ futures.filter(!_.isCompleted) }
@@ -141,6 +140,19 @@ object ProtocolDataDependencies {
     protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
       new OriginalWorldPart(By.srcId(adapter.className))
     }
+}
+
+class StatsObserver(time: Option[Long]) extends Observer with ProgressObserver {
+  def progress(): Observer = {
+    val now = System.currentTimeMillis
+    if(time.exists(now<_)) this else new StatsObserver(Option(now+1000))
+  }
+
+  def activate(ctx: ObserverContext): Seq[Observer] = {
+    println(WorldStats.make(ctx.getWorld()))
+    println("Stats OK")
+    Nil
+  }
 }
 
 /*

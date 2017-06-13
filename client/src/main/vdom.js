@@ -58,6 +58,7 @@ export default function VDom(getRootElement, createElement, activeTransforms, ch
 
     const showDiff = data => existingState => {
         const value = JSON.parse(data)
+        if(!existingState.remove && !value["$set"]) return null
         const state = setupBranch(existingState)
         const rootComponent = state.rootComponent
         const localState = {

@@ -19,6 +19,7 @@ class TestTodoApp extends ServerApp
   with UIApp
   with TestTagsApp
   with UMLClientsApp
+  with ManagementApp
 {
   override def protocols: List[Protocol] = TestTodoProtocol :: super.protocols
   override def assembles: List[Assemble] =
