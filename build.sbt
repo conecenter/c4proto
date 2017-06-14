@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.9.8",
+  version := "0.9.C",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -90,7 +90,7 @@ lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
   .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
-  .dependsOn(`c4assemble-macros`,`c4gate-proto`, `c4actor-kafka`)
+  .dependsOn(`c4assemble-macros`,`c4gate-proto`, `c4actor-kafka`, `c4gate-management`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
 lazy val `c4gate-consumer-example` = project.settings(publishSettings)
@@ -118,7 +118,7 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-management`)
   .enablePlugins(JavaServerAppPackaging)
 
 
@@ -133,7 +133,10 @@ lazy val `c4ui-main` = project.settings(publishSettings)
   .settings(metaMacroSettings)
   .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-proto`)
 
-
+lazy val `c4gate-management` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4gate-proto`,`c4actor-base`)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
@@ -145,6 +148,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4assemble-macros`,
   `c4assemble-runtime`,
   `c4gate-consumer-example`,
+  `c4gate-management`,
   `c4gate-proto`,
   `c4gate-publish`,
   `c4gate-server`,

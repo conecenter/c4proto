@@ -16,21 +16,28 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.concurrent.TrieMap
 import java.nio.charset.StandardCharsets.UTF_8
 
+import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.HttpPost
 
-trait SSEServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with ProtocolsApp {
+trait SSEServerApp
+  extends ToStartApp
+  with AssemblesApp
+  with InitLocalsApp
+  with ProtocolsApp
+{
   def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
   def sseConfig: SSEConfig
+  def mortal: MortalFactory
   lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig)
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
   private lazy val sseServer =
     new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig))
   override def toStart: List[Executable] = sseServer :: super.toStart
   override def assembles: List[Assemble] =
-    new SSEAssemble(sseConfig) :: super.assembles
+    mortal(classOf[ToAlienWrite]) :: new SSEAssemble(sseConfig) :: super.assembles
   override def initLocals: List[InitLocal] =
     sseServer :: pongHandler :: super.initLocals
   override def protocols: List[Protocol] = AlienProtocol :: super.protocols
@@ -136,13 +143,19 @@ case class SessionTxTransform( //?todo session/pongs purge
     key: SrcId,
     fromAliens: Values[FromAlienState],
     @by[SessionKey] writes: Values[ToAlienWrite]
-  ): Values[(SrcId,TxTransform)] = List(key → (
-    if(fromAliens.isEmpty) SimpleTxTransform(key, writes.flatMap(LEvent.delete))
-    else SessionTxTransform(
-      key, Single(fromAliens), writes.sortBy(_.priority),
-      sseConfig.stateRefreshPeriodSeconds + sseConfig.tolerateOfflineSeconds
-    )
-  ))
+  ): Values[(SrcId,TxTransform)] =
+    for(session ← fromAliens)
+      yield WithSrcId(SessionTxTransform(
+        session.sessionKey, session, writes.sortBy(_.priority),
+        sseConfig.stateRefreshPeriodSeconds + sseConfig.tolerateOfflineSeconds
+      ))
+
+  def lifeOfSessionToWrite(
+    key: SrcId,
+    fromAliens: Values[FromAlienState],
+    @by[SessionKey] writes: Values[ToAlienWrite]
+  ): Values[(Alive,ToAlienWrite)] =
+    for(write ← writes if fromAliens.nonEmpty) yield WithSrcId(write)
 
   def joinPostsForQuote(
     key: SrcId,

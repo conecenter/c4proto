@@ -1,6 +1,8 @@
 
 package ee.cone.c4assemble
 
+// see Topological sorting
+
 //import java.util.Comparator
 
 import Types._
@@ -95,14 +97,16 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   }
 }
 
+/*
 class ByPriority[Item](uses: Item⇒List[Item]){
   private def regOne(res: ReverseInsertionOrder[Item,Item], item: Item): ReverseInsertionOrder[Item,Item] =
     if(res.map.contains(item)) res else (res /: uses(item))(regOne).add(item,item)
   def apply(items: List[Item]): List[Item] =
     (ReverseInsertionOrder[Item,Item]() /: items)(regOne).values.reverse
 }
+*/
 
-object TreeAssemblerImpl extends TreeAssembler {
+class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit]) extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
@@ -118,13 +122,34 @@ object TreeAssemblerImpl extends TreeAssembler {
     val byOutput: Map[WorldKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
     val expressionsByPriority: List[WorldPartExpression] =
-      (new ByPriority[WorldPartExpression with DataDependencyFrom[_]](
-        _.inputWorldKeys.flatMap{ k ⇒
+      byPriority.byPriority[
+        WorldPartExpression with DataDependencyFrom[_],
+        WorldPartExpression with DataDependencyFrom[_]
+      ](item⇒(
+        item.inputWorldKeys.flatMap{ k ⇒
           byOutput.getOrElse(k,
             if(originals(k)) Nil else throw new Exception(s"undefined $k in $originals")
           )
-        }.toList
-      ))(expressions)
+        }.toList,
+        _ ⇒ item
+      ))(expressions).reverse
+
+    umlClients.foreach(_{
+      val expressions = expressionsByPriority
+        .map{ case e: DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
+      val keyAliases: List[(WorldKey[_], String)] =
+        expressions.flatMap[WorldKey[_],List[WorldKey[_]]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
+          .distinct.zipWithIndex.map{ case (k,i) ⇒ (k,s"wk$i")}
+      val keyToAlias: Map[WorldKey[_], String] = keyAliases.toMap
+      List(
+        for((k:Product,a) ← keyAliases) yield
+          s"(${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}) as $a",
+        for((e,eIndex) ← expressions.zipWithIndex; k ← e.inputWorldKeys)
+          yield s"${keyToAlias(k)} --> $eIndex",
+        for((e,eIndex) ← expressions.zipWithIndex)
+          yield s"$eIndex --> ${keyToAlias(e.outputWorldKey)}"
+      ).flatten.mkString("@startuml\n","\n","\n@enduml")
+    })
 
     replaced ⇒ prevWorld ⇒ {
       val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))

@@ -80,7 +80,7 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
     index(getWorld()).transform{ case(key,_) ⇒ handle(getWorld,key) }
   private def handle(getWorld: () ⇒ World, key: SrcId): World ⇒ World = ((local:World) ⇒
     if(local.isEmpty) createLocal() else local
-    ).andThen{ local ⇒
+  ).andThen{ local ⇒
     val world = getWorld()
     if(
       qMessages.worldOffset(world) < OffsetWorldKey.of(local) ||
@@ -91,6 +91,7 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
         .andThen(qMessages.send)(local)
     } catch {
       case exception: Exception ⇒
+        println(s"Tx failed [$key][${Thread.currentThread.getName}]")
         exception.printStackTrace() //??? |Nil|throw
         val was = ErrorKey.of(local)
         chain(List(
@@ -119,7 +120,6 @@ class ParallelObserver(localStates: Map[SrcId,List[Future[World]]])(
   transforms: TxTransforms
 ) extends Observer {
   private def empty: List[Future[World]] = List(Future.successful(Map.empty))
-
   def activate(ctx: ObserverContext): Seq[Observer] = {
     val inProgressMap = localStates
       .transform{ case(k,futures) ⇒ futures.filter(!_.isCompleted) }
@@ -135,15 +135,24 @@ class ParallelObserver(localStates: Map[SrcId,List[Future[World]]])(
   }
 }
 
-case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) extends TxTransform {
-  def transform(local: World): World = LEvent.add(todo)(local)
-}
-
 object ProtocolDataDependencies {
   def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
     protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
       new OriginalWorldPart(By.srcId(adapter.className))
     }
+}
+
+class StatsObserver(time: Option[Long]) extends Observer with ProgressObserver {
+  def progress(): Observer = {
+    val now = System.currentTimeMillis
+    if(time.exists(now<_)) this else new StatsObserver(Option(now+1000))
+  }
+
+  def activate(ctx: ObserverContext): Seq[Observer] = {
+    println(WorldStats.make(ctx.getWorld()))
+    println("Stats OK")
+    Nil
+  }
 }
 
 /*

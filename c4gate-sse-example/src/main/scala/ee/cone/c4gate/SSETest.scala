@@ -3,11 +3,10 @@ package ee.cone.c4gate
 import java.time.Instant
 
 import Function.chain
-import ee.cone.c4actor.LEvent.{add, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
+import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
 
@@ -17,6 +16,8 @@ class TestSSEApp extends ServerApp
   with ParallelObserversApp
   with BranchApp
   with AlienExchangeApp
+  with UMLClientsApp
+  with ManagementApp
 {
   override def assembles: List[Assemble] =
     new FromAlienTaskAssemble("localhost", "/sse.html") ::

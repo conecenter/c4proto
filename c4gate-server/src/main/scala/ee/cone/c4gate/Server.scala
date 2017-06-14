@@ -10,6 +10,9 @@ class HttpGatewayApp extends ServerApp
   with SSEServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
+  with UMLClientsApp
+  with MortalFactoryApp
+  with ManagementApp
 {
   def httpHandlers: List[RHttpHandler] =
     pongHandler :: new HttpPostHandler(qMessages,worldProvider) :: Nil

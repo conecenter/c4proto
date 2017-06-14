@@ -106,11 +106,13 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
         val currentSessionKey = sessionKey.get
         val newId = UUID.randomUUID.toString
-        post(okio.ByteString.EMPTY) ::
-        (if(hashOK) List(
+        if(hashOK) List(
+          post(ToByteString(newId)),
           AuthenticatedSession(newId, userName),
           ToAlienWrite(newId,currentSessionKey,"signedIn",newId,0)
-        ) else Nil)
+        ) else List(
+          post(okio.ByteString.EMPTY)
+        )
       case _ ⇒ throw new Exception("unsupported auth action")
     }
     LEvent.add(requests.flatMap(LEvent.update)).andThen(qMessages.send)(local)

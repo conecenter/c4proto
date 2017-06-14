@@ -1,6 +1,7 @@
 package ee.cone.c4gate
 
 
+import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Values, World}
@@ -12,11 +13,14 @@ trait TcpServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with 
   def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
+  def mortal: MortalFactory
 
   private lazy val tcpPort = config.get("C4TCP_PORT").toInt
   private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(qMessages, worldProvider))
   override def toStart: List[Executable] = tcpServer :: super.toStart
-  override def assembles: List[Assemble] = new TcpAssemble :: super.assembles
+  override def assembles: List[Assemble] =
+    mortal(classOf[TcpDisconnect]) :: mortal(classOf[TcpWrite]) ::
+    new TcpAssemble :: super.assembles
   override def initLocals: List[InitLocal] = tcpServer :: super.initLocals
   override def protocols: List[Protocol] = TcpProtocol :: super.protocols
 }
@@ -30,9 +34,9 @@ class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends
     LEvent.add(connections.flatMap(LEvent.delete))(local)
   }
   override def afterConnect(key: String, sender: SenderToAgent): Unit =
-    changeWorld(LEvent.add(LEvent.delete(TcpConnection(key))))
-  override def afterDisconnect(key: String): Unit =
     changeWorld(LEvent.add(LEvent.update(TcpConnection(key))))
+  override def afterDisconnect(key: String): Unit =
+    changeWorld(LEvent.add(LEvent.delete(TcpConnection(key))))
 }
 
 case class TcpConnectionTxTransform(
@@ -50,16 +54,30 @@ case class TcpConnectionTxTransform(
 
 @assemble class TcpAssemble extends Assemble {
   type ConnectionKey = SrcId
+
   def joinTcpWrite(key: SrcId, writes: Values[TcpWrite]): Values[(ConnectionKey, TcpWrite)] =
     writes.map(write⇒write.connectionKey→write)
+
   def joinTxTransform(
       key: SrcId,
       tcpConnections: Values[TcpConnection],
       tcpDisconnects: Values[TcpDisconnect],
       @by[ConnectionKey] writes: Values[TcpWrite]
-  ): Values[(SrcId,TxTransform)] = List(key → (
-    if(tcpConnections.isEmpty)
-      SimpleTxTransform(key, (tcpDisconnects ++ writes).take(4096).flatMap(LEvent.delete))
-    else TcpConnectionTxTransform(key, tcpDisconnects, writes.sortBy(_.priority))
-  ))
+  ): Values[(SrcId,TxTransform)] =
+    for(c ← tcpConnections)
+      yield WithSrcId(TcpConnectionTxTransform(c.connectionKey, tcpDisconnects, writes.sortBy(_.priority)))
+
+  def lifeOfConnectionToDisconnects(
+    key: SrcId,
+    tcpConnections: Values[TcpConnection],
+    tcpDisconnects: Values[TcpDisconnect]
+  ): Values[(Alive,TcpDisconnect)] =
+    for(d ← tcpDisconnects if tcpConnections.nonEmpty) yield WithSrcId(d)
+
+  def lifeOfConnectionToTcpWrites(
+    key: SrcId,
+    tcpConnections: Values[TcpConnection],
+    @by[ConnectionKey] writes: Values[TcpWrite]
+  ): Values[(Alive,TcpWrite)] =
+    for(d ← writes if tcpConnections.nonEmpty) yield WithSrcId(d)
 }

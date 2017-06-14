@@ -82,15 +82,14 @@ object QAdapterRegistryFactory {
   private def checkToMap[K,V](pairs: Seq[(K,V)]): Map[K,V] =
     pairs.groupBy(_._1).transform((k,l)⇒Single(l.toList)._2)
   def apply(protocols: List[Protocol]): QAdapterRegistry = {
-    val adapters = protocols.flatMap(_.adapters.filter(_.hasId)).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
+    val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
     val byName = checkToMap(adapters.map(a ⇒ a.className → a))
     val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
     val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
-    val byId = checkToMap(adapters.map(a ⇒ a.id → a))
-    val nameById = checkToMap(adapters.map(a ⇒ a.id → a.className))
-    new QAdapterRegistry(adapters, byName, byId, keyAdapter, updatesAdapter, nameById)
+    val byId = checkToMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
+    new QAdapterRegistry(byName, byId, keyAdapter, updatesAdapter)
   }
 }
 

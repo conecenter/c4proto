@@ -101,22 +101,34 @@ case class BranchTxTransform(
       }
       val newReport = gather(branchKey).mkString(";")
       if(newReport == wasReport) local
-      else {
-        val sendToAll = SendToAlienKey.of(local)(sessionKeys,"branches",newReport)
-        ReportAliveBranchesKey.set(newReport).andThen(sendToAll)(local)
-      }
+      else ReportAliveBranchesKey.set(newReport)
+        .andThen(sendToAll("branches",newReport))(local)
+
     }
   }
 
   private def getPosts: List[BranchMessage] =
     if(posts.isEmpty) List(EmptyBranchMessage) else posts
 
-  def transform(local: World): World = {
-    if(ErrorKey.of(local).nonEmpty) chain(posts.map(_.rm))(local)
-    else chain(getPosts.map(post⇒toAck(post).andThen(handler.exchange(post))))
-      .andThen(saveResult).andThen(reportAliveBranches)
-      .andThen(chain(posts.map(_.rm)))(local)
+  private def sendToAll(evType: String, data: String): World ⇒ World =
+    local ⇒ SendToAlienKey.of(local)(sessionKeys,evType,data)(local)
+
+  private def reportResetErrors: World ⇒ World = local ⇒ ErrorKey.of(local) match {
+    case Nil ⇒ local
+    case errors ⇒
+      val texts = errors.collect{ case e: BranchError ⇒ e.message case _ ⇒ "" }
+      chain(texts.map(sendToAll("fail",_))).andThen(ErrorKey.set(Nil))(local)
   }
+
+  private def rmPosts: World ⇒ World = chain(posts.map(_.rm))
+
+  def transform(local: World): World =
+    if(ErrorKey.of(local).nonEmpty && posts.nonEmpty) reportResetErrors
+      .andThen(rmPosts)(local)
+    else reportResetErrors
+      .andThen(chain(getPosts.map(post⇒toAck(post).andThen(handler.exchange(post)))))
+      .andThen(saveResult).andThen(reportAliveBranches)
+      .andThen(rmPosts)(local)
 
   private def toAck: BranchMessage ⇒ World ⇒ World = exchange ⇒ {
     val sessionKey = exchange.header("X-r-session")

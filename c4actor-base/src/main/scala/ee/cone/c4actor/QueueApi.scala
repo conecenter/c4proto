@@ -95,6 +95,10 @@ trait WorldTx {
   def toDebug: Seq[LEvent[Product]]
 }
 
+trait ProgressObserver {
+  def progress(): Observer
+}
+
 trait Observer {
   def activate(ctx: ObserverContext): Seq[Observer]
 }
@@ -117,10 +121,8 @@ case object TxKey extends WorldKey[WorldTx](NoWorldTx)
 case object QAdapterRegistryKey extends WorldKey[()⇒QAdapterRegistry](()⇒throw new Exception)
 
 class QAdapterRegistry(
-  val adapters: List[ProtoAdapter[Product] with HasId],
   val byName: Map[String,ProtoAdapter[Product] with HasId],
   val byId: Map[Long,ProtoAdapter[Product] with HasId],
   val keyAdapter: ProtoAdapter[QProtocol.TopicKey],
-  val updatesAdapter: ProtoAdapter[QProtocol.Updates],
-  val nameById: Map[Long,String]
+  val updatesAdapter: ProtoAdapter[QProtocol.Updates]
 )
