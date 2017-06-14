@@ -4,7 +4,7 @@ import ReactDOM        from 'react-dom'
 import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 import update          from 'react/lib/update'
 
-export default function VDom(getRootElement, createElement, activeTransforms, changes){
+export default function VDom(log,getRootElement, createElement, activeTransforms, changes){
     function never(){ throw ["traverse error"] }
     const Traverse = React.createClass({
         mixins: [PureRenderMixin],
@@ -71,7 +71,7 @@ export default function VDom(getRootElement, createElement, activeTransforms, ch
         const branchKey = state.branchKey
         const modify = state.modify
         const ctx = {value, localState, branchKey, modify}
-        setupIncomingDiff(ctx)
+        setupIncomingDiff(ctx)		
         const incoming = update(rootComponent.state.incoming || {}, ctx.value) // todo: do we need state in component?
         rootComponent.setState({incoming})
         return state
