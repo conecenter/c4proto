@@ -3,7 +3,7 @@ import * as Canvas from "../main/canvas"
 
 
 export function CanvasBaseMix(log,util){
-    return canvas => [
+    return options => canvas => [
          Canvas.BaseCanvasSetup(log,util,canvas),
          Canvas.ComplexFillCanvasSetup(util,canvas),
          Canvas.InteractiveCanvasSetup(canvas)
@@ -11,7 +11,7 @@ export function CanvasBaseMix(log,util){
 }
 
 export function CanvasSimpleMix(){
-    return canvas => [
+    return options => canvas => [
         Canvas.TiledCanvasSetup(canvas),
         Canvas.DragViewPositionCanvasSetup(canvas),
         Canvas.NoOverlayCanvasSetup(canvas)

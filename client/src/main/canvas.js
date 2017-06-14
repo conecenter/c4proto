@@ -32,8 +32,8 @@ export function CanvasUtil(){
 }
 
 export function CanvasFactory(util, modList){
-    const mods = canvas => modList.map(f=>f(canvas)).reduce((p,c)=>p.concat(c), [])
-    return () => util.setup(mods, {
+    const mods = options => canvas => modList.map(f=>f(options)(canvas)).reduce((p,c)=>p.concat(c), [])
+    return options => util.setup(mods(options), {
         drag        : l => frame => l.forEach(s=>s(frame)),
         processFrame: l => (frame,prev) => l.map(s=>s(frame,prev)),
         setupContext: l => opt => util.setup(utx=>l.map(s=>s(utx)).concat(opt), {}),
