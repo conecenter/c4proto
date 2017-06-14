@@ -109,7 +109,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 									verticalAlign:'middle',
 									...style
 								},
-								onClick: ev => onChange({ target:{value:""} })
+								onClick: ev => onChange({target:{headers:{"X-r-action":"change"},value:""} })
 						}, null),
 						isOpen?React.createElement('div', {
 								key:'2',
@@ -449,7 +449,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	const ScannerProxyElement = React.createClass({
 		callback:function(data){
 			if(this.props.onChange)
-				this.props.onChange({target:{value:data}})
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:data}})
 		},
 		componentDidMount:function(){
 			this.unreg = scannerProxy.reg(this)
