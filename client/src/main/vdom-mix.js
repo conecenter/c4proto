@@ -11,7 +11,7 @@ export default function VDomMix(log,sender,transforms,getRootElement,createEleme
     const changes = VDomChanges(sender, DiffPrepare)
     const seeds = VDomSeeds(log, DiffPrepare)
     const activeTransforms = mergeAll([transforms,clicks.transforms,changes.transforms,seeds.transforms])
-    return VDom(getRootElement,createElement,activeTransforms,changes)
+    return VDom(log,getRootElement,createElement,activeTransforms,changes)
 }
 
 
