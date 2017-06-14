@@ -767,7 +767,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		const outOfParent = (outside) => {			
 			callbacks.forEach(c=>c(outside))
 		}		
-		return {dragStart,getData,onDrag}
+		return {dragStart,getData,onDrag,release}
 	})()
 	
 	
@@ -787,8 +787,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			this.checkForSibling()
 			if(!this.props.droppable2) return;
 			if(prevProps.mouseEnter!=this.props.mouseEnter){
-				if(this.props.mouseEnter&&this.props.onClickValue&&DragDropManager.onDrag())
-					this.props.onClickValue("","dragOver")
+				if(this.props.mouseEnter&&this.props.onDragDrop&&DragDropManager.onDrag())
+					this.props.onDragDrop("dragOver","")
 			}
 		},
 		componentWillUnmount:function(){
@@ -796,23 +796,26 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		signalDragEnd:function(outside){
 			if(!this.props.draggable) return;
-			if(!this.props.onClickValue) return;			
-			if(outside) this.props.onClickValue("","dragEndOutside")
-			else this.props.onClickValue("","dragEnd")
+			if(!this.props.onDragDrop) return;			
+			if(outside) this.props.onDragDrop("dragEndOutside","")
+			else this.props.onDragDrop("dragEnd","")
 		},
 		onMouseDown:function(e){
 			if(!this.props.draggable) return;
 			if(!this.el) return;
 			this.dragBinding = DragDropManager.dragStart(e.clientX,e.clientY,this.el,this.props.dragData,this.signalDragEnd);
-			if(this.props.dragData && this.props.onClickValue)
-				this.props.onClickValue("","dragStart")
+			if(this.props.dragData && this.props.onDragDrop)
+				this.props.onDragDrop("dragStart","")
 			e.preventDefault();
 		},
 		onMouseUp:function(e){
 			if(!this.props.droppable) return;
 			const data = DragDropManager.onDrag()&&DragDropManager.getData()
-			if(data && this.props.onDrop)
-				this.props.onDrop("drop",data)
+			if(data && this.props.onDragDrop){
+				DragDropManager.release()
+				e.stopPropagation();
+				this.props.onDragDrop("dragDrop",data)
+			}
 		},
 		render:function(){
 			const {style,colSpan,children} = this.props
@@ -923,7 +926,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				const newVal = e.target.value.toUpperCase();
 				e.target.value = newVal;
 			}
-			if(this.props.onChange) this.props.onChange(e)
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
 		},
 		render:function(){				
 			const inpContStyle={
@@ -2140,7 +2143,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}	
 	const onClickValue = ({sendVal});
-	const onDrop = ({sendVal});
+	const onDragDrop = ({sendVal});
 	const onReadySendBlob = ({sendBlob});
 	const transforms= {
 		tp:{
@@ -2158,7 +2161,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		onClickValue,		
 		onReadySendBlob,
-		onDrop
+		onDragDrop
 	};
 	const receivers = {
 		download
