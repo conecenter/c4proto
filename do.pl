@@ -16,7 +16,7 @@ my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "127.0.0.1:$kafka_port";
 
-
+sub syn{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
 
@@ -72,7 +72,13 @@ my $inbox_configure = sub{
     die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
 };
 
-push @tasks, ["start_kafka", sub{
+my $stop_kafka = sub{
+    syn("tmp/$kafka/bin/kafka-server-stop.sh");
+    syn("tmp/$kafka/bin/zookeeper-server-stop.sh");
+};
+
+push @tasks, ["restart_kafka", sub{
+    &$stop_kafka();
     &$put_text("tmp/zookeeper.properties","dataDir=db4/zookeeper\nclientPort=$zoo_port\n");
     &$put_text("tmp/server.properties",join "\n",
         "listeners=PLAINTEXT://$bootstrap_server",
@@ -86,14 +92,12 @@ push @tasks, ["start_kafka", sub{
         "message.max.bytes=3000000" #seems to be compressed
     );
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
+    sleep 5;
     sy("tmp/$kafka/bin/kafka-server-start.sh -daemon tmp/server.properties");
     sy("jps");
     &$inbox_configure();
 }];
-push @tasks, ["stop_kafka", sub{
-    sy("tmp/$kafka/bin/kafka-server-stop.sh");
-    sy("tmp/$kafka/bin/zookeeper-server-stop.sh");
-}];
+push @tasks, ["stop_kafka", sub{&$stop_kafka()}];
 
 push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
 
