@@ -1,13 +1,14 @@
 
 export default function CanvasManager(canvasFactory,feedback){
     const showCanvasData = data => state => {
-        const canvas = state.canvas || canvasFactory()
+        const parsed = JSON.parse(data)
+        const canvas = state.canvas || canvasFactory(parsed.options||{})
+        //todo: options are considered only once; do we need to rebuild canvas if they change?
         return ({
-            ...state, canvas,
+            ...state, canvas, parsed,
             remove: canvas.remove,
             checkActivate: canvas.checkActivate,
-            ackChange: canvas.ackChange,
-            parsed: JSON.parse(data)
+            ackChange: canvas.ackChange
         })
     }
     const branchHandlers = ({showCanvasData}) // todo branches cleanup
