@@ -86,6 +86,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 				minWidth:'1em',
 				fontSize:'1em',
 				alignSelf:'center',
+				fontFamily:'inherit',
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
 				outlineOffset:GlobalStyles.outlineOffset,
 				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
@@ -265,20 +266,19 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 	const DocElement=(props) =>{
 		const fontFaceStyle = `
 			@font-face {
-			font-family: "Open Sans";'+
-			font-style: normal;'+
-			font-weight: 400;'+
-			src: local("Segoe UI"), local("Open Sans"), local("OpenSans"), url(https://themes.googleusercontent.com/static/fonts/opensans/v8/K88pR3goAWT7BTt32Z01mz8E0i7KZn-EPnyo3HZu7kw.woff) format(\'woff\');'+
-		}`;
+				font-family: "Open Sans";
+				font-style: normal;
+				font-weight: 400;
+				src: local("Segoe UI"), local("Open Sans"), local("OpenSans"), url(https://themes.googleusercontent.com/static/fonts/opensans/v8/K88pR3goAWT7BTt32Z01mz8E0i7KZn-EPnyo3HZu7kw.woff) format('woff');
+			}`;
 		const fontSize = props.style.fontSize?props.style.fontSize:"";
 		const padding = props.style.padding?props.style.padding:"";
-		const htmlStyle = ''+
-			'html {'+
-			`font-size: ${fontSize};`+
-			'font-family:"Open Sans";'+
-			`padding: ${padding};`
-		'}';
-		
+		const htmlStyle = `
+			html {
+				font-size: ${fontSize};
+				font-family:"Open Sans";
+				padding: ${padding};
+			}`;		
 		return React.createElement(Helmet,{},
 			React.createElement("style",{},fontFaceStyle+htmlStyle)
 		)
