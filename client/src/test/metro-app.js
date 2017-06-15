@@ -35,15 +35,6 @@ const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
 
 //metroUi with hacks
 const press = key => window.dispatchEvent(new KeyboardEvent("keydown",({key})))
-const uglifyBody = style => {
-    const node = document.querySelector("#content");
-    if(node)
-    while (node.hasChildNodes())
-        node.removeChild(node.lastChild);
-    document.body.style.margin="0rem";
-    if(style)
-        Object.assign(document.documentElement.style,style);
-}
 const getComputedStyle = n => window.getComputedStyle(n);
 const getPageYOffset = ()=> window.pageYOffset;
 const fileReader = ()=> (new window.FileReader());
@@ -54,7 +45,7 @@ const bodyManager = (()=>{
 	const createElement = (type) => document.createElement(type)
 	return {add,remove,createElement}
 })()
-const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect});
+const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect});
 
 //customUi with hacks
 const toggleOverlay = on =>{
