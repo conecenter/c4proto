@@ -92,6 +92,7 @@ push @tasks, ["start_kafka", sub{
 }];
 push @tasks, ["stop_kafka", sub{
     sy("tmp/$kafka/bin/kafka-server-stop.sh")
+    sy("tmp/$kafka/bin/zookeeper-server-stop.sh")
 }];
 
 push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
