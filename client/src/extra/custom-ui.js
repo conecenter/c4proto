@@ -296,23 +296,29 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 		};
 		return {ping,regCallback,unregCallback};
 	}();	
-	
+	let prevWifiLevel = null
 	const DeviceConnectionState = React.createClass({
 		getInitialState:function(){
-			return {on:true};
+			return {on:true,wifiLevel:null};
 		},
 		signal:function(on){			
 			if(this.state.on!=on)
 				this.setState({on});
 		},
+		wifiCallback:function(wifiLevel){
+			prevWifiLevel = wifiLevel
+			this.setState({wifiLevel})
+		},
 		componentDidMount:function(){					
 			if(PingReceiver)
 				PingReceiver.regCallback(this.signal,this);
-			this.toggleOverlay(!this.state.on);			
+			this.toggleOverlay(!this.state.on);
+			this.wifi=scannerProxy.regWifi(this.wifiCallback)
 		},
 		componentWillUnmount:function(){
 			if(PingReceiver)
 				PingReceiver.unregCallback(this);
+			if(this.wifi) this.wifi.unreg();
 		},
 		toggleOverlay:function(on){
 			if(!this.props.overlay) return;
@@ -322,17 +328,38 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			this.toggleOverlay(!this.state.on);			
 		},
 		render:function(){
+			const wifiLevel = prevWifiLevel&&!this.state.wifiLevel?prevWifiLevel:this.state.wifiLevel
+			const wifiStyle = wifiLevel!==null?{padding:"0.11em 0em"}:{}
+			const wifiIconStyle = wifiLevel!==null?{width:"0.7em"}:{}
 			const style={
 				color:"white",
 				textAlign:"center",
+				...wifiStyle,
 				...this.props.style
 			};
-			const iconStyle={				
-				
+			const iconStyle={
+				...wifiIconStyle
 			};
 			if(this.props.style) Object.assign(style,this.props.style);
 			if(this.props.iconStyle) Object.assign(iconStyle,this.props.iconStyle);
-			return React.createElement(ConnectionState,{on:this.state.on,style:style,iconStyle:iconStyle}, null);			
+			let imageSvgData = null;
+			if(wifiLevel !== null){ //0 - 4
+				const wL = parseInt(wifiLevel)
+				const getColor = (cond) => cond?"white":"transparent"
+				const l4C = getColor(wL>=4)
+				const l3C = getColor(wL>=3)
+				const l2C = getColor(wL>=2)
+				const l1C = getColor(wL>=1)
+				const wifiSvg = `
+				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" x="0px" y="0px" viewBox="0 0 147.586 147.586" style="enable-background:new 0 0 147.586 147.586;" xml:space="preserve">
+					<path style="stroke:white;fill: ${l2C};" d="M48.712,94.208c-2.929,2.929-2.929,7.678,0,10.606c2.93,2.929,7.678,2.929,10.607,0   c7.98-7.98,20.967-7.98,28.947,0c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197c2.929-2.929,2.929-7.678,0-10.606   C85.044,80.378,62.542,80.378,48.712,94.208z"></path>
+					<path style="stroke:white;fill: ${l3C};" d="M26.73,72.225c-2.929,2.929-2.929,7.678,0,10.606s7.677,2.93,10.607,0   c20.102-20.102,52.811-20.102,72.912,0c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197   c2.929-2.929,2.929-7.678,0-10.606C94.906,46.275,52.681,46.275,26.73,72.225z"></path>
+					<path style="stroke:white;fill: ${l4C};" d="M145.39,47.692c-39.479-39.479-103.715-39.479-143.193,0c-2.929,2.929-2.929,7.678,0,10.606   c2.93,2.929,7.678,2.929,10.607,0c16.29-16.291,37.95-25.262,60.989-25.262s44.699,8.972,60.989,25.262   c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197C148.319,55.37,148.319,50.621,145.39,47.692z"></path>
+					<circle style="stroke:white;fill: ${l1C};" cx="73.793" cy="121.272" r="8.231"></circle>
+				</svg>`;
+				imageSvgData = svgSrc(wifiSvg)				
+			}			 
+			return React.createElement(ConnectionState,{on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null);
 		},
 	});
 	const CustomMeasurerConnectionState = React.createClass({
@@ -447,12 +474,19 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 		}
 	});	
 	const ScannerProxyElement = React.createClass({
-		callback:function(data){
-			if(this.props.onChange)
-				this.props.onChange({target:{headers:{"X-r-action":"change"},value:data}})
+		callback:function(type,data){
+			if(this.props.onClickValue)
+				this.props.onClickValue(type,data)
 		},
 		componentDidMount:function(){
-			this.unreg = scannerProxy.reg(this)
+			if(this.props.barcodeReader)
+				this.unreg = scannerProxy.reg(this)
+		},
+		componentDidUpdate:function(prevProps,_){
+			if(prevProps.barcodeReader != this.props.barcodeReader){
+				if(this.props.barcodeReader && !this.unreg) this.unreg = scannerProxy.reg(this)
+				else if(!this.props.barcodeReader && this.unreg) this.unreg()
+			}
 		},
 		componentWillUnmount:function(){
 			this.unreg&&this.unreg()
