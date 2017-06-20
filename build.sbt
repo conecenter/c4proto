@@ -90,13 +90,13 @@ lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
   .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
-  .dependsOn(`c4assemble-macros`,`c4gate-proto`, `c4actor-kafka`, `c4gate-management`)
+  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
 lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-proto`)
+  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`)
   .enablePlugins(JavaServerAppPackaging)
 
 
@@ -118,7 +118,7 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-management`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`)
   .enablePlugins(JavaServerAppPackaging)
 
 
@@ -131,9 +131,9 @@ lazy val `c4vdom-base` = project.settings(publishSettings)
 lazy val `c4ui-main` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-proto`)
+  .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-client`)
 
-lazy val `c4gate-management` = project.settings(publishSettings)
+lazy val `c4gate-client` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
   .dependsOn(`c4gate-proto`,`c4actor-base`)
@@ -148,7 +148,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4assemble-macros`,
   `c4assemble-runtime`,
   `c4gate-consumer-example`,
-  `c4gate-management`,
+  `c4gate-client`,
   `c4gate-proto`,
   `c4gate-publish`,
   `c4gate-server`,

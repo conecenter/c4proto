@@ -35,12 +35,27 @@ class TestPasswordApp extends ServerApp
     for(
       fromAlien ← fromAliens;
       view ← Option(fromAlien.locationHash).collect{
-        case "password" ⇒ TestPasswordRootView(fromAlien.fromAlienState)
+        case "password" ⇒ TestPasswordRootView(fromAlien.branchKey,fromAlien.fromAlienState)
+        case "anti-dos" ⇒ TestAntiDosRootView(fromAlien.branchKey)
       }
-    ) yield fromAlien.branchKey → view
+    ) yield WithSrcId(view)
 }
 
-case class TestPasswordRootView(fromAlienState: FromAlienState) extends View {
+case class TestAntiDosRootView(branchKey: SrcId) extends View {
+  def view: World ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local) { () ⇒
+    val mTags = TagsKey.of(local).get
+    import mTags._
+    List(
+      text("text","press it many times and look at 429 in browser console"),
+      divButton("add"){(local:World) ⇒
+        Thread.sleep(1000)
+        local
+      }(List(text("text","wait 1s")))
+    )
+  }
+}
+
+case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState) extends View {
   def view: World ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val tags = TestTagsKey.of(local).get
     val mTags = TagsKey.of(local).get

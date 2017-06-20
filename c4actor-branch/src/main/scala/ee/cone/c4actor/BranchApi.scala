@@ -19,6 +19,7 @@ trait BranchMessage {
 }
 
 trait BranchHandler extends Product {
+  def branchKey: SrcId
   def exchange: BranchMessage ⇒ World ⇒ World
   def seeds: World ⇒ List[BranchResult]
 }

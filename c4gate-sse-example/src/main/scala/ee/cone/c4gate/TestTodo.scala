@@ -46,7 +46,7 @@ class TestTodoApp extends ServerApp
       view ← Option(fromAlien.locationHash).collect{
         case "todo" ⇒ TestTodoRootView(fromAlien.branchKey)
       }
-    ) yield fromAlien.branchKey → view
+    ) yield WithSrcId(view)
 }
 
 case object TaskComments extends TextInputLens[TodoTask](_.comments,v⇒_.copy(comments=v))

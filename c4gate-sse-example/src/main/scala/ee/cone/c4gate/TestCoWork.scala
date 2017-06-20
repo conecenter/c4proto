@@ -44,7 +44,7 @@ class TestCoWorkApp extends ServerApp
           task.fromAlienState.sessionKey
         )
       }
-    ) yield task.branchKey → view
+    ) yield WithSrcId(view)
 }
 
 case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {

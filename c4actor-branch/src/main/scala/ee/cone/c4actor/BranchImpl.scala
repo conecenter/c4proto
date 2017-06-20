@@ -78,6 +78,7 @@ case class BranchTxTransform(
     val world = TxKey.of(local).world
     val index = By.srcId(classOf[BranchResult]).of(world)
     val wasBranchResults = index.getOrElse(branchKey,Nil)
+    //
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
     if(wasChildren == newChildren) local
@@ -85,6 +86,12 @@ case class BranchTxTransform(
       val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
       add(wasBranchResults.flatMap(delete) ++ newBranchResult.flatMap(update))(local)
     }
+    /* proposed:
+    val newBranchResults = seed.toList.map(_.copy(children = handler.seeds(local)))
+    if(wasBranchResults == newBranchResults) local
+    else add(
+      wasBranchResults.flatMap(delete) ++ newBranchResults.flatMap(update)
+    )(local)*/
   }
 
   private def reportAliveBranches: World ⇒ World = local ⇒ {
@@ -118,6 +125,7 @@ case class BranchTxTransform(
     case errors ⇒
       val texts = errors.collect{ case e: BranchError ⇒ e.message case _ ⇒ "" }
       chain(texts.map(sendToAll("fail",_))).andThen(ErrorKey.set(Nil))(local)
+      //chain(texts.map(text⇒sendToAll("fail",s"$branchKey\n$text"))).andThen(ErrorKey.set(Nil))(local)
   }
 
   private def rmPosts: World ⇒ World = chain(posts.map(_.rm))

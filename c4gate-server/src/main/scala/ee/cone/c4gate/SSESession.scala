@@ -18,7 +18,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
-import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4gate.HttpProtocol.{Header, HttpPost}
 
 trait SSEServerApp
   extends ToStartApp
@@ -37,7 +37,8 @@ trait SSEServerApp
     new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig))
   override def toStart: List[Executable] = sseServer :: super.toStart
   override def assembles: List[Assemble] =
-    mortal(classOf[ToAlienWrite]) :: new SSEAssemble(sseConfig) :: super.assembles
+    SSEAssembles(mortal,sseConfig) ::: PostAssembles(mortal,sseConfig) :::
+      super.assembles
   override def initLocals: List[InitLocal] =
     sseServer :: pongHandler :: super.initLocals
   override def protocols: List[Protocol] = AlienProtocol :: super.protocols
@@ -130,6 +131,11 @@ case class SessionTxTransform( //?todo session/pongs purge
   }
 }
 
+object SSEAssembles {
+  def apply(mortal: MortalFactory, sseConfig: SSEConfig): List[Assemble] =
+      mortal(classOf[ToAlienWrite]) :: new SSEAssemble(sseConfig) :: Nil
+}
+
 @assemble class SSEAssemble(sseConfig: SSEConfig) extends Assemble {
   type SessionKey = SrcId
 
@@ -156,22 +162,7 @@ case class SessionTxTransform( //?todo session/pongs purge
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(Alive,ToAlienWrite)] =
     for(write ← writes if fromAliens.nonEmpty) yield WithSrcId(write)
-
-  def joinPostsForQuote(
-    key: SrcId,
-    posts: Values[HttpPost]
-  ): Values[(SessionKey, HttpPost)] =
-    for(post ← posts; sessionHeader ← post.headers.find(_.key=="X-r-session"))
-      yield sessionHeader.value → post
-
-  def joinPostReject(
-    key: SrcId,
-    @by[SessionKey] posts: Values[HttpPost]
-  ): Values[(SrcId, HttpPostReject)] =
-    if(posts.size > sseConfig.sessionWaitingPosts) List(key → HttpPostReject(key)) else Nil
 }
-
-case class HttpPostReject(sessionKey: SrcId)
 
 case class NoProxySSEConfig(stateRefreshPeriodSeconds: Int) extends SSEConfig {
   def allowOrigin: Option[String] = Option("*")

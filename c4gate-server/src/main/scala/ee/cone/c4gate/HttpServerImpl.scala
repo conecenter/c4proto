@@ -9,12 +9,13 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
+import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.HttpProtocol._
-import ee.cone.c4assemble.Types.World
-import ee.cone.c4assemble.Single
+import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4actor._
-import ee.cone.c4gate.AlienProtocol.ToAlienWrite
+import ee.cone.c4gate.AlienProtocol.{PostConsumer, ToAlienWrite}
 import ee.cone.c4gate.AuthProtocol._
 import ee.cone.c4proto._
 
@@ -79,14 +80,6 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val post: okio.ByteString ⇒ HttpPost =
       HttpPost(requestId, path, headers, _, System.currentTimeMillis)
 
-    val world = TxKey.of(local).world
-    val sessionKey = headerMap.get("X-r-session")
-
-    if(By.srcId(classOf[HttpPostReject]).of(world).getOrElse(sessionKey.getOrElse(""),Nil).nonEmpty){
-      httpExchange.sendResponseHeaders(429, 0) //Too Many Requests
-      return true
-    }
-
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
       case Some("change") ⇒
@@ -99,12 +92,13 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         )
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
+        val world = TxKey.of(local).world
         val hashesByUser = By.srcId(classOf[PasswordHashOfUser]).of(world)
         val hash = Single.option(hashesByUser.getOrElse(userName,Nil)).map(_.hash.get)
         val endTime = System.currentTimeMillis() + 1000
         val hashOK = hash.exists(pass⇒AuthOperations.verify(password,pass))
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
-        val currentSessionKey = sessionKey.get
+        val currentSessionKey = headerMap("X-r-session")
         val newId = UUID.randomUUID.toString
         if(hashOK) List(
           post(ToByteString(newId)),
@@ -115,8 +109,15 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         )
       case _ ⇒ throw new Exception("unsupported auth action")
     }
-    LEvent.add(requests.flatMap(LEvent.update)).andThen(qMessages.send)(local)
-    httpExchange.sendResponseHeaders(200, 0)
+    LEvent.add(requests.flatMap(LEvent.update)).andThen{ nLocal ⇒
+      val world = TxKey.of(nLocal).world
+      if(By.srcId(classOf[HttpPostAllow]).of(world).getOrElse(requestId,Nil).nonEmpty){
+        qMessages.send(nLocal)
+        httpExchange.sendResponseHeaders(200, 0)
+      } else {
+        httpExchange.sendResponseHeaders(429, 0) //Too Many Requests
+      }
+    }(local)
     true
   }
 }
@@ -164,4 +165,50 @@ trait HttpServerApp extends ToStartApp {
     new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers))
 
   override def toStart: List[Executable] = httpServer :: super.toStart
+}
+
+object PostAssembles {
+  def apply(mortal: MortalFactory, sseConfig: SSEConfig): List[Assemble] =
+    mortal(classOf[HttpPost]) :: new PostLifeAssemble(sseConfig) :: Nil
+}
+
+case class HttpPostAllow(condition: SrcId)
+
+@assemble class PostLifeAssemble(sseConfig: SSEConfig) extends Assemble {
+  type ASessionKey = SrcId
+  type Condition = SrcId
+
+  def postsByCondition(
+    key: SrcId,
+    posts: Values[HttpPost]
+  ): Values[(Condition, HttpPost)] =
+    for(post ← posts)
+      yield post.headers.find(_.key=="X-r-branch").map(_.value).getOrElse(post.path) → post
+
+  def consumersByCondition(
+    key: SrcId,
+    consumers: Values[PostConsumer]
+  ): Values[(Condition, LocalPostConsumer)] =
+    for(c ← consumers) yield WithSrcId(LocalPostConsumer(c.condition))
+
+  def lifeToPosts(
+    key: SrcId,
+    @by[Condition] consumers: Values[LocalPostConsumer],
+    @by[Condition] posts: Values[HttpPost]
+  ): Values[(Alive, HttpPost)] = //it's not ok if postConsumers.size > 1
+    for(post ← posts if consumers.nonEmpty) yield WithSrcId(post)
+
+  def alivePostsBySession(
+    key: SrcId,
+    @by[Alive] posts: Values[HttpPost]
+  ): Values[(ASessionKey, HttpPost)] =
+    for(post ← posts)
+      yield post.headers.find(_.key=="X-r-session").map(_.value).getOrElse("") → post
+
+  def allowSessionPosts(
+    key: SrcId,
+    @by[ASessionKey] posts: Values[HttpPost]
+  ): Values[(SrcId, HttpPostAllow)] =
+    for(post ← posts if posts.size <= sseConfig.sessionWaitingPosts || key.isEmpty)
+      yield WithSrcId(HttpPostAllow(post.srcId))
 }

@@ -65,7 +65,7 @@ case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=
       view ← Option(task.locationHash).collect{
         case "rectangle" ⇒ TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
       }
-    ) yield task.branchKey → view
+    ) yield WithSrcId(view)
 
   def joinCanvas(
     key: SrcId,

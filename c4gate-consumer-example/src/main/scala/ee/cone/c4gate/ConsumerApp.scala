@@ -9,6 +9,7 @@ import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
+import ee.cone.c4actor.QProtocol.Offset
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Values, World}
 
@@ -17,8 +18,9 @@ class TestConsumerApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with InitLocalsApp
   with UMLClientsApp
+  with ManagementApp
 {
-  override def protocols: List[Protocol] = HttpProtocol :: TcpProtocol :: super.protocols
+  override def protocols: List[Protocol] = AlienProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
 
@@ -36,8 +38,27 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 */
 
 @assemble class TestAssemble extends Assemble {
-  def joinTestHttpPostHandler(key: SrcId, posts: Values[HttpPost]): Values[(SrcId, TxTransform)] =
-    posts.map(post⇒post.srcId→TestHttpPostHandler(post.srcId,post))
+  def joinTestHttpPostHandler(
+    key: SrcId,
+    posts: Values[HttpPost]
+  ): Values[(SrcId, TxTransform)] =
+    for(post ← posts if post.path == "/abc")
+      yield WithSrcId(TestHttpPostHandler(post.srcId,post))
+
+  def needConsumer(
+    key: SrcId,
+    offsets: Values[Offset]
+  ): Values[(SrcId,LocalPostConsumer)] =
+    for(_ ← offsets) yield WithSrcId(LocalPostConsumer("/abc"))
+
+  def joinDebug(
+    key: SrcId,
+    posts: Values[HttpPost]
+  ): Values[(SrcId, TxTransform)] = {
+    println(posts)
+    Nil
+  }
+
 /*
   def joinAllTcpConnections(key: SrcId, items: Values[TcpConnection]): Values[(Unit, TcpConnection)] =
     items.map(()→_)
