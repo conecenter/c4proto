@@ -42,7 +42,8 @@ const bodyManager = (()=>{
 	const addFirst = (node) => document.body.insertBefore(node,document.body.firstChild)
 	const remove = (node) => document.body.removeChild(node)
 	const createElement = (type) => document.createElement(type)
-	return {add,addFirst,remove,createElement}
+	const body = () => document.body
+	return {add,addFirst,remove,createElement,body}
 })()
 
 const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect});

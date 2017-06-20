@@ -56,6 +56,12 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			}
 		})
 	}
+	const UserQueryStringElement = React.createClass({
+		render:function(){
+			return null
+		}
+	})
+	
 	const UserCertificateElement = React.createClass({
 		onCertificate:function(certificate){
 			sendToServer("certificate",certificate.encoded)
@@ -163,7 +169,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 	
 	const transforms= {
 		tp:{
-			UserCertificateElement,SignDigestElement,ReportDigiStatusElement
+			UserQueryStringElement,UserCertificateElement,SignDigestElement,ReportDigiStatusElement
 		}
 	};
 	const receivers = {};

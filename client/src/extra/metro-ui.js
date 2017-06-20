@@ -24,12 +24,22 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		const update = (newStyles) => styles = {...styles,...newStyles}
 		return {...styles,update};
 	})()
-	const checkActivateCalls=[];
+	const checkActivateCalls=(()=>{
+		const callbacks=[]
+		const add = (c) => callbacks.push(c)
+		const remove = (c) => {
+			const index = callbacks.indexOf(c)
+			callbacks.splice(index,1)
+		}
+		const check = () => callbacks.forEach(c=>c())
+		return {add,remove,check}
+	})();
 	const isReactRoot = function(el){
 		if(el.dataset["reactroot"]=="") return true
 		return false
 	}
 	const getReactRoot = function(el){
+		if(!el) return bodyManager.body().querySelector("[data-reactroot]")		
 		if(isReactRoot(el) || !el.parentNode) return el
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
@@ -784,24 +794,51 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		let cNode = null;
 		let cNodeData = null;
 		let listRect = null;
+		let scrollNodes = null;
 		const callbacks = [];
 		const mouseHitPoint = {x:0,y:0}
+		const curMousePoint = {x:0,y:0}
+		const findScrollNodes = (childNode) => {
+			if(!cNode) return
+			const htmlNode = bodyManager.body().parentNode			
+			while(childNode != htmlNode && (childNode.clientHeight<=childNode.parentNode.clientHeight || childNode.parentNode.clientHeight == 0))
+				childNode = childNode.parentNode
+			return {childNode,parentNode:childNode.parentNode}
+		}
+		const doCheck = () =>{						
+			const pHeight = scrollNodes.parentNode.clientHeight
+			if(curMousePoint.y <= 10) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>15?scrollNodes.childNode.scrollTop - 25:0
+			else
+			if(curMousePoint.y <= 30) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>9?scrollNodes.childNode.scrollTop - 15:0
+			else
+			if(curMousePoint.y <= 60) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>5?scrollNodes.childNode.scrollTop - 5:0
+			
+			if(curMousePoint.y >= pHeight - 10) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 25:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
+			else
+			if(curMousePoint.y >= pHeight - 30) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 15:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
+			else
+			if(curMousePoint.y >= pHeight - 60) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 5:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
+		}
 		const release = () => {
 			if(!cNode) return false;			
 			bodyManager.remove(cNode);			
 			cNode = null;
 			listRect = null;
+			scrollNodes = null;
 			callbacks.splice(0)
 			removeEventListener("mousemove",onMouseMove)
 			removeEventListener("mouseup",onMouseUp)
 			removeEventListener("touchend",onMouseUp)
 			removeEventListener("touchmove",onMouseMove)
 			removeEventListener("keydown",onKeyDown)
+			checkActivateCalls.remove(doCheck)
 			return false;
 		}
 		const onMouseMove = (event) => {
-			if(!cNode) return;			
-			cNode.style.top = mouseHitPoint.top - mouseHitPoint.y + event.clientY + "px"
+			if(!cNode) return;
+			curMousePoint.y = event.clientY
+			curMousePoint.x = event.clientX
+			cNode.style.top = mouseHitPoint.top - mouseHitPoint.y  + getPageYOffset() + event.clientY + "px"
 			cNode.style.left = mouseHitPoint.left - mouseHitPoint.x + event.clientX + "px"
 			event.preventDefault();
 		}
@@ -818,21 +855,26 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 			}
 			release();
 		}
-		const getListRect=(node) => {
+		const getListNode = (node) =>{
 			while(node.tagName!="TABLE")
 				node = node.parentNode
-			return node.getBoundingClientRect()
+			return node
 		}
+		const getListRect = (node) => getListNode(node).getBoundingClientRect()
+		
 		const dragStart = (x,y,node,data,callback) => {			
 			cNode = bodyManager.createElement("table")
 			cNodeData = data;
 			listRect = getListRect(node);
+			const listNode = getListNode(node);
+			scrollNodes = findScrollNodes(listNode)
 			callbacks.push(callback)
 			cNode.appendChild(node.parentNode.cloneNode(true));
 			const parentRect = node.parentNode.getBoundingClientRect();			
+			const top = parentRect.top + getPageYOffset()
 			cNode.style.width = node.parentNode.getBoundingClientRect().width + "px";
 			cNode.style.position="absolute";
-			cNode.style.top = parentRect.top + "px"
+			cNode.style.top = top + "px"
 			cNode.style.left = parentRect.left + "px"
 			cNode.style.opacity = "0.7"
 			cNode.style.pointerEvents = "none";
@@ -846,6 +888,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 			addEventListener("mouseup",onMouseUp)
 			addEventListener("touchend",onMouseUp)
 			addEventListener("keydown",onKeyDown)
+			checkActivateCalls.add(doCheck)
 			return ({release});
 		}
 		const getData = () => cNodeData
@@ -854,8 +897,9 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 			if(event.key == "Escape") onEsc()
 		}
 		const onEsc = () => {			
+			outOfParent(true)
 			release()
-			cNodeData = null;							
+			cNodeData = null
 		}
 		const outOfParent = (outside) => {			
 			callbacks.forEach(c=>c(outside))
@@ -913,7 +957,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		render:function(){
 			const {style,colSpan,children} = this.props
 			const nodeType = this.props.nodeType?this.props.nodeType:"th"
-			const hightlight = this.props.droppable&&this.props.mouseEnter&&DragDropManager.onDrag()
+			//const hightlight = this.props.droppable&&this.props.mouseEnter&&DragDropManager.onDrag()
 			return React.createElement(nodeType,{style:{
 				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 				borderLeft:'none',
@@ -925,7 +969,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 				overflow:"hidden",				
 				textOverflow:"ellipsis",
 				cursor:this.props.draggable?"move":"auto",
-				backgroundColor:hightlight?"blue":"transparent",				
+				backgroundColor:"transparent",
 				...style
 			},colSpan,
 			ref:ref=>this.el=ref,
@@ -2202,15 +2246,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 				this.setState({max:!found})				
 			
 		},
-		componentDidMount:function(){
-			//addEventListener("resize",this.recalc)
-			checkActivateCalls.push(this.recalc)			
+		componentDidMount:function(){			
+			checkActivateCalls.add(this.recalc)			
 		},
-		componentWillUnmount:function(){
-			//removeEventListener("resize",this.recalc)
-			const i=checkActivateCalls.indexOf(this.recalc)
-			if(i>=0) checkActivateCalls.splice(i,1)
-			
+		componentWillUnmount:function(){			
+			checkActivateCalls.remove(this.recalc)			
 		},
 		render:function(){			
 			const style = {
@@ -2262,8 +2302,17 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		download,
 		...errors.receivers
 	}
-	const checkActivate = function(){
-		checkActivateCalls.forEach(c=>c())
-	}	
+	const TDFocusModule = (()=>{		
+		let nodes = null;
+		const doCheck = () => {
+			const root = getReactRoot();
+			if(!root) return
+			nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
+			if(nodes.length==0) return
+		}
+		checkActivateCalls.add(doCheck)
+	})()
+	
+	const checkActivate = () =>	checkActivateCalls.check()	
 	return ({transforms,receivers,checkActivate});
 }
