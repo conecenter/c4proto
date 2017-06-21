@@ -1320,7 +1320,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		padding:"0.4em 0.3125em",
 		boxSizing:"border-box",
 		...style
-	}},children);
+	},tabIndex:"1"},children);
 	const LabelElement = ({style,onClick,label})=>React.createElement("label",{onClick,style:{
 		color:"rgb(33,33,33)",
 		cursor:onClick?"pointer":"auto",
@@ -2303,12 +2303,60 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		...errors.receivers
 	}
 	const TDFocusModule = (()=>{		
-		let nodes = null;
+		let nodesObj = [];
+		let currentFocusNode = null;
+		const distance = (no1,no2) =>{
+			const a = (no2.fy - no1.fy)
+			const b = (no2.fx - no1.fx)
+			return Math.sqrt(a*a + b*b)
+		}
+		const axisDef = (angle) => {
+			if(angle>-45 && angle<=45) return 0
+			if(angle>45 && angle<=135) return 1
+			if(angle>135 || angle<=-135) return 2
+			if(angle>-135 && angle<=-45) return 3			
+		}
+		const findBestDistance = (axis) => {
+			const index = nodesObj.findIndex(o => o.n == currentFocusNode)
+			const cNodeObj = nodesObj[index]
+			const bestDistance = nodesObj.reduce((a,o) =>{
+				if(o!=cNodeObj){
+					const d = distance(o,cNodeObj)
+					const angle = (Math.atan2(o.fy - cNodeObj.fy, o.fx - cNodeObj.fx) * 180 / Math.PI)					
+					if(axisDef(angle) == axis && (!a || a.d>d)) return {o,d}
+				}						
+				return a
+			},null)
+			return bestDistance
+		}
+		const onKeyDown = (event) =>{
+			if(nodesObj.length == 0) return
+			let best = null
+			switch(event.key){
+				case "ArrowUp":
+					best = findBestDistance(3);break;
+				case "ArrowDown":
+					best = findBestDistance(1);break;
+				case "ArrowLeft":
+					best = findBestDistance(2);break;
+				case "ArrowRight":
+					best = findBestDistance(0);break;			
+			}			
+			if(best) {currentFocusNode = best.o.n;best.o.n.focus();}
+		}
+		addEventListener("keydown",onKeyDown)
 		const doCheck = () => {
 			const root = getReactRoot();
 			if(!root) return
-			nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
+			const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
 			if(nodes.length==0) return
+			const newNodesObj = nodes.map(n=>{
+				const r = n.getBoundingClientRect()				
+				return {fy:r.top + r.height/2,fx:r.left + r.width/2,n}
+			})
+			if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {currentFocusNode = null; nodesObj = newNodesObj}
+			if(!currentFocusNode && nodesObj.length>0) {currentFocusNode = nodesObj[9].n; currentFocusNode.focus()}
+			
 		}
 		checkActivateCalls.add(doCheck)
 	})()
