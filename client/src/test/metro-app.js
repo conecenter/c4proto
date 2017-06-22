@@ -19,8 +19,6 @@ import MetroUi       from "../extra/metro-ui"
 import CustomUi      from "../extra/custom-ui"
 import CryptoElements from "../extra/crypto-elements"
 
-function fail(data){ alert(data) }
-
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
@@ -35,27 +33,20 @@ const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
 
 //metroUi with hacks
 const press = key => window.dispatchEvent(new KeyboardEvent("keydown",({key})))
-const uglifyBody = style => {
-    const node = document.querySelector("#content");
-    if(node)
-    while (node.hasChildNodes())
-        node.removeChild(node.lastChild);
-    document.body.style.margin="0rem";
-    if(style)
-        Object.assign(document.documentElement.style,style);
-}
 const getComputedStyle = n => window.getComputedStyle(n);
 const getPageYOffset = ()=> window.pageYOffset;
 const fileReader = ()=> (new window.FileReader());
 const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth});
 const bodyManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
+	const addFirst = (node) => document.body.insertBefore(node,document.body.firstChild)
 	const remove = (node) => document.body.removeChild(node)
 	const createElement = (type) => document.createElement(type)
-	return {add,remove,createElement}
+	const body = () => document.body
+	return {add,addFirst,remove,createElement,body}
 })()
-const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect});
 
+const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect});
 //customUi with hacks
 const toggleOverlay = on =>{
     if(on){
@@ -75,7 +66,7 @@ const toggleOverlay = on =>{
     }
     else{
         const el=document.querySelector(".overlayMain");
-        if(el)	document.body.removeChild(el);
+        if(el) document.body.removeChild(el);
     }
 }
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
@@ -107,8 +98,6 @@ const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
-
-
 //transforms
 const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms])
 
@@ -120,8 +109,7 @@ const receiversList = [
     feedback.receivers,
 	metroUi.receivers,
     customUi.receivers,
-	cryptoElements.receivers,
-    {fail}
+	cryptoElements.receivers	  
 ]
 const composeUrl = () => {
     const port = parseInt(location.port)

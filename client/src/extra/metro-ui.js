@@ -1,14 +1,15 @@
 "use strict";
 import React from 'react'
 import {pairOfInputAttributes}  from "../main/vdom-util"
-//import { MorphReplace } from 'react-svg-morph'
+import Helmet from "react-helmet"
+import Errors from "../extra/errors"
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect}){
+export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect}){
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -23,11 +24,22 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		const update = (newStyles) => styles = {...styles,...newStyles}
 		return {...styles,update};
 	})()
+	const checkActivateCalls=(()=>{
+		const callbacks=[]
+		const add = (c) => callbacks.push(c)
+		const remove = (c) => {
+			const index = callbacks.indexOf(c)
+			callbacks.splice(index,1)
+		}
+		const check = () => callbacks.forEach(c=>c())
+		return {add,remove,check}
+	})();
 	const isReactRoot = function(el){
 		if(el.dataset["reactroot"]=="") return true
 		return false
 	}
 	const getReactRoot = function(el){
+		if(!el) return bodyManager.body().querySelector("[data-reactroot]")		
 		if(isReactRoot(el) || !el.parentNode) return el
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
@@ -84,6 +96,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				minWidth:'1em',
 				fontSize:'1em',
 				alignSelf:'center',
+				fontFamily:'inherit',
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
 				outlineOffset:GlobalStyles.outlineOffset,
 				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
@@ -93,6 +106,63 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			return React.createElement("button",{style,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
+	const uiElements = []
+	const errors = Errors({log,uiElements,bodyManager})
+	const $ = React.createElement
+	const ErrorElement = React.createClass({
+		getInitialState:function(){return {show:false,data:null}},
+		callback:function(data){
+			log(`hehe ${data}`)
+			this.setState({show:true,data})
+		},
+		componentDidMount:function(){
+			this.binding = errors.reg(this.callback)
+		},
+		onClick:function(e){
+			log(`click`)
+			this.setState({show:false,data:null})
+			if(this.props.onClick) this.props.onClick(e)
+		},
+		componentWillUnmount:function(){
+			if(this.binding) this.binding.unreg()
+		},
+		render:function(){
+			if(this.state.show||this.props.data){
+				const fillColor = "black"
+				const closeSvg = `
+				<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 348.333 348.334" style="enable-background:new 0 0 348.333 348.334;" xml:space="preserve" fill="${fillColor}">
+					<path d="M336.559,68.611L231.016,174.165l105.543,105.549c15.699,15.705,15.699,41.145,0,56.85 c-7.844,7.844-18.128,11.769-28.407,11.769c-10.296,0-20.581-3.919-28.419-11.769L174.167,231.003L68.609,336.563 c-7.843,7.844-18.128,11.769-28.416,11.769c-10.285,0-20.563-3.919-28.413-11.769c-15.699-15.698-15.699-41.139,0-56.85   l105.54-105.549L11.774,68.611c-15.699-15.699-15.699-41.145,0-56.844c15.696-15.687,41.127-15.687,56.829,0l105.563,105.554   L279.721,11.767c15.705-15.687,41.139-15.687,56.832,0C352.258,27.466,352.258,52.912,336.559,68.611z"/>
+				</svg>`;
+				const noteSvg = `
+				<svg fill="red" version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 490 490" style="enable-background:new 0 0 490 490;" xml:space="preserve">  
+					<path d="M244.5,0C109.3,0,0,109.3,0,244.5S109.3,489,244.5,489S489,379.7,489,244.5S379.7,0,244.5,0z M244.5,448.4
+							 c-112.4,0-203.9-91.5-203.9-203.9S132.1,40.6,244.5,40.6s203.9,91.5,203.9,203.9S356.9,448.4,244.5,448.4z" />
+					<path d="M354.8,134.2c-8.3-8.3-20.8-8.3-29.1,0l-81.2,81.2l-81.1-81.1c-8.3-8.3-20.8-8.3-29.1,0s-8.3,20.8,0,29.1l81.1,81.1
+							 l-81.1,81.1c-8.3,8.3-8.6,21.1,0,29.1c6.5,6,18.8,10.4,29.1,0l81.1-81.1l81.1,81.1c12.4,11.7,25,4.2,29.1,0
+							 c8.3-8.3,8.3-20.8,0-29.1l-81.1-81.1l81.1-81.1C363.1,155,363.1,142.5,354.8,134.2z" />
+				</svg>`;
+				const closeSvgData = svgSrc(closeSvg)
+				const noteSvgData = svgSrc(noteSvg)
+				const closeImg = $("img",{src:closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
+				const noteImg = $("img",{src:noteSvgData,style:{width:"1.5em",display:"inherit"}})
+				const data = this.props.data?this.props.data:this.state.data
+				const errorEl = $("div",{style:{backgroundColor:"white",padding:"0em 1.25em",borderTop:"0.1em solid #1976d2",borderBottom:"0.1em solid #1976d2"}},
+					$("div",{style:{display:"flex",height:"2em",margin:"0.2em"}},[
+						$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
+							$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
+							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},data)						
+						]),
+						$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
+						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},closeImg)
+					])
+				)			
+				return errorEl
+			}	
+			else 
+				return null
+		}
+	})
+	uiElements.push({ErrorElement})
 	const MenuBarElement=React.createClass({
 		getInitialState:function(){
 			return {fixedHeight:"",scrolled:false}
@@ -121,21 +191,27 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			const style = {
 				height:this.state.fixedHeight,				
 			}
+			const menuStyle = {
+				position:"fixed",
+				width:"100%",
+				zIndex:"6662",
+				top:"0rem",
+				boxShadow:this.state.scrolled?GlobalStyles.boxShadow:"",
+				...this.props.style				
+			}
 			const barStyle = {
 				display:'flex',
 				flexWrap:'nowrap',
 				justifyContent:'flex-start',
 				backgroundColor:'#2196f3',
-				verticalAlign:'middle',
-				position:"fixed",
-				width:"100%",
-				zIndex:"6669",
-				top:"0rem",
-				boxShadow:this.state.scrolled?GlobalStyles.boxShadow:"",
-				...this.props.style
+				verticalAlign:'middle',				
+				width:"100%"				
 			}
-			return React.createElement("div",{style:style},				
-				React.createElement("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref},this.props.children)
+			return React.createElement("div",{style:style},
+				React.createElement("div",{style:menuStyle,className:"menuBar",ref:ref=>this.el=ref},[
+					React.createElement("div",{key:"menuBar",style:barStyle,className:"menuBar"},this.props.children),
+					React.createElement(ErrorElement,{key:"errors",onClick:this.process})
+				])
 			)
 		}		
 	});
@@ -260,12 +336,30 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		marginTop:'0rem',
 		...style
 	}},children);
-	const DocElement=React.createClass({
-		componentDidMount:function(){ uglifyBody(this.props.style) },
-		render:function(){		
-			return React.createElement("div");
-		}	
-	});
+	const DocElement=(props) =>{
+		const fontFaceStyle = `
+			@font-face {
+				font-family: "Open Sans";
+				font-style: normal;
+				font-weight: 400;
+				src: local("Segoe UI"), local("Open Sans"), local("OpenSans"), url(https://themes.googleusercontent.com/static/fonts/opensans/v8/K88pR3goAWT7BTt32Z01mz8E0i7KZn-EPnyo3HZu7kw.woff) format('woff');
+			}`;
+		const fontSize = props.style.fontSize?props.style.fontSize:"";
+		const padding = props.style.padding?props.style.padding:"";
+		const htmlStyle = `
+			html {
+				font-size: ${fontSize};
+				font-family:"Open Sans";
+				padding: ${padding};
+			}`;
+		const bodyStyle = `
+			body {
+				margin:0em;
+			}`;
+		return React.createElement(Helmet,{},
+			React.createElement("style",{},fontFaceStyle+htmlStyle+bodyStyle)
+		)
+	}	
 	const GrContainer= ({style,children})=>React.createElement("div",{style:{
 		boxSizing:'border-box',           
 		fontSize:'0.875em',
@@ -387,21 +481,30 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		alignSelf:"center",
 		...style
 	},onClick},[value,children])
-	const ChipDeleteElement = ({style,onClick}) =>React.createElement(Interactive,{},(actions)=>React.createElement("div",{style:{
-			//"float":"right",
-			//color:"#666",
-			width:"0.8em",
-			cursor:"pointer",
-			//height:"100%",
-			display:"inline-block",
-			//borderRadius:"0 0.3em 0.3em 0",
-			//backgroundColor:"transparent",			
-			...style
-		},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut,onClick},React.createElement("span",{style:{
-			fontSize:"0.7em",
-			position:"relative",
-			bottom:"calc(0.1em)"
-		}},"x"))
+	const ChipDeleteElement = ({style,onClick}) =>React.createElement(Interactive,{},(actions)=>{
+			const fillColor = style&&style.color?style.color:"black";
+			const svg = `
+			<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 348.333 348.334" style="enable-background:new 0 0 348.333 348.334;" xml:space="preserve" fill="${fillColor}">
+				<path d="M336.559,68.611L231.016,174.165l105.543,105.549c15.699,15.705,15.699,41.145,0,56.85 c-7.844,7.844-18.128,11.769-28.407,11.769c-10.296,0-20.581-3.919-28.419-11.769L174.167,231.003L68.609,336.563 c-7.843,7.844-18.128,11.769-28.416,11.769c-10.285,0-20.563-3.919-28.413-11.769c-15.699-15.698-15.699-41.139,0-56.85   l105.54-105.549L11.774,68.611c-15.699-15.699-15.699-41.145,0-56.844c15.696-15.687,41.127-15.687,56.829,0l105.563,105.554   L279.721,11.767c15.705-15.687,41.139-15.687,56.832,0C352.258,27.466,352.258,52.912,336.559,68.611z"/>
+			</svg>`;
+			const svgData = svgSrc(svg)
+			const deleteEl = React.createElement("img",{src:svgData,style:{height:"0.6em",verticalAlign:"middle"}},null);
+			return React.createElement("div",{style:{
+				//"float":"right",
+				//color:"#666",
+				width:"0.8em",
+				cursor:"pointer",
+				//height:"100%",
+				display:"inline-block",
+				//borderRadius:"0 0.3em 0.3em 0",
+				//backgroundColor:"transparent",			
+				...style
+			},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut,onClick},React.createElement("span",{style:{
+				fontSize:"0.7em",
+				position:"relative",
+				bottom:"calc(0.1em)"
+			}},deleteEl))
+		}
 	)	
 	
 	const VKTd = React.createClass({
@@ -691,24 +794,51 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		let cNode = null;
 		let cNodeData = null;
 		let listRect = null;
+		let scrollNodes = null;
 		const callbacks = [];
 		const mouseHitPoint = {x:0,y:0}
+		const curMousePoint = {x:0,y:0}
+		const findScrollNodes = (childNode) => {
+			if(!cNode) return
+			const htmlNode = bodyManager.body().parentNode			
+			while(childNode != htmlNode && (childNode.clientHeight<=childNode.parentNode.clientHeight || childNode.parentNode.clientHeight == 0))
+				childNode = childNode.parentNode
+			return {childNode,parentNode:childNode.parentNode}
+		}
+		const doCheck = () =>{						
+			const pHeight = scrollNodes.parentNode.clientHeight
+			if(curMousePoint.y <= 10) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>15?scrollNodes.childNode.scrollTop - 25:0
+			else
+			if(curMousePoint.y <= 30) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>9?scrollNodes.childNode.scrollTop - 15:0
+			else
+			if(curMousePoint.y <= 60) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>5?scrollNodes.childNode.scrollTop - 5:0
+			
+			if(curMousePoint.y >= pHeight - 10) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 25:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
+			else
+			if(curMousePoint.y >= pHeight - 30) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 15:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
+			else
+			if(curMousePoint.y >= pHeight - 60) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 5:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
+		}
 		const release = () => {
 			if(!cNode) return false;			
 			bodyManager.remove(cNode);			
 			cNode = null;
 			listRect = null;
+			scrollNodes = null;
 			callbacks.splice(0)
 			removeEventListener("mousemove",onMouseMove)
 			removeEventListener("mouseup",onMouseUp)
 			removeEventListener("touchend",onMouseUp)
 			removeEventListener("touchmove",onMouseMove)
 			removeEventListener("keydown",onKeyDown)
+			checkActivateCalls.remove(doCheck)
 			return false;
 		}
 		const onMouseMove = (event) => {
-			if(!cNode) return;			
-			cNode.style.top = mouseHitPoint.top - mouseHitPoint.y + event.clientY + "px"
+			if(!cNode) return;
+			curMousePoint.y = event.clientY
+			curMousePoint.x = event.clientX
+			cNode.style.top = mouseHitPoint.top - mouseHitPoint.y  + getPageYOffset() + event.clientY + "px"
 			cNode.style.left = mouseHitPoint.left - mouseHitPoint.x + event.clientX + "px"
 			event.preventDefault();
 		}
@@ -725,21 +855,26 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			}
 			release();
 		}
-		const getListRect=(node) => {
+		const getListNode = (node) =>{
 			while(node.tagName!="TABLE")
 				node = node.parentNode
-			return node.getBoundingClientRect()
+			return node
 		}
+		const getListRect = (node) => getListNode(node).getBoundingClientRect()
+		
 		const dragStart = (x,y,node,data,callback) => {			
 			cNode = bodyManager.createElement("table")
 			cNodeData = data;
 			listRect = getListRect(node);
+			const listNode = getListNode(node);
+			scrollNodes = findScrollNodes(listNode)
 			callbacks.push(callback)
 			cNode.appendChild(node.parentNode.cloneNode(true));
 			const parentRect = node.parentNode.getBoundingClientRect();			
+			const top = parentRect.top + getPageYOffset()
 			cNode.style.width = node.parentNode.getBoundingClientRect().width + "px";
 			cNode.style.position="absolute";
-			cNode.style.top = parentRect.top + "px"
+			cNode.style.top = top + "px"
 			cNode.style.left = parentRect.left + "px"
 			cNode.style.opacity = "0.7"
 			cNode.style.pointerEvents = "none";
@@ -753,6 +888,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			addEventListener("mouseup",onMouseUp)
 			addEventListener("touchend",onMouseUp)
 			addEventListener("keydown",onKeyDown)
+			checkActivateCalls.add(doCheck)
 			return ({release});
 		}
 		const getData = () => cNodeData
@@ -761,13 +897,14 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			if(event.key == "Escape") onEsc()
 		}
 		const onEsc = () => {			
+			outOfParent(true)
 			release()
-			cNodeData = null;							
+			cNodeData = null
 		}
 		const outOfParent = (outside) => {			
 			callbacks.forEach(c=>c(outside))
 		}		
-		return {dragStart,getData,onDrag}
+		return {dragStart,getData,onDrag,release}
 	})()
 	
 	
@@ -787,8 +924,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			this.checkForSibling()
 			if(!this.props.droppable2) return;
 			if(prevProps.mouseEnter!=this.props.mouseEnter){
-				if(this.props.mouseEnter&&this.props.onClickValue&&DragDropManager.onDrag())
-					this.props.onClickValue("","dragOver")
+				if(this.props.mouseEnter&&this.props.onDragDrop&&DragDropManager.onDrag())
+					this.props.onDragDrop("dragOver","")
 			}
 		},
 		componentWillUnmount:function(){
@@ -796,28 +933,31 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		signalDragEnd:function(outside){
 			if(!this.props.draggable) return;
-			if(!this.props.onClickValue) return;			
-			if(outside) this.props.onClickValue("","dragEndOutside")
-			else this.props.onClickValue("","dragEnd")
+			if(!this.props.onDragDrop) return;			
+			if(outside) this.props.onDragDrop("dragEndOutside","")
+			else this.props.onDragDrop("dragEnd","")
 		},
 		onMouseDown:function(e){
 			if(!this.props.draggable) return;
 			if(!this.el) return;
 			this.dragBinding = DragDropManager.dragStart(e.clientX,e.clientY,this.el,this.props.dragData,this.signalDragEnd);
-			if(this.props.dragData && this.props.onClickValue)
-				this.props.onClickValue("","dragStart")
+			if(this.props.dragData && this.props.onDragDrop)
+				this.props.onDragDrop("dragStart","")
 			e.preventDefault();
 		},
 		onMouseUp:function(e){
 			if(!this.props.droppable) return;
 			const data = DragDropManager.onDrag()&&DragDropManager.getData()
-			if(data && this.props.onDrop)
-				this.props.onDrop("drop",data)
+			if(data && this.props.onDragDrop){
+				DragDropManager.release()
+				e.stopPropagation();
+				this.props.onDragDrop("dragDrop",data)
+			}
 		},
 		render:function(){
 			const {style,colSpan,children} = this.props
 			const nodeType = this.props.nodeType?this.props.nodeType:"th"
-			const hightlight = this.props.droppable&&this.props.mouseEnter&&DragDropManager.onDrag()
+			//const hightlight = this.props.droppable&&this.props.mouseEnter&&DragDropManager.onDrag()
 			return React.createElement(nodeType,{style:{
 				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 				borderLeft:'none',
@@ -829,7 +969,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				overflow:"hidden",				
 				textOverflow:"ellipsis",
 				cursor:this.props.draggable?"move":"auto",
-				backgroundColor:hightlight?"blue":"transparent",				
+				backgroundColor:"transparent",
 				...style
 			},colSpan,
 			ref:ref=>this.el=ref,
@@ -923,7 +1063,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				const newVal = e.target.value.toUpperCase();
 				e.target.value = newVal;
 			}
-			if(this.props.onChange) this.props.onChange(e)
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
 		},
 		render:function(){				
 			const inpContStyle={
@@ -989,7 +1129,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 							onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
 							},this.props.div?[this.props.inputChildren,
 								React.createElement("input",{style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},ref:ref=>this.inp2=ref,key:"input",onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:this.props.value})
-							]:null),							
+							]:(content?content:null)),							
 						this.props.popupElement?this.props.popupElement():null
 					]),
 					this.props.buttonElement?this.props.buttonElement():null
@@ -1380,7 +1520,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		
 		return React.createElement(Checkbox,{...props,innerStyle,checkImage,checkBoxStyle,});			
 	};	
-	const ConnectionState =({style,iconStyle,on})=>{		
+	const ConnectionState =(props)=>{
+		const {style,iconStyle,on} = props;
 		const fillColor = style.color?style.color:"black";
 		const contStyle={
 			borderRadius:"1em",
@@ -1398,19 +1539,20 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 			...style
 		};
 		const newIconStyle={
-			position:'relative',
+			//position:'relative',
 			//top:'-0.05em',
 			//left:'-0.025em',
 			verticalAlign:"top",
 			width:"0.5em",
-			lineHeight:"1",			
+			//lineHeight:"1",			
 			...iconStyle
 		};			
 			
 		const imageSvg='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 285.269 285.269" style="enable-background:new 0 0 285.269 285.269;" xml:space="preserve"> <path style="fill:'+fillColor+';" d="M272.867,198.634h-38.246c-0.333,0-0.659,0.083-0.986,0.108c-1.298-5.808-6.486-10.108-12.679-10.108 h-68.369c-7.168,0-13.318,5.589-13.318,12.757v19.243H61.553C44.154,220.634,30,206.66,30,189.262 c0-17.398,14.154-31.464,31.545-31.464l130.218,0.112c33.941,0,61.554-27.697,61.554-61.637s-27.613-61.638-61.554-61.638h-44.494 V14.67c0-7.168-5.483-13.035-12.651-13.035h-68.37c-6.193,0-11.381,4.3-12.679,10.108c-0.326-0.025-0.653-0.108-0.985-0.108H14.336 c-7.168,0-13.067,5.982-13.067,13.15v48.978c0,7.168,5.899,12.872,13.067,12.872h38.247c0.333,0,0.659-0.083,0.985-0.107 c1.298,5.808,6.486,10.107,12.679,10.107h68.37c7.168,0,12.651-5.589,12.651-12.757V64.634h44.494 c17.398,0,31.554,14.262,31.554,31.661c0,17.398-14.155,31.606-31.546,31.606l-130.218-0.04C27.612,127.862,0,155.308,0,189.248 s27.612,61.386,61.553,61.386h77.716v19.965c0,7.168,6.15,13.035,13.318,13.035h68.369c6.193,0,11.381-4.3,12.679-10.108 c0.327,0.025,0.653,0.108,0.986,0.108h38.246c7.168,0,12.401-5.982,12.401-13.15v-48.977 C285.269,204.338,280.035,198.634,272.867,198.634z M43.269,71.634h-24v-15h24V71.634z M43.269,41.634h-24v-15h24V41.634z M267.269,258.634h-24v-15h24V258.634z M267.269,228.634h-24v-15h24V228.634z"/></svg>';
 		const imageSvgData = svgSrc(imageSvg);		
+		const src = props.imageSvgData || imageSvgData
 		return React.createElement("div",{style:contStyle},
-				React.createElement("img",{key:"1",style:newIconStyle,src:imageSvgData},null)				
+				React.createElement("img",{key:"1",style:newIconStyle,src},null)				
 		);
 	};
 	const FileUploadElement = React.createClass({
@@ -2077,7 +2219,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		}
 	})
 	const AnchorElement = ({style,href}) =>React.createElement("a",{style,href},"get")
-	const checkActivateCalls=[];
+	
 	const HeightLimitElement = React.createClass({
 		getInitialState:function(){
 			return {max:false}
@@ -2104,15 +2246,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 				this.setState({max:!found})				
 			
 		},
-		componentDidMount:function(){
-			//addEventListener("resize",this.recalc)
-			checkActivateCalls.push(this.recalc)			
+		componentDidMount:function(){			
+			checkActivateCalls.add(this.recalc)			
 		},
-		componentWillUnmount:function(){
-			//removeEventListener("resize",this.recalc)
-			const i=checkActivateCalls.indexOf(this.recalc)
-			if(i>=0) checkActivateCalls.splice(i,1)
-			
+		componentWillUnmount:function(){			
+			checkActivateCalls.remove(this.recalc)			
 		},
 		render:function(){			
 			const style = {
@@ -2140,7 +2278,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 	}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}	
 	const onClickValue = ({sendVal});
-	const onDrop = ({sendVal});
+	const onDragDrop = ({sendVal});
 	const onReadySendBlob = ({sendBlob});
 	const transforms= {
 		tp:{
@@ -2158,13 +2296,23 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,uglifyBody,p
 		},
 		onClickValue,		
 		onReadySendBlob,
-		onDrop
+		onDragDrop
 	};
 	const receivers = {
-		download
+		download,
+		...errors.receivers
 	}
-	const checkActivate = function(){
-		checkActivateCalls.forEach(c=>c())
-	}
+	const TDFocusModule = (()=>{		
+		let nodes = null;
+		const doCheck = () => {
+			const root = getReactRoot();
+			if(!root) return
+			nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
+			if(nodes.length==0) return
+		}
+		checkActivateCalls.add(doCheck)
+	})()
+	
+	const checkActivate = () =>	checkActivateCalls.check()	
 	return ({transforms,receivers,checkActivate});
 }
