@@ -18,35 +18,66 @@ import CanvasExtraMix from "../extra/canvas-extra-mix"
 import MetroUi       from "../extra/metro-ui"
 import CustomUi      from "../extra/custom-ui"
 import CryptoElements from "../extra/crypto-elements"
+import FocusModule		from "../extra/focus-module"
+import DragDropModule from "../extra/dragdrop-module"
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
-
 const log = v => console.log("log",v)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
-
 const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
-
 //metroUi with hacks
 const press = key => window.dispatchEvent(new KeyboardEvent("keydown",({key})))
-const getComputedStyle = n => window.getComputedStyle(n);
-const getPageYOffset = ()=> window.pageYOffset;
 const fileReader = ()=> (new window.FileReader());
-const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth});
-const bodyManager = (()=>{
+
+const windowManager = (()=>{
+	const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth})
+	const getPageYOffset = ()=> window.pageYOffset
+	const getComputedStyle = n => window.getComputedStyle(n)		
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout}
+})()
+const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
 	const addFirst = (node) => document.body.insertBefore(node,document.body.firstChild)
 	const remove = (node) => document.body.removeChild(node)
 	const createElement = (type) => document.createElement(type)
 	const body = () => document.body
-	return {add,addFirst,remove,createElement,body}
+	const execCopy = () => document.execCommand('copy')
+	const activeElement = () =>document.activeElement
+	return {add,addFirst,remove,createElement,body,execCopy,activeElement}
+})()
+const eventManager = (()=>{
+	const create = (type,params) => {
+		switch(type){
+			case "keydown": return (new KeyboardEvent(type,params))
+			case "click": return (new MouseEvent(type,params))
+			default: return (new CustomEvent(type,params))
+		}
+	}
+	return {create}
 })()
 
-const metroUi = MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect});
+const miscReact = (()=>{
+	const isReactRoot = function(el){
+		if(el.dataset["reactroot"]=="") return true
+		return false
+	}
+	const getReactRoot = function(el){
+		if(!el) return documentManager.body().querySelector("[data-reactroot]")		
+		if(isReactRoot(el) || !el.parentNode) return el
+		const parentEl = el.parentNode
+		return getReactRoot(parentEl)
+	}	
+	return {isReactRoot,getReactRoot}
+})()
+
+const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
+const dragDropModule = DragDropModule({log,documentManager,windowManager})
+const metroUi = MetroUi({log,sender,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact});
 //customUi with hacks
 const toggleOverlay = on =>{
     if(on){
@@ -77,7 +108,7 @@ const innerHeight = () => window.innerHeight
 const scrollBy = (x,y) => window.scrollBy(x,y)
 const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,document,scrollBy})
 window.ScannerProxy = scannerProxy
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery,scannerProxy});
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,toggleOverlay,getBattery,scannerProxy,windowManager});
 
 const activeElement=()=>document.activeElement; //todo: remove
 
@@ -119,4 +150,8 @@ const composeUrl = () => {
 const createEventSource = () => new EventSource(window.sseUrl||composeUrl())
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)
-activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate,metroUi.checkActivate])
+activate(requestAnimationFrame, [connection.checkActivate,
+								branches.checkActivate,
+								metroUi.checkActivate,
+								focusModule.checkActivate,
+								dragDropModule.checkActivate])
