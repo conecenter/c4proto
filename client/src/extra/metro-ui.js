@@ -1308,7 +1308,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				width:"100%",				
 				padding:"0.4em 0.3125em",
 				boxSizing:"border-box",
-				outline:this.state.focused?"1px dotted black":"none",				
+				outline:this.state.focused?"1px dashed red":"none",				
 				...style
 			},tabIndex:"1",
 			className,
@@ -1458,7 +1458,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				flexShrink:"1",
 				boxSizing:"border-box",
 				lineHeight:"1",
-				outline:this.state.focused?"1px dotted black":"none",
+				outline:this.state.focused?"1px dashed red":"none",
 				...props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
 				...props.style
 			};
