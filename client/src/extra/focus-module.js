@@ -111,8 +111,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const onKeyDown = (event) =>{
 		if(nodesObj.length == 0) return
-		let best = null
-		log(event.key)
+		let best = null		
 		switch(event.key){
 			case "ArrowUp":
 				best = findBestDistance(3);break;
@@ -123,8 +122,11 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "ArrowRight":
 				best = findBestDistance(0);break;
 			case "Escape":
+				currentFocusNode.focus();break;
 			case "Tab":				 
-				currentFocusNode.focus();break;				
+				currentFocusNode.focus();
+				onTab(event)
+				event.preventDefault();return;
 			case "Enter":
 				sendEvent(()=>eventManager.create("enter"));break;					
 			case "Delete":
@@ -148,6 +150,11 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		if(!root) return
 		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
 		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+		const cRNode = callbacks.find(o=>o.el == currentFocusNode)
+		if(cRNode.props.autoFocus == false){
+			if(cRNode.props.onClickValue) cRNode.props.onClickValue("focus","change")
+			return
+		}
 		if(cIndex>=0 && cIndex+1<nodes.length) nodes[cIndex+1].focus()
 	}
 	const onPaste = (event) => {
@@ -190,7 +197,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const checkActivate = doCheck
 	const focusTo = (data) => {
 		const preferedFocusObj = callbacks.find(o=>o.el.classList.contains(`marker-${data}`))
-		if(preferedFocusObj) switchTo(preferedFocusObj.el)
+		if(preferedFocusObj) switchTo(preferedFocusObj)
 	}
 	const receivers = {focusTo}
 	return {reg,switchTo,checkActivate,receivers}

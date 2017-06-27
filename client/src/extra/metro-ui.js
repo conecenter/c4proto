@@ -957,9 +957,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		doIfNotFocused:function(what){
 			const inp = this.getInput()
-			const aEl = documentManager.activeElement()
-			log(inp)
-			log(aEl)
+			const aEl = documentManager.activeElement()			
 			if(inp != aEl) {
 				this.setFocus(true)
 				what(inp)
@@ -974,11 +972,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.prevval = inp.value
 				inp.selectionEnd = inp.value.length
 				inp.selectionStart = inp.value.length
-			}))	{
-				if(!this.props.waitForServer){
-					const cEvent = eventManager.create("cTab",{bubbles:true})
-					this.cont.dispatchEvent(cEvent)
-				}
+			}))	{				
+				const cEvent = eventManager.create("cTab",{bubbles:true})
+				this.cont.dispatchEvent(cEvent)				
 			}
 			event.stopPropagation()
 		},
@@ -1306,16 +1302,17 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			this.binding.unreg()
 		},
 		render:function(){
-			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""
+			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
 			const {style,children} = this.props
 			return React.createElement("div",{style:{
 				width:"100%",				
 				padding:"0.4em 0.3125em",
 				boxSizing:"border-box",
-				outline:this.state.focused?"1px dotted black":"none",
-				className,
+				outline:this.state.focused?"1px dotted black":"none",				
 				...style
-			},tabIndex:"1",ref:ref=>this.el=ref},children);
+			},tabIndex:"1",
+			className,
+			ref:ref=>this.el=ref},children);
 		}
 	})	
 	

@@ -54,7 +54,7 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 	} //level: 0-4
 	const button = (color) => {
 		//Object.keys(callbacks).forEach(k=>callbacks[k]("buttonColor",color));
-		const buttonEl = document.querySelector(`#marker-${color}`)
+		const buttonEl = document.querySelector(`.marker-${color}`)
 		if(buttonEl) buttonEl.click()
 	} //red/green
 	return {scannerStatus,setScannerEnable,receiveAction,reg,arrowUP,arrowDOWN,arrowRIGHT,arrowLEFT,arrowBodyUP,arrowBodyDOWN,wifiLevel,button,regWifi}
