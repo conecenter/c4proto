@@ -47,7 +47,12 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0038) lastPongSecond: Long, //do we need to affect branchKey by this?
     @Id(0x003A) userName: Option[String]
   )
-  //3B
+  @Id(0x003B) case class PostConsumer(
+    @Id(0x003C) srcId: String,
+    @Id(0x003D) consumer: String,
+    @Id(0x003E) condition: String
+  )
+  //3F
 }
 
 @protocol object AuthProtocol extends Protocol {

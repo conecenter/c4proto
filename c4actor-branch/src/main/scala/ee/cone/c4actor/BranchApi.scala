@@ -19,6 +19,7 @@ trait BranchMessage {
 }
 
 trait BranchHandler extends Product {
+  def branchKey: SrcId
   def exchange: BranchMessage ⇒ World ⇒ World
   def seeds: World ⇒ List[BranchResult]
 }
@@ -53,6 +54,15 @@ case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, paren
     @Id(0x0044) children: List[BranchResult],
     @Id(0x0045) position: String
   )
+
+  @Id(0x0046) case class SessionFailure(
+    @Id(0x0047) srcId: String,
+    @Id(0x0048) text: String,
+    @Id(0x0049) time: Long,
+    @Id(0x004A) sessionKeys: List[String]
+    //retry: List[HttpPost]
+  )
+
 }
 
 case object SendToAlienKey extends WorldKey[(Seq[String],String,String)⇒World⇒World]((_,_,_)⇒throw new Exception)

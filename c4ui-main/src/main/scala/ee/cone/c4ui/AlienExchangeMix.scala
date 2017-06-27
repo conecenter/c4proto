@@ -9,6 +9,9 @@ trait AlienExchangeApp extends InitLocalsApp with ProtocolsApp with AssemblesApp
   def branchOperations: BranchOperations
   //
   override def initLocals: List[InitLocal] = SendToAlienInit :: super.initLocals
-  override def assembles: List[Assemble] = new FromAlienBranchAssemble(branchOperations) :: new MessageFromAlienAssemble :: super.assembles
+  override def assembles: List[Assemble] =
+    new FromAlienBranchAssemble(branchOperations) ::
+    new MessageFromAlienAssemble ::
+    super.assembles
   override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
 }

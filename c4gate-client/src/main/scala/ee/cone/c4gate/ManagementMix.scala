@@ -7,7 +7,8 @@ trait ManagementApp extends AssemblesApp {
   def mainActorName: ActorName
 
   override def assembles: List[Assemble] =
-    new ManagementPostAssemble(mainActorName) :: super.assembles
+    new ManagementPostAssemble(mainActorName) :: new PostConsumerAssemble(mainActorName) ::
+      super.assembles
 }
 
 /*

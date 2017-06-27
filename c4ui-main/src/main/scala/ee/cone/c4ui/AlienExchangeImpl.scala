@@ -11,6 +11,7 @@ import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4gate.LocalPostConsumer
 import okio.ByteString
 
 case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
@@ -44,13 +45,22 @@ case class MessageFromAlienImpl(
   def mapHttpPostByBranch(
     key: SrcId,
     posts: Values[HttpPost]
-  ): Values[(BranchKey, MessageFromAlien)] =
-    for(post ← posts if post.path == "/connection") yield {
-      val headers = post.headers.flatMap(h ⇒
-        if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
-      ).toMap
-      headers("X-r-branch") → MessageFromAlienImpl(post.srcId,headers("X-r-index").toLong,headers,post)
-    }
+  ): Values[(BranchKey, MessageFromAlien)] = for(
+    post ← posts if post.path == "/connection";
+    headers ← Option(post.headers.flatMap(h ⇒
+      if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
+    ).toMap);
+    branchKey ← headers.get("X-r-branch");
+    index ← headers.get("X-r-index").map(_.toLong)
+  ) yield branchKey → MessageFromAlienImpl(post.srcId,index,headers,post)
+
+
+  def consumersForHandlers(
+    key: SrcId,
+    handlers: Values[BranchHandler]
+  ): Values[(SrcId,LocalPostConsumer)] =
+    for(h ← handlers) yield WithSrcId(LocalPostConsumer(h.branchKey))
+
 }
 
 @assemble class FromAlienBranchAssemble(operations: BranchOperations) extends Assemble {

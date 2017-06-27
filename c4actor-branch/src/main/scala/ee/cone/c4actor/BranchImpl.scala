@@ -8,7 +8,7 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble.Types.{Values, World}
 import ee.cone.c4assemble._
-import ee.cone.c4actor.BranchProtocol.BranchResult
+import ee.cone.c4actor.BranchProtocol.{SessionFailure, BranchResult}
 import ee.cone.c4actor.BranchTypes._
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
@@ -78,6 +78,7 @@ case class BranchTxTransform(
     val world = TxKey.of(local).world
     val index = By.srcId(classOf[BranchResult]).of(world)
     val wasBranchResults = index.getOrElse(branchKey,Nil)
+    //
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
     if(wasChildren == newChildren) local
@@ -85,6 +86,12 @@ case class BranchTxTransform(
       val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
       add(wasBranchResults.flatMap(delete) ++ newBranchResult.flatMap(update))(local)
     }
+    /* proposed:
+    val newBranchResults = seed.toList.map(_.copy(children = handler.seeds(local)))
+    if(wasBranchResults == newBranchResults) local
+    else add(
+      wasBranchResults.flatMap(delete) ++ newBranchResults.flatMap(update)
+    )(local)*/
   }
 
   private def reportAliveBranches: World ⇒ World = local ⇒ {
@@ -113,22 +120,36 @@ case class BranchTxTransform(
   private def sendToAll(evType: String, data: String): World ⇒ World =
     local ⇒ SendToAlienKey.of(local)(sessionKeys,evType,data)(local)
 
-  private def reportResetErrors: World ⇒ World = local ⇒ ErrorKey.of(local) match {
-    case Nil ⇒ local
-    case errors ⇒
-      val texts = errors.collect{ case e: BranchError ⇒ e.message case _ ⇒ "" }
-      chain(texts.map(sendToAll("fail",_))).andThen(ErrorKey.set(Nil))(local)
+  private def errorText: World ⇒ String = local ⇒ ErrorKey.of(local).map{
+    case e:BranchError ⇒ e.message
+    case _ ⇒ ""
+  }.mkString("\n")
+
+  private def reportError: String ⇒ World ⇒ World = text ⇒
+    sendToAll("fail",s"$branchKey\n$text")
+
+  private def incrementErrors: World ⇒ World =
+    ErrorKey.modify(new Exception :: _)
+
+  private def savePostsErrors: String ⇒ World ⇒ World = text ⇒ {
+    val now = System.currentTimeMillis
+    val failure = SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
+    LEvent.add(LEvent.update(failure))
   }
 
-  private def rmPosts: World ⇒ World = chain(posts.map(_.rm))
+  private def rmPostsErrors: World ⇒ World =
+    chain(posts.map(_.rm)).andThen(ErrorKey.set(Nil))
 
-  def transform(local: World): World =
-    if(ErrorKey.of(local).nonEmpty && posts.nonEmpty) reportResetErrors
-      .andThen(rmPosts)(local)
-    else reportResetErrors
-      .andThen(chain(getPosts.map(post⇒toAck(post).andThen(handler.exchange(post)))))
+  def transform(local: World): World = {
+    val errors = ErrorKey.of(local)
+    if(errors.nonEmpty && posts.nonEmpty)
+      savePostsErrors(errorText(local)).andThen(rmPostsErrors)(local)
+    else if(errors.size == 1)
+      reportError(errorText(local)).andThen(incrementErrors)(local)
+    else chain(getPosts.map(post⇒toAck(post).andThen(handler.exchange(post))))
       .andThen(saveResult).andThen(reportAliveBranches)
-      .andThen(rmPosts)(local)
+      .andThen(rmPostsErrors)(local)
+  }
 
   private def toAck: BranchMessage ⇒ World ⇒ World = exchange ⇒ {
     val sessionKey = exchange.header("X-r-session")
@@ -136,6 +157,10 @@ case class BranchTxTransform(
     else AckChangesKey.modify(_ + (sessionKey → exchange.header("X-r-index")))
   }
 }
+
+
+
+//class UnconfirmedException() extends Exception
 
 class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations {
   private def toBytes(value: Long) =
@@ -171,7 +196,6 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
   }
 
-
   def joinTxTransform(
     key: SrcId,
     @by[BranchKey] seeds: Values[BranchRel],
@@ -185,7 +209,24 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
         posts.sortBy(_.index).toList,
         handler
       )
+
+  type SessionKey = SrcId
+
+  def failuresBySession(
+    key: SrcId,
+    failures: Values[SessionFailure]
+  ): Values[(SessionKey,SessionFailure)] =
+    for(f ← failures; k ← f.sessionKeys) yield k → f
+
+  def joinSessionFailures(
+    key: SrcId,
+    @by[SessionKey] failures: Values[SessionFailure]
+  ): Values[(SrcId,SessionFailures)] =
+    List(WithSrcId(SessionFailures(key,failures.sortBy(_.time).toList)))
+
 }
+
+case class SessionFailures(sessionKey: SrcId, failures: List[SessionFailure])
 
 //todo relocate toAlien
 //todo error in view

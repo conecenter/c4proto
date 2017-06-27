@@ -1,10 +1,11 @@
 
 package ee.cone.c4gate
 
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.QProtocol.Offset
 import ee.cone.c4actor._
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Index, Values, World}
-import ee.cone.c4assemble.{Assemble, JoinKey, Single, assemble}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 
 @assemble class ManagementPostAssemble(actorName: ActorName) extends Assemble {
@@ -14,6 +15,13 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
   ): Values[(SrcId, TxTransform)] =
     for(post ← posts if post.path == s"/manage/${actorName.value}")
       yield WithSrcId(ManageHttpPostTx(post.srcId, post))
+
+  def joinConsumers(
+    key: SrcId,
+    offsets: Values[Offset]
+  ): Values[(SrcId,LocalPostConsumer)] =
+    for(_ ← offsets)
+      yield WithSrcId(LocalPostConsumer(s"/manage/${actorName.value}"))
 }
 
 case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform {

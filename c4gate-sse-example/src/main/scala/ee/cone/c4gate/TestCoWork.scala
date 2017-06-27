@@ -44,7 +44,7 @@ class TestCoWorkApp extends ServerApp
           task.fromAlienState.sessionKey
         )
       }
-    ) yield task.branchKey → view
+    ) yield WithSrcId(view)
 }
 
 case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
@@ -76,9 +76,7 @@ case class TestCoLeaderView(branchKey: SrcId) extends View {
     val seeds = fromAliens.toList.sortBy(_.sessionKey)
       .map(branchOperations.toSeed)
     divButton("add")(printStats)(List(text("caption", "stats"))) ::
-      seeds.map(seed(_)(List(
-        tags.div("1",List(styles.width(100), styles.height(100)))(Nil)
-      )))
+      seeds.map(seed(_)(List(styles.width(100), styles.height(100)))(Nil))
   }
   private def printStats: World ⇒ World = local ⇒ {
     val world = TxKey.of(local).world
