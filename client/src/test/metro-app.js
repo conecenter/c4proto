@@ -140,7 +140,8 @@ const receiversList = [
     feedback.receivers,
 	metroUi.receivers,
     customUi.receivers,
-	cryptoElements.receivers	  
+	cryptoElements.receivers,
+	focusModule.receivers
 ]
 const composeUrl = () => {
     const port = parseInt(location.port)

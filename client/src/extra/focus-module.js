@@ -22,7 +22,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const calcAngle = (m,mc) => m&&(Math.atan2(m.fy - mc.fy, m.fx - mc.fx) * 180 / Math.PI)
 	const findBestDistance = (axis) => {
 		const aEl = documentManager.activeElement()
-		if(aEl.tagName == "INPUT") return
+		if((axis==2||axis==0) && aEl.tagName == "INPUT") return
 		const index = nodesObj.findIndex(o => o.n == currentFocusNode)
 		const cNodeObj = nodesObj[index]
 		const k = [-1,1]
@@ -112,6 +112,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const onKeyDown = (event) =>{
 		if(nodesObj.length == 0) return
 		let best = null
+		log(event.key)
 		switch(event.key){
 			case "ArrowUp":
 				best = findBestDistance(3);break;
@@ -120,7 +121,10 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "ArrowLeft":
 				best = findBestDistance(2);break;
 			case "ArrowRight":
-				best = findBestDistance(0);break;	
+				best = findBestDistance(0);break;
+			case "Escape":
+			case "Tab":				 
+				currentFocusNode.focus();break;				
 			case "Enter":
 				sendEvent(()=>eventManager.create("enter"));break;					
 			case "Delete":
@@ -139,12 +143,20 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		if(isPrintableKeyCode(event.keyCode)) sendEvent(()=>eventManager.create("delete",{detail:event.key}))
 			
 	}
+	const onTab = (event) =>{
+		const root = getReactRoot();
+		if(!root) return
+		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
+		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+		if(cIndex>=0 && cIndex+1<nodes.length) nodes[cIndex+1].focus()
+	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
 		sendEvent(()=>eventManager.create("cpaste",{detail:data}))
 	}		
 	addEventListener("keydown",onKeyDown)
 	addEventListener("paste",onPaste)
+	addEventListener("cTab",onTab)
 	const isPrintableKeyCode = 	(kc) => (kc == 32 || (kc >= 48 && kc <= 57) || 
 								(kc >= 65 && kc <= 90) || (kc >= 186 && kc <= 192) || 
 								(kc >= 219 && kc <= 222) || kc == 226 || kc == 110 || 
@@ -176,5 +188,10 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		currentFocusNode = node.el
 	}
 	const checkActivate = doCheck
-	return {reg,switchTo,checkActivate}
+	const focusTo = (data) => {
+		const preferedFocusObj = callbacks.find(o=>o.el.classList.contains(`marker-${data}`))
+		if(preferedFocusObj) switchTo(preferedFocusObj.el)
+	}
+	const receivers = {focusTo}
+	return {reg,switchTo,checkActivate,receivers}
 }

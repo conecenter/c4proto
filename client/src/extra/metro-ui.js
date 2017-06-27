@@ -950,30 +950,40 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.getInput().blur()
 			}
 			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
-			if(e.keyCode == 13) {
+			/*if(e.keyCode == 13) {
 				if(this.inp2) this.inp2.blur()
 				else this.inp.blur()
-			}
+			}*/
 		},
 		doIfNotFocused:function(what){
 			const inp = this.getInput()
 			const aEl = documentManager.activeElement()
+			log(inp)
+			log(aEl)
 			if(inp != aEl) {
 				this.setFocus(true)
 				what(inp)
-			}				
+				return true
+			}
+			return false
 		},
 		getInput:function(){ return this.inp||this.inp2},
 		onEnter:function(event){
-			log(`Enter`)
-			this.doIfNotFocused((inp)=>{
+			//log(`Enter ;`)
+			if(!this.doIfNotFocused((inp)=>{
 				this.prevval = inp.value
-				inp.setSelectionRange(0,inp.value.length)
-			})			
+				inp.selectionEnd = inp.value.length
+				inp.selectionStart = inp.value.length
+			}))	{
+				if(!this.props.waitForServer){
+					const cEvent = eventManager.create("cTab",{bubbles:true})
+					this.cont.dispatchEvent(cEvent)
+				}
+			}
 			event.stopPropagation()
 		},
 		onDelete:function(event){
-			log(`Delete`)
+			//log(`Delete`)
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = ""
@@ -981,7 +991,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			event.stopPropagation()
 		},
 		onPaste:function(event){
-			log(`Paste`)
+			//log(`Paste`)
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = event.detail
@@ -989,7 +999,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			event.stopPropagation()
 		},
 		onCopy:function(event){
-			log(`Copy`)
+			//log(`Copy`)
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.setSelectionRange(0,inp.value.length)
@@ -998,7 +1008,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			event.stopPropagation()
 		},
 		componentDidMount:function(){
-			this.setFocus(this.props.focus)
+			//this.setFocus(this.props.focus)
 			const inp = this.getInput()			
 			inp.addEventListener('enter',this.onEnter)
 			inp.addEventListener('delete',this.onDelete)
@@ -1012,7 +1022,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			inp.removeEventListener('cpaste',this.onPaste)
 			inp.removeEventListener('ccopy',this.onCopy)
 		},
-		componentDidUpdate:function(){this.setFocus(this.props.focus)},		
+		//componentDidUpdate:function(){this.setFocus(this.props.focus)},		
 		onChange:function(e){
 			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
 				const newVal = e.target.value.toUpperCase();
@@ -1079,7 +1089,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 							key:"1",
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
-							content,
+							content,							
 							style:{...inputStyle,...overRideInputStyle},							
 							onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
 							},this.props.div?[this.props.inputChildren,
@@ -1270,7 +1280,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			React.createElement(ButtonElement,{...props,...actions,style:openButtonStyle})
 		);
 	})
-	const DropDownWrapperElement = React.createClass({
+	const ControlWrapperElement = React.createClass({
 		getInitialState:function(){
 			return {focused:false}
 		},
@@ -1296,12 +1306,14 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			this.binding.unreg()
 		},
 		render:function(){
+			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""
 			const {style,children} = this.props
 			return React.createElement("div",{style:{
 				width:"100%",				
 				padding:"0.4em 0.3125em",
 				boxSizing:"border-box",
 				outline:this.state.focused?"1px dotted black":"none",
+				className,
 				...style
 			},tabIndex:"1",ref:ref=>this.el=ref},children);
 		}
@@ -1437,11 +1449,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		onClick:function(){
 			if(this.props.onChange) 
-				this.props.onChange({target:{headers:{"X-r-action":"change"},value:(this.props.value?"":"checked")}})
-			else if(this.el){
-				const cEvent = eventManager.create("click",{bubbles:true})
-				this.el.dispatchEvent(cEvent)
-			}				
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:(this.props.value?"":"checked")}})					
 		},
 		render:function(){
 			const props = this.props			
@@ -1643,11 +1651,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"Submit";
         return React.createElement("form",{onSubmit:(e)=>e.preventDefault()},
 			React.createElement("div",{key:"1",style:{display:"flex"}},[
-				React.createElement(DropDownWrapperElement,{key:"1",style:{flex:"1 1 0%"}},
+				React.createElement(ControlWrapperElement,{key:"1",style:{flex:"1 1 0%"}},
 					React.createElement(LabelElement,{label:passwordCaption},null),
 					React.createElement(InputElement,{...attributesA,focus:prop.focus,type:"password"},null)			
 				),
-				React.createElement(DropDownWrapperElement,{key:"2",style:{flex:"1 1 0%"}},
+				React.createElement(ControlWrapperElement,{key:"2",style:{flex:"1 1 0%"}},
 					React.createElement(LabelElement,{label:passwordRepeatCaption},null),
 					React.createElement(InputElement,{...attributesB,focus:false,type:"password"},null)			
 				),            
@@ -1672,11 +1680,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		}
         return React.createElement("div",{style:{margin:"1em 0em",...prop.style}},
 			React.createElement("form",{key:"form",onSubmit:e=>e.preventDefault()},[
-				React.createElement(DropDownWrapperElement,{key:"1"},
+				React.createElement(ControlWrapperElement,{key:"1"},
 					React.createElement(LabelElement,{label:usernameCaption},null),
 					React.createElement(InputElement,{...attributesA,style:styleA,focus:prop.focus},null)			
 				),
-				React.createElement(DropDownWrapperElement,{key:"2"},
+				React.createElement(ControlWrapperElement,{key:"2"},
 					React.createElement(LabelElement,{label:passwordCaption},null),
 					React.createElement(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password"},null)			
 				),
@@ -2312,7 +2320,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,AnchorElement,HeightLimitElement,
-			DropDownElement,DropDownWrapperElement,LabeledTextElement,
+			DropDownElement,ControlWrapperElement,LabeledTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
