@@ -196,7 +196,10 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			const r = n.getBoundingClientRect()				
 			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n}
 		})
-		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {currentFocusNode = null; nodesObj = newNodesObj}
+		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
+			nodesObj = newNodesObj			
+			if(!nodesObj.find(o=>o.n == currentFocusNode)) currentFocusNode = null
+		}
 		if(!currentFocusNode && nodesObj.length>0) {currentFocusNode = nodesObj[0].n; currentFocusNode.focus()}			
 	}	
 	const reg = (o) => {
