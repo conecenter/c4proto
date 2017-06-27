@@ -9,7 +9,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc,addEventListener,removeEventListener,getComputedStyle,fileReader,getPageYOffset,bodyManager,getWindowRect}){
+export default function MetroUi({log,sender,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact}){
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -34,16 +34,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		const check = () => callbacks.forEach(c=>c())
 		return {add,remove,check}
 	})();
-	const isReactRoot = function(el){
-		if(el.dataset["reactroot"]=="") return true
-		return false
-	}
-	const getReactRoot = function(el){
-		if(!el) return bodyManager.body().querySelector("[data-reactroot]")		
-		if(isReactRoot(el) || !el.parentNode) return el
-		const parentEl = el.parentNode
-		return getReactRoot(parentEl)
-	}	
+	const {isReactRoot,getReactRoot} = miscReact
+	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle} = windowManager
 	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -107,7 +99,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		}
 	});
 	const uiElements = []
-	const errors = Errors({log,uiElements,bodyManager})
+	const errors = Errors({log,uiElements,documentManager})
 	const $ = React.createElement
 	const ErrorElement = React.createClass({
 		getInitialState:function(){return {show:false,data:null}},
@@ -789,128 +781,17 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		}
 	});
 		
-	const TBodyElement = ({style,children})=>React.createElement("tbody",{style:style},children);
-	const DragDropManager = (()=>{
-		let cNode = null;
-		let cNodeData = null;
-		let listRect = null;
-		let scrollNodes = null;
-		const callbacks = [];
-		const mouseHitPoint = {x:0,y:0}
-		const curMousePoint = {x:0,y:0}
-		const findScrollNodes = (childNode) => {
-			if(!cNode) return
-			const htmlNode = bodyManager.body().parentNode			
-			while(childNode != htmlNode && (childNode.clientHeight<=childNode.parentNode.clientHeight || childNode.parentNode.clientHeight == 0))
-				childNode = childNode.parentNode
-			return {childNode,parentNode:childNode.parentNode}
-		}
-		const doCheck = () =>{						
-			const pHeight = scrollNodes.parentNode.clientHeight
-			if(curMousePoint.y <= 10) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>15?scrollNodes.childNode.scrollTop - 25:0
-			else
-			if(curMousePoint.y <= 30) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>9?scrollNodes.childNode.scrollTop - 15:0
-			else
-			if(curMousePoint.y <= 60) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>5?scrollNodes.childNode.scrollTop - 5:0
-			
-			if(curMousePoint.y >= pHeight - 10) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 25:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
-			else
-			if(curMousePoint.y >= pHeight - 30) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 15:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
-			else
-			if(curMousePoint.y >= pHeight - 60) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 5:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
-		}
-		const release = () => {
-			if(!cNode) return false;			
-			bodyManager.remove(cNode);			
-			cNode = null;
-			listRect = null;
-			scrollNodes = null;
-			callbacks.splice(0)
-			removeEventListener("mousemove",onMouseMove)
-			removeEventListener("mouseup",onMouseUp)
-			removeEventListener("touchend",onMouseUp)
-			removeEventListener("touchmove",onMouseMove)
-			removeEventListener("keydown",onKeyDown)
-			checkActivateCalls.remove(doCheck)
-			return false;
-		}
-		const onMouseMove = (event) => {
-			if(!cNode) return;
-			curMousePoint.y = event.clientY
-			curMousePoint.x = event.clientX
-			cNode.style.top = mouseHitPoint.top - mouseHitPoint.y  + getPageYOffset() + event.clientY + "px"
-			cNode.style.left = mouseHitPoint.left - mouseHitPoint.x + event.clientX + "px"
-			event.preventDefault();
-		}
-		const onMouseUp = (event) => {
-			if(listRect){				
-				if(
-					event.clientY>=listRect.top&&
-					event.clientY<=listRect.bottom&&
-					event.clientX>=listRect.left&&
-					event.clientX<=listRect.right
-				)   outOfParent(false)
-				else
-					outOfParent(true)
-			}
-			release();
-		}
-		const getListNode = (node) =>{
-			while(node.tagName!="TABLE")
-				node = node.parentNode
-			return node
-		}
-		const getListRect = (node) => getListNode(node).getBoundingClientRect()
-		
-		const dragStart = (x,y,node,data,callback) => {			
-			cNode = bodyManager.createElement("table")
-			cNodeData = data;
-			listRect = getListRect(node);
-			const listNode = getListNode(node);
-			scrollNodes = findScrollNodes(listNode)
-			callbacks.push(callback)
-			cNode.appendChild(node.parentNode.cloneNode(true));
-			const parentRect = node.parentNode.getBoundingClientRect();			
-			const top = parentRect.top + getPageYOffset()
-			cNode.style.width = node.parentNode.getBoundingClientRect().width + "px";
-			cNode.style.position="absolute";
-			cNode.style.top = top + "px"
-			cNode.style.left = parentRect.left + "px"
-			cNode.style.opacity = "0.7"
-			cNode.style.pointerEvents = "none";
-			bodyManager.add(cNode)
-			mouseHitPoint.x = x
-			mouseHitPoint.y = y
-			mouseHitPoint.top = parentRect.top
-			mouseHitPoint.left = parentRect.left
-			addEventListener("mousemove",onMouseMove)
-			addEventListener("touchmove",onMouseMove)
-			addEventListener("mouseup",onMouseUp)
-			addEventListener("touchend",onMouseUp)
-			addEventListener("keydown",onKeyDown)
-			checkActivateCalls.add(doCheck)
-			return ({release});
-		}
-		const getData = () => cNodeData
-		const onDrag = () => cNode&&true		
-		const onKeyDown = (event) => {
-			if(event.key == "Escape") onEsc()
-		}
-		const onEsc = () => {			
-			outOfParent(true)
-			release()
-			cNodeData = null
-		}
-		const outOfParent = (outside) => {			
-			callbacks.forEach(c=>c(outside))
-		}		
-		return {dragStart,getData,onDrag,release}
-	})()
-	
-	
+	const TBodyElement = ({style,children})=>React.createElement("tbody",{style:style},children);	
 	const THElement = React.createClass({
 		getInitialState:function(){
-			return {last:false}
+			return {last:false,focused:false}
+		},
+		onFocus:function(){
+			focusModule.switchTo(this)
+			this.setState({focused:true})
+		},
+		onBlur:function(){
+			this.setState({focused:false})
 		},
 		checkForSibling:function(){
 			if(!this.el) return;
@@ -919,17 +800,24 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		},
 		componentDidMount:function(){
 			this.checkForSibling()
+			if(this.el && this.el.tagName=="TD") {
+				this.el.addEventListener("focus",this.onFocus,true)
+				this.el.addEventListener("blur",this.onBlur)	
+				this.binding = focusModule.reg(this)
+			}
 		},
 		componentDidUpdate:function(prevProps,_){
 			this.checkForSibling()
 			if(!this.props.droppable2) return;
 			if(prevProps.mouseEnter!=this.props.mouseEnter){
-				if(this.props.mouseEnter&&this.props.onDragDrop&&DragDropManager.onDrag())
+				if(this.props.mouseEnter&&this.props.onDragDrop&&dragDropModule.onDrag())
 					this.props.onDragDrop("dragOver","")
 			}
 		},
 		componentWillUnmount:function(){
 			if(this.dragBinding) this.dragBinding.release();
+			if(this.el) this.el.removeEventListener("focus",this.onFocus)
+			if(this.binding) this.binding.unreg()
 		},
 		signalDragEnd:function(outside){
 			if(!this.props.draggable) return;
@@ -940,16 +828,16 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		onMouseDown:function(e){
 			if(!this.props.draggable) return;
 			if(!this.el) return;
-			this.dragBinding = DragDropManager.dragStart(e.clientX,e.clientY,this.el,this.props.dragData,this.signalDragEnd);
+			this.dragBinding = dragDropModule.dragStart(e.clientX,e.clientY,this.el,this.props.dragData,this.signalDragEnd);
 			if(this.props.dragData && this.props.onDragDrop)
 				this.props.onDragDrop("dragStart","")
 			e.preventDefault();
 		},
 		onMouseUp:function(e){
 			if(!this.props.droppable) return;
-			const data = DragDropManager.onDrag()&&DragDropManager.getData()
+			const data = dragDropModule.onDrag()&&dragDropModule.getData()
 			if(data && this.props.onDragDrop){
-				DragDropManager.release()
+				dragDropModule.release()
 				e.stopPropagation();
 				this.props.onDragDrop("dragDrop",data)
 			}
@@ -957,7 +845,8 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		render:function(){
 			const {style,colSpan,children} = this.props
 			const nodeType = this.props.nodeType?this.props.nodeType:"th"
-			//const hightlight = this.props.droppable&&this.props.mouseEnter&&DragDropManager.onDrag()
+			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
+			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
 			return React.createElement(nodeType,{style:{
 				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 				borderLeft:'none',
@@ -970,6 +859,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 				textOverflow:"ellipsis",
 				cursor:this.props.draggable?"move":"auto",
 				backgroundColor:"transparent",
+				outline:this.state.focused?"1px dotted black":"none",				
 				...style
 			},colSpan,
 			ref:ref=>this.el=ref,
@@ -979,14 +869,15 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 			onMouseLeave:this.props.onMouseLeave,
 			onMouseUp:this.onMouseUp,
 			onTouchEnd:this.onMouseUp,
+			...tabIndex
 			},children)
 		}
 	})
 	const TDElement = (props) =>{		
 		if(props.droppable)
-			return React.createElement(Interactive,{},actions=>React.createElement(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",...actions}))
+			return React.createElement(Interactive,{},actions=>React.createElement(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",...actions,tabIndex:"1"}))
 		else	
-			return React.createElement(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td"})
+			return React.createElement(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",tabIndex:"1"})
 	}	
 	const TRElement = React.createClass({
 		getInitialState:function(){
@@ -1047,17 +938,87 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		}
 	});
 	const InputElementBase = React.createClass({			
-		setFocus:function(){if(this.props.focus && this.inp) this.inp.focus()},
+		setFocus:function(focus){
+			if(!focus) return
+			this.getInput().focus()			
+		},
 		onKeyDown:function(e){
 			if(!this.inp) return
+			if(e.key == "Escape"){
+				if(this.prevval != undefined) this.getInput().value = this.prevval
+				this.prevval = undefined
+				this.getInput().blur()
+			}
 			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
-			if(e.keyCode == 13) {
+			/*if(e.keyCode == 13) {
 				if(this.inp2) this.inp2.blur()
 				else this.inp.blur()
-			}
+			}*/
 		},
-		componentDidMount:function(){this.setFocus()},
-		componentDidUpdate:function(){this.setFocus()},		
+		doIfNotFocused:function(what){
+			const inp = this.getInput()
+			const aEl = documentManager.activeElement()			
+			if(inp != aEl) {
+				this.setFocus(true)
+				what(inp)
+				return true
+			}
+			return false
+		},
+		getInput:function(){ return this.inp||this.inp2},
+		onEnter:function(event){
+			//log(`Enter ;`)
+			if(!this.doIfNotFocused((inp)=>{
+				this.prevval = inp.value
+				inp.selectionEnd = inp.value.length
+				inp.selectionStart = inp.value.length
+			}))	{				
+				const cEvent = eventManager.create("cTab",{bubbles:true})
+				this.cont.dispatchEvent(cEvent)				
+			}
+			event.stopPropagation()
+		},
+		onDelete:function(event){
+			//log(`Delete`)
+			this.doIfNotFocused((inp)=>{				
+				this.prevval = inp.value
+				inp.value = ""
+			})					
+			event.stopPropagation()
+		},
+		onPaste:function(event){
+			//log(`Paste`)
+			this.doIfNotFocused((inp)=>{				
+				this.prevval = inp.value
+				inp.value = event.detail
+			})				
+			event.stopPropagation()
+		},
+		onCopy:function(event){
+			//log(`Copy`)
+			this.doIfNotFocused((inp)=>{				
+				this.prevval = inp.value
+				inp.setSelectionRange(0,inp.value.length)
+				documentManager.execCopy()
+			})				
+			event.stopPropagation()
+		},
+		componentDidMount:function(){
+			//this.setFocus(this.props.focus)
+			const inp = this.getInput()			
+			inp.addEventListener('enter',this.onEnter)
+			inp.addEventListener('delete',this.onDelete)
+			inp.addEventListener('cpaste',this.onPaste)
+			inp.addEventListener('ccopy',this.onCopy)
+		},
+		componentWillUnmount:function(){
+			const inp = this.getInput()			
+			inp.removeEventListener('enter',this.onEnter)
+			inp.removeEventListener('delete',this.onDelete)
+			inp.removeEventListener('cpaste',this.onPaste)
+			inp.removeEventListener('ccopy',this.onCopy)
+		},
+		//componentDidUpdate:function(){this.setFocus(this.props.focus)},		
 		onChange:function(e){
 			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
 				const newVal = e.target.value.toUpperCase();
@@ -1124,7 +1085,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 							key:"1",
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
-							content,
+							content,							
 							style:{...inputStyle,...overRideInputStyle},							
 							onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
 							},this.props.div?[this.props.inputChildren,
@@ -1315,12 +1276,46 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 			React.createElement(ButtonElement,{...props,...actions,style:openButtonStyle})
 		);
 	})
-	const DropDownWrapperElement = ({style,children})=>React.createElement("div",{style:{
-		width:"100%",				
-		padding:"0.4em 0.3125em",
-		boxSizing:"border-box",
-		...style
-	}},children);
+	const ControlWrapperElement = React.createClass({
+		getInitialState:function(){
+			return {focused:false}
+		},
+		onFocus:function(){
+			focusModule.switchTo(this)
+			this.setState({focused:true})
+		},
+		onBlur:function(){
+			this.setState({focused:false})
+		},
+		componentDidMount:function(){
+			if(this.el) {
+				this.el.addEventListener("focus",this.onFocus,true)
+				this.el.addEventListener("blur",this.onBlur,false)
+			}
+			this.binding = focusModule.reg(this)
+		},
+		componentWillUnmount:function(){
+			if(this.el) {
+				this.el.removeEventListener("focus",this.onFocus)
+				this.el.removeEventListener("blur",this.onBlur)
+			}
+			this.binding.unreg()
+		},
+		render:function(){
+			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
+			const {style,children} = this.props
+			return React.createElement("div",{style:{
+				width:"100%",				
+				padding:"0.4em 0.3125em",
+				boxSizing:"border-box",
+				outline:this.state.focused?"1px dotted black":"none",				
+				...style
+			},tabIndex:"1",
+			className,
+			ref:ref=>this.el=ref},children);
+		}
+	})	
+	
 	const LabelElement = ({style,onClick,label})=>React.createElement("label",{onClick,style:{
 		color:"rgb(33,33,33)",
 		cursor:onClick?"pointer":"auto",
@@ -1417,79 +1412,117 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 			}},this.props.children);
 		}		
 	});
-	const Checkbox = (props) => React.createElement(Interactive,{},(actions)=>{
-		const style={
-			flexGrow:"0",				
-			position:"relative",
-			maxWidth:"100%",
-			padding:"0.4em 0.3125em",				
-			flexShrink:"1",
-			boxSizing:"border-box",
-			lineHeight:"1",
-			...props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
-			...props.style
-		};
-		const innerStyle={
-			border:"none",
-			display:"inline-block",
-			lineHeight:"100%",
-			margin:"0rem",				
-			outline:"none",				
-			whiteSpace:"nowrap",
-			width:props.label?"calc(100% - 1em)":"auto",
-			cursor:"pointer",
-			bottom:"0rem",
-			...props.innerStyle
-		};
-		const checkBoxStyle={
-			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
-			color:"#212121",
-			display:"inline-block",
-			height:"1.625em",
-			lineHeight:"100%",
-			margin:"0em 0.02em 0em 0em",
-			padding:"0rem",
-			position:"relative",
-			verticalAlign:"middle",
-			width:"1.625em",
-			boxSizing:"border-box",
-			borderColor:actions.mouseOver?"black":"rgb(182, 182, 182)",
-			backgroundColor:props.onChange?"white":"#eeeeee",
-			...props.altLabel?{height:"1.655em",width:"1.655em"}:null,
-			...props.checkBoxStyle
-		};
-		const labelStyle={
-			maxWidth:"calc(100% - 2.165em)",
-			padding:"0rem 0.3125em",
-			verticalAlign:"middle",
-			cursor:"pointer",
-			display:"inline-block",
-			lineHeight:"1.3",
-			overflow:"hidden",
-			textOverflow:"ellipsis",
-			whiteSpace:"nowrap",
-			boxSizing:"border-box",
-			...props.labelStyle
-		};
-		const imageStyle = {				
-			bottom:"0rem",
-			height:"90%",
-			width:"100%",
-		};			
-		const onClick = (e)=> {if(props.onChange) props.onChange({target:{headers:{"X-r-action":"change"},value:(props.value?"":"checked")}})}
-		
-		const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
-		const svgData=svgSrc(svg);
-		const defaultCheckImage = props.value&&props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
-		const labelEl = props.label?React.createElement("label",{style:labelStyle,key:"2"},props.label):null;
-		const checkImage = props.checkImage?props.checkImage:defaultCheckImage;
-		const {onMouseOver,onMouseOut} = actions		
-		return React.createElement("div",{style},
-			React.createElement("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1",onClick},[
-				React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
-				labelEl
-			])
-		);
+	const Checkbox = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(CheckboxBase,{...props,...actions}))
+	const CheckboxBase = React.createClass({
+		getInitialState:function(){
+			return {focused:false}
+		},
+		onFocus:function(){
+			focusModule.switchTo(this)
+			this.setState({focused:true})
+		},
+		onBlur:function(){
+			this.setState({focused:false})
+		},
+		onSpace:function(event){
+			this.onClick()
+			event.stopPropagation()
+		},
+		componentDidMount:function(){
+			if(this.el) {
+				this.el.addEventListener("focus",this.onFocus,true)
+				this.el.addEventListener("blur",this.onBlur)
+				this.el.addEventListener("cspace",this.onSpace)
+			}
+			this.binding = focusModule.reg(this)
+		},
+		componentWillUnmount:function(){
+			if(this.el) {
+				this.el.removeEventListener("focus",this.onFocus)
+				this.el.removeEventListener("blur",this.onBlur)
+				this.el.removeEventListener("cspace",this.onSpace)
+			}
+			if(this.binding) this.binding.unreg()
+		},
+		onClick:function(){
+			if(this.props.onChange) 
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:(this.props.value?"":"checked")}})					
+		},
+		render:function(){
+			const props = this.props			
+			const style={
+				flexGrow:"0",				
+				position:"relative",
+				maxWidth:"100%",
+				padding:"0.4em 0.3125em",				
+				flexShrink:"1",
+				boxSizing:"border-box",
+				lineHeight:"1",
+				outline:this.state.focused?"1px dotted black":"none",
+				...props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
+				...props.style
+			};
+			const innerStyle={
+				border:"none",
+				display:"inline-block",
+				lineHeight:"100%",
+				margin:"0rem",				
+				outline:"none",				
+				whiteSpace:"nowrap",
+				width:props.label?"calc(100% - 1em)":"auto",
+				cursor:"pointer",
+				bottom:"0rem",
+				...props.innerStyle
+			};
+			const checkBoxStyle={
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
+				color:"#212121",
+				display:"inline-block",
+				height:"1.625em",
+				lineHeight:"100%",
+				margin:"0em 0.02em 0em 0em",
+				padding:"0rem",
+				position:"relative",
+				verticalAlign:"middle",
+				width:"1.625em",
+				boxSizing:"border-box",
+				borderColor:props.mouseOver?"black":"rgb(182, 182, 182)",
+				backgroundColor:props.onChange?"white":"#eeeeee",
+				...props.altLabel?{height:"1.655em",width:"1.655em"}:null,
+				...props.checkBoxStyle
+			};
+			const labelStyle={
+				maxWidth:"calc(100% - 2.165em)",
+				padding:"0rem 0.3125em",
+				verticalAlign:"middle",
+				cursor:"pointer",
+				display:"inline-block",
+				lineHeight:"1.3",
+				overflow:"hidden",
+				textOverflow:"ellipsis",
+				whiteSpace:"nowrap",
+				boxSizing:"border-box",
+				...props.labelStyle
+			};
+			const imageStyle = {				
+				bottom:"0rem",
+				height:"90%",
+				width:"100%",
+			};	
+			
+			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
+			const svgData=svgSrc(svg);
+			const defaultCheckImage = props.value&&props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
+			const labelEl = props.label?React.createElement("label",{style:labelStyle,key:"2"},props.label):null;
+			const checkImage = props.checkImage?props.checkImage:defaultCheckImage;
+			const {onMouseOver,onMouseOut} = props		
+			return React.createElement("div",{style,tabIndex:"1",ref:ref=>this.el=ref},
+				React.createElement("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1",onClick:this.onClick},[
+					React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
+					labelEl
+				])
+			);
+		}
 	})
 	
 	const RadioButtonElement = (props) => {		
@@ -1615,11 +1648,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"Submit";
         return React.createElement("form",{onSubmit:(e)=>e.preventDefault()},
 			React.createElement("div",{key:"1",style:{display:"flex"}},[
-				React.createElement(DropDownWrapperElement,{key:"1",style:{flex:"1 1 0%"}},
+				React.createElement(ControlWrapperElement,{key:"1",style:{flex:"1 1 0%"}},
 					React.createElement(LabelElement,{label:passwordCaption},null),
 					React.createElement(InputElement,{...attributesA,focus:prop.focus,type:"password"},null)			
 				),
-				React.createElement(DropDownWrapperElement,{key:"2",style:{flex:"1 1 0%"}},
+				React.createElement(ControlWrapperElement,{key:"2",style:{flex:"1 1 0%"}},
 					React.createElement(LabelElement,{label:passwordRepeatCaption},null),
 					React.createElement(InputElement,{...attributesB,focus:false,type:"password"},null)			
 				),            
@@ -1644,11 +1677,11 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		}
         return React.createElement("div",{style:{margin:"1em 0em",...prop.style}},
 			React.createElement("form",{key:"form",onSubmit:e=>e.preventDefault()},[
-				React.createElement(DropDownWrapperElement,{key:"1"},
+				React.createElement(ControlWrapperElement,{key:"1"},
 					React.createElement(LabelElement,{label:usernameCaption},null),
 					React.createElement(InputElement,{...attributesA,style:styleA,focus:prop.focus},null)			
 				),
-				React.createElement(DropDownWrapperElement,{key:"2"},
+				React.createElement(ControlWrapperElement,{key:"2"},
 					React.createElement(LabelElement,{label:passwordCaption},null),
 					React.createElement(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password"},null)			
 				),
@@ -2265,7 +2298,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 	
 	
 	const download = (data) =>{
-		const anchor = bodyManager.createElement("a")
+		const anchor = documentManager.createElement("a")
 		anchor.href = data
 		anchor.download = data.split('/').reverse()[0]
 		anchor.click()
@@ -2284,7 +2317,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,AnchorElement,HeightLimitElement,
-			DropDownElement,DropDownWrapperElement,LabeledTextElement,
+			DropDownElement,ControlWrapperElement,LabeledTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
@@ -2301,18 +2334,7 @@ export default function MetroUi({log,sender,setTimeout,clearTimeout,press,svgSrc
 	const receivers = {
 		download,
 		...errors.receivers
-	}
-	const TDFocusModule = (()=>{		
-		let nodes = null;
-		const doCheck = () => {
-			const root = getReactRoot();
-			if(!root) return
-			nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
-			if(nodes.length==0) return
-		}
-		checkActivateCalls.add(doCheck)
-	})()
-	
-	const checkActivate = () =>	checkActivateCalls.check()	
+	}	
+	const checkActivate = checkActivateCalls.check	
 	return ({transforms,receivers,checkActivate});
 }

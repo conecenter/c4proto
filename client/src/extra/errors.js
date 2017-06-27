@@ -3,7 +3,7 @@ import React 	from 'react'
 import ReactDOM from 'react-dom'
 import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 
-export default function Errors({log,uiElements,bodyManager}){
+export default function Errors({log,uiElements,documentManager}){
 	const callbacks = [];
 	let tmpNode = null;	
 	const $ = React.createElement	
@@ -22,12 +22,12 @@ export default function Errors({log,uiElements,bodyManager}){
 			showError(data)
 	}
 	const showError = (data) => {		
-		tmpNode = bodyManager.createElement("div")
+		tmpNode = documentManager.createElement("div")
 		tmpNode.className="ouch"
-		bodyManager.addFirst(tmpNode)
+		documentManager.addFirst(tmpNode)
 		const onClick = () => {
 			ReactDOM.unmountComponentAtNode(tmpNode)
-			bodyManager.remove(tmpNode)
+			documentManager.remove(tmpNode)
 			tmpNode = null
 		}		
 		const ErrorElement = uiElements[0].ErrorElement

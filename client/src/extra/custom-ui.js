@@ -1,7 +1,8 @@
 "use strict";
 import React from 'react'
 
-export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,setTimeout,clearTimeout,toggleOverlay,getBattery,scannerProxy}){
+export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,toggleOverlay,getBattery,scannerProxy,windowManager}){
+	const {setTimeout,clearTimeout} = windowManager
 	const ColorCreator = React.createClass({
     		onChange:function(e){
     			if(this.props.onChange)
