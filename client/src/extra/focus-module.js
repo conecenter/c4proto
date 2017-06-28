@@ -3,7 +3,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	let currentFocusNode = null;
 	let preferNode = null;
 	const callbacks = []
-	const addEventListener = windowManager.addEventListener
+	const {addEventListener,setTimeout} = windowManager
 	const {isReactRoot,getReactRoot} = miscReact	
 	const distance = (no1,no2) =>{
 		if(!no1 || !no2) return undefined
@@ -97,7 +97,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				const anglex = calcAngle(hitLine,mc)*/		
 				//const Angles = [angle1,angle2,angle3,angle4,anglex]							
 				const d = Angles.reduce((_,e,i)=>{						
-					if(axisDef(e,axis) || (e == 0 && (m.fx == mc.fx || m.fy == mc.fy))) {
+					if(axisDef(e,axis) || (e == 0 && (m.fx == mc.fx || m.fy == mc.fy && axis!=2))) {
 						const d = Ds[i]()
 						if(_ == null || _ > d) 
 							return d
@@ -163,17 +163,28 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const onTab = (event) =>{
 		const root = getReactRoot();
 		if(!root) return
-		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
-		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
 		const cRNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(cRNode.props.autoFocus == false){
 			if(cRNode.props.onClickValue) cRNode.props.onClickValue("focus","change")
 			return
 		}
+		
+		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
 		if(cIndex>=0) {
 			if(cIndex+1<nodes.length) nodes[cIndex+1].focus()
-			else currentFocusNode.focus()
-		}
+			else{
+				setTimeout(()=>{
+					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
+					const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+					if(cIndex>=0) {
+						if(cIndex+1<nodes.length) nodes[cIndex+1].focus()
+						else currentFocusNode.focus()
+					}					
+				},200)
+			}				
+		}		
+		
 	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
@@ -213,13 +224,16 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const switchTo = (node) => {						
 		const roNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(roNode&&roNode.state.focused) roNode.onBlur()
-		currentFocusNode = node.el
+		currentFocusNode = node.el		
 	}
 	const checkActivate = doCheck
-	const focusTo = (data) => {
+	const focusTo = (data) => setTimeout(()=>{		
 		const preferedFocusObj = callbacks.find(o=>o.el.classList.contains(`marker-${data}`))
-		if(preferedFocusObj) switchTo(preferedFocusObj)
-	}
+		if(preferedFocusObj) {
+			switchTo(preferedFocusObj)
+			preferedFocusObj.el.focus()
+		}
+	},200)
 	const receivers = {focusTo}
 	return {reg,switchTo,checkActivate,receivers}
 }

@@ -203,7 +203,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const errors = this.props.children[1]
 			return $("div",{style:style},
 				$("div",{style:menuStyle,className:"menuBar",ref:ref=>this.el=ref},[
-					$("div",{key:"menuBar",style:barStyle,className:"menuBar"},this.props.children),
+					$("div",{key:"menuBar",style:barStyle,className:"menuBar"},barItems),
 					errors
 					//$(ErrorElement,{key:"errors",onClick:this.process})
 				])
@@ -968,7 +968,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			}
 			return false
 		},
-		getInput:function(){ return this.inp||this.inp2},
+		getInput:function(){ return this.inp2||this.inp},
 		onEnter:function(event){
 			//log(`Enter ;`)
 			if(!this.doIfNotFocused((inp)=>{
@@ -1332,7 +1332,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(!this.focus) this.reportChange("focus");			
 			this.focus=true;			
 		},
-		reportChange:function(state){
+		reportChange:function(state){					
 			if(this.props.onChange){
 				this.props.onChange({target:{headers:{"X-r-action":"change"},value:state}});				
 			}
