@@ -10,6 +10,7 @@ jsx?
 */
 
 export default function MetroUi({log,sender,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact}){
+	const $ = React.createElement
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -36,12 +37,12 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
 	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle} = windowManager
-	const FlexContainer = ({flexWrap,children,style}) => React.createElement("div",{style:{
+	const FlexContainer = ({flexWrap,children,style}) => $("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
 		...style
 		}},children);
-	const FlexElement = ({expand,minWidth,maxWidth,style,children})=>React.createElement("div",{style:{
+	const FlexElement = ({expand,minWidth,maxWidth,style,children})=>$("div",{style:{
 		flexGrow:expand?'1':'0',
 		flexShrink:'1',
 		minWidth:'0px',
@@ -95,12 +96,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				...this.props.style,
 				...(this.state.mouseOver?this.props.overStyle:null)
 			}	
-			return React.createElement("button",{style,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return $("button",{style,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
 	const uiElements = []
-	const errors = Errors({log,uiElements,documentManager})
-	const $ = React.createElement
+	const errors = Errors({log,uiElements,documentManager})	
 	const ErrorElement = React.createClass({
 		getInitialState:function(){return {show:false,data:null}},
 		callback:function(data){
@@ -199,10 +199,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				verticalAlign:'middle',				
 				width:"100%"				
 			}
-			return React.createElement("div",{style:style},
-				React.createElement("div",{style:menuStyle,className:"menuBar",ref:ref=>this.el=ref},[
-					React.createElement("div",{key:"menuBar",style:barStyle,className:"menuBar"},this.props.children),
-					React.createElement(ErrorElement,{key:"errors",onClick:this.process})
+			const barItems = this.props.children[0]
+			const errors = this.props.children[1]
+			return $("div",{style:style},
+				$("div",{style:menuStyle,className:"menuBar",ref:ref=>this.el=ref},[
+					$("div",{key:"menuBar",style:barStyle,className:"menuBar"},barItems),
+					errors
+					//$(ErrorElement,{key:"errors",onClick:this.process})
 				])
 			)
 		}		
@@ -234,7 +237,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(elRight>maxRight) this.setState({rightOffset:elRight - maxRight})
 		},
 		render:function(){
-			return React.createElement("div",{
+			return $("div",{
 				ref:ref=>this.el=ref,
 				style: {
 					position:'absolute',					
@@ -281,7 +284,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				...(this.state.mouseEnter?this.props.overStyle:null)
 			};						
 				
-			return React.createElement("div",{				
+			return $("div",{				
 			    style:selStyle,
 			    onMouseEnter:this.mouseEnter,
 			    onMouseLeave:this.mouseLeave,
@@ -312,7 +315,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				...this.props.style,
 				...(this.state.mouseEnter?this.props.overStyle:null)
 			};       
-		return React.createElement("div",{
+		return $("div",{
             style:newStyle,    
             onMouseEnter:this.mouseEnter,
             onMouseLeave:this.mouseLeave,
@@ -320,7 +323,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},this.props.children);
 		}
 	});
-	const TabSet=({style,children})=>React.createElement("div",{style:{
+	const TabSet=({style,children})=>$("div",{style:{
 		borderBottomWidth:GlobalStyles.borderWidth,
 		borderBottomStyle:GlobalStyles.borderStyle,		         
 		overflow:'hidden',
@@ -348,11 +351,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			body {
 				margin:0em;
 			}`;
-		return React.createElement(Helmet,{},
-			React.createElement("style",{},fontFaceStyle+htmlStyle+bodyStyle)
+		return $(Helmet,{},
+			$("style",{},fontFaceStyle+htmlStyle+bodyStyle)
 		)
 	}	
-	const GrContainer= ({style,children})=>React.createElement("div",{style:{
+	const GrContainer= ({style,children})=>$("div",{style:{
 		boxSizing:'border-box',           
 		fontSize:'0.875em',
 		lineHeight:'1.1em',
@@ -441,9 +444,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				zIndex:"-1",
 				height:"1em"
 			}
-			const captionEl = this.props.caption? React.createElement("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption): null;
-			const emRefEl = React.createElement("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
-			return React.createElement("div",{ref:ref=>this.groupEl=ref,style:style},[				
+			const captionEl = this.props.caption? $("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption): null;
+			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
+			return $("div",{ref:ref=>this.groupEl=ref,style:style},[				
 				captionEl,
 				emRefEl,
 				this.props.children
@@ -453,7 +456,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	FlexGroup.defaultProps = {
 		bp:"15"
 	};
-	const ChipElement = ({value,style,onClick,children}) => React.createElement("div",{style:{
+	const ChipElement = ({value,style,onClick,children}) => $("div",{style:{
 		fontSize:'1em',
 		color:'white',
 		textAlign:'center',
@@ -473,15 +476,15 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		alignSelf:"center",
 		...style
 	},onClick},[value,children])
-	const ChipDeleteElement = ({style,onClick}) =>React.createElement(Interactive,{},(actions)=>{
+	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{
 			const fillColor = style&&style.color?style.color:"black";
 			const svg = `
 			<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 348.333 348.334" style="enable-background:new 0 0 348.333 348.334;" xml:space="preserve" fill="${fillColor}">
 				<path d="M336.559,68.611L231.016,174.165l105.543,105.549c15.699,15.705,15.699,41.145,0,56.85 c-7.844,7.844-18.128,11.769-28.407,11.769c-10.296,0-20.581-3.919-28.419-11.769L174.167,231.003L68.609,336.563 c-7.843,7.844-18.128,11.769-28.416,11.769c-10.285,0-20.563-3.919-28.413-11.769c-15.699-15.698-15.699-41.139,0-56.85   l105.54-105.549L11.774,68.611c-15.699-15.699-15.699-41.145,0-56.844c15.696-15.687,41.127-15.687,56.829,0l105.563,105.554   L279.721,11.767c15.705-15.687,41.139-15.687,56.832,0C352.258,27.466,352.258,52.912,336.559,68.611z"/>
 			</svg>`;
 			const svgData = svgSrc(svg)
-			const deleteEl = React.createElement("img",{src:svgData,style:{height:"0.6em",verticalAlign:"middle"}},null);
-			return React.createElement("div",{style:{
+			const deleteEl = $("img",{src:svgData,style:{height:"0.6em",verticalAlign:"middle"}},null);
+			return $("div",{style:{
 				//"float":"right",
 				//color:"#666",
 				width:"0.8em",
@@ -491,7 +494,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				//borderRadius:"0 0.3em 0.3em 0",
 				//backgroundColor:"transparent",			
 				...style
-			},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut,onClick},React.createElement("span",{style:{
+			},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut,onClick},$("span",{style:{
 				fontSize:"0.7em",
 				position:"relative",
 				bottom:"calc(0.1em)"
@@ -534,9 +537,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				color:'inherit',
 				...this.props.bStyle
 			};			
-			return React.createElement("td",{style:this.props.style,
+			return $("td",{style:this.props.style,
 				colSpan:this.props.colSpan,rowSpan:this.props.rowSpan,onClick:this.onClick},
-				React.createElement("button",{style:bStyle,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children));
+				$("button",{style:bStyle,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children));
 			},
 	});
 	const VirtualKeyboard = React.createClass({	  
@@ -605,117 +608,117 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const enterSvgData=svgSrc(enterSvg);
 			const upSvgData=svgSrc(upSvg);
 			const downSvgData=svgSrc(downSvg);
-			const backSpaceEl = React.createElement("img",{src:backSpaceSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
-			const enterEl = React.createElement("img",{src:enterSvgData,style:{width:"90%",height:"100%"}},null);
-			const upEl = React.createElement("img",{src:upSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
-			const downEl = React.createElement("img",{src:downSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);			 
+			const backSpaceEl = $("img",{src:backSpaceSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
+			const enterEl = $("img",{src:enterSvgData,style:{width:"90%",height:"100%"}},null);
+			const upEl = $("img",{src:upSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
+			const downEl = $("img",{src:downSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);			 
 			if(this.props.simple && !this.props.alphaNumeric)
-			return React.createElement("table",{style:tableStyle,key:"1"},
-				React.createElement("tbody",{key:"1"},[					  				   					  
-				   React.createElement("tr",{key:"3"},[
-						...[7,8,9].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),						  
-						React.createElement(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle,height:"2rem"},key:"4",fkey:"backspace"},backSpaceEl)
+			return $("table",{style:tableStyle,key:"1"},
+				$("tbody",{key:"1"},[					  				   					  
+				   $("tr",{key:"3"},[
+						...[7,8,9].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),						  
+						$(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle,height:"2rem"},key:"4",fkey:"backspace"},backSpaceEl)
 				   ]),					   
-				   React.createElement("tr",{key:"4"},[
-						...[4,5,6].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString()))						  				   
+				   $("tr",{key:"4"},[
+						...[4,5,6].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString()))						  				   
 				   ]),
-				   React.createElement("tr",{key:"5"},[
-					   ...[1,2,3].map(e=>React.createElement(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
-					   React.createElement(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdStyle,height:"90%"},key:"13",fkey:"enter"},enterEl),
+				   $("tr",{key:"5"},[
+					   ...[1,2,3].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
+					   $(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdStyle,height:"90%"},key:"13",fkey:"enter"},enterEl),
 				   ]),
-				   React.createElement("tr",{key:"6"},[
-					   React.createElement(VKTd,{colSpan:'3',onClickValue:this.props.onClickValue,style:tdStyle,key:"1",fkey:"0"},'0'),
+				   $("tr",{key:"6"},[
+					   $(VKTd,{colSpan:'3',onClickValue:this.props.onClickValue,style:tdStyle,key:"1",fkey:"0"},'0'),
 				   ]),
 			   ])
 			); 
 			else
 			if(!this.props.alphaNumeric && !this.props.simple)
-			return React.createElement("table",{style:tableStyle,key:"1"},
-				React.createElement("tbody",{key:"1"},[
-				   React.createElement("tr",{key:"0"},[
-					   React.createElement(VKTd,{colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
-					   React.createElement("td",{key:"2"},''),
-					   React.createElement(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
+			return $("table",{style:tableStyle,key:"1"},
+				$("tbody",{key:"1"},[
+				   $("tr",{key:"0"},[
+					   $(VKTd,{colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
+					   $("td",{key:"2"},''),
+					   $(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
 				   ]),					   
-				   React.createElement("tr",{key:"1"},[
-						...["F1","F2","F3","F4","F5"].map(e=>React.createElement(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   					   
+				   $("tr",{key:"1"},[
+						...["F1","F2","F3","F4","F5"].map(e=>$(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   					   
 				   ]),					   
-				   React.createElement("tr",{key:"2"},[
-						...["F6","F7","F8","F9","F10"].map(e=>React.createElement(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   			   
+				   $("tr",{key:"2"},[
+						...["F6","F7","F8","F9","F10"].map(e=>$(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   			   
 				   ]),
-				   React.createElement("tr",{key:"2-extras"},[
-					   React.createElement(VKTd,{style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-					   ...["T",".","-"].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e},e))						   						   
+				   $("tr",{key:"2-extras"},[
+					   $(VKTd,{style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
+					   ...["T",".","-"].map(e=>$(VKTd,{style:tdStyle,key:e,fkey:e},e))						   						   
 				   ]),
-				   React.createElement("tr",{key:"3"},[
-						...[7,8,9].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   React.createElement(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowup",fkey:"ArrowUp"},upEl),
+				   $("tr",{key:"3"},[
+						...[7,8,9].map(e=>$(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   $(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowup",fkey:"ArrowUp"},upEl),
 				   ]),					   
-				   React.createElement("tr",{key:"4"},[
-						...[4,5,6].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   React.createElement(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowdown",fkey:"ArrowDown"},downEl),
+				   $("tr",{key:"4"},[
+						...[4,5,6].map(e=>$(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   $(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowdown",fkey:"ArrowDown"},downEl),
 				   ]),
-				   React.createElement("tr",{key:"5"},[
-						...[1,2,3].map(e=>React.createElement(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   React.createElement(VKTd,{colSpan:'2',rowSpan:'2',style:{...specialTdStyle,height:"100%"},key:"4",fkey:"Enter"},enterEl),
+				   $("tr",{key:"5"},[
+						...[1,2,3].map(e=>$(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   $(VKTd,{colSpan:'2',rowSpan:'2',style:{...specialTdStyle,height:"100%"},key:"4",fkey:"Enter"},enterEl),
 				   ]),
-				   React.createElement("tr",{key:"6"},[
-					   React.createElement(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
+				   $("tr",{key:"6"},[
+					   $(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
 				   ]),
 			   ])
 			);
 			else
-			return React.createElement("div",{key:"1"},[ 
-				!this.props.simple?React.createElement("table",{style:{...aTableStyle,fontSize:tableStyle.fontSize},key:"1"},
-					React.createElement("tbody",{key:"1"},[
-						React.createElement("tr",{key:"1"},[
-							...["F1","F2","F3","F4","F5","F6","F7","F8","F9","F10"].map(e=>React.createElement(VKTd,{style:specialAKeyCellStyle,key:e,fkey:e},e)),																
-							React.createElement(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'),
+			return $("div",{key:"1"},[ 
+				!this.props.simple?$("table",{style:{...aTableStyle,fontSize:tableStyle.fontSize},key:"1"},
+					$("tbody",{key:"1"},[
+						$("tr",{key:"1"},[
+							...["F1","F2","F3","F4","F5","F6","F7","F8","F9","F10"].map(e=>$(VKTd,{style:specialAKeyCellStyle,key:e,fkey:e},e)),																
+							$(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'),
 						])
 					])
 				):null,
-				React.createElement("table",{style:aTableStyle,key:"2-extras"},
-					React.createElement("tbody",{key:"1"},[
-						React.createElement("tr",{key:"1"},[
-							React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:specialAKeyCellAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-							...[":",";","/","*","-","+",",","."].map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
-							React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,height:"100%",width:"auto",minWidth:"2em"},bStyle:{fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
+				$("table",{style:aTableStyle,key:"2-extras"},
+					$("tbody",{key:"1"},[
+						$("tr",{key:"1"},[
+							$(VKTd,{onClickValue:this.props.onClickValue,style:specialAKeyCellAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
+							...[":",";","/","*","-","+",",","."].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
+							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,height:"100%",width:"auto",minWidth:"2em"},bStyle:{fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
 						]),
 					])
 				),
-				React.createElement("table",{style:aTableStyle,key:"2"},
-					React.createElement("tbody",{key:"1"},[
-						React.createElement("tr",{key:"1"},[
-							...[1,2,3,4,5,6,7,8,9,0].map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e.toString()},e.toString()))								
+				$("table",{style:aTableStyle,key:"2"},
+					$("tbody",{key:"1"},[
+						$("tr",{key:"1"},[
+							...[1,2,3,4,5,6,7,8,9,0].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e.toString()},e.toString()))								
 						]),
 					])
 				),
-				React.createElement("table",{style:aTableStyle,key:"3"},
-					React.createElement("tbody",{key:"1"},[
-						React.createElement("tr",{key:"1"},[
-							...Array.from("QWERTYUIOP").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e))															
+				$("table",{style:aTableStyle,key:"3"},
+					$("tbody",{key:"1"},[
+						$("tr",{key:"1"},[
+							...Array.from("QWERTYUIOP").map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e))															
 						]),
 					])
 				),
-				React.createElement("table",{style:{...aTableStyle,position:'relative',left:'0.18rem'},key:"4"},
-					React.createElement("tbody",{key:"1"},[
-						React.createElement("tr",{key:"1"},[
-							...Array.from("ASDFGHJKL").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
-							React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellStyle,minWidth:"2.5rem",height:"100%"},rowSpan:"2",key:"10",fkey:"Enter"},enterEl),
+				$("table",{style:{...aTableStyle,position:'relative',left:'0.18rem'},key:"4"},
+					$("tbody",{key:"1"},[
+						$("tr",{key:"1"},[
+							...Array.from("ASDFGHJKL").map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
+							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellStyle,minWidth:"2.5rem",height:"100%"},rowSpan:"2",key:"10",fkey:"Enter"},enterEl),
 						]),
-						React.createElement("tr",{key:"2"},[
-							React.createElement("td",{style:{...aKeyCellStyle,fontSize:"1em",backgroundColor:'transparent',border:'none'},colSpan:"9",key:"1"},[
-								React.createElement("table",{style:{...aTableStyle,...aTableLastStyle},key:"1"},
-									React.createElement("tbody",{key:"1"},[
-										React.createElement("tr",{key:"1"},[
-											...Array.from("ZXCVBNM").map(e=>React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),												
-											React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"100%"},key:"8",fkey:"ArrowUp"},upEl),
+						$("tr",{key:"2"},[
+							$("td",{style:{...aKeyCellStyle,fontSize:"1em",backgroundColor:'transparent',border:'none'},colSpan:"9",key:"1"},[
+								$("table",{style:{...aTableStyle,...aTableLastStyle},key:"1"},
+									$("tbody",{key:"1"},[
+										$("tr",{key:"1"},[
+											...Array.from("ZXCVBNM").map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),												
+											$(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"100%"},key:"8",fkey:"ArrowUp"},upEl),
 										]),
-										React.createElement("tr",{key:"2"},[
-											React.createElement(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"1"},''),
-											React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,colSpan:"5",key:"2",fkey:" "},'SPACE'),
-											React.createElement(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"3"},''),
-											React.createElement(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"100%"},key:"4",fkey:"ArrowDown"},downEl),
+										$("tr",{key:"2"},[
+											$(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"1"},''),
+											$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,colSpan:"5",key:"2",fkey:" "},'SPACE'),
+											$(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"3"},''),
+											$(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"100%"},key:"4",fkey:"ArrowDown"},downEl),
 										]),
 									])
 								),
@@ -728,7 +731,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 	});	
 
-	const TableElement = ({style,children})=>React.createElement("table",{style:{
+	const TableElement = ({style,children})=>$("table",{style:{
 		borderCollapse:'separate',
 		borderSpacing:GlobalStyles.borderSpacing,
 		width:'100%',
@@ -776,12 +779,12 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				display:this.state.floating?"block":"none",
 			};
 			
-			return this.state.floating?React.createElement("div",{style:expHeaderStyle},React.createElement("thead",{style:style},this.props.children)):React.createElement("thead",{ref:ref=>this.el=ref,style:style},this.props.children);				
+			return this.state.floating?$("div",{style:expHeaderStyle},$("thead",{style:style},this.props.children)):$("thead",{ref:ref=>this.el=ref,style:style},this.props.children);				
 			
 		}
 	});
 		
-	const TBodyElement = ({style,children})=>React.createElement("tbody",{style:style},children);	
+	const TBodyElement = ({style,children})=>$("tbody",{style:style},children);	
 	const THElement = React.createClass({
 		getInitialState:function(){
 			return {last:false,focused:false}
@@ -847,7 +850,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const nodeType = this.props.nodeType?this.props.nodeType:"th"
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
-			return React.createElement(nodeType,{style:{
+			return $(nodeType,{style:{
 				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 				borderLeft:'none',
 				borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
@@ -875,9 +878,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	})
 	const TDElement = (props) =>{		
 		if(props.droppable)
-			return React.createElement(Interactive,{},actions=>React.createElement(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",...actions,tabIndex:"1"}))
+			return $(Interactive,{},actions=>$(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",...actions,tabIndex:"1"}))
 		else	
-			return React.createElement(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",tabIndex:"1"})
+			return $(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",tabIndex:"1"})
 	}	
 	const TRElement = React.createClass({
 		getInitialState:function(){
@@ -907,7 +910,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
 				...this.props.style
 			};			
-			return React.createElement("tr",{style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return $("tr",{style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	});
 	const Interactive = React.createClass({
@@ -965,7 +968,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			}
 			return false
 		},
-		getInput:function(){ return this.inp||this.inp2},
+		getInput:function(){ return this.inp2||this.inp},
 		onEnter:function(event){
 			//log(`Enter ;`)
 			if(!this.doIfNotFocused((inp)=>{
@@ -1078,10 +1081,10 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const content = this.props.content;
 			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
 			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}			
-			return React.createElement("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
+			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
-					React.createElement("div",{key:"xx",style:inp2ContStyle},[
-						React.createElement(inputType,{
+					$("div",{key:"xx",style:inp2ContStyle},[
+						$(inputType,{
 							key:"1",
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
@@ -1089,7 +1092,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 							style:{...inputStyle,...overRideInputStyle},							
 							onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
 							},this.props.div?[this.props.inputChildren,
-								React.createElement("input",{style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},ref:ref=>this.inp2=ref,key:"input",onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:this.props.value})
+								$("input",{style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},ref:ref=>this.inp2=ref,key:"input",onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:this.props.value})
 							]:(content?content:null)),							
 						this.props.popupElement?this.props.popupElement():null
 					]),
@@ -1097,14 +1100,14 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				]);					
 		},
 	});
-	const InputElement = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(InputElementBase,{...props,ref:props._ref,inputType:props.div?"div":"input",...actions}))	
-	const TextAreaElement = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
+	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,inputType:props.div?"div":"input",...actions}))	
+	const TextAreaElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
 		inputStyle:{
 			whiteSpace:"pre-wrap",
 			...props.inputStyle
 		},
 		...actions}))
-	const LabeledTextElement = (props) => React.createElement(InputElementBase,{
+	const LabeledTextElement = (props) => $(InputElementBase,{
 		...props,
 		onKeyDown:()=>false,
 		inputType:"div",
@@ -1244,17 +1247,17 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 306 306" xml:space="preserve"><polygon points="270.3,58.65 153,175.95 35.7,58.65 0,94.35 153,247.35 306,94.35"/></svg>'
 			const svgData=svgSrc(svg);
 			const urlData = this.props.url?this.props.url:svgData;
-			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
+			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			const buttonElement = () => [React.createElement(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
+			const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
 			const value = this.props.value
 			const inputChildren = this.props.div? this.props.children.slice(0,parseInt(this.props.div)): null
-			const popupElement = () => [this.props.open?React.createElement("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},this.props.div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null];
+			const popupElement = () => [this.props.open?$("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},this.props.div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null];
 			
-			return React.createElement(InputElement,{...this.props,inputChildren,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
+			return $(InputElement,{...this.props,inputChildren,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
 		}
 	});	
-	const ButtonInputElement = (props) => React.createElement(Interactive,{},(actions)=>{
+	const ButtonInputElement = (props) => $(Interactive,{},(actions)=>{
 		const openButtonWrapperStyle= {				
 			flex:"1 1 0%",
 			height:"auto",
@@ -1272,8 +1275,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			backgroundColor:"inherit",				
 		};
 		
-		return React.createElement("div",{key:"inputButton",style:openButtonWrapperStyle},
-			React.createElement(ButtonElement,{...props,...actions,style:openButtonStyle})
+		return $("div",{key:"inputButton",style:openButtonWrapperStyle},
+			$(ButtonElement,{...props,...actions,style:openButtonStyle})
 		);
 	})
 	const ControlWrapperElement = React.createClass({
@@ -1304,11 +1307,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		render:function(){
 			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
 			const {style,children} = this.props
-			return React.createElement("div",{style:{
+			return $("div",{style:{
 				width:"100%",				
 				padding:"0.4em 0.3125em",
 				boxSizing:"border-box",
-				outline:this.state.focused?"1px dotted black":"none",				
+				outline:this.state.focused?"1px dashed red":"none",				
 				...style
 			},tabIndex:"1",
 			className,
@@ -1316,7 +1319,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		}
 	})	
 	
-	const LabelElement = ({style,onClick,label})=>React.createElement("label",{onClick,style:{
+	const LabelElement = ({style,onClick,label})=>$("label",{onClick,style:{
 		color:"rgb(33,33,33)",
 		cursor:onClick?"pointer":"auto",
 		textTransform:"none",
@@ -1329,7 +1332,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(!this.focus) this.reportChange("focus");			
 			this.focus=true;			
 		},
-		reportChange:function(state){
+		reportChange:function(state){					
 			if(this.props.onChange){
 				this.props.onChange({target:{headers:{"X-r-action":"change"},value:state}});				
 			}
@@ -1363,7 +1366,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				outline:"none",
 				...this.props.style
 			};			
-			return React.createElement("div",{ref:ref=>this.el=ref,style:style,tabIndex:"0"},this.props.children);
+			return $("div",{ref:ref=>this.el=ref,style:style,tabIndex:"0"},this.props.children);
 		}
 	});
 	const PopupElement = React.createClass({
@@ -1401,7 +1404,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			this.calcPosition();
 		},
 		render:function(){			
-			return React.createElement("div",{ref:ref=>this.el=ref,style:{
+			return $("div",{ref:ref=>this.el=ref,style:{
 				position:"fixed",
 				zIndex:"6",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,
@@ -1412,7 +1415,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			}},this.props.children);
 		}		
 	});
-	const Checkbox = (props) => React.createElement(Interactive,{},(actions)=>React.createElement(CheckboxBase,{...props,...actions}))
+	const Checkbox = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
 	const CheckboxBase = React.createClass({
 		getInitialState:function(){
 			return {focused:false}
@@ -1458,7 +1461,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				flexShrink:"1",
 				boxSizing:"border-box",
 				lineHeight:"1",
-				outline:this.state.focused?"1px dotted black":"none",
+				outline:this.state.focused?"1px dashed red":"none",
 				...props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
 				...props.style
 			};
@@ -1512,13 +1515,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			
 			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
 			const svgData=svgSrc(svg);
-			const defaultCheckImage = props.value&&props.value.length>0?React.createElement("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
-			const labelEl = props.label?React.createElement("label",{style:labelStyle,key:"2"},props.label):null;
+			const defaultCheckImage = props.value&&props.value.length>0?$("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
+			const labelEl = props.label?$("label",{style:labelStyle,key:"2"},props.label):null;
 			const checkImage = props.checkImage?props.checkImage:defaultCheckImage;
 			const {onMouseOver,onMouseOut} = props		
-			return React.createElement("div",{style,tabIndex:"1",ref:ref=>this.el=ref},
-				React.createElement("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1",onClick:this.onClick},[
-					React.createElement("span",{style:checkBoxStyle,key:"1"},checkImage),
+			return $("div",{style,tabIndex:"1",ref:ref=>this.el=ref},
+				$("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1",onClick:this.onClick},[
+					$("span",{style:checkBoxStyle,key:"1"},checkImage),
 					labelEl
 				])
 			);
@@ -1549,9 +1552,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			verticalAlign:"top",
 			marginTop:"0.19em",				
 		};
-		const checkImage = React.createElement("div",{style:imageStyle,key:"checkImage"},null);
+		const checkImage = $("div",{style:imageStyle,key:"checkImage"},null);
 		
-		return React.createElement(Checkbox,{...props,innerStyle,checkImage,checkBoxStyle,});			
+		return $(Checkbox,{...props,innerStyle,checkImage,checkBoxStyle,});			
 	};	
 	const ConnectionState =(props)=>{
 		const {style,iconStyle,on} = props;
@@ -1584,8 +1587,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		const imageSvg='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 285.269 285.269" style="enable-background:new 0 0 285.269 285.269;" xml:space="preserve"> <path style="fill:'+fillColor+';" d="M272.867,198.634h-38.246c-0.333,0-0.659,0.083-0.986,0.108c-1.298-5.808-6.486-10.108-12.679-10.108 h-68.369c-7.168,0-13.318,5.589-13.318,12.757v19.243H61.553C44.154,220.634,30,206.66,30,189.262 c0-17.398,14.154-31.464,31.545-31.464l130.218,0.112c33.941,0,61.554-27.697,61.554-61.637s-27.613-61.638-61.554-61.638h-44.494 V14.67c0-7.168-5.483-13.035-12.651-13.035h-68.37c-6.193,0-11.381,4.3-12.679,10.108c-0.326-0.025-0.653-0.108-0.985-0.108H14.336 c-7.168,0-13.067,5.982-13.067,13.15v48.978c0,7.168,5.899,12.872,13.067,12.872h38.247c0.333,0,0.659-0.083,0.985-0.107 c1.298,5.808,6.486,10.107,12.679,10.107h68.37c7.168,0,12.651-5.589,12.651-12.757V64.634h44.494 c17.398,0,31.554,14.262,31.554,31.661c0,17.398-14.155,31.606-31.546,31.606l-130.218-0.04C27.612,127.862,0,155.308,0,189.248 s27.612,61.386,61.553,61.386h77.716v19.965c0,7.168,6.15,13.035,13.318,13.035h68.369c6.193,0,11.381-4.3,12.679-10.108 c0.327,0.025,0.653,0.108,0.986,0.108h38.246c7.168,0,12.401-5.982,12.401-13.15v-48.977 C285.269,204.338,280.035,198.634,272.867,198.634z M43.269,71.634h-24v-15h24V71.634z M43.269,41.634h-24v-15h24V41.634z M267.269,258.634h-24v-15h24V258.634z M267.269,228.634h-24v-15h24V228.634z"/></svg>';
 		const imageSvgData = svgSrc(imageSvg);		
 		const src = props.imageSvgData || imageSvgData
-		return React.createElement("div",{style:contStyle},
-				React.createElement("img",{key:"1",style:newIconStyle,src},null)				
+		return $("div",{style:contStyle},
+				$("img",{key:"1",style:newIconStyle,src},null)				
 		);
 	};
 	const FileUploadElement = React.createClass({
@@ -1627,12 +1630,12 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 510 510" style="enable-background:new 0 0 510 510;" xml:space="preserve"><path d="M204,51H51C22.95,51,0,73.95,0,102v306c0,28.05,22.95,51,51,51h408c28.05,0,51-22.95,51-51V153c0-28.05-22.95-51-51-51 H255L204,51z"/></svg>';
 			const svgData=svgSrc(svg);
 			const urlData = this.props.url?this.props.url:svgData;
-			const buttonImage = React.createElement("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);
+			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			const shadowElement = () => [React.createElement("input",{key:"0",ref:(ref)=>this.fInp=ref,onChange:this.onChange,type:"file",style:{visibility:"hidden",position:"absolute",height:"1px",width:"1px"}},null)];
-			const buttonElement = () => [React.createElement(ButtonInputElement,{key:"2",onClick:this.onClick},buttonImage)];
+			const shadowElement = () => [$("input",{key:"0",ref:(ref)=>this.fInp=ref,onChange:this.onChange,type:"file",style:{visibility:"hidden",position:"absolute",height:"1px",width:"1px"}},null)];
+			const buttonElement = () => [$(ButtonInputElement,{key:"2",onClick:this.onClick},buttonImage)];
 			
-			return React.createElement(InputElement,{...this.props,style,shadowElement,buttonElement,onChange:()=>{},onClick:()=>{}});
+			return $(InputElement,{...this.props,style,shadowElement,buttonElement,onChange:()=>{},onClick:()=>{}});
 		}
 	}); 
 	
@@ -1646,17 +1649,17 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
         const passwordCaption = prop.passwordCaption?prop.passwordCaption:"New Password";
 		const passwordRepeatCaption = prop.passwordRepeatCaption?prop.passwordRepeatCaption:"Again";
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"Submit";
-        return React.createElement("form",{onSubmit:(e)=>e.preventDefault()},
-			React.createElement("div",{key:"1",style:{display:"flex"}},[
-				React.createElement(ControlWrapperElement,{key:"1",style:{flex:"1 1 0%"}},
-					React.createElement(LabelElement,{label:passwordCaption},null),
-					React.createElement(InputElement,{...attributesA,focus:prop.focus,type:"password"},null)			
+        return $("form",{onSubmit:(e)=>e.preventDefault()},
+			$("div",{key:"1",style:{display:"flex"}},[
+				$(ControlWrapperElement,{key:"1",style:{flex:"1 1 0%"}},
+					$(LabelElement,{label:passwordCaption},null),
+					$(InputElement,{...attributesA,focus:prop.focus,type:"password"},null)			
 				),
-				React.createElement(ControlWrapperElement,{key:"2",style:{flex:"1 1 0%"}},
-					React.createElement(LabelElement,{label:passwordRepeatCaption},null),
-					React.createElement(InputElement,{...attributesB,focus:false,type:"password"},null)			
+				$(ControlWrapperElement,{key:"2",style:{flex:"1 1 0%"}},
+					$(LabelElement,{label:passwordRepeatCaption},null),
+					$(InputElement,{...attributesB,focus:false,type:"password"},null)			
 				),            
-				React.createElement(ButtonElement, {key:"3",onClick, style:buttonStyle,overStyle:buttonOverStyle}, buttonCaption)
+				$(ButtonElement, {key:"3",onClick, style:buttonStyle,overStyle:buttonOverStyle}, buttonCaption)
 			])
 		)
     }
@@ -1675,24 +1678,24 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			...attributesB.style,
 			textTransform:"none"
 		}
-        return React.createElement("div",{style:{margin:"1em 0em",...prop.style}},
-			React.createElement("form",{key:"form",onSubmit:e=>e.preventDefault()},[
-				React.createElement(ControlWrapperElement,{key:"1"},
-					React.createElement(LabelElement,{label:usernameCaption},null),
-					React.createElement(InputElement,{...attributesA,style:styleA,focus:prop.focus},null)			
+        return $("div",{style:{margin:"1em 0em",...prop.style}},
+			$("form",{key:"form",onSubmit:e=>e.preventDefault()},[
+				$(ControlWrapperElement,{key:"1"},
+					$(LabelElement,{label:usernameCaption},null),
+					$(InputElement,{...attributesA,style:styleA,focus:prop.focus},null)			
 				),
-				React.createElement(ControlWrapperElement,{key:"2"},
-					React.createElement(LabelElement,{label:passwordCaption},null),
-					React.createElement(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password"},null)			
+				$(ControlWrapperElement,{key:"2"},
+					$(LabelElement,{label:passwordCaption},null),
+					$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password"},null)			
 				),
-				React.createElement("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-					React.createElement(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
+				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
+					$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
 				)
 			])
 		)
 	}	
 	
-	const CalenderCell = (props) => React.createElement(Interactive,{},(actions)=>{		
+	const CalenderCell = (props) => $(Interactive,{},(actions)=>{		
 		const onClick = () =>{
 			const monthAdj = props.m=="p"?"-1":props.m=="n"?"1":"0"
 			const value = "month:"+monthAdj+";day:"+props.curday.toString();
@@ -1718,13 +1721,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			textDecoration:"none",				
 		};		
 		const {onMouseOver,onMouseOut} = actions
-		return React.createElement("div",{onClick,style,onMouseOver,onMouseOut},
-			React.createElement("div",{style:cellStyle},
-				React.createElement("a",{style:aCellStyle},props.curday)
+		return $("div",{onClick,style,onMouseOver,onMouseOut},
+			$("div",{style:cellStyle},
+				$("a",{style:aCellStyle},props.curday)
 			)
 		);
 	})
-	const CalendarYM = (props) => React.createElement(Interactive,{},(actions) => {
+	const CalendarYM = (props) => $(Interactive,{},(actions) => {
 		const style={
 			width:"12.46201429%",
 			margin:"0 0 0 2.12765%",						
@@ -1734,9 +1737,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			...props.style
 		};
 		const {onMouseOver,onMouseOut} = actions
-		return React.createElement("div",{onClick:props.onClick,style,onMouseOver,onMouseOut},props.children);		
+		return $("div",{onClick:props.onClick,style,onMouseOver,onMouseOut},props.children);		
 	})
-	const CalenderSetNow = (props) => React.createElement(Interactive,{},(actions)=>{
+	const CalenderSetNow = (props) => $(Interactive,{},(actions)=>{
 		const style={
 			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #d4e2ec`,
 			color:"#212121",
@@ -1747,9 +1750,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			...props.style
 		};
 		const {onMouseOver,onMouseOut} = actions
-		return React.createElement("div",{style,onClick:props.onClick,onMouseOver,onMouseOut},props.children);
+		return $("div",{style,onClick:props.onClick,onMouseOver,onMouseOut},props.children);
 	})
-	const CalenderTimeButton = (props) => React.createElement(Interactive,{},(actions)=>{
+	const CalenderTimeButton = (props) => $(Interactive,{},(actions)=>{
 		const style = {
 			backgroundColor:actions.mouseOver?"#c0ced8":"transparent",
 			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #d4e2ec`,
@@ -1761,7 +1764,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			...props.style
 		};
 		const {onMouseOver,onMouseOut} = actions
-		return React.createElement("button",{style,onClick:props.onClick,onMouseOver,onMouseOut},props.children);
+		return $("button",{style,onClick:props.onClick,onMouseOver,onMouseOut},props.children);
 	})
 	const DateTimePickerYMSel = ({month,year,onClickValue,monthNames}) => {
 		const defaultMonthNames=["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -1781,7 +1784,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				padding:"0.3125em",
 				...s
 			};
-			return React.createElement("a",{style:aStyle},c);
+			return $("a",{style:aStyle},c);
 		};				
 		const ymStyle = {
 			width:"41.64134286%",
@@ -1795,12 +1798,12 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		}
 		
 		const selMonth  = parseInt(month)?parseInt(month):0;
-		return React.createElement("div",{style:headerStyle},[
-			React.createElement(CalendarYM,{onClick:changeYear(-1),key:"1",style:{margin:"0px"}},aItem("-")),
-			React.createElement(CalendarYM,{onClick:changeMonth(-1),key:"2"},aItem("〈")),
-			React.createElement(CalendarYM,{key:"3",style:ymStyle},aItem(aMonthNames[selMonth]+" "+year,{padding:"0.325em 0 0.325em 0",cursor:"default"})),
-			React.createElement(CalendarYM,{onClick:changeMonth(1),key:"4"},aItem("〉")),
-			React.createElement(CalendarYM,{onClick:changeYear(1),key:"5"},aItem("+"))					
+		return $("div",{style:headerStyle},[
+			$(CalendarYM,{onClick:changeYear(-1),key:"1",style:{margin:"0px"}},aItem("-")),
+			$(CalendarYM,{onClick:changeMonth(-1),key:"2"},aItem("〈")),
+			$(CalendarYM,{key:"3",style:ymStyle},aItem(aMonthNames[selMonth]+" "+year,{padding:"0.325em 0 0.325em 0",cursor:"default"})),
+			$(CalendarYM,{onClick:changeMonth(1),key:"4"},aItem("〉")),
+			$(CalendarYM,{onClick:changeYear(1),key:"5"},aItem("+"))					
 		]);
 		
 	};
@@ -1856,7 +1859,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const rows=[];
 			let w;
 			for(w = 0;w < weeknum;w++){
-				rows.push(React.createElement("tr",{key:""+w},
+				rows.push($("tr",{key:""+w},
 				(()=>{
 					let weekNumber;
 					const curday = dayArray[daynum];
@@ -1885,23 +1888,23 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 						width:"100%",						
 					};
 					return [
-						React.createElement("td",{key:w+"1",style:weekNumStyle},
-							React.createElement("div",{style:weekNumCellStyle},
-								React.createElement("div",{},weekNumber)
+						$("td",{key:w+"1",style:weekNumStyle},
+							$("div",{style:weekNumCellStyle},
+								$("div",{},weekNumber)
 							)
 						),
-						React.createElement("td",{key:w+"2",style:calRowStyle},
-							React.createElement("div",{style:{...calRowStyle,padding:"0px",display:"flex"}},
+						$("td",{key:w+"2",style:calRowStyle},
+							$("div",{style:{...calRowStyle,padding:"0px",display:"flex"}},
 							(()=>{
 								const cells=[];									
 								for(let d = 0; d < 7; d++) {
 									const curday = dayArray[daynum];
 									if (daynum < 7 && curday > 20)
-										cells.push(React.createElement(CalenderCell,{key:d,curday,m:"p",onClickValue}));
+										cells.push($(CalenderCell,{key:d,curday,m:"p",onClickValue}));
 									else if (daynum > 27 && curday < 20)
-										cells.push(React.createElement(CalenderCell,{key:d,curday,m:"n",onClickValue}));
+										cells.push($(CalenderCell,{key:d,curday,m:"n",onClickValue}));
 									else
-										cells.push(React.createElement(CalenderCell,{key:d,curday,curSel,onClickValue}));
+										cells.push($(CalenderCell,{key:d,curday,curSel,onClickValue}));
 									daynum++;
 								}
 								return cells;
@@ -1916,16 +1919,16 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				color:"#212121",
 				borderSpacing:"0em"
 			}
-			return React.createElement("table",{key:"rowsOfDays",style:tableStyle},
-				React.createElement("tbody",{},rows)
+			return $("table",{key:"rowsOfDays",style:tableStyle},
+				$("tbody",{},rows)
 			);
 		};
-		return React.createElement("div",{},[
-			React.createElement("div",{key:"daysRow",style:weekDaysStyle},[
-				React.createElement("div",{key:"1",style:dayOfWeekStyle},React.createElement("div",{}," ")),
+		return $("div",{},[
+			$("div",{key:"daysRow",style:weekDaysStyle},[
+				$("div",{key:"1",style:dayOfWeekStyle},$("div",{}," ")),
 				aDayNames.map((day,i)=>
-					React.createElement("div",{key:"d"+i,style:dayOfWeekStyle},
-						React.createElement("div",{style:dayStyle},day)
+					$("div",{key:"d"+i,style:dayOfWeekStyle},
+						$("div",{style:dayStyle},day)
 					)
 				)
 			]),
@@ -1933,11 +1936,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		]);
 	}
 	const DateTimePickerTSelWrapper = ({children}) => {
-		return React.createElement("table",{key:"todayTimeSelWrapper",style:{width:"100%"}},
-			React.createElement("tbody",{},
-				React.createElement("tr",{},
-					React.createElement("td",{colSpan:"8"},
-						React.createElement("div",{style:{textAlign:"center"}},children)
+		return $("table",{key:"todayTimeSelWrapper",style:{width:"100%"}},
+			$("tbody",{},
+				$("tr",{},
+					$("td",{colSpan:"8"},
+						$("div",{style:{textAlign:"center"}},children)
 					)
 				)
 			)
@@ -1959,35 +1962,35 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		const changeMin = (adj)=>()=>{
 			if(onClickValue) onClickValue("change","min:"+adj.toString());
 		}
-		return React.createElement("table",{key:"timeSelect",style:tableStyle},
-			React.createElement("tbody",{},[
-				React.createElement("tr",{key:1},[
-					React.createElement("td",{key:1,style:{textAlign:"right"}},
-						React.createElement(CalenderTimeButton,{onClick:changeHour(1)},"+")
+		return $("table",{key:"timeSelect",style:tableStyle},
+			$("tbody",{},[
+				$("tr",{key:1},[
+					$("td",{key:1,style:{textAlign:"right"}},
+						$(CalenderTimeButton,{onClick:changeHour(1)},"+")
 					),
-					React.createElement("td",{key:2,style:{textAlign:"center"}}),
-					React.createElement("td",{key:3,style:{textAlign:"left"}},
-						React.createElement(CalenderTimeButton,{onClick:changeMin(1)},"+")
+					$("td",{key:2,style:{textAlign:"center"}}),
+					$("td",{key:3,style:{textAlign:"left"}},
+						$(CalenderTimeButton,{onClick:changeMin(1)},"+")
 					)							
 				]),
-				React.createElement("tr",{key:2},[
-					React.createElement("td",{key:1,style:{textAlign:"right"}},adjHours),
-					React.createElement("td",{key:2,style:{textAlign:"center"}},":"),
-					React.createElement("td",{key:3,style:{textAlign:"left"}},adjMins),
+				$("tr",{key:2},[
+					$("td",{key:1,style:{textAlign:"right"}},adjHours),
+					$("td",{key:2,style:{textAlign:"center"}},":"),
+					$("td",{key:3,style:{textAlign:"left"}},adjMins),
 				]),
-				React.createElement("tr",{key:3},[
-					React.createElement("td",{key:1,style:{textAlign:"right"}},
-						React.createElement(CalenderTimeButton,{onClick:changeHour(-1)},"-")
+				$("tr",{key:3},[
+					$("td",{key:1,style:{textAlign:"right"}},
+						$(CalenderTimeButton,{onClick:changeHour(-1)},"-")
 					),
-					React.createElement("td",{key:2,style:{textAlign:"center"}}),
-					React.createElement("td",{key:3,style:{textAlign:"left"}},
-						React.createElement(CalenderTimeButton,{onClick:changeMin(-1)},"-")
+					$("td",{key:2,style:{textAlign:"center"}}),
+					$("td",{key:3,style:{textAlign:"left"}},
+						$(CalenderTimeButton,{onClick:changeMin(-1)},"-")
 					)	
 				])
 			])
 		);				
 	};
-	const DateTimePickerNowSel = ({onClick,value}) => React.createElement(CalenderSetNow,{key:"setNow",onClick:onClick},value);
+	const DateTimePickerNowSel = ({onClick,value}) => $(CalenderSetNow,{key:"setNow",onClick:onClick},value);
 	const DateTimePicker = (props) => {		
 		const calWrapper=function(children){
 			const wrapperStyle={
@@ -2000,8 +2003,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				margin:"0px",
 				padding:"0px"
 			};
-			return React.createElement("div",{style:wrapperStyle},
-				React.createElement("div",{style:gridStyle},
+			return $("div",{style:wrapperStyle},
+				$("div",{style:gridStyle},
 					children
 				));
 		};	
@@ -2090,7 +2093,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			  +'</svg>';
 		const svgData=svgSrc(svg);	  
 		const urlData = props.url?props.url:svgData;
-		return React.createElement(DropDownElement,{...props,inputStyle,popupStyle,onKeyDown,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
+		return $(DropDownElement,{...props,inputStyle,popupStyle,onKeyDown,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
 	}
 	
 	Date.prototype.getISOWeek = function(utc){
@@ -2163,7 +2166,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	let dateElementPrevCutBy = 0;
 	const OneSvg = React.createClass({
 		render:function(){
-			return React.createElement("svg",{},React.createElement("text",{style:{dominantBaseline:"hanging"}},this.props.children));
+			return $("svg",{},$("text",{style:{dominantBaseline:"hanging"}},this.props.children));
 		}
 	})
 	
@@ -2245,13 +2248,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			}
 			//const localDate = new Date(serverTime)
 			//const lastChar = partialTime[partialTime.length-1]
-			return React.createElement("div",{style,ref:ref=>this.contEl=ref},[			
-				React.createElement("span",{style:shadowStyle,ref:ref=>this.shadowEl=ref,key:"shadow"},fullTime),
-				React.createElement("span",{style:textStyle,key:"date"},partialTime)
+			return $("div",{style,ref:ref=>this.contEl=ref},[			
+				$("span",{style:shadowStyle,ref:ref=>this.shadowEl=ref,key:"shadow"},fullTime),
+				$("span",{style:textStyle,key:"date"},partialTime)
 			]);
 		}
 	})
-	const AnchorElement = ({style,href}) =>React.createElement("a",{style,href},"get")
+	const AnchorElement = ({style,href}) =>$("a",{style,href},"get")
 	
 	const HeightLimitElement = React.createClass({
 		getInitialState:function(){
@@ -2292,7 +2295,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			}
 			//log("state"+this.state.max)
 			//log(style)
-			return React.createElement("div",{style, ref:ref=>this.el=ref},this.props.children)
+			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
 		}
 	})
 	
@@ -2325,7 +2328,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
-			SignIn,ChangePassword			
+			SignIn,ChangePassword,
+			ErrorElement
 		},
 		onClickValue,		
 		onReadySendBlob,

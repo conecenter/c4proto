@@ -3,7 +3,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	let currentFocusNode = null;
 	let preferNode = null;
 	const callbacks = []
-	const addEventListener = windowManager.addEventListener
+	const {addEventListener,setTimeout} = windowManager
 	const {isReactRoot,getReactRoot} = miscReact	
 	const distance = (no1,no2) =>{
 		if(!no1 || !no2) return undefined
@@ -28,20 +28,32 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		const k = [-1,1]
 		const bestDistance = nodesObj.reduce((a,o,i) =>{
 			if(o!=cNodeObj){
-				const m1 = {fy:(o.y1+o.y0)/2,fx:o.x0}
-				const m2 = {fy:(o.y1+o.y0)/2,fx:o.x1}
-				const m3 = {fy:o.y1,fx:(o.x1+o.x0)/2}
-				const m4 = {fy:o.y0,fx:(o.x1+o.x0)/2}
+				const m1 = {fy:(o.y1+o.y0)/2,fx:o.x0} //left
+				const m2 = {fy:(o.y1+o.y0)/2,fx:o.x1} //right
+				const m3 = {fy:o.y1,fx:(o.x1+o.x0)/2} //down
+				const m4 = {fy:o.y0,fx:(o.x1+o.x0)/2} //up
 				const mc0 = {fy:(cNodeObj.y1+cNodeObj.y0)/2,fx:cNodeObj.x1}
 				const mc1 = {fy:cNodeObj.y1,fx:(cNodeObj.x1+cNodeObj.x0)/2}
 				const mc2 = {fy:(cNodeObj.y1+cNodeObj.y0)/2,fx:cNodeObj.x0}
 				const mc3 = {fy:cNodeObj.y0,fx:(cNodeObj.x1+cNodeObj.x0)/2}
 				let mc = null
-				if(axis == 0) mc = mc0 //right
-				if(axis == 1) mc = mc1 //down
-				if(axis == 2) mc = mc2 //left
-				if(axis == 3) mc = mc3 //up
-				
+				let m = null
+				if(axis == 0) {
+					mc = mc0 //right
+					m = m1
+				}
+				if(axis == 1) {
+					mc = mc1 //down
+					m = m4
+				}
+				if(axis == 2) {
+					mc = mc2 //left
+					m = m2
+				}
+				if(axis == 3) {
+					mc = mc3 //up				
+					m = m3
+				}
 				const hitLine0 = k.reduce((_,e)=>{
 					if(o.x0 <= mc.fx - e*(mc.fy - o.y0) && mc.fx - e*(mc.fy - o.y0) <= o.x1)
 						return {fx:mc.fx - e*(mc.fy - o.y0),fy:o.y0}
@@ -68,22 +80,24 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				},null)
 				
 				const hitLine = [hitLine0,hitLine1,hitLine2,hitLine3].find(h=>h!=null)				
-				
-				const d1 = () => distance(m1,mc)
+				const Ms = [m1,m2,m3,m4,hitLine]
+				const Ds = Ms.map(m=>()=>distance(m,mc))
+				/*const d1 = () => distance(m1,mc)
 				const d2 = () => distance(m2,mc)
 				const d3 = () => distance(m3,mc)
 				const d4 = () => distance(m4,mc)					
-				const dx = () => distance(hitLine,mc)
+				const dx = () => distance(hitLine,mc)*/
+				//const Ds = [d1,d2,d3,d4,dx]
 				//xx.push({hitLine0,hitLine1,hitLine2,hitLine3,o,dx,cNodeObj,mc,a0:calcAngle(hitLine0,mc),a0:calcAngle(hitLine0,mc),a1:{a:calcAngle(hitLine1,mc),t:axisDef(calcAngle(hitLine1,mc),axis)},a2:calcAngle(hitLine2,mc),a3:calcAngle(hitLine3,mc)})
-				const angle1 = calcAngle(m1,mc)
+				const Angles = Ms.map(m=>calcAngle(m,mc))
+				/*const angle1 = calcAngle(m1,mc)
 				const angle2 = calcAngle(m2,mc)
 				const angle3 = calcAngle(m3,mc)
 				const angle4 = calcAngle(m4,mc)
-				const anglex = calcAngle(hitLine,mc)					
-				const Ds = [d1,d2,d3,d4,dx]
-				const Angles = [angle1,angle2,angle3,angle4,anglex]					
+				const anglex = calcAngle(hitLine,mc)*/		
+				//const Angles = [angle1,angle2,angle3,angle4,anglex]							
 				const d = Angles.reduce((_,e,i)=>{						
-					if(axisDef(e,axis) || (e == 0 && Ds[i]() == 0)) {
+					if(axisDef(e,axis) || (e == 0 && (m.fx == mc.fx || m.fy == mc.fy && axis!=2))) {
 						const d = Ds[i]()
 						if(_ == null || _ > d) 
 							return d
@@ -127,6 +141,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				currentFocusNode.focus();
 				onTab(event)
 				event.preventDefault();return;
+			case "F2":	
 			case "Enter":
 				sendEvent(()=>eventManager.create("enter"));break;					
 			case "Delete":
@@ -148,14 +163,28 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const onTab = (event) =>{
 		const root = getReactRoot();
 		if(!root) return
-		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))
-		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
 		const cRNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(cRNode.props.autoFocus == false){
 			if(cRNode.props.onClickValue) cRNode.props.onClickValue("focus","change")
 			return
 		}
-		if(cIndex>=0 && cIndex+1<nodes.length) nodes[cIndex+1].focus()
+		
+		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+		if(cIndex>=0) {
+			if(cIndex+1<nodes.length) nodes[cIndex+1].focus()
+			else{
+				setTimeout(()=>{
+					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
+					const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+					if(cIndex>=0) {
+						if(cIndex+1<nodes.length) nodes[cIndex+1].focus()
+						else currentFocusNode.focus()
+					}					
+				},200)
+			}				
+		}		
+		
 	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
@@ -178,7 +207,10 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			const r = n.getBoundingClientRect()				
 			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n}
 		})
-		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {currentFocusNode = null; nodesObj = newNodesObj}
+		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
+			nodesObj = newNodesObj			
+			if(!nodesObj.find(o=>o.n == currentFocusNode)) currentFocusNode = null
+		}
 		if(!currentFocusNode && nodesObj.length>0) {currentFocusNode = nodesObj[0].n; currentFocusNode.focus()}			
 	}	
 	const reg = (o) => {
@@ -192,13 +224,16 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const switchTo = (node) => {						
 		const roNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(roNode&&roNode.state.focused) roNode.onBlur()
-		currentFocusNode = node.el
+		currentFocusNode = node.el		
 	}
 	const checkActivate = doCheck
-	const focusTo = (data) => {
+	const focusTo = (data) => setTimeout(()=>{		
 		const preferedFocusObj = callbacks.find(o=>o.el.classList.contains(`marker-${data}`))
-		if(preferedFocusObj) switchTo(preferedFocusObj)
-	}
+		if(preferedFocusObj) {
+			switchTo(preferedFocusObj)
+			preferedFocusObj.el.focus()
+		}
+	},200)
 	const receivers = {focusTo}
 	return {reg,switchTo,checkActivate,receivers}
 }
