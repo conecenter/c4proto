@@ -22,3 +22,7 @@ trait MapVDomValue extends VDomValue {
 trait Diff {
   def diff(prevValue: VDomValue, currValue: VDomValue): Option[MapVDomValue]
 }
+
+trait SeedVDomValue extends VDomValue {
+  def seed: Product
+}

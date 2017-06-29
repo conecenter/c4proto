@@ -39,7 +39,7 @@ case class StyledValue(tagName: TagName, styles: List[TagStyle])(utils: TagJsonU
   }
 }
 
-case class SeedElement(seed: Product, styles: List[TagStyle])(utils: TagJsonUtils) extends VDomValue {
+case class SeedElement(seed: Product, styles: List[TagStyle])(utils: TagJsonUtils) extends SeedVDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("div")

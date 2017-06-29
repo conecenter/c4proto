@@ -21,7 +21,7 @@ class WorldTxImpl(
   val toDebug: Queue[LEvent[Product]]
 ) extends WorldTx {
   private def nextWorld(nextToSend: List[Update]) =
-    reducer.reduceRecover(world, nextToSend.map(reducer.qMessages.toRecord(NoTopicName,_)))
+    reducer.reduceRecover(world, nextToSend)
   def add[M<:Product](out: Seq[LEvent[M]]): WorldTx = {
     if(out.isEmpty) return this
     val nextToSend = out.map(reducer.qMessages.toUpdate).toList
@@ -43,24 +43,10 @@ class ReducerImpl(
 ) extends Reducer {
   def createWorld: World ⇒ World =
     TreeAssemblerKey.set(treeAssembler.replace(getDependencies()))
-  def reduceRecover(world: World, recs: List[QRecord]): World = {
+  def reduceRecover(world: World, recs: List[Update]): World = {
     //println(s"recs ${recs.size}")
     TreeAssemblerKey.of(world)(qMessages.toTree(recs).asInstanceOf[Map[WorldKey[_],Index[Object,Object]]])(world)
   }
-
-  def reduceReceive(actorName: ActorName, world: World, inboxRecs: Seq[QRecord]): (World, Queue[QRecord]) =
-    ((world,Queue.empty[QRecord]) /: inboxRecs){ (s,inboxRec) ⇒
-      val(prevWorld,prevQueue) = s
-      try {
-        val stateRecs = qMessages.toRecords(actorName, inboxRec)
-        //println(stateRecs.size)
-        (reduceRecover(prevWorld,stateRecs), prevQueue.enqueue(stateRecs))
-      } catch {
-        case e: Exception ⇒
-          e.printStackTrace()
-          (prevWorld,prevQueue) // ??? exception to record
-      }
-    }
   def createTx(world: World): World ⇒ World =
     TxKey.set(new WorldTxImpl(this, world, Queue.empty, Queue.empty))
 }

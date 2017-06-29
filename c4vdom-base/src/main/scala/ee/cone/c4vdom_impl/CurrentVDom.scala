@@ -99,7 +99,7 @@ case class VDomHandlerImpl[State](
   ): List[(String,Product)] = value match {
     case n: MapVDomValue ⇒
       (acc /: n.pairs)((acc,pair)⇒gatherSeeds(acc, pair.jsonKey::path, pair.value))
-    case SeedElement(seed,_) ⇒ (path.reverse.map(e⇒s"/$e").mkString,seed) :: acc
+    case n: SeedVDomValue ⇒ (path.reverse.map(e⇒s"/$e").mkString,n.seed) :: acc
      //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
     case _ ⇒ acc
   }

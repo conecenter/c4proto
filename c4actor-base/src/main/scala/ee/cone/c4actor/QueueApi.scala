@@ -11,10 +11,10 @@ import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
 
 @protocol object QProtocol extends Protocol {
-  @Id(0x0010) case class TopicKey(
+  /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
       @Id(0x0012) valueTypeId: Long
-  )
+  )*/
   case class Update(
     @Id(0x0011) srcId: String,
     @Id(0x0012) valueTypeId: Long,
@@ -41,7 +41,6 @@ case class ActorName(value: String)
 sealed trait TopicName
 case object NoTopicName extends TopicName
 case class InboxTopicName() extends TopicName
-case class StateTopicName(actorName: ActorName) extends TopicName
 case class LogTopicName() extends TopicName
 
 trait QRecord {
@@ -60,9 +59,8 @@ case object OffsetWorldKey extends WorldKey[java.lang.Long](0L)
 trait QMessages {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def offsetUpdate(value: Long): List[Update]
-  def toRecord(topicName: TopicName, update: Update): QRecord
-  def toRecords(actorName: ActorName, rec: QRecord): List[QRecord]
-  def toTree(records: Iterable[QRecord]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]]
+  def toUpdates(actorName: ActorName, rec: QRecord): List[Update]
+  def toTree(updates: Iterable[Update]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]]
   def send[M<:Product](local: World): World
   def worldOffset: World ⇒ Long
 }
@@ -123,6 +121,5 @@ case object QAdapterRegistryKey extends WorldKey[()⇒QAdapterRegistry](()⇒thr
 class QAdapterRegistry(
   val byName: Map[String,ProtoAdapter[Product] with HasId],
   val byId: Map[Long,ProtoAdapter[Product] with HasId],
-  val keyAdapter: ProtoAdapter[QProtocol.TopicKey],
   val updatesAdapter: ProtoAdapter[QProtocol.Updates]
 )

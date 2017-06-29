@@ -47,7 +47,6 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
     case LogTopicName() ⇒ s"$inboxTopicPrefix.inbox.log"
-    case StateTopicName(ActorName(n)) ⇒ s"$n.state"
     case NoTopicName ⇒ throw new Exception
   }
   private def sendStart(rec: QRecord): Future[RecordMetadata] = {
@@ -134,29 +133,24 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
   }
 
   def run(ctx: ExecutionContext): Unit = {
+    println("starting world recover...")
+    val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
+    val startOffset = qMessages.worldOffset(localWorldRef.get)
+    println(s"world state recovered, next offset [$startOffset]")
     val consumer = initConsumer(ctx)
     try {
       val inboxTopicName = InboxTopicName()
-      val stateTopicName = StateTopicName(actorName)
       val inboxTopicPartition = List(new TopicPartition(rawQSender.topicNameToString(inboxTopicName), 0))
-      val stateTopicPartition = List(new TopicPartition(rawQSender.topicNameToString(stateTopicName), 0))
-      consumer.assign((inboxTopicPartition ::: stateTopicPartition).asJava)
-      consumer.pause(inboxTopicPartition.asJava)
       println(s"server [$bootstrapServers] inbox [${rawQSender.topicNameToString(inboxTopicName)}]")
-      println("starting world recover...")
-      val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
-      val startOffset = qMessages.worldOffset(localWorldRef.get)
-      println(s"world state recovered, next offset [$startOffset]")
+      consumer.assign(inboxTopicPartition.asJava)
       consumer.seek(Single(inboxTopicPartition),startOffset)
-      consumer.pause(stateTopicPartition.asJava)
-      consumer.resume(inboxTopicPartition.asJava)
       val (incarnationNextOffset,checkIncarnation) = startIncarnation(localWorldRef.get)
       val observerContext = new ObserverContext(ctx, ()⇒localWorldRef.get)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
-        if(recs.nonEmpty){
-          val(world,queue) = reducer.reduceReceive(actorName, localWorldRef.get, recs)
-          rawQSender.send(queue.toList)
-          localWorldRef.set(world)
+        for(rec ← recs.nonEmpty) try {
+          localWorldRef.set(reducer.reduceRecover(localWorldRef.get,qMessages.toUpdates(actorName, rec)))
+        } catch {
+          case e: Exception ⇒ e.printStackTrace()// ??? exception to record
         }
         //println(s"then to receive: ${qMessages.worldOffset(localWorldRef.get)}")
         if(checkIncarnation(localWorldRef.get))

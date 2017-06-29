@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import java.util.UUID
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.{Offset, TopicKey, Update, Updates}
+import ee.cone.c4actor.QProtocol.{Offset, Update, Updates}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Index, World}
 import ee.cone.c4assemble.{Single, WorldKey}
@@ -42,40 +42,28 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
     Update(message.srcId, valueAdapter.id, byteString)
   }
-  def toRecord(topicName: TopicName, update: Update): QRecord = {
-    val rawKey = keyAdapter.encode(TopicKey(update.srcId, update.valueTypeId))
-    val rawValue = update.value.toByteArray
-    new QRecordImpl(topicName, rawKey, rawValue)
-  }
   def offsetUpdate(value: Long): List[Update] =
     LEvent.update(Offset("", value)).toList.map(toUpdate)
-  def toRecords(actorName: ActorName, rec: QRecord): List[QRecord] = {
+  def toUpdates(actorName: ActorName, rec: QRecord): List[Update] = {
     //if(rec.key.length > 0) throw new Exception
     val updates = qAdapterRegistry.updatesAdapter.decode(rec.value).updates
-    val relevantUpdates =
       updates.filter(u ⇒ qAdapterRegistry.byId.contains(u.valueTypeId)) :::
         offsetUpdate(rec.offset.get + 1)
-    relevantUpdates.map(toRecord(StateTopicName(actorName),_))
   }
   def worldOffset: World ⇒ Long = world ⇒
     Single(By.srcId(classOf[Offset]).of(world).getOrElse("",List(Offset("",0L)))).value
-  def toTree(records: Iterable[QRecord]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]] = records.map {
-    rec ⇒ (qAdapterRegistry.keyAdapter.decode(rec.key), rec)
-  }.groupBy {
-    case (topicKey, rec) ⇒ topicKey.valueTypeId
-  }.flatMap { case (valueTypeId, keysEvents) ⇒
-    qAdapterRegistry.byId.get(valueTypeId).map(valueAdapter ⇒
-      By.srcId[Product](valueAdapter.className) → keysEvents.groupBy {
-        case (topicKey, _) ⇒ topicKey.srcId
-      }.map { case (srcId, keysEventsI) ⇒
-        val (topicKey, rec) = keysEventsI.last
-        val rawValue = rec.value
-        val values =
-          if(rawValue.length > 0) valueAdapter.decode(rawValue) :: Nil else Nil
-        srcId → values
-      }
-    )
-  }
+  def toTree(updates: Iterable[Update]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]] =
+    updates.groupBy(_.valueTypeId).flatMap { case (valueTypeId, tpUpdates) ⇒
+      qAdapterRegistry.byId.get(valueTypeId).map(valueAdapter ⇒
+        By.srcId[Product](valueAdapter.className) →
+          tpUpdates.groupBy(_.srcId).map { case (srcId, iUpdates) ⇒
+            val rawValue = iUpdates.last.value
+            val values =
+              if(rawValue.size > 0) valueAdapter.decode(rawValue) :: Nil else Nil
+            srcId → values
+          }
+      )
+    }
 }
 
 object QAdapterRegistryFactory {
@@ -84,12 +72,10 @@ object QAdapterRegistryFactory {
   def apply(protocols: List[Protocol]): QAdapterRegistry = {
     val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
     val byName = checkToMap(adapters.map(a ⇒ a.className → a))
-    val keyAdapter = byName(classOf[QProtocol.TopicKey].getName)
-      .asInstanceOf[ProtoAdapter[QProtocol.TopicKey]]
     val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
     val byId = checkToMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
-    new QAdapterRegistry(byName, byId, keyAdapter, updatesAdapter)
+    new QAdapterRegistry(byName, byId, updatesAdapter)
   }
 }
 
