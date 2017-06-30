@@ -44,11 +44,10 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
   def offsetUpdate(value: Long): List[Update] =
     LEvent.update(Offset("", value)).toList.map(toUpdate)
-  def toUpdates(actorName: ActorName, rec: QRecord): List[Update] = {
+  def toUpdates(actorName: ActorName, data: Array[Byte]): List[Update] = {
     //if(rec.key.length > 0) throw new Exception
-    val updates = qAdapterRegistry.updatesAdapter.decode(rec.value).updates
-      updates.filter(u ⇒ qAdapterRegistry.byId.contains(u.valueTypeId)) :::
-        offsetUpdate(rec.offset.get + 1)
+    val updates = qAdapterRegistry.updatesAdapter.decode(data).updates
+      updates.filter(u ⇒ qAdapterRegistry.byId.contains(u.valueTypeId))
   }
   def worldOffset: World ⇒ Long = world ⇒
     Single(By.srcId(classOf[Offset]).of(world).getOrElse("",List(Offset("",0L)))).value

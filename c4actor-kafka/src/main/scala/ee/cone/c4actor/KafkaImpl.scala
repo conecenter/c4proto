@@ -100,28 +100,28 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
     })
     consumer
   }
-  private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {
-    LEvent.delete(Updates("",Nil)).foreach(ev⇒
-      rawQSender.send(List(qMessages.toRecord(topicName,qMessages.toUpdate(ev))))
-    ) //! prevents hanging on empty topic
-    val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
-    consumer.seekToBeginning(part.asJava)
+/*private def recoverWorld(consumer: BConsumer, part: List[TopicPartition], topicName: TopicName): AtomicReference[World] = {
+  LEvent.delete(Updates("",Nil)).foreach(ev⇒
+    rawQSender.send(List(qMessages.toRecord(topicName,qMessages.toUpdate(ev))))
+  ) //! prevents hanging on empty topic
+  val until = Single(consumer.endOffsets(part.asJava).asScala.values.toList)
+  consumer.seekToBeginning(part.asJava)
 
-    val recsIterator = iterator(consumer).flatten
-    @tailrec def toQueue(queue: Queue[QRecord], count: Long, nonEmptyCount: Long): Queue[QRecord] = {
-      if(count % 100000 == 0) println(count,nonEmptyCount)
-      val rec: KafkaQConsumerRecordAdapter = recsIterator.next()
-      if(rec.offset.get + 1 >= until){
-        println(count,nonEmptyCount)
-        queue.enqueue(rec)
-      }
-      else toQueue(queue.enqueue(rec), count+1L, nonEmptyCount+(if(rec.value.length>0) 1L else 0L))
+  val recsIterator = iterator(consumer).flatten
+  @tailrec def toQueue(queue: Queue[QRecord], count: Long, nonEmptyCount: Long): Queue[QRecord] = {
+    if(count % 100000 == 0) println(count,nonEmptyCount)
+    val rec: KafkaQConsumerRecordAdapter = recsIterator.next()
+    if(rec.offset.get + 1 >= until){
+      println(count,nonEmptyCount)
+      queue.enqueue(rec)
     }
-    val zeroRecord = qMessages.offsetUpdate(0L).map(qMessages.toRecord(topicName,_))
-    val recsQueue = toQueue(Queue(zeroRecord:_*),0,0)
-    val recsList = recsQueue.toList
-    new AtomicReference(reducer.reduceRecover(reducer.createWorld(Map()), recsList))
+    else toQueue(queue.enqueue(rec), count+1L, nonEmptyCount+(if(rec.value.length>0) 1L else 0L))
   }
+  val zeroRecord = qMessages.offsetUpdate(0L).map(qMessages.toRecord(topicName,_))
+  val recsQueue = toQueue(Queue(zeroRecord:_*),0,0)
+  val recsList = recsQueue.toList
+  new AtomicReference(reducer.reduceRecover(reducer.createWorld(Map()), recsList))
+}*/
   private def startIncarnation(world:  World): (Long,World⇒Boolean) = {
     val local = reducer.createTx(world)(Map())
     val leader = Leader(actorName.value,UUID.randomUUID.toString)
@@ -134,7 +134,7 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
 
   def run(ctx: ExecutionContext): Unit = {
     println("starting world recover...")
-    val localWorldRef = recoverWorld(consumer, stateTopicPartition, stateTopicName)
+    val localWorldRef: AtomicReference[World] = ???
     val startOffset = qMessages.worldOffset(localWorldRef.get)
     println(s"world state recovered, next offset [$startOffset]")
     val consumer = initConsumer(ctx)
@@ -147,8 +147,10 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       val (incarnationNextOffset,checkIncarnation) = startIncarnation(localWorldRef.get)
       val observerContext = new ObserverContext(ctx, ()⇒localWorldRef.get)
       iterator(consumer).scanLeft(initialObservers){ (prevObservers, recs) ⇒
-        for(rec ← recs.nonEmpty) try {
-          localWorldRef.set(reducer.reduceRecover(localWorldRef.get,qMessages.toUpdates(actorName, rec)))
+        for((rec:QRecord) ← recs.nonEmpty) try {
+          localWorldRef.set(reducer.reduceRecover(localWorldRef.get,
+            qMessages.toUpdates(actorName, rec.value) ::: qMessages.offsetUpdate(rec.offset.get + 1)
+          ))
         } catch {
           case e: Exception ⇒ e.printStackTrace()// ??? exception to record
         }
