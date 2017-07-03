@@ -154,14 +154,17 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				const closeImg = $("img",{src:closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
 				const noteImg = $("img",{src:noteSvgData,style:{width:"1.5em",display:"inherit"}})
 				const data = this.props.data?this.props.data:this.state.data
+				const buttonEls = this.props.onClick?[
+					//$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
+						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
+					]:null
 				const errorEl = $("div",{style:{backgroundColor:"white",padding:"0em 1.25em",borderTop:"0.1em solid #1976d2",borderBottom:"0.1em solid #1976d2"}},
 					$("div",{style:{display:"flex",/*height:"2em",*/height:"auto",margin:"0.2em"}},[
 						$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
 							$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
 							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"/*,whiteSpace:"nowrap"*/}},data)						
 						]),
-						//$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
-						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
+						buttonEls
 					])
 				)			
 				return errorEl

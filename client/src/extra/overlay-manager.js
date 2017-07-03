@@ -66,7 +66,7 @@ export default function OverlayManager({log,documentManager,windowManager}){
 			getEls().forEach(el=>body().removeChild(el));
 		}		
 	}
-	const delayToggle = (msg) => {}//delayTimer = setTimeout(()=>toggle(true,msg),5000)
+	const delayToggle = (msg) => delayTimer = setTimeout(()=>toggle(true,msg),3000)
 	
 	const checkActivate = () =>{
 		

@@ -6,7 +6,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	const ColorCreator = React.createClass({
     		onChange:function(e){
     			if(this.props.onChange)
-    				this.props.onChange(e);
+    				this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}});
     		},
     		onBlur:function(e){
     			if(this.props.onBlur)
@@ -143,7 +143,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			backgroundColor: value ? value : 'black',
 			...style
 		},
-		onClick: ev => onChange({ target: ({value}) })
+		onClick: ev => onChange({target:{headers:{"X-r-action":"change"},value} })
 	},[
 		React.createElement('span',{}, value)
 	])
@@ -265,7 +265,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	const ControlledComparator = React.createClass({
 		componentDidUpdate:function(prevP,prevS){
 			if(this.props.onChange&&this.props.data&&prevP.data!==this.props.data){			
-				const e={target:{value:this.props.data.toString()}};
+				const e={target:{headers:{"X-r-action":"change"},value:this.props.data.toString()}};
 				log("change w");
 				this.props.onChange(e);
 			}
@@ -336,7 +336,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			const wifiLevel = prevWifiLevel&&!this.state.wifiLevel?prevWifiLevel:this.state.wifiLevel
 			const wifiStyle = wifiLevel!==null?{padding:"0.11em 0em"}:{}
 			const wifiIconStyle = wifiLevel!==null?{width:"0.7em"}:{}
-			const waitingStyle = this.props.msg?{backgroundColor:"yellow"}:{}
+			const waitingStyle = this.props.msg?{backgroundColor:"yellow",color:"rgb(114, 114, 114)"}:{}
 			const style={
 				color:"white",
 				textAlign:"center",
