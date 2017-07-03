@@ -41,7 +41,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		}
 		return {reg,requestCertificate}
 	}()
-	const sendToServer = (type,value) =>{
+	const sendToServer = (branchKey,type,value) =>{
 		const app = "digisign"
 		feedback.send({
 			url:"/connection",
@@ -50,21 +50,27 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 					"X-r-app":app,
 					"X-r-type":type,
 					"X-r-mdkey":getIdKey(),
-					"X-r-branch":`${app}_placeholder`
+					"X-r-branch":branchKey
 				},
 				body:value
 			}
 		})
 	}
+	let sentQuery = false
 	const UserQueryStringElement = React.createClass({
+		componentDidMount:function(){
+			if(sentQuery) return
+			sendToServer(this.props.branchKey,"queryString","needScenario")
+			sentQuery = true
+		},
 		render:function(){
-			return null
+			return React.createElement("span",{id:"queryString"});
 		}
 	})
 	
 	const UserCertificateElement = React.createClass({
 		onCertificate:function(certificate){
-			sendToServer("certificate",certificate.encoded)
+			sendToServer(this.props.branchKey,"certificate",certificate.encoded)
 			//if(this.props.onReadySendBlob)						
 			//	this.props.onReadySendBlob(getIdKey(),certificate.encoded);
 		},
@@ -85,7 +91,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			const digest = Uint8Array.from(atob(digest64), c => c.charCodeAt(0))			
 			hwcrypto.sign(certificate, {type: 'SHA-256', value: digest}, {}).then(signature => {			  
 				log(signature);
-				sendToServer("signature",signature.value)
+				sendToServer(this.props.branchKey,"signature",signature.value)
 			  //if(this.props.onReadySendBlob)
 			//	  this.props.onReadySendBlob(getIdKey(),signature.value)
 		    }, error =>sendError(error.toString()));

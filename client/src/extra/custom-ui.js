@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,toggleOverlay,getBattery,scannerProxy,windowManager}){
+export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager}){
 	const {setTimeout,clearTimeout} = windowManager
 	const ColorCreator = React.createClass({
     		onChange:function(e){
@@ -313,28 +313,34 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 		componentDidMount:function(){					
 			if(PingReceiver)
 				PingReceiver.regCallback(this.signal,this);
-			this.toggleOverlay(!this.state.on);
+			this.toggleOverlay(!this.state.on);			
 			this.wifi=scannerProxy.regWifi(this.wifiCallback)
 		},
 		componentWillUnmount:function(){
 			if(PingReceiver)
 				PingReceiver.unregCallback(this);
 			if(this.wifi) this.wifi.unreg();
-		},
+		},		
 		toggleOverlay:function(on){
 			if(!this.props.overlay) return;
-			toggleOverlay(on)
+			if(this.props.msg) 
+				overlayManager.delayToggle(this.props.msg)
+			else
+				overlayManager.toggle(on)
+			
 		},
 		componentDidUpdate:function(prevProps,prevState){			
-			this.toggleOverlay(!this.state.on);			
+			this.toggleOverlay(!this.state.on);
 		},
 		render:function(){
 			const wifiLevel = prevWifiLevel&&!this.state.wifiLevel?prevWifiLevel:this.state.wifiLevel
 			const wifiStyle = wifiLevel!==null?{padding:"0.11em 0em"}:{}
 			const wifiIconStyle = wifiLevel!==null?{width:"0.7em"}:{}
+			const waitingStyle = this.props.msg?{backgroundColor:"yellow"}:{}
 			const style={
 				color:"white",
 				textAlign:"center",
+				...waitingStyle,
 				...wifiStyle,
 				...this.props.style
 			};

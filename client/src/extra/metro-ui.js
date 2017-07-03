@@ -74,6 +74,21 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(this.props.onClick){
 				setTimeout(function(){this.props.onClick(e)}.bind(this),(this.props.delay?parseInt(this.props.delay):0));
 			}				
+		},		
+		onEnter:function(event){
+			//log(`Enter ;`)
+			event.stopPropagation()
+			if(!this.el) return
+			this.el.click()
+			const cEvent = eventManager.create("cTab",{bubbles:true})
+			this.el.dispatchEvent(cEvent)							
+		},		
+		componentDidMount:function(){
+			if(!this.el) return
+			this.el.addEventListener("enter",this.onEnter)
+		},
+		componentWillUnmount:function(){
+			this.el.removeEventListener("enter",this.onEnter)
 		},
 		componentWillReceiveProps:function(nextProps){
 			this.setState({mouseOver:false,touch:false});
@@ -95,8 +110,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
 				...this.props.style,
 				...(this.state.mouseOver?this.props.overStyle:null)
-			}	
-			return $("button",{style,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			}
+			const className = this.props.className
+			return $("button",{className,style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
 	const uiElements = []
@@ -139,13 +155,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				const noteImg = $("img",{src:noteSvgData,style:{width:"1.5em",display:"inherit"}})
 				const data = this.props.data?this.props.data:this.state.data
 				const errorEl = $("div",{style:{backgroundColor:"white",padding:"0em 1.25em",borderTop:"0.1em solid #1976d2",borderBottom:"0.1em solid #1976d2"}},
-					$("div",{style:{display:"flex",height:"2em",margin:"0.2em"}},[
+					$("div",{style:{display:"flex",/*height:"2em",*/height:"auto",margin:"0.2em"}},[
 						$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
 							$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
-							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},data)						
+							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"/*,whiteSpace:"nowrap"*/}},data)						
 						]),
-						$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
-						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},closeImg)
+						//$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
+						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
 					])
 				)			
 				return errorEl
@@ -153,7 +169,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			else 
 				return null
 		}
-	})
+	})	
 	uiElements.push({ErrorElement})
 	const MenuBarElement=React.createClass({
 		getInitialState:function(){
@@ -331,30 +347,39 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		marginTop:'0rem',
 		...style
 	}},children);
-	const DocElement=(props) =>{
-		const fontFaceStyle = `
+	const DocElement = React.createClass({
+		componentDidMount:function(){
+			const node = documentManager.body().querySelector("#content");
+			if(node)
+			while (node.hasChildNodes())
+				node.removeChild(node.lastChild);
+		},
+		render:function(){
+			const props = this.props
+			const fontFaceStyle = `
 			@font-face {
 				font-family: "Open Sans";
 				font-style: normal;
 				font-weight: 400;
 				src: local("Segoe UI"), local("Open Sans"), local("OpenSans"), url(https://themes.googleusercontent.com/static/fonts/opensans/v8/K88pR3goAWT7BTt32Z01mz8E0i7KZn-EPnyo3HZu7kw.woff) format('woff');
 			}`;
-		const fontSize = props.style.fontSize?props.style.fontSize:"";
-		const padding = props.style.padding?props.style.padding:"";
-		const htmlStyle = `
-			html {
-				font-size: ${fontSize};
-				font-family:"Open Sans";
-				padding: ${padding};
-			}`;
-		const bodyStyle = `
-			body {
-				margin:0em;
-			}`;
-		return $(Helmet,{},
-			$("style",{},fontFaceStyle+htmlStyle+bodyStyle)
-		)
-	}	
+			const fontSize = props.style.fontSize?props.style.fontSize:"";
+			const padding = props.style.padding?props.style.padding:"";
+			const htmlStyle = `
+				html {
+					font-size: ${fontSize};
+					font-family:"Open Sans";
+					padding: ${padding};
+				}`;
+			const bodyStyle = `
+				body {
+					margin:0em;
+				}`;
+			return $(Helmet,{},
+				$("style",{},fontFaceStyle+htmlStyle+bodyStyle)
+			)
+		}
+	})
 	const GrContainer= ({style,children})=>$("div",{style:{
 		boxSizing:'border-box',           
 		fontSize:'0.875em',
@@ -396,22 +421,18 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		componentDidMount:function(){
 			if(this.props.caption){
-				this.recalc();
-				addEventListener("resize",this.recalc);
+				checkActivateCalls.add(this.recalc)
 			}					
 		},
-		componentDidUpdate:function(prevProps,prevState){			
-			if(prevProps.caption!=this.props.caption && this.props.caption){
-				this.recalc();				
-			}
+		componentDidUpdate:function(prevProps,prevState){						
 			if(prevProps.caption && !this.props.caption)
-				removeEventListener("resize",this.recalc)
+				checkActivateCalls.remove(this.recalc)
 			if(!prevProps.caption && this.props.caption)
-				addEventListener("resize",this.recalc)
+				checkActivateCalls.add(this.recalc)
 		},
 		componentWillUnmount:function(){
 			if(this.props.caption){
-				removeEventListener("resize",this.recalc);
+				checkActivateCalls.remove(this.recalc)
 			}
 		},
 		render:function(){			
@@ -862,7 +883,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				textOverflow:"ellipsis",
 				cursor:this.props.draggable?"move":"auto",
 				backgroundColor:"transparent",
-				outline:this.state.focused?"1px dotted black":"none",				
+				outline:this.state.focused?"1px dashed red":"none",
+				outlineOffset:"-1px",
 				...style
 			},colSpan,
 			ref:ref=>this.el=ref,
@@ -1179,10 +1201,12 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		onKeyDown:function(e){
 			let call=""
-			switch(e.key){
-				case "Enter":					
-				case "ArrowUp":										
+			switch(e.key){								
+				case "ArrowUp":
+					e.stopPropagation();
 				case "ArrowDown":
+					e.stopPropagation();
+				case "Enter":
 					call = e.key;
 					e.preventDefault();
 					break;
@@ -1311,7 +1335,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				width:"100%",				
 				padding:"0.4em 0.3125em",
 				boxSizing:"border-box",
-				outline:this.state.focused?"1px dashed red":"none",				
+				outline:this.state.focused?"1px dashed red":"none",
+				outlineOffset:"-1px",
 				...style
 			},tabIndex:"1",
 			className,

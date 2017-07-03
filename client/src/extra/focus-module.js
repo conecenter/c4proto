@@ -20,6 +20,14 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		return inAxis
 	}
 	const calcAngle = (m,mc) => m&&(Math.atan2(m.fy - mc.fy, m.fx - mc.fx) * 180 / Math.PI)
+	const isNeightbor = (axis,angle,i,m,mc) =>{
+		if(angle != 90 && angle != 0) return false
+		if(axis == 0 && i==0 && m.fx - mc.fx >= 0) return true
+		if(axis == 1 && i==3 && m.fy - mc.fy >= 0) return true
+		if(axis == 2 && i==1 && m.fx - mc.fx <= 0) return true
+		if(axis == 3 && i==2 && m.fy - mc.fy <= 0) return true
+		return false
+	}
 	const findBestDistance = (axis) => {
 		const aEl = documentManager.activeElement()
 		if((axis==2||axis==0) && aEl.tagName == "INPUT") return
@@ -28,6 +36,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		const k = [-1,1]
 		const bestDistance = nodesObj.reduce((a,o,i) =>{
 			if(o!=cNodeObj){
+				const m0 = {fy:(o.y1+o.y0)/2,fx:(o.x1+o.x0)/2} //center
 				const m1 = {fy:(o.y1+o.y0)/2,fx:o.x0} //left
 				const m2 = {fy:(o.y1+o.y0)/2,fx:o.x1} //right
 				const m3 = {fy:o.y1,fx:(o.x1+o.x0)/2} //down
@@ -53,7 +62,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				if(axis == 3) {
 					mc = mc3 //up				
 					m = m3
-				}
+				}				
 				const hitLine0 = k.reduce((_,e)=>{
 					if(o.x0 <= mc.fx - e*(mc.fy - o.y0) && mc.fx - e*(mc.fy - o.y0) <= o.x1)
 						return {fx:mc.fx - e*(mc.fy - o.y0),fy:o.y0}
@@ -80,7 +89,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				},null)
 				
 				const hitLine = [hitLine0,hitLine1,hitLine2,hitLine3].find(h=>h!=null)				
-				const Ms = [m1,m2,m3,m4,hitLine]
+				const Ms = [m1,m2,m3,m4,m0,hitLine]
 				const Ds = Ms.map(m=>()=>distance(m,mc))
 				/*const d1 = () => distance(m1,mc)
 				const d2 = () => distance(m2,mc)
@@ -97,7 +106,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				const anglex = calcAngle(hitLine,mc)*/		
 				//const Angles = [angle1,angle2,angle3,angle4,anglex]							
 				const d = Angles.reduce((_,e,i)=>{						
-					if(axisDef(e,axis) || (e == 0 && (m.fx == mc.fx || m.fy == mc.fy && axis!=2))) {
+					if(axisDef(e,axis) || isNeightbor(axis,e,i,m,mc)) {
 						const d = Ds[i]()
 						if(_ == null || _ > d) 
 							return d
@@ -113,11 +122,11 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const sendEvent = (event) => {
 		if(!currentFocusNode) return;
-		const inp = currentFocusNode.querySelector("input")
+		const controlEl = currentFocusNode.querySelector("input,button")		
 		const innerTab = currentFocusNode.querySelector('[tabindex="1"]')
 		const cEvent = event()
-		if(inp) 
-			inp.dispatchEvent(cEvent)
+		if(controlEl) 
+			controlEl.dispatchEvent(cEvent)
 		else if(innerTab)				
 			innerTab.dispatchEvent(cEvent)
 		else

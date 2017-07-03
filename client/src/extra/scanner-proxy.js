@@ -1,4 +1,4 @@
-export default function ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,document,scrollBy}){
+export default function ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,document,scrollBy,eventManager}){
 	let referenceCounter = 0;
 	let isOn = false
 	let interval = null
@@ -36,10 +36,14 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 	const arrowBodyDOWN = ()=>{
 		moveScrollBy(10)
 	}
-	const arrowUP = () => {}
-	const arrowDOWN = () => {}
-	const arrowLEFT = () => {}
-	const arrowRIGHT = () => {}
+	const fireGlobalEvent = (key) => {
+		var event = eventManager.create("keydown",{key,bubbles:true})
+		document.dispatchEvent(event)
+	}
+	const arrowUP = () => fireGlobalEvent("arrowUp")
+	const arrowDOWN = () => fireGlobalEvent("arrrowDown")
+	const arrowLEFT = () => fireGlobalEvent("arrowLeft")
+	const arrowRIGHT = () => fireGlobalEvent("arrowRight")
 	//const unReg = () => {referenceCounter -= 1; delete callbacks[obj];log("unreg");}
 	const regWifi = (callback) => {
 		wifiCallbacks.push(callback)		
