@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import java.time.Instant
 
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.{Update, Updates}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types.{Index, Values, World}
@@ -135,16 +135,30 @@ object ProtocolDataDependencies {
     }
 }
 
-class StatsObserver(time: Option[Long]) extends Observer with ProgressObserver {
-  def progress(): Observer = {
-    val now = System.currentTimeMillis
-    if(time.exists(now<_)) this else new StatsObserver(Option(now+1000))
-  }
-
+class ProgressObserver(time: Option[Long], incarnationNextOffsetOpt: Option[Long])(
+  qMessages: QMessages, reducer: Reducer, initialObservers: List[Observer]
+) extends Observer {
   def activate(ctx: ObserverContext): Seq[Observer] = {
-    println(WorldStats.make(ctx.getWorld()))
-    println("Stats OK")
-    Nil
+    val world = ctx.getWorld()
+    incarnationNextOffsetOpt.map{ incarnationNextOffset =>
+      val offset = qMessages.worldOffset(world)
+      if (offset < incarnationNextOffset) {
+        val now = System.currentTimeMillis
+        if(time.exists(now<_)) List(this) else {
+          println(s"loaded $offset/$incarnationNextOffset")
+          List(new ProgressObserver(Option(now+1000),incarnationNextOffsetOpt)(qMessages,reducer,initialObservers))
+        }
+      } else {
+        println(WorldStats.make(ctx.getWorld()))
+        println("Stats OK")
+        initialObservers
+      }
+    }.getOrElse{
+      val local = reducer.createTx(world)(Map())
+      val nLocal = LEvent.add(LEvent.delete(Updates("",Nil))).andThen(qMessages.send)(local)
+      val offset = Option(OffsetWorldKey.of(nLocal):Long)
+      List(new ProgressObserver(time,offset)(qMessages,reducer,initialObservers))
+    }
   }
 }
 

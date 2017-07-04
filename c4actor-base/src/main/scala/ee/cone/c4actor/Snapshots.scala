@@ -28,7 +28,7 @@ object RawSnapshot {
     if(!Files.exists(dir)) throw new Exception(s"$dir should be provided by volume manager")
     Files.write(dir.resolve(filename),data)
   }
-  def loadRecent: Stream[(Long,Option[Array[Byte]])] = for{
+  private def loadRecent: Stream[(Long,Option[Array[Byte]])] = for{
     path ← FinallyClose(Files.newDirectoryStream(dir))(_.asScala.toList).sorted.reverse.toStream
     (offsetStr,uuid) ← hashFromName(path.getFileName.toString)
   } yield {
@@ -36,4 +36,9 @@ object RawSnapshot {
     val offset = java.lang.Long.parseLong(offsetStr,16)
     (offset, if(hashFromData(data) == uuid) Option(data) else None)
   }
+  def loadRecent[M](setup: (Array[Byte],Long)⇒Option[M]): Option[M] = // cg mg
+    loadRecent.flatMap { case (offset, dataOpt) ⇒
+      println(s"Loading snapshot up to $offset")
+      dataOpt.flatMap(setup(_,offset))
+    }.headOption
 }

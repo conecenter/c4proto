@@ -64,11 +64,11 @@ class KafkaRawQSender(bootstrapServers: String, inboxTopicPrefix: String)(
 
 ////
 
-class KafkaActor(bootstrapServers: String, actorName: ActorName)(
-    qMessages: QMessages, reducer: Reducer, rawQSender: KafkaRawQSender, initialObservers: List[Observer]
+class KafkaActor(bootstrapServers: String)(
+    qMessages: QMessages, reducer: Reducer, rawQSender: KafkaRawQSender, progressObserver: Observer
 ) extends Executable {
-  private def withConsumer[ST](ctx: ExecutionContext, startOffset: Long, initialState: ST)(
-    receive: (ST,List[(Array[Byte],Long)])⇒Option[ST]
+  private def withConsumer[ST](ctx: ExecutionContext, startOffset: Long, initialState: List[ST])(
+    receive: (List[ST],List[(Array[Byte],Long)])⇒List[ST]
   ): Unit = { //ck mg
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
@@ -78,10 +78,10 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       //"max.poll.records" → "10001"
       //"group.id" → actorName.value //?pos
     )
-    val alive: AtomicBoolean = new AtomicBoolean(true)
     FinallyClose(new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
     )){ consumer ⇒
+      val alive: AtomicBoolean = new AtomicBoolean(true)
       ctx.onShutdown("Consumer",() ⇒ {
         alive.set(false)
         consumer.wakeup()
@@ -91,25 +91,16 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       println(s"server [$bootstrapServers] inbox [${rawQSender.topicNameToString(inboxTopicName)}]")
       consumer.assign(inboxTopicPartition.asJava)
       consumer.seek(Single(inboxTopicPartition),startOffset)
-      iterate(initialState)
-      @tailrec def iterate(state: ST): Unit = {
+      iteration(initialState)
+      @tailrec def iteration(state: List[ST]): Unit = {
         if(Thread.interrupted || !alive.get) throw new InterruptedException
         val recs = consumer.poll(200 /*timeout*/).asScala.map{ rec ⇒
           (if(rec.value ne null) rec.value else Array.empty, rec.offset+1L) : (Array[Byte],Long)
         }.toList
-        receive(state,recs).foreach(iterate)
+        val nextState = receive(state,recs)
+        if(nextState.nonEmpty) iteration(nextState)
       }
     }
-  }
-
-  private def startIncarnation(world:  World): (Long,World⇒Boolean) = { // cg mr
-    val local = reducer.createTx(world)(Map())
-    val leader = Leader(actorName.value,UUID.randomUUID.toString)
-    val nLocal = LEvent.add(LEvent.update(leader)).andThen(qMessages.send)(local)
-    (
-      OffsetWorldKey.of(nLocal),
-      world ⇒ By.srcId(classOf[Leader]).of(world).getOrElse(actorName.value,Nil).contains(leader)
-    )
   }
 
   private def reduceRaw(world: World)(data: Array[Byte], offset: Long): Option[World] = try { // cg mr
@@ -121,38 +112,21 @@ class KafkaActor(bootstrapServers: String, actorName: ActorName)(
       None // ??? exception to record
   }
 
-  private def loadRecent[M](setup: (Array[Byte],Long)⇒Option[M]): Option[M] = // cg mg
-    RawSnapshot.loadRecent.flatMap { case (offset, dataOpt) ⇒
-      println(s"Loading snapshot up to $offset")
-      dataOpt.flatMap(setup(_,offset))
-    }.headOption
+
 
   def run(ctx: ExecutionContext): Unit = { // cg mr
     println("starting world recover...")
-    val localWorldRef = new AtomicReference[World](loadRecent(reduceRaw(reducer.createWorld(Map()))).get)
+    val localWorldRef = new AtomicReference[World](RawSnapshot.loadRecent(reduceRaw(reducer.createWorld(Map()))).get)
     val startOffset = qMessages.worldOffset(localWorldRef.get)
     println(s"world state recovered, next offset [$startOffset]")
-    val (incarnationNextOffset,checkIncarnation) = startIncarnation(localWorldRef.get)
     val observerContext = new ObserverContext(ctx, ()⇒localWorldRef.get)
-    withConsumer(ctx, startOffset)(poll⇒
-      Iterator.continually(poll).scanLeft(initialObservers){ (prevObservers, recs) ⇒
-        for(
-          (data,offset) ← recs;
+    withConsumer(ctx, startOffset, progressObserver :: Nil) { (prevObservers, recs) ⇒
+        for (
+          (data, offset) ← recs;
           newWorld ← reduceRaw(localWorldRef.get)(data, offset)
         ) localWorldRef.set(newWorld)
-
-        if(checkIncarnation(localWorldRef.get))
-          prevObservers.flatMap(_.activate(observerContext))
-        else prevObservers.map{
-          case p: ProgressObserver ⇒
-            val np = p.progress()
-            if(p != np) println(s"loaded ${qMessages.worldOffset(localWorldRef.get)}/$incarnationNextOffset")
-            np
-          case o ⇒ o
-        }
-
-      }.foreach(_⇒())
-    )
+        prevObservers.flatMap(_.activate(observerContext))
+    }
   }
 
 
