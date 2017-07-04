@@ -47,6 +47,10 @@ class ReducerImpl(
     //println(s"recs ${recs.size}")
     TreeAssemblerKey.of(world)(qMessages.toTree(recs).asInstanceOf[Map[WorldKey[_],Index[Object,Object]]])(world)
   }
+  /*
+  def reduceRaw(world: World, data: Array[Byte], offset: Long): World =
+    reduceRecover(world, qMessages.toUpdates(data) ::: qMessages.offsetUpdate(offset))
+*/
   def createTx(world: World): World ⇒ World =
     TxKey.set(new WorldTxImpl(this, world, Queue.empty, Queue.empty))
 }
@@ -72,22 +76,24 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
       qMessages.worldOffset(world) < OffsetWorldKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
     ) local else try {
-      reducer.createTx(world)
-        .andThen(chain(index(world).getOrElse(key,Nil).map(t⇒t.transform(_))))
-        .andThen(qMessages.send)(local)
+      Trace{
+        reducer.createTx(world)
+          .andThen(chain(index(world).getOrElse(key,Nil).map(t⇒t.transform(_))))
+          .andThen(qMessages.send)(local)
+      }
     } catch {
       case exception: Exception ⇒
         println(s"Tx failed [$key][${Thread.currentThread.getName}][\n${exception.getStackTrace.map(l⇒s"  $l\n").mkString}]")
-        exception.printStackTrace() //??? |Nil|throw
+        // exception.printStackTrace() //??? |Nil|throw
         val was = ErrorKey.of(local)
         chain(List(
           ErrorKey.set(exception :: was),
           SleepUntilKey.set(Instant.now.plusSeconds(was.size))
         ))(createLocal())
-      case e: Throwable ⇒
+      /*case e: Throwable ⇒
         println("Throwable0")
         e.printStackTrace()
-        throw e
+        throw e*/
     }
   }
 }

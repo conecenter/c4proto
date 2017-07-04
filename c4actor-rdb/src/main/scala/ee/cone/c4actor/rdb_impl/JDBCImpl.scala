@@ -24,8 +24,7 @@ class ExternalDBSyncClient(
   ))
 }
 
-object FinallyClose {
-  def apply[A<:AutoCloseable,T](o: A)(f: A⇒T): T = try f(o) finally o.close()
+object FinallyFree {
   def apply[A,T](o: A, close: A⇒Unit)(f: A⇒T): T = try f(o) finally close(o)
 }
 
@@ -59,7 +58,7 @@ class InObjectRDBBind[R](val prev: RDBBindImpl[R], value: Object) extends ArgRDB
 
 class InTextRDBBind[R](val prev: RDBBindImpl[R], value: String) extends ArgRDBBind[R] {
   def execute(stmt: CallableStatement): R = {
-    FinallyClose[java.sql.Clob,R](connection.createClob(), _.free()){ clob ⇒
+    FinallyFree[java.sql.Clob,R](connection.createClob(), _.free()){ clob ⇒
       clob.setString(1,value)
       stmt.setClob(index,clob)
       prev.execute(stmt)
@@ -103,7 +102,7 @@ class OutTextRDBBind(
   def execute(stmt: CallableStatement): String = {
     stmt.registerOutParameter(index,java.sql.Types.CLOB)
     stmt.execute()
-    FinallyClose[Option[java.sql.Clob],String](
+    FinallyFree[Option[java.sql.Clob],String](
       Option(stmt.getClob(index)), _.foreach(_.free())
     ){ clob ⇒
       clob.map(c⇒c.getSubString(1,toIntExact(c.length()))).getOrElse("")

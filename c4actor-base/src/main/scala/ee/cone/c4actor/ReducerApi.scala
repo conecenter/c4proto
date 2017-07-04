@@ -9,6 +9,7 @@ import ee.cone.c4assemble.WorldKey
 
 trait Reducer {
   def createWorld: World ⇒ World
+  //def reduceRaw(world: World, data: Array[Byte], offset: Long): World
   def reduceRecover(world: World, recs: List[Update]): World
   def createTx(world: World): World ⇒ World
 }

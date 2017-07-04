@@ -26,3 +26,7 @@ object Trace { //m. b. to util
       throw e
   }
 }
+
+object FinallyClose {
+  def apply[A<:AutoCloseable,T](o: A)(f: A⇒T): T = try f(o) finally o.close()
+}
