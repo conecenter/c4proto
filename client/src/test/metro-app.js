@@ -20,6 +20,7 @@ import CustomUi      from "../extra/custom-ui"
 import CryptoElements from "../extra/crypto-elements"
 import FocusModule		from "../extra/focus-module"
 import DragDropModule from "../extra/dragdrop-module"
+import OverlayManager from "../extra/overlay-manager"
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 
@@ -74,41 +75,21 @@ const miscReact = (()=>{
 	}	
 	return {isReactRoot,getReactRoot}
 })()
-
+const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
 const metroUi = MetroUi({log,sender,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact});
 //customUi with hacks
-const toggleOverlay = on =>{
-    if(on){
-        const el=document.createElement("div");
-        const style={
-            position:"fixed",
-            top:"0rem",
-            left:"0rem",
-            width:"100vw",
-            height:"100vh",
-			zIndex:"6666",
-            backgroundColor:"rgba(0,0,0,0.4)",
-        };
-        el.className="overlayMain";
-        Object.assign(el.style,style);
-        document.body.appendChild(el);
-    }
-    else{
-        const el=document.querySelector(".overlayMain");
-        if(el) document.body.removeChild(el);
-    }
-}
+
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
 const Scanner = window.Scanner
 const innerHeight = () => window.innerHeight
 const scrollBy = (x,y) => window.scrollBy(x,y)
-const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,document,scrollBy})
+const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,document,scrollBy,eventManager})
 window.ScannerProxy = scannerProxy
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,toggleOverlay,getBattery,scannerProxy,windowManager});
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager});
 
 const activeElement=()=>document.activeElement; //todo: remove
 
