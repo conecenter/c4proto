@@ -11,13 +11,13 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		const b = (no2.fx - no1.fx)
 		return Math.sqrt(a*a + b*b)
 	}
-	const axisDef = (angle,axis) => {
-		let inAxis = false
-		if(angle>=-45 && angle<=45) inAxis = axis == 0
-		if(angle>=45 && angle<=135) inAxis = axis == 1
-		if(angle>=135 || angle<=-135) inAxis = axis == 2
-		if(angle>=-135 && angle<=-45) inAxis = axis == 3
-		return inAxis
+	const axisDef = (angle,axis) => {		
+		switch(axis){
+			case 0: return angle>=-45 && angle<=45
+			case 1: return angle>=45 && angle<=135
+			case 2:	return angle>=135 || angle<=-135
+			case 3: return angle>=-135 && angle<=-45
+		}		
 	}
 	const calcAngle = (m,mc) => m&&(Math.atan2(m.fy - mc.fy, m.fx - mc.fx) * 180 / Math.PI)
 	const isNeightbor = (axis,angle,i,m,mc) =>{
@@ -91,20 +91,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				const hitLine = [hitLine0,hitLine1,hitLine2,hitLine3].find(h=>h!=null)				
 				const Ms = [m1,m2,m3,m4,m0,hitLine]
 				const Ds = Ms.map(m=>()=>distance(m,mc))
-				/*const d1 = () => distance(m1,mc)
-				const d2 = () => distance(m2,mc)
-				const d3 = () => distance(m3,mc)
-				const d4 = () => distance(m4,mc)					
-				const dx = () => distance(hitLine,mc)*/
-				//const Ds = [d1,d2,d3,d4,dx]
-				//xx.push({hitLine0,hitLine1,hitLine2,hitLine3,o,dx,cNodeObj,mc,a0:calcAngle(hitLine0,mc),a0:calcAngle(hitLine0,mc),a1:{a:calcAngle(hitLine1,mc),t:axisDef(calcAngle(hitLine1,mc),axis)},a2:calcAngle(hitLine2,mc),a3:calcAngle(hitLine3,mc)})
-				const Angles = Ms.map(m=>calcAngle(m,mc))
-				/*const angle1 = calcAngle(m1,mc)
-				const angle2 = calcAngle(m2,mc)
-				const angle3 = calcAngle(m3,mc)
-				const angle4 = calcAngle(m4,mc)
-				const anglex = calcAngle(hitLine,mc)*/		
-				//const Angles = [angle1,angle2,angle3,angle4,anglex]							
+				const Angles = Ms.map(m=>calcAngle(m,mc))											
 				const d = Angles.reduce((_,e,i)=>{						
 					if(axisDef(e,axis) || isNeightbor(axis,e,i,m,mc)) {
 						const d = Ds[i]()
@@ -122,7 +109,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const sendEvent = (event) => {
 		if(!currentFocusNode) return;
-		const controlEl = currentFocusNode.querySelector("input,button")		
+		const controlEl = currentFocusNode.querySelector("input,button,.button")		
 		const innerTab = currentFocusNode.querySelector('[tabindex="1"]')
 		const cEvent = event()
 		if(controlEl) 
@@ -155,9 +142,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				sendEvent(()=>eventManager.create("enter"));break;					
 			case "Delete":
 			case "Backspace":
-				sendEvent(()=>eventManager.create("delete"));break;
-			case " ":
-				sendEvent(()=>eventManager.create("cspace"));break;
+				sendEvent(()=>eventManager.create("delete"));break;			
 			case "Insert":
 			case "c":
 				if(event.ctrlKey){
@@ -166,16 +151,20 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				break;					
 		}		
 		if(best) best.o.n.focus();				
-		if(isPrintableKeyCode(event.keyCode)) sendEvent(()=>eventManager.create("delete",{detail:event.key}))
-			
+		if(isPrintableKeyCode(event.keyCode)) {
+			sendEvent(()=>eventManager.create("delete",{detail:event.key}))
+			const cRNode = callbacks.find(o=>o.el == currentFocusNode)
+			if(cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)
+		}			
 	}
+	const sendToServer = (cRNode,type,action) => {if(cRNode.props.onClickValue) cRNode.props.onClickValue(type,action)}
 	const onTab = (event) =>{
 		const root = getReactRoot();
 		if(!root) return
 		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
 		const cRNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(cRNode.props.autoFocus == false){
-			if(cRNode.props.onClickValue) cRNode.props.onClickValue("focus","change")
+			sendToServer(cRNode,"focus","change")
 			return
 		}
 		

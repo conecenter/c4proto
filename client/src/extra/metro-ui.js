@@ -135,7 +135,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(this.binding) this.binding.unreg()
 		},
 		render:function(){
-			if(this.state.show||this.props.data){
+			if(this.state.show||this.props.data!=undefined){
 				const fillColor = "black"
 				const closeSvg = `
 				<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 348.333 348.334" style="enable-background:new 0 0 348.333 348.334;" xml:space="preserve" fill="${fillColor}">
@@ -480,26 +480,50 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	FlexGroup.defaultProps = {
 		bp:"15"
 	};
-	const ChipElement = ({value,style,onClick,children}) => $("div",{style:{
-		fontSize:'1em',
-		color:'white',
-		textAlign:'center',
-		borderRadius:'0.28em',
-		//border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} transparent`,		
-		backgroundColor:"#eee",
-		cursor:'default',
-		//width:'3.8em',
-		display:'inline-block',				
-		margin:'0 0.1em',
-		verticalAlign:"top",
-		paddingTop:"0.05em",
-		paddingBottom:"0.2em",
-		paddingLeft:"0.4em",
-		paddingRight:children?"0em":"0.4em",		
-		whiteSpace:"nowrap",
-		alignSelf:"center",
-		...style
-	},onClick},[value,children])
+	const ChipElement = React.createClass({
+		onClick:function(){
+			if(this.props.onClick)
+				this.props.onClick()
+		},
+		onEnter:function(event){
+			//log(`Enter ;`)
+			event.stopPropagation()
+			if(!this.el) return
+			this.onClick()
+			const cEvent = eventManager.create("cTab",{bubbles:true})
+			this.el.dispatchEvent(cEvent)							
+		},		
+		componentDidMount:function(){
+			if(!this.el) return
+			this.el.addEventListener("enter",this.onEnter)
+		},
+		componentWillUnmount:function(){
+			this.el.removeEventListener("enter",this.onEnter)
+		},
+		render:function(){
+			const {value,style,children} = this.props
+			return	$("div",{style:{
+				fontSize:'1em',
+				color:'white',
+				textAlign:'center',
+				borderRadius:'0.28em',
+				//border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} transparent`,		
+				backgroundColor:"#eee",
+				cursor:'default',
+				//width:'3.8em',
+				display:'inline-block',				
+				margin:'0 0.1em',
+				verticalAlign:"top",
+				paddingTop:"0.05em",
+				paddingBottom:"0.2em",
+				paddingLeft:"0.4em",
+				paddingRight:children?"0em":"0.4em",		
+				whiteSpace:"nowrap",
+				alignSelf:"center",
+				...style
+			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref},[value,children])
+		}
+	})
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{
 			const fillColor = style&&style.color?style.color:"black";
 			const svg = `
@@ -1204,11 +1228,15 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		onKeyDown:function(e){
 			let call=""
-			switch(e.key){								
-				case "ArrowUp":
-					e.stopPropagation();
+			switch(e.key){				
 				case "ArrowDown":
 					e.stopPropagation();
+					if(e.altKey == true){
+						this.onClick()
+						return
+					}						
+				case "ArrowUp":
+					e.stopPropagation();				
 				case "Enter":
 					call = e.key;
 					e.preventDefault();
@@ -1455,7 +1483,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		onBlur:function(){
 			this.setState({focused:false})
 		},
-		onSpace:function(event){
+		onDelete:function(event){
+			if(!event.detail) return
 			this.onClick()
 			event.stopPropagation()
 		},
@@ -1463,7 +1492,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(this.el) {
 				this.el.addEventListener("focus",this.onFocus,true)
 				this.el.addEventListener("blur",this.onBlur)
-				this.el.addEventListener("cspace",this.onSpace)
+				this.el.addEventListener("delete",this.onDelete)
 			}
 			this.binding = focusModule.reg(this)
 		},
@@ -1471,7 +1500,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(this.el) {
 				this.el.removeEventListener("focus",this.onFocus)
 				this.el.removeEventListener("blur",this.onBlur)
-				this.el.removeEventListener("cspace",this.onSpace)
+				this.el.removeEventListener("delete",this.onDelete)
 			}
 			if(this.binding) this.binding.unreg()
 		},
