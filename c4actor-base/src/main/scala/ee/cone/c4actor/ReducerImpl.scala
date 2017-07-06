@@ -135,32 +135,52 @@ object ProtocolDataDependencies {
     }
 }
 
-class ProgressObserver(time: Option[Long], incarnationNextOffsetOpt: Option[Long])(
-  qMessages: QMessages, reducer: Reducer, initialObservers: List[Observer]
-) extends Observer {
-  def activate(ctx: ObserverContext): Seq[Observer] = {
-    val world = ctx.getWorld()
-    incarnationNextOffsetOpt.map{ incarnationNextOffset =>
-      val offset = qMessages.worldOffset(world)
-      if (offset < incarnationNextOffset) {
+class RichRawObserver(
+  reducer: ReducerImpl,
+  observers: List[Observer] = Nil,
+  worldOpt: Option[World] = None,
+  errors: List[Exception] = Nil,
+  time: Option[Long] = Option(0L)
+) extends RawObserver {
+  private def copy(
+    observers: List[Observer] = observers,
+    worldOpt: Option[World] = worldOpt,
+    errors: List[Exception] = errors,
+    time: Option[Long] = time
+  ) = new RichRawObserver(reducer, observers, worldOpt, errors)
+  private def world = worldOpt.getOrElse(reducer.createWorld(Map.empty))
+  def offset: Long = reducer.qMessages.worldOffset(world)
+  def reduce(data: Array[Byte], offset: Long): RawObserver = try {
+    val updates = reducer.qMessages.toUpdates(data) ::: reducer.qMessages.offsetUpdate(offset)
+    copy(worldOpt = Option(reducer.reduceRecover(world, updates)))
+  } catch {
+    case e: Exception ⇒
+      e.printStackTrace() // ??? exception to record
+      copy(errors = e :: errors)
+  }
+  def activate(fresh: ()⇒RawObserver, endOffset: Long): RawObserver = {
+    time.map{ until ⇒
+      if (offset < endOffset) {
         val now = System.currentTimeMillis
-        if(time.exists(now<_)) List(this) else {
-          println(s"loaded $offset/$incarnationNextOffset")
-          List(new ProgressObserver(Option(now+1000),incarnationNextOffsetOpt)(qMessages,reducer,initialObservers))
+        if(now < until) this else {
+          println(s"loaded $offset/$endOffset")
+          copy(time = Option(now+1000))
         }
       } else {
-        println(WorldStats.make(ctx.getWorld()))
+        println(WorldStats.make(world))
         println("Stats OK")
-        initialObservers
+        copy(time = None)
       }
     }.getOrElse{
-      val local = reducer.createTx(world)(Map())
-      val nLocal = LEvent.add(LEvent.delete(Updates("",Nil))).andThen(qMessages.send)(local)
-      val offset = Option(OffsetWorldKey.of(nLocal):Long)
-      List(new ProgressObserver(time,offset)(qMessages,reducer,initialObservers))
+      val ctx = new ObserverContext(() ⇒ fresh() match { case o: RichRawObserver ⇒ o.world })
+      copy(observers = observers.flatMap(_.activate(ctx)))
     }
   }
+  def hasErrors: Boolean = errors.nonEmpty
+  def isActive: Boolean = observers.nonEmpty
 }
+
+
 
 /*
 * in trans? in was? !isDone?

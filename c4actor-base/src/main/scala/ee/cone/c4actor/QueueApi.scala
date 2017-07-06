@@ -45,9 +45,7 @@ case class LogTopicName() extends TopicName
 
 trait QRecord {
   def topic: TopicName
-  def key: Array[Byte]
   def value: Array[Byte]
-  def offset: Option[Long]
 }
 
 trait RawQSender {
@@ -97,7 +95,7 @@ trait Observer {
   def activate(ctx: ObserverContext): Seq[Observer]
 }
 
-class ObserverContext(val executionContext: ExecutionContext, val getWorld: ()⇒World)
+class ObserverContext(val getWorld: ()⇒World)
 
 trait TxTransform extends Product {
   def transform(local: World): World
@@ -119,3 +117,16 @@ class QAdapterRegistry(
   val byId: Map[Long,ProtoAdapter[Product] with HasId],
   val updatesAdapter: ProtoAdapter[QProtocol.Updates]
 )
+
+trait RawObserver {
+  def offset: Long
+  def reduce(data: Array[Byte], offset: Long): RawObserver
+  def hasErrors: Boolean
+  def activate(fresh: ()⇒RawObserver, endOffset: Long): RawObserver
+  def isActive: Boolean
+}
+
+trait RawSnapshot {
+  def save(data: Array[Byte], offset: Long): Unit
+  def loadRecent: RawObserver ⇒ RawObserver
+}

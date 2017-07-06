@@ -18,9 +18,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-class QRecordImpl(val topic: TopicName, val key: Array[Byte], val value: Array[Byte]) extends QRecord {
-  def offset: Option[Long] = None
-}
+class QRecordImpl(val topic: TopicName, val value: Array[Byte]) extends QRecord
 
 class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
   import qAdapterRegistry._
@@ -31,9 +29,9 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     if(updates.isEmpty) return local
     //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
     val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
-    val rec = new QRecordImpl(InboxTopicName(),Array.empty,rawValue)
+    val rec = new QRecordImpl(InboxTopicName(),rawValue)
     val debugStr = tx.toDebug.map(_.toString).mkString("\n---\n")
-    val debugRec = new QRecordImpl(LogTopicName(),Array.empty,debugStr.getBytes(UTF_8))
+    val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8))
     val List(offset,_)= getRawQSender().send(List(rec,debugRec))
     OffsetWorldKey.set(offset+1)(local)
   }
@@ -44,11 +42,8 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
   def offsetUpdate(value: Long): List[Update] =
     LEvent.update(Offset("", value)).toList.map(toUpdate)
-  def toUpdates(data: Array[Byte]): List[Update] = {
-    //if(rec.key.length > 0) throw new Exception
-    val updates = qAdapterRegistry.updatesAdapter.decode(data).updates
-    updates.filter(u ⇒ qAdapterRegistry.byId.contains(u.valueTypeId))
-  }
+  def toUpdates(data: Array[Byte]): List[Update] =
+    qAdapterRegistry.updatesAdapter.decode(data).updates
   def worldOffset: World ⇒ Long = world ⇒
     Single(By.srcId(classOf[Offset]).of(world).getOrElse("",List(Offset("",0L)))).value
   def toTree(updates: Iterable[Update]): Map[WorldKey[Index[SrcId,Product]], Index[SrcId,Product]] =
