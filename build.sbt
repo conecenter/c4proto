@@ -20,7 +20,7 @@ lazy val publishSettings = Seq(
 
 scalaVersion in ThisBuild := "2.11.8"
 
-
+//dockerBaseImage := "openjdk:8"
 
 ////////////////////////////////////////////////////////////////////////////////
 // from https://github.com/scalameta/sbt-macro-example/blob/master/build.sbt
