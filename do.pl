@@ -87,7 +87,6 @@ my $start_zookeeper = sub{
 my $start_kafka = sub{
     my($args)=@_;
     my $bin = &$need_extracted_kafka();
-    &$inbox_configure();
     &$put_text("server.properties",join "\n",
         "listeners=PLAINTEXT://$bootstrap_server",
         "log.dirs=db4/kafka-logs",
@@ -102,10 +101,11 @@ my $start_kafka = sub{
     "$bin/kafka-server-start.sh $args server.properties";
 };
 
-push @tasks, [".run.c3", sub{
+push @tasks, [".run.c3", &$in_dir("app",sub{
     my $script = "start.run";
     -e $script and exec "sh $script" while sleep 1;
-}];
+})];
+push @tasks, [".run.inbox-configure", sub{ &$inbox_configure(); sleep 3600 }];
 push @tasks, [".run.zookeeper", sub{ exec &$start_zookeeper("") or die }];
 push @tasks, [".run.kafka", sub{ exec &$start_kafka("") or die }];
 push @tasks, ["restart_kafka", &$in_tmp_dir(sub{
@@ -162,7 +162,6 @@ push @tasks, [".run.staged", sub{
 }];
 
 push @tasks, ["build_docker_images", &$in_tmp_dir(sub{
-    my @to_push;
     my $tgz = &$need_downloaded_kafka();
     my $user = "c4";
     my $run = sub{ "RUN ".join ' && ', @_ };
@@ -197,8 +196,6 @@ push @tasks, ["build_docker_images", &$in_tmp_dir(sub{
         &$in_dir("app.$name",sub{
             &$put_text("Dockerfile",join "\n", map{(ref $_)?&$_():$_} @lines);
             sy("docker build -t localhost:5000/$name .");
-            push @to_push, "docker push localhost:5000/$name";
-            push @to_push, "DOCKER_HOST=localhost:2374 docker pull localhost:5000/$name";
         })->();
     };
     my $build_zoo = sub{
@@ -226,6 +223,7 @@ push @tasks, ["build_docker_images", &$in_tmp_dir(sub{
 
     &$build_zoo("zookeeper");
     &$build_zoo("kafka");
+    &$build_zoo("inbox-configure");
     &$build_staged("c4gate-server");
 
     &$build("c3-app",
@@ -239,11 +237,6 @@ push @tasks, ["build_docker_images", &$in_tmp_dir(sub{
         &$volume("app",".ssh"),
         &$run("mkdir /var/run/sshd"),
         qq{CMD ["/usr/sbin/sshd", "-D"]}
-    );
-    &$put_text("push",join "\n",
-        @to_push,
-        #"DOCKER_HOST=localhost:2374 docker-compose create",
-        #"DOCKER_HOST=localhost:2374 docker-compose start"
     );
 })];
 
