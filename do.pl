@@ -102,8 +102,15 @@ my $start_kafka = sub{
 };
 
 push @tasks, [".run.c3", &$in_dir("app",sub{
-    my $script = "start.run";
-    -e $script and exec "sh $script" while sleep 1;
+    if(!-e ".git"){
+        sy("git init");
+        sy("git config receive.denyCurrentBranch ignore");
+    }
+    while(sleep 1){
+        my $script = "start.run";
+        -e $script or sy("git reset --hard");
+        -e $script and exec "sh $script" ;
+    }
 })];
 push @tasks, [".run.inbox-configure", sub{ &$inbox_configure(); sleep 3600 }];
 push @tasks, [".run.zookeeper", sub{ exec &$start_zookeeper("") or die }];
