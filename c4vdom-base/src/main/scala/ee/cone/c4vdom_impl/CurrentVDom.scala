@@ -53,19 +53,18 @@ case class VDomHandlerImpl[State](
 
   def receive: Handler = m ⇒ chain(List(init,dispatch,toAlien).map(_(m)))
 
-  private def diffSend(prev: VDomValue, next: VDomValue, send: sender.Send): State ⇒ State = {
-    if(send.isEmpty) return identity[State]
-    val diffTree = diff.diff(prev, next)
-    if(diffTree.isEmpty) return identity[State]
-    val diffStr = jsonToString(diffTree.get)
-    send.get("showDiff",s"${sender.branchKey} $diffStr")
-  }
+  private def diffSend(prev: VDomValue, send: sender.Send): State ⇒ State =
+    state ⇒ if(send.isEmpty) state else {
+      val next = vDomStateKey.of(state).get.value
+      val diffTree = diff.diff(prev, next)
+      if(diffTree.isEmpty) return identity[State]
+      val diffStr = jsonToString(diffTree.get)
+      send.get("showDiff",s"${sender.branchKey} $diffStr")(state)
+    }
 
   private def toAlien: Handler = exchange ⇒ state ⇒ {
     val vState = vDomStateKey.of(state).get
     val (keepTo,freshTo,ackAll) = sender.sending(state)
-
-
     if(keepTo.isEmpty && freshTo.isEmpty){
       vDomStateKey.set(empty)(state) //orElse in init bug
     }
@@ -75,18 +74,21 @@ case class VDomHandlerImpl[State](
       pathHeader(exchange).isEmpty &&
       freshTo.isEmpty
     ) state
-    else {
-      val (until,viewRes) = vDomUntil.get(view.view(state))
-      val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
-      val nextDom = vPair.value
-      vDomStateKey.set(Option(VDomState(nextDom, until)))
-        .andThen(diffSend(vState.value, nextDom, keepTo))
-        .andThen(diffSend(wasNoValue, nextDom, freshTo))
-        .andThen(ackAll)(state)
-    }
+    else chain[State](Seq(
+      vDomStateKey.set(empty), // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
+      reView,
+      diffSend(vState.value, keepTo),
+      diffSend(wasNoValue, freshTo),
+      ackAll
+    ))(state)
   }
 
-
+  private def reView: State ⇒ State = state ⇒ {
+    val (until,viewRes) = vDomUntil.get(view.view(state))
+    val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
+    val nextDom = vPair.value
+    vDomStateKey.set(Option(VDomState(nextDom, until)))(state)
+  }
 
   def seeds: State ⇒ List[(String,Product)] = state ⇒ {
     //println(vDomStateKey.of(state).get.value.getClass)
