@@ -40,10 +40,10 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 		var event = eventManager.create("keydown",{key,bubbles:true})
 		document.dispatchEvent(event)
 	}
-	const arrowUP = () => fireGlobalEvent("arrowUp")
-	const arrowDOWN = () => fireGlobalEvent("arrrowDown")
-	const arrowLEFT = () => fireGlobalEvent("arrowLeft")
-	const arrowRIGHT = () => fireGlobalEvent("arrowRight")
+	const arrowUP = () => fireGlobalEvent("ArrowUp")
+	const arrowDOWN = () => fireGlobalEvent("ArrowDown")
+	const arrowLEFT = () => fireGlobalEvent("ArrowLeft")
+	const arrowRIGHT = () => fireGlobalEvent("ArrowRight")
 	//const unReg = () => {referenceCounter -= 1; delete callbacks[obj];log("unreg");}
 	const regWifi = (callback) => {
 		wifiCallbacks.push(callback)		

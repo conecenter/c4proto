@@ -3,6 +3,7 @@ import React from 'react'
 
 export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWindow}){
 	const FlexGroup = ui.transforms.tp.FlexGroup
+	const $ = React.createElement
 	const sendError = function(msg){
 		const digisign = parentWindow().digisign
 		digisign&&digisign.sendError(msg)
@@ -64,7 +65,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			sentQuery = true
 		},
 		render:function(){
-			return React.createElement("span",{id:"queryString"});
+			return $("span",{id:"queryString"});
 		}
 	})
 	
@@ -81,7 +82,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			
 		},
 		render:function(){
-			return React.createElement("span",{id:"userCert"});
+			return $("span",{id:"userCert"});
 		}
 	});	
 	let signedDigest = false
@@ -110,7 +111,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		},
 		componentWillUnmount:function(){},
 		render:function(){ 
-			return React.createElement("span",{id:"signDigest"});
+			return $("span",{id:"signDigest"});
 		}
 	})
 	let sentPositiveSign = false
@@ -163,13 +164,20 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 				"float":"left",
 				backgroundColor:"#1ba1e2",				
 			}
+			const serverMsgStyle = {
+				display:this.props.serverMsg?"inline-block":"none",
+				margin:"1.3em auto"
+			}
 			const caption = !this.props.caption?getPrepText():this.props.caption
 			const bp = "666"
-			return React.createElement(FlexGroup,{id:"reportDigi",style,caption,bp},
-				React.createElement("div",{style:progressStyle},
-					React.createElement("div",{style:progressIndStyle})
+			return $(FlexGroup,{id:"reportDigi",style,caption,bp},[
+				$("div",{key:"progress",style:progressStyle},
+					$("div",{style:progressIndStyle})
+				),
+				$("div",{key:"msg",style:{textAlign:"center"}},
+					$("div",{style:serverMsgStyle},this.props.serverMsg)
 				)
-			);
+			]);
 		}
 	})
 	
