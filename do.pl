@@ -144,7 +144,7 @@ my $client = sub{
 };
 
 push @tasks, ["stage", sub{
-    sy("sbt clean docker:stage");
+    sy("sbt clean stage");
     &$client(1);
 }];
 
