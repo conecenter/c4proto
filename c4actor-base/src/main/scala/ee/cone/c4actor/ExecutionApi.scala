@@ -20,6 +20,9 @@ trait Config {
 
 object Trace { //m. b. to util
   def apply[T](f: =>T): T = try { f } catch {
-    case e: Throwable => e.printStackTrace(); throw e
+    case e: Throwable =>
+      println("Throwable1")
+      e.printStackTrace();
+      throw e
   }
 }

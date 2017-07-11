@@ -99,6 +99,7 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
           SleepUntilKey.set(Instant.now.plusSeconds(was.size))
         ))(createLocal())
       case e: Throwable ⇒
+        println("Throwable0")
         e.printStackTrace()
         throw e
     }
