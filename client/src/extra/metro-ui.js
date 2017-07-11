@@ -840,6 +840,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		onFocus:function(){
 			focusModule.switchTo(this)
 			this.setState({focused:true})
+			const cEvent = eventManager.create("cFocus",{bubbles:true,detail:null})
+			this.el.dispatchEvent(cEvent)
 		},
 		onBlur:function(){
 			this.setState({focused:false})
@@ -1081,7 +1083,10 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				e.target.value = newVal;
 			}
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
-		},		
+		},
+		onBlur:function(e){
+			if(this.props.onBlur) this.props.onBlur(e)
+		},
 		render:function(){				
 			const inpContStyle={
 				display:"flex",
@@ -1342,8 +1347,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		getInitialState:function(){
 			return {focused:false}
 		},
-		onFocus:function(){
-			focusModule.switchTo(this)
+		onFocus:function(e){
+			focusModule.switchTo(this)			
+			if(this.el){
+				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.props.focusMarker})
+				e.preventDefault();
+				this.el.dispatchEvent(cEvent)
+			}
 			this.setState({focused:true})
 		},
 		onBlur:function(){
@@ -2360,6 +2370,25 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		}
 	})
 	
+	const FocusAnnouncerElement = React.createClass({
+		onFocus:function(e){
+			const focusKey = e.detail?e.detail:""
+			this.report(focusKey)
+			e.stopPropagation()
+		},
+		report:function(focusKey){
+			if(this.props.onClickValue) this.props.onClickValue("change",focusKey)
+		},
+		componentWillUnmount:function(){			
+			this.el.removeEventListener("cFocus",this.onFocus)
+		},
+		componentDidMount:function(){			
+			this.el.addEventListener("cFocus",this.onFocus)
+		},
+		render:function(){
+			return $('div',{ref:ref=>this.el=ref,className:"focusAnnouncer"},this.props.children)
+		}
+	})
 	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
@@ -2390,7 +2419,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
 			SignIn,ChangePassword,
-			ErrorElement
+			ErrorElement,
+			FocusAnnouncerElement
 		},
 		onClickValue,		
 		onReadySendBlob,
