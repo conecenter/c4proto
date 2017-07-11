@@ -9,7 +9,7 @@ my $zoo_port = $port_prefix+81;
 my $zoo_host = $ENV{C4ZOOKEEPER_HOST} || "127.0.0.1";
 my $kafka_host = $ENV{C4KAFKA_HOST} || "127.0.0.1";
 my $kafka_port = $port_prefix+92;
-my $build_dir = "./client/build/test";
+my $build_dir = "client/build/test";
 my $inbox_prefix = '';
 my $kafka_version = "0.10.2.0";
 my $kafka = "kafka_2.11-$kafka_version";
@@ -37,6 +37,14 @@ my $in_dir = sub{
 my $in_tmp_dir = sub{
     my($process)=@_;
     &$in_dir("tmp",$process);
+};
+
+my $recycling = sub{
+    my($name,$recycle_dir)=@_;
+    my $recycle = "$recycle_dir/recycle";
+    -e $recycle or mkdir $recycle or die $!;
+    rename $name, "$recycle/".rand() or die $! if -e $name;
+    $name;
 };
 
 my @tasks;
@@ -135,12 +143,10 @@ push @tasks, ["inbox_test", &$in_tmp_dir(sub{
 
 my $client = sub{
     my($inst)=@_;
-    unlink or die $! for <$build_dir/*>;
-    &$in_dir("client",sub{
+    &$in_dir(&$recycling("client","tmp"),sub{
         sy("npm install") if $inst;
         sy("./node_modules/webpack/bin/webpack.js");# -d
     })->();
-    $build_dir
 };
 
 push @tasks, ["stage", sub{
@@ -155,7 +161,7 @@ sub staged{
         "C4STATE_TOPIC_PREFIX=$_[1] $_[0]/target/universal/stage/bin/$_[0] $_[1]"
 }
 push @tasks, ["gate_publish", sub{
-    my $build_dir = &$client(0);
+    &$client(0);
     sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT=1 ".staged("c4gate-publish","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
@@ -168,71 +174,76 @@ push @tasks, [".run.staged", sub{
     exec "$env app/bin/run $ENV{C4STATE_TOPIC_PREFIX}" or die
 }];
 
-push @tasks, ["build_docker_images", &$in_tmp_dir(sub{
+##### image builds
+
+my $user = "c4";
+my $run = sub{ "RUN ".join ' && ', @_ };
+my $from = sub{(
+    "FROM openjdk:8",
+    &$run(
+        "useradd -mUs /bin/bash $user",
+        "apt-get update",
+        "apt-get install -y lsof $_[0]",
+        "rm -rf /var/lib/apt/lists/*"
+    )
+)};
+my $volume = sub{
+    my $dirs = join " ", map{"/home/$user/$_"} @_;
+    (&$run("mkdir $dirs", "chown $user:$user $dirs"), "VOLUME $dirs")
+};
+my $cp = sub{
+    my($f,$t)=@_;
+    sub{ sy("cp -r $f $t"); "COPY $t /home/$user/$t" }
+};
+my $mod_x = sub{ &$run("chmod +x /home/$user/$_[0]") };
+my $user_mode = [
+    &$cp("../../do.pl"=>"do.pl"),
+    &$mod_x("do.pl"),
+    "USER $user",
+    "WORKDIR /home/$user",
+];
+
+my $build = sub{
+    my($name,@lines) = @_;
+    -e $_ or mkdir $_ or die for "recycled";
+    rename "app.$name", "recycled/".rand() or die if -e "app.$name";
+    &$in_dir(&$recycling("app.$name","."),sub{
+        &$put_text("Dockerfile",join "\n", map{(ref $_)?&$_():$_} @lines);
+        sy("docker build -t localhost:5000/$name .");
+    })->();
+};
+my $build_zoo = sub{
+    my($name) = @_;
     my $tgz = &$need_downloaded_kafka();
-    my $user = "c4";
-    my $run = sub{ "RUN ".join ' && ', @_ };
-    my $from = sub{(
-        "FROM openjdk:8",
-        &$run(
-            "useradd -mUs /bin/bash $user",
-            "apt-get update",
-            "apt-get install -y lsof $_[0]",
-            "rm -rf /var/lib/apt/lists/*"
-        )
-    )};
-    my $volume = sub{
-        my $dirs = join " ", map{"/home/$user/$_"} @_;
-        (&$run("mkdir $dirs", "chown $user:$user $dirs"), "VOLUME $dirs")
-    };
-    my $cp = sub{
-        my($f,$t)=@_;
-        sub{ sy("cp -r $f $t"); "COPY $t /home/$user/$t" }
-    };
-    my $mod_x = sub{ &$run("chmod +x /home/$user/$_[0]") };
-    my $user_mode = [
-        &$cp("../../do.pl"=>"do.pl"),
-        &$mod_x("do.pl"),
-        "USER $user",
-        "WORKDIR /home/$user",
-    ];
+    &$build("c4-$name",
+        &$from(""),
+        &$volume("db4"),
+        &$cp("../$tgz",$tgz),
+        @$user_mode,
+        &$run("$tar_x $tgz"),
+        qq{CMD ["./do.pl",".run.$name"]}
+    )
+};
+my $build_staged = sub{
+    my($name) = @_;
+    &$build($name,
+        &$from(""),
+        &$cp("../../$name/target/universal/stage"=>"app"),
+        sub{ rename "app/bin/$name"=>"app/bin/run" or die; () },
+        &$mod_x("app/bin/run"),
+        @$user_mode,
+        qq{CMD ["./do.pl",".run.staged"]}
+    );
+};
 
-    my $build = sub{
-        my($name,@lines) = @_;
-        rename "app.$name", "recycled.".rand() or die if -e "app.$name";
-        &$in_dir("app.$name",sub{
-            &$put_text("Dockerfile",join "\n", map{(ref $_)?&$_():$_} @lines);
-            sy("docker build -t localhost:5000/$name .");
-        })->();
-    };
-    my $build_zoo = sub{
-        my($name) = @_;
-        &$build("c4-$name",
-            &$from(""),
-            &$volume("db4"),
-            &$cp("../$tgz",$tgz),
-            @$user_mode,
-            &$run("$tar_x $tgz"),
-            qq{CMD ["./do.pl",".run.$name"]}
-        )
-    };
-    my $build_staged = sub{
-        my($name) = @_;
-        &$build($name,
-            &$from(""),
-            &$cp("../../$name/target/universal/stage"=>"app"),
-            sub{ rename "app/bin/$name"=>"app/bin/run" or die; () },
-            &$mod_x("app/bin/run"),
-            @$user_mode,
-            qq{CMD ["./do.pl",".run.staged"]}
-        );
-    };
-
+push @tasks, ["build_docker_images", &$in_tmp_dir(sub{
     &$build_zoo("zookeeper");
     &$build_zoo("kafka");
     &$build_zoo("inbox-configure");
-    &$build_staged("c4gate-server");
-
+    &$build_staged("app.c4gate-server");
+    &$build_staged("app.c4gate-publish");
+    &$build_staged("app.c4gate-sse-example");
+    &$build_staged("app.c4gate-consumer-example");
     &$build("c3-app",
         &$from("git"),
         &$volume("app"),

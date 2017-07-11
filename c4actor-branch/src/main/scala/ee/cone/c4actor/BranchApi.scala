@@ -29,7 +29,7 @@ trait BranchTask extends Product {
   def product: Product
   def sessionKeys: World ⇒ Set[BranchRel]
   type Send = Option[(String,String) ⇒ World ⇒ World]
-  def sending: World ⇒ (Send,Send,World⇒World)
+  def sending: World ⇒ (Send,Send)
   def relocate(to: String): World ⇒ World
 }
 

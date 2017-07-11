@@ -45,7 +45,7 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: Canv
     state ⇒ state.map(_.value).getOrElse("")
   private def toAlien: Handler = message ⇒ local ⇒ {
     val cState = CanvasContentKey.of(local)
-    val (keepTo,freshTo,ackAll) = task.sending(local)
+    val (keepTo,freshTo) = task.sending(local)
     val nState = if(keepTo.isEmpty && freshTo.isEmpty) None else if(
       cState.nonEmpty &&
       cState.get.until > System.currentTimeMillis &&
@@ -54,7 +54,7 @@ case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: Canv
     ) cState else Option(handler.view(local))
     val sends = if(value(cState)==value(nState)) List(freshTo).flatten else List(keepTo,freshTo).flatten
     val sendAll = chain(sends.map(_("showCanvasData",s"$branchKey ${value(nState)}")))
-    CanvasContentKey.set(nState).andThen(sendAll).andThen(ackAll)(local)
+    CanvasContentKey.set(nState).andThen(sendAll)(local)
   }
   def seeds: World ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
 }

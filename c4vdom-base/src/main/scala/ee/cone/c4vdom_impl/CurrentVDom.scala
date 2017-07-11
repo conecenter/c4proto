@@ -57,14 +57,15 @@ case class VDomHandlerImpl[State](
     state ⇒ if(send.isEmpty) state else {
       val next = vDomStateKey.of(state).get.value
       val diffTree = diff.diff(prev, next)
-      if(diffTree.isEmpty) return identity[State]
-      val diffStr = jsonToString(diffTree.get)
-      send.get("showDiff",s"${sender.branchKey} $diffStr")(state)
+      if(diffTree.isEmpty) state else {
+        val diffStr = jsonToString(diffTree.get)
+        send.get("showDiff",s"${sender.branchKey} $diffStr")(state)
+      }
     }
 
   private def toAlien: Handler = exchange ⇒ state ⇒ {
     val vState = vDomStateKey.of(state).get
-    val (keepTo,freshTo,ackAll) = sender.sending(state)
+    val (keepTo,freshTo) = sender.sending(state)
     if(keepTo.isEmpty && freshTo.isEmpty){
       vDomStateKey.set(empty)(state) //orElse in init bug
     }
@@ -78,8 +79,7 @@ case class VDomHandlerImpl[State](
       vDomStateKey.set(empty), // need to remove prev DomState before review to avoid leak: local-vdom-el-action-local
       reView,
       diffSend(vState.value, keepTo),
-      diffSend(wasNoValue, freshTo),
-      ackAll
+      diffSend(wasNoValue, freshTo)
     ))(state)
   }
 

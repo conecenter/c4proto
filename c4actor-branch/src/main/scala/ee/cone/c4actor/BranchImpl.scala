@@ -20,20 +20,17 @@ case object SessionKeysKey extends WorldKey[Set[BranchRel]](Set.empty)
 case object AckChangesKey extends WorldKey[Map[String,String]](Map.empty)
 
 case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask {
-  def sending: World ⇒ (Send,Send,World⇒World) = local ⇒ {
+  def sending: World ⇒ (Send,Send) = local ⇒ {
     val newSessionKeys = sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
     val send = SendToAlienKey.of(local)
     def sendingPart(to: Set[BranchRel]): Send =
       if(to.isEmpty) None
-      else Some((eventName,data) ⇒ send(to.map(_.parentSrcId).toList, eventName, data))
-    val ackAll =
-      chain(AckChangesKey.of(local).map{ case(sessionKey,index) ⇒
-        send(List(sessionKey),"ackChange",s"$branchKey $index")
-      }.toSeq)
-      .andThen(AckChangesKey.set(Map.empty))
-      .andThen(SessionKeysKey.set(newSessionKeys))
-    (sendingPart(keepTo), sendingPart(freshTo), ackAll)
+      else Some((eventName,data) ⇒
+        send(to.map(_.parentSrcId).toList, eventName, data)
+          .andThen(SessionKeysKey.set(newSessionKeys))
+      )
+    (sendingPart(keepTo), sendingPart(freshTo))
   }
 
   def sessionKeys: World ⇒ Set[BranchRel] = local ⇒ seeds.flatMap(rel⇒
@@ -137,8 +134,15 @@ case class BranchTxTransform(
     LEvent.add(LEvent.update(failure))
   }
 
-  private def rmPostsErrors: World ⇒ World =
-    chain(posts.map(_.rm)).andThen(ErrorKey.set(Nil))
+  private def rmPostsErrors: World ⇒ World = local ⇒ {
+    val send = SendToAlienKey.of(local)
+    chain(posts.map{ post ⇒
+      val sessionKey = post.header("X-r-session")
+      val index = post.header("X-r-index")
+      if(sessionKey.isEmpty) post.rm
+      else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(post.rm)
+    }).andThen(ErrorKey.set(Nil))(local)
+  }
 
   def transform(local: World): World = {
     val errors = ErrorKey.of(local)
@@ -146,15 +150,9 @@ case class BranchTxTransform(
       savePostsErrors(errorText(local)).andThen(rmPostsErrors)(local)
     else if(errors.size == 1)
       reportError(errorText(local)).andThen(incrementErrors)(local)
-    else chain(getPosts.map(post⇒toAck(post).andThen(handler.exchange(post))))
+    else chain(getPosts.map(handler.exchange))
       .andThen(saveResult).andThen(reportAliveBranches)
       .andThen(rmPostsErrors)(local)
-  }
-
-  private def toAck: BranchMessage ⇒ World ⇒ World = exchange ⇒ {
-    val sessionKey = exchange.header("X-r-session")
-    if(sessionKey.isEmpty) identity[World]
-    else AckChangesKey.modify(_ + (sessionKey → exchange.header("X-r-index")))
   }
 }
 
