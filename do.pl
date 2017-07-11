@@ -196,12 +196,12 @@ my $cp = sub{
     sub{ sy("cp -r $f $t"); "COPY $t /home/$user/$t" }
 };
 my $mod_x = sub{ &$run("chmod +x /home/$user/$_[0]") };
-my $user_mode = [
+my $user_mode = sub{(
     &$cp("../../do.pl"=>"do.pl"),
     &$mod_x("do.pl"),
     "USER $user",
     "WORKDIR /home/$user",
-];
+)};
 
 my $build = sub{
     my($name,@lines) = @_;
@@ -219,7 +219,7 @@ my $build_zoo = sub{
         &$from(""),
         &$volume("db4"),
         &$cp("../$tgz",$tgz),
-        @$user_mode,
+        &$user_mode(),
         &$run("$tar_x $tgz"),
         qq{CMD ["./do.pl",".run.$name"]}
     )
@@ -231,7 +231,7 @@ my $build_staged = sub{
         &$cp("../../$name/target/universal/stage"=>"app"),
         sub{ rename "app/bin/$name"=>"app/bin/run" or die; () },
         &$mod_x("app/bin/run"),
-        @$user_mode,
+        &$user_mode(),
         qq{CMD ["./do.pl",".run.staged"]}
     );
 };
@@ -247,7 +247,7 @@ push @tasks, ["build_docker_images", &$in_tmp_dir(sub{
     &$build("c3-app",
         &$from("git"),
         &$volume("app"),
-        @$user_mode,
+        &$user_mode(),
         qq{CMD ["./do.pl",".run.c3"]}
     );
     &$build("c3-sshd",
