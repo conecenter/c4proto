@@ -121,7 +121,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const onKeyDown = (event) =>{
 		if(nodesObj.length == 0) return
-		let best = null		
+		let best = null	
 		switch(event.key){
 			case "ArrowUp":
 				best = findBestDistance(3);break;

@@ -1035,6 +1035,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = ""
+				const cEvent = eventManager.create("input",{bubbles:true})
+				inp.dispatchEvent(cEvent)
 			})					
 			event.stopPropagation()
 		},
@@ -1043,6 +1045,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = event.detail
+				const cEvent = eventManager.create("input",{bubbles:true})
+				inp.dispatchEvent(cEvent)
 			})				
 			event.stopPropagation()
 		},
@@ -1077,7 +1081,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				e.target.value = newVal;
 			}
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
-		},
+		},		
 		render:function(){				
 			const inpContStyle={
 				display:"flex",
@@ -1139,9 +1143,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 							type,rows,readOnly,placeholder,
 							content,							
 							style:{...inputStyle,...overRideInputStyle},							
-							onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
+							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
 							},this.props.div?[this.props.inputChildren,
-								$("input",{style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},ref:ref=>this.inp2=ref,key:"input",onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown,value:this.props.value})
+								$("input",{style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},ref:ref=>this.inp2=ref,key:"input",onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:this.props.value})
 							]:(content?content:null)),							
 						this.props.popupElement?this.props.popupElement():null
 					]),
