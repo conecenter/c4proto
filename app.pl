@@ -179,7 +179,7 @@ my $build_zoo = sub{
     })
 };
 my $build_staged = sub{
-    my($name,$lines) = @_;
+    my($name,$lines,$service_args) = @_;
     &$build($name=>sub{
         my($ctx_dir)=@_;
         my $cp_app = &$gcp("$name/target/universal/stage"=>$ctx_dir,"app");
@@ -192,7 +192,8 @@ my $build_staged = sub{
             &$user_mode($ctx_dir,"staged")
         )
     },{
-        depends_on => ["broker"]
+        depends_on => ["broker"],
+        %{$service_args||{}}
     });
 };
 
@@ -210,17 +211,19 @@ push @tasks, ["build_docker_images", sub{
         &$build_zoo("zookeeper",[]),
         &$build_zoo("kafka",["zookeeper"]),
         &$build_zoo("inbox-configure",["broker"]),
-        &$build_staged("c4gate-server",0),
+        &$build_staged("c4gate-server"),
         &$build_staged("c4gate-publish",sub{
             my($ctx_dir)=@_;
             (
                 &$gcp($build_dir=>$ctx_dir,"htdocs"),
                 qq{ENV C4PUBLISH_DIR="htdocs" C4PUBLISH_THEN_EXIT="1"}
             )
+        },{
+            restart => "on-failure",
         }),
         #
-        &$build_staged("c4gate-sse-example",0),
-        &$build_staged("c4gate-consumer-example",0),
+        &$build_staged("c4gate-sse-example"),
+        &$build_staged("c4gate-consumer-example"),
         #
         &$build("c3-app"=>sub{
             my($ctx_dir)=@_;
@@ -230,7 +233,7 @@ push @tasks, ["build_docker_images", sub{
                 &$user_mode($ctx_dir,"c3")
             )
         },{
-            depends_on => ["broker"]
+            depends_on => ["broker"],
         }),
         &$build("c3-sshd"=>sub{(
             &$from("git openssh-server"),
@@ -240,10 +243,10 @@ push @tasks, ["build_docker_images", sub{
         )},{}),
     );
     my $app = sub{
-        my($image,$name)=@_;
+        my($image,$name,$env)=@_;
         +{
             %{$img{$image}||die $image},
-            $name ? (environment=>{ C4STATE_TOPIC_PREFIX=>$name }) : ()
+            $name ? (environment=>{ C4STATE_TOPIC_PREFIX=>$name, %{$env||{}} }) : ()
         }
     };
     my %base_stack = (
@@ -252,7 +255,18 @@ push @tasks, ["build_docker_images", sub{
         inbox_configure => &$app("c4-inbox-configure"),
         gate => &$app("c4gate-server","ee.cone.c4gate.HttpGatewayApp"),
     );
-    my %base_ui_stack = (%base_stack, publish => &$app("c4gate-publish")); #... sleep
+    my %test_stack = (
+        gate => {
+            environment=>{
+                C4STATE_REFRESH_SECONDS => 100
+            },
+            ports => ["$http_port:$http_port","$sse_port:$sse_port"]
+        }
+    );
+
+    my %base_ui_stack = (%base_stack,
+        publish => &$app("c4gate-publish","ee.cone.c4gate.PublishApp")
+    ); #... sleep
     my $stacks = {
         "c3" => {%base_ui_stack,
             c3_main_app => &$app("c3-app"), c3_main_sshd => &$app("c3-sshd"),
@@ -266,16 +280,17 @@ push @tasks, ["build_docker_images", sub{
             "ee.cone.c4gate.TestParallelApp",
         ),
         (map{($$_[0] => {%base_ui_stack,
-            map{($_=>&$app("c4gate-sse-example",$_))} @{$$_[1]||die}
+            map{($$_[0]=>&$app("c4gate-sse-example",@$_))} @{$$_[1]||die}
         })}
-            ["test_sse"=>["ee.cone.c4gate.TestSSEApp"]], # http://localhost:8067/sse.html#
+            ["test_sse"=>[["ee.cone.c4gate.TestSSEApp"]]], # http://localhost:8067/sse.html#
             ["test_ui"=>[
-                "ee.cone.c4gate.TestTodoApp",
-                "ee.cone.c4gate.TestCoWorkApp",
-                "ee.cone.c4gate.TestCanvasApp",
-                "ee.cone.c4gate.TestPasswordApp"
+                ["ee.cone.c4gate.TestTodoApp"],
+                ["ee.cone.c4gate.TestCoWorkApp"],
+                ["ee.cone.c4gate.TestCanvasApp",{C4PUBLISH_DIR=>"htdocs"}],
+                ["ee.cone.c4gate.TestPasswordApp"],
             ]]
         ),
+        "override" => \%test_stack
     };
     for my $name(sort keys %$stacks){
         &$put_text("$docker_build/docker.$name.yml",&$yml({
@@ -290,7 +305,7 @@ push @tasks, ["build_docker_images", sub{
 
 my $staged_up = sub{
     my($name)=@_;
-    sy("docker-compose -f tmp/docker_build/docker.$name.yml up -d")
+    sy("docker-compose -f $docker_build/docker.$name.yml -f $docker_build/docker.override.yml up -d --remove-orphans")
 };
 
 push @tasks, ["### tests ###"];
@@ -328,7 +343,7 @@ push @tasks, ["test_actor_check", sub{
 push @tasks, ["test_big_message_check", sub{
     &$sy_in_dir($temp,"dd if=/dev/zero of=test.bin bs=1M count=4 && $curl_test -v -XPOST -T test.bin")
 }];
-push @tasks, ["test_sse_up", sub{ &$staged_up("test_ui") }];
+push @tasks, ["test_sse_up", sub{ &$staged_up("test_sse") }];
 push @tasks, ["test_ui_up", sub{ &$staged_up("test_ui") }];
 
 
