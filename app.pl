@@ -12,7 +12,7 @@ my $kafka_version = "0.10.2.0";
 my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = ($ENV{C4KAFKA_HOST} || "broker").":9092";
-my $temp = "tmp";
+my $temp = "target";
 my $docker_build = "$temp/docker_build";
 my $bin = "kafka/bin";
 
@@ -164,9 +164,9 @@ my $build_zoo = sub{
     my($name,$depends_on) = @_;
     &$build("c4-$name"=>sub{
         my($ctx_dir)=@_;
-        my $tgz = "$temp/$kafka.tgz";
-        &$sy_in_dir($temp,"wget http://www-eu.apache.org/dist/kafka/$kafka_version/$tgz") if !-e $tgz;
-        &$sy_in_dir($ctx_dir,"tar -xzf ../../$kafka.tgz");
+        my $tgz = "tmp/$kafka.tgz";
+        &$sy_in_dir("tmp","wget http://www-eu.apache.org/dist/kafka/$kafka_version/$tgz") if !-e $tgz;
+        &$sy_in_dir($ctx_dir,"tar -xzf ../../../$tgz");
         &$rename($ctx_dir, $kafka, "kafka");
         (
             &$from(""),
@@ -293,7 +293,7 @@ push @tasks, ["build_docker_images", sub{
         "override" => \%test_stack
     };
     for my $name(sort keys %$stacks){
-        &$put_text("$docker_build/docker.$name.yml",&$yml({
+        &$put_text("$docker_build/docker.$name.yml","#### this file is generated ####\n".&$yml({
             version => "3", services => $$stacks{$name}
         }))
     }
