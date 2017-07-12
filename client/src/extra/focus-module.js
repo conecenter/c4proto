@@ -3,6 +3,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	let currentFocusNode = null;
 	let preferNode = null;
 	const callbacks = []
+	
 	const {addEventListener,setTimeout} = windowManager
 	const {isReactRoot,getReactRoot} = miscReact	
 	const distance = (no1,no2) =>{
@@ -190,7 +191,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}		
 	addEventListener("keydown",onKeyDown)
 	addEventListener("paste",onPaste)
-	addEventListener("cTab",onTab)
+	addEventListener("cTab",onTab)	
 	const isPrintableKeyCode = 	(kc) => (kc == 32 || (kc >= 48 && kc <= 57) || 
 								(kc >= 65 && kc <= 90) || (kc >= 186 && kc <= 192) || 
 								(kc >= 219 && kc <= 222) || kc == 226 || kc == 110 || 
@@ -218,7 +219,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			if(index>=0) callbacks.splice(index,1)
 		}
 		return {unreg}
-	}
+	}	
 	const switchTo = (node) => {						
 		const roNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(roNode&&roNode.state.focused) roNode.onBlur()

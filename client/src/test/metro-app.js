@@ -114,6 +114,7 @@ const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.h
 const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms])
 
 const vDom = VDomMix(console.log,sender,transforms,getRootElement,createElement)
+
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
 
 const receiversList = [
