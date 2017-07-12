@@ -316,7 +316,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			this.toggleOverlay(!this.state.on);			
 			this.wifi=scannerProxy.regWifi(this.wifiCallback)
 		},
-		componentWillUnmount:function(){
+		componentWillUnmount:function(){			
 			if(PingReceiver)
 				PingReceiver.unregCallback(this);
 			if(this.wifi) this.wifi.unreg();

@@ -24,6 +24,9 @@ export default function Errors({log,uiElements,documentManager}){
 	const showError = (data) => {		
 		tmpNode = documentManager.createElement("div")
 		tmpNode.className="ouch"
+		tmpNode.style.position="absolute"
+		tmpNode.style.width="100%"
+		tmpNode.style.zIndex="6667"
 		documentManager.addFirst(tmpNode)
 		const onClick = () => {
 			ReactDOM.unmountComponentAtNode(tmpNode)

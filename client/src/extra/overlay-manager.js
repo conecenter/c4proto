@@ -62,11 +62,16 @@ export default function OverlayManager({log,documentManager,windowManager}){
 			startCircularMotion()
 		}
 		else{
-			killTimers()
+			killTimers()			
 			getEls().forEach(el=>body().removeChild(el));
 		}		
 	}
-	const delayToggle = (msg) => delayTimer = setTimeout(()=>toggle(true,msg),3000)
+	const delayToggle = (msg) => {
+		delayTimer = setTimeout(()=>{
+			if(!delayTimer) return
+			toggle(true,msg)
+		},3000)		
+	}
 	
 	const checkActivate = () =>{
 		
