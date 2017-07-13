@@ -48,6 +48,7 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,qReducer,initLocals)
   lazy val byPriority: ByPriority = ByPriorityImpl
+  lazy val preHashing: PreHashing = PreHashingImpl
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
