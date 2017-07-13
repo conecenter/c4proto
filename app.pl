@@ -89,7 +89,7 @@ my $app_staged = sub{
         C4INBOX_TOPIC_PREFIX=>$inbox_prefix,
         C4HTTP_PORT=>$http_port,
         C4SSE_PORT=>$sse_port,
-        %{opt{environment}||{}}
+        %{$opt{environment}||{}}
     })
 };
 
