@@ -20,7 +20,7 @@ import ee.cone.c4gate.AlienProtocol.PostConsumer
     key: SrcId,
     consumers: Values[LocalPostConsumer]
   ): Values[(NeedConsumer,PostConsumer)] =
-    for(c ← consumers)
+    for(c ← consumers.distinct)
       yield WithSrcId(PostConsumer(s"${actorName.value}/${c.condition}", actorName.value, c.condition))
 
   def syncConsumers(

@@ -91,7 +91,7 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
         .andThen(qMessages.send)(local)
     } catch {
       case exception: Exception ⇒
-        println(s"Tx failed [$key][${Thread.currentThread.getName}]")
+        println(s"Tx failed [$key][${Thread.currentThread.getName}][\n${exception.getStackTrace.map(l⇒s"  $l\n").mkString}]")
         exception.printStackTrace() //??? |Nil|throw
         val was = ErrorKey.of(local)
         chain(List(
@@ -99,6 +99,7 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
           SleepUntilKey.set(Instant.now.plusSeconds(was.size))
         ))(createLocal())
       case e: Throwable ⇒
+        println("Throwable0")
         e.printStackTrace()
         throw e
     }

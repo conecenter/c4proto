@@ -115,6 +115,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         qMessages.send(nLocal)
         httpExchange.sendResponseHeaders(200, 0)
       } else {
+        println(path)
         httpExchange.sendResponseHeaders(429, 0) //Too Many Requests
       }
     }(local)

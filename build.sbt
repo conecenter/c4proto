@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.9.D",
+  version := "0.A.2",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -20,7 +20,7 @@ lazy val publishSettings = Seq(
 
 scalaVersion in ThisBuild := "2.11.8"
 
-
+//dockerBaseImage := "openjdk:8"
 
 ////////////////////////////////////////////////////////////////////////////////
 // from https://github.com/scalameta/sbt-macro-example/blob/master/build.sbt

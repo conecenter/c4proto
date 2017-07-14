@@ -10,6 +10,7 @@ import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
 import {ExampleAuth} from "../test/vdom-auth"
+import {ExampleRequestState} from "../test/request-state"
 
 import {CanvasBaseMix,CanvasSimpleMix} from "../main/canvas-mix"
 
@@ -21,6 +22,7 @@ const send = fetch
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
+const exampleRequestState = ExampleRequestState(sender)
 
 const log = v => console.log(v)
 const getRootElement = () => document.body
@@ -43,10 +45,10 @@ const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 const exampleAuth = ExampleAuth(pairOfInputAttributes)
 const transforms = exampleAuth.transforms
 
-const vDom = VDomMix(log,sender,transforms,getRootElement,createElement)
+const vDom = VDomMix(log,exampleRequestState,transforms,getRootElement,createElement)
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
 
-const receiversList = [branches.receivers,feedback.receivers,{fail}]
+const receiversList = [branches.receivers,feedback.receivers,{fail},exampleRequestState.receivers]
 const createEventSource = () => new EventSource("http://localhost:8068/sse")
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)

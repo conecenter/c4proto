@@ -1,0 +1,86 @@
+
+=sk
+push @tasks, ["inbox_copy", sub{
+    my $from = $ENV{C4COPY_FROM} || die "C4COPY_FROM required";
+    &$put_text("tmp/copy.consumer.properties",join "\n",
+        "group.id=dummy-".rand(),
+        "bootstrap.servers=$from",
+        #"enable.auto.commit=false"
+    );
+    &$put_text("tmp/copy.producer.properties",join "\n",
+        "bootstrap.servers=$bootstrap_server",
+        "compression.type=lz4",
+        "max.request.size=10000000",
+        #"linger.ms=1000",
+        "batch.size=1000",
+    );
+    sy("tmp/$kafka/bin/kafka-mirror-maker.sh"
+        ." --consumer.config tmp/copy.consumer.properties"
+        ." --producer.config tmp/copy.producer.properties"
+        .qq[ --whitelist="$inbox_prefix\\.inbox"]
+        ." --num.streams 40"
+        #." --queue.size 2000"
+        #." --whitelist='.*'"
+    );
+}];
+=cut
+
+    #my $nodea = "node-v6.10.0-linux-x64.tar.xz";
+    #if(!-e $nodea){
+    #    sy("wget https://nodejs.org/dist/v6.10.0/$nodea");
+    #    sy("tar -xJf $nodea");
+    #}
+    #print qq{export PATH=tmp/sbt-launcher-packaging-0.13.13/bin:tmp/node-v6.10.0-linux-x64/bin:\$PATH\n};
+
+#push @tasks, ["test_tcp_check", sub{
+#    sy("nc 127.0.0.1 $sse_port");
+#}];
+
+#export PATH=$HOME/tools/jdk/bin:$HOME/tools/sbt/bin:$PATH
+#sbt show compile:dependencyClasspath
+#... ScalaCheck, Specs2, and ScalaTest
+
+#http://localhost:8067/react-app.html#todo
+#http://localhost:8067/react-app.html#rectangle
+#http://localhost:8067/react-app.html#leader
+
+
+#tmp/kafka_2.11-0.10.1.0/bin/kafka-topics.sh --zookeeper 127.0.0.1:8081 --list
+
+#force compaction:?
+#min.cleanable.dirty.ratio=0.01
+#segment.ms=100
+#delete.retention.ms=100
+
+#tar cvf - db4 | lz4 - db.tar.lz4
+#lz4 -d db.tar.lz4 | tar xf -
+
+
+=topic integrity
+use strict;
+use JSON::XS;
+my $e = JSON::XS->new;
+my $n = 0;
+my $c = 0;
+while(<>){
+  /records_consumed/ or next;
+  my $j = $e->decode($_);
+  $$j{name} eq "records_consumed" or next;
+  my($count,$min,$max) = @{$$j{partitions}[0]}{qw(count minOffset maxOffset)};
+  $count-1 == $max-$min or die $_;
+  $n == $min or die $_;
+  $n = $max + 1;
+  $c += $count;
+}
+print "count:$c\n";
+=cut
+
+push @tasks, ["setup_sbt", &$in_tmp_dir(sub{
+    my $sbta = "sbt-0.13.13.tgz";
+    if(!-e $sbta){
+        sy("wget https://dl.bintray.com/sbt/native-packages/sbt/0.13.13/$sbta");
+        sy("tar -xzf $sbta");
+        sy("./sbt-launcher-packaging-0.13.13/bin/sbt update")
+    }
+    print qq{add to .bashrc or so:\nexport PATH=tmp/sbt-launcher-packaging-0.13.13/bin:\$PATH\n};
+})];

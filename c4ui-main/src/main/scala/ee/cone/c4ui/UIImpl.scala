@@ -44,7 +44,7 @@ case object VDomStateKey extends WorldKey[Option[VDomState]](None)
 
 case class VDomBranchSender(pass: BranchTask) extends VDomSender[World] {
   def branchKey: String = pass.branchKey
-  def sending: World ⇒ (Send,Send,World⇒World) = pass.sending
+  def sending: World ⇒ (Send,Send) = pass.sending
 }
 
 case object CreateVDomHandlerKey extends WorldKey[(VDomSender[World],VDomView[World])⇒VDomHandler[World]]((_,_)⇒throw new Exception)

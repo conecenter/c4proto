@@ -39,10 +39,10 @@ class TestSSEApp extends ServerApp
 case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler {
   def exchange: BranchMessage ⇒ World ⇒ World = message ⇒ local ⇒ {
     val now = Instant.now
-    val (keepTo,freshTo,ackAll) = task.sending(local)
+    val (keepTo,freshTo) = task.sending(local)
     val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
     println(s"TestSSEHandler $keepTo $freshTo")
-    SleepUntilKey.set(now.plusSeconds(1)).andThen(send).andThen(ackAll)(local)
+    SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
   }
   def seeds: World ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
 }
