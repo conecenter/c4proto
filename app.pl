@@ -151,7 +151,10 @@ my $gen_docker_conf = sub{
         &$gcp($build_dir=>$ctx_dir,"htdocs");
     });
     #
-    &$build_staged("c4gate-sse-example");
+    &$build_staged("c4gate-sse-example",sub{
+        my($ctx_dir)=@_;
+        &$mkdirs($ctx_dir,"htdocs");
+    });
     &$build_staged("c4gate-consumer-example");
     #
     &$build("c3-app"=>sub{
@@ -208,7 +211,9 @@ my $gen_docker_conf = sub{
             ["test_ui"=>[
                 ["ee.cone.c4gate.TestTodoApp"],
                 ["ee.cone.c4gate.TestCoWorkApp"],
-                ["ee.cone.c4gate.TestCanvasApp", environment=>{C4PUBLISH_DIR=>"htdocs"}],
+                ["ee.cone.c4gate.TestCanvasApp", environment=>{
+                    C4PUBLISH_DIR=>"htdocs", C4PUBLISH_THEN_EXIT=>"",
+                }],
                 ["ee.cone.c4gate.TestPasswordApp"],
             ]]
         ),
