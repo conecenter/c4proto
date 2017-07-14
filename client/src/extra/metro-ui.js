@@ -125,6 +125,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		componentDidMount:function(){
 			this.binding = errors.reg(this.callback)
+			log(this.props.data)
 		},
 		onClick:function(e){
 			log(`click`)

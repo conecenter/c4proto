@@ -38,8 +38,9 @@ const fileReader = ()=> (new window.FileReader());
 const windowManager = (()=>{
 	const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth})
 	const getPageYOffset = ()=> window.pageYOffset
-	const getComputedStyle = n => window.getComputedStyle(n)		
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout}
+	const getComputedStyle = n => window.getComputedStyle(n)
+	const screenRefresh = () => location.reload()
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
