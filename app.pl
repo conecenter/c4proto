@@ -19,6 +19,7 @@ my $user = "c4";
 my $registry_prefix = "localhost:5000/";
 my $c_script = "inbox_configure.pl";
 my $c3script = "c3.pl";
+my $project = $ENV{USER} || die;
 
 ################################################################################
 
@@ -51,7 +52,7 @@ my $from = sub{
     (
         "FROM openjdk:8",
         &$run(
-            "useradd -mUs /bin/bash $user",
+            "useradd --base-dir / --create-home --user-group --shell /bin/bash $user",
             "apt-get update",
             "apt-get install -y lsof $install",
             "rm -rf /var/lib/apt/lists/*",
@@ -273,7 +274,7 @@ push @tasks, ["inbox_test", sub{
 
 my $staged_up = sub{
     my($name)=@_;
-    sy("docker-compose -f $docker_build/docker.$name.yml -f $docker_build/docker.override.yml up -d --remove-orphans")
+    sy("docker-compose -p $project -f $docker_build/docker.$name.yml -f $docker_build/docker.override.yml up -d --remove-orphans")
 };
 
 push @tasks, ["### tests ###"];
