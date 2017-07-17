@@ -16,9 +16,10 @@ my $temp = "target";
 my $docker_build = "$temp/docker_build";
 my $bin = "kafka/bin";
 my $user = "c4";
+my $uid = 1979;
 my $registry_prefix = "localhost:5000/";
 my $c_script = "inbox_configure.pl";
-my $c3script = "c3.pl";
+my $c3script = "start.run";
 my $project = $ENV{USER} || die;
 
 ################################################################################
@@ -52,13 +53,13 @@ my $from = sub{
     (
         "FROM openjdk:8",
         &$run(
-            "useradd --base-dir / --create-home --user-group --shell /bin/bash $user",
+            "useradd --base-dir / --create-home --user-group --uid $uid --shell /bin/bash $user",
             "apt-get update",
             "apt-get install -y lsof $install",
             "rm -rf /var/lib/apt/lists/*",
         ),
-        "COPY . /home/$user",
-        &$run("chown -R $user:$user /home/$user"),
+        "COPY . /$user",
+        &$run("chown -R $user:$user /$user"),
     )
 };
 my $gcp = sub{
@@ -79,7 +80,7 @@ my $app = sub{
 
 my $app_user = sub{
     my($image,$cmd,%opt)=@_;
-    &$app($image, $cmd, user=>$user, working_dir=>"/home/$user", %opt);
+    &$app($image, $cmd, user=>$user, working_dir=>"/$user", %opt);
 };
 
 my $app_staged = sub{
@@ -111,6 +112,8 @@ my $build_staged = sub{
         (&$from(""))
     });
 };
+
+my $volumes = sub{(volumes => [map{"vol-$user-$_:/$user/$_"}@_])};
 
 my $indent = sub{ join "", map{s/\n/\n  /g; "\n$_"} @_ };
 my %yml; my $yml; $yml = sub{ my($arg)=@_; $yml{ref $arg}->($arg) };
@@ -161,7 +164,7 @@ my $gen_docker_conf = sub{
         my($ctx_dir)=@_;
         &$gcp($c3script=>$ctx_dir,$c3script);
         &$mkdirs($ctx_dir,"app");
-        (&$from("git"))
+        (&$from(""))
     });
     &$build("c3-sshd"=>sub{
         my($ctx_dir)=@_;
@@ -170,18 +173,26 @@ my $gen_docker_conf = sub{
     });
     #
     my %base_stack = (
-        zookeeper => &$app_user("c4-zoo",["$bin/zookeeper-server-start.sh","zookeeper.properties"]),
-        broker => &$app_user("c4-zoo",["$bin/kafka-server-start.sh","server.properties"], depends_on => ["zookeeper"]),
+        zookeeper => &$app_user("c4-zoo",["$bin/zookeeper-server-start.sh","zookeeper.properties"],
+            &$volumes("db4"),
+        ),
+        broker => &$app_user("c4-zoo",["$bin/kafka-server-start.sh","server.properties"],
+            depends_on => ["zookeeper"],
+            &$volumes("db4"),
+        ),
         inbox_configure => &$app_user("c4-zoo",["perl",$c_script], depends_on => ["broker"]),
         gate => &$app_staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"),
     );
     my %test_stack = (
-        gate => {
-            environment=>{
-                C4STATE_REFRESH_SECONDS => 100
+        services => {
+            gate => {
+                environment=>{
+                    C4STATE_REFRESH_SECONDS => 100
+                },
+                ports => ["$http_port:$http_port","$sse_port:$sse_port"]
             },
-            ports => ["$http_port:$http_port","$sse_port:$sse_port"]
-        }
+        },
+        volumes => { map{("vol-c4-$_"=>{})} qw[db4 c3deploy .ssh] },
     );
 
     my %base_ui_stack = (%base_stack,
@@ -192,19 +203,30 @@ my $gen_docker_conf = sub{
             },
         )
     );
-    my $stacks = {
-        "c3" => {%base_ui_stack,map{(
-            "c3_$_\_app" => &$app_user("c3-app",["perl",$c3script], depends_on => ["broker"]),
-            "c3_$_\_sshd" => &$app("c3-sshd",["/usr/sbin/sshd", "-D"]),
-        )} qw[main exch]},
-        (map{($_ => {%base_stack,
+
+    my $c3conf_dir = "tmp/c3conf";
+    -e $c3conf_dir or print "consider adding $c3conf_dir\n";
+    my %c3stacks = map { m{/(\w+)\.override\.yml$} ? ("$c3conf_dir/$1" => {
+        %base_ui_stack,
+        "c3_sshd" => &$app("c3-sshd",["/usr/sbin/sshd", "-D"],
+            &$volumes(".ssh","c3deploy","db4")
+        ),
+        map{("c3_$_\_app" => &$app_user("c3-app",["perl",$c3script,"c3deploy/$_"],
+            depends_on => ["broker"],
+            &$volumes("c3deploy"),
+        ))} map{/^\s+c3_([a-z]+)_app:\s+$/?"$1":()} `cat $_`
+    }) : () } <$c3conf_dir/*>;
+
+    my $services_of_stacks = {
+        %c3stacks,
+        (map{("$docker_build/$_" => {%base_stack,
             app=>&$app_staged("c4gate-consumer-example",$_)
         })}
             "ee.cone.c4gate.TestConsumerApp",
             "ee.cone.c4gate.TestSerialApp",
             "ee.cone.c4gate.TestParallelApp",
         ),
-        (map{($$_[0] => {%base_ui_stack,
+        (map{("$docker_build/$$_[0]" => {%base_ui_stack,
             map{($$_[0]=>&$app_staged("c4gate-sse-example",@$_))} @{$$_[1]||die}
         })}
             ["test_sse"=>[["ee.cone.c4gate.TestSSEApp"]]], # http://localhost:8067/sse.html#
@@ -217,12 +239,19 @@ my $gen_docker_conf = sub{
                 ["ee.cone.c4gate.TestPasswordApp"],
             ]]
         ),
-        "override" => \%test_stack
+
     };
+
+    my $stacks = {
+        (map{($_=>{services=>$$services_of_stacks{$_}})} keys %$services_of_stacks),
+        "$docker_build/override" => \%test_stack,
+    };
+
     #
-    for my $name(sort keys %$stacks){
-        &$put_text("$docker_build/docker.$name.yml","#### this file is generated ####\n".&$yml({
-            version => "3", services => $$stacks{$name}
+    for my $path(sort keys %$stacks){
+        $path=~m{/}||die $path;
+        &$put_text("$path.yml","#### this file is generated ####\n".&$yml({
+            version => "3", %{$$stacks{$path}||die}
         }))
     }
 };
@@ -279,7 +308,7 @@ push @tasks, ["inbox_test", sub{
 
 my $staged_up = sub{
     my($name)=@_;
-    sy("docker-compose -p $project -f $docker_build/docker.$name.yml -f $docker_build/docker.override.yml up -d --remove-orphans")
+    sy("docker-compose -p $project -f $docker_build/$name.yml -f $docker_build/override.yml up -d --remove-orphans")
 };
 
 push @tasks, ["### tests ###"];
@@ -319,7 +348,7 @@ push @tasks, ["test_big_message_check", sub{
 }];
 push @tasks, ["test_sse_up", sub{ &$staged_up("test_sse") }];
 push @tasks, ["test_ui_up", sub{ &$staged_up("test_ui") }];
-
+push @tasks, ["test_c3_up", sub{ &$staged_up("c3") }];
 
 ################################################################################
 
