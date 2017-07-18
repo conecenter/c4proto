@@ -36,7 +36,7 @@ trait UMLClientsApp {
   def umlClients: List[String⇒Unit] = Nil
 }
 
-trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with InitLocalsApp {
+trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with InitLocalsApp {
   def toStart: List[Executable]
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
@@ -44,17 +44,19 @@ trait ServerApp extends ProtocolsApp with AssemblesApp with DataDependenciesApp 
   //
   lazy val execution: Executable = new ExecutionImpl(toStart)
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
-  lazy val qReducer: Reducer = new ReducerImpl(qMessages, treeAssembler, ()⇒dataDependencies)
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,qReducer,initLocals)
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val rawSnapshot: RawSnapshot = RawSnapshotImpl
+  lazy val rawObserver: RawObserver = new RichRawObserver(qReducerImpl,initialObservers)
+  def qReducer: Reducer = qReducerImpl
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
+  private lazy val qReducerImpl: ReducerImpl = new ReducerImpl(qMessages, treeAssembler, ()⇒dataDependencies)
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
@@ -76,12 +78,4 @@ trait ParallelObserversApp {
 
 trait MortalFactoryApp extends AssemblesApp {
   def mortal: MortalFactory = MortalFactoryImpl
-}
-
-trait WorldApp {
-  def qMessages: QMessages
-  def qReducer: Reducer
-  def initialObservers: List[Observer]
-  lazy val rawObserver: RawObserver =
-    new RichRawObserver(qMessages,qReducer,initialObservers)
 }

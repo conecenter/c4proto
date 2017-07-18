@@ -39,7 +39,6 @@ import ee.cone.c4actor.Types.SrcId
 case class ActorName(value: String)
 
 sealed trait TopicName
-case object NoTopicName extends TopicName
 case class InboxTopicName() extends TopicName
 case class LogTopicName() extends TopicName
 

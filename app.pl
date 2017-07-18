@@ -213,8 +213,6 @@ my $gen_docker_conf = sub{
     my %base_ui_stack = (%base_stack,
         publish => &$app_staged("gate-publish", "ee.cone.c4gate.PublishApp",
             restart => "on-failure",
-            C4PUBLISH_DIR=>"htdocs",
-            C4PUBLISH_THEN_EXIT=>"1",
         )
     );
     #
@@ -230,8 +228,6 @@ my $gen_docker_conf = sub{
                 map{("app_$_" => &$app_user(
                     image => "$registry_prefix-$project-$_",
                     &$client_options("$project-$_"),
-                    C4PUBLISH_DIR=>"htdocs",
-                    C4PUBLISH_THEN_EXIT=>"",
                 ))} map{/^\s+app_([a-z]+):\s+$/?"$1":()} `cat $override_file`
             };
             &$put_yml("$ctx_dir/docker-compose.yml",{ services => $services });
@@ -268,9 +264,7 @@ my $gen_docker_conf = sub{
             ["test_ui"=>[
                 ["ee.cone.c4gate.TestTodoApp"],
                 ["ee.cone.c4gate.TestCoWorkApp"],
-                ["ee.cone.c4gate.TestCanvasApp",
-                    C4PUBLISH_DIR=>"htdocs", C4PUBLISH_THEN_EXIT=>"",
-                ],
+                ["ee.cone.c4gate.TestCanvasApp"],
                 ["ee.cone.c4gate.TestPasswordApp"],
             ]]
         ),

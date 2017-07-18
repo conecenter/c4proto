@@ -18,8 +18,7 @@ class PublishingObserver(
   reducer: Reducer,
   fromDir: String,
   fromStrings: List[(String,String)],
-  mimeTypes: String⇒Option[String],
-  thenStop: Boolean
+  mimeTypes: String⇒Option[String]
 ) extends Observer {
   def activate(ctx: ObserverContext): Seq[Observer] = {
     println("publish started")
@@ -32,7 +31,6 @@ class PublishingObserver(
       publish(ctx)(path,body.getBytes(UTF_8))
     }
     println("publish finished")
-    if(thenStop) ctx.executionContext.complete(None)
     Nil
   }
   def publish(ctx: ObserverContext)(path: String, body: Array[Byte]): Unit = {

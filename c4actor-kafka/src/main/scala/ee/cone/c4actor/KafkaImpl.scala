@@ -56,7 +56,6 @@ case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String){
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
     case LogTopicName() ⇒ s"$inboxTopicPrefix.inbox.log"
-    case NoTopicName ⇒ throw new Exception
   }
 }
 
@@ -87,7 +86,7 @@ class KafkaActor(conf: KafkaConfig)(
       println(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}]")
       consumer.assign(inboxTopicPartition.asJava)
       consumer.seek(Single(inboxTopicPartition),observer.get.offset)
-      val endOffset: Long = Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList)
+      val endOffset: Long = Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long
       while(observer.get.isActive){
         if(Thread.interrupted || !alive.get) throw new InterruptedException
         for(rec ← consumer.poll(200 /*timeout*/).asScala){
@@ -97,7 +96,7 @@ class KafkaActor(conf: KafkaConfig)(
         }
         observer.set(observer.get.activate(()⇒observer.get, endOffset))
       }
-      // exit?
+      ctx.complete(None)
     }
   }
 }

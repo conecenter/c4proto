@@ -125,7 +125,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
 
 class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
   def handle(httpExchange: HttpExchange) =
-    Trace{ FinallyClose(httpExchange) { ex ⇒ handlers.find(_.handle(ex)) } }
+    Trace{ FinallyClose[HttpExchange,Unit](_.close())(httpExchange) { ex ⇒ handlers.find(_.handle(ex)) } }
 }
 
 class RHttpServer(port: Int, handler: HttpHandler) extends Executable {

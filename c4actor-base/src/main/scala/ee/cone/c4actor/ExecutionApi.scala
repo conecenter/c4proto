@@ -2,6 +2,10 @@ package ee.cone.c4actor
 
 import java.util.concurrent.{ExecutorService}
 
+trait ExecutableApp {
+  def execution: Executable
+}
+
 trait Executable {
   def run(ctx: ExecutionContext): Unit
 }
@@ -28,5 +32,6 @@ object Trace { //m. b. to util
 }
 
 object FinallyClose {
-  def apply[A<:AutoCloseable,T](o: A)(f: A⇒T): T = try f(o) finally o.close()
+  def apply[A<:AutoCloseable,R](o: A)(f: A⇒R): R = try f(o) finally o.close()
+  def apply[A,R](close: A⇒Unit)(o: A)(f: A⇒R): R = try f(o) finally close(o)
 }

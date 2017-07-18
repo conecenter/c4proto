@@ -26,10 +26,9 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp {
   def mimeTypes: Map[String,String]
   def publishFromStrings: List[(String,String)]
 
-  private lazy val publishThenExit = config.get("C4PUBLISH_THEN_EXIT").nonEmpty
-  private lazy val publishDir = config.get("C4PUBLISH_DIR")
+  private lazy val publishDir = "htdocs"
   private lazy val publishingObserver =
-    new PublishingObserver(qMessages,qReducer,publishDir,publishFromStrings,mimeTypes.get,publishThenExit)
+    new PublishingObserver(qMessages,qReducer,publishDir,publishFromStrings,mimeTypes.get)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers

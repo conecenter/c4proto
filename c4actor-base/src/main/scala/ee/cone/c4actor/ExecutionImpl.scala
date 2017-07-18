@@ -50,11 +50,13 @@ object ExecutionContextFactory {
   }
 }
 
+
+
 object ServerMain {
   def main(args: Array[String]): Unit = try {
     Trace {
       val ctx = ExecutionContextFactory.create()
-      val app = Option(Class.forName(args(0))).get.newInstance().asInstanceOf[ServerApp]
+      val app = Option(Class.forName(args(0))).get.newInstance().asInstanceOf[ExecutableApp]
       app.execution.run(ctx)
       //println("main is about to sleep")
       Thread.sleep(Long.MaxValue) //ctx.serving.get()

@@ -63,10 +63,10 @@ object AssemblerTest extends App {
   val app = new AssemblerTestApp
   val recs = update(RawParentNode("1","P-1")) ++
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
-  val rawRecs = recs.map(rec⇒app.qMessages.toRecord(NoTopicName,app.qMessages.toUpdate(rec))).toList
+  val updates = recs.map(rec⇒app.qMessages.toUpdate(rec)).toList
   //println(app.qMessages.toTree(rawRecs))
   val emptyWorld = app.qReducer.createWorld(Map())
-  val world = app.qReducer.reduceRecover(emptyWorld, rawRecs)
+  val world = app.qReducer.reduceRecover(emptyWorld, updates)
   /*
   val shouldDiff = Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(

@@ -20,8 +20,7 @@ object ProtoAdapterTest extends App {
   //
   val lEvents = LEvent.update(group0)
   val updates = lEvents.map(qMessages.toUpdate)
-  val recs = updates.map(qMessages.toRecord(NoTopicName,_))
-  val world = qMessages.toTree(recs).asInstanceOf[World]
+  val world = qMessages.toTree(updates).asInstanceOf[World]
   val group1 = Single(By.srcId(classOf[Group]).of(world)(""))
   assert(group0==group1)
   println("OK",group1)

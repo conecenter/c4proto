@@ -20,6 +20,6 @@ trait KafkaConsumerApp extends KafkaConfigApp with ToStartApp {
   def rawObserver: RawObserver
   //
   private lazy val kafkaConsumer =
-    new KafkaActor(kafkaConfig)(rawSnapshot,rawObserver)()
+    new KafkaActor(kafkaConfig)(rawSnapshot,rawObserver)
   override def toStart: List[Executable] = kafkaConsumer :: super.toStart
 }
