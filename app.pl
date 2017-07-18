@@ -17,14 +17,15 @@ my $docker_build = "$temp/docker_build";
 my $bin = "kafka/bin";
 my $user = "c4";
 my $uid = 1979;
-my $registry_prefix = "localhost:5000/";
+my $registry_prefix = "localhost:5000/c4";
 my $c_script = "inbox_configure.pl";
-my $c3script = "start.run";
 my $project = $ENV{USER} || die;
 
 ################################################################################
 
-sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
+
+sub so{ print join(" ",@_),"\n"; system @_ }
+sub sy{ &so and die $? }
 
 my $need_dir = sub{ my($d)=@_; -e $d or sy("mkdir -p $d"); $d };
 my $sy_in_dir = sub{ my($d,$c)=@_; &$need_dir($d); sy("cd $d && $c") };
@@ -68,31 +69,40 @@ my $gcp = sub{
 };
 my $rename = sub{
     my($dir,$from,$to)=@_;
-    rename "$dir/$from"=>"$dir/$to" or die $!;
+    rename "$dir/$from"=>"$dir/$to" or die "$dir,$from,$to,$!";
 };
 
-my $app = sub{
-    my($image,$cmd,%opt)=@_;
-    -e "$docker_build/$image/Dockerfile" or die $image;
-    #my $cmd_str = join ",",map{qq("$_")} @$cmd;
-    +{image=>"$registry_prefix$image", command => $cmd, restart=>"unless-stopped", %opt}
+my $app = sub{ my %opt = @_; +{restart=>"unless-stopped", %opt} };
+
+my $extract_env = sub{
+    my %opt = @_;
+    my %env = map{/^C4/?($_=>$opt{$_}):()} keys %opt;
+    (
+        (%env ? (environment => \%env):()),
+        (map{/^C4/?():($_=>$opt{$_})} keys %opt)
+    )
 };
 
 my $app_user = sub{
-    my($image,$cmd,%opt)=@_;
-    &$app($image, $cmd, user=>$user, working_dir=>"/$user", %opt);
+    my %opt = @_;
+    &$app(&$extract_env(user=>$user, working_dir=>"/$user", %opt));
 };
+
+my $client_options = sub{(
+    depends_on => ["broker"],
+    C4BOOTSTRAP_SERVERS => $bootstrap_server,
+    C4INBOX_TOPIC_PREFIX => $inbox_prefix,
+    C4STATE_TOPIC_PREFIX => $_[0],
+)};
 
 my $app_staged = sub{
     my($image,$cl,%opt)=@_;
-    &$app_user($image, ["app/bin/run",$cl], depends_on => ["broker"], %opt, environment=>{
-        C4STATE_TOPIC_PREFIX=>$cl,
-        C4BOOTSTRAP_SERVERS=>$bootstrap_server,
-        C4INBOX_TOPIC_PREFIX=>$inbox_prefix,
-        C4HTTP_PORT=>$http_port,
-        C4SSE_PORT=>$sse_port,
-        %{$opt{environment}||{}}
-    })
+    &$app_user(
+        image => "$registry_prefix-$image",
+        command => ["app/bin/run",$cl],
+        &$client_options($cl),
+        %opt,
+    )
 };
 
 my $build = sub{
@@ -106,8 +116,8 @@ my $build_staged = sub{
     my($name,$f) = @_;
     &$build($name=>sub{
         my($ctx_dir)=@_;
-        &$gcp("$name/target/universal/stage"=>$ctx_dir,"app");
-        &$rename("$ctx_dir/app/bin",$name=>"run");
+        &$gcp("c4$name/target/universal/stage"=>$ctx_dir,"app");
+        &$rename("$ctx_dir/app/bin","c4$name"=>"run");
         $f && &$f($ctx_dir);
         (&$from(""))
     });
@@ -120,10 +130,16 @@ my %yml; my $yml; $yml = sub{ my($arg)=@_; $yml{ref $arg}->($arg) };
 $yml{''} = sub{" '$_[0]'"};
 $yml{HASH} = sub{ my($h)=@_; &$indent(map{"$_:".&$yml($$h{$_})} sort keys %$h) };
 $yml{ARRAY} = sub{ my($l)=@_; &$indent(map{"-".&$yml($_)} @$l) };
+my $put_yml = sub{
+    my($path,$data)=@_;
+    &$put_text($path,"#### this file is generated ####\n".&$yml({
+        version => "3", %$data
+    }))
+};
 
 my $gen_docker_conf = sub{
     &$recycling($docker_build);
-    &$build("c4-zoo"=>sub{
+    &$build("zoo"=>sub{
         my($ctx_dir)=@_;
         my $tgz = "tmp/$kafka.tgz";
         &$sy_in_dir("tmp","wget http://www-eu.apache.org/dist/kafka/$kafka_version/$tgz") if !-e $tgz;
@@ -148,42 +164,85 @@ my $gen_docker_conf = sub{
         &$mkdirs($ctx_dir,"db4");
         (&$from(""))
     });
-    &$build_staged("c4gate-server");
-    &$build_staged("c4gate-publish",sub{
+    &$build_staged("gate-server");
+    &$build_staged("gate-publish",sub{
         my($ctx_dir)=@_;
         &$gcp($build_dir=>$ctx_dir,"htdocs");
     });
     #
-    &$build_staged("c4gate-sse-example",sub{
+    &$build_staged("gate-sse-example",sub{
         my($ctx_dir)=@_;
         &$mkdirs($ctx_dir,"htdocs");
     });
-    &$build_staged("c4gate-consumer-example");
+    &$build_staged("gate-consumer-example");
     #
-    &$build("c3-app"=>sub{
+    &$build("sshd"=>sub{
         my($ctx_dir)=@_;
-        &$gcp($c3script=>$ctx_dir,$c3script);
-        &$mkdirs($ctx_dir,"app");
-        (&$from(""))
-    });
-    &$build("c3-sshd"=>sub{
-        my($ctx_dir)=@_;
-        &$mkdirs($ctx_dir,"app",".ssh");
-        (&$from("git openssh-server"), &$run("mkdir /var/run/sshd"))
+        &$mkdirs($ctx_dir,"db4");
+        (&$from("openssh-server"), &$run("mkdir /var/run/sshd"))
     });
     #
     my %base_stack = (
-        zookeeper => &$app_user("c4-zoo",["$bin/zookeeper-server-start.sh","zookeeper.properties"],
+        zookeeper => &$app_user(
+            image => "$registry_prefix-zoo",
+            command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
             &$volumes("db4"),
         ),
-        broker => &$app_user("c4-zoo",["$bin/kafka-server-start.sh","server.properties"],
+        broker => &$app_user(
+            image => "$registry_prefix-zoo",
+            command => ["$bin/kafka-server-start.sh","server.properties"],
             depends_on => ["zookeeper"],
             &$volumes("db4"),
         ),
-        inbox_configure => &$app_user("c4-zoo",["perl",$c_script], depends_on => ["broker"]),
-        gate => &$app_staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"),
+        inbox_configure => &$app_user(
+            image => "$registry_prefix-zoo",
+            command => ["perl",$c_script],
+            depends_on => ["broker"],
+        ),
+        gate => &$app_staged("gate-server","ee.cone.c4gate.HttpGatewayApp",
+            C4HTTP_PORT=>$http_port,
+            C4SSE_PORT=>$sse_port,
+        ),
+        sshd => &$app(
+            image => "$registry_prefix-sshd",
+            command => ["/usr/sbin/sshd", "-D"],
+            &$volumes("db4")
+        ),
     );
-    my %test_stack = (
+
+    my %base_ui_stack = (%base_stack,
+        publish => &$app_staged("gate-publish", "ee.cone.c4gate.PublishApp",
+            restart => "on-failure",
+            C4PUBLISH_DIR=>"htdocs",
+            C4PUBLISH_THEN_EXIT=>"1",
+        )
+    );
+    #
+    my $app_conf_dir = "tmp/app_conf";
+    -e $app_conf_dir or print "consider adding $app_conf_dir\n";
+    for my $override_file(<$app_conf_dir/*>){
+        my $project = $override_file=~m{/(\w+)\.override\.yml$} ? $1 : next;
+        &$build("compose-$project",sub{
+            my($ctx_dir)=@_;
+            sy("cp $override_file $ctx_dir/docker-compose.override.yml");
+            my $services = {
+                %base_ui_stack,
+                map{("app_$_" => &$app_user(
+                    image => "$registry_prefix-$project-$_",
+                    &$client_options("$project-$_"),
+                    C4PUBLISH_DIR=>"htdocs",
+                    C4PUBLISH_THEN_EXIT=>"",
+                ))} map{/^\s+app_([a-z]+):\s+$/?"$1":()} `cat $override_file`
+            };
+            &$put_yml("$ctx_dir/docker-compose.yml",{ services => $services });
+            (
+                "FROM docker/compose:1.14.0",
+                "COPY . /"
+            )
+        })
+    }
+    ####
+    &$put_yml("$docker_build/override.yml",{
         services => {
             gate => {
                 environment=>{
@@ -192,74 +251,42 @@ my $gen_docker_conf = sub{
                 ports => ["$http_port:$http_port","$sse_port:$sse_port"]
             },
         },
-        volumes => { map{("vol-c4-$_"=>{})} qw[db4 c3deploy .ssh] },
-    );
-
-    my %base_ui_stack = (%base_stack,
-        publish => &$app_staged("c4gate-publish", "ee.cone.c4gate.PublishApp",
-            restart => "on-failure",
-            environment => {
-                C4PUBLISH_DIR=>"htdocs", C4PUBLISH_THEN_EXIT=>"1"
-            },
-        )
-    );
-
-    my $c3conf_dir = "tmp/c3conf";
-    -e $c3conf_dir or print "consider adding $c3conf_dir\n";
-    my %c3stacks = map { m{/(\w+)\.override\.yml$} ? ("$c3conf_dir/$1" => {
-        %base_ui_stack,
-        "c3_sshd" => &$app("c3-sshd",["/usr/sbin/sshd", "-D"],
-            &$volumes(".ssh","c3deploy","db4")
-        ),
-        map{("c3_$_\_app" => &$app_user("c3-app",["perl",$c3script,"c3deploy/$_"],
-            depends_on => ["broker"],
-            &$volumes("c3deploy"),
-        ))} map{/^\s+c3_([a-z]+)_app:\s+$/?"$1":()} `cat $_`
-    }) : () } <$c3conf_dir/*>;
-
+        volumes => { map{("vol-c4-$_"=>{})} qw[db4] },
+    });
     my $services_of_stacks = {
-        %c3stacks,
         (map{("$docker_build/$_" => {%base_stack,
-            app=>&$app_staged("c4gate-consumer-example",$_)
+            app=>&$app_staged("gate-consumer-example",$_)
         })}
             "ee.cone.c4gate.TestConsumerApp",
             "ee.cone.c4gate.TestSerialApp",
             "ee.cone.c4gate.TestParallelApp",
         ),
         (map{("$docker_build/$$_[0]" => {%base_ui_stack,
-            map{($$_[0]=>&$app_staged("c4gate-sse-example",@$_))} @{$$_[1]||die}
+            map{($$_[0]=>&$app_staged("gate-sse-example",@$_))} @{$$_[1]||die}
         })}
             ["test_sse"=>[["ee.cone.c4gate.TestSSEApp"]]], # http://localhost:8067/sse.html#
             ["test_ui"=>[
                 ["ee.cone.c4gate.TestTodoApp"],
                 ["ee.cone.c4gate.TestCoWorkApp"],
-                ["ee.cone.c4gate.TestCanvasApp", environment=>{
+                ["ee.cone.c4gate.TestCanvasApp",
                     C4PUBLISH_DIR=>"htdocs", C4PUBLISH_THEN_EXIT=>"",
-                }],
+                ],
                 ["ee.cone.c4gate.TestPasswordApp"],
             ]]
         ),
 
     };
-
-    my $stacks = {
-        (map{($_=>{services=>$$services_of_stacks{$_}})} keys %$services_of_stacks),
-        "$docker_build/override" => \%test_stack,
-    };
-
-    #
-    for my $path(sort keys %$stacks){
+    for my $path(sort keys %$services_of_stacks){
         $path=~m{/}||die $path;
-        &$put_text("$path.yml","#### this file is generated ####\n".&$yml({
-            version => "3", %{$$stacks{$path}||die}
-        }))
+        &$put_yml("$path.yml",{services=>$$services_of_stacks{$path}||die});
     }
 };
 
 my $gen_docker_images = sub{
     for my $ctx_dir(sort grep{-e "$_/Dockerfile"} <$docker_build/*>){
         my $name = substr $ctx_dir, 1+length $docker_build;
-        sy("docker build -t $registry_prefix$name $ctx_dir")
+        sy("docker build -t $registry_prefix-$name $ctx_dir");
+        so("docker push $registry_prefix-$name");
     }
 };
 
@@ -289,9 +316,10 @@ push @tasks, ["build_some_client", sub{
     &$gen_docker_conf();
     &$gen_docker_images();
 }];
-push @tasks, ["build_conf_only", sub{
+push @tasks, ["build_images_only", sub{
     my($mode) = @_;
     &$gen_docker_conf();
+    &$gen_docker_images();
 }];
 
 ################################################################################
@@ -348,7 +376,7 @@ push @tasks, ["test_big_message_check", sub{
 }];
 push @tasks, ["test_sse_up", sub{ &$staged_up("test_sse") }];
 push @tasks, ["test_ui_up", sub{ &$staged_up("test_ui") }];
-push @tasks, ["test_c3_up", sub{ &$staged_up("c3") }];
+#push @tasks, ["test_c3_up", sub{ &$staged_up("c3") }];
 
 ################################################################################
 
