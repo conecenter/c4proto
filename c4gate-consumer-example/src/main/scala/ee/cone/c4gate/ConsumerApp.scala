@@ -19,6 +19,7 @@ class TestConsumerApp extends ServerApp
   with ParallelObserversApp with InitLocalsApp
   with UMLClientsApp
   with ManagementApp
+  with FileRawSnapshotApp
 {
   override def protocols: List[Protocol] = AlienProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles

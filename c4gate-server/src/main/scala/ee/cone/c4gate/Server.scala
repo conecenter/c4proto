@@ -13,6 +13,7 @@ class HttpGatewayApp extends ServerApp
   with UMLClientsApp
   with MortalFactoryApp
   with ManagementApp
+  with FileRawSnapshotApp
 {
   def httpHandlers: List[RHttpHandler] =
     pongHandler :: new HttpPostHandler(qMessages,worldProvider) :: Nil

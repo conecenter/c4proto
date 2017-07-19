@@ -48,8 +48,7 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,qReducer,initLocals)
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val rawSnapshot: RawSnapshot = RawSnapshotImpl
-  lazy val rawObserver: RawObserver = new RichRawObserver(qReducerImpl,initialObservers)
+  lazy val rawObserver: RawObserver = new RichRawObserver(qReducerImpl,initialObservers,None,Nil,Option(0L))
   def qReducer: Reducer = qReducerImpl
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory)
@@ -64,6 +63,10 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
     ProtocolDataDependencies(protocols.distinct) ::: super.dataDependencies
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
   override def initLocals: List[InitLocal] = localQAdapterRegistryInit :: super.initLocals
+}
+
+trait FileRawSnapshotApp {
+  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots")
 }
 
 trait SerialObserversApp {

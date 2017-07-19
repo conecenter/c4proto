@@ -22,6 +22,7 @@ class TestCoWorkApp extends ServerApp
   with TestTagsApp
   with UMLClientsApp
   with ManagementApp
+  with FileRawSnapshotApp
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =

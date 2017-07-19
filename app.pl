@@ -19,7 +19,7 @@ my $user = "c4";
 my $uid = 1979;
 my $registry_prefix = "localhost:5000/c4";
 my $c_script = "inbox_configure.pl";
-my $project = $ENV{USER} || die;
+my $developer = $ENV{USER} || die;
 
 ################################################################################
 
@@ -37,6 +37,18 @@ my @tasks;
 my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+};
+
+my $indent = sub{ join "", map{s/\n/\n  /g; "\n$_"} @_ };
+my %yml; my $yml; $yml = sub{ my($arg)=@_; $yml{ref $arg}->($arg) };
+$yml{''} = sub{" '$_[0]'"};
+$yml{HASH} = sub{ my($h)=@_; &$indent(map{"$_:".&$yml($$h{$_})} sort keys %$h) };
+$yml{ARRAY} = sub{ my($l)=@_; &$indent(map{"-".&$yml($_)} @$l) };
+my $put_yml = sub{
+    my($path,$data)=@_;
+    &$put_text($path,"#### this file is generated ####\n".&$yml({
+        version => "3", %$data
+    }))
 };
 
 my $mkdirs = sub{
@@ -72,6 +84,8 @@ my $rename = sub{
     rename "$dir/$from"=>"$dir/$to" or die "$dir,$from,$to,$!";
 };
 
+my $volumes = sub{(volumes => [map{"vol-$user-$_:/$user/$_"}@_])};
+
 my $app = sub{ my %opt = @_; +{restart=>"unless-stopped", %opt} };
 
 my $extract_env = sub{
@@ -93,6 +107,7 @@ my $client_options = sub{(
     C4BOOTSTRAP_SERVERS => $bootstrap_server,
     C4INBOX_TOPIC_PREFIX => $inbox_prefix,
     C4STATE_TOPIC_PREFIX => $_[0],
+    &$volumes("db4"),
 )};
 
 my $app_staged = sub{
@@ -118,23 +133,39 @@ my $build_staged = sub{
         my($ctx_dir)=@_;
         &$gcp("c4$name/target/universal/stage"=>$ctx_dir,"app");
         &$rename("$ctx_dir/app/bin","c4$name"=>"run");
+        &$mkdirs($ctx_dir,"db4");
         $f && &$f($ctx_dir);
         (&$from(""))
     });
 };
 
-my $volumes = sub{(volumes => [map{"vol-$user-$_:/$user/$_"}@_])};
+my $build_compose = sub{
+    my($project,$override,$services)=@_;
+    &$build(join('-',"compose",@$project),sub{
+        my($ctx_dir)=@_;
+        &$override("$ctx_dir/docker-compose.override.yml");
+        &$put_yml("$ctx_dir/docker-compose.yml",{ services => $services });
+        (
+            "FROM docker/compose:1.14.0",
+            "COPY . /",
+            qq{CMD ["-p","$$project[0]","up","-d","--remove-orphans"]},
+        )
+    })
+};
 
-my $indent = sub{ join "", map{s/\n/\n  /g; "\n$_"} @_ };
-my %yml; my $yml; $yml = sub{ my($arg)=@_; $yml{ref $arg}->($arg) };
-$yml{''} = sub{" '$_[0]'"};
-$yml{HASH} = sub{ my($h)=@_; &$indent(map{"$_:".&$yml($$h{$_})} sort keys %$h) };
-$yml{ARRAY} = sub{ my($l)=@_; &$indent(map{"-".&$yml($_)} @$l) };
-my $put_yml = sub{
-    my($path,$data)=@_;
-    &$put_text($path,"#### this file is generated ####\n".&$yml({
-        version => "3", %$data
-    }))
+my $testing_override = sub{
+    my($path)=@_;
+    &$put_yml($path,{
+        services => {
+            gate => {
+                environment=>{
+                    C4STATE_REFRESH_SECONDS => 100
+                },
+                ports => ["$http_port:$http_port","$sse_port:$sse_port"]
+            },
+        },
+        volumes => { map{("vol-c4-$_"=>{})} qw[db4] },
+    });
 };
 
 my $gen_docker_conf = sub{
@@ -170,12 +201,6 @@ my $gen_docker_conf = sub{
         &$gcp($build_dir=>$ctx_dir,"htdocs");
     });
     #
-    &$build_staged("gate-sse-example",sub{
-        my($ctx_dir)=@_;
-        &$mkdirs($ctx_dir,"htdocs");
-    });
-    &$build_staged("gate-consumer-example");
-    #
     &$build("sshd"=>sub{
         my($ctx_dir)=@_;
         &$mkdirs($ctx_dir,"db4");
@@ -203,6 +228,9 @@ my $gen_docker_conf = sub{
             C4HTTP_PORT=>$http_port,
             C4SSE_PORT=>$sse_port,
         ),
+        snapshot_maker => &$app_staged("gate-server","ee.cone.c4gate.SnapshotMakerApp",
+            restart => "on-failure",
+        ),
         sshd => &$app(
             image => "$registry_prefix-sshd",
             command => ["/usr/sbin/sshd", "-D"],
@@ -220,61 +248,42 @@ my $gen_docker_conf = sub{
     -e $app_conf_dir or print "consider adding $app_conf_dir\n";
     for my $override_file(<$app_conf_dir/*>){
         my $project = $override_file=~m{/(\w+)\.override\.yml$} ? $1 : next;
-        &$build("compose-$project",sub{
-            my($ctx_dir)=@_;
-            sy("cp $override_file $ctx_dir/docker-compose.override.yml");
-            my $services = {
-                %base_ui_stack,
-                map{("app_$_" => &$app_user(
-                    image => "$registry_prefix-$project-$_",
-                    &$client_options("$project-$_"),
-                ))} map{/^\s+app_([a-z]+):\s+$/?"$1":()} `cat $override_file`
-            };
-            &$put_yml("$ctx_dir/docker-compose.yml",{ services => $services });
-            (
-                "FROM docker/compose:1.14.0",
-                "COPY . /"
-            )
+        &$build_compose([$project],sub{ sy("cp $override_file $_[0]") },{
+            %base_ui_stack,
+            map{("app_$_" => &$app_user(
+                image => "$registry_prefix-$project-$_",
+                &$client_options("$project-$_"),
+            ))} map{/^\s+app_([a-z]+):\s+$/?"$1":()} `cat $override_file`
         })
     }
     ####
-    &$put_yml("$docker_build/override.yml",{
-        services => {
-            gate => {
-                environment=>{
-                    C4STATE_REFRESH_SECONDS => 100
-                },
-                ports => ["$http_port:$http_port","$sse_port:$sse_port"]
-            },
-        },
-        volumes => { map{("vol-c4-$_"=>{})} qw[db4] },
+    &$build_staged("gate-sse-example",sub{
+        my($ctx_dir)=@_;
+        &$mkdirs($ctx_dir,"htdocs");
     });
-    my $services_of_stacks = {
-        (map{("$docker_build/$_" => {%base_stack,
-            app=>&$app_staged("gate-consumer-example",$_)
-        })}
-            "ee.cone.c4gate.TestConsumerApp",
-            "ee.cone.c4gate.TestSerialApp",
-            "ee.cone.c4gate.TestParallelApp",
-        ),
-        (map{("$docker_build/$$_[0]" => {%base_ui_stack,
-            map{($$_[0]=>&$app_staged("gate-sse-example",@$_))} @{$$_[1]||die}
-        })}
-            ["test_sse"=>[["ee.cone.c4gate.TestSSEApp"]]], # http://localhost:8067/sse.html#
-            ["test_ui"=>[
-                ["ee.cone.c4gate.TestTodoApp"],
-                ["ee.cone.c4gate.TestCoWorkApp"],
-                ["ee.cone.c4gate.TestCanvasApp"],
-                ["ee.cone.c4gate.TestPasswordApp"],
-            ]]
-        ),
-
-    };
-    for my $path(sort keys %$services_of_stacks){
-        $path=~m{/}||die $path;
-        &$put_yml("$path.yml",{services=>$$services_of_stacks{$path}||die});
+    &$build_staged("gate-consumer-example");
+    for my $main(
+        [qw[post_get_tcp TestConsumerApp]],
+        [qw[actor_serial TestSerialApp]],
+        [qw[actor_parallel TestParallelApp]],
+    ){
+        my($project,$main)=@$_;
+        &$build_compose([$developer,$project],$testing_override,{%base_stack,
+            app=>&$app_staged("gate-consumer-example","ee.cone.c4gate.$main")
+        })
+    }
+    for(
+        ["sse"=>["TestSSEApp"]], # http://localhost:8067/sse.html#
+        ["ui"=>[qw[TestTodoApp TestCoWorkApp TestCanvasApp TestPasswordApp]]],
+    ){
+        my($project,$mains)=@$_;
+        &$build_compose([$developer,$project],$testing_override,{%base_ui_stack,
+            map{($_=>&$app_staged("gate-sse-example","ee.cone.c4gate.$_"))} @$mains
+        });
     }
 };
+
+
 
 my $gen_docker_images = sub{
     for my $ctx_dir(sort grep{-e "$_/Dockerfile"} <$docker_build/*>){
@@ -330,7 +339,8 @@ push @tasks, ["inbox_test", sub{
 
 my $staged_up = sub{
     my($name)=@_;
-    sy("docker-compose -p $project -f $docker_build/$name.yml -f $docker_build/override.yml up -d --remove-orphans")
+    ["test_$name\_up", sub{ sy("docker run --rm --userns=host -v /var/run/docker.sock:/var/run/docker.sock $registry_prefix-compose-$developer-$name") }];
+    #sy("docker-compose -p $project -f $docker_build/$name.yml -f $docker_build/override.yml up -d --remove-orphans")
 };
 
 push @tasks, ["### tests ###"];
@@ -342,10 +352,7 @@ push @tasks, ["test_not_effective_join_bench", sub{
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
 }];
 
-
-push @tasks, ["test_post_get_tcp_service_run", sub{
-    &$staged_up("ee.cone.c4gate.TestConsumerApp")
-}];
+push @tasks, &$staged_up("post_get_tcp");
 push @tasks, ["test_post_get_check", sub{
     my $v = int(rand()*10);
     sy("$curl_test -X POST -d $v");
@@ -355,22 +362,14 @@ push @tasks, ["test_post_get_check", sub{
     sy("$curl_test -v");
     print " -- should be posted * 3\n";
 }];
-
-push @tasks, ["test_actor_serial_up", sub{
-    &$staged_up("ee.cone.c4gate.TestSerialApp")
-}];
-push @tasks, ["test_actor_parallel_up", sub{
-    &$staged_up("ee.cone.c4gate.TestParallelApp")
-}];
-push @tasks, ["test_actor_check", sub{
-    sy("$curl_test -X POST") for 0..11;
-}];
+push @tasks, &$staged_up("actor_serial");
+push @tasks, &$staged_up("actor_parallel");
+push @tasks, ["test_actor_check", sub{ sy("$curl_test -X POST") for 0..11 }];
 push @tasks, ["test_big_message_check", sub{
     &$sy_in_dir($temp,"dd if=/dev/zero of=test.bin bs=1M count=4 && $curl_test -v -XPOST -T test.bin")
 }];
-push @tasks, ["test_sse_up", sub{ &$staged_up("test_sse") }];
-push @tasks, ["test_ui_up", sub{ &$staged_up("test_ui") }];
-#push @tasks, ["test_c3_up", sub{ &$staged_up("c3") }];
+push @tasks, &$staged_up("sse");
+push @tasks, &$staged_up("ui");
 
 ################################################################################
 

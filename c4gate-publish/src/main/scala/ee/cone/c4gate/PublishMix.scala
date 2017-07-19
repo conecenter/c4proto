@@ -9,6 +9,7 @@ class PublishApp extends ServerApp
   with InitLocalsApp
   with PublishingApp
   with UMLClientsApp
+  with FileRawSnapshotApp
 {
   def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
     "html" → "text/html; charset=UTF-8",

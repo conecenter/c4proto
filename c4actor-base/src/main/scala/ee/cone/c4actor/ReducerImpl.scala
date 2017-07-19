@@ -137,17 +137,17 @@ object ProtocolDataDependencies {
 
 class RichRawObserver(
   reducer: ReducerImpl,
-  observers: List[Observer] = Nil,
-  worldOpt: Option[World] = None,
-  errors: List[Exception] = Nil,
-  time: Option[Long] = Option(0L)
+  observers: List[Observer],
+  worldOpt: Option[World],
+  errors: List[Exception],
+  time: Option[Long]
 ) extends RawObserver {
   private def copy(
     observers: List[Observer] = observers,
     worldOpt: Option[World] = worldOpt,
     errors: List[Exception] = errors,
     time: Option[Long] = time
-  ) = new RichRawObserver(reducer, observers, worldOpt, errors)
+  ) = new RichRawObserver(reducer, observers, worldOpt, errors, time)
   private def world = worldOpt.getOrElse(reducer.createWorld(Map.empty))
   def offset: Long = reducer.qMessages.worldOffset(world)
   def reduce(data: Array[Byte], offset: Long): RawObserver = try {

@@ -7,8 +7,8 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
 
-object RawSnapshotImpl extends RawSnapshot {
-  private def dir = Paths.get("db_snapshots")
+class FileRawSnapshotImpl(dirStr: String) extends RawSnapshot {
+  private def dir = Files.createDirectories(Paths.get(dirStr))
   private def hashFromName: String⇒Option[(String,String)] = {
     val R = """([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""".r;
     {
@@ -23,7 +23,6 @@ object RawSnapshotImpl extends RawSnapshot {
     val offsetHex = (("0" * 16)+java.lang.Long.toHexString(offset)).takeRight(16)
     val filename = s"$offsetHex-${hashFromData(data)}"
     if(hashFromName(filename).isEmpty) throw new Exception
-    if(!Files.exists(dir)) throw new Exception(s"$dir should be provided by volume manager")
     Files.write(dir.resolve(filename),data)
   }
   private def loadRecentStream: Stream[(Long,Option[Array[Byte]])] = for{

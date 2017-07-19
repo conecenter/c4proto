@@ -26,6 +26,7 @@ class TestCanvasApp extends ServerApp
   with CanvasApp
   with UMLClientsApp
   with ManagementApp
+  with FileRawSnapshotApp
 {
   override def protocols: List[Protocol] = TestCanvasProtocol :: super.protocols
   override def assembles: List[Assemble] =
