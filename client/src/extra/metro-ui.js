@@ -730,7 +730,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 					$("tbody",{key:"1"},[
 						$("tr",{key:"1"},[
 							$(VKTd,{onClickValue:this.props.onClickValue,style:specialAKeyCellAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-							...[":",";","/","*","-","+",",","."].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
+							...[":",";","/","*",".","+",",","-"].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
 							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,height:"100%",width:"auto",minWidth:"2em"},bStyle:{fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
 						]),
 					])
@@ -1035,13 +1035,15 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		onDelete:function(event){
 			//log(`Delete`)
+			event.stopPropagation()
+			if(this.props.noDel) return
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = ""
 				const cEvent = eventManager.create("input",{bubbles:true})
 				inp.dispatchEvent(cEvent)
 			})					
-			event.stopPropagation()
+			
 		},
 		onPaste:function(event){
 			//log(`Paste`)
