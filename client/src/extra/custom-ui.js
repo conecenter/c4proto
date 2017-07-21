@@ -366,7 +366,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				</svg>`;
 				imageSvgData = svgSrc(wifiSvg)				
 			}			 
-			return React.createElement(ConnectionState,{on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null);
+			return React.createElement(ConnectionState,{onClick:this.props.onClick,on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null);
 		},
 	});
 	const CustomMeasurerConnectionState = React.createClass({
