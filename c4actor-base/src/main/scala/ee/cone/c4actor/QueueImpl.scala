@@ -33,7 +33,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
     val debugStr = tx.toDebug.map(_.toString).mkString("\n---\n")
     val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8))
     val List(offset,_)= getRawQSender().send(List(rec,debugRec))
-    OffsetWorldKey.set(offset+1)(local)
+    OffsetWorldKey.set(offset)(local)
   }
   def toUpdate[M<:Product](message: LEvent[M]): Update = {
     val valueAdapter = byName(message.className)

@@ -48,7 +48,7 @@ class KafkaRawQSender(conf: KafkaConfig)(
   }
   def send(recs: List[QRecord]): List[Long] = {
     val futures: List[Future[RecordMetadata]] = recs.map(sendStart)
-    futures.map(_.get().offset())
+    futures.map(_.get().offset()+1)
   }
 }
 

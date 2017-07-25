@@ -6,7 +6,7 @@ import ee.cone.c4proto.Protocol
 class SnapshotMakerApp extends ExecutableApp
   with ProtocolsApp
   with EnvConfigApp
-  with KafkaProducerApp with KafkaConsumerApp
+  with KafkaConsumerApp
   with FileRawSnapshotApp
 {
   lazy val execution: Executable = new ExecutionImpl(toStart)
