@@ -122,7 +122,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const onKeyDown = (event) =>{
 		if(nodesObj.length == 0) return
-		let best = null	
+		let best = null			
 		switch(event.key){
 			case "ArrowUp":
 				best = findBestDistance(3);break;
@@ -149,10 +149,10 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				if(event.ctrlKey){
 					sendEvent(()=>eventManager.create("ccopy"))
 				}
-				break;					
+				break;				
 		}		
 		if(best) best.o.n.focus();				
-		if(isPrintableKeyCode(event.keyCode)) {
+		if(isPrintableKeyCode(event.keyCode)) {			
 			sendEvent(()=>eventManager.create("delete",{detail:event.key}))
 			const cRNode = callbacks.find(o=>o.el == currentFocusNode)
 			if(cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)

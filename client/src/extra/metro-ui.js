@@ -125,6 +125,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		componentDidMount:function(){
 			this.binding = errors.reg(this.callback)
+			log(this.props.data)
 		},
 		onClick:function(e){
 			log(`click`)
@@ -557,6 +558,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		onClick:function(ev){
 			if(this.props.onClick){
 				this.props.onClick(ev);
+				if(this.props.fkey) press(this.props.fkey)
 				return;
 			}
 			if(this.props.fkey) press(this.props.fkey)
@@ -583,6 +585,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				outline:(this.state.touch||this.state.mouseDown)?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
 				//outlineOffset:GlobalStyles.outlineOffset,
 				color:'inherit',
+				...((this.state.touch||this.state.mouseDown)?{backgroundColor:"rgb(25, 118, 210)"}:{}),
 				...this.props.bStyle
 			};			
 			return $("td",{style:this.props.style,
@@ -665,14 +668,14 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				$("tbody",{key:"1"},[					  				   					  
 				   $("tr",{key:"3"},[
 						...[7,8,9].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),						  
-						$(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle,height:"2rem"},key:"4",fkey:"backspace"},backSpaceEl)
+						$(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle,height:"2rem"},key:"4",fkey:"Backspace"},backSpaceEl)
 				   ]),					   
 				   $("tr",{key:"4"},[
 						...[4,5,6].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString()))						  				   
 				   ]),
 				   $("tr",{key:"5"},[
 					   ...[1,2,3].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
-					   $(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdStyle,height:"90%"},key:"13",fkey:"enter"},enterEl),
+					   $(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdStyle,height:"90%"},key:"13",fkey:"Enter"},enterEl),
 				   ]),
 				   $("tr",{key:"6"},[
 					   $(VKTd,{colSpan:'3',onClickValue:this.props.onClickValue,style:tdStyle,key:"1",fkey:"0"},'0'),
@@ -684,52 +687,52 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			return $("table",{style:tableStyle,key:"1"},
 				$("tbody",{key:"1"},[
 				   $("tr",{key:"0"},[
-					   $(VKTd,{colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
+					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
 					   $("td",{key:"2"},''),
-					   $(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
+					   $(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode,fkey:"Enter"},'ABC...'),
 				   ]),					   
-				   $("tr",{key:"1"},[
+				   !this.props.noFuncKeys?$("tr",{key:"1"},[
 						...["F1","F2","F3","F4","F5"].map(e=>$(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   					   
-				   ]),					   
-				   $("tr",{key:"2"},[
+				   ]):null,					   
+				   !this.props.noFuncKeys?$("tr",{key:"2"},[
 						...["F6","F7","F8","F9","F10"].map(e=>$(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   			   
-				   ]),
+				   ]):null,
 				   $("tr",{key:"2-extras"},[
-					   $(VKTd,{style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-					   ...["T",".","-"].map(e=>$(VKTd,{style:tdStyle,key:e,fkey:e},e))						   						   
+					   $(VKTd,{onClickValue:this.props.onClickValue,style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
+					   ...["T",".","-"].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e},e))						   						   
 				   ]),
 				   $("tr",{key:"3"},[
-						...[7,8,9].map(e=>$(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   $(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowup",fkey:"ArrowUp"},upEl),
+						...[7,8,9].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowup",fkey:"ArrowUp"},upEl),
 				   ]),					   
 				   $("tr",{key:"4"},[
-						...[4,5,6].map(e=>$(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   $(VKTd,{colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowdown",fkey:"ArrowDown"},downEl),
+						...[4,5,6].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowdown",fkey:"ArrowDown"},downEl),
 				   ]),
 				   $("tr",{key:"5"},[
-						...[1,2,3].map(e=>$(VKTd,{style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   $(VKTd,{colSpan:'2',rowSpan:'2',style:{...specialTdStyle,height:"100%"},key:"4",fkey:"Enter"},enterEl),
+						...[1,2,3].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
+					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',rowSpan:'2',style:{...specialTdStyle,height:"100%"},key:"4",fkey:"Enter"},enterEl),
 				   ]),
 				   $("tr",{key:"6"},[
-					   $(VKTd,{colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
+					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
 				   ]),
 			   ])
 			);
 			else
 			return $("div",{key:"1"},[ 
-				!this.props.simple?$("table",{style:{...aTableStyle,fontSize:tableStyle.fontSize},key:"1"},
+				!this.props.simple?$("table",{style:{...aTableStyle,fontSize:tableStyle.fontSize,...(this.props.noFuncKeys?{marginRight:""}:{})},key:"1"},
 					$("tbody",{key:"1"},[
-						$("tr",{key:"1"},[
+						$("tr",{key:"1"},!this.props.noFuncKeys?[
 							...["F1","F2","F3","F4","F5","F6","F7","F8","F9","F10"].map(e=>$(VKTd,{style:specialAKeyCellStyle,key:e,fkey:e},e)),																
 							$(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'),
-						])
+						]:$(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10",fkey:"Enter"},'123...'))
 					])
 				):null,
 				$("table",{style:aTableStyle,key:"2-extras"},
 					$("tbody",{key:"1"},[
 						$("tr",{key:"1"},[
 							$(VKTd,{onClickValue:this.props.onClickValue,style:specialAKeyCellAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-							...[":",";","/","*","-","+",",","."].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
+							...[":",";","/","*",".","+",",","-"].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
 							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,height:"100%",width:"auto",minWidth:"2em"},bStyle:{fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
 						]),
 					])
@@ -1034,13 +1037,15 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		onDelete:function(event){
 			//log(`Delete`)
+			event.stopPropagation()
+			if(this.props.noDel) return
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = ""
 				const cEvent = eventManager.create("input",{bubbles:true})
 				inp.dispatchEvent(cEvent)
 			})					
-			event.stopPropagation()
+			
 		},
 		onPaste:function(event){
 			//log(`Paste`)
@@ -1658,7 +1663,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		const imageSvg='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 285.269 285.269" style="enable-background:new 0 0 285.269 285.269;" xml:space="preserve"> <path style="fill:'+fillColor+';" d="M272.867,198.634h-38.246c-0.333,0-0.659,0.083-0.986,0.108c-1.298-5.808-6.486-10.108-12.679-10.108 h-68.369c-7.168,0-13.318,5.589-13.318,12.757v19.243H61.553C44.154,220.634,30,206.66,30,189.262 c0-17.398,14.154-31.464,31.545-31.464l130.218,0.112c33.941,0,61.554-27.697,61.554-61.637s-27.613-61.638-61.554-61.638h-44.494 V14.67c0-7.168-5.483-13.035-12.651-13.035h-68.37c-6.193,0-11.381,4.3-12.679,10.108c-0.326-0.025-0.653-0.108-0.985-0.108H14.336 c-7.168,0-13.067,5.982-13.067,13.15v48.978c0,7.168,5.899,12.872,13.067,12.872h38.247c0.333,0,0.659-0.083,0.985-0.107 c1.298,5.808,6.486,10.107,12.679,10.107h68.37c7.168,0,12.651-5.589,12.651-12.757V64.634h44.494 c17.398,0,31.554,14.262,31.554,31.661c0,17.398-14.155,31.606-31.546,31.606l-130.218-0.04C27.612,127.862,0,155.308,0,189.248 s27.612,61.386,61.553,61.386h77.716v19.965c0,7.168,6.15,13.035,13.318,13.035h68.369c6.193,0,11.381-4.3,12.679-10.108 c0.327,0.025,0.653,0.108,0.986,0.108h38.246c7.168,0,12.401-5.982,12.401-13.15v-48.977 C285.269,204.338,280.035,198.634,272.867,198.634z M43.269,71.634h-24v-15h24V71.634z M43.269,41.634h-24v-15h24V41.634z M267.269,258.634h-24v-15h24V258.634z M267.269,228.634h-24v-15h24V228.634z"/></svg>';
 		const imageSvgData = svgSrc(imageSvg);		
 		const src = props.imageSvgData || imageSvgData
-		return $("div",{style:contStyle},
+		return $("div",{style:contStyle,onClick:props.onClick},
 				$("img",{key:"1",style:newIconStyle,src},null)				
 		);
 	};
