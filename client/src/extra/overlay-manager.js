@@ -72,6 +72,7 @@ export default function OverlayManager({log,documentManager,windowManager}){
 		}		
 	}
 	const delayToggle = (msg) => {
+		if(delayTimer) return
 		delayTimer = setTimeout(()=>{
 			if(!delayTimer) return
 			toggle(true,msg)
