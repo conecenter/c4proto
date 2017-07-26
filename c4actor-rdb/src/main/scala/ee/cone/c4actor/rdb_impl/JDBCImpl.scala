@@ -11,7 +11,7 @@ class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
 ) extends InitLocal with Executable {
-  def initLocal: World ⇒ World = WithJDBCKey.set(db.get.doWith)
+  def initLocal: World ⇒ World = WithJDBCKey.set(concurrent.blocking(db.get).doWith)
   def run(): Unit = concurrent.blocking{ db.complete(dbFactory.create(
     createConnection ⇒ new RConnectionPool {
       def doWith[T](f: RConnection⇒T): T = {

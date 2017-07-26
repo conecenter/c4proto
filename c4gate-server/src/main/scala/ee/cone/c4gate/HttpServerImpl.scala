@@ -148,7 +148,9 @@ class WorldProviderImpl(
   reducer: Reducer,
   worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
 ) extends WorldProvider with Observer {
-  def createTx(): World = reducer.createTx(worldFuture.get.get)(Map())
+  def createTx(): World = concurrent.blocking{
+    reducer.createTx(worldFuture.get.get)(Map())
+  }
   def activate(world: World): Seq[Observer] = {
     if(worldFuture.isDone) worldFuture.get.set(world)
     else worldFuture.complete(new AtomicReference(world))

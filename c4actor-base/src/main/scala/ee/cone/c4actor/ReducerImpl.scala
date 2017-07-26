@@ -2,15 +2,14 @@ package ee.cone.c4actor
 
 import java.time.Instant
 
-import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
-import ee.cone.c4assemble.Types.{Index, Values, World}
+import ee.cone.c4assemble.Types.{Index, World}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Queue, Seq}
-import scala.concurrent.Promise
 import Function.chain
 
 class WorldTxImpl(
@@ -114,11 +113,6 @@ class ParallelObserver(
     val nLocalStates = inProgressMap ++ toAdd
     List(new ParallelObserver(nLocalStates,transforms,execution))
   }
-}
-
-object ThrottledHandle {
-  def apply(condition: Promise[Unit]): (World⇒World)⇒(World⇒World) =
-    handle ⇒ local ⇒ if(condition.isCompleted) local else handle(local)
 }
 
 object ProtocolDataDependencies {
