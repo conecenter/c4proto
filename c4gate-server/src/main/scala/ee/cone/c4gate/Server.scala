@@ -4,7 +4,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 
 class HttpGatewayApp extends ServerApp
-  with EnvConfigApp
+  with EnvConfigApp with VMExecutionApp
   with InternetForwarderApp
   with HttpServerApp
   with SSEServerApp

@@ -15,7 +15,7 @@ import ee.cone.c4actor.LEvent.{add, update}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 
 class TestPasswordApp extends ServerApp
-  with EnvConfigApp
+  with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UIApp

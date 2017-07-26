@@ -4,7 +4,8 @@ package ee.cone.c4gate
 import java.net.InetSocketAddress
 import java.security.SecureRandom
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.{CompletableFuture, Executors, TimeUnit}
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
@@ -128,11 +129,16 @@ class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
     Trace{ FinallyClose[HttpExchange,Unit](_.close())(httpExchange) { ex ⇒ handlers.find(_.handle(ex)) } }
 }
 
-class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
-  def run(ctx: ExecutionContext): Unit = {
+class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends Executable {
+  def run(): Unit = concurrent.blocking{
+    val pool = Executors.newCachedThreadPool() //newWorkStealingPool
+    execution.onShutdown("Pool",()⇒{
+      val tasks = pool.shutdownNow()
+      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
+    })
     val server: HttpServer = HttpServer.create(new InetSocketAddress(port),0)
-    ctx.onShutdown("HttpServer",()⇒server.stop(Int.MaxValue))
-    server.setExecutor(ctx.executors)
+    execution.onShutdown("HttpServer",()⇒server.stop(Int.MaxValue))
+    server.setExecutor(pool)
     server.createContext("/", handler)
     server.start()
   }
@@ -140,12 +146,13 @@ class RHttpServer(port: Int, handler: HttpHandler) extends Executable {
 
 class WorldProviderImpl(
   reducer: Reducer,
-  worldFuture: CompletableFuture[()⇒World] = new CompletableFuture()
+  worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
 ) extends WorldProvider with Observer {
-  def createTx(): World = worldFuture.get.apply()
-  def activate(ctx: ObserverContext): Seq[Observer] = {
-    worldFuture.complete(()⇒reducer.createTx(ctx.getWorld())(Map()))
-    Nil
+  def createTx(): World = reducer.createTx(worldFuture.get.get)(Map())
+  def activate(world: World): Seq[Observer] = {
+    if(worldFuture.isDone) worldFuture.get.set(world)
+    else worldFuture.complete(new AtomicReference(world))
+    List(this)
   }
 }
 
@@ -157,12 +164,13 @@ trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
 }
 
 trait HttpServerApp extends ToStartApp {
+  def execution: Execution
   def config: Config
   def worldProvider: WorldProvider
   def httpHandlers: List[RHttpHandler]
   private lazy val httpPort = config.get("C4HTTP_PORT").toInt
   lazy val httpServer: Executable =
-    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers))
+    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers), execution)
 
   override def toStart: List[Executable] = httpServer :: super.toStart
 }

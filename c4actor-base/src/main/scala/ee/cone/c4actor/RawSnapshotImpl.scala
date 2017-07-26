@@ -7,7 +7,7 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
 
-class FileRawSnapshotImpl(dirStr: String) extends RawSnapshot {
+class FileRawSnapshotImpl(dirStr: String, initialRawWorld: RawWorld) extends RawSnapshot {
   private def dir = Files.createDirectories(Paths.get(dirStr))
   private def hashFromName: String⇒Option[(String,String)] = {
     val R = """([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""".r;
@@ -33,12 +33,12 @@ class FileRawSnapshotImpl(dirStr: String) extends RawSnapshot {
     val offset = java.lang.Long.parseLong(offsetStr,16)
     (offset, if(hashFromData(data) == uuid) Option(data) else None)
   }
-  def loadRecent: RawObserver ⇒ RawObserver = observer ⇒ // cg mg
+  def loadRecent(): RawWorld =
     loadRecentStream.flatMap { case (offset, dataOpt) ⇒
       println(s"Loading snapshot up to $offset")
-      dataOpt.map(observer.reduce(_,offset)).filterNot(_.hasErrors)
+      dataOpt.map(initialRawWorld.reduce(_,offset)).filterNot(_.hasErrors)
     }.headOption.map{ res ⇒
       println(s"Snapshot loaded")
       res
-    }.getOrElse(observer)
+    }.getOrElse(initialRawWorld)
 }

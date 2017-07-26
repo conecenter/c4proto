@@ -13,7 +13,7 @@ import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
 
 class TestTodoApp extends ServerApp
-  with EnvConfigApp
+  with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UIApp

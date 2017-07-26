@@ -14,7 +14,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Values, World}
 
 class TestConsumerApp extends ServerApp
-  with EnvConfigApp
+  with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with InitLocalsApp
   with UMLClientsApp

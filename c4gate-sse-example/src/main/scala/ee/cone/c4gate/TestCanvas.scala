@@ -17,7 +17,7 @@ import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom_impl.{HeightTagStyle, JsonBuilderImpl, JsonToStringImpl}
 
 class TestCanvasApp extends ServerApp
-  with EnvConfigApp
+  with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UIApp

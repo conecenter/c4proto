@@ -1,20 +1,21 @@
 package ee.cone.c4actor
 
-import java.util.concurrent.{ExecutorService}
+trait Execution extends Runnable {
+  def onShutdown(hint: String, f:()⇒Unit): Unit
+  def complete(): Unit
+  def future[T](value: T): FatalFuture[T]
+}
+
+trait FatalFuture[T] {
+  def map(body: T ⇒ T): FatalFuture[T]
+  def isCompleted: Boolean
+}
 
 trait ExecutableApp {
-  def execution: Executable
+  def execution: Runnable
 }
 
-trait Executable {
-  def run(ctx: ExecutionContext): Unit
-}
-
-class ExecutionContext(
-    val executors: ExecutorService,
-    val onShutdown: (String,()⇒Unit)⇒Unit,
-    val complete: Option[Throwable] ⇒ Unit
-)
+trait Executable extends Runnable
 
 trait Config {
   def get(key: String): String

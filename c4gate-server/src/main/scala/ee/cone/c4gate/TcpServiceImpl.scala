@@ -52,7 +52,7 @@ class TcpServerImpl(
 ) extends InitLocal with Executable {
   def initLocal: World ⇒ World = GetSenderKey.set(channels.get)
 
-  def run(ctx: ExecutionContext): Unit = {
+  def run(): Unit = concurrent.blocking{
     tcpHandler.beforeServerStart()
     val address = new InetSocketAddress(port)
     val listener = AsynchronousServerSocketChannel.open().bind(address)

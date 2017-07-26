@@ -91,10 +91,8 @@ trait WorldTx {
 }
 
 trait Observer {
-  def activate(ctx: ObserverContext): Seq[Observer]
+  def activate(world: World): Seq[Observer]
 }
-
-class ObserverContext(val getWorld: ()⇒World)
 
 trait TxTransform extends Product {
   def transform(local: World): World
@@ -117,15 +115,21 @@ class QAdapterRegistry(
   val updatesAdapter: ProtoAdapter[QProtocol.Updates]
 )
 
-trait RawObserver {
+trait RawWorld {
   def offset: Long
-  def reduce(data: Array[Byte], offset: Long): RawObserver
+  def reduce(data: Array[Byte], offset: Long): RawWorld
   def hasErrors: Boolean
-  def activate(fresh: ()⇒RawObserver, endOffset: Long): RawObserver
-  def isActive: Boolean
+}
+
+trait RawObserver {
+  def activate(rawWorld: RawWorld): RawObserver
+}
+
+trait ProgressObserverFactory {
+  def create(endOffset: Long): RawObserver
 }
 
 trait RawSnapshot {
   def save(data: Array[Byte], offset: Long): Unit
-  def loadRecent: RawObserver ⇒ RawObserver
+  def loadRecent(): RawWorld
 }

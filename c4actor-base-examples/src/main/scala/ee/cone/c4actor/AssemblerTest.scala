@@ -49,7 +49,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-class AssemblerTestApp extends ServerApp with ToStartApp with InitLocalsApp with ParallelObserversApp with UMLClientsApp {
+class AssemblerTestApp extends ServerApp with VMExecutionApp with ToStartApp with InitLocalsApp with ParallelObserversApp with UMLClientsApp {
   override def indexValueMergerFactory: IndexValueMergerFactory =
     //new CachingIndexValueMergerFactory(16)
     new TreeIndexValueMergerFactory(16)
@@ -97,23 +97,3 @@ object AssemblerTest extends App {
     case (k,v) ⇒ assert(world(k)==v)
   }
 }
-
-///////////////////////// generic assembles -- compiling is tested only ////////
-
-trait TestGenericFactory[InT,OutT<:Product,KeyT] extends Product {
-  def create(in: Values[InT]): Values[(KeyT,OutT)]
-}
-
-@assemble class TestGenericAssemble[InT,OutT<:Product,KeyT](
-  classInT: Class[InT],
-  classOutT: Class[OutT],
-  classKeyT: Class[KeyT],
-  f: TestGenericFactory[InT,OutT,KeyT]
-) extends Assemble {
-  def joinChildNodeByParent(
-    key: SrcId,
-    inT: Values[InT]
-  ): Values[(KeyT,OutT)] =
-    f.create(inT)
-}
-

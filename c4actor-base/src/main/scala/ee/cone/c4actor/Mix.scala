@@ -37,18 +37,19 @@ trait UMLClientsApp {
 }
 
 trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with InitLocalsApp {
-  def toStart: List[Executable]
+  def execution: Execution
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
   def umlClients: List[String⇒Unit]
   //
-  lazy val execution: Executable = new ExecutionImpl(toStart)
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,qReducer,initLocals)
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val rawObserver: RawObserver = new RichRawObserver(qReducerImpl,initialObservers,None,Nil,Option(0L))
+  lazy val initialRawWorld: RawWorld = new RichRawWorld(qReducerImpl,None,Nil)
+  lazy val progressObserverFactory: ProgressObserverFactory =
+    new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   def qReducer: Reducer = qReducerImpl
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory)
@@ -65,8 +66,25 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
   override def initLocals: List[InitLocal] = localQAdapterRegistryInit :: super.initLocals
 }
 
+trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
+  def execution: Execution
+  def rawSnapshot: RawSnapshot
+  //
+  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
+  lazy val initialRawWorld: RawWorld = new SnapshotMakingRawWorld(qAdapterRegistry)
+  lazy val progressObserverFactory: ProgressObserverFactory =
+    new ProgressObserverFactoryImpl(new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution)))
+  override def protocols: List[Protocol] = QProtocol :: super.protocols
+}
+
+trait VMExecutionApp {
+  def toStart: List[Executable]
+  lazy val execution: Execution = new VMExecution(()⇒toStart)
+}
+
 trait FileRawSnapshotApp {
-  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots")
+  def initialRawWorld: RawWorld
+  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots", initialRawWorld)
 }
 
 trait SerialObserversApp {
@@ -75,8 +93,9 @@ trait SerialObserversApp {
 }
 
 trait ParallelObserversApp {
+  def execution: Execution
   def txTransforms: TxTransforms
-  lazy val txObserver = Option(new ParallelObserver(Map.empty)(txTransforms))
+  lazy val txObserver = Option(new ParallelObserver(Map.empty,txTransforms,execution))
 }
 
 trait MortalFactoryApp extends AssemblesApp {

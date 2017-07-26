@@ -1,30 +1,17 @@
 
 package ee.cone.c4actor
 
-import java.util.concurrent._
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 
-object Async {
-  def run(executor: Executor)(body: ()⇒Unit)(fail: Throwable⇒Unit): Unit =
-    CompletableFuture.runAsync(new Runnable {
-      def run(): Unit = body()
-    },executor).exceptionally(new java.util.function.Function[Throwable, Void] {
-      def apply(t: Throwable): Void = fail(t).asInstanceOf[Void]
-    })
-}
-
-class ExecutionImpl(
-  toStart: List[Executable]
-) extends Executable {
-  def run(ctx: ExecutionContext): Unit = {
+class VMExecution(getToStart: ()⇒List[Executable]) extends Execution {
+  def run(): Unit = {
+    val toStart = getToStart()
     println(s"tracking ${toStart.size} services")
-    toStart.foreach(f ⇒
-      Async.run(ctx.executors)(()⇒f.run(ctx))(t⇒ctx.complete(Option(t)))
-    )
+    toStart.foreach(f ⇒ future().map(_⇒f.run()))
   }
-}
-
-object ExecutionContextFactory {
-  private def onShutdown(hint: String, f: ()⇒Unit): Unit =
+  def onShutdown(hint: String, f: () ⇒ Unit): Unit =
     Runtime.getRuntime.addShutdownHook(new Thread(){
       override def run(): Unit = {
         //println(s"hook-in $hint")
@@ -32,37 +19,38 @@ object ExecutionContextFactory {
         //println(s"hook-out $hint")
       }
     })
-  private def complete(error: Option[Throwable]): Unit =
-    Async.run(Executors.newFixedThreadPool(1)){ () ⇒ // exit from pooled thread will block itself
-      error.foreach(_.printStackTrace())
-      println("exiting")
-      System.exit(error.size)
-    }{ error ⇒ error.printStackTrace() }
-
-
-  def create(): ExecutionContext = {
-    val pool = Executors.newCachedThreadPool() //newWorkStealingPool
-    onShutdown("Pool",()⇒{
-      val tasks = pool.shutdownNow()
-      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
-    })
-    new ExecutionContext(pool, onShutdown, complete)
+  def complete(): Unit = { // exit from pooled thread will block itself
+    println("exiting")
+    System.exit(0)
   }
+  def future[T](value: T): FatalFuture[T] =
+    new VMFatalFuture(Future.successful(value))
 }
 
+class VMFatalFuture[T](val value: Future[T]) extends FatalFuture[T] {
+  def map(body: T ⇒ T): FatalFuture[T] =
+    new VMFatalFuture(value.map(from ⇒ try body(from) catch {
+      case e: Throwable ⇒
+        e.printStackTrace()
+        System.exit(1)
+        throw e
+    }))
+  def isCompleted: Boolean = value.isCompleted
+}
 
-
-object ServerMain {
+abstract class BaseServerMain(appFor: Array[String]⇒ExecutableApp){
   def main(args: Array[String]): Unit = try {
     Trace {
-      val ctx = ExecutionContextFactory.create()
-      val app = Option(Class.forName(args(0))).get.newInstance().asInstanceOf[ExecutableApp]
-      app.execution.run(ctx)
+      appFor(args).execution.run()
       //println("main is about to sleep")
       Thread.sleep(Long.MaxValue) //ctx.serving.get()
     }
   } finally System.exit(0)
 }
+
+object ServerMain extends BaseServerMain(args ⇒
+  Option(Class.forName(args(0))).get.newInstance().asInstanceOf[ExecutableApp]
+)
 
 class EnvConfigImpl extends Config {
   def get(key: String): String =

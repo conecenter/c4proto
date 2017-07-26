@@ -4,7 +4,7 @@ import ee.cone.c4actor._
 import ee.cone.c4proto.Protocol
 
 class PublishApp extends ServerApp
-  with EnvConfigApp
+  with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with InitLocalsApp
   with PublishingApp

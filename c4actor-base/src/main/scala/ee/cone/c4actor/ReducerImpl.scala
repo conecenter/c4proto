@@ -10,8 +10,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Queue, Seq}
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Promise
 import Function.chain
 
 class WorldTxImpl(
@@ -55,23 +54,15 @@ class ReducerImpl(
     TxKey.set(new WorldTxImpl(this, world, Queue.empty, Queue.empty))
 }
 
-object WorldStats {
-  def make(world: World): String = world.collect{ case (worldKey, index:Map[_,_]) ⇒
-    val sz = index.values.collect { case s: Seq[_] ⇒ s.size }.sum
-    s"$worldKey : ${index.size} : $sz"
-  }.mkString("\n")
-}
-
 class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[InitLocal]) {
   private def createLocal() =
     ((Map():World) /: initLocals)((local,initLocal)⇒initLocal.initLocal(local))
   private def index = By.srcId(classOf[TxTransform]).of
-  def get(getWorld: () ⇒ World): Map[SrcId,World ⇒ World] =
-    index(getWorld()).transform{ case(key,_) ⇒ handle(getWorld,key) }
-  private def handle(getWorld: () ⇒ World, key: SrcId): World ⇒ World = ((local:World) ⇒
+  def get(world: World): Map[SrcId,World ⇒ World] =
+    index(world).transform{ case(key,_) ⇒ handle(world,key) }
+  private def handle(world: World, key: SrcId): World ⇒ World = ((local:World) ⇒
     if(local.isEmpty) createLocal() else local
   ).andThen{ local ⇒
-    val world = getWorld()
     if(
       qMessages.worldOffset(world) < OffsetWorldKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
@@ -101,31 +92,33 @@ class TxTransforms(qMessages: QMessages, reducer: Reducer, initLocals: List[Init
 class SerialObserver(localStates: Map[SrcId,Map[WorldKey[_],Object]])(
   transforms: TxTransforms
 ) extends Observer {
-  def activate(ctx: ObserverContext): Seq[Observer] = {
-    val nLocalStates = transforms.get(ctx.getWorld).transform{ case(key,handle) ⇒
+  def activate(world: World): Seq[Observer] = {
+    val nLocalStates = transforms.get(world).transform{ case(key,handle) ⇒
       handle(localStates.getOrElse(key,Map.empty))
     }
     List(new SerialObserver(nLocalStates)(transforms))
   }
 }
 
-class ParallelObserver(localStates: Map[SrcId,List[Future[World]]])(
-  transforms: TxTransforms
+class ParallelObserver(
+  localStates: Map[SrcId,FatalFuture[World]],
+  transforms: TxTransforms,
+  execution: Execution
 ) extends Observer {
-  private def empty: List[Future[World]] = List(Future.successful(Map.empty))
-  def activate(ctx: ObserverContext): Seq[Observer] = {
-    val inProgressMap = localStates
-      .transform{ case(k,futures) ⇒ futures.filter(!_.isCompleted) }
-      .filter{ case(k,v) ⇒ v.nonEmpty }
-    val inProgress: SrcId ⇒ List[Future[World]] = inProgressMap.getOrElse(_,Nil)
-    val toAdd: Map[SrcId, List[Future[World]]] = transforms.get(ctx.getWorld)
-      .filterKeys(inProgress(_).size <= 1)
-      .transform{ case(key,handle) ⇒
-        localStates.getOrElse(key,empty).head.map(handle) :: inProgress(key)
-      }
+  private def empty: FatalFuture[World] = execution.future(Map.empty)
+  def activate(world: World): Seq[Observer] = {
+    val inProgressMap = localStates.filterNot{ case(k,v) ⇒ v.isCompleted }
+    val toAdd = transforms.get(world).transform{ case(key,handle) ⇒
+      localStates.getOrElse(key,empty).map(handle)
+    }
     val nLocalStates = inProgressMap ++ toAdd
-    List(new ParallelObserver(nLocalStates)(transforms))
+    List(new ParallelObserver(nLocalStates,transforms,execution))
   }
+}
+
+object ThrottledHandle {
+  def apply(condition: Promise[Unit]): (World⇒World)⇒(World⇒World) =
+    handle ⇒ local ⇒ if(condition.isCompleted) local else handle(local)
 }
 
 object ProtocolDataDependencies {
@@ -134,53 +127,6 @@ object ProtocolDataDependencies {
       new OriginalWorldPart(By.srcId(adapter.className))
     }
 }
-
-class RichRawObserver(
-  reducer: ReducerImpl,
-  observers: List[Observer],
-  worldOpt: Option[World],
-  errors: List[Exception],
-  time: Option[Long]
-) extends RawObserver {
-  private def copy(
-    observers: List[Observer] = observers,
-    worldOpt: Option[World] = worldOpt,
-    errors: List[Exception] = errors,
-    time: Option[Long] = time
-  ) = new RichRawObserver(reducer, observers, worldOpt, errors, time)
-  private def world = worldOpt.getOrElse(reducer.createWorld(Map.empty))
-  def offset: Long = reducer.qMessages.worldOffset(world)
-  def reduce(data: Array[Byte], offset: Long): RawObserver = try {
-    val updates = reducer.qMessages.toUpdates(data) ::: reducer.qMessages.offsetUpdate(offset)
-    copy(worldOpt = Option(reducer.reduceRecover(world, updates)))
-  } catch {
-    case e: Exception ⇒
-      e.printStackTrace() // ??? exception to record
-      copy(errors = e :: errors)
-  }
-  def activate(fresh: ()⇒RawObserver, endOffset: Long): RawObserver = {
-    time.map{ until ⇒
-      if (offset < endOffset) {
-        val now = System.currentTimeMillis
-        if(now < until) this else {
-          println(s"loaded $offset/$endOffset")
-          copy(time = Option(now+1000))
-        }
-      } else {
-        println(WorldStats.make(world))
-        println("Stats OK")
-        copy(time = None)
-      }
-    }.getOrElse{
-      val ctx = new ObserverContext(() ⇒ fresh() match { case o: RichRawObserver ⇒ o.world })
-      copy(observers = observers.flatMap(_.activate(ctx)))
-    }
-  }
-  def hasErrors: Boolean = errors.nonEmpty
-  def isActive: Boolean = observers.nonEmpty
-}
-
-
 
 /*
 * in trans? in was? !isDone?

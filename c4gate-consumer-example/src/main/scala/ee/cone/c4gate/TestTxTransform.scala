@@ -12,7 +12,7 @@ class TestSerialApp extends TestTxTransformApp with SerialObserversApp
 class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
 
 abstract class TestTxTransformApp extends ServerApp
-  with EnvConfigApp
+  with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with InitLocalsApp
   with UMLClientsApp
