@@ -262,7 +262,7 @@ my $gen_docker_conf = sub{
         &$mkdirs($ctx_dir,"htdocs");
     });
     &$build_staged("gate-consumer-example");
-    for my $main(
+    for(
         [qw[post_get_tcp TestConsumerApp]],
         [qw[actor_serial TestSerialApp]],
         [qw[actor_parallel TestParallelApp]],
