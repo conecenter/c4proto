@@ -2394,6 +2394,55 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			return $('div',{ref:ref=>this.el=ref,className:"focusAnnouncer"},this.props.children)
 		}
 	})
+	const ConfirmationOverlayElement = React.createClass({
+		getInitialState:function(){
+			return {dims:null}
+		},
+		getRootDims:function(){
+			if(!this.root){
+				this.root = getReactRoot(this.el)
+				this.root = this.root.parentNode?this.root.parentNode:this.root
+			}
+			const dims = this.root.getBoundingClientRect()
+			return dims
+		},
+		recalc:function(){
+			const rdims = this.getRootDims()
+			if(!this.state.dims) return this.setState({dims:rdims})			
+			const sdims = this.state.dims
+			if(sdims.top != rdims.top || sdims.left!=rdims.left || sdims.bottom!=rdims.bottom||sdims.right!=rdims.right)
+				this.setState({dims:rdims})
+		},
+		componentDidMount:function(){
+			if(this.props.show) checkActivateCalls.add(this.recalc)			
+		},
+		componentDidUpdate:function(prevProps){
+			if(this.props.show && !prevProps.show) checkActivateCalls.add(this.recalc)				
+			if(!this.props.show && prevProps.show) checkActivateCalls.remove(this.recalc)		
+		},
+		componentWillUnmount:function(){
+			if(this.props.show) checkActivateCalls.remove(this.recalc)
+		},
+		render:function(){
+			const getSide = (dims,side)=>{
+				if(!dims) return "0px"
+				return dims[side] + "px"
+			}
+			const style={
+				position:"fixed",
+				display:(!this.state.dims||!this.props.show)?"none":"",
+				top:getSide(this.state.dims,"top"),
+				left:getSide(this.state.dims,"left"),
+				width:getSide(this.state.dims,"width"),
+				height:getSide(this.state.dims,"height"),
+				zIndex:"6666",
+				color:"wheat",
+				textAlign:"center",
+				backgroundColor:"rgba(0,0,0,0.4)"
+			};
+			return $('div',{style,ref:ref=>this.el=ref,className:"confirmOverlay"},this.props.children)			
+		}
+	})
 	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
@@ -2425,7 +2474,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
             ConnectionState,
 			SignIn,ChangePassword,
 			ErrorElement,
-			FocusAnnouncerElement
+			FocusAnnouncerElement,
+			ConfirmationOverlayElement
 		},
 		onClickValue,		
 		onReadySendBlob,
