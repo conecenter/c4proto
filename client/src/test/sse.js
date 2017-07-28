@@ -20,6 +20,6 @@ const feedback = Feedback(localStorage,sessionStorage,document.location,fetch)
 window.onhashchange = () => feedback.pong()
 const testShow = TestShow()
 const receiversList = [feedback.receivers, testShow.receivers]
-const createEventSource = () => new EventSource("http://localhost:8068/sse")
+const createEventSource = () => new EventSource(location.protocol+"//"+location.host+"/sse")
 const connection = SSEConnection(createEventSource, receiversList, 5000)
 activate(requestAnimationFrame, [connection.checkActivate,testShow.checkActivate])

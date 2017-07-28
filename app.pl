@@ -7,17 +7,14 @@ my $sse_port = 8068;
 my $zoo_port = 2181;
 my $zoo_host = "zookeeper";
 my $build_dir = "client/build/test";
-my $inbox_prefix = '';
 my $kafka_version = "0.10.2.0";
 my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "broker:9092";
 my $temp = "target";
 my $docker_build = "$temp/docker_build";
-my $bin = "kafka/bin";
 my $user = "c4";
 my $uid = 1979;
-my $registry_prefix = "localhost:5000/c4";
 my $c_script = "inbox_configure.pl";
 my $developer = $ENV{USER} || die;
 
@@ -46,9 +43,12 @@ $yml{HASH} = sub{ my($h)=@_; &$indent(map{"$_:".&$yml($$h{$_})} sort keys %$h) }
 $yml{ARRAY} = sub{ my($l)=@_; &$indent(map{"-".&$yml($_)} @$l) };
 my $put_yml = sub{
     my($path,$data)=@_;
-    &$put_text($path,"#### this file is generated ####\n".&$yml({
-        version => "3", %$data
-    }))
+    &$put_text($path,"#### this file is generated ####\n".&$yml($data))
+};
+
+my $put_compose = sub{
+    my($project,$services)=@_;
+    &$put_yml("$docker_build/docker-compose.test_$project.yml",{ services => $services });
 };
 
 my $mkdirs = sub{
@@ -84,42 +84,6 @@ my $rename = sub{
     rename "$dir/$from"=>"$dir/$to" or die "$dir,$from,$to,$!";
 };
 
-my $volumes = sub{(volumes => [map{"vol-$user-$_:/$user/$_"}@_])};
-
-my $app = sub{ my %opt = @_; +{restart=>"unless-stopped", %opt} };
-
-my $extract_env = sub{
-    my %opt = @_;
-    my %env = map{/^C4/?($_=>$opt{$_}):()} keys %opt;
-    (
-        (%env ? (environment => \%env):()),
-        (map{/^C4/?():($_=>$opt{$_})} keys %opt)
-    )
-};
-
-my $app_user = sub{
-    my %opt = @_;
-    &$app(&$extract_env(user=>$user, working_dir=>"/$user", %opt));
-};
-
-my $client_options = sub{(
-    depends_on => ["broker"],
-    C4BOOTSTRAP_SERVERS => $bootstrap_server,
-    C4INBOX_TOPIC_PREFIX => $inbox_prefix,
-    C4STATE_TOPIC_PREFIX => $_[0],
-    &$volumes("db4"),
-)};
-
-my $app_staged = sub{
-    my($image,$cl,%opt)=@_;
-    &$app_user(
-        image => "$registry_prefix-$image",
-        command => ["app/bin/run",$cl],
-        &$client_options($cl),
-        %opt,
-    )
-};
-
 my $build = sub{
     my($name,$lines) = @_;
     my $ctx_dir = &$need_dir("$docker_build/$name");
@@ -132,39 +96,8 @@ my $build_staged = sub{
     &$build($name=>sub{
         my($ctx_dir)=@_;
         &$gcp("c4$name/target/universal/stage"=>$ctx_dir,"app");
-        &$rename("$ctx_dir/app/bin","c4$name"=>"run");
         &$mkdirs($ctx_dir,"db4");
-        $f && &$f($ctx_dir);
-        (&$from(""))
-    });
-};
-
-my $build_compose = sub{
-    my($project,$override,$services)=@_;
-    &$build(join('-',"compose",@$project),sub{
-        my($ctx_dir)=@_;
-        &$override("$ctx_dir/docker-compose.override.yml");
-        &$put_yml("$ctx_dir/docker-compose.yml",{ services => $services });
-        (
-            "FROM docker/compose:1.14.0",
-            "COPY . /",
-            qq{CMD ["-p","$$project[0]","up","-d","--remove-orphans"]},
-        )
-    })
-};
-
-my $testing_override = sub{
-    my($path)=@_;
-    &$put_yml($path,{
-        services => {
-            gate => {
-                environment=>{
-                    C4STATE_REFRESH_SECONDS => 100
-                },
-                ports => ["$http_port:$http_port","$sse_port:$sse_port"]
-            },
-        },
-        volumes => { map{("vol-c4-$_"=>{})} qw[db4] },
+        (&$from(""),qq{CMD ["app/bin/c4$name"]}, $f ? &$f($ctx_dir) : ())
     });
 };
 
@@ -195,10 +128,21 @@ my $gen_docker_conf = sub{
         &$mkdirs($ctx_dir,"db4");
         (&$from(""))
     });
-    &$build_staged("gate-server");
-    &$build_staged("gate-publish",sub{
+    &$build("composer"=>sub{
         my($ctx_dir)=@_;
-        &$gcp($build_dir=>$ctx_dir,"htdocs");
+        my $script = "compose.pl";
+        &$gcp($script=>$ctx_dir,$script);
+        (
+            "FROM docker/compose:1.14.0",
+            &$run("apk add --no-cache perl perl-yaml-xs"), #perl-yaml-syck
+            "COPY . /",
+            #"ENV C4REGISTRY_PREFIX $registry_prefix"
+            qq{ENTRYPOINT ["perl","$script"]},
+        )
+    });
+    &$build_staged("gate-server"=>sub{
+        my($ctx_dir)=@_;
+        ("ENV C4HTTP_PORT $http_port","ENV C4SSE_PORT $sse_port")
     });
     #
     &$build("sshd"=>sub{
@@ -206,60 +150,36 @@ my $gen_docker_conf = sub{
         &$mkdirs($ctx_dir,"db4");
         (&$from("openssh-server"), &$run("mkdir /var/run/sshd"))
     });
-    #
-    my %base_stack = (
-        zookeeper => &$app_user(
-            image => "$registry_prefix-zoo",
-            command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
-            &$volumes("db4"),
-        ),
-        broker => &$app_user(
-            image => "$registry_prefix-zoo",
-            command => ["$bin/kafka-server-start.sh","server.properties"],
-            depends_on => ["zookeeper"],
-            &$volumes("db4"),
-        ),
-        inbox_configure => &$app_user(
-            image => "$registry_prefix-zoo",
-            command => ["perl",$c_script],
-            depends_on => ["broker"],
-        ),
-        gate => &$app_staged("gate-server","ee.cone.c4gate.HttpGatewayApp",
-            C4HTTP_PORT=>$http_port,
-            C4SSE_PORT=>$sse_port,
-        ),
-        snapshot_maker => &$app_staged("gate-server","ee.cone.c4gate.SnapshotMakerApp",
-            restart => "on-failure",
-        ),
-        sshd => &$app(
-            image => "$registry_prefix-sshd",
-            command => ["/usr/sbin/sshd", "-D"],
-            &$volumes("db4")
-        ),
-    );
-
-    my %base_ui_stack = (%base_stack,
-        publish => &$app_staged("gate-publish", "ee.cone.c4gate.PublishApp",
-            restart => "on-failure",
+    &$build("haproxy"=>sub{
+        my($ctx_dir)=@_;
+        &$put_text("$ctx_dir/haproxy.cfg",qq{
+            defaults
+              timeout connect 5s
+              timeout client  900s
+              timeout server  900s
+            frontend fe
+              mode http
+              bind :80
+              acl acl_sse hdr(accept) -i text/event-stream
+              use_backend be_sse if acl_sse
+              default_backend be_http
+            backend be_http
+              mode http
+              server se_http gate:$http_port
+            backend be_sse
+              mode http
+              server se_sse gate:$sse_port
+        });
+        (
+            "FROM haproxy:1.7",
+            "COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg",
         )
-    );
-    #
-    my $app_conf_dir = "tmp/app_conf";
-    -e $app_conf_dir or print "consider adding $app_conf_dir\n";
-    for my $override_file(<$app_conf_dir/*>){
-        my $project = $override_file=~m{/(\w+)\.override\.yml$} ? $1 : next;
-        &$build_compose([$project],sub{ sy("cp $override_file $_[0]") },{
-            %base_ui_stack,
-            map{("app_$_" => &$app_user(
-                image => "$registry_prefix-$project-$_",
-                &$client_options("$project-$_"),
-            ))} map{/^\s+app_([a-z]+):\s+$/?"$1":()} `cat $override_file`
-        })
-    }
+    });
     ####
     &$build_staged("gate-sse-example",sub{
         my($ctx_dir)=@_;
-        &$mkdirs($ctx_dir,"htdocs");
+        &$gcp($build_dir=>$ctx_dir,"htdocs");
+        ()
     });
     &$build_staged("gate-consumer-example");
     for(
@@ -268,28 +188,25 @@ my $gen_docker_conf = sub{
         [qw[actor_parallel TestParallelApp]],
     ){
         my($project,$main)=@$_;
-        &$build_compose([$developer,$project],$testing_override,{%base_stack,
-            app=>&$app_staged("gate-consumer-example","ee.cone.c4gate.$main")
+        &$put_compose($project,{
+            app=>{
+                C4APP_IMAGE => "gate-consumer-example",
+                C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.$main"
+            }
         })
     }
     for(
-        ["sse"=>["TestSSEApp"]], # http://localhost:8067/sse.html#
-        ["ui"=>[qw[TestTodoApp TestCoWorkApp TestCanvasApp TestPasswordApp]]],
+        ["sse"=>[qw[PublishApp TestSSEApp]]], # http://localhost:8067/sse.html#
+        ["ui"=>[qw[PublishApp TestTodoApp TestCoWorkApp TestCanvasApp TestPasswordApp]]],
     ){
-        my($project,$mains)=@$_;
-        &$build_compose([$developer,$project],$testing_override,{%base_ui_stack,
-            map{($_=>&$app_staged("gate-sse-example","ee.cone.c4gate.$_"))} @$mains
+        my($project,$apps)=@$_;
+        &$put_compose($project,{
+            map{($_=>{
+                C4APP_IMAGE => "gate-sse-example",
+                C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.$_",
+                $_ eq "PublishApp" ? (restart => "on-failure") : ()
+            })} @$apps
         });
-    }
-};
-
-
-
-my $gen_docker_images = sub{
-    for my $ctx_dir(sort grep{-e "$_/Dockerfile"} <$docker_build/*>){
-        my $name = substr $ctx_dir, 1+length $docker_build;
-        sy("docker build -t $registry_prefix-$name $ctx_dir");
-        so("docker push $registry_prefix-$name");
     }
 };
 
@@ -305,42 +222,44 @@ push @tasks, ["build_all", sub{
     &$recycling($build_dir);
     &$webpack();
     &$gen_docker_conf();
-    &$gen_docker_images();
 }];
 push @tasks, ["build_some_server", sub{
     my($mode) = @_;
     sy("sbt stage");
     &$gen_docker_conf();
-    &$gen_docker_images();
 }];
 push @tasks, ["build_some_client", sub{
     my($mode) = @_;
     &$webpack();
     &$gen_docker_conf();
-    &$gen_docker_images();
 }];
-push @tasks, ["build_images_only", sub{
+push @tasks, ["build_conf_only", sub{
     my($mode) = @_;
     &$gen_docker_conf();
-    &$gen_docker_images();
 }];
 
 ################################################################################
 
-push @tasks, ["### debug ###"];
-push @tasks, ["inbox_log_tail", sub{
-    sy("$bin/kafka-console-consumer.sh --bootstrap-server $bootstrap_server --topic $inbox_prefix.inbox.log")
-}];
-push @tasks, ["inbox_test", sub{
-    sy("$bin/kafka-verifiable-consumer.sh --broker-list $bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
-}];
+#...
+#push @tasks, ["### debug ###"];
+#push @tasks, ["inbox_log_tail", sub{
+#    sy("$bin/kafka-console-consumer.sh --bootstrap-server $bootstrap_server --topic $inbox_prefix.inbox.log")
+#}];
+#push @tasks, ["inbox_test", sub{
+#    sy("$bin/kafka-verifiable-consumer.sh --broker-list $bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
+#}];
 
 ################################################################################
 
 my $staged_up = sub{
+    #build-up build-push
+    #app.yml dev-proj-ports
     my($name)=@_;
-    ["test_$name\_up", sub{ sy("docker run --rm --userns=host -v /var/run/docker.sock:/var/run/docker.sock $registry_prefix-compose-$developer-$name") }];
-    #sy("docker-compose -p $project -f $docker_build/$name.yml -f $docker_build/override.yml up -d --remove-orphans")
+    my $img = "c4-$developer-composer";
+    ["test_$name\_up", sub{
+        sy("docker build -t $img $docker_build/composer");
+        sy("\$(docker run --rm $img su \$(pwd)/$docker_build) $img up $developer test_$name 8000");
+    }];
 };
 
 push @tasks, ["### tests ###"];

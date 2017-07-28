@@ -49,7 +49,7 @@ const vDom = VDomMix(log,exampleRequestState,transforms,getRootElement,createEle
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
 
 const receiversList = [branches.receivers,feedback.receivers,{fail},exampleRequestState.receivers]
-const createEventSource = () => new EventSource("http://localhost:8068/sse")
+const createEventSource = () => new EventSource(location.protocol+"//"+location.host+"/sse")
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)
 activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate])

@@ -38,18 +38,19 @@ class VMFatalFuture[T](val value: Future[T]) extends FatalFuture[T] {
   def isCompleted: Boolean = value.isCompleted
 }
 
-abstract class BaseServerMain(appFor: Array[String]⇒ExecutableApp){
+abstract class BaseServerMain(app: ExecutableApp){
   def main(args: Array[String]): Unit = try {
     Trace {
-      appFor(args).execution.run()
+      app.execution.run()
       //println("main is about to sleep")
       Thread.sleep(Long.MaxValue) //ctx.serving.get()
     }
   } finally System.exit(0)
 }
 
-object ServerMain extends BaseServerMain(args ⇒
-  Option(Class.forName(args(0))).get.newInstance().asInstanceOf[ExecutableApp]
+object ServerMain extends BaseServerMain(
+  Option(Class.forName((new EnvConfigImpl).get("C4STATE_TOPIC_PREFIX"))).get
+    .newInstance().asInstanceOf[ExecutableApp]
 )
 
 class EnvConfigImpl extends Config {
