@@ -69,11 +69,12 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
 trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
   def execution: Execution
   def rawSnapshot: RawSnapshot
+  def snapshotMakingRawObserver: RawObserver //new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution))
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val initialRawWorld: RawWorld = new SnapshotMakingRawWorld(qAdapterRegistry)
   lazy val progressObserverFactory: ProgressObserverFactory =
-    new ProgressObserverFactoryImpl(new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution)))
+    new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
   override def protocols: List[Protocol] = QProtocol :: super.protocols
 }
 

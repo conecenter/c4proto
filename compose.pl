@@ -76,7 +76,7 @@ my $template_yml = sub{+{
         snapshot_maker => {
             C4APP_IMAGE => "gate-server",
             C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.SnapshotMakerApp",
-            restart => "on-failure",
+            #restart => "on-failure",
         },
         sshd => {
             C4APP_IMAGE => "sshd",
@@ -137,9 +137,10 @@ my $build = sub{
     sy("docker-compose -p $location build");
 };
 
-# schedule snapshots
+# pass src commit
 # fix prod yml
 # try prod
+# >2 >4
 #extra_hosts:
 # - "somehost:162.242.195.82"
 
