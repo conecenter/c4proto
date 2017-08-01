@@ -26,21 +26,24 @@ sub sy{ &so and die $? }
 #    my($fn,$content)=@_;
 #    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 #};
-
-my $merge; $merge = sub{
+my %merge;
+my $merge = sub{&{$merge{join "-",map{ref}@_}||sub{$_[$#_]}}};
+$merge{"HASH-HASH"} = sub{
     my($b,$o)=@_;
-    "HASH" eq ref $b and "HASH" eq ref $o or return $o;
-    my $res = {%$b,%$o};
-    +{map{($_=>(exists $$b{$_})?&$merge($$b{$_},$$res{$_}):$$res{$_})} keys %$res};
+    +{map{
+        my $k = $_;
+        ($k=>&$merge(map{(exists $$_{$k})?$$_{$k}:()} $b,$o));
+    } keys %{+{%$b,%$o}}};
 };
+$merge{"ARRAY-ARRAY"} = sub{[map{@$_}@_]};
 
 my $extract_env = sub{
-    my %opt = @_;
-    my %env = map{/^C4/?($_=>$opt{$_}):()} keys %opt;
-    (
+    my($opt) = @_;
+    my %env = map{/^C4/?($_=>$$opt{$_}):()} keys %$opt;
+    +{
         (%env ? (environment => \%env):()),
-        (map{/^C4/?():($_=>$opt{$_})} keys %opt)
-    )
+        (map{/^C4/?():($_=>$$opt{$_})} keys %$opt)
+    }
 };
 
 my $app_user = sub{
@@ -48,7 +51,7 @@ my $app_user = sub{
     (user=>$user, working_dir=>"/$user");
 };
 
-my $volumes = sub{(volumes => [map{"vol-$user-$_:/$user/$_"}@_])};
+my $volumes = sub{(volumes => [map{"$_:/$user/$_"}@_])};
 
 my $template_yml = sub{+{
     services => {
@@ -110,8 +113,8 @@ my $build = sub{
     my $generated_services = {map{
         my $service_name = $_;
         my $service = $$override_services{$service_name} || die;
-        my $img = $$service{C4APP_IMAGE} || die;
-        ($service_name => {&$extract_env(
+        my $img = $$service{C4APP_IMAGE} || $service_name;
+        my $generated_service = {
             restart=>"unless-stopped",
             ($$service{C4STATE_TOPIC_PREFIX}?(
                 &$app_user(),
@@ -120,7 +123,6 @@ my $build = sub{
                 C4INBOX_TOPIC_PREFIX => $inbox_prefix,
                 &$volumes("db4"),
             ):()),
-            %$service,
             image => $registry_prefix.$img,
             ((-e "c4deploy/$img/Dockerfile")?(build => "c4deploy/$img"):()),
             ($$service{expose} ? (ports=>[map{(
@@ -129,7 +131,8 @@ my $build = sub{
                 ($_>60 ? "$ip:$_:$_" : ()),
                 ### YAML will parse numbers in the format xx:yy as sexagesimal (base 60). For this reason, we recommend always explicitly specifying your port mappings as strings.
             )}@{$$service{expose}||die}]):())
-        )});
+        };
+        ($service_name => &$extract_env(&$merge($generated_service,$service)));
     } keys %$override_services };
     my $generated = { %$override, services => $generated_services };
 
@@ -155,10 +158,6 @@ my $build = sub{
     #frs frs
 
 my @tasks = (
-#    ["ip", sub{
-#        my($location)=@_;
-#        print &$gen_ip($location), "\n";
-#    }],
     ["up", sub{
         my($location,$configs)=@_;
         &$build($location,[split ',',$configs||die]);

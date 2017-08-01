@@ -272,7 +272,7 @@ my $staged_up = sub{
 
 push @tasks, ["push",sub{
     my($comp)=@_;
-    &$composer("push",$comp,"");
+    &$composer("push",($comp||die "need target composition"),"");
 }];
 
 push @tasks, ["### tests ###"];
