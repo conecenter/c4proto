@@ -104,7 +104,7 @@ my $template_yml = sub{+{
 }};
 
 my $build = sub{
-    my($location,$configs)=@_;
+    my($location,$configs,$need_commit)=@_;
     my $ip = &$gen_ip($location);
     my $registry_prefix = "$ip:5000/c4-";
     my $override = reduce{&$merge($a,$b)} &$template_yml(),
@@ -114,6 +114,12 @@ my $build = sub{
         my $service_name = $_;
         my $service = $$override_services{$service_name} || die;
         my $img = $$service{C4APP_IMAGE} || $service_name;
+        my $dockerfile = "c4deploy/$img/Dockerfile";
+        my @build = (!-e $dockerfile) ? () : do{
+            !$need_commit or `cat $dockerfile`=~/c4commit/ or die "need commit and rebuild";
+            (build => "c4deploy/$img")
+        };
+
         my $generated_service = {
             restart=>"unless-stopped",
             ($$service{C4STATE_TOPIC_PREFIX}?(
@@ -124,6 +130,7 @@ my $build = sub{
                 &$volumes("db4"),
             ):()),
             image => $registry_prefix.$img,
+            @build,
             ((-e "c4deploy/$img/Dockerfile")?(build => "c4deploy/$img"):()),
             ($$service{expose} ? (ports=>[map{(
                 #($_<100 && $range ? {published=>$range+$_, target=>$_} : ()),
@@ -145,27 +152,20 @@ my $build = sub{
 };
 
 # pass src commit
-# fix prod yml
-# try prod
+# migrate states
 # >2 >4
-#extra_hosts:
-# - "somehost:162.242.195.82"
-
-
-
-    #skh test_ui
-    #skh frs
-    #frs frs
+# fix kafka configs
+# move settings to scala
 
 my @tasks = (
     ["up", sub{
         my($location,$configs)=@_;
-        &$build($location,[split ',',$configs||die]);
+        &$build($location,[split ',',$configs||die],0);
         sy("docker-compose -p $location up -d --remove-orphans");
     }],
     ["push", sub{
         my($location)=@_;
-        &$build($location,[]);
+        &$build($location,[],1);
         sy("docker-compose -p $location push");
     }],
 );

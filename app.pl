@@ -84,16 +84,16 @@ my $rename = sub{
     rename "$dir/$from"=>"$dir/$to" or die "$dir,$from,$to,$!";
 };
 
-my $build = sub{
+my $prepare_build = sub{
     my($name,$lines) = @_;
     my $ctx_dir = &$need_dir("$docker_build/$name");
     &$put_text("$ctx_dir/Dockerfile",join "\n", &$lines($ctx_dir));
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile")
 };
 
-my $build_staged = sub{
+my $staged = sub{
     my($name,$f) = @_;
-    &$build($name=>sub{
+    ($name=>sub{
         my($ctx_dir)=@_;
         &$gcp("c4$name/target/universal/stage"=>$ctx_dir,"app");
         &$mkdirs($ctx_dir,"db4");
@@ -102,7 +102,15 @@ my $build_staged = sub{
 };
 
 my $gen_docker_conf = sub{
+    my($commit)=@_;
     &$recycling($docker_build);
+    my $build = sub{
+        my($name,$lines) = @_;
+        &$prepare_build($name=>sub{
+            my($ctx_dir)=@_;
+            (&$lines($ctx_dir),@$commit)
+        })
+    };
     &$build("zoo"=>sub{
         my($ctx_dir)=@_;
         my $tgz = "tmp/$kafka.tgz";
@@ -140,10 +148,10 @@ my $gen_docker_conf = sub{
             qq{ENTRYPOINT ["perl","$script"]},
         )
     });
-    &$build_staged("gate-server"=>sub{
+    &$build(&$staged("gate-server"=>sub{
         my($ctx_dir)=@_;
         ("ENV C4HTTP_PORT $http_port","ENV C4SSE_PORT $sse_port")
-    });
+    }));
     #
     &$build("sshd"=>sub{
         my($ctx_dir)=@_;
@@ -176,12 +184,12 @@ my $gen_docker_conf = sub{
         )
     });
     ####
-    &$build_staged("gate-sse-example",sub{
+    &$build(&$staged("gate-sse-example",sub{
         my($ctx_dir)=@_;
         &$gcp($build_dir=>$ctx_dir,"htdocs");
         ()
-    });
-    &$build_staged("gate-consumer-example");
+    }));
+    &$build(&$staged("gate-consumer-example"));
     for(
         [qw[post_get_tcp TestConsumerApp]],
         [qw[actor_serial TestSerialApp]],
@@ -214,6 +222,22 @@ my $webpack = sub{
     &$sy_in_dir("client","./node_modules/webpack/bin/webpack.js");# -d
 };
 
+my $composer = sub{
+    my($cmd,$comp,$args)=@_;
+    my $img = "c4-$comp-composer";
+    sy("docker build -t $img $docker_build/composer");
+    sy("docker run --rm --userns=host "
+        ." -v /var/run/docker.sock:/var/run/docker.sock "
+        ." -v \$(pwd)/$docker_build:/c4deploy "
+        ." $img $cmd $comp $args");
+};
+
+my $get_commit = sub{
+    `git status --porcelain`=~/\S/ and return [];
+    my $commit = `git rev-parse --verify HEAD`=~/([0-9a-f]{32})/ ? $1 : die;
+    [qq{LABEL c4commit="$commit"}];
+};
+
 push @tasks, ["### build ###"];
 push @tasks, ["build_all", sub{
     my($mode) = @_;
@@ -221,21 +245,25 @@ push @tasks, ["build_all", sub{
     &$sy_in_dir("client","npm install");
     &$recycling($build_dir);
     &$webpack();
-    &$gen_docker_conf();
+    &$gen_docker_conf(&$get_commit());
 }];
 push @tasks, ["build_some_server", sub{
     my($mode) = @_;
     sy("sbt stage");
-    &$gen_docker_conf();
+    &$gen_docker_conf(&$get_commit());
 }];
 push @tasks, ["build_some_client", sub{
     my($mode) = @_;
     &$webpack();
-    &$gen_docker_conf();
+    &$gen_docker_conf([]);
 }];
 push @tasks, ["build_conf_only", sub{
     my($mode) = @_;
-    &$gen_docker_conf();
+    &$gen_docker_conf([]);
+}];
+push @tasks, ["push",sub{
+    my($comp)=@_;
+    &$composer("push",($comp||die "need target composition"));
 }];
 
 ################################################################################
@@ -251,16 +279,6 @@ push @tasks, ["build_conf_only", sub{
 
 ################################################################################
 
-my $composer = sub{
-    my($cmd,$comp,$args)=@_;
-    my $img = "c4-$comp-composer";
-    sy("docker build -t $img $docker_build/composer");
-    sy("docker run --rm --userns=host "
-        ." -v /var/run/docker.sock:/var/run/docker.sock "
-        ." -v \$(pwd)/$docker_build:/c4deploy "
-        ." $img $cmd $comp $args");
-};
-
 my $staged_up = sub{
     #build-up build-push
     #app.yml dev-proj-ports
@@ -270,10 +288,7 @@ my $staged_up = sub{
     }];
 };
 
-push @tasks, ["push",sub{
-    my($comp)=@_;
-    &$composer("push",($comp||die "need target composition"),"");
-}];
+
 
 push @tasks, ["### tests ###"];
 push @tasks, ["test_es_examples", sub{
