@@ -40,10 +40,8 @@ $merge{"ARRAY-ARRAY"} = sub{[map{@$_}@_]};
 my $extract_env = sub{
     my($opt) = @_;
     my %env = map{/^C4/?($_=>$$opt{$_}):()} keys %$opt;
-    +{
-        (%env ? (environment => \%env):()),
-        (map{/^C4/?():($_=>$$opt{$_})} keys %$opt)
-    }
+    my %def = map{/^C4/?():($_=>$$opt{$_})} keys %$opt;
+    &$merge({environment => \%env}, \%def);
 };
 
 my $app_user = sub{
