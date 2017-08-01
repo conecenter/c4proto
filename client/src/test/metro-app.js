@@ -21,6 +21,8 @@ import CryptoElements from "../extra/crypto-elements"
 import FocusModule		from "../extra/focus-module"
 import DragDropModule from "../extra/dragdrop-module"
 import OverlayManager from "../extra/overlay-manager"
+import RequestState from "../extra/request-state"
+
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 
@@ -28,6 +30,7 @@ const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
 const log = v => console.log("log",v)
+const requestState = RequestState(sender,log)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
 const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
@@ -38,8 +41,9 @@ const fileReader = ()=> (new window.FileReader());
 const windowManager = (()=>{
 	const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth})
 	const getPageYOffset = ()=> window.pageYOffset
-	const getComputedStyle = n => window.getComputedStyle(n)		
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout}
+	const getComputedStyle = n => window.getComputedStyle(n)
+	const screenRefresh = () => location.reload()
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
@@ -49,7 +53,7 @@ const documentManager = (()=>{
 	const body = () => document.body
 	const execCopy = () => document.execCommand('copy')
 	const activeElement = () =>document.activeElement
-	return {add,addFirst,remove,createElement,body,execCopy,activeElement}
+	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document}
 })()
 const eventManager = (()=>{
 	const create = (type,params) => {
@@ -78,7 +82,7 @@ const miscReact = (()=>{
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,sender,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact});
+const metroUi = MetroUi({log,sender:requestState,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact});
 //customUi with hacks
 
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
@@ -87,9 +91,9 @@ const getBattery = typeof navigator.getBattery =="function"?(callback) => naviga
 const Scanner = window.Scanner
 const innerHeight = () => window.innerHeight
 const scrollBy = (x,y) => window.scrollBy(x,y)
-const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,document,scrollBy,eventManager})
+const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})
 window.ScannerProxy = scannerProxy
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager});
+const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager});
 
 const activeElement=()=>document.activeElement; //todo: remove
 
@@ -113,7 +117,7 @@ const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.h
 //transforms
 const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms])
 
-const vDom = VDomMix(console.log,sender,transforms,getRootElement,createElement)
+const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
 
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
 
@@ -123,7 +127,8 @@ const receiversList = [
 	metroUi.receivers,
     customUi.receivers,
 	cryptoElements.receivers,
-	focusModule.receivers
+	focusModule.receivers,
+	requestState.receivers
 ]
 const composeUrl = () => {
     const port = parseInt(location.port)

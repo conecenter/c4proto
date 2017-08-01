@@ -1,7 +1,8 @@
 "use strict";
 import React from 'react'
+import {rootCtx} from "../main/vdom-util"
 
-export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager}){
+export default function CustomUi({log,ui,requestState,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager}){
 	const {setTimeout,clearTimeout} = windowManager
 	const ColorCreator = React.createClass({
     		onChange:function(e){
@@ -300,7 +301,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 	let prevWifiLevel = null
 	const DeviceConnectionState = React.createClass({
 		getInitialState:function(){
-			return {on:true,wifiLevel:null};
+			return {on:true,wifiLevel:null,waiting:null};
 		},
 		signal:function(on){			
 			if(this.state.on!=on)
@@ -310,33 +311,43 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			prevWifiLevel = wifiLevel
 			this.setState({wifiLevel})
 		},
+		yellowSignal:function(on){
+			if(this.state.waiting!=on)
+				this.setState({waiting:on})
+		},
 		componentDidMount:function(){					
 			if(PingReceiver)
 				PingReceiver.regCallback(this.signal,this);
 			this.toggleOverlay(!this.state.on);			
 			this.wifi=scannerProxy.regWifi(this.wifiCallback)
+			if(this.props.onContext && requestState.reg){
+				const branchKey = this.props.onContext()
+				this.yellow = requestState.reg({branchKey,callback:this.yellowSignal})
+			}
 		},
 		componentWillUnmount:function(){			
 			if(PingReceiver)
 				PingReceiver.unregCallback(this);
 			if(this.wifi) this.wifi.unreg();
+			if(this.yellow) this.yellow.unreg();
 		},		
 		toggleOverlay:function(on){
 			if(!this.props.overlay) return;
-			if(this.props.msg) 
-				overlayManager.delayToggle(this.props.msg)
+			if(this.props.msg||this.state.waiting) 
+				overlayManager.delayToggle(this.props.msg||this.state.waiting)
 			else
 				overlayManager.toggle(on)
 			
 		},
-		componentDidUpdate:function(prevProps,prevState){			
+		componentDidUpdate:function(prevProps,prevState){
+			log(`toggle ${this.state.on}`)
 			this.toggleOverlay(!this.state.on);
 		},
 		render:function(){
 			const wifiLevel = prevWifiLevel&&!this.state.wifiLevel?prevWifiLevel:this.state.wifiLevel
 			const wifiStyle = wifiLevel!==null?{padding:"0.11em 0em"}:{}
 			const wifiIconStyle = wifiLevel!==null?{width:"0.7em"}:{}
-			const waitingStyle = this.props.msg?{backgroundColor:"yellow",color:"rgb(114, 114, 114)"}:{}
+			const waitingStyle = (this.props.msg || this.state.waiting)?{backgroundColor:"yellow",color:"rgb(114, 114, 114)"}:{}
 			const style={
 				color:"white",
 				textAlign:"center",
@@ -366,7 +377,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 				</svg>`;
 				imageSvgData = svgSrc(wifiSvg)				
 			}			 
-			return React.createElement(ConnectionState,{on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null);
+			return React.createElement(ConnectionState,{onClick:this.props.onClick,on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null);
 		},
 	});
 	const CustomMeasurerConnectionState = React.createClass({
@@ -502,12 +513,17 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,Im
 			return React.createElement("span");
 		}
 	});	
+	const ctx = ctx => () =>{
+		return rootCtx(ctx).branchKey
+	}
+	const onContext = ({ctx})
 	const transforms= {
 		tp:{
 			StatusElement,TerminalElement,MJobCell,IconCheck,CustomMeasurerConnectionState,DeviceConnectionState,
 			ColorCreator,ColorItem,ColorPicker,
 			BatteryState,ScannerProxyElement
 		},
+		onContext
 	};
 	const receivers = {
 		ping:PingReceiver.ping

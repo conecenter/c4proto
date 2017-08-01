@@ -1,5 +1,5 @@
 export default function OverlayManager({log,documentManager,windowManager}){
-	const {setTimeout,clearTimeout} = windowManager
+	const {setTimeout,clearTimeout,screenRefresh} = windowManager
 	const {createElement,body} = documentManager
 	let stopCircular = false
 	let circularTimer = null
@@ -57,7 +57,12 @@ export default function OverlayManager({log,documentManager,windowManager}){
 							<path style="fill: white" d="M352,217c-4-13,3-27,16-31l89-29c13-4,27,3,31,16s-3,27-16,31l-89,28c-3,1-5,2-8,2   C365,234,355,227,352,217z"></path>
 							<path style="fill: white" d="M327,168c-20,0-31-23-19-39l55-76c8-11,23-13,34-5s13,23,5,34l-55,76C342,165,335,168,327,168z"></path>
 						</svg>`
-			el.innerHTML = `<div style="position:relative;top:calc(50% - 1em)">${svgEl}${msg}</div>`
+			const wrapperEl = createElement("div")
+			wrapperEl.style.position="relative"
+			wrapperEl.style.top="calc(50% - 1em)"
+			wrapperEl.innerHTML = `${svgEl}${msg}`
+			wrapperEl.onclick = screenRefresh
+			el.appendChild(wrapperEl)
 			body().appendChild(el);
 			startCircularMotion()
 		}
@@ -67,6 +72,7 @@ export default function OverlayManager({log,documentManager,windowManager}){
 		}		
 	}
 	const delayToggle = (msg) => {
+		if(delayTimer) return
 		delayTimer = setTimeout(()=>{
 			if(!delayTimer) return
 			toggle(true,msg)

@@ -1,5 +1,5 @@
 
-function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
+export function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
 function ctxToPath(ctx){
     return !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")

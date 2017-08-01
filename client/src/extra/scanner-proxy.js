@@ -1,7 +1,8 @@
-export default function ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,document,scrollBy,eventManager}){
+export default function ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}){
 	let referenceCounter = 0;
 	let isOn = false
 	let interval = null
+	const {activeElement,document} = documentManager
 	const callbacks = [];
 	const wifiCallbacks = [];
 	const periodicCheck = () => {
@@ -38,7 +39,7 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 	}
 	const fireGlobalEvent = (key) => {
 		var event = eventManager.create("keydown",{key,bubbles:true})
-		document.dispatchEvent(event)
+		activeElement().dispatchEvent(event)
 	}
 	const arrowUP = () => fireGlobalEvent("ArrowUp")
 	const arrowDOWN = () => fireGlobalEvent("ArrowDown")
