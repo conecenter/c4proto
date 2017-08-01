@@ -41,7 +41,7 @@ my %yml; my $yml; $yml = sub{ my($arg)=@_; $yml{ref $arg}->($arg) };
 $yml{''} = sub{" '$_[0]'"};
 $yml{HASH} = sub{ my($h)=@_; &$indent(map{"$_:".&$yml($$h{$_})} sort keys %$h) };
 $yml{ARRAY} = sub{ my($l)=@_; &$indent(map{"-".&$yml($_)} @$l) };
-my $put_yml = sub{
+my $put_yml; $put_yml = sub{
     my($path,$data)=@_;
     &$put_text($path,"#### this file is generated ####\n".&$yml($data))
 };
@@ -131,7 +131,7 @@ my $gen_docker_conf = sub{
     &$build("composer"=>sub{
         my($ctx_dir)=@_;
         my $script = "compose.pl";
-        &$gcp($script=>$ctx_dir,$script);
+        &$gcp($_=>$ctx_dir,$_) for $script;
         (
             "FROM docker/compose:1.14.0",
             &$run("apk add --no-cache perl perl-yaml-xs"), #perl-yaml-syck
@@ -251,16 +251,29 @@ push @tasks, ["build_conf_only", sub{
 
 ################################################################################
 
+my $composer = sub{
+    my($cmd,$comp,$args)=@_;
+    my $img = "c4-$comp-composer";
+    sy("docker build -t $img $docker_build/composer");
+    sy("docker run --rm --userns=host "
+        ." -v /var/run/docker.sock:/var/run/docker.sock "
+        ." -v \$(pwd)/$docker_build:/c4deploy "
+        ." $img $cmd $comp $args");
+};
+
 my $staged_up = sub{
     #build-up build-push
     #app.yml dev-proj-ports
     my($name)=@_;
-    my $img = "c4-$developer-composer";
     ["test_$name\_up", sub{
-        sy("docker build -t $img $docker_build/composer");
-        sy("\$(docker run --rm $img su \$(pwd)/$docker_build) $img up $developer test_$name 8000");
+        &$composer("up",$developer,"docker-compose.test_$name.yml");
     }];
 };
+
+push @tasks, ["push",sub{
+    my($comp)=@_;
+    &$composer("push",$comp,"");
+}];
 
 push @tasks, ["### tests ###"];
 push @tasks, ["test_es_examples", sub{

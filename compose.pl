@@ -1,13 +1,12 @@
 use strict;
-use YAML::XS qw(LoadFile DumpFile Dump);
+use List::Util qw(reduce);
+use Digest::MD5 qw(md5_hex);
 
+use YAML::XS qw(LoadFile DumpFile Dump);
 $YAML::XS::QuoteNumericStrings = 1;
 #$YAML::Syck::SortKeys = 1;
 #$YAML::Syck::SingleQuote = 1;
 
-use Digest::MD5 qw(md5_hex);
-
-my $registry_prefix = "localhost:5000/c4-";
 my $inbox_prefix = '';
 my $bin = "kafka/bin";
 
@@ -15,14 +14,18 @@ my $bootstrap_server = "broker:9092";
 my $c_script = "inbox_configure.pl";
 my $user = "c4";
 
+my $gen_ip = sub{
+    join ".", 127, map{hex} md5_hex($_[0]||die)=~/(..)(..)(..)/ ? ($1,$2,$3) : die
+};
+
 
 sub so{ print join(" ",@_),"\n"; system @_ }
 sub sy{ &so and die $? }
 
-my $put_text = sub{
-    my($fn,$content)=@_;
-    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
-};
+#my $put_text = sub{
+#    my($fn,$content)=@_;
+#    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+#};
 
 my $merge; $merge = sub{
     my($b,$o)=@_;
@@ -49,6 +52,10 @@ my $volumes = sub{(volumes => [map{"vol-$user-$_:/$user/$_"}@_])};
 
 my $template_yml = sub{+{
     services => {
+        composer => {
+            C4APP_IMAGE => "composer",
+            restart => "on-failure",
+        },
         zookeeper => {
             &$app_user(),
             C4APP_IMAGE => "zoo",
@@ -89,19 +96,16 @@ my $template_yml = sub{+{
             expose => [80],
         }
     },
-    volumes => { map{("vol-c4-$_"=>{})} qw[db4] },
+    volumes => { db4 => {} },
     version => "3.2",
 }};
 
-#...expose
-
-my $gen_ip = sub{
-    join ".", 127, map{hex} md5_hex($_[0])=~/(..)(..)(..)/ ? ($1,$2,$3) : die
-};
-
 my $build = sub{
-    my($location,$override_arg,$range)=@_;
-    my $override = &$merge(&$template_yml(),$override_arg);
+    my($location,$configs)=@_;
+    my $ip = &$gen_ip($location);
+    my $registry_prefix = "$ip:5000/c4-";
+    my $override = reduce{&$merge($a,$b)} &$template_yml(),
+        map{LoadFile("c4deploy/$_")} @$configs;
     my $override_services = $$override{services} || {};
     my $generated_services = {map{
         my $service_name = $_;
@@ -117,12 +121,12 @@ my $build = sub{
                 &$volumes("db4"),
             ):()),
             %$service,
-            image => "$registry_prefix$location-$img",
+            image => $registry_prefix.$img,
             ((-e "c4deploy/$img/Dockerfile")?(build => "c4deploy/$img"):()),
             ($$service{expose} ? (ports=>[map{(
-                ($range ? {published=>$range+$_, target=>$_} : ()),
-                #{published=>&$gen_ip("$location-$service_name").":$_", target=>$_},
-                ($_>60 ? &$gen_ip("$location-$service_name").":$_:$_" : ()),
+                #($_<100 && $range ? {published=>$range+$_, target=>$_} : ()),
+                #{published=>&$gen _ip("$loca tion-$service_name").":$_", target=>$_},
+                ($_>60 ? "$ip:$_:$_" : ()),
                 ### YAML will parse numbers in the format xx:yy as sexagesimal (base 60). For this reason, we recommend always explicitly specifying your port mappings as strings.
             )}@{$$service{expose}||die}]):())
         )});
@@ -150,27 +154,20 @@ my $build = sub{
     #skh frs
     #frs frs
 
-my $su = sub{
-    my($host_dir)=@_;
-    print "docker run --rm "
-     ." --userns=host "
-     ." -v /var/run/docker.sock:/var/run/docker.sock "
-     ." -v $host_dir:/c4deploy "
-};
-
 my @tasks = (
-    ["su", $su],
+#    ["ip", sub{
+#        my($location)=@_;
+#        print &$gen_ip($location), "\n";
+#    }],
     ["up", sub{
-        my($location,$config,$range)=@_;
-        my $override = LoadFile("c4deploy/docker-compose.$config.yml");
-        &$build($location,$override,$range);
+        my($location,$configs)=@_;
+        &$build($location,[split ',',$configs||die]);
         sy("docker-compose -p $location up -d --remove-orphans");
     }],
     ["push", sub{
         my($location)=@_;
-        &$build($location,{});
+        &$build($location,[]);
         sy("docker-compose -p $location push");
-        sy("docker push $registry_prefix$location-composer");
     }],
 );
 
