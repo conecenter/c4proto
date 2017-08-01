@@ -134,7 +134,7 @@ my $gen_docker_conf = sub{
         );
         &$gcp($c_script=>$ctx_dir,$c_script);
         &$mkdirs($ctx_dir,"db4");
-        (&$from(""))
+        (&$from("telnet"))
     });
     &$build("composer"=>sub{
         my($ctx_dir)=@_;
