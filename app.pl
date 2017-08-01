@@ -183,6 +183,7 @@ my $gen_docker_conf = sub{
             "COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg",
         )
     });
+    &$put_yml("$docker_build/empty.yml",{ version => "3.2" });
     ####
     &$build(&$staged("gate-sse-example",sub{
         my($ctx_dir)=@_;
