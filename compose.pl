@@ -146,6 +146,7 @@ my $build = sub{
     #$text=~s/(\n\s+-\s+)([^\n]*\S:\d\d)/$1"$2"/gs;
     #&$put_text("docker-compose.yml",$text);
     sy("cp docker-compose.yml c4deploy/docker-compose.yml.dump");
+    sy("docker-compose -p $location pull");
     sy("docker-compose -p $location build --pull");
 };
 
@@ -158,7 +159,6 @@ my $build = sub{
 my @tasks = (
     ["up", sub{
         my($location,$configs)=@_;
-        sy("docker-compose -p $location pull");
         &$build($location,[split ',',$configs||die],0);
         sy("docker-compose -p $location up -d --remove-orphans");
     }],
