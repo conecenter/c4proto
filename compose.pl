@@ -159,6 +159,7 @@ my @tasks = (
     ["up", sub{
         my($location,$configs)=@_;
         &$build($location,[split ',',$configs||die],0);
+        sy("docker-compose -p $location push");
         sy("docker-compose -p $location pull");
         sy("docker-compose -p $location up -d --remove-orphans");
     }],
