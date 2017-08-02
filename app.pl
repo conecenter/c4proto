@@ -165,6 +165,8 @@ my $gen_docker_conf = sub{
               timeout connect 5s
               timeout client  900s
               timeout server  900s
+            resolvers docker_resolver
+              nameserver dns "127.0.0.11:53"
             frontend fe
               mode http
               bind :80
@@ -173,10 +175,10 @@ my $gen_docker_conf = sub{
               default_backend be_http
             backend be_http
               mode http
-              server se_http gate:$http_port
+              server se_http gate:$http_port check resolvers docker_resolver resolve-prefer ipv4
             backend be_sse
               mode http
-              server se_sse gate:$sse_port
+              server se_sse gate:$sse_port check resolvers docker_resolver resolve-prefer ipv4
         });
         (
             "FROM haproxy:1.7",

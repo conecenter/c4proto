@@ -146,7 +146,7 @@ my $build = sub{
     #$text=~s/(\n\s+-\s+)([^\n]*\S:\d\d)/$1"$2"/gs;
     #&$put_text("docker-compose.yml",$text);
     sy("cp docker-compose.yml c4deploy/docker-compose.yml.dump");
-    sy("docker-compose -p $location build");
+    sy("docker-compose -p $location build --pull");
 };
 
 # pass src commit
