@@ -287,7 +287,7 @@ my $staged_up = sub{
     #app.yml dev-proj-ports
     my($name)=@_;
     ["test_$name\_up", sub{
-        &$composer("up",$developer,"docker-compose.test_$name.yml");
+        &$composer("up_local",$developer,"docker-compose.test_$name.yml");
     }];
 };
 
