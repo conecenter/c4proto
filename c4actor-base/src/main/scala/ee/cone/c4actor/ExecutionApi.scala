@@ -1,5 +1,7 @@
 package ee.cone.c4actor
 
+import java.nio.file.Path
+
 trait Execution extends Runnable {
   def onShutdown(hint: String, f:()⇒Unit): Unit
   def complete(): Unit
@@ -35,4 +37,9 @@ object Trace { //m. b. to util
 object FinallyClose {
   def apply[A<:AutoCloseable,R](o: A)(f: A⇒R): R = try f(o) finally o.close()
   def apply[A,R](close: A⇒Unit)(o: A)(f: A⇒R): R = try f(o) finally close(o)
+}
+
+trait DirInfo {
+  def sortedList(dir: Path): List[Path]
+  def deepFiles(dir: Path): List[Path]
 }

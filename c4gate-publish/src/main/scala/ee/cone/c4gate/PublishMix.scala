@@ -29,7 +29,7 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp {
 
   private lazy val publishDir = "htdocs"
   private lazy val publishingObserver =
-    new PublishingObserver(qMessages,qReducer,publishDir,publishFromStrings,mimeTypes.get)
+    new PublishingObserver(qMessages,qReducer,publishDir,publishFromStrings,mimeTypes.get,DirInfoImpl)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers

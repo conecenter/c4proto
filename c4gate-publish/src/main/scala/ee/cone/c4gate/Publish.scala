@@ -1,7 +1,6 @@
 package ee.cone.c4gate
 
 import scala.collection.immutable.Seq
-import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file._
 
 import ee.cone.c4actor._
@@ -18,15 +17,15 @@ class PublishingObserver(
   reducer: Reducer,
   fromDir: String,
   fromStrings: List[(String,String)],
-  mimeTypes: String⇒Option[String]
+  mimeTypes: String⇒Option[String],
+  dirInfo: DirInfo
 ) extends Observer {
   def activate(world: World): Seq[Observer] = {
     println("publish started")
     val fromPath = Paths.get(fromDir)
-    val visitor = new PublishFileVisitor(fromPath,publish(world))
-    val depth = Integer.MAX_VALUE
-    val options = java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS)
-    Files.walkFileTree(fromPath, options, depth, visitor)
+    dirInfo.deepFiles(fromPath).foreach{ file ⇒
+      publish(world)(s"/${fromPath.relativize(file)}", Files.readAllBytes(file))
+    }
     fromStrings.foreach{ case(path,body) ⇒
       publish(world)(path,body.getBytes(UTF_8))
     }
@@ -56,13 +55,3 @@ class PublishingObserver(
   }
 }
 
-class PublishFileVisitor(
-  fromPath: Path, publish: (String,Array[Byte])⇒Unit
-) extends SimpleFileVisitor[Path] {
-  override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
-    val path = s"/${fromPath.relativize(file)}"
-    val body = Files.readAllBytes(file)
-    publish(path,body)
-    FileVisitResult.CONTINUE
-  }
-}

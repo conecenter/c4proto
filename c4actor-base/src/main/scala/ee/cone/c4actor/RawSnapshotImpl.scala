@@ -3,11 +3,9 @@ package ee.cone.c4actor
 import java.nio.file.{Files, Paths}
 import java.util.UUID
 
-import scala.collection.JavaConverters.iterableAsScalaIterableConverter
-
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
 
-class FileRawSnapshotImpl(dirStr: String, initialRawWorld: RawWorld) extends RawSnapshot {
+class FileRawSnapshotImpl(dirStr: String, initialRawWorld: RawWorld, dirInfo: DirInfo) extends RawSnapshot {
   private def dir = Files.createDirectories(Paths.get(dirStr))
   private def hashFromName: String⇒Option[(String,String)] = {
     val R = """([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""".r;
@@ -26,7 +24,7 @@ class FileRawSnapshotImpl(dirStr: String, initialRawWorld: RawWorld) extends Raw
     Files.write(dir.resolve(filename),data)
   }
   private def loadRecentStream: Stream[(Long,Option[Array[Byte]])] = for{
-    path ← FinallyClose(Files.newDirectoryStream(dir))(_.asScala.toList).sorted.reverse.toStream
+    path ← dirInfo.sortedList(dir).reverse.toStream
     (offsetStr,uuid) ← hashFromName(path.getFileName.toString)
   } yield {
     val data = Files.readAllBytes(path)
@@ -42,3 +40,6 @@ class FileRawSnapshotImpl(dirStr: String, initialRawWorld: RawWorld) extends Raw
       res
     }.getOrElse(initialRawWorld)
 }
+
+
+

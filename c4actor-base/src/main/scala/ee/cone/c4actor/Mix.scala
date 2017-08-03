@@ -85,7 +85,9 @@ trait VMExecutionApp {
 
 trait FileRawSnapshotApp {
   def initialRawWorld: RawWorld
-  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots", initialRawWorld)
+  def dirInfo: DirInfo
+  lazy val rawSnapshot: RawSnapshot =
+    new FileRawSnapshotImpl("db4/snapshots", initialRawWorld, DirInfoImpl)
 }
 
 trait SerialObserversApp {

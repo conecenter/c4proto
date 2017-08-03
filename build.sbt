@@ -138,6 +138,10 @@ lazy val `c4gate-client` = project.settings(publishSettings)
   .settings(metaMacroSettings)
   .dependsOn(`c4gate-proto`,`c4actor-base`)
 
+lazy val `c4gate-deploy` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+
+
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
@@ -149,6 +153,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4assemble-runtime`,
   `c4gate-consumer-example`,
   `c4gate-client`,
+  `c4gate-deploy`,
   `c4gate-proto`,
   `c4gate-publish`,
   `c4gate-server`,
