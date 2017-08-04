@@ -284,11 +284,11 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 	const PingReceiver = function(){
 		let pingerTimeout=null;
 		let callbacks=[];
-		function ping(){			
+		function ping(data){			
 			if(pingerTimeout){clearTimeout(pingerTimeout); pingerTimeout = null;}
 			if(!callbacks.length) return;
-			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o.func(false));},5000);
-			callbacks.forEach((o)=>o.func(true));
+			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o.func(false,data));},5000);
+			callbacks.forEach((o)=>o.func(true,data));
 		};		
 		function regCallback(func,obj){
 			callbacks.push({obj,func});
@@ -301,11 +301,13 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 	let prevWifiLevel = null
 	const DeviceConnectionState = React.createClass({
 		getInitialState:function(){
-			return {on:true,wifiLevel:null,waiting:null};
+			return {on:true,wifiLevel:null,waiting:null,data:null};
 		},
-		signal:function(on){			
+		signal:function(on,data){			
 			if(this.state.on!=on)
 				this.setState({on});
+			if(this.state.date!=data)
+				this.setState({data})
 		},
 		wifiCallback:function(wifiLevel){
 			prevWifiLevel = wifiLevel
@@ -341,7 +343,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		},
 		componentDidUpdate:function(prevProps,prevState){
 			log(`toggle ${this.state.on}`)
-			this.toggleOverlay(!this.state.on);
+			this.toggleOverlay(!this.state.on);			
 		},
 		render:function(){
 			const wifiLevel = prevWifiLevel&&!this.state.wifiLevel?prevWifiLevel:this.state.wifiLevel
@@ -377,7 +379,10 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				</svg>`;
 				imageSvgData = svgSrc(wifiSvg)				
 			}			 
-			return React.createElement(ConnectionState,{onClick:this.props.onClick,on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null);
+			return React.createElement("div",{style:{display:"flex"}},[
+				React.createElement(ConnectionState,{key:"3",onClick:this.props.onClick,on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null),
+				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"2"},this.state.data)
+			])
 		},
 	});
 	const CustomMeasurerConnectionState = React.createClass({

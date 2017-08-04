@@ -30,7 +30,7 @@ const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
 const log = v => console.log("log",v)
-const requestState = RequestState(sender,log)
+const requestState = sender//RequestState(sender,log)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
 const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
@@ -127,8 +127,8 @@ const receiversList = [
 	metroUi.receivers,
     customUi.receivers,
 	cryptoElements.receivers,
-	focusModule.receivers,
-	requestState.receivers
+	focusModule.receivers/*,
+	requestState.receivers*/
 ]
 const composeUrl = () => {
     const port = parseInt(location.port)
