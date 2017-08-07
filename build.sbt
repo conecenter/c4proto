@@ -140,6 +140,7 @@ lazy val `c4gate-client` = project.settings(publishSettings)
 
 lazy val `c4gate-deploy` = project.settings(publishSettings)
   .settings(description := s"$descr")
+  .dependsOn(`c4actor-base`)
 
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
