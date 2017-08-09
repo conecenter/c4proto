@@ -1,6 +1,7 @@
 "use strict";
 
 import "babel-polyfill"
+import "whatwg-fetch"
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
@@ -138,8 +139,10 @@ const composeUrl = () => {
 const createEventSource = () => new EventSource(window.sseUrl||composeUrl())
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)
-activate(requestAnimationFrame, [connection.checkActivate,
-								branches.checkActivate,
-								metroUi.checkActivate,
-								focusModule.checkActivate,
-								dragDropModule.checkActivate])
+activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), [
+    connection.checkActivate,
+    branches.checkActivate,
+    metroUi.checkActivate,
+    focusModule.checkActivate,
+    dragDropModule.checkActivate
+])
