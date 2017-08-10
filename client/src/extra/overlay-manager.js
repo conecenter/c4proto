@@ -27,6 +27,7 @@ export default function OverlayManager({log,documentManager,windowManager}){
 		circularTimer = setTimeout(startCircularMotion,100)
 	}
 	const toggle = (on,textmsg) => {
+	    return;
 		if(on){			
 			if(getEls().length>0) return
 			killTimers();stopCircular = false
@@ -72,6 +73,7 @@ export default function OverlayManager({log,documentManager,windowManager}){
 		}		
 	}
 	const delayToggle = (msg) => {
+	    return;
 		if(delayTimer) return
 		delayTimer = setTimeout(()=>{
 			if(!delayTimer) return

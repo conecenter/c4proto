@@ -2,6 +2,7 @@
 
 import "babel-polyfill"
 import "whatwg-fetch"
+import "eventsource-polyfill"
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
