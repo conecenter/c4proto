@@ -34,7 +34,7 @@ trait SSEServerApp
   lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig)
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
   private lazy val sseServer =
-    new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig))
+    new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10)
   override def toStart: List[Executable] = sseServer :: super.toStart
   override def assembles: List[Assemble] =
     SSEAssembles(mortal,sseConfig) ::: PostAssembles(mortal,sseConfig) :::

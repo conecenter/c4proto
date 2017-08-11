@@ -16,7 +16,7 @@ trait TcpServerApp extends ToStartApp with AssemblesApp with InitLocalsApp with 
   def mortal: MortalFactory
 
   private lazy val tcpPort = config.get("C4TCP_PORT").toInt
-  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(qMessages, worldProvider))
+  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(qMessages, worldProvider), Long.MaxValue)
   override def toStart: List[Executable] = tcpServer :: super.toStart
   override def assembles: List[Assemble] =
     mortal(classOf[TcpDisconnect]) :: mortal(classOf[TcpWrite]) ::
