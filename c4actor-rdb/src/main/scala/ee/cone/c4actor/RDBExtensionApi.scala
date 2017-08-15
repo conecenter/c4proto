@@ -1,14 +1,11 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4assemble.Types.World
-import ee.cone.c4assemble.WorldKey
-
 trait ExternalDBFactory {
   def create(wrap: (()⇒java.sql.Connection)⇒RConnectionPool): RConnectionPool
 }
 
-case object WithJDBCKey extends WorldKey[(RConnection⇒World)⇒World](_⇒throw new Exception)
+case object WithJDBCKey extends SharedComponentKey[(RConnection⇒Context)⇒Context]
 
 trait RConnectionPool {
   def doWith[T](f: RConnection⇒T): T

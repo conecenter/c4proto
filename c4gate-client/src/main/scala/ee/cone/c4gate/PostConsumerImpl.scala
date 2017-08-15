@@ -13,7 +13,7 @@ import ee.cone.c4gate.AlienProtocol.PostConsumer
     key: SrcId,
     consumers: Values[PostConsumer]
   ): Values[(WasConsumer,PostConsumer)] =
-    for(c ← consumers if c.consumer == actorName.value) yield WithSrcId(c)
+    for(c ← consumers if c.consumer == actorName.value) yield WithPK(c)
 
   type NeedConsumer = SrcId
   def needConsumers(
@@ -21,7 +21,7 @@ import ee.cone.c4gate.AlienProtocol.PostConsumer
     consumers: Values[LocalPostConsumer]
   ): Values[(NeedConsumer,PostConsumer)] =
     for(c ← consumers.distinct)
-      yield WithSrcId(PostConsumer(s"${actorName.value}/${c.condition}", actorName.value, c.condition))
+      yield WithPK(PostConsumer(s"${actorName.value}/${c.condition}", actorName.value, c.condition))
 
   def syncConsumers(
     key: SrcId,
@@ -29,7 +29,7 @@ import ee.cone.c4gate.AlienProtocol.PostConsumer
     @by[NeedConsumer] needConsumers: Values[PostConsumer]
   ): Values[(SrcId,TxTransform)] =
     if(wasConsumers.toList == needConsumers.toList) Nil
-    else List(WithSrcId(SimpleTxTransform(key,
+    else List(WithPK(SimpleTxTransform(key,
       wasConsumers.flatMap(LEvent.delete) ++ needConsumers.flatMap(LEvent.update)
     )))
 }

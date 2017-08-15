@@ -1,20 +1,18 @@
 package ee.cone.c4gate
 
 import ee.cone.c4ui.CanvasContent
-import java.net.URL
 import java.text.DecimalFormat
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, Single, assemble, by}
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
-import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.MutableJsonBuilder
 import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.c4vdom_impl.{HeightTagStyle, JsonBuilderImpl, JsonToStringImpl}
+import ee.cone.c4vdom_impl.JsonBuilderImpl
 
 class TestCanvasApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -31,7 +29,7 @@ class TestCanvasApp extends ServerApp
   override def protocols: List[Protocol] = TestCanvasProtocol :: super.protocols
   override def assembles: List[Assemble] =
     new TestCanvasAssemble ::
-      new FromAlienTaskAssemble("localhost", "/react-app.html") ::
+      new FromAlienTaskAssemble("/react-app.html") ::
       super.assembles
   def mimeTypes: Map[String, String] = Map(
     "svg" → "image/svg+xml"
@@ -66,7 +64,7 @@ case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=
       view ← Option(task.locationHash).collect{
         case "rectangle" ⇒ TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
       }
-    ) yield WithSrcId(view)
+    ) yield WithPK(view)
 
   def joinCanvas(
     key: SrcId,
@@ -81,8 +79,8 @@ case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=
 }
 
 case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends CanvasHandler {
-  def messageHandler: BranchMessage ⇒ World ⇒ World = ???
-  def view: World ⇒ CanvasContent = local ⇒ {
+  def messageHandler: BranchMessage ⇒ Context ⇒ Context = ???
+  def view: Context ⇒ CanvasContent = local ⇒ {
     val decimalFormat = new DecimalFormat("#0.##")
     val builder = new JsonBuilderImpl()
     builder.startObject()
@@ -136,14 +134,14 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
 
 
 case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
-  def view: World ⇒ ViewRes = local ⇒ {
-    val world = TxKey.of(local).world
-    val canvasTasks = By.srcId(classOf[TestCanvasState]).of(world)
-    val branchOperations = BranchOperationsKey.of(local).get
-    val tags = TagsKey.of(local).get
-    val styles = TagStylesKey.of(local).get
-    val tTags = TestTagsKey.of(local).get
-    val canvasTask = Single(canvasTasks.getOrElse(sessionKey,List(TestCanvasState(sessionKey,"",""))))
+  def view: Context ⇒ ViewRes = local ⇒ {
+    val canvasTasks = ByPK(classOf[TestCanvasState]).of(local)
+    val branchOperations = BranchOperationsKey.of(local)
+    val tags = TagsKey.of(local)
+    val styles = TagStylesKey.of(local)
+    val tTags = TestTagsKey.of(local)
+    val canvasTask: TestCanvasState =
+      canvasTasks.getOrElse(sessionKey,TestCanvasState(sessionKey,"",""))
     //
     val inputX = tTags.toInput("x", CanvasTaskX)
     val inputY = tTags.toInput("y", CanvasTaskY)

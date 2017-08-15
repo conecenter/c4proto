@@ -27,7 +27,7 @@ trait FromExternalDBSyncApp extends RDBSyncApp with ExternalDBOptionsApp with Pr
   override def protocols: List[Protocol] = FromExternalDBProtocol :: super.protocols
 }
 
-trait RDBSyncApp extends ToStartApp with InitLocalsApp {
+trait RDBSyncApp extends ToStartApp with ToInjectApp {
   def qMessages: QMessages
   def externalDBFactory: ExternalDBFactory
   def externalDBOptions: List[ExternalDBOption]
@@ -35,6 +35,6 @@ trait RDBSyncApp extends ToStartApp with InitLocalsApp {
   lazy val rdbOptionFactory = new RDBOptionFactoryImpl(qMessages)
 
   private lazy val externalDBSyncClient = new ExternalDBSyncClient(externalDBFactory)
-  override def initLocals: List[InitLocal] = externalDBSyncClient :: super.initLocals
+  override def toInject: List[ToInject] = externalDBSyncClient :: super.toInject
   override def toStart: List[Executable] = externalDBSyncClient :: super.toStart
 }

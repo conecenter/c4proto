@@ -8,7 +8,6 @@ import java.util.UUID
 import java.util.concurrent.{Executors, ScheduledExecutorService, ScheduledFuture, TimeUnit}
 
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.World
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.Queue
@@ -56,8 +55,8 @@ class ChannelHandler(
 class TcpServerImpl(
   port: Int, tcpHandler: TcpHandler, timeout: Long,
   channels: TrieMap[String,ChannelHandler] = TrieMap()
-) extends InitLocal with Executable {
-  def initLocal: World ⇒ World = GetSenderKey.set(channels.get)
+) extends ToInject with Executable {
+  def toInject: List[Injectable] = GetSenderKey.set(channels.get)
 
   def run(): Unit = concurrent.blocking{
     tcpHandler.beforeServerStart()

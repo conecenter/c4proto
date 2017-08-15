@@ -16,17 +16,16 @@ object Measure {
 
 object NotEffectiveAssemblerTest extends App {
   val app = new AssemblerTestApp
-  val emptyWorld = app.qReducer.createWorld(Map())
   val nodes = List(RawParentNode("1","P-1")) ++
     (1 to 10000).map(_.toString).map(srcId⇒RawChildNode(srcId,"0",s"C-$srcId"))
-  val local = app.qReducer.createTx(emptyWorld)(Map())
+  val local = app.contextFactory.create()
 
   Measure { () ⇒
-    chain(nodes.map(update).map(add))(local)
+    chain(nodes.map(update).map(TxAdd(_)))(local)
   }.foreach(t⇒println(s"bad join with many add-s takes $t ms"))
 
   Measure { () ⇒
-    chain(List(add(nodes.flatMap(update))))(local)
+    chain(List(TxAdd(nodes.flatMap(update))))(local)
   }.foreach(t⇒println(s"bad join with single add takes $t ms"))
 }
 
@@ -91,7 +90,7 @@ import scala.collection.immutable.TreeMap
 */
 
 /*
-          def getId(e: R) = e.productElement(0) match {
+          def getId(e: R) = e.product Element(0) match {
             case s: String ⇒ s
             case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
           }
@@ -130,7 +129,7 @@ import scala.collection.immutable.TreeMap
 
 
 /*
-def getId(e: R) = e.productElement(0) match {
+def getId(e: R) = e.product Element(0) match {
   case s: String ⇒ s
   case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
 }

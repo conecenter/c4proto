@@ -9,10 +9,10 @@ import java.util.UUID
 import FromExternalDBProtocol.DBOffset
 import ToExternalDBProtocol.HasState
 import ToExternalDBTypes.NeedSrcId
-import ee.cone.c4actor.QProtocol.{Offset, Update}
+import ee.cone.c4actor.QProtocol.{Firstborn, Update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4proto
 import ee.cone.c4proto._
@@ -92,10 +92,10 @@ case class ToExternalDBTask(
   to: Option[HasState]
 )
 
-case object RDBSleepUntilKey extends WorldKey[Map[SrcId,(Instant,Option[HasState])]](Map.empty)
+case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[HasState])]](Map.empty)
 
 case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends TxTransform {
-  def transform(local: World): World = {
+  def transform(local: Context): Context = {
     val now = Instant.now()
     tasks.find{ task ⇒
       val skip = RDBSleepUntilKey.of(local)
@@ -103,7 +103,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
       until.isBefore(now) || task.to != wasTo
     }.map{ task ⇒ WithJDBCKey.of(local) { conn ⇒
       import task.{from,to}
-      val registry = QAdapterRegistryKey.of(local)()
+      val registry = QAdapterRegistryKey.of(local)
       val protoToString = new ProtoToString(registry)
       def recode(stateOpt: Option[HasState]) = stateOpt.map{ state ⇒
         protoToString.recode(state.valueTypeId, state.value)
@@ -125,7 +125,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
       )(local)
       else RDBSleepUntilKey.modify(m ⇒
         m - task.srcId
-      ).andThen(LEvent.add(
+      ).andThen(TxAdd(
         from.toList.flatMap(LEvent.delete) ++ to.toList.flatMap(LEvent.update)
       ))(local)
     }}.getOrElse(local)
@@ -146,24 +146,22 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 @assemble class FromExternalDBSyncAssemble extends Assemble {
   def joinTxTransform(
     key: SrcId,
-    offset: Values[Offset]
+    firsts: Values[Firstborn]
   ): Values[(SrcId,TxTransform)] =
     List("externalDBSync").map(k⇒k→FromExternalDBSyncTransform(k))
 }
 
 case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform {
-  def transform(local: World): World = WithJDBCKey.of(local){ conn ⇒
-    val world = TxKey.of(local).world
+  def transform(local: Context): Context = WithJDBCKey.of(local){ conn ⇒
     val offset =
-      Single.option(By.srcId(classOf[DBOffset]).of(world).getOrElse(srcId,Nil))
-        .getOrElse(DBOffset(srcId, 0L))
+      ByPK(classOf[DBOffset]).of(local).getOrElse(srcId, DBOffset(srcId, 0L))
     println("offset",offset)//, By.srcId(classOf[Invoice]).of(world).size)
     val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
     //val updateOffset = List(DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
     //  .map(n⇒LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
       println("textEncoded",textEncoded)
-      TxKey.modify(_.add((new IndentedParser).toUpdates(textEncoded)))(local)
+      WriteModelAddKey.of(local)((new IndentedParser).toUpdates(textEncoded))(local)
     }
   }
 }
@@ -246,8 +244,7 @@ class ProtoToString(registry: QAdapterRegistry){
   }
   def recode(valueTypeId: Long, value: ByteString): (String,String) =
     registry.byId.get(valueTypeId).map{ adapter ⇒
-      val decoded = adapter.decode(value.toByteArray)
-      val srcId = decoded.productElement(0) match{ case s: String ⇒ s }
+      val(srcId,decoded) = WithPK(adapter.decode(value.toByteArray))
       (srcId,encode(adapter.id, decoded))
     }.getOrElse(("",""))
 }

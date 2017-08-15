@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4proto.Protocol
@@ -14,7 +14,7 @@ class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
 abstract class TestTxTransformApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with InitLocalsApp
+  with ToInjectApp
   with UMLClientsApp
   with FileRawSnapshotApp
 {
@@ -31,12 +31,12 @@ abstract class TestTxTransformApp extends ServerApp
 }
 
 case class TestDelayHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform {
-  def transform(local: World): World = {
+  def transform(local: Context): Context = {
     println(s"start handling $srcId")
     concurrent.blocking{
       Thread.sleep(1000)
     }
     println(s"finish handling $srcId")
-    add(delete[Product](post))(local)
+    TxAdd(delete[Product](post))(local)
   }
 }

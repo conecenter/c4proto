@@ -49,7 +49,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-class AssemblerTestApp extends ServerApp with VMExecutionApp with ToStartApp with InitLocalsApp with ParallelObserversApp with UMLClientsApp {
+class AssemblerTestApp extends ServerApp with VMExecutionApp with ToStartApp with ToInjectApp with ParallelObserversApp with UMLClientsApp {
   override def indexValueMergerFactory: IndexValueMergerFactory =
     //new CachingIndexValueMergerFactory(16)
     new TreeIndexValueMergerFactory(16)
@@ -65,8 +65,8 @@ object AssemblerTest extends App {
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
   val updates = recs.map(rec⇒app.qMessages.toUpdate(rec)).toList
   //println(app.qMessages.toTree(rawRecs))
-  val emptyWorld = app.qReducer.createWorld(Map())
-  val world = app.qReducer.reduceRecover(emptyWorld, updates)
+  val context = app.contextFactory.create()
+  val nGlobal = ReadModelAddKey.of(context)(updates)(context)
   /*
   val shouldDiff = Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
@@ -78,22 +78,22 @@ object AssemblerTest extends App {
     )
   )
   assert(diff==shouldDiff)*/
-  println(world)
+  println(nGlobal)
   Map(
-    By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
-      "1" -> List(RawParentNode("1","P-1"))
+    ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
+      "1" -> RawParentNode("1","P-1")
     ),
-    By.srcId(classOf[PCProtocol.RawChildNode]) -> Map(
-      "2" -> List(RawChildNode("2","1","C-2")),
-      "3" -> List(RawChildNode("3","1","C-3"))
+    ByPK(classOf[PCProtocol.RawChildNode]) -> Map(
+      "2" -> RawChildNode("2","1","C-2"),
+      "3" -> RawChildNode("3","1","C-3")
     ),
-    By.srcId(classOf[ParentNodeWithChildren]) -> Map(
-      "1" -> List(ParentNodeWithChildren("1",
+    ByPK(classOf[ParentNodeWithChildren]) -> Map(
+      "1" -> ParentNodeWithChildren("1",
         "P-1",
         List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
-      ))
+      )
     )
   ).foreach{
-    case (k,v) ⇒ assert(world(k)==v)
+    case (k,v) ⇒ assert(k.of(nGlobal).toMap==v)
   }
 }

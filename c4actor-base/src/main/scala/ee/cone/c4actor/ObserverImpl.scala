@@ -16,7 +16,7 @@ class TxTransforms(qMessages: QMessages) {
     val txTransform = ByPK(classOf[TxTransform]).of(local).get(key)
     if(
       txTransform.isEmpty ||
-        qMessages.worldOffset(global) < OffsetWorldKey.of(local) ||
+        OffsetWorldKey.of(global) < OffsetWorldKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
     ) local.transient else try {
       Trace{

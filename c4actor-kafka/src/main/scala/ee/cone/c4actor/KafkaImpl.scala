@@ -40,13 +40,13 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
     execution.onShutdown("Producer",() ⇒ producer.get.close())
   }
 
-  private def sendStart(rec: QRecord): java.util.concurrent.Future[RecordMetadata] = concurrent.blocking{
+  private def sendStart(rec: QRecord): java.util.concurrent.Future[RecordMetadata] = {
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
     val value = if(rec.value.nonEmpty) rec.value else null
     val topic = conf.topicNameToString(rec.topic)
     producer.get.send(new ProducerRecord(topic, 0, Array.empty, value))
   }
-  def send(recs: List[QRecord]): List[Long] = {
+  def send(recs: List[QRecord]): List[Long] = concurrent.blocking{
     val futures: List[java.util.concurrent.Future[RecordMetadata]] = recs.map(sendStart)
     futures.map(_.get().offset()+1)
   }

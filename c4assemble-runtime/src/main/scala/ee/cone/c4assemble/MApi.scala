@@ -10,29 +10,24 @@ import collection.immutable.{Iterable,Seq}
 object Types {
   type Values[V] = Seq[V]
   type Index[K,V] = Map[K,Values[V]]
-  type World = Map[WorldKey[_],Object]
+  type ReadModel = Map[AssembledKey[_],Object]
 }
 
-trait Lens[C,I] {
+trait Getter[C,+I] {
   def of: C ⇒ I
-  def modify: (I⇒I) ⇒ C⇒C
-  def set: I ⇒ C⇒C
 }
 
-abstract class WorldKey[Item](default: Item) extends Lens[World,Item] {
-  def of: World ⇒ Item = world ⇒ world.getOrElse(this, default).asInstanceOf[Item]
-  def modify: (Item⇒Item) ⇒ World ⇒ World = f ⇒ world ⇒ set(f(of(world)))(world)
-  def set: Item ⇒ World ⇒ World = value ⇒ _ + (this → value.asInstanceOf[Object])
+abstract class AssembledKey[+Item](default: Item) extends Getter[ReadModel,Item] {
+  def of: ReadModel ⇒ Item = world ⇒ world.getOrElse(this, default).asInstanceOf[Item]
 }
-
 
 trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {
   def transform(transition: WorldTransition): WorldTransition
 }
 case class WorldTransition(
-  prev: World,
-  diff: Map[WorldKey[_],Map[Object,Boolean]],
-  current: World
+  prev: ReadModel,
+  diff: Map[AssembledKey[_],Map[Object,Boolean]],
+  current: ReadModel
 )
 
 trait IndexFactory {
@@ -47,16 +42,16 @@ trait IndexValueMergerFactory {
 }
 
 trait DataDependencyFrom[From] {
-  def inputWorldKeys: Seq[WorldKey[From]]
+  def inputWorldKeys: Seq[AssembledKey[From]]
 }
 
 trait DataDependencyTo[To] {
-  def outputWorldKey: WorldKey[To]
+  def outputWorldKey: AssembledKey[To]
 }
 
 class Join[T,R,TK,RK](
-  val inputWorldKeys: Seq[WorldKey[Index[TK, T]]],
-  val outputWorldKey: WorldKey[Index[RK, R]],
+  val inputWorldKeys: Seq[AssembledKey[Index[TK, T]]],
+  val outputWorldKey: AssembledKey[Index[RK, R]],
   val joins: (TK, Seq[Values[T]]) ⇒ Iterable[(RK,R)]
 ) extends DataDependencyFrom[Index[TK,T]]
   with DataDependencyTo[Index[RK,R]]
@@ -66,6 +61,6 @@ trait Assemble {
 }
 
 case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
-  extends WorldKey[Index[K,V]](Map.empty)
+  extends AssembledKey[Index[K,V]](Map.empty)
 
 class by[T]

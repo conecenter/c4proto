@@ -7,7 +7,7 @@ import com.sun.net.httpserver.HttpExchange
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4gate.AlienProtocol._
 import ee.cone.c4proto.Protocol
 
@@ -23,7 +23,7 @@ import ee.cone.c4gate.HttpProtocol.{Header, HttpPost}
 trait SSEServerApp
   extends ToStartApp
   with AssemblesApp
-  with InitLocalsApp
+  with ToInjectApp
   with ProtocolsApp
 {
   def config: Config
@@ -39,38 +39,37 @@ trait SSEServerApp
   override def assembles: List[Assemble] =
     SSEAssembles(mortal,sseConfig) ::: PostAssembles(mortal,sseConfig) :::
       super.assembles
-  override def initLocals: List[InitLocal] =
-    sseServer :: pongHandler :: super.initLocals
+  override def toInject: List[ToInject] =
+    sseServer :: pongHandler :: super.toInject
   override def protocols: List[Protocol] = AlienProtocol :: super.protocols
 }
 
-case object LastPongKey extends WorldKey[String⇒Option[Instant]](_⇒None)
+case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
 
 class PongHandler(
     qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
     pongs: TrieMap[String,Instant] = TrieMap()
-) extends RHttpHandler with InitLocal {
-  def initLocal: (World) ⇒ World = LastPongKey.set(pongs.get)
+) extends RHttpHandler with ToInject {
+  def toInject: List[Injectable] = LastPongKey.set(pongs.get)
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
     val headers = httpExchange.getRequestHeaders.asScala.map{ case(k,v) ⇒ k→Single(v.asScala.toList) }
     val now = Instant.now
     val local = worldProvider.createTx()
-    val world = TxKey.of(local).world
     val sessionKey = headers("X-r-session")
-    val userNames = By.srcId(classOf[AuthenticatedSession]).of(world).getOrElse(sessionKey,Nil).map(_.userName)
+    val userName = ByPK(classOf[AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
     val session = FromAlienState(
       sessionKey,
       headers("X-r-location"),
       headers("X-r-connection"),
       now.getEpochSecond / sseConfig.stateRefreshPeriodSeconds * sseConfig.stateRefreshPeriodSeconds,
-      Single.option(userNames)
+      userName
     )
     pongs(session.sessionKey) = now
-    val wasSession = By.srcId(classOf[FromAlienState]).of(world).getOrElse(session.sessionKey,Nil)
-    if(wasSession != List(session))
-      LEvent.add(LEvent.update(session)).andThen(qMessages.send)(local)
+    val wasSession = ByPK(classOf[FromAlienState]).of(local).get(session.sessionKey)
+    if(wasSession != Option(session))
+      TxAdd(LEvent.update(session)).andThen(qMessages.send)(local)
     httpExchange.sendResponseHeaders(200, 0)
     true
   }
@@ -96,7 +95,7 @@ class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHan
   override def afterDisconnect(key: String): Unit = ()
 }
 
-case object SSEPingTimeKey extends WorldKey[Instant](Instant.MIN)
+case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 
 case class SessionTxTransform( //?todo session/pongs purge
     sessionKey: SrcId,
@@ -104,7 +103,7 @@ case class SessionTxTransform( //?todo session/pongs purge
     writes: Values[ToAlienWrite],
     purgePeriodSeconds: Int
 ) extends TxTransform {
-  def transform(local: World): World = {
+  def transform(local: Context): Context = {
     val now = Instant.now
     val lastPongTime = LastPongKey.of(local)(sessionKey)
       .getOrElse(Instant.ofEpochSecond(fromAlien.lastPongSecond))
@@ -114,10 +113,10 @@ case class SessionTxTransform( //?todo session/pongs purge
     if(lastPongAge>2) { //reconnect<precision<purge
       sender.foreach(_.close())
       if(lastPongAge>purgePeriodSeconds)
-        LEvent.add(LEvent.delete(fromAlien))(local) else local
+        TxAdd(LEvent.delete(fromAlien))(local) else local
     }
     else sender.map( sender ⇒
-      ((local:World) ⇒
+      ((local:Context) ⇒
         if(SECONDS.between(SSEPingTimeKey.of(local), now) < 1) local
         else {
           SSEMessage.message(sender, "ping", fromAlien.connectionKey)
@@ -125,7 +124,7 @@ case class SessionTxTransform( //?todo session/pongs purge
         }
       ).andThen{ local ⇒
         for(m ← writes) SSEMessage.message(sender, m.event, m.data)
-        LEvent.add(writes.flatMap(LEvent.delete))(local)
+        TxAdd(writes.flatMap(LEvent.delete))(local)
       }(local)
     ).getOrElse(local)
   }
@@ -151,7 +150,7 @@ object SSEAssembles {
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(SrcId,TxTransform)] =
     for(session ← fromAliens)
-      yield WithSrcId(SessionTxTransform(
+      yield WithPK(SessionTxTransform(
         session.sessionKey, session, writes.sortBy(_.priority),
         sseConfig.stateRefreshPeriodSeconds + sseConfig.tolerateOfflineSeconds
       ))
@@ -161,7 +160,7 @@ object SSEAssembles {
     fromAliens: Values[FromAlienState],
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(Alive,ToAlienWrite)] =
-    for(write ← writes if fromAliens.nonEmpty) yield WithSrcId(write)
+    for(write ← writes if fromAliens.nonEmpty) yield WithPK(write)
 }
 
 case class NoProxySSEConfig(stateRefreshPeriodSeconds: Int) extends SSEConfig {
