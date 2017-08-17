@@ -13,10 +13,12 @@ class ContextFactory(toInject: List[ToInject]) {
   )
 }
 
-class RichRawWorldFactory(contextFactory: ContextFactory, qMessages: QMessages) extends RawWorldFactory {
+class RichRawWorldFactory(
+  contextFactory: ContextFactory, qMessages: QMessages, actorName: String
+) extends RawWorldFactory {
   def create(): RawWorld = {
     val context = contextFactory.create()
-    val updates = LEvent.update(Firstborn("")).toList.map(qMessages.toUpdate)
+    val updates = LEvent.update(Firstborn(actorName)).toList.map(qMessages.toUpdate)
     new RichRawWorld(ReadModelAddKey.of(context)(updates)(context),Nil)
   }
 }

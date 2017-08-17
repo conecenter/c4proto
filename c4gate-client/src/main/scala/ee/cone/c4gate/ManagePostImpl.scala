@@ -8,12 +8,12 @@ import ee.cone.c4assemble.Types.{Index, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 
-@assemble class ManagementPostAssemble(actorName: ActorName) extends Assemble {
+@assemble class ManagementPostAssemble(actorName: String) extends Assemble {
   def joinHttpPostHandler(
     key: SrcId,
     posts: Values[HttpPost]
   ): Values[(SrcId, TxTransform)] =
-    for(post ← posts if post.path == s"/manage/${actorName.value}")
+    for(post ← posts if post.path == s"/manage/$actorName")
       yield WithPK(ManageHttpPostTx(post.srcId, post))
 
   def joinConsumers(
@@ -21,7 +21,7 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
     firsts: Values[Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
     for(_ ← firsts)
-      yield WithPK(LocalPostConsumer(s"/manage/${actorName.value}"))
+      yield WithPK(LocalPostConsumer(s"/manage/$actorName"))
 }
 
 case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform {

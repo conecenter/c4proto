@@ -1,14 +1,13 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{ActorName, AssemblesApp, Config}
+import ee.cone.c4actor.{AssemblesApp, Config}
 import ee.cone.c4assemble.Assemble
 
 trait ManagementApp extends AssemblesApp {
   def config: Config
 
-  private lazy val mainActorName = ActorName(config.get("C4STATE_TOPIC_PREFIX"))
   override def assembles: List[Assemble] =
-    new ManagementPostAssemble(mainActorName) :: new PostConsumerAssemble(mainActorName) ::
+    new ManagementPostAssemble(getClass.getName) :: new PostConsumerAssemble(getClass.getName) ::
       super.assembles
 }
 

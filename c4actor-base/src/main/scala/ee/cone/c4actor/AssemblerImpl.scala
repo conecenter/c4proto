@@ -36,13 +36,12 @@ class AssemblerInit(
           }
       )
     }
-  private def reduce(out: Seq[Update]): Context ⇒ Context = context ⇒ new Context(
-    context.injected,
-    TreeAssemblerKey.of(context)(
-      toTree(out).asInstanceOf[Map[AssembledKey[_],Index[Object,Object]]]
-    )(context.assembled),
-    context.transient
-  )
+  private def reduce(out: Seq[Update]): Context ⇒ Context = context ⇒ {
+    val diff = toTree(out).asInstanceOf[Map[AssembledKey[_],Index[Object,Object]]]
+    val nAssembled = TreeAssemblerKey.of(context)(diff)(context.assembled)
+    new Context(context.injected, nAssembled, context.transient)
+  }
+
   private def add(out: Seq[Update]): Context ⇒ Context =
     if(out.isEmpty) identity[Context]
     else WriteModelKey.modify(_.enqueue(out)).andThen(reduce(out.toList))

@@ -38,8 +38,6 @@ import ee.cone.c4actor.Types.{SrcId, TransientMap}
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
 
-case class ActorName(value: String)
-
 sealed trait TopicName
 case class InboxTopicName() extends TopicName
 case class LogTopicName() extends TopicName

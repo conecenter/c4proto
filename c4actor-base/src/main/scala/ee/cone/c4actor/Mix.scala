@@ -47,7 +47,7 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val rawWorldFactory: RawWorldFactory = new RichRawWorldFactory(contextFactory,qMessages)
+  lazy val rawWorldFactory: RawWorldFactory = new RichRawWorldFactory(contextFactory,qMessages,getClass.getName)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   lazy val contextFactory = new ContextFactory(toInject)
