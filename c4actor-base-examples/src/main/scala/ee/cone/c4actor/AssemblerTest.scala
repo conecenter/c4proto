@@ -50,6 +50,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 }
 
 class AssemblerTestApp extends ServerApp with VMExecutionApp with ToStartApp with ToInjectApp with ParallelObserversApp with UMLClientsApp {
+  def assembleProfiler: AssembleProfiler = SimpleAssembleProfiler
   override def indexValueMergerFactory: IndexValueMergerFactory =
     //new CachingIndexValueMergerFactory(16)
     new TreeIndexValueMergerFactory(16)

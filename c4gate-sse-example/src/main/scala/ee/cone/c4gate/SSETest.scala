@@ -16,7 +16,7 @@ class TestSSEApp extends ServerApp
   with ParallelObserversApp
   with BranchApp
   with AlienExchangeApp
-  with UMLClientsApp
+  with UMLClientsApp with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {

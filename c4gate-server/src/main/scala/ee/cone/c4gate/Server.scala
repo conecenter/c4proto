@@ -10,7 +10,7 @@ class HttpGatewayApp extends ServerApp
   with SSEServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
-  with UMLClientsApp
+  with UMLClientsApp with NoAssembleProfilerApp
   with MortalFactoryApp
   with ManagementApp
   with FileRawSnapshotApp

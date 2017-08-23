@@ -16,7 +16,7 @@ object Measure {
 
 object NotEffectiveAssemblerTest extends App {
   val app = new AssemblerTestApp
-  val nodes = List(RawParentNode("1","P-1")) ++
+  val nodes = List(RawParentNode("0","P-1")) ++
     (1 to 10000).map(_.toString).map(srcId⇒RawChildNode(srcId,"0",s"C-$srcId"))
   val local = app.contextFactory.create()
 

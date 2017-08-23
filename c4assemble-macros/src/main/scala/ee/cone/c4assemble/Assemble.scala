@@ -40,7 +40,9 @@ class assemble extends StaticAnnotation {
       case JoinDef(params,in,out) ⇒
         s"""
            |indexFactory.createJoinMapIndex[${in.value},${out.value},${in.key},${out.key}](new ee.cone.c4assemble.Join[${in.value},${out.value},${in.key},${out.key}](
-           |  collection.immutable.Seq(${params.map(expr(in,_)).mkString(",")}), ${expr(out,out)},
+           |  "${out.name}",
+           |  collection.immutable.Seq(${params.map(expr(in,_)).mkString(",")}),
+           |  ${expr(out,out)},
            |  (key,in) ⇒ in match {
            |    case Seq(${params.map(_ ⇒ "Nil").mkString(",")}) ⇒ Nil
            |    case Seq(${params.map(_.name).mkString(",")}) ⇒
