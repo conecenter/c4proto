@@ -223,6 +223,13 @@ my $gen_docker_conf = sub{
 
 my $webpack = sub{
     &$sy_in_dir("client","./node_modules/webpack/bin/webpack.js");# -d
+    my $jnm = "client/build/test/metro-app.js";
+    my $jsc = scalar `cat $jnm`;
+    $jsc=~s/\bSymbol.for\b/Symbol['for']/g;
+    $jsc=~s/\{(\s+)default:/{$1'default':/g;
+    $jsc=~s/\.default\b/['default']/g;
+    $jsc=~s/\.return\b/['return']/g;
+    &$put_text($jnm, $jsc);
 };
 
 my $composer = sub{
@@ -287,7 +294,7 @@ my $staged_up = sub{
     #app.yml dev-proj-ports
     my($name)=@_;
     ["test_$name\_up", sub{
-        &$composer("up",$developer,"docker-compose.test_$name.yml");
+        &$composer("up_local",$developer,"docker-compose.test_$name.yml");
     }];
 };
 

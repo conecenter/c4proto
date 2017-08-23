@@ -2,10 +2,10 @@ package ee.cone.c4gate
 
 import java.util.UUID
 
-import ee.cone.c4actor.LEvent.{add, delete, update}
+import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -25,7 +25,7 @@ class TestTodoApp extends ServerApp
   override def protocols: List[Protocol] = TestTodoProtocol :: super.protocols
   override def assembles: List[Assemble] =
     new TestTodoAssemble ::
-    new FromAlienTaskAssemble("localhost", "/react-app.html") ::
+    new FromAlienTaskAssemble("/react-app.html") ::
     super.assembles
 }
 
@@ -47,30 +47,29 @@ class TestTodoApp extends ServerApp
       view ← Option(fromAlien.locationHash).collect{
         case "todo" ⇒ TestTodoRootView(fromAlien.branchKey)
       }
-    ) yield WithSrcId(view)
+    ) yield WithPK(view)
 }
 
 case object TaskComments extends TextInputLens[TodoTask](_.comments,v⇒_.copy(comments=v))
 
 case class TestTodoRootView(branchKey: SrcId) extends View {
-  def view: World ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
-    val tags = TestTagsKey.of(local).get
-    val mTags = TagsKey.of(local).get
+  def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
+    val tags = TestTagsKey.of(local)
+    val mTags = TagsKey.of(local)
     import mTags._
-    val world = TxKey.of(local).world
-    val todoTasks = By.srcId(classOf[TodoTask]).of(world).values.flatten.toList.sortBy(-_.createdAt)
+    val todoTasks = ByPK(classOf[TodoTask]).of(local).values.toList.sortBy(-_.createdAt)
     val input = tags.toInput("comments", TaskComments)
     val taskLines = todoTasks.map { task =>
       div(task.srcId,Nil)(
         List(
           input(task),
-          divButton("remove")(add(delete(task)))(List(text("caption","-")))
+          divButton("remove")(TxAdd(delete(task)))(List(text("caption","-")))
         )
       )
     }
     val btnList = List(
       divButton("add")(
-        add(update(TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
+        TxAdd(update(TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )(List(text("text","+")))
     )
     List(btnList,taskLines).flatten

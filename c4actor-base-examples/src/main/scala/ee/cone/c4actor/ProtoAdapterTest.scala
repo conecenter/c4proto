@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble.Single
-import ee.cone.c4assemble.Types.World
+import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4proto.{Id, Protocol, protocol, scale}
 
 
@@ -20,8 +20,11 @@ object ProtoAdapterTest extends App {
   //
   val lEvents = LEvent.update(group0)
   val updates = lEvents.map(qMessages.toUpdate)
-  val world = qMessages.toTree(updates).asInstanceOf[World]
-  val group1 = Single(By.srcId(classOf[Group]).of(world)(""))
+  val group1 = updates.map(update ⇒
+    qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
+  ) match {
+    case Seq(g:Group) ⇒ g
+  }
   assert(group0==group1)
   println("OK",group1)
 }

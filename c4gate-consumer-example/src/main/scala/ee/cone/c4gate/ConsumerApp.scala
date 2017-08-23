@@ -1,22 +1,19 @@
 
 package ee.cone.c4gate
 
-import java.util.UUID
-
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol._
-import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4actor.QProtocol.Offset
+import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 
 class TestConsumerApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with InitLocalsApp
+  with ParallelObserversApp with ToInjectApp
   with UMLClientsApp
   with ManagementApp
   with FileRawSnapshotApp
@@ -44,13 +41,13 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
     posts: Values[HttpPost]
   ): Values[(SrcId, TxTransform)] =
     for(post ← posts if post.path == "/abc")
-      yield WithSrcId(TestHttpPostHandler(post.srcId,post))
+      yield WithPK(TestHttpPostHandler(post.srcId,post))
 
   def needConsumer(
     key: SrcId,
-    offsets: Values[Offset]
+    firsts: Values[Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
-    for(_ ← offsets) yield WithSrcId(LocalPostConsumer("/abc"))
+    for(_ ← firsts) yield WithPK(LocalPostConsumer("/abc"))
 
   def joinDebug(
     key: SrcId,
@@ -68,7 +65,7 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 }
 
 case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform {
-  def transform(local: World): World = {
+  def transform(local: Context): Context = {
     val resp = if(ErrorKey.of(local).nonEmpty) Nil else {
       val prev = new String(post.body.toByteArray, "UTF-8")
       val next = (prev.toLong * 3).toString
@@ -76,7 +73,7 @@ case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform
       List(HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
     }
     println(resp)
-    add(delete[Product](post) ++ resp.flatMap(update[Product]))(local)
+    TxAdd(delete[Product](post) ++ resp.flatMap(update[Product]))(local)
   }
 }
 

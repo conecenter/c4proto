@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by}
 
 object MortalFactoryImpl extends MortalFactory {
@@ -24,7 +24,7 @@ object MortalFactoryImpl extends MortalFactory {
 }
 
 case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) extends TxTransform {
-  def transform(local: World): World = LEvent.add(todo)(local)
+  def transform(local: Context): Context = TxAdd(todo)(local)
 }
 
 /*
@@ -62,7 +62,7 @@ case class GiveLifeRulesImpl() extends GiveLifeRules {
 
 
 object ToPrimaryKey {
-  def apply(p: Product): SrcId = p.productElement(0) match{ case s: String ⇒ s }
+  def apply(p: Product): SrcId = p.product Element(0) match{ case s: String ⇒ s }
 }
 @assemble class GiveLifeAssemble[Giver<:Product,Mortal<:Product](
   classOfGiver: Class[Giver],

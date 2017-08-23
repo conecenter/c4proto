@@ -24,8 +24,8 @@ trait AssemblesApp {
   def assembles: List[Assemble] = Nil
 }
 
-trait InitLocalsApp {
-  def initLocals: List[InitLocal] = Nil
+trait ToInjectApp {
+  def toInject: List[ToInject] = Nil
 }
 
 trait EnvConfigApp {
@@ -36,7 +36,7 @@ trait UMLClientsApp {
   def umlClients: List[String⇒Unit] = Nil
 }
 
-trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with InitLocalsApp {
+trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with ToInjectApp {
   def execution: Execution
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
@@ -44,26 +44,27 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
   //
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,qReducer,initLocals)
+  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val initialRawWorld: RawWorld = new RichRawWorld(qReducerImpl,None,Nil)
+  lazy val rawWorldFactory: RawWorldFactory = new RichRawWorldFactory(contextFactory,qMessages,getClass.getName)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
-  def qReducer: Reducer = qReducerImpl
+  lazy val contextFactory = new ContextFactory(toInject)
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
-  private lazy val qReducerImpl: ReducerImpl = new ReducerImpl(qMessages, treeAssembler, ()⇒dataDependencies)
+  private lazy val assemblerInit =
+    new AssemblerInit(qAdapterRegistry, qMessages, treeAssembler, ()⇒dataDependencies)
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
     ProtocolDataDependencies(protocols.distinct) ::: super.dataDependencies
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
-  override def initLocals: List[InitLocal] = localQAdapterRegistryInit :: super.initLocals
+  override def toInject: List[ToInject] = assemblerInit :: localQAdapterRegistryInit :: super.toInject
 }
 
 trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
@@ -72,7 +73,7 @@ trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
   def snapshotMakingRawObserver: RawObserver //new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution))
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val initialRawWorld: RawWorld = new SnapshotMakingRawWorld(qAdapterRegistry)
+  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(qAdapterRegistry)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
   override def protocols: List[Protocol] = QProtocol :: super.protocols
@@ -84,8 +85,8 @@ trait VMExecutionApp {
 }
 
 trait FileRawSnapshotApp {
-  def initialRawWorld: RawWorld
-  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots", initialRawWorld)
+  def rawWorldFactory: RawWorldFactory
+  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots", rawWorldFactory)
 }
 
 trait SerialObserversApp {

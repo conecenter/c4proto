@@ -165,6 +165,9 @@ push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
     sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
 }];
+push @tasks, ["snapshot_maker_run", sub{
+    sy("$env ".staged("c4gate-server","ee.cone.c4gate.SnapshotMakerApp"));
+}];
 
 push @tasks, ["test_post_get_tcp_service_run", sub{
     sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestConsumerApp"))

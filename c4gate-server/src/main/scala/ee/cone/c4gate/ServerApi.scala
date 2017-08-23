@@ -1,8 +1,7 @@
 
 package ee.cone.c4gate
 
-import ee.cone.c4assemble.Types.World
-import ee.cone.c4assemble.WorldKey
+import ee.cone.c4actor._
 
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
@@ -10,10 +9,10 @@ trait SenderToAgent {
 }
 
 trait WorldProvider {
-  def createTx(): World
+  def createTx(): Context
 }
 
-case object GetSenderKey extends WorldKey[String⇒Option[SenderToAgent]](_⇒throw new Exception)
+case object GetSenderKey extends SharedComponentKey[String⇒Option[SenderToAgent]]
 
 trait TcpHandler {
   def beforeServerStart(): Unit

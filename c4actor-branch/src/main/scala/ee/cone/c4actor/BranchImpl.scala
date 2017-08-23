@@ -4,23 +4,20 @@ package ee.cone.c4actor
 import java.nio.ByteBuffer
 import java.util.UUID
 
-import ee.cone.c4actor.LEvent._
-import ee.cone.c4actor.Types._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
-import ee.cone.c4actor.BranchProtocol.{SessionFailure, BranchResult}
+import ee.cone.c4actor.BranchProtocol.{BranchResult, SessionFailure}
 import ee.cone.c4actor.BranchTypes._
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 import Function.chain
 
-case object SessionKeysKey extends WorldKey[Set[BranchRel]](Set.empty)
-
-case object AckChangesKey extends WorldKey[Map[String,String]](Map.empty)
+case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
 case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask {
-  def sending: World ⇒ (Send,Send) = local ⇒ {
+  def sending: Context ⇒ (Send,Send) = local ⇒ {
     val newSessionKeys = sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
     val send = SendToAlienKey.of(local)
@@ -33,15 +30,14 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
     (sendingPart(keepTo), sendingPart(freshTo))
   }
 
-  def sessionKeys: World ⇒ Set[BranchRel] = local ⇒ seeds.flatMap(rel⇒
+  def sessionKeys: Context ⇒ Set[BranchRel] = local ⇒ seeds.flatMap(rel⇒
     if(rel.parentIsSession) rel :: Nil
     else {
-      val world = TxKey.of(local).world
-      val index = By.srcId(classOf[BranchTask]).of(world)
-      index.getOrElse(rel.parentSrcId,Nil).flatMap(_.sessionKeys(local))
+      val index = ByPK(classOf[BranchTask]).of(local)
+      index.get(rel.parentSrcId).toList.flatMap(_.sessionKeys(local))
     }
   ).toSet
-  def relocate(to: String): World ⇒ World = local ⇒ {
+  def relocate(to: String): Context ⇒ Context = local ⇒ {
     val(toSessions, toNested) = seeds.partition(_.parentIsSession)
     val sessionKeys = toSessions.map(_.parentSrcId)
     val send = SendToAlienKey.of(local)(sessionKeys,"relocateHash",to)
@@ -49,13 +45,13 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
     send.andThen(chain(nest))(local)
   }
 
-  def relocateSeed(branchKey: String, position: String, to: String): World ⇒ World = {
+  def relocateSeed(branchKey: String, position: String, to: String): Context ⇒ Context = {
     println(s"relocateSeed: [$branchKey] [$position] [$to]")
     identity
   } //todo emulate post to branch?
 }
 
-case object ReportAliveBranchesKey extends WorldKey[String]("")
+case object ReportAliveBranchesKey extends TransientLens[String]("")
 
 case object EmptyBranchMessage extends BranchMessage {
   override def header: String ⇒ String = _⇒""
@@ -69,19 +65,17 @@ case class BranchTxTransform(
   posts: List[MessageFromAlien],
   handler: BranchHandler
 ) extends TxTransform {
-  private def saveResult: World ⇒ World = local ⇒ {
+  private def saveResult: Context ⇒ Context = local ⇒ {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
     //println(s"BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
-    val world = TxKey.of(local).world
-    val index = By.srcId(classOf[BranchResult]).of(world)
-    val wasBranchResults = index.getOrElse(branchKey,Nil)
+    val wasBranchResults = ByPK(classOf[BranchResult]).of(local).get(branchKey).toList
     //
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
     if(wasChildren == newChildren) local
     else {
       val newBranchResult = if(newChildren.isEmpty) Nil else List(seed.get.copy(children = newChildren))
-      add(wasBranchResults.flatMap(delete) ++ newBranchResult.flatMap(update))(local)
+      TxAdd(wasBranchResults.flatMap(LEvent.delete) ++ newBranchResult.flatMap(LEvent.update))(local)
     }
     /* proposed:
     val newBranchResults = seed.toList.map(_.copy(children = handler.seeds(local)))
@@ -91,16 +85,15 @@ case class BranchTxTransform(
     )(local)*/
   }
 
-  private def reportAliveBranches: World ⇒ World = local ⇒ {
+  private def reportAliveBranches: Context ⇒ Context = local ⇒ {
     val wasReport = ReportAliveBranchesKey.of(local)
     if(sessionKeys.isEmpty){
       if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
     }
     else {
-      val world = TxKey.of(local).world
-      val index = By.srcId(classOf[BranchResult]).of(world)
+      val index = ByPK(classOf[BranchResult]).of(local)
       def gather(branchKey: SrcId): List[String] = {
-        val children = index.getOrElse(branchKey,Nil).flatMap(_.children).map(_.hash).toList
+        val children = index.get(branchKey).toList.flatMap(_.children).map(_.hash)
         (branchKey :: children).mkString(",") :: children.flatMap(gather)
       }
       val newReport = gather(branchKey).mkString(";")
@@ -114,27 +107,27 @@ case class BranchTxTransform(
   private def getPosts: List[BranchMessage] =
     if(posts.isEmpty) List(EmptyBranchMessage) else posts
 
-  private def sendToAll(evType: String, data: String): World ⇒ World =
+  private def sendToAll(evType: String, data: String): Context ⇒ Context =
     local ⇒ SendToAlienKey.of(local)(sessionKeys,evType,data)(local)
 
-  private def errorText: World ⇒ String = local ⇒ ErrorKey.of(local).map{
+  private def errorText: Context ⇒ String = local ⇒ ErrorKey.of(local).map{
     case e:BranchError ⇒ e.message
     case _ ⇒ ""
   }.mkString("\n")
 
-  private def reportError: String ⇒ World ⇒ World = text ⇒
+  private def reportError: String ⇒ Context ⇒ Context = text ⇒
     sendToAll("fail",s"$branchKey\n$text")
 
-  private def incrementErrors: World ⇒ World =
+  private def incrementErrors: Context ⇒ Context =
     ErrorKey.modify(new Exception :: _)
 
-  private def savePostsErrors: String ⇒ World ⇒ World = text ⇒ {
+  private def savePostsErrors: String ⇒ Context ⇒ Context = text ⇒ {
     val now = System.currentTimeMillis
     val failure = SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
-    LEvent.add(LEvent.update(failure))
+    TxAdd(LEvent.update(failure))
   }
 
-  private def rmPostsErrors: World ⇒ World = local ⇒ {
+  private def rmPostsErrors: Context ⇒ Context = local ⇒ {
     val send = SendToAlienKey.of(local)
     chain(posts.map{ post ⇒
       val sessionKey = post.header("X-r-session")
@@ -144,7 +137,7 @@ case class BranchTxTransform(
     }).andThen(ErrorKey.set(Nil))(local)
   }
 
-  def transform(local: World): World = {
+  def transform(local: Context): Context = {
     val errors = ErrorKey.of(local)
     if(errors.nonEmpty && posts.nonEmpty)
       savePostsErrors(errorText(local)).andThen(rmPostsErrors)(local)
@@ -220,7 +213,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     key: SrcId,
     @by[SessionKey] failures: Values[SessionFailure]
   ): Values[(SrcId,SessionFailures)] =
-    List(WithSrcId(SessionFailures(key,failures.sortBy(_.time).toList)))
+    List(WithPK(SessionFailures(key,failures.sortBy(_.time).toList)))
 
 }
 

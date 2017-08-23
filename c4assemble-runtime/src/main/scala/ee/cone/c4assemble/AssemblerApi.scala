@@ -12,10 +12,17 @@ object Single {
   def list[C](l: Iterable[C]): List[C] = if(l.isEmpty || l.tail.isEmpty) l.toList else throw new Exception
 }
 
-class OriginalWorldPart[A<:Object](val outputWorldKey: WorldKey[A]) extends DataDependencyTo[A]
+object ToPrimaryKey {
+  def apply(node: Product): String = node.productElement(0) match {
+    case s: String ⇒ s
+    case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
+  }
+}
+
+class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey[A]) extends DataDependencyTo[A]
 
 object TreeAssemblerTypes {
-  type Replace = Map[WorldKey[_],Index[Object,Object]] ⇒ World ⇒ World
+  type Replace = Map[AssembledKey[_],Index[Object,Object]] ⇒ ReadModel ⇒ ReadModel
   type MultiSet[T] = Map[T,Int]
 }
 

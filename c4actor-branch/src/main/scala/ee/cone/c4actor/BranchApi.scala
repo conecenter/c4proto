@@ -2,11 +2,8 @@
 package ee.cone.c4actor
 
 import scala.collection.immutable.Seq
-
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.World
-import ee.cone.c4assemble.WorldKey
 import ee.cone.c4proto._
 
 object BranchTypes {
@@ -20,23 +17,23 @@ trait BranchMessage {
 
 trait BranchHandler extends Product {
   def branchKey: SrcId
-  def exchange: BranchMessage ⇒ World ⇒ World
-  def seeds: World ⇒ List[BranchResult]
+  def exchange: BranchMessage ⇒ Context ⇒ Context
+  def seeds: Context ⇒ List[BranchResult]
 }
 
 trait BranchTask extends Product {
   def branchKey: SrcId
   def product: Product
-  def sessionKeys: World ⇒ Set[BranchRel]
-  type Send = Option[(String,String) ⇒ World ⇒ World]
-  def sending: World ⇒ (Send,Send)
-  def relocate(to: String): World ⇒ World
+  def sessionKeys: Context ⇒ Set[BranchRel]
+  type Send = Option[(String,String) ⇒ Context ⇒ Context]
+  def sending: Context ⇒ (Send,Send)
+  def relocate(to: String): Context ⇒ Context
 }
 
 trait MessageFromAlien extends BranchMessage with Product {
   def srcId: String
   def index: Long
-  def rm: World ⇒ World
+  def rm: Context ⇒ Context
 }
 
 trait BranchOperations {
@@ -65,7 +62,7 @@ case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, paren
 
 }
 
-case object SendToAlienKey extends WorldKey[(Seq[String],String,String)⇒World⇒World]((_,_,_)⇒throw new Exception)
+case object SendToAlienKey extends SharedComponentKey[(Seq[String],String,String)⇒Context⇒Context]
 
 trait BranchError {
   def message: String

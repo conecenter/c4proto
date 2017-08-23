@@ -13,7 +13,7 @@ import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.HttpProtocol._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4actor._
 import ee.cone.c4gate.AlienProtocol.{PostConsumer, ToAlienWrite}
@@ -34,10 +34,9 @@ class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
     val path = httpExchange.getRequestURI.getPath
     val now = System.currentTimeMillis
     val local = worldProvider.createTx()
-    val world = TxKey.of(local).world
-    val publicationsByPath = By.srcId(classOf[HttpPublication]).of(world)
-    publicationsByPath.getOrElse(path,Nil).filter(_.until.forall(now<_)) match {
-      case Seq(publication) ⇒
+    val publicationsByPath = ByPK(classOf[HttpPublication]).of(local)
+    publicationsByPath.get(path).filter(_.until.forall(now<_)) match {
+      case Some(publication) ⇒
         val headers = httpExchange.getResponseHeaders
         publication.headers.foreach(header⇒headers.add(header.key,header.value))
         val bytes = publication.body.toByteArray
@@ -93,9 +92,8 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         )
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
-        val world = TxKey.of(local).world
-        val hashesByUser = By.srcId(classOf[PasswordHashOfUser]).of(world)
-        val hash = Single.option(hashesByUser.getOrElse(userName,Nil)).map(_.hash.get)
+        val hashesByUser = ByPK(classOf[PasswordHashOfUser]).of(local)
+        val hash = hashesByUser.get(userName).map(_.hash.get)
         val endTime = System.currentTimeMillis() + 1000
         val hashOK = hash.exists(pass⇒AuthOperations.verify(password,pass))
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
@@ -110,9 +108,8 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         )
       case _ ⇒ throw new Exception("unsupported auth action")
     }
-    LEvent.add(requests.flatMap(LEvent.update)).andThen{ nLocal ⇒
-      val world = TxKey.of(nLocal).world
-      if(By.srcId(classOf[HttpPostAllow]).of(world).getOrElse(requestId,Nil).nonEmpty){
+    TxAdd(requests.flatMap(LEvent.update)).andThen{ nLocal ⇒
+      if(ByPK(classOf[HttpPostAllow]).of(nLocal).contains(requestId)){
         qMessages.send(nLocal)
         httpExchange.sendResponseHeaders(200, 0)
       } else {
@@ -145,22 +142,18 @@ class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends
 }
 
 class WorldProviderImpl(
-  reducer: Reducer,
-  worldFuture: CompletableFuture[AtomicReference[World]] = new CompletableFuture()
+  worldFuture: CompletableFuture[AtomicReference[Context]] = new CompletableFuture()
 ) extends WorldProvider with Observer {
-  def createTx(): World = concurrent.blocking{
-    reducer.createTx(worldFuture.get.get)(Map())
-  }
-  def activate(world: World): Seq[Observer] = {
-    if(worldFuture.isDone) worldFuture.get.set(world)
-    else worldFuture.complete(new AtomicReference(world))
+  def createTx(): Context = concurrent.blocking{ worldFuture.get.get }
+  def activate(global: Context): Seq[Observer] = {
+    if(worldFuture.isDone) worldFuture.get.set(global)
+    else worldFuture.complete(new AtomicReference(global))
     List(this)
   }
 }
 
 trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
-  def qReducer: Reducer
-  lazy val worldProvider: WorldProvider with Observer = new WorldProviderImpl(qReducer)
+  lazy val worldProvider: WorldProvider with Observer = new WorldProviderImpl()
   override def protocols: List[Protocol] = AuthProtocol :: HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] = worldProvider :: super.initialObservers
 }
@@ -199,14 +192,14 @@ case class HttpPostAllow(condition: SrcId)
     key: SrcId,
     consumers: Values[PostConsumer]
   ): Values[(Condition, LocalPostConsumer)] =
-    for(c ← consumers) yield WithSrcId(LocalPostConsumer(c.condition))
+    for(c ← consumers) yield WithPK(LocalPostConsumer(c.condition))
 
   def lifeToPosts(
     key: SrcId,
     @by[Condition] consumers: Values[LocalPostConsumer],
     @by[Condition] posts: Values[HttpPost]
   ): Values[(Alive, HttpPost)] = //it's not ok if postConsumers.size > 1
-    for(post ← posts if consumers.nonEmpty) yield WithSrcId(post)
+    for(post ← posts if consumers.nonEmpty) yield WithPK(post)
 
   def alivePostsBySession(
     key: SrcId,
@@ -220,5 +213,5 @@ case class HttpPostAllow(condition: SrcId)
     @by[ASessionKey] posts: Values[HttpPost]
   ): Values[(SrcId, HttpPostAllow)] =
     for(post ← posts if posts.size <= sseConfig.sessionWaitingPosts || key.isEmpty)
-      yield WithSrcId(HttpPostAllow(post.srcId))
+      yield WithPK(HttpPostAllow(post.srcId))
 }

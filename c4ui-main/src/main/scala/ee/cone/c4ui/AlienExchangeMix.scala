@@ -5,10 +5,10 @@ import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.{AlienProtocol, HttpProtocol}
 import ee.cone.c4proto.Protocol
 
-trait AlienExchangeApp extends InitLocalsApp with ProtocolsApp with AssemblesApp {
+trait AlienExchangeApp extends ToInjectApp with ProtocolsApp with AssemblesApp {
   def branchOperations: BranchOperations
   //
-  override def initLocals: List[InitLocal] = SendToAlienInit :: super.initLocals
+  override def toInject: List[ToInject] = SendToAlienInit :: super.toInject
   override def assembles: List[Assemble] =
     new FromAlienBranchAssemble(branchOperations) ::
     new MessageFromAlienAssemble ::

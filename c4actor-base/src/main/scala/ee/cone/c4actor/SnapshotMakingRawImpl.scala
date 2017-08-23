@@ -6,6 +6,10 @@ import java.time.{Duration, Instant}
 import ee.cone.c4actor.QProtocol.{Update, Updates}
 import okio.ByteString
 
+class SnapshotMakingRawWorldFactory(adapterRegistry: QAdapterRegistry) extends RawWorldFactory {
+  def create(): RawWorld = new SnapshotMakingRawWorld(adapterRegistry)
+}
+
 class SnapshotMakingRawWorld(
   qAdapterRegistry: QAdapterRegistry,
   state: Map[Update,Update] = Map.empty,

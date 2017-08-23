@@ -5,7 +5,7 @@ import java.time.Instant
 import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Values, World}
+import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
@@ -21,7 +21,7 @@ class TestSSEApp extends ServerApp
   with FileRawSnapshotApp
 {
   override def assembles: List[Assemble] =
-    new FromAlienTaskAssemble("localhost", "/sse.html") ::
+    new FromAlienTaskAssemble("/sse.html") ::
     new TestSSEAssemble ::
     super.assembles
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
@@ -38,12 +38,12 @@ class TestSSEApp extends ServerApp
 }
 
 case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler {
-  def exchange: BranchMessage ⇒ World ⇒ World = message ⇒ local ⇒ {
+  def exchange: BranchMessage ⇒ Context ⇒ Context = message ⇒ local ⇒ {
     val now = Instant.now
     val (keepTo,freshTo) = task.sending(local)
     val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
     println(s"TestSSEHandler $keepTo $freshTo")
     SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
   }
-  def seeds: World ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
+  def seeds: Context ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
 }

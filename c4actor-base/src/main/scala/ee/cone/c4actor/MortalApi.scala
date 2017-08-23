@@ -10,8 +10,3 @@ object LifeTypes {
 trait MortalFactory {
   def apply[P<:Product](p: Class[P]): Assemble
 }
-
-object WithSrcId {
-  def apply[P<:Product](p: P): (SrcId,P) =
-    (p.productElement(0) match{ case s: String ⇒ s }) → p
-}

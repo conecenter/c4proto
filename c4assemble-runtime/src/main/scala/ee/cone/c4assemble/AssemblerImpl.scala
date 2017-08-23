@@ -54,14 +54,14 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   with DataDependencyFrom[Index[JoinKey, T]]
   with DataDependencyTo[Index[MapKey, Value]]
 {
-  def inputWorldKeys: Seq[WorldKey[Index[JoinKey, T]]] = join.inputWorldKeys
-  def outputWorldKey: WorldKey[Index[MapKey, Value]] = join.outputWorldKey
+  def inputWorldKeys: Seq[AssembledKey[Index[JoinKey, T]]] = join.inputWorldKeys
+  def outputWorldKey: AssembledKey[Index[MapKey, Value]] = join.outputWorldKey
 
-  private def setPart[V](res: World, part: Map[MapKey,V]) =
-    (res + (outputWorldKey → part)).asInstanceOf[Map[WorldKey[_],Map[Object,V]]]
+  private def setPart[V](res: ReadModel, part: Map[MapKey,V]) =
+    (res + (outputWorldKey → part)).asInstanceOf[Map[AssembledKey[_],Map[Object,V]]]
 
   def recalculateSome(
-    getIndex: WorldKey[Index[JoinKey,T]]⇒Index[JoinKey,T],
+    getIndex: AssembledKey[Index[JoinKey,T]]⇒Index[JoinKey,T],
     add: PatchMap[MapKey,MultiSet[Value],Value],
     ids: Set[JoinKey], res: Map[MapKey,MultiSet[Value]]
   ): Map[MapKey,MultiSet[Value]] = {
@@ -87,7 +87,7 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
 
     val currentIndex: Index[MapKey,Value] = outputWorldKey.of(transition.current)
     val nextIndex: Index[MapKey,Value] = addNestedPatch.many(currentIndex, indexDiff)
-    val next: World = setPart(transition.current, nextIndex)
+    val next: ReadModel = setPart(transition.current, nextIndex)
 
     val currentDiff = transition.diff.getOrElse(outputWorldKey,Map.empty).asInstanceOf[Map[MapKey, Boolean]]
     val nextDiff: Map[MapKey, Boolean] = currentDiff ++ indexDiff.transform((_,_)⇒true)
@@ -111,15 +111,15 @@ class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit])
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
     val add =
-      new PatchMap[WorldKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,replace.many)
-          .asInstanceOf[PatchMap[WorldKey[_],Object,Index[Object,Object]]]
+      new PatchMap[AssembledKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,replace.many)
+          .asInstanceOf[PatchMap[AssembledKey[_],Object,Index[Object,Object]]]
     val expressions/*: Seq[WorldPartExpression]*/ =
       rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
       //handlerLists.list(WorldPartExpressionKey)
-    val originals: Set[WorldKey[_]] =
+    val originals: Set[AssembledKey[_]] =
       rules.collect{ case e: OriginalWorldPart[_] ⇒ e.outputWorldKey }.toSet
     println(s"rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}")
-    val byOutput: Map[WorldKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
+    val byOutput: Map[AssembledKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
     val expressionsByPriority: List[WorldPartExpression] =
       byPriority.byPriority[
@@ -137,10 +137,10 @@ class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit])
     umlClients.foreach(_{
       val expressions = expressionsByPriority
         .map{ case e: DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
-      val keyAliases: List[(WorldKey[_], String)] =
-        expressions.flatMap[WorldKey[_],List[WorldKey[_]]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
+      val keyAliases: List[(AssembledKey[_], String)] =
+        expressions.flatMap[AssembledKey[_],List[AssembledKey[_]]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
           .distinct.zipWithIndex.map{ case (k,i) ⇒ (k,s"wk$i")}
-      val keyToAlias: Map[WorldKey[_], String] = keyAliases.toMap
+      val keyToAlias: Map[AssembledKey[_], String] = keyAliases.toMap
       List(
         for((k:Product,a) ← keyAliases) yield
           s"(${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}) as $a",

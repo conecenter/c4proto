@@ -1,36 +1,36 @@
 
 package ee.cone.c4gate
 
-import ee.cone.c4actor.QProtocol.Offset
+import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.{Index, Values, World}
+import ee.cone.c4assemble.Types.{Index, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 
-@assemble class ManagementPostAssemble(actorName: ActorName) extends Assemble {
+@assemble class ManagementPostAssemble(actorName: String) extends Assemble {
   def joinHttpPostHandler(
     key: SrcId,
     posts: Values[HttpPost]
   ): Values[(SrcId, TxTransform)] =
-    for(post ← posts if post.path == s"/manage/${actorName.value}")
-      yield WithSrcId(ManageHttpPostTx(post.srcId, post))
+    for(post ← posts if post.path == s"/manage/$actorName")
+      yield WithPK(ManageHttpPostTx(post.srcId, post))
 
   def joinConsumers(
     key: SrcId,
-    offsets: Values[Offset]
+    firsts: Values[Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
-    for(_ ← offsets)
-      yield WithSrcId(LocalPostConsumer(s"/manage/${actorName.value}"))
+    for(_ ← firsts)
+      yield WithPK(LocalPostConsumer(s"/manage/$actorName"))
 }
 
 case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index[Any, Product])(k: Any): List[String] =
     index.getOrElse(k,Nil).flatMap(v⇒s"$v".split("\n")).map(indent).toList
-  private def report(local: World): String = {
+  private def report(local: Context): String = {
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
-    val world = TxKey.of(local).world
+    val world = local.assembled
     val WorldKeyAlias = """(\w+),(\w+)""".r
     val worldKeyAlias = headers("X-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
@@ -48,8 +48,8 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform {
     }
     (s"REPORT $indexStr" :: res.map(indent) ::: "END" :: Nil).mkString("\n")
   }
-  def transform(local: World): World = {
+  def transform(local: Context): Context = {
     if(ErrorKey.of(local).isEmpty) println(report(local))
-    LEvent.add(LEvent.delete[Product](post))(local)
+    TxAdd(LEvent.delete[Product](post))(local)
   }
 }

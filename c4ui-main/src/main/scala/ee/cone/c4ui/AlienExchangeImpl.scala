@@ -4,19 +4,19 @@ import java.net.URL
 import java.util.UUID
 
 import ee.cone.c4actor.BranchTypes.BranchKey
-import ee.cone.c4actor.LEvent.{add, delete, update}
+import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Values, World}
-import ee.cone.c4assemble.{Assemble, WorldKey, assemble}
+import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4gate.LocalPostConsumer
 import okio.ByteString
 
-case object ToAlienPriorityKey extends WorldKey[java.lang.Long](0L)
-object SendToAlienInit extends InitLocal {
-  def initLocal: World ⇒ World = SendToAlienKey.set(
+case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
+object SendToAlienInit extends ToInject {
+  def toInject: List[Injectable] = SendToAlienKey.set(
     (sessionKeys,event,data) ⇒ local ⇒ if(sessionKeys.isEmpty) local else {
       val priority = ToAlienPriorityKey.of(local)
       val messages = sessionKeys.zipWithIndex.flatMap{
@@ -25,7 +25,7 @@ object SendToAlienInit extends InitLocal {
           update(ToAlienWrite(id,sessionKey,event,data,priority+i))
       }
       //println(s"messages: $messages")
-      ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(add(messages))(local)
+      ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(TxAdd(messages))(local)
     }
   )
 }
@@ -38,7 +38,7 @@ case class MessageFromAlienImpl(
 ) extends MessageFromAlien {
   def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
   def body: ByteString = request.body
-  def rm: World ⇒ World = add(delete(request))
+  def rm: Context ⇒ Context = TxAdd(delete(request))
 }
 
 @assemble class MessageFromAlienAssemble extends Assemble {
@@ -59,7 +59,7 @@ case class MessageFromAlienImpl(
     key: SrcId,
     handlers: Values[BranchHandler]
   ): Values[(SrcId,LocalPostConsumer)] =
-    for(h ← handlers) yield WithSrcId(LocalPostConsumer(h.branchKey))
+    for(h ← handlers) yield WithPK(LocalPostConsumer(h.branchKey))
 
 }
 
@@ -73,7 +73,7 @@ case class MessageFromAlienImpl(
     yield operations.toRel(child, fromAlien.sessionKey, parentIsSession = true)
 }
 
-@assemble class FromAlienTaskAssemble(host: String, file: String) extends Assemble {
+@assemble class FromAlienTaskAssemble(file: String) extends Assemble {
   def mapBranchTaskByLocationHash(
     key: SrcId,
     tasks: Values[BranchTask]
@@ -82,7 +82,7 @@ case class MessageFromAlienImpl(
       task ← tasks;
       fromAlien ← Option(task.product).collect { case s: FromAlienState ⇒ s };
       url ← Option(new URL(fromAlien.location))
-        if url.getHost == host && (url.getFile == file || url.getPath == file)
+        if /*url.getHost == host && (*/ url.getFile == file || url.getPath == file
     ) yield task.branchKey → FromAlienTask(
       task.branchKey,
       task,

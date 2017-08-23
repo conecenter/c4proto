@@ -9,17 +9,13 @@ import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
 class ValueMerging[R<:Product](
   val addToMultiMap: PatchMap[R,Int,Int] = new PatchMap[R,Int,Int](0,_==0,(v,d)⇒v+d)
 ) {
-  def toPrimaryKey(node: Product): String = node.productElement(0) match {
-    case s: String ⇒ s
-    case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
-  }
   def fill(from: (R,Int)): Iterable[R] = {
     val(node,count) = from
     if(count<0) throw new Exception(s"$node gets negative count")
     List.fill(count)(node)
   }
   def toList(multiSet: MultiSet[R]): List[R] =
-    multiSet.flatMap(fill).toList.sortBy(toPrimaryKey)
+    multiSet.flatMap(fill).toList.sortBy(ToPrimaryKey(_))
 }
 
 class SimpleIndexValueMergerFactory extends IndexValueMergerFactory {
@@ -59,7 +55,7 @@ class TreeIndexValueMergerFactory(from: Int) extends IndexValueMergerFactory {
   def create[R <: Product]: (Values[R], MultiSet[R]) ⇒ Values[R] = {
     val merging = new ValueMerging[R]
     def patch(value: TreeSeq[R], delta: MultiSet[R]): TreeSeq[R] = TreeSeq(
-      (value.orig /: delta.groupBy{ case (element,_) ⇒ merging.toPrimaryKey(element)}){
+      (value.orig /: delta.groupBy{ case (element,_) ⇒ ToPrimaryKey(element)}){
         (orig, dPair) ⇒
         val (prefix,dMMap) = dPair
         @tailrec def splitOne(index: Int, from: TreeMap[(String,Int),R], to: Map[R,Int]): TreeMap[(String,Int),R] = {

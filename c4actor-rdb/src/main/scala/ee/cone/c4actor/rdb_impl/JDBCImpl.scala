@@ -5,13 +5,12 @@ import java.sql.{CallableStatement, Connection}
 import java.util.concurrent.CompletableFuture
 
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.World
 
 class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
-) extends InitLocal with Executable {
-  def initLocal: World ⇒ World = WithJDBCKey.set(concurrent.blocking(db.get).doWith)
+) extends ToInject with Executable {
+  def toInject: List[Injectable] = WithJDBCKey.set(concurrent.blocking(db.get).doWith)
   def run(): Unit = concurrent.blocking{ db.complete(dbFactory.create(
     createConnection ⇒ new RConnectionPool {
       def doWith[T](f: RConnection⇒T): T = {
