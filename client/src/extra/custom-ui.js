@@ -2,7 +2,7 @@
 import React from 'react'
 import {rootCtx} from "../main/vdom-util"
 
-export default function CustomUi({log,ui,requestState,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager}){
+export default function CustomUi({log,ui,requestState,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager,winWifi}){
 	const {setTimeout,clearTimeout} = windowManager
 	const ColorCreator = React.createClass({
     		onChange:function(e){
@@ -321,7 +321,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			if(PingReceiver)
 				PingReceiver.regCallback(this.signal,this);
 			this.toggleOverlay(!this.state.on);			
-			this.wifi=scannerProxy.regWifi(this.wifiCallback)
+			this.wifi = scannerProxy.regWifi(this.wifiCallback)
+			this.wifi2 = winWifi.regWifi(this.wifiCallback)
 			if(this.props.onContext && requestState.reg){
 				const branchKey = this.props.onContext()
 				this.yellow = requestState.reg({branchKey,callback:this.yellowSignal})
@@ -331,6 +332,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			if(PingReceiver)
 				PingReceiver.unregCallback(this);
 			if(this.wifi) this.wifi.unreg();
+			if(this.wifi2) this.wifi2.unreg();
 			if(this.yellow) this.yellow.unreg();
 		},		
 		toggleOverlay:function(on){

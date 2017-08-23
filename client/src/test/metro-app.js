@@ -22,7 +22,7 @@ import FocusModule		from "../extra/focus-module"
 import DragDropModule from "../extra/dragdrop-module"
 import OverlayManager from "../extra/overlay-manager"
 import RequestState from "../extra/request-state"
-
+import WinWifi from "../extra/win-wifi-status"
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 
@@ -93,7 +93,9 @@ const innerHeight = () => window.innerHeight
 const scrollBy = (x,y) => window.scrollBy(x,y)
 const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})
 window.ScannerProxy = scannerProxy
-const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager});
+const winWifi = WinWifi(log,require,process,setInterval)
+window.winWifi = winWifi
+const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager,winWifi});
 
 const activeElement=()=>document.activeElement; //todo: remove
 
