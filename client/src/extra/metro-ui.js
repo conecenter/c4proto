@@ -353,7 +353,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	}},children);
 	const DocElement = React.createClass({
 		componentDidMount:function(){
-			const node = documentManager.body().querySelector("#content");
+			const node = documentManager.body().querySelector("#dev-content");
 			if(node)
 			while (node.hasChildNodes())
 				node.removeChild(node.lastChild);
@@ -2235,7 +2235,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		const get = () => timeString
 		const start = ()=>{bgTicks = 5;tick();}
 		const update = (updateTime) => {if(updateTime) time = updateTime}
-		const stop = ()=>{clearTimeout(timeout); timeout==null}
+		const stop = ()=>{clearTimeout(timeout); timeout=null}
 		const reg = (obj) => {callbacks.push(obj); if(callbacks.length==1 && timeout==null) start(); return ()=>{const index = callbacks.indexOf(obj); if(index>=0) delete callbacks[index];};}
 		return {reg,update,get}
 	})()

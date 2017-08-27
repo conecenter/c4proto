@@ -27,7 +27,8 @@ export default function WinWifi(log,require,process,setInterval){
 	const systemRoot = process.env.SystemRoot || 'C:\\Windows';
 	const tool       = systemRoot + '\\System32\\netsh.exe';	
 	const fs      = require('fs');
-	let init = false	
+	let init = false
+	nodejs = true
 	fs.stat(tool, function (err, stats) {
 		if (stats) init = true
 	})
@@ -54,12 +55,14 @@ export default function WinWifi(log,require,process,setInterval){
 		  // prepare array for formatted data		 
 		  // split response to blocks based on double new line
 		 const raw = res.split('\r\n\r\n');
-		  let network = {};
+		  let network = {};		  
 		  raw.forEach(b=>{					  
 			  // parse RSSI (Signal Strength)
-			const match = b.match(' +Signal +: ([0-9]+)%');
+			if(network.rssi) return;  
+			const match = b.match(/\s+Signal\s+: ([0-9]+)%/);
 			if (match && match.length == 2) {
 				network.rssi = parseInt(match[1]);
+				network.plain = b;
 			} else {
 				network.rssi = null;
 			}			
@@ -72,7 +75,7 @@ export default function WinWifi(log,require,process,setInterval){
 			  if(network.rssi>=51 && network.rssi <=75) level = 3
 			  if(network.rssi>=76 && network.rssi <=100) level = 4
 		  }			  
-		  wifiCallbacks.forEach(c=>c(level))
+		  wifiCallbacks.forEach(c=>c(level,network.plain))
 		  //fn(null, networks, res);
 		} else {
 		  // if exit was not normal, then throw error

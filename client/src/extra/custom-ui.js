@@ -287,8 +287,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		function ping(data){			
 			if(pingerTimeout){clearTimeout(pingerTimeout); pingerTimeout = null;}
 			if(!callbacks.length) return;
-			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o.func(false,data));},5000);
-			callbacks.forEach((o)=>o.func(true,data));
+			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o.func(false,null));},5000);
+			callbacks.forEach((o)=>o.func(true,null));
 		};		
 		function regCallback(func,obj){
 			callbacks.push({obj,func});
@@ -301,17 +301,20 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 	let prevWifiLevel = null
 	const DeviceConnectionState = React.createClass({
 		getInitialState:function(){
-			return {on:true,wifiLevel:null,waiting:null,data:null};
+			return {on:true,wifiLevel:null,waiting:null,data:null,showWifiInfo:false};
 		},
 		signal:function(on,data){			
 			if(this.state.on!=on)
 				this.setState({on});
-			if(this.state.date!=data)
+			if(this.state.data!=data)
 				this.setState({data})
 		},
-		wifiCallback:function(wifiLevel){
+		wifiCallback:function(wifiLevel,plain){
 			prevWifiLevel = wifiLevel
-			this.setState({wifiLevel})
+			if(this.state.wifiLevel != wifiLevel){
+				this.wifiData = plain
+				this.setState({wifiLevel})
+			}
 		},
 		yellowSignal:function(on){
 			if(this.state.waiting!=on)
@@ -344,8 +347,18 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			
 		},
 		componentDidUpdate:function(prevProps,prevState){
-			log(`toggle ${this.state.on}`)
-			this.toggleOverlay(!this.state.on);			
+			if(prevState.on != this.state.on){
+				log(`toggle ${this.state.on}`)
+				this.toggleOverlay(!this.state.on);
+			}
+		},
+		onMouseOver:function(){
+			if(this.wifiData)
+				this.setState({showWifiInfo:true});
+		},
+		onMouseOut:function(){
+			if(this.state.showWifiInfo)
+				this.setState({showWifiInfo:false});
 		},
 		render:function(){
 			const wifiLevel = prevWifiLevel&&!this.state.wifiLevel?prevWifiLevel:this.state.wifiLevel
@@ -380,10 +393,21 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 					<circle style="stroke:white;fill: ${l1C};" cx="73.793" cy="121.272" r="8.231"></circle>
 				</svg>`;
 				imageSvgData = svgSrc(wifiSvg)				
-			}			 
-			return React.createElement("div",{style:{display:"flex"}},[
-				React.createElement(ConnectionState,{key:"3",onClick:this.props.onClick,on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null),
-				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"2"},this.state.data)
+			}	
+			const wifiDataEl = this.state.showWifiInfo?React.createElement("pre",{style:{
+				position:"absolute",
+				marginTop:"2.7em",
+				width:"40em",
+				fontSize:"12px",
+				zIndex:"1000",
+				backgroundColor:"blue",
+				right:"0.24em",
+				textAlign:"left"
+			},key:"2"},this.wifiData):null;
+			return React.createElement("div",{style:{display:"flex"},onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
+				React.createElement(ConnectionState,{key:"1",onClick:this.props.onClick,on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null),
+				wifiDataEl,
+				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"3"},this.state.data)
 			])
 		},
 	});
@@ -528,7 +552,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		tp:{
 			StatusElement,TerminalElement,MJobCell,IconCheck,CustomMeasurerConnectionState,DeviceConnectionState,
 			ColorCreator,ColorItem,ColorPicker,
-			BatteryState,ScannerProxyElement
+			BatteryState,ScannerProxyElement			
 		},
 		onContext
 	};

@@ -136,10 +136,10 @@ push @tasks, ["inbox_copy", sub{
 
 my $client = sub{
     my($inst)=@_;
-    unlink or die $! for <$build_dir/*>;
+#    unlink or die $! for <$build_dir/*>;
     chdir "client" or die $!;
-    sy("npm install") if $inst;
-    sy("./node_modules/webpack/bin/webpack.js");# -d
+#    sy("npm install") if $inst;
+#    sy("./node_modules/webpack/bin/webpack.js");# -d
     chdir ".." or die $!;
     $build_dir
 };

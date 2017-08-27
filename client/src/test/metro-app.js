@@ -25,6 +25,8 @@ import OverlayManager from "../extra/overlay-manager"
 import RequestState from "../extra/request-state"
 import WinWifi from "../extra/win-wifi-status"
 
+import UpdateManager from "../extra/update-manager"
+
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
@@ -85,7 +87,6 @@ const focusModule = FocusModule({log,documentManager,eventManager,windowManager,
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
 const metroUi = MetroUi({log,sender:requestState,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact});
 //customUi with hacks
-
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
@@ -94,10 +95,10 @@ const innerHeight = () => window.innerHeight
 const scrollBy = (x,y) => window.scrollBy(x,y)
 const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})
 window.ScannerProxy = scannerProxy
-const winWifi = WinWifi(log,require,process,setInterval)
+const winWifi = WinWifi(log,window.require,window.process,setInterval)
 window.winWifi = winWifi
 const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,Image,overlayManager,getBattery,scannerProxy,windowManager,winWifi});
-
+const updateManager = UpdateManager(log,window,metroUi)
 const activeElement=()=>document.activeElement; //todo: remove
 
 //canvas
@@ -118,7 +119,7 @@ const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
 //transforms
-const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms])
+const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms])
 
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
 
@@ -146,5 +147,6 @@ activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), [
     branches.checkActivate,
     metroUi.checkActivate,
     focusModule.checkActivate,
-    dragDropModule.checkActivate
+    dragDropModule.checkActivate,
+	updateManager.checkActivate
 ])
