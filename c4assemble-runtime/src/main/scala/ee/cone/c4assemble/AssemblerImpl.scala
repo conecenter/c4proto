@@ -23,7 +23,8 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
 }
 
 class IndexFactoryImpl(
-  merger: IndexValueMergerFactory
+  merger: IndexValueMergerFactory,
+  profiler: AssembleProfiler
 ) extends IndexFactory {
   def createJoinMapIndex[T,R<:Product,TK,RK](join: Join[T,R,TK,RK]):
     WorldPartExpression
@@ -40,7 +41,7 @@ class IndexFactoryImpl(
     val subNestedDiff: PatchMap[RK,MultiSet[R],R] =
       new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
     new JoinMapIndex[T,TK,RK,R](
-      join, addNestedPatch, addNestedDiff, subNestedDiff
+      join, addNestedPatch, addNestedDiff, subNestedDiff, profiler.get(join.name)
     )
   }
 }
@@ -49,11 +50,13 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   join: Join[T,Value,JoinKey,MapKey],
   addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
-  subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value]
+  subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
+  profiler: String ⇒ Int ⇒ Unit
 ) extends WorldPartExpression
   with DataDependencyFrom[Index[JoinKey, T]]
   with DataDependencyTo[Index[MapKey, Value]]
 {
+  def name = join.name
   def inputWorldKeys: Seq[AssembledKey[Index[JoinKey, T]]] = join.inputWorldKeys
   def outputWorldKey: AssembledKey[Index[MapKey, Value]] = join.outputWorldKey
 
@@ -72,18 +75,23 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
       add.many(res, join.joins(id, args))
     }
   }
+
   def transform(transition: WorldTransition): WorldTransition = {
     //println(s"rule $outputWorldKey <- $inputWorldKeys")
     val ids = (Set.empty[JoinKey] /: inputWorldKeys)((res,key) ⇒
       res ++ transition.diff.getOrElse(key, Map.empty).keys.asInstanceOf[Set[JoinKey]]
     )
-    if (ids.isEmpty){ return transition }
+    if (ids.isEmpty) transition else transform(transition,ids)
+  }
+  private def transform(transition: WorldTransition, ids: Set[JoinKey]): WorldTransition = {
+    val end = profiler("calculate")
     val prevOutput = recalculateSome(_.of(transition.prev), subNestedDiff, ids, Map.empty)
     val indexDiff = recalculateSome(_.of(transition.current), addNestedDiff, ids, prevOutput)
-
-    //val diffStats = indexDiff.map{case (k,v)⇒s"$k ${v.values.mkString(",")}"}
-    //println(s"""indexDiff $diffStats""")
-    if (indexDiff.isEmpty){ return transition }
+    end(ids.size)
+    if(indexDiff.isEmpty) transition else patch(transition, indexDiff)
+  }
+  private def patch(transition: WorldTransition, indexDiff: Map[MapKey, MultiSet[Value]]): WorldTransition = {
+    val end = profiler("patch    ")
 
     val currentIndex: Index[MapKey,Value] = outputWorldKey.of(transition.current)
     val nextIndex: Index[MapKey,Value] = addNestedPatch.many(currentIndex, indexDiff)
@@ -93,9 +101,26 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
     val nextDiff: Map[MapKey, Boolean] = currentDiff ++ indexDiff.transform((_,_)⇒true)
     val diff = setPart(transition.diff, nextDiff)
 
+    end(indexDiff.size)
     WorldTransition(transition.prev, diff, next)
   }
 }
+
+object NoAssembleProfiler extends AssembleProfiler {
+  def get(ruleName: String): String ⇒ Int ⇒ Unit = dummy
+  private def dummy(startAction: String)(finalCount: Int): Unit = ()
+}
+
+object SimpleAssembleProfiler extends AssembleProfiler {
+  def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
+    val startTime = System.currentTimeMillis
+    finalCount ⇒ {
+      val period = System.currentTimeMillis - startTime
+      println(s"assembling by ${Thread.currentThread.getName} rule $ruleName $startAction $finalCount items in $period ms")
+    }
+  }
+}
+//case class AssembleProfiling(key: String, tp: String, count: Int, period: Long)
 
 /*
 class ByPriority[Item](uses: Item⇒List[Item]){
@@ -145,9 +170,9 @@ class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit])
         for((k:Product,a) ← keyAliases) yield
           s"(${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}) as $a",
         for((e,eIndex) ← expressions.zipWithIndex; k ← e.inputWorldKeys)
-          yield s"${keyToAlias(k)} --> $eIndex",
+          yield s"${keyToAlias(k)} --> $eIndex-${e.name}",
         for((e,eIndex) ← expressions.zipWithIndex)
-          yield s"$eIndex --> ${keyToAlias(e.outputWorldKey)}"
+          yield s"$eIndex-${e.name} --> ${keyToAlias(e.outputWorldKey)}"
       ).flatten.mkString("@startuml\n","\n","\n@enduml")
     })
 

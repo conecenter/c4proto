@@ -18,7 +18,7 @@ class TestTodoApp extends ServerApp
   with ParallelObserversApp
   with UIApp
   with TestTagsApp
-  with UMLClientsApp
+  with UMLClientsApp with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {

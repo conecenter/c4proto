@@ -30,6 +30,10 @@ case class WorldTransition(
   current: ReadModel
 )
 
+trait AssembleProfiler {
+  def get(ruleName: String): String ⇒ Int ⇒ Unit
+}
+
 trait IndexFactory {
   def createJoinMapIndex[T,R<:Product,TK,RK](join: Join[T,R,TK,RK]):
   WorldPartExpression
@@ -42,6 +46,7 @@ trait IndexValueMergerFactory {
 }
 
 trait DataDependencyFrom[From] {
+  def name: String
   def inputWorldKeys: Seq[AssembledKey[From]]
 }
 
@@ -50,6 +55,7 @@ trait DataDependencyTo[To] {
 }
 
 class Join[T,R,TK,RK](
+  val name: String,
   val inputWorldKeys: Seq[AssembledKey[Index[TK, T]]],
   val outputWorldKey: AssembledKey[Index[RK, R]],
   val joins: (TK, Seq[Values[T]]) ⇒ Iterable[(RK,R)]

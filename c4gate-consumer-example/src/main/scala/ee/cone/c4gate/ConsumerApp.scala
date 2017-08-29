@@ -14,7 +14,7 @@ class TestConsumerApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with ToInjectApp
-  with UMLClientsApp
+  with UMLClientsApp with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {

@@ -22,7 +22,7 @@ class TestCanvasApp extends ServerApp
   with PublishingApp
   with TestTagsApp
   with CanvasApp
-  with UMLClientsApp
+  with UMLClientsApp with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {

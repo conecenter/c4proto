@@ -41,6 +41,7 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
   def umlClients: List[String⇒Unit]
+  def assembleProfiler: AssembleProfiler
   //
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
@@ -52,7 +53,7 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   lazy val contextFactory = new ContextFactory(toInject)
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
-  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory)
+  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory,assembleProfiler)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
@@ -102,4 +103,8 @@ trait ParallelObserversApp {
 
 trait MortalFactoryApp extends AssemblesApp {
   def mortal: MortalFactory = MortalFactoryImpl
+}
+
+trait NoAssembleProfilerApp {
+  lazy val assembleProfiler = NoAssembleProfiler
 }
