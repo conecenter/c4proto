@@ -1289,13 +1289,18 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(Object.keys(state).length>0) this.setState(state)
 		},
 		componentDidMount:function(){
-			checkActivateCalls.add(this.mixState)
+			if(this.props.open)
+				checkActivateCalls.add(this.mixState)
 		},
 		componentWillUnmount:function(){
-			checkActivateCalls.remove(this.mixState)
+			if(this.props.open)
+				checkActivateCalls.remove(this.mixState)
 		},
-		componentDidUpdate:function(){
-			//this.mixState()
+		componentDidUpdate:function(prevProps){
+			if(prevProps.open && !this.props.open)
+				checkActivateCalls.remove(this.mixState)
+			if(!prevProps.open && this.props.open)
+				checkActivateCalls.add(this.mixState)
 		},			
 		render:function(){
 			//const topPosStyle = this.state.bottom?{top:'',marginTop:-this.state.bottom+"px"}:{top:this.state.top?this.state.top+getPageYOffset()+"px":''}
