@@ -8,6 +8,10 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		const digisign = parentWindow().digisign
 		digisign&&digisign.sendError(msg)
 	}
+	const sendErrorStatus = function(errorCode,errorMsg){
+		const digisign = parentWindow().digisign
+		digisign&&digisign.sendErrorStatus(errorCode,errorMsg)
+	}
 	const getIdKey = function(){
 		const digisign = parentWindow().digisign
 		return digisign&&digisign.md5key
@@ -19,6 +23,10 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 	const sendPositiveSign = function(){
 		const digisign = parentWindow().digisign
 		digisign&&digisign.sendPositiveSign()
+	}
+	const sendPositiveAuth = function(){
+		const digisign = parentWindow().digisign
+		digisign&&digisign.sendPositiveAuth()
 	}
 	const DigiModule = function(){
 		const callbacksAcc = [];
@@ -34,10 +42,13 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			hwcrypto.getCertificate({}).then(
 				certificate=> {
 					userCertificate = certificate
-					log(certificate)
+					//log(certificate)
 					callback(certificate)										
 				},
-				error=>sendError(error.toString())
+				error=>{
+					callback(null)
+					sendError(error.toString())
+				}
 			)
 		}
 		return {reg,requestCertificate}
@@ -71,7 +82,10 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 	
 	const UserCertificateElement = React.createClass({
 		onCertificate:function(certificate){
-			sendToServer(this.props.branchKey,"certificate",certificate.encoded)
+			if(certificate == null)
+				sendToServer(this.props.branchKey,"error","")
+			else
+				sendToServer(this.props.branchKey,"certificate",certificate.encoded)
 			//if(this.props.onReadySendBlob)						
 			//	this.props.onReadySendBlob(getIdKey(),certificate.encoded);
 		},
@@ -91,11 +105,14 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			const digest64 = this.props.digest
 			const digest = Uint8Array.from(atob(digest64), c => c.charCodeAt(0))			
 			hwcrypto.sign(certificate, {type: 'SHA-256', value: digest}, {}).then(signature => {			  
-				log(signature);
+				//log(signature);
 				sendToServer(this.props.branchKey,"signature",signature.value)
 			  //if(this.props.onReadySendBlob)
 			//	  this.props.onReadySendBlob(getIdKey(),signature.value)
-		    }, error =>sendError(error.toString()));
+		    }, error =>{
+				sendToServer(this.props.branchKey,"error","")
+				sendError(error.toString())}
+			);
 			return true;
 		},
 		signDigest:function(digest64){			
@@ -114,12 +131,12 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			return $("span",{id:"signDigest"});
 		}
 	})
-	let sentPositiveSign = false
+	let sentPositiveSign = false	
 	const ReportDigiStatusElement = React.createClass({
 		getInitialState:function(){
 			return {width:0}
 		},
-		call:function(statusMsg){
+		updateStatus:function(statusMsg){
 			const halves = statusMsg.trim().split(':')
 			this.setState({width:(halves[0]*100/halves[1])})
 			if(halves.length == 2 && halves[0] == halves[1]){
@@ -129,14 +146,14 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 				}
 			}
 			return true;
-		},
+		},		
 		componentDidMount:function(){
-			this.call(this.props.statusMsg)
+			this.updateStatus(this.props.statusMsg)			
 		},
 		componentDidUpdate:function(prevProps,_){
 			if(this.props.statusMsg!=prevProps.statusMsg){
-				this.call(this.props.statusMsg)
-			}
+				this.updateStatus(this.props.statusMsg)
+			}			
 		},
 		render:function(){
 			const style = {
@@ -180,10 +197,36 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			]);
 		}
 	})
-	
+	let sentErrorStatus = false
+	let sentAuth = false
+	const DigiHandlerElement = React.createClass({
+		reportError:function(errorCode,errorMsg){
+			if(errorMsg && !sentErrorStatus){
+				sendErrorStatus(errorCode,errorMsg)
+				sentErrorStatus = true
+			}
+		},
+		reportAuth:function(authMsg){
+			if(authMsg && !sentAuth){
+				sendPositiveAuth()
+				sentAuth = true
+			}
+		},
+		componentDidMount:function(){
+			this.reportError(this.props.errorCode,this.props.errorMsg)
+			this.reportAuth(this.props.authMsg)
+		},
+		componentDidUpdate:function(prevProps,_){
+			this.reportError(this.props.errorCode,this.props.errorMsg)
+			this.reportAuth(this.props.authMsg)
+		},
+		render:function(){
+			return $("span",{id:"handler"})
+		}
+	})
 	const transforms= {
 		tp:{
-			UserQueryStringElement,UserCertificateElement,SignDigestElement,ReportDigiStatusElement
+			UserQueryStringElement,UserCertificateElement,SignDigestElement,ReportDigiStatusElement,DigiHandlerElement
 		}
 	};
 	const receivers = {};

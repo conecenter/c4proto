@@ -353,7 +353,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	}},children);
 	const DocElement = React.createClass({
 		componentDidMount:function(){
-			const node = documentManager.body().querySelector("#content");
+			const node = documentManager.body().querySelector("#dev-content");
 			if(node)
 			while (node.hasChildNodes())
 				node.removeChild(node.lastChild);
@@ -1006,6 +1006,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.prevval = undefined
 				this.getInput().blur()
 			}
+			const inp = this.getInput()
+			this.ss = inp.selectionStart
+			this.se = inp.selectionEnd
 			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
 			/*if(e.keyCode == 13) {
 				if(this.inp2) this.inp2.blur()
@@ -1081,7 +1084,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			inp.removeEventListener('cpaste',this.onPaste)
 			inp.removeEventListener('ccopy',this.onCopy)
 		},
-		//componentDidUpdate:function(){this.setFocus(this.props.focus)},		
+		componentDidUpdate:function(){
+			const inp = this.getInput()
+			inp.selectionStart = this.ss
+			inp.selectionEnd = this.se
+		},		
 		onChange:function(e){
 			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
 				const newVal = e.target.value.toUpperCase();
@@ -1241,6 +1248,10 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.props.onClick(e);
 		},
 		onKeyDown:function(e){
+			if(this.props.onKeyDown){
+				this.props.onKeyDown(e)
+				return false
+			}
 			let call=""
 			switch(e.key){				
 				case "ArrowDown":
@@ -1278,17 +1289,25 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(Object.keys(state).length>0) this.setState(state)
 		},
 		componentDidMount:function(){
-			this.mixState()
+			if(this.props.open)
+				checkActivateCalls.add(this.mixState)
 		},
-		componentDidUpdate:function(){
-			this.mixState()
+		componentWillUnmount:function(){
+			if(this.props.open)
+				checkActivateCalls.remove(this.mixState)
+		},
+		componentDidUpdate:function(prevProps){
+			if(prevProps.open && !this.props.open)
+				checkActivateCalls.remove(this.mixState)
+			if(!prevProps.open && this.props.open)
+				checkActivateCalls.add(this.mixState)
 		},			
 		render:function(){
 			//const topPosStyle = this.state.bottom?{top:'',marginTop:-this.state.bottom+"px"}:{top:this.state.top?this.state.top+getPageYOffset()+"px":''}
 			const popupStyle={
 				position:"absolute",
 				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,
-				minWidth: this.state.popupMinWidth + "px",
+				minWidth: this.props.noAutoWidth?"":this.state.popupMinWidth + "px",
 				overflow: "auto",				
 				maxHeight: "10em",				
 				backgroundColor: "white",
@@ -1926,27 +1945,31 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		const rowsOfDays = (dayArray,cDay) => {
 			const weeknum = dayArray.length/7;
 			let daynum  = 0;
-			const cal = cDay;			
-			let firstDayOfMonthTriger = true;
-			let firstDayOfMonth = new Date(cal.year, cal.month,1).getDay();
-			firstDayOfMonth = (firstDayOfMonth==0) ? firstDayOfMonth=6 : firstDayOfMonth-1;			
-			const dayInMonth = new Date(cal.year, (cal.month+1), 0).getDate();
-
+			const cal = cDay;						
 			const rows=[];
+			let outsideMonth = true
+			let insideMonth = false
 			let w;
 			for(w = 0;w < weeknum;w++){
 				rows.push($("tr",{key:""+w},
 				(()=>{
-					let weekNumber;
+					let weekNumber;										
 					const curday = dayArray[daynum];
-					if(daynum >= dayInMonth + firstDayOfMonth){
-						weekNumber = new Date(cal.year, (cal.month+1), curday, 0, 0, 0, 0).getISOWeek();
+					if(curday <=7 && outsideMonth) {
+						outsideMonth = false
+						insideMonth = true
 					}
-					else if(daynum < firstDayOfMonth){
-						weekNumber = new Date(cal.year, (cal.month-1), curday, 0, 0, 0, 0).getISOWeek();
+					else					
+					if(curday <=7 && insideMonth) 
+						outsideMonth = true
+					if(outsideMonth && !insideMonth){						
+						weekNumber = new Date(cal.year, cal.month - 1, curday, 0, 0, 0, 0).getISOWeek();						
+					}
+					else if(outsideMonth && insideMonth){						
+						weekNumber = new Date(cal.year, cal.month + 1, curday, 0, 0, 0, 0).getISOWeek();						
 					} else {
-						weekNumber = new Date(cal.year, cal.month, curday, 0, 0, 0, 0).getISOWeek();
-					}
+						weekNumber = new Date(cal.year, cal.month, curday, 0, 0, 0, 0).getISOWeek();						
+					}									
 					const weekNumStyle={
 						borderRight:"0.04em solid #212121",
 						padding:"0em 0em 0,3125em",
@@ -2008,7 +2031,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 					)
 				)
 			]),
-			rowsOfDays(cal_makeDaysArr(month,year),{month,year})
+			rowsOfDays(cal_makeDaysArr(month,year),{month:parseInt(month),year:parseInt(year)})
 		]);
 	}
 	const DateTimePickerTSelWrapper = ({children}) => {
@@ -2072,7 +2095,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const wrapperStyle={
 				padding:".3125em",
 				backgroundColor:"white",
-				minWidth:"15.75em",
+				minWidth:"18.75em",
 				boxShadow:GlobalStyles.boxShadow
 			};
 			const gridStyle={
@@ -2094,7 +2117,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			...props.buttonImageStyle
 		};
 		const getParts = (value,selectionStart,selectionEnd) => {
-			const arr = value.split(/[-\s]/)			
+			const arr = value.split(/[-\s:]/)			
 			const dat = [];
 			arr.forEach(v=>{				
 				const start = value.indexOf(v,dat[dat.length-1]?dat[dat.length-1].end:0)
@@ -2130,17 +2153,19 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				case 38:	//arrow up					
 					setSelection(inp,selD.start,selD.end)
 					e.preventDefault()
+					e.stopPropagation()
 					func = funcMap[dat.indexOf(selD)]
 					onClickValue(func,1)
-					log(`send: ${func}:1`)					
+					//log(`send: ${func}:1`)					
 					return					
 				case 40:	//arrow down
 					log("send dec")
 					setSelection(inp,selD.start,selD.end)
 					e.preventDefault()
+					e.stopPropagation()
 					func = funcMap[dat.indexOf(selD)]
 					onClickValue(func,-1)
-					log(`send: ${func}:-1`)
+					//log(`send: ${func}:-1`)
 					return true
 				case 27:	//esc
 					log("esc")
@@ -2169,7 +2194,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			  +'</svg>';
 		const svgData=svgSrc(svg);	  
 		const urlData = props.url?props.url:svgData;
-		return $(DropDownElement,{...props,inputStyle,popupStyle,onKeyDown,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
+		const noAutoWidth = true
+		return $(DropDownElement,{...props,noAutoWidth,inputStyle,popupStyle,onKeyDown,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
 	}
 	
 	Date.prototype.getISOWeek = function(utc){
@@ -2235,7 +2261,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		const get = () => timeString
 		const start = ()=>{bgTicks = 5;tick();}
 		const update = (updateTime) => {if(updateTime) time = updateTime}
-		const stop = ()=>{clearTimeout(timeout); timeout==null}
+		const stop = ()=>{clearTimeout(timeout); timeout=null}
 		const reg = (obj) => {callbacks.push(obj); if(callbacks.length==1 && timeout==null) start(); return ()=>{const index = callbacks.indexOf(obj); if(index>=0) delete callbacks[index];};}
 		return {reg,update,get}
 	})()
