@@ -1005,10 +1005,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				if(this.prevval != undefined) this.getInput().value = this.prevval
 				this.prevval = undefined
 				this.getInput().blur()
-			}
-			const inp = this.getInput()
-			this.ss = inp.selectionStart
-			this.se = inp.selectionEnd
+			}			
 			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
 			/*if(e.keyCode == 13) {
 				if(this.inp2) this.inp2.blur()
@@ -1085,9 +1082,12 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			inp.removeEventListener('ccopy',this.onCopy)
 		},
 		componentDidUpdate:function(){
-			const inp = this.getInput()
-			inp.selectionStart = this.ss
-			inp.selectionEnd = this.se
+			if(this.props.cursorPos){
+				const pos = this.props.cursorPos()
+				const inp = this.getInput()
+				if(pos.ss) inp.selectionStart = pos.ss
+				if(pos.se) inp.selectionEnd = pos.se
+			}
 		},		
 		onChange:function(e){
 			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
@@ -2090,44 +2090,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		);				
 	};
 	const DateTimePickerNowSel = ({onClick,value}) => $(CalenderSetNow,{key:"setNow",onClick:onClick},value);
-	const DateTimePicker = (props) => {		
-		const calWrapper=function(children){
-			const wrapperStyle={
-				padding:".3125em",
-				backgroundColor:"white",
-				minWidth:"18.75em",
-				boxShadow:GlobalStyles.boxShadow
-			};
-			const gridStyle={
-				margin:"0px",
-				padding:"0px"
-			};
-			return $("div",{style:wrapperStyle},
-				$("div",{style:gridStyle},
-					children
-				));
-		};	
-		const popupStyle={
-			width:"auto",
-			maxHeight:"auto",
-			...props.popupStyle
-		};			
-		const buttonImageStyle={				
-			transform:"none",
-			...props.buttonImageStyle
-		};
-		const getParts = (value,selectionStart,selectionEnd) => {
-			const arr = value.split(/[-\s:]/)			
-			const dat = [];
-			arr.forEach(v=>{				
-				const start = value.indexOf(v,dat[dat.length-1]?dat[dat.length-1].end:0)
-				const end = start + v.length
-				const selected = selectionStart>=start&&selectionEnd<=end?true:false
-				dat.push({start,end,selected})
-			})
-			return dat;
-		}
-		const setSelection = (obj, stpos, endpos) => {
+	const DateTimePicker = React.createClass({
+		setSelection:function(obj, stpos, endpos){
 			if (obj.createTextRange) { // IE
 				const rng = obj.createTextRange();
 				rng.moveStart('character', stpos);
@@ -2137,66 +2101,115 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			else if (obj.setSelectionRange) { // FF
 				obj.setSelectionRange(stpos, endpos);
 			}
-		}
-		const funcMap = ["day","month","year","hour","min"];
-		const onClickValue = (func,adj) =>{
-			if(props.onClickValue) props.onClickValue("change",func+":"+adj.toString());
-		}
-		const onKeyDown = e =>{			
+		},
+		getParts:function(value,selectionStart,selectionEnd){
+			const arr = value.split(/[-\s:]/)			
+			const dat = [];
+			arr.forEach(v=>{				
+				const start = value.indexOf(v,dat[dat.length-1]?dat[dat.length-1].end:0)
+				const end = start + v.length
+				const selected = selectionStart>=start&&selectionEnd<=end?true:false
+				dat.push({start,end,selected})
+			})
+			return dat;
+		},
+		getCursorPos:function(){
+			return {ss:this.ss,se:this.se}
+		},
+		onKeyDown:function(e){			
 			const inp = e.target
 			const val = inp.value
-			const dat = getParts(val,inp.selectionStart,inp.selectionEnd)
+			const dat = this.getParts(val,inp.selectionStart,inp.selectionEnd)
 			const selD = dat.find(d=>d.selected==true)
 			let func = ""
-			//s
+			const funcMap = ["day","month","year","hour","min"];			
 			switch(e.keyCode){
 				case 38:	//arrow up					
-					setSelection(inp,selD.start,selD.end)
+					this.setSelection(inp,selD.start,selD.end)
 					e.preventDefault()
 					e.stopPropagation()
 					func = funcMap[dat.indexOf(selD)]
-					onClickValue(func,1)
+					this.ss = inp.selectionStart
+					this.se = inp.selectionEnd
+					this.sendToServer(func,1)
 					//log(`send: ${func}:1`)					
-					return					
+					return	false			
 				case 40:	//arrow down
 					log("send dec")
-					setSelection(inp,selD.start,selD.end)
+					this.setSelection(inp,selD.start,selD.end)
 					e.preventDefault()
 					e.stopPropagation()
 					func = funcMap[dat.indexOf(selD)]
-					onClickValue(func,-1)
+					this.ss = inp.selectionStart
+					this.se = inp.selectionEnd
+					this.sendToServer(func,-1)
 					//log(`send: ${func}:-1`)
-					return true
+					return false
 				case 27:	//esc
-					log("esc")
-					setSelection(inp,selD.end,selD.end)
-					return true				
+					//log("esc")
+					this.setSelection(inp,selD.end,selD.end)
+					return false				
+				default:
+					this.ss = null
+					this.se = null
 			}
-			return true;
+			return false;			
+		},
+		sendToServer:function(func,adj){
+			if(this.props.onClickValue) this.props.onClickValue("change",func+":"+adj.toString());
+		},
+		render:function(){
+			const props = this.props
+			const calWrapper=function(children){
+				const wrapperStyle={
+					padding:".3125em",
+					backgroundColor:"white",
+					minWidth:"18.75em",
+					boxShadow:GlobalStyles.boxShadow
+				};
+				const gridStyle={
+					margin:"0px",
+					padding:"0px"
+				};
+				return $("div",{style:wrapperStyle},
+					$("div",{style:gridStyle},
+						children
+					));
+			};	
+			const popupStyle={
+				width:"auto",
+				maxHeight:"auto",
+				...props.popupStyle
+			};			
+			const buttonImageStyle={				
+				transform:"none",
+				...props.buttonImageStyle
+			};		
+			
+			const inputStyle = {textAlign:"right"}
+			
+			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">'
+				  +'<path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>'
+				  +'<g><path d="M481.082,138.431H14.713C6.587,138.431,0,131.843,0,123.718V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v50.894C495.795,131.844,489.208,138.431,481.082,138.431z M29.426,109.005h436.942v-36.18   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574V109.005z"/>'
+				  +'<path d="M144.238,282.415H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713c0,8.125-6.587,14.713-14.713,14.713H89.643v32.338   h54.595c8.126,0,14.713,6.589,14.713,14.713S152.364,282.415,144.238,282.415z"/></g>'
+				  +'<g><path d="M282.552,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C297.265,275.826,290.678,282.415,282.552,282.415z M227.957,252.988h39.882V220.65h-39.882V252.988z"/>'
+				  +'<path d="M144.238,406.06H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713s-6.587,14.713-14.713,14.713H89.643v32.338h54.595   c8.126,0,14.713,6.589,14.713,14.713S152.364,406.06,144.238,406.06z"/></g>'
+				  +'<path d="M282.552,406.06h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765  c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765  C297.265,399.471,290.678,406.06,282.552,406.06z M227.957,376.633h39.882v-32.338h-39.882V376.633z"/>'
+				  +'<g><path d="M420.864,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C435.577,275.826,428.99,282.415,420.864,282.415z M366.269,252.988h39.882V220.65h-39.882V252.988L366.269,252.988z"/>'
+				  +'<path d="M99.532,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C114.245,86.291,107.658,92.878,99.532,92.878z"/>'
+				  +'<path d="M247.897,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C262.61,86.291,256.023,92.878,247.897,92.878z"/>'
+				  +'<path d="M396.263,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C410.976,86.291,404.389,92.878,396.263,92.878z"/>'
+				  +'<path d="M389.88,504.653c-67.338,0-122.12-54.782-122.12-122.12s54.782-122.12,122.12-122.12   c36.752,0,71.2,16.321,94.512,44.78c5.15,6.285,4.229,15.556-2.058,20.706c-6.285,5.148-15.556,4.229-20.706-2.058   c-17.7-21.608-43.851-33.999-71.747-33.999c-51.111,0-92.693,41.582-92.693,92.693s41.582,92.693,92.693,92.693   s92.693-41.582,92.693-92.693c0-8.125,6.587-14.713,14.713-14.713c8.126,0,14.713,6.589,14.713,14.713   C512,449.87,457.218,504.653,389.88,504.653z"/>'
+				  +'<path d="M228.475,490.606H36c-19.85,0-36-16.151-36-36V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v164.701c0,8.125-6.587,14.713-14.713,14.713c-8.126,0-14.713-6.589-14.713-14.713V72.825   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574v381.781c0,3.625,2.949,6.574,6.574,6.574h192.474   c8.126,0,14.713,6.589,14.713,14.713C243.187,484.018,236.601,490.606,228.475,490.606z"/></g>'
+				  +'<polyline style="fill:#FFFFFF;" points="429.606,382.533 389.88,382.533 389.88,342.808 "/>'
+				  +'<path d="M429.606,397.247H389.88c-8.126,0-14.713-6.589-14.713-14.713v-39.726  c0-8.125,6.587-14.713,14.713-14.713s14.713,6.589,14.713,14.713v25.012h25.012c8.126,0,14.713,6.589,14.713,14.713  S437.732,397.247,429.606,397.247z"/>'
+				  +'</svg>';
+			const svgData=svgSrc(svg);	  
+			const urlData = props.url?props.url:svgData;
+			const noAutoWidth = true
+			return $(DropDownElement,{...props,cursorPos:this.getCursorPos,noAutoWidth,inputStyle,popupStyle,onKeyDown:this.onKeyDown,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
 		}
-		const inputStyle = {textAlign:"right"}
-		
-		const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">'
-			  +'<path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>'
-			  +'<g><path d="M481.082,138.431H14.713C6.587,138.431,0,131.843,0,123.718V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v50.894C495.795,131.844,489.208,138.431,481.082,138.431z M29.426,109.005h436.942v-36.18   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574V109.005z"/>'
-			  +'<path d="M144.238,282.415H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713c0,8.125-6.587,14.713-14.713,14.713H89.643v32.338   h54.595c8.126,0,14.713,6.589,14.713,14.713S152.364,282.415,144.238,282.415z"/></g>'
-			  +'<g><path d="M282.552,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C297.265,275.826,290.678,282.415,282.552,282.415z M227.957,252.988h39.882V220.65h-39.882V252.988z"/>'
-			  +'<path d="M144.238,406.06H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713s-6.587,14.713-14.713,14.713H89.643v32.338h54.595   c8.126,0,14.713,6.589,14.713,14.713S152.364,406.06,144.238,406.06z"/></g>'
-			  +'<path d="M282.552,406.06h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765  c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765  C297.265,399.471,290.678,406.06,282.552,406.06z M227.957,376.633h39.882v-32.338h-39.882V376.633z"/>'
-			  +'<g><path d="M420.864,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C435.577,275.826,428.99,282.415,420.864,282.415z M366.269,252.988h39.882V220.65h-39.882V252.988L366.269,252.988z"/>'
-			  +'<path d="M99.532,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C114.245,86.291,107.658,92.878,99.532,92.878z"/>'
-			  +'<path d="M247.897,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C262.61,86.291,256.023,92.878,247.897,92.878z"/>'
-			  +'<path d="M396.263,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C410.976,86.291,404.389,92.878,396.263,92.878z"/>'
-			  +'<path d="M389.88,504.653c-67.338,0-122.12-54.782-122.12-122.12s54.782-122.12,122.12-122.12   c36.752,0,71.2,16.321,94.512,44.78c5.15,6.285,4.229,15.556-2.058,20.706c-6.285,5.148-15.556,4.229-20.706-2.058   c-17.7-21.608-43.851-33.999-71.747-33.999c-51.111,0-92.693,41.582-92.693,92.693s41.582,92.693,92.693,92.693   s92.693-41.582,92.693-92.693c0-8.125,6.587-14.713,14.713-14.713c8.126,0,14.713,6.589,14.713,14.713   C512,449.87,457.218,504.653,389.88,504.653z"/>'
-			  +'<path d="M228.475,490.606H36c-19.85,0-36-16.151-36-36V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v164.701c0,8.125-6.587,14.713-14.713,14.713c-8.126,0-14.713-6.589-14.713-14.713V72.825   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574v381.781c0,3.625,2.949,6.574,6.574,6.574h192.474   c8.126,0,14.713,6.589,14.713,14.713C243.187,484.018,236.601,490.606,228.475,490.606z"/></g>'
-			  +'<polyline style="fill:#FFFFFF;" points="429.606,382.533 389.88,382.533 389.88,342.808 "/>'
-			  +'<path d="M429.606,397.247H389.88c-8.126,0-14.713-6.589-14.713-14.713v-39.726  c0-8.125,6.587-14.713,14.713-14.713s14.713,6.589,14.713,14.713v25.012h25.012c8.126,0,14.713,6.589,14.713,14.713  S437.732,397.247,429.606,397.247z"/>'
-			  +'</svg>';
-		const svgData=svgSrc(svg);	  
-		const urlData = props.url?props.url:svgData;
-		const noAutoWidth = true
-		return $(DropDownElement,{...props,noAutoWidth,inputStyle,popupStyle,onKeyDown,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
-	}
+	})	
 	
 	Date.prototype.getISOWeek = function(utc){
 		var y = utc ? this.getUTCFullYear(): this.getFullYear();
