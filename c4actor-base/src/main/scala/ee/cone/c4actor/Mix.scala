@@ -65,7 +65,8 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
     assembleDataDependencies :::
     ProtocolDataDependencies(protocols.distinct) ::: super.dataDependencies
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
-  override def toInject: List[ToInject] = assemblerInit :: localQAdapterRegistryInit :: super.toInject
+  override def toInject: List[ToInject] =
+    CursorFactoryImpl :: assemblerInit :: localQAdapterRegistryInit :: super.toInject
 }
 
 trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {

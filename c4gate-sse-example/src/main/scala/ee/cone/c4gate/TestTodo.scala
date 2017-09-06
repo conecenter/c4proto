@@ -6,11 +6,12 @@ import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, prodLens}
 import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
+import ee.cone.c4vdom.VDomLens
 
 class TestTodoApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -50,19 +51,19 @@ class TestTodoApp extends ServerApp
     ) yield WithPK(view)
 }
 
-case object TaskComments extends TextInputLens[TodoTask](_.comments,v⇒_.copy(comments=v))
 
 case class TestTodoRootView(branchKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val tags = TestTagsKey.of(local)
     val mTags = TagsKey.of(local)
+    val cursorFactory = CursorFactoryKey.of(local)
     import mTags._
     val todoTasks = ByPK(classOf[TodoTask]).of(local).values.toList.sortBy(-_.createdAt)
-    val input = tags.toInput("comments", TaskComments)
-    val taskLines = todoTasks.map { task =>
+    @prodLens val taskLines = todoTasks.map { task ⇒
+      val taskCursor = cursorFactory.forOriginal(task)
       div(task.srcId,Nil)(
         List(
-          input(task),
+          tags.input(taskCursor % (_.comments)),
           divButton("remove")(TxAdd(delete(task)))(List(text("caption","-")))
         )
       )

@@ -42,10 +42,6 @@ class TestCanvasApp extends ServerApp
   )
 }
 
-case object CanvasTaskX extends TextInputLens[TestCanvasState](_.x,v⇒_.copy
-(x=v))
-case object CanvasTaskY extends TextInputLens[TestCanvasState](_.y,v⇒_.copy(y=v))
-
 @protocol object TestCanvasProtocol extends Protocol {
   @Id(0x0008) case class TestCanvasState(
     @Id(0x0009) sessionKey: String,
@@ -135,22 +131,27 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
 
 case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ {
-    val canvasTasks = ByPK(classOf[TestCanvasState]).of(local)
     val branchOperations = BranchOperationsKey.of(local)
     val tags = TagsKey.of(local)
     val styles = TagStylesKey.of(local)
     val tTags = TestTagsKey.of(local)
+    val cursorFactory = CursorFactoryKey.of(local)
+
+    val canvasTasks = ByPK(classOf[TestCanvasState]).of(local)
     val canvasTask: TestCanvasState =
       canvasTasks.getOrElse(sessionKey,TestCanvasState(sessionKey,"",""))
-    //
-    val inputX = tTags.toInput("x", CanvasTaskX)
-    val inputY = tTags.toInput("y", CanvasTaskY)
+    val cursor = cursorFactory.forOriginal(canvasTask)
+
     val canvasSeed = (t:TestCanvasState) ⇒
       tags.seed(branchOperations.toSeed(t))(List(styles.height(512),styles.widthAll))(Nil)//view size
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
       List(tags.text("caption", "relocate"))
     )
-    List(relocate, inputX(canvasTask), inputY(canvasTask), canvasSeed(canvasTask))
+    List(relocate,
+      tTags.input(cursor % (_.x)),
+      tTags.input(cursor % (_.y)),
+      canvasSeed(canvasTask)
+    )
   }
 }
 

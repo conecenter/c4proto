@@ -97,9 +97,12 @@ trait Lens[C,I] extends Getter[C,I] {
   def set: I ⇒ C⇒C
 }
 
-abstract class TransientLens[Item](default: Item) extends Lens[Context,Item] {
+abstract class AbstractLens[C,I] extends Lens[C,I] {
+  def modify: (I⇒I) ⇒ C⇒C = f ⇒ c ⇒ set(f(of(c)))(c)
+}
+
+abstract class TransientLens[Item](default: Item) extends AbstractLens[Context,Item] with Product {
   def of: Context ⇒ Item = context ⇒ context.transient.getOrElse(this, default).asInstanceOf[Item]
-  def modify: (Item⇒Item) ⇒ Context ⇒ Context = f ⇒ world ⇒ set(f(of(world)))(world)
   def set: Item ⇒ Context ⇒ Context = value ⇒ context ⇒ new Context(
     context.injected,
     context.assembled,
@@ -123,6 +126,20 @@ object TxAdd {
   def apply[M<:Product](out: Seq[LEvent[M]]): Context⇒Context = context ⇒
     WriteModelDebugAddKey.of(context)(out)(context)
 }
+
+trait CursorFactory {
+  def forOriginal[P<:Product](product: P): ProductCursor[P]
+}
+trait Cursor[I] {
+  def name: String
+  def value: I
+  def lens: Option[Lens[Context,I]]
+}
+trait ProductCursor[I<:Product] extends Cursor[I] {
+  def % [V](of: I=>V): Cursor[V]
+  def % [V](of: I=>V, set: V=>I=>I, postfix: String): Cursor[V]
+}
+case object CursorFactoryKey extends SharedComponentKey[CursorFactory]
 
 trait Observer {
   def activate(world: Context): Seq[Observer]

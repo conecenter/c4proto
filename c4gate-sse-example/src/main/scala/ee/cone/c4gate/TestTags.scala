@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
+import ee.cone.c4actor.{Context, Cursor}
 import ee.cone.c4vdom._
-import ee.cone.c4vdom.Types.VDomKey
 
 abstract class ElementValue extends VDomValue {
   def elementType: String
@@ -43,18 +43,22 @@ case class ChangePassword[State]()(
 }
 
 class TestTags[State](
-  child: ChildPairFactory, inputAttributes: TagJsonUtils, save: Product ⇒ State ⇒ State
+  child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags
 ) {
-  def toInput[Model<:Product](key: VDomKey, attr: VDomLens[Model,String]): Model ⇒ ChildPair[OfDiv] =
-    model ⇒ input(key, attr.of(model), value⇒save(attr.set(value)(model)))
-
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
+  def input(cursor: Cursor[String]): ChildPair[OfDiv] =
+    if(cursor.lens.isEmpty) tags.text(cursor.name, cursor.value)
+    else {
+      def onChange(message:VDomMessage): Context⇒Context = local ⇒ {
+        val lens = cursor.lens.get
+        if(lens.of(local) != cursor.value) throw new Exception
+        lens.set(messageStrBody(message))(local)
+      }
+      val input = InputTextElement(cursor.value, deferSend=true)(inputAttributes,onChange)
+      child[OfDiv](cursor.name, input, Nil)
+    }
 
-  private def input(key: VDomKey, value: String, change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
-    child[OfDiv](key, InputTextElement(value, deferSend=true)(inputAttributes,
-      (message:VDomMessage)⇒change(messageStrBody(message))
-    ), Nil)
 
   def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,
@@ -62,10 +66,4 @@ class TestTags[State](
     ), Nil)
   def changePassword(change: VDomMessage ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
-}
-
-abstract class TextInputLens[Model<:Product](val of: Model⇒String, val set: String⇒Model⇒Model)
-  extends VDomLens[Model,String]
-{
-  def modify: (String ⇒ String) ⇒ Model ⇒ Model = f ⇒ model ⇒ set(f(of(model)))(model)
 }
