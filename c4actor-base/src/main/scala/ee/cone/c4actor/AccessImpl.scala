@@ -15,30 +15,34 @@ object Test {
 }
 */
 
-object CursorFactoryImpl extends CursorFactory with ToInject {
-  def toInject: List[Injectable] = CursorFactoryKey.set(this)
-  def forOriginal[P <: Product](product: P): ProductCursor[P] = {
+object ModelAccessFactoryImpl extends ModelAccessFactory with ToInject {
+  def toInject: List[Injectable] = ModelAccessFactoryKey.set(this)
+  def ofModel[P <: Product](product: P): Option[ModelAccess[P]] = {
     val name = product.getClass.getName
     val inner = TxProtoLens[P](name, ByPK.raw(name), ToPrimaryKey(product))
     val lens = NonOptProdLens(inner, product)
-    ProductCursorImpl(name,product,Option(lens))
+    Option(ModelAccessImpl(name,product,Option(lens)))
   }
 }
 
-case class ProductCursorImpl[P<:Product](
-  name: String, value: P, lens: Option[Lens[Context, P]]
-) extends ProductCursor[P] {
-  def %[V](of: P ⇒ V): Cursor[V] = throw new Exception("macro was not expanded")
-  def %[V](of: P ⇒ V, set: V ⇒ P ⇒ P, postfix: String): Cursor[V] = {
+case class ModelAccessImpl[P<:Product](
+  name: String, model: P, lens: Option[Lens[Context, P]]
+) extends ModelAccess[P] {
+  def ofField[V](of: P ⇒ V, set: V ⇒ P ⇒ P, postfix: String): FieldAccess[V] = {
     val rName = name + postfix
-    val rLens = lens.map(l⇒ComposedLens(l,ProdValLens(rName)(of,set)))
-    ValueCursor(rName,of(value),rLens)
+    val rValue = of(model)
+    val checkSet: V ⇒ P ⇒ P = newValue ⇒ currentModel ⇒ {
+      assert(rValue==of(currentModel))
+      set(newValue)(currentModel)
+    }
+    val rLens = lens.map(l⇒ComposedLens(l,ProdValLens(rName)(of,checkSet)))
+    FieldAccessImpl(rName,rValue,rLens)
   }
 }
 
-case class ValueCursor[V](
-  name: String, value: V, lens: Option[Lens[Context, V]]
-) extends Cursor[V]
+case class FieldAccessImpl[V](
+  name: String, initialValue: V, updatingLens: Option[Lens[Context, V]]
+) extends FieldAccess[V]
 
 case class ProdValLens[P<:Product,V](name: String)(val of: P ⇒ V, val set: V ⇒ P ⇒ P) extends AbstractLens[P,V]
 
@@ -66,4 +70,18 @@ case class TxProtoLens[V<:Product](
     value.map(LEvent.update).foreach(ev⇒assert(ev==event,s"$ev != $event"))
     TxAdd(event)
   }
+}
+
+case class FieldMetaBuilderImpl[Model,Value](
+  name: String = "", keyOpt: Option[SharedComponentKey[Map[String,Value]]] = None
+) extends FieldMetaBuilder[Model,Value] {
+  def ofField[V](f: Model⇒V): FieldMetaBuilder[Model,Value] = throw new Exception("macro not expanded")
+  def ofField(of: Model=>Any, set: Nothing=>Model=>Model, postfix: String): FieldMetaBuilder[Model,Value] =
+    copy(name + postfix)
+  def set(value: Value): List[Injectable] =
+    keyOpt.get.set(Map(name→value))
+  def model[P](cl: Class[P]): FieldMetaBuilder[P, Value] =
+    FieldMetaBuilderImpl(cl.getName,keyOpt)
+  def attr[V](key: SharedComponentKey[Map[String,V]]): FieldMetaBuilder[Model,V] =
+    FieldMetaBuilderImpl(name,Option(key))
 }

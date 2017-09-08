@@ -49,12 +49,13 @@ class TestCoWorkApp extends ServerApp
 case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ {
     val tags = TestTagsKey.of(local)
-    val cursorFactory = CursorFactoryKey.of(local)
+    val conductor = ModelAccessFactoryKey.of(local)
 
     val contents = ByPK(classOf[Content]).of(local)
     val content = contents.getOrElse(sessionKey, Content(sessionKey, ""))
-    val cursor = cursorFactory.forOriginal(content)
-    List(tags.input(cursor % (_.value)))
+    conductor %% content
+    val input = tags.input(local)
+    List(input %% content.value)
   }
 }
 

@@ -6,7 +6,7 @@ import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, prodLens}
+import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
 import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
@@ -28,6 +28,9 @@ class TestTodoApp extends ServerApp
     new TestTodoAssemble ::
     new FromAlienTaskAssemble("/react-app.html") ::
     super.assembles
+  override def toInject: List[ToInject] =
+    new TestMetaData(fieldMetaBuilder) ::
+    super.toInject
 }
 
 @protocol object TestTodoProtocol extends Protocol {
@@ -36,6 +39,14 @@ class TestTodoApp extends ServerApp
     @Id(0x0003) createdAt: Long,
     @Id(0x0004) comments: String
   )
+}
+
+@fieldAccess class TestMetaData(meta: FieldMetaBuilder[Nothing,Nothing]) extends ToInject {
+  private def task = meta model classOf[TodoTask]
+  def toInject: List[Injectable] = List(
+    task attr PlaceholderKey ofField (_.createdAt) set "(created at)",
+    task attr PlaceholderKey ofField (_.comments) set "(comments)"
+  ).flatten
 }
 
 @assemble class TestTodoAssemble extends Assemble {
@@ -56,16 +67,15 @@ case class TestTodoRootView(branchKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val tags = TestTagsKey.of(local)
     val mTags = TagsKey.of(local)
-    val cursorFactory = CursorFactoryKey.of(local)
+    val conductor = ModelAccessFactoryKey.of(local)
     import mTags._
     val todoTasks = ByPK(classOf[TodoTask]).of(local).values.toList.sortBy(-_.createdAt)
-    @prodLens val taskLines = todoTasks.map { task ⇒
-      val taskCursor = cursorFactory.forOriginal(task)
+    val input = tags.input(local)
+    @fieldAccess val taskLines = todoTasks.map { task ⇒
+      conductor %% task
       div(task.srcId,Nil)(
-        List(
-          tags.input(taskCursor % (_.comments)),
-          divButton("remove")(TxAdd(delete(task)))(List(text("caption","-")))
-        )
+        input %% task.comments :::
+          divButton("remove")(TxAdd(delete(task)))(List(text("caption","-"))) :: Nil
       )
     }
     val btnList = List(

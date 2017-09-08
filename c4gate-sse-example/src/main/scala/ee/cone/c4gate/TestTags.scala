@@ -1,6 +1,8 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{Context, Cursor}
+import ee.cone.c4actor.{Context,FieldAccess,SharedComponentKey}
+import ee.cone.c4assemble.fieldAccess
+import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4vdom._
 
 abstract class ElementValue extends VDomValue {
@@ -14,13 +16,14 @@ abstract class ElementValue extends VDomValue {
   }
 }
 
-case class InputTextElement[State](value: String, deferSend: Boolean)(
+case class InputTextElement[State](value: String, deferSend: Boolean, placeholder: String)(
   input: TagJsonUtils, val receive: VDomMessage ⇒ State ⇒ State
 ) extends ElementValue with Receiver[State] {
   def elementType = "input"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     builder.append("type").append("text")
     input.appendInputAttributes(builder, value, deferSend)
+    if(placeholder.nonEmpty) builder.append("placeholder").append(placeholder)
   }
 }
 
@@ -47,18 +50,22 @@ class TestTags[State](
 ) {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
-  def input(cursor: Cursor[String]): ChildPair[OfDiv] =
-    if(cursor.lens.isEmpty) tags.text(cursor.name, cursor.value)
-    else {
-      def onChange(message:VDomMessage): Context⇒Context = local ⇒ {
-        val lens = cursor.lens.get
-        if(lens.of(local) != cursor.value) throw new Exception
-        lens.set(messageStrBody(message))(local)
-      }
-      val input = InputTextElement(cursor.value, deferSend=true)(inputAttributes,onChange)
-      child[OfDiv](cursor.name, input, Nil)
-    }
 
+  class InputView(local: Context) {
+    def %%(value: String): Nothing = throw new Exception("NotExpanded")
+    def ofField(accessOpt: Option[FieldAccess[String]]): List[ChildPair[OfDiv]] =
+      accessOpt.map(access ⇒
+        access.updatingLens.map { lens ⇒
+          val placeholder = PlaceholderKey.of(local).getOrElse(access.name,"")
+          val input = InputTextElement(access.initialValue, deferSend = true, placeholder)(
+            inputAttributes,
+            message ⇒ lens.set(messageStrBody(message))
+          )
+          child[OfDiv](access.name, input, Nil)
+        }.getOrElse(tags.text(access.name, access.initialValue))
+      ).toList
+  }
+  def input(local: Context): InputView = new InputView(local)
 
   def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,
@@ -67,3 +74,7 @@ class TestTags[State](
   def changePassword(change: VDomMessage ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
 }
+
+case object PlaceholderKey extends SharedComponentKey[Map[String,String]]
+
+
