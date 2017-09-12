@@ -52,8 +52,8 @@ class TestTags[State](
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
 
   class InputView(local: Context) {
-    def boundTo(value: String): Nothing = throw new Exception("NotExpanded")
-    def boundToAccess(accessOpt: Option[FieldAccess[String]]): List[ChildPair[OfDiv]] =
+    def binds(value: String): Nothing = throw new Exception("NotExpanded")
+    def bindsAccess(accessOpt: Option[FieldAccess[String]]): List[ChildPair[OfDiv]] =
       accessOpt.map(access ⇒
         access.updatingLens.map { lens ⇒
           val placeholder = PlaceholderKey.of(local).getOrElse(access.name,"")

@@ -149,7 +149,7 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
       List(tags.text("caption", "relocate"))
     )
     val input = tTags.input(local)
-    relocate :: (input boundTo canvasTask.x) ::: (input boundTo canvasTask.y) :::
+    relocate :: (input binds canvasTask.x) ::: (input binds canvasTask.y) :::
       canvasSeed(canvasTask) :: Nil
   }
 }

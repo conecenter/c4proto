@@ -55,7 +55,7 @@ case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
     val content = contents.getOrElse(sessionKey, Content(sessionKey, ""))
     conductor conducts content
     val input = tags.input(local)
-    List(input boundTo content.value)
+    List(input binds content.value)
   }
 }
 

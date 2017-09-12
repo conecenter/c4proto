@@ -67,14 +67,14 @@ case class TestTodoRootView(branchKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val tags = TestTagsKey.of(local)
     val mTags = TagsKey.of(local)
-    val conductor = ModelAccessFactoryKey.of(local)
+    val contextAccess = ModelAccessFactoryKey.of(local)
     import mTags._
     val todoTasks = ByPK(classOf[TodoTask]).of(local).values.toList.sortBy(-_.createdAt)
     val input = tags.input(local)
     @fieldAccess val taskLines = todoTasks.map { task ⇒
-      conductor conducts task
+      contextAccess conducts task
       div(task.srcId,Nil)(
-        (input boundTo task.comments) :::
+        (input binds task.comments) :::
           divButton("remove")(TxAdd(delete(task)))(List(text("caption","-"))) :: Nil
       )
     }
