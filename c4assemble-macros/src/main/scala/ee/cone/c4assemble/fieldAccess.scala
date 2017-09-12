@@ -15,16 +15,16 @@ class fieldAccess extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
     def access(product: String) = Term.Name(s"$product$$c4access")
     val iTree = defn.asInstanceOf[Tree].transform{
-      case q"$receiver %% $product.$field" ⇒
-        q"$receiver.ofField(${access(s"$product")}.map(_.ofField(_.$field)))"
-      case q"$factory %% ${Term.Name(product)}" ⇒
+      case q"$receiver.boundTo($product.$field)" ⇒
+        q"$receiver.boundToAccess(${access(s"$product")}.map(_.ofField(_.$field)))"
+      case q"$factory.conducts(${Term.Name(product)})" ⇒
         q"val ${Pat.Var.Term(access(product))} = $factory.ofModel(${Term.Name(product)})"
     }
     val nTree = iTree.transform{
       case q"$o.ofField(_.$f)" ⇒
-        q"""$o.ofField(_.$f,value⇒_.copy($f=value),${Lit(s".$f")})"""
+        q"""$o.ofField(model⇒model.$f,value⇒model⇒model.copy($f=value),${Lit(s".$f")})"""
     }
-    // println(nTree) //logger.elem(...)
+     println(nTree) //logger.elem(...)
     nTree.asInstanceOf[Stat]
   }
 }

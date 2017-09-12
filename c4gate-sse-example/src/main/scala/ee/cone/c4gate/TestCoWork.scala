@@ -53,9 +53,9 @@ case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
 
     val contents = ByPK(classOf[Content]).of(local)
     val content = contents.getOrElse(sessionKey, Content(sessionKey, ""))
-    conductor %% content
+    conductor conducts content
     val input = tags.input(local)
-    List(input %% content.value)
+    List(input boundTo content.value)
   }
 }
 

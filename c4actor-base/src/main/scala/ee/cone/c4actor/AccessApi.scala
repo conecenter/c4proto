@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 trait ModelAccessFactory {
-  def %%[P<:Product](product: P): Nothing = throw new Exception("ProdLensNotExpanded")
+  def conducts[P<:Product](product: P): Nothing = throw new Exception("ProdLensNotExpanded")
   def ofModel[P<:Product](product: P): Option[ModelAccess[P]]
 }
 trait ModelAccess[I<:Product] {

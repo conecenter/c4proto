@@ -141,7 +141,7 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
     val canvasTasks = ByPK(classOf[TestCanvasState]).of(local)
     val canvasTask: TestCanvasState =
       canvasTasks.getOrElse(sessionKey,TestCanvasState(sessionKey,"",""))
-    conductor %% canvasTask
+    conductor conducts canvasTask
 
     val canvasSeed = (t:TestCanvasState) ⇒
       tags.seed(branchOperations.toSeed(t))(List(styles.height(512),styles.widthAll))(Nil)//view size
@@ -149,7 +149,7 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
       List(tags.text("caption", "relocate"))
     )
     val input = tTags.input(local)
-    relocate :: input %% canvasTask.x ::: input %% canvasTask.y :::
+    relocate :: (input boundTo canvasTask.x) ::: (input boundTo canvasTask.y) :::
       canvasSeed(canvasTask) :: Nil
   }
 }

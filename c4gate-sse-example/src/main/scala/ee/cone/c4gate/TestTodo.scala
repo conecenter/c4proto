@@ -72,9 +72,9 @@ case class TestTodoRootView(branchKey: SrcId) extends View {
     val todoTasks = ByPK(classOf[TodoTask]).of(local).values.toList.sortBy(-_.createdAt)
     val input = tags.input(local)
     @fieldAccess val taskLines = todoTasks.map { task ⇒
-      conductor %% task
+      conductor conducts task
       div(task.srcId,Nil)(
-        input %% task.comments :::
+        (input boundTo task.comments) :::
           divButton("remove")(TxAdd(delete(task)))(List(text("caption","-"))) :: Nil
       )
     }
