@@ -1,24 +1,34 @@
 package ee.cone.c4actor
 
-trait ModelAccessFactory {
-  def conducts[P<:Product](product: P): Nothing = throw new Exception("ProdLensNotExpanded")
-  def ofModel[P<:Product](product: P): Option[ModelAccess[P]]
-}
-trait ModelAccess[I<:Product] {
-  def ofField[V](of: I=>V, set: V=>I=>I, postfix: String): FieldAccess[V]
-}
-trait FieldAccess[I] {
-  def updatingLens: Option[Lens[Context,I]]
-  def name: String
-  def initialValue: I
+//import ee.cone.c4actor.Types.SrcId
+
+trait MetaAttr extends Product
+
+trait Access[C] {
+  def updatingLens: Option[Lens[Context,C]]
+  def initialValue: C
+  def metaList: List[MetaAttr]
+  def to[I](inner: ProdLens[C,I]): Access[I]
 }
 
 case object ModelAccessFactoryKey extends SharedComponentKey[ModelAccessFactory]
-
-trait FieldMetaBuilder[Model,Value] {
-  def ofField[V](f: Model⇒V): FieldMetaBuilder[Model,Value]
-  def ofField(of: Model=>Any, set: Nothing=>Model=>Model, postfix: String): FieldMetaBuilder[Model,Value]
-  def set(value: Value): List[Injectable]
-  def model[P](cl: Class[P]): FieldMetaBuilder[P, Value]
-  def attr[V](key: SharedComponentKey[Map[String,V]]): FieldMetaBuilder[Model,V]
+trait ModelAccessFactory {
+  def to[P<:Product](product: P): Option[Access[P]]
+  //def to[P<:Product](cl: Class[P], srcId: SrcId): Option[ModelAccess[P]]
 }
+
+case class NameMetaAttr(value: String) extends MetaAttr
+
+object ProdLens {
+  def of[C,I](of: C⇒I, meta: MetaAttr*): ProdLens[C,I] =
+    throw new Exception("not expanded")
+  def ofSet[C,I](of: C⇒I, set: I⇒C⇒C, name: String, meta: MetaAttr*): ProdLens[C,I] =
+    ProdLens[C,I](NameMetaAttr(name) :: meta.toList)(of,set)
+}
+
+case class ProdLens[C,I](metaList: List[MetaAttr])(val of: C⇒I, val set: I⇒C⇒C)
+  extends AbstractLens[C,I]
+{
+  def meta(values: MetaAttr*): ProdLens[C,I] = ProdLens[C,I](metaList ++ values)(of,set)
+}
+

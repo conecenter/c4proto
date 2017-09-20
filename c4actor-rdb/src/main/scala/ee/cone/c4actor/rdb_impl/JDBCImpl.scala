@@ -113,8 +113,8 @@ class OutTextRDBBind(
 
 class RConnectionImpl(conn: java.sql.Connection) extends RConnection {
 
-  private def bindObjects(stmt: java.sql.PreparedStatement, bind: List[Object]) =
-    bind.zipWithIndex.foreach{ case (v,i) ⇒ stmt.setObject(i+1,v) }
+  private def bindObjects(stmt: java.sql.PreparedStatement, bindList: List[Object]) =
+    bindList.zipWithIndex.foreach{ case (v,i) ⇒ stmt.setObject(i+1,v) }
 
   def outUnit(name: String): RDBBind[Unit] = new OutUnitRDBBind(conn, name)
   def outLongOption(name: String): RDBBind[Option[Long]] = new OutLongRDBBind(conn, name)
@@ -129,12 +129,12 @@ class RConnectionImpl(conn: java.sql.Connection) extends RConnection {
   }
 
   def executeQuery(
-    code: String, cols: List[String], bind: List[Object]
+    code: String, cols: List[String], bindList: List[Object]
   ): List[Map[String,Object]] = concurrent.blocking {
     //println(s"code:: [$code]")
     //conn.prepareCall(code).re
     FinallyClose(conn.prepareStatement(code)) { stmt ⇒
-      bindObjects(stmt, bind)
+      bindObjects(stmt, bindList)
 
       FinallyClose(stmt.executeQuery()) { rs ⇒
         var res: List[Map[String, Object]] = Nil

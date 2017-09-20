@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4assemble.Single
 import ee.cone.c4assemble.Types.ReadModel
-import ee.cone.c4proto.{Id, Protocol, protocol, scale}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
 object ProtoAdapterTest extends App {
@@ -31,10 +31,11 @@ object ProtoAdapterTest extends App {
 
 @protocol object MyProtocol extends Protocol {
   import ee.cone.c4proto.BigDecimalProtocol._
+
   //com.squareup.wire.ProtoAdapter
   @Id(0x0003) case class Person(
     @Id(0x0007) name: String,
-    @Id(0x0004) age: Option[BigDecimal] @scale(0),
+    @Id(0x0004) age: Option[BigDecimal],
     @Id(0x0008) isActive: Boolean
   )
   @Id(0x0001) case class Group(
@@ -43,4 +44,3 @@ object ProtoAdapterTest extends App {
     @Id(0x0006) worker: List[Person]
   )
 }
-

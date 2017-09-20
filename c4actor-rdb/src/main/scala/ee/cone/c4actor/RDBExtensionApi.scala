@@ -23,6 +23,6 @@ trait RConnection {
   def outLongOption(name: String): RDBBind[Option[Long]]
   def outText(name: String): RDBBind[String]
   def execute(code: String): Unit
-  def executeQuery(code: String, cols: List[String], bind: List[Object]): List[Map[String,Object]]
+  def executeQuery(code: String, cols: List[String], bindList: List[Object]): List[Map[String,Object]]
 }
 

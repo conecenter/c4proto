@@ -127,10 +127,13 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
   }
 }
 
-
+import TestCanvasStateAccess._
+@fieldAccess object TestCanvasStateAccess {
+  lazy val x: ProdLens[TestCanvasState,String] = ProdLens.of(_.x)
+  lazy val y: ProdLens[TestCanvasState,String] = ProdLens.of(_.y)
+}
 
 case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
-  @fieldAccess
   def view: Context ⇒ ViewRes = local ⇒ {
     val branchOperations = BranchOperationsKey.of(local)
     val tags = TagsKey.of(local)
@@ -139,18 +142,20 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
     val conductor = ModelAccessFactoryKey.of(local)
 
     val canvasTasks = ByPK(classOf[TestCanvasState]).of(local)
-    val canvasTask: TestCanvasState =
+    val canvasTaskProd: TestCanvasState =
       canvasTasks.getOrElse(sessionKey,TestCanvasState(sessionKey,"",""))
-    conductor conducts canvasTask
+
 
     val canvasSeed = (t:TestCanvasState) ⇒
       tags.seed(branchOperations.toSeed(t))(List(styles.height(512),styles.widthAll))(Nil)//view size
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
       List(tags.text("caption", "relocate"))
     )
-    val input = tTags.input(local)
-    relocate :: (input binds canvasTask.x) ::: (input binds canvasTask.y) :::
-      canvasSeed(canvasTask) :: Nil
+    val inputs = for {
+      canvasTask ← (conductor to canvasTaskProd).toList
+      tags ← tTags.input(canvasTask to x) :: tTags.input(canvasTask to y) :: Nil
+    } yield tags
+    relocate :: inputs ::: canvasSeed(canvasTaskProd) :: Nil
   }
 }
 

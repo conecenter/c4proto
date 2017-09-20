@@ -42,7 +42,15 @@ class protocol extends StaticAnnotation {
         val props: List[ProtoProp] = params.map{
           case param"..$mods ${Term.Name(propName)}: $tpe = $v" ⇒
             val Seq(mod"@Id(${Lit(id:Int)})") = mods
-            val pt: ProtoType = tpe.get match {
+            val tp = tpe.get
+            /*
+            val (tp,meta) = tpe.get match {
+              case t"$tp @meta(..$ann)" ⇒ (tp,ann)
+              case a ⇒ (a,Nil)
+            }
+            println(meta,meta.map(_.getClass))*/
+
+            val pt: ProtoType = tp match {
               case t"Int" ⇒
                 val name = "Int"
                 ProtoType(
@@ -99,16 +107,6 @@ class protocol extends StaticAnnotation {
                   resultType = s"List[$name]",
                   resultFix = s"prep_$propName.reverse",
                   reduce = ("", s":: prep_$propName")
-                )
-              case t"Option[BigDecimal] @scale(${Lit(scale:Int)})" ⇒
-                val name = "BigDecimal"
-                ProtoType(
-                  encodeStatement =
-                    (s"if(prep_$propName.nonEmpty)", s"prep_$propName.get)"),
-                  serializerType = adapterOf(name),
-                  empty = "None",
-                  resultType = s"Option[$name]",
-                  reduce=("Option(", ")")
                 )
               /*
               //ProtoType("com.squareup.wire.ProtoAdapter.BOOL", "\"\"", "String")

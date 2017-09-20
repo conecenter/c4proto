@@ -1,10 +1,6 @@
 
 package ee.cone.c4proto
 
-import scala.annotation.StaticAnnotation
-
-class scale(id: Int) extends StaticAnnotation
-
 object BigDecimalFactory {
   def apply(scale: Int, bytes: okio.ByteString): BigDecimal =
     BigDecimal(new java.math.BigDecimal(new java.math.BigInteger(bytes.toByteArray), scale))

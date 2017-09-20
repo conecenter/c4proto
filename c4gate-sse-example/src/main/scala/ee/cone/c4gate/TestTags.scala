@@ -1,8 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{Context,FieldAccess,SharedComponentKey}
-import ee.cone.c4assemble.fieldAccess
-import ee.cone.c4gate.TestTodoProtocol.TodoTask
+import ee.cone.c4actor.{Access,MetaAttr,NameMetaAttr}
 import ee.cone.c4vdom._
 
 abstract class ElementValue extends VDomValue {
@@ -51,21 +49,17 @@ class TestTags[State](
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
 
-  class InputView(local: Context) {
-    def binds(value: String): Nothing = throw new Exception("NotExpanded")
-    def bindsAccess(accessOpt: Option[FieldAccess[String]]): List[ChildPair[OfDiv]] =
-      accessOpt.map(access ⇒
-        access.updatingLens.map { lens ⇒
-          val placeholder = PlaceholderKey.of(local).getOrElse(access.name,"")
-          val input = InputTextElement(access.initialValue, deferSend = true, placeholder)(
-            inputAttributes,
-            message ⇒ lens.set(messageStrBody(message))
-          )
-          child[OfDiv](access.name, input, Nil)
-        }.getOrElse(tags.text(access.name, access.initialValue))
-      ).toList
+  def input(access: Access[String]): ChildPair[OfDiv] = {
+    val name = access.metaList.collect{ case l: NameMetaAttr ⇒ l.value }.mkString
+    access.updatingLens.map { lens ⇒
+      val placeholder = access.metaList.collect{ case l: UserLabel ⇒ l.values.get("en") }.flatten.lastOption.getOrElse("")
+      val input = InputTextElement(access.initialValue, deferSend = true, placeholder)(
+        inputAttributes,
+        message ⇒ lens.set(messageStrBody(message))
+      )
+      child[OfDiv](name, input, Nil)
+    }.getOrElse(tags.text(name, access.initialValue))
   }
-  def input(local: Context): InputView = new InputView(local)
 
   def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,
@@ -75,6 +69,13 @@ class TestTags[State](
     child[OfDiv]("changePassword", ChangePassword[State]()(inputAttributes, change), Nil)
 }
 
-case object PlaceholderKey extends SharedComponentKey[Map[String,String]]
+object UserLabel {
+  def en: String ⇒ UserLabel = UserLabel().en
+  def ru: String ⇒ UserLabel = UserLabel().ru
+}
+case class UserLabel(values: Map[String,String] = Map.empty) extends MetaAttr {
+  def en: String ⇒ UserLabel = v ⇒ copy(values + ("en"→v))
+  def ru: String ⇒ UserLabel = v ⇒ copy(values + ("ru"→v))
+}
 
 

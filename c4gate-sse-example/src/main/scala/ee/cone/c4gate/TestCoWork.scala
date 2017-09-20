@@ -4,7 +4,7 @@ import java.net.URL
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.TestFilterProtocol.Content
@@ -46,16 +46,22 @@ class TestCoWorkApp extends ServerApp
     ) yield WithPK(view)
 }
 
+
+@fieldAccess object TestContentAccess {
+  lazy val value: ProdLens[Content,String] = ProdLens.of(_.value)
+}
+
 case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ {
     val tags = TestTagsKey.of(local)
     val conductor = ModelAccessFactoryKey.of(local)
 
     val contents = ByPK(classOf[Content]).of(local)
-    val content = contents.getOrElse(sessionKey, Content(sessionKey, ""))
-    conductor conducts content
-    val input = tags.input(local)
-    List(input binds content.value)
+    val contentProd = contents.getOrElse(sessionKey, Content(sessionKey, ""))
+    for {
+      content ← (conductor to contentProd).toList
+      tags ← tags.input(content to TestContentAccess.value) :: Nil
+    } yield tags
   }
 }
 

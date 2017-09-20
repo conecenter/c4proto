@@ -11,7 +11,6 @@ import ee.cone.c4gate.TestTodoProtocol.TodoTask
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.c4vdom.VDomLens
 
 class TestTodoApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -28,9 +27,6 @@ class TestTodoApp extends ServerApp
     new TestTodoAssemble ::
     new FromAlienTaskAssemble("/react-app.html") ::
     super.assembles
-  override def toInject: List[ToInject] =
-    new TestMetaData(fieldMetaBuilder) ::
-    super.toInject
 }
 
 @protocol object TestTodoProtocol extends Protocol {
@@ -41,13 +37,65 @@ class TestTodoApp extends ServerApp
   )
 }
 
-@fieldAccess class TestMetaData(meta: FieldMetaBuilder[Nothing,Nothing]) extends ToInject {
-  private def task = meta model classOf[TodoTask]
-  def toInject: List[Injectable] = List(
-    task attr PlaceholderKey ofField (_.createdAt) set "(created at)",
-    task attr PlaceholderKey ofField (_.comments) set "(comments)"
-  ).flatten
+
+  //marker [class] @Id .field
+  // @Id lazy val
+
+/*
+@Id() case class OrigDeepDateRange(
+  @Id() srcId:     SrcId, // srcId = hash (userId/SessionId + filterId + objSrcId)
+  @Id() filterId:  Int,
+  @Id() objSrcId:  Option[SrcId],
+  @Id() dateFrom:  Long,
+  @Id() dateTo:    Long
+)
+
+
+object CommonNames {
+  def name1 = translatable en "aaa"
 }
+
+object MyFilter {
+  @Id() flt1 = deepDateRange scale minute userLabel en "sss1" ru "sss1"
+  @Id() flt2 = deepDateRange
+  @Id() flt3 = deepDateRange userLabel CommonNames.name1
+}
+
+pk flt: @id + Option[SrcId]
+
+list1 .... {
+type Row
+def filters = MyFilter.flt1.by(srcid).bind(_.issue) :: MyFilter.flt2.bind(_.closed) :: MyFilter.flt3.bind(_.started) :: Nil
+
+
+MyFilter.flt1.by(pk).get.dateFrom
+}
+
+list2 .... {
+  def filters = fltBind(MyFilter.flt2, _.started) :: Nil // by DL
+
+  def filters = {
+     val flts = SessionDataByPK(classOf[MyFilter])(pk)
+     fltBind(flts.flt2, _.started) :: Nil
+  } // by SK
+
+  MyFilter.flt1.by(pk).get.dateFrom // by DL
+  SessionDataByPK(classOf[MyFilter])(pk).flt1.dateFrom // by SK
+}
+*/
+
+/*
+trait Filter[P] {
+  def idType[P](id: Long, cl: Class[P]): Filter[P] = new Filter[P] {}
+}
+object Filter {
+  def meta[P](v: Any) = new Filter[P] {}
+}
+case class TodoTask(comments: String)
+@idTypes object TestGroup {
+  @Id(0x6666) def test: Filter[TodoTask] = Filter meta ???
+}
+*/
 
 @assemble class TestTodoAssemble extends Assemble {
   def joinView(
@@ -62,6 +110,10 @@ class TestTodoApp extends ServerApp
     ) yield WithPK(view)
 }
 
+import TestTodoAccess._
+@fieldAccess object TestTodoAccess {
+  lazy val comments: ProdLens[TodoTask,String] = ProdLens.of(_.comments, UserLabel en "(created at)")
+}
 
 case class TestTodoRootView(branchKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
@@ -70,14 +122,15 @@ case class TestTodoRootView(branchKey: SrcId) extends View {
     val contextAccess = ModelAccessFactoryKey.of(local)
     import mTags._
     val todoTasks = ByPK(classOf[TodoTask]).of(local).values.toList.sortBy(-_.createdAt)
-    val input = tags.input(local)
-    @fieldAccess val taskLines = todoTasks.map { task ⇒
-      contextAccess conducts task
-      div(task.srcId,Nil)(
-        (input binds task.comments) :::
-          divButton("remove")(TxAdd(delete(task)))(List(text("caption","-"))) :: Nil
-      )
-    }
+    //val input = tags.input()
+    //@fieldAccess
+    val taskLines = for {
+      prod ← todoTasks
+      task ← contextAccess to prod
+    } yield div(prod.srcId,Nil)(
+      tags.input(task to comments) ::
+        divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-"))) :: Nil
+    )
     val btnList = List(
       divButton("add")(
         TxAdd(update(TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))

@@ -52,7 +52,6 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   lazy val contextFactory = new ContextFactory(toInject)
-  lazy val fieldMetaBuilder: FieldMetaBuilder[Nothing,Nothing] = FieldMetaBuilderImpl()
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory,assembleProfiler)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
