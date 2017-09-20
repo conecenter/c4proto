@@ -82,6 +82,16 @@ list2 .... {
   MyFilter.flt1.by(pk).get.dateFrom // by DL
   SessionDataByPK(classOf[MyFilter])(pk).flt1.dateFrom // by SK
 }
+
+filterAccess pk pk to flt1
+
+default -- handler
+
+trait FilterAccessFactory {
+  def pk(key: srcId): FilterAccessFactory
+  def to[P](filter: Filter[P]): Access[P]
+}
+
 */
 
 /*

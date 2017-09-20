@@ -9,13 +9,15 @@ import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
 class ValueMerging[R<:Product](
   val addToMultiMap: PatchMap[R,Int,Int] = new PatchMap[R,Int,Int](0,_==0,(v,d)⇒v+d)
 ) {
-  def fill(from: (R,Int)): Iterable[R] = {
-    val(node,count) = from
-    if(count<0) throw new Exception(s"$node gets negative count")
-    List.fill(count)(node)
-  }
   def toList(multiSet: MultiSet[R]): List[R] =
-    multiSet.flatMap(fill).toList.sortBy(ToPrimaryKey(_))
+    toUnsortedList(multiSet).sortBy(ToPrimaryKey(_))
+  def toUnsortedList(multiSet: MultiSet[R]): List[R] = {
+    (List.empty[R] /: multiSet){(res,from)⇒
+      val(node,count) = from
+      if(count<0) throw new Exception(s"$node gets negative count in $multiSet")
+      List.fill(count)(node) ::: res
+    }
+  }
 }
 
 class SimpleIndexValueMergerFactory extends IndexValueMergerFactory {
@@ -62,7 +64,7 @@ class TreeIndexValueMergerFactory(from: Int) extends IndexValueMergerFactory {
           val key = (prefix,index)
           val value = from.get(key)
           if(value.nonEmpty) splitOne(index+1, from - key, merging.addToMultiMap.one(to,value.get,1))
-          else from ++ to.flatMap(merging.fill).toList.zipWithIndex.map{ case (el,i) ⇒ ((prefix,i),el) }
+          else from ++ merging.toUnsortedList(to).zipWithIndex.map{ case (el,i) ⇒ ((prefix,i),el) }
         }
         splitOne(0, orig, dMMap)
       }
