@@ -12,7 +12,7 @@ trait Protocol {
   def adapters: List[ProtoAdapter[_] with HasId] = ??? //_<:Object
 }
 
-class Id(id: Int) extends StaticAnnotation
+case class Id(id: Int) extends StaticAnnotation
 
 case class MetaProp(id: Int, propName: String, resultType: String)
 
