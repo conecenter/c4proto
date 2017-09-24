@@ -24,7 +24,8 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			childNode = childNode.parentNode
 		return {childNode,parentNode:childNode.parentNode}
 	}
-	const doCheck = () =>{						
+	const doCheck = () =>{
+        if(!scrollNodes) return
 		const pHeight = scrollNodes.parentNode.clientHeight
 		if(curMousePoint.y <= 10) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)>15?scrollNodes.childNode.scrollTop - 25:0
 		else
@@ -55,19 +56,23 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	}
 	const onMouseMove = (event) => {
 		if(!cNode) return;
-		curMousePoint.y = event.clientY
-		curMousePoint.x = event.clientX
-		cNode.style.top = mouseHitPoint.top - mouseHitPoint.y  + getPageYOffset() + event.clientY + "px"
-		cNode.style.left = mouseHitPoint.left - mouseHitPoint.x + event.clientX + "px"
+		const {x,y} = getXY(event)
+		curMousePoint.y = y
+		curMousePoint.x = x
+		const offsetT = mouseHitPoint.top - mouseHitPoint.y  + getPageYOffset() + y + "px"
+		const offsetL =  mouseHitPoint.left - mouseHitPoint.x + x + "px"
+		cNode.style.top = offsetT
+		cNode.style.left = offsetL		
 		event.preventDefault();
 	}
 	const onMouseUp = (event) => {
-		if(listRect){				
+		if(listRect){
+            const {x,y} = getXY(event)
 			if(
-				event.clientY>=listRect.top&&
-				event.clientY<=listRect.bottom&&
-				event.clientX>=listRect.left&&
-				event.clientX<=listRect.right
+				y>=listRect.top&&
+				y<=listRect.bottom&&
+				x>=listRect.left&&
+				x<=listRect.right
 			)   outOfParent(false)
 			else
 				outOfParent(true)
@@ -80,13 +85,15 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		return node
 	}
 	const getListRect = (node) => getListNode(node).getBoundingClientRect()
-	
-	const dragStart = (x,y,node,data,callback) => {			
+	const isTouch = (event) => event.type.includes("touch")
+	const getXY = (event) =>  isTouch(event)?{x:event.touches[0].clientX,y:event.touches[0].clientY}:{x:event.clientX,y:event.clientY}
+	const dragStart = (event,node,data,callback) => {
+		const {x,y} = getXY(event)		
 		cNode = documentManager.createElement("table")
 		cNodeData = data;
 		listRect = getListRect(node);
 		const listNode = getListNode(node);
-		scrollNodes = findScrollNodes(listNode)
+		scrollNodes = findScrollNodes(listNode)		
 		callbacks.push(callback)
 		cNode.appendChild(node.parentNode.cloneNode(true));
 		const parentRect = node.parentNode.getBoundingClientRect();			

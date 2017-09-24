@@ -884,7 +884,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		onMouseDown:function(e){
 			if(!this.props.draggable) return;
 			if(!this.el) return;
-			this.dragBinding = dragDropModule.dragStart(e.clientX,e.clientY,this.el,this.props.dragData,this.signalDragEnd);
+			this.dragBinding = dragDropModule.dragStart(e,this.el,this.props.dragData,this.signalDragEnd);
 			if(this.props.dragData && this.props.onDragDrop)
 				this.props.onDragDrop("dragStart","")
 			e.preventDefault();
