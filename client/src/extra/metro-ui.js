@@ -1127,7 +1127,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			this.dragBinding = dragDropModule.dragStartDD(e,this.inp,this.onMouseUpCall)
 			if(this.dragBinding)
 				this.setState({visibility:"hidden"})
-			e.preventDefault()
+			//e.preventDefault()
 		},
 		onMouseUpCall:function(newPos){
 			if(!this.props.div) return			
@@ -2463,12 +2463,14 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		componentWillUnmount:function(){			
 			this.el.removeEventListener("cFocus",this.onFocus)
+			this.el.removeEventListener("focus",this.onFocus)
 		},
 		componentDidMount:function(){			
 			this.el.addEventListener("cFocus",this.onFocus)
+			this.el.addEventListener("focus",this.onFocus)
 		},
 		render:function(){
-			return $('div',{ref:ref=>this.el=ref,className:"focusAnnouncer"},this.props.children)
+			return $('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
 		}
 	})
 	const ConfirmationOverlayElement = React.createClass({

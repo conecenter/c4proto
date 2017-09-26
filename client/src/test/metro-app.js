@@ -57,7 +57,8 @@ const documentManager = (()=>{
 	const body = () => document.body
 	const execCopy = () => document.execCommand('copy')
 	const activeElement = () =>document.activeElement
-	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document}
+	const nodeFromPoint = (x,y)=>document.elementFromPoint(x,y)
+	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document,nodeFromPoint}
 })()
 const eventManager = (()=>{
 	const create = (type,params) => {

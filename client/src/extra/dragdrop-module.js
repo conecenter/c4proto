@@ -19,6 +19,7 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		return {add,remove,check}
 	})();
 	const {addEventListener,removeEventListener,getPageYOffset} = windowManager
+	
 	const findScrollNodes = (childNode) => {
 		if(!cNode) return
 		const htmlNode = documentManager.body().parentNode			
@@ -89,6 +90,14 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	const getListRect = (node) => getListNode(node).getBoundingClientRect()
 	const isTouch = (event) => event.type.includes("touch")
 	const getXY = (event) =>  isTouch(event)?{x:event.touches[0].clientX,y:event.touches[0].clientY}:{x:event.clientX,y:event.clientY}
+	const getTarget = (event) => {
+		if(isTouch(event)){
+			const {x,y} = getXY(event)
+			return documentManager.nodeFromPoint(x,y + getPageYOffset())
+		}
+		else 
+			return event.target		
+	}
 	const dragStart = (event,node,data,callback) => {
 		const {x,y} = getXY(event)		
 		cNode = documentManager.createElement("table")
@@ -172,15 +181,15 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	}
 	const onMouseMoveDD = (event) =>{
 		if(!ddNode) return		
-        const overNode = event.target	
+        const overNode = getTarget(event)
 		const tIndex = findChildDD(ddNode,overNode)
 		const selectedNode = ddNode.querySelector(".selected")
-		const selectedNodeI = findChildDD(ddNode,selectedNode)
+		const selectedNodeI = findChildDD(ddNode,selectedNode)		
 		if(tIndex<0) return		
 		if(lastSwappedNode == ddNode.children[tIndex]) return
 		
 		if(ddNode.children[selectedNodeI] != ddNode.children[tIndex]) lastSwappedNode = swapNodes(selectedNodeI,tIndex)		
-		event.preventDefault();
+		//event.preventDefault();
 	}
 	const findChildDD = (parent,node) =>{
 		let n = node
@@ -198,7 +207,7 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	}
 	const dragStartDD = (event,node,callback) =>{
 		if(!event.target.classList.contains("button")) return null
-		const tIndex = findChildDD(node,event.target)
+		const tIndex = findChildDD(node,getTarget(event))
 		if(tIndex<0) return null
 		ddNode = node.cloneNode(true)
 		callbacks.push(callback)
