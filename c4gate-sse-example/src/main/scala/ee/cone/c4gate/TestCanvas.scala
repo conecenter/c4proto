@@ -63,6 +63,41 @@ class TestCanvasApp extends ServerApp
     ) yield WithPK(view)
 }
 
+case class TestRectElement(x: Int, y: Int) extends VDomValue {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
+    val decimalFormat = new DecimalFormat("#0.##")
+    builder.startObject()
+    builder.append("commands"); {
+      builder.startArray();
+      {
+        startContext("preparingCtx")(builder);
+        {
+          builder.startArray()
+          builder.append(x,decimalFormat)
+          builder.append(y,decimalFormat)
+          builder.append(200,decimalFormat)
+          builder.append(200,decimalFormat)
+          builder.end()
+          builder.append("strokeRect")
+        };
+        endContext(builder)
+      }
+      builder.end()
+    }
+    builder.end()
+  }
+  private def startContext(name: String)(builder: MutableJsonBuilder) = {
+    builder.startArray()
+    builder.append(name)
+    builder.startArray()
+  }
+  private def endContext(builder: MutableJsonBuilder) = {
+    builder.end()
+    builder.end()
+    builder.append("inContext")
+  }
+}
+
 case class CanvasElement(styles: List[TagStyle], value: String)(
   utils: TagJsonUtils, val receive: VDomMessage ⇒ Context ⇒ Context
 ) extends VDomValue with Receiver[Context] {
@@ -70,6 +105,7 @@ case class CanvasElement(styles: List[TagStyle], value: String)(
     builder.startObject()
     builder.append("tp").append("Canvas")
     builder.append("ctx").append("ctx")
+    builder.append("content").startArray().append("rawMerge").end()
     utils.appendInputAttributes(builder, value, deferSend=false)
     utils.appendStyles(builder, styles)
 
@@ -83,39 +119,7 @@ case class CanvasElement(styles: List[TagStyle], value: String)(
     builder.append("zoomSteps").append(zoomSteps,decimalFormat)
     builder.append("commandZoom").append(0,decimalFormat)
     builder.append("maxZoom").append(maxZoom,decimalFormat)
-    builder.append("commands"); {
-      builder.startArray();
-      {
-        startContext("preparingCtx")(builder);
-        {
-          builder.startArray()
-          builder.append(400,decimalFormat)
-          builder.append(400,decimalFormat)
-          builder.append(200,decimalFormat)
-          builder.append(200,decimalFormat)
-          builder.end()
-          builder.append("strokeRect")
-        };
-        {
-          //???
-        }
-
-        endContext(builder)
-      }
-      builder.end()
-    }
     builder.end()
-  }
-
-  private def startContext(name: String)(builder: MutableJsonBuilder) = {
-    builder.startArray()
-    builder.append(name)
-    builder.startArray()
-  }
-  private def endContext(builder: MutableJsonBuilder) = {
-    builder.end()
-    builder.end()
-    builder.append("inContext")
   }
 }
 
@@ -134,17 +138,24 @@ class TestCanvasTags(
   def toInject: List[Injectable] = TestCanvasTagsKey.set(this)
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
-  def tag(key: VDomKey, attr: List[TagStyle], access: Access[String]): ChildPair[OfDiv] =
+  def canvas(key: VDomKey, attr: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =
     child[OfDiv](
       key,
       CanvasElement(attr, access.initialValue)(
         utils,
         message ⇒ access.updatingLens.get.set(messageStrBody(message))
       ),
+      children
+    )
+  def rect(key: VDomKey, x: Int, y: Int): ChildPair[OfCanvas] =
+    child[OfCanvas](
+      key,
+      TestRectElement(x,y),
       Nil
     )
-
 }
+
+trait OfCanvas
 
 case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ {
@@ -157,8 +168,11 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
     val canvasTaskProd: TestCanvasState =
       canvasTasks.getOrElse(sessionKey,TestCanvasState(sessionKey,""))
 
+    val cTags = TestCanvasTagsKey.of(local)
     def canvasSeed(access: Access[String]) =
-      TestCanvasTagsKey.of(local).tag("testCanvas",List(styles.height(512),styles.widthAll), access)
+      cTags.canvas("testCanvas",List(styles.height(512),styles.widthAll), access)(
+        List(cTags.rect("1",400,400), cTags.rect("2",400,650))
+      )
 
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
       List(tags.text("caption", "relocate"))

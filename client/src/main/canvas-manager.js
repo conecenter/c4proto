@@ -9,13 +9,16 @@ export default function CanvasManager(canvasFactory,sender,ctxToBranchPath){
         const ctx = prop.ctx
         const [rCtx, branchKey] = ctxToBranchPath(ctx)
         const aliveUntil = el ? null : Date.now()+200
-
+        const traverse = (res,node) => {
+            const commands = res.concat(node.at.commands||[])
+            return (node.chl||[]).reduce((res,key)=>traverse(res,node[key]), commands)
+        }
+        const commands = traverse([], prop.children)
         rCtx.modify(branchKey, state=>{
             const canvas = state.canvas || canvasFactory(prop.options||{})
-
             return ({
                 ...state, canvas,
-                parsed: prop,
+                parsed: {...prop,commands},
                 checkActivate: state => {
                     if(aliveUntil && Date.now() > aliveUntil) {
                         canvas.remove()
