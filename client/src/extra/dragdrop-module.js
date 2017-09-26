@@ -1,11 +1,13 @@
 export default function DragDropModule({log,documentManager,windowManager}){
 	let cNode = null;
+	let ddNode = null
 	let cNodeData = null;
 	let listRect = null;
 	let scrollNodes = null;
 	const callbacks = [];
 	const mouseHitPoint = {x:0,y:0}
 	const curMousePoint = {x:0,y:0}
+
 	const checkActivateCalls=(()=>{
 		const callbacks=[]
 		const add = (c) => callbacks.push(c)
@@ -131,5 +133,95 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		callbacks.forEach(c=>c(outside))
 	}		
 	const checkActivate = checkActivateCalls.check
-	return {dragStart,getData,onDrag,release,checkActivate}
+	// multiselect dragdrop
+	let lastSwappedNode = null
+	const releaseDD = () =>{
+		removeEventListener("mouseup",onMouseUpDD)
+		removeEventListener("touchend",onMouseUpDD)
+		removeEventListener("mousemove",onMouseMoveDD)
+		removeEventListener("touchmove",onMouseMoveDD)		
+		callbacks.splice(0)
+		if(!ddNode) return
+		documentManager.remove(ddNode)
+		ddNode = null
+		lastSwappedNode = null
+	}
+	const onMouseUpDD = (event) =>{
+		let posCol = []
+		if(ddNode){
+			for(let i =0;i<ddNode.children.length;i+=1)
+				if(ddNode.children[i].tagName=="DIV")
+				posCol.push(ddNode.children[i].dataset.index)
+		}		
+		callbacks.forEach(c=>c(posCol))
+		releaseDD()
+	}
+	const swapNodes = (node1I,node2I) =>{
+		const node1 = ddNode.children[node1I]
+		const node2 = ddNode.children[node2I]
+		if(node1I<node2I){
+			if(node2I+1>ddNode.children.length-1) return null
+			const node2 = ddNode.children[node2I+1]			
+			ddNode.insertBefore(node1,node2)			
+		}
+		else{
+			//const node2 = ddNode.children[node2I]			
+			ddNode.insertBefore(node1,node2)		
+		}		
+		return node2
+	}
+	const onMouseMoveDD = (event) =>{
+		if(!ddNode) return		
+        const overNode = event.target	
+		const tIndex = findChildDD(ddNode,overNode)
+		const selectedNode = ddNode.querySelector(".selected")
+		const selectedNodeI = findChildDD(ddNode,selectedNode)
+		if(tIndex<0) return		
+		if(lastSwappedNode == ddNode.children[tIndex]) return
+		
+		if(ddNode.children[selectedNodeI] != ddNode.children[tIndex]) lastSwappedNode = swapNodes(selectedNodeI,tIndex)		
+		event.preventDefault();
+	}
+	const findChildDD = (parent,node) =>{
+		let n = node
+		let i=-1
+		while(n && n!=parent) {
+			let found = false
+			for(i=0;i<parent.children.length;i+=1){
+				if(parent.children[i] == n) {found = true;break}				
+			}
+			if(found) break
+			i=-1
+			n = n.parentNode
+		}
+		return i
+	}
+	const dragStartDD = (event,node,callback) =>{
+		if(!event.target.classList.contains("button")) return null
+		const tIndex = findChildDD(node,event.target)
+		if(tIndex<0) return null
+		ddNode = node.cloneNode(true)
+		callbacks.push(callback)
+		const oRect = node.getBoundingClientRect()
+		ddNode.style.width = oRect.width + "px"
+		ddNode.style.height = oRect.height + "px"
+		ddNode.style.position = "absolute"
+		ddNode.style.left = oRect.left + "px"
+		ddNode.style.top = (oRect.top + getPageYOffset()) + "px"		
+		const selectedNode = ddNode.children[tIndex]		
+		selectedNode.style.opacity = '0.3'
+		selectedNode.classList.add("selected")
+		ddNode.style.lineHeight = "1"
+		for(let i =0;i<ddNode.children.length;i+=1) ddNode.children[i].dataset.index = i
+		
+		documentManager.add(ddNode)
+		addEventListener("mouseup",onMouseUpDD)
+		addEventListener("touchend",onMouseUpDD)
+		addEventListener("mousemove",onMouseMoveDD)
+		addEventListener("touchmove",onMouseMoveDD)
+		return  ({releaseDD})
+	}
+	return {dragStart,getData,onDrag,release,checkActivate,
+			dragStartDD			
+	}
 }
