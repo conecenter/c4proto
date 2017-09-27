@@ -120,15 +120,15 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	const ErrorElement = React.createClass({
 		getInitialState:function(){return {show:false,data:null}},
 		callback:function(data){
-			log(`hehe ${data}`)
+			//log(`hehe ${data}`)
 			this.setState({show:true,data})
 		},
 		componentDidMount:function(){
 			this.binding = errors.reg(this.callback)
-			log(this.props.data)
+			//log(this.props.data)
 		},
 		onClick:function(e){
-			log(`click`)
+			//log(`click`)
 			this.setState({show:false,data:null})
 			if(this.props.onClick) this.props.onClick(e)
 		},
@@ -853,12 +853,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(!this.el) return;
 			if(!this.el.nextElementSibling) if(!this.state.last) this.setState({last:true})
 			if(this.el.nextElementSibling) if(this.state.last) this.setState({last:false})	
-		},
+		},		
 		componentDidMount:function(){
 			this.checkForSibling()
 			if(this.el && this.el.tagName=="TD") {
 				this.el.addEventListener("focus",this.onFocus,true)
-				this.el.addEventListener("blur",this.onBlur)	
+				this.el.addEventListener("blur",this.onBlur)
+				//this.el.addEventListener("enter",this.onEnter,true)
 				this.binding = focusModule.reg(this)
 			}
 		},
@@ -870,9 +871,16 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 					this.props.onDragDrop("dragOver","")
 			}
 		},
+		/*onEnter:function(e){
+			if(this.el)
+				this.el.parentNode.dispatchEvent(eventManager.create("enter"))
+			log("sent enter")
+			e.stopPropagation()
+		},*/
 		componentWillUnmount:function(){
 			if(this.dragBinding) this.dragBinding.release();
-			if(this.el) this.el.removeEventListener("focus",this.onFocus)
+			if(this.el) this.el.removeEventListener("focus",this.onFocus)	
+			//if(this.el) this.el.removeEventListener("enter",this.onEnter)					
 			if(this.binding) this.binding.unreg()
 		},
 		signalDragEnd:function(outside){
@@ -880,11 +888,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(!this.props.onDragDrop) return;			
 			if(outside) this.props.onDragDrop("dragEndOutside","")
 			else this.props.onDragDrop("dragEnd","")
-		},
+		},		
 		onMouseDown:function(e){
 			if(!this.props.draggable) return;
 			if(!this.el) return;
-			this.dragBinding = dragDropModule.dragStart(e.clientX,e.clientY,this.el,this.props.dragData,this.signalDragEnd);
+			this.dragBinding = dragDropModule.dragStart(e,this.el,this.props.dragData,this.signalDragEnd);
 			if(this.props.dragData && this.props.onDragDrop)
 				this.props.onDragDrop("dragStart","")
 			e.preventDefault();
@@ -956,6 +964,17 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		onMouseLeave:function(e){
 			this.setState({mouseOver:false});
 		},
+		onEnter:function(e){
+			if(this.props.onClickValue)
+				this.props.onClickValue("key","enter")
+			e.stopPropagation();
+		},
+		componentDidMount:function(){
+			this.el.addEventListener("enter",this.onEnter,true)
+		},
+		componentWDidWillUnMount:function(){
+			this.el.removeEventListener("enter",this.onEnter)
+		},
 		render:function(){
 			const trStyle={
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
@@ -964,7 +983,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
 				...this.props.style
 			};			
-			return $("tr",{style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	});
 	const Interactive = React.createClass({
@@ -994,7 +1013,10 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			});
 		}
 	});
-	const InputElementBase = React.createClass({			
+	const InputElementBase = React.createClass({
+		getInitialState:function(e){
+			return {visibility:""}
+		},
 		setFocus:function(focus){
 			if(!focus) return
 			this.getInput().focus()			
@@ -1080,6 +1102,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			inp.removeEventListener('delete',this.onDelete)
 			inp.removeEventListener('cpaste',this.onPaste)
 			inp.removeEventListener('ccopy',this.onCopy)
+			if(this.dragBinding) this.dragBinding.releaseDD()
 		},
 		componentDidUpdate:function(){
 			if(this.props.cursorPos){
@@ -1098,6 +1121,18 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		onBlur:function(e){
 			if(this.props.onBlur) this.props.onBlur(e)
+		},
+	    onMouseDown:function(e){			
+			if(!this.props.div) return
+			this.dragBinding = dragDropModule.dragStartDD(e,this.inp,this.onMouseUpCall)
+			if(this.dragBinding)
+				this.setState({visibility:"hidden"})
+			//e.preventDefault()
+		},
+		onMouseUpCall:function(newPos){
+			if(!this.props.div) return			
+			this.setState({visibility:""})
+			if(this.props.onReorder)this.props.onReorder("reorder",newPos.toString())
 		},
 		render:function(){				
 			const inpContStyle={
@@ -1141,6 +1176,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				textAlign:"inherit",
 				display:this.props.div?"inline-block":"",
 				fontFamily:"inherit",
+				visibility:this.state.visibility,
 				...this.props.inputStyle				
 			};		
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
@@ -1160,7 +1196,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 							type,rows,readOnly,placeholder,
 							content,							
 							style:{...inputStyle,...overRideInputStyle},							
-							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",						
+							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",
+							onMouseDown:this.onMouseDown,
+							onTouchStart:this.onMouseDown
 							},this.props.div?[this.props.inputChildren,
 								$("input",{style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},ref:ref=>this.inp2=ref,key:"input",onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:this.props.value})
 							]:(content?content:null)),							
@@ -2135,7 +2173,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 					//log(`send: ${func}:1`)					
 					return	false			
 				case 40:	//arrow down
-					log("send dec")
+					//log("send dec")
 					this.setSelection(inp,selD.start,selD.end)
 					e.preventDefault()
 					e.stopPropagation()
@@ -2310,7 +2348,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		updateServer:function(){
 			this.props.onClick()
-			log("call update")
+			//log("call update")
 		},
 		componentDidMount:function(){
 			addEventListener("resize",this.recalc)			
@@ -2321,7 +2359,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			this.unreg = InternalClock.reg({clockTicks,updateInterval,updateServer})			
 		},
 		componentWillReceiveProps:function(nextProps){
-			log("came update")
+			//log("came update")
 			InternalClock.update(parseInt(nextProps.time)*1000)
 		},
 		componentDidUpdate:function(_, prevState){
@@ -2383,21 +2421,21 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				return this.findUnder(parentEl,rect)
 			}
 			const sRect = sibling.getBoundingClientRect()			
-			if(((sRect.left>=rect.left && sRect.left<=rect.right)||(sRect.right<=rect.right&&sRect.right>=rect.left))&&sRect.bottom>rect.bottom)
+			if(((sRect.left>=rect.left && sRect.left<=rect.right)||(sRect.right<=rect.right&&sRect.right>=rect.left))&&sRect.top>rect.bottom)
 				return true
 			else
 				return this.findUnder(sibling,rect)
 		},
 		recalc:function(){
-			if(!this.el) return;
-			const rect = this.el.getBoundingClientRect();			
-			const found = this.findUnder(this.el,rect)
+			if(!this.el) return;				
+			const found = this.findUnder(this.el,this.rect)
 			//log("return :"+found)
 			if(this.state.max != !found)
 				this.setState({max:!found})				
 			
 		},
-		componentDidMount:function(){			
+		componentDidMount:function(){
+			this.rect = this.el.getBoundingClientRect();	
 			checkActivateCalls.add(this.recalc)			
 		},
 		componentWillUnmount:function(){			
@@ -2425,12 +2463,14 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		componentWillUnmount:function(){			
 			this.el.removeEventListener("cFocus",this.onFocus)
+			this.el.removeEventListener("focus",this.onFocus)
 		},
 		componentDidMount:function(){			
 			this.el.addEventListener("cFocus",this.onFocus)
+			this.el.addEventListener("focus",this.onFocus)
 		},
 		render:function(){
-			return $('div',{ref:ref=>this.el=ref,className:"focusAnnouncer"},this.props.children)
+			return $('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
 		}
 	})
 	const ConfirmationOverlayElement = React.createClass({
@@ -2498,6 +2538,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}	
 	const onClickValue = ({sendVal});
 	const onDragDrop = ({sendVal});
+	const onReorder = ({sendVal});
 	const onReadySendBlob = ({sendBlob});
 	const transforms= {
 		tp:{
@@ -2518,7 +2559,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		onClickValue,		
 		onReadySendBlob,
-		onDragDrop
+		onDragDrop,
+		onReorder
 	};
 	const receivers = {
 		download,

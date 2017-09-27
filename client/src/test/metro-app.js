@@ -2,6 +2,7 @@
 
 import "babel-polyfill"
 import "whatwg-fetch"
+import "eventsource-polyfill"
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
@@ -56,7 +57,8 @@ const documentManager = (()=>{
 	const body = () => document.body
 	const execCopy = () => document.execCommand('copy')
 	const activeElement = () =>document.activeElement
-	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document}
+	const nodeFromPoint = (x,y)=>document.elementFromPoint(x,y)
+	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document,nodeFromPoint}
 })()
 const eventManager = (()=>{
 	const create = (type,params) => {
