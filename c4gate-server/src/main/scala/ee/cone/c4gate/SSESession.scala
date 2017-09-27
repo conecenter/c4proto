@@ -110,7 +110,7 @@ case class SessionTxTransform( //?todo session/pongs purge
     val lastPongAge = SECONDS.between(lastPongTime,now)
     val sender = GetSenderKey.of(local)(fromAlien.connectionKey)
 
-    if(lastPongAge>2) { //reconnect<precision<purge
+    if(lastPongAge>5) { //reconnect<precision<purge
       sender.foreach(_.close())
       if(lastPongAge>purgePeriodSeconds)
         TxAdd(LEvent.delete(fromAlien))(local) else local
