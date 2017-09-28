@@ -3,13 +3,15 @@ package ee.cone.c4gate
 import java.util.UUID
 
 import ee.cone.c4actor.LEvent.{delete, update}
+import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor._
+import ee.cone.c4actor.{ModelAccessFactory, _}
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.TestTodoProtocol.TodoTask
-import ee.cone.c4proto.{Id, Protocol, idTypes, protocol}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
+import ee.cone.c4vdom.{ChildPair, OfDiv, TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 class TestTodoApp extends ServerApp
@@ -106,103 +108,125 @@ class FilterHandlerRegistryImpl(handlers: Map) extends FilterHandlerRegistry[Sha
 }
 */
 
-object FilterKey {
-  def apply[B,R](byClass: Class[B], rowClass: Class[R]): FilterKey[B,R] =
-    FilterKey(byClass.getName, rowClass.getName, None, Nil)
-  def apply[B,R](id: Id, inner: FilterKey[B,R], values: MetaAttr*): FilterKey[B,R] =
-      inner.copy(metaList = inner.metaList ++ values, id=Option(id.id))
+
+
+object SessionAttr {
+  def apply[B](id: Id, cl: Class[B], values: MetaAttr*): SessionAttr[B] =
+    SessionAttr(cl.getName, id.id, "", metaList = values.toList)
 }
-case class FilterKey[B,R](
-  byClassName: String, rowClassName: String,
-  id: Option[Long], metaList: List[MetaAttr]//, to: ProdLens[R,_]
-) extends FilterOf[R] with FilterBy[B] {
-  def to[C](lens: ProdLens[C,R]): FilterKey[B,C] = ???
-  //  new FilterKey[B,C](byClassName, rowClassName, id, metaList)
-}
-trait FilterOf[R]
-trait FilterBy[B]
+case class SessionAttr[By](
+  className: String, id: Long, pk: SrcId, metaList: List[MetaAttr]
+)
 
 case object DefaultModelsKey extends SharedComponentKey[Map[String,SrcId⇒Object]]
 
-class DateBeforeInject extends ToInject {
+//impl,reg
+trait SessionAttrAccessFactory {
+  def to[P](attr: SessionAttr[P]): Context⇒Option[Access[P]]
+}
+
+//impl,reg
+case object AccessViewsKey extends SharedComponentKey[Map[String,Access[_]⇒Context⇒List[ChildPair[OfDiv]]]]
+
+trait AccessViewRegistry extends AccessView[Object] {
+  def set[P](cl: Class[P], view: AccessView[P]): List[Injectable]
+}
+
+trait AccessView[P] {
+  def view(access: Access[P]): Context⇒List[ChildPair[OfDiv]]
+}
+
+//impl,reg
+trait FilterPredicateFactory {
+  def create[Model](): FilterPredicate[Model]
+}
+abstract class FilterPredicateKey[By,Field] extends SharedComponentKey[By⇒Field⇒Boolean]
+trait FilterPredicate[Model] {
+  def add[By,Field](filterKey: SessionAttr[By], lens: ProdLens[Model,Field])(implicit c: FilterPredicateKey[By,Field]): FilterPredicate[Model]
+  def keys: List[SessionAttr[Object]]
+  def of: Context ⇒ Model ⇒ Boolean
+}
+
+////////
+
+import CommonFilterProtocol._
+object CommonFilterProtocol extends Protocol {//to proto
+  case class DateBefore(srcId: SrcId, value: Option[Long])
+  case class Contains(srcId: SrcId, value: String)
+}
+class CommonFilterInject extends ToInject {//reg
   def toInject: List[Injectable] =
-    DefaultModelsKey.set(Map(classOf[DateBefore].getName→(pk⇒DateBefore(pk,None))))
+    DefaultModelsKey.set(Map(classOf[DateBefore].getName→(pk⇒DateBefore(pk,None)))) :::
+      DefaultModelsKey.set(Map(classOf[Contains].getName→(pk⇒Contains(pk,""))))
 }
-
-trait FilterAccessFactory {???
-  def pk(key: SrcId): FilterAccessFactory
-  def to[P](filter: FilterBy[P])(default: SrcId⇒P): Access[P]
-}
-
-/*
-import collection.immutable.Seq
-trait FilterHandler[B,R] {???
-  def filter: B ⇒ Context ⇒ Seq[R] ⇒ Seq[R]
-}
-trait FilterHandlerRegistry {???
-  def get[B,R](filter: FilterKey[B,R]): FilterHandler[B,R]
+object CommonFilterKeys {//impl,reg
+  implicit case object DateBeforePredicateKey extends FilterPredicateKey[DateBefore,Long]
+  implicit case object ContainsPredicateKey extends FilterPredicateKey[Contains,String]
 }
 
 
-class DateBeforeFilterHandler(filterKey: FilterKey[DateBefore,Long]) extends FilterHandler[DateBefore,Long] {
-  def test = {
-    val access = fac.to(flt)(default)
 
-  }
-}
-*/
-class A { val b: Int =a; val a=2 }
-
-
-trait A[B,R] {
-  def fac: FilterAccessFactory
-  def flt: FilterKey[B,R]
-  def default: SrcId⇒B
-  def view: Access[_]⇒ViewRes
-
-
-  view(access)
-  access.initialValue
-
-
-}
-
-case class DateBefore(srcId: SrcId, value: Option[Long])
-case class Contains(srcId: SrcId, value: String)
-object CommonFilterKeys {
-  lazy val dateBefore = FilterKey(classOf[DateBefore], classOf[Long])
-  lazy val contains = FilterKey(classOf[Contains], classOf[String])
-}
 object TestFilterKeys {
-  import CommonFilterKeys._
+  //import CommonFilterKeys._
   import TestTodoAccess._
 
-  lazy val createdAtFlt = FilterKey(Id(0x6666), dateBefore, UserLabel en "...")
-  lazy val commentsFlt = FilterKey(Id(0x6667), contains, UserLabel en "...")
+  lazy val createdAtFlt = SessionAttr(Id(0x6666), classOf[DateBefore], UserLabel en "...")
+  lazy val commentsFlt = SessionAttr(Id(0x6667), classOf[Contains], UserLabel en "...")
 
+  /*
   lazy val filters: List[FilterOf[TodoTask]] = List(
     createdAtFlt to createdAt,
     commentsFlt to comments
-  )
+  )*/
 
 }
 
 
 
 /////
+trait ByLocationHashViewsApp {
+  def byLocationHashViews: List[ByLocationHashView] = Nil
+}
+trait PublicViewAssembleApp extends AssemblesApp {
+  def byLocationHashViews: List[ByLocationHashView]
+  override def assembles: List[Assemble] =
+    new PublicViewAssemble(byLocationHashViews) :: super.assembles
+}
 
-@assemble class TestTodoAssemble extends Assemble {
-  def joinView(
+@assemble class PublicViewAssemble(views: List[ByLocationHashView]) extends Assemble {//reg
+  type LocationHash = String
+  def joinByLocationHash(
     key: SrcId,
     fromAliens: Values[FromAlienTask]
-  ): Values[(SrcId,View)] =
-    for(
-      fromAlien ← fromAliens;
-      view ← Option(fromAlien.locationHash).collect{
-        case "todo" ⇒ TestTodoRootView(fromAlien.branchKey)
-      }
-    ) yield WithPK(view)
+  ): Values[(LocationHash,FromAlienTask)] = for {
+    fromAlien ← fromAliens
+  } yield fromAlien.locationHash → fromAlien
+
+  def joinPublicView(
+    key: SrcId,
+    firstborns: Values[Firstborn]
+  ): Values[(SrcId,ByLocationHashView)] = for {
+    _ ← firstborns
+    view ← views
+  } yield WithPK(view)
+
+  def join(
+    key: SrcId,
+    publicViews: Values[ByLocationHashView],
+    @by[LocationHash] tasks: Values[FromAlienTask],
+  ): Values[(SrcId,View)] = for {
+    publicView ← publicViews
+    task ← tasks
+  } yield WithPK(AssignedPublicView(task.branchKey,publicView))
 }
+case class AssignedPublicView(branchKey: SrcId, currentView: View) extends View {
+  def view: Context ⇒ ViewRes =
+    CurrentBranchKey.set(branchKey).andThen(currentView.view)
+}
+
+trait ByLocationHashView extends View
+case object CurrentBranchKey extends TransientLens[SrcId]("")
+
 
 import TestTodoAccess._
 @fieldAccess object TestTodoAccess {
@@ -212,30 +236,87 @@ import TestTodoAccess._
     ProdLens.of(_.createdAt, UserLabel en "(created at)")
 }
 
-case class TestTodoRootView(branchKey: SrcId) extends View {
+
+
+trait TestTodoRootViewApp extends ByLocationHashViewsApp {
+  def testTags: TestTags[Context]
+  def tags: Tags
+  def tagStyles: TagStyles
+  def modelAccessFactory: ModelAccessFactory
+  def filterPredicateFactory: FilterPredicateFactory
+  def sessionAttrAccessFactory: SessionAttrAccessFactory
+  def accessViewRegistry: AccessViewRegistry
+
+  override def byLocationHashViews: List[ByLocationHashView] = TestTodoRootView()(
+    testTags,
+    tags,
+    tagStyles,
+    modelAccessFactory,
+    filterPredicateFactory,
+    sessionAttrAccessFactory,
+    accessViewRegistry
+  ) :: super.byLocationHashViews
+}
+
+case class TestTodoRootView(locationHash: String = "todo")(//reg
+  tags: TestTags[Context],
+  mTags: Tags,
+  styles: TagStyles,
+  contextAccess: ModelAccessFactory,
+  filterPredicateFactory: FilterPredicateFactory,
+  sessionAttrAccess: SessionAttrAccessFactory,
+  accessViewRegistry: AccessViewRegistry
+) extends ByLocationHashView {
   def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
-    val tags = TestTagsKey.of(local)
-    val mTags = TagsKey.of(local)
-    val contextAccess = ModelAccessFactoryKey.of(local)
     import mTags._
-    val todoTasks = ByPK(classOf[TodoTask]).of(local).values.toList.sortBy(-_.createdAt)
-    //val input = tags.input()
-    //@fieldAccess
-    val taskLines = for {
-      prod ← todoTasks
-      task ← contextAccess to prod
-    } yield div(prod.srcId,Nil)(
-      tags.input(task to comments) ::
-        divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-"))) :: Nil
-    )
+
+    val filterPredicate = filterPredicateFactory.create[TodoTask]()
+      .add(TestFilterKeys.commentsFlt, comments)
+      .add(TestFilterKeys.createdAtFlt, createdAt)
+
+    val filterList = for {
+      k ← filterPredicate.keys
+      access ← sessionAttrAccess.to(k)(local)
+      tag ← accessViewRegistry.view(access)(local)
+    } yield tag
+
     val btnList = List(
       divButton("add")(
         TxAdd(update(TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )(List(text("text","+")))
     )
-    List(btnList,taskLines).flatten
+
+    val todoTasks = ByPK(classOf[TodoTask]).of(local).values
+      .filter(filterPredicate.of(local)).toList.sortBy(-_.createdAt)
+    val taskLines = for {
+      prod ← todoTasks
+      task ← contextAccess to prod
+    } yield div(prod.srcId,Nil)(List(
+      tags.input(task to comments),
+      div("remove",List(styles.width(100),styles.displayInlineBlock))(List(
+        divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-")))
+      ))
+    ))
+
+    List(filterList,btnList,taskLines).flatten
   }
 }
+
+/*
+filterKey + mf-lens + pk+local : ?input,?filterPred,?value
+trait F[R] {
+  def bind[B,C](FilterKey[B,R], lens: ProdLens[C,R]): BoundFilterKey[B,C]
+
+}
+class BoundFilterKey[By,Model,Field](filterKey: SessionAttr[By,Field], lens: ProdLens[Model,Field]) {
+  def filter(filterAccess: ): Model⇒Boolean = {
+    val uHandler = ???
+        val handler: Field⇒Boolean = uHandler
+    model ⇒ handler(lens.of(model))
+  }
+}
+*/
+
 
 /*
 branches:

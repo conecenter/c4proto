@@ -10,6 +10,6 @@ case object TagsKey extends SharedComponentKey[Tags]
 
 case object TagStylesKey extends SharedComponentKey[TagStyles]
 
-trait View extends VDomView[Context]
+trait View extends VDomView[Context] with Product
 
 case object UntilPolicyKey extends SharedComponentKey[(()⇒ViewRes)⇒ViewRes]
