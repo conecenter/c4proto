@@ -215,7 +215,7 @@ class SessionAttrAccessFactoryImpl(
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory
 ) extends SessionAttrAccessFactory {
-  def to[P<:Product with Object](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
+  def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
     val adapter = registry.byName(classOf[RawSessionData].getName)
     def genPK(request: RawSessionData): String =
       UUID.nameUUIDFromBytes(adapter.encode(request)).toString
@@ -254,7 +254,7 @@ case class SessionAttr[+By](
 }
 
 trait SessionAttrAccessFactory {
-  def to[P<:Product with Object](attr: SessionAttr[P]): Context⇒Option[Access[P]]
+  def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]]
 }
 
 ////////
@@ -268,8 +268,8 @@ trait AccessView[P] {
 }
 
 trait DefaultModelRegistry {
-  def to[P<:Object](cl: Class[P]): InjectableGetter[Context,SrcId⇒P]
-  def raw[P<:Object](className: String): InjectableGetter[Context,SrcId⇒P]
+  def to[P<:Product](cl: Class[P]): InjectableGetter[Context,SrcId⇒P]
+  def raw[P<:Product](className: String): InjectableGetter[Context,SrcId⇒P]
 }
 
 ////////
@@ -278,12 +278,12 @@ trait DefaultModelRegistryApp {
   lazy val defaultModelRegistry: DefaultModelRegistry = DefaultModelRegistryImpl
 }
 object DefaultModelRegistryImpl extends DefaultModelRegistry {
-  def to[P<:Object](cl: Class[P]): InjectableGetter[Context,SrcId⇒P] = raw[P](cl.getName)
-  def raw[P<:Object](className: String): InjectableGetter[Context,SrcId⇒P] =
+  def to[P<:Product](cl: Class[P]): InjectableGetter[Context,SrcId⇒P] = raw[P](cl.getName)
+  def raw[P<:Product](className: String): InjectableGetter[Context,SrcId⇒P] =
     DefaultModelKey[P](className)
 }
-case object DefaultModelsKey extends SharedComponentKey[Map[String,SrcId⇒Object]]
-case class DefaultModelKey[P<:Object](key: String) extends InjectableGetter[Context,SrcId⇒P] {
+case object DefaultModelsKey extends SharedComponentKey[Map[String,SrcId⇒Product]]
+case class DefaultModelKey[P<:Product](key: String) extends InjectableGetter[Context,SrcId⇒P] {
   def set: (SrcId⇒P) ⇒ List[Injectable] = value ⇒ DefaultModelsKey.set(Map(key→value))
   def of: Context ⇒ SrcId⇒P = local ⇒ DefaultModelsKey.of(local)(key).asInstanceOf[SrcId⇒P]
 }
@@ -312,8 +312,8 @@ trait FilterPredicateFactory[By,Field] {
   def create(by: By): Field⇒Boolean
 }
 trait FilterPredicate[Model] {
-  def add[By<:Product with Object,Field](filterKey: SessionAttr[By], lens: ProdLens[Model,Field])(implicit c: FilterPredicateFactory[By,Field]): FilterPredicate[Model]
-  def keys: List[SessionAttr[Product with Object]]
+  def add[By<:Product,Field](filterKey: SessionAttr[By], lens: ProdLens[Model,Field])(implicit c: FilterPredicateFactory[By,Field]): FilterPredicate[Model]
+  def keys: List[SessionAttr[Product]]
   def of: Context ⇒ Model ⇒ Boolean
 }
 
@@ -334,7 +334,7 @@ class FilterPredicateBuilderImpl(
 
 abstract class AbstractFilterPredicate[Model] extends FilterPredicate[Model] {
   def sessionAttrAccessFactory: SessionAttrAccessFactory
-  def add[SBy<:Product with Object,SField](filterKey: SessionAttr[SBy], lens: ProdLens[Model,SField])(
+  def add[SBy<:Product,SField](filterKey: SessionAttr[SBy], lens: ProdLens[Model,SField])(
     implicit c: FilterPredicateFactory[SBy,SField]
   ): FilterPredicate[Model] =
     FilterPredicateImpl(this,filterKey,lens)(sessionAttrAccessFactory,c)
@@ -343,11 +343,11 @@ abstract class AbstractFilterPredicate[Model] extends FilterPredicate[Model] {
 case class EmptyFilterPredicate[Model]()(
   val sessionAttrAccessFactory: SessionAttrAccessFactory
 ) extends AbstractFilterPredicate[Model] {
-  def keys: List[SessionAttr[Product with Object]] = Nil
+  def keys: List[SessionAttr[Product]] = Nil
   def of: Context ⇒ Model ⇒ Boolean = local ⇒ model ⇒ true
 }
 
-case class FilterPredicateImpl[Model,By<:Product with Object,Field](
+case class FilterPredicateImpl[Model,By<:Product,Field](
   next: FilterPredicate[Model],
   filterKey: SessionAttr[By],
   lens: ProdLens[Model,Field]
@@ -355,7 +355,7 @@ case class FilterPredicateImpl[Model,By<:Product with Object,Field](
   val sessionAttrAccessFactory: SessionAttrAccessFactory,
   filterPredicateFactory: FilterPredicateFactory[By,Field]
 ) extends AbstractFilterPredicate[Model] {
-  def keys: List[SessionAttr[Product with Object]] = filterKey :: next.keys
+  def keys: List[SessionAttr[Product]] = filterKey :: next.keys
   def of: Context ⇒ Model ⇒ Boolean = local ⇒ {
     val by = sessionAttrAccessFactory.to(filterKey)(local).get.initialValue
     val colPredicate = filterPredicateFactory.create(by)
