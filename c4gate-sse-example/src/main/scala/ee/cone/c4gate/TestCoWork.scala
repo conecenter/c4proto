@@ -2,14 +2,13 @@ package ee.cone.c4gate
 
 import java.net.URL
 
-import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.{Assemble, fieldAccess}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.TestFilterProtocol.Content
-import ee.cone.c4proto.Protocol
+import ee.cone.c4proto.{Id, Protocol}
 import ee.cone.c4ui._
+import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 class TestCoWorkApp extends ServerApp
@@ -21,57 +20,72 @@ class TestCoWorkApp extends ServerApp
   with UMLClientsApp with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
+  with ModelAccessFactoryApp
+  with SessionAttrAccessFactoryImplApp
+  with DefaultModelRegistryApp
+  with ByLocationHashViewsApp
+  with TestCoWorkerViewApp
+  with TestCoLeaderViewApp
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
-    new TestCoWorkAssemble ::
       new FromAlienTaskAssemble("/react-app.html") ::
       super.assembles
+  override def toInject: List[ToInject] =
+    new TestContentInject(defaultModelRegistry) :: super.toInject
 }
-
-@assemble class TestCoWorkAssemble extends Assemble {
-  def joinView(
-    key: SrcId,
-    tasks: Values[FromAlienTask]
-  ): Values[(SrcId, View)] =
-    for(
-      task ← tasks;
-      view ← Option(task.locationHash).collect {
-        case "leader" ⇒ TestCoLeaderView(task.branchKey)
-        case "worker" ⇒ TestCoWorkerView(
-          task.branchKey,
-          task.fromAlienState.sessionKey
-        )
-      }
-    ) yield WithPK(view)
-}
-
 
 @fieldAccess object TestContentAccess {
   lazy val value: ProdLens[Content,String] = ProdLens.of(_.value)
 }
+object TestAttrs {
+  lazy val contentFlt = SessionAttr(Id(0x0008), classOf[Content], UserLabel en "(Content)")
+}
 
-case class TestCoWorkerView(branchKey: SrcId, sessionKey: SrcId) extends View {
+class TestContentInject(defaultModelRegistry: DefaultModelRegistry) extends ToInject {
+  def toInject: List[Injectable] =
+    defaultModelRegistry.to(classOf[Content]).set(Content(_,""))
+}
+
+trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
+  def testTags: TestTags[Context]
+  def sessionAttrAccessFactory: SessionAttrAccessFactory
+  private lazy val testCoWorkerView = TestCoWorkerView()(testTags,sessionAttrAccessFactory)
+  override def byLocationHashViews: List[ByLocationHashView] =
+    testCoWorkerView :: super.byLocationHashViews
+}
+
+case class TestCoWorkerView(locationHash: String = "worker")(
+  tags: TestTags[Context],
+  sessionAttrAccess: SessionAttrAccessFactory
+) extends ByLocationHashView  {
   def view: Context ⇒ ViewRes = local ⇒ {
-    val tags = TestTagsKey.of(local)
-    val conductor = ModelAccessFactoryKey.of(local)
-
-    val contents = ByPK(classOf[Content]).of(local)
-    val contentProd = contents.getOrElse(sessionKey, Content(sessionKey, ""))
     for {
-      content ← (conductor to contentProd).toList
+      content ← (sessionAttrAccess to TestAttrs.contentFlt)(local).toList
       tags ← tags.input(content to TestContentAccess.value) :: Nil
     } yield tags
   }
 }
 
-case class TestCoLeaderView(branchKey: SrcId) extends View {
-  def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local) { () ⇒
+trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
+  def tags: Tags
+  def tagStyles: TagStyles
+  def branchOperations: BranchOperations
+  def untilPolicy: UntilPolicy
+  private lazy val testCoLeaderView = TestCoLeaderView()(tags,tagStyles,branchOperations,untilPolicy)
+  override def byLocationHashViews: List[ByLocationHashView] =
+    testCoLeaderView :: super.byLocationHashViews
+}
+
+case class TestCoLeaderView(locationHash: String = "leader")(
+  tags: Tags,
+  styles: TagStyles,
+  branchOperations: BranchOperations,
+  untilPolicy: UntilPolicy
+) extends ByLocationHashView {
+  import tags._
+  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     val fromAlienStates = ByPK(classOf[FromAlienState]).of(local)
-    val tags = TagsKey.of(local)
-    val styles = TagStylesKey.of(local)
-    import tags._
-    val branchOperations = BranchOperationsKey.of(local)
     val fromAliens = for(
       fromAlien ← fromAlienStates.values;
       url ← Option(new URL(fromAlien.location));

@@ -4,6 +4,7 @@ package ee.cone.c4actor
 
 trait MetaAttr extends Product
 
+
 trait Access[C] {
   def updatingLens: Option[Lens[Context,C]]
   def initialValue: C
@@ -11,7 +12,6 @@ trait Access[C] {
   def to[I](inner: ProdLens[C,I]): Access[I]
 }
 
-case object ModelAccessFactoryKey extends SharedComponentKey[ModelAccessFactory]
 trait ModelAccessFactory {
   def to[P<:Product](product: P): Option[Access[P]]
   //def to[P<:Product](cl: Class[P], srcId: SrcId): Option[ModelAccess[P]]

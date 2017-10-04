@@ -61,6 +61,8 @@ class TestTags[State](
     }.getOrElse(tags.text(name, access.initialValue))
   }
 
+  def dateInput(access: Access[Option[Long]]): ChildPair[OfDiv] = ???
+
   def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,
       (message:VDomMessage)⇒change(messageStrBody(message))
@@ -78,4 +80,4 @@ case class UserLabel(values: Map[String,String] = Map.empty) extends MetaAttr {
   def ru: String ⇒ UserLabel = v ⇒ copy(values + ("ru"→v))
 }
 
-
+case object IsDeep extends MetaAttr
