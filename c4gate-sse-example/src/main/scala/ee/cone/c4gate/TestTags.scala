@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{Access,MetaAttr,NameMetaAttr}
+import ee.cone.c4actor.{Access, MetaAttr, NameMetaAttr, ProdLens}
 import ee.cone.c4vdom._
 
 abstract class ElementValue extends VDomValue {
@@ -61,7 +61,11 @@ class TestTags[State](
     }.getOrElse(tags.text(name, access.initialValue))
   }
 
-  def dateInput(access: Access[Option[Long]]): ChildPair[OfDiv] = ???
+  def dateInput(access: Access[Option[Long]]): ChildPair[OfDiv] =
+    input(access to ProdLens[Option[Long],String](Nil)(
+      _.map(_.toString).getOrElse(""),
+      s⇒_⇒ for(s←Option(s) if s.nonEmpty) yield s.toLong
+    ))
 
   def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,

@@ -230,11 +230,18 @@ class SessionAttrAccessFactoryImpl(
     val byPK = ByPK(classOf[RawSessionData])
     local ⇒ {
       val sessionKey = CurrentSessionKey.of(local)
-      val request = RawSessionData("",sessionKey,attr.pk,attr.id,0,ByteString.EMPTY)
+      val request: RawSessionData = RawSessionData(
+        srcId = "",
+        sessionKey = sessionKey,
+        domainSrcId = attr.pk,
+        fieldId = attr.id,
+        valueTypeId = 0,
+        value = ByteString.EMPTY
+      )
       val pk = genPK(request)//val deepPK = genPK(request.copy(sessionKey=""))
       val value = byPK.of(local).getOrElse(pk,{
         val model = defaultModelRegistry.raw[P](attr.className).of(local)(pk)
-        lens.set(model)(request.copy(domainSrcId=pk))
+        lens.set(model)(request.copy(srcId=pk))
       })
       modelAccessFactory.to(value).map(_.to(lens))
     }
@@ -245,7 +252,12 @@ class SessionAttrAccessFactoryImpl(
 
 object SessionAttr {
   def apply[B](id: Id, cl: Class[B], values: MetaAttr*): SessionAttr[B] =
-    SessionAttr(cl.getName, id.id, "", metaList = values.toList)
+    SessionAttr(
+      className = cl.getName,
+      id = id.id,
+      pk = "",
+      metaList = NameMetaAttr(s"${id.id}") :: values.toList
+    )
 }
 case class SessionAttr[+By](
   className: String, id: Long, pk: SrcId, metaList: List[MetaAttr]
@@ -505,8 +517,8 @@ case object CurrentSessionKey extends TransientLens[SrcId]("")
 ////
 
 object TestFilterKeys {
-  lazy val createdAtFlt = SessionAttr(Id(0x0006), classOf[DateBefore], UserLabel en "...")
-  lazy val commentsFlt = SessionAttr(Id(0x0007), classOf[Contains], IsDeep, UserLabel en "...")
+  lazy val createdAtFlt = SessionAttr(Id(0x0006), classOf[DateBefore], UserLabel en "(created before)")
+  lazy val commentsFlt = SessionAttr(Id(0x0007), classOf[Contains], IsDeep, UserLabel en "(comments contain)")
 }
 
 import TestTodoAccess._
