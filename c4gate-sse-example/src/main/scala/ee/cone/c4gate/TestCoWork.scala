@@ -22,7 +22,7 @@ class TestCoWorkApp extends ServerApp
   with FileRawSnapshotApp
   with ModelAccessFactoryApp
   with SessionAttrAccessFactoryImplApp
-  with DefaultModelRegistryApp
+  with DefaultModelFactoriesApp
   with ByLocationHashViewsApp
   with TestCoWorkerViewApp
   with TestCoLeaderViewApp
@@ -31,8 +31,8 @@ class TestCoWorkApp extends ServerApp
   override def assembles: List[Assemble] =
       new FromAlienTaskAssemble("/react-app.html") ::
       super.assembles
-  override def toInject: List[ToInject] =
-    new TestContentInject(defaultModelRegistry) :: super.toInject
+  override def defaultModelFactories: List[DefaultModelFactory[_]] =
+    ContentDefault :: super.defaultModelFactories
 }
 
 @fieldAccess object TestContentAccess {
@@ -42,10 +42,7 @@ object TestAttrs {
   lazy val contentFlt = SessionAttr(Id(0x0008), classOf[Content], UserLabel en "(Content)")
 }
 
-class TestContentInject(defaultModelRegistry: DefaultModelRegistry) extends ToInject {
-  def toInject: List[Injectable] =
-    defaultModelRegistry.to(classOf[Content]).set(Content(_,""))
-}
+object ContentDefault extends DefaultModelFactory(classOf[Content], Content(_,""))
 
 trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]
