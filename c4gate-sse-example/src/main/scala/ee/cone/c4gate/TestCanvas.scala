@@ -58,7 +58,7 @@ class TestCanvasApp extends ServerApp
     for(
       task ← tasks;
       view ← Option(task.locationHash).collect{
-        case "rectangle" ⇒ TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
+        case "rectangle" ⇒ ??? //TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
       }
     ) yield WithPK(view)
 
@@ -70,8 +70,6 @@ class TestCanvasApp extends ServerApp
       branchTask ← branchTasks;
       state ← Option(branchTask.product).collect { case s: TestCanvasState ⇒ s }
     ) yield branchTask.branchKey → TestCanvasHandler(branchTask.branchKey, state.sessionKey)
-
-
 }
 
 case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends CanvasHandler {
@@ -132,7 +130,7 @@ import TestCanvasStateAccess._
   lazy val x: ProdLens[TestCanvasState,String] = ProdLens.of(_.x)
   lazy val y: ProdLens[TestCanvasState,String] = ProdLens.of(_.y)
 }
-
+/*
 case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ {
     val branchOperations = BranchOperationsKey.of(local)
@@ -158,6 +156,6 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
     relocate :: inputs ::: canvasSeed(canvasTaskProd) :: Nil
   }
 }
-
+*/
 case class CanvasContentImpl(value: String, until: Long) extends CanvasContent
 

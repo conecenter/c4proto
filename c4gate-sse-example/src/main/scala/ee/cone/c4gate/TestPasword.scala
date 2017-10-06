@@ -38,15 +38,15 @@ class TestPasswordApp extends ServerApp
     for(
       fromAlien ← fromAliens;
       view ← Option(fromAlien.locationHash).collect{
-        case "password" ⇒ TestPasswordRootView(fromAlien.branchKey,fromAlien.fromAlienState)
-        case "anti-dos" ⇒ TestAntiDosRootView(fromAlien.branchKey)
-        case "failures" ⇒ TestFailuresRootView(fromAlien.branchKey,fromAlien.fromAlienState)
+        case "password" ⇒ ??? //TestPasswordRootView(fromAlien.branchKey,fromAlien.fromAlienState)
+        case "anti-dos" ⇒ ??? //TestAntiDosRootView(fromAlien.branchKey)
+        case "failures" ⇒ ??? //TestFailuresRootView(fromAlien.branchKey,fromAlien.fromAlienState)
       }
     ) yield WithPK(view)
 }
 
 case object TestFailUntilKey extends TransientLens[(Instant,Instant)]((Instant.MIN,Instant.MIN))
-
+/*
 case class TestFailuresRootView(branchKey: SrcId, fromAlienState: FromAlienState) extends View {
   def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local) { () ⇒
     val mTags = TagsKey.of(local)
@@ -119,3 +119,4 @@ case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState
   }
 
 }
+*/

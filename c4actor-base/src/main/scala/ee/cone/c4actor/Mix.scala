@@ -36,12 +36,13 @@ trait UMLClientsApp {
   def umlClients: List[String⇒Unit] = Nil
 }
 
-trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with ToInjectApp {
+trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with ToInjectApp with DefaultModelFactoriesApp {
   def execution: Execution
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
   def umlClients: List[String⇒Unit]
   def assembleProfiler: AssembleProfiler
+  def defaultModelFactories: List[DefaultModelFactory[_]]
   //
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
@@ -52,6 +53,7 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   lazy val contextFactory = new ContextFactory(toInject)
+  lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory,assembleProfiler)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
@@ -66,7 +68,7 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
     ProtocolDataDependencies(protocols.distinct) ::: super.dataDependencies
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
   override def toInject: List[ToInject] =
-    ModelAccessFactoryImpl :: assemblerInit :: localQAdapterRegistryInit :: super.toInject
+    assemblerInit :: localQAdapterRegistryInit :: super.toInject
 }
 
 trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {

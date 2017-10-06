@@ -9,19 +9,11 @@ import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
 import okio.ByteString
 
-class UIInit(
-  tags: Tags,
-  styles: TagStyles,
-  vDomHandlerFactory: VDomHandlerFactory,
-  branchOperations: BranchOperations
-) extends ToInject {
+class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
   def toInject: List[Injectable] = List(
-    TagsKey.set(tags),
-    TagStylesKey.set(styles),
     CreateVDomHandlerKey.set((sender,view) ⇒
       vDomHandlerFactory.create(sender,view,VDomUntilImpl,VDomStateKey)
-    ),
-    BranchOperationsKey.set(branchOperations)
+    )
   ).flatten
 }
 
@@ -78,10 +70,10 @@ object VDomUntilImpl extends VDomUntil {
 
 case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
 
-object DefaultUntilPolicyInit extends ToInject {
-  def toInject: List[Injectable] = UntilPolicyKey.set{ view ⇒
+object DefaultUntilPolicy extends UntilPolicy {
+  def wrap(view: Context⇒ViewRes): Context⇒ViewRes = local ⇒ {
     val startTime = System.currentTimeMillis
-    val res = view()
+    val res = view(local)
     val endTime = System.currentTimeMillis
     val until = endTime+Math.max((endTime-startTime)*10, 500)
     UntilPair("until",until) :: res
