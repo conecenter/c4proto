@@ -1,17 +1,19 @@
 package ee.cone.c4gate
 
 
+import java.awt.geom.{AffineTransform, Point2D}
 import java.text.DecimalFormat
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
 import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
 import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
-import ee.cone.c4vdom._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
+import ee.cone.c4vdom._
+import ee.cone.c4vdom_impl.Never
 
 class TestCanvasApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -40,21 +42,21 @@ class TestCanvasApp extends ServerApp
       </svg>"""
   )
   override def toInject: List[ToInject] =
-    new TestCanvasTags(childPairFactory,tagJsonUtils) :: super.toInject
+    new TestCanvasTags(childPairFactory,tagJsonUtils) :: PathContextImpl(Nil)(childPairFactory)::super.toInject
 }
 
 @protocol object TestCanvasProtocol extends Protocol {
   @Id(0x0008) case class TestCanvasState(
-    @Id(0x0009) sessionKey: String,
-    @Id(0x000A) sizes: String
-  )
+                                          @Id(0x0009) sessionKey: String,
+                                          @Id(0x000A) sizes: String
+                                        )
 }
 
 @assemble class TestCanvasAssemble extends Assemble {
   def joinView(
-    key: SrcId,
-    tasks: Values[FromAlienTask]
-  ): Values[(SrcId,View)] =
+                key: SrcId,
+                tasks: Values[FromAlienTask]
+              ): Values[(SrcId,View)] =
     for(
       task ← tasks;
       view ← Option(task.locationHash).collect{
@@ -113,6 +115,11 @@ case class CanvasElement(styles: List[TagStyle], value: String)(
     //val builder = new JsonBuilderImpl()
     builder.append("width").append(1000,decimalFormat) //map size
     builder.append("height").append(1000,decimalFormat)
+    builder.append("options");{
+      builder.startObject()
+      builder.append("noOverlay").append(false)
+      builder.end()
+    }
     val maxScale = 10
     val zoomSteps = 4096
     val maxZoom = (Math.log(maxScale.toDouble)*zoomSteps).toInt
@@ -125,16 +132,16 @@ case class CanvasElement(styles: List[TagStyle], value: String)(
 
 
 
-import TestCanvasStateAccess._
+import ee.cone.c4gate.TestCanvasStateAccess._
 @fieldAccess object TestCanvasStateAccess {
   lazy val sizes: ProdLens[TestCanvasState,String] = ProdLens.of(_.sizes)
 }
 
 case object TestCanvasTagsKey extends SharedComponentKey[TestCanvasTags]
 class TestCanvasTags(
-  child: ChildPairFactory,
-  utils: TagJsonUtils
-) extends ToInject {
+                      child: ChildPairFactory,
+                      utils: TagJsonUtils
+                    ) extends ToInject {
   def toInject: List[Injectable] = TestCanvasTagsKey.set(this)
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
@@ -169,9 +176,13 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
       canvasTasks.getOrElse(sessionKey,TestCanvasState(sessionKey,""))
 
     val cTags = TestCanvasTagsKey.of(local)
+
+    val a = new SomeComponent(0)
+    val b = new SomeComponent(50)
+    val canvas = PathContextKey.of(local)
     def canvasSeed(access: Access[String]) =
       cTags.canvas("testCanvas",List(styles.height(512),styles.widthAll), access)(
-        List(cTags.rect("1",400,400), cTags.rect("2",400,650))
+        a.view(canvas)(local)::b.view(canvas)(local)::Nil
       )
 
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
@@ -181,6 +192,41 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
       canvasTask ← (conductor to canvasTaskProd).toList
       tags ← tTags.input(canvasTask to sizes) :: canvasSeed(canvasTask to sizes) :: Nil
     } yield tags
+
     relocate :: inputs ::: Nil
   }
 }
+/**/
+class SomeComponent(offset:Int) {
+  def someInnerView(pathContext: PathContext):Context=>ChildPair[OfCanvas]=_=>{
+    pathContext.path("3",Nil)(Nil)
+  }
+  def otherInnerView(pathContext: PathContext):Context=>ChildPair[OfCanvas]=_=>{
+    pathContext.path("4",Nil)(Nil)
+  }
+  def view: PathContext ⇒ Context ⇒ ChildPair[OfCanvas] = canvas ⇒ local ⇒ {
+    val key = "123"+offset
+    canvas.path(key, List(Rect(10+offset,20,30,40),GotoClick(key),FillStyle("rgb(255,0,0)"),StrokeStyle("#000000")))(List(
+      someInnerView(canvas.add(Rotate(10)))(local),
+      otherInnerView(canvas)(local)
+    ))
+  }
+}
+case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler {
+  def handleClick: (Context) => Context = (l:Context)=>{println("clicked"+vDomKey);l}
+}
+
+// PathApi.scala
+trait PathContext {
+  def add(transform: Transform): PathContext
+  def path(key: VDomKey, attrs: List[PathAttr])
+          (children: List[ChildPair[OfCanvas]]): ChildPair[OfCanvas]
+}
+
+case object PathContextKey extends SharedComponentKey[PathContext]
+
+
+/**/
+/**********************************************************************************************************/
+
+

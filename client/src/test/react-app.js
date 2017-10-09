@@ -11,7 +11,7 @@ import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
 import {ExampleAuth} from "../test/vdom-auth"
 import {ExampleRequestState} from "../test/request-state"
-
+import CanvasExtraMix from "../extra/canvas-extra-mix"
 import {CanvasBaseMix,CanvasSimpleMix} from "../main/canvas-mix"
 
 
@@ -38,7 +38,7 @@ const exchangeMix = options => canvas => [
 ]
 const canvasBaseMix = CanvasBaseMix(log,util)
 
-const canvasMods = [canvasBaseMix,exchangeMix,CanvasSimpleMix()]
+const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log)]
 
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctxToBranchPath)
 

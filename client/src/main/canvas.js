@@ -100,7 +100,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
         return res.length === 1 ? res[0] : null
     }
 
-    function sendToServer(req){ return currentState.sendToServer({ headers: req }) }
+    function sendToServer(req,evColor){ return currentState.sendToServer({ headers: req },evColor)}
 
     function fromServer(){ return currentState.parsed }
     function checkActivate(state){
@@ -417,7 +417,7 @@ export function InteractiveCanvasSetup(canvas){
             "X-r-canvas-rel-x": rPos.x+"",
             "X-r-canvas-rel-y": rPos.y+"",
             "X-r-action": "clickColor"
-        })
+        },color)
     }
     function setupFrame(){
         return {color: getImageData(canvas.getMousePos())}
