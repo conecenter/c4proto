@@ -834,7 +834,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			
 		}
 	});
-		
+	let lastFocusTr = null
 	const TBodyElement = ({style,children})=>$("tbody",{style:style},children);	
 	const THElement = React.createClass({
 		getInitialState:function(){
@@ -845,6 +845,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			this.setState({focused:true})
 			const cEvent = eventManager.create("cFocus",{bubbles:true,detail:null})
 			this.el.dispatchEvent(cEvent)
+			const clickEvent = eventManager.create("click",{bubbles:true})
+			this.el.dispatchEvent(clickEvent)
 		},
 		onBlur:function(){
 			this.setState({focused:false})
@@ -861,15 +863,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.el.addEventListener("blur",this.onBlur)
 				//this.el.addEventListener("enter",this.onEnter,true)
 				this.binding = focusModule.reg(this)
+				this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData,droppable:this.props.droppable,draggable:this.props.draggable})
 			}
 		},
 		componentDidUpdate:function(prevProps,_){
 			this.checkForSibling()
-			if(!this.props.droppable2) return;
-			if(prevProps.mouseEnter!=this.props.mouseEnter){
-				if(this.props.mouseEnter&&this.props.onDragDrop&&dragDropModule.onDrag())
-					this.props.onDragDrop("dragOver","")
-			}
+		    if(!this.props.draggable && !this.props.droppable) return
+			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
 		},
 		/*onEnter:function(e){
 			if(this.el)
@@ -883,28 +883,30 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			//if(this.el) this.el.removeEventListener("enter",this.onEnter)					
 			if(this.binding) this.binding.unreg()
 		},
-		signalDragEnd:function(outside){
+		/*signalDragEnd:function(outside){
 			if(!this.props.draggable) return;
 			if(!this.props.onDragDrop) return;			
 			if(outside) this.props.onDragDrop("dragEndOutside","")
 			else this.props.onDragDrop("dragEnd","")
-		},		
+		},*/		
 		onMouseDown:function(e){
 			if(!this.props.draggable) return;
-			if(!this.el) return;
-			this.dragBinding = dragDropModule.dragStart(e,this.el,this.props.dragData,this.signalDragEnd);
-			if(this.props.dragData && this.props.onDragDrop)
-				this.props.onDragDrop("dragStart","")
+			if(!this.el) return;			
+			if(this.dragBinding) this.dragBinding.dragStart(e,this.el);
+			//if(this.props.dragData && this.props.onDragDrop)
+			//	this.props.onDragDrop("dragStart","")
 			e.preventDefault();
 		},
 		onMouseUp:function(e){
 			if(!this.props.droppable) return;
-			const data = dragDropModule.onDrag()&&dragDropModule.getData()
-			if(data && this.props.onDragDrop){
+			if(this.dragBinding)
+				this.dragBinding.dragDrop(this.el)
+			//const data = dragDropModule.onDrag()&&dragDropModule.getData()
+			/*if(data && this.props.onDragDrop){
 				dragDropModule.release()
 				e.stopPropagation();
 				this.props.onDragDrop("dragDrop",data)
-			}
+			}*/
 		},
 		render:function(){
 			const {style,colSpan,children} = this.props
@@ -2473,6 +2475,20 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			return $('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
 		}
 	})
+	const DragDropHandlerElement = React.createClass({
+		report:function(action,fromSrcId,toSrcId){
+			if(this.props.onClickValue) this.props.onClickValue("change",JSON.stringify({action,fromSrcId,toSrcId}))
+		},
+		componentDidMount:function(){
+			this.dragBinding = dragDropModule.regReporter(this.report)
+		},
+		componentWillUnmount:function(){
+			if(this.dragBinding) this.dragBinding.release()
+		},
+		render:function(){
+			return $('span',{className:"dragDropHandler"})
+		}
+	})
 	const ConfirmationOverlayElement = React.createClass({
 		getInitialState:function(){
 			return {dims:null}
@@ -2555,7 +2571,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			SignIn,ChangePassword,
 			ErrorElement,
 			FocusAnnouncerElement,
-			ConfirmationOverlayElement
+			ConfirmationOverlayElement,
+			DragDropHandlerElement
 		},
 		onClickValue,		
 		onReadySendBlob,
