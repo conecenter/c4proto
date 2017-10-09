@@ -7,7 +7,7 @@ import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
-import {VDomSender}  from "../main/vdom-util"
+import {VDomSender,ctxToBranchPath}  from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
@@ -110,14 +110,14 @@ const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
 const exchangeMix = options => canvas => [
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement,activeElement)
+    Canvas.ExchangeCanvasSetup(canvas,getRootElement,getRootElement,createElement,activeElement)
 ]
 const canvasBaseMix = CanvasBaseMix(log,util)
 
 const ddMix = options => canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener)
 const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctxToBranchPath)
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
 //transforms

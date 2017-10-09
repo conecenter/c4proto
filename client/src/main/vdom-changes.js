@@ -43,7 +43,7 @@ export default function VDomChanges(sender, DiffPrepare){
 
     const onChange = {
         "local": ctx => event => set(ctx, event.target),
-        "send": ctx => event => { set(ctx, event.target); sendDeferred() }
+        "send": ctx => event => { set(ctx, event.target); sendDeferred() } // todo no resize anti-dos
     }
     const onBlur = {
         "send": ctx => event => sendDeferred()

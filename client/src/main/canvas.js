@@ -41,18 +41,7 @@ export function CanvasFactory(util, modList){
     })
 }
 
-export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,createElement,activeElement){
-    function sendToServer(req){
-        return feedback.send({
-            url: "/connection",
-            options: {
-                headers: {
-                    ...req,
-                    "X-r-branch": canvas.branchKey()
-                }
-            }
-        })
-    }
+export function ExchangeCanvasSetup(canvas,scrollNode,rootElement,createElement,activeElement){
     function onZoom(){} //todo to close popup?
     function appendChild(element){
         rootElement().appendChild(element)
@@ -68,7 +57,7 @@ export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,creat
 		}
     }
 
-    return {sendToServer,onZoom,scrollNode,createElement,appendChild}
+    return {onZoom,scrollNode,createElement,appendChild}
 }
 /*
 function ElementSystem(){
@@ -84,8 +73,6 @@ export function ResizeCanvasSystem(util,createElement){
 
 //state.changedSizes && index >= parseInt(state.changedSizes.sent["X-r-index"]) ? {...state, changedSizes: null} : state
 export function ResizeCanvasSetup(canvas,system,getComputedStyle){
-    let sent
-    let acknowledgedIndex
     function woPx(value){ return value.substring(0,value.length-2) }
     function processFrame(frame,prev){
         const div = canvas.parentNode()
@@ -98,20 +85,10 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
         }
         const canvasFontSize = parseInt(woPx(getComputedStyle(fontMeter).height))
         const sizes = canvasFontSize+","+canvasWidth
-        const wasSizes = sent && acknowledgedIndex < sent.index ? sent.sizes : canvas.fromServer().sizes
-        if(wasSizes === sizes) return;
-        const sentH = canvas.sendToServer({
-            "X-r-action": "canvasResize",
-            "X-r-canvas-sizes": sizes
-        })
-        const index = parseInt(sentH["X-r-index"])
-        sent = {sizes,index}
+        if(canvas.fromServer().value !== sizes)
+            canvas.fromServer().onChange({ target: { value: sizes } })
     }
-    const ackChange = data => state => {
-        acknowledgedIndex = parseInt(data)
-        return state
-    }
-    return ({processFrame,ackChange})
+    return ({processFrame})
 }
 
 export function BaseCanvasSetup(log, util, canvas, system){
@@ -122,7 +99,9 @@ export function BaseCanvasSetup(log, util, canvas, system){
         const res = Object.values(currentState.parentNodes||{}).filter(v=>v)
         return res.length === 1 ? res[0] : null
     }
-    function branchKey(){ return currentState.branchKey }
+
+    function sendToServer(req){ return currentState.sendToServer({ headers: req }) }
+
     function fromServer(){ return currentState.parsed }
     function checkActivate(state){
         if(currentState.parsed !== state.parsed) updateFromServerVersion()
@@ -289,7 +268,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
         setupFrame,processFrame,viewPositions,composeFrameStart,
         checkActivate, remove,
         zoomToScale, compareFrames, elementPos, updateFromServerVersion,
-        parentNode, branchKey
+        parentNode, sendToServer
     }
 }
 
