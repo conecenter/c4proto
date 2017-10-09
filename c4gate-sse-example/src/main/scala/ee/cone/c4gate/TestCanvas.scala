@@ -199,7 +199,7 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
 /**/
 class SomeComponent(offset:Int) {
   def someInnerView(pathContext: PathContext):Context=>ChildPair[OfCanvas]=_=>{
-    pathContext.path("3",Nil)(Nil)
+    pathContext.path("3",List(Rect(0,0,20,20),FillStyle("rgb(0,0,0)")))(Nil)
   }
   def otherInnerView(pathContext: PathContext):Context=>ChildPair[OfCanvas]=_=>{
     pathContext.path("4",Nil)(Nil)
@@ -207,7 +207,7 @@ class SomeComponent(offset:Int) {
   def view: PathContext ⇒ Context ⇒ ChildPair[OfCanvas] = canvas ⇒ local ⇒ {
     val key = "123"+offset
     canvas.path(key, List(Rect(10+offset,20,30,40),GotoClick(key),FillStyle("rgb(255,0,0)"),StrokeStyle("#000000")))(List(
-      someInnerView(canvas.add(Rotate(10)))(local),
+      someInnerView(canvas.add(Translate(50,50)).add(Rotate(10)))(local),
       otherInnerView(canvas)(local)
     ))
   }

@@ -141,7 +141,7 @@ trait PathBuilder{
   lazy val handlers:List[AbstractCanvasEventHandler] = attrs.collect{case h:AbstractCanvasEventHandler=>h}
   protected def buildJson(builder: MutableJsonBuilder):Unit={
     val affineTransform = new AffineTransform()
-    transforms.reverse.foreach{
+    transforms.foreach{
       case Scale(v) =>affineTransform.scale(v.toDouble,v.toDouble)
       case Translate(x,y)=> affineTransform.translate(x.toDouble,y.toDouble)
       case Rotate(t) => affineTransform.rotate(t.toDouble)
@@ -167,7 +167,7 @@ trait PathBuilder{
             dash.split(",").foreach(s⇒add(transformSize(s.trim.toDouble)(affineTransform))(builder))
             end(builder); end("setLineDash")(builder)
         }
-        shapes.collect{case s:PathShape=>s}.reverse.foreach{
+        shapes.collect{case s:PathShape=>s}.foreach{
           case Rect(x, y, w, h) =>
             begin(builder);addPoints(x,y)(builder,affineTransform);end("moveTo")(builder)
             begin(builder);addPoints(x+w,y)(builder,affineTransform);end("lineTo")(builder)
@@ -202,7 +202,7 @@ trait PathBuilder{
           begin(builder);end("beginPath")(builder)
           begin(builder);end("applyPath")(builder)
           appendStyles(builder,restStyles)()
-          shapes.collect{case s:NonPathShape=>s}.reverse.foreach{
+          shapes.collect{case s:NonPathShape=>s}.foreach{
             case Image(url,_,_,canvasWidth,canvasHeight)=>
               begin(builder)
               add("overlayCtx")(builder);add(url)(builder)
