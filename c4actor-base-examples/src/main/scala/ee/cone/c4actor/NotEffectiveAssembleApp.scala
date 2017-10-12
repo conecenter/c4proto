@@ -2,6 +2,7 @@ package ee.cone.c4actor
 
 import Function.chain
 import LEvent._
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.PCProtocol.{RawChildNode, RawParentNode}
 
 
@@ -14,7 +15,7 @@ object Measure {
   }
 }
 
-object NotEffectiveAssemblerTest extends App {
+object NotEffectiveAssemblerTest extends App with LazyLogging {
   val app = new AssemblerTestApp
   val nodes = List(RawParentNode("0","P-1")) ++
     (1 to 10000).map(_.toString).map(srcId⇒RawChildNode(srcId,"0",s"C-$srcId"))
@@ -22,11 +23,11 @@ object NotEffectiveAssemblerTest extends App {
 
   Measure { () ⇒
     chain(nodes.map(update).map(TxAdd(_)))(local)
-  }.foreach(t⇒println(s"bad join with many add-s takes $t ms"))
+  }.foreach(t⇒logger.info(s"bad join with many add-s takes $t ms"))
 
   Measure { () ⇒
     chain(List(TxAdd(nodes.flatMap(update))))(local)
-  }.foreach(t⇒println(s"bad join with single add takes $t ms"))
+  }.foreach(t⇒logger.info(s"bad join with single add takes $t ms"))
 }
 
 /*

@@ -2,6 +2,7 @@ package ee.cone.c4gate
 
 import java.net.URL
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, fieldAccess}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
@@ -79,7 +80,7 @@ case class TestCoLeaderView(locationHash: String = "leader")(
   styles: TagStyles,
   branchOperations: BranchOperations,
   untilPolicy: UntilPolicy
-) extends ByLocationHashView {
+) extends ByLocationHashView with LazyLogging {
   import tags._
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     val fromAlienStates = ByPK(classOf[FromAlienState]).of(local)
@@ -90,11 +91,11 @@ case class TestCoLeaderView(locationHash: String = "leader")(
     ) yield fromAlien
     val seeds = fromAliens.toList.sortBy(_.sessionKey)
       .map(branchOperations.toSeed)
-    divButton("add")(printStats)(List(text("caption", "stats"))) ::
+    divButton("add")(stats)(List(text("caption", "stats"))) ::
       seeds.map(seed(_)(List(styles.width(100), styles.height(100)))(Nil))
   }
-  private def printStats: Context ⇒ Context = local ⇒ {
-    println(WorldStats.make(local))
+  private def stats: Context ⇒ Context = local ⇒ {
+    logger.info(WorldStats.make(local))
     local
   }
 }

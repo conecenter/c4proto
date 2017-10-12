@@ -1,15 +1,17 @@
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
+
 class ProgressObserverFactoryImpl(inner: RawObserver) extends ProgressObserverFactory {
   def create(endOffset: Long): RawObserver = new ProgressObserverImpl(inner,endOffset)
 }
 
-class ProgressObserverImpl(inner: RawObserver, endOffset: Long, until: Long=0) extends RawObserver {
+class ProgressObserverImpl(inner: RawObserver, endOffset: Long, until: Long=0) extends RawObserver with LazyLogging {
   def activate(rawWorld: RawWorld): RawObserver =
     if (rawWorld.offset < endOffset) {
       val now = System.currentTimeMillis
       if(now < until) this else {
-        println(s"loaded ${rawWorld.offset}/$endOffset")
+        logger.debug(s"loaded ${rawWorld.offset}/$endOffset")
         new ProgressObserverImpl(inner, endOffset, now+1000)
       }
     } else inner.activate(rawWorld)

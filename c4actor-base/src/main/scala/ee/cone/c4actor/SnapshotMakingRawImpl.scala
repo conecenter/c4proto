@@ -3,6 +3,7 @@ package ee.cone.c4actor
 import java.time.temporal.TemporalAmount
 import java.time.{Duration, Instant}
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Update, Updates}
 import okio.ByteString
 
@@ -14,7 +15,7 @@ class SnapshotMakingRawWorld(
   qAdapterRegistry: QAdapterRegistry,
   state: Map[Update,Update] = Map.empty,
   val offset: Long = 0
-) extends RawWorld {
+) extends RawWorld with LazyLogging {
   def reduce(data: Array[Byte], offset: Long): RawWorld = {
     val updatesAdapter = qAdapterRegistry.updatesAdapter
     val newState = (state /: updatesAdapter.decode(data).updates){(state,up)⇒
@@ -25,11 +26,11 @@ class SnapshotMakingRawWorld(
   }
   def hasErrors: Boolean = false
   def save(rawSnapshot: RawSnapshot): Unit = {
-    println("Saving...")
+    logger.info("Saving...")
     val updates = state.values.toList.sortBy(u⇒(u.valueTypeId,u.srcId))
     val updatesAdapter = qAdapterRegistry.updatesAdapter
     rawSnapshot.save(updatesAdapter.encode(Updates("",updates)), offset)
-    println("OK")
+    logger.info("OK")
   }
 }
 

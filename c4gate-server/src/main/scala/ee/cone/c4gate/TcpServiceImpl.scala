@@ -7,6 +7,7 @@ import java.nio.channels.{AsynchronousServerSocketChannel, AsynchronousSocketCha
 import java.util.UUID
 import java.util.concurrent.{Executors, ScheduledExecutorService, ScheduledFuture, TimeUnit}
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 
 import scala.collection.concurrent.TrieMap
@@ -55,7 +56,7 @@ class ChannelHandler(
 class TcpServerImpl(
   port: Int, tcpHandler: TcpHandler, timeout: Long,
   channels: TrieMap[String,ChannelHandler] = TrieMap()
-) extends ToInject with Executable {
+) extends ToInject with Executable with LazyLogging {
   def toInject: List[Injectable] = GetSenderKey.set(channels.get)
 
   def run(): Unit = concurrent.blocking{
@@ -71,12 +72,12 @@ class TcpServerImpl(
           channels -= key
           tcpHandler.afterDisconnect(key)
         }, { error ⇒
-          println(error.getStackTrace.toString)
+          logger.error("channel",error)
         }, executor, timeout)
         channels += key → sender
         tcpHandler.afterConnect(key, sender)
       }
-      def failed(exc: Throwable, att: Unit): Unit = exc.printStackTrace() //! may be set status-finished
+      def failed(exc: Throwable, att: Unit): Unit = logger.error("tcp",exc) //! may be set status-finished
     })
   }
 }

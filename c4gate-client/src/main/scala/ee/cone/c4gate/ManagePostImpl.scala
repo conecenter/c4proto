@@ -1,6 +1,7 @@
 
 package ee.cone.c4gate
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
@@ -24,7 +25,7 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
       yield WithPK(LocalPostConsumer(s"/manage/$actorName"))
 }
 
-case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform {
+case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index[Any, Product])(k: Any): List[String] =
     index.getOrElse(k,Nil).flatMap(v⇒s"$v".split("\n")).map(indent).toList
@@ -49,7 +50,7 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform {
     (s"REPORT $indexStr" :: res.map(indent) ::: "END" :: Nil).mkString("\n")
   }
   def transform(local: Context): Context = {
-    if(ErrorKey.of(local).isEmpty) println(report(local))
+    if(ErrorKey.of(local).isEmpty) logger.info(report(local))
     TxAdd(LEvent.delete[Product](post))(local)
   }
 }

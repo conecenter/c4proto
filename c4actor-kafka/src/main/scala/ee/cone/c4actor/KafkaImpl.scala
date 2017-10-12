@@ -3,6 +3,7 @@ package ee.cone.c4actor
 
 import java.util.concurrent.CompletableFuture
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
@@ -63,7 +64,7 @@ class KafkaActor(conf: KafkaConfig)(
   rawSnapshot: RawSnapshot,
   progressObserverFactory: ProgressObserverFactory,
   execution: Execution
-) extends Executable {
+) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     val initialRawWorld = rawSnapshot.loadRecent()
     val deserializer = new ByteArrayDeserializer
@@ -80,7 +81,7 @@ class KafkaActor(conf: KafkaConfig)(
       execution.onShutdown("Consumer",() ⇒ consumer.wakeup())
       val inboxTopicName = InboxTopicName()
       val inboxTopicPartition = List(new TopicPartition(conf.topicNameToString(inboxTopicName), 0))
-      println(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}]")
+      logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}]")
       consumer.assign(inboxTopicPartition.asJava)
       val endOffset: Long = Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long
       val initialRawObserver = progressObserverFactory.create(endOffset)

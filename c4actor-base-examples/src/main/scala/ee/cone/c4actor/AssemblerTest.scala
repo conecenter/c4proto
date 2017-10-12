@@ -2,6 +2,7 @@
 package ee.cone.c4actor
 
 import PCProtocol.{RawChildNode, RawParentNode}
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4actor.LEvent._
@@ -60,7 +61,7 @@ class AssemblerTestApp extends ServerApp with VMExecutionApp with ToStartApp wit
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
 
-object AssemblerTest extends App {
+object AssemblerTest extends App with LazyLogging {
   val app = new AssemblerTestApp
   val recs = update(RawParentNode("1","P-1")) ++
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
@@ -79,7 +80,7 @@ object AssemblerTest extends App {
     )
   )
   assert(diff==shouldDiff)*/
-  println(nGlobal)
+  logger.debug(s"$nGlobal")
   Map(
     ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
       "1" -> RawParentNode("1","P-1")

@@ -1,12 +1,13 @@
 
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
 import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
-object ProtoAdapterTest extends App {
+object ProtoAdapterTest extends App with LazyLogging {
   import MyProtocol._
   val leader0 = Person("leader0", Some(40), isActive = true)
   val worker0 = Person("worker0", Some(30), isActive = true)
@@ -26,7 +27,7 @@ object ProtoAdapterTest extends App {
     case Seq(g:Group) ⇒ g
   }
   assert(group0==group1)
-  println("OK",group1)
+  logger.info(s"OK$group1")
 }
 
 @protocol object MyProtocol extends Protocol {

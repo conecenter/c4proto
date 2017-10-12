@@ -1,14 +1,16 @@
 
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
+
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
-class VMExecution(getToStart: ()⇒List[Executable]) extends Execution {
+class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with LazyLogging {
   def run(): Unit = {
     val toStart = getToStart()
-    println(s"tracking ${toStart.size} services")
+    logger.debug(s"tracking ${toStart.size} services")
     toStart.foreach(f ⇒ future().map(_⇒f.run()))
   }
   def onShutdown(hint: String, f: () ⇒ Unit): Unit =
@@ -20,18 +22,18 @@ class VMExecution(getToStart: ()⇒List[Executable]) extends Execution {
       }
     })
   def complete(): Unit = { // exit from pooled thread will block itself
-    println("exiting")
+    logger.info("exiting")
     System.exit(0)
   }
   def future[T](value: T): FatalFuture[T] =
     new VMFatalFuture(Future.successful(value))
 }
 
-class VMFatalFuture[T](val value: Future[T]) extends FatalFuture[T] {
+class VMFatalFuture[T](val value: Future[T]) extends FatalFuture[T] with LazyLogging {
   def map(body: T ⇒ T): FatalFuture[T] =
     new VMFatalFuture(value.map(from ⇒ try body(from) catch {
       case e: Throwable ⇒
-        e.printStackTrace()
+        logger.error("fatal",e)
         System.exit(1)
         throw e
     }))

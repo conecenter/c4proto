@@ -111,15 +111,6 @@ object NoAssembleProfiler extends AssembleProfiler {
   private def dummy(startAction: String)(finalCount: Int): Unit = ()
 }
 
-object SimpleAssembleProfiler extends AssembleProfiler {
-  def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
-    val startTime = System.currentTimeMillis
-    finalCount ⇒ {
-      val period = System.currentTimeMillis - startTime
-      println(s"assembling by ${Thread.currentThread.getName} rule $ruleName $startAction $finalCount items in $period ms")
-    }
-  }
-}
 //case class AssembleProfiling(key: String, tp: String, count: Int, period: Long)
 
 /*
@@ -143,7 +134,7 @@ class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit])
       //handlerLists.list(WorldPartExpressionKey)
     val originals: Set[AssembledKey[_]] =
       rules.collect{ case e: OriginalWorldPart[_] ⇒ e.outputWorldKey }.toSet
-    println(s"rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}")
+    umlClients.foreach(_(s"# rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}"))
     val byOutput: Map[AssembledKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
     val expressionsByPriority: List[WorldPartExpression] =
