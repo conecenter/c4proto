@@ -32,7 +32,7 @@ trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
 }
 
-trait UMLClientsApp extends ExpressionsDumpersApp {
+trait UMLClientsApp {
   lazy val umlExpressionsDumper: ExpressionsDumper[String] = UMLExpressionsDumper
 }
 

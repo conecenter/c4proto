@@ -5,23 +5,9 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-case class HashTagReqNeed(srcId: SrcId)
-case class HashTagReqResp[Model](srcId: SrcId, request: HashTagRequest[Model], lines: List[Model])
-
-//todo make
-case class HashTagRequest[Model](
-  heapExpression: HashTagHeapExpressions.Expression,
-  condition: Condition[Model]
-)
-object HashTagRequest {
-  //todo expr --> Indexer --> heapIds
-  // --> pred-expr
-
-  def apply[Model](condition: Condition[Model]): HashTagRequest[Model] =
-    HashTagRequest(HashTagHeapExpressions(condition),condition)
 
 
-}
+
 
 trait LeafConditionFactory[By,Field] {
   def create[Model]: (ProdLens[Model,Field], By) ⇒ Condition[Model]
@@ -56,9 +42,32 @@ case class AnyCondition[Model]() extends Condition[Model] {
 
 
 
+object HashTagExchange {
+  case class Request[Model](requestId: SrcId, condition: Condition[Model])
+  case class Response[Model](srcId: SrcId, request: Request[Model], lines: List[Model])
+  def request[Model](condition: Condition[Model]): Request[Model] =
+    Request(???,condition)
+
+}
+
+import HashTagExchange.{Request,Response}
+
+//todo make
+
+
+  //todo expr --> Indexer --> heapIds
+  // --> pred-expr
+
+
+
+
+
 object HashTagHeapExpressions {
-  case class Priority(srcId: SrcId, priority: Int)
-  def priority(heapSrcId: SrcId, respLines: Values[_]): Priority =
+  case class Need[Model](requestId: SrcId)
+
+
+  case class Priority[Model](heapId: SrcId, priority: Int)
+  def priority[Model](heapSrcId: SrcId, respLines: Values[Model]): Priority[Model] =
      Priority(heapSrcId,java.lang.Long.numberOfLeadingZeros(respLines.length))
   sealed trait Expression
   trait Branch extends Expression {
@@ -81,19 +90,20 @@ object HashTagHeapExpressions {
     case (b: Branch,o) ⇒ groups(b,o).flatten.distinct
     //  full scan not supported
   }
-  def heapIds(expr: Expression): List[SrcId] = heapIds(expr,GatherAll)
-  def heapIds(expr: Expression, priorities: Values[Priority]): List[SrcId] =
-    heapIds(expr,Optimal(priorities.groupBy(_.srcId).transform((k,v)⇒Single(v).priority)))
+  def heapIds[Model](req: Request[Model]): List[SrcId] =
+    heapIds(expression(req.condition),GatherAll)
+  def heapIds[Model](req: Request[Model], priorities: Values[Priority[Model]]): List[SrcId] =
+    heapIds(expression(req.condition),Optimal(priorities.groupBy(_.heapId).transform((k,v)⇒Single(v).priority)))
 
-  def apply[Model](condition: Condition[Model]): Expression = condition match {
+  private def expression[Model](condition: Condition[Model]): Expression = condition match {
     case IntersectCondition(left,right) ⇒
-      Intersect(apply(left),apply(right)) match {
+      Intersect(expression(left),expression(right)) match {
         case Intersect(FullScan,r) ⇒ r
         case Intersect(l,FullScan) ⇒ l
         case r ⇒ r
       }
     case UnionCondition(left,right) ⇒
-      Union(apply(left),apply(right)) match {
+      Union(expression(left),expression(right)) match {
         case Union(FullScan,r) ⇒ FullScan
         case Union(l,FullScan) ⇒ FullScan
         case r ⇒ r
@@ -102,22 +112,16 @@ object HashTagHeapExpressions {
   }
 }
 
-trait HashTagId {
-  def srcId: SrcId
-}
+
+import HashTagHeapExpressions.{Priority,Need,heapIds,priority}
+
 
 //todo make
-@assemble class HashTagAssemble[RespLine<:Product,HeapId<:HashTagId,RequestId<:HashTagId](
-  classOfHeapId: Class[HeapId],
-  classOfRequestId: Class[RequestId],
+@assemble class HashTagAssemble[RespLine<:Product](
   classOfRespLine: Class[RespLine],
-  toHeapId: SrcId ⇒ HeapId,
-  toRequestId: SrcId ⇒ RequestId,
   indexers: List[HashTagIndexer]
 ) extends Assemble {
-  type Request = HashTagRequest[RespLine]
-  type Priority = HashTagHeapExpressions.Priority
-  type ReqResp = HashTagReqResp[RespLine]
+  type HeapId = SrcId
 
   def respByHeap(
     respLineId: SrcId,
@@ -125,52 +129,52 @@ trait HashTagId {
   ): Values[(HeapId,RespLine)] = for {
     respLine ← respLines
     indexer ← indexers
-    heapId ← indexer.heapIds(respLine)
-  } yield toHeapId(heapId) → respLine
+    tagId ← indexer.heapIds(respLine)
+  } yield tagId → respLine
 
   def reqByHeap(
-    requestId: RequestId,
-    requests: Values[Request]
-  ): Values[(HeapId,HashTagReqNeed)] = for {
+    requestId: SrcId,
+    requests: Values[Request[RespLine]]
+  ): Values[(HeapId,Need[RespLine])] = for {
     request ← requests
-    heapId ← HashTagHeapExpressions.heapIds(request.heapExpression)
-  } yield toHeapId(heapId) → HashTagReqNeed(ToPrimaryKey(request))
+    heapId ← heapIds(request)
+  } yield heapId → Need[RespLine](ToPrimaryKey(request))
 
   def respHeapPriorityByReq(
-    heapId: HeapId,
-    respLines: Values[RespLine],
-    requests: Values[HashTagReqNeed]
-  ): Values[(RequestId,Priority)] = for {
-    request ← requests
-  } yield toRequestId(ToPrimaryKey(request)) → HashTagHeapExpressions.priority(heapId.srcId,respLines)
+    heapId: SrcId,
+    @by[HeapId] respLines: Values[RespLine],
+    @by[HeapId] needs: Values[Need[RespLine]]
+  ): Values[(SrcId,Priority[RespLine])] = for {
+    need ← needs
+  } yield ToPrimaryKey(need) → priority(heapId,respLines)
 
   def neededRespHeapPriority(
-    requestId: RequestId,
-    requests: Values[Request],
-    priorities: Values[Priority]
-  ): Values[(HeapId,Request)] = for {
+    requestId: SrcId,
+    requests: Values[Request[RespLine]],
+    priorities: Values[Priority[RespLine]]
+  ): Values[(HeapId,Request[RespLine])] = for {
     request ← requests
-    heapId ← HashTagHeapExpressions.heapIds(request.heapExpression, priorities)
-  } yield toHeapId(heapId) → request
+    heapId ← heapIds(request, priorities)
+  } yield heapId → request
 
   def respByReq(
-    heapId: HeapId,
-    respLines: Values[RespLine],
-    requests: Values[Request]
-  ): Values[(RequestId,RespLine)] = for {
+    heapId: SrcId,
+    @by[HeapId] respLines: Values[RespLine],
+    @by[HeapId] requests: Values[Request[RespLine]]
+  ): Values[(SrcId,RespLine)] = for {
     request ← requests
     line ← respLines if request.condition.check(line)
-  } yield toRequestId(ToPrimaryKey(request)) → line
+  } yield ToPrimaryKey(request) → line
 
   def responses(
-    requestId: RequestId,
-    requests: Values[Request],
+    requestId: SrcId,
+    requests: Values[Request[RespLine]],
     respLines: Values[RespLine]
-  ): Values[(RequestId,ReqResp)] = for {
+  ): Values[(SrcId,Response[RespLine])] = for {
     request ← requests
   } yield {
     val pk = ToPrimaryKey(request)
-    toRequestId(pk) → HashTagReqResp(pk, request, respLines.toList.distinct)
+    pk → Response(pk, request, respLines.toList.distinct)
   }
   //.foldRight(List.empty[RespLine])((line,res)⇒)
 }

@@ -74,6 +74,7 @@ object ByPK {
     ByPrimaryKeyGetter(raw(cl.getName))
   def raw[V<:Product](className: String): AssembledKey[Index[SrcId,V]] =
     JoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
+  //todo: def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
 }
 
 case class ByPrimaryKeyGetter[V<:Product](joinKey: AssembledKey[Index[SrcId,V]])
