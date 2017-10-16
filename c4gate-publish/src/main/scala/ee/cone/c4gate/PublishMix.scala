@@ -8,7 +8,7 @@ class PublishApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ToInjectApp
   with PublishingApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with ExpressionsDumpersApp with NoAssembleProfilerApp
   with FileRawSnapshotApp
 {
   def mimeTypes: Map[String,String] = Map( //not finished on gate-server side

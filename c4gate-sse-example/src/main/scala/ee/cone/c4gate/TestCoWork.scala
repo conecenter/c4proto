@@ -18,7 +18,7 @@ class TestCoWorkApp extends ServerApp
   with ParallelObserversApp
   with UIApp
   with TestTagsApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with ExpressionsDumpersApp with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
   with ModelAccessFactoryApp

@@ -17,7 +17,7 @@ class TestTodoApp extends ServerApp
   with ParallelObserversApp
   with UIApp
   with TestTagsApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with ExpressionsDumpersApp with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
   with PublicViewAssembleApp
@@ -118,7 +118,7 @@ case class TestTodoRootView(locationHash: String = "todo")(
     )
 
     val todoTasks = ByPK(classOf[TodoTask]).of(local).values
-      .filter(filterPredicate.of(local)).toList.sortBy(-_.createdAt)
+      .filter(filterPredicate.of(local).check).toList.sortBy(-_.createdAt)
     val taskLines = for {
       prod ← todoTasks
       task ← contextAccess to prod

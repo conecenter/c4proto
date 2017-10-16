@@ -32,15 +32,19 @@ trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
 }
 
-trait UMLClientsApp {
-  def umlClients: List[String⇒Unit] = Nil
+trait UMLClientsApp extends ExpressionsDumpersApp {
+  lazy val umlExpressionsDumper: ExpressionsDumper[String] = UMLExpressionsDumper
+}
+
+trait ExpressionsDumpersApp {
+  def expressionsDumpers: List[ExpressionsDumper[Unit]] = Nil
 }
 
 trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with ToInjectApp with DefaultModelFactoriesApp {
   def execution: Execution
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
-  def umlClients: List[String⇒Unit]
+  def expressionsDumpers: List[ExpressionsDumper[Unit]]
   def assembleProfiler: AssembleProfiler
   def defaultModelFactories: List[DefaultModelFactory[_]]
   //
@@ -56,7 +60,7 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory,assembleProfiler)
-  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
+  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,expressionsDumpers)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val assemblerInit =

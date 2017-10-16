@@ -122,7 +122,7 @@ class ByPriority[Item](uses: Item⇒List[Item]){
 }
 */
 
-class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit]) extends TreeAssembler {
+class TreeAssemblerImpl(byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]]) extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
@@ -134,7 +134,7 @@ class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit])
       //handlerLists.list(WorldPartExpressionKey)
     val originals: Set[AssembledKey[_]] =
       rules.collect{ case e: OriginalWorldPart[_] ⇒ e.outputWorldKey }.toSet
-    umlClients.foreach(_(s"# rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}"))
+    //umlClients.foreach(_(s"# rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}"))
     val byOutput: Map[AssembledKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
       expressions.groupBy(_.outputWorldKey)
     val expressionsByPriority: List[WorldPartExpression] =
@@ -150,22 +150,9 @@ class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit])
         _ ⇒ item
       ))(expressions).reverse
 
-    umlClients.foreach(_{
-      val expressions = expressionsByPriority
-        .map{ case e: DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
-      val keyAliases: List[(AssembledKey[_], String)] =
-        expressions.flatMap[AssembledKey[_],List[AssembledKey[_]]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
-          .distinct.zipWithIndex.map{ case (k,i) ⇒ (k,s"wk$i")}
-      val keyToAlias: Map[AssembledKey[_], String] = keyAliases.toMap
-      List(
-        for((k:Product,a) ← keyAliases) yield
-          s"(${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}) as $a",
-        for((e,eIndex) ← expressions.zipWithIndex; k ← e.inputWorldKeys)
-          yield s"${keyToAlias(k)} --> $eIndex-${e.name}",
-        for((e,eIndex) ← expressions.zipWithIndex)
-          yield s"$eIndex-${e.name} --> ${keyToAlias(e.outputWorldKey)}"
-      ).flatten.mkString("@startuml\n","\n","\n@enduml")
-    })
+    expressionsDumpers.foreach(_.dump(expressionsByPriority.map{
+      case e: DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e
+    }))
 
     replaced ⇒ prevWorld ⇒ {
       val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
@@ -175,6 +162,23 @@ class TreeAssemblerImpl(byPriority: ByPriority, umlClients: List[String⇒Unit])
         handler.transform(transition)
       }.current
     }
+  }
+}
+
+object UMLExpressionsDumper extends ExpressionsDumper[String] {
+  def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): String = {
+    val keyAliases: List[(AssembledKey[_], String)] =
+      expressions.flatMap[AssembledKey[_],List[AssembledKey[_]]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
+        .distinct.zipWithIndex.map{ case (k,i) ⇒ (k,s"wk$i")}
+    val keyToAlias: Map[AssembledKey[_], String] = keyAliases.toMap
+    List(
+      for((k:Product,a) ← keyAliases) yield
+        s"(${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}) as $a",
+      for((e,eIndex) ← expressions.zipWithIndex; k ← e.inputWorldKeys)
+        yield s"${keyToAlias(k)} --> $eIndex-${e.name}",
+      for((e,eIndex) ← expressions.zipWithIndex)
+        yield s"$eIndex-${e.name} --> ${keyToAlias(e.outputWorldKey)}"
+    ).flatten.mkString("@startuml\n","\n","\n@enduml")
   }
 }
 

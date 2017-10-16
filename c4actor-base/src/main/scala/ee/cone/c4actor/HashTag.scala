@@ -5,148 +5,172 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-trait HashTagHeapPriority extends Product {
-  def srcId: SrcId
-  def priority: Int
-}
-
-trait HashTagRequest extends Product {
-  def expression: HashTagExpression
-}
-
-trait HashTagExpression extends Product {
-  def heapIds(options: HashTagHeapIdsOptions): List[SrcId]
-}
-
-trait HashTagIndexer[RespLine<:Product] extends Product { //todo impl
-  def heapIds(respLine: RespLine): List[SrcId]
-}
-
-sealed trait HashTagHeapIdsOptions
-case object GatherAllHashTagHeapIdsOptions extends HashTagHeapIdsOptions
-case class OptimalHashTagHeapIdsOptions(priorities: Map[SrcId,Int]) extends HashTagHeapIdsOptions
-object OptimalHashTagHeapIdsOptions {
-  def apply(priorities: Values[HashTagHeapPriority]): HashTagHeapIdsOptions =
-    OptimalHashTagHeapIdsOptions(priorities.groupBy(_.srcId).transform((k,v)⇒Single(v).priority))
-}
-
-case class LeafHashTagExpression() extends HashTagExpression {
-  def heapIds(options: HashTagHeapIdsOptions): List[SrcId] = ???
-}
-
-case class IntersectHashTagExpression(children: List[HashTagExpression]) extends HashTagExpression {
-  def heapIds(options: HashTagHeapIdsOptions): List[SrcId] = {
-    val groups = children.map(_.heapIds(options))
-    options match {
-      case GatherAllHashTagHeapIdsOptions ⇒ groups.flatten.distinct
-      case OptimalHashTagHeapIdsOptions(priorities) ⇒ groups.maxBy(_.map(priorities).min)
-    }
-  }
-}
-
-case class UnionHashTagExpression(children: List[HashTagExpression]) extends HashTagExpression {
-  def heapIds(options: HashTagHeapIdsOptions): List[SrcId] = {
-    val groups = children.map(_.heapIds(options))
-    groups.flatten.distinct
-  }
-}
-
-
-
-//import collection.immutable.Seq
-
-class HashTagOperations[
-  RespLine<:Product,
-  Request<:HashTagRequest,
-  Priority<:HashTagHeapPriority,
-  ReqResp<:Product
-](
-  val indexers: List[HashTagIndexer[RespLine]],
-  val createReqResp: (SrcId,Request,List[RespLine]) ⇒ ReqResp,
-  val createPriority: (SrcId,Int) ⇒ Priority
-) {
-  def priority(heapSrcId: SrcId, respLines: Values[RespLine]): Priority =
-    createPriority(heapSrcId,java.lang.Long.numberOfLeadingZeros(respLines.length))
-
-  def filter(request: Request, respLines: Values[RespLine]): Values[(SrcId,RespLine)] = {
-    val requestId = ToPrimaryKey(request)
-    val res = respLines.filter(???)
-    res.map(requestId→_)
-  }
-
-
-
-}
-
+case class HashTagReqNeed(srcId: SrcId)
+case class HashTagReqResp[Model](srcId: SrcId, request: HashTagRequest[Model], lines: List[Model])
 
 //todo make
-@assemble class HashTagAssemble[
-  RespLine<:Product,
-  Request<:HashTagRequest,
-  Priority<:HashTagHeapPriority,
-  ReqResp<:Product
-](
+case class HashTagRequest[Model](
+  heapExpression: HashTagHeapExpressions.Expression,
+  condition: Condition[Model]
+)
+object HashTagRequest {
+  //todo expr --> Indexer --> heapIds
+  // --> pred-expr
+
+  def apply[Model](condition: Condition[Model]): HashTagRequest[Model] =
+    HashTagRequest(HashTagHeapExpressions(condition),condition)
+
+
+}
+
+trait LeafConditionFactory[By,Field] {
+  def create[Model]: (ProdLens[Model,Field], By) ⇒ Condition[Model]
+}
+
+
+trait HashTagIndexer extends Product { //todo impl
+  def heapIds(respLine: Product): List[SrcId]
+}
+
+
+
+trait Condition[Model] extends Product {
+  def check(line: Model): Boolean
+}
+
+case class IntersectCondition[Model](
+  left: Condition[Model],
+  right: Condition[Model]
+) extends Condition[Model] {
+  def check(line: Model): Boolean = left.check(line) && right.check(line)
+}
+case class UnionCondition[Model](
+  left: Condition[Model],
+  right: Condition[Model]
+) extends Condition[Model] {
+  def check(line: Model): Boolean = left.check(line) || right.check(line)
+}
+case class AnyCondition[Model]() extends Condition[Model] {
+  def check(line: Model): Boolean = true
+}
+
+
+
+object HashTagHeapExpressions {
+  case class Priority(srcId: SrcId, priority: Int)
+  def priority(heapSrcId: SrcId, respLines: Values[_]): Priority =
+     Priority(heapSrcId,java.lang.Long.numberOfLeadingZeros(respLines.length))
+  sealed trait Expression
+  trait Branch extends Expression {
+    def left: Expression
+    def right: Expression
+  }
+  case class Leaf(ids: List[SrcId]) extends Expression
+  case class Intersect(left: Expression, right: Expression) extends Branch
+  case class Union(left: Expression, right: Expression) extends Branch
+  case object FullScan extends Expression
+  sealed trait Options
+  case object GatherAll extends Options
+  case class Optimal(priorities: Map[SrcId,Int]) extends Options
+  private def groups(b: Branch, options: Options): List[List[SrcId]] =
+    List(heapIds(b.left,options),heapIds(b.right,options))
+  private def heapIds(expr: Expression, options: Options) = (expr,options) match {
+    case (Leaf(ids),_) ⇒ ids
+    case (b: Union,Optimal(priorities)) ⇒
+      groups(b,options).maxBy(_.map(priorities).min)
+    case (b: Branch,o) ⇒ groups(b,o).flatten.distinct
+    //  full scan not supported
+  }
+  def heapIds(expr: Expression): List[SrcId] = heapIds(expr,GatherAll)
+  def heapIds(expr: Expression, priorities: Values[Priority]): List[SrcId] =
+    heapIds(expr,Optimal(priorities.groupBy(_.srcId).transform((k,v)⇒Single(v).priority)))
+
+  def apply[Model](condition: Condition[Model]): Expression = condition match {
+    case IntersectCondition(left,right) ⇒
+      Intersect(apply(left),apply(right)) match {
+        case Intersect(FullScan,r) ⇒ r
+        case Intersect(l,FullScan) ⇒ l
+        case r ⇒ r
+      }
+    case UnionCondition(left,right) ⇒
+      Union(apply(left),apply(right)) match {
+        case Union(FullScan,r) ⇒ FullScan
+        case Union(l,FullScan) ⇒ FullScan
+        case r ⇒ r
+      }
+    case _ ⇒ Leaf(???)
+  }
+}
+
+trait HashTagId {
+  def srcId: SrcId
+}
+
+//todo make
+@assemble class HashTagAssemble[RespLine<:Product,HeapId<:HashTagId,RequestId<:HashTagId](
+  classOfHeapId: Class[HeapId],
+  classOfRequestId: Class[RequestId],
   classOfRespLine: Class[RespLine],
-  classOfRequest: Class[Request],
-  classOfPriority: Class[Priority],
-  classOfReqResp: Class[ReqResp],
-  op: HashTagOperations[RespLine,Request,Priority,ReqResp]
+  toHeapId: SrcId ⇒ HeapId,
+  toRequestId: SrcId ⇒ RequestId,
+  indexers: List[HashTagIndexer]
 ) extends Assemble {
-  type HashTagHeapId = SrcId
-  type HashTagMoreHeapId = SrcId
-  type HashTagRequestId = SrcId
+  type Request = HashTagRequest[RespLine]
+  type Priority = HashTagHeapExpressions.Priority
+  type ReqResp = HashTagReqResp[RespLine]
 
   def respByHeap(
-    respLineSrcId: SrcId,
+    respLineId: SrcId,
     respLines: Values[RespLine]
-  ): Values[(HashTagHeapId,RespLine)] = for {
+  ): Values[(HeapId,RespLine)] = for {
     respLine ← respLines
-    indexer ← op.indexers
+    indexer ← indexers
     heapId ← indexer.heapIds(respLine)
-  } yield heapId → respLine
+  } yield toHeapId(heapId) → respLine
 
   def reqByHeap(
-    requestSrcId: SrcId,
+    requestId: RequestId,
     requests: Values[Request]
-  ): Values[(HashTagHeapId,Request)] = for {
+  ): Values[(HeapId,HashTagReqNeed)] = for {
     request ← requests
-    heapId ← request.expression.heapIds(GatherAllHashTagHeapIdsOptions)
-  } yield heapId → request
+    heapId ← HashTagHeapExpressions.heapIds(request.heapExpression)
+  } yield toHeapId(heapId) → HashTagReqNeed(ToPrimaryKey(request))
 
   def respHeapPriorityByReq(
-    heapSrcId: SrcId,
-    @by[HashTagHeapId] respLines: Values[RespLine],
-    @by[HashTagHeapId] requests: Values[Request]
-  ): Values[(HashTagRequestId,Priority)] = for {
+    heapId: HeapId,
+    respLines: Values[RespLine],
+    requests: Values[HashTagReqNeed]
+  ): Values[(RequestId,Priority)] = for {
     request ← requests
-  } yield ToPrimaryKey(request) → op.priority(heapSrcId,respLines)
+  } yield toRequestId(ToPrimaryKey(request)) → HashTagHeapExpressions.priority(heapId.srcId,respLines)
 
   def neededRespHeapPriority(
-    requestSrcId: SrcId,
+    requestId: RequestId,
     requests: Values[Request],
-    @by[HashTagRequestId] priorities: Values[Priority]
-  ): Values[(HashTagMoreHeapId,Request)] = for {
+    priorities: Values[Priority]
+  ): Values[(HeapId,Request)] = for {
     request ← requests
-    heapId ← request.expression.heapIds(OptimalHashTagHeapIdsOptions(priorities))
-  } yield heapId → request
+    heapId ← HashTagHeapExpressions.heapIds(request.heapExpression, priorities)
+  } yield toHeapId(heapId) → request
 
   def respByReq(
-    heapSrcId: SrcId,
-    @by[HashTagHeapId] respLines: Values[RespLine],
-    @by[HashTagMoreHeapId] requests: Values[Request]
-  ): Values[(HashTagRequestId,RespLine)] = for {
+    heapId: HeapId,
+    respLines: Values[RespLine],
+    requests: Values[Request]
+  ): Values[(RequestId,RespLine)] = for {
     request ← requests
-    res ← op.filter(request,respLines)
-  } yield res
+    line ← respLines if request.condition.check(line)
+  } yield toRequestId(ToPrimaryKey(request)) → line
 
   def responses(
-    requestSrcId: SrcId,
+    requestId: RequestId,
     requests: Values[Request],
     respLines: Values[RespLine]
-  ): Values[(SrcId,ReqResp)] = for {
+  ): Values[(RequestId,ReqResp)] = for {
     request ← requests
-  } yield WithPK(op.createReqResp(ToPrimaryKey(request), request, respLines.toList.distinct))
+  } yield {
+    val pk = ToPrimaryKey(request)
+    toRequestId(pk) → HashTagReqResp(pk, request, respLines.toList.distinct)
+  }
   //.foldRight(List.empty[RespLine])((line,res)⇒)
-
-
 }

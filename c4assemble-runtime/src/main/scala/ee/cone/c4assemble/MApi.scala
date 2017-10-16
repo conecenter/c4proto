@@ -70,3 +70,7 @@ case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueCl
   extends AssembledKey[Index[K,V]](Map.empty)
 
 class by[T]
+
+trait ExpressionsDumper[To] {
+  def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
+}

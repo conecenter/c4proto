@@ -16,7 +16,7 @@ abstract class TestTxTransformApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ToInjectApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with ExpressionsDumpersApp with NoAssembleProfilerApp
   with FileRawSnapshotApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
