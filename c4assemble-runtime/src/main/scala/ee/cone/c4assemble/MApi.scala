@@ -70,7 +70,7 @@ trait Assemble {
 case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
   extends AssembledKey[Index[K,V]](Map.empty)
 
-@compileTimeOnly("not expanded")
+//@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
 
 trait ExpressionsDumper[To] {
