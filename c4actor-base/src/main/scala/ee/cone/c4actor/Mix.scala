@@ -58,6 +58,7 @@ trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with D
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   lazy val contextFactory = new ContextFactory(toInject)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
+  lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory,assembleProfiler)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,expressionsDumpers)

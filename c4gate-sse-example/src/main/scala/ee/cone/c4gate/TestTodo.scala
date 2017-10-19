@@ -66,7 +66,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   def tagStyles: TagStyles
   def modelAccessFactory: ModelAccessFactory
   def filterPredicateBuilder: FilterPredicateBuilder
-  def commonFilterPredicateFactories: CommonFilterPredicateFactories
+  def commonFilterConditionChecks: CommonFilterConditionChecks
   def sessionAttrAccessFactory: SessionAttrAccessFactory
   def accessViewRegistry: AccessViewRegistry
   def untilPolicy: UntilPolicy
@@ -77,7 +77,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
     tagStyles,
     modelAccessFactory,
     filterPredicateBuilder,
-    commonFilterPredicateFactories,
+    commonFilterConditionChecks,
     sessionAttrAccessFactory,
     accessViewRegistry,
     untilPolicy
@@ -93,14 +93,14 @@ case class TestTodoRootView(locationHash: String = "todo")(
   styles: TagStyles,
   contextAccess: ModelAccessFactory,
   filterPredicates: FilterPredicateBuilder,
-  commonFilterPredicateFactories: CommonFilterPredicateFactories,
+  commonFilterConditionChecks: CommonFilterConditionChecks,
   sessionAttrAccess: SessionAttrAccessFactory,
   accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy
 ) extends ByLocationHashView {
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     import mTags._
-    import commonFilterPredicateFactories._
+    import commonFilterConditionChecks._
     val filterPredicate = filterPredicates.create[TodoTask]()
       .add(commentsFlt, comments)
       .add(createdAtFlt, createdAt)

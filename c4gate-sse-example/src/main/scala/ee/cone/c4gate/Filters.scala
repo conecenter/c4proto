@@ -16,8 +16,8 @@ trait CommonFilterApp extends CommonFilterPredicateFactoriesApp
   with CommonFilterInjectApp with DateBeforeAccessViewApp with ContainsAccessViewApp
 
 trait CommonFilterPredicateFactoriesApp {
-  lazy val commonFilterPredicateFactories: CommonFilterPredicateFactories =
-    CommonFilterPredicateFactoriesImpl
+  lazy val commonFilterConditionChecks: CommonFilterConditionChecks =
+    CommonFilterConditionChecksImpl
 }
 
 trait CommonFilterInjectApp extends DefaultModelFactoriesApp {
@@ -50,9 +50,9 @@ trait ContainsAccessViewApp extends AccessViewsApp {
   )
 }
 
-trait CommonFilterPredicateFactories {
-  implicit def dateBeforePredicateFactory: LeafConditionFactory[DateBefore,Long]
-  implicit def containsPredicateFactory: LeafConditionFactory[Contains,String]
+trait CommonFilterConditionChecks {
+  implicit def dateBefore: ConditionCheck[DateBefore,Long]
+  implicit def contains: ConditionCheck[Contains,String]
 }
 
 //// impl
@@ -60,23 +60,17 @@ trait CommonFilterPredicateFactories {
 object DateBeforeDefault extends DefaultModelFactory(classOf[DateBefore],DateBefore(_,None))
 object ContainsDefault extends DefaultModelFactory(classOf[Contains],Contains(_,""))
 
-object DateBeforeCheck extends LeafConditionFactory[DateBefore,Long] {
-  def create[Model] = Expression.apply
-  case class Expression[Model](lens: ProdLens[Model,Long], by: DateBefore) extends Condition[Model] {
-    def check(model: Model): Boolean = by.value forall (_>lens.of(model))
-  }
+case object DateBeforeCheck extends ConditionCheck[DateBefore,Long] {
+  def check: DateBefore ⇒ Long ⇒ Boolean = by ⇒ value ⇒ by.value forall (_>value)
 }
 
-object ContainsCheck extends LeafConditionFactory[Contains,String] {
-  def create[Model] = Expression.apply
-  case class Expression[Model](lens: ProdLens[Model,String], by: Contains) extends Condition[Model] {
-    def check(model: Model): Boolean = lens.of(model) contains by.value
-  }
+case object ContainsCheck extends ConditionCheck[Contains,String] {
+  def check: Contains ⇒ String ⇒ Boolean = by ⇒ value ⇒ value contains by.value
 }
 
-object CommonFilterPredicateFactoriesImpl extends CommonFilterPredicateFactories {
-  lazy val dateBeforePredicateFactory: LeafConditionFactory[DateBefore,Long] = DateBeforeCheck
-  lazy val containsPredicateFactory: LeafConditionFactory[Contains,String] = ContainsCheck
+object CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
+  lazy val dateBefore: ConditionCheck[DateBefore,Long] = DateBeforeCheck
+  lazy val contains: ConditionCheck[Contains,String] = ContainsCheck
 }
 
 class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[DateBefore]) {

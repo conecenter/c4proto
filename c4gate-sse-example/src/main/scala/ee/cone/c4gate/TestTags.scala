@@ -50,7 +50,7 @@ class TestTags[State](
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
 
   def input(access: Access[String]): ChildPair[OfDiv] = {
-    val name = access.metaList.collect{ case l: NameMetaAttr ⇒ l.value }.mkString
+    val name = access.metaList.collect{ case l: NameMetaAttr ⇒ l.value }.mkString(".")
     access.updatingLens.map { lens ⇒
       val placeholder = access.metaList.collect{ case l: UserLabel ⇒ l.values.get("en") }.flatten.lastOption.getOrElse("")
       val input = InputTextElement(access.initialValue, deferSend = true, placeholder)(
