@@ -60,6 +60,7 @@ class assemble extends StaticAnnotation {
         val tParams = s"${tp(in.value)},${tp(out.value)},${tp(in.key)},${tp(out.key)}"
         s"""
            |indexFactory.createJoinMapIndex[$tParams](new ee.cone.c4assemble.Join[$tParams](
+           |  getClass.getName,
            |  "${out.name}",
            |  collection.immutable.Seq(${params.map(expr(in,_)).mkString(",")}),
            |  ${expr(out,out)},

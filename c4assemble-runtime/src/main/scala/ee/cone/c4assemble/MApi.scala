@@ -47,6 +47,7 @@ trait IndexValueMergerFactory {
 }
 
 trait DataDependencyFrom[From] {
+  def assembleName: String
   def name: String
   def inputWorldKeys: Seq[AssembledKey[From]]
 }
@@ -56,6 +57,7 @@ trait DataDependencyTo[To] {
 }
 
 class Join[T,R,TK,RK](
+  val assembleName: String,
   val name: String,
   val inputWorldKeys: Seq[AssembledKey[Index[TK, T]]],
   val outputWorldKey: AssembledKey[Index[RK, R]],

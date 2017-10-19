@@ -56,6 +56,7 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   with DataDependencyFrom[Index[JoinKey, T]]
   with DataDependencyTo[Index[MapKey, Value]]
 {
+  def assembleName = join.assembleName
   def name = join.name
   def inputWorldKeys: Seq[AssembledKey[Index[JoinKey, T]]] = join.inputWorldKeys
   def outputWorldKey: AssembledKey[Index[MapKey, Value]] = join.outputWorldKey
