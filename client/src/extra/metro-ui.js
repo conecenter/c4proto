@@ -11,6 +11,7 @@ jsx?
 
 export default function MetroUi({log,sender,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact}){
 	const $ = React.createElement
+	const $C = React.createClass
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -521,8 +522,10 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				paddingRight:children?"0em":"0.4em",		
 				whiteSpace:"nowrap",
 				alignSelf:"center",
+				MozUserSelect:"none",
+				userSelect:"none",
 				...style
-			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref},[value,children])
+			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey},[value,children])
 		}
 	})
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{
@@ -840,16 +843,20 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		getInitialState:function(){
 			return {last:false,focused:false}
 		},
-		onFocus:function(){
+		onFocus:function(e){
 			focusModule.switchTo(this)
 			this.setState({focused:true})
 			const cEvent = eventManager.create("cFocus",{bubbles:true,detail:null})
 			this.el.dispatchEvent(cEvent)
-			const clickEvent = eventManager.create("click",{bubbles:true})
-			this.el.dispatchEvent(clickEvent)
+			const pc = e.path.find(el=>Array.from(el.classList).some(cl=>cl.includes("marker")))
+			if(!pc || pc==this.el){
+				const clickEvent = eventManager.create("click",{bubbles:true})
+				this.el.dispatchEvent(clickEvent)
+			}
+			e.stopPropagation()
 		},
 		onBlur:function(){
-			this.setState({focused:false})
+			if(this.isMounted) this.setState({focused:false})
 		},
 		checkForSibling:function(){
 			if(!this.el) return;
@@ -865,6 +872,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.binding = focusModule.reg(this)
 				this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData,droppable:this.props.droppable,draggable:this.props.draggable})
 			}
+			this.isMounted = true
 		},
 		componentDidUpdate:function(prevProps,_){
 			this.checkForSibling()
@@ -882,6 +890,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			if(this.el) this.el.removeEventListener("focus",this.onFocus)	
 			//if(this.el) this.el.removeEventListener("enter",this.onEnter)					
 			if(this.binding) this.binding.unreg()
+			this.isMounted = false
 		},
 		/*signalDragEnd:function(outside){
 			if(!this.props.draggable) return;
@@ -913,6 +922,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const nodeType = this.props.nodeType?this.props.nodeType:"th"
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
+			const className = "marker"
 			return $(nodeType,{style:{
 				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 				borderLeft:'none',
@@ -936,6 +946,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			onMouseLeave:this.props.onMouseLeave,
 			onMouseUp:this.onMouseUp,
 			onTouchEnd:this.onMouseUp,
+			className:className,
 			...tabIndex
 			},children)
 		}
@@ -977,6 +988,15 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		componentWDidWillUnMount:function(){
 			this.el.removeEventListener("enter",this.onEnter)
 		},
+		onClick:function(e){
+			if(this.props.onClick){
+				if(!this.sentClick) {
+					this.props.onClick(e)
+					this.sentClick = true
+					setTimeout(()=>{this.sentClick=false},1000)
+				}
+			}
+		},
 		render:function(){
 			const trStyle={
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
@@ -985,7 +1005,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
 				...this.props.style
 			};			
-			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.props.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	});
 	const Interactive = React.createClass({
@@ -1233,6 +1253,45 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		content:props.value
 		})
+	const MultilineTextElement = $C({
+		getInitialState:function(){
+			return {maxItems:0}
+		},		
+		getMaxItems:function(){			
+		    const maxLines = parseInt(this.props.maxLines?this.props.maxLines:9999)
+			let line = 0
+			let bottomValue = 0
+			const maxItems = Array.from(this.el.children).filter(c=>{
+                const cBottom = Math.floor(c.getBoundingClientRect().bottom)				
+				if(cBottom > bottomValue) {line++; bottomValue=cBottom}
+				if(line>maxLines) return false
+				return true
+			})
+			return maxItems.length
+		},
+		check:function(){
+			const maxItems = this.getMaxItems()	
+			if(maxItems!=this.state.maxItems) this.setState({maxItems})
+		},
+		componentDidMount:function(){			
+		    checkActivateCalls.add(this.check)
+		},
+		componentWillUnmount:function(){
+			checkActivateCalls.remove(this.check)
+		},
+		render:function(){
+			const values = this.props.value?this.props.value.split(' '):""
+			const textStyle=(show)=>({
+				display:"inline-block",
+				marginRight:"0.5em",
+				minHeight:"1em",
+				visibility:!show?"hidden":""
+			})
+			const children = values.map((text,index)=>$('span',{key:index,style:textStyle(index<this.state.maxItems)},(index+1==this.state.maxItems && values.length>index+1)?text+"...":text))
+			
+			return $('div',{style:this.props.styles,ref:ref=>this.el=ref},children)
+		}
+	})
 	const DropDownElement = React.createClass({
 		getInitialState:function(){
 			return {popupMinWidth:0,left:null,top:null};
@@ -1417,11 +1476,12 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.props.focusMarker})
 				e.preventDefault();
 				this.el.dispatchEvent(cEvent)
+				e.stopPropagation();
 			}
 			this.setState({focused:true})
 		},
 		onBlur:function(){
-			this.setState({focused:false})
+			if(this.isMounted) this.setState({focused:false})
 		},
 		componentDidMount:function(){
 			if(this.el) {
@@ -1429,6 +1489,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.el.addEventListener("blur",this.onBlur,false)
 			}
 			this.binding = focusModule.reg(this)
+			this.isMounted = true
 		},
 		componentWillUnmount:function(){
 			if(this.el) {
@@ -1436,6 +1497,10 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.el.removeEventListener("blur",this.onBlur)
 			}
 			this.binding.unreg()
+			this.isMounted = false
+		},
+		onClick:function(e){
+			e.stopPropagation()
 		},
 		render:function(){
 			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
@@ -1449,6 +1514,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				...style
 			},tabIndex:"1",
 			className,
+			onClick:this.onClick,
 			ref:ref=>this.el=ref},children);
 		}
 	})	
@@ -2560,7 +2626,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
             InputElement,AnchorElement,HeightLimitElement,
-			DropDownElement,ControlWrapperElement,LabeledTextElement,
+			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
