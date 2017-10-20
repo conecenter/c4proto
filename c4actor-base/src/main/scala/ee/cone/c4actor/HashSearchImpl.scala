@@ -110,8 +110,12 @@ object HashSearchImpl {
       heapIds(metaList, valueToRanges(of(model))) ::: next.heapIds(model)
     private def heapIds(metaList: List[MetaAttr], ranges: List[By]): List[SrcId] = for {
       range ← ranges
-    } yield Integer.toString((metaList.hashCode ^ range.hashCode) & 0x3FF | 0x400,32) // 1[0-9a-v][0-9a-v]
+    } yield {
+      //println(range,range.hashCode())
+      letters3(metaList.hashCode ^ range.hashCode)
+    }
   }
+  private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
 }
 
 @assemble class HashSearchAssemble[RespLine<:Product](

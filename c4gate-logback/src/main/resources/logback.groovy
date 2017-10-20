@@ -19,4 +19,4 @@ appender("ROLLING", RollingFileAppender) {
     }
 }
 
-root(INFO, ["CONSOLE", "ROLLING"])
+root(INFO, ["CONSOLE", "ROLLING"]) //TRACE
