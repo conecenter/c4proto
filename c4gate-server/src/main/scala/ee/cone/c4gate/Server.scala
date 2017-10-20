@@ -5,12 +5,12 @@ import ee.cone.c4actor._
 
 class HttpGatewayApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
+  with KafkaProducerApp with KafkaConsumerApp
+  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with InternetForwarderApp
   with HttpServerApp
   with SSEServerApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with ExpressionsDumpersApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with MortalFactoryApp
   with ManagementApp
   with FileRawSnapshotApp

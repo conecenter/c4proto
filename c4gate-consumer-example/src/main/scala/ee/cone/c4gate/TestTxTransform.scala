@@ -15,9 +15,9 @@ class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
 abstract class TestTxTransformApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ToInjectApp
-  with ExpressionsDumpersApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with FileRawSnapshotApp
+  with TreeIndexValueMergerFactoryApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles

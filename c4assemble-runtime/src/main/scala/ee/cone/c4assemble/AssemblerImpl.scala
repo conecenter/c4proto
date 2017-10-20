@@ -60,6 +60,7 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   def name = join.name
   def inputWorldKeys: Seq[AssembledKey[Index[JoinKey, T]]] = join.inputWorldKeys
   def outputWorldKey: AssembledKey[Index[MapKey, Value]] = join.outputWorldKey
+  override def toString: String = s"${super.toString} ($assembleName,$name,$inputWorldKeys,$outputWorldKey)"
 
   private def setPart[V](res: ReadModel, part: Map[MapKey,V]) =
     (res + (outputWorldKey → part)).asInstanceOf[Map[AssembledKey[_],Map[Object,V]]]

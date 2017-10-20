@@ -21,11 +21,11 @@ import okio.ByteString
 
 
 
-class RDBOptionFactoryImpl(qMessages: QMessages) extends RDBOptionFactory {
+class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
-    new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(qMessages,cl))
+    new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(toUpdate,cl))
 }
 
 ////
@@ -54,7 +54,7 @@ object ToExternalDBAssembles {
 }
 
 @assemble class ToExternalDBItemAssemble[Item<:Product](
-  messages: QMessages,
+  toUpdate: ToUpdate,
   classItem: Class[Item]
 )  extends Assemble {
   def join(
@@ -62,7 +62,7 @@ object ToExternalDBAssembles {
     items: Values[Item]
   ): Values[(NeedSrcId,HasState)] =
     for(item ← items; e ← LEvent.update(item)) yield {
-      val u = messages.toUpdate(e)
+      val u = toUpdate.toUpdate(e)
       val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
       key → HasState(key,u.valueTypeId,u.value)
     }

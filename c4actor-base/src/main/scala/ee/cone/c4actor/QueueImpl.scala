@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 class QRecordImpl(val topic: TopicName, val value: Array[Byte]) extends QRecord
 
 class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
-  import qAdapterRegistry._
+  //import qAdapterRegistry._
   // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
     val updates: List[Update] = WriteModelKey.of(local).toList
@@ -34,8 +34,11 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
       OffsetWorldKey.set(offset)
     ))(local)
   }
-  def toUpdate[M<:Product](message: LEvent[M]): Update = {
-    val valueAdapter = byName(message.className)
+}
+
+class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry) extends ToUpdate {
+  def toUpdate[M <: Product](message: LEvent[M]): Update = {
+    val valueAdapter = qAdapterRegistry.byName(message.className)
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
     Update(message.srcId, valueAdapter.id, byteString)
   }
@@ -56,4 +59,8 @@ object QAdapterRegistryFactory {
 
 class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
+}
+
+object NoRawQSender extends RawQSender {
+  def send(recs: List[QRecord]): List[Long] = Nil
 }

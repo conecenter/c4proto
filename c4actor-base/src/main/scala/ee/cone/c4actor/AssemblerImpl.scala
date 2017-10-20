@@ -20,7 +20,7 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
 class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
-  qMessages: QMessages,
+  toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
   getDependencies: ()⇒List[DataDependencyTo[_]]
 ) extends ToInject {
@@ -50,7 +50,7 @@ class AssemblerInit(
       WriteModelDebugAddKey.set(out ⇒
         if(out.isEmpty) identity[Context]
         else WriteModelDebugKey.modify(_.enqueue(out))
-          .andThen(add(out.map(qMessages.toUpdate)))
+          .andThen(add(out.map(toUpdate.toUpdate)))
       ) :::
       WriteModelAddKey.set(add) :::
       ReadModelAddKey.set(reduce)

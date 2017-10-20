@@ -15,12 +15,11 @@ object ProtoAdapterTest extends App with LazyLogging {
   val group0 = Group("", Some(leader0), List(worker0,worker1))
   //
   val protocols: List[Protocol] = MyProtocol :: QProtocol :: Nil
-  val rawQSender = new RawQSender { def send(recs: List[QRecord]): List[Long] = Nil }
   val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols)
-  val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
+  val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
   //
   val lEvents = LEvent.update(group0)
-  val updates = lEvents.map(qMessages.toUpdate)
+  val updates = lEvents.map(toUpdate.toUpdate)
   val group1 = updates.map(update ⇒
     qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
   ) match {

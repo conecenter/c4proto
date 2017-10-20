@@ -16,10 +16,10 @@ import ee.cone.c4gate.AlienProtocol.FromAlienState
 class TestPasswordApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
+  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
   with TestTagsApp
-  with ExpressionsDumpersApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {

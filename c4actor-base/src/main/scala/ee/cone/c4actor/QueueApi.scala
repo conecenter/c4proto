@@ -54,8 +54,11 @@ trait RawQSender {
 case object OffsetWorldKey extends TransientLens[java.lang.Long](0L)
 
 trait QMessages {
-  def toUpdate[M<:Product](message: LEvent[M]): Update
   def send[M<:Product](local: Context): Context
+}
+
+trait ToUpdate {
+  def toUpdate[M<:Product](message: LEvent[M]): Update
 }
 
 object Types {

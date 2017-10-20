@@ -14,8 +14,8 @@ import ee.cone.c4assemble.Types.Values
 class TestConsumerApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with ToInjectApp
-  with ExpressionsDumpersApp with NoAssembleProfilerApp
+  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {

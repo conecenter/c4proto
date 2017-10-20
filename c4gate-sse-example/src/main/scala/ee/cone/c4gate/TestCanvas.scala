@@ -17,12 +17,12 @@ import ee.cone.c4vdom_impl.JsonBuilderImpl
 class TestCanvasApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
+  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
   with PublishingApp
   with TestTagsApp
   with CanvasApp
-  with ExpressionsDumpersApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {

@@ -28,11 +28,11 @@ trait FromExternalDBSyncApp extends RDBSyncApp with ExternalDBOptionsApp with Pr
 }
 
 trait RDBSyncApp extends ToStartApp with ToInjectApp {
-  def qMessages: QMessages
+  def toUpdate: ToUpdate
   def externalDBFactory: ExternalDBFactory
   def externalDBOptions: List[ExternalDBOption]
 
-  lazy val rdbOptionFactory = new RDBOptionFactoryImpl(qMessages)
+  lazy val rdbOptionFactory = new RDBOptionFactoryImpl(toUpdate)
 
   private lazy val externalDBSyncClient = new ExternalDBSyncClient(externalDBFactory)
   override def toInject: List[ToInject] = externalDBSyncClient :: super.toInject

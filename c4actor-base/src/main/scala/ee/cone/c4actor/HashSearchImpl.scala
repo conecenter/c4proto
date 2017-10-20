@@ -119,6 +119,7 @@ object HashSearchImpl {
   indexers: Indexer[RespLine]
 ) extends Assemble {
   type HeapId = SrcId
+  type ResponseId = SrcId
 
   def respLineByHeap(
     respLineId: SrcId,
@@ -140,14 +141,14 @@ object HashSearchImpl {
     heapId: SrcId,
     @by[HeapId] respLines: Values[RespLine],
     @by[HeapId] needs: Values[Need[RespLine]]
-  ): Values[(SrcId,Priority[RespLine])] = for {
+  ): Values[(ResponseId,Priority[RespLine])] = for {
     need ← needs
   } yield ToPrimaryKey(need) → priority(heapId,respLines)
 
   def neededRespHeapPriority(
     requestId: SrcId,
     requests: Values[Request[RespLine]],
-    priorities: Values[Priority[RespLine]]
+    @by[ResponseId] priorities: Values[Priority[RespLine]]
   ): Values[(HeapId,Request[RespLine])] = for {
     request ← requests
     heapId ← heapIds(indexers, request, priorities)
@@ -157,7 +158,7 @@ object HashSearchImpl {
     heapId: SrcId,
     @by[HeapId] respLines: Values[RespLine],
     @by[HeapId] requests: Values[Request[RespLine]]
-  ): Values[(SrcId,RespLine)] = for {
+  ): Values[(ResponseId,RespLine)] = for {
     request ← requests
     line ← respLines if request.condition.check(line)
   } yield ToPrimaryKey(request) → line
@@ -165,7 +166,7 @@ object HashSearchImpl {
   def responses(
     requestId: SrcId,
     requests: Values[Request[RespLine]],
-    respLines: Values[RespLine]
+    @by[ResponseId] respLines: Values[RespLine]
   ): Values[(SrcId,Response[RespLine])] = for {
     request ← requests
   } yield {

@@ -6,9 +6,9 @@ import ee.cone.c4proto.Protocol
 class PublishApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ToInjectApp
+  with TreeIndexValueMergerFactoryApp
   with PublishingApp
-  with ExpressionsDumpersApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with FileRawSnapshotApp
 {
   def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
