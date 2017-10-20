@@ -1,10 +1,11 @@
 export default function DragDropModule({log,documentManager,windowManager}){
 	let cNode = null;
+	let dragNode = null;
 	let ddNode = null
-	let cNodeData = null;
 	let listRect = null;
 	let scrollNodes = null;
-	const callbacks = [];
+	const reporters = [];
+	const dragElements = [];
 	const mouseHitPoint = {x:0,y:0}
 	const curMousePoint = {x:0,y:0}
 
@@ -42,13 +43,14 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		else
 		if(curMousePoint.y >= pHeight - 60) scrollNodes.childNode.scrollTop = parseInt(scrollNodes.childNode.scrollTop)<scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight? scrollNodes.childNode.scrollTop + 5:scrollNodes.childNode.clientHeight - scrollNodes.parentNode.clientHeight
 	}
-	const release = () => {
+	const dragEnd = () => {
 		if(!cNode) return false;			
 		documentManager.remove(cNode);			
 		cNode = null;
+		dragNode = null;
 		listRect = null;
 		scrollNodes = null;
-		callbacks.splice(0)
+		//reporters.splice(0)
 		removeEventListener("mousemove",onMouseMove)
 		removeEventListener("mouseup",onMouseUp)
 		removeEventListener("touchend",onMouseUp)
@@ -75,12 +77,13 @@ export default function DragDropModule({log,documentManager,windowManager}){
 				y>=listRect.top&&
 				y<=listRect.bottom&&
 				x>=listRect.left&&
-				x<=listRect.right
-			)   outOfParent(false)
+				x<=listRect.right				
+			)   
+				report("dragEnd",dragNode)
 			else
-				outOfParent(true)
+				report("dragEndOutside",dragNode)
 		}
-		release();
+		dragEnd();
 	}
 	const getListNode = (node) =>{
 		while(node.tagName!="TABLE")
@@ -91,21 +94,58 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	const isTouch = (event) => event.type.includes("touch")
 	const getXY = (event) =>  isTouch(event)?{x:event.touches[0].clientX,y:event.touches[0].clientY}:{x:event.clientX,y:event.clientY}
 	const getTarget = (event) => {
-		if(isTouch(event)){
+		//if(isTouch(event)){
 			const {x,y} = getXY(event)
 			return documentManager.nodeFromPoint(x,y + getPageYOffset())
-		}
-		else 
-			return event.target		
+	//	}
+	//	else 
+	//		return event.target		
 	}
-	const dragStart = (event,node,data,callback) => {
+	const regReporter = (callback) => {
+		reporters.push(callback)
+		const release = () =>{		
+			const index = reporters.indexOf(callback)
+			reporters.splice(index,1)		
+		}
+		return ({release})
+		
+	}
+	const dragReg = (dragEl) => {
+		dragElements.push(dragEl)
+		const release = () =>{
+			const index = dragElements.indexOf(dragEl)
+			dragElements.splice(index,1)
+			dragEnd()
+		}
+		return ({release,dragOver,dragStart,dragDrop})
+	}
+	const dragOver = (node) => {
+		if(onDrag()) report("dragOver",dragNode,node)
+	}
+	const dragDrop = (node) => {
+		if(onDrag() && getData(node)) {			
+			report("dragDrop",dragNode,node)
+			dragEnd()
+		}
+	}
+	const report = (action,fromNode, toNode) => {
+		let fromSrcId = "",toSrcId =""
+		const fEl = dragElements.find(el=> fromNode && el.node == fromNode)
+		if(fEl)
+			fromSrcId = fEl.dragData?fEl.dragData:""
+		const tEl = dragElements.find(el=> toNode && el.node == toNode)
+		if(tEl)
+			toSrcId = tEl.dragData?tEl.dragData:""
+		reporters.forEach(r=>r(action,fromSrcId,toSrcId))
+	}
+	const dragStart = (event,node) => {
 		const {x,y} = getXY(event)		
-		cNode = documentManager.createElement("table")
-		cNodeData = data;
+		cNode = documentManager.createElement("table")	
 		listRect = getListRect(node);
 		const listNode = getListNode(node);
-		scrollNodes = findScrollNodes(listNode)		
-		callbacks.push(callback)
+		scrollNodes = findScrollNodes(listNode)
+        dragNode = node	
+		//callbacks.push(callback)
 		cNode.appendChild(node.parentNode.cloneNode(true));
 		const parentRect = node.parentNode.getBoundingClientRect();			
 		const top = parentRect.top + getPageYOffset()
@@ -125,32 +165,29 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		addEventListener("mouseup",onMouseUp)
 		addEventListener("touchend",onMouseUp)
 		addEventListener("keydown",onKeyDown)
-		checkActivateCalls.add(doCheck)
-		return ({release});
+		checkActivateCalls.add(doCheck)		
+		report("dragStart",dragNode)
+		//return ({release});
 	}
-	const getData = () => cNodeData
+	const getData = (node) => {const el = dragElements.find(el=>el.node == node); if(el) return el.dragData; else return null;}
 	const onDrag = () => cNode&&true		
 	const onKeyDown = (event) => {
 		if(event.key == "Escape") onEsc()
 	}
-	const onEsc = () => {			
-		outOfParent(true)
-		release()
-		cNodeData = null
+	const onEsc = () => {
+        report("dragEndOutside",dragNode)			
+		dragEnd()	
 	}
-	const outOfParent = (outside) => {			
-		callbacks.forEach(c=>c(outside))
-	}		
 	const checkActivate = checkActivateCalls.check
 	// multiselect dragdrop
 	let lastSwappedNode = null
 	const releaseDD = () =>{
 		removeEventListener("mouseup",onMouseUpDD)
-		removeEventListener("touchend",onMouseUpDD)
+		removeEventListener("touchend",onMouseUpDD)		
 		removeEventListener("mousemove",onMouseMoveDD)
 		removeEventListener("touchmove",onMouseMoveDD)		
-		callbacks.splice(0)
-		if(!ddNode) return
+		dragElements.splice(0)		
+		if(!ddNode) return		
 		documentManager.remove(ddNode)
 		ddNode = null
 		lastSwappedNode = null
@@ -160,9 +197,9 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		if(ddNode){
 			for(let i =0;i<ddNode.children.length;i+=1)
 				if(ddNode.children[i].tagName=="DIV")
-				posCol.push(ddNode.children[i].dataset.index)
+				posCol.push(ddNode.children[i].dataset.srcKey)
+			dragElements.forEach(c=>c(posCol))
 		}		
-		callbacks.forEach(c=>c(posCol))
 		releaseDD()
 	}
 	const swapNodes = (node1I,node2I) =>{
@@ -180,8 +217,8 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		return node2
 	}
 	const onMouseMoveDD = (event) =>{
-		if(!ddNode) return		
-        const overNode = getTarget(event)
+		if(!ddNode) return				
+        const overNode = getTarget(event)		
 		const tIndex = findChildDD(ddNode,overNode)
 		const selectedNode = ddNode.querySelector(".selected")
 		const selectedNodeI = findChildDD(ddNode,selectedNode)		
@@ -190,6 +227,7 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		
 		if(ddNode.children[selectedNodeI] != ddNode.children[tIndex]) lastSwappedNode = swapNodes(selectedNodeI,tIndex)		
 		//event.preventDefault();
+		event.preventDefault();
 	}
 	const findChildDD = (parent,node) =>{
 		let n = node
@@ -204,33 +242,38 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			n = n.parentNode
 		}
 		return i
-	}
+	}	
 	const dragStartDD = (event,node,callback) =>{
 		if(!event.target.classList.contains("button")) return null
 		const tIndex = findChildDD(node,getTarget(event))
 		if(tIndex<0) return null
 		ddNode = node.cloneNode(true)
-		callbacks.push(callback)
+		dragElements.push(callback)
 		const oRect = node.getBoundingClientRect()
 		ddNode.style.width = oRect.width + "px"
 		ddNode.style.height = oRect.height + "px"
 		ddNode.style.position = "absolute"
 		ddNode.style.left = oRect.left + "px"
-		ddNode.style.top = (oRect.top + getPageYOffset()) + "px"		
+		ddNode.style.top = (oRect.top + getPageYOffset()) + "px"
+		//ddNode.style.userSelect = "none"
+		//ddNode.style.MozUserSelect = "none"
+		ddNode.style.zIndex = "9999"
+	
 		const selectedNode = ddNode.children[tIndex]		
 		selectedNode.style.opacity = '0.3'
 		selectedNode.classList.add("selected")
 		ddNode.style.lineHeight = "1"
-		for(let i =0;i<ddNode.children.length;i+=1) ddNode.children[i].dataset.index = i
-		
 		documentManager.add(ddNode)
-		addEventListener("mouseup",onMouseUpDD)
-		addEventListener("touchend",onMouseUpDD)
+		for(let i =0;i<ddNode.children.length;i+=1) {
+			if(ddNode.children[i].tagName!="DIV") continue
+			const child = ddNode.children[i]			
+			if(!child.dataset.srcKey) child.dataset.srcKey = child.firstElementChild?child.firstElementChild.dataset.srcKey:i            
+		}
 		addEventListener("mousemove",onMouseMoveDD)
 		addEventListener("touchmove",onMouseMoveDD)
+		addEventListener("mouseup",onMouseUpDD)
+		addEventListener("touchend",onMouseUpDD)		
 		return  ({releaseDD})
 	}
-	return {dragStart,getData,onDrag,release,checkActivate,
-			dragStartDD			
-	}
+	return {dragReg,checkActivate,regReporter,dragStartDD}
 }
