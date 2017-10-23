@@ -89,9 +89,9 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
-  .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
+  //.settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
   .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
-  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`)
+  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
 lazy val `c4gate-consumer-example` = project.settings(publishSettings)
@@ -142,7 +142,7 @@ lazy val `c4gate-client` = project.settings(publishSettings)
 lazy val `c4gate-logback` = project.settings(publishSettings)
   .settings(description := s"$descr logback with config")
   .settings(libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3")
-  .settings(libraryDependencies += "org.codehaus.groovy" % "groovy-all" % "2.4.12")
+  //.settings(libraryDependencies += "org.codehaus.groovy" % "groovy-all" % "2.4.12")
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
