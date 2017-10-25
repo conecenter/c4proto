@@ -1,69 +1,37 @@
-package ee.cone.c4gate
-/**
-  * Created by Pavel on 10/9/2017.
-  */
 
+package ee.cone.c4vdom
 
 import java.awt.geom.{AffineTransform, Point2D}
 import java.text.DecimalFormat
 
-import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
-import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
-import ee.cone.c4proto.{Id, Protocol, protocol}
-import ee.cone.c4ui._
-import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
-import ee.cone.c4vdom._
-import ee.cone.c4vdom_impl.Never
+object CanvasToJsonImpl extends CanvasToJson {
+  def appendJson(attrs: List[PathAttr], transforms: List[Transform], builder: MutableJsonBuilder): Unit =
+    PathToJsonImpl(attrs,transforms).buildJson(builder)
+  def appendJson(attr: List[CanvasAttr], builder: MutableJsonBuilder): Unit = {
+    builder.append("tp").append("Canvas")
+    builder.append("ctx").append("ctx")
+    builder.append("content").startArray().append("rawMerge").end()
 
-case class PathContextImpl(
-                            transforms: List[Transform]
-                          )(
-                            child: ChildPairFactory
-                          ) extends PathContext with ToInject{
-  def toInject: List[Injectable] = PathContextKey.set(this)
-  def add(tr: Transform): PathContext = PathContextImpl(transforms:::tr::Nil)(child)
-  def path(key: VDomKey, attrs: List[PathAttr])
-          (children: List[ChildPair[OfCanvas]]): ChildPair[OfCanvas] =
-    child[OfCanvas](key, PartPath(attrs)(this), children)
-}
-
-abstract class ClickPathHandler() extends AbstractCanvasEventHandler{
-  def handleClick: (Context) => Context
-}
-case class PartPath(attrs:List[PathAttr])(pathContext: PathContext)
-  extends VDomValue with PathBuilder with Receiver[Context]
-{
-  lazy val transforms: List[Transform] = pathContext.asInstanceOf[PathContextImpl].transforms
-  lazy val decimalFormat = new DecimalFormat("#0.##")
-  def receive: (VDomMessage) => (Context) => Context = message => message.header("X-r-action") match {
-    case "clickColor" => handlers.collect{case h:ClickPathHandler=>h}.head.handleClick
-    case _=> Never()
+    val decimalFormat = new DecimalFormat("#0.##")
+    //val builder = new JsonBuilderImpl()
+    builder.append("width").append(1000,decimalFormat) //map size
+    builder.append("height").append(1000,decimalFormat)
+    builder.append("options");{
+      builder.startObject()
+      builder.append("noOverlay").append(false)
+      builder.end()
+    }
+    val maxScale = 10
+    val zoomSteps = 4096
+    val maxZoom = (Math.log(maxScale.toDouble)*zoomSteps).toInt
+    builder.append("zoomSteps").append(zoomSteps,decimalFormat)
+    builder.append("commandZoom").append(0,decimalFormat)
+    builder.append("maxZoom").append(maxZoom,decimalFormat)
   }
-  def appendJson(builder: MutableJsonBuilder): Unit = buildJson(builder)
-
 }
 
-sealed trait Transform
-case class Scale(value:BigDecimal) extends Transform
-case class Rotate(value:BigDecimal) extends Transform
-case class Translate(x:BigDecimal,y:BigDecimal) extends Transform
-
-sealed trait Shape extends PathAttr
-sealed trait PathShape extends Shape
-sealed trait NonPathShape extends Shape
-final case class Rect(x:Double, y:Double, width:Double, height:Double) extends PathShape
-final case class Line(x:BigDecimal, y:BigDecimal, toX:BigDecimal, toY:BigDecimal) extends PathShape
-final case class BezierCurveTo(sdx: BigDecimal, sdy: BigDecimal, edx:BigDecimal, edy:BigDecimal, endPointX:BigDecimal, endPointY:BigDecimal) extends PathShape
-final case class Ellipse(x: BigDecimal, y: BigDecimal, rx: BigDecimal, ry: BigDecimal, rotate: BigDecimal,
-                         startAngle: BigDecimal, endAngle: BigDecimal, counterclockwise: Boolean
-                        ) extends PathShape
-final case class Image(url: String, width: Int, height: Int, canvasWidth: BigDecimal, canvasHeight: BigDecimal) extends NonPathShape
-final case class Text(styles: List[BaseStyleCommand],text:String,x:BigDecimal,y:BigDecimal) extends NonPathShape
-trait PathBuilder{
-  protected def decimalFormat:DecimalFormat
+case class PathToJsonImpl(attrs:List[PathAttr], transforms: List[Transform]) {
+  lazy val decimalFormat = new DecimalFormat("#0.##")
   private def appendStyles(builder: MutableJsonBuilder,styles:List[BaseStyleCommand])(sf:BaseStyleCommand => Unit=_=>{}): Unit = {
     styles.foreach(applyStyle(builder)(sf))
     if(styles.exists(_.isInstanceOf[BaseFillStyle])){
@@ -134,14 +102,12 @@ trait PathBuilder{
     builder.end()
     builder.append(name)
   }
-  protected def transforms:List[Transform]
-  protected def attrs:List[PathAttr]
   lazy val styles: List[BaseStyleCommand] = attrs.collect{case s:BaseStyleCommand=>s}
   lazy val shapes: List[Shape] = attrs.collect{case s:Shape=>s}
   lazy val handlers:List[AbstractCanvasEventHandler] = attrs.collect{case h:AbstractCanvasEventHandler=>h}
-  protected def buildJson(builder: MutableJsonBuilder):Unit={
+  def buildJson(builder: MutableJsonBuilder):Unit={
     val affineTransform = new AffineTransform()
-    transforms.foreach{
+    transforms.reverse.foreach{
       case Scale(v) =>affineTransform.scale(v.toDouble,v.toDouble)
       case Translate(x,y)=> affineTransform.translate(x.toDouble,y.toDouble)
       case Rotate(t) => affineTransform.rotate(t.toDouble)
