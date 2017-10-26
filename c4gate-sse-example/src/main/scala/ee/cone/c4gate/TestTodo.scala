@@ -48,7 +48,7 @@ class TestTodoApp extends ServerApp
 }
 
 import TestTodoAccess._
-@appComponent
+@c4component
 @fieldAccess
 object TestTodoAccess {
   lazy val comments: ProdLens[TodoTask,String] =
@@ -88,9 +88,9 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
     testTodoRootView :: super.byLocationHashViews
 }
 
-class appComponent
 
-@appComponent
+
+@c4component @listed
 case class TestTodoRootView(locationHash: String = "todo")(
   tags: TestTags[Context],
   mTags: Tags,
