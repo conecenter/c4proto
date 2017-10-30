@@ -361,19 +361,18 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		render:function(){
 			const props = this.props
-			const fontFaceStyle = `
+			/*const fontFaceStyle = `
 			@font-face {
 				font-family: "Open Sans";
 				font-style: normal;
 				font-weight: 400;
 				src: local("Segoe UI"), local("Open Sans"), local("OpenSans"), url(https://themes.googleusercontent.com/static/fonts/opensans/v8/K88pR3goAWT7BTt32Z01mz8E0i7KZn-EPnyo3HZu7kw.woff) format('woff');
-			}`;
-			const fontSize = props.style.fontSize?props.style.fontSize:"";
-			const padding = props.style.padding?props.style.padding:"";
+			}`;*/
+			const fontSize = props.style&&props.style.fontSize?props.style.fontSize:"";
+			const padding = props.style&&props.style.padding?props.style.padding:"";
 			const htmlStyle = `
 				html {
-					font-size: ${fontSize};
-					font-family:"Open Sans";
+					font-size: ${fontSize};					
 					padding: ${padding};
 				}`;
 			const bodyStyle = `
@@ -381,7 +380,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 					margin:0em;
 				}`;
 			return $(Helmet,{},
-				$("style",{},fontFaceStyle+htmlStyle+bodyStyle)
+				$("style",{},/*fontFaceStyle+*/htmlStyle/*+bodyStyle*/)
 			)
 		}
 	})
@@ -929,7 +928,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
 				borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 				fontWeight:'bold',
-				padding:'0.04em 0.08em 0.04em 0.08em',
+				padding:'0.1em 0.2em',
 				verticalAlign:'middle',
 				overflow:"hidden",				
 				textOverflow:"ellipsis",
@@ -1476,7 +1475,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.props.focusMarker})
 				e.preventDefault();
 				this.el.dispatchEvent(cEvent)
-				e.stopPropagation();
+				//e.stopPropagation();
 			}
 			this.setState({focused:true})
 		},
