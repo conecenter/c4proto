@@ -1,7 +1,10 @@
 package ee.cone.c4gate
 
 import java.util.UUID
+
+import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.LEvent.{delete, update}
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.CommonFilterProtocol._
@@ -49,12 +52,7 @@ class TestTodoApp extends ServerApp
 
 import TestTodoAccess._
 @c4component
-@fieldAccess
 object TestTodoAccess {
-  lazy val comments: ProdLens[TodoTask,String] =
-    ProdLens.of(_.comments, UserLabel en "(comments)")
-  lazy val createdAt: ProdLens[TodoTask,Long] =
-    ProdLens.of(_.createdAt, UserLabel en "(created at)")
   lazy val createdAtFlt =
     SessionAttr(Id(0x0006), classOf[DateBefore], UserLabel en "(created before)")
   lazy val commentsFlt =
@@ -100,7 +98,13 @@ case class TestTodoRootView(locationHash: String = "todo")(
   commonFilterConditionChecks: CommonFilterConditionChecks,
   sessionAttrAccess: SessionAttrAccessFactory,
   accessViewRegistry: AccessViewRegistry,
-  untilPolicy: UntilPolicy
+  untilPolicy: UntilPolicy,
+  //requests: ByUKGetter[SrcId,Request[TodoTask]] @c4key,
+  todoTasksKey: ByUKGetter[SrcId,TodoTask] @c4key,
+  comments: ProdLens[TodoTask,String] =
+    ProdLens.of(_.comments, UserLabel en "(comments)"),
+  createdAt: ProdLens[TodoTask,Long] =
+    ProdLens.of(_.createdAt, UserLabel en "(created at)")
 ) extends ByLocationHashView {
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     import mTags._
@@ -121,7 +125,7 @@ case class TestTodoRootView(locationHash: String = "todo")(
       )(List(text("text","+")))
     )
 
-    val todoTasks = ByPK(classOf[TodoTask]).of(local).values
+    val todoTasks = todoTasksKey.of(local).values
       .filter(filterPredicate.of(local).check).toList.sortBy(-_.createdAt)
     val taskLines = for {
       prod ← todoTasks

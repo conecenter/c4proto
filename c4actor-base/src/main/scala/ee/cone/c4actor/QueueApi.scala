@@ -73,17 +73,17 @@ class Context(
 )
 
 object ByPK {
-  def apply[V<:Product](cl: Class[V]): ByPrimaryKeyGetter[V] =
-    ByPrimaryKeyGetter(raw(cl.getName))
+  def apply[V<:Product](cl: Class[V]): ByUKGetter[SrcId,V] =
+    ByUKGetter(raw(cl.getName))
   def raw[V<:Product](className: String): AssembledKey[Index[SrcId,V]] =
     JoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
   //todo: def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
 }
 
-case class ByPrimaryKeyGetter[V<:Product](joinKey: AssembledKey[Index[SrcId,V]])
-  extends Getter[Context,Map[SrcId,V]]
+case class ByUKGetter[K,V<:Product](joinKey: AssembledKey[Index[K,V]])
+  extends Getter[Context,Map[K,V]]
 {
-  def of: Context ⇒ Map[SrcId, V] = context ⇒
+  def of: Context ⇒ Map[K,V] = context ⇒
     UniqueIndexMap(joinKey.of(context.assembled))
 }
 

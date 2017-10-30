@@ -1,3 +1,4 @@
+/*
 package ee.cone.c4assemble
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
@@ -17,3 +18,4 @@ class fieldAccess extends StaticAnnotation {
     nTree.asInstanceOf[Stat]
   }
 }
+*/
