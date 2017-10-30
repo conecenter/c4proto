@@ -1,7 +1,6 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
-import ee.cone.c4assemble.fieldAccess
 import ee.cone.c4gate.CommonFilterProtocol.{Contains, DateBefore}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui.{AccessView, AccessViewsApp}
@@ -27,12 +26,12 @@ trait CommonFilterInjectApp extends DefaultModelFactoriesApp {
 
 trait DateBeforeAccessViewApp extends AccessViewsApp {
   def testTags: TestTags[Context]
-  private lazy val dateBeforeAccessView = new DateBeforeAccessView(testTags)
+  private lazy val dateBeforeAccessView = DateBeforeAccessView(testTags,???)
   override def accessViews: List[AccessView[_]] = dateBeforeAccessView :: super.accessViews
 }
 trait ContainsAccessViewApp extends AccessViewsApp {
   def testTags: TestTags[Context]
-  private lazy val containsAccessView = new ContainsAccessView(testTags)
+  private lazy val containsAccessView = ContainsAccessView(testTags,???)
   override def accessViews: List[AccessView[_]] = containsAccessView :: super.accessViews
 }
 
@@ -73,19 +72,20 @@ object CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
   lazy val contains: ConditionCheck[Contains,String] = ContainsCheck
 }
 
-class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[DateBefore]) {
+@c4component @listed
+case class DateBeforeAccessView(
+  testTags: TestTags[Context],
+  dateBeforeValue: ProdLens[DateBefore,Option[Long]] = ProdLens.of(_.value)
+) extends AccessView(classOf[DateBefore]) {
   def view(access: Access[DateBefore]): Context⇒List[ChildPair[OfDiv]] =
-    local ⇒ List(testTags.dateInput(access to CommonFilterAccess.dateBeforeValue))
+    local ⇒ List(testTags.dateInput(access to dateBeforeValue))
 }
 
-class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf[Contains]) {
+@c4component @listed
+case class ContainsAccessView(
+  testTags: TestTags[Context],
+  containsValue: ProdLens[Contains,String] = ProdLens.of(_.value)
+) extends AccessView(classOf[Contains]) {
   def view(access: Access[Contains]): Context⇒List[ChildPair[OfDiv]] =
-    local ⇒ List(testTags.input(access to CommonFilterAccess.containsValue))
+    local ⇒ List(testTags.input(access to containsValue))
 }
-
-@fieldAccess object CommonFilterAccess {
-  lazy val dateBeforeValue: ProdLens[DateBefore,Option[Long]] = ProdLens.of(_.value)
-  lazy val containsValue: ProdLens[Contains,String] = ProdLens.of(_.value)
-}
-
-

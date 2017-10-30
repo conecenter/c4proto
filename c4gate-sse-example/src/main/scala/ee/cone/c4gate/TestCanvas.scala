@@ -5,7 +5,7 @@ import java.text.DecimalFormat
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
+import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -126,7 +126,8 @@ case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends Canvas
 }
 
 import TestCanvasStateAccess._
-@fieldAccess object TestCanvasStateAccess {
+//@fieldAccess
+object TestCanvasStateAccess {
   lazy val x: ProdLens[TestCanvasState,String] = ProdLens.of(_.x)
   lazy val y: ProdLens[TestCanvasState,String] = ProdLens.of(_.y)
 }

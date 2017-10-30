@@ -5,7 +5,7 @@
 
 
 
-
+/*
 object Test {
 /*
   class Change
@@ -204,4 +204,5 @@ class WorldOuterExpressionImpl[T1, T2, R](
 object A extends scala.collection.immutable.Map.Map1 {
 
 }
+*/
 */

@@ -4,7 +4,7 @@ import java.net.URL
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, fieldAccess}
+import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{Id, Protocol}
@@ -36,7 +36,8 @@ class TestCoWorkApp extends ServerApp
     ContentDefault :: super.defaultModelFactories
 }
 
-@fieldAccess object TestContentAccess {
+//@fieldAccess
+object TestContentAccess {
   lazy val value: ProdLens[Content,String] = ProdLens.of(_.value)
 }
 object TestAttrs {

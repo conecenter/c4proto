@@ -40,17 +40,37 @@ object DefaultRangers {
   )
 }
 
-@fieldAccess
-object SomeModelAccess {
-  lazy val fieldA: ProdLens[SomeModel,String] = ProdLens.of(_.fieldA)
-  lazy val fieldB: ProdLens[SomeModel,String] = ProdLens.of(_.fieldB)
-  lazy val fieldC: ProdLens[SomeModel,String] = ProdLens.of(_.fieldC)
+
+trait SomeModelAccess {
+  def fieldA: ProdLens[SomeModel,String]
+  def fieldB: ProdLens[SomeModel,String]
+  def fieldC: ProdLens[SomeModel,String]
+  def condition(modelConditionFactory: ModelConditionFactory[Unit], request: SomeRequest): Condition[SomeModel]
+}
+
+@c4component
+case class SomeModelAccessImpl(
+  fieldA: ProdLens[SomeModel,String] = ProdLens.of(_.fieldA),
+  fieldB: ProdLens[SomeModel,String] = ProdLens.of(_.fieldB),
+  fieldC: ProdLens[SomeModel,String] = ProdLens.of(_.fieldC)
+) extends SomeModelAccess {
+  def condition(modelConditionFactory: ModelConditionFactory[Unit], request: SomeRequest): Condition[SomeModel] = {
+    import DefaultConditionChecks._
+    val cf = modelConditionFactory.of[SomeModel]
+    val leafs = for {
+      lens ← List(fieldA, fieldB, fieldC)
+      pattern ← request.pattern
+      value ← Option(lens.of(pattern)) if value.nonEmpty
+    } yield cf.leaf(lens, StrEq(value))
+    leafs.reduce(cf.intersect)
+  }
 }
 
 import HashSearch.{Request,Response}
-import SomeModelAccess._
 
+//@c4component @listed
 @assemble class HashSearchTestAssemble(
+  someModelAccess: SomeModelAccess,
   modelConditionFactory: ModelConditionFactory[Unit],
   hashSearchFactory: HashSearch.Factory
 ) extends Assemble {
@@ -60,7 +80,7 @@ import SomeModelAccess._
   ): Values[(SrcId,Request[SomeModel])] = for {
     request ← requests
   } yield {
-    WithPK(hashSearchFactory.request(HashSearchTestMain.condition(modelConditionFactory,request)))
+    WithPK(hashSearchFactory.request(someModelAccess.condition(modelConditionFactory,request)))
   }
 
   def joinResp(
@@ -80,28 +100,38 @@ class HashSearchTestApp extends RichDataApp
 {
   override def protocols: List[Protocol] =
     HashSearchTestProtocol :: super.protocols
-  import DefaultRangers._
-  override def assembles: List[Assemble] = List(
-    hashSearchFactory.index(classOf[SomeModel])
-      .add(fieldA, StrEq(""))
-      .add(fieldB, StrEq(""))
-      .add(fieldC, StrEq(""))
-      .assemble,
-    new HashSearchTestAssemble(modelConditionFactory,hashSearchFactory)
-  ) ::: super.assembles
+  lazy val hashSearchTest: HashSearchTest = ???
 }
 
-object HashSearchTestMain extends LazyLogging {
-  def condition(modelConditionFactory: ModelConditionFactory[Unit], request: SomeRequest): Condition[SomeModel] = {
-    import DefaultConditionChecks._
-    val cf = modelConditionFactory.of[SomeModel]
-    val leafs = for {
-      lens ← List(fieldA, fieldB, fieldC)
-      pattern ← request.pattern
-      value ← Option(lens.of(pattern)) if value.nonEmpty
-    } yield cf.leaf(lens, StrEq(value))
-    leafs.reduce(cf.intersect)
+@c4component @listed
+case class HashSearchTestIndexAssemble(
+  someModelAccess: SomeModelAccess,
+  hashSearchFactory: HashSearch.Factory
+) extends Assemble {
+  import someModelAccess._
+  import DefaultRangers._
+  override def dataDependencies = hashSearchFactory.index(classOf[SomeModel])
+    .add(fieldA, StrEq(""))
+    .add(fieldB, StrEq(""))
+    .add(fieldC, StrEq(""))
+    .assemble.dataDependencies
+}
+
+object HashSearchTestMain {
+  def main(args: Array[String]): Unit = {
+    val app = new HashSearchTestApp
+    val rawWorld = app.rawWorldFactory.create()
+    val voidContext = rawWorld match { case w: RichRawWorld ⇒ w.context }
+    app.hashSearchTest.test(voidContext)
   }
+}
+
+@c4component
+case class HashSearchTest(
+  someModelAccess: SomeModelAccess,
+  modelConditionFactory: ModelConditionFactory[Unit]
+) extends LazyLogging {
+  import someModelAccess._
 
   def measure[T](hint: String)(f: ()⇒T): T = {
     val t = System.currentTimeMillis
@@ -109,9 +139,6 @@ object HashSearchTestMain extends LazyLogging {
     logger.info(s"$hint: ${System.currentTimeMillis-t}")
     res
   }
-
-  def main(args: Array[String]): Unit = test()
-
 
   def ask(modelConditionFactory: ModelConditionFactory[Unit]): SomeModel⇒Context⇒Unit = pattern ⇒ local ⇒ {
     val request = SomeRequest("123",Option(pattern))
@@ -129,7 +156,7 @@ object HashSearchTestMain extends LazyLogging {
 
     val res1 = measure("cond  find models") { () ⇒
       val lenses = List(fieldA,fieldB,fieldC)
-      val condition = this.condition(modelConditionFactory,request)
+      val condition = someModelAccess.condition(modelConditionFactory,request)
       ByPK(classOf[SomeModel]).of(local).values.filter(condition.check)
     }
 
@@ -151,10 +178,8 @@ object HashSearchTestMain extends LazyLogging {
     }
   }
 
-  def test(): Unit = {
-    val app = new HashSearchTestApp
-    val rawWorld = app.rawWorldFactory.create()
-    val voidContext = rawWorld match { case w: RichRawWorld ⇒ w.context }
+  def test(voidContext: Context): Unit = {
+
     val contexts = List(
       fillWorld(10000)(voidContext),
       fillWorld(100000)(voidContext),
@@ -169,7 +194,7 @@ object HashSearchTestMain extends LazyLogging {
         SomeModel("","1","","3"),
         SomeModel("","","2","3")
       )
-    } ask(app.modelConditionFactory)(pattern)(local)
+    } ask(modelConditionFactory)(pattern)(local)
 
 
 

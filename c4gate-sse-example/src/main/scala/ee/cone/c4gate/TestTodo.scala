@@ -33,7 +33,8 @@ class TestTodoApp extends ServerApp
   with ContainsAccessViewApp
   with SessionAttrApp
   with MortalFactoryApp
-  with TestTodoRootViewApp
+  //with TestTodoRootViewApp
+  with ByLocationHashViewsApp
 {
   override def protocols: List[Protocol] =
     CommonFilterProtocol :: TestTodoProtocol :: super.protocols
@@ -59,6 +60,7 @@ object TestTodoAccess {
     SessionAttr(Id(0x0007), classOf[Contains], IsDeep, UserLabel en "(comments contain)")
 }
 
+/*
 trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]
   def tags: Tags
@@ -84,7 +86,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
 
   override def byLocationHashViews: List[ByLocationHashView] =
     testTodoRootView :: super.byLocationHashViews
-}
+}*/
 
 
 

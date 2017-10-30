@@ -1,31 +1,38 @@
 
+import java.io.File
 import java.nio.file.{Files, Path, Paths}
+import java.util.UUID
+import java.nio.charset.StandardCharsets.UTF_8
 
 import scala.meta._
+
+/*
 import sbt._
 import sbt.Keys.{unmanagedSources, _}
+import sbt.plugins.JvmPlugin
 
 object C4GeneratorPlugin extends AutoPlugin {
+  override def requires = JvmPlugin
   override lazy val projectSettings = Seq(
     sourceGenerators in Compile += Def.task {
-
-      println(("AA",(unmanagedSources in Compile).value))
-      println(("AB",(sourceManaged in Compile).value))
+      println(("AA1",(unmanagedSources in Compile).value))
       val toDir = (sourceManaged in Compile).value.toPath
+      Files.createDirectories(toDir)
       for {
-        (dir: Path) ← (unmanagedSources in Compile).value.map(_.toPath)
-        path ← DirInfoImpl.deepFiles(dir)
-          if path.toString.endsWith(".scala") && !path.toString.contains("-macros/")
+        path ← (unmanagedSources in Compile).value.map(_.toPath)
+        if !path.toString.contains("-macros/")
       } yield {
-        val toFile = toDir.resolve(dir.relativize(path)).toFile
-        val out = Generator.genPackage(toFile).toString
+        val toFile = toDir.resolve(path.getFileName).toFile
+        val out = Generator.genPackage(path.toFile).mkString("\n")
+
         IO.write(toFile, out)
         toFile
       }
     }.taskValue
   )
 }
-
+*/
+/*
 object Main {
   def main(args: Array[String]): Unit = {
     val files = DirInfoImpl.deepFiles(Paths.get(".."))
@@ -37,6 +44,42 @@ object Main {
     }
   }
 }
+*/
+
+object Main {
+  private def getToPath(path: Path): Option[Path] = path.getFileName.toString match {
+    case "scala" ⇒ Option(path.resolveSibling("java"))
+    case name ⇒ Option(path.getParent).flatMap(getToPath).map(_.resolve(name))
+  }
+  def main(args: Array[String]): Unit = {
+    val files = DirInfoImpl.deepFiles(Paths.get(args(0)))
+      .filter(_.toString.endsWith(".scala"))
+      .filterNot(_.toString.contains("-macros/"))
+
+    val keep = (for {
+      path ← files
+      toParentPath ← getToPath(path.getParent)
+      data = Files.readAllBytes(path)
+      content = new String(data,UTF_8) if content contains "@c4"
+      uuid = UUID.nameUUIDFromBytes(data)
+      toPath = toParentPath.resolve(s"c4gen/$uuid.scala")
+    } yield {
+      if(Files.notExists(toPath)) {
+        println(s"generating $path -->  ")
+        Files.write(toPath, Generator.genPackage(path.toFile).mkString("\n").getBytes(UTF_8))
+      }
+      toPath
+    }).toSet
+
+    for {
+      path ← files if path.toString.contains("/c4gen/") && !keep(path))
+    } {
+      println(s"removing $path")
+      Files.delete(path)
+    }
+  }
+}
+
 
 object Generator {
   type ArgPF = PartialFunction[(Type,Option[Term]),Option[(Term,Option[Stat])]]
@@ -81,7 +124,7 @@ object Generator {
 
       val needParamsList = for { needs ← needsList }
         yield for { (param,_) ← needs } yield param
-      val needStms: List[Stat] = for {
+      val needStms = for {
         needs ← needsList
         (_,stmOpt) ← needs
         stm ← stmOpt
@@ -128,17 +171,17 @@ object Generator {
   lazy val componentCases: PartialFunction[Tree,(Boolean,Stat)] =
     importForComponents.orElse(classComponent).orElse(traitComponent)
 
-  def genStatements: List[Tree] ⇒ Option[List[Stat]] = packageStatements ⇒
+  def genStatements: List[Stat] ⇒ Option[List[Stat]] = packageStatements ⇒
     Option(packageStatements.collect(componentCases).reverse.dropWhile(!_._1).reverseMap(_._2))
       .filter(_.nonEmpty)
 
 
-  def genPackage(file: File): List[Stat] = {
+  def genPackage(file: File): List[Pkg] = {
     val source = dialects.Scala211(file).parse[Source]
     val Parsed.Success(source"..$sourceStatements") = source
     for {
-      q"package $n { ..$packageStatements }" ← sourceStatements
-      statements ← genStatements(packageStatements)
+      q"package $n { ..$packageStatements }" ← sourceStatements.toList
+      statements ← genStatements(packageStatements.toList)
     } yield q"package $n { ..$statements }"
   }
 
