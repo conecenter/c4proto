@@ -47,6 +47,7 @@ object Main {
 */
 
 object Main {
+  private def version = Array[Byte](0)
   private def getToPath(path: Path): Option[Path] = path.getFileName.toString match {
     case "scala" ⇒ Option(path.resolveSibling("java"))
     case name ⇒ Option(path.getParent).flatMap(getToPath).map(_.resolve(name))
@@ -61,18 +62,19 @@ object Main {
       toParentPath ← getToPath(path.getParent)
       data = Files.readAllBytes(path)
       content = new String(data,UTF_8) if content contains "@c4"
-      uuid = UUID.nameUUIDFromBytes(data)
-      toPath = toParentPath.resolve(s"c4gen/$uuid.scala")
+      uuid = UUID.nameUUIDFromBytes(data ++ version)
+      toPath = toParentPath.resolve(s"c4gen.$uuid.scala")
     } yield {
       if(Files.notExists(toPath)) {
-        println(s"generating $path -->  ")
-        Files.write(toPath, Generator.genPackage(path.toFile).mkString("\n").getBytes(UTF_8))
+        println(s"generating $path --> $toPath")
+        Files.createDirectories(toParentPath)
+        Files.write(toPath, Generator.genPackage(content).mkString("\n").getBytes(UTF_8))
       }
       toPath
     }).toSet
 
     for {
-      path ← files if path.toString.contains("/c4gen/") && !keep(path))
+      path ← files if path.toString.contains("/c4gen.") && !keep(path)
     } {
       println(s"removing $path")
       Files.delete(path)
@@ -115,53 +117,51 @@ object Generator {
 
   def classComponent: PartialFunction[Tree,(Boolean,Stat)] = {
     case q"@c4component ..$mods class $cl(...$paramsList) extends ..$ext { ..$stats }" ⇒
-      val needsList = for {
+      lazy val needsList = for {
         params ← paramsList
       } yield for {
         param"..$mods $name: ${Some(tpe)} = $expropt" ← params
         r ← c4key.orElse(prodLens).orElse(defaultArgType)((tpe,expropt))
       } yield r
-
-      val needParamsList = for { needs ← needsList }
+      lazy val needParamsList = for { needs ← needsList }
         yield for { (param,_) ← needs } yield param
-      val needStms = for {
+      lazy val concreteStatement = q"${Term.Name(s"$cl")}(...$needParamsList)"
+      lazy val needStms = for {
         needs ← needsList
         (_,stmOpt) ← needs
         stm ← stmOpt
       } yield stm
+      lazy val listName = s"the List[$abstractName]"
+      lazy val listTerm = Term.Name(listName)
+      lazy val listType = Type.Name(listName)
+      lazy val abstractName = if(isAbstract) s"$cl" else {
+        val init"${Type.Name(nm)}(...$_)" :: Nil = ext
+        nm
+      }
+      lazy val isAbstract = mods.collectFirst{ case mod"abstract" ⇒ true }.nonEmpty
+      val isCase = mods.collectFirst{ case mod"case" ⇒ true }.nonEmpty
       val isListed = mods.collectFirst{ case mod"@listed" ⇒ true }.nonEmpty
-      val init"${Type.Name(abstractName)}(...$_)" :: Nil = ext
-      val concreteTerm = Term.Name(s"the $cl")
+      val mixType = Type.Name(s"The $cl")
+      val resStatement = (isAbstract,isCase,isListed) match {
+        case (false,true,true) ⇒
+          val concreteTerm = Term.Name(s"the $cl")
 
-      val concreteStatement = q"${Term.Name(s"$cl")}(...$needParamsList)"
-      val resStatement = if(isListed) {
-        val listName = s"the List[$abstractName]"
-        val statements =
-          q"private lazy val ${Pat.Var(concreteTerm)} = $concreteStatement" ::
-          q"override def ${Term.Name(listName)}: ${Type.Name(listName)} = $concreteTerm :: super.${Term.Name(listName)} " ::
-          needStms
-        val init = Init(Type.Name(s"The $abstractName"), Name(""), Nil) // q"".structure
-        q"trait ${Type.Name(s"The $cl")} extends $init { ..$statements }"
-      } else {
-        val statements =
-          q"lazy val ${Pat.Var(Term.Name(s"the $abstractName"))}: ${Type.Name(s"the $abstractName")} = $concreteStatement" ::
-          needStms
-        q"trait ${Type.Name(s"The $cl")} { ..$statements }"
+          val statements =
+            q"private lazy val ${Pat.Var(concreteTerm)} = $concreteStatement" ::
+              q"override def $listTerm: $listType = $concreteTerm :: super.$listTerm " ::
+              needStms
+          val init = Init(Type.Name(s"The $abstractName"), Name(""), Nil) // q"".structure
+          q"trait $mixType extends $init { ..$statements }"
+        case (false,true,false) ⇒
+          val statements =
+            q"lazy val ${Pat.Var(Term.Name(s"the $abstractName"))}: ${Type.Name(s"the $abstractName")} = $concreteStatement" ::
+              needStms
+          q"trait $mixType { ..$statements }"
+        case (true,false,true) ⇒
+          q"trait $mixType { def $listTerm: $listType = Nil }"
+        case _ ⇒ throw new Exception
       }
       (true,resStatement)
-  }
-
-  def traitComponent: PartialFunction[Tree,(Boolean,Stat)] = {
-    case q"@c4component ..$mods trait $cl extends ..$ext { ..$stats }" ⇒
-      val Type.Name(abstractName) = cl
-      val isListed = mods.collectFirst { case mod"@listed" ⇒ true }.nonEmpty
-      val injectingStatement = if(isListed){
-        val abstractTerm = Term.Name(s"the List[$abstractName]")
-        val abstractType = Type.Name(s"the List[$abstractName]")
-        q"def $abstractTerm: $abstractType = Nil"
-      } else throw new Exception
-      val stms = injectingStatement :: Nil
-      (true, q"trait ${Type.Name(s"The $cl")} { ..$stms }")
   }
 
   def importForComponents: PartialFunction[Tree,(Boolean,Stat)] = {
@@ -169,15 +169,15 @@ object Generator {
   }
 
   lazy val componentCases: PartialFunction[Tree,(Boolean,Stat)] =
-    importForComponents.orElse(classComponent).orElse(traitComponent)
+    importForComponents.orElse(classComponent)
 
   def genStatements: List[Stat] ⇒ Option[List[Stat]] = packageStatements ⇒
     Option(packageStatements.collect(componentCases).reverse.dropWhile(!_._1).reverseMap(_._2))
       .filter(_.nonEmpty)
 
 
-  def genPackage(file: File): List[Pkg] = {
-    val source = dialects.Scala211(file).parse[Source]
+  def genPackage(content: String): List[Pkg] = {
+    val source = dialects.Scala211(content).parse[Source]
     val Parsed.Success(source"..$sourceStatements") = source
     for {
       q"package $n { ..$packageStatements }" ← sourceStatements.toList

@@ -26,3 +26,4 @@ node_modules
 db-*
 db4*
 db.*
+**/c4gen.*.scala

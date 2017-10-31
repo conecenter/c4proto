@@ -72,8 +72,7 @@ object CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
   lazy val contains: ConditionCheck[Contains,String] = ContainsCheck
 }
 
-@c4component @listed
-case class DateBeforeAccessView(
+@c4component @listed case class DateBeforeAccessView(
   testTags: TestTags[Context],
   dateBeforeValue: ProdLens[DateBefore,Option[Long]] = ProdLens.of(_.value)
 ) extends AccessView(classOf[DateBefore]) {
@@ -81,8 +80,7 @@ case class DateBeforeAccessView(
     local ⇒ List(testTags.dateInput(access to dateBeforeValue))
 }
 
-@c4component @listed
-case class ContainsAccessView(
+@c4component @listed case class ContainsAccessView(
   testTags: TestTags[Context],
   containsValue: ProdLens[Contains,String] = ProdLens.of(_.value)
 ) extends AccessView(classOf[Contains]) {

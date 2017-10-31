@@ -52,8 +52,7 @@ class TestTodoApp extends ServerApp
 }
 
 import TestTodoAccess._
-@c4component
-object TestTodoAccess {
+@c4component object TestTodoAccess {
   lazy val createdAtFlt =
     SessionAttr(Id(0x0006), classOf[DateBefore], UserLabel en "(created before)")
   lazy val commentsFlt =
@@ -90,8 +89,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
 
 
 
-@c4component @listed
-case class TestTodoRootView(locationHash: String = "todo")(
+@c4component @listed case class TestTodoRootView(locationHash: String = "todo")(
   tags: TestTags[Context],
   mTags: Tags,
   styles: TagStyles,

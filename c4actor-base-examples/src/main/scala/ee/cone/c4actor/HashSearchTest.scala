@@ -48,8 +48,7 @@ trait SomeModelAccess {
   def condition(modelConditionFactory: ModelConditionFactory[Unit], request: SomeRequest): Condition[SomeModel]
 }
 
-@c4component
-case class SomeModelAccessImpl(
+@c4component case class SomeModelAccessImpl(
   fieldA: ProdLens[SomeModel,String] = ProdLens.of(_.fieldA),
   fieldB: ProdLens[SomeModel,String] = ProdLens.of(_.fieldB),
   fieldC: ProdLens[SomeModel,String] = ProdLens.of(_.fieldC)
@@ -103,8 +102,7 @@ class HashSearchTestApp extends RichDataApp
   lazy val hashSearchTest: HashSearchTest = ???
 }
 
-@c4component @listed
-case class HashSearchTestIndexAssemble(
+@c4component @listed case class HashSearchTestIndexAssemble(
   someModelAccess: SomeModelAccess,
   hashSearchFactory: HashSearch.Factory
 ) extends Assemble {
@@ -126,8 +124,7 @@ object HashSearchTestMain {
   }
 }
 
-@c4component
-case class HashSearchTest(
+@c4component case class HashSearchTest(
   someModelAccess: SomeModelAccess,
   modelConditionFactory: ModelConditionFactory[Unit]
 ) extends LazyLogging {
