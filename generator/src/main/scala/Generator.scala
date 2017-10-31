@@ -6,83 +6,6 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import scala.meta._
 
-/*
-import sbt._
-import sbt.Keys.{unmanagedSources, _}
-import sbt.plugins.JvmPlugin
-
-object C4GeneratorPlugin extends AutoPlugin {
-  override def requires = JvmPlugin
-  override lazy val projectSettings = Seq(
-    sourceGenerators in Compile += Def.task {
-      println(("AA1",(unmanagedSources in Compile).value))
-      val toDir = (sourceManaged in Compile).value.toPath
-      Files.createDirectories(toDir)
-      for {
-        path ← (unmanagedSources in Compile).value.map(_.toPath)
-        if !path.toString.contains("-macros/")
-      } yield {
-        val toFile = toDir.resolve(path.getFileName).toFile
-        val out = Generator.genPackage(path.toFile).mkString("\n")
-
-        IO.write(toFile, out)
-        toFile
-      }
-    }.taskValue
-  )
-}
-*/
-/*
-object Main {
-  def main(args: Array[String]): Unit = {
-    val files = DirInfoImpl.deepFiles(Paths.get(".."))
-      .filter(_.toString.endsWith(".scala"))
-      .filterNot(_.toString.contains("-macros/"))
-    files.foreach{ path ⇒
-      val res = Generator.genPackage(path.toFile)
-      println(res)
-    }
-  }
-}
-*/
-
-object Main {
-  private def version = Array[Byte](0)
-  private def getToPath(path: Path): Option[Path] = path.getFileName.toString match {
-    case "scala" ⇒ Option(path.resolveSibling("java"))
-    case name ⇒ Option(path.getParent).flatMap(getToPath).map(_.resolve(name))
-  }
-  def main(args: Array[String]): Unit = {
-    val files = DirInfoImpl.deepFiles(Paths.get(args(0)))
-      .filter(_.toString.endsWith(".scala"))
-      .filterNot(_.toString.contains("-macros/"))
-
-    val keep = (for {
-      path ← files
-      toParentPath ← getToPath(path.getParent)
-      data = Files.readAllBytes(path)
-      content = new String(data,UTF_8) if content contains "@c4"
-      uuid = UUID.nameUUIDFromBytes(data ++ version)
-      toPath = toParentPath.resolve(s"c4gen.$uuid.scala")
-    } yield {
-      if(Files.notExists(toPath)) {
-        println(s"generating $path --> $toPath")
-        Files.createDirectories(toParentPath)
-        Files.write(toPath, Generator.genPackage(content).mkString("\n").getBytes(UTF_8))
-      }
-      toPath
-    }).toSet
-
-    for {
-      path ← files if path.toString.contains("/c4gen.") && !keep(path)
-    } {
-      println(s"removing $path")
-      Files.delete(path)
-    }
-  }
-}
-
-
 object Generator {
   type ArgPF = PartialFunction[(Type,Option[Term]),Option[(Term,Option[Stat])]]
 
@@ -116,49 +39,51 @@ object Generator {
 
 
   def classComponent: PartialFunction[Tree,(Boolean,Stat)] = {
-    case q"@c4component ..$mods class $cl(...$paramsList) extends ..$ext { ..$stats }" ⇒
+    //q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
+    case q"@c4component ..$mods class $tName[..$tParams](...$paramsList) extends ..$ext { ..$stats }" ⇒
       lazy val needsList = for {
-        params ← paramsList
+        params ← paramsList.toList
       } yield for {
         param"..$mods $name: ${Some(tpe)} = $expropt" ← params
         r ← c4key.orElse(prodLens).orElse(defaultArgType)((tpe,expropt))
       } yield r
       lazy val needParamsList = for { needs ← needsList }
         yield for { (param,_) ← needs } yield param
-      lazy val concreteStatement = q"${Term.Name(s"$cl")}(...$needParamsList)"
+      lazy val concreteStatement = q"${Term.Name(s"$tName")}(...$needParamsList)"
       lazy val needStms = for {
         needs ← needsList
         (_,stmOpt) ← needs
         stm ← stmOpt
       } yield stm
-      lazy val listName = s"the List[$abstractName]"
-      lazy val listTerm = Term.Name(listName)
-      lazy val listType = Type.Name(listName)
-      lazy val abstractName = if(isAbstract) s"$cl" else {
-        val init"${Type.Name(nm)}(...$_)" :: Nil = ext
-        nm
-      }
       lazy val isAbstract = mods.collectFirst{ case mod"abstract" ⇒ true }.nonEmpty
       val isCase = mods.collectFirst{ case mod"case" ⇒ true }.nonEmpty
       val isListed = mods.collectFirst{ case mod"@listed" ⇒ true }.nonEmpty
-      val mixType = Type.Name(s"The $cl")
+      val mixType = Type.Name(s"The $tName")
       val resStatement = (isAbstract,isCase,isListed) match {
         case (false,true,true) ⇒
-          val concreteTerm = Term.Name(s"the $cl")
-
+          val init"$abstractType(...$_)" :: Nil = ext
+          val concreteTerm = Term.Name(s"the $tName")
+          val listTerm = Term.Name(s"the List[$abstractType]")
           val statements =
             q"private lazy val ${Pat.Var(concreteTerm)} = $concreteStatement" ::
-              q"override def $listTerm: $listType = $concreteTerm :: super.$listTerm " ::
+              q"override def $listTerm = $concreteTerm :: super.$listTerm " ::
               needStms
-          val init = Init(Type.Name(s"The $abstractName"), Name(""), Nil) // q"".structure
+          val init = Init(Type.Name(s"The $abstractType"), Name(""), Nil) // q"".structure
           q"trait $mixType extends $init { ..$statements }"
         case (false,true,false) ⇒
+          val init"${abstractType:Type}(...$_)" :: Nil = ext
           val statements =
-            q"lazy val ${Pat.Var(Term.Name(s"the $abstractName"))}: ${Type.Name(s"the $abstractName")} = $concreteStatement" ::
+            q"lazy val ${Pat.Var(Term.Name(s"the $abstractType"))}: $abstractType = $concreteStatement" ::
               needStms
           q"trait $mixType { ..$statements }"
         case (true,false,true) ⇒
-          q"trait $mixType { def $listTerm: $listType = Nil }"
+          val abstractType = Option(tParams.map(_⇒Type.Placeholder(Type.Bounds(None, None))))
+            .filter(_.nonEmpty).map(t⇒Type.Apply(tName,t))
+            .getOrElse(tName)
+          //println(t"List[_,_]".structure)
+
+          val listTerm = Term.Name(s"the List[$abstractType]")
+          q"trait $mixType { def $listTerm: List[$abstractType] = Nil }"
         case _ ⇒ throw new Exception
       }
       (true,resStatement)
@@ -212,24 +137,3 @@ problem:
 * */
 
 
-object FinallyClose {
-  def apply[A<:AutoCloseable,R](o: A)(f: A⇒R): R = try f(o) finally o.close()
-  def apply[A,R](close: A⇒Unit)(o: A)(f: A⇒R): R = try f(o) finally close(o)
-}
-
-
-import scala.collection.JavaConverters.iterableAsScalaIterableConverter
-
-trait DirInfo {
-  def deepFiles(path: Path): List[Path]
-}
-
-object DirInfoImpl extends DirInfo {
-  def sortedList(dir: Path): List[Path] =
-    FinallyClose(Files.newDirectoryStream(dir))(_.asScala.toList).sorted
-  def deepFiles(path: Path): List[Path] = {
-    if(!Files.exists(path)) Nil
-    else if(Files.isDirectory(path)) sortedList(path).flatMap(deepFiles)
-    else List(path) //Files.isRegularFile(path)
-  }
-}
