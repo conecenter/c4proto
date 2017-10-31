@@ -7,7 +7,7 @@ trait AccessViewRegistry {
   def view[P](access: Access[P]): Context⇒List[ChildPair[OfDiv]]
 }
 
-@c4component @listed abstract class tAccessView[P](val valueClass: Class[P]) {
+@c4component @listed abstract class AccessView[P](val valueClass: Class[P]) {
   def view(access: Access[P]): Context⇒List[ChildPair[OfDiv]]
 }
 

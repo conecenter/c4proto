@@ -65,7 +65,14 @@ class Join[T,R,TK,RK](
 ) extends DataDependencyFrom[Index[TK,T]]
   with DataDependencyTo[Index[RK,R]]
 
-trait Assemble {
+
+
+object HiddenC4Annotations {
+  class c4component
+  class listed
+}
+import HiddenC4Annotations._
+@c4component @listed abstract class Assemble {
   def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = ???
 }
 

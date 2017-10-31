@@ -16,10 +16,16 @@ object Generator {
       q"classOf[$tp].getName + '[' + $inner + ']'"
   }
 
+  private def theTerm(arg: Any): Term.Name = Term.Name(s"the $arg")
+  private def listedTerm(arg: Any): Term.Name = theTerm(s"List of $arg")
+  private def theType(arg: Any): Type.Name = Type.Name(s"The $arg")
+
   def c4key: ArgPF = {
     case (t"$tpe[..$innerTypes] @c4key",None) ⇒
       val nArgs = innerTypes.map(i ⇒ q"(${Lit.String(s"$i")},${typeTree(i)})")
-      Option((q"${Term.Name(s"the ${tpe}Factory")}.forTypes(...${List(nArgs)})",None))
+      val tpf = Type.Name(s"${tpe}Factory")
+      val nm = theTerm(tpf)
+      Option((q"$nm.forTypes(...${List(nArgs)})", Option(q"def $nm: $tpf")))
   }
 
   def prodLens: ArgPF = {
@@ -33,7 +39,7 @@ object Generator {
   def defaultArgType: ArgPF = {
     case (tpe,Some(_)) ⇒ None
     case (tpe,None) ⇒
-      val nm = Term.Name(s"the $tpe")
+      val nm = theTerm(tpe)
       Option((nm,Option(q"def $nm: $tpe")))
   }
 
@@ -58,31 +64,31 @@ object Generator {
       lazy val isAbstract = mods.collectFirst{ case mod"abstract" ⇒ true }.nonEmpty
       val isCase = mods.collectFirst{ case mod"case" ⇒ true }.nonEmpty
       val isListed = mods.collectFirst{ case mod"@listed" ⇒ true }.nonEmpty
-      val mixType = Type.Name(s"The $tName")
+      val mixType = theType(tName)
       val resStatement = (isAbstract,isCase,isListed) match {
         case (false,true,true) ⇒
           val init"$abstractType(...$_)" :: Nil = ext
-          val concreteTerm = Term.Name(s"the $tName")
-          val listTerm = Term.Name(s"the List[$abstractType]")
+          val concreteTerm = theTerm(tName)
+          val listTerm = listedTerm(abstractType)
           val statements =
             q"private lazy val ${Pat.Var(concreteTerm)} = $concreteStatement" ::
               q"override def $listTerm = $concreteTerm :: super.$listTerm " ::
               needStms
-          val init = Init(Type.Name(s"The $abstractType"), Name(""), Nil) // q"".structure
+          val init = Init(theType(abstractType), Name(""), Nil) // q"".structure
           q"trait $mixType extends $init { ..$statements }"
         case (false,true,false) ⇒
           val init"${abstractType:Type}(...$_)" :: Nil = ext
           val statements =
-            q"lazy val ${Pat.Var(Term.Name(s"the $abstractType"))}: $abstractType = $concreteStatement" ::
+            q"lazy val ${Pat.Var(theTerm(abstractType))}: $abstractType = $concreteStatement" ::
               needStms
           q"trait $mixType { ..$statements }"
         case (true,false,true) ⇒
-          val abstractType = Option(tParams.map(_⇒Type.Placeholder(Type.Bounds(None, None))))
+          val abstractType = Option(tParams.toList.map(_⇒Type.Placeholder(Type.Bounds(None, None))))
             .filter(_.nonEmpty).map(t⇒Type.Apply(tName,t))
             .getOrElse(tName)
           //println(t"List[_,_]".structure)
 
-          val listTerm = Term.Name(s"the List[$abstractType]")
+          val listTerm = listedTerm(tName)
           q"trait $mixType { def $listTerm: List[$abstractType] = Nil }"
         case _ ⇒ throw new Exception
       }
@@ -101,13 +107,15 @@ object Generator {
       .filter(_.nonEmpty)
 
 
-  def genPackage(content: String): List[Pkg] = {
+  def genPackage(content: String): String = {
     val source = dialects.Scala211(content).parse[Source]
     val Parsed.Success(source"..$sourceStatements") = source
-    for {
+    val resStatments = for {
       q"package $n { ..$packageStatements }" ← sourceStatements.toList
       statements ← genStatements(packageStatements.toList)
     } yield q"package $n { ..$statements }"
+    source"..$resStatments".syntax
+    //FileWriter
   }
 
 
