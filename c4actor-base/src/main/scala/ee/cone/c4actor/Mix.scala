@@ -4,10 +4,6 @@ package ee.cone.c4actor
 import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
-trait DataDependenciesApp {
-  def dataDependencies: List[DataDependencyTo[_]] = Nil
-}
-
 trait ToStartApp {
   def toStart: List[Executable] = Nil
 }
@@ -20,12 +16,12 @@ trait ProtocolsApp {
   def protocols: List[Protocol] = Nil
 }
 
-trait AssemblesApp {
-  def assembles: List[Assemble] = Nil
+trait AssemblesApp extends `The Assemble` {
+  def assembles: List[Assemble] = `the List of Assemble`
 }
 
-trait ToInjectApp {
-  def toInject: List[ToInject] = Nil
+trait ToInjectApp extends `The ToInject` {
+  def toInject: List[ToInject] = `the List of ToInject`
 }
 
 trait EnvConfigApp {
@@ -66,34 +62,37 @@ trait RichObserverApp extends ExecutableApp with InitialObserversApp {
 
 trait RichDataApp extends ProtocolsApp
   with AssemblesApp
-  with DataDependenciesApp
   with ToInjectApp
   with DefaultModelFactoriesApp
   with ExpressionsDumpersApp
+  with `The DataDependencyTo`
+  with `The ByUKGetterFactoryImpl`
+  with `The JoinKeyFactoryImpl`
+  with `The ModelConditionFactoryImpl`
+  with `The HashSearchFactoryImpl`
 {
   def assembleProfiler: AssembleProfiler
   def indexValueMergerFactory: IndexValueMergerFactory
   //
+  def `the QAdapterRegistry` = qAdapterRegistry
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val rawWorldFactory: RawWorldFactory = new RichRawWorldFactory(contextFactory,toUpdate,getClass.getName)
   lazy val contextFactory = new ContextFactory(toInject)
-  lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
-  lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
-  lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory)
+  lazy val `the DefaultModelRegistry`: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory,assembleProfiler)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,expressionsDumpers)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒`the List of DataDependencyTo`)
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
-  override def dataDependencies: List[DataDependencyTo[_]] =
+  override def `the List of DataDependencyTo`: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct) ::: super.dataDependencies
+    ProtocolDataDependencies(protocols.distinct) ::: super.`the List of DataDependencyTo`
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::

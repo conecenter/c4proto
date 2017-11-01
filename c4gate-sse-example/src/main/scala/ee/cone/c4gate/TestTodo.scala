@@ -19,22 +19,22 @@ class TestTodoApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
-  with TestTagsApp
+  with `The TestTagsImpl`
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
-  with PublicViewAssembleApp
+  with `The PublicViewAssemble`
   with CommonFilterInjectApp
-  with CommonFilterPredicateFactoriesApp
-  with FilterPredicateBuilderApp
-  with ModelAccessFactoryApp
+  with `The CommonFilterConditionChecksImpl`
+  with `The FilterPredicateBuilderImpl`
+  with `The ModelAccessFactoryImpl`
   with AccessViewApp
-  with DateBeforeAccessViewApp
-  with ContainsAccessViewApp
+  with `The DateBeforeAccessView`
+  with `The ContainsAccessView`
   with SessionAttrApp
   with MortalFactoryApp
-  //with TestTodoRootViewApp
-  with ByLocationHashViewsApp
+  with `The TestTodoRootView`
+  with `The ByLocationHashView`
 {
   override def protocols: List[Protocol] =
     CommonFilterProtocol :: TestTodoProtocol :: super.protocols
@@ -52,45 +52,15 @@ class TestTodoApp extends ServerApp
 }
 
 import TestTodoAccess._
-@c4component object TestTodoAccess {
+object TestTodoAccess {
   lazy val createdAtFlt =
     SessionAttr(Id(0x0006), classOf[DateBefore], UserLabel en "(created before)")
   lazy val commentsFlt =
     SessionAttr(Id(0x0007), classOf[Contains], IsDeep, UserLabel en "(comments contain)")
 }
 
-/*
-trait TestTodoRootViewApp extends ByLocationHashViewsApp {
-  def testTags: TestTags[Context]
-  def tags: Tags
-  def tagStyles: TagStyles
-  def modelAccessFactory: ModelAccessFactory
-  def filterPredicateBuilder: FilterPredicateBuilder
-  def commonFilterConditionChecks: CommonFilterConditionChecks
-  def sessionAttrAccessFactory: SessionAttrAccessFactory
-  def accessViewRegistry: AccessViewRegistry
-  def untilPolicy: UntilPolicy
-
-  private lazy val testTodoRootView = TestTodoRootView()(
-    testTags,
-    tags,
-    tagStyles,
-    modelAccessFactory,
-    filterPredicateBuilder,
-    commonFilterConditionChecks,
-    sessionAttrAccessFactory,
-    accessViewRegistry,
-    untilPolicy
-  )
-
-  override def byLocationHashViews: List[ByLocationHashView] =
-    testTodoRootView :: super.byLocationHashViews
-}*/
-
-
-
 @c4component @listed case class TestTodoRootView(locationHash: String = "todo")(
-  tags: TestTags[Context],
+  tags: TestTags,
   mTags: Tags,
   styles: TagStyles,
   contextAccess: ModelAccessFactory,

@@ -10,7 +10,3 @@ trait AccessViewRegistry {
 @c4component @listed abstract class AccessView[P](val valueClass: Class[P]) {
   def view(access: Access[P]): Context⇒List[ChildPair[OfDiv]]
 }
-
-trait AccessViewsApp {
-  def accessViews: List[AccessView[_]] = Nil
-}

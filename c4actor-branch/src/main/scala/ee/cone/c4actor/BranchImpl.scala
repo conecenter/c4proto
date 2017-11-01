@@ -154,7 +154,7 @@ case class BranchTxTransform(
 
 //class UnconfirmedException() extends Exception
 
-class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations {
+@c4component case class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations {
   private def toBytes(value: Long) =
     ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
   def toSeed(value: Product): BranchResult = {
@@ -167,7 +167,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations 
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
-@assemble class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations) extends Assemble {
+@c4component @listed @assemble case class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations) extends Assemble {
   def mapBranchSeedsByChild(
     key: SrcId,
     branchResults: Values[BranchResult]

@@ -20,7 +20,7 @@ class TestCanvasApp extends ServerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
   with PublishingApp
-  with TestTagsApp
+  with `The TestTagsImpl`
   with CanvasApp
   with NoAssembleProfilerApp
   with ManagementApp

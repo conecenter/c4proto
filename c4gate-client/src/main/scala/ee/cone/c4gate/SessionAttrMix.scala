@@ -6,7 +6,7 @@ import ee.cone.c4proto.Protocol
 
 trait SessionAttrApp extends SessionDataProtocolApp
   with SessionDataAssembleApp
-  with SessionAttrAccessFactoryImplApp
+  with `The SessionAttrAccessFactoryImpl`
 
 trait SessionDataProtocolApp extends ProtocolsApp {
   override def protocols: List[Protocol] =
@@ -18,13 +18,4 @@ trait SessionDataAssembleApp extends AssemblesApp {
 
   override def assembles: List[Assemble] =
     SessionDataAssembles(mortal) ::: super.assembles
-}
-
-trait SessionAttrAccessFactoryImplApp {
-  def qAdapterRegistry: QAdapterRegistry
-  def defaultModelRegistry: DefaultModelRegistry
-  def modelAccessFactory: ModelAccessFactory
-
-  lazy val sessionAttrAccessFactory: SessionAttrAccessFactory =
-    new SessionAttrAccessFactoryImpl(qAdapterRegistry,defaultModelRegistry,modelAccessFactory)
 }

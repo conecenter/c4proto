@@ -2,13 +2,13 @@ package ee.cone.c4ui
 
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.{Context, WithPK}
+import ee.cone.c4actor.{Context, WithPK, c4component, listed}
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.CurrentSessionKey
 import ee.cone.c4vdom.Types.ViewRes
 
-@assemble class PublicViewAssemble(views: List[ByLocationHashView]) extends Assemble {
+@c4component @listed @assemble case class PublicViewAssemble(views: List[ByLocationHashView]) extends Assemble {
   type LocationHash = String
   def joinByLocationHash(
     key: SrcId,

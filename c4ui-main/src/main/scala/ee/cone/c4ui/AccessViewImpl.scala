@@ -5,11 +5,11 @@ import ee.cone.c4vdom.{ChildPair, OfDiv}
 
 case object AccessViewsKey extends SharedComponentKey[Map[String,AccessView[_]]]
 
-class InnerAccessViewRegistry(accessViews: List[AccessView[_]]) extends ToInject {
+@c4component @listed case class InnerAccessViewRegistry(accessViews: List[AccessView[_]]) extends ToInject {
   def toInject = AccessViewsKey.set(accessViews.map(v ⇒ v.valueClass.getName → v).toMap)
 }
 
-object AccessViewRegistryImpl extends AccessViewRegistry {
+@c4component case class AccessViewRegistryImpl() extends AccessViewRegistry {
   def view[P](access: Access[P]): Context⇒List[ChildPair[OfDiv]] =
     local ⇒ AccessViewsKey.of(local)(access.initialValue.getClass.getName).asInstanceOf[AccessView[P]].view(access)(local)
 }

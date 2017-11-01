@@ -52,7 +52,13 @@ trait DataDependencyFrom[From] {
   def inputWorldKeys: Seq[AssembledKey[From]]
 }
 
-trait DataDependencyTo[To] {
+object HiddenC4Annotations {
+  class c4component
+  class listed
+}
+import HiddenC4Annotations._
+
+@c4component @listed abstract class DataDependencyTo[To] {
   def outputWorldKey: AssembledKey[To]
 }
 
@@ -62,16 +68,9 @@ class Join[T,R,TK,RK](
   val inputWorldKeys: Seq[AssembledKey[Index[TK, T]]],
   val outputWorldKey: AssembledKey[Index[RK, R]],
   val joins: (TK, Seq[Values[T]]) ⇒ Iterable[(RK,R)]
-) extends DataDependencyFrom[Index[TK,T]]
-  with DataDependencyTo[Index[RK,R]]
+) extends DataDependencyTo[Index[RK,R]]
+  with DataDependencyFrom[Index[TK,T]]
 
-
-
-object HiddenC4Annotations {
-  class c4component
-  class listed
-}
-import HiddenC4Annotations._
 @c4component @listed abstract class Assemble {
   def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = ???
 }

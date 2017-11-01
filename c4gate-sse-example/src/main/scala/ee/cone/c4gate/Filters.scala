@@ -11,30 +11,13 @@ import ee.cone.c4vdom.{ChildPair, OfDiv}
 
 //// mix
 
-trait CommonFilterApp extends CommonFilterPredicateFactoriesApp
-  with CommonFilterInjectApp with DateBeforeAccessViewApp with ContainsAccessViewApp
-
-trait CommonFilterPredicateFactoriesApp {
-  lazy val commonFilterConditionChecks: CommonFilterConditionChecks =
-    CommonFilterConditionChecksImpl
-}
+trait CommonFilterApp extends `The CommonFilterConditionChecksImpl`
+  with CommonFilterInjectApp with `The DateBeforeAccessView` with `The ContainsAccessView`
 
 trait CommonFilterInjectApp extends DefaultModelFactoriesApp {
   override def defaultModelFactories: List[DefaultModelFactory[_]] =
     DateBeforeDefault :: ContainsDefault :: super.defaultModelFactories
 }
-
-trait DateBeforeAccessViewApp extends AccessViewsApp {
-  def testTags: TestTags[Context]
-  private lazy val dateBeforeAccessView = DateBeforeAccessView(testTags,???)
-  override def accessViews: List[AccessView[_]] = dateBeforeAccessView :: super.accessViews
-}
-trait ContainsAccessViewApp extends AccessViewsApp {
-  def testTags: TestTags[Context]
-  private lazy val containsAccessView = ContainsAccessView(testTags,???)
-  override def accessViews: List[AccessView[_]] = containsAccessView :: super.accessViews
-}
-
 
 //// api
 
@@ -67,13 +50,13 @@ case object ContainsCheck extends ConditionCheck[Contains,String] {
   def check: Contains ⇒ String ⇒ Boolean = by ⇒ value ⇒ value contains by.value
 }
 
-object CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
+@c4component case class CommonFilterConditionChecksImpl() extends CommonFilterConditionChecks {
   lazy val dateBefore: ConditionCheck[DateBefore,Long] = DateBeforeCheck
   lazy val contains: ConditionCheck[Contains,String] = ContainsCheck
 }
 
 @c4component @listed case class DateBeforeAccessView(
-  testTags: TestTags[Context],
+  testTags: TestTags,
   dateBeforeValue: ProdLens[DateBefore,Option[Long]] = ProdLens.of(_.value)
 ) extends AccessView(classOf[DateBefore]) {
   def view(access: Access[DateBefore]): Context⇒List[ChildPair[OfDiv]] =
@@ -81,7 +64,7 @@ object CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
 }
 
 @c4component @listed case class ContainsAccessView(
-  testTags: TestTags[Context],
+  testTags: TestTags,
   containsValue: ProdLens[Contains,String] = ProdLens.of(_.value)
 ) extends AccessView(classOf[Contains]) {
   def view(access: Access[Contains]): Context⇒List[ChildPair[OfDiv]] =

@@ -48,7 +48,7 @@ object SessionDataAssembles {
   } yield WithPK(sessionData)
 }
 
-class SessionAttrAccessFactoryImpl(
+@c4component case class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory

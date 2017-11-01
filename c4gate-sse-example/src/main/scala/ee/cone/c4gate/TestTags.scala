@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{Access, MetaAttr, NameMetaAttr, ProdLens}
+import ee.cone.c4actor._
 import ee.cone.c4vdom._
 
 abstract class ElementValue extends VDomValue {
@@ -43,9 +43,19 @@ case class ChangePassword[State]()(
   }
 }
 
-class TestTags[State](
+trait TestTags {
+  type State = Context
+  def messageStrBody(o: VDomMessage): String
+  def input(access: Access[String]): ChildPair[OfDiv]
+  def dateInput(access: Access[Option[Long]]): ChildPair[OfDiv]
+  def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv]
+  def changePassword(change: VDomMessage ⇒ State ⇒ State): ChildPair[OfDiv]
+}
+
+@c4component case class TestTagsImpl(
   child: ChildPairFactory, inputAttributes: TagJsonUtils, tags: Tags
-) {
+) extends TestTags {
+
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
 

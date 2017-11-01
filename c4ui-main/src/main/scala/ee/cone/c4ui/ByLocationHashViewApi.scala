@@ -6,7 +6,3 @@ import ee.cone.c4actor.Types.SrcId
 @c4component @listed abstract class ByLocationHashView extends View
 
 case object CurrentBranchKey extends TransientLens[SrcId]("")
-
-trait ByLocationHashViewsApp {
-  def byLocationHashViews: List[ByLocationHashView] = Nil
-}

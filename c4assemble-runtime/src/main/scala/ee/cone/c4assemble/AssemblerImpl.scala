@@ -52,9 +52,9 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   profiler: String ⇒ Int ⇒ Unit
-) extends WorldPartExpression
+) extends DataDependencyTo[Index[MapKey, Value]]
   with DataDependencyFrom[Index[JoinKey, T]]
-  with DataDependencyTo[Index[MapKey, Value]]
+  with WorldPartExpression
 {
   def assembleName = join.assembleName
   def name = join.name

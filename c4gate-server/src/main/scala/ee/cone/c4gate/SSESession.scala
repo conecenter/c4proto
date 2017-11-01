@@ -49,7 +49,7 @@ case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
 class PongHandler(
     qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
     pongs: TrieMap[String,Instant] = TrieMap()
-) extends RHttpHandler with ToInject {
+) extends ToInject with RHttpHandler {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false

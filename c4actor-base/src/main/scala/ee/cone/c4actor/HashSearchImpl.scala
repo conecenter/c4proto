@@ -3,11 +3,20 @@ package ee.cone.c4actor
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
-import ee.cone.c4actor.HashSearch.{Factory, IndexBuilder, Request, Response}
+import ee.cone.c4actor.HashSearch.{IndexBuilder, Request, Response}
 import ee.cone.c4actor.HashSearchImpl._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
+
+@c4component case class HashSearchFactoryImpl(
+  modelConditionFactory: ModelConditionFactory
+) extends HashSearchFactory {
+  def index[Model<:Product](cl: Class[Model]): Indexer[Model] =
+    EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model])
+  def request[Model<:Product](condition: Condition[Model]): Request[Model] =
+    Request(UUID.nameUUIDFromBytes(condition.toString.getBytes(UTF_8)).toString,condition)
+}
 
 object HashSearchImpl {
   case class Need[Model<:Product](requestId: SrcId)
@@ -59,23 +68,14 @@ object HashSearchImpl {
     traverse
   }
 
-  class FactoryImpl(
-    modelConditionFactory: ModelConditionFactory[Unit]
-  ) extends Factory {
-    def index[Model<:Product](cl: Class[Model]): Indexer[Model] =
-      EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model])
-    def request[Model<:Product](condition: Condition[Model]): Request[Model] =
-      Request(UUID.nameUUIDFromBytes(condition.toString.getBytes(UTF_8)).toString,condition)
-  }
-
   abstract class Indexer[Model<:Product] extends IndexBuilder[Model] {
     def modelClass: Class[Model]
-    def modelConditionFactory: ModelConditionFactory[Model]
+    def modelConditionBuilder: ModelConditionBuilder[Model]
     def add[NBy<:Product,NField](lens: ProdLens[Model,NField], by: NBy)(
       implicit ranger: Ranger[NBy,NField]
     ): IndexBuilder[Model] = {
       val(valueToRanges,byToRanges) = ranger.ranges(by)
-      IndexerImpl(modelConditionFactory.filterMetaList(lens),by,this)(modelClass,modelConditionFactory,lens.of,valueToRanges,byToRanges.lift)
+      IndexerImpl(modelConditionBuilder.filterMetaList(lens),by,this)(modelClass,modelConditionBuilder,lens.of,valueToRanges,byToRanges.lift)
     }
     def assemble = new HashSearchAssemble(modelClass,this)
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]]
@@ -84,7 +84,7 @@ object HashSearchImpl {
 
   case class EmptyIndexer[Model<:Product]()(
     val modelClass: Class[Model],
-    val modelConditionFactory: ModelConditionFactory[Model]
+    val modelConditionBuilder: ModelConditionBuilder[Model]
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = None
     def heapIds(model: Model): List[SrcId] = Nil
@@ -94,7 +94,7 @@ object HashSearchImpl {
     metaList: List[MetaAttr], by: By, next: Indexer[Model]
   )(
     val modelClass: Class[Model],
-    val modelConditionFactory: ModelConditionFactory[Model],
+    val modelConditionBuilder: ModelConditionBuilder[Model],
     of: Model⇒Field,
     valueToRanges: Field ⇒ List[By],
     byToRanges: Product ⇒ Option[List[By]]

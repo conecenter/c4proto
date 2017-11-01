@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4assemble.Getter
 
-trait ToInject {
+@c4component @listed abstract class ToInject {
   def toInject: List[Injectable]
 }
 

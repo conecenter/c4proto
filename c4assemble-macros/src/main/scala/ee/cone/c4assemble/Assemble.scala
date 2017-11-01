@@ -22,7 +22,7 @@ object KVType {
 @compileTimeOnly("not expanded")
 class assemble extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
-    val q"class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" = defn
+    val q"..$classMods class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" = defn
     val rules: List[RuleDef] = stats.toList.flatMap {
       case q"type $tname = $tpe" ⇒ None
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${KVType(outKeyType)},${KVType(outValType)})] = $expr" ⇒
@@ -74,7 +74,7 @@ class assemble extends StaticAnnotation {
     }.mkString(s"override def dataDependencies = indexFactory ⇒ List(",",",")")
 
     val res = q"""
-      class $className [..$tparams] (...$paramss) extends ..$ext {
+        ..$classMods class $className [..$tparams] (...$paramss) extends ..$ext {
         ..$stats;
         ${joinImpl.parse[Stat].get};
       }"""

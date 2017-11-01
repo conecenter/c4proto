@@ -17,16 +17,16 @@ class TestCoWorkApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
-  with TestTagsApp
+  with `The TestTagsImpl`
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
-  with ModelAccessFactoryApp
-  with SessionAttrAccessFactoryImplApp
+  with `The ModelAccessFactoryImpl`
+  with `The SessionAttrAccessFactoryImpl`
   with DefaultModelFactoriesApp
-  with ByLocationHashViewsApp
-  with TestCoWorkerViewApp
-  with TestCoLeaderViewApp
+  with `The ByLocationHashView`
+  with `The TestCoWorkerView`
+  with `The TestCoLeaderView`
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
@@ -46,16 +46,8 @@ object TestAttrs {
 
 object ContentDefault extends DefaultModelFactory(classOf[Content], Content(_,""))
 
-trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
-  def testTags: TestTags[Context]
-  def sessionAttrAccessFactory: SessionAttrAccessFactory
-  private lazy val testCoWorkerView = TestCoWorkerView()(testTags,sessionAttrAccessFactory)
-  override def byLocationHashViews: List[ByLocationHashView] =
-    testCoWorkerView :: super.byLocationHashViews
-}
-
-case class TestCoWorkerView(locationHash: String = "worker")(
-  tags: TestTags[Context],
+@c4component @listed case class TestCoWorkerView(locationHash: String = "worker")(
+  tags: TestTags,
   sessionAttrAccess: SessionAttrAccessFactory
 ) extends ByLocationHashView  {
   def view: Context ⇒ ViewRes = local ⇒ {
@@ -66,17 +58,7 @@ case class TestCoWorkerView(locationHash: String = "worker")(
   }
 }
 
-trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
-  def tags: Tags
-  def tagStyles: TagStyles
-  def branchOperations: BranchOperations
-  def untilPolicy: UntilPolicy
-  private lazy val testCoLeaderView = TestCoLeaderView()(tags,tagStyles,branchOperations,untilPolicy)
-  override def byLocationHashViews: List[ByLocationHashView] =
-    testCoLeaderView :: super.byLocationHashViews
-}
-
-case class TestCoLeaderView(locationHash: String = "leader")(
+@c4component @listed case class TestCoLeaderView(locationHash: String = "leader")(
   tags: Tags,
   styles: TagStyles,
   branchOperations: BranchOperations,

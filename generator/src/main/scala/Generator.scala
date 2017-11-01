@@ -38,9 +38,19 @@ object Generator {
 
   def defaultArgType: ArgPF = {
     case (tpe,Some(_)) ⇒ None
-    case (tpe,None) ⇒
+    case (tpe:Type.Name,None) ⇒
       val nm = theTerm(tpe)
       Option((nm,Option(q"def $nm: $tpe")))
+    case (tpe@t"List[${Type.Name(ni)}]",None) ⇒
+      val nm = listedTerm(ni)
+      Option((nm,Option(q"def $nm: $tpe")))
+    case (tpe@t"List[${Type.Name(ni)}[_]]",None) ⇒
+      val nm = listedTerm(ni)
+      Option((nm,Option(q"def $nm: $tpe")))
+    /*
+    case (tpe:Type.Apply,None) ⇒
+      println(s"?type: $tpe ${tpe.structure}")
+      Option((q"???",None))*/
   }
 
 
@@ -67,7 +77,7 @@ object Generator {
       val mixType = theType(tName)
       val resStatement = (isAbstract,isCase,isListed) match {
         case (false,true,true) ⇒
-          val init"$abstractType(...$_)" :: Nil = ext
+          val init"$abstractType(...$_)" :: _ = ext
           val concreteTerm = theTerm(tName)
           val listTerm = listedTerm(abstractType)
           val statements =
@@ -77,7 +87,7 @@ object Generator {
           val init = Init(theType(abstractType), Name(""), Nil) // q"".structure
           q"trait $mixType extends $init { ..$statements }"
         case (false,true,false) ⇒
-          val init"${abstractType:Type}(...$_)" :: Nil = ext
+          val init"${abstractType:Type}(...$_)" :: _ = ext
           val statements =
             q"lazy val ${Pat.Var(theTerm(abstractType))}: $abstractType = $concreteStatement" ::
               needStms
@@ -90,7 +100,7 @@ object Generator {
 
           val listTerm = listedTerm(tName)
           q"trait $mixType { def $listTerm: List[$abstractType] = Nil }"
-        case _ ⇒ throw new Exception
+        case a ⇒ throw new Exception(s"$tName unsupported mods: $a")
       }
       (true,resStatement)
   }
@@ -129,7 +139,8 @@ features:
   single class | listed class | listed trait
   ProdLens
   index access
-todo: integrate, (Getter,assemble,protocol)
+todo: integrate,
+todo: Getter,assemble,protocol
 problem:
   factory:
   - using (A,B)=>C is not good -- A & B are not named;

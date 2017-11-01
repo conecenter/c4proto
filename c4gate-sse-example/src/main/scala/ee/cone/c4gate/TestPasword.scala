@@ -18,7 +18,7 @@ class TestPasswordApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
-  with TestTagsApp
+  with `The TestTagsImpl`
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp

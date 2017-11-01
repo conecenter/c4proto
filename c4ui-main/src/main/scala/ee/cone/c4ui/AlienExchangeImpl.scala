@@ -8,7 +8,7 @@ import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4gate.LocalPostConsumer
@@ -63,7 +63,7 @@ case class MessageFromAlienImpl(
 
 }
 
-@assemble class FromAlienBranchAssemble(operations: BranchOperations) extends Assemble {
+@c4component @listed @assemble case class FromAlienBranchAssemble(operations: BranchOperations) extends Assemble {
   // more rich session may be joined
   def fromAliensToSeeds(
     key: SrcId,

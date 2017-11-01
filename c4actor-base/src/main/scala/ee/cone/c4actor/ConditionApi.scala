@@ -4,8 +4,10 @@ trait Condition[Model] extends Product {
   def check(model: Model): Boolean
 }
 
-trait ModelConditionFactory[Model] {
-  def of[OtherModel<:Product]: ModelConditionFactory[OtherModel]
+trait ModelConditionFactory {
+  def of[Model <: Product]: ModelConditionBuilder[Model]
+}
+trait ModelConditionBuilder[Model] {
   def intersect: (Condition[Model],Condition[Model]) ⇒ Condition[Model]
   def union: (Condition[Model],Condition[Model]) ⇒ Condition[Model]
   def any: Condition[Model]

@@ -45,7 +45,7 @@ trait SomeModelAccess {
   def fieldA: ProdLens[SomeModel,String]
   def fieldB: ProdLens[SomeModel,String]
   def fieldC: ProdLens[SomeModel,String]
-  def condition(modelConditionFactory: ModelConditionFactory[Unit], request: SomeRequest): Condition[SomeModel]
+  def condition(modelConditionFactory: ModelConditionFactory, request: SomeRequest): Condition[SomeModel]
 }
 
 @c4component case class SomeModelAccessImpl(
@@ -53,7 +53,7 @@ trait SomeModelAccess {
   fieldB: ProdLens[SomeModel,String] = ProdLens.of(_.fieldB),
   fieldC: ProdLens[SomeModel,String] = ProdLens.of(_.fieldC)
 ) extends SomeModelAccess {
-  def condition(modelConditionFactory: ModelConditionFactory[Unit], request: SomeRequest): Condition[SomeModel] = {
+  def condition(modelConditionFactory: ModelConditionFactory, request: SomeRequest): Condition[SomeModel] = {
     import DefaultConditionChecks._
     val cf = modelConditionFactory.of[SomeModel]
     val leafs = for {
@@ -67,11 +67,11 @@ trait SomeModelAccess {
 
 import HashSearch.{Request,Response}
 
-//@c4component @listed
-@assemble class HashSearchTestAssemble(
+
+@c4component @listed @assemble case class HashSearchTestAssemble(
   someModelAccess: SomeModelAccess,
-  modelConditionFactory: ModelConditionFactory[Unit],
-  hashSearchFactory: HashSearch.Factory
+  modelConditionFactory: ModelConditionFactory,
+  hashSearchFactory: HashSearchFactory
 ) extends Assemble {
   def joinReq(
     srcId: SrcId,
@@ -96,6 +96,10 @@ case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
 class HashSearchTestApp extends RichDataApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
+  with `The SomeModelAccessImpl`
+  with `The HashSearchTestIndexAssemble`
+  with `The HashSearchTestImpl`
+  with `The HashSearchTestAssemble`
 {
   override def protocols: List[Protocol] =
     HashSearchTestProtocol :: super.protocols
@@ -104,7 +108,7 @@ class HashSearchTestApp extends RichDataApp
 
 @c4component @listed case class HashSearchTestIndexAssemble(
   someModelAccess: SomeModelAccess,
-  hashSearchFactory: HashSearch.Factory
+  hashSearchFactory: HashSearchFactory
 ) extends Assemble {
   import someModelAccess._
   import DefaultRangers._
@@ -124,10 +128,14 @@ object HashSearchTestMain {
   }
 }
 
-@c4component case class HashSearchTest(
+abstract class HashSearchTest {
+  def test(voidContext: Context): Unit
+}
+
+@c4component case class HashSearchTestImpl(
   someModelAccess: SomeModelAccess,
-  modelConditionFactory: ModelConditionFactory[Unit]
-) extends LazyLogging {
+  modelConditionFactory: ModelConditionFactory
+) extends HashSearchTest with LazyLogging {
   import someModelAccess._
 
   def measure[T](hint: String)(f: ()⇒T): T = {
@@ -137,7 +145,7 @@ object HashSearchTestMain {
     res
   }
 
-  def ask(modelConditionFactory: ModelConditionFactory[Unit]): SomeModel⇒Context⇒Unit = pattern ⇒ local ⇒ {
+  def ask(modelConditionFactory: ModelConditionFactory): SomeModel⇒Context⇒Unit = pattern ⇒ local ⇒ {
     val request = SomeRequest("123",Option(pattern))
 
     logger.info(s"$request ${ByPK(classOf[SomeModel]).of(local).size}")
