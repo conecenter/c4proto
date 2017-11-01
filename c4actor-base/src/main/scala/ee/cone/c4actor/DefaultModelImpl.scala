@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-class DefaultModelRegistryImpl(
+@c4component case class DefaultModelRegistryImpl(
   defaultModelFactories: List[DefaultModelFactory[_]]
 )(
   val reg: Map[String,DefaultModelFactory[_]] =

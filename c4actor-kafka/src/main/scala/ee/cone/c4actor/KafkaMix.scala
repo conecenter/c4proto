@@ -2,10 +2,10 @@
 package ee.cone.c4actor
 
 trait KafkaConfigApp {
-  def config: Config
+  def `the Config`: Config
 
-  private lazy val bootstrapServers: String = config.get("C4BOOTSTRAP_SERVERS")
-  private lazy val inboxTopicPrefix: String = config.get("C4INBOX_TOPIC_PREFIX")
+  private lazy val bootstrapServers: String = `the Config`.get("C4BOOTSTRAP_SERVERS")
+  private lazy val inboxTopicPrefix: String = `the Config`.get("C4INBOX_TOPIC_PREFIX")
   lazy val kafkaConfig = KafkaConfig(bootstrapServers,inboxTopicPrefix)
 }
 
@@ -19,10 +19,10 @@ trait KafkaProducerApp extends KafkaConfigApp with ToStartApp {
 
 trait KafkaConsumerApp extends KafkaConfigApp with ToStartApp {
   def execution: Execution
-  def rawSnapshot: RawSnapshot
+  def `the RawSnapshot`: RawSnapshot
   def progressObserverFactory: ProgressObserverFactory
   //
   private lazy val kafkaConsumer =
-    new KafkaActor(kafkaConfig)(rawSnapshot,progressObserverFactory,execution)
+    new KafkaActor(kafkaConfig)(`the RawSnapshot`,progressObserverFactory,execution)
   override def toStart: List[Executable] = kafkaConsumer :: super.toStart
 }

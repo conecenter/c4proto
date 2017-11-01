@@ -2,13 +2,14 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4proto.Protocol
+import ee.cone.c4assemble._
 
 class PublishApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+  with `The EnvConfigImpl` with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with TreeIndexValueMergerFactoryApp
   with PublishingApp
-  with NoAssembleProfilerApp
+  with `The NoAssembleProfiler`
   with FileRawSnapshotApp
 {
   def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
@@ -21,14 +22,13 @@ class PublishApp extends ServerApp
 }
 
 trait PublishingApp extends ProtocolsApp with InitialObserversApp {
-  def config: Config
-  def qMessages: QMessages
+  def `the QMessages`: QMessages
   def mimeTypes: Map[String,String]
   def publishFromStrings: List[(String,String)]
 
   private lazy val publishDir = "htdocs"
   private lazy val publishingObserver =
-    new PublishingObserver(qMessages,publishDir,publishFromStrings,mimeTypes.get)
+    new PublishingObserver(`the QMessages`,publishDir,publishFromStrings,mimeTypes.get)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers

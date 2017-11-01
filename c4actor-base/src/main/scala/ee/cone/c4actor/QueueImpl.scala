@@ -36,7 +36,7 @@ class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQ
   }
 }
 
-class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry) extends ToUpdate {
+@c4component case class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry) extends ToUpdate {
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
@@ -57,7 +57,7 @@ object QAdapterRegistryFactory {
   }
 }
 
-class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
+@c4component @listed case class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
 }
 

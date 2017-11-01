@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 // http://www.artima.com/pins1ed/object-equality.html
-object PreHashingImpl extends PreHashing {
+@c4component case class PreHashingImpl() extends PreHashing {
   def wrap[T](value: T): PreHashed[T] = new PreHashedImpl(value.hashCode,value)
 }
 final class PreHashedImpl[T](code: Int, val value: T) extends PreHashed[T] {

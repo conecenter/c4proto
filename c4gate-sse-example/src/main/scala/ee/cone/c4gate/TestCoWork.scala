@@ -4,7 +4,7 @@ import java.net.URL
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Assemble
+import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{Id, Protocol}
@@ -13,27 +13,25 @@ import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 class TestCoWorkApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+  with `The EnvConfigImpl` with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
   with `The TestTagsImpl`
-  with NoAssembleProfilerApp
+  with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
   with `The ModelAccessFactoryImpl`
   with `The SessionAttrAccessFactoryImpl`
-  with DefaultModelFactoriesApp
   with `The ByLocationHashView`
   with `The TestCoWorkerView`
   with `The TestCoLeaderView`
+  with `The ContentDefault`
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
       new FromAlienTaskAssemble("/react-app.html") ::
       super.assembles
-  override def defaultModelFactories: List[DefaultModelFactory[_]] =
-    ContentDefault :: super.defaultModelFactories
 }
 
 //@fieldAccess
@@ -44,7 +42,7 @@ object TestAttrs {
   lazy val contentFlt = SessionAttr(Id(0x0008), classOf[Content], UserLabel en "(Content)")
 }
 
-object ContentDefault extends DefaultModelFactory(classOf[Content], Content(_,""))
+@c4component @listed case class ContentDefault() extends DefaultModelFactory(classOf[Content], Content(_,""))
 
 @c4component @listed case class TestCoWorkerView(locationHash: String = "worker")(
   tags: TestTags,

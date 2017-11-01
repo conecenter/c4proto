@@ -81,6 +81,9 @@ case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueCl
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
 
+@c4component @listed abstract class UnitExpressionsDumper extends ExpressionsDumper[Unit]
+abstract class UMLExpressionsDumper extends ExpressionsDumper[String]
+
 trait ExpressionsDumper[To] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
 }

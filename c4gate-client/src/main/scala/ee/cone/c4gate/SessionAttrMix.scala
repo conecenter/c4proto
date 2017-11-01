@@ -14,8 +14,8 @@ trait SessionDataProtocolApp extends ProtocolsApp {
 }
 
 trait SessionDataAssembleApp extends AssemblesApp {
-  def mortal: MortalFactory
+  def `the MortalFactory`: MortalFactory
 
   override def assembles: List[Assemble] =
-    SessionDataAssembles(mortal) ::: super.assembles
+    SessionDataAssembles(`the MortalFactory`) ::: super.assembles
 }

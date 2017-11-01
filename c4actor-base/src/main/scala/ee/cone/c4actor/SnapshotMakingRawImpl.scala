@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Update, Updates}
 import okio.ByteString
 
-class SnapshotMakingRawWorldFactory(adapterRegistry: QAdapterRegistry) extends RawWorldFactory {
+@c4component case class SnapshotMakingRawWorldFactory(adapterRegistry: QAdapterRegistry) extends RawWorldFactory {
   def create(): RawWorld = new SnapshotMakingRawWorld(adapterRegistry)
 }
 

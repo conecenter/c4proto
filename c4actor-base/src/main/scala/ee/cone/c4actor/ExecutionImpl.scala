@@ -55,7 +55,7 @@ object ServerMain extends BaseServerMain(
     .newInstance().asInstanceOf[ExecutableApp]
 )
 
-class EnvConfigImpl extends Config {
+@c4component case class EnvConfigImpl() extends Config {
   def get(key: String): String =
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }

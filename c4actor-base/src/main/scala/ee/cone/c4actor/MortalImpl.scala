@@ -5,7 +5,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by}
 
-object MortalFactoryImpl extends MortalFactory {
+@c4component case class MortalFactoryImpl() extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl)
 }
 

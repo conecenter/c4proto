@@ -6,6 +6,7 @@ package ee.cone.c4assemble
 //import java.util.Comparator
 
 import Types._
+import ee.cone.c4assemble.HiddenC4Annotations.c4component
 import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
 import scala.collection.immutable.{Iterable, Map, Seq}
@@ -22,7 +23,7 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
     (res /: diff)((res, kv) ⇒ one(res, kv._1, kv._2))
 }
 
-class IndexFactoryImpl(
+@c4component case class IndexFactoryImpl(
   merger: IndexValueMergerFactory,
   profiler: AssembleProfiler
 ) extends IndexFactory {
@@ -108,7 +109,7 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   }
 }
 
-object NoAssembleProfiler extends AssembleProfiler {
+@c4component case class NoAssembleProfiler() extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = dummy
   private def dummy(startAction: String)(finalCount: Int): Unit = ()
 }
@@ -124,7 +125,7 @@ class ByPriority[Item](uses: Item⇒List[Item]){
 }
 */
 
-class TreeAssemblerImpl(byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]]) extends TreeAssembler {
+@c4component case class TreeAssemblerImpl(byPriority: ByPriority, expressionsDumpers: List[UnitExpressionsDumper]) extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
@@ -167,7 +168,7 @@ class TreeAssemblerImpl(byPriority: ByPriority, expressionsDumpers: List[Express
   }
 }
 
-object UMLExpressionsDumper extends ExpressionsDumper[String] {
+@c4component case class UMLExpressionsDumperImpl() extends UMLExpressionsDumper {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): String = {
     val keyAliases: List[(AssembledKey[_], String)] =
       expressions.flatMap[AssembledKey[_],List[AssembledKey[_]]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)

@@ -5,7 +5,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, `The NoAssembleProfiler`}
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4proto.Protocol
 
@@ -13,9 +13,9 @@ class TestSerialApp extends TestTxTransformApp with SerialObserversApp
 class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
 
 abstract class TestTxTransformApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+  with `The EnvConfigImpl` with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with NoAssembleProfilerApp
+  with `The NoAssembleProfiler`
   with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp
 {

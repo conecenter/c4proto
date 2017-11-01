@@ -8,17 +8,17 @@ import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble._
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
 
 class TestSSEApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+  with `The EnvConfigImpl` with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with BranchApp
   with AlienExchangeApp
-  with NoAssembleProfilerApp
+  with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
 {

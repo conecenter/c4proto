@@ -5,7 +5,7 @@ import java.time.Instant
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.AuthProtocol.{PasswordChangeRequest, PasswordHashOfUser}
 import ee.cone.c4proto.Protocol
 import ee.cone.c4ui._
@@ -14,12 +14,12 @@ import ee.cone.c4actor.LEvent.update
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 
 class TestPasswordApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+  with `The EnvConfigImpl` with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
   with `The TestTagsImpl`
-  with NoAssembleProfilerApp
+  with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
 {

@@ -9,8 +9,8 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
 
-class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) extends RawSnapshot with LazyLogging {
-  private def dir = Files.createDirectories(Paths.get(dirStr))
+@c4component case class FileRawSnapshotImpl(config: RawSnapshotConfig, rawWorldFactory: RawWorldFactory) extends RawSnapshot with LazyLogging {
+  private def dir = Files.createDirectories(Paths.get(config.path))
   private def hashFromName: String⇒Option[(String,String)] = {
     val R = """([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""".r;
     {

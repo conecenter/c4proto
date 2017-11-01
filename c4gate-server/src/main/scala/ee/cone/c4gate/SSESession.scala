@@ -26,18 +26,18 @@ trait SSEServerApp
   with ToInjectApp
   with ProtocolsApp
 {
-  def config: Config
-  def qMessages: QMessages
+  def `the Config`: Config
+  def `the QMessages`: QMessages
   def worldProvider: WorldProvider
   def sseConfig: SSEConfig
-  def mortal: MortalFactory
-  lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig)
-  private lazy val ssePort = config.get("C4SSE_PORT").toInt
+  def `the MortalFactory`: MortalFactory
+  lazy val pongHandler = new PongHandler(`the QMessages`,worldProvider,sseConfig)
+  private lazy val ssePort = `the Config`.get("C4SSE_PORT").toInt
   private lazy val sseServer =
     new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10)
   override def toStart: List[Executable] = sseServer :: super.toStart
   override def assembles: List[Assemble] =
-    SSEAssembles(mortal,sseConfig) ::: PostAssembles(mortal,sseConfig) :::
+    SSEAssembles(`the MortalFactory`,sseConfig) ::: PostAssembles(`the MortalFactory`,sseConfig) :::
       super.assembles
   override def toInject: List[ToInject] =
     sseServer :: pongHandler :: super.toInject

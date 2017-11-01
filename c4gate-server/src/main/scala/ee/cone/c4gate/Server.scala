@@ -2,22 +2,23 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
+import ee.cone.c4assemble._
 
 class HttpGatewayApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+  with `The EnvConfigImpl` with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with InternetForwarderApp
   with HttpServerApp
   with SSEServerApp
-  with NoAssembleProfilerApp
-  with MortalFactoryApp
+  with `The NoAssembleProfiler`
+  with `The MortalFactoryImpl`
   with ManagementApp
   with FileRawSnapshotApp
 {
   def httpHandlers: List[RHttpHandler] =
-    pongHandler :: new HttpPostHandler(qMessages,worldProvider) :: Nil
-  def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
+    pongHandler :: new HttpPostHandler(`the QMessages`,worldProvider) :: Nil
+  def sseConfig: SSEConfig = NoProxySSEConfig(`the Config`.get("C4STATE_REFRESH_SECONDS").toInt)
 }
 
 // I>P -- to agent, cmd>evl

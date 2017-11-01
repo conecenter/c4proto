@@ -15,12 +15,12 @@ import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 class TestTodoApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+  with `The EnvConfigImpl` with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
   with `The TestTagsImpl`
-  with NoAssembleProfilerApp
+  with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
   with `The PublicViewAssemble`
@@ -32,7 +32,7 @@ class TestTodoApp extends ServerApp
   with `The DateBeforeAccessView`
   with `The ContainsAccessView`
   with SessionAttrApp
-  with MortalFactoryApp
+  with `The MortalFactoryImpl`
   with `The TestTodoRootView`
   with `The ByLocationHashView`
 {

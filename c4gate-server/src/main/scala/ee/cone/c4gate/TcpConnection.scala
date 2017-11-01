@@ -10,16 +10,16 @@ import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto.Protocol
 
 trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with ProtocolsApp {
-  def config: Config
-  def qMessages: QMessages
+  def `the Config`: Config
+  def `the QMessages`: QMessages
   def worldProvider: WorldProvider
-  def mortal: MortalFactory
+  def `the MortalFactory`: MortalFactory
 
-  private lazy val tcpPort = config.get("C4TCP_PORT").toInt
-  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(qMessages, worldProvider), Long.MaxValue)
+  private lazy val tcpPort = `the Config`.get("C4TCP_PORT").toInt
+  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(`the QMessages`, worldProvider), Long.MaxValue)
   override def toStart: List[Executable] = tcpServer :: super.toStart
   override def assembles: List[Assemble] =
-    mortal(classOf[TcpDisconnect]) :: mortal(classOf[TcpWrite]) ::
+    `the MortalFactory`(classOf[TcpDisconnect]) :: `the MortalFactory`(classOf[TcpWrite]) ::
     new TcpAssemble :: super.assembles
   override def toInject: List[ToInject] = tcpServer :: super.toInject
   override def protocols: List[Protocol] = TcpProtocol :: super.protocols

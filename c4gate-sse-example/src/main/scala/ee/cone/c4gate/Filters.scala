@@ -14,10 +14,7 @@ import ee.cone.c4vdom.{ChildPair, OfDiv}
 trait CommonFilterApp extends `The CommonFilterConditionChecksImpl`
   with CommonFilterInjectApp with `The DateBeforeAccessView` with `The ContainsAccessView`
 
-trait CommonFilterInjectApp extends DefaultModelFactoriesApp {
-  override def defaultModelFactories: List[DefaultModelFactory[_]] =
-    DateBeforeDefault :: ContainsDefault :: super.defaultModelFactories
-}
+trait CommonFilterInjectApp extends `The DateBeforeDefault` with `The ContainsDefault`
 
 //// api
 
@@ -39,8 +36,8 @@ trait CommonFilterConditionChecks {
 
 //// impl
 
-object DateBeforeDefault extends DefaultModelFactory(classOf[DateBefore],DateBefore(_,None))
-object ContainsDefault extends DefaultModelFactory(classOf[Contains],Contains(_,""))
+@c4component @listed case class DateBeforeDefault() extends DefaultModelFactory(classOf[DateBefore],DateBefore(_,None))
+@c4component @listed case class ContainsDefault() extends DefaultModelFactory(classOf[Contains],Contains(_,""))
 
 case object DateBeforeCheck extends ConditionCheck[DateBefore,Long] {
   def check: DateBefore ⇒ Long ⇒ Boolean = by ⇒ value ⇒ by.value forall (_>value)

@@ -4,7 +4,6 @@ import ee.cone.c4actor.{AssemblesApp, Config}
 import ee.cone.c4assemble.Assemble
 
 trait ManagementApp extends AssemblesApp {
-  def config: Config
 
   override def assembles: List[Assemble] =
     new ManagementPostAssemble(getClass.getName) :: new PostConsumerAssemble(getClass.getName) ::

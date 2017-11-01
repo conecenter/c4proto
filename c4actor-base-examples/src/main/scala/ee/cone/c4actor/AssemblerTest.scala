@@ -52,7 +52,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 class AssemblerTestApp extends RichDataApp
   with TreeIndexValueMergerFactoryApp
-  with SimpleAssembleProfilerApp
+  with `The SimpleAssembleProfiler`
 {
   override def protocols: List[Protocol] = PCProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
@@ -62,9 +62,9 @@ object AssemblerTest extends App with LazyLogging {
   val app = new AssemblerTestApp
   val recs = update(RawParentNode("1","P-1")) ++
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
-  val updates = recs.map(rec⇒app.toUpdate.toUpdate(rec)).toList
+  val updates = recs.map(rec⇒app.`the ToUpdate`.toUpdate(rec)).toList
   //println(app.qMessages.toTree(rawRecs))
-  val context = app.contextFactory.create()
+  val context = app.`the ContextFactory`.create()
   val nGlobal = ReadModelAddKey.of(context)(updates)(context)
   /*
   val shouldDiff = Map(

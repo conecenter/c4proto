@@ -7,8 +7,12 @@ import ee.cone.c4actor.Types.{SrcId, TransientMap}
 
 import scala.collection.immutable.{Map, Seq}
 
-class TxTransforms(qMessages: QMessages) extends LazyLogging {
+trait TxTransforms {
   type TransientTransform = TransientMap ⇒ TransientMap
+  def get(global: Context): Map[SrcId,TransientTransform]
+}
+
+@c4component case class TxTransformsImpl(qMessages: QMessages) extends TxTransforms with LazyLogging {
   def get(global: Context): Map[SrcId,TransientTransform] =
     ByPK(classOf[TxTransform]).of(global).transform{ case(key,_) ⇒ handle(global,key) }
   private def handle(global: Context, key: SrcId): TransientTransform = ((prev:TransientMap) ⇒

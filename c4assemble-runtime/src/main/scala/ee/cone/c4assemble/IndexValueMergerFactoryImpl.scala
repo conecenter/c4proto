@@ -1,5 +1,6 @@
 package ee.cone.c4assemble
 
+import ee.cone.c4assemble.HiddenC4Annotations.c4component
 import ee.cone.c4assemble.TreeAssemblerTypes.MultiSet
 import ee.cone.c4assemble.Types.Values
 
@@ -20,7 +21,7 @@ class ValueMerging[R<:Product](
   }
 }
 
-class SimpleIndexValueMergerFactory extends IndexValueMergerFactory {
+@c4component case class SimpleIndexValueMergerFactory() extends IndexValueMergerFactory {
   def create[R <: Product]: (Values[R],MultiSet[R]) ⇒ Values[R] = {
     val merging = new ValueMerging[R]
     (value,delta) ⇒ merging.toList(merging.addToMultiMap.many(delta, value, 1))

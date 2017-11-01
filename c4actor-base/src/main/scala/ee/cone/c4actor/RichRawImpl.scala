@@ -18,7 +18,11 @@ object Merge {
     }
 }
 
-class ContextFactory(toInjects: List[ToInject]) {
+trait ContextFactory {
+  def create(): Context
+}
+
+@c4component case class ContextFactoryImpl(toInjects: List[ToInject]) extends ContextFactory {
   def create(): Context = {
     val injected = for(toInject ← toInjects; injected ← toInject.toInject)
       yield Map(injected.pair)

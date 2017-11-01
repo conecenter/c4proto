@@ -95,7 +95,7 @@ case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
 //todo reg
 class HashSearchTestApp extends RichDataApp
   with TreeIndexValueMergerFactoryApp
-  with SimpleAssembleProfilerApp
+  with `The SimpleAssembleProfiler`
   with `The SomeModelAccessImpl`
   with `The HashSearchTestIndexAssemble`
   with `The HashSearchTestImpl`
@@ -122,7 +122,7 @@ class HashSearchTestApp extends RichDataApp
 object HashSearchTestMain {
   def main(args: Array[String]): Unit = {
     val app = new HashSearchTestApp
-    val rawWorld = app.rawWorldFactory.create()
+    val rawWorld = app.`the RawWorldFactory`.create()
     val voidContext = rawWorld match { case w: RichRawWorld ⇒ w.context }
     app.hashSearchTest.test(voidContext)
   }

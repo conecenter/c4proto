@@ -161,10 +161,10 @@ trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
 
 trait HttpServerApp extends ToStartApp {
   def execution: Execution
-  def config: Config
+  def `the Config`: Config
   def worldProvider: WorldProvider
   def httpHandlers: List[RHttpHandler]
-  private lazy val httpPort = config.get("C4HTTP_PORT").toInt
+  private lazy val httpPort = `the Config`.get("C4HTTP_PORT").toInt
   lazy val httpServer: Executable =
     new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers), execution)
 

@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.AssembleProfiler
 
-object SimpleAssembleProfiler extends AssembleProfiler with LazyLogging {
+@c4component case class SimpleAssembleProfiler() extends AssembleProfiler with LazyLogging {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
     val startTime = System.currentTimeMillis
     finalCount ⇒ {
