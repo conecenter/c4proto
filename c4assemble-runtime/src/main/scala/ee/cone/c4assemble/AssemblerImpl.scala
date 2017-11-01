@@ -185,7 +185,4 @@ class ByPriority[Item](uses: Item⇒List[Item]){
   }
 }
 
-object AssembleDataDependencies {
-  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] =
-    assembles.flatMap(assemble⇒assemble.dataDependencies(indexFactory))
-}
+

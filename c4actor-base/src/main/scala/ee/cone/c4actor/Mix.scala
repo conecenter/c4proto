@@ -14,6 +14,7 @@ trait InitialObserversApp {
 
 trait ProtocolsApp {
   def protocols: List[Protocol] = Nil
+  def `the List of Protocol` = protocols
 }
 
 trait AssemblesApp extends `The Assemble` {
@@ -48,7 +49,6 @@ trait RichDataApp extends ProtocolsApp with AssemblesApp
   with `The Assemble`
   with `The ToInject`
   with `The UnitExpressionsDumper`
-  with `The DataDependencyTo`
   with `The ByUKGetterFactoryImpl`
   with `The JoinKeyFactoryImpl`
   with `The ModelConditionFactoryImpl`
@@ -62,20 +62,14 @@ trait RichDataApp extends ProtocolsApp with AssemblesApp
   with `The IndexFactoryImpl`
   with `The TreeAssemblerImpl`
   with `The LocalQAdapterRegistryInit`
+  with `The ProtocolsAssemble`
 {
   lazy val `the QAdapterRegistry`: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val `the RawWorldFactory`: RawWorldFactory = new RichRawWorldFactory(`the ContextFactory`,`the ToUpdate`,getClass.getName)
   private lazy val assemblerInit =
-    new AssemblerInit(`the QAdapterRegistry`, `the ToUpdate`, `the TreeAssembler`, ()⇒`the List of DataDependencyTo`)
-  //
+    new AssemblerInit(`the QAdapterRegistry`, `the ToUpdate`, `the TreeAssembler`, `the IndexFactory`, ()⇒`the List of Assemble`)
   override def protocols: List[Protocol] = QProtocol :: super.protocols
-  override def `the List of DataDependencyTo`: List[DataDependencyTo[_]] =
-    AssembleDataDependencies(`the IndexFactory`,`the List of Assemble`) :::
-    ProtocolDataDependencies(protocols.distinct) :::
-    super.`the List of DataDependencyTo`
-  override def `the List of ToInject`: List[ToInject] =
-    assemblerInit ::
-    super.`the List of ToInject`
+  override def `the List of ToInject`: List[ToInject] = assemblerInit :: super.`the List of ToInject`
 }
 
 trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp with `The SnapshotMakingRawWorldFactory` {

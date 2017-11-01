@@ -2,16 +2,16 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{AssembledKey, DataDependencyTo, OriginalWorldPart, TreeAssembler}
+import ee.cone.c4assemble._
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types.Index
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Seq}
 
-object ProtocolDataDependencies {
-  def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
+@c4component @listed case class ProtocolsAssemble(protocols: List[Protocol]) extends Assemble {
+  override def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] =
+    _ ⇒ protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
       new OriginalWorldPart(ByPK.raw(adapter.className))
     }
 }
@@ -22,7 +22,8 @@ class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
-  getDependencies: ()⇒List[DataDependencyTo[_]]
+  indexFactory: IndexFactory,
+  getDependencies: ()⇒List[Assemble]
 ) extends ToInject {
   private def toTree(updates: Iterable[Update]): Map[AssembledKey[Index[SrcId,Product]], Index[SrcId,Product]] =
     updates.groupBy(_.valueTypeId).flatMap { case (valueTypeId, tpUpdates) ⇒
@@ -46,7 +47,7 @@ class AssemblerInit(
     if(out.isEmpty) identity[Context]
     else WriteModelKey.modify(_.enqueue(out)).andThen(reduce(out.toList))
   def toInject: List[Injectable] =
-    TreeAssemblerKey.set(treeAssembler.replace(getDependencies())) :::
+    TreeAssemblerKey.set(treeAssembler.replace(getDependencies().flatMap(assemble⇒assemble.dataDependencies(indexFactory)))) :::
       WriteModelDebugAddKey.set(out ⇒
         if(out.isEmpty) identity[Context]
         else WriteModelDebugKey.modify(_.enqueue(out))

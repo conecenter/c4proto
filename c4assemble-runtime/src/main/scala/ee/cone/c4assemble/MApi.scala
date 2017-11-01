@@ -58,7 +58,7 @@ object HiddenC4Annotations {
 }
 import HiddenC4Annotations._
 
-@c4component @listed abstract class DataDependencyTo[To] {
+trait DataDependencyTo[To] {
   def outputWorldKey: AssembledKey[To]
 }
 
