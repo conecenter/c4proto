@@ -138,28 +138,39 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			toSrcId = tEl.dragData?tEl.dragData:""
 		reporters.forEach(r=>r(action,fromSrcId,toSrcId))
 	}
-	const dragStart = (event,node) => {
-		const {x,y} = getXY(event)		
-		cNode = documentManager.createElement("table")	
-		listRect = getListRect(node);
-		const listNode = getListNode(node);
-		scrollNodes = findScrollNodes(listNode)
-        dragNode = node	
-		//callbacks.push(callback)
-		cNode.appendChild(node.parentNode.cloneNode(true));
-		const parentRect = node.parentNode.getBoundingClientRect();			
-		const top = parentRect.top + getPageYOffset()
-		cNode.style.width = node.parentNode.getBoundingClientRect().width + "px";
+	const dragStart = (event,node,div) => {
+		const {x,y} = getXY(event)
+		let listNode
+		let refNode
+		if(!div){ //td
+			cNode = documentManager.createElement("table")	
+			listRect = getListRect(node);
+			listNode = getListNode(node);					
+			//callbacks.push(callback)
+			refNode = node.parentNode
+			cNode.appendChild(node.parentNode.cloneNode(true));
+		}
+		else{ //div
+			cNode = node.cloneNode(true)
+			listRect = node.getBoundingClientRect()
+			listNode = node			
+			refNode = node
+		}
+		scrollNodes = findScrollNodes(listNode)	
+		dragNode = node	
+		const refRect = refNode.getBoundingClientRect();			
+		const top = refRect.top + getPageYOffset()
+		cNode.style.width = refRect.width + "px";
 		cNode.style.position="absolute";
 		cNode.style.top = top + "px"
-		cNode.style.left = parentRect.left + "px"
+		cNode.style.left = refRect.left + "px"
 		cNode.style.opacity = "0.7"
 		cNode.style.pointerEvents = "none";
 		documentManager.add(cNode)
 		mouseHitPoint.x = x
 		mouseHitPoint.y = y
-		mouseHitPoint.top = parentRect.top
-		mouseHitPoint.left = parentRect.left
+		mouseHitPoint.top = refRect.top
+		mouseHitPoint.left = refRect.left
 		addEventListener("mousemove",onMouseMove)
 		addEventListener("touchmove",onMouseMove)
 		addEventListener("mouseup",onMouseUp)

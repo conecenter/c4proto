@@ -836,7 +836,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			
 		}
 	});
-	let lastFocusTr = null
+	//let lastFocusTr = null
 	const TBodyElement = ({style,children})=>$("tbody",{style:style},children);	
 	const THElement = React.createClass({
 		getInitialState:function(){
@@ -2604,6 +2604,38 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		}
 	})
 	
+	const DragDropDivElement = $C({
+		componentDidMount:function(){
+			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData,droppable:this.props.droppable,draggable:this.props.draggable})
+		},
+		componentDidUpdate:function(){
+			
+		},
+		componentWillUnmount:function(){
+			this.dragBinding.release()
+		},
+		onMouseDown:function(e){
+			this.dragBinding.dragStart(e,this.el,"div")
+		},
+		onMouseUp:function(){
+			if(!this.props.droppable) return
+			this.dragBinding.dragDrop(this.el)
+		},		
+		render:function(){
+			const style = {
+				...this.props.style
+			}
+			const actions = {
+				onMouseDown:this.onMouseDown,
+				onMouseUp:this.onMouseUp,
+				onTouchStart:this.onMouseDown,
+				onTouchEnd:this.onMouseUp
+			}
+			const ref = (ref)=>this.el=ref
+			return $("div",{style,ref,...actions},this.props.children)
+		}
+	})
+	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
 		anchor.href = data
@@ -2637,7 +2669,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			ErrorElement,
 			FocusAnnouncerElement,
 			ConfirmationOverlayElement,
-			DragDropHandlerElement
+			DragDropHandlerElement,
+			DragDropDivElement
 		},
 		onClickValue,		
 		onReadySendBlob,
