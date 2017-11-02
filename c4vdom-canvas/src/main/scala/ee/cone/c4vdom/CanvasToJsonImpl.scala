@@ -1,13 +1,12 @@
 
 package ee.cone.c4vdom
 
-import java.awt.geom.{AffineTransform, Point2D}
 import java.text.DecimalFormat
 
 object CanvasToJsonImpl extends CanvasToJson {
-  def appendJson(attrs: List[PathAttr], transforms: List[Transform], builder: MutableJsonBuilder): Unit =
-    PathToJsonImpl(attrs,transforms).buildJson(builder)
-  def appendJson(attr: List[CanvasAttr], builder: MutableJsonBuilder): Unit = {
+  def appendPathJson(attrs: List[PathAttr], builder: MutableJsonBuilder): Unit =
+    PathToJsonImpl(attrs)(builder,new DecimalFormat("#0.##")).buildJson()
+  def appendCanvasJson(attr: List[CanvasAttr], builder: MutableJsonBuilder): Unit = {
     builder.append("tp").append("Canvas")
     builder.append("ctx").append("ctx")
     builder.append("content").startArray().append("rawMerge").end()
@@ -30,20 +29,15 @@ object CanvasToJsonImpl extends CanvasToJson {
   }
 }
 
-case class PathToJsonImpl(attrs:List[PathAttr], transforms: List[Transform]) {
-  lazy val decimalFormat = new DecimalFormat("#0.##")
-  private def appendStyles(builder: MutableJsonBuilder,styles:List[BaseStyleCommand])(sf:BaseStyleCommand => Unit=_=>{}): Unit = {
-    styles.foreach(applyStyle(builder)(sf))
-    if(styles.exists(_.isInstanceOf[BaseFillStyle])){
-      begin(builder);end("fill")(builder)
-    }
-    if(styles.exists(_.isInstanceOf[BaseStrokeStyle])){
-      begin(builder);end("stroke")(builder)
-    }
+case class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, decimalFormat: DecimalFormat) {
+  private def appendStyles(styles:List[BaseStyleCommand])(sf:BaseStyleCommand => Unit=_=>{}): Unit = {
+    styles.foreach(applyStyle(sf))
+    if(styles.exists(_.isInstanceOf[BaseFillStyle])) cmd("fill")
+    if(styles.exists(_.isInstanceOf[BaseStrokeStyle])) cmd("stroke")
   }
-  private def applyStyle(builder: MutableJsonBuilder)=(pf:BaseStyleCommand=>Unit)=>(style:BaseStyleCommand)=>{
+  private def applyStyle = (pf:BaseStyleCommand=>Unit)=>(style:BaseStyleCommand)=>{
     def attrSet(key: String, value: String) = {
-      begin(builder);add(key)(builder);add(value)(builder);end("set")(builder)
+      begin();add(key);add(value);end("set")
     }
     style match {
       case FillStyle(v)=>  attrSet("fillStyle",v)
@@ -63,61 +57,48 @@ case class PathToJsonImpl(attrs:List[PathAttr], transforms: List[Transform]) {
     }
     pf(style)
   }
-  private def begin(builder: MutableJsonBuilder):Unit = builder.startArray()
-  private def end(builder: MutableJsonBuilder):Unit = builder.end()
-  private def end(cmd:String)(builder: MutableJsonBuilder):Unit = {builder.end();builder.append(cmd)}
-  private def add(v: Boolean)(builder: MutableJsonBuilder):Unit = builder.append(v)
-  private def add(v: Double)(builder: MutableJsonBuilder):Unit = builder.append(v, decimalFormat)
-  private def add(v: String)(builder: MutableJsonBuilder):Unit = builder.append(v)
-  private def transformPoint(x:BigDecimal,y:BigDecimal)(affineTransform: AffineTransform):(Double,Double) = {
-    val point = new Point2D.Double
-    point.setLocation(x.toDouble,y.toDouble)
-    affineTransform.transform(point,point)
-    (point.getX,point.getY)
+  private def begin():Unit = builder.startArray()
+  private def end():Unit = builder.end()
+  private def end(cmd:String):Unit = {builder.end();builder.append(cmd)}
+  private def add(v: Boolean):Unit = builder.append(v)
+  private def add(v: BigDecimal):Unit = builder.append(v, decimalFormat)
+  private def add(v: String):Unit = builder.append(v)
+  private def add(x:BigDecimal,y:BigDecimal): Unit = { add(x); add(y) }
+  private def cmd(v: String): Unit = { begin(); end(v) }
+  private def cmd(n: BigDecimal, v: String): Unit = { begin(); add(n); end(v) }
+  private def cmd(x: BigDecimal, y: BigDecimal, v: String): Unit = {
+    begin(); add(x); add(y); end(v)
   }
-  private def addSetTransform(builder: MutableJsonBuilder,tr: AffineTransform):Unit = {
-    begin(builder)
-    add(tr.getScaleX)(builder); add(tr.getShearY)(builder); add(tr.getShearX)(builder)
-    add(tr.getScaleY)(builder); add(tr.getTranslateX)(builder); add(tr.getTranslateY)(builder)
-    end("transform")(builder)
-  }
-  private def transformSize(v: Double)(affineTransform: AffineTransform):Double = {
-    val point = new Point2D.Double
-    point.setLocation(v, 0)
-    affineTransform.deltaTransform(point, point)
-    point.distance(0,0)
-  }
-  private def addPoints(x:BigDecimal,y:BigDecimal)(builder: MutableJsonBuilder,affineTransform: AffineTransform) = {
-    val (_x,_y) = transformPoint(x,y)(affineTransform)
-    add(_x)(builder);add(_y)(builder)
-  }
-  private def startContext(name: String)(builder: MutableJsonBuilder) = {
-    builder.startArray()
-    builder.append(name)
-    builder.startArray()
-  }
-
-  private def endContext(name:String = "inContext")(builder: MutableJsonBuilder) = {
-    builder.end()
-    builder.end()
-    builder.append(name)
-  }
-  lazy val styles: List[BaseStyleCommand] = attrs.collect{case s:BaseStyleCommand=>s}
-  lazy val shapes: List[Shape] = attrs.collect{case s:Shape=>s}
-  lazy val handlers:List[AbstractCanvasEventHandler] = attrs.collect{case h:AbstractCanvasEventHandler=>h}
-  def buildJson(builder: MutableJsonBuilder):Unit={
-    val affineTransform = new AffineTransform()
-    transforms.reverse.foreach{
-      case Scale(v) =>affineTransform.scale(v.toDouble,v.toDouble)
-      case Translate(x,y)=> affineTransform.translate(x.toDouble,y.toDouble)
-      case Rotate(t) => affineTransform.rotate(t.toDouble)
-    }
+  private def startContext(name: String): Unit = { begin(); add(name); begin() }
+  private def endContext(name:String = "inContext"): Unit = { end(); end(name) }
+  def buildJson():Unit={
+    val styles = attrs.collect{case s:BaseStyleCommand=>s}
+    val shapes: List[Shape] = attrs.collect{case s:Shape=>s}
+    val transforms = attrs.collect{case s:Transform=>s}
+    val handlers = attrs.collect{case h:AbstractCanvasEventHandler=>h}
     builder.startObject()
     builder.append("ctx").append("ctx")
+    if(transforms.nonEmpty){
+      builder.append("commandsFinally"); {
+        builder.startArray()
+        cmd("setMainContext")
+        cmd("restore")
+        builder.end()
+      }
+    }
     builder.append("commands"); {
       builder.startArray();
       {
-        begin(builder); add("applyPath")(builder); begin(builder)
+        if(transforms.nonEmpty){
+          cmd("setMainContext")
+          cmd("save")
+          transforms.reverse.foreach{
+            case Scale(v) => cmd(v,v,"scale")
+            case Translate(x,y)=> cmd(x,y,"translate")
+            case Rotate(t) => cmd(t,"rotate")
+          }
+        }
+        begin(); add("applyPath"); begin()
         val (initStyles,restStyles) = styles.partition{
           case _:StrokeWidthStyle=>true
           case _:LineCapStyle =>true
@@ -125,93 +106,81 @@ case class PathToJsonImpl(attrs:List[PathAttr], transforms: List[Transform]) {
           case _:SetLineDash =>true
           case _=>false
         }
-        appendStyles(builder,initStyles){
+        appendStyles(initStyles){
           case StrokeWidthStyle(v) =>
-            begin(builder);add("lineWidth")(builder);add(transformSize(v.toDouble)(affineTransform))(builder);end("set")(builder)
+            begin();add("lineWidth");add(v);end("set")
           case SetLineDash(dash)=>
-            begin(builder); begin(builder)
-            dash.split(",").foreach(s⇒add(transformSize(s.trim.toDouble)(affineTransform))(builder))
-            end(builder); end("setLineDash")(builder)
+            begin(); begin()
+            dash.split(",").foreach(s⇒add(BigDecimal(s.trim)))
+            end(); end("setLineDash")
         }
         shapes.collect{case s:PathShape=>s}.foreach{
           case Rect(x, y, w, h) =>
-            begin(builder);addPoints(x,y)(builder,affineTransform);end("moveTo")(builder)
-            begin(builder);addPoints(x+w,y)(builder,affineTransform);end("lineTo")(builder)
-            begin(builder);addPoints(x+w,y+h)(builder,affineTransform);end("lineTo")(builder)
-            begin(builder);addPoints(x,y+h)(builder,affineTransform);end("lineTo")(builder)
-            begin(builder);addPoints(x,y)(builder,affineTransform);end("lineTo")(builder)
+            cmd(x,y,"moveTo")
+            cmd(x+w,y,"lineTo")
+            cmd(x+w,y+h,"lineTo")
+            cmd(x,y+h,"lineTo")
+            cmd(x,y,"lineTo")
           case Line(x,y,toX,toY) =>
-            begin(builder);addPoints(x,y)(builder,affineTransform);end("moveTo")(builder)
-            begin(builder);addPoints(toX,toY)(builder,affineTransform);end("lineTo")(builder)
+            cmd(x,y,"moveTo")
+            cmd(toX,toY,"lineTo")
           case BezierCurveTo(sdx,sdy,edx,edy,endPointX,endPointY) =>
-            begin(builder)
-            add(sdx.toDouble)(builder); add(sdy.toDouble)(builder)
-            add(edx.toDouble)(builder); add(edy.toDouble)(builder)
-            add(endPointX.toDouble)(builder); add(endPointY.toDouble)(builder)
-            end("bezierCurveTo")(builder)
+            begin();
+            add(sdx,sdy);add(edx,edy);add(endPointX,endPointY)
+            end("bezierCurveTo")
           case Ellipse(x,y,rx,ry,rotate,startAngle,endAngle,counterclockwise) =>
-            begin(builder); end("save")(builder)
-            val tr = new AffineTransform(affineTransform)
-            tr.translate(x.toDouble,y.toDouble)
-            tr.rotate(rotate.toDouble)
-            tr.scale(rx.toDouble,ry.toDouble)
-            addSetTransform(builder,tr)
-            begin(builder)
-            add(0)(builder); add(0)(builder); add(1)(builder)
-            add(startAngle.toDouble)(builder); add(endAngle.toDouble)(builder); add(counterclockwise)(builder)
-            end("arc")(builder)
-            begin(builder); end("restore")(builder)
+            cmd("save")
+            cmd(x,y,"translate")
+            cmd(rotate,"rotate")
+            cmd(rx,ry,"scale")
+            begin()
+            add(0,0); add(1); add(startAngle,endAngle); add(counterclockwise)
+            end("arc")
+            cmd("restore")
         }
-        end(builder);end("definePath")(builder)
-        startContext("preparingCtx")(builder);
+        end();end("definePath")
+        startContext("preparingCtx");
         {
-          begin(builder);end("beginPath")(builder)
-          begin(builder);end("applyPath")(builder)
-          appendStyles(builder,restStyles)()
+          cmd("beginPath")
+          cmd("applyPath")
+          appendStyles(restStyles)()
           shapes.collect{case s:NonPathShape=>s}.foreach{
             case Image(url,_,_,canvasWidth,canvasHeight)=>
-              begin(builder)
-              add("overlayCtx")(builder);add(url)(builder)
-              addPoints(0,0)(builder,affineTransform)
-              add(transformSize(canvasWidth.toDouble)(affineTransform))(builder)
-              add(transformSize(canvasHeight.toDouble)(affineTransform))(builder)
-              end("image")(builder)
+              begin()
+              add("overlayCtx");add(url);add(0,0);add(canvasWidth,canvasHeight)
+              end("image")
             case Text(tStyles,text,x,y) =>
-              appendStyles(builder,tStyles){case FontStyle(_,fontSize,_)=>
+              cmd("save")
+              appendStyles(tStyles){case FontStyle(_,fontSize,_)=>
                 val defSize = 20
-                val sc = fontSize.toDouble / defSize
-                val tr = new AffineTransform(affineTransform)
-                tr.translate(x.toDouble,y.toDouble)
-                tr.scale(sc,sc)
-                addSetTransform(builder,tr)
+                val sc = fontSize / defSize
+                cmd(x,y,"translate")
+                cmd(sc,sc,"scale")
               }
-              begin(builder); add(text)(builder); add(0)(builder); add(0)(builder); end("fillText")(builder)
-
+              begin(); add(text); add(0,0); end("fillText")
+              cmd("restore")
           }
         };
-        endContext()(builder)
+        endContext()
         if(handlers.nonEmpty) {
           val evColor = "[colorPH]"
-          begin(builder); add(evColor)(builder);begin(builder)
-          startContext("overlayCtx")(builder);
+          begin(); add(evColor); begin()
+          startContext("overlayCtx");
           {
             val bgColor = "rgba(255,255,255,0.45)"
-            begin(builder);end("beginPath")(builder)
-            begin(builder);end("applyPath")(builder)
-            appendStyles(builder, List(FillStyle(bgColor), StrokeStyle(bgColor)))()
+            cmd("beginPath")
+            cmd("applyPath")
+            appendStyles(List(FillStyle(bgColor), StrokeStyle(bgColor)))()
           };
-          endContext()(builder)
-          end(builder);
-          end("over")(builder);
-          startContext("reactiveCtx")(builder);
+          endContext()
+          end(); end("over")
+          startContext("reactiveCtx");
           {
-            begin(builder);
-            end("beginPath")(builder)
-            begin(builder);
-            end("applyPath")(builder)
-            appendStyles(builder, List(FillStyle(evColor), StrokeStyle(evColor)))()
+            cmd("beginPath")
+            cmd("applyPath")
+            appendStyles(List(FillStyle(evColor), StrokeStyle(evColor)))()
           };
-          endContext()(builder)
+          endContext()
         }
       }
       builder.end()

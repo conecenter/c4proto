@@ -8,7 +8,7 @@ import {VDomSender,pairOfInputAttributes,ctxToBranchPath}  from "../main/vdom-ut
 import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
-import CanvasManager from "../extra/canvas-manager"
+import CanvasManager from "../main/canvas-manager"
 import {ExampleAuth} from "../test/vdom-auth"
 import {ExampleRequestState} from "../test/request-state"
 import CanvasExtraMix from "../extra/canvas-extra-mix"

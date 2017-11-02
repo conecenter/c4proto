@@ -183,6 +183,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
     function setupContext(utx){ return {
         set(k,v){ utx.ctx[k] = v },
         definePath(name,commands){ utx[name] = () => utx.run(commands) },
+        setMainContext(commands){ utx.ctx = utx.mainContext },
         inContext(name,commands){
             if(name !== utx.mainContextName) return;
             utx.ctx = utx.mainContext

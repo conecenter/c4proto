@@ -10,7 +10,7 @@ import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
-import ee.cone.c4vdom.{PathContext, PathContextImpl, _}
+import ee.cone.c4vdom.{PathFactory, PathFactoryImpl, _}
 
 class TestCanvasApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -66,10 +66,10 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
 
     val cTags = TestCanvasTagsKey.of(local)
 
-    val canvas = PathContextKey.of(local)
+    val canvas = PathFactoryKey.of(local)
     def canvasSeed(access: Access[String]) =
       cTags.canvas("testCanvas",Nil,List(styles.height(512),styles.widthAll), access)(
-        viewRel(0)(canvas)(local)::viewRel(50)(canvas)(local)::Nil
+        viewRel(0)(local)::viewRel(50)(local)::Nil
       )
 
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
@@ -83,17 +83,21 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
 
     relocate :: inputs ::: Nil
   }
-  def someInnerView(pathContext: PathContext):Context=>ChildPair[OfCanvas]=_=>{
-    pathContext.path("3",List(Rect(0,0,20,20),FillStyle("rgb(0,0,0)")))(Nil)
+  def someInnerView: Context=>ChildPair[OfCanvas] = local => {
+    PathFactoryKey.of(local).path("3",List(Rect(0,0,20,20),FillStyle("rgb(0,0,0)")))(Nil)
   }
-  def otherInnerView(pathContext: PathContext):Context=>ChildPair[OfCanvas]=_=>{
-    pathContext.path("4",Nil)(Nil)
+  def otherInnerView: Context=>ChildPair[OfCanvas] = local => {
+    PathFactoryKey.of(local).path("4",Nil)(Nil)
   }
-  def viewRel: Int ⇒ PathContext ⇒ Context ⇒ ChildPair[OfCanvas] = offset ⇒ canvas ⇒ local ⇒ {
+  def viewRel: Int ⇒ Context ⇒ ChildPair[OfCanvas] = offset ⇒ local ⇒ {
     val key = "123"+offset
-    canvas.path(key, List(Rect(10+offset,20,30,40),GotoClick(key),FillStyle("rgb(255,0,0)"),StrokeStyle("#000000")))(List(
-      someInnerView(canvas.add(Translate(50,50)).add(Rotate(10)))(local),
-      otherInnerView(canvas)(local)
+    val pathFactory = PathFactoryKey.of(local)
+    pathFactory.path(key, List(Rect(10+offset,20,30,40),GotoClick(key),FillStyle("rgb(255,0,0)"),StrokeStyle("#000000")))(List(
+      pathFactory.path("3",List(Translate(0,50),Rotate(0.1)))(List(
+        someInnerView(local)
+      ))
+      ,
+      otherInnerView(local)
     ))
   }
 }
@@ -123,13 +127,13 @@ trait CanvasApp extends ToInjectApp {
 
   override def toInject: List[ToInject] =
     new TestCanvasTags(childPairFactory,tagJsonUtils,CanvasToJsonImpl) ::
-      new PathContextInject(PathContextImpl[Context](Nil)(childPairFactory,CanvasToJsonImpl)) ::
+      new PathFactoryInject(PathFactoryImpl[Context](childPairFactory,CanvasToJsonImpl)) ::
       super.toInject
 }
 
-case object PathContextKey extends SharedComponentKey[PathContext]
-class PathContextInject(pathContext: PathContext) extends ToInject {
-  def toInject: List[Injectable] = PathContextKey.set(pathContext)
+case object PathFactoryKey extends SharedComponentKey[PathFactory]
+class PathFactoryInject(pathContext: PathFactory) extends ToInject {
+  def toInject: List[Injectable] = PathFactoryKey.set(pathContext)
 }
 
 case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: String)(
@@ -141,7 +145,7 @@ case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: 
     builder.startObject()
     utils.appendInputAttributes(builder, value, deferSend=false)
     utils.appendStyles(builder, styles)
-    toJson.appendJson(attr, builder)
+    toJson.appendCanvasJson(attr, builder)
     builder.end()
   }
 }

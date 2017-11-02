@@ -11,7 +11,7 @@ import {VDomSender,ctxToBranchPath}  from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
-import CanvasManager from "../extra/canvas-manager"
+import CanvasManager from "../main/canvas-manager"
 import ScannerProxy  from "../extra/scanner-proxy"
 
 import {CanvasBaseMix} from "../main/canvas-mix"

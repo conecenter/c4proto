@@ -3,8 +3,7 @@ package ee.cone.c4vdom
 
 import ee.cone.c4vdom.Types.VDomKey
 
-trait PathContext {
-  def add(transform: Transform): PathContext
+trait PathFactory {
   def path(key: VDomKey, attrs: List[PathAttr])
     (children: List[ChildPair[OfCanvas]]): ChildPair[OfCanvas]
 }
@@ -15,13 +14,13 @@ trait PathAttr
 trait CanvasAttr
 
 trait CanvasToJson {
-  def appendJson(attr: List[CanvasAttr], builder: MutableJsonBuilder): Unit
-  def appendJson(attrs:List[PathAttr], transforms: List[Transform], builder: MutableJsonBuilder): Unit
+  def appendCanvasJson(attr: List[CanvasAttr], builder: MutableJsonBuilder): Unit
+  def appendPathJson(attrs:List[PathAttr], builder: MutableJsonBuilder): Unit
 }
 
 /////////////////////////////////
 
-sealed trait Transform
+sealed trait Transform extends PathAttr
 case class Scale(value:BigDecimal) extends Transform
 case class Rotate(value:BigDecimal) extends Transform
 case class Translate(x:BigDecimal,y:BigDecimal) extends Transform

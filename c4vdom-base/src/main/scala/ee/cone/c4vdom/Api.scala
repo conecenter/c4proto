@@ -18,7 +18,7 @@ trait MutableJsonBuilder {
   def startObject(): MutableJsonBuilder
   def end(): MutableJsonBuilder
   def append(value: String): MutableJsonBuilder
-  def append(value: Double, decimalFormat: DecimalFormat): MutableJsonBuilder
+  def append(value: BigDecimal, decimalFormat: DecimalFormat): MutableJsonBuilder
   def append(value: Boolean): MutableJsonBuilder
 }
 
