@@ -869,12 +869,17 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.el.addEventListener("blur",this.onBlur)
 				//this.el.addEventListener("enter",this.onEnter,true)
 				this.binding = focusModule.reg(this)
-				this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData,droppable:this.props.droppable,draggable:this.props.draggable})
+				if(this.props.draggable || this.props.droppable)
+					this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
 			}
 			this.isMounted = true
 		},
 		componentDidUpdate:function(prevProps,_){
 			this.checkForSibling()
+			if(this.dragBinding)
+				this.dragBinding.update({node:this.el,dragData:this.props.dragData})
+			else if(this.props.draggable || this.props.droppable)
+				this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
 		    if(!this.props.draggable && !this.props.droppable) return
 			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
 		},
@@ -2606,15 +2611,16 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	
 	const DragDropDivElement = $C({
 		componentDidMount:function(){
-			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData,droppable:this.props.droppable,draggable:this.props.draggable})
+			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})
 		},
 		componentDidUpdate:function(){
-			
+			this.dragBinding.update({node:this.el,dragData:this.props.dragData})
 		},
 		componentWillUnmount:function(){
 			this.dragBinding.release()
 		},
 		onMouseDown:function(e){
+			if(!this.props.draggable) return
 			this.dragBinding.dragStart(e,this.el,"div")
 		},
 		onMouseUp:function(){

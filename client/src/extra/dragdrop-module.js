@@ -117,7 +117,11 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			dragElements.splice(index,1)
 			dragEnd()
 		}
-		return ({release,dragOver,dragStart,dragDrop})
+		const update = (props) =>{
+			const index = dragElements.indexOf(dragEl)			
+			dragElements[index].dragData = props.dragData			
+		}
+		return ({update,release,dragOver,dragStart,dragDrop})
 	}
 	const dragOver = (node) => {
 		if(onDrag()) report("dragOver",dragNode,node)
