@@ -4,14 +4,16 @@ package ee.cone.c4vdom
 import ee.cone.c4vdom.Types.VDomKey
 
 trait PathFactory {
-  def path(key: VDomKey, attrs: List[PathAttr])
-    (children: List[ChildPair[OfCanvas]]): ChildPair[OfCanvas]
+  def path(key: VDomKey, children: ChildPair[OfPath]*): ChildPair[OfPathParent]
+  def path(key: VDomKey, children: List[ChildPair[OfPath]]): ChildPair[OfPathParent]
 }
 
-trait OfCanvas
+trait OfPathParent
+trait OfPath extends OfPathParent
+trait OfCanvas extends OfPathParent
 
-trait PathAttr
-trait CanvasAttr
+trait PathAttr extends ChildPair[OfPath] { def key = throw new Exception }
+trait CanvasAttr extends ChildPair[OfCanvas] { def key = throw new Exception }
 
 trait CanvasToJson {
   def appendCanvasJson(attr: List[CanvasAttr], builder: MutableJsonBuilder): Unit

@@ -5,9 +5,14 @@ import ee.cone.c4vdom.Types.VDomKey
 case class PathFactoryImpl[Context](
   child: ChildPairFactory, pathToJson: CanvasToJson
 ) extends PathFactory {
-  def path(key: VDomKey, attrs: List[PathAttr])
-    (children: List[ChildPair[OfCanvas]]): ChildPair[OfCanvas] =
-    child[OfCanvas](key, PartPath[Context](attrs)(pathToJson), children)
+  def path(key: VDomKey, children: ChildPair[OfPath]*): ChildPair[OfPathParent] =
+    path(key, children.toList)
+  def path(key: VDomKey, children: List[ChildPair[OfPath]]): ChildPair[OfPathParent] =
+    child[OfPathParent](
+      key,
+      PartPath[Context](children.collect{ case a:PathAttr⇒a })(pathToJson),
+      children.filterNot(_.isInstanceOf[PathAttr])
+    )
 }
 
 case class PartPath[Context](attrs:List[PathAttr])(

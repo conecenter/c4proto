@@ -68,7 +68,7 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
 
     val canvas = PathFactoryKey.of(local)
     def canvasSeed(access: Access[String]) =
-      cTags.canvas("testCanvas",Nil,List(styles.height(512),styles.widthAll), access)(
+      cTags.canvas("testCanvas",List(styles.height(512),styles.widthAll), access)(
         viewRel(0)(local)::viewRel(50)(local)::Nil
       )
 
@@ -83,22 +83,20 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
 
     relocate :: inputs ::: Nil
   }
-  def someInnerView: Context=>ChildPair[OfCanvas] = local => {
-    PathFactoryKey.of(local).path("3",List(Rect(0,0,20,20),FillStyle("rgb(0,0,0)")))(Nil)
-  }
-  def otherInnerView: Context=>ChildPair[OfCanvas] = local => {
-    PathFactoryKey.of(local).path("4",Nil)(Nil)
-  }
   def viewRel: Int ⇒ Context ⇒ ChildPair[OfCanvas] = offset ⇒ local ⇒ {
     val key = "123"+offset
     val pathFactory = PathFactoryKey.of(local)
-    pathFactory.path(key, List(Rect(10+offset,20,30,40),GotoClick(key),FillStyle("rgb(255,0,0)"),StrokeStyle("#000000")))(List(
-      pathFactory.path("3",List(Translate(0,50),Rotate(0.1)))(List(
-        someInnerView(local)
-      ))
-      ,
-      otherInnerView(local)
-    ))
+    import pathFactory.path
+    path(key,
+      Rect(10+offset,20,30,40),
+      GotoClick(key),
+      FillStyle("rgb(255,0,0)"), StrokeStyle("#000000"),
+      path("3",
+        Translate(0,50), Rotate(0.1),
+        path("3",Rect(0,0,20,20),FillStyle("rgb(0,0,0)"))
+      ),
+      path("4")
+    )
   }
 }
 
@@ -155,13 +153,29 @@ class TestCanvasTags(child: ChildPairFactory, utils: TagJsonUtils, toJson: Canva
   def toInject: List[Injectable] = TestCanvasTagsKey.set(this)
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
-  def canvas(key: VDomKey, attr: List[CanvasAttr], style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =
+  def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =
     child[OfDiv](
       key,
-      CanvasElement(attr, style, access.initialValue)(
+      CanvasElement(children.collect{ case a: CanvasAttr ⇒ a }, style, access.initialValue)(
         utils, toJson,
         message ⇒ access.updatingLens.get.set(messageStrBody(message))
       ),
-      children
+      children.filterNot(_.isInstanceOf[CanvasAttr])
     )
 }
+
+/*
+object T {
+  trait Ch[-C]
+  trait OfA
+  trait OfB extends OfA
+  def a(l: List[Ch[OfA]]) = ???
+  def b(l: List[Ch[OfB]]) = ???
+
+  def chOfA: Ch[OfA] = ???
+  def chOfB: Ch[OfB] = ???
+  a(List(chOfA))
+  def chM: Seq[Ch[OfB]] = List(chOfA,chOfB)
+  b(List(chOfA,chOfB))
+
+}*/

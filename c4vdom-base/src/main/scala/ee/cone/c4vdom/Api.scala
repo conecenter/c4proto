@@ -29,7 +29,7 @@ object Types {
   type ViewRes = List[ChildPair[_]]
 }
 
-trait ChildPair[C] {
+trait ChildPair[-C] {
   def key: VDomKey
 }
 
