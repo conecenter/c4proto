@@ -18,10 +18,7 @@ class TestConsumerApp extends ServerApp
   with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
-{
-  override def protocols: List[Protocol] = AlienProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
-  override def `the List of Assemble`: List[Assemble] = new TestAssemble :: super.`the List of Assemble`
-}
+  with `The AlienProtocol` with `The HttpProtocol` with `The TcpProtocol` with `The TestAssemble`
 
 /*
 tmp/kafka_2.11-0.10.1.0/bin/kafka-simple-consumer-shell.sh --broker-list localhost:9092 --topic inbox
@@ -36,7 +33,7 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --descri
 curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 */
 
-@assemble class TestAssemble extends Assemble {
+@c4component @listed @assemble case class TestAssemble() extends Assemble {
   def joinTestHttpPostHandler(
     key: SrcId,
     posts: Values[HttpPost]

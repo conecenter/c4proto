@@ -8,7 +8,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 import ee.cone.c4ui._
 import ee.cone.c4vdom.MutableJsonBuilder
 import ee.cone.c4vdom.Types.ViewRes
@@ -21,14 +21,14 @@ class TestCanvasApp extends ServerApp
   with UIApp
   with PublishingApp
   with `The TestTagsImpl`
-  with CanvasApp
+  with `The CanvasAssemble`
   with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
+  with `The TestCanvasAssemble`
+  with `The TestCanvasProtocol`
 {
-  override def protocols: List[Protocol] = TestCanvasProtocol :: super.protocols
   override def `the List of Assemble`: List[Assemble] =
-    new TestCanvasAssemble ::
       new FromAlienTaskAssemble("/react-app.html") ::
       super.`the List of Assemble`
   def mimeTypes: Map[String, String] = Map(
@@ -50,7 +50,7 @@ class TestCanvasApp extends ServerApp
   )
 }
 
-@assemble class TestCanvasAssemble extends Assemble {
+@c4component @listed @assemble case class TestCanvasAssemble() extends Assemble {
   def joinView(
     key: SrcId,
     tasks: Values[FromAlienTask]

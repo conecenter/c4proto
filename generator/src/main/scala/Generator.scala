@@ -53,10 +53,22 @@ object Generator {
       Option((q"???",None))*/
   }
 
+  def listedResult(ext: List[Init], tName: Any, concreteStatement: Term, needStms: List[Stat], mixType: Type.Name): Stat = {
+    val init"$abstractType(...$_)" :: _ = ext
+    val concreteTerm = theTerm(tName)
+    val listTerm = listedTerm(abstractType)
+    val statements =
+      q"private lazy val ${Pat.Var(concreteTerm)} = $concreteStatement" ::
+        q"override def $listTerm = $concreteTerm :: super.$listTerm " ::
+        needStms
+    val init = Init(theType(abstractType), Name(""), Nil) // q"".structure
+    q"trait $mixType extends $init { ..$statements }"
+  }
 
   def classComponent: PartialFunction[Tree,(Boolean,Stat)] = {
     //q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
     case q"@c4component ..$mods class $tName[..$tParams](...$paramsList) extends ..$ext { ..$stats }" ⇒
+      val e = ext
       lazy val needsList = for {
         params ← paramsList.toList
       } yield for {
@@ -77,7 +89,8 @@ object Generator {
       val mixType = theType(tName)
       val resStatement = (isAbstract,isCase,isListed) match {
         case (false,true,true) ⇒
-          val init"$abstractType(...$_)" :: _ = ext
+          listedResult(ext,tName,concreteStatement,needStms,mixType)
+          /*val init"$abstractType(...$_)" :: _ = ext
           val concreteTerm = theTerm(tName)
           val listTerm = listedTerm(abstractType)
           val statements =
@@ -85,7 +98,7 @@ object Generator {
               q"override def $listTerm = $concreteTerm :: super.$listTerm " ::
               needStms
           val init = Init(theType(abstractType), Name(""), Nil) // q"".structure
-          q"trait $mixType extends $init { ..$statements }"
+          q"trait $mixType extends $init { ..$statements }"*/
         case (false,true,false) ⇒
           val init"${abstractType:Type}(...$_)" :: _ = ext
           val statements =
@@ -103,6 +116,9 @@ object Generator {
         case a ⇒ throw new Exception(s"$tName unsupported mods: $a")
       }
       (true,resStatement)
+    case q"@protocol object $objectName extends ..$ext { ..$stats }" ⇒
+      val mixType = theType(objectName)
+      (true,listedResult(ext,objectName,objectName,Nil,mixType))
   }
 
   def importForComponents: PartialFunction[Tree,(Boolean,Stat)] = {

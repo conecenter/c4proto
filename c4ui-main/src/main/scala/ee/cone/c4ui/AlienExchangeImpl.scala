@@ -41,7 +41,7 @@ case class MessageFromAlienImpl(
   def rm: Context ⇒ Context = TxAdd(delete(request))
 }
 
-@assemble class MessageFromAlienAssemble extends Assemble {
+@c4component @listed @assemble case class MessageFromAlienAssemble() extends Assemble {
   def mapHttpPostByBranch(
     key: SrcId,
     posts: Values[HttpPost]

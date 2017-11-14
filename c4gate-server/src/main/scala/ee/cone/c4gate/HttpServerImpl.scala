@@ -15,7 +15,7 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, Single, assemble, by}
+import ee.cone.c4assemble._
 import ee.cone.c4actor._
 import ee.cone.c4gate.AlienProtocol.{PostConsumer, ToAlienWrite}
 import ee.cone.c4gate.AuthProtocol._
@@ -153,9 +153,8 @@ class WorldProviderImpl(
   }
 }
 
-trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
+trait InternetForwarderApp extends `The AuthProtocol` with `The HttpProtocol` with InitialObserversApp {
   lazy val `the WorldProvider`: WorldProvider with Observer = new WorldProviderImpl()
-  override def protocols: List[Protocol] = AuthProtocol :: HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] = `the WorldProvider` :: super.initialObservers
 }
 
@@ -172,13 +171,13 @@ trait HttpServerApp extends `The Executable` {
 }
 
 object PostAssembles {
-  def apply(mortal: MortalFactory, sseConfig: SSEConfig): List[Assemble] =
-    mortal(classOf[HttpPost]) :: new PostLifeAssemble(sseConfig) :: Nil
+  def apply(mortal: MortalFactory): List[Assemble] =
+    mortal(classOf[HttpPost]) :: Nil
 }
 
 case class HttpPostAllow(condition: SrcId)
 
-@assemble class PostLifeAssemble(sseConfig: SSEConfig) extends Assemble {
+@c4component @listed @assemble case class PostLifeAssemble(sseConfig: SSEConfig) extends Assemble {
   type ASessionKey = SrcId
   type Condition = SrcId
 

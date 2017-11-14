@@ -21,7 +21,7 @@ class PublishApp extends ServerApp
   def txObserver = None
 }
 
-trait PublishingApp extends ProtocolsApp with InitialObserversApp {
+trait PublishingApp extends `The HttpProtocol` with InitialObserversApp {
   def `the QMessages`: QMessages
   def mimeTypes: Map[String,String]
   def publishFromStrings: List[(String,String)]
@@ -29,7 +29,6 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp {
   private lazy val publishDir = "htdocs"
   private lazy val publishingObserver =
     new PublishingObserver(`the QMessages`,publishDir,publishFromStrings,mimeTypes.get)
-  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers
 }

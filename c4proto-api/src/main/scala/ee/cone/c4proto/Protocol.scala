@@ -4,11 +4,17 @@ package ee.cone.c4proto
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.squareup.wire.ProtoAdapter
+import ee.cone.c4proto.HiddenC4Annotations.{c4component, listed}
 import okio.ByteString
 
 import scala.annotation.StaticAnnotation
 
-trait Protocol {
+object HiddenC4Annotations {
+  class c4component
+  class listed
+}
+
+@c4component @listed abstract class Protocol {
   def adapters: List[ProtoAdapter[_] with HasId] = ??? //_<:Object
 }
 

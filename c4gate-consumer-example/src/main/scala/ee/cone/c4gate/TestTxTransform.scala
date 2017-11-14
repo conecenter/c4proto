@@ -5,7 +5,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, `The NoAssembleProfiler`}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4proto.Protocol
 
@@ -18,12 +18,9 @@ abstract class TestTxTransformApp extends ServerApp
   with `The NoAssembleProfiler`
   with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp
-{
-  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
-  override def `the List of Assemble`: List[Assemble] = new TestDelayAssemble :: super.`the List of Assemble`
-}
+  with `The HttpProtocol` with `The TestDelayAssemble`
 
-@assemble class TestDelayAssemble extends Assemble {
+@c4component @listed @assemble case class TestDelayAssemble() extends Assemble {
   def joinTestHttpPostHandler(
     key: SrcId,
     posts: Values[HttpPost]

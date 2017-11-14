@@ -6,7 +6,7 @@ import ee.cone.c4actor.HashSearchTestProtocol.{SomeModel, SomeRequest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 
 case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
@@ -100,9 +100,8 @@ class HashSearchTestApp extends RichDataApp
   with `The HashSearchTestIndexAssemble`
   with `The HashSearchTestImpl`
   with `The HashSearchTestAssemble`
+  with `The HashSearchTestProtocol`
 {
-  override def protocols: List[Protocol] =
-    HashSearchTestProtocol :: super.protocols
   lazy val hashSearchTest: HashSearchTest = ???
 }
 

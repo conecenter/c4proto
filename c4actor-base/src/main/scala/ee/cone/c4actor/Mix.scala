@@ -8,11 +8,6 @@ trait InitialObserversApp {
   def initialObservers: List[Observer] = Nil
 }
 
-trait ProtocolsApp {
-  def protocols: List[Protocol] = Nil
-  def `the List of Protocol` = protocols
-}
-
 /*
 trait ToInjectApp extends `The ToInject` {
   def toInject: List[ToInject] = Nil
@@ -60,9 +55,8 @@ trait RichDataApp extends QAdapterRegistryApp
       super.`the List of ToInject`
 }
 
-trait QAdapterRegistryApp extends ProtocolsApp {
-  lazy val `the QAdapterRegistry`: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  override def protocols: List[Protocol] = QProtocol :: super.protocols
+trait QAdapterRegistryApp extends `The QProtocol` {
+  lazy val `the QAdapterRegistry`: QAdapterRegistry = QAdapterRegistryFactory(`the List of Protocol`.distinct)
 }
 
 trait SnapshotMakingApp extends ExecutableApp with QAdapterRegistryApp with `The SnapshotMakingRawWorldFactory` {

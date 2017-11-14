@@ -1,14 +1,8 @@
 package ee.cone.c4ui
 
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble,`The Assemble`}
-import ee.cone.c4gate.{AlienProtocol, HttpProtocol}
-import ee.cone.c4proto.Protocol
+import ee.cone.c4gate._
 
-trait AlienExchangeApp extends `The ToInject` with ProtocolsApp with `The Assemble` with `The FromAlienBranchAssemble` {
+trait AlienExchangeApp extends `The ToInject` with `The HttpProtocol` with `The AlienProtocol` with `The FromAlienBranchAssemble` with `The MessageFromAlienAssemble` {
   override def `the List of ToInject`: List[ToInject] = SendToAlienInit :: super.`the List of ToInject`
-  override def `the List of Assemble`: List[Assemble] =
-    new MessageFromAlienAssemble ::
-    super.`the List of Assemble`
-  override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
 }

@@ -21,15 +21,15 @@ class TestSSEApp extends ServerApp
   with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
+  with `The TestSSEAssemble`
 {
   override def `the List of Assemble`: List[Assemble] =
     new FromAlienTaskAssemble("/sse.html") ::
-    new TestSSEAssemble ::
     super.`the List of Assemble`
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 }
 
-@assemble class TestSSEAssemble extends Assemble {
+@c4component @listed @assemble case class TestSSEAssemble() extends Assemble {
   def joinView(
     key: SrcId,
     tasks: Values[BranchTask]

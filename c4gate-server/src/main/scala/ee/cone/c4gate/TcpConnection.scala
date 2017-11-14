@@ -9,19 +9,15 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto.Protocol
 
-trait TcpServerApp extends `The Assemble` with ProtocolsApp
+trait TcpServerApp extends `The TcpAssemble` with `The TcpProtocol`
   with `The TcpServerInject` with `The TcpServerExecutable`
   with `The TcpServerImpl` with `The TcpServerConfigImpl` with `The TcpHandlerImpl`
 {
-  def `the Config`: Config
-  def `the QMessages`: QMessages
-  def `the WorldProvider`: WorldProvider
   def `the MortalFactory`: MortalFactory
 
   override def `the List of Assemble`: List[Assemble] =
     `the MortalFactory`(classOf[TcpDisconnect]) :: `the MortalFactory`(classOf[TcpWrite]) ::
-    new TcpAssemble :: super.`the List of Assemble`
-  override def protocols: List[Protocol] = TcpProtocol :: super.protocols
+    super.`the List of Assemble`
 }
 
 @c4component case class TcpServerConfigImpl(config: Config) extends TcpServerConfig {
@@ -55,7 +51,7 @@ case class TcpConnectionTxTransform(
   }
 }
 
-@assemble class TcpAssemble extends Assemble {
+@c4component @listed @assemble case class TcpAssemble() extends Assemble {
   type ConnectionKey = SrcId
 
   def joinTcpWrite(key: SrcId, writes: Values[TcpWrite]): Values[(ConnectionKey, TcpWrite)] =

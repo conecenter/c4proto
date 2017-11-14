@@ -6,7 +6,7 @@ import java.time.Instant
 import com.squareup.wire.ProtoAdapter
 
 import scala.collection.immutable.{Map, Queue, Seq}
-import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
+import ee.cone.c4proto._
 import ee.cone.c4assemble.Types.{Index, ReadModel}
 import ee.cone.c4assemble._
 import ee.cone.c4actor.QProtocol.Update

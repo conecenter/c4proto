@@ -6,10 +6,10 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
-import ee.cone.c4proto.{Id, Protocol, ToByteString, protocol}
+import ee.cone.c4proto._
 import okio.ByteString
 
 @protocol object SessionDataProtocol extends Protocol {
@@ -25,10 +25,10 @@ import okio.ByteString
 
 object SessionDataAssembles {
   def apply(mortal: MortalFactory): List[Assemble] =
-    mortal(classOf[RawSessionData]) :: new SessionDataAssemble :: Nil
+    mortal(classOf[RawSessionData]) :: Nil
 }
 
-@assemble class SessionDataAssemble extends Assemble {
+@c4component @listed @assemble case class SessionDataAssemble() extends Assemble {
   type SessionKey = SrcId
 
   def joinBySessionKey(

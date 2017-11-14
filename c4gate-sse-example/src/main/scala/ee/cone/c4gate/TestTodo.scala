@@ -35,9 +35,9 @@ class TestTodoApp extends ServerApp
   with `The MortalFactoryImpl`
   with `The TestTodoRootView`
   with `The ByLocationHashView`
+  with `The CommonFilterProtocol`
+  with `The TestTodoProtocol`
 {
-  override def protocols: List[Protocol] =
-    CommonFilterProtocol :: TestTodoProtocol :: super.protocols
   override def `the List of Assemble`: List[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") ::
     super.`the List of Assemble`

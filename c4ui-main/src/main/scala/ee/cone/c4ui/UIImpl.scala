@@ -4,7 +4,7 @@ import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble._
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
 import okio.ByteString
@@ -22,7 +22,7 @@ case object VDomStateKey extends TransientLens[Option[VDomState]](None)
 //case object RelocateKey extends WorldKey[String]("")
 //  with VDomLens[World, String]
 
-@assemble class VDomAssemble extends Assemble {
+@c4component @listed @assemble case class VDomAssemble() extends Assemble {
   def joinBranchHandler(
     key: SrcId,
     tasks: Values[BranchTask],

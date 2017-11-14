@@ -4,11 +4,11 @@ package ee.cone.c4ui
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, Single, assemble}
+import ee.cone.c4assemble._
 
 import scala.Function.chain
 
-@assemble class CanvasAssemble extends Assemble {
+@c4component @listed @assemble case class CanvasAssemble() extends Assemble {
   def joinBranchHandler(
     key: SrcId,
     tasks: Values[BranchTask],

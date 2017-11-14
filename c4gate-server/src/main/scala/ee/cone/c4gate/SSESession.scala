@@ -21,11 +21,11 @@ import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPost}
 
 trait SSEServerApp
-  extends `The Assemble`
+  extends `The PostLifeAssemble` with `The SSEAssemble`
   with `The ToInject`
   with `The TcpServerInject` with `The TcpServerExecutable`
   with `The TcpServerImpl` with `The SSETcpServerConfig` with `The SSEHandler`
-  with ProtocolsApp
+  with `The AlienProtocol`
 {
   def `the Config`: Config
   def `the QMessages`: QMessages
@@ -35,11 +35,10 @@ trait SSEServerApp
   lazy val pongHandler = new PongHandler(`the QMessages`,`the WorldProvider`,`the SSEConfig`)
 
   override def `the List of Assemble`: List[Assemble] =
-    SSEAssembles(`the MortalFactory`,`the SSEConfig`) ::: PostAssembles(`the MortalFactory`,`the SSEConfig`) :::
+    SSEAssembles(`the MortalFactory`) ::: PostAssembles(`the MortalFactory`) :::
       super.`the List of Assemble`
   override def `the List of ToInject`: List[ToInject] =
     pongHandler :: super.`the List of ToInject`
-  override def protocols: List[Protocol] = AlienProtocol :: super.protocols
 }
 
 
@@ -136,11 +135,11 @@ case class SessionTxTransform( //?todo session/pongs purge
 }
 
 object SSEAssembles {
-  def apply(mortal: MortalFactory, sseConfig: SSEConfig): List[Assemble] =
-      mortal(classOf[ToAlienWrite]) :: new SSEAssemble(sseConfig) :: Nil
+  def apply(mortal: MortalFactory): List[Assemble] =
+      mortal(classOf[ToAlienWrite]) :: Nil
 }
 
-@assemble class SSEAssemble(sseConfig: SSEConfig) extends Assemble {
+@c4component @listed @assemble case class SSEAssemble(sseConfig: SSEConfig) extends Assemble {
   type SessionKey = SrcId
 
   def joinToAlienWrite(

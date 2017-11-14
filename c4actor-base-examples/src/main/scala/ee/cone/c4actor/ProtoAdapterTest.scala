@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
 import ee.cone.c4assemble.Types.ReadModel
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 
 
 object ProtoAdapterTest extends App with LazyLogging {

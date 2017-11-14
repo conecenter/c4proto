@@ -30,7 +30,7 @@ object C4GeneratorPlugin extends AutoPlugin {
 */
 
 object Main {
-  private def version = Array[Byte](29)
+  private def version = Array[Byte](40)
   private def getToPath(path: Path): Option[Path] = path.getFileName.toString match {
     case "scala" ⇒ Option(path.resolveSibling("java"))
     case name ⇒ Option(path.getParent).flatMap(getToPath).map(_.resolve(name))
@@ -44,7 +44,7 @@ object Main {
       path ← files
       toParentPath ← getToPath(path.getParent)
       data = Files.readAllBytes(path)
-      content = new String(data,UTF_8) if content contains "@c4"
+      content = new String(data,UTF_8) if content.contains("@c4") || content.contains("@protocol")
       uuid = UUID.nameUUIDFromBytes(data ++ version)
       toPath = toParentPath.resolve(s"c4gen.$uuid.${path.getFileName}")
     } yield {

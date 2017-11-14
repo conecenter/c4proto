@@ -15,7 +15,6 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
-import ee.cone.c4proto
 import ee.cone.c4proto._
 import okio.ByteString
 
@@ -30,7 +29,7 @@ import okio.ByteString
 
 ////
 
-@protocol object ToExternalDBProtocol extends c4proto.Protocol {
+@protocol object ToExternalDBProtocol extends Protocol {
   @Id(0x0063) case class HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -49,7 +48,6 @@ object ToExternalDBTypes {
 
 object ToExternalDBAssembles {
   def apply(options: List[ExternalDBOption]): List[Assemble] =
-    new ToExternalDBTxAssemble ::
       options.collect{ case o: ToDBOption ⇒ o.assemble }
 }
 
@@ -68,7 +66,7 @@ object ToExternalDBAssembles {
     }
 }
 
-@assemble class ToExternalDBTxAssemble extends Assemble {
+@c4component @listed @assemble case class ToExternalDBTxAssemble() extends Assemble {
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -137,14 +135,14 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol object FromExternalDBProtocol extends c4proto.Protocol {
+@protocol object FromExternalDBProtocol extends Protocol {
   @Id(0x0060) case class DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long
   )
 }
 
-@assemble class FromExternalDBSyncAssemble extends Assemble {
+@c4component @listed @assemble case class FromExternalDBSyncAssemble() extends Assemble {
   def joinTxTransform(
     key: SrcId,
     firsts: Values[Firstborn]

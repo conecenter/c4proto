@@ -2,7 +2,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4gate.CommonFilterProtocol.{Contains, DateBefore}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{ChildPair, OfDiv}
 

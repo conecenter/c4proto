@@ -22,15 +22,15 @@ class TestPasswordApp extends ServerApp
   with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
+  with `The AuthProtocol`
+  with `The TestPasswordAssemble`
 {
-  override def protocols: List[Protocol] = AuthProtocol :: super.protocols
   override def `the List of Assemble`: List[Assemble] =
-    new TestPasswordAssemble ::
       new FromAlienTaskAssemble("/react-app.html") ::
       super.`the List of Assemble`
 }
 
-@assemble class TestPasswordAssemble extends Assemble {
+@c4component @listed @assemble case class TestPasswordAssemble() extends Assemble {
   def joinView(
     key: SrcId,
     fromAliens: Values[FromAlienTask]

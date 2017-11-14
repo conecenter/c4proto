@@ -1,7 +1,7 @@
 
 package ee.cone.c4gate
 
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 
 @protocol object HttpProtocol extends Protocol {
   @Id(0x002C) case class HttpPublication(
