@@ -10,6 +10,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
+  def prepare: List[MetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
   def check: StrEq ⇒ String ⇒ Boolean = by ⇒ value ⇒ value == by.value
 }
 case object StrEqRanger extends Ranger[StrEq,String] {
@@ -99,7 +100,7 @@ object HashSearchTestMain extends LazyLogging {
       lens ← List(fieldA, fieldB, fieldC)
       pattern ← request.pattern
       value ← Option(lens.of(pattern)) if value.nonEmpty
-    } yield cf.leaf(lens, StrEq(value))
+    } yield cf.leaf(lens, StrEq(value), Nil)
     leafs.reduce(cf.intersect)
   }
 

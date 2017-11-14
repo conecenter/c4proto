@@ -10,10 +10,12 @@ class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
     UnionCondition(_,_)
   def any: Condition[Model] =
     AnyCondition()
-  def leaf[By<:Product,Field](lens: ProdLens[Model,Field], by: By)(
+  def leaf[By<:Product,Field](lens: ProdLens[Model,Field], by: By, byOptions: List[MetaAttr])(
     implicit check: ConditionCheck[By,Field]
-  ): Condition[Model] =
-    ProdConditionImpl(filterMetaList(lens), by)(check.check(by),lens.of)
+  ): Condition[Model] = {
+    val preparedBy = check.prepare(byOptions)(by)
+    ProdConditionImpl(filterMetaList(lens), preparedBy)(check.check(preparedBy),lens.of)
+  }
   def filterMetaList[Field]: ProdLens[Model,Field] ⇒ List[MetaAttr] =
     _.metaList.collect{ case l: NameMetaAttr ⇒ l }
 }
