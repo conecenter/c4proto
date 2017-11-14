@@ -5,27 +5,31 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto.Protocol
 
-trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with ProtocolsApp {
+trait TcpServerApp extends `The Assemble` with ProtocolsApp
+  with `The TcpServerInject` with `The TcpServerExecutable`
+  with `The TcpServerImpl` with `The TcpServerConfigImpl` with `The TcpHandlerImpl`
+{
   def `the Config`: Config
   def `the QMessages`: QMessages
-  def worldProvider: WorldProvider
+  def `the WorldProvider`: WorldProvider
   def `the MortalFactory`: MortalFactory
 
-  private lazy val tcpPort = `the Config`.get("C4TCP_PORT").toInt
-  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(`the QMessages`, worldProvider), Long.MaxValue)
-  override def toStart: List[Executable] = tcpServer :: super.toStart
-  override def assembles: List[Assemble] =
+  override def `the List of Assemble`: List[Assemble] =
     `the MortalFactory`(classOf[TcpDisconnect]) :: `the MortalFactory`(classOf[TcpWrite]) ::
-    new TcpAssemble :: super.assembles
-  override def toInject: List[ToInject] = tcpServer :: super.toInject
+    new TcpAssemble :: super.`the List of Assemble`
   override def protocols: List[Protocol] = TcpProtocol :: super.protocols
 }
 
-class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends TcpHandler {
+@c4component case class TcpServerConfigImpl(config: Config) extends TcpServerConfig {
+  def port: Int = config.get("C4TCP_PORT").toInt
+  def timeout: Long = Long.MaxValue
+}
+
+@c4component case class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends TcpHandler {
   private def changeWorld(transform: Context ⇒ Context): Unit =
     Option(worldProvider.createTx()).map(transform).foreach(qMessages.send)
   override def beforeServerStart(): Unit = changeWorld{ local ⇒

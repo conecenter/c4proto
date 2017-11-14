@@ -53,15 +53,28 @@ class ChannelHandler(
   }
 }
 
-class TcpServerImpl(
-  port: Int, tcpHandler: TcpHandler, timeout: Long,
+@c4component @listed case class TcpServerInject(client: TcpServer) extends ToInject {
+  override def toInject: List[Injectable] = client.toInject
+}
+
+@c4component @listed case class TcpServerExecutable(client: TcpServer) extends Executable {
+  def run(): Unit = client.run()
+}
+
+trait TcpServer extends Executable {
+  def toInject: List[Injectable]
+}
+
+@c4component case class TcpServerImpl(
+  config: TcpServerConfig, tcpHandler: TcpHandler
+)(
   channels: TrieMap[String,ChannelHandler] = TrieMap()
-) extends ToInject with Executable with LazyLogging {
+) extends TcpServer with LazyLogging {
   def toInject: List[Injectable] = GetSenderKey.set(channels.get)
 
   def run(): Unit = concurrent.blocking{
     tcpHandler.beforeServerStart()
-    val address = new InetSocketAddress(port)
+    val address = new InetSocketAddress(config.port)
     val listener = AsynchronousServerSocketChannel.open().bind(address)
     val executor = Executors.newScheduledThreadPool(1)
     listener.accept[Unit]((), new CompletionHandler[AsynchronousSocketChannel,Unit] {
@@ -73,7 +86,7 @@ class TcpServerImpl(
           tcpHandler.afterDisconnect(key)
         }, { error ⇒
           logger.error("channel",error)
-        }, executor, timeout)
+        }, executor, config.timeout)
         channels += key → sender
         tcpHandler.afterConnect(key, sender)
       }

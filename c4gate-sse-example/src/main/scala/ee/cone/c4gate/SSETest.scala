@@ -22,10 +22,10 @@ class TestSSEApp extends ServerApp
   with ManagementApp
   with FileRawSnapshotApp
 {
-  override def assembles: List[Assemble] =
+  override def `the List of Assemble`: List[Assemble] =
     new FromAlienTaskAssemble("/sse.html") ::
     new TestSSEAssemble ::
-    super.assembles
+    super.`the List of Assemble`
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 }
 

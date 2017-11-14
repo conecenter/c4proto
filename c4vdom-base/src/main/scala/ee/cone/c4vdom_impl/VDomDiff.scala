@@ -1,5 +1,6 @@
 package ee.cone.c4vdom_impl
 
+import ee.cone.c4vdom.HiddenC4Annotations.c4component
 import ee.cone.c4vdom.VDomValue
 
 case class DoSetPair(value: VDomValue) extends VPair {
@@ -8,8 +9,8 @@ case class DoSetPair(value: VDomValue) extends VPair {
   def withValue(value: VDomValue) = Never()
 }
 
-class DiffImpl(createMapValue: List[VPair]=>MapVDomValue, wasNoValue: WasNoVDomValue) extends Diff {
-  private def set(value: VDomValue) = Some(createMapValue(DoSetPair(value)::Nil))
+@c4component case class DiffImpl(createMapValue: MapVDomValueFactory, wasNoValue: WasNoVDomValue) extends Diff {
+  private def set(value: VDomValue) = Some(createMapValue.create(DoSetPair(value)::Nil))
   def diff(prevValue: VDomValue, currValue: VDomValue): Option[MapVDomValue] = prevValue match {
     case p: MapVDomValue => currValue match {
       case n: MapVDomValue =>
@@ -25,7 +26,7 @@ class DiffImpl(createMapValue: List[VPair]=>MapVDomValue, wasNoValue: WasNoVDomV
           current = current.tail
         }
         if(previous.nonEmpty) set(n)
-        else if(res.nonEmpty) Some(createMapValue(res))
+        else if(res.nonEmpty) Some(createMapValue.create(res))
         else None
       case n => set(currValue)
     }

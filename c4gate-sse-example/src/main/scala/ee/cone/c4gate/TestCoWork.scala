@@ -29,9 +29,9 @@ class TestCoWorkApp extends ServerApp
   with `The ContentDefault`
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
-  override def assembles: List[Assemble] =
+  override def `the List of Assemble`: List[Assemble] =
       new FromAlienTaskAssemble("/react-app.html") ::
-      super.assembles
+      super.`the List of Assemble`
 }
 
 //@fieldAccess

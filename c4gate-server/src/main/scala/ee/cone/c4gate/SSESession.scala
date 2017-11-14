@@ -21,28 +21,28 @@ import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPost}
 
 trait SSEServerApp
-  extends ToStartApp
-  with AssemblesApp
-  with ToInjectApp
+  extends `The Assemble`
+  with `The ToInject`
+  with `The TcpServerInject` with `The TcpServerExecutable`
+  with `The TcpServerImpl` with `The SSETcpServerConfig` with `The SSEHandler`
   with ProtocolsApp
 {
   def `the Config`: Config
   def `the QMessages`: QMessages
-  def worldProvider: WorldProvider
-  def sseConfig: SSEConfig
+  def `the WorldProvider`: WorldProvider
+  def `the SSEConfig`: SSEConfig
   def `the MortalFactory`: MortalFactory
-  lazy val pongHandler = new PongHandler(`the QMessages`,worldProvider,sseConfig)
-  private lazy val ssePort = `the Config`.get("C4SSE_PORT").toInt
-  private lazy val sseServer =
-    new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10)
-  override def toStart: List[Executable] = sseServer :: super.toStart
-  override def assembles: List[Assemble] =
-    SSEAssembles(`the MortalFactory`,sseConfig) ::: PostAssembles(`the MortalFactory`,sseConfig) :::
-      super.assembles
-  override def toInject: List[ToInject] =
-    sseServer :: pongHandler :: super.toInject
+  lazy val pongHandler = new PongHandler(`the QMessages`,`the WorldProvider`,`the SSEConfig`)
+
+  override def `the List of Assemble`: List[Assemble] =
+    SSEAssembles(`the MortalFactory`,`the SSEConfig`) ::: PostAssembles(`the MortalFactory`,`the SSEConfig`) :::
+      super.`the List of Assemble`
+  override def `the List of ToInject`: List[ToInject] =
+    pongHandler :: super.`the List of ToInject`
   override def protocols: List[Protocol] = AlienProtocol :: super.protocols
 }
+
+
 
 case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
 
@@ -83,7 +83,12 @@ object SSEMessage {
   }
 }
 
-class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHandler {
+@c4component case class SSETcpServerConfig(config: Config) extends TcpServerConfig {
+  def port: Int = config.get("C4SSE_PORT").toInt
+  def timeout: Long = 10
+}
+
+@c4component case class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHandler {
   override def beforeServerStart(): Unit = ()
   override def afterConnect(connectionKey: String, sender: SenderToAgent): Unit = {
     val allowOrigin =

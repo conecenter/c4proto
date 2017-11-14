@@ -54,7 +54,9 @@ case class TreeSeq[V](orig: TreeMap[(String,Int),V]) extends Seq[V] {
   def iterator: Iterator[V] = orig.iterator.map(_._2)
 }
 
-class TreeIndexValueMergerFactory(from: Int) extends IndexValueMergerFactory {
+@c4component case class IndexValueMergerConfigImpl() extends IndexValueMergerConfig(16)
+
+@c4component case class TreeIndexValueMergerFactory(config: IndexValueMergerConfig) extends IndexValueMergerFactory {
   def create[R <: Product]: (Values[R], MultiSet[R]) ⇒ Values[R] = {
     val merging = new ValueMerging[R]
     def patch(value: TreeSeq[R], delta: MultiSet[R]): TreeSeq[R] = TreeSeq(
@@ -74,7 +76,7 @@ class TreeIndexValueMergerFactory(from: Int) extends IndexValueMergerFactory {
       case v: TreeSeq[R] ⇒ patch(v, delta)
       case _ ⇒
         val all = merging.addToMultiMap.many(delta, value, 1)
-        if(all.values.sum < from) merging.toList(all) else patch(TreeSeq(TreeMap.empty), all)
+        if(all.values.sum < config.from) merging.toList(all) else patch(TreeSeq(TreeMap.empty), all)
     }
   }
 }

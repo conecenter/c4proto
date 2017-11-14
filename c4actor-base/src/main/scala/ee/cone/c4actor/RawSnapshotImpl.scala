@@ -9,6 +9,8 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
 
+@c4component case class RawSnapshotConfigImpl() extends RawSnapshotConfig("db4/snapshots")
+
 @c4component case class FileRawSnapshotImpl(config: RawSnapshotConfig, rawWorldFactory: RawWorldFactory) extends RawSnapshot with LazyLogging {
   private def dir = Files.createDirectories(Paths.get(config.path))
   private def hashFromName: String⇒Option[(String,String)] = {

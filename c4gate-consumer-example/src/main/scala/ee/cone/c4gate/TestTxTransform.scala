@@ -20,7 +20,7 @@ abstract class TestTxTransformApp extends ServerApp
   with TreeIndexValueMergerFactoryApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
-  override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles
+  override def `the List of Assemble`: List[Assemble] = new TestDelayAssemble :: super.`the List of Assemble`
 }
 
 @assemble class TestDelayAssemble extends Assemble {

@@ -154,21 +154,21 @@ class WorldProviderImpl(
 }
 
 trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp {
-  lazy val worldProvider: WorldProvider with Observer = new WorldProviderImpl()
+  lazy val `the WorldProvider`: WorldProvider with Observer = new WorldProviderImpl()
   override def protocols: List[Protocol] = AuthProtocol :: HttpProtocol :: super.protocols
-  override def initialObservers: List[Observer] = worldProvider :: super.initialObservers
+  override def initialObservers: List[Observer] = `the WorldProvider` :: super.initialObservers
 }
 
-trait HttpServerApp extends ToStartApp {
+trait HttpServerApp extends `The Executable` {
   def execution: Execution
   def `the Config`: Config
-  def worldProvider: WorldProvider
+  def `the WorldProvider`: WorldProvider
   def httpHandlers: List[RHttpHandler]
   private lazy val httpPort = `the Config`.get("C4HTTP_PORT").toInt
   lazy val httpServer: Executable =
-    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers), execution)
+    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(`the WorldProvider`) :: httpHandlers), execution)
 
-  override def toStart: List[Executable] = httpServer :: super.toStart
+  override def `the List of Executable`: List[Executable] = httpServer :: super.`the List of Executable`
 }
 
 object PostAssembles {

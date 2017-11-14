@@ -1,10 +1,11 @@
 package ee.cone.c4vdom_impl
 
+import ee.cone.c4vdom.HiddenC4Annotations.c4component
 import ee.cone.c4vdom._
 
 import Function.chain
 
-class VDomHandlerFactoryImpl(
+@c4component case class VDomHandlerFactoryImpl(
   diff: Diff,
   jsonToString: JsonToString,
   wasNoValue: WasNoVDomValue,

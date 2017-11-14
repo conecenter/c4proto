@@ -1,5 +1,6 @@
 package ee.cone.c4vdom_impl
 
+import ee.cone.c4vdom.HiddenC4Annotations.c4component
 import ee.cone.c4vdom.{Color, MutableJsonBuilder, TagStyle, TagStyles}
 
 case object NoTagStyle extends TagStyle {
@@ -61,7 +62,7 @@ case class ColorTagStyle(color: Color) extends SingleTagStyle {
   def valueStr = color.value
 }
 
-class TagStylesImpl extends TagStyles {
+@c4component case class TagStylesImpl() extends TagStyles {
   def none = NoTagStyle
   def margin = MarginTagStyle
   def marginLeftAuto = MarginLeftAuto

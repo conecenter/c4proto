@@ -19,6 +19,10 @@ trait MapVDomValue extends VDomValue {
   def pairs: List[VPair]
 }
 
+trait MapVDomValueFactory {
+  def create: List[VPair]=>MapVDomValue
+}
+
 trait Diff {
   def diff(prevValue: VDomValue, currValue: VDomValue): Option[MapVDomValue]
 }

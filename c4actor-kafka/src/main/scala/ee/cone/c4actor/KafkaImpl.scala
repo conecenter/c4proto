@@ -18,9 +18,13 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.immutable.Map
 
+@c4component @listed case class KafkaRawQSenderExecutable(sender: RawQSender) extends Executable {
+  def run(): Unit = sender match { case e: KafkaRawQSender ⇒ e.run() }
+}
+
 class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] = new CompletableFuture()
-) extends RawQSender with Executable {
+) extends RawQSender {
   def run(): Unit = concurrent.blocking {
     val props = Map[String, Object](
       "bootstrap.servers" → conf.bootstrapServers,

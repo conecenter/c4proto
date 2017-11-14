@@ -55,7 +55,7 @@ class AssemblerTestApp extends RichDataApp
   with `The SimpleAssembleProfiler`
 {
   override def protocols: List[Protocol] = PCProtocol :: super.protocols
-  override def assembles: List[Assemble] = new TestAssemble :: super.assembles
+  override def `the List of Assemble`: List[Assemble] = new TestAssemble :: super.`the List of Assemble`
 }
 
 object AssemblerTest extends App with LazyLogging {

@@ -1,8 +1,9 @@
 package ee.cone.c4vdom_impl
 
+import ee.cone.c4vdom.HiddenC4Annotations.c4component
 import ee.cone.c4vdom.{MutableJsonBuilder, TagJsonUtils, TagStyle}
 
-object TagJsonUtilsImpl extends TagJsonUtils {
+@c4component case class TagJsonUtilsImpl() extends TagJsonUtils {
   def appendInputAttributes(builder: MutableJsonBuilder, value: String, deferSend: Boolean): Unit = {
     builder.append("value").append(value)
     if(deferSend){
@@ -20,6 +21,6 @@ object TagJsonUtilsImpl extends TagJsonUtils {
     }
 }
 
-object WasNoValueImpl extends WasNoVDomValue {
+@c4component case class WasNoValueImpl() extends WasNoVDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = Never()
 }

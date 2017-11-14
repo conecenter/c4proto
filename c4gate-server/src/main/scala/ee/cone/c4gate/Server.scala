@@ -17,8 +17,8 @@ class HttpGatewayApp extends ServerApp
   with FileRawSnapshotApp
 {
   def httpHandlers: List[RHttpHandler] =
-    pongHandler :: new HttpPostHandler(`the QMessages`,worldProvider) :: Nil
-  def sseConfig: SSEConfig = NoProxySSEConfig(`the Config`.get("C4STATE_REFRESH_SECONDS").toInt)
+    pongHandler :: new HttpPostHandler(`the QMessages`,`the WorldProvider`) :: Nil
+  def `the SSEConfig`: SSEConfig = NoProxySSEConfig(`the Config`.get("C4STATE_REFRESH_SECONDS").toInt)
 }
 
 // I>P -- to agent, cmd>evl

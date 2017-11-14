@@ -2,9 +2,10 @@ package ee.cone.c4vdom_impl
 
 import java.text.DecimalFormat
 
+import ee.cone.c4vdom.HiddenC4Annotations.c4component
 import ee.cone.c4vdom.{MutableJsonBuilder, VDomValue}
 
-object JsonToStringImpl extends JsonToString {
+@c4component case class JsonToStringImpl() extends JsonToString {
   def apply(value: VDomValue): String = {
     val builder = new JsonBuilderImpl()
     value.appendJson(builder)

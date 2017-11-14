@@ -7,10 +7,23 @@ import java.util.concurrent.CompletableFuture
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 
-class ExternalDBSyncClient(
-  dbFactory: ExternalDBFactory,
+@c4component @listed case class ExternalDBSyncClientInject(client: ExternalDBSyncClient) extends ToInject {
+  override def toInject: List[Injectable] = client.toInject
+}
+
+@c4component @listed case class ExternalDBSyncClientExecutable(client: ExternalDBSyncClient) extends Executable {
+  def run(): Unit = client.run()
+}
+
+trait ExternalDBSyncClient extends Executable {
+  def toInject: List[Injectable]
+}
+
+@c4component case class ExternalDBSyncClientImpl(
+  dbFactory: ExternalDBFactory
+)(
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
-) extends ToInject with Executable {
+) extends ExternalDBSyncClient {
   def toInject: List[Injectable] = WithJDBCKey.set(concurrent.blocking(db.get).doWith)
   def run(): Unit = concurrent.blocking{ db.complete(dbFactory.create(
     createConnection ⇒ new RConnectionPool {

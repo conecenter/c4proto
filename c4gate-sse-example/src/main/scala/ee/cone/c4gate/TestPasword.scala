@@ -24,10 +24,10 @@ class TestPasswordApp extends ServerApp
   with FileRawSnapshotApp
 {
   override def protocols: List[Protocol] = AuthProtocol :: super.protocols
-  override def assembles: List[Assemble] =
+  override def `the List of Assemble`: List[Assemble] =
     new TestPasswordAssemble ::
       new FromAlienTaskAssemble("/react-app.html") ::
-      super.assembles
+      super.`the List of Assemble`
 }
 
 @assemble class TestPasswordAssemble extends Assemble {

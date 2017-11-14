@@ -20,6 +20,11 @@ trait TcpHandler {
   def afterDisconnect(key: String): Unit
 }
 
+trait TcpServerConfig {
+  def port: Int
+  def timeout: Long
+}
+
 trait SSEConfig {
   def allowOrigin: Option[String]
   def pongURL: String

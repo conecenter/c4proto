@@ -169,7 +169,7 @@ trait ProgressObserverFactory {
   def create(endOffset: Long): RawObserver
 }
 
-case class RawSnapshotConfig(path: String)
+abstract class RawSnapshotConfig(val path: String)
 
 trait RawSnapshot {
   def save(data: Array[Byte], offset: Long): Unit

@@ -1,8 +1,7 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.AssemblesApp
-import ee.cone.c4assemble.Assemble
+import ee.cone.c4assemble.{Assemble,`The Assemble`}
 
-trait CanvasApp extends AssemblesApp {
-  override def assembles: List[Assemble] = new CanvasAssemble :: super.assembles
+trait CanvasApp extends `The Assemble` {
+  override def `the List of Assemble`: List[Assemble] = new CanvasAssemble :: super.`the List of Assemble`
 }

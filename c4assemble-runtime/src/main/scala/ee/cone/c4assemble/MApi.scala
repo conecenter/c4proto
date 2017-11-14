@@ -46,6 +46,8 @@ trait IndexValueMergerFactory {
   def create[R <: Product]: (Values[R],MultiSet[R]) ⇒ Values[R]
 }
 
+abstract class IndexValueMergerConfig(val from: Int)
+
 trait DataDependencyFrom[From] {
   def assembleName: String
   def name: String

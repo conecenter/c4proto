@@ -17,7 +17,7 @@ trait ExecutableApp {
   def execution: Runnable
 }
 
-trait Executable extends Runnable
+@c4component @listed abstract class Executable extends Runnable
 
 trait Config {
   def get(key: String): String

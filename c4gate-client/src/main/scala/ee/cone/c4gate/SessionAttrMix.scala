@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Assemble
+import ee.cone.c4assemble.{Assemble,`The Assemble`}
 import ee.cone.c4proto.Protocol
 
 trait SessionAttrApp extends SessionDataProtocolApp
@@ -13,9 +13,9 @@ trait SessionDataProtocolApp extends ProtocolsApp {
     SessionDataProtocol :: super.protocols
 }
 
-trait SessionDataAssembleApp extends AssemblesApp {
+trait SessionDataAssembleApp extends `The Assemble` {
   def `the MortalFactory`: MortalFactory
 
-  override def assembles: List[Assemble] =
-    SessionDataAssembles(`the MortalFactory`) ::: super.assembles
+  override def `the List of Assemble`: List[Assemble] =
+    SessionDataAssembles(`the MortalFactory`) ::: super.`the List of Assemble`
 }

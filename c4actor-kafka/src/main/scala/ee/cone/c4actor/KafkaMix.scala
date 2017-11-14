@@ -9,20 +9,18 @@ trait KafkaConfigApp {
   lazy val kafkaConfig = KafkaConfig(bootstrapServers,inboxTopicPrefix)
 }
 
-trait KafkaProducerApp extends KafkaConfigApp with ToStartApp {
+trait KafkaProducerApp extends KafkaConfigApp with `The KafkaRawQSenderExecutable` {
   def execution: Execution
   //
-  private lazy val kafkaProducer: KafkaRawQSender = new KafkaRawQSender(kafkaConfig,execution)()
-  def rawQSender: RawQSender with Executable = kafkaProducer
-  override def toStart: List[Executable] = rawQSender :: super.toStart
+  lazy val `the RawQSender`: RawQSender = new KafkaRawQSender(kafkaConfig,execution)()
 }
 
-trait KafkaConsumerApp extends KafkaConfigApp with ToStartApp {
+trait KafkaConsumerApp extends KafkaConfigApp with `The Executable` {
   def execution: Execution
   def `the RawSnapshot`: RawSnapshot
-  def progressObserverFactory: ProgressObserverFactory
+  def `the ProgressObserverFactory`: ProgressObserverFactory
   //
   private lazy val kafkaConsumer =
-    new KafkaActor(kafkaConfig)(`the RawSnapshot`,progressObserverFactory,execution)
-  override def toStart: List[Executable] = kafkaConsumer :: super.toStart
+    new KafkaActor(kafkaConfig)(`the RawSnapshot`,`the ProgressObserverFactory`,execution)
+  override def `the List of Executable`: List[Executable] = kafkaConsumer :: super.`the List of Executable`
 }
