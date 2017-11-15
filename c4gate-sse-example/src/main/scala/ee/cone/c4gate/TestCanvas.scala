@@ -27,10 +27,8 @@ class TestCanvasApp extends ServerApp
   with FileRawSnapshotApp
   with `The TestCanvasAssemble`
   with `The TestCanvasProtocol`
+  with `The ReactAppAssemble`
 {
-  override def `the List of Assemble`: List[Assemble] =
-      new FromAlienTaskAssemble("/react-app.html") ::
-      super.`the List of Assemble`
   def mimeTypes: Map[String, String] = Map(
     "svg" → "image/svg+xml"
   )

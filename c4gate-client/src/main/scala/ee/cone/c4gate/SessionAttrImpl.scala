@@ -23,10 +23,7 @@ import okio.ByteString
   )
 }
 
-object SessionDataAssembles {
-  def apply(mortal: MortalFactory): List[Assemble] =
-    mortal(classOf[RawSessionData]) :: Nil
-}
+@c4component @listed case class SessionDataAssembles() extends Mortal(classOf[RawSessionData])
 
 @c4component @listed @assemble case class SessionDataAssemble() extends Assemble {
   type SessionKey = SrcId

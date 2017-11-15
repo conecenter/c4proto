@@ -2,7 +2,6 @@ package ee.cone.c4gate
 
 import java.util.UUID
 
-import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -32,16 +31,11 @@ class TestTodoApp extends ServerApp
   with `The DateBeforeAccessView`
   with `The ContainsAccessView`
   with SessionAttrApp
-  with `The MortalFactoryImpl`
   with `The TestTodoRootView`
   with `The ByLocationHashView`
   with `The CommonFilterProtocol`
   with `The TestTodoProtocol`
-{
-  override def `the List of Assemble`: List[Assemble] =
-    new FromAlienTaskAssemble("/react-app.html") ::
-    super.`the List of Assemble`
-}
+  with `The ReactAppAssemble`
 
 @protocol object TestTodoProtocol extends Protocol {
   @Id(0x0001) case class TodoTask(

@@ -30,12 +30,12 @@ trait ContextFactory {
   }
 }
 
-class RichRawWorldFactory(
-  contextFactory: ContextFactory, toUpdate: ToUpdate, actorName: String
+@c4component case class RichRawWorldFactory(
+  contextFactory: ContextFactory, toUpdate: ToUpdate, actorName: ActorName
 ) extends RawWorldFactory {
   def create(): RawWorld = {
     val context = contextFactory.create()
-    val updates = LEvent.update(Firstborn(actorName)).toList
+    val updates = LEvent.update(Firstborn(actorName.value)).toList
       .map(toUpdate.toUpdate)
     new RichRawWorld(ReadModelAddKey.of(context)(updates)(context), Nil)
   }

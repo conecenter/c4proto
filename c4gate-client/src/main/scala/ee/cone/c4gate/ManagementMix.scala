@@ -1,15 +1,6 @@
 package ee.cone.c4gate
 
-
-import ee.cone.c4assemble.{Assemble,`The Assemble`}
-
-trait ManagementApp extends `The Assemble` {
-
-  override def `the List of Assemble`: List[Assemble] =
-    new ManagementPostAssemble(getClass.getName) :: new PostConsumerAssemble(getClass.getName) ::
-      super.`the List of Assemble`
-}
-
+trait ManagementApp extends `The ManagementPostAssemble` with `The PostConsumerAssemble`
 /*
 *
 * Usage:

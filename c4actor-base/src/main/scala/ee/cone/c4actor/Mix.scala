@@ -47,12 +47,20 @@ trait RichDataApp extends QAdapterRegistryApp
   with `The TreeAssemblerImpl`
   with `The LocalQAdapterRegistryInit`
   with `The ProtocolsAssemble`
+  with `The RichRawWorldFactory`
+  with `The MortalAssembles`
+  with `The MortalFactoryImpl`
+  with `The Mortal`
+  with ActorNameApp
 {
-  lazy val `the RawWorldFactory`: RawWorldFactory = new RichRawWorldFactory(`the ContextFactory`,`the ToUpdate`,getClass.getName)
-
   override def `the List of ToInject`: List[ToInject] =
     new AssemblerInit(`the QAdapterRegistry`, `the ToUpdate`, `the TreeAssembler`, `the IndexFactory`, ()⇒`the List of Assemble`) ::
       super.`the List of ToInject`
+}
+
+
+trait ActorNameApp {
+  lazy val `the ActorName`: ActorName = ActorName(getClass.getName)
 }
 
 trait QAdapterRegistryApp extends `The QProtocol` {

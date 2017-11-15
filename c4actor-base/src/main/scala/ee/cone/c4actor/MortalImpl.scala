@@ -3,7 +3,13 @@ package ee.cone.c4actor
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble._
+
+
+@c4component @listed case class MortalAssembles(mortals: List[Mortal[_]], create: MortalFactory) extends Assemble {
+  override def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = indexFactory ⇒
+    mortals.flatMap(mortal⇒create(mortal.asInstanceOf[Mortal[Product]].theClass).dataDependencies(indexFactory))
+}
 
 @c4component case class MortalFactoryImpl() extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl)

@@ -28,11 +28,7 @@ class TestCoWorkApp extends ServerApp
   with `The TestCoLeaderView`
   with `The ContentDefault`
   with `The TestFilterProtocol`
-{
-  override def `the List of Assemble`: List[Assemble] =
-      new FromAlienTaskAssemble("/react-app.html") ::
-      super.`the List of Assemble`
-}
+  with `The ReactAppAssemble`
 
 //@fieldAccess
 object TestContentAccess {

@@ -10,3 +10,5 @@ object LifeTypes {
 trait MortalFactory {
   def apply[P<:Product](p: Class[P]): Assemble
 }
+
+@c4component @listed abstract class Mortal[M<:Product](val theClass: Class[M])

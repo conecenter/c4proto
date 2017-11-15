@@ -22,11 +22,15 @@ class TestSSEApp extends ServerApp
   with ManagementApp
   with FileRawSnapshotApp
   with `The TestSSEAssemble`
-{
-  override def `the List of Assemble`: List[Assemble] =
-    new FromAlienTaskAssemble("/sse.html") ::
-    super.`the List of Assemble`
-    //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
+  with `The SSEAppAssemble`
+
+//println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
+
+
+@c4component @listed case class SSEAppAssemble(
+  inner: Assemble = FromAlienTaskAssemble("/sse.html")
+) extends Assemble {
+  override def dataDependencies = inner.dataDependencies
 }
 
 @c4component @listed @assemble case class TestSSEAssemble() extends Assemble {

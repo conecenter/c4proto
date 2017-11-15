@@ -26,17 +26,13 @@ trait SSEServerApp
   with `The TcpServerInject` with `The TcpServerExecutable`
   with `The TcpServerImpl` with `The SSETcpServerConfig` with `The SSEHandler`
   with `The AlienProtocol`
+  with `The SSEAssembles` with `The PostAssembles`
 {
   def `the Config`: Config
   def `the QMessages`: QMessages
   def `the WorldProvider`: WorldProvider
   def `the SSEConfig`: SSEConfig
-  def `the MortalFactory`: MortalFactory
   lazy val pongHandler = new PongHandler(`the QMessages`,`the WorldProvider`,`the SSEConfig`)
-
-  override def `the List of Assemble`: List[Assemble] =
-    SSEAssembles(`the MortalFactory`) ::: PostAssembles(`the MortalFactory`) :::
-      super.`the List of Assemble`
   override def `the List of ToInject`: List[ToInject] =
     pongHandler :: super.`the List of ToInject`
 }
@@ -134,10 +130,7 @@ case class SessionTxTransform( //?todo session/pongs purge
   }
 }
 
-object SSEAssembles {
-  def apply(mortal: MortalFactory): List[Assemble] =
-      mortal(classOf[ToAlienWrite]) :: Nil
-}
+@c4component @listed case class SSEAssembles() extends Mortal(classOf[ToAlienWrite])
 
 @c4component @listed @assemble case class SSEAssemble(sseConfig: SSEConfig) extends Assemble {
   type SessionKey = SrcId

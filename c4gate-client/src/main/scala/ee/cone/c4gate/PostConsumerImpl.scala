@@ -3,17 +3,17 @@ package ee.cone.c4gate
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.PostConsumer
 
-@assemble class PostConsumerAssemble(actorName: String) extends Assemble {
+@c4component @listed @assemble case class PostConsumerAssemble(actorName: ActorName) extends Assemble {
 
   type WasConsumer = SrcId
   def wasConsumers(
     key: SrcId,
     consumers: Values[PostConsumer]
   ): Values[(WasConsumer,PostConsumer)] =
-    for(c ← consumers if c.consumer == actorName) yield WithPK(c)
+    for(c ← consumers if c.consumer == actorName.value) yield WithPK(c)
 
   type NeedConsumer = SrcId
   def needConsumers(
@@ -21,7 +21,7 @@ import ee.cone.c4gate.AlienProtocol.PostConsumer
     consumers: Values[LocalPostConsumer]
   ): Values[(NeedConsumer,PostConsumer)] =
     for(c ← consumers.distinct)
-      yield WithPK(PostConsumer(s"$actorName/${c.condition}", actorName, c.condition))
+      yield WithPK(PostConsumer(s"${actorName.value}/${c.condition}", actorName.value, c.condition))
 
   def syncConsumers(
     key: SrcId,

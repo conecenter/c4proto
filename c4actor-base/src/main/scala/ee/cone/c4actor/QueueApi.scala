@@ -178,3 +178,5 @@ trait RawSnapshot {
 
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
+
+case class ActorName(value: String)

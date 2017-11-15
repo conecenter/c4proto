@@ -73,7 +73,7 @@ case class MessageFromAlienImpl(
     yield operations.toRel(child, fromAlien.sessionKey, parentIsSession = true)
 }
 
-@assemble class FromAlienTaskAssemble(file: String) extends Assemble {
+@assemble case class FromAlienTaskAssemble(file: String) extends Assemble {
   def mapBranchTaskByLocationHash(
     key: SrcId,
     tasks: Values[BranchTask]

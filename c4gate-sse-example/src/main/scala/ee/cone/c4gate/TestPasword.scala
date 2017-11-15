@@ -24,11 +24,7 @@ class TestPasswordApp extends ServerApp
   with FileRawSnapshotApp
   with `The AuthProtocol`
   with `The TestPasswordAssemble`
-{
-  override def `the List of Assemble`: List[Assemble] =
-      new FromAlienTaskAssemble("/react-app.html") ::
-      super.`the List of Assemble`
-}
+  with `The ReactAppAssemble`
 
 @c4component @listed @assemble case class TestPasswordAssemble() extends Assemble {
   def joinView(

@@ -12,13 +12,11 @@ import ee.cone.c4proto.Protocol
 trait TcpServerApp extends `The TcpAssemble` with `The TcpProtocol`
   with `The TcpServerInject` with `The TcpServerExecutable`
   with `The TcpServerImpl` with `The TcpServerConfigImpl` with `The TcpHandlerImpl`
-{
-  def `the MortalFactory`: MortalFactory
+  with `The TcpDisconnectMortal` with `The TcpWriteMortal`
 
-  override def `the List of Assemble`: List[Assemble] =
-    `the MortalFactory`(classOf[TcpDisconnect]) :: `the MortalFactory`(classOf[TcpWrite]) ::
-    super.`the List of Assemble`
-}
+
+@c4component @listed case class TcpDisconnectMortal() extends Mortal(classOf[TcpDisconnect])
+@c4component @listed case class TcpWriteMortal() extends Mortal(classOf[TcpWrite])
 
 @c4component case class TcpServerConfigImpl(config: Config) extends TcpServerConfig {
   def port: Int = config.get("C4TCP_PORT").toInt

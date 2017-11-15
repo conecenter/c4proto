@@ -12,7 +12,6 @@ class HttpGatewayApp extends ServerApp
   with HttpServerApp
   with SSEServerApp
   with `The NoAssembleProfiler`
-  with `The MortalFactoryImpl`
   with ManagementApp
   with FileRawSnapshotApp
 {

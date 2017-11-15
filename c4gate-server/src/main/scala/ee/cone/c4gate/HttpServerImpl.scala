@@ -170,10 +170,7 @@ trait HttpServerApp extends `The Executable` {
   override def `the List of Executable`: List[Executable] = httpServer :: super.`the List of Executable`
 }
 
-object PostAssembles {
-  def apply(mortal: MortalFactory): List[Assemble] =
-    mortal(classOf[HttpPost]) :: Nil
-}
+@c4component @listed case class PostAssembles() extends Mortal(classOf[HttpPost])
 
 case class HttpPostAllow(condition: SrcId)
 
