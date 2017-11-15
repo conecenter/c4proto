@@ -19,14 +19,15 @@ trait TreeIndexValueMergerFactoryApp extends `The TreeIndexValueMergerFactory` w
 trait ServerApp extends RichDataApp with RichObserverApp
 
 trait RichObserverApp extends ExecutableApp with InitialObserversApp with `The TxTransformsImpl` {
-  def execution: Execution
+  def execution = `the Execution`
+  def `the Execution`: Execution
   def `the RawQSender`: RawQSender
   def txObserver: Option[Observer]
   def `the QAdapterRegistry`: QAdapterRegistry
   //
   lazy val `the QMessages`: QMessages = new QMessagesImpl(`the QAdapterRegistry`, ()⇒`the RawQSender`)
   lazy val `the ProgressObserverFactory`: ProgressObserverFactory =
-    new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(txObserver.toList ::: initialObservers, new CompletingRawObserver(execution))))
+    new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(txObserver.toList ::: initialObservers, new CompletingRawObserver(`the Execution`))))
 }
 
 trait RichDataApp extends QAdapterRegistryApp
@@ -68,7 +69,8 @@ trait QAdapterRegistryApp extends `The QProtocol` {
 }
 
 trait SnapshotMakingApp extends ExecutableApp with QAdapterRegistryApp with `The SnapshotMakingRawWorldFactory` {
-  def execution: Execution
+  def execution = `the Execution`
+  def `the Execution`: Execution
   //def `the RawSnapshot`: RawSnapshot
   def snapshotMakingRawObserver: RawObserver //new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution))
   //
@@ -78,7 +80,7 @@ trait SnapshotMakingApp extends ExecutableApp with QAdapterRegistryApp with `The
 
 trait VMExecutionApp {
   def `the List of Executable`: List[Executable]
-  lazy val execution: Execution = new VMExecution(()⇒`the List of Executable`)
+  lazy val `the Execution`: Execution = new VMExecution(()⇒`the List of Executable`)
 }
 
 trait FileRawSnapshotApp extends `The FileRawSnapshotImpl` with `The RawSnapshotConfigImpl`
@@ -89,8 +91,8 @@ trait SerialObserversApp {
 }
 
 trait ParallelObserversApp {
-  def execution: Execution
+  def `the Execution`: Execution
   def `the TxTransforms`: TxTransforms
-  lazy val txObserver = Option(new ParallelObserver(Map.empty,`the TxTransforms`,execution))
+  lazy val txObserver = Option(new ParallelObserver(Map.empty,`the TxTransforms`,`the Execution`))
 }
 

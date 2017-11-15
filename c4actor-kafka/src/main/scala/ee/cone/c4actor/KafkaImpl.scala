@@ -22,7 +22,7 @@ import scala.collection.immutable.Map
   def run(): Unit = sender match { case e: KafkaRawQSender ⇒ e.run() }
 }
 
-class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
+@c4component case class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] = new CompletableFuture()
 ) extends RawQSender {
   def run(): Unit = concurrent.blocking {
@@ -57,14 +57,23 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
   }
 }
 
-case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String){
+trait KafkaConfig {
+  def bootstrapServers: String
+  def topicNameToString(topicName: TopicName): String
+}
+
+@c4component case class KafkaConfigImpl(config: Config)(
+  val bootstrapServers: String = config.get("C4BOOTSTRAP_SERVERS"),
+  val inboxTopicPrefix: String = config.get("C4INBOX_TOPIC_PREFIX")
+) extends KafkaConfig {
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
     case LogTopicName() ⇒ s"$inboxTopicPrefix.inbox.log"
   }
 }
 
-class KafkaActor(conf: KafkaConfig)(
+@c4component @listed case class KafkaActor(
+  conf: KafkaConfig,
   rawSnapshot: RawSnapshot,
   progressObserverFactory: ProgressObserverFactory,
   execution: Execution
