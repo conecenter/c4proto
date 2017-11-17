@@ -47,7 +47,7 @@ const windowManager = (()=>{
 	const getPageYOffset = ()=> window.pageYOffset
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh}
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
