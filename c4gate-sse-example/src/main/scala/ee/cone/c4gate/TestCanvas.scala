@@ -15,9 +15,9 @@ import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom_impl.JsonBuilderImpl
 
 class TestCanvasApp extends ServerApp
-  with `The EnvConfigImpl` with VMExecutionApp
+  with `The EnvConfigImpl` with `The VMExecution`
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with `The ParallelObserverProvider` with TreeIndexValueMergerFactoryApp
   with UIApp
   with PublishingApp
   with `The TestTagsImpl`
@@ -28,7 +28,9 @@ class TestCanvasApp extends ServerApp
   with `The TestCanvasAssemble`
   with `The TestCanvasProtocol`
   with `The ReactAppAssemble`
-{
+  with `The TestPublishConfig`
+
+@c4component case class TestPublishConfig() extends PublishConfig {
   def mimeTypes: Map[String, String] = Map(
     "svg" → "image/svg+xml"
   )
@@ -39,6 +41,7 @@ class TestCanvasApp extends ServerApp
       </svg>"""
   )
 }
+
 
 @protocol object TestCanvasProtocol extends Protocol {
   @Id(0x0008) case class TestCanvasState(

@@ -13,20 +13,38 @@ import com.typesafe.scalalogging.LazyLogging
 
 //todo un-publish
 
+@c4component @listed case class PublishInitialObserversProvider(
+  qMessages: QMessages, publishDir: PublishDir, publishConfig: PublishConfig
+)(
+  observer: Observer = new PublishingObserver(qMessages,publishDir,publishConfig)
+) extends InitialObserversProvider {
+  def initialObservers: List[Observer] = List(observer)
+}
+
+@c4component case class DefaultPublishConfig() extends PublishConfig {
+  def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
+    "html" → "text/html; charset=UTF-8",
+    "js" → "application/javascript",
+    "ico" → "image/x-icon"
+  )
+  def publishFromStrings: List[(String,String)] = Nil
+}
+
+@c4component case class DefaultPublishDir() extends PublishDir("htdocs")
+
 class PublishingObserver(
   qMessages: QMessages,
-  fromDir: String,
-  fromStrings: List[(String,String)],
-  mimeTypes: String⇒Option[String]
+  fromDir: PublishDir,
+  config: PublishConfig
 ) extends Observer with LazyLogging {
   def activate(global: Context): Seq[Observer] = {
     logger.debug("publish started")
-    val fromPath = Paths.get(fromDir)
+    val fromPath = Paths.get(fromDir.value)
     val visitor = new PublishFileVisitor(fromPath,publish(global))
     val depth = Integer.MAX_VALUE
     val options = java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS)
     Files.walkFileTree(fromPath, options, depth, visitor)
-    fromStrings.foreach{ case(path,body) ⇒
+    config.publishFromStrings.foreach{ case(path,body) ⇒
       publish(global)(path,body.getBytes(UTF_8))
     }
     logger.debug("publish finished")
@@ -36,7 +54,7 @@ class PublishingObserver(
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
     val headers = Header("Content-Encoding", "gzip") ::
-      ext.flatMap(mimeTypes).map(Header("Content-Type",_)).toList
+      ext.flatMap(config.mimeTypes.get).map(Header("Content-Type",_)).toList
     val sink = new Buffer
     val gzipSink = new GzipSink(sink)
     gzipSink.write(new Buffer().write(body), body.length)

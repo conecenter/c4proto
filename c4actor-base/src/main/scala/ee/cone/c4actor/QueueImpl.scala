@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte]) extends QRecord
 
-class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
+@c4component case class QMessagesImpl(qAdapterRegistry: QAdapterRegistry)(getRawQSender: ()⇒RawQSender) extends QMessages {
   //import qAdapterRegistry._
   // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {

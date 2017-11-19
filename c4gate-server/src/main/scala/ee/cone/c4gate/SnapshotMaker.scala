@@ -4,7 +4,7 @@ import ee.cone.c4actor._
 import java.time.Duration
 
 class SnapshotMakerApp extends SnapshotMakingApp
-  with `The EnvConfigImpl` with VMExecutionApp
+  with `The EnvConfigImpl` with `The VMExecution`
   with KafkaConsumerApp
   with FileRawSnapshotApp
 {

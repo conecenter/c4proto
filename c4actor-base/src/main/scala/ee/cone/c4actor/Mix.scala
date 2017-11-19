@@ -4,30 +4,31 @@ package ee.cone.c4actor
 import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
-trait InitialObserversApp {
-  def initialObservers: List[Observer] = Nil
-}
-
 /*
 trait ToInjectApp extends `The ToInject` {
   def toInject: List[ToInject] = Nil
   override def `the List of ToInject`: List[ToInject] = toInject ::: super.`the List of ToInject`
 }*/
 
+trait ActorNameApp {
+  lazy val `the ActorName`: ActorName = ActorName(getClass.getName)
+}
+
+trait CompoundExecutableApp extends ExecutableApp {
+  def execution = `the Execution`
+  def `the Execution`: Execution
+}
+
+////
+
 trait TreeIndexValueMergerFactoryApp extends `The TreeIndexValueMergerFactory` with `The IndexValueMergerConfigImpl`
 
 trait ServerApp extends RichDataApp with RichObserverApp
 
-trait RichObserverApp extends ExecutableApp with InitialObserversApp with `The TxTransformsImpl` {
-  def execution = `the Execution`
-  def `the Execution`: Execution
-  def `the RawQSender`: RawQSender
-  def txObserver: Option[Observer]
-  def `the QAdapterRegistry`: QAdapterRegistry
-  //
-  lazy val `the QMessages`: QMessages = new QMessagesImpl(`the QAdapterRegistry`, ()⇒`the RawQSender`)
+trait RichObserverApp extends CompoundExecutableApp with `The TxTransformsImpl` with `The QMessagesImpl`{
+  def `the List of InitialObserversProvider`: List[InitialObserversProvider]
   lazy val `the ProgressObserverFactory`: ProgressObserverFactory =
-    new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(txObserver.toList ::: initialObservers, new CompletingRawObserver(`the Execution`))))
+    new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(`the List of InitialObserversProvider`.flatMap(_.initialObservers), new CompletingRawObserver(`the Execution`))))
 }
 
 trait RichDataApp extends QAdapterRegistryApp
@@ -52,25 +53,17 @@ trait RichDataApp extends QAdapterRegistryApp
   with `The MortalAssembles`
   with `The MortalFactoryImpl`
   with `The Mortal`
+  with `The AssemblerInit`
   with ActorNameApp
-{
-  override def `the List of ToInject`: List[ToInject] =
-    new AssemblerInit(`the QAdapterRegistry`, `the ToUpdate`, `the TreeAssembler`, `the IndexFactory`, ()⇒`the List of Assemble`) ::
-      super.`the List of ToInject`
-}
 
 
-trait ActorNameApp {
-  lazy val `the ActorName`: ActorName = ActorName(getClass.getName)
-}
 
 trait QAdapterRegistryApp extends `The QProtocol` {
   lazy val `the QAdapterRegistry`: QAdapterRegistry = QAdapterRegistryFactory(`the List of Protocol`.distinct)
 }
 
-trait SnapshotMakingApp extends ExecutableApp with QAdapterRegistryApp with `The SnapshotMakingRawWorldFactory` {
-  def execution = `the Execution`
-  def `the Execution`: Execution
+trait SnapshotMakingApp extends CompoundExecutableApp with QAdapterRegistryApp with `The SnapshotMakingRawWorldFactory` {
+
   //def `the RawSnapshot`: RawSnapshot
   def snapshotMakingRawObserver: RawObserver //new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution))
   //
@@ -78,21 +71,6 @@ trait SnapshotMakingApp extends ExecutableApp with QAdapterRegistryApp with `The
     new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
 }
 
-trait VMExecutionApp {
-  def `the List of Executable`: List[Executable]
-  lazy val `the Execution`: Execution = new VMExecution(()⇒`the List of Executable`)
-}
-
 trait FileRawSnapshotApp extends `The FileRawSnapshotImpl` with `The RawSnapshotConfigImpl`
 
-trait SerialObserversApp {
-  def `the TxTransforms`: TxTransforms
-  lazy val txObserver = Option(new SerialObserver(Map.empty)(`the TxTransforms`))
-}
-
-trait ParallelObserversApp {
-  def `the Execution`: Execution
-  def `the TxTransforms`: TxTransforms
-  lazy val txObserver = Option(new ParallelObserver(Map.empty,`the TxTransforms`,`the Execution`))
-}
 

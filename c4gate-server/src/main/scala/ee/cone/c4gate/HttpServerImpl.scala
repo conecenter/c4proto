@@ -25,7 +25,7 @@ import scala.collection.immutable.Seq
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
-trait RHttpHandler {
+@c4component @listed abstract class RHttpHandler {
   def handle(httpExchange: HttpExchange): Boolean
 }
 
@@ -142,9 +142,9 @@ class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends
   }
 }
 
-class WorldProviderImpl(
+@c4component case class WorldProviderImpl()(
   worldFuture: CompletableFuture[AtomicReference[Context]] = new CompletableFuture()
-) extends WorldProvider with Observer {
+) extends WorldProvider {
   def createTx(): Context = concurrent.blocking{ worldFuture.get.get }
   def activate(global: Context): Seq[Observer] = {
     if(worldFuture.isDone) worldFuture.get.set(global)
@@ -153,21 +153,21 @@ class WorldProviderImpl(
   }
 }
 
-trait InternetForwarderApp extends `The AuthProtocol` with `The HttpProtocol` with InitialObserversApp {
-  lazy val `the WorldProvider`: WorldProvider with Observer = new WorldProviderImpl()
-  override def initialObservers: List[Observer] = `the WorldProvider` :: super.initialObservers
+trait InternetForwarderApp extends `The AuthProtocol` with `The HttpProtocol`
+  with `The WorldProviderImpl` with `The WorldInitialObserversProvider`
+
+@c4component @listed case class WorldInitialObserversProvider(
+  worldProvider: WorldProvider
+) extends InitialObserversProvider {
+  def initialObservers: List[Observer] = List(worldProvider)
 }
 
-trait HttpServerApp extends `The Executable` {
-  def execution: Execution
-  def `the Config`: Config
-  def `the WorldProvider`: WorldProvider
-  def httpHandlers: List[RHttpHandler]
-  private lazy val httpPort = `the Config`.get("C4HTTP_PORT").toInt
-  lazy val httpServer: Executable =
-    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(`the WorldProvider`) :: httpHandlers), execution)
-
-  override def `the List of Executable`: List[Executable] = httpServer :: super.`the List of Executable`
+@c4component @listed case class DefaultHttpServer(config: Config, worldProvider: WorldProvider, execution: Execution, qMessages: QMessages, handlers: List[RHttpHandler]) extends Executable {
+  def run(): Unit = {
+    val httpPort = config.get("C4HTTP_PORT").toInt
+    val handler = new ReqHandler(new HttpGetHandler(worldProvider) :: handlers ::: new HttpPostHandler(qMessages,worldProvider) :: Nil )
+    new RHttpServer(httpPort, handler, execution).run()
+  }
 }
 
 @c4component @listed case class PostAssembles() extends Mortal(classOf[HttpPost])

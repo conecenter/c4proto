@@ -38,6 +38,9 @@ object Generator {
 
   def defaultArgType: ArgPF = {
     case (tpe,Some(_)) ⇒ None
+    case (t"()=>$t",None) ⇒
+      val Some((term,stat)) = defaultArgType((t,None))
+      Option((q"()=>$term",stat))
     case (tpe:Type.Name,None) ⇒
       val nm = theTerm(tpe)
       Option((nm,Option(q"def $nm: $tpe")))

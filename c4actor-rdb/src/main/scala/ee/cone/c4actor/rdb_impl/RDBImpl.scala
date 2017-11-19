@@ -46,10 +46,14 @@ object ToExternalDBTypes {
   type NeedSrcId = SrcId
 }
 
-object ToExternalDBAssembles {
-  def apply(options: List[ExternalDBOption]): List[Assemble] =
-      options.collect{ case o: ToDBOption ⇒ o.assemble }
+@c4component @listed case class ToExternalDBAssembles(providers: List[ExternalDBOptionProvider]) extends Assemble {
+  override def dataDependencies: IndexFactory => List[DataDependencyTo[_]] = factory => for {
+    provider <- providers
+    option <- provider.externalDBOptions.collect{ case o: ToDBOption => o }
+    dep <- option.assemble.dataDependencies(factory)
+  } yield dep
 }
+
 
 @assemble class ToExternalDBItemAssemble[Item<:Product](
   toUpdate: ToUpdate,
@@ -134,6 +138,16 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 
 ////
+
+@c4component @listed case class DefaultFromExternalDBOptionProvider(
+  factory: RDBOptionFactory
+) extends ExternalDBOptionProvider {
+  import factory._
+  def externalDBOptions: List[ExternalDBOption] = List(
+    dbProtocol(FromExternalDBProtocol),
+    fromDB(classOf[FromExternalDBProtocol.DBOffset])
+  )
+}
 
 @protocol object FromExternalDBProtocol extends Protocol {
   @Id(0x0060) case class DBOffset(

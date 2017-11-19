@@ -13,9 +13,9 @@ import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
 
 class TestSSEApp extends ServerApp
-  with `The EnvConfigImpl` with VMExecutionApp
+  with `The EnvConfigImpl` with `The VMExecution`
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with `The ParallelObserverProvider` with TreeIndexValueMergerFactoryApp
   with BranchApp
   with AlienExchangeApp
   with `The NoAssembleProfiler`

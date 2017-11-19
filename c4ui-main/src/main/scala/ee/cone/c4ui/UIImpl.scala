@@ -9,7 +9,7 @@ import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
 import okio.ByteString
 
-class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
+@c4component @listed case class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
   def toInject: List[Injectable] = List(
     CreateVDomHandlerKey.set((sender,view) ⇒
       vDomHandlerFactory.create(sender,view,VDomUntilImpl,VDomStateKey)

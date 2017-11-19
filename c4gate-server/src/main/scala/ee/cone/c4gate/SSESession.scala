@@ -27,24 +27,22 @@ trait SSEServerApp
   with `The TcpServerImpl` with `The SSETcpServerConfig` with `The SSEHandler`
   with `The AlienProtocol`
   with `The SSEAssembles` with `The PostAssembles`
-{
-  def `the Config`: Config
-  def `the QMessages`: QMessages
-  def `the WorldProvider`: WorldProvider
-  def `the SSEConfig`: SSEConfig
-  lazy val pongHandler = new PongHandler(`the QMessages`,`the WorldProvider`,`the SSEConfig`)
-  override def `the List of ToInject`: List[ToInject] =
-    pongHandler :: super.`the List of ToInject`
-}
-
-
+  with `The PongImpl` with `The PongInject` with `The PongHandler`
 
 case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
-
-class PongHandler(
+@c4component @listed case class PongHandler(pong: Pong) extends RHttpHandler {
+  def handle(httpExchange: HttpExchange): Boolean = pong.handle(httpExchange)
+}
+@c4component @listed case class PongInject(pong: Pong) extends ToInject {
+  def toInject: List[Injectable] = pong.toInject
+}
+trait Pong extends RHttpHandler {
+  def toInject: List[Injectable]
+}
+@c4component case class PongImpl(
     qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
     pongs: TrieMap[String,Instant] = TrieMap()
-) extends ToInject with RHttpHandler {
+) extends Pong {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
@@ -160,7 +158,7 @@ case class SessionTxTransform( //?todo session/pongs purge
     for(write ← writes if fromAliens.nonEmpty) yield WithPK(write)
 }
 
-case class NoProxySSEConfig(stateRefreshPeriodSeconds: Int) extends SSEConfig {
+@c4component case class NoProxySSEConfig(config: Config)(val stateRefreshPeriodSeconds: Int = config.get("C4STATE_REFRESH_SECONDS").toInt) extends SSEConfig {
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"
   def tolerateOfflineSeconds: Int = 60

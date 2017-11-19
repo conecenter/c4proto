@@ -7,7 +7,7 @@ import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
-class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with LazyLogging {
+@c4component case class VMExecution()(getToStart: ()⇒List[Executable]) extends Execution with LazyLogging {
   def run(): Unit = {
     val toStart = getToStart()
     logger.debug(s"tracking ${toStart.size} services")

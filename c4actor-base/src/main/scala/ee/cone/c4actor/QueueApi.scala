@@ -129,6 +129,10 @@ object TxAdd {
     WriteModelDebugAddKey.of(context)(out)(context)
 }
 
+@c4component @listed abstract class InitialObserversProvider {
+  def initialObservers: List[Observer]
+}
+
 trait Observer {
   def activate(world: Context): Seq[Observer]
 }

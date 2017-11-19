@@ -71,6 +71,23 @@ class ParallelObserver(
   }
 }
 
+@c4component @listed case class SerialObserverProvider(
+  txTransforms: TxTransforms
+)(
+  observer: Observer = new SerialObserver(Map.empty)(txTransforms)
+) extends InitialObserversProvider {
+  def initialObservers: List[Observer] = List(observer)
+}
+
+@c4component @listed case class ParallelObserverProvider(
+  txTransforms: TxTransforms, execution: Execution
+)(
+  observer: Observer = new ParallelObserver(Map.empty,txTransforms,execution)
+) extends InitialObserversProvider {
+  def initialObservers: List[Observer] = List(observer)
+}
+
+
 /*
 * in trans? in was? !isDone?
 *  0 0 x => -

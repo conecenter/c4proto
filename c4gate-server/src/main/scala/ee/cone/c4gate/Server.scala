@@ -5,20 +5,17 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble._
 
 class HttpGatewayApp extends ServerApp
-  with `The EnvConfigImpl` with VMExecutionApp
+  with `The EnvConfigImpl` with `The VMExecution`
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with `The ParallelObserverProvider` with TreeIndexValueMergerFactoryApp
   with InternetForwarderApp
-  with HttpServerApp
+  with `The DefaultHttpServer`
   with SSEServerApp
   with `The NoAssembleProfiler`
   with ManagementApp
   with FileRawSnapshotApp
-{
-  def httpHandlers: List[RHttpHandler] =
-    pongHandler :: new HttpPostHandler(`the QMessages`,`the WorldProvider`) :: Nil
-  def `the SSEConfig`: SSEConfig = NoProxySSEConfig(`the Config`.get("C4STATE_REFRESH_SECONDS").toInt)
-}
+  with `The NoProxySSEConfig`
+
 
 // I>P -- to agent, cmd>evl
 // >P -- post, sse status

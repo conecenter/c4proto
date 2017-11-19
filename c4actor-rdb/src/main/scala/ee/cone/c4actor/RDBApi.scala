@@ -6,6 +6,11 @@ import ee.cone.c4proto.Protocol
 
 trait ExternalDBOption
 
+@c4component @listed abstract class ExternalDBOptionProvider {
+  def externalDBOptions: List[ExternalDBOption]
+}
+
+
 trait RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption
   def fromDB[P<:Product](cl: Class[P]): ExternalDBOption

@@ -9,11 +9,11 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4proto.Protocol
 
-class TestSerialApp extends TestTxTransformApp with SerialObserversApp
-class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
+class TestSerialApp extends TestTxTransformApp with `The SerialObserverProvider`
+class TestParallelApp extends TestTxTransformApp with `The ParallelObserverProvider`
 
 abstract class TestTxTransformApp extends ServerApp
-  with `The EnvConfigImpl` with VMExecutionApp
+  with `The EnvConfigImpl` with `The VMExecution`
   with KafkaProducerApp with KafkaConsumerApp
   with `The NoAssembleProfiler`
   with FileRawSnapshotApp

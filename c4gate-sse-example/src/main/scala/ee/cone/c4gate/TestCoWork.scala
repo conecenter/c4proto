@@ -13,9 +13,9 @@ import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 class TestCoWorkApp extends ServerApp
-  with `The EnvConfigImpl` with VMExecutionApp
+  with `The EnvConfigImpl` with `The VMExecution`
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with `The ParallelObserverProvider` with TreeIndexValueMergerFactoryApp
   with UIApp
   with `The TestTagsImpl`
   with `The NoAssembleProfiler`

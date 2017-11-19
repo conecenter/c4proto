@@ -15,7 +15,7 @@ import ee.cone.c4gate.LocalPostConsumer
 import okio.ByteString
 
 case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
-object SendToAlienInit extends ToInject {
+@c4component @listed case class SendToAlienInit() extends ToInject {
   def toInject: List[Injectable] = SendToAlienKey.set(
     (sessionKeys,event,data) ⇒ local ⇒ if(sessionKeys.isEmpty) local else {
       val priority = ToAlienPriorityKey.of(local)

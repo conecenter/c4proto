@@ -8,7 +8,7 @@ trait SenderToAgent {
   def close()
 }
 
-trait WorldProvider {
+trait WorldProvider extends Observer {
   def createTx(): Context
 }
 

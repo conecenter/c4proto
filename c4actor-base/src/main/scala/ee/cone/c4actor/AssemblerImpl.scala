@@ -18,11 +18,12 @@ import scala.collection.immutable.{Map, Seq}
 
 case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
-class AssemblerInit(
+@c4component @listed case class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
-  indexFactory: IndexFactory,
+  indexFactory: IndexFactory
+)(
   getDependencies: ()⇒List[Assemble]
 ) extends ToInject {
   private def toTree(updates: Iterable[Update]): Map[AssembledKey[Index[SrcId,Product]], Index[SrcId,Product]] =
