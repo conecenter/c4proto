@@ -2,8 +2,8 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 
-class ProgressObserverFactoryImpl(inner: RawObserver) extends ProgressObserverFactory {
-  def create(endOffset: Long): RawObserver = new ProgressObserverImpl(inner,endOffset)
+@c4component case class ProgressObserverFactoryImpl(inner: RawObserverTreeFactory) extends ProgressObserverFactory {
+  def create(endOffset: Long): RawObserver = new ProgressObserverImpl(inner.create(),endOffset)
 }
 
 class ProgressObserverImpl(inner: RawObserver, endOffset: Long, until: Long=0) extends RawObserver with LazyLogging {
@@ -26,4 +26,8 @@ class CompletingRawObserver(execution: Execution) extends RawObserver {
 
 object CompletedRawObserver extends RawObserver {
   def activate(rawWorld: RawWorld): RawObserver = this
+}
+
+@c4component case class CompletingRawObserverFactoryImpl(execution: Execution) extends CompletingRawObserverFactory {
+  def create() = new CompletingRawObserver(execution)
 }

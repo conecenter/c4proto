@@ -53,3 +53,7 @@ class PeriodicSnapshotMakingRawObserver(
       }
   }
 }
+
+@c4component case class HourlySnapshotMakingRawObserverTreeFactory(rawSnapshot: RawSnapshot) extends RawObserverTreeFactory {
+  def create() = new PeriodicSnapshotMakingRawObserver(rawSnapshot, Duration.ofMinutes(60))
+}

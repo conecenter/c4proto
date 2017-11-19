@@ -149,11 +149,11 @@ case object WriteModelAddKey extends SharedComponentKey[Seq[Update]⇒Context⇒
 
 case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
 
-class QAdapterRegistry(
-  val byName: Map[String,ProtoAdapter[Product] with HasId],
-  val byId: Map[Long,ProtoAdapter[Product] with HasId],
-  val updatesAdapter: ProtoAdapter[QProtocol.Updates]
-)
+trait QAdapterRegistry {
+  def byName: Map[String, ProtoAdapter[Product] with HasId]
+  def byId: Map[Long, ProtoAdapter[Product] with HasId]
+  def updatesAdapter: ProtoAdapter[QProtocol.Updates]
+}
 
 trait RawWorld {
   def offset: Long
@@ -171,6 +171,14 @@ trait RawObserver {
 
 trait ProgressObserverFactory {
   def create(endOffset: Long): RawObserver
+}
+
+trait CompletingRawObserverFactory {
+  def create(): RawObserver
+}
+
+trait RawObserverTreeFactory {
+  def create(): RawObserver
 }
 
 abstract class RawSnapshotConfig(val path: String)

@@ -6,7 +6,7 @@ import ee.cone.c4actor.QProtocol.{Update, Updates}
 import ee.cone.c4assemble.Single
 import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 
-import scala.collection.immutable.{Queue, Seq}
+import scala.collection.immutable.{Map, Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
 
 /*Future[RecordMetadata]*/
@@ -53,9 +53,24 @@ object QAdapterRegistryFactory {
     val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
     val byId = checkToMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
-    new QAdapterRegistry(byName, byId, updatesAdapter)
+    new InnerQAdapterRegistry(byName, byId, updatesAdapter)
   }
 }
+
+class InnerQAdapterRegistry(
+  val byName: Map[String,ProtoAdapter[Product] with HasId],
+  val byId: Map[Long,ProtoAdapter[Product] with HasId],
+  val updatesAdapter: ProtoAdapter[QProtocol.Updates]
+) extends QAdapterRegistry
+
+@c4component case class QAdapterRegistryImpl(protocols: List[Protocol])(
+  inner: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
+) extends QAdapterRegistry {
+  def byName: Map[String, ProtoAdapter[Product] with HasId] = inner.byName
+  def byId: Map[Long, ProtoAdapter[Product] with HasId] = inner.byId
+  def updatesAdapter: ProtoAdapter[Updates] = inner.updatesAdapter
+}
+
 
 @c4component @listed case class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)

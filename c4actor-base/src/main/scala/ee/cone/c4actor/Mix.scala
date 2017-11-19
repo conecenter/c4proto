@@ -25,13 +25,11 @@ trait TreeIndexValueMergerFactoryApp extends `The TreeIndexValueMergerFactory` w
 
 trait ServerApp extends RichDataApp with RichObserverApp
 
-trait RichObserverApp extends CompoundExecutableApp with `The TxTransformsImpl` with `The QMessagesImpl`{
-  def `the List of InitialObserversProvider`: List[InitialObserversProvider]
-  lazy val `the ProgressObserverFactory`: ProgressObserverFactory =
-    new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(`the List of InitialObserversProvider`.flatMap(_.initialObservers), new CompletingRawObserver(`the Execution`))))
-}
+trait RichObserverApp extends CompoundExecutableApp with `The TxTransformsImpl` with `The QMessagesImpl`
+  with `The ProgressObserverFactoryImpl` with `The RichRawObserverTreeFactory` with `The CompletingRawObserverFactoryImpl`
 
-trait RichDataApp extends QAdapterRegistryApp
+trait RichDataApp extends `The QProtocol`
+  with `The QAdapterRegistryImpl`
   with `The Assemble`
   with `The ToInject`
   with `The UnitExpressionsDumper`
@@ -56,21 +54,8 @@ trait RichDataApp extends QAdapterRegistryApp
   with `The AssemblerInit`
   with ActorNameApp
 
-
-
-trait QAdapterRegistryApp extends `The QProtocol` {
-  lazy val `the QAdapterRegistry`: QAdapterRegistry = QAdapterRegistryFactory(`the List of Protocol`.distinct)
-}
-
-trait SnapshotMakingApp extends CompoundExecutableApp with QAdapterRegistryApp with `The SnapshotMakingRawWorldFactory` {
-
-  //def `the RawSnapshot`: RawSnapshot
-  def snapshotMakingRawObserver: RawObserver //new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution))
-  //
-  lazy val `the ProgressObserverFactory`: ProgressObserverFactory =
-    new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
-}
+trait SnapshotMakingApp extends CompoundExecutableApp
+  with `The QProtocol` with `The QAdapterRegistryImpl`
+  with `The SnapshotMakingRawWorldFactory` with `The ProgressObserverFactoryImpl`
 
 trait FileRawSnapshotApp extends `The FileRawSnapshotImpl` with `The RawSnapshotConfigImpl`
-
-

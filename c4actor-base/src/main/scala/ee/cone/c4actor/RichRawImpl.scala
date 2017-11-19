@@ -96,3 +96,9 @@ class RichRawObserver(
       else new RichRawObserver(newObservers, completing)
   }
 }
+
+@c4component case class RichRawObserverTreeFactory(
+  observerProviders: List[InitialObserversProvider], completingRawObserverFactory: CompletingRawObserverFactory
+) extends RawObserverTreeFactory {
+  def create() = new StatsObserver(new RichRawObserver(observerProviders.flatMap(_.initialObservers), completingRawObserverFactory.create()))
+}
