@@ -1,11 +1,7 @@
 package ee.cone.c4gate
 
-import java.text.DecimalFormat
-
-import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
+import ee.cone.c4assemble.{Assemble, fieldAccess}
 import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
@@ -23,10 +19,13 @@ class TestCanvasApp extends ServerApp
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
+  with PublicViewAssembleApp
+  with ModelAccessFactoryApp
+  with SessionAttrApp
+  with MortalFactoryApp
+  with TestCanvasViewApp
 {
-  override def protocols: List[Protocol] = TestCanvasProtocol :: super.protocols
   override def assembles: List[Assemble] =
-    new TestCanvasAssemble ::
       new FromAlienTaskAssemble("/react-app.html") ::
       super.assembles
   def mimeTypes: Map[String, String] = Map(
@@ -40,53 +39,58 @@ class TestCanvasApp extends ServerApp
   )
 }
 
-@assemble class TestCanvasAssemble extends Assemble {
-  def joinView(
-    key: SrcId,
-    tasks: Values[FromAlienTask]
-  ): Values[(SrcId,View)] =
-    for(
-      task ← tasks;
-      view ← Option(task.locationHash).collect{
-        case "rectangle" ⇒ ??? //TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
-      }
-    ) yield WithPK(view)
+trait TestCanvasViewApp extends ByLocationHashViewsApp {
+  def testTags: TestTags[Context]
+  def tags: Tags
+  def tagStyles: TagStyles
+  def testCanvasTags: TestCanvasTags
+  def sessionAttrAccessFactory: SessionAttrAccessFactory
+  def untilPolicy: UntilPolicy
+  def pathFactory: PathFactory
+  private lazy val testCanvasView = TestCanvasView()(
+    testTags,
+    tags,
+    tagStyles,
+    testCanvasTags,
+    sessionAttrAccessFactory,
+    untilPolicy,
+    pathFactory
+  )
+  override def byLocationHashViews: List[ByLocationHashView] =
+    testCanvasView :: super.byLocationHashViews
 }
 
-case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
-  def view: Context ⇒ ViewRes = local ⇒ {
-    val tags = TagsKey.of(local)
-    val styles = TagStylesKey.of(local)
-    val tTags = TestTagsKey.of(local)
-    val conductor = ModelAccessFactoryKey.of(local)
 
-    val canvasTasks = ByPK(classOf[TestCanvasState]).of(local)
-    val canvasTaskProd: TestCanvasState =
-      canvasTasks.getOrElse(sessionKey,TestCanvasState(sessionKey,""))
-
-    val cTags = TestCanvasTagsKey.of(local)
-
-    val canvas = PathFactoryKey.of(local)
+case class TestCanvasView(locationHash: String = "rectangle")(
+  tTags: TestTags[Context],
+  tags: Tags,
+  styles: TagStyles,
+  cTags: TestCanvasTags,
+  sessionAttrAccessFactory: SessionAttrAccessFactory,
+  untilPolicy: UntilPolicy,
+  pathFactory: PathFactory
+) extends ByLocationHashView {
+  import pathFactory.path
+  import TestCanvasStateAccess.sizes
+  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     def canvasSeed(access: Access[String]) =
       cTags.canvas("testCanvas",List(styles.height(512),styles.widthAll), access)(
         viewRel(0)(local)::viewRel(50)(local)::Nil
       )
-
+    val branchTask = ByPK(classOf[BranchTask]).of(local)(CurrentBranchKey.of(local))
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
       List(tags.text("caption", "relocate"))
     )
-    import ee.cone.c4gate.TestCanvasStateAccess._
+    val state: Option[Access[TestCanvasState]] =
+      sessionAttrAccessFactory.to(TestCanvasStateAccess.state)(local)
     val inputs = for {
-      canvasTask ← (conductor to canvasTaskProd).toList
+      canvasTask ← state.toList
       tags ← tTags.input(canvasTask to sizes) :: canvasSeed(canvasTask to sizes) :: Nil
     } yield tags
-
     relocate :: inputs ::: Nil
   }
   def viewRel: Int ⇒ Context ⇒ ChildPair[OfCanvas] = offset ⇒ local ⇒ {
     val key = "123"+offset
-    val pathFactory = PathFactoryKey.of(local)
-    import pathFactory.path
     path(key,
       Rect(10+offset,20,30,40),
       GotoClick(key),
@@ -108,30 +112,30 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 
 @protocol object TestCanvasProtocol extends Protocol {
   @Id(0x0008) case class TestCanvasState(
-    @Id(0x0009) sessionKey: String,
+    @Id(0x0009) srcId: String,
     @Id(0x000A) sizes: String
   )
 }
 
 @fieldAccess object TestCanvasStateAccess {
   lazy val sizes: ProdLens[TestCanvasProtocol.TestCanvasState,String] = ProdLens.of(_.sizes)
+  lazy val state =
+    SessionAttr(Id(0x0009), classOf[TestCanvasState], UserLabel en "(TestCanvasState)")
 }
 
-/******************************************/
+object TestCanvasStateDefault extends DefaultModelFactory(classOf[TestCanvasState],TestCanvasState(_,""))
 
-trait CanvasApp extends ToInjectApp {
+trait CanvasApp extends ProtocolsApp with DefaultModelFactoriesApp {
   def childPairFactory: ChildPairFactory
   def tagJsonUtils: TagJsonUtils
 
-  override def toInject: List[ToInject] =
-    new TestCanvasTags(childPairFactory,tagJsonUtils,CanvasToJsonImpl) ::
-      new PathFactoryInject(PathFactoryImpl[Context](childPairFactory,CanvasToJsonImpl)) ::
-      super.toInject
-}
-
-case object PathFactoryKey extends SharedComponentKey[PathFactory]
-class PathFactoryInject(pathContext: PathFactory) extends ToInject {
-  def toInject: List[Injectable] = PathFactoryKey.set(pathContext)
+  lazy val testCanvasTags: TestCanvasTags = new TestCanvasTagsImpl(childPairFactory,tagJsonUtils,CanvasToJsonImpl)
+  lazy val pathFactory: PathFactory = PathFactoryImpl[Context](childPairFactory,CanvasToJsonImpl)
+  
+  override def protocols: List[Protocol] =
+    TestCanvasProtocol :: super.protocols
+  override def defaultModelFactories: List[DefaultModelFactory[_]] =
+    TestCanvasStateDefault :: super.defaultModelFactories
 }
 
 case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: String)(
@@ -148,9 +152,11 @@ case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: 
   }
 }
 
-case object TestCanvasTagsKey extends SharedComponentKey[TestCanvasTags]
-class TestCanvasTags(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends ToInject {
-  def toInject: List[Injectable] = TestCanvasTagsKey.set(this)
+trait TestCanvasTags {
+  def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv]
+}
+
+class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =
