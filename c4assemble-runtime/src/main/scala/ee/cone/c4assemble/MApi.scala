@@ -5,7 +5,8 @@ import scala.collection.immutable.Map
 import Types._
 import ee.cone.c4assemble.TreeAssemblerTypes.MultiSet
 
-import collection.immutable.{Iterable,Seq}
+import collection.immutable.{Iterable, Seq}
+import scala.annotation.{StaticAnnotation, compileTimeOnly}
 
 object Types {
   type Values[V] = Seq[V]
@@ -46,6 +47,7 @@ trait IndexValueMergerFactory {
 }
 
 trait DataDependencyFrom[From] {
+  def assembleName: String
   def name: String
   def inputWorldKeys: Seq[AssembledKey[From]]
 }
@@ -55,6 +57,7 @@ trait DataDependencyTo[To] {
 }
 
 class Join[T,R,TK,RK](
+  val assembleName: String,
   val name: String,
   val inputWorldKeys: Seq[AssembledKey[Index[TK, T]]],
   val outputWorldKey: AssembledKey[Index[RK, R]],
@@ -69,4 +72,9 @@ trait Assemble {
 case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
   extends AssembledKey[Index[K,V]](Map.empty)
 
-class by[T]
+//@compileTimeOnly("not expanded")
+class by[T] extends StaticAnnotation
+
+trait ExpressionsDumper[To] {
+  def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
+}

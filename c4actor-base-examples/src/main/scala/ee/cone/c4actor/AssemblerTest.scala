@@ -2,6 +2,7 @@
 package ee.cone.c4actor
 
 import PCProtocol.{RawChildNode, RawParentNode}
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4actor.LEvent._
@@ -49,22 +50,19 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-class AssemblerTestApp extends ServerApp with VMExecutionApp with ToStartApp with ToInjectApp with ParallelObserversApp with UMLClientsApp {
-  def assembleProfiler: AssembleProfiler = SimpleAssembleProfiler
-  override def indexValueMergerFactory: IndexValueMergerFactory =
-    //new CachingIndexValueMergerFactory(16)
-    new TreeIndexValueMergerFactory(16)
-  def rawQSender: RawQSender =
-    new RawQSender { def send(recs: List[QRecord]): List[Long] = Nil }
+class AssemblerTestApp extends RichDataApp
+  with TreeIndexValueMergerFactoryApp
+  with SimpleAssembleProfilerApp
+{
   override def protocols: List[Protocol] = PCProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
 
-object AssemblerTest extends App {
+object AssemblerTest extends App with LazyLogging {
   val app = new AssemblerTestApp
   val recs = update(RawParentNode("1","P-1")) ++
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
-  val updates = recs.map(rec⇒app.qMessages.toUpdate(rec)).toList
+  val updates = recs.map(rec⇒app.toUpdate.toUpdate(rec)).toList
   //println(app.qMessages.toTree(rawRecs))
   val context = app.contextFactory.create()
   val nGlobal = ReadModelAddKey.of(context)(updates)(context)
@@ -79,7 +77,7 @@ object AssemblerTest extends App {
     )
   )
   assert(diff==shouldDiff)*/
-  println(nGlobal)
+  logger.debug(s"$nGlobal")
   Map(
     ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
       "1" -> RawParentNode("1","P-1")

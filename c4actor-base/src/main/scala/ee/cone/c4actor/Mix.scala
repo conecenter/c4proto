@@ -33,40 +33,71 @@ trait EnvConfigApp {
 }
 
 trait UMLClientsApp {
-  def umlClients: List[String⇒Unit] = Nil
+  lazy val umlExpressionsDumper: ExpressionsDumper[String] = UMLExpressionsDumper
 }
 
-trait ServerApp extends ExecutableApp with ProtocolsApp with AssemblesApp with DataDependenciesApp with InitialObserversApp with ToInjectApp {
+trait ExpressionsDumpersApp {
+  def expressionsDumpers: List[ExpressionsDumper[Unit]] = Nil
+}
+
+trait SimpleIndexValueMergerFactoryApp {
+  def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
+}
+
+trait TreeIndexValueMergerFactoryApp {
+  def indexValueMergerFactory: IndexValueMergerFactory =
+    new TreeIndexValueMergerFactory(16)
+}
+
+trait ServerApp extends RichDataApp with RichObserverApp
+
+trait RichObserverApp extends ExecutableApp with InitialObserversApp {
   def execution: Execution
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
-  def umlClients: List[String⇒Unit]
-  def assembleProfiler: AssembleProfiler
+  def qAdapterRegistry: QAdapterRegistry
   //
   lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
-  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
-  lazy val byPriority: ByPriority = ByPriorityImpl
-  lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val rawWorldFactory: RawWorldFactory = new RichRawWorldFactory(contextFactory,qMessages,getClass.getName)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
+  override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
+}
+
+trait RichDataApp extends ProtocolsApp
+  with AssemblesApp
+  with DataDependenciesApp
+  with ToInjectApp
+  with DefaultModelFactoriesApp
+  with ExpressionsDumpersApp
+{
+  def assembleProfiler: AssembleProfiler
+  def indexValueMergerFactory: IndexValueMergerFactory
+  //
+  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
+  lazy val byPriority: ByPriority = ByPriorityImpl
+  lazy val preHashing: PreHashing = PreHashingImpl
+  lazy val rawWorldFactory: RawWorldFactory = new RichRawWorldFactory(contextFactory,toUpdate,getClass.getName)
   lazy val contextFactory = new ContextFactory(toInject)
-  def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
+  lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
+  lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
+  lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory)
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory,assembleProfiler)
-  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,umlClients)
+  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,expressionsDumpers)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, qMessages, treeAssembler, ()⇒dataDependencies)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies)
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
     ProtocolDataDependencies(protocols.distinct) ::: super.dataDependencies
-  override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
   override def toInject: List[ToInject] =
-    ModelAccessFactoryImpl :: assemblerInit :: localQAdapterRegistryInit :: super.toInject
+    assemblerInit ::
+    localQAdapterRegistryInit ::
+    super.toInject
 }
 
 trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
@@ -108,4 +139,8 @@ trait MortalFactoryApp extends AssemblesApp {
 
 trait NoAssembleProfilerApp {
   lazy val assembleProfiler = NoAssembleProfiler
+}
+
+trait SimpleAssembleProfilerApp {
+  lazy val assembleProfiler = SimpleAssembleProfiler
 }

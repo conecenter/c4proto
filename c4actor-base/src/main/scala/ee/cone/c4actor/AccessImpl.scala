@@ -2,8 +2,13 @@ package ee.cone.c4actor
 
 import ee.cone.c4assemble.ToPrimaryKey
 
-object ModelAccessFactoryImpl extends ModelAccessFactory with ToInject {
-  def toInject: List[Injectable] = ModelAccessFactoryKey.set(this)
+trait ModelAccessFactoryApp {
+  def modelAccessFactory: ModelAccessFactory = modelAccessFactoryImpl
+  private lazy val modelAccessFactoryImpl = ModelAccessFactoryImpl
+}
+
+
+object ModelAccessFactoryImpl extends ModelAccessFactory {
   def to[P <: Product](product: P): Option[Access[P]] = {
     val name = product.getClass.getName
     val lens = TxProtoLens[P](product)
@@ -35,10 +40,10 @@ case class TxProtoLens[V<:Product](initialValue: V) extends AbstractLens[Context
   private def key = ByPrimaryKeyGetter(ByPK.raw(className))
   def of: Context ⇒ V = local ⇒ key.of(local).getOrElse(srcId,initialValue)
   def set: V ⇒ Context ⇒ Context = value ⇒ local ⇒ {
-    assert(initialValue == of(local))
+    if(initialValue != of(local)) throw new Exception(s"'$initialValue' != '${of(local)}'")
     val eventsC = List(LEvent(srcId, className, Option(value)))
     val eventsA = LEvent.update(value)
-    assert(eventsC == eventsA, s"$eventsC != $eventsA")
+    if(eventsC != eventsA) throw new Exception(s"'$eventsC' != '$eventsA'")
     TxAdd(eventsC)(local)
   }
 }

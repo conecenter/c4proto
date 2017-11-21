@@ -1,12 +1,13 @@
 
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
 import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
-object ProtoAdapterTest extends App {
+object ProtoAdapterTest extends App with LazyLogging {
   import MyProtocol._
   val leader0 = Person("leader0", Some(40), isActive = true)
   val worker0 = Person("worker0", Some(30), isActive = true)
@@ -14,19 +15,18 @@ object ProtoAdapterTest extends App {
   val group0 = Group("", Some(leader0), List(worker0,worker1))
   //
   val protocols: List[Protocol] = MyProtocol :: QProtocol :: Nil
-  val rawQSender = new RawQSender { def send(recs: List[QRecord]): List[Long] = Nil }
   val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols)
-  val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
+  val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
   //
   val lEvents = LEvent.update(group0)
-  val updates = lEvents.map(qMessages.toUpdate)
+  val updates = lEvents.map(toUpdate.toUpdate)
   val group1 = updates.map(update ⇒
     qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
   ) match {
     case Seq(g:Group) ⇒ g
   }
   assert(group0==group1)
-  println("OK",group1)
+  logger.info(s"OK$group1")
 }
 
 @protocol object MyProtocol extends Protocol {

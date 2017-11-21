@@ -2,6 +2,8 @@ package ee.cone.c4gate
 
 import java.time.Instant
 
+import com.typesafe.scalalogging.LazyLogging
+
 import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -13,10 +15,10 @@ import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 class TestSSEApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
+  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with BranchApp
   with AlienExchangeApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {
@@ -32,17 +34,17 @@ class TestSSEApp extends ServerApp
     key: SrcId,
     tasks: Values[BranchTask]
   ): Values[(SrcId,BranchHandler)] = {
-    println(s"joinView ${tasks}")
+    //println(s"joinView ${tasks}")
     for(task ← tasks) yield task.branchKey → TestSSEHandler(task.branchKey, task)
   }
 }
 
-case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler {
+case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler with LazyLogging {
   def exchange: BranchMessage ⇒ Context ⇒ Context = message ⇒ local ⇒ {
     val now = Instant.now
     val (keepTo,freshTo) = task.sending(local)
     val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
-    println(s"TestSSEHandler $keepTo $freshTo")
+    logger.info(s"TestSSEHandler $keepTo $freshTo")
     SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
   }
   def seeds: Context ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil

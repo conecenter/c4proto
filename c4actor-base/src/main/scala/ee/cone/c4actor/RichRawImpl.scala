@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4assemble.Single
 
@@ -26,12 +27,12 @@ class ContextFactory(toInjects: List[ToInject]) {
 }
 
 class RichRawWorldFactory(
-  contextFactory: ContextFactory, qMessages: QMessages, actorName: String
+  contextFactory: ContextFactory, toUpdate: ToUpdate, actorName: String
 ) extends RawWorldFactory {
   def create(): RawWorld = {
     val context = contextFactory.create()
     val updates = LEvent.update(Firstborn(actorName)).toList
-      .map(qMessages.toUpdate)
+      .map(toUpdate.toUpdate)
     new RichRawWorld(ReadModelAddKey.of(context)(updates)(context), Nil)
   }
 }
@@ -39,7 +40,7 @@ class RichRawWorldFactory(
 class RichRawWorld(
   val context: Context,
   errors: List[Exception]
-) extends RawWorld {
+) extends RawWorld with LazyLogging {
   def offset: Long = OffsetWorldKey.of(context)
   def reduce(data: Array[Byte], offset: Long): RawWorld = try {
     val registry = QAdapterRegistryKey.of(context)
@@ -54,7 +55,7 @@ class RichRawWorld(
     )
   } catch {
     case e: Exception ⇒
-      e.printStackTrace() // ??? exception to record
+      logger.error("reduce",e) // ??? exception to record
       new RichRawWorld(
         OffsetWorldKey.set(offset)(context),
         errors = e :: errors
@@ -71,11 +72,11 @@ object WorldStats {
   }.mkString("\n")
 }
 
-class StatsObserver(inner: RawObserver) extends RawObserver {
+class StatsObserver(inner: RawObserver) extends RawObserver with LazyLogging {
   def activate(rawWorld: RawWorld): RawObserver = rawWorld match {
     case richRawWorld: RichRawWorld ⇒
-      println(WorldStats.make(richRawWorld.context))
-      println("Stats OK")
+      logger.debug(WorldStats.make(richRawWorld.context))
+      logger.info("Stats OK")
       inner
   }
 }

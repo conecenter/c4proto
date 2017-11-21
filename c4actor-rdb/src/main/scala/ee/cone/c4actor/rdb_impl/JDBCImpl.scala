@@ -4,6 +4,7 @@ import java.lang.Math.toIntExact
 import java.sql.{CallableStatement, Connection}
 import java.util.concurrent.CompletableFuture
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 
 class ExternalDBSyncClient(
@@ -29,7 +30,7 @@ object FinallyFree {
   def apply[A,T](o: A, close: A⇒Unit)(f: A⇒T): T = try f(o) finally close(o)
 }
 
-abstract class RDBBindImpl[R] extends RDBBind[R] {
+abstract class RDBBindImpl[R] extends RDBBind[R] with LazyLogging {
   def connection: java.sql.Connection
   def index: Int
   def code(wasCode: String): String
@@ -45,7 +46,7 @@ abstract class RDBBindImpl[R] extends RDBBind[R] {
     if(value.length < 1000) inObject(value) else new InTextRDBBind(this, value)
   def call(): R = concurrent.blocking {
     val theCode = code("")
-    println(Thread.currentThread.getName,"code",theCode)
+    logger.debug(s"${Thread.currentThread.getName} code $theCode")
     FinallyClose(connection.prepareCall(theCode))(execute)
   }
 }
@@ -111,7 +112,7 @@ class OutTextRDBBind(
   }
 }
 
-class RConnectionImpl(conn: java.sql.Connection) extends RConnection {
+class RConnectionImpl(conn: java.sql.Connection) extends RConnection with LazyLogging {
 
   private def bindObjects(stmt: java.sql.PreparedStatement, bindList: List[Object]) =
     bindList.zipWithIndex.foreach{ case (v,i) ⇒ stmt.setObject(i+1,v) }
@@ -122,7 +123,7 @@ class RConnectionImpl(conn: java.sql.Connection) extends RConnection {
 
   def execute(code: String): Unit = concurrent.blocking {
     FinallyClose(conn.prepareStatement(code)) { stmt ⇒
-      println(code)
+      logger.debug(code)
       stmt.execute()
       //println(stmt.getWarnings)
     }

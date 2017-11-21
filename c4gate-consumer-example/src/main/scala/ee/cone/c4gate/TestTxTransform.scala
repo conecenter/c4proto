@@ -1,5 +1,6 @@
 package ee.cone.c4gate
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.LEvent._
@@ -14,9 +15,9 @@ class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
 abstract class TestTxTransformApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ToInjectApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with FileRawSnapshotApp
+  with TreeIndexValueMergerFactoryApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles
@@ -30,13 +31,13 @@ abstract class TestTxTransformApp extends ServerApp
     posts.map(post ⇒ post.srcId → TestDelayHttpPostHandler(post.srcId, post))
 }
 
-case class TestDelayHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform {
+case class TestDelayHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
-    println(s"start handling $srcId")
+    logger.info(s"start handling $srcId")
     concurrent.blocking{
       Thread.sleep(1000)
     }
-    println(s"finish handling $srcId")
+    logger.info(s"finish handling $srcId")
     TxAdd(delete[Product](post))(local)
   }
 }

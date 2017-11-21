@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{Access,MetaAttr,NameMetaAttr}
+import ee.cone.c4actor.{Access, MetaAttr, NameMetaAttr, ProdLens}
 import ee.cone.c4vdom._
 
 abstract class ElementValue extends VDomValue {
@@ -50,7 +50,7 @@ class TestTags[State](
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
 
   def input(access: Access[String]): ChildPair[OfDiv] = {
-    val name = access.metaList.collect{ case l: NameMetaAttr ⇒ l.value }.mkString
+    val name = access.metaList.collect{ case l: NameMetaAttr ⇒ l.value }.mkString(".")
     access.updatingLens.map { lens ⇒
       val placeholder = access.metaList.collect{ case l: UserLabel ⇒ l.values.get("en") }.flatten.lastOption.getOrElse("")
       val input = InputTextElement(access.initialValue, deferSend = true, placeholder)(
@@ -60,6 +60,12 @@ class TestTags[State](
       child[OfDiv](name, input, Nil)
     }.getOrElse(tags.text(name, access.initialValue))
   }
+
+  def dateInput(access: Access[Option[Long]]): ChildPair[OfDiv] =
+    input(access to ProdLens[Option[Long],String](Nil)(
+      _.map(_.toString).getOrElse(""),
+      s⇒_⇒ for(s←Option(s) if s.nonEmpty) yield s.toLong
+    ))
 
   def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,
@@ -78,4 +84,4 @@ case class UserLabel(values: Map[String,String] = Map.empty) extends MetaAttr {
   def ru: String ⇒ UserLabel = v ⇒ copy(values + ("ru"→v))
 }
 
-
+case object IsDeep extends MetaAttr

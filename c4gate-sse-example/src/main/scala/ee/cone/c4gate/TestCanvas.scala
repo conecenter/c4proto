@@ -15,12 +15,12 @@ import ee.cone.c4vdom.{PathFactory, PathFactoryImpl, _}
 class TestCanvasApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
+  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
   with PublishingApp
   with TestTagsApp
   with CanvasApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {
@@ -48,7 +48,7 @@ class TestCanvasApp extends ServerApp
     for(
       task ← tasks;
       view ← Option(task.locationHash).collect{
-        case "rectangle" ⇒ TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
+        case "rectangle" ⇒ ??? //TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
       }
     ) yield WithPK(view)
 }

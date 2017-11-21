@@ -9,6 +9,8 @@ import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import okio.{Buffer, GzipSink}
 import java.nio.charset.StandardCharsets.UTF_8
 
+import com.typesafe.scalalogging.LazyLogging
+
 //todo un-publish
 
 class PublishingObserver(
@@ -16,9 +18,9 @@ class PublishingObserver(
   fromDir: String,
   fromStrings: List[(String,String)],
   mimeTypes: String⇒Option[String]
-) extends Observer {
+) extends Observer with LazyLogging {
   def activate(global: Context): Seq[Observer] = {
-    println("publish started")
+    logger.debug("publish started")
     val fromPath = Paths.get(fromDir)
     val visitor = new PublishFileVisitor(fromPath,publish(global))
     val depth = Integer.MAX_VALUE
@@ -27,7 +29,7 @@ class PublishingObserver(
     fromStrings.foreach{ case(path,body) ⇒
       publish(global)(path,body.getBytes(UTF_8))
     }
-    println("publish finished")
+    logger.debug("publish finished")
     Nil
   }
   def publish(local: Context)(path: String, body: Array[Byte]): Unit = {
@@ -44,10 +46,10 @@ class PublishingObserver(
     val existingPublications = ByPK(classOf[HttpPublication]).of(local)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.get(path).contains(publication)) {
-      println(s"$path (${byteString.size}) exists")
+      logger.debug(s"$path (${byteString.size}) exists")
     } else {
       TxAdd(LEvent.update(publication)).andThen(qMessages.send)(local)
-      println(s"$path (${byteString.size}) published")
+      logger.debug(s"$path (${byteString.size}) published")
     }
   }
 }

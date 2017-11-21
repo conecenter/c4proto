@@ -10,6 +10,7 @@ import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.HttpProtocol._
@@ -67,7 +68,7 @@ object AuthOperations {
     correctHash == pbkdf2(password, correctHash)
 }
 
-class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler {
+class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     val headers = httpExchange.getRequestHeaders.asScala
@@ -113,7 +114,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         qMessages.send(nLocal)
         httpExchange.sendResponseHeaders(200, 0)
       } else {
-        println(path)
+        logger.warn(path)
         httpExchange.sendResponseHeaders(429, 0) //Too Many Requests
       }
     }(local)

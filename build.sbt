@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.A.7",
+  version := "0.A.F",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,
@@ -74,12 +74,13 @@ lazy val `c4gate-proto` = project.settings(publishSettings)
 lazy val `c4actor-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
+  .settings(libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2")
   .dependsOn(`c4proto-macros`,`c4assemble-macros`,`c4proto-api`,`c4assemble-runtime`)
 
 lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`,`c4proto-types`)
+  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
@@ -88,15 +89,15 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
-  .settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
+  //.settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
   .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
-  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`)
+  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
 lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`)
+  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging)
 
 
@@ -118,7 +119,7 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging)
 
 
@@ -142,6 +143,11 @@ lazy val `c4gate-client` = project.settings(publishSettings)
   .settings(metaMacroSettings)
   .dependsOn(`c4gate-proto`,`c4actor-base`)
 
+lazy val `c4gate-logback` = project.settings(publishSettings)
+  .settings(description := s"$descr logback with config")
+  .settings(libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3")
+  //.settings(libraryDependencies += "org.codehaus.groovy" % "groovy-all" % "2.4.12")
+
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
@@ -153,6 +159,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4assemble-runtime`,
   `c4gate-consumer-example`,
   `c4gate-client`,
+  `c4gate-logback`,
   `c4gate-proto`,
   `c4gate-publish`,
   `c4gate-server`,

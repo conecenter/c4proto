@@ -4,6 +4,7 @@ package ee.cone.c4actor
 import java.nio.ByteBuffer
 import java.util.UUID
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.{BranchResult, SessionFailure}
@@ -16,7 +17,7 @@ import Function.chain
 
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
-case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask {
+case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask with LazyLogging {
   def sending: Context ⇒ (Send,Send) = local ⇒ {
     val newSessionKeys = sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
@@ -46,7 +47,7 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
   }
 
   def relocateSeed(branchKey: String, position: String, to: String): Context ⇒ Context = {
-    println(s"relocateSeed: [$branchKey] [$position] [$to]")
+    logger.debug(s"relocateSeed: [$branchKey] [$position] [$to]")
     identity
   } //todo emulate post to branch?
 }

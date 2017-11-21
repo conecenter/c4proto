@@ -9,6 +9,7 @@ import java.util.UUID
 import FromExternalDBProtocol.DBOffset
 import ToExternalDBProtocol.HasState
 import ToExternalDBTypes.NeedSrcId
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -20,11 +21,11 @@ import okio.ByteString
 
 
 
-class RDBOptionFactoryImpl(qMessages: QMessages) extends RDBOptionFactory {
+class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
-    new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(qMessages,cl))
+    new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(toUpdate,cl))
 }
 
 ////
@@ -53,7 +54,7 @@ object ToExternalDBAssembles {
 }
 
 @assemble class ToExternalDBItemAssemble[Item<:Product](
-  messages: QMessages,
+  toUpdate: ToUpdate,
   classItem: Class[Item]
 )  extends Assemble {
   def join(
@@ -61,7 +62,7 @@ object ToExternalDBAssembles {
     items: Values[Item]
   ): Values[(NeedSrcId,HasState)] =
     for(item ← items; e ← LEvent.update(item)) yield {
-      val u = messages.toUpdate(e)
+      val u = toUpdate.toUpdate(e)
       val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
       key → HasState(key,u.valueTypeId,u.value)
     }
@@ -94,7 +95,7 @@ case class ToExternalDBTask(
 
 case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[HasState])]](Map.empty)
 
-case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends TxTransform {
+case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val now = Instant.now()
     tasks.find{ task ⇒
@@ -119,7 +120,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
         .in(toText)
         .call().getOrElse(0L)
 
-      println("delay",delay)
+      logger.warn(s"delay $delay")
       if(delay > 0L) RDBSleepUntilKey.modify(m ⇒
         m + (task.srcId→(now.plusMillis(delay)→to))
       )(local)
@@ -151,16 +152,16 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
     List("externalDBSync").map(k⇒k→FromExternalDBSyncTransform(k))
 }
 
-case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform {
+case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = WithJDBCKey.of(local){ conn ⇒
     val offset =
       ByPK(classOf[DBOffset]).of(local).getOrElse(srcId, DBOffset(srcId, 0L))
-    println("offset",offset)//, By.srcId(classOf[Invoice]).of(world).size)
+    logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
     val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
     //val updateOffset = List(DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
     //  .map(n⇒LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
-      println("textEncoded",textEncoded)
+      logger.debug(s"textEncoded $textEncoded")
       WriteModelAddKey.of(local)((new IndentedParser).toUpdates(textEncoded))(local)
     }
   }

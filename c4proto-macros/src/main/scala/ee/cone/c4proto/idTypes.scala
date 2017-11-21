@@ -1,5 +1,5 @@
 package ee.cone.c4proto
-
+/*
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
 
@@ -16,3 +16,4 @@ class idTypes extends StaticAnnotation {
     nTree.asInstanceOf[Stat]
   }
 }
+*/

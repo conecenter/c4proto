@@ -94,12 +94,12 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	const isTouch = (event) => event.type.includes("touch")
 	const getXY = (event) =>  isTouch(event)?{x:event.touches[0].clientX,y:event.touches[0].clientY}:{x:event.clientX,y:event.clientY}
 	const getTarget = (event) => {
-		if(isTouch(event)){
+		//if(isTouch(event)){
 			const {x,y} = getXY(event)
 			return documentManager.nodeFromPoint(x,y + getPageYOffset())
-		}
-		else 
-			return event.target		
+	//	}
+	//	else 
+	//		return event.target		
 	}
 	const regReporter = (callback) => {
 		reporters.push(callback)
@@ -117,7 +117,11 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			dragElements.splice(index,1)
 			dragEnd()
 		}
-		return ({release,dragOver,dragStart,dragDrop})
+		const update = (props) =>{
+			const index = dragElements.indexOf(dragEl)			
+			dragElements[index].dragData = props.dragData			
+		}
+		return ({update,release,dragOver,dragStart,dragDrop})
 	}
 	const dragOver = (node) => {
 		if(onDrag()) report("dragOver",dragNode,node)
@@ -138,28 +142,39 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			toSrcId = tEl.dragData?tEl.dragData:""
 		reporters.forEach(r=>r(action,fromSrcId,toSrcId))
 	}
-	const dragStart = (event,node) => {
-		const {x,y} = getXY(event)		
-		cNode = documentManager.createElement("table")	
-		listRect = getListRect(node);
-		const listNode = getListNode(node);
-		scrollNodes = findScrollNodes(listNode)
-        dragNode = node	
-		//callbacks.push(callback)
-		cNode.appendChild(node.parentNode.cloneNode(true));
-		const parentRect = node.parentNode.getBoundingClientRect();			
-		const top = parentRect.top + getPageYOffset()
-		cNode.style.width = node.parentNode.getBoundingClientRect().width + "px";
+	const dragStart = (event,node,div) => {
+		const {x,y} = getXY(event)
+		let listNode
+		let refNode
+		if(!div){ //td
+			cNode = documentManager.createElement("table")	
+			listRect = getListRect(node);
+			listNode = getListNode(node);					
+			//callbacks.push(callback)
+			refNode = node.parentNode
+			cNode.appendChild(node.parentNode.cloneNode(true));
+		}
+		else{ //div
+			cNode = node.cloneNode(true)
+			listRect = node.getBoundingClientRect()
+			listNode = node			
+			refNode = node
+		}
+		scrollNodes = findScrollNodes(listNode)	
+		dragNode = node	
+		const refRect = refNode.getBoundingClientRect();			
+		const top = refRect.top + getPageYOffset()
+		cNode.style.width = refRect.width + "px";
 		cNode.style.position="absolute";
 		cNode.style.top = top + "px"
-		cNode.style.left = parentRect.left + "px"
+		cNode.style.left = refRect.left + "px"
 		cNode.style.opacity = "0.7"
 		cNode.style.pointerEvents = "none";
 		documentManager.add(cNode)
 		mouseHitPoint.x = x
 		mouseHitPoint.y = y
-		mouseHitPoint.top = parentRect.top
-		mouseHitPoint.left = parentRect.left
+		mouseHitPoint.top = refRect.top
+		mouseHitPoint.left = refRect.left
 		addEventListener("mousemove",onMouseMove)
 		addEventListener("touchmove",onMouseMove)
 		addEventListener("mouseup",onMouseUp)
@@ -183,11 +198,11 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	let lastSwappedNode = null
 	const releaseDD = () =>{
 		removeEventListener("mouseup",onMouseUpDD)
-		removeEventListener("touchend",onMouseUpDD)
+		removeEventListener("touchend",onMouseUpDD)		
 		removeEventListener("mousemove",onMouseMoveDD)
 		removeEventListener("touchmove",onMouseMoveDD)		
-		dragElements.splice(0)
-		if(!ddNode) return
+		dragElements.splice(0)		
+		if(!ddNode) return		
 		documentManager.remove(ddNode)
 		ddNode = null
 		lastSwappedNode = null
@@ -197,9 +212,9 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		if(ddNode){
 			for(let i =0;i<ddNode.children.length;i+=1)
 				if(ddNode.children[i].tagName=="DIV")
-				posCol.push(ddNode.children[i].dataset.index)
+				posCol.push(ddNode.children[i].dataset.srcKey)
+			dragElements.forEach(c=>c(posCol))
 		}		
-		dragElements.forEach(c=>c(posCol))
 		releaseDD()
 	}
 	const swapNodes = (node1I,node2I) =>{
@@ -217,8 +232,8 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		return node2
 	}
 	const onMouseMoveDD = (event) =>{
-		if(!ddNode) return		
-        const overNode = getTarget(event)
+		if(!ddNode) return				
+        const overNode = getTarget(event)		
 		const tIndex = findChildDD(ddNode,overNode)
 		const selectedNode = ddNode.querySelector(".selected")
 		const selectedNodeI = findChildDD(ddNode,selectedNode)		
@@ -227,6 +242,7 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		
 		if(ddNode.children[selectedNodeI] != ddNode.children[tIndex]) lastSwappedNode = swapNodes(selectedNodeI,tIndex)		
 		//event.preventDefault();
+		event.preventDefault();
 	}
 	const findChildDD = (parent,node) =>{
 		let n = node
@@ -253,18 +269,25 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		ddNode.style.height = oRect.height + "px"
 		ddNode.style.position = "absolute"
 		ddNode.style.left = oRect.left + "px"
-		ddNode.style.top = (oRect.top + getPageYOffset()) + "px"		
+		ddNode.style.top = (oRect.top + getPageYOffset()) + "px"
+		//ddNode.style.userSelect = "none"
+		//ddNode.style.MozUserSelect = "none"
+		ddNode.style.zIndex = "9999"
+	
 		const selectedNode = ddNode.children[tIndex]		
 		selectedNode.style.opacity = '0.3'
 		selectedNode.classList.add("selected")
 		ddNode.style.lineHeight = "1"
-		for(let i =0;i<ddNode.children.length;i+=1) ddNode.children[i].dataset.index = i
-		
 		documentManager.add(ddNode)
-		addEventListener("mouseup",onMouseUpDD)
-		addEventListener("touchend",onMouseUpDD)
+		for(let i =0;i<ddNode.children.length;i+=1) {
+			if(ddNode.children[i].tagName!="DIV") continue
+			const child = ddNode.children[i]			
+			if(!child.dataset.srcKey) child.dataset.srcKey = child.firstElementChild?child.firstElementChild.dataset.srcKey:i            
+		}
 		addEventListener("mousemove",onMouseMoveDD)
 		addEventListener("touchmove",onMouseMoveDD)
+		addEventListener("mouseup",onMouseUpDD)
+		addEventListener("touchend",onMouseUpDD)		
 		return  ({releaseDD})
 	}
 	return {dragReg,checkActivate,regReporter,dragStartDD}

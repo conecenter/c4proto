@@ -2,11 +2,12 @@ package ee.cone.c4actor
 
 import java.time.Instant
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
 
 import scala.collection.immutable.{Map, Seq}
 
-class TxTransforms(qMessages: QMessages) {
+class TxTransforms(qMessages: QMessages) extends LazyLogging {
   type TransientTransform = TransientMap ⇒ TransientMap
   def get(global: Context): Map[SrcId,TransientTransform] =
     ByPK(classOf[TxTransform]).of(global).transform{ case(key,_) ⇒ handle(global,key) }
@@ -24,7 +25,7 @@ class TxTransforms(qMessages: QMessages) {
       }
     } catch {
       case exception: Exception ⇒
-        println(s"Tx failed [$key][${Thread.currentThread.getName}][\n${exception.getStackTrace.map(l⇒s"  $l\n").mkString}]")
+        logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",exception)
         // exception.printStackTrace() //??? |Nil|throw
         val was = ErrorKey.of(local)
         Function.chain(List(

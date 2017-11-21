@@ -1,30 +1,40 @@
 package ee.cone.c4gate
 
 import java.util.UUID
-
 import ee.cone.c4actor.LEvent.{delete, update}
-import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
+import ee.cone.c4assemble._
+import ee.cone.c4gate.CommonFilterProtocol._
 import ee.cone.c4gate.TestTodoProtocol.TodoTask
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 import ee.cone.c4ui._
+import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 class TestTodoApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
+  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
   with TestTagsApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
+  with PublicViewAssembleApp
+  with CommonFilterInjectApp
+  with CommonFilterPredicateFactoriesApp
+  with FilterPredicateBuilderApp
+  with ModelAccessFactoryApp
+  with AccessViewApp
+  with DateBeforeAccessViewApp
+  with ContainsAccessViewApp
+  with SessionAttrApp
+  with MortalFactoryApp
+  with TestTodoRootViewApp
 {
-  override def protocols: List[Protocol] = TestTodoProtocol :: super.protocols
+  override def protocols: List[Protocol] =
+    CommonFilterProtocol :: TestTodoProtocol :: super.protocols
   override def assembles: List[Assemble] =
-    new TestTodoAssemble ::
     new FromAlienTaskAssemble("/react-app.html") ::
     super.assembles
 }
@@ -37,116 +47,87 @@ class TestTodoApp extends ServerApp
   )
 }
 
-
-  //marker [class] @Id .field
-  // @Id lazy val
-
-/*
-@Id() case class OrigDeepDateRange(
-  @Id() srcId:     SrcId, // srcId = hash (userId/SessionId + filterId + objSrcId)
-  @Id() filterId:  Int,
-  @Id() objSrcId:  Option[SrcId],
-  @Id() dateFrom:  Long,
-  @Id() dateTo:    Long
-)
-
-
-object CommonNames {
-  def name1 = translatable en "aaa"
-}
-
-object MyFilter {
-  @Id() flt1 = deepDateRange scale minute userLabel en "sss1" ru "sss1"
-  @Id() flt2 = deepDateRange
-  @Id() flt3 = deepDateRange userLabel CommonNames.name1
-}
-
-pk flt: @id + Option[SrcId]
-
-list1 .... {
-type Row
-def filters = MyFilter.flt1.by(srcid).bind(_.issue) :: MyFilter.flt2.bind(_.closed) :: MyFilter.flt3.bind(_.started) :: Nil
-
-
-MyFilter.flt1.by(pk).get.dateFrom
-}
-
-list2 .... {
-  def filters = fltBind(MyFilter.flt2, _.started) :: Nil // by DL
-
-  def filters = {
-     val flts = SessionDataByPK(classOf[MyFilter])(pk)
-     fltBind(flts.flt2, _.started) :: Nil
-  } // by SK
-
-  MyFilter.flt1.by(pk).get.dateFrom // by DL
-  SessionDataByPK(classOf[MyFilter])(pk).flt1.dateFrom // by SK
-}
-
-filterAccess pk pk to flt1
-
-default -- handler
-
-trait FilterAccessFactory {
-  def pk(key: srcId): FilterAccessFactory
-  def to[P](filter: Filter[P]): Access[P]
-}
-
-*/
-
-/*
-trait Filter[P] {
-  def idType[P](id: Long, cl: Class[P]): Filter[P] = new Filter[P] {}
-}
-object Filter {
-  def meta[P](v: Any) = new Filter[P] {}
-}
-case class TodoTask(comments: String)
-@idTypes object TestGroup {
-  @Id(0x6666) def test: Filter[TodoTask] = Filter meta ???
-}
-*/
-
-@assemble class TestTodoAssemble extends Assemble {
-  def joinView(
-    key: SrcId,
-    fromAliens: Values[FromAlienTask]
-  ): Values[(SrcId,View)] =
-    for(
-      fromAlien ← fromAliens;
-      view ← Option(fromAlien.locationHash).collect{
-        case "todo" ⇒ TestTodoRootView(fromAlien.branchKey)
-      }
-    ) yield WithPK(view)
-}
-
 import TestTodoAccess._
-@fieldAccess object TestTodoAccess {
-  lazy val comments: ProdLens[TodoTask,String] = ProdLens.of(_.comments, UserLabel en "(created at)")
+@fieldAccess
+object TestTodoAccess {
+  lazy val comments: ProdLens[TodoTask,String] =
+    ProdLens.of(_.comments, UserLabel en "(comments)")
+  lazy val createdAt: ProdLens[TodoTask,Long] =
+    ProdLens.of(_.createdAt, UserLabel en "(created at)")
+  lazy val createdAtFlt =
+    SessionAttr(Id(0x0006), classOf[DateBefore], UserLabel en "(created before)")
+  lazy val commentsFlt =
+    SessionAttr(Id(0x0007), classOf[Contains], IsDeep, UserLabel en "(comments contain)")
 }
 
-case class TestTodoRootView(branchKey: SrcId) extends View {
-  def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
-    val tags = TestTagsKey.of(local)
-    val mTags = TagsKey.of(local)
-    val contextAccess = ModelAccessFactoryKey.of(local)
+trait TestTodoRootViewApp extends ByLocationHashViewsApp {
+  def testTags: TestTags[Context]
+  def tags: Tags
+  def tagStyles: TagStyles
+  def modelAccessFactory: ModelAccessFactory
+  def filterPredicateBuilder: FilterPredicateBuilder
+  def commonFilterConditionChecks: CommonFilterConditionChecks
+  def sessionAttrAccessFactory: SessionAttrAccessFactory
+  def accessViewRegistry: AccessViewRegistry
+  def untilPolicy: UntilPolicy
+
+  private lazy val testTodoRootView = TestTodoRootView()(
+    testTags,
+    tags,
+    tagStyles,
+    modelAccessFactory,
+    filterPredicateBuilder,
+    commonFilterConditionChecks,
+    accessViewRegistry,
+    untilPolicy
+  )
+
+  override def byLocationHashViews: List[ByLocationHashView] =
+    testTodoRootView :: super.byLocationHashViews
+}
+
+case class TestTodoRootView(locationHash: String = "todo")(
+  tags: TestTags[Context],
+  mTags: Tags,
+  styles: TagStyles,
+  contextAccess: ModelAccessFactory,
+  filterPredicates: FilterPredicateBuilder,
+  commonFilterConditionChecks: CommonFilterConditionChecks,
+  accessViewRegistry: AccessViewRegistry,
+  untilPolicy: UntilPolicy
+) extends ByLocationHashView {
+  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     import mTags._
-    val todoTasks = ByPK(classOf[TodoTask]).of(local).values.toList.sortBy(-_.createdAt)
-    //val input = tags.input()
-    //@fieldAccess
-    val taskLines = for {
-      prod ← todoTasks
-      task ← contextAccess to prod
-    } yield div(prod.srcId,Nil)(
-      tags.input(task to comments) ::
-        divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-"))) :: Nil
-    )
+    import commonFilterConditionChecks._
+    val filterPredicate = filterPredicates.create[TodoTask](local)
+      .add(commentsFlt, comments)
+      .add(createdAtFlt, createdAt)
+
+    val filterList = for {
+      access ← filterPredicate.accesses
+      tag ← accessViewRegistry.view(access)(local)
+    } yield tag
+    // filterPredicate.accesses.flatMap { case a if a.initialValue => List(a to sub1, a to sub2) case a => List(a) }
+
     val btnList = List(
       divButton("add")(
         TxAdd(update(TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )(List(text("text","+")))
     )
-    List(btnList,taskLines).flatten
+
+    val todoTasks = ByPK(classOf[TodoTask]).of(local).values
+      .filter(filterPredicate.condition.check).toList.sortBy(-_.createdAt)
+    val taskLines = for {
+      prod ← todoTasks
+      task ← contextAccess to prod
+    } yield div(prod.srcId,Nil)(List(
+      tags.input(task to comments),
+      div("remove",List(styles.width(100),styles.displayInlineBlock))(List(
+        divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-")))
+      ))
+    ))
+
+    List(filterList,btnList,taskLines).flatten
   }
 }
 

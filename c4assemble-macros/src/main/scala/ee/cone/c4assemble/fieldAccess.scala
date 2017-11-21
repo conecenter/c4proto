@@ -11,7 +11,7 @@ class fieldAccess extends StaticAnnotation {
       case q"$o.of(...$args)" ⇒
         val List(head :: tail) = args
         val q"_.$field" = head
-        val nArgs = List(head :: q"value⇒model⇒model.copy($field=value)" :: Lit(s".$field") :: tail)
+        val nArgs = List(head :: q"value⇒model⇒model.copy($field=value)" :: Lit(s"$field") :: tail)
         q"$o.ofSet(...$nArgs)"
     }
     nTree.asInstanceOf[Stat]

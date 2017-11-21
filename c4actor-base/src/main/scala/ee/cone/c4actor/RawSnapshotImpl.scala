@@ -3,18 +3,20 @@ package ee.cone.c4actor
 import java.nio.file.{Files, Paths}
 import java.util.UUID
 
+import com.typesafe.scalalogging.LazyLogging
+
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
 
-class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) extends RawSnapshot {
+class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) extends RawSnapshot with LazyLogging {
   private def dir = Files.createDirectories(Paths.get(dirStr))
   private def hashFromName: String⇒Option[(String,String)] = {
     val R = """([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""".r;
     {
       case R(offsetHex,uuid) ⇒ Option((offsetHex,uuid))
       case a ⇒
-        println(a)
+        logger.warn(s"not a snapshot: $a")
         None
     }
   }
@@ -36,10 +38,10 @@ class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) exte
   def loadRecent(): RawWorld = {
     val initialRawWorld = rawWorldFactory.create()
     loadRecentStream.flatMap { case (offset, dataOpt) ⇒
-      println(s"Loading snapshot up to $offset")
+      logger.info(s"Loading snapshot up to $offset")
       dataOpt.map(initialRawWorld.reduce(_,offset)).filterNot(_.hasErrors)
     }.headOption.map{ res ⇒
-      println(s"Snapshot loaded")
+      logger.info(s"Snapshot loaded")
       res
     }.getOrElse(initialRawWorld)
   }

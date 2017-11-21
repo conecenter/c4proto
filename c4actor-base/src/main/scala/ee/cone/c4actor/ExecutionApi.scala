@@ -1,5 +1,7 @@
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
+
 trait Execution extends Runnable {
   def onShutdown(hint: String, f:()⇒Unit): Unit
   def complete(): Unit
@@ -23,11 +25,10 @@ trait Config {
 
 ////
 
-object Trace { //m. b. to util
+object Trace extends LazyLogging { //m. b. to util
   def apply[T](f: =>T): T = try { f } catch {
     case e: Throwable =>
-      println("Throwable1")
-      e.printStackTrace();
+      logger.error("Trace",e)
       throw e
   }
 }

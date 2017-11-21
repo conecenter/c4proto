@@ -1,6 +1,7 @@
 
 package ee.cone.c4gate
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol._
@@ -13,8 +14,8 @@ import ee.cone.c4assemble.Types.Values
 class TestConsumerApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with ToInjectApp
-  with UMLClientsApp with NoAssembleProfilerApp
+  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
 {
@@ -53,7 +54,7 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
     key: SrcId,
     posts: Values[HttpPost]
   ): Values[(SrcId, TxTransform)] = {
-    println(posts)
+    //println(posts)
     Nil
   }
 
@@ -64,7 +65,7 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
     List("GateTester"→GateTester(connections))*/
 }
 
-case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform {
+case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val resp = if(ErrorKey.of(local).nonEmpty) Nil else {
       val prev = new String(post.body.toByteArray, "UTF-8")
@@ -72,7 +73,7 @@ case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform
       val body = okio.ByteString.encodeUtf8(next)
       List(HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
     }
-    println(resp)
+    logger.info(s"$resp")
     TxAdd(delete[Product](post) ++ resp.flatMap(update[Product]))(local)
   }
 }
