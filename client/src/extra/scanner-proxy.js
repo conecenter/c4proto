@@ -19,7 +19,7 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 		isOn = value?{value,scanMode}:value;
 		switch(scanMode){
 			case "uhf": if(isOn) Scanner&&Scanner.setUHFenable(); else Scanner&&Scanner.setUHFdisable();
-			default: if(isOn) Scanner&&Scanner.setScannerEnable() else Scanner&&Scanner.setScannerDisable();
+			default: if(isOn) Scanner&&Scanner.setScannerEnable(); else Scanner&&Scanner.setScannerDisable();
 		}			
 		log(`scanner: set ${value} ${scanMode}`)
 	}
