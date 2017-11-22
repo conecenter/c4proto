@@ -527,18 +527,26 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			if(this.props.onClickValue)
 				this.props.onClickValue(type,data)
 		},
+		scanMode:function(){
+			return this.props.scanMode
+		},
 		componentDidMount:function(){
 			if(this.props.barcodeReader)
-				this.unreg = scannerProxy.reg(this)
+				this.binding = scannerProxy.reg(this)
 		},
 		componentDidUpdate:function(prevProps,_){
-			if(prevProps.barcodeReader != this.props.barcodeReader){
-				if(this.props.barcodeReader && !this.unreg) this.unreg = scannerProxy.reg(this)
-				else if(!this.props.barcodeReader && this.unreg) this.unreg()
+			if(this.props.barcodeReader && this.props.scanMode!=prevProps.scanMode && this.binding){
+				this.binding.switchTo(this.props.scanMode)
+				return
 			}
+			if(prevProps.barcodeReader != this.props.barcodeReader){
+				if(this.props.barcodeReader && !this.binding) this.binding = scannerProxy.reg(this)
+				else if(!this.props.barcodeReader && this.binding) this.binding.unreg()
+			}		
+			
 		},
 		componentWillUnmount:function(){
-			this.unreg&&this.unreg()
+			this.binding&&this.binding.unreg()
 		},
 		render:function(){
 			return React.createElement("span");
