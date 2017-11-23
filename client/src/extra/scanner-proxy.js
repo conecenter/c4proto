@@ -16,10 +16,11 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 	}	
 	const scannerStatus = () => isOn
 	const setScannerEnable = (value,scanMode) => {
+       	if(value && isOn && isOn.scanMode!=scanMode) setScannerEnable(false,isOn.scanMode) 	
 		isOn = value?{value,scanMode}:value;
 		switch(scanMode){
-			case "uhf": if(isOn) Scanner&&Scanner.setUHFenable(); else Scanner&&Scanner.setUHFdisable();
-			default: if(isOn) Scanner&&Scanner.setScannerEnable() else Scanner&&Scanner.setScannerDisable();
+			case "uhf": if(isOn) Scanner&&Scanner.setUHFenable(); else Scanner&&Scanner.setUHFdisable(); break;
+			default: if(isOn) Scanner&&Scanner.setScannerEnable(); else Scanner&&Scanner.setScannerDisable();
 		}			
 		log(`scanner: set ${value} ${scanMode}`)
 	}
@@ -33,14 +34,10 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 		const unreg = () => {
 			referenceCounter -= 1;
 			delete callbacks[key];
-			log("unreg");
+			log("unreg scanner");
 		}
-		const switchTo = (scanMode) => {
-			if(isOn && isOn.scanMode!=scanMode) {
-				setScannerEnable(false,isOn.scanMode)
-				setScannerEnable(true,scanMode)
-			}
-		}
+		const switchTo = scanMode => setScannerEnable(true,scanMode)		
+		
 		return {unreg,switchTo}
 	}
 	const moveScrollBy = (adj)=>{

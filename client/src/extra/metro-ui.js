@@ -2655,6 +2655,41 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			return $("div",{style,ref,...actions},this.props.children)
 		}
 	})
+	const FilterContainerElement = $C({
+		render:function(){
+			const style = {
+				backgroundColor: "#c0ced8",
+				height:this.props.open?"auto":"4.924em",
+				marginBottom:"0.4em",
+				overflow:"hidden",
+				padding:".15625em",
+				width:"100%",
+				...this.props.style
+			}
+			const buttonStyle = {
+				"float":"right",
+				marginLeft:"0.6em"
+			}
+			const filterStyle = {
+				display:"flex",
+				flexWrap:"wrap"
+			}
+			const children = this.props.children//Array.isArray(this.props.children)?this.props.children.map(_=>$("div"))
+			const arrowSvg = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+								 width="16px" height="16px" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
+								 xml:space="preserve">
+								<path d="M248.292,106.406l194.281,194.29c12.365,12.359,12.365,32.391,0,44.744c-12.354,12.354-32.391,12.354-44.744,0
+									L225.923,173.529L54.018,345.44c-12.36,12.354-32.395,12.354-44.748,0c-12.359-12.354-12.359-32.391,0-44.75L203.554,106.4
+									c6.18-6.174,14.271-9.259,22.369-9.259C234.018,97.141,242.115,100.232,248.292,106.406z"/>
+							</svg>`
+			const svgData = svgSrc(arrowSvg)
+			const img = $("img",{src:svgData})
+			return $("div",{style},[
+				$("div",{key:"buttons",style:buttonStyle},$(ButtonElement,{onClick:this.props.onClick},img)),
+				$("div",{key:"contents",style:filterStyle},children)
+			])
+		}
+	})
 	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
@@ -2695,7 +2730,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			FocusAnnouncerElement,
 			ConfirmationOverlayElement,
 			DragDropHandlerElement,
-			DragDropDivElement
+			DragDropDivElement,
+			FilterContainerElement
 		},
 		onClickValue,		
 		onReadySendBlob,
