@@ -2656,10 +2656,40 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		}
 	})
 	const FilterContainerElement = $C({
+		getInitialState:function(){
+			return {shown:[],singleHeight:"0px"}
+		},
+		equal:function(toShow){
+			if(this.state.shown.length!=toShow.length) return false
+			for(let i=0;i<toShow.length;i++)
+				if(this.state.show[i]!=toShow[i]) return false
+			return true
+		},
+		isOverflown:function(e){
+			const p = e.parentNode.getBoundingClientRect()
+			const c = Array.from(e.children)
+			/*const toShow = c.map(_=>{
+				const n=_.getBoundingClientRect()
+				if(!(p.top<=n.top&&p.bottom>=n.bottom&&p.left<=n.left&&p.right>=n.right)) return true;
+				return false;
+				})
+			if(!this.equal(toShow))	*/
+			const singleHeight = c.length>0?c[0].getBoundingClientRect().height+"px":"auto"
+			if(singleHeight != this.state.singleHeight)
+				this.setState({/*shown:toShow,*/singleHeight:singleHeight})
+			
+		},
+		componentDidMount:function(){
+			this.isOverflown(this.el)
+		},
+		componentDidUpdate:function(){
+			this.isOverflown(this.el)
+		},
 		render:function(){
+		//	log(`render`)
 			const style = {
 				backgroundColor: "#c0ced8",
-				height:this.props.open?"auto":"4.924em",
+				height:this.props.open?"auto":this.state.singleHeight,
 				marginBottom:"0.4em",
 				overflow:"hidden",
 				padding:".15625em",
@@ -2674,7 +2704,16 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				display:"flex",
 				flexWrap:"wrap"
 			}
-			const children = this.props.children//Array.isArray(this.props.children)?this.props.children.map(_=>$("div"))
+			const fStyle=(h) => ({
+				visibility:h?"":"hidden"
+			})
+			const imgStyle = {
+				transform:this.props.open?"rotate(180deg)":"",
+				transition:"transform 140ms"
+			}
+			const children = /*Array.isArray(this.props.children)?this.props.children.map((_,i)=>{
+				return $("div",{key:i,style:fStyle(this.state.shown[i]),},_)
+			}):*/this.props.children
 			const arrowSvg = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 								 width="16px" height="16px" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
 								 xml:space="preserve">
@@ -2683,10 +2722,10 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 									c6.18-6.174,14.271-9.259,22.369-9.259C234.018,97.141,242.115,100.232,248.292,106.406z"/>
 							</svg>`
 			const svgData = svgSrc(arrowSvg)
-			const img = $("img",{src:svgData})
+			const img = $("img",{src:svgData,style:imgStyle})
 			return $("div",{style},[
 				$("div",{key:"buttons",style:buttonStyle},$(ButtonElement,{onClick:this.props.onClick},img)),
-				$("div",{key:"contents",style:filterStyle},children)
+				$("div",{key:"contents",style:filterStyle,ref:el=>this.el=el},children)
 			])
 		}
 	})
