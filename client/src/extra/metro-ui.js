@@ -355,9 +355,14 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	const DocElement = React.createClass({
 		componentDidMount:function(){
 			const node = documentManager.body().querySelector("#dev-content");
+			const nodeOld = documentManager.body().querySelector("#content");
 			if(node)
 			while (node.hasChildNodes())
 				node.removeChild(node.lastChild);
+			
+			if(nodeOld)
+			while (nodeOld.hasChildNodes())
+				nodeOld.removeChild(nodeOld.lastChild);
 		},
 		render:function(){
 			const props = this.props
@@ -670,10 +675,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				$("tbody",{key:"1"},[					  				   					  
 				   $("tr",{key:"3"},[
 						...[7,8,9].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),						  
-						$(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle,height:"2rem"},key:"4",fkey:"Backspace"},backSpaceEl)
+						$(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"4",fkey:"Backspace"},backSpaceEl)
 				   ]),					   
 				   $("tr",{key:"4"},[
-						...[4,5,6].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString()))						  				   
+						...[4,5,6].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
+						$(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1",fkey:"delete"},"C")
 				   ]),
 				   $("tr",{key:"5"},[
 					   ...[1,2,3].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
@@ -690,7 +696,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				$("tbody",{key:"1"},[
 				   $("tr",{key:"0"},[
 					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
-					   $("td",{key:"2"},''),
+					   $(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1c",fkey:"delete"},"C"),					  
 					   $(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode,fkey:"Enter"},'ABC...'),
 				   ]),					   
 				   !this.props.noFuncKeys?$("tr",{key:"1"},[
@@ -843,16 +849,17 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			return {last:false,focused:false}
 		},
 		onFocus:function(e){
+			if(!this.el) return
 			focusModule.switchTo(this)
 			this.setState({focused:true})
 			const cEvent = eventManager.create("cFocus",{bubbles:true,detail:null})
 			this.el.dispatchEvent(cEvent)
-			const pc = e.path.find(el=>Array.from(el.classList).some(cl=>cl.includes("marker")))
+			/*const pc = e.path.find(el=>Array.from(el.classList).some(cl=>cl.includes("marker")))
 			if(!pc || pc==this.el){
 				const clickEvent = eventManager.create("click",{bubbles:true})
 				this.el.dispatchEvent(clickEvent)
-			}
-			e.stopPropagation()
+			}*/
+			//e.stopPropagation()
 		},
 		onBlur:function(){
 			if(this.isMounted) this.setState({focused:false})
@@ -865,9 +872,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		componentDidMount:function(){
 			this.checkForSibling()
 			if(this.el && this.el.tagName=="TD") {
-				this.el.addEventListener("focus",this.onFocus,true)
-				this.el.addEventListener("blur",this.onBlur)
-				//this.el.addEventListener("enter",this.onEnter,true)
+				//this.el.addEventListener("focus",this.onFocus,true)
+				//this.el.addEventListener("blur",this.onBlur)
+				//this.el.addEventListener("enter",this.onEnter)
 				this.binding = focusModule.reg(this)
 				if(this.props.draggable || this.props.droppable)
 					this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
@@ -883,15 +890,16 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		    if(!this.props.draggable && !this.props.droppable) return
 			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
 		},
-		/*onEnter:function(e){
+		/*
+		onEnter:function(e){
 			if(this.el)
 				this.el.parentNode.dispatchEvent(eventManager.create("enter"))
 			log("sent enter")
 			e.stopPropagation()
-		},*/
+		},*/		
 		componentWillUnmount:function(){
 			if(this.dragBinding) this.dragBinding.release();
-			if(this.el) this.el.removeEventListener("focus",this.onFocus)	
+			//if(this.el) this.el.removeEventListener("focus",this.onFocus)	
 			//if(this.el) this.el.removeEventListener("enter",this.onEnter)					
 			if(this.binding) this.binding.unreg()
 			this.isMounted = false
@@ -926,6 +934,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const nodeType = this.props.nodeType?this.props.nodeType:"th"
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
+			const focusActions = nodeType=="td"?{onFocus:this.onFocus,onBlur:this.onBlur}:{}
 			const className = "marker"
 			return $(nodeType,{style:{
 				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
@@ -939,7 +948,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				textOverflow:"ellipsis",
 				cursor:this.props.draggable?"move":"auto",
 				backgroundColor:"transparent",
-				outline:this.state.focused?"1px dashed red":"none",
+				outlineWidth:"1px",
+				outlineColor:"red",
+				outlineStyle:this.state.focused?"dashed":"none",
 				outlineOffset:"-1px",
 				...style
 			},colSpan,
@@ -951,7 +962,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			onMouseUp:this.onMouseUp,
 			onTouchEnd:this.onMouseUp,
 			className:className,
-			...tabIndex
+			...tabIndex,
+			...focusActions
 			},children)
 		}
 	})
@@ -987,7 +999,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			e.stopPropagation();
 		},
 		componentDidMount:function(){
-			this.el.addEventListener("enter",this.onEnter,true)
+			this.el.addEventListener("enter",this.onEnter)
 		},
 		componentWDidWillUnMount:function(){
 			this.el.removeEventListener("enter",this.onEnter)
@@ -1072,7 +1084,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 		getInput:function(){ return this.inp2||this.inp},
 		onEnter:function(event){
-			//log(`Enter ;`)
+			log(`Enter ;`)
 			if(!this.doIfNotFocused((inp)=>{
 				this.prevval = inp.value
 				inp.selectionEnd = inp.value.length
@@ -1513,7 +1525,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				width:"100%",				
 				padding:"0.4em 0.3125em",
 				boxSizing:"border-box",
-				outline:this.state.focused?"1px dashed red":"none",
+				outlineWidth:"1px",
+				outlineColor:"red",				
+				outlineStyle:this.state.focused?"dashed":"none",
 				outlineOffset:"-1px",
 				...style
 			},tabIndex:"1",
@@ -2641,12 +2655,91 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			return $("div",{style,ref,...actions},this.props.children)
 		}
 	})
+	const FilterContainerElement = $C({
+		getInitialState:function(){
+			return {shown:[],singleHeight:"0px"}
+		},
+		equal:function(toShow){
+			if(this.state.shown.length!=toShow.length) return false
+			for(let i=0;i<toShow.length;i++)
+				if(this.state.show[i]!=toShow[i]) return false
+			return true
+		},
+		isOverflown:function(e){
+			const p = e.parentNode.getBoundingClientRect()
+			const c = Array.from(e.children)
+			/*const toShow = c.map(_=>{
+				const n=_.getBoundingClientRect()
+				if(!(p.top<=n.top&&p.bottom>=n.bottom&&p.left<=n.left&&p.right>=n.right)) return true;
+				return false;
+				})
+			if(!this.equal(toShow))	*/
+			const singleHeight = c.length>0?c[0].getBoundingClientRect().height+"px":"auto"
+			if(singleHeight != this.state.singleHeight)
+				this.setState({/*shown:toShow,*/singleHeight:singleHeight})
+			
+		},
+		componentDidMount:function(){
+			this.isOverflown(this.el)
+		},
+		componentDidUpdate:function(){
+			this.isOverflown(this.el)
+		},
+		render:function(){
+		//	log(`render`)
+			const style = {
+				backgroundColor: "#c0ced8",
+				height:this.props.open?"auto":this.state.singleHeight,
+				marginBottom:"0.4em",
+				overflow:"hidden",
+				padding:".15625em",
+				width:"100%",
+				...this.props.style
+			}
+			const buttonStyle = {
+				"float":"right",
+				marginLeft:"0.6em"
+			}
+			const filterStyle = {
+				display:"flex",
+				flexWrap:"wrap"
+			}
+			const fStyle=(h) => ({
+				visibility:h?"":"hidden"
+			})
+			const imgStyle = {
+				transform:this.props.open?"rotate(180deg)":"",
+				transition:"transform 140ms"
+			}
+			const children = /*Array.isArray(this.props.children)?this.props.children.map((_,i)=>{
+				return $("div",{key:i,style:fStyle(this.state.shown[i]),},_)
+			}):*/this.props.children
+			const arrowSvg = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+								 width="16px" height="16px" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
+								 xml:space="preserve">
+								<path d="M248.292,106.406l194.281,194.29c12.365,12.359,12.365,32.391,0,44.744c-12.354,12.354-32.391,12.354-44.744,0
+									L225.923,173.529L54.018,345.44c-12.36,12.354-32.395,12.354-44.748,0c-12.359-12.354-12.359-32.391,0-44.75L203.554,106.4
+									c6.18-6.174,14.271-9.259,22.369-9.259C234.018,97.141,242.115,100.232,248.292,106.406z"/>
+							</svg>`
+			const svgData = svgSrc(arrowSvg)
+			const img = $("img",{src:svgData,style:imgStyle})
+			return $("div",{style},[
+				$("div",{key:"buttons",style:buttonStyle},$(ButtonElement,{onClick:this.props.onClick},img)),
+				$("div",{key:"contents",style:filterStyle,ref:el=>this.el=el},children)
+			])
+		}
+	})
 	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
-		anchor.href = data
+		const location = windowManager.location
+		const path = data//location.pathname.replace(/(.*)\/[^/]*/, "$1/"+data);
+		
+		anchor.href = location.protocol+"//"+location.host+path
 		anchor.download = data.split('/').reverse()[0]
+		documentManager.add(anchor)
 		anchor.click()
+		documentManager.remove(anchor)
 	}
 	
 
@@ -2676,7 +2769,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			FocusAnnouncerElement,
 			ConfirmationOverlayElement,
 			DragDropHandlerElement,
-			DragDropDivElement
+			DragDropDivElement,
+			FilterContainerElement
 		},
 		onClickValue,		
 		onReadySendBlob,
