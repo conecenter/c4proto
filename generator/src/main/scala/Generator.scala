@@ -156,12 +156,12 @@ features:
   repeat package/imports
   pass from app, no pass default
   single class | listed class | listed trait
+  ()=>...
   ProdLens
   index access
 todo: integrate,
 todo: Getter,assemble,protocol
-todo: object-apply single|listed
-todo: ()⇒component, List[ExpressionsDumper[Unit]]?, Option
+todo?: List[ExpressionsDumper[Unit]], object-apply single|listed
 problem:
   factory:
   - using (A,B)=>C is not good -- A & B are not named;
