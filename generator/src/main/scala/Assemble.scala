@@ -1,7 +1,5 @@
-package ee.cone.c4assemble
 
 import scala.collection.immutable.Seq
-import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
 
 sealed trait RuleDef
@@ -19,10 +17,9 @@ object KVType {
   }
 }
 
-@compileTimeOnly("not expanded")
-class assemble extends StaticAnnotation {
-  inline def apply(defn: Any): Any = meta {
-    val q"..$classMods class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" = defn
+
+object AssembleGenerator {
+  def apply(paramsList: List[List[Term.Param]], stats: List[Stat]): Stat = {
     val rules: List[RuleDef] = stats.toList.flatMap {
       case q"type $tname = $tpe" ⇒ None
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${KVType(outKeyType)},${KVType(outValType)})] = $expr" ⇒
@@ -38,8 +35,8 @@ class assemble extends StaticAnnotation {
         Option(JoinDef(joinDefParams,AType("",inKeyType,SimpleKVType("Product")),AType(defName,outKeyType,outValType)))
     }
     //val classArg =
-    val classArgs = paramss.toList.flatten.collect{
-      case param"${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒
+    val classArgs = paramsList.toList.flatten.collect{
+      case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒
         typeName -> argName
     }.toMap
     def classOfExpr(className: String) =
@@ -67,18 +64,11 @@ class assemble extends StaticAnnotation {
            |  (key,in) ⇒ in match {
            |    case Seq(${params.map(_ ⇒ "Nil").mkString(",")}) ⇒ Nil
            |    case Seq(${params.map(_.name).mkString(",")}) ⇒
-           |      ${out.name}(key, ${params.map(param ⇒ s"${param.name}.asInstanceOf[Values[${tp(param.value)}]]").mkString(",")})
+           |      ass.${out.name}(key, ${params.map(param ⇒ s"${param.name}.asInstanceOf[Values[${tp(param.value)}]]").mkString(",")})
            |  }
            |))
          """.stripMargin
     }.mkString(s"override def dataDependencies = indexFactory ⇒ List(",",",")")
-
-    val res = q"""
-        ..$classMods class $className [..$tparams] (...$paramss) extends ..$ext {
-        ..$stats;
-        ${joinImpl.parse[Stat].get};
-      }"""
-    //println(res)
-    res
+    joinImpl.parse[Stat].get
   }
 }

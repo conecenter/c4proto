@@ -57,7 +57,7 @@ object ToExternalDBTypes {
 
 @assemble class ToExternalDBItemAssemble[Item<:Product](
   toUpdate: ToUpdate,
-  classItem: Class[Item]
+  val classItem: Class[Item]
 )  extends Assemble {
   def join(
     key: SrcId,

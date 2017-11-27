@@ -36,6 +36,14 @@ object Generator {
       Option((q"$o.ofSet(...$nArgs)",None))
   }
 
+  def assembleArg: ArgPF = {
+    case (t"$tpe ⇒ Assemble",None) ⇒
+      val aTermName = Term.Name(s"Assemble of $tpe")
+      val indexFactoryType = Type.Name("IndexFactory")
+      val indexFactory = theTerm(indexFactoryType)
+      Option((q"$aTermName($indexFactory)(_)",Option(q"def $indexFactory: $indexFactoryType")))
+  }
+
   def defaultArgType: ArgPF = {
     case (tpe,Some(_)) ⇒ None
     case (t"()=>$t",None) ⇒
@@ -68,41 +76,37 @@ object Generator {
     q"trait $mixType extends $init { ..$statements }"
   }
 
-  def classComponent: PartialFunction[Tree,(Boolean,Stat)] = {
+  def needStatements(tName: Type.Name, paramsList: List[List[Term.Param]]): (List[Stat],Term) = {
+    val needsList = for {
+      params ← paramsList.toList
+    } yield for {
+      param"..$mods $name: ${Some(tpe)} = $expropt" ← params
+      r ← c4key.orElse(prodLens).orElse(assembleArg).orElse(defaultArgType)((tpe,expropt))
+    } yield r
+    val needParamsList = for { needs ← needsList }
+      yield for { (param,_) ← needs } yield param
+    val concreteStatement = q"${Term.Name(s"$tName")}(...$needParamsList)"
+    val needStms = for {
+      needs ← needsList
+      (_,stmOpt) ← needs
+      stm ← stmOpt
+    } yield stm
+    (needStms,concreteStatement)
+  }
+
+  def classComponent: PartialFunction[Tree,(Boolean,List[Stat])] = {
     //q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
     case q"@c4component ..$mods class $tName[..$tParams](...$paramsList) extends ..$ext { ..$stats }" ⇒
-      val e = ext
-      lazy val needsList = for {
-        params ← paramsList.toList
-      } yield for {
-        param"..$mods $name: ${Some(tpe)} = $expropt" ← params
-        r ← c4key.orElse(prodLens).orElse(defaultArgType)((tpe,expropt))
-      } yield r
-      lazy val needParamsList = for { needs ← needsList }
-        yield for { (param,_) ← needs } yield param
-      lazy val concreteStatement = q"${Term.Name(s"$tName")}(...$needParamsList)"
-      lazy val needStms = for {
-        needs ← needsList
-        (_,stmOpt) ← needs
-        stm ← stmOpt
-      } yield stm
       lazy val isAbstract = mods.collectFirst{ case mod"abstract" ⇒ true }.nonEmpty
       val isCase = mods.collectFirst{ case mod"case" ⇒ true }.nonEmpty
       val isListed = mods.collectFirst{ case mod"@listed" ⇒ true }.nonEmpty
       val mixType = theType(tName)
       val resStatement = (isAbstract,isCase,isListed) match {
         case (false,true,true) ⇒
+          val (needStms,concreteStatement) = needStatements(tName,paramsList)
           listedResult(ext,tName,concreteStatement,needStms,mixType)
-          /*val init"$abstractType(...$_)" :: _ = ext
-          val concreteTerm = theTerm(tName)
-          val listTerm = listedTerm(abstractType)
-          val statements =
-            q"private lazy val ${Pat.Var(concreteTerm)} = $concreteStatement" ::
-              q"override def $listTerm = $concreteTerm :: super.$listTerm " ::
-              needStms
-          val init = Init(theType(abstractType), Name(""), Nil) // q"".structure
-          q"trait $mixType extends $init { ..$statements }"*/
         case (false,true,false) ⇒
+          val (needStms,concreteStatement) = needStatements(tName,paramsList)
           val init"${abstractType:Type}(...$_)" :: _ = ext
           val statements =
             q"lazy val ${Pat.Var(theTerm(abstractType))}: $abstractType = $concreteStatement" ::
@@ -118,21 +122,34 @@ object Generator {
           q"trait $mixType { def $listTerm: List[$abstractType] = Nil }"
         case a ⇒ throw new Exception(s"$tName unsupported mods: $a")
       }
-      (true,resStatement)
+      (true,resStatement::Nil)
     case q"@protocol object $objectName extends ..$ext { ..$stats }" ⇒
       val mixType = theType(objectName)
-      (true,listedResult(ext,objectName,objectName,Nil,mixType))
+      (true,listedResult(ext,objectName,objectName,Nil,mixType)::Nil)
+    case q"@assemble ..$mods class $tName[..$tParams](...$paramsList) extends ..$ext { ..$stats }" ⇒
+      val aTypeName = Type.Name(s"Assemble of $tName")
+      val aTermName = Term.Name(s"Assemble of $tName")
+      val argTypeName = if(tParams.isEmpty) tName else Type.Apply(tName,tParams.map{ case tparam"$p <: $b" ⇒ Type.Name(s"$p") })
+      val clStm = q"case class $aTypeName[..$tParams](indexFactory: IndexFactory)(ass: $argTypeName) extends Assemble { import ass._; ${AssembleGenerator(paramsList,stats)} }"
+      val appTrait = if(tParams.isEmpty){
+        val (needStms,concreteStatement) = needStatements(tName,paramsList)
+        val mixType = theType(tName)
+        val indexFactoryType = Type.Name("IndexFactory")
+        val indexFactory = theTerm(indexFactoryType)
+        listedResult(List(init"Assemble"),tName,q"$aTermName($indexFactory)($concreteStatement)",q"def $indexFactory: $indexFactoryType"::needStms,mixType) :: Nil
+      } else Nil
+      (true,clStm::appTrait)
   }
 
-  def importForComponents: PartialFunction[Tree,(Boolean,Stat)] = {
-    case q"import ..$s" ⇒ (false,q"import ..$s")
+  def importForComponents: PartialFunction[Tree,(Boolean,List[Stat])] = {
+    case q"import ..$s" ⇒ (false,q"import ..$s"::Nil)
   }
 
-  lazy val componentCases: PartialFunction[Tree,(Boolean,Stat)] =
+  lazy val componentCases: PartialFunction[Tree,(Boolean,List[Stat])] =
     importForComponents.orElse(classComponent)
 
   def genStatements: List[Stat] ⇒ Option[List[Stat]] = packageStatements ⇒
-    Option(packageStatements.collect(componentCases).reverse.dropWhile(!_._1).reverseMap(_._2))
+    Option(packageStatements.collect(componentCases).reverse.dropWhile(!_._1).reverseMap(_._2).flatten)
       .filter(_.nonEmpty)
 
 

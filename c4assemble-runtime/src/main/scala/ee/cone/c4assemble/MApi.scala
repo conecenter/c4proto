@@ -82,6 +82,7 @@ case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueCl
 
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
+class assemble extends StaticAnnotation
 
 @c4component @listed abstract class UnitExpressionsDumper extends ExpressionsDumper[Unit]
 abstract class UMLExpressionsDumper extends ExpressionsDumper[String]

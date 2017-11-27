@@ -16,7 +16,7 @@ import ee.cone.c4assemble._
 }
 
 @assemble class MortalAssemble[Node<:Product](
-  classOfMortal: Class[Node]
+  val classOfMortal: Class[Node]
 ) extends Assemble {
   def join(
     key: SrcId,
