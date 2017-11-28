@@ -1,48 +1,31 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
-
-
+import ee.cone.c4assemble.Single
 
 @c4component case class FilterPredicateBuilderImpl(
   sessionAttrAccessFactory: SessionAttrAccessFactory,
   modelConditionFactory: ModelConditionFactory
 ) extends FilterPredicateBuilder {
-  def create[Model<:Product](): FilterPredicate[Model] =
-    EmptyFilterPredicate[Model]()(sessionAttrAccessFactory,modelConditionFactory.of[Model])
-}
-
-abstract class AbstractFilterPredicate[Model<:Product] extends FilterPredicate[Model] {
-  def sessionAttrAccessFactory: SessionAttrAccessFactory
-  def modelConditionBuilder: ModelConditionBuilder[Model]
-  def add[SBy<:Product,SField](filterKey: SessionAttr[SBy], lens: ProdLens[Model,SField])(
-    implicit c: ConditionCheck[SBy,SField]
-  ): FilterPredicate[Model] =
-    FilterPredicateImpl(this,filterKey,lens)(sessionAttrAccessFactory,modelConditionBuilder,c)
-}
-
-case class EmptyFilterPredicate[Model<:Product]()(
-  val sessionAttrAccessFactory: SessionAttrAccessFactory,
-  val modelConditionBuilder: ModelConditionBuilder[Model]
-) extends AbstractFilterPredicate[Model] {
-  def keys: List[SessionAttr[Product]] = Nil
-  def of: Context ⇒ Condition[Model] = local ⇒ modelConditionBuilder.any
+  def create[Model<:Product]: Context ⇒ FilterPredicate[Model] = local ⇒ {
+    val condFactory = modelConditionFactory.of[Model]
+    FilterPredicateImpl(Nil,condFactory.any)(sessionAttrAccessFactory,condFactory,local)
+  }
 }
 
 case class FilterPredicateImpl[Model<:Product,By<:Product,Field](
-  next: FilterPredicate[Model],
-  filterKey: SessionAttr[By],
-  lens: ProdLens[Model,Field]
+  accesses: List[Access[_]], condition: Condition[Model]
 )(
-  val sessionAttrAccessFactory: SessionAttrAccessFactory,
-  val modelConditionBuilder: ModelConditionBuilder[Model],
-  filterPredicateFactory: ConditionCheck[By,Field]
-) extends AbstractFilterPredicate[Model] {
-  def keys: List[SessionAttr[Product]] = filterKey :: next.keys
-  def of: Context ⇒ Condition[Model] = local ⇒ {
-    val by = sessionAttrAccessFactory.to(filterKey)(local).get.initialValue
-    val colPredicate = modelConditionBuilder.leaf(lens,by)(filterPredicateFactory)
-    val nextPredicate = next.of(local)
-    modelConditionBuilder.intersect(colPredicate,nextPredicate)
+  sessionAttrAccessFactory: SessionAttrAccessFactory,
+  modelConditionBuilder: ModelConditionBuilder[Model],
+  local: Context
+) extends FilterPredicate[Model] {
+  import modelConditionFactory._
+  def add[SBy<:Product,SField](filterKey: SessionAttr[SBy], lens: ProdLens[Model,SField])(
+    implicit c: ConditionCheck[SBy,SField]
+  ): FilterPredicate[Model] = {
+    val by = sessionAttrAccessFactory.to(filterKey)(local)
+    val nCond = intersect(leaf(lens,by.get.initialValue,by.get.metaList)(c),condition)
+    FilterPredicateImpl(by.toList ::: accesses, nCond)(sessionAttrAccessFactory,modelConditionBuilder,local)
   }
 }

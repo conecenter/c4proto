@@ -40,10 +40,12 @@ trait CommonFilterConditionChecks {
 @c4component @listed case class ContainsDefault() extends DefaultModelFactory(classOf[Contains],Contains(_,""))
 
 case object DateBeforeCheck extends ConditionCheck[DateBefore,Long] {
+  def prepare: List[MetaAttr] ⇒ DateBefore ⇒ DateBefore = _ ⇒ identity[DateBefore]
   def check: DateBefore ⇒ Long ⇒ Boolean = by ⇒ value ⇒ by.value forall (_>value)
 }
 
 case object ContainsCheck extends ConditionCheck[Contains,String] {
+  def prepare: List[MetaAttr] ⇒ Contains ⇒ Contains = _ ⇒ identity[Contains]
   def check: Contains ⇒ String ⇒ Boolean = by ⇒ value ⇒ value contains by.value
 }
 
