@@ -11,9 +11,11 @@ import ee.cone.c4assemble.Types.Values
 
 @c4component case class HashSearchFactoryImpl(
   modelConditionFactory: ModelConditionFactory
+)(
+  wrap: HashSearchAssemble[Product] => Assembled
 ) extends HashSearchFactory {
   def index[Model<:Product](cl: Class[Model]): Indexer[Model] =
-    EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model])
+    EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model],wrap)
   def request[Model<:Product](condition: Condition[Model]): Request[Model] =
     Request(UUID.nameUUIDFromBytes(condition.toString.getBytes(UTF_8)).toString,condition)
 }
@@ -69,22 +71,24 @@ object HashSearchImpl {
   }
 
   abstract class Indexer[Model<:Product] extends IndexBuilder[Model] {
+    def wrap: HashSearchAssemble[Product] => Assembled
     def modelClass: Class[Model]
     def modelConditionBuilder: ModelConditionBuilder[Model]
     def add[NBy<:Product,NField](lens: ProdLens[Model,NField], by: NBy)(
       implicit ranger: Ranger[NBy,NField]
     ): IndexBuilder[Model] = {
       val(valueToRanges,byToRanges) = ranger.ranges(by)
-      IndexerImpl(modelConditionBuilder.filterMetaList(lens),by,this)(modelClass,modelConditionBuilder,lens.of,valueToRanges,byToRanges.lift)
+      IndexerImpl(modelConditionBuilder.filterMetaList(lens),by,this)(modelClass,modelConditionBuilder,lens.of,valueToRanges,byToRanges.lift,wrap)
     }
-    def assemble = new HashSearchAssemble(modelClass,this)
+    def assemble: Assembled = wrap(new HashSearchAssemble(modelClass,this).asInstanceOf[HashSearchAssemble[Product]])
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]]
     def heapIds(model: Model): List[SrcId]
   }
 
   case class EmptyIndexer[Model<:Product]()(
     val modelClass: Class[Model],
-    val modelConditionBuilder: ModelConditionBuilder[Model]
+    val modelConditionBuilder: ModelConditionBuilder[Model],
+    val wrap: HashSearchAssemble[Product] => Assembled
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = None
     def heapIds(model: Model): List[SrcId] = Nil
@@ -97,7 +101,8 @@ object HashSearchImpl {
     val modelConditionBuilder: ModelConditionBuilder[Model],
     of: Model⇒Field,
     valueToRanges: Field ⇒ List[By],
-    byToRanges: Product ⇒ Option[List[By]]
+    byToRanges: Product ⇒ Option[List[By]],
+    val wrap: HashSearchAssemble[Product] => Assembled
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = (
       for {
@@ -119,9 +124,9 @@ object HashSearchImpl {
 }
 
 @assemble class HashSearchAssemble[RespLine<:Product](
-  classOfRespLine: Class[RespLine],
+  val classOfRespLine: Class[RespLine],
   indexers: Indexer[RespLine]
-) extends Assemble {
+) {
   type HeapId = SrcId
   type ResponseId = SrcId
 

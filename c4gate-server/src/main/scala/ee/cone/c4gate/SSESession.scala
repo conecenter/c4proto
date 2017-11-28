@@ -130,7 +130,7 @@ case class SessionTxTransform( //?todo session/pongs purge
 
 @c4component @listed case class SSEAssembles() extends Mortal(classOf[ToAlienWrite])
 
-@c4component @listed @assemble case class SSEAssemble(sseConfig: SSEConfig) extends Assemble {
+@assemble class SSEAssemble(sseConfig: SSEConfig) {
   type SessionKey = SrcId
 
   def joinToAlienWrite(

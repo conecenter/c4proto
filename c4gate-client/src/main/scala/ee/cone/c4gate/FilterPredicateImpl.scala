@@ -20,7 +20,7 @@ case class FilterPredicateImpl[Model<:Product,By<:Product,Field](
   modelConditionBuilder: ModelConditionBuilder[Model],
   local: Context
 ) extends FilterPredicate[Model] {
-  import modelConditionFactory._
+  import modelConditionBuilder._
   def add[SBy<:Product,SField](filterKey: SessionAttr[SBy], lens: ProdLens[Model,SField])(
     implicit c: ConditionCheck[SBy,SField]
   ): FilterPredicate[Model] = {

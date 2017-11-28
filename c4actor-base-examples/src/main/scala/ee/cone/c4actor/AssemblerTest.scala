@@ -7,7 +7,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, _}
+import ee.cone.c4assemble.{Assembled, _}
 
 
 @protocol object PCProtocol extends Protocol {
@@ -16,7 +16,7 @@ import ee.cone.c4assemble.{Assemble, _}
 }
 
 case class ParentNodeWithChildren(srcId: String, caption: String, children: Values[RawChildNode])
-@c4component @listed @assemble case class TestAssemble() extends Assemble {
+@assemble class TestAssemble {
   type ParentSrcId = SrcId
   def joinChildNodeByParent(
     key: SrcId,

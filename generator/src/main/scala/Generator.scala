@@ -37,11 +37,15 @@ object Generator {
   }
 
   def assembleArg: ArgPF = {
-    case (t"$tpe ⇒ Assemble",None) ⇒
-      val aTermName = Term.Name(s"Assemble of $tpe")
+    case (t"$tpe ⇒ Assembled",None) ⇒
+      val tpf = tpe match {
+        case t"$tpf[..$innerTypes]" ⇒ tpf
+        case tpf ⇒ tpf
+      }
+      val aTermName = Term.Name(s"Assembled $tpf")
       val indexFactoryType = Type.Name("IndexFactory")
       val indexFactory = theTerm(indexFactoryType)
-      Option((q"$aTermName($indexFactory)(_)",Option(q"def $indexFactory: $indexFactoryType")))
+      Option((q"(a:$tpe)⇒$aTermName($indexFactory)(a)",Option(q"def $indexFactory: $indexFactoryType")))
   }
 
   def defaultArgType: ArgPF = {
@@ -76,23 +80,24 @@ object Generator {
     q"trait $mixType extends $init { ..$statements }"
   }
 
-  def needStatements(tName: Type.Name, paramsList: List[List[Term.Param]]): (List[Stat],Term) = {
+  def needStatements(paramsList: List[List[Term.Param]]): (List[Stat],List[List[Term]]) = {
     val needsList = for {
       params ← paramsList.toList
     } yield for {
       param"..$mods $name: ${Some(tpe)} = $expropt" ← params
       r ← c4key.orElse(prodLens).orElse(assembleArg).orElse(defaultArgType)((tpe,expropt))
     } yield r
-    val needParamsList = for { needs ← needsList }
+    val needParamsList = for {needs ← needsList }
       yield for { (param,_) ← needs } yield param
-    val concreteStatement = q"${Term.Name(s"$tName")}(...$needParamsList)"
     val needStms = for {
       needs ← needsList
       (_,stmOpt) ← needs
       stm ← stmOpt
     } yield stm
-    (needStms,concreteStatement)
+    (needStms,needParamsList)
   }
+  def getConcreteStatement(tName: Type.Name, needParamsList: List[List[Term]]): Term =
+    q"${Term.Name(s"$tName")}(...$needParamsList)"
 
   def classComponent: PartialFunction[Tree,(Boolean,List[Stat])] = {
     //q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
@@ -103,10 +108,12 @@ object Generator {
       val mixType = theType(tName)
       val resStatement = (isAbstract,isCase,isListed) match {
         case (false,true,true) ⇒
-          val (needStms,concreteStatement) = needStatements(tName,paramsList)
+          val (needStms,needParamsList) = needStatements(paramsList)
+          val concreteStatement = getConcreteStatement(tName,needParamsList)
           listedResult(ext,tName,concreteStatement,needStms,mixType)
         case (false,true,false) ⇒
-          val (needStms,concreteStatement) = needStatements(tName,paramsList)
+          val (needStms,needParamsList) = needStatements(paramsList)
+          val concreteStatement = getConcreteStatement(tName,needParamsList)
           val init"${abstractType:Type}(...$_)" :: _ = ext
           val statements =
             q"lazy val ${Pat.Var(theTerm(abstractType))}: $abstractType = $concreteStatement" ::
@@ -127,16 +134,16 @@ object Generator {
       val mixType = theType(objectName)
       (true,listedResult(ext,objectName,objectName,Nil,mixType)::Nil)
     case q"@assemble ..$mods class $tName[..$tParams](...$paramsList) extends ..$ext { ..$stats }" ⇒
-      val aTypeName = Type.Name(s"Assemble of $tName")
-      val aTermName = Term.Name(s"Assemble of $tName")
+      val aTypeName = Type.Name(s"Assembled $tName")
+      val aTermName = Term.Name(s"Assembled $tName")
       val argTypeName = if(tParams.isEmpty) tName else Type.Apply(tName,tParams.map{ case tparam"$p <: $b" ⇒ Type.Name(s"$p") })
-      val clStm = q"case class $aTypeName[..$tParams](indexFactory: IndexFactory)(ass: $argTypeName) extends Assemble { import ass._; ${AssembleGenerator(paramsList,stats)} }"
+      val clStm = q"case class $aTypeName[..$tParams](indexFactory: IndexFactory)(ass: $argTypeName) extends Assembled { import ass._; ${AssembleGenerator(paramsList,stats)} }"
       val appTrait = if(tParams.isEmpty){
-        val (needStms,concreteStatement) = needStatements(tName,paramsList)
+        val (needStms,needParamsList) = needStatements(paramsList)
         val mixType = theType(tName)
         val indexFactoryType = Type.Name("IndexFactory")
         val indexFactory = theTerm(indexFactoryType)
-        listedResult(List(init"Assemble"),tName,q"$aTermName($indexFactory)($concreteStatement)",q"def $indexFactory: $indexFactoryType"::needStms,mixType) :: Nil
+        listedResult(List(init"Assembled"),tName,q"$aTermName($indexFactory)(new $tName(...$needParamsList))",q"def $indexFactory: $indexFactoryType"::needStms,mixType) :: Nil
       } else Nil
       (true,clStm::appTrait)
   }

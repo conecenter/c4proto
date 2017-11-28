@@ -9,7 +9,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
-import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
+import ee.cone.c4ui._
 
 
 class TestSSEApp extends ServerApp
@@ -27,13 +27,15 @@ class TestSSEApp extends ServerApp
 //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 
 
-@c4component @listed case class SSEAppAssemble(
-  inner: Assemble = FromAlienTaskAssemble("/sse.html")
-) extends Assemble {
-  override def dataDependencies = inner.dataDependencies
+@c4component @listed case class SSEAppAssemble()(
+  wrap: FromAlienTaskAssemble => Assembled
+)(
+  inner: Assembled = wrap(new FromAlienTaskAssemble("/sse.html"))
+) extends Assembled {
+  def dataDependencies: List[DataDependencyTo[_]] = inner.dataDependencies
 }
 
-@c4component @listed @assemble case class TestSSEAssemble() extends Assemble {
+@assemble class TestSSEAssemble {
   def joinView(
     key: SrcId,
     tasks: Values[BranchTask]

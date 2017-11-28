@@ -1,14 +1,10 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Assemble
+import ee.cone.c4assemble.Assembled
 
 object LifeTypes {
   type Alive = SrcId
-}
-
-trait MortalFactory {
-  def apply[P<:Product](p: Class[P]): Assemble
 }
 
 @c4component @listed abstract class Mortal[M<:Product](val theClass: Class[M])

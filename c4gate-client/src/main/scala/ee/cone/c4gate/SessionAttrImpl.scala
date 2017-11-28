@@ -25,7 +25,7 @@ import okio.ByteString
 
 @c4component @listed case class SessionDataAssembles() extends Mortal(classOf[RawSessionData])
 
-@c4component @listed @assemble case class SessionDataAssemble() extends Assemble {
+@assemble class SessionDataAssemble {
   type SessionKey = SrcId
 
   def joinBySessionKey(

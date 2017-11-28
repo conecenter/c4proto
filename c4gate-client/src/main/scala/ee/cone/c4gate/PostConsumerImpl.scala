@@ -6,7 +6,7 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.PostConsumer
 
-@c4component @listed @assemble case class PostConsumerAssemble(actorName: ActorName) extends Assemble {
+@assemble class PostConsumerAssemble(actorName: ActorName) {
 
   type WasConsumer = SrcId
   def wasConsumers(

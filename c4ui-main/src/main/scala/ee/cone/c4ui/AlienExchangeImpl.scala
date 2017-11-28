@@ -41,7 +41,7 @@ case class MessageFromAlienImpl(
   def rm: Context ⇒ Context = TxAdd(delete(request))
 }
 
-@c4component @listed @assemble case class MessageFromAlienAssemble() extends Assemble {
+@assemble class MessageFromAlienAssemble {
   def mapHttpPostByBranch(
     key: SrcId,
     posts: Values[HttpPost]
@@ -63,7 +63,7 @@ case class MessageFromAlienImpl(
 
 }
 
-@c4component @listed @assemble case class FromAlienBranchAssemble(operations: BranchOperations) extends Assemble {
+@assemble class FromAlienBranchAssemble(operations: BranchOperations) {
   // more rich session may be joined
   def fromAliensToSeeds(
     key: SrcId,
@@ -73,7 +73,7 @@ case class MessageFromAlienImpl(
     yield operations.toRel(child, fromAlien.sessionKey, parentIsSession = true)
 }
 
-@assemble case class FromAlienTaskAssemble(file: String) extends Assemble {
+@assemble class FromAlienTaskAssemble(file: String) {
   def mapBranchTaskByLocationHash(
     key: SrcId,
     tasks: Values[BranchTask]

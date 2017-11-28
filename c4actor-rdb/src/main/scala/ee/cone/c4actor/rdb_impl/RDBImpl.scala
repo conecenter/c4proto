@@ -20,11 +20,13 @@ import okio.ByteString
 
 
 
-@c4component case class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
+@c4component case class RDBOptionFactoryImpl(toUpdate: ToUpdate)(
+  wrap: ToExternalDBItemAssemble[Product] => Assembled
+) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
-    new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(toUpdate,cl))
+    new ToDBOption(cl.getName, code, wrap(new ToExternalDBItemAssemble(toUpdate,cl.asInstanceOf[Class[Product]])))
 }
 
 ////
@@ -46,11 +48,11 @@ object ToExternalDBTypes {
   type NeedSrcId = SrcId
 }
 
-@c4component @listed case class ToExternalDBAssembles(providers: List[ExternalDBOptionProvider]) extends Assemble {
-  override def dataDependencies: IndexFactory => List[DataDependencyTo[_]] = factory => for {
+@c4component @listed case class ToExternalDBAssembles(providers: List[ExternalDBOptionProvider]) extends Assembled {
+  def dataDependencies: List[DataDependencyTo[_]] = for {
     provider <- providers
     option <- provider.externalDBOptions.collect{ case o: ToDBOption => o }
-    dep <- option.assemble.dataDependencies(factory)
+    dep <- option.assemble.dataDependencies
   } yield dep
 }
 
@@ -58,7 +60,7 @@ object ToExternalDBTypes {
 @assemble class ToExternalDBItemAssemble[Item<:Product](
   toUpdate: ToUpdate,
   val classItem: Class[Item]
-)  extends Assemble {
+) {
   def join(
     key: SrcId,
     items: Values[Item]
@@ -70,7 +72,7 @@ object ToExternalDBTypes {
     }
 }
 
-@c4component @listed @assemble case class ToExternalDBTxAssemble() extends Assemble {
+@assemble class ToExternalDBTxAssemble {
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -156,7 +158,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
   )
 }
 
-@c4component @listed @assemble case class FromExternalDBSyncAssemble() extends Assemble {
+@assemble class FromExternalDBSyncAssemble {
   def joinTxTransform(
     key: SrcId,
     firsts: Values[Firstborn]

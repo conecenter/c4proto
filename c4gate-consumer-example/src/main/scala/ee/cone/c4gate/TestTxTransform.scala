@@ -20,7 +20,7 @@ abstract class TestTxTransformApp extends ServerApp
   with TreeIndexValueMergerFactoryApp
   with `The HttpProtocol` with `The TestDelayAssemble`
 
-@c4component @listed @assemble case class TestDelayAssemble() extends Assemble {
+@assemble class TestDelayAssemble {
   def joinTestHttpPostHandler(
     key: SrcId,
     posts: Values[HttpPost]

@@ -30,7 +30,7 @@ trait RichObserverApp extends CompoundExecutableApp with `The TxTransformsImpl` 
 
 trait RichDataApp extends `The QProtocol`
   with `The QAdapterRegistryImpl`
-  with `The Assemble`
+  with `The Assembled`
   with `The ToInject`
   with `The UnitExpressionsDumper`
   with `The ByUKGetterFactoryImpl`
@@ -49,7 +49,6 @@ trait RichDataApp extends `The QProtocol`
   with `The ProtocolsAssemble`
   with `The RichRawWorldFactory`
   with `The MortalAssembles`
-  with `The MortalFactoryImpl`
   with `The Mortal`
   with `The AssemblerInit`
   with ActorNameApp

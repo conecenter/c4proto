@@ -8,7 +8,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.CurrentSessionKey
 import ee.cone.c4vdom.Types.ViewRes
 
-@c4component @listed @assemble case class PublicViewAssemble(views: List[ByLocationHashView]) extends Assemble {
+@assemble class PublicViewAssemble(views: List[ByLocationHashView]) {
   type LocationHash = String
   def joinByLocationHash(
     key: SrcId,

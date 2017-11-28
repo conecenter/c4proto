@@ -167,7 +167,7 @@ case class BranchTxTransform(
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
-@c4component @listed @assemble case class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations) extends Assemble {
+@assemble class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations) {
   def mapBranchSeedsByChild(
     key: SrcId,
     branchResults: Values[BranchResult]

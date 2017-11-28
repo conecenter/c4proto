@@ -51,7 +51,7 @@ class TestCanvasApp extends ServerApp
   )
 }
 
-@c4component @listed @assemble case class TestCanvasAssemble() extends Assemble {
+@assemble class TestCanvasAssemble {
   def joinView(
     key: SrcId,
     tasks: Values[FromAlienTask]
@@ -132,7 +132,7 @@ object TestCanvasStateAccess {
   lazy val x: ProdLens[TestCanvasState,String] = ProdLens.of(_.x)
   lazy val y: ProdLens[TestCanvasState,String] = ProdLens.of(_.y)
 }
-
+/*
 case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
   def view: Context ⇒ ViewRes = local ⇒ {
     val branchOperations = BranchOperationsKey.of(local)
@@ -158,6 +158,6 @@ case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: 
     relocate :: inputs ::: canvasSeed(canvasTaskProd) :: Nil
   }
 }
-
+*/
 case class CanvasContentImpl(value: String, until: Long) extends CanvasContent
 

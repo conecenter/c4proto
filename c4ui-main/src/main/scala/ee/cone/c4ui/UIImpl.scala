@@ -22,7 +22,7 @@ case object VDomStateKey extends TransientLens[Option[VDomState]](None)
 //case object RelocateKey extends WorldKey[String]("")
 //  with VDomLens[World, String]
 
-@c4component @listed @assemble case class VDomAssemble() extends Assemble {
+@assemble class VDomAssemble {
   def joinBranchHandler(
     key: SrcId,
     tasks: Values[BranchTask],

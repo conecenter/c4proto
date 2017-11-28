@@ -68,7 +68,7 @@ object AssembleGenerator {
            |  }
            |))
          """.stripMargin
-    }.mkString(s"override def dataDependencies = indexFactory ⇒ List(",",",")")
+    }.mkString(s"def dataDependencies = List(",",",")")
     joinImpl.parse[Stat].get
   }
 }

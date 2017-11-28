@@ -8,7 +8,7 @@ import ee.cone.c4assemble._
 
 import scala.Function.chain
 
-@c4component @listed @assemble case class CanvasAssemble() extends Assemble {
+@assemble class CanvasAssemble {
   def joinBranchHandler(
     key: SrcId,
     tasks: Values[BranchTask],

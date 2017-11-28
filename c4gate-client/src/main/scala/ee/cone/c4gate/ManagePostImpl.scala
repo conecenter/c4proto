@@ -9,7 +9,7 @@ import ee.cone.c4assemble.Types.{Index, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 
-@c4component @listed @assemble case class ManagementPostAssemble(actorName: ActorName) extends Assemble {
+@assemble class ManagementPostAssemble(actorName: ActorName) {
   def joinHttpPostHandler(
     key: SrcId,
     posts: Values[HttpPost]

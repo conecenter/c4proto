@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Assemble
+import ee.cone.c4assemble.Assembled
 
 trait HashSearchFactory {
   def index[Model<:Product](model: Class[Model]): HashSearch.IndexBuilder[Model]
@@ -15,6 +15,6 @@ object HashSearch {
     def add[By<:Product,Field](lens: ProdLens[Model,Field], by: By)(
       implicit ranger: Ranger[By,Field]
     ): IndexBuilder[Model]
-    def assemble: Assemble
+    def assemble: Assembled
   }
 }

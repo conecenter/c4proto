@@ -61,7 +61,7 @@ trait SomeModelAccess {
       lens ← List(fieldA, fieldB, fieldC)
       pattern ← request.pattern
       value ← Option(lens.of(pattern)) if value.nonEmpty
-    } yield cf.leaf(lens, StrEq(value))
+    } yield cf.leaf(lens, StrEq(value), Nil)
     leafs.reduce(cf.intersect)
   }
 }
@@ -69,11 +69,11 @@ trait SomeModelAccess {
 import HashSearch.{Request,Response}
 
 
-@c4component @listed @assemble case class HashSearchTestAssemble(
+@assemble class HashSearchTestAssemble(
   someModelAccess: SomeModelAccess,
   modelConditionFactory: ModelConditionFactory,
   hashSearchFactory: HashSearchFactory
-) extends Assemble {
+) {
   def joinReq(
     srcId: SrcId,
     requests: Values[SomeRequest]
@@ -109,10 +109,10 @@ class HashSearchTestApp extends RichDataApp
 @c4component @listed case class HashSearchTestIndexAssemble(
   someModelAccess: SomeModelAccess,
   hashSearchFactory: HashSearchFactory
-) extends Assemble {
+) extends Assembled {
   import someModelAccess._
   import DefaultRangers._
-  override def dataDependencies = hashSearchFactory.index(classOf[SomeModel])
+  def dataDependencies: List[DataDependencyTo[_]] = hashSearchFactory.index(classOf[SomeModel])
     .add(fieldA, StrEq(""))
     .add(fieldB, StrEq(""))
     .add(fieldC, StrEq(""))

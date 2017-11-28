@@ -174,7 +174,7 @@ trait InternetForwarderApp extends `The AuthProtocol` with `The HttpProtocol`
 
 case class HttpPostAllow(condition: SrcId)
 
-@c4component @listed @assemble case class PostLifeAssemble(sseConfig: SSEConfig) extends Assemble {
+@assemble class PostLifeAssemble(sseConfig: SSEConfig) {
   type ASessionKey = SrcId
   type Condition = SrcId
 

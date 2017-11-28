@@ -26,7 +26,7 @@ class TestPasswordApp extends ServerApp
   with `The TestPasswordAssemble`
   with `The ReactAppAssemble`
 
-@c4component @listed @assemble case class TestPasswordAssemble() extends Assemble {
+@assemble class TestPasswordAssemble {
   def joinView(
     key: SrcId,
     fromAliens: Values[FromAlienTask]

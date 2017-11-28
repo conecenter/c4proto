@@ -73,8 +73,8 @@ class Join[T,R,TK,RK](
 ) extends DataDependencyTo[Index[RK,R]]
   with DataDependencyFrom[Index[TK,T]]
 
-@c4component @listed abstract class Assemble {
-  def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = ???
+@c4component @listed abstract class Assembled {
+  def dataDependencies: List[DataDependencyTo[_]]
 }
 
 case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
