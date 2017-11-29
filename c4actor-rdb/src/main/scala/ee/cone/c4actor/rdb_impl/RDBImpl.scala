@@ -31,7 +31,7 @@ import okio.ByteString
 
 ////
 
-@protocol object ToExternalDBProtocol extends Protocol {
+@protocol object ToExternalDBProtocol {
   @Id(0x0063) case class HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -151,7 +151,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
   )
 }
 
-@protocol object FromExternalDBProtocol extends Protocol {
+@protocol object FromExternalDBProtocol {
   @Id(0x0060) case class DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long

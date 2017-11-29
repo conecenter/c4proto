@@ -131,8 +131,16 @@ object Generator {
       }
       (true,resStatement::Nil)
     case q"@protocol object $objectName extends ..$ext { ..$stats }" ⇒
+      val importStats = stats.collect{ case imp@q"import $pkg.$objectName._" ⇒
+        val adapterTermName = Term.Name(s"PBAdapters of $objectName")
+        imp :: q"import $pkg.$adapterTermName._" :: Nil
+      }.flatten
+      val adapterStats = q"import $objectName._" :: importStats ::: ProtocolGenerator(stats)
+      val adapterName = s"PBAdapters of $objectName"
+      val adapterTermName = Term.Name(adapterName)
+      val aObjStat = q"object $adapterTermName extends PBAdapters { ..$adapterStats }"
       val mixType = theType(objectName)
-      (true,listedResult(ext,objectName,objectName,Nil,mixType)::Nil)
+      (true,aObjStat::listedResult(List(init"PBAdapters"),adapterName,adapterTermName,Nil,mixType)::Nil)
     case q"@assemble ..$mods class $tName[..$tParams](...$paramsList) extends ..$ext { ..$stats }" ⇒
       val aTypeName = Type.Name(s"Assembled $tName")
       val aTermName = Term.Name(s"Assembled $tName")

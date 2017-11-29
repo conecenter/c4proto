@@ -43,7 +43,7 @@ class TestCanvasApp extends ServerApp
 }
 
 
-@protocol object TestCanvasProtocol extends Protocol {
+@protocol object TestCanvasProtocol {
   @Id(0x0008) case class TestCanvasState(
     @Id(0x0009) sessionKey: String,
     @Id(0x000A) x: String,

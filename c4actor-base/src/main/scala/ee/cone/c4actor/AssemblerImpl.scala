@@ -5,11 +5,11 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types.Index
-import ee.cone.c4proto.Protocol
+import ee.cone.c4proto.PBAdapters
 
 import scala.collection.immutable.{Map, Seq}
 
-@c4component @listed case class ProtocolsAssemble(protocols: List[Protocol]) extends Assembled {
+@c4component @listed case class ProtocolsAssemble(protocols: List[PBAdapters]) extends Assembled {
   def dataDependencies: List[DataDependencyTo[_]] = for {
     protocol <- protocols
     adapter <- protocol.adapters if adapter.hasId

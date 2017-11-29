@@ -37,7 +37,7 @@ class TestTodoApp extends ServerApp
   with `The TestTodoProtocol`
   with `The ReactAppAssemble`
 
-@protocol object TestTodoProtocol extends Protocol {
+@protocol object TestTodoProtocol {
   @Id(0x0001) case class TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,

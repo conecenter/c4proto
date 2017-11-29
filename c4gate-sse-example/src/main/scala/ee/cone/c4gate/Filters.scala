@@ -18,7 +18,7 @@ trait CommonFilterInjectApp extends `The DateBeforeDefault` with `The ContainsDe
 
 //// api
 
-@protocol object CommonFilterProtocol extends Protocol {
+@protocol object CommonFilterProtocol {
   @Id(0x0006) case class DateBefore(
     @Id(0x0001) srcId: String,
     @Id(0x0002) value: Option[Long]

@@ -14,9 +14,11 @@ object HiddenC4Annotations {
   class listed
 }
 
-@c4component @listed abstract class Protocol {
-  def adapters: List[ProtoAdapter[_] with HasId] = ??? //_<:Object
+@c4component @listed abstract class PBAdapters {
+  def adapters: List[ProtoAdapter[_] with HasId]
 }
+
+class protocol extends StaticAnnotation
 
 case class Id(id: Int) extends StaticAnnotation
 

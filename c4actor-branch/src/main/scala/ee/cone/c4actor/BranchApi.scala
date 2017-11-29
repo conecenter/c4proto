@@ -43,7 +43,7 @@ trait BranchOperations {
 
 case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean)
 
-@protocol object BranchProtocol extends Protocol {
+@protocol object BranchProtocol {
   @Id(0x0040) case class BranchResult(
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,

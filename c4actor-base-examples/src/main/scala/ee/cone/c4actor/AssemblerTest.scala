@@ -10,7 +10,7 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assembled, _}
 
 
-@protocol object PCProtocol extends Protocol {
+@protocol object PCProtocol {
   @Id(0x0003) case class RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
   @Id(0x0001) case class RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }

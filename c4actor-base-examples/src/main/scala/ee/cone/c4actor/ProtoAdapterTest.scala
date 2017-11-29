@@ -14,7 +14,7 @@ object ProtoAdapterTest extends App with LazyLogging {
   val worker1 = Person("worker1", Some(20), isActive = false)
   val group0 = Group("", Some(leader0), List(worker0,worker1))
   //
-  val protocols: List[Protocol] = MyProtocol :: QProtocol :: Nil
+  val protocols: List[PBAdapters] = `PBAdapters of MyProtocol` :: `PBAdapters of QProtocol` :: Nil
   val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols)
   val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
   //
@@ -29,7 +29,7 @@ object ProtoAdapterTest extends App with LazyLogging {
   logger.info(s"OK$group1")
 }
 
-@protocol object MyProtocol extends Protocol {
+@protocol object MyProtocol {
   import ee.cone.c4proto.BigDecimalProtocol._
 
   //com.squareup.wire.ProtoAdapter

@@ -12,7 +12,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
 
-@protocol object QProtocol extends Protocol {
+@protocol object QProtocol {
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
       @Id(0x0012) valueTypeId: Long

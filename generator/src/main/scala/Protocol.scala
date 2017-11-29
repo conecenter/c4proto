@@ -1,6 +1,4 @@
 
-package ee.cone.c4proto
-
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
 
@@ -20,10 +18,9 @@ case class ProtoType(
 case class ProtoMessage(adapterName: String, adapterImpl: String)
 case class ProtoMods(id: Option[Int]=None)
 
-@compileTimeOnly("not expanded")
-class protocol extends StaticAnnotation {
-  inline def apply(defn: Any): Any = meta {
-    val q"object $objectName extends ..$ext { ..$stats }" = defn
+
+object ProtocolGenerator {
+  def apply(stats: List[Stat]): List[Stat] = {
     val messages: List[ProtoMessage] = stats.flatMap{
       case q"import ..$i" ⇒ None
       case q"..$mods case class ${Type.Name(messageName)} ( ..$params )" =>
@@ -163,13 +160,7 @@ class protocol extends StaticAnnotation {
         val regAdapter = s"${resultType}ProtoAdapter"
         ProtoMessage(regAdapter, adapterImpl) :: Nil
     }.toList
-    val res = q"""
-      object $objectName extends ..$ext {
-        ..$stats;
-        ..${messages.map(_.adapterImpl.parse[Stat].get)};
-        override def adapters = List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})
-      }"""
-    //println(res)
-    res
+    q"""def adapters = List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})""" ::
+    messages.map(_.adapterImpl.parse[Stat].get)
   }
 }
