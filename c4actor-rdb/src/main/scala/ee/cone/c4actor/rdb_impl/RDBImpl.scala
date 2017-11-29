@@ -23,7 +23,7 @@ import okio.ByteString
 @c4component case class RDBOptionFactoryImpl(toUpdate: ToUpdate)(
   wrap: ToExternalDBItemAssemble[Product] => Assembled
 ) extends RDBOptionFactory {
-  def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
+  def dbProtocol(value: Object): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
     new ToDBOption(cl.getName, code, wrap(new ToExternalDBItemAssemble(toUpdate,cl.asInstanceOf[Class[Product]])))

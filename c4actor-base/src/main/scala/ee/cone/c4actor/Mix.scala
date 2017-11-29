@@ -2,7 +2,6 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble._
-import ee.cone.c4proto.Protocol
 
 /*
 trait ToInjectApp extends `The ToInject` {

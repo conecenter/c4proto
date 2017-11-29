@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.QProtocol.{Update, Updates}
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{HasId, PBAdapters, Protocol, ToByteString}
+import ee.cone.c4proto.{HasId, PBAdapters, ToByteString}
 
 import scala.collection.immutable.{Map, Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8

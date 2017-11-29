@@ -7,7 +7,6 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4gate.TcpProtocol._
-import ee.cone.c4proto.Protocol
 
 trait TcpServerApp extends `The TcpAssemble` with `The TcpProtocol`
   with `The TcpServerInject` with `The TcpServerExecutable`

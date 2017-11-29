@@ -7,7 +7,6 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
-import ee.cone.c4proto.Protocol
 
 class TestSerialApp extends TestTxTransformApp with `The SerialObserverProvider`
 class TestParallelApp extends TestTxTransformApp with `The ParallelObserverProvider`

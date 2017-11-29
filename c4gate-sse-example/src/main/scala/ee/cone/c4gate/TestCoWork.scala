@@ -7,7 +7,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.TestFilterProtocol.Content
-import ee.cone.c4proto.{Id, Protocol}
+import ee.cone.c4proto.Id
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes

@@ -9,7 +9,6 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4gate.AlienProtocol._
-import ee.cone.c4proto.Protocol
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter

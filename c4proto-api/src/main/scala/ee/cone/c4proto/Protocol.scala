@@ -15,6 +15,7 @@ object HiddenC4Annotations {
 }
 
 @c4component @listed abstract class PBAdapters {
+  def protocol: Object
   def adapters: List[ProtoAdapter[_] with HasId]
 }
 

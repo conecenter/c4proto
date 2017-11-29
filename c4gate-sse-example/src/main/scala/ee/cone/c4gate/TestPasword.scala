@@ -7,7 +7,6 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4gate.AuthProtocol.{PasswordChangeRequest, PasswordHashOfUser}
-import ee.cone.c4proto.Protocol
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4actor.LEvent.update

@@ -135,7 +135,7 @@ object Generator {
         val adapterTermName = Term.Name(s"PBAdapters of $objectName")
         imp :: q"import $pkg.$adapterTermName._" :: Nil
       }.flatten
-      val adapterStats = q"import $objectName._" :: importStats ::: ProtocolGenerator(stats)
+      val adapterStats = q"def protocol: Object = $objectName" :: q"import $objectName._" :: importStats ::: ProtocolGenerator(stats)
       val adapterName = s"PBAdapters of $objectName"
       val adapterTermName = Term.Name(adapterName)
       val aObjStat = q"object $adapterTermName extends PBAdapters { ..$adapterStats }"
