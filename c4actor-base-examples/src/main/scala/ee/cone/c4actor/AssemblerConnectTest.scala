@@ -4,14 +4,14 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ConnProtocol.Node
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by, was}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4assemble._
+import ee.cone.c4proto._
 
-@protocol object ConnProtocol extends Protocol {
+@protocol object ConnProtocol {
   @Id(0x0001) case class Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 }
 
-@assemble class ConnAssemble extends Assemble {
+@assemble class ConnAssemble {
   type ParentId = SrcId
 
   def nodesByParentId(
@@ -45,7 +45,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   */
 }
 
-class ConnStart(
+@c4component @listed case class ConnStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run() = {
@@ -81,13 +81,10 @@ class ConnStart(
 }
 
 class ConnTestApp extends RichDataApp
-  with ExecutableApp
-  with VMExecutionApp
+  with CompoundExecutableApp
+  with `The VMExecution`
   with TreeIndexValueMergerFactoryApp
-  with SimpleAssembleProfilerApp
-  with ToStartApp
-{
-  override def protocols: List[Protocol] = ConnProtocol :: super.protocols
-  override def assembles: List[Assemble] = new ConnAssemble :: super.assembles
-  override def toStart: List[Executable] = new ConnStart(execution,toUpdate,contextFactory) :: super.toStart
-}
+  with `The SimpleAssembleProfiler`
+  with `The ConnProtocol`
+  with `The ConnAssemble`
+  with `The ConnStart`

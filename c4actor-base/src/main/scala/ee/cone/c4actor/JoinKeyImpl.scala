@@ -13,6 +13,6 @@ import ee.cone.c4assemble.JoinKey
   def forTypes[K,V<:Product](key: (String,String), value: (String,String)): JoinKey[K,V] = {
     val (aliasedKey,longKey) = key
     val (_,longValue) = value
-    JoinKey[K,V](aliasedKey,longKey,longValue)
+    JoinKey[K,V](was=false,aliasedKey,longKey,longValue)
   }
 }

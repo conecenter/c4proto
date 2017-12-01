@@ -48,6 +48,22 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
   }
 }
 
+trait DataDependencyToIndexUpdater[MapKey, Value] extends DataDependencyTo[Index[MapKey, Value]] {
+  private def setPart[V](res: ReadModel, part: Map[MapKey,V]) =
+    (res + (outputWorldKey → part)).asInstanceOf[Map[AssembledKey[_],Map[Object,V]]]
+  protected def setPart(
+    transition: WorldTransition, nextDiff: Map[MapKey, Boolean], nextIndex: Index[MapKey,Value]
+  ): WorldTransition = {
+    val diff = setPart(transition.diff,nextDiff)
+    val next = setPart(transition.result, nextIndex)
+    WorldTransition(transition.prev, diff, next)
+  }
+  protected def diffOf(
+    transition: WorldTransition, worldKey: AssembledKey[Index[MapKey, Value]]
+  ): Map[MapKey, Boolean] =
+    transition.diff.getOrElse(worldKey,Map.empty).asInstanceOf[Map[MapKey, Boolean]]
+}
+
 class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   join: Join[T,Value,JoinKey,MapKey],
   addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],

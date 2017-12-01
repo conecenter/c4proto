@@ -1,7 +1,8 @@
+
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
-
+import scala.annotation.tailrec
 /*
 import sbt._
 import sbt.Keys.{unmanagedSources, _}
@@ -30,31 +31,39 @@ object C4GeneratorPlugin extends AutoPlugin {
 */
 
 object Main {
-  private def version = Array[Byte](70)
+  private def version = Array[Byte](71)
+  case class Generate(dir: Path, path: Path, fromContent: String, uuid: String)
   private def getToPath(path: Path): Option[Path] = path.getFileName.toString match {
     case "scala" ⇒ Option(path.resolveSibling("java"))
     case name ⇒ Option(path.getParent).flatMap(getToPath).map(_.resolve(name))
   }
-  def main(args: Array[String]): Unit = {
-    val files = DirInfoImpl.deepFiles(Paths.get(args(0)))
+  def main(args: Array[String]): Unit = iteration(args(0),args(1).toInt)
+  @tailrec def iteration(rootDir: String, left: Int): Unit = if(left > 0){
+    val files = DirInfoImpl.deepFiles(Paths.get(rootDir))
       .filter(_.toString.endsWith(".scala"))
-      .filterNot(_.toString.contains("-macros/"))
-
-    val keep = (for {
+    val tasks: List[Generate] = for {
       path ← files
       toParentPath ← getToPath(path.getParent)
       data = Files.readAllBytes(path)
       content = new String(data,UTF_8) if content.contains("@c4") || content.contains("@protocol") || content.contains("@assemble")
-      uuid = UUID.nameUUIDFromBytes(data ++ version)
-      toPath = toParentPath.resolve(s"c4gen.$uuid.${path.getFileName}")
-    } yield {
-      if(Files.notExists(toPath)) {
-        println(s"generating $path --> $toPath")
-        Files.createDirectories(toParentPath)
-        Files.write(toPath, Generator.genPackage(content).getBytes(UTF_8))
-      }
-      toPath
-    }).toSet
+      toPath = toParentPath.resolve(s"c4gen.${path.getFileName}")
+      uuid = UUID.nameUUIDFromBytes(data ++ version).toString
+    } yield Generate(toParentPath, toPath, content, uuid)
+    val keep = (for {
+      Generate(toParentPath, toPath, content, uuid) ← tasks
+    } yield toPath).toSet
+
+    for(
+      Generate(toParentPath, toPath, content, uuid)←tasks if
+        Files.notExists(toPath) ||
+        !(new String(Files.readAllBytes(toPath), UTF_8)).contains(uuid)
+    ){
+      //println(Files.notExists(toPath))
+      //println(!(new String(Files.readAllBytes(toPath), UTF_8)).contains(uuid))
+      println(s"generating $toPath")
+      Files.createDirectories(toParentPath)
+      Files.write(toPath, s"/* GENERATED ${uuid} */\n${Generator.genPackage(content)}".getBytes(UTF_8))
+    }
 
     for {
       path ← files if path.toString.contains("/c4gen.") && !keep(path)
@@ -62,6 +71,8 @@ object Main {
       println(s"removing $path")
       Files.delete(path)
     }
+    Thread.sleep(1000)
+    iteration(rootDir, left-1)
   }
 }
 
