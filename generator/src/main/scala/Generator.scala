@@ -191,8 +191,10 @@ features:
   ()=>...
   ProdLens
   index access
-todo: integrate,
-todo: Getter,assemble,protocol
+  assemble
+  protocol
+todo: integrate
+todo: Getter
 todo?: List[ExpressionsDumper[Unit]], object-apply single|listed
 problem:
   factory:
