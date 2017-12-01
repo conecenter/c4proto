@@ -4,7 +4,7 @@ import scala.meta._
 
 sealed trait RuleDef
 case class JoinDef(params: Seq[AType], in: AType, out: AType) extends RuleDef
-case class AType(name: String, key: KVType, value: KVType)
+case class AType(name: String, was: Boolean, key: KVType, value: KVType)
 
 sealed trait KVType
 case class SimpleKVType(name: String) extends KVType
@@ -26,13 +26,14 @@ object AssembleGenerator {
         val param"$keyName: ${KVType(inKeyType)}" = params.head
         val joinDefParams = params.tail.map{
           case param"..$mods ${Term.Name(paramName)}: Values[${KVType(inValType)}]" ⇒
-            val annInKeyType = mods match {
-              case Nil ⇒ inKeyType
-              case mod"@by[${KVType(annInKeyType)}]" :: Nil ⇒ annInKeyType
+            val (was,annInKeyType) = mods match {
+              case Nil ⇒ (false,inKeyType)
+              case mod"@by[${KVType(annInKeyTypeV)}]" :: Nil ⇒ (false,annInKeyTypeV)
+              case mod"@was" :: Nil ⇒ (true,inKeyType)
             }
-            AType(paramName, annInKeyType, inValType)
+            AType(paramName, was, annInKeyType, inValType)
         }
-        Option(JoinDef(joinDefParams,AType("",inKeyType,SimpleKVType("Product")),AType(defName,outKeyType,outValType)))
+        Option(JoinDef(joinDefParams,AType("",was=false,inKeyType,SimpleKVType("Product")),AType(defName,was=false,outKeyType,outValType)))
     }
     //val classArg =
     val classArgs = paramsList.toList.flatten.collect{
@@ -50,7 +51,7 @@ object AssembleGenerator {
       case GenericKVType(n,of) ⇒ s"$n[$of]"
     }
     def expr(genType: AType, specType: AType): String = {
-      s"""ee.cone.c4assemble.JoinKey[${tp(genType.key)},${tp(genType.value)}]("${tp(specType.key)}",${classOfT(specType.key)},${classOfT(specType.value)})"""
+      s"""ee.cone.c4assemble.JoinKey[${tp(genType.key)},${tp(genType.value)}](${specType.was},"${tp(specType.key)}",${classOfT(specType.key)},${classOfT(specType.value)})"""
     }
     val joinImpl = rules.collect{
       case JoinDef(params,in,out) ⇒

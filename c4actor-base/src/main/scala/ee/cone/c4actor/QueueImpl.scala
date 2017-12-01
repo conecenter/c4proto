@@ -3,7 +3,6 @@ package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.QProtocol.{Update, Updates}
-import ee.cone.c4assemble.Single
 import ee.cone.c4proto.{HasId, PBAdapters, ToByteString}
 
 import scala.collection.immutable.{Map, Queue, Seq}
@@ -45,14 +44,12 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte]) extends QRecord
 }
 
 object QAdapterRegistryFactory {
-  private def checkToMap[K,V](pairs: Seq[(K,V)]): Map[K,V] =
-    pairs.groupBy(_._1).transform((k,l)⇒Single(l.toList)._2)
   def apply(protocols: List[PBAdapters]): QAdapterRegistry = {
     val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
-    val byName = checkToMap(adapters.map(a ⇒ a.className → a))
+    val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
     val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
       .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
-    val byId = checkToMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
+    val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
     new InnerQAdapterRegistry(byName, byId, updatesAdapter)
   }
 }

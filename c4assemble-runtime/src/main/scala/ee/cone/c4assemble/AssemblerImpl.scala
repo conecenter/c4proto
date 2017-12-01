@@ -9,6 +9,7 @@ import Types._
 import ee.cone.c4assemble.HiddenC4Annotations.c4component
 import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
+import scala.annotation.tailrec
 import scala.collection.immutable.{Iterable, Map, Seq}
 
 class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
@@ -53,7 +54,7 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   profiler: String ⇒ Int ⇒ Unit
-) extends DataDependencyTo[Index[MapKey, Value]]
+) extends DataDependencyToIndexUpdater[MapKey, Value]
   with DataDependencyFrom[Index[JoinKey, T]]
   with WorldPartExpression
 {
@@ -62,9 +63,6 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   def inputWorldKeys: Seq[AssembledKey[Index[JoinKey, T]]] = join.inputWorldKeys
   def outputWorldKey: AssembledKey[Index[MapKey, Value]] = join.outputWorldKey
   override def toString: String = s"${super.toString} ($assembleName,$name,$inputWorldKeys,$outputWorldKey)"
-
-  private def setPart[V](res: ReadModel, part: Map[MapKey,V]) =
-    (res + (outputWorldKey → part)).asInstanceOf[Map[AssembledKey[_],Map[Object,V]]]
 
   def recalculateSome(
     getIndex: AssembledKey[Index[JoinKey,T]]⇒Index[JoinKey,T],
@@ -88,24 +86,40 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   }
   private def transform(transition: WorldTransition, ids: Set[JoinKey]): WorldTransition = {
     val end = profiler("calculate")
-    val prevOutput = recalculateSome(_.of(transition.prev), subNestedDiff, ids, Map.empty)
-    val indexDiff = recalculateSome(_.of(transition.current), addNestedDiff, ids, prevOutput)
+    val prevOutput = recalculateSome(_.of(transition.prev.get.result), subNestedDiff, ids, Map.empty)
+    val indexDiff = recalculateSome(_.of(transition.result), addNestedDiff, ids, prevOutput)
     end(ids.size)
     if(indexDiff.isEmpty) transition else patch(transition, indexDiff)
   }
   private def patch(transition: WorldTransition, indexDiff: Map[MapKey, MultiSet[Value]]): WorldTransition = {
     val end = profiler("patch    ")
 
-    val currentIndex: Index[MapKey,Value] = outputWorldKey.of(transition.current)
+    val currentIndex: Index[MapKey,Value] = outputWorldKey.of(transition.result)
     val nextIndex: Index[MapKey,Value] = addNestedPatch.many(currentIndex, indexDiff)
-    val next: ReadModel = setPart(transition.current, nextIndex)
 
-    val currentDiff = transition.diff.getOrElse(outputWorldKey,Map.empty).asInstanceOf[Map[MapKey, Boolean]]
+    val currentDiff = diffOf(transition,outputWorldKey)
     val nextDiff: Map[MapKey, Boolean] = currentDiff ++ indexDiff.transform((_,_)⇒true)
-    val diff = setPart(transition.diff, nextDiff)
 
     end(indexDiff.size)
-    WorldTransition(transition.prev, diff, next)
+    setPart(transition, nextDiff, nextIndex)
+  }
+}
+
+object PrepareBackStage extends WorldPartExpression {
+  def transform(transition: WorldTransition): WorldTransition =
+    WorldTransition(Option(transition), Map.empty, transition.result)
+}
+
+class ConnectBackStage[MapKey, Value](
+  val outputWorldKey: AssembledKey[Index[MapKey, Value]],
+  val nextKey:        AssembledKey[Index[MapKey, Value]]
+) extends WorldPartExpression with DataDependencyToIndexUpdater[MapKey, Value] {
+  def transform(transition: WorldTransition): WorldTransition = {
+    val diffPart = diffOf(transition.prev.get, nextKey)
+    //println(s"AAA: $nextKey $diffPart") 
+    //println(s"BBB: $transition")
+    if(diffPart.isEmpty) transition
+    else setPart(transition, diffPart, nextKey.of(transition.result))
   }
 }
 
@@ -135,35 +149,45 @@ class ByPriority[Item](uses: Item⇒List[Item]){
     val expressions/*: Seq[WorldPartExpression]*/ =
       rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
       //handlerLists.list(WorldPartExpressionKey)
-    val originals: Set[AssembledKey[_]] =
-      rules.collect{ case e: OriginalWorldPart[_] ⇒ e.outputWorldKey }.toSet
+    type ExprFrom = WorldPartExpression with DataDependencyFrom[_]
+    type ExprByOutput = Map[AssembledKey[_], Seq[ExprFrom]]
+    val originals: ExprByOutput = rules.collect{
+      case e: OriginalWorldPart[_] ⇒ e.outputWorldKey → Nil
+    }.toMap
     //umlClients.foreach(_(s"# rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}"))
-    val byOutput: Map[AssembledKey[_], Seq[WorldPartExpression with DataDependencyFrom[_]]] =
-      expressions.groupBy(_.outputWorldKey)
-    val expressionsByPriority: List[WorldPartExpression] =
-      byPriority.byPriority[
-        WorldPartExpression with DataDependencyFrom[_],
-        WorldPartExpression with DataDependencyFrom[_]
-      ](item⇒(
-        item.inputWorldKeys.flatMap{ k ⇒
-          byOutput.getOrElse(k,
-            if(originals(k)) Nil else throw new Exception(s"undefined $k in $originals")
-          )
-        }.toList,
-        _ ⇒ item
-      ))(expressions).reverse
+    val byOutput: ExprByOutput = expressions.groupBy(_.outputWorldKey)
+    val permitWas: ExprByOutput = byOutput.keys.collect{
+      case k: JoinKey[_,_] if !k.was ⇒ k.copy(was=true) → Nil
+    }.toMap
+    val uses = originals ++ permitWas ++ byOutput
+    val expressionsByPriority: List[ExprFrom] =
+      byPriority.byPriority[ExprFrom,ExprFrom](
+        item⇒(item.inputWorldKeys.flatMap(uses).toList, _ ⇒ item)
+      )(expressions).reverse
 
     expressionsDumpers.foreach(_.dump(expressionsByPriority.map{
       case e: DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e
     }))
 
+    val wasKeys = (for {
+      e ← expressionsByPriority
+      k ← e.inputWorldKeys
+    } yield k).collect{ case k:JoinKey[_,_] if k.was ⇒ k }.distinct
+    val backStage = PrepareBackStage ::
+      wasKeys.map(k⇒new ConnectBackStage(k,k.copy(was=false)))
+    val transforms = expressionsByPriority ::: backStage ::: Nil
+    val transformAllOnce = Function.chain(transforms.map(h⇒h.transform(_)))
+    @tailrec def transformUntilStable(left: Int, transition: WorldTransition): ReadModel =
+      if(transition.diff.isEmpty) transition.result
+      else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
+      else throw new Exception(s"unstable assemble ${transition.diff}")
+
     replaced ⇒ prevWorld ⇒ {
+      val prevTransition = WorldTransition(None,Map.empty,prevWorld)
       val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
-      val current = add.many(prevWorld, replaced)
-      val transition = WorldTransition(prevWorld,diff,current)
-      (transition /: expressionsByPriority) { (transition, handler) ⇒
-        handler.transform(transition)
-      }.current
+      val currentWorld = add.many(prevWorld, replaced)
+      val transition = WorldTransition(Option(prevTransition),diff,currentWorld)
+      transformUntilStable(1000, transition)
     }
   }
 }
@@ -184,5 +208,3 @@ class ByPriority[Item](uses: Item⇒List[Item]){
     ).flatten.mkString("@startuml\n","\n","\n@enduml")
   }
 }
-
-

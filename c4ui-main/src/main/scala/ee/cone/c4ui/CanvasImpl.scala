@@ -14,7 +14,7 @@ import scala.Function.chain
     tasks: Values[BranchTask],
     canvasHandlers: Values[CanvasHandler]
   ): Values[(SrcId,BranchHandler)] =
-    for(task ← tasks; canvasHandler ← Single.list(canvasHandlers))
+    for(task ← tasks; canvasHandler ← Single.option(canvasHandlers).toList)
       yield task.branchKey → CanvasBranchHandler(task.branchKey, task, canvasHandler)
 }
 

@@ -36,7 +36,7 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform wi
     val worldKeyAlias = headers("X-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
     val (indexStr,index): (String,Index[Any, Product]) = Single.option(world.keys.toList.collect{
-      case worldKey@JoinKey(`alias`,keyClassName,valueClassName)
+      case worldKey@JoinKey(false,`alias`,keyClassName,valueClassName)
         if valueClassName.split("\\W").last == keyClassAlias ⇒
         (s"$worldKey",worldKey.of(world))
     }).getOrElse(("[index not found]",Map.empty))

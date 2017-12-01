@@ -4,6 +4,7 @@ package ee.cone.c4assemble
 import scala.collection.immutable.Map
 import Types._
 import ee.cone.c4assemble.TreeAssemblerTypes.MultiSet
+import ee.cone.c4assemble.WorldTransition.Diff
 
 import collection.immutable.{Iterable, Seq}
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
@@ -25,11 +26,8 @@ abstract class AssembledKey[+Item](default: Item) extends Getter[ReadModel,Item]
 trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {
   def transform(transition: WorldTransition): WorldTransition
 }
-case class WorldTransition(
-  prev: ReadModel,
-  diff: Map[AssembledKey[_],Map[Object,Boolean]],
-  current: ReadModel
-)
+object WorldTransition { type Diff = Map[AssembledKey[_],Map[Object,Boolean]] }
+case class WorldTransition(prev: Option[WorldTransition], diff: Diff, result: ReadModel)
 
 trait AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit
@@ -77,12 +75,13 @@ class Join[T,R,TK,RK](
   def dataDependencies: List[DataDependencyTo[_]]
 }
 
-case class JoinKey[K,V<:Product](keyAlias: String, keyClassName: String, valueClassName: String)
+case class JoinKey[K,V<:Product](was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String)
   extends AssembledKey[Index[K,V]](Map.empty)
 
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
 class assemble extends StaticAnnotation
+class was extends StaticAnnotation
 
 @c4component @listed abstract class UnitExpressionsDumper extends ExpressionsDumper[Unit]
 abstract class UMLExpressionsDumper extends ExpressionsDumper[String]

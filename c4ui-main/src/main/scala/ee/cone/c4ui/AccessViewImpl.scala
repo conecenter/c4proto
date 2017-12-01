@@ -6,7 +6,7 @@ import ee.cone.c4vdom.{ChildPair, OfDiv}
 case object AccessViewsKey extends SharedComponentKey[Map[String,AccessView[_]]]
 
 @c4component @listed case class InnerAccessViewRegistry(accessViews: List[AccessView[_]]) extends ToInject {
-  def toInject = AccessViewsKey.set(accessViews.map(v ⇒ v.valueClass.getName → v).toMap)
+  def toInject = AccessViewsKey.set(CheckedMap(accessViews.map(v ⇒ v.valueClass.getName → v)))
 }
 
 @c4component case class AccessViewRegistryImpl() extends AccessViewRegistry {

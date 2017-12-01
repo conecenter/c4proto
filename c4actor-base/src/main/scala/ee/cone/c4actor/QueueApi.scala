@@ -76,7 +76,7 @@ object ByPK {
   def apply[V<:Product](cl: Class[V]): ByUKGetter[SrcId,V] =
     ByUKGetter(raw(cl.getName))
   def raw[V<:Product](className: String): AssembledKey[Index[SrcId,V]] =
-    JoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
+    JoinKey[SrcId,V](was=false, "SrcId", classOf[SrcId].getName, className)
   //todo: def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
 }
 
@@ -192,3 +192,8 @@ case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
 
 case class ActorName(value: String)
+
+object CheckedMap {
+  def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
+    pairs.groupBy(_._1).transform((k,l)⇒Single(l)._2)
+}
