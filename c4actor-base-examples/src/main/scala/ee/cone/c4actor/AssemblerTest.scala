@@ -50,47 +50,51 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-class AssemblerTestApp extends RichDataApp
-  with TreeIndexValueMergerFactoryApp
-  with `The SimpleAssembleProfiler`
-  with `The PCProtocol`
-  with `The TestAssemble`
+object AssemblerTest extends App with LazyLogging {}
 
-object AssemblerTest extends App with LazyLogging {
-  val app = new AssemblerTestApp
-  val recs = update(RawParentNode("1","P-1")) ++
-    List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
-  val updates = recs.map(rec⇒app.`the ToUpdate`.toUpdate(rec)).toList
-  //println(app.qMessages.toTree(rawRecs))
-  val context = app.`the ContextFactory`.create()
-  val nGlobal = ReadModelAddKey.of(context)(updates)(context)
-  /*
-  val shouldDiff = Map(
-    By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
-      "1" -> List(RawParentNode("1","P-1"))
-    ),
-    By.srcId(classOf[PCProtocol.RawChildNode]) -> Map(
-      "2" -> List(RawChildNode("2","1","C-2")),
-      "3" -> List(RawChildNode("3","1","C-3"))
-    )
-  )
-  assert(diff==shouldDiff)*/
-  logger.debug(s"$nGlobal")
-  Map(
-    ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
-      "1" -> RawParentNode("1","P-1")
-    ),
-    ByPK(classOf[PCProtocol.RawChildNode]) -> Map(
-      "2" -> RawChildNode("2","1","C-2"),
-      "3" -> RawChildNode("3","1","C-3")
-    ),
-    ByPK(classOf[ParentNodeWithChildren]) -> Map(
-      "1" -> ParentNodeWithChildren("1",
-        "P-1",
-        List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
+@c4component @listed case class AssemblerTestStart(
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+) extends Executable with LazyLogging {
+  def run(): Unit = {
+    val recs = update(RawParentNode("1", "P-1")) ++
+      List("2", "3")
+        .flatMap(srcId ⇒ update(RawChildNode(srcId, "1", s"C-$srcId")))
+    val updates = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    //println(app.qMessages.toTree(rawRecs))
+    val context = contextFactory.create()
+    val nGlobal = ReadModelAddKey.of(context)(updates)(context)
+
+    logger.debug(s"$nGlobal")
+    Map(
+      ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
+        "1" -> RawParentNode("1", "P-1")
+      ),
+      ByPK(classOf[PCProtocol.RawChildNode]) -> Map(
+        "2" -> RawChildNode("2", "1", "C-2"),
+        "3" -> RawChildNode("3", "1", "C-3")
+      ),
+      ByPK(classOf[ParentNodeWithChildren]) -> Map(
+        "1" -> ParentNodeWithChildren(
+          "1",
+          "P-1",
+          List(RawChildNode("2", "1", "C-2"), RawChildNode("3", "1", "C-3"))
+        )
       )
-    )
-  ).foreach{
-    case (k,v) ⇒ assert(k.of(nGlobal).toMap==v)
+    ).foreach {
+      case (k, v) ⇒ assert(k.of(nGlobal).toMap == v)
+    }
+    execution.complete()
   }
 }
+
+/*
+val shouldDiff = Map(
+  By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(
+    "1" -> List(RawParentNode("1","P-1"))
+  ),
+  By.srcId(classOf[PCProtocol.RawChildNode]) -> Map(
+    "2" -> List(RawChildNode("2","1","C-2")),
+    "3" -> List(RawChildNode("3","1","C-3"))
+  )
+)
+assert(diff==shouldDiff)*/

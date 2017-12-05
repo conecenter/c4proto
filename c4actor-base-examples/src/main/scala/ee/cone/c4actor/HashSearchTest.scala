@@ -91,20 +91,7 @@ import HashSearch.{Request,Response}
   } yield WithPK(SomeResponse(response.srcId,response.lines))
 }
 
-
 case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
-//todo reg
-class HashSearchTestApp extends RichDataApp
-  with TreeIndexValueMergerFactoryApp
-  with `The SimpleAssembleProfiler`
-  with `The SomeModelAccessImpl`
-  with `The HashSearchTestIndexAssemble`
-  with `The HashSearchTestImpl`
-  with `The HashSearchTestAssemble`
-  with `The HashSearchTestProtocol`
-{
-  lazy val hashSearchTest: HashSearchTest = ???
-}
 
 @c4component @listed case class HashSearchTestIndexAssemble(
   someModelAccess: SomeModelAccess,
@@ -119,24 +106,20 @@ class HashSearchTestApp extends RichDataApp
     .assemble.dataDependencies
 }
 
-object HashSearchTestMain {
-  def main(args: Array[String]): Unit = {
-    val app = new HashSearchTestApp
-    val rawWorld = app.`the RawWorldFactory`.create()
-    val voidContext = rawWorld match { case w: RichRawWorld ⇒ w.context }
-    app.hashSearchTest.test(voidContext)
-  }
-}
-
-abstract class HashSearchTest {
-  def test(voidContext: Context): Unit
-}
-
-@c4component case class HashSearchTestImpl(
+@c4component @listed case class HashSearchTestImpl(
   someModelAccess: SomeModelAccess,
-  modelConditionFactory: ModelConditionFactory
-) extends HashSearchTest with LazyLogging {
+  modelConditionFactory: ModelConditionFactory,
+  rawWorldFactory: RawWorldFactory,
+  execution: Execution
+) extends Executable with LazyLogging {
   import someModelAccess._
+
+  def run(): Unit = {
+    val rawWorld = rawWorldFactory.create()
+    val voidContext = rawWorld match { case w: RichRawWorld ⇒ w.context }
+    test(voidContext)
+    execution.complete()
+  }
 
   def measure[T](hint: String)(f: ()⇒T): T = {
     val t = System.currentTimeMillis
@@ -184,7 +167,6 @@ abstract class HashSearchTest {
   }
 
   def test(voidContext: Context): Unit = {
-
     val contexts = List(
       fillWorld(10000)(voidContext),
       fillWorld(100000)(voidContext),
@@ -200,12 +182,10 @@ abstract class HashSearchTest {
         SomeModel("","","2","3")
       )
     } ask(modelConditionFactory)(pattern)(local)
+  }
+}
 
-
-
-
-
-
+// sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.HashSearchTestMain'
 
 /*
     local2.assembled.foreach{ case (k,v) ⇒
@@ -216,7 +196,3 @@ abstract class HashSearchTest {
       })
     }
 */
-  }
-}
-
-// sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.HashSearchTestMain'

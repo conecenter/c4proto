@@ -5,8 +5,6 @@ import LEvent._
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.PCProtocol.{RawChildNode, RawParentNode}
 
-
-
 object Measure {
   def apply(f: ()⇒Unit): Option[Long] = {
     val start = System.currentTimeMillis
@@ -15,19 +13,24 @@ object Measure {
   }
 }
 
-object NotEffectiveAssemblerTest extends App with LazyLogging {
-  val app = new AssemblerTestApp
-  val nodes = List(RawParentNode("0","P-1")) ++
-    (1 to 10000).map(_.toString).map(srcId⇒RawChildNode(srcId,"0",s"C-$srcId"))
-  val local = app.`the ContextFactory`.create()
+@c4component @listed case class NotEffectiveAssemblerTest(
+  execution: Execution,
+  contextFactory: ContextFactory
+) extends Executable with LazyLogging {
+  def run(): Unit = {
+    val nodes = List(RawParentNode("0","P-1")) ++
+      (1 to 10000).map(_.toString).map(srcId⇒RawChildNode(srcId,"0",s"C-$srcId"))
+    val local = contextFactory.create()
 
-  Measure { () ⇒
-    chain(nodes.map(update).map(TxAdd(_)))(local)
-  }.foreach(t⇒logger.info(s"bad join with many add-s takes $t ms"))
+    Measure { () ⇒
+      chain(nodes.map(update).map(TxAdd(_)))(local)
+    }.foreach(t⇒logger.info(s"bad join with many add-s takes $t ms"))
 
-  Measure { () ⇒
-    chain(List(TxAdd(nodes.flatMap(update))))(local)
-  }.foreach(t⇒logger.info(s"bad join with single add takes $t ms"))
+    Measure { () ⇒
+      chain(List(TxAdd(nodes.flatMap(update))))(local)
+    }.foreach(t⇒logger.info(s"bad join with single add takes $t ms"))
+    execution.complete()
+  }
 }
 
 /*

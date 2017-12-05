@@ -298,14 +298,18 @@ my $staged_up = sub{
     }];
 };
 
-
-
 push @tasks, ["### tests ###"];
+my $base_example = sub{
+    sy("C4STATE_TOPIC_PREFIX=ee.cone.c4actor.$_[0] sbt 'c4actor-base-examples/runMain ee.cone.c4actor.ServerMain'")
+};
 push @tasks, ["test_es_examples", sub{
-    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
-    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
+    &$base_example("ProtoAdapterTestApp");
+    &$base_example("AssemblerTestApp");
+    &$base_example("ConnTestApp");
+    &$base_example("HashSearchTestApp");
 }];
 push @tasks, ["test_not_effective_join_bench", sub{
+    &$base_example("NotEffectiveAssemblerTestApp");
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
 }];
 

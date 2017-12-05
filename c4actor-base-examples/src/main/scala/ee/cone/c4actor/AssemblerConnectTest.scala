@@ -36,19 +36,13 @@ import ee.cone.c4proto._
       path ← paths
       node ← childNodes
   } yield WithPK(node::path)
-
-
-  /*
-  By[ParentId,Node] := for(node ← Is[Node] if node.parentId.nonEmpty) yield node.parentId → node
-  Is[List[Node]]    := for(node ← Is[Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
-  Is[List[Node]]    := WithPK(Each(By[ParentId,Node])::Each(Was[List[Node]]))
-  */
 }
 
 @c4component @listed case class ConnStart(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
+  path: ByUKGetter[SrcId,List[Node]] @c4key
 ) extends Executable with LazyLogging {
-  def run() = {
+  def run(): Unit = {
     import LEvent.update
     val recs = update(Node("1","")) ++
       update(Node("12","1")) ++ update(Node("13","1")) ++
@@ -56,35 +50,14 @@ import ee.cone.c4proto._
     val updates = recs.map(rec⇒toUpdate.toUpdate(rec)).toList
     val context = contextFactory.create()
     val nGlobal = ReadModelAddKey.of(context)(updates)(context)
-
-    logger.info(s"${nGlobal.assembled}")
+    logger.debug(s"${nGlobal.assembled}")
+    println(path.of(nGlobal)("125"))
     execution.complete()
-    /*
-    Map(
-      ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
-        "1" -> RawParentNode("1","P-1")
-      ),
-      ByPK(classOf[PCProtocol.RawChildNode]) -> Map(
-        "2" -> RawChildNode("2","1","C-2"),
-        "3" -> RawChildNode("3","1","C-3")
-      ),
-      ByPK(classOf[ParentNodeWithChildren]) -> Map(
-        "1" -> ParentNodeWithChildren("1",
-          "P-1",
-          List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
-        )
-      )
-    ).foreach{
-      case (k,v) ⇒ assert(k.of(nGlobal).toMap==v)
-    }*/
   }
 }
 
-class ConnTestApp extends RichDataApp
-  with CompoundExecutableApp
-  with `The VMExecution`
-  with TreeIndexValueMergerFactoryApp
-  with `The SimpleAssembleProfiler`
-  with `The ConnProtocol`
-  with `The ConnAssemble`
-  with `The ConnStart`
+/*
+By[ParentId,Node] := for(node ← Is[Node] if node.parentId.nonEmpty) yield node.parentId → node
+Is[List[Node]]    := for(node ← Is[Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
+Is[List[Node]]    := WithPK(Each(By[ParentId,Node])::Each(Was[List[Node]]))
+*/

@@ -2,31 +2,33 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4assemble.Single
-import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4proto._
 
-
-object ProtoAdapterTest extends App with LazyLogging {
+@c4component @listed case class ProtoAdapterTest(
+  execution: Execution,
+  qAdapterRegistry: QAdapterRegistry,
+  toUpdate: ToUpdate
+) extends Executable with LazyLogging {
   import MyProtocol._
-  val leader0 = Person("leader0", Some(40), isActive = true)
-  val worker0 = Person("worker0", Some(30), isActive = true)
-  val worker1 = Person("worker1", Some(20), isActive = false)
-  val group0 = Group("", Some(leader0), List(worker0,worker1))
-  //
-  val protocols: List[PBAdapters] = `PBAdapters of MyProtocol` :: `PBAdapters of QProtocol` :: Nil
-  val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols)
-  val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
-  //
-  val lEvents = LEvent.update(group0)
-  val updates = lEvents.map(toUpdate.toUpdate)
-  val group1 = updates.map(update ⇒
-    qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
-  ) match {
-    case Seq(g:Group) ⇒ g
+
+  def run(): Unit = {
+    val leader0 = Person("leader0", Some(40), isActive = true)
+    val worker0 = Person("worker0", Some(30), isActive = true)
+    val worker1 = Person("worker1", Some(20), isActive = false)
+    val group0 = Group("", Some(leader0), List(worker0, worker1))
+    //
+    val lEvents = LEvent.update(group0)
+    val updates = lEvents.map(toUpdate.toUpdate)
+    val group1 = updates.map(
+      update ⇒
+        qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
+    ) match {
+      case Seq(g: Group) ⇒ g
+    }
+    assert(group0 == group1)
+    logger.info(s"OK$group1")
+    execution.complete()
   }
-  assert(group0==group1)
-  logger.info(s"OK$group1")
 }
 
 @protocol object MyProtocol {
