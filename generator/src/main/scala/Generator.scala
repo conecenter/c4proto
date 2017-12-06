@@ -9,11 +9,16 @@ import scala.meta._
 object Generator {
   type ArgPF = PartialFunction[(Type,Option[Term]),Option[(Term,Option[Stat])]]
 
+  def typeWithPlaceholders(tName: Type.Name,paramCount: Int): Type =
+    Option((1 to paramCount).toList.map(_⇒Type.Placeholder(Type.Bounds(None, None))))
+      .filter(_.nonEmpty).map(t⇒Type.Apply(tName,t))
+      .getOrElse(tName)//println(t"List[_,_]".structure)
+
   def typeTree: PartialFunction[Type,Term] = {
     case tp@Type.Name(nm) ⇒ q"classOf[$tp].getName"
-    case t"$tp[..$innerTypes]" ⇒
+    case t"${tp@Type.Name(nm)}[..$innerTypes]" ⇒
       val inner = innerTypes.map(typeTree).reduce((a,b)⇒q"$a + $b")
-      q"classOf[$tp].getName + '[' + $inner + ']'"
+      q"classOf[${typeWithPlaceholders(tp,innerTypes.size)}].getName + '[' + $inner + ']'"
   }
 
   private def theTerm(arg: Any): Term.Name = Term.Name(s"the $arg")
@@ -45,7 +50,7 @@ object Generator {
       val aTermName = Term.Name(s"Assembled $tpf")
       val indexFactoryType = Type.Name("IndexFactory")
       val indexFactory = theTerm(indexFactoryType)
-      Option((q"(a:$tpe)⇒$aTermName($indexFactory)(a)",Option(q"def $indexFactory: $indexFactoryType")))
+      Option((q"(a:$tpe)⇒$aTermName($indexFactory,a)",Option(q"def $indexFactory: $indexFactoryType")))
   }
 
   def defaultArgType: ArgPF = {
@@ -99,6 +104,8 @@ object Generator {
   def getConcreteStatement(tName: Type.Name, needParamsList: List[List[Term]]): Term =
     q"${Term.Name(s"$tName")}(...$needParamsList)"
 
+
+
   def classComponent: PartialFunction[Tree,(Boolean,List[Stat])] = {
     //q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
     case q"@c4component ..$mods class $tName[..$tParams](...$paramsList) extends ..$ext { ..$stats }" ⇒
@@ -120,11 +127,7 @@ object Generator {
               needStms
           q"trait $mixType { ..$statements }"
         case (true,false,true) ⇒
-          val abstractType = Option(tParams.toList.map(_⇒Type.Placeholder(Type.Bounds(None, None))))
-            .filter(_.nonEmpty).map(t⇒Type.Apply(tName,t))
-            .getOrElse(tName)
-          //println(t"List[_,_]".structure)
-
+          val abstractType = typeWithPlaceholders(tName,tParams.size)
           val listTerm = listedTerm(tName)
           q"trait $mixType { def $listTerm: List[$abstractType] = Nil }"
         case a ⇒ throw new Exception(s"$tName unsupported mods: $a")
@@ -153,7 +156,15 @@ object Generator {
         val indexFactory = theTerm(indexFactoryType)
         listedResult(List(init"Assembled"),tName,q"$aTermName($indexFactory)(new $tName(...$needParamsList))",q"def $indexFactory: $indexFactoryType"::needStms,mixType) :: Nil
       } else Nil
-      (true,clStm::appTrait)
+      val factory = if(paramsList.isEmpty) Nil else {
+        val outerTypeName = typeWithPlaceholders(tName,tParams.size)
+        val innerTypeName = if(tParams.isEmpty) tName
+          else Type.Apply(tName,tParams.map{ case tparam"$p <: ${Some(b)}" ⇒ Type.Name(s"$b") })
+        val expr = q"$aTermName(indexFactory)(ass.asInstanceOf[$innerTypeName])"
+        val stm = q"def apply(indexFactory: IndexFactory, ass: $outerTypeName): Assembled = $expr"
+        q"object $aTermName { $stm }" :: Nil
+      }
+      (true,clStm::appTrait:::factory)
   }
 
   def importForComponents: PartialFunction[Tree,(Boolean,List[Stat])] = {

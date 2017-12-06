@@ -7,7 +7,7 @@ import ee.cone.c4assemble._
 
 
 @c4component @listed case class MortalAssembles(mortals: List[Mortal[_]])(
-  wrap: MortalAssemble[Product] ⇒ Assembled
+  wrap: MortalAssemble[_] ⇒ Assembled
 ) extends Assembled {
   def dataDependencies: List[DataDependencyTo[_]] = for {
     mortal <- mortals

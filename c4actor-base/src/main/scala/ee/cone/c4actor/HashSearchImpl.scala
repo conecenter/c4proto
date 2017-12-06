@@ -12,7 +12,7 @@ import ee.cone.c4assemble.Types.Values
 @c4component case class HashSearchFactoryImpl(
   modelConditionFactory: ModelConditionFactory
 )(
-  wrap: HashSearchAssemble[Product] => Assembled
+  wrap: HashSearchAssemble[_] => Assembled
 ) extends HashSearchFactory {
   def index[Model<:Product](cl: Class[Model]): Indexer[Model] =
     EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model],wrap)
@@ -71,7 +71,7 @@ object HashSearchImpl {
   }
 
   abstract class Indexer[Model<:Product] extends IndexBuilder[Model] {
-    def wrap: HashSearchAssemble[Product] => Assembled
+    def wrap: HashSearchAssemble[_] => Assembled
     def modelClass: Class[Model]
     def modelConditionBuilder: ModelConditionBuilder[Model]
     def add[NBy<:Product,NField](lens: ProdLens[Model,NField], by: NBy)(
@@ -80,7 +80,7 @@ object HashSearchImpl {
       val(valueToRanges,byToRanges) = ranger.ranges(by)
       IndexerImpl(modelConditionBuilder.filterMetaList(lens),by,this)(modelClass,modelConditionBuilder,lens.of,valueToRanges,byToRanges.lift,wrap)
     }
-    def assemble: Assembled = wrap(new HashSearchAssemble(modelClass,this).asInstanceOf[HashSearchAssemble[Product]])
+    def assemble: Assembled = wrap(new HashSearchAssemble(modelClass,this))
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]]
     def heapIds(model: Model): List[SrcId]
   }
@@ -88,7 +88,7 @@ object HashSearchImpl {
   case class EmptyIndexer[Model<:Product]()(
     val modelClass: Class[Model],
     val modelConditionBuilder: ModelConditionBuilder[Model],
-    val wrap: HashSearchAssemble[Product] => Assembled
+    val wrap: HashSearchAssemble[_] => Assembled
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = None
     def heapIds(model: Model): List[SrcId] = Nil
@@ -102,7 +102,7 @@ object HashSearchImpl {
     of: Model⇒Field,
     valueToRanges: Field ⇒ List[By],
     byToRanges: Product ⇒ Option[List[By]],
-    val wrap: HashSearchAssemble[Product] => Assembled
+    val wrap: HashSearchAssemble[_] => Assembled
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = (
       for {

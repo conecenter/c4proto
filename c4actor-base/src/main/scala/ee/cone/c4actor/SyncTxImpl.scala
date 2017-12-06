@@ -16,7 +16,7 @@ import ee.cone.c4assemble._
     txTransform: Option[(SrcId,List[SyncTxTask[Item]])⇒TxTransform]
   ): Assembled = {
     val txTr = txTransform.getOrElse(SyncTxTransform[Item](_,_))
-    wrap(new SyncTxAssemble(classOfItem,filter,group,txTr))
+    wrap(new SyncTxAssemble[Item](classOfItem,filter,group,txTr))
   }
 }
 
@@ -27,7 +27,7 @@ case class SyncTxTransform[Item<:Product](
 }
 
 @assemble class SyncTxAssemble[Item<:Product](
-  classOfItem: Class[Item],
+  val classOfItem: Class[Item],
   filter: Item⇒Boolean,
   group: Item⇒SrcId,
   txTransform: (SrcId,List[SyncTxTask[Item]])⇒TxTransform

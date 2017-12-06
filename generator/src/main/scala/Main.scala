@@ -31,7 +31,7 @@ object C4GeneratorPlugin extends AutoPlugin {
 */
 
 object Main {
-  private def version = Array[Byte](74)
+  private def version = Array[Byte](83)
   case class Generate(dir: Path, path: Path, fromContent: String, uuid: String)
   private def getToPath(path: Path): Option[Path] = path.getFileName.toString match {
     case "scala" ⇒ Option(path.resolveSibling("java"))
