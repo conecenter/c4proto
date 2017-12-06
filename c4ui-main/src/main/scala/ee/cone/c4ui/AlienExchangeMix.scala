@@ -5,3 +5,4 @@ import ee.cone.c4gate._
 
 trait AlienExchangeApp extends `The ToInject` with `The HttpProtocol` with `The AlienProtocol`
   with `The FromAlienBranchAssemble` with `The MessageFromAlienAssemble` with `The SendToAlienInit`
+  with `The FromAlienTaskAssembleFactoryImpl`

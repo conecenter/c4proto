@@ -27,13 +27,9 @@ class TestSSEApp extends ServerApp
 //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 
 
-@c4component @listed case class SSEAppAssemble()(
-  wrap: FromAlienTaskAssemble => Assembled
-)(
-  inner: Assembled = wrap(new FromAlienTaskAssemble("/sse.html"))
-) extends Assembled {
-  def dataDependencies: List[DataDependencyTo[_]] = inner.dataDependencies
-}
+@c4component @listed case class SSEAppAssemble(create: FromAlienTaskAssembleFactory)(
+  val inner: Assembled = create("/sse.html")
+) extends Assembled with WrapAssembled
 
 @assemble class TestSSEAssemble {
   def joinView(

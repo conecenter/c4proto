@@ -91,3 +91,9 @@ case class MessageFromAlienImpl(
       Option(url.getRef).getOrElse("")
     )
 }
+
+@c4component case class FromAlienTaskAssembleFactoryImpl()(
+  wrap: FromAlienTaskAssemble ⇒ Assembled
+) extends FromAlienTaskAssembleFactory {
+  def apply(file: String): Assembled = wrap(new FromAlienTaskAssemble(file))
+}

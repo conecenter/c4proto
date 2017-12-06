@@ -1,6 +1,7 @@
 package ee.cone.c4gate
 
 trait ManagementApp extends `The ManagementPostAssemble` with `The PostConsumerAssemble`
+
 /*
 *
 * Usage:

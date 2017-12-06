@@ -7,7 +7,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.B.0",
+  version := "0.B.1",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
   publishMavenStyle := false,

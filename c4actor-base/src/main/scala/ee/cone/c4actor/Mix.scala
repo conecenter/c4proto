@@ -51,6 +51,7 @@ trait RichDataApp extends `The QProtocol`
   with `The Mortal`
   with `The AssemblerInit`
   with ActorNameApp
+  with `The SyncTxFactoryImpl`
 
 trait SnapshotMakingApp extends CompoundExecutableApp
   with `The QProtocol` with `The QAdapterRegistryImpl`
