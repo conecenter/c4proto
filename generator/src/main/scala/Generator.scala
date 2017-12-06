@@ -99,7 +99,7 @@ object Generator {
       (_,stmOpt) ← needs
       stm ← stmOpt
     } yield stm
-    (needStms,needParamsList)
+    (needStms.groupBy(s⇒s"$s").toList.sortBy(_._1).map(_._2.head),needParamsList)
   }
   def getConcreteStatement(tName: Type.Name, needParamsList: List[List[Term]]): Term =
     q"${Term.Name(s"$tName")}(...$needParamsList)"

@@ -3,6 +3,7 @@ package ee.cone.c4gate
 import java.net.URL
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.FromAlienState
@@ -56,13 +57,13 @@ object TestAttrs {
   tags: Tags,
   styles: TagStyles,
   branchOperations: BranchOperations,
-  untilPolicy: UntilPolicy
+  untilPolicy: UntilPolicy,
+  fromAlienStates: ByPK[FromAlienState] @c4key
 ) extends ByLocationHashView with LazyLogging {
   import tags._
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
-    val fromAlienStates = ByPK(classOf[FromAlienState]).of(local)
     val fromAliens = for(
-      fromAlien ← fromAlienStates.values;
+      fromAlien ← fromAlienStates.of(local).values;
       url ← Option(new URL(fromAlien.location));
       ref ← Option(url.getRef) if ref != "leader"
     ) yield fromAlien

@@ -12,7 +12,7 @@ import javax.crypto.spec.PBEKeySpec
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
@@ -29,14 +29,15 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
   def handle(httpExchange: HttpExchange): Boolean
 }
 
-class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
+class HttpGetHandler(
+  worldProvider: WorldProvider, httpPublications: ByPK[HttpPublication]
+) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "GET") return false
     val path = httpExchange.getRequestURI.getPath
     val now = System.currentTimeMillis
     val local = worldProvider.createTx()
-    val publicationsByPath = ByPK(classOf[HttpPublication]).of(local)
-    publicationsByPath.get(path).filter(_.until.forall(now<_)) match {
+    httpPublications.of(local).get(path).filter(_.until.forall(now<_)) match {
       case Some(publication) ⇒
         val headers = httpExchange.getResponseHeaders
         publication.headers.foreach(header⇒headers.add(header.key,header.value))
@@ -68,7 +69,11 @@ object AuthOperations {
     correctHash == pbkdf2(password, correctHash)
 }
 
-class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
+class HttpPostHandler(
+  qMessages: QMessages, worldProvider: WorldProvider,
+  passwordHashesOfUsers: ByPK[PasswordHashOfUser],
+  httpPostAllows: ByPK[HttpPostAllow]
+) extends RHttpHandler with LazyLogging {
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     val headers = httpExchange.getRequestHeaders.asScala
@@ -93,8 +98,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         )
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
-        val hashesByUser = ByPK(classOf[PasswordHashOfUser]).of(local)
-        val hash = hashesByUser.get(userName).map(_.hash.get)
+        val hash = passwordHashesOfUsers.of(local).get(userName).map(_.hash.get)
         val endTime = System.currentTimeMillis() + 1000
         val hashOK = hash.exists(pass⇒AuthOperations.verify(password,pass))
         Thread.sleep(Math.max(0,endTime-System.currentTimeMillis()))
@@ -110,7 +114,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
       case _ ⇒ throw new Exception("unsupported auth action")
     }
     TxAdd(requests.flatMap(LEvent.update)).andThen{ nLocal ⇒
-      if(ByPK(classOf[HttpPostAllow]).of(nLocal).contains(requestId)){
+      if(httpPostAllows.of(nLocal).contains(requestId)){
         qMessages.send(nLocal)
         httpExchange.sendResponseHeaders(200, 0)
       } else {
@@ -162,10 +166,22 @@ trait InternetForwarderApp extends `The AuthProtocol` with `The HttpProtocol`
   def initialObservers: List[Observer] = List(worldProvider)
 }
 
-@c4component @listed case class DefaultHttpServer(config: Config, worldProvider: WorldProvider, execution: Execution, qMessages: QMessages, handlers: List[RHttpHandler]) extends Executable {
+@c4component @listed case class DefaultHttpServer(
+  config: Config,
+  worldProvider: WorldProvider, execution: Execution, qMessages: QMessages,
+  handlers: List[RHttpHandler],
+  httpPublications: ByPK[HttpPublication] @c4key,
+  passwordHashesOfUsers: ByPK[PasswordHashOfUser] @c4key,
+  httpPostAllows: ByPK[HttpPostAllow] @c4key
+) extends Executable {
   def run(): Unit = {
     val httpPort = config.get("C4HTTP_PORT").toInt
-    val handler = new ReqHandler(new HttpGetHandler(worldProvider) :: handlers ::: new HttpPostHandler(qMessages,worldProvider) :: Nil )
+    val handler = new ReqHandler(
+      new HttpGetHandler(worldProvider,httpPublications) ::
+      handlers :::
+      new HttpPostHandler(qMessages,worldProvider,passwordHashesOfUsers,httpPostAllows) ::
+      Nil
+    )
     new RHttpServer(httpPort, handler, execution).run()
   }
 }

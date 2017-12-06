@@ -9,7 +9,7 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.{BranchResult, SessionFailure}
 import ee.cone.c4actor.BranchTypes._
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
@@ -17,7 +17,10 @@ import Function.chain
 
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
-case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask with LazyLogging {
+case class BranchTaskImpl(
+  branchKey: String, seeds: Values[BranchRel], product: Product,
+  branchTasks: ByPK[BranchTask]
+) extends BranchTask with LazyLogging {
   def sending: Context ⇒ (Send,Send) = local ⇒ {
     val newSessionKeys = sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
@@ -33,10 +36,7 @@ case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: 
 
   def sessionKeys: Context ⇒ Set[BranchRel] = local ⇒ seeds.flatMap(rel⇒
     if(rel.parentIsSession) rel :: Nil
-    else {
-      val index = ByPK(classOf[BranchTask]).of(local)
-      index.get(rel.parentSrcId).toList.flatMap(_.sessionKeys(local))
-    }
+    else branchTasks.of(local).get(rel.parentSrcId).toList.flatMap(_.sessionKeys(local))
   ).toSet
   def relocate(to: String): Context ⇒ Context = local ⇒ {
     val(toSessions, toNested) = seeds.partition(_.parentIsSession)
@@ -64,12 +64,13 @@ case class BranchTxTransform(
   seed: Option[BranchResult],
   sessionKeys: List[SrcId],
   posts: List[MessageFromAlien],
-  handler: BranchHandler
+  handler: BranchHandler,
+  branchResults: ByPK[BranchResult]
 ) extends TxTransform {
   private def saveResult: Context ⇒ Context = local ⇒ {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
     //println(s"BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
-    val wasBranchResults = ByPK(classOf[BranchResult]).of(local).get(branchKey).toList
+    val wasBranchResults = branchResults.of(local).get(branchKey).toList
     //
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
@@ -92,9 +93,8 @@ case class BranchTxTransform(
       if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
     }
     else {
-      val index = ByPK(classOf[BranchResult]).of(local)
       def gather(branchKey: SrcId): List[String] = {
-        val children = index.get(branchKey).toList.flatMap(_.children).map(_.hash)
+        val children = branchResults.of(local).get(branchKey).toList.flatMap(_.children).map(_.hash)
         (branchKey :: children).mkString(",") :: children.flatMap(gather)
       }
       val newReport = gather(branchKey).mkString(";")
@@ -167,7 +167,11 @@ case class BranchTxTransform(
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
-@assemble class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations) {
+@assemble class BranchAssemble(
+  registry: QAdapterRegistry, operations: BranchOperations,
+  branchTasks: ByPK[BranchTask] @c4key,
+  branchResults: ByPK[BranchResult] @c4key
+) {
   def mapBranchSeedsByChild(
     key: SrcId,
     branchResults: Values[BranchResult]
@@ -182,7 +186,7 @@ case class BranchTxTransform(
   ): Values[(SrcId,BranchTask)] = {
     val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
     registry.byId.get(seed.valueTypeId).map(_.decode(seed.value.toByteArray))
-      .map(product => key → BranchTaskImpl(key, seeds, product)).toList
+      .map(product => key → BranchTaskImpl(key, seeds, product, branchTasks)).toList
     // may result in some garbage branches in the world?
 
     //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
@@ -199,7 +203,8 @@ case class BranchTxTransform(
         seeds.headOption.map(_.seed),
         seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
         posts.sortBy(_.index).toList,
-        handler
+        handler,
+        branchResults
       )
 
   type SessionKey = SrcId

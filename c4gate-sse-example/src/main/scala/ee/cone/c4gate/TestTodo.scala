@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import java.util.UUID
 
 import ee.cone.c4actor.LEvent.{delete, update}
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.CommonFilterProtocol._
@@ -62,8 +62,8 @@ object TestTodoAccess {
   commonFilterConditionChecks: CommonFilterConditionChecks,
   accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy,
-  //requests: ByUKGetter[SrcId,Request[TodoTask]] @c4key,
-  todoTasksKey: ByUKGetter[SrcId,TodoTask] @c4key,
+  //requests: ByPK[Request[TodoTask]] @c4key,
+  todoTasksKey: ByPK[TodoTask] @c4key,
   comments: ProdLens[TodoTask,String] =
     ProdLens.of(_.comments, UserLabel en "(comments)"),
   createdAt: ProdLens[TodoTask,Long] =

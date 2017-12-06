@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.{SrcId, TransientMap}
+import ee.cone.c4actor.Types._
 
 import scala.collection.immutable.{Map, Seq}
 
@@ -12,13 +12,16 @@ trait TxTransforms {
   def get(global: Context): Map[SrcId,TransientTransform]
 }
 
-@c4component case class TxTransformsImpl(qMessages: QMessages) extends TxTransforms with LazyLogging {
+@c4component case class TxTransformsImpl(
+  qMessages: QMessages,
+  transforms: ByPK[TxTransform] @c4key
+) extends TxTransforms with LazyLogging {
   def get(global: Context): Map[SrcId,TransientTransform] =
-    ByPK(classOf[TxTransform]).of(global).transform{ case(key,_) ⇒ handle(global,key) }
+    transforms.of(global).transform{ case(key,_) ⇒ handle(global,key) }
   private def handle(global: Context, key: SrcId): TransientTransform = ((prev:TransientMap) ⇒
     new Context(global.injected, global.assembled, prev)
   ).andThen{ (local:Context) ⇒
-    val txTransform = ByPK(classOf[TxTransform]).of(local).get(key)
+    val txTransform = transforms.of(local).get(key)
     if(
       txTransform.isEmpty ||
         OffsetWorldKey.of(global) < OffsetWorldKey.of(local) ||

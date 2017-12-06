@@ -4,7 +4,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit.SECONDS
 
 import com.sun.net.httpserver.HttpExchange
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
@@ -39,8 +39,11 @@ trait Pong extends RHttpHandler {
   def toInject: List[Injectable]
 }
 @c4component case class PongImpl(
-    qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
-    pongs: TrieMap[String,Instant] = TrieMap()
+  qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
+  authenticatedSessions: ByPK[AuthenticatedSession] @c4key,
+  fromAlienStates: ByPK[FromAlienState] @c4key
+)(
+  pongs: TrieMap[String,Instant] = TrieMap()
 ) extends Pong {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
   def handle(httpExchange: HttpExchange): Boolean = {
@@ -50,7 +53,7 @@ trait Pong extends RHttpHandler {
     val now = Instant.now
     val local = worldProvider.createTx()
     val sessionKey = headers("X-r-session")
-    val userName = ByPK(classOf[AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
+    val userName = authenticatedSessions.of(local).get(sessionKey).map(_.userName)
     val session = FromAlienState(
       sessionKey,
       headers("X-r-location"),
@@ -59,7 +62,7 @@ trait Pong extends RHttpHandler {
       userName
     )
     pongs(session.sessionKey) = now
-    val wasSession = ByPK(classOf[FromAlienState]).of(local).get(session.sessionKey)
+    val wasSession = fromAlienStates.of(local).get(session.sessionKey)
     if(wasSession != Option(session))
       TxAdd(LEvent.update(session)).andThen(qMessages.send)(local)
     httpExchange.sendResponseHeaders(200, 0)

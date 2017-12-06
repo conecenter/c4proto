@@ -2,10 +2,10 @@ package ee.cone.c4actor
 
 import ee.cone.c4assemble.ToPrimaryKey
 
-@c4component case class ModelAccessFactoryImpl() extends ModelAccessFactory {
+@c4component case class ModelAccessFactoryImpl(byPKFactory: ByPKFactory) extends ModelAccessFactory {
   def to[P <: Product](product: P): Option[Access[P]] = {
     val name = product.getClass.getName
-    val lens = TxProtoLens[P](product)
+    val lens = TxProtoLens[P](product)(byPKFactory)
     Option(AccessImpl(product,Option(lens),NameMetaAttr(name) :: Nil))
   }
 }
@@ -28,10 +28,10 @@ case class ComposedLens[C,T,I](
   def of: C ⇒ I = container ⇒ inner.of(outer.of(container))
 }
 
-case class TxProtoLens[V<:Product](initialValue: V) extends AbstractLens[Context,V] {
+case class TxProtoLens[V<:Product](initialValue: V)(byPKFactory: ByPKFactory) extends AbstractLens[Context,V] {
   private def className = initialValue.getClass.getName
   private def srcId = ToPrimaryKey(initialValue)
-  private def key = ByUKGetter(ByPK.raw(className))
+  private def key = byPKFactory.forTypes(className)
   def of: Context ⇒ V = local ⇒ key.of(local).getOrElse(srcId,initialValue)
   def set: V ⇒ Context ⇒ Context = value ⇒ local ⇒ {
     if(initialValue != of(local)) throw new Exception(s"'$initialValue' != '${of(local)}'")

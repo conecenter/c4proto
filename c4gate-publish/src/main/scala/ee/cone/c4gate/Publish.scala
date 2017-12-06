@@ -10,13 +10,15 @@ import okio.{Buffer, GzipSink}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.Types._
 
 //todo un-publish
 
 @c4component @listed case class PublishInitialObserversProvider(
-  qMessages: QMessages, publishDir: PublishDir, publishConfig: PublishConfig
+  qMessages: QMessages, publishDir: PublishDir, publishConfig: PublishConfig,
+  httpPublications: ByPK[HttpPublication] @c4key
 )(
-  observer: Observer = new PublishingObserver(qMessages,publishDir,publishConfig)
+  observer: Observer = new PublishingObserver(qMessages,publishDir,publishConfig,httpPublications)
 ) extends InitialObserversProvider {
   def initialObservers: List[Observer] = List(observer)
 }
@@ -35,7 +37,8 @@ import com.typesafe.scalalogging.LazyLogging
 class PublishingObserver(
   qMessages: QMessages,
   fromDir: PublishDir,
-  config: PublishConfig
+  config: PublishConfig,
+  httpPublications: ByPK[HttpPublication]
 ) extends Observer with LazyLogging {
   def activate(global: Context): Seq[Observer] = {
     logger.debug("publish started")
@@ -61,7 +64,7 @@ class PublishingObserver(
     gzipSink.close()
     val byteString = sink.readByteString()
     val publication = HttpPublication(path,headers,byteString,None)
-    val existingPublications = ByPK(classOf[HttpPublication]).of(local)
+    val existingPublications = httpPublications.of(local)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.get(path).contains(publication)) {
       logger.debug(s"$path (${byteString.size}) exists")

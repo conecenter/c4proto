@@ -9,11 +9,13 @@ import ee.cone.c4proto.PBAdapters
 
 import scala.collection.immutable.{Map, Seq}
 
-@c4component @listed case class ProtocolsAssemble(protocols: List[PBAdapters]) extends Assembled {
+@c4component @listed case class ProtocolsAssemble(
+  protocols: List[PBAdapters], factory: ByPKFactory
+) extends Assembled {
   def dataDependencies: List[DataDependencyTo[_]] = for {
     protocol <- protocols
     adapter <- protocol.adapters if adapter.hasId
-  } yield new OriginalWorldPart(ByPK.raw(adapter.className))
+  } yield new OriginalWorldPart(factory.joinKey(adapter.className))
 }
 
 case object TreeAssemblerKey extends SharedComponentKey[Replace]
@@ -21,14 +23,15 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
 @c4component @listed case class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
-  treeAssembler: TreeAssembler
+  treeAssembler: TreeAssembler,
+  factory: ByPKFactory
 )(
   getDependencies: ()⇒List[Assembled]
 ) extends ToInject {
   private def toTree(updates: Iterable[Update]): Map[AssembledKey[Index[SrcId,Product]], Index[SrcId,Product]] =
     updates.groupBy(_.valueTypeId).flatMap { case (valueTypeId, tpUpdates) ⇒
       qAdapterRegistry.byId.get(valueTypeId).map(valueAdapter ⇒
-        ByPK.raw[Product](valueAdapter.className) →
+        factory.joinKey[Product](valueAdapter.className) →
           tpUpdates.groupBy(_.srcId).map { case (srcId, iUpdates) ⇒
             val rawValue = iUpdates.last.value
             val values =

@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ConnProtocol.Node
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4proto._
@@ -40,7 +40,7 @@ import ee.cone.c4proto._
 
 @c4component @listed case class ConnStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
-  path: ByUKGetter[SrcId,List[Node]] @c4key
+  path: ByPK[List[Node]] @c4key
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update

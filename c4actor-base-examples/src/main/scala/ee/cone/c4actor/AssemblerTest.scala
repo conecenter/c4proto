@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import PCProtocol.{RawChildNode, RawParentNode}
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.Values
@@ -53,7 +53,10 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 object AssemblerTest extends App with LazyLogging {}
 
 @c4component @listed case class AssemblerTestStart(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory,
+  rawParentNodes: ByPK[RawParentNode] @c4key,
+  rawChildNodes: ByPK[RawChildNode] @c4key,
+  parentNodesWithChildren: ByPK[ParentNodeWithChildren] @c4key
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     val recs = update(RawParentNode("1", "P-1")) ++
@@ -65,15 +68,15 @@ object AssemblerTest extends App with LazyLogging {}
     val nGlobal = ReadModelAddKey.of(context)(updates)(context)
 
     logger.debug(s"$nGlobal")
-    Map(
-      ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
+    List(
+      rawParentNodes -> Map(
         "1" -> RawParentNode("1", "P-1")
       ),
-      ByPK(classOf[PCProtocol.RawChildNode]) -> Map(
+      rawChildNodes -> Map(
         "2" -> RawChildNode("2", "1", "C-2"),
         "3" -> RawChildNode("3", "1", "C-3")
       ),
-      ByPK(classOf[ParentNodeWithChildren]) -> Map(
+      parentNodesWithChildren -> Map(
         "1" -> ParentNodeWithChildren(
           "1",
           "P-1",

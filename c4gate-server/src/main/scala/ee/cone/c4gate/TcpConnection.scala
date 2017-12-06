@@ -3,7 +3,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor._
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4gate.TcpProtocol._
@@ -22,11 +22,14 @@ trait TcpServerApp extends `The TcpAssemble` with `The TcpProtocol`
   def timeout: Long = Long.MaxValue
 }
 
-@c4component case class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends TcpHandler {
+@c4component case class TcpHandlerImpl(
+  qMessages: QMessages, worldProvider: WorldProvider,
+  tcpConnections: ByPK[TcpConnection] @c4key
+) extends TcpHandler {
   private def changeWorld(transform: Context ⇒ Context): Unit =
     Option(worldProvider.createTx()).map(transform).foreach(qMessages.send)
   override def beforeServerStart(): Unit = changeWorld{ local ⇒
-    val connections = ByPK(classOf[TcpConnection]).of(local).values.toList
+    val connections = tcpConnections.of(local).values.toList
     TxAdd(connections.flatMap(LEvent.delete))(local)
   }
   override def afterConnect(key: String, sender: SenderToAgent): Unit =

@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.HashSearchTestProtocol.{SomeModel, SomeRequest}
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4proto._
@@ -83,12 +83,6 @@ import HashSearch.{Request,Response}
     WithPK(hashSearchFactory.request(someModelAccess.condition(modelConditionFactory,request)))
   }
 
-  def joinResp(
-    srcId: SrcId,
-    responses: Values[Response[SomeModel]]
-  ): Values[(SrcId,SomeResponse)] = for {
-    response ← responses
-  } yield WithPK(SomeResponse(response.srcId,response.lines))
 }
 
 case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
@@ -110,7 +104,9 @@ case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
   someModelAccess: SomeModelAccess,
   modelConditionFactory: ModelConditionFactory,
   rawWorldFactory: RawWorldFactory,
-  execution: Execution
+  execution: Execution,
+  someModels: ByPK[SomeModel] @c4key,
+  someResponses: ByPK[Response[SomeModel]] @c4key
 ) extends Executable with LazyLogging {
   import someModelAccess._
 
@@ -131,11 +127,11 @@ case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
   def ask(modelConditionFactory: ModelConditionFactory): SomeModel⇒Context⇒Unit = pattern ⇒ local ⇒ {
     val request = SomeRequest("123",Option(pattern))
 
-    logger.info(s"$request ${ByPK(classOf[SomeModel]).of(local).size}")
+    logger.info(s"$request ${someModels.of(local).size}")
     val res0 = measure("dumb  find models") { () ⇒
       val pattern = request.pattern.get
       for{
-        model ← ByPK(classOf[SomeModel]).of(local).values if
+        model ← someModels.of(local).values if
           (pattern.fieldA.isEmpty || model.fieldA == pattern.fieldA) &&
           (pattern.fieldB.isEmpty || model.fieldB == pattern.fieldB) &&
           (pattern.fieldC.isEmpty || model.fieldC == pattern.fieldC)
@@ -145,12 +141,12 @@ case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
     val res1 = measure("cond  find models") { () ⇒
       val lenses = List(fieldA,fieldB,fieldC)
       val condition = someModelAccess.condition(modelConditionFactory,request)
-      ByPK(classOf[SomeModel]).of(local).values.filter(condition.check)
+      someModels.of(local).values.filter(condition.check)
     }
 
     val res2 = measure("index find models") { () ⇒
       val local2 = TxAdd(LEvent.update(request))(local)
-      Single(ByPK(classOf[SomeResponse]).of(local2).values.toList).lines
+      Single(someResponses.of(local2).values.toList).lines
     }
 
     val res = List(res0,res1,res2).map(_.toList.sortBy(_.srcId))

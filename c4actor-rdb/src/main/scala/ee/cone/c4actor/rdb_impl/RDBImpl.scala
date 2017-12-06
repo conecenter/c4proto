@@ -11,7 +11,7 @@ import ToExternalDBProtocol.HasState
 import ToExternalDBTypes.NeedSrcId
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
@@ -158,18 +158,21 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
   )
 }
 
-@assemble class FromExternalDBSyncAssemble {
+@assemble class FromExternalDBSyncAssemble(
+  dbOffsets: ByPK[DBOffset] @c4key
+) {
   def joinTxTransform(
     key: SrcId,
     firsts: Values[Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List("externalDBSync").map(k⇒k→FromExternalDBSyncTransform(k))
+    List("externalDBSync").map(k⇒k→FromExternalDBSyncTransform(k,dbOffsets))
 }
 
-case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform with LazyLogging {
+case class FromExternalDBSyncTransform(
+  srcId:SrcId, dbOffsets: ByPK[DBOffset]
+) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = WithJDBCKey.of(local){ conn ⇒
-    val offset =
-      ByPK(classOf[DBOffset]).of(local).getOrElse(srcId, DBOffset(srcId, 0L))
+    val offset = dbOffsets.of(local).getOrElse(srcId, DBOffset(srcId, 0L))
     logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
     val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
     //val updateOffset = List(DBOffset(srcId, nextOffsetValue)).filter(offset!=_)

@@ -32,8 +32,9 @@ trait RichDataApp extends `The QProtocol`
   with `The Assembled`
   with `The ToInject`
   with `The UnitExpressionsDumper`
-  with `The ByUKGetterFactoryImpl`
-  with `The JoinKeyFactoryImpl`
+  with `The ByPKFactoryImpl`
+  with `The ByUKFactoryImpl`
+  with `The ByFKFactoryImpl`
   with `The ModelConditionFactoryImpl`
   with `The HashSearchFactoryImpl`
   with `The ToUpdateImpl`

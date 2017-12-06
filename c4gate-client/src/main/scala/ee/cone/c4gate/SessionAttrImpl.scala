@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import java.util.UUID
 
 import ee.cone.c4actor.LifeTypes.Alive
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
@@ -48,7 +48,8 @@ import okio.ByteString
 @c4component case class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
-  modelAccessFactory: ModelAccessFactory
+  modelAccessFactory: ModelAccessFactory,
+  byPK: ByPK[RawSessionData] @c4key
 ) extends SessionAttrAccessFactory {
   def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
     val adapter = registry.byName(classOf[RawSessionData].getName)
@@ -62,7 +63,6 @@ import okio.ByteString
         rawData.copy(valueTypeId = valueAdapter.id, value = byteString)
       }
     )
-    val byPK = ByPK(classOf[RawSessionData])
     local ⇒ {
       val sessionKey = CurrentSessionKey.of(local)
       val request: RawSessionData = RawSessionData(

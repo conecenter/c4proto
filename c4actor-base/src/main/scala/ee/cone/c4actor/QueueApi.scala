@@ -64,6 +64,9 @@ trait ToUpdate {
 object Types {
   type SrcId = String
   type TransientMap = Map[TransientLens[_],Object]
+  type ByPK[V<:Product] = ByUK[SrcId,V]
+  type ByFK[K,V<:Product] = JoinKey[K,V]
+  type ByUK[K,V<:Product] = Getter[Context,Map[K,V]]
 }
 
 class Context(
@@ -71,28 +74,6 @@ class Context(
   val assembled: ReadModel,
   val transient: TransientMap
 )
-
-object ByPK {
-  def apply[V<:Product](cl: Class[V]): ByUKGetter[SrcId,V] =
-    ByUKGetter(raw(cl.getName))
-  def raw[V<:Product](className: String): AssembledKey[Index[SrcId,V]] =
-    JoinKey[SrcId,V](was=false, "SrcId", classOf[SrcId].getName, className)
-  //todo: def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
-}
-
-case class ByUKGetter[K,V<:Product](joinKey: AssembledKey[Index[K,V]])
-  extends Getter[Context,Map[K,V]]
-{
-  def of: Context ⇒ Map[K,V] = context ⇒
-    UniqueIndexMap(joinKey.of(context.assembled))
-}
-
-case class UniqueIndexMap[K,V](index: Index[K,V]) extends Map[K,V] {
-  def +[B1 >: V](kv: (K, B1)): Map[K, B1] = UniqueIndexMap(index + (kv._1→List(kv._2)))
-  def get(key: K): Option[V] = Single.option(index.getOrElse(key,Nil))
-  def iterator: Iterator[(K, V)] = index.iterator.map{ case (k,v) ⇒ (k,Single(v)) }
-  def -(key: K): Map[K, V] = UniqueIndexMap(index - key)
-}
 
 trait Lens[C,I] extends Getter[C,I] {
   def modify: (I⇒I) ⇒ C⇒C
