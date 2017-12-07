@@ -93,6 +93,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		render:function(){
 			const {onChange,style,children,isOpen} = this.props
 			return React.createElement('div',{
+				className:"colorPicker",
 				style: {
 						width:"100%",
 						boxSizing:"border-box",

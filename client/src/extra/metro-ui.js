@@ -194,18 +194,18 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			removeEventListener("scroll",this.onScroll);
 		},
 		componentDidUpdate:function(){
-			this.process();
+		//	this.process();
 		},
 		componentDidMount:function(){
-			this.process();
+			//this.process();
 			addEventListener("scroll",this.onScroll);
 		},
 		render:function(){
 			const style = {
-				height:this.state.fixedHeight,				
+				//height:this.state.fixedHeight,				
 			}
 			const menuStyle = {
-				position:"fixed",
+				position:"static",
 				width:"100%",
 				zIndex:"6662",
 				top:"0rem",
@@ -224,8 +224,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const errors = this.props.children[1]
 			return $("div",{style:style},
 				$("div",{style:menuStyle,className:"menuBar",ref:ref=>this.el=ref},[
-					$("div",{key:"menuBar",style:barStyle,className:"menuBar"},barItems),
-					errors
+					$("div",{key:"menuBar",style:barStyle,className:"menuBar"},barItems)					
 					//$(ErrorElement,{key:"errors",onClick:this.process})
 				])
 			)
@@ -2665,7 +2664,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				if(this.state.show[i]!=toShow[i]) return false
 			return true
 		},
-		isOverflown:function(e){
+		isOverflown:function(){
+			if(!this.el) return;
+			const e = this.el;
 			const p = e.parentNode.getBoundingClientRect()
 			const c = Array.from(e.children)
 			/*const toShow = c.map(_=>{
@@ -2679,11 +2680,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				this.setState({/*shown:toShow,*/singleHeight:singleHeight})
 			
 		},
-		componentDidMount:function(){
-			this.isOverflown(this.el)
+		componentDidMount:function(){			
+			checkActivateCalls.add(this.isOverflown)
 		},
-		componentDidUpdate:function(){
-			this.isOverflown(this.el)
+		componentDidUpdate:function(){			
+		},
+		componentWillUnmount:function(){
+			checkActivateCalls.remove(this.isOverflown)
 		},
 		render:function(){
 		//	log(`render`)
@@ -2715,7 +2718,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				return $("div",{key:i,style:fStyle(this.state.shown[i]),},_)
 			}):*/this.props.children
 			const arrowSvg = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-								 width="16px" height="16px" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
+								 width="1em" height="1em" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
 								 xml:space="preserve">
 								<path d="M248.292,106.406l194.281,194.29c12.365,12.359,12.365,32.391,0,44.744c-12.354,12.354-32.391,12.354-44.744,0
 									L225.923,173.529L54.018,345.44c-12.36,12.354-32.395,12.354-44.748,0c-12.359-12.354-12.359-32.391,0-44.75L203.554,106.4

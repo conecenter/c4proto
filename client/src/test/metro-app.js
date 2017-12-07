@@ -33,7 +33,7 @@ const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
-const log = v => console.log("log",v)
+const log = v => { if(window.console) console.log("log",v)}
 const requestState = sender//RequestState(sender,log)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
