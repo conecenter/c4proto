@@ -173,6 +173,10 @@ my @tasks = (
         &$build($location,[],1);
         sy("docker-compose -p $location push");
     }],
+    ["gen_ip", sub{
+        my($location)=@_;
+        print &$gen_ip($location), "\n";
+    }],
 );
 
 my($cmd,@args)=@ARGV;

@@ -51,7 +51,7 @@ import ee.cone.c4proto._
     val context = contextFactory.create()
     val nGlobal = ReadModelAddKey.of(context)(updates)(context)
     logger.debug(s"${nGlobal.assembled}")
-    println(path.of(nGlobal)("125"))
+    assert(path.of(nGlobal)("125") == List(Node("125","12"), Node("12","1"), Node("1","")))
     execution.complete()
   }
 }

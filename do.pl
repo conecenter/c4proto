@@ -11,7 +11,7 @@ my $zoo_port = $port_prefix+81;
 my $kafka_port = $port_prefix+92;
 my $build_dir = "./client/build/test";
 my $inbox_prefix = '';
-my $kafka_version = "0.10.2.0";
+my $kafka_version = "0.10.2.1";
 my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "127.0.0.1:$kafka_port";
@@ -63,7 +63,6 @@ push @tasks, ["es_examples", sub{
 }];
 push @tasks, ["not_effective_join_bench", sub{
     &$base_example("NotEffectiveAssemblerTestApp");
-    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
 }];
 
 my $inbox_configure = sub{

@@ -7,9 +7,8 @@ my $sse_port = 8068;
 my $zoo_port = 2181;
 my $zoo_host = "zookeeper";
 my $build_dir = "client/build/test";
-my $kafka_version = "0.10.2.0";
+my $kafka_version = "0.10.2.1";
 my $kafka = "kafka_2.11-$kafka_version";
-my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "broker:9092";
 my $temp = "target";
 my $docker_build = "$temp/docker_build";
@@ -17,6 +16,7 @@ my $user = "c4";
 my $uid = 1979;
 my $c_script = "inbox_configure.pl";
 my $developer = $ENV{USER} || die;
+my $curl_test = "docker exec $developer\_sshd_1 curl http://haproxy:80/abc";
 
 ################################################################################
 
@@ -114,7 +114,7 @@ my $gen_docker_conf = sub{
     &$build("zoo"=>sub{
         my($ctx_dir)=@_;
         my $tgz = "tmp/$kafka.tgz";
-        &$sy_in_dir("tmp","wget http://www-eu.apache.org/dist/kafka/$kafka_version/$tgz") if !-e $tgz;
+        &$sy_in_dir("tmp","wget http://www-eu.apache.org/dist/kafka/$kafka_version/$kafka.tgz") if !-e $tgz;
         &$sy_in_dir($ctx_dir,"tar -xzf ../../../$tgz");
         &$rename($ctx_dir, $kafka, "kafka");
         &$put_text("$ctx_dir/zookeeper.properties",join "\n",
@@ -310,7 +310,6 @@ push @tasks, ["test_es_examples", sub{
 }];
 push @tasks, ["test_not_effective_join_bench", sub{
     &$base_example("NotEffectiveAssemblerTestApp");
-    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
 }];
 
 push @tasks, &$staged_up("post_get_tcp");
