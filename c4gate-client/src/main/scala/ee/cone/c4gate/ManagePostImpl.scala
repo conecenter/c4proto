@@ -31,9 +31,13 @@ case class ManageHttpPostTx(post: HttpPost) extends TxTransform with LazyLogging
     index.getOrElse(k,Nil).flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
+    val worldKeyAlias = headers("X-r-world-key")
+    if(worldKeyAlias == "all") WorldStats.make(local)
+    else keyReport(worldKeyAlias,headers,local)
+  }
+  private def keyReport(worldKeyAlias: String, headers: Map[String, String], local: Context) = {
     val world = local.assembled
     val WorldKeyAlias = """(\w+),(\w+)""".r
-    val worldKeyAlias = headers("X-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
     val (indexStr,index): (String,Index[Any, Product]) = Single.option(world.keys.toList.collect{
       case worldKey@JoinKey(false,`alias`,keyClassName,valueClassName)

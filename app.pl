@@ -16,7 +16,8 @@ my $user = "c4";
 my $uid = 1979;
 my $c_script = "inbox_configure.pl";
 my $developer = $ENV{USER} || die;
-my $curl_test = "docker exec $developer\_sshd_1 curl http://haproxy:80/abc";
+my $d_exec = "docker exec $developer\_broker_1 ";
+my $curl_test = "$d_exec curl http://haproxy:80/abc";
 
 ################################################################################
 
@@ -278,16 +279,16 @@ push @tasks, ["push",sub{
 
 ################################################################################
 
-#...
-#push @tasks, ["### debug ###"];
-#push @tasks, ["inbox_log_tail", sub{
-#    sy("$bin/kafka-console-consumer.sh --bootstrap-server $bootstrap_server --topic $inbox_prefix.inbox.log")
-#}];
-#push @tasks, ["inbox_test", sub{
-#    sy("$bin/kafka-verifiable-consumer.sh --broker-list $bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
-#}];
+push @tasks, ["### debug ###"];
+push @tasks, ["inbox_log_tail", sub{
+    sy("$d_exec kafka/bin/kafka-console-consumer.sh --bootstrap-server $bootstrap_server --topic .inbox.log")
+}];
+push @tasks, ["inbox_test", sub{
+    sy("$d_exec kafka/bin/kafka-verifiable-consumer.sh --broker-list $bootstrap_server --topic .inbox --group-id dummy-".rand())
+}];
 
 ################################################################################
+
 
 my $staged_up = sub{
     #build-up build-push
@@ -315,7 +316,7 @@ push @tasks, ["test_not_effective_join_bench", sub{
 push @tasks, &$staged_up("post_get_tcp");
 push @tasks, ["test_post_get_check", sub{
     my $v = int(rand()*10);
-    sy("$curl_test -X POST -d $v");
+    sy("$curl_test -v -X POST -d $v");
     sleep 1;
     sy("$curl_test -v");
     sleep 4;
@@ -326,7 +327,8 @@ push @tasks, &$staged_up("actor_serial");
 push @tasks, &$staged_up("actor_parallel");
 push @tasks, ["test_actor_check", sub{ sy("$curl_test -X POST") for 0..11 }];
 push @tasks, ["test_big_message_check", sub{
-    &$sy_in_dir($temp,"dd if=/dev/zero of=test.bin bs=1M count=4 && $curl_test -v -XPOST -T test.bin")
+    sy("$d_exec dd if=/dev/zero of=test.bin bs=1M count=4");
+    sy("$curl_test -v -XPOST -T test.bin");
 }];
 push @tasks, &$staged_up("sse");
 push @tasks, &$staged_up("ui");
