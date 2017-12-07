@@ -15,7 +15,7 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
     posts: Values[HttpPost]
   ): Values[(SrcId, TxTransform)] =
     for(post ← posts if post.path == s"/manage/${actorName.value}")
-      yield WithPK(ManageHttpPostTx(post.srcId, post))
+      yield WithPK(ManageHttpPostTx(post))
 
   def joinConsumers(
     key: SrcId,
@@ -25,7 +25,7 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
       yield WithPK(LocalPostConsumer(s"/manage/${actorName.value}"))
 }
 
-case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
+case class ManageHttpPostTx(post: HttpPost) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index[Any, Product])(k: Any): List[String] =
     index.getOrElse(k,Nil).flatMap(v⇒s"$v".split("\n")).map(indent).toList

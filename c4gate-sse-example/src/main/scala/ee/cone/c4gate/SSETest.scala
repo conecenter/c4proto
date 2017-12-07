@@ -37,11 +37,12 @@ class TestSSEApp extends ServerApp
     tasks: Values[BranchTask]
   ): Values[(SrcId,BranchHandler)] = {
     //println(s"joinView ${tasks}")
-    for(task ← tasks) yield task.branchKey → TestSSEHandler(task.branchKey, task)
+    for(task ← tasks) yield WithPK(TestSSEHandler(task))
   }
 }
 
-case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler with LazyLogging {
+case class TestSSEHandler(task: BranchTask) extends BranchHandler with LazyLogging {
+  def branchKey: SrcId = task.branchKey
   def exchange: BranchMessage ⇒ Context ⇒ Context = message ⇒ local ⇒ {
     val now = Instant.now
     val (keepTo,freshTo) = task.sending(local)

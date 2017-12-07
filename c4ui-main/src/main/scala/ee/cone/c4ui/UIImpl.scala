@@ -28,8 +28,8 @@ case object VDomStateKey extends TransientLens[Option[VDomState]](None)
     tasks: Values[BranchTask],
     views: Values[View]
   ): Values[(SrcId,BranchHandler)] =
-    for(task ← tasks; view ← views) yield task.branchKey →
-      VDomBranchHandler(task.branchKey, VDomBranchSender(task),view)
+    for(task ← tasks; view ← views) yield
+      WithPK(VDomBranchHandler(VDomBranchSender(task),view))
 }
 
 case class VDomBranchSender(pass: BranchTask) extends VDomSender[Context] {
@@ -44,7 +44,8 @@ case class VDomMessageImpl(message: BranchMessage) extends VDomMessage {
   override def body: ByteString = message.body
 }
 
-case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[Context], view: VDomView[Context]) extends BranchHandler {
+case class VDomBranchHandler(sender: VDomSender[Context], view: VDomView[Context]) extends BranchHandler {
+  def branchKey: SrcId = sender.branchKey
   def vHandler: Context ⇒ VDomHandler[Context] =
     local ⇒ CreateVDomHandlerKey.of(local)(sender,view)
   def exchange: BranchMessage ⇒ Context ⇒ Context =

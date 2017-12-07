@@ -32,12 +32,12 @@ import ee.cone.c4vdom.Types.ViewRes
   ): Values[(SrcId,View)] = for {
     publicView ← publicViews
     task ← tasks
-  } yield WithPK(AssignedPublicView(task.branchKey,task,publicView))
+  } yield WithPK(AssignedPublicView(task,publicView))
 }
 
-case class AssignedPublicView(branchKey: SrcId, task: FromAlienTask, currentView: View) extends View {
+case class AssignedPublicView(task: FromAlienTask, currentView: View) extends View {
   def view: Context ⇒ ViewRes = Function.chain(Seq(
-    CurrentBranchKey.set(branchKey),
+    CurrentBranchKey.set(task.branchKey),
     CurrentSessionKey.set(task.fromAlienState.sessionKey)
   )).andThen(currentView.view)
 }

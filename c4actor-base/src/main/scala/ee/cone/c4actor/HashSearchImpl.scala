@@ -178,9 +178,6 @@ object HashSearchImpl {
     @by[ResponseId] respLines: Values[RespLine]
   ): Values[(SrcId,Response[RespLine])] = for {
     request ← requests
-  } yield {
-    val pk = ToPrimaryKey(request)
-    pk → Response(pk, request, respLines.toList.distinct)
-  }
+  } yield WithPK(Response(request, respLines.toList.distinct))
   //.foldRight(List.empty[RespLine])((line,res)⇒)
 }

@@ -60,17 +60,16 @@ case object EmptyBranchMessage extends BranchMessage {
 }
 
 case class BranchTxTransform(
-  branchKey: String,
+  handler: BranchHandler,
   seed: Option[BranchResult],
   sessionKeys: List[SrcId],
   posts: List[MessageFromAlien],
-  handler: BranchHandler,
   branchResults: ByPK[BranchResult]
 ) extends TxTransform {
   private def saveResult: Context ⇒ Context = local ⇒ {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
     //println(s"BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
-    val wasBranchResults = branchResults.of(local).get(branchKey).toList
+    val wasBranchResults = branchResults.of(local).get(handler.branchKey).toList
     //
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
@@ -97,7 +96,7 @@ case class BranchTxTransform(
         val children = branchResults.of(local).get(branchKey).toList.flatMap(_.children).map(_.hash)
         (branchKey :: children).mkString(",") :: children.flatMap(gather)
       }
-      val newReport = gather(branchKey).mkString(";")
+      val newReport = gather(handler.branchKey).mkString(";")
       if(newReport == wasReport) local
       else ReportAliveBranchesKey.set(newReport)
         .andThen(sendToAll("branches",newReport))(local)
@@ -117,7 +116,7 @@ case class BranchTxTransform(
   }.mkString("\n")
 
   private def reportError: String ⇒ Context ⇒ Context = text ⇒
-    sendToAll("fail",s"$branchKey\n$text")
+    sendToAll("fail",s"${handler.branchKey}\n$text")
 
   private def incrementErrors: Context ⇒ Context =
     ErrorKey.modify(new Exception :: _)
@@ -134,7 +133,7 @@ case class BranchTxTransform(
       val sessionKey = post.header("X-r-session")
       val index = post.header("X-r-index")
       if(sessionKey.isEmpty) post.rm
-      else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(post.rm)
+      else send(List(sessionKey), "ackChange", s"${handler.branchKey} $index").andThen(post.rm)
     }).andThen(ErrorKey.set(Nil))(local)
   }
 
@@ -186,7 +185,7 @@ case class BranchTxTransform(
   ): Values[(SrcId,BranchTask)] = {
     val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
     registry.byId.get(seed.valueTypeId).map(_.decode(seed.value.toByteArray))
-      .map(product => key → BranchTaskImpl(key, seeds, product, branchTasks)).toList
+      .map(product => WithPK(BranchTaskImpl(key, seeds, product, branchTasks))).toList
     // may result in some garbage branches in the world?
 
     //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
@@ -199,13 +198,13 @@ case class BranchTxTransform(
     handlers: Values[BranchHandler]
   ): Values[(SrcId,TxTransform)] =
     for(handler ← Single.option(handlers).toList)
-      yield key → BranchTxTransform(key,
+      yield WithPK(BranchTxTransform(
+        handler,
         seeds.headOption.map(_.seed),
         seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
         posts.sortBy(_.index).toList,
-        handler,
         branchResults
-      )
+      ))
 
   type SessionKey = SrcId
 

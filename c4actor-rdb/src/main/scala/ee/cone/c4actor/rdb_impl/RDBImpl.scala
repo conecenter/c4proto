@@ -68,7 +68,7 @@ object ToExternalDBTypes {
     for(item ← items; e ← LEvent.update(item)) yield {
       val u = toUpdate.toUpdate(e)
       val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
-      key → HasState(key,u.valueTypeId,u.value)
+      WithPK(HasState(key,u.valueTypeId,u.value))
     }
 }
 
@@ -87,7 +87,7 @@ object ToExternalDBTypes {
   def join(
     key: SrcId,
     @by[TypeHex] tasks: Values[ToExternalDBTask]
-  ): Values[(SrcId,TxTransform)] = List(key → ToExternalDBTx(key, tasks.toList))
+  ): Values[(SrcId,TxTransform)] = List(WithPK(ToExternalDBTx(key, tasks.toList)))
 }
 
 case class ToExternalDBTask(
@@ -165,7 +165,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
     key: SrcId,
     firsts: Values[Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List("externalDBSync").map(k⇒k→FromExternalDBSyncTransform(k,dbOffsets))
+    List(WithPK(FromExternalDBSyncTransform("externalDBSync",dbOffsets)))
 }
 
 case class FromExternalDBSyncTransform(

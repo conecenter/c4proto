@@ -24,16 +24,16 @@ abstract class TestTxTransformApp extends ServerApp
     key: SrcId,
     posts: Values[HttpPost]
   ): Values[(SrcId, TxTransform)] =
-    posts.map(post ⇒ post.srcId → TestDelayHttpPostHandler(post.srcId, post))
+    for(post ← posts) yield WithPK(TestDelayHttpPostHandler(post))
 }
 
-case class TestDelayHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
+case class TestDelayHttpPostHandler(post: HttpPost) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
-    logger.info(s"start handling $srcId")
+    logger.info(s"start handling ${post.srcId}")
     concurrent.blocking{
       Thread.sleep(1000)
     }
-    logger.info(s"finish handling $srcId")
+    logger.info(s"finish handling ${post.srcId}")
     TxAdd(delete[Product](post))(local)
   }
 }

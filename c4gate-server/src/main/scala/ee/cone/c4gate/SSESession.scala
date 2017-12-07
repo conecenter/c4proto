@@ -98,14 +98,13 @@ object SSEMessage {
 case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 
 case class SessionTxTransform( //?todo session/pongs purge
-    sessionKey: SrcId,
     fromAlien: FromAlienState,
     writes: Values[ToAlienWrite],
     purgePeriodSeconds: Int
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val now = Instant.now
-    val lastPongTime = LastPongKey.of(local)(sessionKey)
+    val lastPongTime = LastPongKey.of(local)(fromAlien.sessionKey)
       .getOrElse(Instant.ofEpochSecond(fromAlien.lastPongSecond))
     val lastPongAge = SECONDS.between(lastPongTime,now)
     val sender = GetSenderKey.of(local)(fromAlien.connectionKey)
@@ -148,7 +147,7 @@ case class SessionTxTransform( //?todo session/pongs purge
   ): Values[(SrcId,TxTransform)] =
     for(session ← fromAliens)
       yield WithPK(SessionTxTransform(
-        session.sessionKey, session, writes.sortBy(_.priority),
+        session, writes.sortBy(_.priority),
         sseConfig.stateRefreshPeriodSeconds + sseConfig.tolerateOfflineSeconds
       ))
 

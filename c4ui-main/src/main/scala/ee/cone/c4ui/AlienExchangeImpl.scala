@@ -31,11 +31,11 @@ case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
 }
 
 case class MessageFromAlienImpl(
-  srcId: String,
+  request: HttpPost,
   index: Long,
-  headers: Map[String,String],
-  request: HttpPost
+  headers: Map[String,String]
 ) extends MessageFromAlien {
+  def srcId: SrcId = request.srcId
   def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
   def body: ByteString = request.body
   def rm: Context ⇒ Context = TxAdd(delete(request))
@@ -52,7 +52,7 @@ case class MessageFromAlienImpl(
     ).toMap);
     branchKey ← headers.get("X-r-branch");
     index ← headers.get("X-r-index").map(_.toLong)
-  ) yield branchKey → MessageFromAlienImpl(post.srcId,index,headers,post)
+  ) yield branchKey → MessageFromAlienImpl(post,index,headers)
 
 
   def consumersForHandlers(

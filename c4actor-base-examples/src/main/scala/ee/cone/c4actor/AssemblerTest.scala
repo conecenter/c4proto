@@ -26,11 +26,10 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
   def joinParentNodeWithChildren(
     key: SrcId,
     @by[ParentSrcId] childNodes: Values[RawChildNode],
-    rawParentNode: Values[RawParentNode]
-  ): Values[(SrcId,ParentNodeWithChildren)] =
-    rawParentNode.map(parent ⇒
-      parent.srcId → ParentNodeWithChildren(parent.srcId, parent.caption, childNodes)
-    )
+    rawParentNodes: Values[RawParentNode]
+  ): Values[(SrcId,ParentNodeWithChildren)] = for {
+    parent ← rawParentNodes
+  } yield WithPK(ParentNodeWithChildren(parent.srcId, parent.caption, childNodes))
   /* todo:
   IO[SrcId,ParentNodeWithChildren](
     for(parent <- IO[SrcId,RawParentNode])

@@ -10,7 +10,7 @@ trait HashSearchFactory {
 
 object HashSearch {
   case class Request[Model<:Product](requestId: SrcId, condition: Condition[Model])
-  case class Response[Model<:Product](srcId: SrcId, request: Request[Model], lines: List[Model])
+  case class Response[Model<:Product](request: Request[Model], lines: List[Model])
   trait IndexBuilder[Model<:Product] {
     def add[By<:Product,Field](lens: ProdLens[Model,Field], by: By)(
       implicit ranger: Ranger[By,Field]

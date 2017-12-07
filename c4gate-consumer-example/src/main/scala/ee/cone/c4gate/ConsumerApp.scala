@@ -39,7 +39,7 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
     posts: Values[HttpPost]
   ): Values[(SrcId, TxTransform)] =
     for(post ← posts if post.path == "/abc")
-      yield WithPK(TestHttpPostHandler(post.srcId,post))
+      yield WithPK(TestHttpPostHandler(post))
 
   def needConsumer(
     key: SrcId,
@@ -62,7 +62,7 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
     List("GateTester"→GateTester(connections))*/
 }
 
-case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
+case class TestHttpPostHandler(post: HttpPost) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val resp = if(ErrorKey.of(local).nonEmpty) Nil else {
       val prev = new String(post.body.toByteArray, "UTF-8")
