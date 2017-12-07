@@ -8,30 +8,36 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.TestFilterProtocol.Content
-import ee.cone.c4proto.Id
+import ee.cone.c4proto._
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 class TestCoWorkApp extends ServerApp
   with `The EnvConfigImpl` with `The VMExecution`
-  with KafkaProducerApp with KafkaConsumerApp
+  with KafkaProducerApp with KafkaConsumerApp with FileRawSnapshotApp
   with `The ParallelObserverProvider` with TreeIndexValueMergerFactoryApp
-  with UIApp
-  with `The TestTagsImpl`
   with `The NoAssembleProfiler`
-  with ManagementApp
-  with FileRawSnapshotApp
+  with UIApp with ManagementApp
+  with `The PublicViewAssemble` with `The ByLocationHashView`
+  with `The TestTagsImpl`
+  with `The ReactAppAssemble`
+  ////
   with `The ModelAccessFactoryImpl`
-  with `The SessionAttrAccessFactoryImpl`
-  with `The ByLocationHashView`
+  with SessionAttrApp
   with `The TestCoWorkerView`
   with `The TestCoLeaderView`
   with `The ContentDefault`
   with `The TestFilterProtocol`
-  with `The ReactAppAssemble`
 
-//@fieldAccess
+
+@protocol object TestFilterProtocol {
+  @Id(0x0005) case class Content(
+    @Id(0x0006) sessionKey: String,
+    @Id(0x0007) value: String
+  )
+}
+
 object TestContentAccess {
   lazy val value: ProdLens[Content,String] = ProdLens.of(_.value)
 }

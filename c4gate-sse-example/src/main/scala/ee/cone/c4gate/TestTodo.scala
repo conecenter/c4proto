@@ -15,14 +15,14 @@ import ee.cone.c4vdom.Types.ViewRes
 
 class TestTodoApp extends ServerApp
   with `The EnvConfigImpl` with `The VMExecution`
-  with KafkaProducerApp with KafkaConsumerApp
+  with KafkaProducerApp with KafkaConsumerApp with FileRawSnapshotApp
   with `The ParallelObserverProvider` with TreeIndexValueMergerFactoryApp
-  with UIApp
-  with `The TestTagsImpl`
   with `The NoAssembleProfiler`
-  with ManagementApp
-  with FileRawSnapshotApp
-  with `The PublicViewAssemble`
+  with UIApp with ManagementApp
+  with `The PublicViewAssemble` with `The ByLocationHashView`
+  with `The TestTagsImpl`
+  with `The ReactAppAssemble`
+  ////
   with CommonFilterInjectApp
   with `The CommonFilterConditionChecksImpl`
   with `The FilterPredicateBuilderImpl`
@@ -32,10 +32,9 @@ class TestTodoApp extends ServerApp
   with `The ContainsAccessView`
   with SessionAttrApp
   with `The TestTodoRootView`
-  with `The ByLocationHashView`
   with `The CommonFilterProtocol`
   with `The TestTodoProtocol`
-  with `The ReactAppAssemble`
+
 
 @protocol object TestTodoProtocol {
   @Id(0x0001) case class TodoTask(

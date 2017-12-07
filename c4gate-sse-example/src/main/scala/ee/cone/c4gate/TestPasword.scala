@@ -2,7 +2,7 @@ package ee.cone.c4gate
 
 import java.time.Instant
 
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{ByPK, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
@@ -11,47 +11,38 @@ import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4actor.LEvent.update
 import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4vdom.Tags
 
 class TestPasswordApp extends ServerApp
   with `The EnvConfigImpl` with `The VMExecution`
-  with KafkaProducerApp with KafkaConsumerApp
+  with KafkaProducerApp with KafkaConsumerApp with FileRawSnapshotApp
   with `The ParallelObserverProvider` with TreeIndexValueMergerFactoryApp
-  with UIApp
-  with `The TestTagsImpl`
   with `The NoAssembleProfiler`
-  with ManagementApp
-  with FileRawSnapshotApp
-  with `The AuthProtocol`
-  with `The TestPasswordAssemble`
+  with UIApp with ManagementApp
+  with `The PublicViewAssemble` with `The ByLocationHashView`
+  with `The TestTagsImpl`
   with `The ReactAppAssemble`
-
-@assemble class TestPasswordAssemble {
-  def joinView(
-    key: SrcId,
-    fromAliens: Values[FromAlienTask]
-  ): Values[(SrcId,View)] =
-    for(
-      fromAlien ← fromAliens;
-      view ← Option(fromAlien.locationHash).collect{
-        case "password" ⇒ ??? //TestPasswordRootView(fromAlien.branchKey,fromAlien.fromAlienState)
-        case "anti-dos" ⇒ ??? //TestAntiDosRootView(fromAlien.branchKey)
-        case "failures" ⇒ ??? //TestFailuresRootView(fromAlien.branchKey,fromAlien.fromAlienState)
-      }
-    ) yield WithPK(view)
-}
+  ////
+  with `The AuthProtocol`
+  with `The TestPasswordRootView`
+  with `The TestAntiDosRootView`
+  with `The TestFailuresRootView`
 
 case object TestFailUntilKey extends TransientLens[(Instant,Instant)]((Instant.MIN,Instant.MIN))
-/*
-case class TestFailuresRootView(branchKey: SrcId, fromAlienState: FromAlienState) extends View {
-  def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local) { () ⇒
-    val mTags = TagsKey.of(local)
+
+@c4component @listed case class TestFailuresRootView(locationHash: String = "failures")(
+  tags: TestTags,
+  mTags: Tags, untilPolicy: UntilPolicy,
+  sessionFailures: ByPK[SessionFailures] @c4key
+) extends ByLocationHashView {
+  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     import mTags._
     val now = Instant.now
     val (from,to) = TestFailUntilKey.of(local)
     if(from.isBefore(now) && now.isBefore(to)) throw new Exception
 
-    val failures = ByPK(classOf[SessionFailures]).of(local)
-      .get(fromAlienState.sessionKey).toList.flatMap(_.failures)
+    val failures = sessionFailures.of(local)
+      .get(CurrentSessionKey.of(local)).toList.flatMap(_.failures)
       .map(err⇒text(err.srcId,s"[${err.text}]"))
     failures ::: List(
       divButton("bae"){(local:Context) ⇒
@@ -72,9 +63,10 @@ case class TestFailuresRootView(branchKey: SrcId, fromAlienState: FromAlienState
   }
 }
 
-case class TestAntiDosRootView(branchKey: SrcId) extends View {
-  def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local) { () ⇒
-    val mTags = TagsKey.of(local)
+@c4component @listed case class TestAntiDosRootView(locationHash: String = "anti-dos")(
+  mTags: Tags, untilPolicy: UntilPolicy
+) extends ByLocationHashView {
+  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     import mTags._
     List(
       text("text","press it many times and look at 429 in browser console: "),
@@ -86,12 +78,17 @@ case class TestAntiDosRootView(branchKey: SrcId) extends View {
   }
 }
 
-case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState) extends View {
-  def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
-    val tags = TestTagsKey.of(local)
-    val mTags = TagsKey.of(local)
-    val freshDB = ByPK(classOf[PasswordHashOfUser]).of(local).isEmpty
-    val userName = fromAlienState.userName
+@c4component @listed case class TestPasswordRootView(locationHash: String = "anti-dos")(
+  tags: TestTags,
+  mTags: Tags, untilPolicy: UntilPolicy,
+  hashes: ByPK[PasswordHashOfUser] @c4key,
+  passwordChangeRequests: ByPK[PasswordChangeRequest] @c4key,
+  fromAlienStates: ByPK[FromAlienState] @c4key
+) extends ByLocationHashView {
+  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
+    val freshDB = hashes.of(local).isEmpty
+    val sessionKey = CurrentSessionKey.of(local)
+    val userName = fromAlienStates.of(local)(sessionKey).userName
     println(userName,freshDB)
     if(userName.isEmpty && !freshDB){
       List(tags.signIn(newSessionKey ⇒ local ⇒ {
@@ -104,7 +101,7 @@ case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState
       List(
         tags.changePassword(message ⇒ local ⇒ {
           val reqId = tags.messageStrBody(message)
-          val requests = ByPK(classOf[PasswordChangeRequest]).of(local)
+          val requests = passwordChangeRequests.of(local)
           val updates = requests.get(reqId).toList
             .flatMap(req⇒update(PasswordHashOfUser("test",req.hash)))
           TxAdd(updates)(local)
@@ -112,6 +109,5 @@ case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState
       ) ++ userName.map(n⇒mTags.text("hint",s"signed in as $n"))
     }
   }
-
 }
-*/
+
