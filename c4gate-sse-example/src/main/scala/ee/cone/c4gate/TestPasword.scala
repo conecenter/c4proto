@@ -78,7 +78,7 @@ case object TestFailUntilKey extends TransientLens[(Instant,Instant)]((Instant.M
   }
 }
 
-@c4component @listed case class TestPasswordRootView(locationHash: String = "anti-dos")(
+@c4component @listed case class TestPasswordRootView(locationHash: String = "password")(
   tags: TestTags,
   mTags: Tags, untilPolicy: UntilPolicy,
   hashes: ByPK[PasswordHashOfUser] @c4key,
