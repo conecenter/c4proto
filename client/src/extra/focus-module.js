@@ -122,7 +122,10 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const onKeyDown = (event) =>{
 		if(nodesObj.length == 0) return
-		let best = null			
+		let best = null	
+        let isPrintable = false
+		const vk = event.code == "vk"
+		const detail = {key:event.key,vk}
 		switch(event.key){
 			case "ArrowUp":
 				best = findBestDistance(3);break;
@@ -140,20 +143,23 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				event.preventDefault();return;
 			case "F2":	
 			case "Enter":
-				sendEvent(()=>eventManager.create("enter"));break;					
+				sendEvent(()=>eventManager.create("enter",{detail}));break;					
 			case "Delete":
+			    sendEvent(()=>eventManager.create("delete"));break;	
 			case "Backspace":
-				sendEvent(()=>eventManager.create("delete"));break;			
+				sendEvent(()=>eventManager.create("backspace"));break;			
 			case "Insert":
 			case "c":
 				if(event.ctrlKey){
 					sendEvent(()=>eventManager.create("ccopy"))
-				}
-				break;				
+					break
+				}				
+			default:
+				isPrintable = true
 		}		
 		if(best) best.o.n.focus();				
-		if(isPrintableKeyCode(event.keyCode)) {			
-			sendEvent(()=>eventManager.create("delete",{detail:event.key}))
+		if(isPrintable && isPrintableKeyCode(event.key.charCodeAt(0))) {			
+			sendEvent(()=>eventManager.create("delete",{detail}))
 			const cRNode = callbacks.find(o=>o.el == currentFocusNode)
 			if(cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)
 		}			
@@ -233,6 +239,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			preferedFocusObj.el.focus()
 		}
 	},200)
+	const getFocusNode = () => currentFocusNode
 	const receivers = {focusTo}
-	return {reg,switchTo,checkActivate,receivers}
+	return {reg,switchTo,checkActivate,receivers,getFocusNode}
 }

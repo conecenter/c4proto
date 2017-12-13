@@ -68,7 +68,8 @@ const eventManager = (()=>{
 			default: return (new CustomEvent(type,params))
 		}
 	}
-	return {create}
+	const sendToWindow = (event)=> window.dispatchEvent(event)
+	return {create,sendToWindow}
 })()
 
 const miscReact = (()=>{
@@ -87,7 +88,7 @@ const miscReact = (()=>{
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,sender:requestState,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact});
+const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact});
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
@@ -141,7 +142,7 @@ const composeUrl = () => {
     const hostPort = port && port != 80 ? location.hostname+":"+(port+1) : location.host
     return location.protocol+"//"+hostPort+"/sse"
 }
-const createEventSource = () => new EventSource(window.sseUrl||composeUrl())
+const createEventSource = () => new EventSource(window.sseUrl||composeUrl()+"?"+(new Date()).getTime())
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)
 activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), [

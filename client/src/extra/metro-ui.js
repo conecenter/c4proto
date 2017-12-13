@@ -9,7 +9,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,press,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact}){
+export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact}){
 	const $ = React.createElement
 	const $C = React.createClass
 	const GlobalStyles = (()=>{
@@ -562,14 +562,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			return {touch:false,mouseDown:false};
 		},
 		onClick:function(ev){
+			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,keyCode:this.props.fkey.charCodeAt(0),bubbles:true,code:"vk"}))
 			if(this.props.onClick){
-				this.props.onClick(ev);
-				if(this.props.fkey) press(this.props.fkey)
+				this.props.onClick(ev);				
 				return;
-			}
-			if(this.props.fkey) press(this.props.fkey)
-			if(this.props.onClickValue)
-				this.props.onClickValue("key",this.props.fkey);
+			}			
 		},
 		onTouchStart:function(e){
 			this.setState({touch:true});
@@ -599,19 +596,104 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				$("button",{style:bStyle,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children));
 			},
 	});
-	const VirtualKeyboard = React.createClass({	  
+	const VirtualKeyboard = React.createClass({
+		getInitialState:function(){
+			return {left:"0px",top:"0px",show:false}
+		},
 		switchMode:function(e){			
 			if(this.props.onChange)
 				this.props.onChange({target:{headers:{"X-r-action":"change"},value:""}});
+		},		
+		updateState:function(pos,show){
+			let left = "0px"
+			let top = "0px"
+			if(pos != null) {
+				left = pos.left+"px"
+				top = pos.top+"px"
+			}
+			if(this.state.left !=left || this.state.top !=top || this.state.show!=show)
+				this.setState({left,top,show})
+		},
+		getPopupPos:function(thisEl,parentEl){
+			if(!thisEl||!parentEl) return null;
+			const vkContainer = getReactRoot().querySelector(".vk-container")
+			const pRect = parentEl.getBoundingClientRect()					
+			const popRect = thisEl.getBoundingClientRect()
+			if(vkContainer){
+				const cRect = vkContainer.getBoundingClientRect()
+				return {top:cRect.bottom - cRect.height/2,left:cRect.right - cRect.width/2}
+			}
+			const windowRect = getWindowRect()								
+			const rightEdge = pRect.right + popRect.width
+			const leftEdge = pRect.left - popRect.width
+			const bottomEdge = pRect.bottom + popRect.height
+			const topEdge = pRect.top - popRect.height;
+			let top = 0
+			let left = 0
+			
+			if(bottomEdge<=windowRect.bottom){					//bottom
+				left = pRect.left//rect.left - popRect.left
+				top = pRect.bottom				
+			}
+			else if(topEdge>windowRect.top){	//top
+				top = pRect.top - popRect.height
+				left = pRect.left														
+			}
+			else if(leftEdge>windowRect.left){	//left
+				left = pRect.left - popRect.width;
+				top = pRect.bottom - popRect.height/2;				
+			}
+			else if(rightEdge<=windowRect.right){
+				left = pRect.right;
+				top = pRect.bottom - popRect.height/2;				
+			}
+			
+			return {top,left}	
+		},
+		position:function(){
+			const cNode = focusModule.getFocusNode()
+			if(!cNode) return
+			const input = cNode.querySelector("input")
+			if(!input && this.state.show) return this.updateState(null,false)
+			if(input){
+				const dRect = input.getBoundingClientRect()
+				
+				if(!this.state.show && input == documentManager.activeElement()){
+					this.prevInp = input
+					return this.updateState(this.getPopupPos(this.el,input),true)
+				}
+				if(this.state.show && this.prevInp!=input){
+					this.prevInp = input
+					return this.updateState(this.getPopupPos(this.el,input),true)					
+				}
+			}
+		},
+		componentDidMount:function(){
+			checkActivateCalls.add(this.position)
+		},
+		componentWillUnmount:function(){
+			checkActivateCalls.remove(this.position)
 		},
 		render:function(){
 			const borderSpacing = '0.2em'
+			const positionStyle = {
+				position:"absolute",
+				marginTop:"",
+				backgroundColor:"white",
+				marginLeft:"",
+				marginRight:"",
+				zIndex:"1000",
+				left:this.state.left,
+				top:this.state.top,
+				display:this.state.show?"table":"none"
+			}
 			const tableStyle={
 				fontSize:'1.55em',
 				borderSpacing:borderSpacing,
 				marginTop:'-0.2em',
 				marginLeft:'auto',
 				marginRight:'auto',
+				...positionStyle,
 				...this.props.style
 			};
 			const tdStyle={				
@@ -630,6 +712,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				marginLeft:'auto',
 				marginRight:'auto',
 				lineHeight:'1.1',
+				...positionStyle,
 				...this.props.style
 			};			
 			const aKeyCellStyle={
@@ -669,8 +752,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const enterEl = $("img",{src:enterSvgData,style:{width:"90%",height:"100%"}},null);
 			const upEl = $("img",{src:upSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
 			const downEl = $("img",{src:downSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);			 
+			const ref = ref=> this.el=ref
 			if(this.props.simple && !this.props.alphaNumeric)
-			return $("table",{style:tableStyle,key:"1"},
+			return $("table",{style:tableStyle,key:"1",ref},
 				$("tbody",{key:"1"},[					  				   					  
 				   $("tr",{key:"3"},[
 						...[7,8,9].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),						  
@@ -678,7 +762,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				   ]),					   
 				   $("tr",{key:"4"},[
 						...[4,5,6].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
-						$(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1",fkey:"delete"},"C")
+						$(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1",fkey:"Delete"},"C")
 				   ]),
 				   $("tr",{key:"5"},[
 					   ...[1,2,3].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
@@ -691,11 +775,11 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			); 
 			else
 			if(!this.props.alphaNumeric && !this.props.simple)
-			return $("table",{style:tableStyle,key:"1"},
+			return $("table",{style:tableStyle,key:"1",ref},
 				$("tbody",{key:"1"},[
 				   $("tr",{key:"0"},[
 					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
-					   $(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1c",fkey:"delete"},"C"),					  
+					   $(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1c",fkey:"Delete"},"C"),					  
 					   $(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode,fkey:"Enter"},'ABC...'),
 				   ]),					   
 				   !this.props.noFuncKeys?$("tr",{key:"1"},[
@@ -726,7 +810,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			   ])
 			);
 			else
-			return $("div",{key:"1"},[ 
+			return $("div",{key:"1",ref},[ 
 				!this.props.simple?$("table",{style:{...aTableStyle,fontSize:tableStyle.fontSize,...(this.props.noFuncKeys?{marginRight:""}:{})},key:"1"},
 					$("tbody",{key:"1"},[
 						$("tr",{key:"1"},!this.props.noFuncKeys?[
@@ -789,14 +873,34 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 		},
 	});	
 
-	const TableElement = ({style,children})=>$("table",{style:{
-		borderCollapse:'separate',
-		borderSpacing:GlobalStyles.borderSpacing,
-		width:'100%',
-		lineHeight:"1.1",
-		minWidth:"0",
-		...style
-	}},children);
+	const TableElement = $C({
+		check:function(){
+			if(!this.el) return			
+			const dRect = this.el.getBoundingClientRect()
+			const pdRect = this.el.parentNode.getBoundingClientRect()
+			if(dRect.width>pdRect.width&&!this.prev&&this.prev!=dRect.width){
+				this.props.onClickValue("change",dRect.width.toString())
+				this.prev = dRect.width
+			}
+		},
+		componentDidMount:function(){
+			if(this.props.dynamic) checkActivateCalls.add(this.check)
+		},
+		componentWillUnmount:function(){
+			if(this.props.dynamic) checkActivateCalls.remove(this.check)
+		},
+		render:function(){
+			const {style,children} = this.props
+			return $("table",{style:{
+					borderCollapse:'separate',
+					borderSpacing:GlobalStyles.borderSpacing,
+					width:'100%',
+					lineHeight:"1.1",
+					minWidth:"0",
+					...style
+					},ref:ref=>this.el=ref},children); 
+		}
+	})
 	const THeadElement = React.createClass({
 		getInitialState:function(){
 			return {dims:null,floating:false};
@@ -929,7 +1033,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			}*/
 		},
 		render:function(){
-			const {style,colSpan,children} = this.props
+			const {style,colSpan,children,rowSpan} = this.props
+			const rowSpanObj = rowSpan?{rowSpan}:{}
 			const nodeType = this.props.nodeType?this.props.nodeType:"th"
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
@@ -961,8 +1066,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			onMouseUp:this.onMouseUp,
 			onTouchEnd:this.onMouseUp,
 			className:className,
+			...rowSpanObj,
 			...tabIndex,
-			...focusActions
+			...focusActions,			
 			},children)
 		}
 	})
@@ -1081,10 +1187,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			}
 			return false
 		},
+		isVkEvent:function(event){
+			return event.detail && typeof event.detail == "object"?event.detail.vk:false			
+		},
 		getInput:function(){ return this.inp2||this.inp},
 		onEnter:function(event){
 			log(`Enter ;`)
-			if(!this.doIfNotFocused((inp)=>{
+			if(this.isVkEvent(event) || !this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.selectionEnd = inp.value.length
 				inp.selectionStart = inp.value.length
@@ -1095,16 +1204,31 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			event.stopPropagation()
 		},
 		onDelete:function(event){
-			//log(`Delete`)
+			log(`Delete`)
 			event.stopPropagation()
 			if(this.props.noDel) return
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
-				inp.value = ""
-				const cEvent = eventManager.create("input",{bubbles:true})
+				if(this.isVkEvent(event)){					
+					inp.value = inp.value+event.detail.key
+				}
+				else 
+					inp.value = ""
+				const cEvent = eventManager.create("input",{bubbles:true})				
 				inp.dispatchEvent(cEvent)
 			})					
 			
+		},
+		onBackspace:function(event){
+			log(`Backspace`)
+			event.stopPropagation()
+			if(this.props.noDel) return
+			this.doIfNotFocused((inp)=>{				
+				this.prevval = inp.value
+				inp.value = inp.value.slice(0,-1)
+				const cEvent = eventManager.create("input",{bubbles:true})				
+				inp.dispatchEvent(cEvent)
+			})
 		},
 		onPaste:function(event){
 			//log(`Paste`)
@@ -1130,6 +1254,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const inp = this.getInput()			
 			inp.addEventListener('enter',this.onEnter)
 			inp.addEventListener('delete',this.onDelete)
+			inp.addEventListener('backspace',this.onBackspace)
 			inp.addEventListener('cpaste',this.onPaste)
 			inp.addEventListener('ccopy',this.onCopy)
 		},
@@ -1137,6 +1262,7 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			const inp = this.getInput()			
 			inp.removeEventListener('enter',this.onEnter)
 			inp.removeEventListener('delete',this.onDelete)
+			inp.removeEventListener('backspace',this.onBackspace)
 			inp.removeEventListener('cpaste',this.onPaste)
 			inp.removeEventListener('ccopy',this.onCopy)
 			if(this.dragBinding) this.dragBinding.releaseDD()
@@ -2656,28 +2782,18 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 	})
 	const FilterContainerElement = $C({
 		getInitialState:function(){
-			return {shown:[],singleHeight:"0px"}
-		},
-		equal:function(toShow){
-			if(this.state.shown.length!=toShow.length) return false
-			for(let i=0;i<toShow.length;i++)
-				if(this.state.show[i]!=toShow[i]) return false
-			return true
-		},
+			return {singleHeight:"0px"}
+		},		
 		isOverflown:function(){
 			if(!this.el) return;
 			const e = this.el;
 			const p = e.parentNode.getBoundingClientRect()
 			const c = Array.from(e.children)
-			/*const toShow = c.map(_=>{
-				const n=_.getBoundingClientRect()
-				if(!(p.top<=n.top&&p.bottom>=n.bottom&&p.left<=n.left&&p.right>=n.right)) return true;
-				return false;
-				})
-			if(!this.equal(toShow))	*/
-			const singleHeight = c.length>0?c[0].getBoundingClientRect().height+"px":"auto"
+			
+			
+			const singleHeight = c.length>0?c[0].getBoundingClientRect().height+"px":"auto"			
 			if(singleHeight != this.state.singleHeight)
-				this.setState({/*shown:toShow,*/singleHeight:singleHeight})
+				this.setState({singleHeight:singleHeight})
 			
 		},
 		componentDidMount:function(){			
@@ -2714,9 +2830,13 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 				transform:this.props.open?"rotate(180deg)":"",
 				transition:"transform 140ms"
 			}
+			const chToShow = () => {
+				const chld = this.props.children.filter(_=>_.props.incoming.at.active)
+				return chld.length>0?chld:this.props.children.slice(0,1)
+			}
 			const children = /*Array.isArray(this.props.children)?this.props.children.map((_,i)=>{
 				return $("div",{key:i,style:fStyle(this.state.shown[i]),},_)
-			}):*/this.props.children
+			}):*/this.props.open?this.props.children:chToShow();
 			const arrowSvg = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 								 width="1em" height="1em" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
 								 xml:space="preserve">
@@ -2732,6 +2852,9 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			])
 		}
 	})
+	const FilterElement = ({active,children}) => {		
+		return $("div",{},children)
+	}
 	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
@@ -2773,7 +2896,8 @@ export default function MetroUi({log,sender,press,svgSrc,fileReader,documentMana
 			ConfirmationOverlayElement,
 			DragDropHandlerElement,
 			DragDropDivElement,
-			FilterContainerElement
+			FilterContainerElement,
+			FilterElement
 		},
 		onClickValue,		
 		onReadySendBlob,
