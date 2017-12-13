@@ -562,7 +562,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return {touch:false,mouseDown:false};
 		},
 		onClick:function(ev){
-			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,keyCode:this.props.fkey.charCodeAt(0),bubbles:true,code:"vk"}))
+			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
 			if(this.props.onClick){
 				this.props.onClick(ev);				
 				return;
@@ -617,11 +617,11 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		getPopupPos:function(thisEl,parentEl){
 			if(!thisEl||!parentEl) return null;
 			const vkContainer = getReactRoot().querySelector(".vk-container")
-			const pRect = parentEl.getBoundingClientRect()					
+			const pRect = parentEl.parentNode.getBoundingClientRect()					
 			const popRect = thisEl.getBoundingClientRect()
 			if(vkContainer){
 				const cRect = vkContainer.getBoundingClientRect()
-				return {top:cRect.bottom - cRect.height/2,left:cRect.right - cRect.width/2}
+				return {top:cRect.top,left:cRect.left}
 			}
 			const windowRect = getWindowRect()								
 			const rightEdge = pRect.right + popRect.width
@@ -641,11 +641,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			else if(leftEdge>windowRect.left){	//left
 				left = pRect.left - popRect.width;
-				top = pRect.bottom - popRect.height/2;				
+				top = pRect.bottom - popRect.height/2;
+				if(top<windowRect.top)
+					top = windowRect.top
 			}
 			else if(rightEdge<=windowRect.right){
 				left = pRect.right;
-				top = pRect.bottom - popRect.height/2;				
+				top = pRect.bottom - popRect.height/2;
+				if(top<windowRect.top)
+					top = windowRect.top
 			}
 			
 			return {top,left}	
@@ -708,11 +712,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const aTableStyle={
 				fontSize:'1.85em',
 				borderSpacing:borderSpacing,
-				marginTop:'-0.2em',
+				marginTop:'0em',
 				marginLeft:'auto',
 				marginRight:'auto',
-				lineHeight:'1.1',
-				...positionStyle,
+				lineHeight:'1.1',				
 				...this.props.style
 			};			
 			const aKeyCellStyle={
@@ -780,7 +783,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				   $("tr",{key:"0"},[
 					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
 					   $(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1c",fkey:"Delete"},"C"),					  
-					   $(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode,fkey:"Enter"},'ABC...'),
+					   $(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
 				   ]),					   
 				   !this.props.noFuncKeys?$("tr",{key:"1"},[
 						...["F1","F2","F3","F4","F5"].map(e=>$(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   					   
@@ -810,13 +813,13 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			   ])
 			);
 			else
-			return $("div",{key:"1",ref},[ 
+			return $("div",{key:"1",ref,style:positionStyle},[ 
 				!this.props.simple?$("table",{style:{...aTableStyle,fontSize:tableStyle.fontSize,...(this.props.noFuncKeys?{marginRight:""}:{})},key:"1"},
 					$("tbody",{key:"1"},[
 						$("tr",{key:"1"},!this.props.noFuncKeys?[
 							...["F1","F2","F3","F4","F5","F6","F7","F8","F9","F10"].map(e=>$(VKTd,{style:specialAKeyCellStyle,key:e,fkey:e},e)),																
 							$(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'),
-						]:$(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10",fkey:"Enter"},'123...'))
+						]:$(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'))
 					])
 				):null,
 				$("table",{style:aTableStyle,key:"2-extras"},
@@ -878,8 +881,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(!this.el) return			
 			const dRect = this.el.getBoundingClientRect()
 			const pdRect = this.el.parentNode.getBoundingClientRect()
-			if(dRect.width>pdRect.width&&!this.prev&&this.prev!=dRect.width){
-				this.props.onClickValue("change",dRect.width.toString())
+			if(this.prev!=dRect.width){
+				if(dRect.width>pdRect.width)
+					this.props.onClickValue("change",dRect.width.toString())					
 				this.prev = dRect.width
 			}
 		},

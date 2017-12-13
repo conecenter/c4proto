@@ -153,12 +153,23 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				if(event.ctrlKey){
 					sendEvent(()=>eventManager.create("ccopy"))
 					break
-				}				
+				}
+			case "F1":
+			case "F2":
+			case "F3":
+			case "F4":
+			case "F5":
+			case "F6":
+			case "F7":
+			case "F8":
+			case "F9":
+			case "F10":
+				break;
 			default:
 				isPrintable = true
 		}		
 		if(best) best.o.n.focus();				
-		if(isPrintable && isPrintableKeyCode(event.key.charCodeAt(0))) {			
+		if(isPrintable && isPrintableKeyCode(event.key)) {			
 			sendEvent(()=>eventManager.create("delete",{detail}))
 			const cRNode = callbacks.find(o=>o.el == currentFocusNode)
 			if(cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)
@@ -198,10 +209,12 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	addEventListener("keydown",onKeyDown)
 	addEventListener("paste",onPaste)
 	addEventListener("cTab",onTab)	
-	const isPrintableKeyCode = 	(kc) => (kc == 32 || (kc >= 48 && kc <= 57) || 
+	/*const isPrintableKeyCode = 	(kc) => (kc == 32 || (kc >= 48 && kc <= 57) || 
 								(kc >= 65 && kc <= 90) || (kc >= 186 && kc <= 192) || 
 								(kc >= 219 && kc <= 222) || kc == 226 || kc == 110 || 
 								(kc >= 96 && kc <= 105) || kc == 106 || kc == 107 || kc == 109)
+								*/
+	const isPrintableKeyCode = (ch)	=> "abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase())
 
 	const doCheck = () => {
 		const root = getReactRoot();
