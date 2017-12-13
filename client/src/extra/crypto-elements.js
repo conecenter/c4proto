@@ -27,7 +27,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 	const sendPositiveAuth = function(){
 		const digisign = parentWindow().digisign
 		digisign&&digisign.sendPositiveAuth()
-	}
+	}	
 	const DigiModule = function(){
 		const callbacksAcc = [];
 		let userCertificate = null;
@@ -41,8 +41,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			if(userCertificate) {callback(userCertificate); return}
 			hwcrypto.getCertificate({}).then(
 				certificate=> {
-					userCertificate = certificate
-					//log(certificate)
+					userCertificate = certificate					
 					callback(certificate)										
 				},
 				error=>{
@@ -61,7 +60,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 				headers:{
 					"X-r-app":app,
 					"X-r-type":type,
-					"X-r-mdkey":getIdKey(),
+					"X-r-mdkey":getIdKey(),					
 					"X-r-branch":branchKey
 				},
 				body:value
@@ -85,9 +84,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			if(certificate == null)
 				sendToServer(this.props.branchKey,"error","")
 			else
-				sendToServer(this.props.branchKey,"certificate",certificate.encoded)
-			//if(this.props.onReadySendBlob)						
-			//	this.props.onReadySendBlob(getIdKey(),certificate.encoded);
+				sendToServer(this.props.branchKey,"certificate",certificate.encoded)			
 		},
 		componentDidMount:function(){
 			DigiModule.requestCertificate(this.onCertificate);
@@ -104,11 +101,8 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		onCertificate:function(certificate){
 			const digest64 = this.props.digest
 			const digest = Uint8Array.from(atob(digest64), c => c.charCodeAt(0))			
-			hwcrypto.sign(certificate, {type: 'SHA-256', value: digest}, {}).then(signature => {			  
-				//log(signature);
-				sendToServer(this.props.branchKey,"signature",signature.value)
-			  //if(this.props.onReadySendBlob)
-			//	  this.props.onReadySendBlob(getIdKey(),signature.value)
+			hwcrypto.sign(certificate, {type: 'SHA-256', value: digest}, {}).then(signature => {				
+				sendToServer(this.props.branchKey,"signature",signature.value)			 
 		    }, error =>{
 				sendToServer(this.props.branchKey,"error","")
 				sendError(error.toString())}
@@ -141,8 +135,9 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			this.setState({width:(halves[0]*100/halves[1])})
 			if(halves.length == 2 && halves[0] == halves[1]){
 				if(!sentPositiveSign){
+					sendToServer(this.props.branchKey,"success","")
 					sendPositiveSign()					
-					sentPositiveSign = true;
+					sentPositiveSign = true;					
 				}
 			}
 			return true;
@@ -187,6 +182,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 			}
 			const caption = !this.props.caption?getPrepText():this.props.caption
 			const bp = "666"
+			if(!this.props.caption && sentPositiveSign) return $('span',{id:"reportDigi"})
 			return $(FlexGroup,{id:"reportDigi",style,caption,bp},[
 				$("div",{key:"progress",style:progressStyle},
 					$("div",{style:progressIndStyle})
@@ -208,6 +204,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		},
 		reportAuth:function(authMsg){
 			if(authMsg && !sentAuth){
+				sendToServer(this.props.branchKey,"success","")
 				sendPositiveAuth()
 				sentAuth = true
 			}
