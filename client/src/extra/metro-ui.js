@@ -590,15 +590,17 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				color:'inherit',
 				...((this.state.touch||this.state.mouseDown)?{backgroundColor:"rgb(25, 118, 210)"}:{}),
 				...this.props.bStyle
-			};			
+			};
+			const className = "vkElement"
 			return $("td",{style:this.props.style,
 				colSpan:this.props.colSpan,rowSpan:this.props.rowSpan,onClick:this.onClick},
-				$("button",{style:bStyle,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children));
+				$("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children));
 			},
 	});
+	let showVk = false
 	const VirtualKeyboard = React.createClass({
 		getInitialState:function(){
-			return {left:"0px",top:"0px",show:false}
+			return {left:"0px",top:"0px"}
 		},
 		switchMode:function(e){			
 			if(this.props.onChange)
@@ -611,8 +613,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				left = pos.left+"px"
 				top = pos.top+"px"
 			}
-			if(this.state.left !=left || this.state.top !=top || this.state.show!=show)
-				this.setState({left,top,show})
+			if(this.state.left !=left || this.state.top !=top || showVk!=show){
+				showVk = show
+				this.setState({left,top})
+			}
 		},
 		getPopupPos:function(thisEl,parentEl){
 			if(!thisEl||!parentEl) return null;
@@ -621,7 +625,16 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const popRect = thisEl.getBoundingClientRect()
 			if(vkContainer){
 				const cRect = vkContainer.getBoundingClientRect()
-				return {top:cRect.top,left:cRect.left}
+				const bm = vkContainer.dataset.position == "bm"				
+				const mdt = (popRect.height + cRect.height)/2
+				const mdl = (popRect.width + cRect.width)/2
+				let top = cRect.height>popRect.height? cRect.bottom-mdt:popRect.top-mdt
+				let left = cRect.width>popRect.width? cRect.right- mdl:popRect.right- mdl
+				
+				if(bm){
+					top = cRect.bottom-popRect.height
+				}
+				return {top,left}
 			}
 			const windowRect = getWindowRect()								
 			const rightEdge = pRect.right + popRect.width
@@ -659,14 +672,17 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(!cNode) return
 			const input = cNode.querySelector("input")
 			if(!input && this.state.show) return this.updateState(null,false)
+			if(showVk && !documentManager.activeElement().classList.contains("vkElement") && input != documentManager.activeElement())
+				return this.updateState(null,false)				
 			if(input){
 				const dRect = input.getBoundingClientRect()
 				
-				if(!this.state.show && input == documentManager.activeElement()){
+				if(!showVk && input == documentManager.activeElement()){
 					this.prevInp = input
 					return this.updateState(this.getPopupPos(this.el,input),true)
-				}
-				if(this.state.show && this.prevInp!=input){
+				}				
+				
+				if(showVk && this.prevInp!=input){
 					this.prevInp = input
 					return this.updateState(this.getPopupPos(this.el,input),true)					
 				}
@@ -688,8 +704,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				marginRight:"",
 				zIndex:"1000",
 				left:this.state.left,
-				top:this.state.top,
-				display:this.state.show?"table":"none"
+				top:this.state.top,				
+				visibility:showVk?"visible":"hidden"
 			}
 			const tableStyle={
 				fontSize:'1.55em',
@@ -712,7 +728,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const aTableStyle={
 				fontSize:'1.85em',
 				borderSpacing:borderSpacing,
-				marginTop:'0em',
+				marginTop:'-0.2em',
 				marginLeft:'auto',
 				marginRight:'auto',
 				lineHeight:'1.1',				
@@ -797,11 +813,11 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				   ]),
 				   $("tr",{key:"3"},[
 						...[7,8,9].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowup",fkey:"ArrowUp"},upEl),
+					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',style:{...tdStyle,minWidth:'2em',height:"100%",width:"auto"},key:"arrowup",fkey:"ArrowUp"},upEl),
 				   ]),					   
 				   $("tr",{key:"4"},[
 						...[4,5,6].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',style:{...tdStyle,minWidth:'2rem',height:"100%",width:"auto"},key:"arrowdown",fkey:"ArrowDown"},downEl),
+					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',style:{...tdStyle,minWidth:'2em',height:"100%",width:"auto"},key:"arrowdown",fkey:"ArrowDown"},downEl),
 				   ]),
 				   $("tr",{key:"5"},[
 						...[1,2,3].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
@@ -827,7 +843,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 						$("tr",{key:"1"},[
 							$(VKTd,{onClickValue:this.props.onClickValue,style:specialAKeyCellAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
 							...[":",";","/","*",".","+",",","-"].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
-							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,height:"100%",width:"auto",minWidth:"2em"},bStyle:{fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
+							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,width:"auto",minWidth:"2em"},bStyle:{fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
 						]),
 					])
 				),
@@ -849,7 +865,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					$("tbody",{key:"1"},[
 						$("tr",{key:"1"},[
 							...Array.from("ASDFGHJKL").map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
-							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellStyle,minWidth:"2.5rem",height:"100%"},rowSpan:"2",key:"10",fkey:"Enter"},enterEl),
+							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellStyle,minWidth:"2.2em"},rowSpan:"2",key:"10",fkey:"Enter"},enterEl),
 						]),
 						$("tr",{key:"2"},[
 							$("td",{style:{...aKeyCellStyle,fontSize:"1em",backgroundColor:'transparent',border:'none'},colSpan:"9",key:"1"},[
@@ -857,13 +873,13 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 									$("tbody",{key:"1"},[
 										$("tr",{key:"1"},[
 											...Array.from("ZXCVBNM").map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),												
-											$(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"100%"},key:"8",fkey:"ArrowUp"},upEl),
+											$(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2em'},key:"8",fkey:"ArrowUp"},upEl),
 										]),
 										$("tr",{key:"2"},[
 											$(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"1"},''),
 											$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,colSpan:"5",key:"2",fkey:" "},'SPACE'),
 											$(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"3"},''),
-											$(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2rem',height:"100%"},key:"4",fkey:"ArrowDown"},downEl),
+											$(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2em'},key:"4",fkey:"ArrowDown"},downEl),
 										]),
 									])
 								),
