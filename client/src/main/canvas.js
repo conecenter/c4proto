@@ -476,6 +476,7 @@ export function DragViewPositionCanvasSetup(canvas){
     }
     function handleWheel(ev){
         if(ev.ctrlKey) return;
+		if(!ev.altKey) return;
         const time = Date.now()
         const mousePos = { x:ev.clientX, y:ev.clientY, t:time }
         const mouseRelPos = canvas.relPos(canvas.visibleElement(), mousePos)
