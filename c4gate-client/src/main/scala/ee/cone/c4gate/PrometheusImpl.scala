@@ -8,7 +8,7 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, JoinKey, assemble}
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.HttpProtocol.HttpPublication
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -54,11 +54,14 @@ case class PrometheusTx(path: String) extends TxTransform {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
     val bodyStr = local.assembled.collect {
-      case (worldKey, index: Map[_, _]) ⇒ s"$worldKey" → index.size
+      case (worldKey:JoinKey[_,_], index: Map[_, _])
+        if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
+        worldKey.valueClassName → index.size
     }.toList.sorted.map{
-      case (k,v) ⇒ s"""c4index_key_count{key="$k"} $v $time"""
+      case (k,v) ⇒ s"""c4index_key_count{valClass="$k"} $v $time"""
     }.mkString("","\n","\n")
     val body = okio.ByteString.encodeUtf8(bodyStr)
+    //todo move gzipper to base and use it here
     val nextTime = time + 15000
     val invalidateTime = nextTime + 5000
     val publication = HttpPublication(path, Nil, body, Option(invalidateTime))
