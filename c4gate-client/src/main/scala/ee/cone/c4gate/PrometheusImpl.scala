@@ -13,6 +13,8 @@ import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.HttpProtocol.HttpPublication
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
+import scala.collection.immutable
+
 @protocol object ActorAccessProtocol extends Protocol {
   @Id(0x006A) case class ActorAccessKey(
     @Id(0x006B) srcId: String,
@@ -53,13 +55,19 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
 case class PrometheusTx(path: String) extends TxTransform {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
-    val bodyStr = local.assembled.collect {
+    val runtime = Runtime.getRuntime
+    val memStats: List[(String, Long)] = List( //seems to be: max > total > free
+      "runtime_mem_max" → runtime.maxMemory,
+      "runtime_mem_total" → runtime.totalMemory,
+      "runtime_mem_free" → runtime.freeMemory
+    )
+    val keyCounts: List[(String, Long)] = local.assembled.collect {
       case (worldKey:JoinKey[_,_], index: Map[_, _])
         if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
-        worldKey.valueClassName → index.size
-    }.toList.sorted.map{
-      case (k,v) ⇒ s"""c4index_key_count{valClass="$k"} $v $time"""
-    }.mkString("","\n","\n")
+        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → index.size.toLong
+    }.toList
+    val metrics = memStats ::: keyCounts
+    val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
     val body = okio.ByteString.encodeUtf8(bodyStr)
     //todo move gzipper to base and use it here
     val nextTime = time + 15000
