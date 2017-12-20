@@ -1,7 +1,10 @@
 package ee.cone.c4gate
 
+
 trait ManagementApp extends `The ManagementPostAssemble`
   with `The PostConsumerAssemble` with `The PostConsumerAssembles`
+  with `The ActorAccessAssemble` with `The ActorAccessProtocol`
+  with `The PrometheusAssemble`
 
 /*
 *

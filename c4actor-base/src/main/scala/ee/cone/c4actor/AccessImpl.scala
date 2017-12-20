@@ -11,7 +11,7 @@ import ee.cone.c4assemble.ToPrimaryKey
 }
 
 case class AccessImpl[P](
-  initialValue: P, updatingLens: Option[Lens[Context, P]], metaList: List[MetaAttr]
+  initialValue: P, updatingLens: Option[Lens[Context, P] with Product], metaList: List[MetaAttr]
 ) extends Access[P] {
   def to[V](inner: ProdLens[P,V]): Access[V] = {
     val rValue = inner.of(initialValue)
@@ -22,7 +22,7 @@ case class AccessImpl[P](
 }
 
 case class ComposedLens[C,T,I](
-  outer: Lens[C,T], inner: Lens[T,I]
+  outer: Lens[C,T] with Product, inner: Lens[T,I] with Product
 ) extends AbstractLens[C,I] {
   def set: I ⇒ C ⇒ C = item ⇒ outer.modify(inner.set(item))
   def of: C ⇒ I = container ⇒ inner.of(outer.of(container))
