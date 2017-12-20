@@ -2963,7 +2963,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.recalc()
 		},
 		render:function(){
-			const {onChange,style,children,isOpen} = this.props
+			const {onChange,style,children,isOpen, value} = this.props
 			return React.createElement('div',{
 				className:"colorPicker",
 				style: {
@@ -2985,7 +2985,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 									...style
 								},
 								onClick: ev => onChange({target:{headers:{"X-r-action":"change"},value:""} })
-						}, null),
+						}, value),
 						isOpen?React.createElement('div', {
 								key:'2',
 								style: {
