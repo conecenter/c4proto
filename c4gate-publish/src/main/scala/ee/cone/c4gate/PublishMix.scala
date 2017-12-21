@@ -20,7 +20,7 @@ class PublishApp extends ServerApp
   def txObserver = None
 }
 
-trait PublishingApp extends ProtocolsApp with InitialObserversApp {
+trait PublishingApp extends ProtocolsApp with InitialObserversApp with GzipCompressorApp {
   def config: Config
   def qMessages: QMessages
   def mimeTypes: Map[String,String]
@@ -28,7 +28,7 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp {
 
   private lazy val publishDir = "htdocs"
   private lazy val publishingObserver =
-    new PublishingObserver(qMessages,publishDir,publishFromStrings,mimeTypes.get)
+    new PublishingObserver(compressor,qMessages,publishDir,publishFromStrings,mimeTypes.get)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers

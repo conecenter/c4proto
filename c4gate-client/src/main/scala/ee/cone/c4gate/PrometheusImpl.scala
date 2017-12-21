@@ -10,7 +10,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, JoinKey, assemble}
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
-import ee.cone.c4gate.HttpProtocol.HttpPublication
+import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 import scala.collection.immutable
@@ -37,7 +37,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
     TxAdd(LEvent.update(ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssemble extends Assemble {
+@assemble class PrometheusAssemble(compressor: Compressor) extends Assemble {
   def join(
     key: SrcId,
     firsts: Values[Firstborn],
@@ -48,11 +48,11 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
   } yield {
     val path = s"/${accessKey.value}-metrics"
     println(s"Prometheus metrics at $path")
-    WithPK(PrometheusTx(path))
+    WithPK(PrometheusTx(path, compressor))
   }
 }
 
-case class PrometheusTx(path: String) extends TxTransform {
+case class PrometheusTx(path: String, compressor: Compressor) extends TxTransform {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
     val runtime = Runtime.getRuntime
@@ -68,11 +68,11 @@ case class PrometheusTx(path: String) extends TxTransform {
     }.toList
     val metrics = memStats ::: keyCounts
     val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
-    val body = okio.ByteString.encodeUtf8(bodyStr)
-    //todo move gzipper to base and use it here
+    val body = compressor.compress(okio.ByteString.encodeUtf8(bodyStr))
+    val headers = List(Header("Content-Encoding", compressor.name))
     val nextTime = time + 15000
     val invalidateTime = nextTime + 5000
-    val publication = HttpPublication(path, Nil, body, Option(invalidateTime))
+    val publication = HttpPublication(path, headers, body, Option(invalidateTime))
     TxAdd(LEvent.update(publication)).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))(local)
   }
 }

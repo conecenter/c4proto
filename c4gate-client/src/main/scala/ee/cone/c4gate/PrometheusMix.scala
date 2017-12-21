@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{AssemblesApp, ProtocolsApp}
+import ee.cone.c4actor.{AssemblesApp, GzipCompressorApp, ProtocolsApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.Protocol
 
@@ -11,7 +11,7 @@ trait ActorAccessApp extends AssemblesApp with ProtocolsApp {
     ActorAccessProtocol :: super.protocols
 }
 
-trait PrometheusApp extends AssemblesApp with ProtocolsApp {
+trait PrometheusApp extends AssemblesApp with ProtocolsApp with GzipCompressorApp {
   override def assembles: List[Assemble] =
-    new PrometheusAssemble :: super.assembles
+    new PrometheusAssemble(compressor) :: super.assembles
 }
