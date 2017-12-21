@@ -6,19 +6,22 @@ import java.nio.file._
 
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
-import okio.{Buffer, GzipSink}
+import okio.{Buffer, ByteString, GzipSink}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
+
 import ee.cone.c4actor.Types._
+import ee.cone.c4proto.ToByteString
 
 //todo un-publish
 
 @c4component @listed case class PublishInitialObserversProvider(
+  compressor: Compressor,
   qMessages: QMessages, publishDir: PublishDir, publishConfig: PublishConfig,
   httpPublications: ByPK[HttpPublication] @c4key
 )(
-  observer: Observer = new PublishingObserver(qMessages,publishDir,publishConfig,httpPublications)
+  observer: Observer = new PublishingObserver(compressor, qMessages,publishDir,publishConfig,httpPublications)
 ) extends InitialObserversProvider {
   def initialObservers: List[Observer] = List(observer)
 }
@@ -35,6 +38,7 @@ import ee.cone.c4actor.Types._
 @c4component case class DefaultPublishDir() extends PublishDir("htdocs")
 
 class PublishingObserver(
+  compressor: Compressor,
   qMessages: QMessages,
   fromDir: PublishDir,
   config: PublishConfig,
@@ -56,13 +60,9 @@ class PublishingObserver(
   def publish(local: Context)(path: String, body: Array[Byte]): Unit = {
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
-    val headers = Header("Content-Encoding", "gzip") ::
+    val headers = Header("Content-Encoding", compressor.name) ::
       ext.flatMap(config.mimeTypes.get).map(Header("Content-Type",_)).toList
-    val sink = new Buffer
-    val gzipSink = new GzipSink(sink)
-    gzipSink.write(new Buffer().write(body), body.length)
-    gzipSink.close()
-    val byteString = sink.readByteString()
+    val byteString = compressor.compress(ToByteString(body))
     val publication = HttpPublication(path,headers,byteString,None)
     val existingPublications = httpPublications.of(local)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
@@ -74,6 +74,10 @@ class PublishingObserver(
     }
   }
 }
+
+
+
+
 
 class PublishFileVisitor(
   fromPath: Path, publish: (String,Array[Byte])⇒Unit

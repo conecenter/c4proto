@@ -12,7 +12,11 @@ class PublishApp extends ServerApp
   with FileRawSnapshotApp
   with `The DefaultPublishConfig`
 
-trait PublishingApp extends `The HttpProtocol` with `The PublishInitialObserversProvider` with `The DefaultPublishDir`
+trait PublishingApp extends `The HttpProtocol`
+  with `The PublishInitialObserversProvider` with `The DefaultPublishDir`
+  with `The GzipCompressor`
+
+
 
 
 
