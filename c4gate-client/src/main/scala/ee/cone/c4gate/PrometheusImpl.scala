@@ -3,7 +3,6 @@ package ee.cone.c4gate
 import java.time.Instant
 import java.util.UUID
 
-import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -12,8 +11,6 @@ import ee.cone.c4assemble.{Assemble, JoinKey, assemble}
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.{Id, Protocol, protocol}
-
-import scala.collection.immutable
 
 @protocol object ActorAccessProtocol extends Protocol {
   @Id(0x006A) case class ActorAccessKey(
