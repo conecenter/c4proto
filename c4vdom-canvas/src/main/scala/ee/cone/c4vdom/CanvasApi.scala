@@ -20,9 +20,13 @@ trait CanvasToJson {
   def appendPathJson(attrs:List[PathAttr], builder: MutableJsonBuilder): Unit
 }
 
+
+
+
 /////////////////////////////////
 
 sealed trait Transform extends PathAttr
+case class DoTransform(a:BigDecimal,b:BigDecimal,c:BigDecimal,d:BigDecimal,e:BigDecimal,f:BigDecimal) extends Transform
 case class Scale(value:BigDecimal) extends Transform
 case class Rotate(value:BigDecimal) extends Transform
 case class Translate(x:BigDecimal,y:BigDecimal) extends Transform
@@ -30,7 +34,7 @@ case class Translate(x:BigDecimal,y:BigDecimal) extends Transform
 sealed trait Shape extends PathAttr
 sealed trait PathShape extends Shape
 sealed trait NonPathShape extends Shape
-final case class Rect(x:Double, y:Double, width:Double, height:Double) extends PathShape
+final case class Rect(x:BigDecimal, y:BigDecimal, width:BigDecimal, height:BigDecimal) extends PathShape
 final case class Line(x:BigDecimal, y:BigDecimal, toX:BigDecimal, toY:BigDecimal) extends PathShape
 final case class BezierCurveTo(sdx: BigDecimal, sdy: BigDecimal, edx:BigDecimal, edy:BigDecimal, endPointX:BigDecimal, endPointY:BigDecimal) extends PathShape
 final case class Ellipse(x: BigDecimal, y: BigDecimal, rx: BigDecimal, ry: BigDecimal, rotate: BigDecimal,

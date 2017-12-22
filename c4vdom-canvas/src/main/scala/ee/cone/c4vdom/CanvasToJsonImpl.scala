@@ -92,10 +92,11 @@ case class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, dec
         if(transforms.nonEmpty){
           cmd("setMainContext")
           cmd("save")
-          transforms.reverse.foreach{
-            case Scale(v) => cmd(v,v,"scale")
-            case Translate(x,y)=> cmd(x,y,"translate")
-            case Rotate(t) => cmd(t,"rotate")
+          transforms.foreach{
+            case DoTransform(a,b,c,d,e,f) ⇒ begin(); add(a); add(b); add(c); add(d); add(e); add(f); end("transform")
+            case Scale(v) ⇒ cmd(v,v,"scale")
+            case Translate(x,y) ⇒ cmd(x,y,"translate")
+            case Rotate(t) ⇒ cmd(t,"rotate")
           }
         }
         begin(); add("applyPath"); begin()
