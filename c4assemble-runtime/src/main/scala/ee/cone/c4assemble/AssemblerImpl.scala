@@ -131,8 +131,8 @@ class ConnectBackStage[MapKey, Value](
 ) extends WorldPartExpression with DataDependencyToIndexUpdater[MapKey, Value] {
   def transform(transition: WorldTransition): WorldTransition = {
     val diffPart = diffOf(transition.prev.get, nextKey)
-    println(s"AAA: $nextKey $diffPart")
-println(s"BBB: $transition")
+    //println(s"AAA: $nextKey $diffPart")
+    //println(s"BBB: $transition")
     if(diffPart.isEmpty) transition
     else setPart(transition, diffPart, nextKey.of(transition.result))
   }
