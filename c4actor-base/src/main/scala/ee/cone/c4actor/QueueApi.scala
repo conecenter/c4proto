@@ -181,3 +181,7 @@ object CheckedMap {
   def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
     pairs.groupBy(_._1).transform((k,l)⇒Single(l)._2)
 }
+
+trait SnapshotConfig {
+  def ignore: Set[Long]
+}
