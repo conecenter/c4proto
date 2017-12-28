@@ -7,14 +7,18 @@ import ee.cone.c4assemble.Types._
 import scala.collection.immutable.{Seq,Map}
 
 object Single {
-  def apply[C](l: Seq[C]): C = if(l.tail.nonEmpty) throw new Exception else l.head
+  def apply[C](l: Seq[C]): C = if(l.isEmpty) {
+    throw new Exception("empty")
+  } else if(l.tail.isEmpty) l.head else {
+    throw new Exception(s"non-single: ${l.head}, ${l.tail.head} ...")
+  }
   def option[C](l: Seq[C]): Option[C] = if(l.isEmpty) None else Option(apply(l))
-  def list[C](l: Iterable[C]): List[C] = if(l.isEmpty || l.tail.isEmpty) l.toList else throw new Exception
 }
 
 object ToPrimaryKey {
   def apply(node: Product): String = node.productElement(0) match {
     case s: String ⇒ s
+    case p: Product ⇒ ToPrimaryKey(p)
     case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
   }
 }

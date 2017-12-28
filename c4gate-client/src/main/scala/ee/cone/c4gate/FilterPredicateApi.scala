@@ -1,13 +1,13 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{Condition, Context, ConditionCheck, ProdLens}
+import ee.cone.c4actor._
 
 trait FilterPredicateBuilder {
-  def create[Model<:Product](): FilterPredicate[Model]
+  def create[Model<:Product]: Context ⇒ FilterPredicate[Model]
 }
 
 trait FilterPredicate[Model<:Product] {
   def add[By<:Product,Field](filterKey: SessionAttr[By], lens: ProdLens[Model,Field])(implicit c: ConditionCheck[By,Field]): FilterPredicate[Model]
-  def keys: List[SessionAttr[Product]]
-  def of: Context ⇒ Condition[Model]
+  def accesses: List[Access[_]]
+  def condition: Condition[Model]
 }

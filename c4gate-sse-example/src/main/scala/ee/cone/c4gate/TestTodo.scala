@@ -78,7 +78,6 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
     modelAccessFactory,
     filterPredicateBuilder,
     commonFilterConditionChecks,
-    sessionAttrAccessFactory,
     accessViewRegistry,
     untilPolicy
   )
@@ -94,22 +93,21 @@ case class TestTodoRootView(locationHash: String = "todo")(
   contextAccess: ModelAccessFactory,
   filterPredicates: FilterPredicateBuilder,
   commonFilterConditionChecks: CommonFilterConditionChecks,
-  sessionAttrAccess: SessionAttrAccessFactory,
   accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy
 ) extends ByLocationHashView {
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     import mTags._
     import commonFilterConditionChecks._
-    val filterPredicate = filterPredicates.create[TodoTask]()
+    val filterPredicate = filterPredicates.create[TodoTask](local)
       .add(commentsFlt, comments)
       .add(createdAtFlt, createdAt)
 
     val filterList = for {
-      sessionAttr ← filterPredicate.keys
-      access ← sessionAttrAccess.to(sessionAttr)(local).toList
+      access ← filterPredicate.accesses
       tag ← accessViewRegistry.view(access)(local)
     } yield tag
+    // filterPredicate.accesses.flatMap { case a if a.initialValue => List(a to sub1, a to sub2) case a => List(a) }
 
     val btnList = List(
       divButton("add")(
@@ -118,7 +116,7 @@ case class TestTodoRootView(locationHash: String = "todo")(
     )
 
     val todoTasks = ByPK(classOf[TodoTask]).of(local).values
-      .filter(filterPredicate.of(local).check).toList.sortBy(-_.createdAt)
+      .filter(filterPredicate.condition.check).toList.sortBy(-_.createdAt)
     val taskLines = for {
       prod ← todoTasks
       task ← contextAccess to prod
