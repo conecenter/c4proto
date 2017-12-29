@@ -2831,7 +2831,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return true
 		},
 		componentDidMount:function(){			
-			this.chld = this.chToShow()
+			this.chldOrder = this.chToShow()
 			checkActivateCalls.add(this.isOverflown)
 		},
 		componentDidUpdate:function(prevProps){
