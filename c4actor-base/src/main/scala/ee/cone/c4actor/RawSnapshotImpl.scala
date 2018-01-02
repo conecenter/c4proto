@@ -13,7 +13,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 /*snapshot cleanup:
 docker exec ... ls -la c4/db4/snapshots
 docker logs ..._snapshot_maker_1
-docker exec ... bash -c 'echo "2c" > c4/db4/snapshots/.ignore'
+docker exec ... bash -c 'echo "30" > db4/snapshots/.ignore'
 docker restart ..._snapshot_maker_1
 */
 

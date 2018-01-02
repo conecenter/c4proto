@@ -30,7 +30,7 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
       "linger.ms" → "1",
       "buffer.memory" → "33554432",
       "compression.type" → "lz4",
-      "max.request.size" → "10000000"
+      "max.request.size" → "25000000"
       // max.request.size -- seems to be uncompressed
       // + in broker config: message.max.bytes
     )
