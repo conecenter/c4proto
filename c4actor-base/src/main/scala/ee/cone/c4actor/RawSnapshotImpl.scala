@@ -56,7 +56,9 @@ class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) exte
     val initialRawWorld = rawWorldFactory.create()
     loadRecentStream.flatMap { case (offset, dataOpt) ⇒
       logger.info(s"Loading snapshot up to $offset")
-      dataOpt.map(initialRawWorld.reduce(_,offset)).filterNot(_.hasErrors)
+      dataOpt.map(data ⇒
+        initialRawWorld.reduce(List(new RawEvent(data,offset)))
+      ).filterNot(_.hasErrors)
     }.headOption.map{ res ⇒
       logger.info(s"Snapshot loaded")
       res

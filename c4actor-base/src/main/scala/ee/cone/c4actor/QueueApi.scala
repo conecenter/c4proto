@@ -151,9 +151,11 @@ class QAdapterRegistry(
   val updatesAdapter: ProtoAdapter[QProtocol.Updates]
 )
 
+class RawEvent(val data: Array[Byte], val offset: Long)
+
 trait RawWorld {
   def offset: Long
-  def reduce(data: Array[Byte], offset: Long): RawWorld
+  def reduce(events: List[RawEvent]): RawWorld
   def hasErrors: Boolean
 }
 
