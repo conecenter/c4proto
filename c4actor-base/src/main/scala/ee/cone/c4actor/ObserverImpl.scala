@@ -15,7 +15,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
     new Context(global.injected, global.assembled, prev)
   ).andThen{ (local:Context) ⇒
     val txTransform = ByPK(classOf[TxTransform]).of(local).get(key)
-    if(
+    if( //todo implement skip for outdated world
       txTransform.isEmpty ||
         OffsetWorldKey.of(global) < OffsetWorldKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
@@ -51,16 +51,22 @@ class SerialObserver(localStates: Map[SrcId,TransientMap])(
   }
 }
 
+class LocalStateItem(val expireAt: Instant, val future: FatalFuture[TransientMap])
+
 class ParallelObserver(
-  localStates: Map[SrcId,FatalFuture[TransientMap]],
+  localStates: Map[SrcId,LocalStateItem],
   transforms: TxTransforms,
   execution: Execution
 ) extends Observer {
   private def empty: FatalFuture[TransientMap] = execution.future(Map.empty)
   def activate(global: Context): Seq[Observer] = {
-    val inProgressMap = localStates.filterNot{ case(k,v) ⇒ v.isCompleted }
+    val now = Instant.now
+    val expireAt = now.plusSeconds(600)
+    val inProgressMap = localStates.filterNot{ case(k,v) ⇒
+      v.future.isCompleted && v.expireAt.isBefore(now)
+    }
     val toAdd = transforms.get(global).transform{ case(key,handle) ⇒
-      localStates.getOrElse(key,empty).map(handle)
+      new LocalStateItem(expireAt, localStates.get(key).fold(empty)(_.future).map(handle))
     }
     val nLocalStates = inProgressMap ++ toAdd
     List(new ParallelObserver(nLocalStates,transforms,execution))
