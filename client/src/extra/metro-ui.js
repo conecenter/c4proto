@@ -1914,7 +1914,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			backgroundColor:(props.value&&props.value.length>0)?"black":"transparent",
 			borderRadius:"70%",
 			verticalAlign:"top",
-			marginTop:"0.19em",				
+			marginTop:"0.1882em",				
 		};
 		const checkImage = $("div",{style:imageStyle,key:"checkImage"},null);
 		
@@ -2802,7 +2802,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	})
 	const FilterContainerElement = $C({
 		getInitialState:function(){
-			return {singleHeight:"0px"}
+			return {singleHeight:"0px",version:0}
 		},		
 		isOverflown:function(){
 			if(!this.el) return;
@@ -2811,24 +2811,72 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const c = Array.from(e.children)
 			
 			
-			const singleHeight = c.length>0?c[0].getBoundingClientRect().height+"px":"auto"			
+			const singleHeight = c.length>0?c[0].getBoundingClientRect().height:null			
 			if(singleHeight != this.state.singleHeight)
 				this.setState({singleHeight:singleHeight})
 			
-		},
+		},		
 		componentDidMount:function(){			
-			checkActivateCalls.add(this.isOverflown)
+			this.isOverflown()
+			checkActivateCalls.add(this.calc)
 		},
-		componentDidUpdate:function(){			
+		componentDidUpdate:function(prevProps){
+			this.isOverflown()
 		},
 		componentWillUnmount:function(){
-			checkActivateCalls.remove(this.isOverflown)
+			checkActivateCalls.remove(this.calc)
+		},
+		calc:function(){
+			if(!this.el) return
+			let maxLines = 1 
+			
+			const chldMap = this.props.children.map(child=>({child,basis:this.parseBasis(child.props.incoming.at.style.flexBasis),en:child.props.incoming.at.active&&true,maxLines:1}))
+			const pRect = this.el.getBoundingClientRect()			
+			const chldAWidth = chldMap.filter(_=>_.en).reduce((a,e)=>(a+(e.en?e.basis:0)),0)
+			if(chldAWidth > pRect.width) {maxLines = Math.ceil(chldAWidth/(Math.floor(pRect.width/chldMap[0].basis)*chldMap[0].basis))}
+			if(chldMap[0].basis>pRect.width) {maxLines = chldMap.filter(_=>_.en).length;maxLines=maxLines>0?maxLines:1}
+			let chldWidth = 0
+			do{
+				chldWidth = chldMap.reduce((a,e)=>{
+					e.maxLines = maxLines
+					return a+(e.en?e.basis:0);
+				},0)				
+				const firstPassiveIndex = chldMap.findIndex(_=>!_.child.props.incoming.at.active && !_.en)
+				if(firstPassiveIndex==-1) break;
+				const child = chldMap[firstPassiveIndex]
+				let lineWidth = Math.floor(pRect.width/child.basis)*child.basis;lineWidth = lineWidth?lineWidth:child.basis
+				
+				if(chldWidth+child.basis<=lineWidth*maxLines) {					
+					child.en=true					
+				}
+				else break;
+			}while(true)
+			
+			const same = () =>{
+				if(this.chldMap.length!=chldMap.length || !this.chldMap.every((e,i)=>e.child.key == chldMap[i].child.key && e.en == chldMap[i].en && e.maxLines == chldMap[i].maxLines))
+					return false
+				return true
+			}
+		
+			if(!this.chldMap || !same()) this.update(chldMap)
+		},
+		update:function(chldMap){
+			this.chldMap = chldMap
+			this.setState({...this.state,version:this.state.version+1})
+		},
+		parseBasis:function(strBasis){
+			if(!this.emEl) return 0;
+			const emBasis = parseFloat(strBasis)
+			const pixelBasis = this.emEl.getBoundingClientRect().height * emBasis
+			return pixelBasis
 		},
 		render:function(){
 		//	log(`render`)
+			const children = this.props.open||!Array.isArray(this.chldMap)?this.props.children:this.chldMap.filter(_=>_.en).map(_=>this.props.children.find(c=>c.key == _.child.key))
+			const maxLines = !Array.isArray(this.chldMap)?1:this.chldMap.reduce((a,e)=>(e.maxLines>a?e.maxLines:a),1)
 			const style = {
 				backgroundColor: "#c0ced8",
-				height:this.props.open?"auto":this.state.singleHeight,
+				height:this.props.open||!this.state.singleHeight?"auto":this.state.singleHeight*maxLines+"px",
 				marginBottom:"0.4em",
 				overflow:"hidden",
 				padding:".15625em",
@@ -2847,18 +2895,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				visibility:h?"":"hidden"
 			})
 			const imgStyle = {
-				transform:this.props.open?"rotate(180deg)":"",
-				transition:"transform 140ms"
-			}
-			const chToShow = () => {
-				const chld = this.props.children.filter(_=>_.props.incoming.at.active)
-				return chld.length>0?chld:this.props.children.slice(0,1)
-			}
-			const children = /*Array.isArray(this.props.children)?this.props.children.map((_,i)=>{
-				return $("div",{key:i,style:fStyle(this.state.shown[i]),},_)
-			}):*/this.props.open?this.props.children:chToShow();
+				transform:!this.props.open?"rotate(180deg)":"",
+				transition:"transform 140ms",
+				height:"1em",
+				width:"1em"
+			}	
+			
 			const arrowSvg = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-								 width="1em" height="1em" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
+								 width="150px" height="150px" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
 								 xml:space="preserve">
 								<path d="M248.292,106.406l194.281,194.29c12.365,12.359,12.365,32.391,0,44.744c-12.354,12.354-32.391,12.354-44.744,0
 									L225.923,173.529L54.018,345.44c-12.36,12.354-32.395,12.354-44.748,0c-12.359-12.354-12.359-32.391,0-44.75L203.554,106.4
@@ -2866,14 +2910,22 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 							</svg>`
 			const svgData = svgSrc(arrowSvg)
 			const img = $("img",{src:svgData,style:imgStyle})
+			const emElStyle={
+				position:"absolute",
+				top:"0",
+				zIndex:"-1",
+				height:"1em"
+			}			
+			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
 			return $("div",{style},[
+				emRefEl,
 				$("div",{key:"buttons",style:buttonStyle},$(ButtonElement,{onClick:this.props.onClick},img)),
 				$("div",{key:"contents",style:filterStyle,ref:el=>this.el=el},children)
 			])
 		}
 	})
-	const FilterElement = ({active,children}) => {		
-		return $("div",{},children)
+	const FilterElement = ({active,children,style}) => {		
+		return $("div",{style},children)
 	}
 	const ColorCreator = React.createClass({
 		onChange:function(e){
@@ -2963,7 +3015,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.recalc()
 		},
 		render:function(){
-			const {onChange,style,children,isOpen} = this.props
+			const {onChange,style,children,isOpen, value} = this.props
 			return React.createElement('div',{
 				className:"colorPicker",
 				style: {
@@ -2985,7 +3037,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 									...style
 								},
 								onClick: ev => onChange({target:{headers:{"X-r-action":"change"},value:""} })
-						}, null),
+						}, value),
 						isOpen?React.createElement('div', {
 								key:'2',
 								style: {
