@@ -30,7 +30,7 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
       "linger.ms" → "1",
       "buffer.memory" → "33554432",
       "compression.type" → "lz4",
-      "max.request.size" → "10000000"
+      "max.request.size" → "25000000"
       // max.request.size -- seems to be uncompressed
       // + in broker config: message.max.bytes
     )
@@ -87,12 +87,12 @@ class KafkaActor(conf: KafkaConfig)(
       val initialRawObserver = progressObserverFactory.create(endOffset)
       consumer.seek(Single(inboxTopicPartition), initialRawWorld.offset)
       @tailrec def iteration(world: RawWorld, observer: RawObserver): Unit = {
-        val reduces = consumer.poll(200 /*timeout*/).asScala.toList.map{ rec ⇒
+        val events = consumer.poll(200 /*timeout*/).asScala.toList.map{ rec ⇒
           val data: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
           val offset: Long = rec.offset+1L
-          (w: RawWorld) ⇒ w.reduce(data,offset)
+          new RawEvent(data,offset)
         }
-        val newWorld = Function.chain(reduces)(world)
+        val newWorld = world.reduce(events)
         val newObserver = observer.activate(newWorld)
         iteration(newWorld, newObserver)
       }

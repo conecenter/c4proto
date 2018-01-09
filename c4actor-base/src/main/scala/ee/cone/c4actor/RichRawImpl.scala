@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.{Firstborn, Update}
 import ee.cone.c4assemble.Single
 
 import scala.collection.immutable.{Map, Seq}
@@ -42,24 +42,31 @@ class RichRawWorld(
   errors: List[Exception]
 ) extends RawWorld with LazyLogging {
   def offset: Long = OffsetWorldKey.of(context)
-  def reduce(data: Array[Byte], offset: Long): RawWorld = try {
+  def reduce(events: List[RawEvent]): RawWorld = if(events.isEmpty) this else try {
     val registry = QAdapterRegistryKey.of(context)
-    val updates = registry.updatesAdapter.decode(data).updates
+    val updatesAdapter = registry.updatesAdapter
+    val updates = events.flatMap(ev ⇒ updatesAdapter.decode(ev.data).updates)
     new RichRawWorld(
       Function.chain(
         Seq(
           ReadModelAddKey.of(context)(updates),
-          OffsetWorldKey.set(offset)
+          OffsetWorldKey.set(events.last.offset)
         )
-      )(context), errors
+      )(context),
+      errors
     )
   } catch {
     case e: Exception ⇒
-      logger.error("reduce",e) // ??? exception to record
-      new RichRawWorld(
-        OffsetWorldKey.set(offset)(context),
-        errors = e :: errors
-      )
+      logger.error("reduce", e) // ??? exception to record
+      if(events.size == 1)
+        new RichRawWorld(
+          OffsetWorldKey.set(Single(events).offset)(context),
+          errors = e :: errors
+        )
+      else {
+        val(a,b) = events.splitAt(events.size / 2)
+        reduce(a).reduce(b)
+      }
   }
   def hasErrors: Boolean = errors.nonEmpty
 }

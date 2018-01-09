@@ -6,7 +6,9 @@ import java.time.{Duration, Instant}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Update, Updates}
 import okio.ByteString
+
 import scala.annotation.tailrec
+import scala.collection.immutable.Seq
 
 class SnapshotMakingRawWorldFactory(adapterRegistry: QAdapterRegistry, config: SnapshotConfig) extends RawWorldFactory {
   def create(): RawWorld = new SnapshotMakingRawWorld(config.ignore,adapterRegistry)
@@ -18,14 +20,15 @@ class SnapshotMakingRawWorld(
   state: Map[Update,Update] = Map.empty,
   val offset: Long = 0
 ) extends RawWorld with LazyLogging {
-  def reduce(data: Array[Byte], offset: Long): RawWorld = {
+  def reduce(events: List[RawEvent]): RawWorld = if(events.isEmpty) this else {
     val updatesAdapter = qAdapterRegistry.updatesAdapter
-    val newState = (state /: updatesAdapter.decode(data).updates){(state,up)⇒
+    val updates = events.flatMap(ev⇒updatesAdapter.decode(ev.data).updates)
+    val newState = (state /: updates){(state,up)⇒
       if(ignore(up.valueTypeId)) state
       else if(up.value.size > 0) state + (up.copy(value=ByteString.EMPTY)→up)
       else state - up
     }
-    new SnapshotMakingRawWorld(ignore,qAdapterRegistry,newState,offset)
+    new SnapshotMakingRawWorld(ignore,qAdapterRegistry,newState,events.last.offset)
   }
   def hasErrors: Boolean = false
 
