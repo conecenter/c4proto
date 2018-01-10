@@ -4,13 +4,14 @@ import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
+import ee.cone.c4assemble.Types.Index
 
 import scala.collection.immutable.{Map, Seq}
 import scala.util.{Success, Try}
 
 class TxTransforms(qMessages: QMessages) extends LazyLogging {
   def get(global: Context): Map[SrcId,Option[Context]⇒Context] =
-    ByPK(classOf[TxTransform]).of(global).transform{ case(key,_) ⇒ handle(global,key) }
+    ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
   private def handle(global: Context, key: SrcId): Option[Context]⇒Context = prevOpt ⇒ {
     val local = prevOpt.getOrElse(new Context(global.injected, Map.empty, Map.empty))
     if( //todo implement skip for outdated world
