@@ -424,7 +424,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const cs=getComputedStyle(this.groupEl);			
 			const containerMinHeight=(Math.max(block.height,block.width) + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';			
 			const captionOffset=(-Math.max(block.height,block.width))+'px';
-			this.setState({captionOffset,containerMinHeight});
+			if(this.state.captionOffset!=captionOffset || this.state.containerMinHeight!=containerMinHeight)
+				this.setState({captionOffset,containerMinHeight});
 			this.shouldRotate();
 		},
 		componentDidMount:function(){
@@ -895,11 +896,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const TableElement = $C({
 		check:function(){
 			if(!this.el) return			
+			if(!this.emEl) return
 			const dRect = this.el.getBoundingClientRect()
-			const pdRect = this.el.parentNode.getBoundingClientRect()
+			const pdRect = this.el.parentNode.getBoundingClientRect()			
 			if(this.prev!=dRect.width){
-				if(dRect.width>pdRect.width)
-					this.props.onClickValue("change",dRect.width.toString())					
+				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){
+					const emRect= this.emEl.getBoundingClientRect()
+					const emWidth = dRect.width/emRect.height;
+					this.props.onClickValue("change",emWidth.toString())					
+				}
 				this.prev = dRect.width
 			}
 		},
@@ -910,7 +915,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(this.props.dynamic) checkActivateCalls.remove(this.check)
 		},
 		render:function(){
+			
 			const {style,children} = this.props
+			const emElStyle={
+				position:"absolute",
+				top:"0",
+				zIndex:"-1",
+				height:"1em"
+			}			
+			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
 			return $("table",{style:{
 					borderCollapse:'separate',
 					borderSpacing:GlobalStyles.borderSpacing,
@@ -918,7 +931,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					lineHeight:"1.1",
 					minWidth:"0",
 					...style
-					},ref:ref=>this.el=ref},children); 
+					},ref:ref=>this.el=ref},[
+						emRefEl,
+						children
+					]); 
 		}
 	})
 	const THeadElement = React.createClass({

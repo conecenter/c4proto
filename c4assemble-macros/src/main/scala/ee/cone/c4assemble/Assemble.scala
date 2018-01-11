@@ -30,9 +30,19 @@ class assemble extends StaticAnnotation {
         val joinDefParams = params.tail.map{
           case param"..$mods ${Term.Name(paramName)}: Values[${KVType(inValType)}]" ⇒
             val (was,annInKeyType) = mods match {
-              case Nil ⇒ (false,inKeyType)
-              case mod"@by[${KVType(annInKeyTypeV)}]" :: Nil ⇒ (false,annInKeyTypeV)
-              case mod"@was" :: Nil ⇒ (true,inKeyType)
+              case Seq() ⇒ (false,inKeyType)
+              case Seq(mod"@by[${KVType(annInKeyTypeV)}]") ⇒ (false,annInKeyTypeV)
+              case Seq(mod"@was") ⇒ (true,inKeyType)
+              case Seq(Mod.Annot(
+                     Term.Apply(
+                       Term.ApplyType(
+                         Ctor.Ref.Name("by"),
+                         Seq(KVType(annInKeyTypeV))
+                       ),
+                       Nil
+                     )
+                   )) ⇒ (false,annInKeyTypeV)
+              case a ⇒ throw new Exception(s"unknown structure: ${a.structure}")
             }
             AType(paramName, was, annInKeyType, inValType)
         }
