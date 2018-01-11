@@ -8,7 +8,7 @@ import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
 
