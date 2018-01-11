@@ -44,7 +44,8 @@ export default function VDom(log,getRootElement, createElement, activeTransforms
 
     function setupBranch(state){
         if(state.remove) return state;
-        const rootNativeElement = createElement("div")		
+        const rootNativeElement = createElement("div")
+        rootNativeElement.style.overflowX = "hidden"
         getRootElement().appendChild(rootNativeElement)
         const rootVirtualElement = React.createElement(RootComponent,null)
         const rootComponent = ReactDOM.render(rootVirtualElement, rootNativeElement)
