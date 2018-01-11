@@ -44,7 +44,6 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0032) sessionKey: String,
     @Id(0x0037) location: String,
     @Id(0x0039) connectionKey: String, // we need to affect branchKey
-    @Id(0x0038) lastPongSecond: Long, //do we need to affect branchKey by this?
     @Id(0x003A) userName: Option[String]
   )
   @Id(0x003B) case class PostConsumer(
@@ -52,7 +51,10 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x003D) consumer: String,
     @Id(0x003E) condition: String
   )
-  //3F
+  @Id(0x003F) case class FromAlienPong(
+    @Id(0x0032) sessionKey: String,
+    @Id(0x0038) lastSecond: Long
+  )
 }
 
 @protocol object AuthProtocol extends Protocol {

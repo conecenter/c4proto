@@ -8,7 +8,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4gate.AlienProtocol._
+import ee.cone.c4gate.AlienProtocol.{FromAlienPong, _}
 import ee.cone.c4proto.Protocol
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
@@ -63,13 +63,19 @@ class PongHandler(
       sessionKey,
       headers("X-r-location"),
       headers("X-r-connection"),
-      now.getEpochSecond / sseConfig.stateRefreshPeriodSeconds * sseConfig.stateRefreshPeriodSeconds,
       userName
+    )
+    val pong = FromAlienPong(
+      sessionKey,
+      now.getEpochSecond / sseConfig.stateRefreshPeriodSeconds * sseConfig.stateRefreshPeriodSeconds
     )
     pongs(session.sessionKey) = now
     val wasSession = ByPK(classOf[FromAlienState]).of(local).get(session.sessionKey)
-    if(wasSession != Option(session))
-      TxAdd(LEvent.update(session)).andThen(qMessages.send)(local)
+    val wasPong = ByPK(classOf[FromAlienPong]).of(local).get(pong.sessionKey)
+    TxAdd(
+      (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
+        (if(wasPong != Option(pong)) LEvent.update(pong) else Nil)
+    ).andThen(qMessages.send)(local)
     httpExchange.sendResponseHeaders(200, 0)
     true
   }
@@ -100,13 +106,14 @@ case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 case class SessionTxTransform( //?todo session/pongs purge
     sessionKey: SrcId,
     fromAlien: FromAlienState,
+    pong: Option[FromAlienPong],
     writes: Values[ToAlienWrite],
     purgePeriodSeconds: Int
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val now = Instant.now
     val lastPongTime = LastPongKey.of(local)(sessionKey)
-      .getOrElse(Instant.ofEpochSecond(fromAlien.lastPongSecond))
+      .getOrElse(Instant.ofEpochSecond(pong.fold(0L)(_.lastSecond)))
     val lastPongAge = SECONDS.between(lastPongTime,now)
     val sender = GetSenderKey.of(local)(fromAlien.connectionKey)
 
@@ -147,11 +154,12 @@ object SSEAssembles {
   def joinTxTransform(
     key: SrcId,
     fromAliens: Values[FromAlienState],
+    pongs: Values[FromAlienPong],
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(SrcId,TxTransform)] =
     for(session ← fromAliens)
       yield WithPK(SessionTxTransform(
-        session.sessionKey, session, writes.sortBy(_.priority),
+        session.sessionKey, session, Single.option(pongs), writes.sortBy(_.priority),
         sseConfig.stateRefreshPeriodSeconds + sseConfig.tolerateOfflineSeconds
       ))
 
