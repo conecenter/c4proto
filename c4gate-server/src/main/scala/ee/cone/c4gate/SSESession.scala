@@ -139,7 +139,9 @@ case class SessionTxTransform( //?todo session/pongs purge
 
 object SSEAssembles {
   def apply(mortal: MortalFactory, sseConfig: SSEConfig): List[Assemble] =
-      mortal(classOf[ToAlienWrite]) :: new SSEAssemble(sseConfig) :: Nil
+    new SSEAssemble(sseConfig) ::
+      mortal(classOf[FromAlienPong]) ::
+      mortal(classOf[ToAlienWrite]) :: Nil
 }
 
 @assemble class SSEAssemble(sseConfig: SSEConfig) extends Assemble {
@@ -169,6 +171,30 @@ object SSEAssembles {
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(Alive,ToAlienWrite)] =
     for(write ← writes if fromAliens.nonEmpty) yield WithPK(write)
+
+  def lifeOfSessionPong(
+    key: SrcId,
+    fromAliens: Values[FromAlienState],
+    pongs: Values[FromAlienPong]
+  ): Values[(Alive,FromAlienPong)] =
+    for(pong ← pongs if fromAliens.nonEmpty) yield WithPK(pong)
+
+  def checkAuthenticatedSession(
+    key: SrcId,
+    fromAliens: Values[FromAlienState],
+    authenticatedSessions: Values[AuthenticatedSession]
+  ): Values[(SrcId,TxTransform)] = for {
+    authenticatedSession ← authenticatedSessions if fromAliens.isEmpty
+  } yield WithPK(CheckAuthenticatedSessionTxTransform(authenticatedSession))
+}
+
+case class CheckAuthenticatedSessionTxTransform(
+  authenticatedSession: AuthenticatedSession
+) extends TxTransform {
+  def transform(local: Context) =
+    if(Instant.ofEpochSecond(authenticatedSession.untilSecond).isBefore(Instant.now))
+      TxAdd(LEvent.delete(authenticatedSession))(local)
+    else local
 }
 
 case class NoProxySSEConfig(stateRefreshPeriodSeconds: Int) extends SSEConfig {

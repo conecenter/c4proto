@@ -81,6 +81,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
   @Id(0x0059) case class AuthenticatedSession(
     @Id(0x005A) sessionKey: String,
-    @Id(0x0058) userName: String
+    @Id(0x0058) userName: String,
+    @Id(0x005B) untilSecond: Long
   )
 }
