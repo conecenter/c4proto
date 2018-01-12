@@ -76,7 +76,7 @@ object ByPK {
   def apply[V<:Product](cl: Class[V]): ByPrimaryKeyGetter[V] =
     ByPrimaryKeyGetter(raw(cl.getName))
   def raw[V<:Product](className: String): AssembledKey[Index[SrcId,V]] =
-    JoinKey[SrcId,V]("SrcId", classOf[SrcId].getName, className)
+    JoinKey[SrcId,V](was=false, "SrcId", classOf[SrcId].getName, className)
   //todo: def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
 }
 
@@ -92,6 +92,7 @@ case class UniqueIndexMap[K,V](index: Index[K,V]) extends Map[K,V] {
   def get(key: K): Option[V] = Single.option(index.getOrElse(key,Nil))
   def iterator: Iterator[(K, V)] = index.iterator.map{ case (k,v) ⇒ (k,Single(v)) }
   def -(key: K): Map[K, V] = UniqueIndexMap(index - key)
+  override def keysIterator: Iterator[K] = index.keysIterator // to work with non-Single
 }
 
 trait Lens[C,I] extends Getter[C,I] {
@@ -151,9 +152,11 @@ class QAdapterRegistry(
   val updatesAdapter: ProtoAdapter[QProtocol.Updates]
 )
 
+class RawEvent(val data: Array[Byte], val offset: Long)
+
 trait RawWorld {
   def offset: Long
-  def reduce(data: Array[Byte], offset: Long): RawWorld
+  def reduce(events: List[RawEvent]): RawWorld
   def hasErrors: Boolean
 }
 
@@ -176,3 +179,12 @@ trait RawSnapshot {
 
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
+
+object CheckedMap {
+  def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
+    pairs.groupBy(_._1).transform((k,l)⇒Single(l)._2)
+}
+
+trait SnapshotConfig {
+  def ignore: Set[Long]
+}

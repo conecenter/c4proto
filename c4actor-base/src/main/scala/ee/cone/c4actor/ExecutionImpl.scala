@@ -6,6 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
+import scala.util.Try
 
 class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with LazyLogging {
   def run(): Unit = {
@@ -29,15 +30,15 @@ class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with Lazy
     new VMFatalFuture(Future.successful(value))
 }
 
-class VMFatalFuture[T](val value: Future[T]) extends FatalFuture[T] with LazyLogging {
+class VMFatalFuture[T](val inner: Future[T]) extends FatalFuture[T] with LazyLogging {
   def map(body: T ⇒ T): FatalFuture[T] =
-    new VMFatalFuture(value.map(from ⇒ try body(from) catch {
+    new VMFatalFuture(inner.map(from ⇒ try body(from) catch {
       case e: Throwable ⇒
         logger.error("fatal",e)
         System.exit(1)
         throw e
     }))
-  def isCompleted: Boolean = value.isCompleted
+  def value: Option[Try[T]] = inner.value
 }
 
 abstract class BaseServerMain(app: ExecutableApp){

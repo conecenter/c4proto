@@ -104,9 +104,10 @@ trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
   def execution: Execution
   def rawSnapshot: RawSnapshot
   def snapshotMakingRawObserver: RawObserver //new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution))
+  def snapshotConfig: SnapshotConfig
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(qAdapterRegistry)
+  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(qAdapterRegistry,snapshotConfig)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
   override def protocols: List[Protocol] = QProtocol :: super.protocols
@@ -120,6 +121,7 @@ trait VMExecutionApp {
 trait FileRawSnapshotApp {
   def rawWorldFactory: RawWorldFactory
   lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots", rawWorldFactory)
+  lazy val snapshotConfig: SnapshotConfig = new FileSnapshotConfigImpl("db4/snapshots")()
 }
 
 trait SerialObserversApp {

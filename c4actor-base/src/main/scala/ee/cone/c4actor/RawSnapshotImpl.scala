@@ -1,13 +1,30 @@
 package ee.cone.c4actor
 
-import java.nio.file.{Files, Paths}
+import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+import java.nio.charset.StandardCharsets.UTF_8
 
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
+
+/*snapshot cleanup:
+docker exec ... ls -la c4/db4/snapshots
+docker logs ..._snapshot_maker_1
+docker exec ... bash -c 'echo "30" > db4/snapshots/.ignore'
+docker restart ..._snapshot_maker_1
+*/
+
+class FileSnapshotConfigImpl(dirStr: String)(val ignore: Set[Long] =
+  Option(Paths.get(dirStr).resolve(".ignore")).filter(Files.exists(_)).toSet.flatMap{
+    (path:Path) ⇒
+      val content = new String(Files.readAllBytes(path), UTF_8)
+      val R = """([0-9a-f]+)""".r
+      R.findAllIn(content).map(java.lang.Long.parseLong(_, 16))
+  }
+) extends SnapshotConfig
 
 class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) extends RawSnapshot with LazyLogging {
   private def dir = Files.createDirectories(Paths.get(dirStr))
@@ -39,7 +56,9 @@ class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) exte
     val initialRawWorld = rawWorldFactory.create()
     loadRecentStream.flatMap { case (offset, dataOpt) ⇒
       logger.info(s"Loading snapshot up to $offset")
-      dataOpt.map(initialRawWorld.reduce(_,offset)).filterNot(_.hasErrors)
+      dataOpt.map(data ⇒
+        initialRawWorld.reduce(List(new RawEvent(data,offset)))
+      ).filterNot(_.hasErrors)
     }.headOption.map{ res ⇒
       logger.info(s"Snapshot loaded")
       res

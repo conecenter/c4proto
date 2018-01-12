@@ -7,7 +7,7 @@ my $sse_port = 8068;
 my $zoo_port = 2181;
 my $zoo_host = "zookeeper";
 my $build_dir = "client/build/test";
-my $kafka_version = "0.10.2.0";
+my $kafka_version = "0.10.2.1";
 my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "broker:9092";
@@ -130,7 +130,7 @@ my $gen_docker_conf = sub{
             "log.cleaner.delete.retention.ms=3600000", #1h
             "log.roll.hours=1", #delete-s will be triggered to remove?
             "compression.type=uncompressed", #probably better compaction for .state topics
-            "message.max.bytes=3000000" #seems to be compressed
+            "message.max.bytes=25000000" #seems to be compressed
         );
         &$gcp($c_script=>$ctx_dir,$c_script);
         &$mkdirs($ctx_dir,"db4");
