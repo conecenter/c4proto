@@ -897,8 +897,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		check:function(){
 			if(!this.el) return			
 			if(!this.emEl) return
+			if(!this.refDiv) return
 			const dRect = this.el.getBoundingClientRect()
-			const pdRect = this.el.parentNode.getBoundingClientRect()			
+			const pdRect = this.refDiv.getBoundingClientRect()			
 			if(this.prev!=dRect.width){
 				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){
 					const emRect= this.emEl.getBoundingClientRect()
@@ -910,9 +911,19 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		componentDidMount:function(){
 			if(this.props.dynamic) checkActivateCalls.add(this.check)
+			if(!this.el) return
+			const reactRoot = getReactRoot(this.el)
+			if(!reactRoot) return
+			this.refDiv = documentManager.createElement("div")
+			this.refDiv.className = "refDiv"
+			reactRoot.appendChild(this.refDiv)
 		},
 		componentWillUnmount:function(){
 			if(this.props.dynamic) checkActivateCalls.remove(this.check)
+			if(!this.refDiv) return
+			const reactRoot = getReactRoot(this.el)
+			if(!reactRoot) return
+			reactRoot.removeChild(this.refDiv)
 		},
 		render:function(){
 			
