@@ -43,7 +43,7 @@ export function ScrollViewPositionCanvasSetup(canvas){
     }*/
     function processFrame(frame,prev){
         //if(!prev) canvas.visibleElement().addEventListener("wheel",handleWheel)
-        parentHeightFix(canvas.fromServer().height + "px")
+        frame.parentHeightFix(canvas.fromServer().height + "px")
     }
     function setupFrame(){
         const {viewExternalSize,viewExternalPos,scrollPos,parentPos} = canvas.viewPositions(false)
