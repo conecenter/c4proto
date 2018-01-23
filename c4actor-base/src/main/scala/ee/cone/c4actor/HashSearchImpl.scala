@@ -116,7 +116,7 @@ object HashSearchImpl {
     }
   }
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
-  def single[RespLine]: Values[Request[RespLine]]⇒Values[Request[RespLine]] =
+  def single[RespLine<:Product]: Values[Request[RespLine]]⇒Values[Request[RespLine]] =
     l ⇒ Single.option(l.distinct).toList
 }
 
