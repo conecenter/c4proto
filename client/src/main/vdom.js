@@ -46,6 +46,7 @@ export default function VDom(log,getRootElement, createElement, activeTransforms
         if(state.remove) return state;
         const rootNativeElement = createElement("div")
         rootNativeElement.style.overflowX = "hidden"
+		rootNativeElement.style.minHeight = "100%"
         getRootElement().appendChild(rootNativeElement)
         const rootVirtualElement = React.createElement(RootComponent,null)
         const rootComponent = ReactDOM.render(rootVirtualElement, rootNativeElement)
