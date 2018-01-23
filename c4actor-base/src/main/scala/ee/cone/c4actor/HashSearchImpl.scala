@@ -116,6 +116,8 @@ object HashSearchImpl {
     }
   }
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
+  def single[RespLine]: Values[Request[RespLine]]⇒Values[Request[RespLine]] =
+    l ⇒ Single.option(l.distinct).toList
 }
 
 @assemble class HashSearchAssemble[RespLine<:Product](
@@ -137,7 +139,7 @@ object HashSearchImpl {
     requestId: SrcId,
     requests: Values[Request[RespLine]]
   ): Values[(HeapId,Need[RespLine])] = for {
-    request ← requests
+    request ← single(requests)
     heapId ← heapIds(indexers, request)
   } yield heapId → Need[RespLine](ToPrimaryKey(request))
 
@@ -154,7 +156,7 @@ object HashSearchImpl {
     requests: Values[Request[RespLine]],
     @by[ResponseId] priorities: Values[Priority[RespLine]]
   ): Values[(HeapId,Request[RespLine])] = for {
-    request ← requests
+    request ← single(requests)
     heapId ← heapIds(indexers, request, priorities)
   } yield heapId → request
 
@@ -172,7 +174,7 @@ object HashSearchImpl {
     requests: Values[Request[RespLine]],
     @by[ResponseId] respLines: Values[RespLine]
   ): Values[(SrcId,Response[RespLine])] = for {
-    request ← requests
+    request ← single(requests)
   } yield {
     val pk = ToPrimaryKey(request)
     pk → Response(pk, request, respLines.toList.distinct)
