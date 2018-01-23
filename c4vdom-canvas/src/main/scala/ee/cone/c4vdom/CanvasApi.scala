@@ -22,6 +22,42 @@ trait CanvasToJson {
 
 
 
+/*
+trait Shapes {
+  def rect(x:BigDecimal, y:BigDecimal, width:BigDecimal, height:BigDecimal): Shape
+  //  ...
+}
+trait Shape
+
+
+trait ToJsonShape extends Shape {
+  def toJson(...):...
+}
+case class Rect(...) extends ToJsonShape {
+  def toJson(...):... = ...
+}
+MainToJson {
+
+  shapes.map(_.toJson(...))
+}
+
+
+class A(sh: Shapes){
+  import sh._
+
+}
+
+
+path.line(3,4).line(3,4)
+
+case class Line(x,y)
+
+
+import pathParts._
+Seq(line(3,4), line(3,4), path("asd",line(3,4), line(3,4)))
+
+
+*/
 
 /////////////////////////////////
 
