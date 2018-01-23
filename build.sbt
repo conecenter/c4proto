@@ -6,12 +6,13 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.B.7",
+  version := "0.B.8",
+  bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
-  publishMavenStyle := false,
+  //publishMavenStyle := false,
   //publishArtifact in Test := false,
-  bintrayOrganization := Some("conecenter2b"),  
+  //bintrayOrganization := Some("conecenter2b"),
   //bintrayOrganization in bintray.Keys.bintray := None,
   licenses := ourLicense,
   fork := true, //looks like sbt hangs for a minute on System.exit

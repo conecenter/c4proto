@@ -30,6 +30,7 @@ export function OverlayCanvasSetup(canvas){
 }
 
 export function ScrollViewPositionCanvasSetup(canvas){
+/*
     function handleWheel(ev){
         const mainNode=canvas.parentNode()
         var parentNode=mainNode.parentNode
@@ -39,14 +40,20 @@ export function ScrollViewPositionCanvasSetup(canvas){
             }
             parentNode=parentNode.parentNode
         }
-    }
+    }*/
     function processFrame(frame,prev){
         //if(!prev) canvas.visibleElement().addEventListener("wheel",handleWheel)
+        frame.parentHeightFix(canvas.fromServer().height + "px")
     }
     function setupFrame(){
         const {viewExternalSize,viewExternalPos,scrollPos,parentPos} = canvas.viewPositions(false)
         const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
-        return {viewExternalSize,viewExternalPos,viewPos}
+        //
+        const parentHeight = canvas.parentNode().style.height
+        const parentHeightFix = need => {
+            if(parentHeight !== need) canvas.parentNode().style.height = need //this is not good if parentNode is controlled by React
+        }
+        return {viewExternalSize,viewExternalPos,viewPos,parentHeightFix}
     }
     return {setupFrame,processFrame}
 }
