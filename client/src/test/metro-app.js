@@ -122,11 +122,11 @@ const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctx
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
 //transforms
-const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms])
+const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms,canvas.transforms])
 
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
 
-const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
+const branches = Branches(log,vDom.branchHandlers)
 
 const receiversList = [
     branches.receivers,
