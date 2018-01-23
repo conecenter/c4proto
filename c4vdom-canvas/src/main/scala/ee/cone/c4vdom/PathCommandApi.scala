@@ -1,7 +1,7 @@
 package ee.cone.c4vdom
 
 import ee.cone.c4vdom.Types.VDomKey
-
+/*
 trait PathFactory {
   def path(key: VDomKey, children: ChildPair[OfPath]*): ChildPair[OfPathParent]
   def path(key: VDomKey, children: List[ChildPair[OfPath]]): ChildPair[OfPathParent]
@@ -27,4 +27,4 @@ trait PathFactory {
   ): ChildPair[OfPath]
   def translate(x: BigDecimal, y: BigDecimal): ChildPair[OfPath]
   def rotate(v: BigDecimal): ChildPair[OfPath]
-}
+}*/

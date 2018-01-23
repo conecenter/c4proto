@@ -155,7 +155,7 @@ case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: 
 trait TestCanvasTags {
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv]
 }
-/*
+
 class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
@@ -169,7 +169,7 @@ class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: C
       children.filterNot(_.isInstanceOf[CanvasAttr])
     )
 }
-*/
+
 /*
 object T {
   trait Ch[-C]
