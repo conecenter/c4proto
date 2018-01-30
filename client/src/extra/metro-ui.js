@@ -647,15 +647,25 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			
 			if(bottomEdge<=windowRect.bottom){					//bottom
 				left = pRect.left//rect.left - popRect.left
-				top = pRect.bottom				
+				top = pRect.bottom	
+				if(left + popRect.width>windowRect.right)
+					left = windowRect.right - popRect.width;
 			}
 			else if(topEdge>windowRect.top){	//top
 				top = pRect.top - popRect.height
-				left = pRect.left														
+				left = pRect.left
+				if(left + popRect.width>windowRect.right)
+					left = windowRect.right - popRect.width;
 			}
 			else if(leftEdge>windowRect.left){	//left
 				left = pRect.left - popRect.width;
 				top = pRect.bottom - popRect.height/2;
+				if(top<windowRect.top)
+					top = windowRect.top
+			}
+			else if(rightEdge>windowRect.right){
+				left = windowRect.right - popRect.width;
+				top = pRect.bottom;
 				if(top<windowRect.top)
 					top = windowRect.top
 			}
