@@ -30,7 +30,7 @@ object HashSearchImpl {
     List(heapIds(b.left,options),heapIds(b.right,options))
   private def heapIds(expr: Expression, options: Options) = (expr,options) match {
     case (Leaf(ids),_) ⇒ ids
-    case (b: Union,Optimal(priorities)) ⇒
+    case (b: Intersect,Optimal(priorities)) ⇒
       groups(b,options).maxBy(_.map(priorities).min)
     case (b: Branch,o) ⇒ groups(b,o).flatten.distinct
     case (FullScan,_) ⇒ throw new Exception("full scan not supported")
