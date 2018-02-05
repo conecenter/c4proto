@@ -113,9 +113,9 @@ my $gen_docker_conf = sub{
     };
     &$build("zoo"=>sub{
         my($ctx_dir)=@_;
-        my $tgz = "tmp/$kafka.tgz";
-        &$sy_in_dir("tmp","wget http://www-eu.apache.org/dist/kafka/$kafka_version/$tgz") if !-e $tgz;
-        &$sy_in_dir($ctx_dir,"tar -xzf ../../../$tgz");
+        my $tgz = "$kafka.tgz";
+        &$sy_in_dir("tmp","wget http://www-eu.apache.org/dist/kafka/$kafka_version/$tgz") if !-e "tmp/$tgz";
+        &$sy_in_dir($ctx_dir,"tar -xzf ../../../tmp/$tgz");
         &$rename($ctx_dir, $kafka, "kafka");
         &$put_text("$ctx_dir/zookeeper.properties",join "\n",
             "dataDir=db4/zookeeper",
