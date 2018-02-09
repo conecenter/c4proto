@@ -110,6 +110,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				outlineOffset:GlobalStyles.outlineOffset,
 				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
 				...this.props.style,
+				...(this.state.mouseOver && Object.keys(this.props.overStyle||{}).length==0?{opacity:"0.8"}:null),
 				...(this.state.mouseOver?this.props.overStyle:null)
 			}
 			const className = this.props.className
@@ -724,6 +725,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				if(vkContainer.rect.height == 0) top -= popRect.height
 				top+=getPageYOffset()
 				this.prevVkContainer = vkContainer.rect
+				this.prevVk = popRect
 				return {top,left}
 			}
 			this.prevVkContainer = null
@@ -777,9 +779,16 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		isVkPositionSame:function(){
 			const cRect = this.getVkContainer()
 			if(this.prevVkContainer!=cRect) {										
-				return this.prevVkContainer.height == cRect.height				
+				return this.prevVkContainer.height == cRect.height	
 			}				
 			return true
+		},
+		isVkSizeSame:function(){
+			if(!this.el) return true
+			if(!this.prevVk) return true
+			const popRect = this.el.getBoundingClientRect()
+			return this.prevVk.height == popRect.height
+				
 		},
 		position:function(){
 			const input = this.getInput()
@@ -794,7 +803,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					this.prevInp = input
 					return this.updateState(this.getPopupPos(this.el,input),true)
 				}				
-				
+				if(showVk && !this.isVkSizeSame()){
+					this.prevInp = input
+					return this.updateState(this.getPopupPos(this.el,input),true)	
+				}
 				if(showVk && (this.prevInp!=input || !this.isVkPositionSame())){
 					this.prevInp = input
 					return this.updateState(this.getPopupPos(this.el,input),true,true)					
