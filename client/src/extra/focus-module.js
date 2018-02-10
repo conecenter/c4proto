@@ -154,6 +154,8 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 					sendEvent(()=>eventManager.create("ccopy"))
 					break
 				}
+				isPrintable = true
+				break
 			case "F1":
 			case "F2":
 			case "F3":
