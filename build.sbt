@@ -91,7 +91,9 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   //.settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
-  .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
+  .settings(metaMacroSettings,javaOptions in Universal ++= Seq(
+    "-J-XX:+UseG1GC","-J-XX:MaxGCPauseMillis=200","-J-XX:+ExitOnOutOfMemoryError"
+  ))
   .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
