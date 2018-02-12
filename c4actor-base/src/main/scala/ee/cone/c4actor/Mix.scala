@@ -58,4 +58,4 @@ trait SnapshotMakingApp extends CompoundExecutableApp
   with `The QProtocol` with `The QAdapterRegistryImpl`
   with `The SnapshotMakingRawWorldFactory` with `The ProgressObserverFactoryImpl`
 
-trait FileRawSnapshotApp extends `The FileRawSnapshotImpl` with `The RawSnapshotConfigImpl`
+trait FileRawSnapshotApp extends `The FileRawSnapshotImpl` with `The FileRawSnapshotConfigImpl`

@@ -16,11 +16,12 @@ object Single {
 }
 
 object ToPrimaryKey {
-  def apply(node: Product): String = node.productElement(0) match {
-    case s: String ⇒ s
-    case p: Product ⇒ ToPrimaryKey(p)
-    case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
-  }
+  def apply(node: Product): String =
+    if(node.productArity > 0) node.productElement(0) match {
+      case s: String ⇒ s
+      case p: Product ⇒ ToPrimaryKey(p)
+      case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
+    } else ""
 }
 
 class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey[A]) extends DataDependencyTo[A]

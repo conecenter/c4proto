@@ -131,7 +131,7 @@ my $gen_docker_conf = sub{
             "log.cleaner.delete.retention.ms=3600000", #1h
             "log.roll.hours=1", #delete-s will be triggered to remove?
             "compression.type=uncompressed", #probably better compaction for .state topics
-            "message.max.bytes=3000000" #seems to be compressed
+            "message.max.bytes=25000000" #seems to be compressed
         );
         &$gcp($c_script=>$ctx_dir,$c_script);
         &$mkdirs($ctx_dir,"db4");

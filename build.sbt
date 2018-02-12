@@ -7,12 +7,13 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.B.2",
+  version := "0.B.A",
+  bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
-  publishMavenStyle := false,
+  //publishMavenStyle := false,
   //publishArtifact in Test := false,
-  bintrayOrganization := Some("conecenter2b"),  
+  //bintrayOrganization := Some("conecenter2b"),
   //bintrayOrganization in bintray.Keys.bintray := None,
   licenses := ourLicense,
   fork := true, //looks like sbt hangs for a minute on System.exit
@@ -59,7 +60,9 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   //.settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
-  .settings(javaOptions in Universal ++= Seq("-J-Xmx6400m","-J-Xms64m"))
+  .settings(javaOptions in Universal ++= Seq(
+    "-J-XX:+UseG1GC","-J-XX:MaxGCPauseMillis=200","-J-XX:+ExitOnOutOfMemoryError"
+  ))
   .dependsOn(`c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 

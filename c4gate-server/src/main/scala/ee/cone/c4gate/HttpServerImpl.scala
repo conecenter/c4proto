@@ -3,6 +3,7 @@ package ee.cone.c4gate
 
 import java.net.InetSocketAddress
 import java.security.SecureRandom
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{CompletableFuture, Executors, TimeUnit}
@@ -106,7 +107,7 @@ class HttpPostHandler(
         val newId = UUID.randomUUID.toString
         if(hashOK) List(
           post(ToByteString(newId)),
-          AuthenticatedSession(newId, userName),
+          AuthenticatedSession(newId, userName, Instant.now.plusSeconds(20).getEpochSecond),
           ToAlienWrite(newId,currentSessionKey,"signedIn",newId,0)
         ) else List(
           post(okio.ByteString.EMPTY)

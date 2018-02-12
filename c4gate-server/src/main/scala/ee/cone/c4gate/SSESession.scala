@@ -25,8 +25,12 @@ trait SSEServerApp
   with `The TcpServerInject` with `The TcpServerExecutable`
   with `The TcpServerImpl` with `The SSETcpServerConfig` with `The SSEHandler`
   with `The AlienProtocol`
-  with `The SSEAssembles` with `The PostAssembles`
+  with `The ToAlienWriteMortal`
+  with `The FromAlienPongMortal`
+  with `The PostAssembles`
   with `The PongImpl` with `The PongInject` with `The PongHandler`
+
+
 
 case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
 @c4component @listed case class PongHandler(pong: Pong) extends RHttpHandler {
@@ -41,7 +45,8 @@ trait Pong extends RHttpHandler {
 @c4component case class PongImpl(
   qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
   authenticatedSessions: ByPK[AuthenticatedSession] @c4key,
-  fromAlienStates: ByPK[FromAlienState] @c4key
+  fromAlienStates: ByPK[FromAlienState] @c4key,
+  fromAlienPongs: ByPK[FromAlienPong] @c4key
 )(
   pongs: TrieMap[String,Instant] = TrieMap()
 ) extends Pong {
@@ -58,13 +63,19 @@ trait Pong extends RHttpHandler {
       sessionKey,
       headers("X-r-location"),
       headers("X-r-connection"),
-      now.getEpochSecond / sseConfig.stateRefreshPeriodSeconds * sseConfig.stateRefreshPeriodSeconds,
       userName
+    )
+    val pong = FromAlienPong(
+      sessionKey,
+      now.getEpochSecond / sseConfig.stateRefreshPeriodSeconds * sseConfig.stateRefreshPeriodSeconds
     )
     pongs(session.sessionKey) = now
     val wasSession = fromAlienStates.of(local).get(session.sessionKey)
-    if(wasSession != Option(session))
-      TxAdd(LEvent.update(session)).andThen(qMessages.send)(local)
+    val wasPong = fromAlienPongs.of(local).get(pong.sessionKey)
+    TxAdd(
+      (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
+        (if(wasPong != Option(pong)) LEvent.update(pong) else Nil)
+    ).andThen(qMessages.send)(local)
     httpExchange.sendResponseHeaders(200, 0)
     true
   }
@@ -99,13 +110,14 @@ case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 
 case class SessionTxTransform( //?todo session/pongs purge
     fromAlien: FromAlienState,
+    pong: Option[FromAlienPong],
     writes: Values[ToAlienWrite],
     purgePeriodSeconds: Int
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val now = Instant.now
     val lastPongTime = LastPongKey.of(local)(fromAlien.sessionKey)
-      .getOrElse(Instant.ofEpochSecond(fromAlien.lastPongSecond))
+      .getOrElse(Instant.ofEpochSecond(pong.fold(0L)(_.lastSecond)))
     val lastPongAge = SECONDS.between(lastPongTime,now)
     val sender = GetSenderKey.of(local)(fromAlien.connectionKey)
 
@@ -129,7 +141,8 @@ case class SessionTxTransform( //?todo session/pongs purge
   }
 }
 
-@c4component @listed case class SSEAssembles() extends Mortal(classOf[ToAlienWrite])
+@c4component @listed case class ToAlienWriteMortal() extends Mortal(classOf[ToAlienWrite])
+@c4component @listed case class FromAlienPongMortal() extends Mortal(classOf[FromAlienPong])
 
 @assemble class SSEAssemble(sseConfig: SSEConfig) {
   type SessionKey = SrcId
@@ -143,11 +156,12 @@ case class SessionTxTransform( //?todo session/pongs purge
   def joinTxTransform(
     key: SrcId,
     fromAliens: Values[FromAlienState],
+    pongs: Values[FromAlienPong],
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(SrcId,TxTransform)] =
     for(session ← fromAliens)
       yield WithPK(SessionTxTransform(
-        session, writes.sortBy(_.priority),
+        session, Single.option(pongs), writes.sortBy(_.priority),
         sseConfig.stateRefreshPeriodSeconds + sseConfig.tolerateOfflineSeconds
       ))
 
@@ -157,6 +171,30 @@ case class SessionTxTransform( //?todo session/pongs purge
     @by[SessionKey] writes: Values[ToAlienWrite]
   ): Values[(Alive,ToAlienWrite)] =
     for(write ← writes if fromAliens.nonEmpty) yield WithPK(write)
+
+  def lifeOfSessionPong(
+    key: SrcId,
+    fromAliens: Values[FromAlienState],
+    pongs: Values[FromAlienPong]
+  ): Values[(Alive,FromAlienPong)] =
+    for(pong ← pongs if fromAliens.nonEmpty) yield WithPK(pong)
+
+  def checkAuthenticatedSession(
+    key: SrcId,
+    fromAliens: Values[FromAlienState],
+    authenticatedSessions: Values[AuthenticatedSession]
+  ): Values[(SrcId,TxTransform)] = for {
+    authenticatedSession ← authenticatedSessions if fromAliens.isEmpty
+  } yield WithPK(CheckAuthenticatedSessionTxTransform(authenticatedSession))
+}
+
+case class CheckAuthenticatedSessionTxTransform(
+  authenticatedSession: AuthenticatedSession
+) extends TxTransform {
+  def transform(local: Context) =
+    if(Instant.ofEpochSecond(authenticatedSession.untilSecond).isBefore(Instant.now))
+      TxAdd(LEvent.delete(authenticatedSession))(local)
+    else local
 }
 
 @c4component case class NoProxySSEConfig(config: Config)(val stateRefreshPeriodSeconds: Int = config.get("C4STATE_REFRESH_SECONDS").toInt) extends SSEConfig {

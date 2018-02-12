@@ -26,10 +26,23 @@ object AssembleGenerator {
         val param"$keyName: ${KVType(inKeyType)}" = params.head
         val joinDefParams = params.tail.map{
           case param"..$mods ${Term.Name(paramName)}: Values[${KVType(inValType)}]" ⇒
-            val (was,annInKeyType) = mods match {
-              case Nil ⇒ (false,inKeyType)
-              case mod"@by[${KVType(annInKeyTypeV)}]" :: Nil ⇒ (false,annInKeyTypeV)
-              case mod"@was" :: Nil ⇒ (true,inKeyType)
+            val (was,annInKeyType) = mods.foldLeft((false,inKeyType)){ (st,ann) ⇒
+              ann match {
+                case mod"@was" ⇒
+                  st.copy(_1=true)
+                case mod"@by[${KVType(annInKeyTypeV)}]" ⇒
+                  st.copy(_2=annInKeyTypeV)
+                /*case Mod.Annot(
+                  Term.Apply(
+                    Term.ApplyType(
+                      Ctor.Ref.Name("by"),
+                      Seq(KVType(annInKeyTypeV))
+                    ),
+                    Nil
+                  )
+                ) ⇒
+                  st.copy(_2=annInKeyTypeV)*/
+              }
             }
             AType(paramName, was, annInKeyType, inValType)
         }

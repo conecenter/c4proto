@@ -136,9 +136,11 @@ trait QAdapterRegistry {
   def updatesAdapter: ProtoAdapter[QProtocol.Updates]
 }
 
+class RawEvent(val data: Array[Byte], val offset: Long)
+
 trait RawWorld {
   def offset: Long
-  def reduce(data: Array[Byte], offset: Long): RawWorld
+  def reduce(events: List[RawEvent]): RawWorld
   def hasErrors: Boolean
 }
 
@@ -162,8 +164,6 @@ trait RawObserverTreeFactory {
   def create(): RawObserver
 }
 
-abstract class RawSnapshotConfig(val path: String)
-
 trait RawSnapshot {
   def save(data: Array[Byte], offset: Long): Unit
   def loadRecent(): RawWorld
@@ -177,4 +177,9 @@ case class ActorName(value: String)
 object CheckedMap {
   def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
     pairs.groupBy(_._1).transform((k,l)⇒Single(l)._2)
+}
+
+trait RawSnapshotConfig {
+  def path: String
+  def ignore: Set[Long]
 }

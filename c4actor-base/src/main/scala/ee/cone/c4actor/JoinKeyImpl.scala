@@ -18,6 +18,7 @@ case class UniqueIndexMap[K,V](index: Index[K,V]) extends Map[K,V] {
   def get(key: K): Option[V] = Single.option(index.getOrElse(key,Nil))
   def iterator: Iterator[(K, V)] = index.iterator.map{ case (k,v) ⇒ (k,Single(v)) }
   def -(key: K): Map[K, V] = UniqueIndexMap(index - key)
+  override def keysIterator: Iterator[K] = index.keysIterator // to work with non-Single
 }
 
 @c4component case class ByUKFactoryImpl(

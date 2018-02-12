@@ -41,7 +41,7 @@ object HashSearchImpl {
     List(heapIds(b.left,options),heapIds(b.right,options))
   private def heapIds(expr: Expression, options: Options) = (expr,options) match {
     case (Leaf(ids),_) ⇒ ids
-    case (b: Union,Optimal(priorities)) ⇒
+    case (b: Intersect,Optimal(priorities)) ⇒
       groups(b,options).maxBy(_.map(priorities).min)
     case (b: Branch,o) ⇒ groups(b,o).flatten.distinct
     case (FullScan,_) ⇒ throw new Exception("full scan not supported")
@@ -121,6 +121,8 @@ object HashSearchImpl {
     }
   }
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
+  def single[RespLine<:Product]: Values[Request[RespLine]]⇒Values[Request[RespLine]] =
+    l ⇒ Single.option(l.distinct).toList
 }
 
 @assemble class HashSearchAssemble[RespLine<:Product](
@@ -142,7 +144,7 @@ object HashSearchImpl {
     requestId: SrcId,
     requests: Values[Request[RespLine]]
   ): Values[(HeapId,Need[RespLine])] = for {
-    request ← requests
+    request ← single(requests)
     heapId ← heapIds(indexers, request)
   } yield heapId → Need[RespLine](ToPrimaryKey(request))
 
@@ -159,7 +161,7 @@ object HashSearchImpl {
     requests: Values[Request[RespLine]],
     @by[ResponseId] priorities: Values[Priority[RespLine]]
   ): Values[(HeapId,Request[RespLine])] = for {
-    request ← requests
+    request ← single(requests)
     heapId ← heapIds(indexers, request, priorities)
   } yield heapId → request
 
@@ -177,7 +179,7 @@ object HashSearchImpl {
     requests: Values[Request[RespLine]],
     @by[ResponseId] respLines: Values[RespLine]
   ): Values[(SrcId,Response[RespLine])] = for {
-    request ← requests
+    request ← single(requests)
   } yield WithPK(Response(request, respLines.toList.distinct))
   //.foldRight(List.empty[RespLine])((line,res)⇒)
 }

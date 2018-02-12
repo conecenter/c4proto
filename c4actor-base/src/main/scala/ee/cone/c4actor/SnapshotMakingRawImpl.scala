@@ -7,27 +7,45 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Update, Updates}
 import okio.ByteString
 
-@c4component case class SnapshotMakingRawWorldFactory(adapterRegistry: QAdapterRegistry) extends RawWorldFactory {
-  def create(): RawWorld = new SnapshotMakingRawWorld(adapterRegistry)
+import scala.annotation.tailrec
+import scala.collection.immutable.Seq
+
+@c4component case class SnapshotMakingRawWorldFactory(adapterRegistry: QAdapterRegistry, config: RawSnapshotConfig) extends RawWorldFactory {
+  def create(): RawWorld = new SnapshotMakingRawWorld(config.ignore,adapterRegistry)
 }
 
 class SnapshotMakingRawWorld(
+  ignore: Set[Long],
   qAdapterRegistry: QAdapterRegistry,
   state: Map[Update,Update] = Map.empty,
   val offset: Long = 0
 ) extends RawWorld with LazyLogging {
-  def reduce(data: Array[Byte], offset: Long): RawWorld = {
+  def reduce(events: List[RawEvent]): RawWorld = if(events.isEmpty) this else {
     val updatesAdapter = qAdapterRegistry.updatesAdapter
-    val newState = (state /: updatesAdapter.decode(data).updates){(state,up)⇒
-      if(up.value.size > 0) state + (up.copy(value=ByteString.EMPTY)→up)
+    val updates = events.flatMap(ev⇒updatesAdapter.decode(ev.data).updates)
+    val newState = (state /: updates){(state,up)⇒
+      if(ignore(up.valueTypeId)) state
+      else if(up.value.size > 0) state + (up.copy(value=ByteString.EMPTY)→up)
       else state - up
     }
-    new SnapshotMakingRawWorld(qAdapterRegistry,newState,offset)
+    new SnapshotMakingRawWorld(ignore,qAdapterRegistry,newState,events.last.offset)
   }
   def hasErrors: Boolean = false
+
+  @tailrec private def makeStatLine(
+    currType: Long, currCount: Long, currSize: Long, updates: List[Update]
+  ): List[Update] =
+    if(updates.isEmpty || currType != updates.head.valueTypeId) {
+      logger.info(s"t:${java.lang.Long.toHexString(currType)} c:$currCount s:$currSize")
+      updates
+    } else makeStatLine(currType,currCount+1,currSize+updates.head.value.size(),updates.tail)
+  @tailrec private def makeStats(updates: List[Update]): Unit =
+    if(updates.nonEmpty) makeStats(makeStatLine(updates.head.valueTypeId,0,0,updates))
+
   def save(rawSnapshot: RawSnapshot): Unit = {
     logger.info("Saving...")
     val updates = state.values.toList.sortBy(u⇒(u.valueTypeId,u.srcId))
+    makeStats(updates)
     val updatesAdapter = qAdapterRegistry.updatesAdapter
     rawSnapshot.save(updatesAdapter.encode(Updates("",updates)), offset)
     logger.info("OK")

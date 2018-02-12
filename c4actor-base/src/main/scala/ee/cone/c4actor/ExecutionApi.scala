@@ -2,6 +2,8 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 
+import scala.util.Try
+
 trait Execution extends Runnable {
   def onShutdown(hint: String, f:()⇒Unit): Unit
   def complete(): Unit
@@ -10,7 +12,7 @@ trait Execution extends Runnable {
 
 trait FatalFuture[T] {
   def map(body: T ⇒ T): FatalFuture[T]
-  def isCompleted: Boolean
+  def value: Option[Try[T]]
 }
 
 trait ExecutableApp {

@@ -12,7 +12,6 @@ import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto._
 
-
 @protocol object ActorAccessProtocol {
   @Id(0x006A) case class ActorAccessKey(
     @Id(0x006B) srcId: String,

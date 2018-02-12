@@ -110,6 +110,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				outlineOffset:GlobalStyles.outlineOffset,
 				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
 				...this.props.style,
+				...(this.state.mouseOver && Object.keys(this.props.overStyle||{}).length==0?{opacity:"0.8"}:null),
 				...(this.state.mouseOver?this.props.overStyle:null)
 			}
 			const className = this.props.className
@@ -424,7 +425,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const cs=getComputedStyle(this.groupEl);			
 			const containerMinHeight=(Math.max(block.height,block.width) + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';			
 			const captionOffset=(-Math.max(block.height,block.width))+'px';
-			this.setState({captionOffset,containerMinHeight});
+			if(this.state.captionOffset!=captionOffset || this.state.containerMinHeight!=containerMinHeight)
+				this.setState({captionOffset,containerMinHeight});
 			this.shouldRotate();
 		},
 		componentDidMount:function(){
@@ -452,6 +454,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				margin:'0.4em',
 				padding:this.props.caption&&this.state.rotated?'0.5em 1em 1em 1.6em':'0.5em 0.5em 1em 0.5em',
 				minHeight:this.state.rotated?this.state.containerMinHeight:"",
+				position:"relative",
 				...this.props.style
 			};
 			const captionStyle={
@@ -514,7 +517,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				borderRadius:'0.28em',
 				//border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} transparent`,		
 				backgroundColor:"#eee",
-				cursor:'default',
+				cursor:this.props.onClick?'pointer':'default',
 				//width:'3.8em',
 				display:'inline-block',				
 				margin:'0 0.1em',
@@ -526,7 +529,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				whiteSpace:"nowrap",
 				alignSelf:"center",
 				MozUserSelect:"none",
-				userSelect:"none",
+				userSelect:"none",				
 				...style
 			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey},[value,children])
 		}
@@ -597,45 +600,135 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				$("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children));
 			},
 	});
+	
 	let showVk = false
 	const VirtualKeyboard = React.createClass({
-		getInitialState:function(){
-			return {left:"0px",top:"0px"}
+		getInputVKType:function(){
+			//if(this.vkType) return this.vkType
+			const input = this.getInput()
+			let vkType = input&&input.dataset.type;vkType = vkType?vkType:"text"
+			let res
+			switch(vkType){
+				case "text": res = {layout:"layoutAlpha",ver:"simple"};break;
+				case "extText": res = {layout:"layoutAlpha",ver:"extended"};break;
+				case "num": res = {layout:"layoutNumeric",ver:"simple"};break;
+				case "extNum": res = {layout:"layoutNumeric",ver:"extended"};break;
+				case "extFuncNum": res = {layout:"layoutNumeric",ver:"extendedFunc"};break;
+				default:res = {layout:"alphaLayout", ver:"simple"};break;
+			}
+			this.vkType = res
+			return res
 		},
-		switchMode:function(e){			
-			if(this.props.onChange)
-				this.props.onChange({target:{headers:{"X-r-action":"change"},value:""}});
+		getInitialState:function(){
+			return {left:"0px",top:"0px", alphaNumeric:true,fontSizeK:1}
+		},
+		switchMode:function(e){
+			this.setState({alphaNumeric:!this.state.alphaNumeric})			
 		},		
-		updateState:function(pos,show){
+		getVKTypeKey:function(){
+			const {layout,ver} = this.getInputVKType()
+			return layout+ver
+		},
+		updateState:function(pos,show, force){
 			let left = "0px"
 			let top = "0px"
 			if(pos != null) {
 				left = pos.left+"px"
 				top = pos.top+"px"
 			}
-			if(this.state.left !=left || this.state.top !=top || showVk!=show){
+			
+			if(this.state.left !=left || this.state.top !=top || showVk!=show || force){				
+				let fontSizeK
+				const wRect = getWindowRect()				
+				const vkTKey = this.getVKTypeKey()
+				if(this.prevVkState && this.prevVkState[vkTKey]) {
+					if(this.prevVkState[vkTKey].wRect.height == wRect.height && this.prevVkState[vkTKey].wRect.width == wRect.width){
+						fontSizeK = this.prevVkState[vkTKey].fontSizeK
+					}
+					else{
+						fontSizeK = force||showVk!=show?1:this.state.fontSizeK
+					}
+				}
+				else {
+					fontSizeK = force||showVk!=show?1:this.state.fontSizeK					
+				}											
 				showVk = show
-				this.setState({left,top})
+			//	if(!show) this.vkType = null
+				this.setState({left,top, fontSizeK})
 			}
 		},
-		getPopupPos:function(thisEl,parentEl){
-			if(!thisEl||!parentEl) return null;
-			const vkContainer = getReactRoot().querySelector(".vk-container")
-			const pRect = parentEl.parentNode.getBoundingClientRect()					
-			const popRect = thisEl.getBoundingClientRect()
+		saveVkState:function(wRect,force){
+			const vkTKey = this.getVKTypeKey()
+			if(!force&&this.prevVkState && this.prevVkState[vkTKey]){
+				const prev = this.prevVkState[vkTKey];
+				if(prev.wRect.height == wRect.height && prev.wRect.width == wRect.width) return
+			}			
+			const fontSizeK = this.state.fontSizeK		
+			const add = []
+			add[vkTKey] = {wRect,fontSizeK}
+			this.prevVkState = {...this.prevVkState,...add}		
+		},
+		shrinkIfN:function(){
+			if(!this.el) return
+			const tRect = this.el.getBoundingClientRect()
+			const wRect = getWindowRect()
+			const vkContainer = getReactRoot(this.el).querySelector(".vk-container")
 			if(vkContainer){
 				const cRect = vkContainer.getBoundingClientRect()
-				const bm = vkContainer.dataset.position == "bm"				
-				const mdt = (popRect.height + cRect.height)/2
-				const mdl = (popRect.width + cRect.width)/2
-				let top = cRect.height>popRect.height? cRect.bottom-mdt:popRect.top-mdt
-				let left = cRect.width>popRect.width? cRect.right- mdl:popRect.right- mdl
+				const pHeight = vkModule.getReactHeight(this.el)*0.3
+				if(cRect.width>tRect.width && pHeight>tRect.height) {					
+					this.saveVkState(wRect,this.forceUpdateShrink)					
+					vkModule.onVk(showVk,tRect.height)
+					this.forceUpdateShrink = false
+					return
+				}				//todo save wrect and keyboardtype
+				const fontSizeK = this.state.fontSizeK*0.9
+				this.forceUpdateShrink = true
+				this.setState({fontSizeK})
+			}			
+		},
+		getVkContainer:function(types){
+			if(!this.el) return null
+			const vkContainer = getReactRoot(this.el).querySelector(".vk-container")
+			if(!vkContainer) return null
+			if(types) return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position}
+			return vkContainer.getBoundingClientRect()
+		},
+		getPopupPos:function(thisEl,parentEl){
+			if(!thisEl||!parentEl) return null;			
+			const pRect = parentEl.parentNode.getBoundingClientRect()					
+			const popRect = thisEl.getBoundingClientRect()
+			const vkContainer = this.getVkContainer(true)
+			if(vkContainer){				
+				let top
+				let left
+				const bm = vkContainer.position == "bm"
+				const tl = vkContainer.position == "tl"
+				const ml = vkContainer.position == "ml"
+				const tm = vkContainer.position == "tm"
 				
-				if(bm){
-					top = cRect.bottom-popRect.height
+				top = vkContainer.rect.top 
+				left = vkContainer.rect.left
+				if(tm){
+					left = vkContainer.rect.left + vkContainer.rect.width/2 - popRect.width/2
 				}
+				if(bm){
+					top = vkContainer.rect.bottom - popRect.height
+					left = vkContainer.rect.left + vkContainer.rect.width/2 - popRect.width/2
+				}
+				if(tl){
+					
+				}
+				if(ml){
+					top = vkContainer.rect.top + vkContainer.rect.height/2 - popRect.height/2					
+				}
+				if(vkContainer.rect.height == 0) top -= popRect.height
+				top+=getPageYOffset()
+				this.prevVkContainer = vkContainer.rect
+				this.prevVk = popRect
 				return {top,left}
 			}
+			this.prevVkContainer = null
 			const windowRect = getWindowRect()								
 			const rightEdge = pRect.right + popRect.width
 			const leftEdge = pRect.left - popRect.width
@@ -646,15 +739,25 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			
 			if(bottomEdge<=windowRect.bottom){					//bottom
 				left = pRect.left//rect.left - popRect.left
-				top = pRect.bottom				
+				top = pRect.bottom	
+				if(left + popRect.width>windowRect.right)
+					left = windowRect.right - popRect.width;
 			}
 			else if(topEdge>windowRect.top){	//top
 				top = pRect.top - popRect.height
-				left = pRect.left														
+				left = pRect.left
+				if(left + popRect.width>windowRect.right)
+					left = windowRect.right - popRect.width;
 			}
 			else if(leftEdge>windowRect.left){	//left
 				left = pRect.left - popRect.width;
 				top = pRect.bottom - popRect.height/2;
+				if(top<windowRect.top)
+					top = windowRect.top
+			}
+			else if(rightEdge>windowRect.right){
+				left = windowRect.right - popRect.width;
+				top = pRect.bottom;
 				if(top<windowRect.top)
 					top = windowRect.top
 			}
@@ -664,84 +767,112 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				if(top<windowRect.top)
 					top = windowRect.top
 			}
-			
+			top += getPageYOffset()
 			return {top,left}	
 		},
-		position:function(){
+		getInput:function(){
 			const cNode = focusModule.getFocusNode()
-			if(!cNode) return
-			const input = cNode.querySelector("input")
+			if(!cNode) return null
+			const input = cNode.querySelector("input:not([readonly])")
+			return input
+		},
+		isVkPositionSame:function(){
+			const cRect = this.getVkContainer()
+			if(this.prevVkContainer!=cRect) {										
+				return this.prevVkContainer.height == cRect.height	
+			}				
+			return true
+		},
+		isVkSizeSame:function(){
+			if(!this.el) return true
+			if(!this.prevVk) return true
+			const popRect = this.el.getBoundingClientRect()
+			return this.prevVk.height == popRect.height
+				
+		},
+		position:function(){
+			const input = this.getInput()
 			if(!input && this.state.show) return this.updateState(null,false)
-			if(showVk && !documentManager.activeElement().classList.contains("vkElement") && input != documentManager.activeElement())
-				return this.updateState(null,false)				
+			if(!input && showVk) return this.updateState(null,false)	
+			/*if(showVk && !documentManager.activeElement().classList.contains("vkElement") && input != documentManager.activeElement())
+				return this.updateState(null,false)		*/		
 			if(input){
 				const dRect = input.getBoundingClientRect()
 				
-				if(!showVk && input == documentManager.activeElement()){
+				if(!showVk /*&& input == documentManager.activeElement()*/){
 					this.prevInp = input
 					return this.updateState(this.getPopupPos(this.el,input),true)
 				}				
-				
-				if(showVk && this.prevInp!=input){
+				if(showVk && !this.isVkSizeSame()){
 					this.prevInp = input
-					return this.updateState(this.getPopupPos(this.el,input),true)					
+					return this.updateState(this.getPopupPos(this.el,input),true)	
+				}
+				if(showVk && (this.prevInp!=input || !this.isVkPositionSame())){
+					this.prevInp = input
+					return this.updateState(this.getPopupPos(this.el,input),true,true)					
 				}
 			}
 		},
 		componentDidMount:function(){
+			if(this.props.isStatic) return
 			checkActivateCalls.add(this.position)
+			checkActivateCalls.add(this.shrinkIfN)
 		},
 		componentWillUnmount:function(){
+			if(this.props.isStatic) return
 			checkActivateCalls.remove(this.position)
+			checkActivateCalls.remove(this.shrinkIfN)
 		},
 		render:function(){
-			const borderSpacing = '0.2em'
+			const vkContainer = this.getVkContainer()			
+			const visible = vkContainer&&vkContainer.height==0?"hidden": (showVk||this.props.isStatic?"visible":"hidden")
+			const borderSpacing = '0.1em'
 			const positionStyle = {
-				position:"absolute",
+				position:this.props.isStatic?"":"absolute",
 				marginTop:"",
 				backgroundColor:"white",
 				marginLeft:"",
 				marginRight:"",
-				zIndex:"1000",
+				zIndex:showVk||this.props.isStatic?"1000":"-1",
 				left:this.state.left,
 				top:this.state.top,				
-				visibility:showVk?"visible":"hidden"
+				visibility:visible,
+				fontSize:this.state.fontSizeK +'em'
+			}
+			const tableCommonStyle = {
+				borderSpacing:borderSpacing,	
+				marginTop:`-${GlobalStyles.borderWidth}`,
+				marginLeft:'auto',
+				marginRight:'auto'				
 			}
 			const tableStyle={
-				fontSize:'1.55em',
-				borderSpacing:borderSpacing,
-				marginTop:'-0.2em',
-				marginLeft:'auto',
-				marginRight:'auto',
-				...positionStyle,
-				...this.props.style
+				...tableCommonStyle,												
+				...this.props.style				
 			};
-			const tdStyle={				
-				textAlign:'center',
-				verticalAlign:'middle',
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,				
-				backgroundColor:'#eeeeee',
-				height:'2.2em',
-				width:'2em',
-				overflow:"hidden"
-			};
+			/*
 			const aTableStyle={
-				fontSize:'1.85em',
-				borderSpacing:borderSpacing,
-				marginTop:'-0.2em',
-				marginLeft:'auto',
-				marginRight:'auto',
+				...tableCommonStyle,
+				fontSize:'1.85em',				
 				lineHeight:'1.1',				
 				...this.props.style
-			};			
-			const aKeyCellStyle={
-				textAlign:'center',				
+			};		*/	
+			const tdCommonStyle = {
+				textAlign:'center',
 				verticalAlign:'middle',
-				height:'1.4em',
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				backgroundColor:'#eeeeee',
-				minWidth:'1.1em',
-				overflow:"hidden",
+				overflow:"hidden"
+			}
+			const tdStyle={				
+				...tdCommonStyle,				
+				height:'2.2em',
+				width:'2em',				
+			};
+			/*
+			const aKeyCellStyle={
+				...tdCommonStyle,				
+				height:'1.4em',			
+				minWidth:'1.1em',				
 				fontSize:"0.7em"
 			};
 			const aTableLastStyle={
@@ -749,168 +880,113 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				position:'relative',				
 				lineHeight:'1',
 				fontSize:""
-			};			
-			const specialTdStyle={...tdStyle,...this.props.specialKeyStyle};
-			const specialTdAccentStyle={...tdStyle,...this.props.specialKeyAccentStyle};
-			const specialAKeyCellStyle={...aKeyCellStyle,...this.props.specialKeyStyle};
-			const specialAKeyCellAccentStyle={...aKeyCellStyle,...this.props.specialKeyAccentStyle};		
-			const backSpaceFillColor=this.props.alphaNumeric?(specialAKeyCellAccentStyle.color?specialAKeyCellAccentStyle.color:"#000"):(specialTdAccentStyle.color?specialTdAccentStyle.color:"#000");
-			const enterFillColor=this.props.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
-			const upFillColor=this.props.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
-			const downFillColor=this.props.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
-			const backSpaceSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+backSpaceFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M896 470v84h-604l152 154-60 60-256-256 256-256 60 60-152 154h604z" /></g></svg>';
-			const enterSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+enterFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M810 298h86v256h-648l154 154-60 60-256-256 256-256 60 60-154 154h562v-172z" /></g></svg>';
-			const upSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+upFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 658l-60-60 256-256 256 256-60 60-196-196z" /></g></svg>';
-			const downSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+downFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 334l196 196 196-196 60 60-256 256-256-256z" /></g></svg>';
+			};			*/
+			//const specialTdStyle={...tdStyle,...this.props.specialKeyStyle};
+			//const specialTdAccentStyle={...tdStyle,...this.props.specialKeyAccentStyle};
+			//const specialAKeyCellStyle={...aKeyCellStyle,...this.props.specialKeyStyle};
+			//const specialAKeyCellAccentStyle={...aKeyCellStyle,...this.props.specialKeyAccentStyle};		
+			//const backSpaceFillColor=this.state.alphaNumeric?(specialAKeyCellAccentStyle.color?specialAKeyCellAccentStyle.color:"#000"):(specialTdAccentStyle.color?specialTdAccentStyle.color:"#000");
+			//const enterFillColor=this.state.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
+			//const upFillColor=this.state.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
+			//const downFillColor=this.state.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
+			//const backSpaceSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+backSpaceFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M896 470v84h-604l152 154-60 60-256-256 256-256 60 60-152 154h604z" /></g></svg>';
+			//const enterSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+enterFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M810 298h86v256h-648l154 154-60 60-256-256 256-256 60 60-154 154h562v-172z" /></g></svg>';
+			//const upSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+upFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 658l-60-60 256-256 256 256-60 60-196-196z" /></g></svg>';
+			//const downSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+downFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 334l196 196 196-196 60 60-256 256-256-256z" /></g></svg>';
 
-			const backSpaceSvgData=svgSrc(backSpaceSvg);
-			const enterSvgData=svgSrc(enterSvg);
-			const upSvgData=svgSrc(upSvg);
-			const downSvgData=svgSrc(downSvg);
-			const backSpaceEl = $("img",{src:backSpaceSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
-			const enterEl = $("img",{src:enterSvgData,style:{width:"90%",height:"100%"}},null);
-			const upEl = $("img",{src:upSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
-			const downEl = $("img",{src:downSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);			 
-			const ref = ref=> this.el=ref
-			if(this.props.simple && !this.props.alphaNumeric)
-			return $("table",{style:tableStyle,key:"1",ref},
-				$("tbody",{key:"1"},[					  				   					  
-				   $("tr",{key:"3"},[
-						...[7,8,9].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),						  
-						$(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"4",fkey:"Backspace"},backSpaceEl)
-				   ]),					   
-				   $("tr",{key:"4"},[
-						...[4,5,6].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
-						$(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1",fkey:"Delete"},"C")
-				   ]),
-				   $("tr",{key:"5"},[
-					   ...[1,2,3].map(e=>$(VKTd,{style:tdStyle,onClickValue:this.props.onClickValue,key:e,fkey:e.toString()},e.toString())),
-					   $(VKTd,{rowSpan:'2',onClickValue:this.props.onClickValue,style:{...specialTdStyle,height:"90%"},key:"13",fkey:"Enter"},enterEl),
-				   ]),
-				   $("tr",{key:"6"},[
-					   $(VKTd,{colSpan:'3',onClickValue:this.props.onClickValue,style:tdStyle,key:"1",fkey:"0"},'0'),
-				   ]),
-			   ])
-			); 
-			else
-			if(!this.props.alphaNumeric && !this.props.simple)
-			return $("table",{style:tableStyle,key:"1",ref},
-				$("tbody",{key:"1"},[
-				   $("tr",{key:"0"},[
-					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:"2",style:{...specialTdAccentStyle,height:"100%",width:"auto"},bStyle:{fontSize:""},key:"1",fkey:"Backspace"},backSpaceEl),
-					   $(VKTd,{rowSpan:'1',onClickValue:this.props.onClickValue,style:{...specialTdAccentStyle},key:"1c",fkey:"Delete"},"C"),					  
-					   $(VKTd,{colSpan:"2",style:specialTdAccentStyle,key:"3",onClick:this.switchMode},'ABC...'),
-				   ]),					   
-				   !this.props.noFuncKeys?$("tr",{key:"1"},[
-						...["F1","F2","F3","F4","F5"].map(e=>$(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   					   
-				   ]):null,					   
-				   !this.props.noFuncKeys?$("tr",{key:"2"},[
-						...["F6","F7","F8","F9","F10"].map(e=>$(VKTd,{style:specialTdStyle,key:e,fkey:e},e))						   			   
-				   ]):null,
-				   $("tr",{key:"2-extras"},[
-					   $(VKTd,{onClickValue:this.props.onClickValue,style:specialTdAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-					   ...["T",".","-"].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e},e))						   						   
-				   ]),
-				   $("tr",{key:"3"},[
-						...[7,8,9].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',style:{...tdStyle,minWidth:'2em',height:"100%",width:"auto"},key:"arrowup",fkey:"ArrowUp"},upEl),
-				   ]),					   
-				   $("tr",{key:"4"},[
-						...[4,5,6].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',style:{...tdStyle,minWidth:'2em',height:"100%",width:"auto"},key:"arrowdown",fkey:"ArrowDown"},downEl),
-				   ]),
-				   $("tr",{key:"5"},[
-						...[1,2,3].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:tdStyle,key:e,fkey:e.toString()},e.toString())),						   
-					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'2',rowSpan:'2',style:{...specialTdStyle,height:"100%"},key:"4",fkey:"Enter"},enterEl),
-				   ]),
-				   $("tr",{key:"6"},[
-					   $(VKTd,{onClickValue:this.props.onClickValue,colSpan:'3',style:tdStyle,key:"1",fkey:"0"},'0'),
-				   ]),
-			   ])
-			);
-			else
-			return $("div",{key:"1",ref,style:positionStyle},[ 
-				!this.props.simple?$("table",{style:{...aTableStyle,fontSize:tableStyle.fontSize,...(this.props.noFuncKeys?{marginRight:""}:{})},key:"1"},
-					$("tbody",{key:"1"},[
-						$("tr",{key:"1"},!this.props.noFuncKeys?[
-							...["F1","F2","F3","F4","F5","F6","F7","F8","F9","F10"].map(e=>$(VKTd,{style:specialAKeyCellStyle,key:e,fkey:e},e)),																
-							$(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'),
-						]:$(VKTd,{onClick:this.switchMode,style:specialAKeyCellAccentStyle,key:"10"},'123...'))
-					])
-				):null,
-				$("table",{style:aTableStyle,key:"2-extras"},
-					$("tbody",{key:"1"},[
-						$("tr",{key:"1"},[
-							$(VKTd,{onClickValue:this.props.onClickValue,style:specialAKeyCellAccentStyle,colSpan:"2",key:"1",fkey:"Tab"},'Tab'),
-							...[":",";","/","*",".","+",",","-"].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
-							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellAccentStyle,width:"auto",minWidth:"2em"},bStyle:{fontSize:""},key:"11",fkey:"Backspace"},backSpaceEl),
-						]),
-					])
-				),
-				$("table",{style:aTableStyle,key:"2"},
-					$("tbody",{key:"1"},[
-						$("tr",{key:"1"},[
-							...[1,2,3,4,5,6,7,8,9,0].map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e.toString()},e.toString()))								
-						]),
-					])
-				),
-				$("table",{style:aTableStyle,key:"3"},
-					$("tbody",{key:"1"},[
-						$("tr",{key:"1"},[
-							...Array.from("QWERTYUIOP").map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e))															
-						]),
-					])
-				),
-				$("table",{style:{...aTableStyle,position:'relative',left:'0.18rem'},key:"4"},
-					$("tbody",{key:"1"},[
-						$("tr",{key:"1"},[
-							...Array.from("ASDFGHJKL").map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),								
-							$(VKTd,{onClickValue:this.props.onClickValue,style:{...specialAKeyCellStyle,minWidth:"2.2em"},rowSpan:"2",key:"10",fkey:"Enter"},enterEl),
-						]),
-						$("tr",{key:"2"},[
-							$("td",{style:{...aKeyCellStyle,fontSize:"1em",backgroundColor:'transparent',border:'none'},colSpan:"9",key:"1"},[
-								$("table",{style:{...aTableStyle,...aTableLastStyle},key:"1"},
-									$("tbody",{key:"1"},[
-										$("tr",{key:"1"},[
-											...Array.from("ZXCVBNM").map(e=>$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,key:e,fkey:e},e)),												
-											$(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2em'},key:"8",fkey:"ArrowUp"},upEl),
-										]),
-										$("tr",{key:"2"},[
-											$(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"1"},''),
-											$(VKTd,{onClickValue:this.props.onClickValue,style:aKeyCellStyle,colSpan:"5",key:"2",fkey:" "},'SPACE'),
-											$(VKTd,{style:{...aKeyCellStyle,visibility:"hidden"},colSpan:"1",key:"3"},''),
-											$(VKTd,{onClickValue:this.props.onClickValue,style:{...aKeyCellStyle,minWidth:'2em'},key:"4",fkey:"ArrowDown"},downEl),
-										]),
-									])
-								),
-							]),
-						]),
-					])
-				),
-
-			]);			
+			//const backSpaceSvgData=svgSrc(backSpaceSvg);
+			//const enterSvgData=svgSrc(enterSvg);
+			//const upSvgData=svgSrc(upSvg);
+			//const downSvgData=svgSrc(downSvg);
+			//const backSpaceEl = $("img",{src:backSpaceSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
+			//const enterEl = $("img",{src:enterSvgData,style:{width:"90%",height:"100%"}},null);
+			//const upEl = $("img",{src:upSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
+			//const downEl = $("img",{src:downSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);			 
+			
+			let vkLayout = this.state.alphaNumeric?this.props.layoutAlpha:this.props.layoutNumeric
+			
+			const mutate = img => {
+				const cp = {...img}				
+				cp.src = svgSrc(cp.src)
+				return cp
+			}
+			/*
+			const rows = [
+				{ buttons: [
+					{char: "7"},
+					{char: "8"},
+					{char: "9"},
+					{char: "Backspace", image: {src:backSpaceSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}}}
+				]}
+			]*/
+			const genKey = (char,i) => `${char}_${i}`			
+			const vkType = this.getInputVKType()
+			vkLayout = this.props[vkType.layout]
+			if(!vkLayout) return null	
+			const rows = vkLayout[vkType.ver].rows			
+			if(!rows) return null
+			const className = "vkKeyboard"	
+			return $("div",{key:"1",ref:ref=>this.el=ref,style:positionStyle,className},[								  				   					 
+				   rows.map((row,i) => 
+					$("table",{style:tableStyle,ref:ref=>this.el=ref,key:i},
+					   $("tbody",{},	
+						   $("tr",{key: i},[
+								row.buttons.map((btn,j)=>btn.char.length?$(VKTd,
+										{rowSpan: (btn.height || 1).toString(), colSpan:(btn.width || 1).toString(),style:{...tdStyle,...btn.style}, key:genKey(btn.char,j), fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, 
+										(btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char 
+									):$("td",{key:genKey(btn.char,j),style:{border:"none",background:"transparent"},rowSpan: (btn.height || 1).toString(), colSpan:(btn.width || 1).toString()},null)
+								)						 
+						   ])
+					   )
+				    )
+				)
+			]); 		
+			
 		},
 	});	
 
 	const TableElement = $C({
 		check:function(){
 			if(!this.el) return			
+			if(!this.emEl) return
+			if(!this.refDiv) return
 			const dRect = this.el.getBoundingClientRect()
-			const pdRect = this.el.parentNode.getBoundingClientRect()
+			const pdRect = this.refDiv.getBoundingClientRect()			
 			if(this.prev!=dRect.width){
-				if(dRect.width>pdRect.width)
-					this.props.onClickValue("change",dRect.width.toString())					
+				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){
+					const emRect= this.emEl.getBoundingClientRect()
+					const emWidth = dRect.width/emRect.height;
+					this.props.onClickValue("change",emWidth.toString())					
+				}
 				this.prev = dRect.width
 			}
 		},
 		componentDidMount:function(){
 			if(this.props.dynamic) checkActivateCalls.add(this.check)
+			if(!this.el) return
+			const reactRoot = getReactRoot(this.el)
+			if(!reactRoot) return
+			this.refDiv = documentManager.createElement("div")
+			this.refDiv.className = "refDiv"
+			reactRoot.appendChild(this.refDiv)
 		},
 		componentWillUnmount:function(){
 			if(this.props.dynamic) checkActivateCalls.remove(this.check)
+			if(!this.refDiv) return
+			const reactRoot = getReactRoot(this.el)
+			if(!reactRoot) return
+			reactRoot.removeChild(this.refDiv)
 		},
 		render:function(){
+			
 			const {style,children} = this.props
+			const emElStyle={
+				position:"absolute",
+				top:"0",
+				zIndex:"-1",
+				height:"1em"
+			}			
+			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
 			return $("table",{style:{
 					borderCollapse:'separate',
 					borderSpacing:GlobalStyles.borderSpacing,
@@ -918,7 +994,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					lineHeight:"1.1",
 					minWidth:"0",
 					...style
-					},ref:ref=>this.el=ref},children); 
+					},ref:ref=>this.el=ref},[
+						emRefEl,
+						children
+					]); 
 		}
 	})
 	const THeadElement = React.createClass({
@@ -1212,7 +1291,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		getInput:function(){ return this.inp2||this.inp},
 		onEnter:function(event){
-			log(`Enter ;`)
+			//log(`Enter ;`)
 			if(this.isVkEvent(event) || !this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.selectionEnd = inp.value.length
@@ -1224,7 +1303,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			event.stopPropagation()
 		},
 		onDelete:function(event){
-			log(`Delete`)
+			//log(`Delete`)
 			event.stopPropagation()
 			if(this.props.noDel) return
 			this.doIfNotFocused((inp)=>{				
@@ -1240,7 +1319,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			
 		},
 		onBackspace:function(event){
-			log(`Backspace`)
+			//log(`Backspace`)
 			event.stopPropagation()
 			if(this.props.noDel) return
 			this.doIfNotFocused((inp)=>{				
@@ -1302,20 +1381,23 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
 		},
-		onBlur:function(e){
+		onBlur:function(e){			
+			if((e.relatedTarget && e.relatedTarget.querySelector(".vkElement")!=null) || (e.relatedTarget && e.relatedTarget.classList.contains("vkElement"))) return
 			if(this.props.onBlur) this.props.onBlur(e)
 		},
 	    onMouseDown:function(e){			
 			if(!this.props.div) return
+			if(!this.props.onReorder) return
 			this.dragBinding = dragDropModule.dragStartDD(e,this.inp,this.onMouseUpCall)
 			if(this.dragBinding)
 				this.setState({visibility:"hidden"})
 			//e.preventDefault()
 		},
 		onMouseUpCall:function(newPos){
-			if(!this.props.div) return			
+			if(!this.props.div) return
+			if(!this.props.onReorder) return 
 			this.setState({visibility:""})
-			if(this.props.onReorder)this.props.onReorder("reorder",newPos.toString())
+			this.props.onReorder("reorder",newPos.toString())
 		},
 		render:function(){				
 			const inpContStyle={
@@ -1369,7 +1451,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const rows= this.props.rows?this.props.rows:"2";
 			const content = this.props.content;
 			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
-			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}			
+			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}	
+			const dataType = this.props.dataType
 			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					$("div",{key:"xx",style:inp2ContStyle},[
@@ -1377,13 +1460,22 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 							key:"1",
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
-							content,							
+							"data-type":dataType,
+							content,		
 							style:{...inputStyle,...overRideInputStyle},							
 							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",
 							onMouseDown:this.onMouseDown,
 							onTouchStart:this.onMouseDown
 							},this.props.div?[this.props.inputChildren,
-								$("input",{style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},ref:ref=>this.inp2=ref,key:"input",onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:this.props.value})
+								$("input",{
+									style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
+									ref:ref=>this.inp2=ref,
+									key:"input",
+									onChange:this.onChange,
+									onBlur:this.onBlur,
+									onKeyDown:this.onKeyDown,
+									"data-type":dataType,
+									value:this.props.value})
 							]:(content?content:null)),							
 						this.props.popupElement?this.props.popupElement():null
 					]),
@@ -1914,7 +2006,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			backgroundColor:(props.value&&props.value.length>0)?"black":"transparent",
 			borderRadius:"70%",
 			verticalAlign:"top",
-			marginTop:"0.19em",				
+			marginTop:"0.1882em",				
 		};
 		const checkImage = $("div",{style:imageStyle,key:"checkImage"},null);
 		
@@ -2042,15 +2134,16 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			...attributesB.style,
 			textTransform:"none"
 		}
+		const dataType = "extText"
         return $("div",{style:{margin:"1em 0em",...prop.style}},
 			$("form",{key:"form",onSubmit:e=>e.preventDefault()},[
 				$(ControlWrapperElement,{key:"1"},
 					$(LabelElement,{label:usernameCaption},null),
-					$(InputElement,{...attributesA,style:styleA,focus:prop.focus},null)			
+					$(InputElement,{...attributesA,style:styleA,focus:prop.focus,dataType},null)			
 				),
 				$(ControlWrapperElement,{key:"2"},
 					$(LabelElement,{label:passwordCaption},null),
-					$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password"},null)			
+					$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password",dataType},null)			
 				),
 				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
 					$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
@@ -2802,7 +2895,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	})
 	const FilterContainerElement = $C({
 		getInitialState:function(){
-			return {singleHeight:"0px"}
+			return {singleHeight:"0px",version:0}
 		},		
 		isOverflown:function(){
 			if(!this.el) return;
@@ -2811,24 +2904,72 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const c = Array.from(e.children)
 			
 			
-			const singleHeight = c.length>0?c[0].getBoundingClientRect().height+"px":"auto"			
+			const singleHeight = c.length>0?c[0].getBoundingClientRect().height:null			
 			if(singleHeight != this.state.singleHeight)
 				this.setState({singleHeight:singleHeight})
 			
-		},
+		},		
 		componentDidMount:function(){			
-			checkActivateCalls.add(this.isOverflown)
+			this.isOverflown()
+			checkActivateCalls.add(this.calc)
 		},
-		componentDidUpdate:function(){			
+		componentDidUpdate:function(prevProps){
+			this.isOverflown()
 		},
 		componentWillUnmount:function(){
-			checkActivateCalls.remove(this.isOverflown)
+			checkActivateCalls.remove(this.calc)
+		},
+		calc:function(){
+			if(!this.el) return
+			let maxLines = 1 
+			
+			const chldMap = this.props.children.map(child=>({child,basis:this.parseBasis(child.props.incoming.at.style.flexBasis),en:child.props.incoming.at.active&&true,maxLines:1}))
+			const pRect = this.el.getBoundingClientRect()			
+			const chldAWidth = chldMap.filter(_=>_.en).reduce((a,e)=>(a+(e.en?e.basis:0)),0)
+			if(chldAWidth > pRect.width) {maxLines = Math.ceil(chldAWidth/(Math.floor(pRect.width/chldMap[0].basis)*chldMap[0].basis))}
+			if(chldMap[0].basis>pRect.width) {maxLines = chldMap.filter(_=>_.en).length;maxLines=maxLines>0?maxLines:1}
+			let chldWidth = 0
+			do{
+				chldWidth = chldMap.reduce((a,e)=>{
+					e.maxLines = maxLines
+					return a+(e.en?e.basis:0);
+				},0)				
+				const firstPassiveIndex = chldMap.findIndex(_=>!_.child.props.incoming.at.active && !_.en)
+				if(firstPassiveIndex==-1) break;
+				const child = chldMap[firstPassiveIndex]
+				let lineWidth = Math.floor(pRect.width/child.basis)*child.basis;lineWidth = lineWidth?lineWidth:child.basis
+				
+				if(chldWidth+child.basis<=lineWidth*maxLines) {					
+					child.en=true					
+				}
+				else break;
+			}while(true)
+			
+			const same = () =>{
+				if(this.chldMap.length!=chldMap.length || !this.chldMap.every((e,i)=>e.child.key == chldMap[i].child.key && e.en == chldMap[i].en && e.maxLines == chldMap[i].maxLines))
+					return false
+				return true
+			}
+		
+			if(!this.chldMap || !same()) this.update(chldMap)
+		},
+		update:function(chldMap){
+			this.chldMap = chldMap
+			this.setState({...this.state,version:this.state.version+1})
+		},
+		parseBasis:function(strBasis){
+			if(!this.emEl) return 0;
+			const emBasis = parseFloat(strBasis)
+			const pixelBasis = this.emEl.getBoundingClientRect().height * emBasis
+			return pixelBasis
 		},
 		render:function(){
 		//	log(`render`)
+			const children = this.props.open||!Array.isArray(this.chldMap)?this.props.children:this.chldMap.filter(_=>_.en).map(_=>this.props.children.find(c=>c.key == _.child.key))
+			const maxLines = !Array.isArray(this.chldMap)?1:this.chldMap.reduce((a,e)=>(e.maxLines>a?e.maxLines:a),1)
 			const style = {
 				backgroundColor: "#c0ced8",
-				height:this.props.open?"auto":this.state.singleHeight,
+				height:this.props.open||!this.state.singleHeight?"auto":this.state.singleHeight*maxLines+"px",
 				marginBottom:"0.4em",
 				overflow:"hidden",
 				padding:".15625em",
@@ -2847,18 +2988,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				visibility:h?"":"hidden"
 			})
 			const imgStyle = {
-				transform:this.props.open?"rotate(180deg)":"",
-				transition:"transform 140ms"
-			}
-			const chToShow = () => {
-				const chld = this.props.children.filter(_=>_.props.incoming.at.active)
-				return chld.length>0?chld:this.props.children.slice(0,1)
-			}
-			const children = /*Array.isArray(this.props.children)?this.props.children.map((_,i)=>{
-				return $("div",{key:i,style:fStyle(this.state.shown[i]),},_)
-			}):*/this.props.open?this.props.children:chToShow();
+				transform:!this.props.open?"rotate(180deg)":"",
+				transition:"transform 140ms",
+				height:"1em",
+				width:"1em"
+			}	
+			
 			const arrowSvg = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-								 width="1em" height="1em" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
+								 width="150px" height="150px" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
 								 xml:space="preserve">
 								<path d="M248.292,106.406l194.281,194.29c12.365,12.359,12.365,32.391,0,44.744c-12.354,12.354-32.391,12.354-44.744,0
 									L225.923,173.529L54.018,345.44c-12.36,12.354-32.395,12.354-44.748,0c-12.359-12.354-12.359-32.391,0-44.75L203.554,106.4
@@ -2866,14 +3003,22 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 							</svg>`
 			const svgData = svgSrc(arrowSvg)
 			const img = $("img",{src:svgData,style:imgStyle})
+			const emElStyle={
+				position:"absolute",
+				top:"0",
+				zIndex:"-1",
+				height:"1em"
+			}			
+			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
 			return $("div",{style},[
+				emRefEl,
 				$("div",{key:"buttons",style:buttonStyle},$(ButtonElement,{onClick:this.props.onClick},img)),
 				$("div",{key:"contents",style:filterStyle,ref:el=>this.el=el},children)
 			])
 		}
 	})
-	const FilterElement = ({active,children}) => {		
-		return $("div",{},children)
+	const FilterElement = ({active,children,style}) => {		
+		return $("div",{style},children)
 	}
 	const ColorCreator = React.createClass({
 		onChange:function(e){
@@ -2963,7 +3108,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.recalc()
 		},
 		render:function(){
-			const {onChange,style,children,isOpen} = this.props
+			const {onChange,style,children,isOpen, value} = this.props
 			return React.createElement('div',{
 				className:"colorPicker",
 				style: {
@@ -2985,7 +3130,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 									...style
 								},
 								onClick: ev => onChange({target:{headers:{"X-r-action":"change"},value:""} })
-						}, null),
+						}, value),
 						isOpen?React.createElement('div', {
 								key:'2',
 								style: {
@@ -3005,6 +3150,144 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			)
 		}
 	})		
+	
+	//let vkContainers = []
+	//let containerShow = false
+	const VirtualKeyboardContainerElement = (props)=>$("div",{...props},null)
+	/*$C({
+		getInitialState:function(){
+			return {show:containerShow}
+		},
+		update:function(show){
+			this.setState({show})
+		},
+		sizeParent:function(){
+			if(!this.el) return
+			const pRect = this.el.parentNode.getBoundingClientRect()
+			const width = Math.floor(pRect.width)
+			const height = Math.floor(pRect.height)
+			if(this.state.width!=width || this.state.height!=height){			
+				this.setState({width,height})
+			}
+		},
+		componentDidMount:function(){
+			vkContainers.push(this.update)			
+		},
+		componentWillUnmount:function(){
+			const index = vkContainers.indexOf(this.update)
+			vkContainers.splice(index,1)			
+		},
+		render:function(){
+			const extra= { 
+			style:{
+				...this.props.style,
+				position:this.state.show?"static":"absolute",
+				zIndex:"-1"
+			}}
+			return $("div",{...this.props,...extra, ref:ref=>this.el=ref},null)
+		}
+	})*/
+	const vkModule = (() => {
+		const views = []
+		const vks = []
+		const getReactHeight = (el)=>{
+			if(!el) return null
+			const root = getReactRoot(el)
+			if(!root) return null
+			const height = Math.floor(root.parentElement.getBoundingClientRect().height)
+			return height
+			//if(height != this.state.parentHeight)
+			//	this.setState({parentHeight:height})
+		}
+		const regView = (obj) =>{
+			views.push(obj)
+			const unreg = ()=>{
+				const index = views.indexOf(obj)
+				views.splice(index, 1)
+			}
+			return {unreg}
+		}
+		const regVk = (obj) => {
+			vks.push(obj)
+			const unreg = () =>{
+				const index = vks.indexOf(obj)
+				vks.splice(index,1)				
+			}
+			return {unreg}
+		}
+		const onVk = (showVk,val) =>{
+			views.forEach(v=>v(showVk,val))
+			vks.forEach(v=>v(showVk,val))
+		}
+		return {regView,regVk, onVk,getReactHeight}
+	})()
+	const VKMainViewElement = $C({
+		getInitialState:function(){
+			return {parentHeight:0, vkView:false, actual:null}
+		},		
+		updateVkView:function(vkView,actual){
+			if(this.state.vkView != vkView || this.state.actual != actual)
+				this.setState({vkView,actual})
+		},
+		componentDidMount:function(){
+			const perc = parseInt(this.props.atBottomPerc)/100
+			const root = getReactRoot(this.el)
+			if(root) {
+				this.prevRootHeight = root.parentElement.style.maxHeight
+				root.parentElement.style.maxHeight="100%"
+			}
+			this.vkmodule = vkModule.regView(this.updateVkView)			
+		},
+		componentWillUnmount:function(){
+			const root = getReactRoot(this.el)
+			if(root) root.parentElement.style.maxHeight=this.prevRootHeight
+			this.vkmodule.unreg()			
+		},
+		render:function(){
+			
+			let vkHeight = this.state.vkView && this.state.actual?this.state.actual:0
+			const parentHeight = vkModule.getReactHeight(this.el)
+			
+			const height = parentHeight? (Math.floor(parentHeight - vkHeight))+"px": "100%"
+			const style = {
+				...this.props.style,
+				overflowY:"auto",				
+				height:height
+			}
+			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
+		}
+	})
+	const VkViewElement = $C({
+		getInitialState:function(){
+			return {vkView:false, actual:null}
+		},
+		updateVkView:function(vkView,actual){
+			if(this.state.vkView != vkView || this.state.actual != actual)
+				this.setState({vkView,actual})
+		},
+		
+		componentDidMount:function(){
+			const perc = parseInt(this.props.atBottomPerc)/100
+			this.vkmodule = vkModule.regVk(this.updateVkView)
+			//checkActivateCalls.add(this.updateParentWidth)
+		},
+		componentWillUnmount:function(){			
+			this.vkmodule.unreg()
+			//checkActivateCalls.remove(this.updateParentWidth)
+		},
+		render:function(){
+			
+			let height = this.state.vkView && this.state.actual?Math.floor(this.state.actual)+"px":0+"px"
+			
+			const style = {
+				...this.props.style,
+				position:"absolute",
+				width:"100%",
+				height:height
+			}
+			return $("div",{style},this.props.children)
+		}
+	})
 	
 	const ColorItem = ({value,onChange,style}) => React.createElement('div',{
 		style: {
@@ -3051,7 +3334,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const onReadySendBlob = ({sendBlob});
 	const transforms= {
 		tp:{
-            DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,
+            DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,VirtualKeyboardContainerElement,VKMainViewElement,VkViewElement,
             InputElement,AnchorElement,HeightLimitElement,
 			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
