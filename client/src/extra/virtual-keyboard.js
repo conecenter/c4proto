@@ -15,7 +15,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		return {add,remove,check}
 	})();
 	const {getReactRoot} = miscReact
-	const {getPageYOffset,getWindowRect} = windowManager
+	const {setTimeout,getPageYOffset,getWindowRect} = windowManager
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -91,44 +91,16 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		},
 		switchMode:function(e){
 			this.setState({alt:!this.state.alt})			
-		},	/*	
+		},		
 		getVKTypeKey:function(){
 			const {layout,ver} = this.getInputVKType()
 			return layout+ver
 		},
-		updateState:function(pos,show, force){
-			let left = "0px"
-			let top = "0px"
-			if(pos != null) {
-				left = pos.left+"px"
-				top = pos.top+"px"
-			}
-			
-			if(this.state.left !=left || this.state.top !=top || showVk!=show || force){				
-				let fontSizeK
-				const wRect = getWindowRect()				
-				const vkTKey = this.getVKTypeKey()
-				if(this.prevVkState && this.prevVkState[vkTKey]) {
-					if(this.prevVkState[vkTKey].wRect.height == wRect.height && this.prevVkState[vkTKey].wRect.width == wRect.width){						
-						fontSizeK = this.prevVkState[vkTKey].fontSizeK
-					}
-					else{
-						fontSizeK = force||showVk!=show?1:this.state.fontSizeK
-					}
-				}
-				else {
-					fontSizeK = force||showVk!=show?1:this.state.fontSizeK					
-				}											
-				showVk = show
-			//	if(!show) this.vkType = null
-				this.setState({left,top, fontSizeK})
-			}
-		},*/		
 		getVkContainer:function(){
 			if(!this.root) return null
 			const vkContainer = this.root.querySelector(".vk-container")
 			if(!vkContainer) return null
-			return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position}			
+			return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position,o:vkContainer}			
 		},
 		getPopupPos:function(thisEl,parentEl){
 			if(!thisEl||!parentEl) return null;			
@@ -176,7 +148,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			}*/
 			top += getPageYOffset()
 			return {top,left}	
-		},
+		},		
 		getInput:function(){
 			const cNode = focusModule.getFocusNode()
 			if(!cNode) return null
@@ -242,13 +214,21 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			let hK = vkContainer.rect.height/pHeight; if(hK == 0) hK = 1
 			let wK = vkContainer.rect.width/pWidth; if(wK == 0) wK = 1
 			let fK = Math.min(hK,wK)*0.9;fK=fK>1?1:fK			 
+			const show = this.showVk()
+			const wRect = getWindowRect()				
 			const fontSize = fK
 			const {top,left} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
-			const show = this.showVk()
+			
 			if(this.state.fontSize!=fontSize || this.state.top!=top || this.state.left!=left || this.state.show!=show){					    
-				vkModule.onVk(show,pHeight)
-				this.setState({show,fontSize,top,left})	
-			}
+				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,pHeight)			
+				this.setState({fontSize,top,left})
+				if(show) {
+					this.setState({fontSize,top,left})
+					setTimeout(()=>{this.setState({show})},300)
+				}
+				else 
+					this.setState({fontSize,top,left,show})
+			}						
 		},
 		getCurrentLayout:function(){			
 			const vkType = this.getInputVKType()
@@ -385,7 +365,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		render:function(){								
 			const height = this.state.vkView&&this.state.height&&this.rootHeight? (Math.floor(this.rootHeight - this.state.height))+"px": "100%"			
 			const style = {				
-				overflowY:"auto",				
+				overflowY:height=="100%"?"":"auto",				
 				height:height
 			}			
 			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
@@ -415,7 +395,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				width:"100%",
 				height:height
 			}
-			return $("div",{style,ref:ref=>this.el=ref},this.props.children)
+			const className = "vkView"
+			return $("div",{style,ref:ref=>this.el=ref,className},this.props.children)
 		}
 	})
 	
