@@ -1184,7 +1184,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	})
 	const DropDownElement = React.createClass({
 		getInitialState:function(){
-			return {popupMinWidth:0,left:null,top:null};
+			return {popupMinWidth:0,left:0,top:0};
 		},
 		getPopupPos:function(){
 			if(!this.inp||!this.inp.cont) return {};
@@ -1197,34 +1197,28 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				const leftEdge = rect.left - popRect.width
 				const bottomEdge = rect.bottom + popRect.height
 				const topEdge = rect.top - popRect.height;
+				let top = 0
+				let left = 0
 				if(bottomEdge<=windowRect.bottom){					//bottom
-					const leftOffset = 0//rect.left - popRect.left
-					const topOffset = rect.height
-					//log("a")					
-					if(this.state.top!=topOffset||this.state.left!=leftOffset)
-						res = {...res,left:leftOffset,top:topOffset}
+					left = rect.left//rect.left - popRect.left
+					top = rect.bottom					
 				}
 				else if(topEdge>windowRect.top){	//top
-					const topOffset = - popRect.height
-					const leftOffset = 0//rect.left - popRect.left;
-					//log("b")					
-					if(this.state.top!=topOffset||this.state.left!=leftOffset)
-						res = {...res,left:leftOffset,top:topOffset}				
+					top = rect.top - popRect.height
+					left = rect.left//rect.left - popRect.left;							
 				}
 				else if(leftEdge>windowRect.left){	//left
-					const leftOffset = - popRect.width;
-					const topOffset = - popRect.height/2;
-					//log("c")					
-					if(this.state.left!=leftOffset||this.state.top!=topOffset)
-						res = {...res,left:leftOffset,top:topOffset}
+					left = rect.left - popRect.width;
+					top = rect.top - popRect.height/2;					
 				}
 				else if(rightEdge<=windowRect.right){
-					const leftOffset = rect.width;
-					const topOffset = - popRect.height/2;
-					//log("d")					
-					if(this.state.left!=leftOffset||this.state.top!=topOffset)
-						res = {...res,left:leftOffset,top:topOffset}
+					left = rect.right
+					top = rect.top - popRect.height/2;					
 				}
+				top+=getPageYOffset()
+				
+				if(this.state.top!=top||this.state.left!=left)
+						res = {left,top}
 			}
 			return res;
 		},
@@ -1235,7 +1229,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onClick:function(e){
 			if(this.props.onClick)
 				this.props.onClick(e);
-			e.stopPropagation
+			//e.stopPropagation
 		},
 		onKeyDown:function(e){
 			if(this.props.onKeyDown){
@@ -1278,7 +1272,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			//log(state)
 			if(Object.keys(state).length>0) this.setState(state)
 		},
-		componentDidMount:function(){
+		componentDidMount:function(){			
 			if(this.props.open)
 				checkActivateCalls.add(this.mixState)
 		},
@@ -1295,7 +1289,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		render:function(){
 			//const topPosStyle = this.state.bottom?{top:'',marginTop:-this.state.bottom+"px"}:{top:this.state.top?this.state.top+getPageYOffset()+"px":''}
 			const popupStyle={
-				position:"absolute",
+				position:"fixed",
 				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,
 				minWidth: this.props.noAutoWidth?"":this.state.popupMinWidth + "px",
 				overflow: "auto",				
@@ -1306,8 +1300,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				overflowX:"hidden",
 				//marginLeft:"",
 				lineHeight:"normal",
-				marginLeft:`calc(-${GlobalStyles.borderWidth} + ${this.state.left?this.state.left+"px":"0px"})`,
-				marginTop:`calc(-${GlobalStyles.borderWidth} + ${this.state.top?this.state.top+"px":"0px"})`,
+				left:`calc(${this.state.left?this.state.left+"px":"0px"})`,
+				top:`calc(${this.state.top?this.state.top+"px":"0px"})`,
 				//left:this.state.left?this.state.left+"px":"",
 				//top:this.state.top?this.state.top + getPageYOffset() + "px":"",
 				...this.props.popupStyle

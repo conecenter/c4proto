@@ -211,34 +211,27 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}		
 	addEventListener("keydown",onKeyDown)
 	addEventListener("paste",onPaste)
-	addEventListener("cTab",onTab)	
-	/*const isPrintableKeyCode = 	(kc) => (kc == 32 || (kc >= 48 && kc <= 57) || 
-								(kc >= 65 && kc <= 90) || (kc >= 186 && kc <= 192) || 
-								(kc >= 219 && kc <= 222) || kc == 226 || kc == 110 || 
-								(kc >= 96 && kc <= 105) || kc == 106 || kc == 107 || kc == 109)
-								*/
+	addEventListener("cTab",onTab)		
 	const isPrintableKeyCode = (ch)	=> "abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase())
 	const isVk = (el) => el.classList.contains("vkElement")
-	const doCheck = () => {
-		//const activeElement = documentManager.activeElement()
+	const doCheck = () => {		
 		const root = getReactRoot();
 		if(!root) return
-		const nodes = /*Array.from(root.querySelectorAll('[tabindex="1"]'))*/callbacks.map(o=>o.el)
+		const nodes = callbacks.map(o=>o.el)
 		if(nodes.length==0) return
 		//
 		const newNodesObj = nodes.map(n=>{
 			const r = n.getBoundingClientRect()				
 			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n}
-		})		
+		})	
+		
 		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
 			nodesObj = newNodesObj			
-			if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
+			/*if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
 				nodesObj[0].n.focus()
 				//currentFocusNode.focus()
-			}
-		}
-		//if(currentFocusNode && !isVk(activeElement) && currentFocusNode!=activeElement && !currentFocusNode.contains(activeElement)) currentFocusNode = null
-		//if(!currentFocusNode && nodesObj.length>0) {}			
+			}*/
+		}			
 	}	
 	const reg = (o) => {
 		callbacks.push(o)
