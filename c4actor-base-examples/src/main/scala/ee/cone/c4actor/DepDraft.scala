@@ -28,7 +28,7 @@ object DepDraft {
     } yield (a,b)*/
 
   case object FooRequestHandler extends RequestHandler[FooDepRequest] {
-    def isDefinedAt = classOf[FooDepRequest]
+    def canHandle = classOf[FooDepRequest]
 
     def handle: FooDepRequest => ResolvedDep[Int] = fooRq => {
       val response = fooRq.v match {
@@ -43,7 +43,7 @@ object DepDraft {
   }
 
   case object RootRequestHandler extends RequestHandler[RootDepRequest] {
-    def isDefinedAt = classOf[RootDepRequest]
+    def canHandle = classOf[RootDepRequest]
 
     def handle: RootDepRequest => Dep[(Int, Int, Int)] = _ => serialView
   }

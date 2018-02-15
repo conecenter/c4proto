@@ -1,7 +1,7 @@
 package ee.cone.c4actor.dependancy
 
 trait RequestHandler[A] {
-  def isDefinedAt: Class[A]
+  def canHandle: Class[A]
 
   def handle: A => Dep[_]
 }
@@ -15,7 +15,7 @@ trait RequestHandlerRegistry {
 }
 
 case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends RequestHandlerRegistry {
-  private lazy val handlerMap: Map[Class[_], RequestHandler[_]] = handlers.map(handler ⇒ (handler.isDefinedAt, handler)).toMap
+  private lazy val handlerMap: Map[Class[_], RequestHandler[_]] = handlers.map(handler ⇒ (handler.canHandle, handler)).toMap
 
   override def canHandle: Class[_] => Boolean = handlerMap.contains
 
