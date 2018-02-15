@@ -1,9 +1,11 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.CtxType.Ctx
 import ee.cone.c4actor.DepDraft._
 import ee.cone.c4actor.LULProtocol.LULNode
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -15,121 +17,62 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 }
 
-case class A(src: String)
-
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.DepTestApp sbt ~'c4actor-base-examples/runMain ee.cone.c4actor.ServerMain'
-@assemble class DepAssemble(handlerRegistry: List[RequestHandler[_]]) extends Assemble {
-
-  type ToResponse = SrcId
+@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry) extends Assemble {
 
   def sparkJoiner
   (
     key: SrcId,
     nodes: Values[LULNode]
-  ): Values[(SrcId, DepRequest)] =
+  ): Values[(SrcId, Request)] =
     for (
       node ← nodes
     ) yield {
-      println("Root rq Handle"); WithPK(RootRequest("root", "kek"))
+      //println("Root rq Handle")
+      WithPK(RootDepRequest("root", "kek"))
     }
 
-  def resultGrabber
-    (
-      key: SrcId,
-      nodes: Values[UpResolvable]
-    ): Values[(SrcId, A)] =
-    for (
-      node ← nodes
-      if node.request.srcId == "root"
-    ) yield {
-      println(s"Final result: ${node.resolvable.value}")
-      WithPK(A("kek"))
-    }
+  type ToResponse = SrcId
 
   def request
   (
     key: SrcId,
-    @was requests: Values[DepRequest],
+    @was requests: Values[Request],
     @was @by[ToResponse] responses: Values[Response]
   ): Values[(SrcId, UpResolvable)] =
     for (
       request <- requests
     ) yield {
-      println(s"RQ $key = $request")
-      val handler = handlerRegistry.filter(rqHandler => rqHandler.isDefinedAt == request.getClass).head.asInstanceOf[RequestHandler[Request[_]]]
-      val dep: Dep[_] = handler.handle(request.asInstanceOf[Request[_]])
+      //println(s"RQ $key = $request")
+      val dep: Dep[_] = handlerRegistry.handle(request)
       val ctx: Ctx = buildContext(responses)
-      println(s"CTX $key = $ctx")
-      println(s"UpResolvable $key = ${dep.asInstanceOf[InnerDep[_]].resolve(ctx)}")
-      WithPK(UpResolvable(request.asInstanceOf[Request[_]], dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
+      //println(s"CTX $key = $ctx")
+      //println(s"UpResolvable $key = ${dep.asInstanceOf[InnerDep[_]].resolve(ctx)}")
+      WithPK(UpResolvable(request.asInstanceOf[DepRequest[_]], dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
     }
-
-
-  type ToRequest = SrcId
-
-  /*
-  rq, List[resp] -> List[subRq], Resp
-  subRq → List[subSubRq], Resp
-
-
-  настакивает сет srcId parentRq
-
-
-    WithPK where possible, if WithPK then to custom SrcId
-    key → no plz no
-
-   */
 
   def RSOtoRequest
   (
     key: SrcId,
     resolvable: Values[UpResolvable]
-  ): Values[(SrcId, DepRequest)] =
+  ): Values[(SrcId, Request)] =
     for (
       rs ← resolvable;
       rq ← rs.resolvable.requests
     ) yield {
-      println(s"RSOtoRequest $key= ${rq.extendPrev(rs.request.srcId)}")
-      (rq.srcId, rq.extendPrev(rs.request.srcId))
+      //println(s"RSOtoRequest $key= ${rq.extendPrev(rs.request.srcId)}")
+      WithPK(rq.extendPrev(rs.request.srcId))
     }
 
-  type ToResponseIntermin = SrcId
-
-  def RSOtoResponse
+  def ResponseToLUL
   (
     key: SrcId,
     upResolvable: Values[UpResolvable]
-  ): Values[(ToResponseIntermin, Response)] =
-    for (
-      rs ← upResolvable
-    ) yield {
-      println(s"RSOtoResponse $key= ${Response(rs.request, rs.resolvable.value, rs.request.prevSrcId)}")
-      (rs.request.srcId, Response(rs.request, rs.resolvable.value, rs.request.prevSrcId))
-    }
-
-  def ResponseToRqKeyStacked
-  (
-    key: SrcId,
-    @by[ToResponseIntermin] responses: Values[Response]
   ): Values[(ToResponse, Response)] =
-    for (
-      resp ← responses;
-      srcId ← resp.rqList
-    ) yield {
-      println(s"ResponseToRqKeyStacked $srcId:$resp")
-      (srcId, resp)
-    }
-
-  def ResponseToRqKey
-  (
-    key: SrcId,
-    @by[ToResponseIntermin] responses: Values[Response]
-  ): Values[(ToResponse, Response)] =
-    for (
-      resp ← responses
-    ) yield {
-      println(s"ResponseToRqKey $key:$resp")
-      (resp.request.srcId, resp)
+    upResolvable.flatMap { upRes ⇒
+      val response = Response(upRes.request, upRes.resolvable.value, upRes.request.prevSrcId)
+      WithPK(response) ::
+        (for (srcId ← response.rqList) yield (srcId, response))
     }
 
 }
@@ -150,8 +93,10 @@ class DepTestStart(
 
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println(s"Final result: ${ByPK(classOf[UpResolvable]).of(nGlobal)("root").resolvable.value.get}")
     execution.complete()
-    println(s"Final result: ${ByPK(classOf[UpResolvable]).of(nGlobal)}")
+
     /*
     Map(
       ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
@@ -178,10 +123,13 @@ class DepTestApp extends RichDataApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
-  with ToStartApp {
+  with ToStartApp
+  with RqHandlerRegistryImplApp {
+  override def handlers: List[RequestHandler[_]] = FooRequestHandler :: RootRequestHandler :: super.handlers
+
   override def protocols: List[Protocol] = LULProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = new DepAssemble(FooRequestHandler :: RootRequestHandler :: Nil) :: super.assembles
+  override def assembles: List[Assemble] = new DepAssemble(handlerRegistry) :: super.assembles
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 }

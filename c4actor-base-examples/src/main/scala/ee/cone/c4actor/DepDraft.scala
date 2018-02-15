@@ -1,126 +1,55 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.CtxType.Ctx
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 
 // sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.DepDraft'
 object DepDraft {
 
-  type Ctx = Map[SrcId, _]
-
-  trait DepRequest extends Product
-
-  trait Request[A] extends Lens[Ctx, Option[A]] with DepRequest{
-    val srcId: SrcId
-    val prevSrcId: List[SrcId]
-    def extendPrev(id: SrcId): Request[A]
-  }
-
-  abstract class AbstractRequest[A] extends AbstractLens[Ctx, Option[A]] with Request[A] with Product {
-    def of: Ctx ⇒ Option[A] = ctx ⇒ ctx.getOrElse(this.srcId, None).asInstanceOf[Option[A]]
-
-    def set: Option[A] ⇒ Ctx ⇒ Ctx = value ⇒ ctx ⇒ ctx + (this.srcId → value)
-  }
-
-  case class UpResolvable(request: Request[_], resolvable: Resolvable[_])
-
-  case class Resolvable[+A](value: Option[A], requests: Seq[Request[_]] = Nil)
-
-  trait Dep[A] {
-    def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
-
-    def map[B](f: A ⇒ B): Dep[B]
-  }
-
-  trait InnerDep[B] extends Dep[B] {
-    def resolve(ctx: Ctx): Resolvable[B]
-  }
-
-  abstract class DepImpl[A] extends InnerDep[A] {
-    def flatMap[B](f: A ⇒ Dep[B]): Dep[B] = new ComposedDep[A, B](this, f)
-
-    def map[B](f: A ⇒ B): Dep[B] = new ComposedDep[A, B](this, v ⇒ new ResolvedDep(f(v)))
-  }
-
-  class ResolvedDep[A](value: A) extends DepImpl[A] {
-    def resolve(ctx: Ctx): Resolvable[A] = Resolvable(Option(value))
-  }
-
-  class ComposedDep[A, B](inner: InnerDep[A], fm: A ⇒ Dep[B]) extends DepImpl[B] {
-    def resolve(ctx: Ctx): Resolvable[B] =
-      inner.resolve(ctx) match {
-        case Resolvable(Some(v), requests) ⇒
-          val res = fm(v.asInstanceOf[A]).asInstanceOf[InnerDep[B]].resolve(ctx)
-          res.copy(requests = res.requests ++ requests)
-        case Resolvable(None, requests) ⇒
-          Resolvable[Nothing](None, requests)
-      }
-  }
-
-  class RequestDep[A](request: Request[A]) extends DepImpl[A] {
-    def resolve(ctx: Ctx): Resolvable[A] =
-      Resolvable(request.of(ctx), Seq(request))
-  }
-
-  class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A, B)] {
-    def resolve(ctx: Ctx): Resolvable[(A, B)] = {
-      ???
-      /*(aDep.resolve(ctx), bDep.resolve(ctx)) match {
-        case (NotResolved(aRequests),NotResolved(bRequests)) ⇒
-      }*/
-    }
-  }
-
   def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep(a.asInstanceOf[InnerDep[A]], b.asInstanceOf[InnerDep[B]])
 
-  case class FooRequest(srcId: SrcId, v: String, prevSrcId: List[SrcId] = Nil) extends AbstractRequest[Int] {
-    def extendPrev(id: SrcId): Request[Int] = FooRequest(srcId, v, id::prevSrcId)
+  case class FooDepRequest(srcId: SrcId, v: String, prevSrcId: List[SrcId] = Nil) extends AbstractDepRequest[Int] {
+    def extendPrev(id: SrcId): DepRequest[Int] = FooDepRequest(srcId, v, id :: prevSrcId)
   }
 
-  case class RootRequest(srcId: SrcId, v: String, prevSrcId: List[SrcId] = Nil) extends AbstractRequest[Int] {
-    def extendPrev(id: SrcId): Request[Int] = RootRequest(srcId, v, id::prevSrcId)
+  case class RootDepRequest(srcId: SrcId, v: String, prevSrcId: List[SrcId] = Nil) extends AbstractDepRequest[Int] {
+    def extendPrev(id: SrcId): DepRequest[Int] = RootDepRequest(srcId, v, id :: prevSrcId)
   }
 
-  def askFoo(v: String): Dep[Int] = new RequestDep(FooRequest(s"$v-id", v))
+  def askFoo(v: String): Dep[Int] = new RequestDep(FooDepRequest(s"$v-id", v))
 
   /*
     def parallelView: Dep[(Int,Int)] = for {
       (a,b) ← parallel(askFoo("A"), askFoo("B"))
     } yield (a,b)*/
 
-  trait RequestHandler[A] {
-    def isDefinedAt: Class[A]
+  case object FooRequestHandler extends RequestHandler[FooDepRequest] {
+    def isDefinedAt = classOf[FooDepRequest]
 
-    def handle: A => Dep[_]
-  }
-
-
-  case object FooRequestHandler extends RequestHandler[FooRequest] {
-    def isDefinedAt = classOf[FooRequest]
-
-    def handle: FooRequest => ResolvedDep[Int] = fooRq => {
+    def handle: FooDepRequest => ResolvedDep[Int] = fooRq => {
       val response = fooRq.v match {
         case "A" => 1
         case "B" => 2
         case "C" => 3
+        case "D" => 10
+        case a ⇒ throw new Exception(s"$a can't be handled by FooRequestHandler")
       }
       new ResolvedDep(response)
     }
-
   }
 
-  case object RootRequestHandler extends RequestHandler[RootRequest] {
-    def isDefinedAt = classOf[RootRequest]
+  case object RootRequestHandler extends RequestHandler[RootDepRequest] {
+    def isDefinedAt = classOf[RootDepRequest]
 
-    def handle: RootRequest => Dep[(Int, Int, Int)] = _ => serialView
+    def handle: RootDepRequest => Dep[(Int, Int, Int)] = _ => serialView
   }
-
-  val depHandlerRegistry = List(RootRequestHandler, FooRequestHandler)
 
   def subView(a: Int): Dep[Int] = for {
-    c ← askFoo("C")
+    c ← askFoo("D")
     b ← askFoo("B")
   } yield a + b + c
 
@@ -138,22 +67,19 @@ object DepDraft {
   def main(args: Array[String]): Unit = {
     serialView.asInstanceOf[InnerDep[_]]
     val test = serialView.asInstanceOf[InnerDep[_]]
-    val r1: DepDraft.Ctx = Map()
+    val r1: Ctx = Map()
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r1))
-    val r2 = r1 + ("A-id" → 1)
+    val r2 = r1 + ("A-id" → Some(1))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r2))
-    val r3 = r2 + ("C-id" → 3)
+    val r3 = r2 + ("C-id" → Some(3))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r3))
-    val r4 = r3 + ("B-id" → 2)
+    val r4 = r3 + ("B-id" → Some(2))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r4))
-    val fooRq = FooRequest("A-id", "A")
-    println(FooRequestHandler.handle(fooRq).asInstanceOf[InnerDep[_]].resolve(Map()))
+    val r5 = r4 + ("D-id" → Some(10))
+    println(serialView.asInstanceOf[InnerDep[_]].resolve(r5))
   }
 
-  case class Response(request: Request[_], value: Option[_], rqList: List[SrcId] = Nil)
-
-  def buildContext: Values[Response] => Ctx = _.map(curr ⇒ (curr.request.srcId, curr.value)).toMap//_.foldLeft[Ctx](Map())((curr, z: Response) => curr ++ z.requests.map(rq ⇒ (rq, z.value)).toMap) //TODO use toMap
-
+  def buildContext: Values[Response] => Ctx = _.map(curr ⇒ (curr.request.srcId, curr.value)).toMap
 }
 
 /*
