@@ -33,6 +33,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		const aEl = documentManager.activeElement()
 		if((axis==2||axis==0) && aEl.tagName == "INPUT") return
 		const index = nodesObj.findIndex(o => o.n == currentFocusNode)
+		if(index<0) return
 		const cNodeObj = nodesObj[index]
 		const k = [-1,1]
 		const bestDistance = nodesObj.reduce((a,o,i) =>{
@@ -154,6 +155,8 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 					sendEvent(()=>eventManager.create("ccopy"))
 					break
 				}
+				isPrintable = true
+				break
 			case "F1":
 			case "F2":
 			case "F3":
@@ -171,8 +174,8 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		if(best) best.o.n.focus();				
 		if(isPrintable && isPrintableKeyCode(event.key)) {			
 			sendEvent(()=>eventManager.create("delete",{detail}))
-			const cRNode = callbacks.find(o=>o.el == currentFocusNode)
-			if(cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)
+			const cRNode = callbacks.find(o=>o.el == currentFocusNode)			
+			if(cRNode && cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)
 		}			
 	}
 	const sendToServer = (cRNode,type,action) => {if(cRNode.props.onClickValue) cRNode.props.onClickValue(type,action)}
@@ -208,28 +211,27 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}		
 	addEventListener("keydown",onKeyDown)
 	addEventListener("paste",onPaste)
-	addEventListener("cTab",onTab)	
-	/*const isPrintableKeyCode = 	(kc) => (kc == 32 || (kc >= 48 && kc <= 57) || 
-								(kc >= 65 && kc <= 90) || (kc >= 186 && kc <= 192) || 
-								(kc >= 219 && kc <= 222) || kc == 226 || kc == 110 || 
-								(kc >= 96 && kc <= 105) || kc == 106 || kc == 107 || kc == 109)
-								*/
+	addEventListener("cTab",onTab)		
 	const isPrintableKeyCode = (ch)	=> "abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase())
-
-	const doCheck = () => {
+	const isVk = (el) => el.classList.contains("vkElement")
+	const doCheck = () => {		
 		const root = getReactRoot();
 		if(!root) return
-		const nodes = /*Array.from(root.querySelectorAll('[tabindex="1"]'))*/callbacks.map(o=>o.el)
+		const nodes = callbacks.map(o=>o.el)
 		if(nodes.length==0) return
+		//
 		const newNodesObj = nodes.map(n=>{
 			const r = n.getBoundingClientRect()				
 			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n}
-		})
+		})	
+		
 		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
 			nodesObj = newNodesObj			
-			if(!nodesObj.find(o=>o.n == currentFocusNode)) currentFocusNode = null
-		}
-		if(!currentFocusNode && nodesObj.length>0) {currentFocusNode = nodesObj[0].n; currentFocusNode.focus()}			
+			/*if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
+				nodesObj[0].n.focus()
+				//currentFocusNode.focus()
+			}*/
+		}			
 	}	
 	const reg = (o) => {
 		callbacks.push(o)
@@ -239,9 +241,18 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		}
 		return {unreg}
 	}	
-	const switchTo = (node) => {						
+	const switchOff = (node,relatedTarget) => {
+		if(currentFocusNode == node.el && relatedTarget) {
+			if(!nodesObj.find(o=>o.n.contains(relatedTarget))) {				
+				currentFocusNode = null
+			}
+		}
+	}
+	const switchTo = (node) => {
+		
 		const roNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(roNode&&roNode.state.focused) roNode.onBlur()
+			if(!node.el) return			
 		currentFocusNode = node.el		
 	}
 	const checkActivate = doCheck
@@ -254,5 +265,5 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	},200)
 	const getFocusNode = () => currentFocusNode
 	const receivers = {focusTo}
-	return {reg,switchTo,checkActivate,receivers,getFocusNode}
+	return {reg,switchTo,checkActivate,receivers,getFocusNode,switchOff}
 }
