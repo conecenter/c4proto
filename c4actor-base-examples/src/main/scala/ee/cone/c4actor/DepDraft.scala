@@ -13,12 +13,12 @@ object DepDraft {
   def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep(a.asInstanceOf[InnerDep[A]], b.asInstanceOf[InnerDep[B]])
 
-  case class FooDepRequest(srcId: SrcId, v: String, prevSrcId: List[SrcId] = Nil) extends AbstractDepRequest[Int] {
-    def extendPrev(id: SrcId): DepRequest[Int] = FooDepRequest(srcId, v, id :: prevSrcId)
+  case class FooDepRequest(srcId: SrcId, v: String, parentSrcIds: List[SrcId] = Nil) extends AbstractDepRequest[Int] {
+    def addParent(id: SrcId): DepRequest[Int] = FooDepRequest(srcId, v, id :: parentSrcIds)
   }
 
-  case class RootDepRequest(srcId: SrcId, v: String, prevSrcId: List[SrcId] = Nil) extends AbstractDepRequest[Int] {
-    def extendPrev(id: SrcId): DepRequest[Int] = RootDepRequest(srcId, v, id :: prevSrcId)
+  case class RootDepRequest(srcId: SrcId, v: String, parentSrcIds: List[SrcId] = Nil) extends AbstractDepRequest[Int] {
+    def addParent(id: SrcId): DepRequest[Int] = RootDepRequest(srcId, v, id :: parentSrcIds)
   }
 
   def askFoo(v: String): Dep[Int] = new RequestDep(FooDepRequest(s"$v-id", v))
@@ -49,22 +49,22 @@ object DepDraft {
     def handle: RootDepRequest => Dep[(Int, Int, Int)] = _ => serialView
   }
 
-  def askPyPK[A](className: Class[A], srcId: SrcId) = new RequestDep(ByPKRequest(srcId, className))
+  def askPyPK[A](className: String, srcId: SrcId) = new RequestDep(ByPKRequest[A](srcId, className))
 
   def testView: Dep[Int] = for {
-    a ← askPyPK(classOf[PffNode], "123")
-  } yield a.value
+    a ← askPyPK[PffNode](PffNode.getClass.getName, "123")
+  } yield a.map(_.value).getOrElse(0)
 
   def subView(a: Int): Dep[Int] = for {
-    c ← askPyPK(classOf[PffNode], "123")
+    c ← askPyPK[PffNode](PffNode.getClass.getName, "123")
     b ← askFoo("B")
-  } yield a + b + c.value
+  } yield a + b + c.map(_.value).getOrElse(0)
 
   def serialView: Dep[(Int, Int, Int)] = for {
     a ← askFoo("A")
     s ← subView(a)
-    b ← askPyPK(classOf[PffNode], "124")
-  } yield (a, s, b.value)
+    b ← askPyPK[PffNode](PffNode.getClass.getName, "124")
+  } yield (a, s, b.map(_.value).getOrElse(0))
 
   /*
     def parallelView: Dep[(Int,Int)] = for {
@@ -78,7 +78,7 @@ object DepDraft {
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r1))
     val r2 = r1 + ("A-id" → Some(1))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r2))
-    val r3 = r2 + ("C-id" → Some(3))
+    val r3 = r2 + ("123" → Some(Option(PffNode("123", 100))))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r3))
     val r4 = r3 + ("B-id" → Some(2))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r4))
@@ -88,6 +88,7 @@ object DepDraft {
 
   def buildContext: Values[Response] => Ctx = _.map(curr ⇒ (curr.request.srcId, curr.value)).toMap
 }
+
 
 /*
 requests:

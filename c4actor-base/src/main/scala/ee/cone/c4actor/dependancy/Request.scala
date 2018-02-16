@@ -6,9 +6,9 @@ import ee.cone.c4actor.Types.SrcId
 
 trait Request extends Product {
   val srcId: SrcId
-  val prevSrcId: List[SrcId]
+  val parentSrcIds: List[SrcId]
 
-  def extendPrev(id: SrcId): Request
+  def addParent(id: SrcId): Request
 }
 
 trait DepRequest[A] extends Lens[Ctx, Option[A]] with Request
@@ -18,3 +18,11 @@ abstract class AbstractDepRequest[A] extends AbstractLens[Ctx, Option[A]] with D
 
   def set: Option[A] ⇒ Ctx ⇒ Ctx = value ⇒ ctx ⇒ ctx + (this.srcId → value)
 }
+
+//TODO wrap request into something
+
+/* TODO use this code to serialize later
+val adapter = registry.byName(classOf[RawSessionData].getName)
+    def genPK(request: RawSessionData): String =
+      UUID.nameUUIDFromBytes(adapter.encode(request)).toString
+ */

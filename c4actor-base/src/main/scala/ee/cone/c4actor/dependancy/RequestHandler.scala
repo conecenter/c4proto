@@ -11,7 +11,7 @@ trait RequestHandlerRegistry {
 
   def getHandler: Class[_] ⇒ RequestHandler[_]
 
-  def handle: Request ⇒ Dep[_]
+  def handle: Request ⇒ Option[Dep[_]]
 }
 
 case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends RequestHandlerRegistry {
@@ -21,13 +21,9 @@ case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends
 
   override def getHandler: Class[_] => RequestHandler[_] = className ⇒ if (handlerMap.contains(className)) handlerMap(className) else throw new Exception(s"$className: Given class name is not in Registry")
 
-  override def handle: Request => Dep[_] = request ⇒ {
-    if (canHandle(request.getClass)) {
-      val handler: RequestHandler[_] = getHandler(request.getClass)
-      handler.asInstanceOf[RequestHandler[Request]].handle(request)
-    }
-    else
-      throw new Exception(s"${request.getClass}: Given class name is not in Registry")
+  override def handle: Request => Option[Dep[_]] = request ⇒ { //TODO use map once
+      val handler: Option[RequestHandler[Request]] = handlerMap.get(request.getClass).map(_.asInstanceOf[RequestHandler[Request]])
+      handler.map(_.handle(request))
   }
 }
 

@@ -52,11 +52,11 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @was @by[ToResponse] responses: Values[Response]
   ): Values[(SrcId, UpResolvable)] =
     for (
-      request <- requests
-      if handlerRegistry.canHandle(request.getClass)
+      request ← requests;
+      dep ← handlerRegistry.handle(request)
     ) yield {
+      //println()
       //println(s"RQ $key = $request")
-      val dep: Dep[_] = handlerRegistry.handle(request)
       val ctx: Ctx = buildContext(responses)
       //println(s"CTX = $responses")
       //println(s"CTX $key = $ctx")
@@ -73,8 +73,9 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
       rs ← resolvable;
       rq ← rs.resolvable.requests
     ) yield {
-      //println(s"RSOtoRequest $key= ${rq.extendPrev(rs.request.srcId)}")
-      WithPK(rq.extendPrev(rs.request.srcId))
+      //println()
+      //println(s"RSOtoRequest $key= ${rq.addParent(rs.request.srcId)}")
+      WithPK(rq.addParent(rs.request.srcId))
     }
 
   def URSOtoResponse
@@ -83,12 +84,33 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     upResolvable: Values[UpResolvable]
   ): Values[(ToResponse, Response)] =
     upResolvable.flatMap { upRes ⇒
-      val response = Response(upRes.request, upRes.resolvable.value, upRes.request.prevSrcId)
+      //println()
+      val response = Response(upRes.request, upRes.resolvable.value, upRes.request.parentSrcIds)
+      //println(s"Resp: $response")
       WithPK(response) ::
         (for (srcId ← response.rqList) yield (srcId, response))
     }
 
+  //TODO join Request/Response -> UnresolvedRequest
+
+  def UnresolvedDeps
+  (
+    key: SrcId,
+    @was requests: Values[Request],
+    @was resolvables: Values[UpResolvable]
+  ): Values[(SrcId, UnresolvedDep)] =
+    for (
+      rq ← requests;
+      resv ← resolvables;
+      if resv.resolvable.value.isEmpty
+    ) yield {
+      println(s"UnRes $rq:${resv.resolvable}")
+      ("1", UnresolvedDep())
+    }
+
 }
+
+case class UnresolvedDep()
 
 class DepTestStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
@@ -138,7 +160,7 @@ class DepTestApp extends RichDataApp
   with SimpleAssembleProfilerApp
   with ToStartApp
   with RqHandlerRegistryImplApp
-with ByPKRequestHandlerApp {
+  with ByPKRequestHandlerApp {
   override def handledClasses: List[Class[_]] = classOf[PffNode] :: super.handledClasses
 
   override def handlers: List[RequestHandler[_]] = FooRequestHandler :: RootRequestHandler :: super.handlers

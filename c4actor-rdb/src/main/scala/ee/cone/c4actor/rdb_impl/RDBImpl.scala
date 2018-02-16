@@ -62,7 +62,7 @@ object ToExternalDBAssembles {
     items: Values[Item]
   ): Values[(NeedSrcId,HasState)] =
     for(item ← items; e ← LEvent.update(item)) yield {
-      val u = toUpdate.toUpdate(e)
+      val u: Update = toUpdate.toUpdate(e)
       val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
       key → HasState(key,u.valueTypeId,u.value)
     }

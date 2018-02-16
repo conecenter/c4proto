@@ -167,6 +167,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4proto-macros`,
   `c4proto-types`,
   `c4vdom-base`,
-  //`c4ui-canvas`,
+  //`c4ui-canvas`,//TODO add module
   `c4ui-main`
 )
