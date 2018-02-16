@@ -560,391 +560,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 	)	
 	
-	const VKTd = React.createClass({
-		getInitialState:function(){
-			return {touch:false,mouseDown:false};
-		},
-		onClick:function(ev){
-			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
-			if(this.props.onClick){
-				this.props.onClick(ev);				
-				return;
-			}			
-		},
-		onTouchStart:function(e){
-			this.setState({touch:true});
-		},
-		onTouchEnd:function(e){
-			this.setState({touch:false});
-		},
-		onMouseDown:function(){this.setState({mouseDown:true})},
-		onMouseUp:function(){this.setState({mouseDown:false})},
-		render:function(){
-			const bStyle={
-				height:'100%',
-				width:'100%',
-				border:'none',
-				fontStyle:'inherit',
-				fontSize:'1em',
-				backgroundColor:'inherit',
-				verticalAlign:'top',
-				outline:(this.state.touch||this.state.mouseDown)?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-				//outlineOffset:GlobalStyles.outlineOffset,
-				color:'inherit',
-				...((this.state.touch||this.state.mouseDown)?{backgroundColor:"rgb(25, 118, 210)"}:{}),
-				...this.props.bStyle
-			};
-			const className = "vkElement"
-			return $("td",{style:this.props.style,
-				colSpan:this.props.colSpan,rowSpan:this.props.rowSpan,onClick:this.onClick},
-				$("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children));
-			},
-	});
 	
-	let showVk = false
-	const VirtualKeyboard = React.createClass({
-		getInputVKType:function(){
-			//if(this.vkType) return this.vkType
-			const input = this.getInput()
-			let vkType = input&&input.dataset.type;vkType = vkType?vkType:"text"
-			let res
-			switch(vkType){
-				case "text": res = {layout:"layoutAlpha",ver:"simple"};break;
-				case "extText": res = {layout:"layoutAlpha",ver:"extended"};break;
-				case "num": res = {layout:"layoutNumeric",ver:"simple"};break;
-				case "extNum": res = {layout:"layoutNumeric",ver:"extended"};break;
-				case "extFuncNum": res = {layout:"layoutNumeric",ver:"extendedFunc"};break;
-				default:res = {layout:"alphaLayout", ver:"simple"};break;
-			}
-			this.vkType = res
-			return res
-		},
-		getInitialState:function(){
-			return {left:"0px",top:"0px", alphaNumeric:true,fontSizeK:1}
-		},
-		switchMode:function(e){
-			this.setState({alphaNumeric:!this.state.alphaNumeric})			
-		},		
-		getVKTypeKey:function(){
-			const {layout,ver} = this.getInputVKType()
-			return layout+ver
-		},
-		updateState:function(pos,show, force){
-			let left = "0px"
-			let top = "0px"
-			if(pos != null) {
-				left = pos.left+"px"
-				top = pos.top+"px"
-			}
-			
-			if(this.state.left !=left || this.state.top !=top || showVk!=show || force){				
-				let fontSizeK
-				const wRect = getWindowRect()				
-				const vkTKey = this.getVKTypeKey()
-				if(this.prevVkState && this.prevVkState[vkTKey]) {
-					if(this.prevVkState[vkTKey].wRect.height == wRect.height && this.prevVkState[vkTKey].wRect.width == wRect.width){
-						fontSizeK = this.prevVkState[vkTKey].fontSizeK
-					}
-					else{
-						fontSizeK = force||showVk!=show?1:this.state.fontSizeK
-					}
-				}
-				else {
-					fontSizeK = force||showVk!=show?1:this.state.fontSizeK					
-				}											
-				showVk = show
-			//	if(!show) this.vkType = null
-				this.setState({left,top, fontSizeK})
-			}
-		},
-		saveVkState:function(wRect,force){
-			const vkTKey = this.getVKTypeKey()
-			if(!force&&this.prevVkState && this.prevVkState[vkTKey]){
-				const prev = this.prevVkState[vkTKey];
-				if(prev.wRect.height == wRect.height && prev.wRect.width == wRect.width) return
-			}			
-			const fontSizeK = this.state.fontSizeK		
-			const add = []
-			add[vkTKey] = {wRect,fontSizeK}
-			this.prevVkState = {...this.prevVkState,...add}		
-		},
-		shrinkIfN:function(){
-			if(!this.el) return
-			const tRect = this.el.getBoundingClientRect()
-			const wRect = getWindowRect()
-			const vkContainer = getReactRoot(this.el).querySelector(".vk-container")
-			if(vkContainer){
-				const cRect = vkContainer.getBoundingClientRect()
-				const pHeight = vkModule.getReactHeight(this.el)*0.3
-				if(cRect.width>tRect.width && pHeight>tRect.height) {					
-					this.saveVkState(wRect,this.forceUpdateShrink)					
-					vkModule.onVk(showVk,tRect.height)
-					this.forceUpdateShrink = false
-					return
-				}				//todo save wrect and keyboardtype
-				const fontSizeK = this.state.fontSizeK*0.9
-				this.forceUpdateShrink = true
-				this.setState({fontSizeK})
-			}			
-		},
-		getVkContainer:function(types){
-			if(!this.el) return null
-			const vkContainer = getReactRoot(this.el).querySelector(".vk-container")
-			if(!vkContainer) return null
-			if(types) return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position}
-			return vkContainer.getBoundingClientRect()
-		},
-		getPopupPos:function(thisEl,parentEl){
-			if(!thisEl||!parentEl) return null;			
-			const pRect = parentEl.parentNode.getBoundingClientRect()					
-			const popRect = thisEl.getBoundingClientRect()
-			const vkContainer = this.getVkContainer(true)
-			if(vkContainer){				
-				let top
-				let left
-				const bm = vkContainer.position == "bm"
-				const tl = vkContainer.position == "tl"
-				const ml = vkContainer.position == "ml"
-				const tm = vkContainer.position == "tm"
-				
-				top = vkContainer.rect.top 
-				left = vkContainer.rect.left
-				if(tm){
-					left = vkContainer.rect.left + vkContainer.rect.width/2 - popRect.width/2
-				}
-				if(bm){
-					top = vkContainer.rect.bottom - popRect.height
-					left = vkContainer.rect.left + vkContainer.rect.width/2 - popRect.width/2
-				}
-				if(tl){
-					
-				}
-				if(ml){
-					top = vkContainer.rect.top + vkContainer.rect.height/2 - popRect.height/2					
-				}
-				if(vkContainer.rect.height == 0) top -= popRect.height
-				top+=getPageYOffset()
-				this.prevVkContainer = vkContainer.rect
-				this.prevVk = popRect
-				return {top,left}
-			}
-			this.prevVkContainer = null
-			const windowRect = getWindowRect()								
-			const rightEdge = pRect.right + popRect.width
-			const leftEdge = pRect.left - popRect.width
-			const bottomEdge = pRect.bottom + popRect.height
-			const topEdge = pRect.top - popRect.height;
-			let top = 0
-			let left = 0
-			
-			if(bottomEdge<=windowRect.bottom){					//bottom
-				left = pRect.left//rect.left - popRect.left
-				top = pRect.bottom	
-				if(left + popRect.width>windowRect.right)
-					left = windowRect.right - popRect.width;
-			}
-			else if(topEdge>windowRect.top){	//top
-				top = pRect.top - popRect.height
-				left = pRect.left
-				if(left + popRect.width>windowRect.right)
-					left = windowRect.right - popRect.width;
-			}
-			else if(leftEdge>windowRect.left){	//left
-				left = pRect.left - popRect.width;
-				top = pRect.bottom - popRect.height/2;
-				if(top<windowRect.top)
-					top = windowRect.top
-			}
-			else if(rightEdge>windowRect.right){
-				left = windowRect.right - popRect.width;
-				top = pRect.bottom;
-				if(top<windowRect.top)
-					top = windowRect.top
-			}
-			else if(rightEdge<=windowRect.right){
-				left = pRect.right;
-				top = pRect.bottom - popRect.height/2;
-				if(top<windowRect.top)
-					top = windowRect.top
-			}
-			top += getPageYOffset()
-			return {top,left}	
-		},
-		getInput:function(){
-			const cNode = focusModule.getFocusNode()
-			if(!cNode) return null
-			const input = cNode.querySelector("input:not([readonly])")
-			return input
-		},
-		isVkPositionSame:function(){
-			const cRect = this.getVkContainer()
-			if(this.prevVkContainer!=cRect) {										
-				return this.prevVkContainer.height == cRect.height	
-			}				
-			return true
-		},
-		isVkSizeSame:function(){
-			if(!this.el) return true
-			if(!this.prevVk) return true
-			const popRect = this.el.getBoundingClientRect()
-			return this.prevVk.height == popRect.height
-				
-		},
-		position:function(){
-			const input = this.getInput()
-			if(!input && this.state.show) return this.updateState(null,false)
-			if(!input && showVk) return this.updateState(null,false)	
-			/*if(showVk && !documentManager.activeElement().classList.contains("vkElement") && input != documentManager.activeElement())
-				return this.updateState(null,false)		*/		
-			if(input){
-				const dRect = input.getBoundingClientRect()
-				
-				if(!showVk /*&& input == documentManager.activeElement()*/){
-					this.prevInp = input
-					return this.updateState(this.getPopupPos(this.el,input),true)
-				}				
-				if(showVk && !this.isVkSizeSame()){
-					this.prevInp = input
-					return this.updateState(this.getPopupPos(this.el,input),true)	
-				}
-				if(showVk && (this.prevInp!=input || !this.isVkPositionSame())){
-					this.prevInp = input
-					return this.updateState(this.getPopupPos(this.el,input),true,true)					
-				}
-			}
-		},
-		componentDidMount:function(){
-			if(this.props.isStatic) return
-			checkActivateCalls.add(this.position)
-			checkActivateCalls.add(this.shrinkIfN)
-		},
-		componentWillUnmount:function(){
-			if(this.props.isStatic) return
-			checkActivateCalls.remove(this.position)
-			checkActivateCalls.remove(this.shrinkIfN)
-		},
-		render:function(){
-			const vkContainer = this.getVkContainer()			
-			const visible = vkContainer&&vkContainer.height==0?"hidden": (showVk||this.props.isStatic?"visible":"hidden")
-			const borderSpacing = '0.1em'
-			const positionStyle = {
-				position:this.props.isStatic?"":"absolute",
-				marginTop:"",
-				backgroundColor:"white",
-				marginLeft:"",
-				marginRight:"",
-				zIndex:showVk||this.props.isStatic?"1000":"-1",
-				left:this.state.left,
-				top:this.state.top,				
-				visibility:visible,
-				fontSize:this.state.fontSizeK +'em'
-			}
-			const tableCommonStyle = {
-				borderSpacing:borderSpacing,	
-				marginTop:`-${GlobalStyles.borderWidth}`,
-				marginLeft:'auto',
-				marginRight:'auto'				
-			}
-			const tableStyle={
-				...tableCommonStyle,												
-				...this.props.style				
-			};
-			/*
-			const aTableStyle={
-				...tableCommonStyle,
-				fontSize:'1.85em',				
-				lineHeight:'1.1',				
-				...this.props.style
-			};		*/	
-			const tdCommonStyle = {
-				textAlign:'center',
-				verticalAlign:'middle',
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
-				backgroundColor:'#eeeeee',
-				overflow:"hidden"
-			}
-			const tdStyle={				
-				...tdCommonStyle,				
-				height:'2.2em',
-				width:'2em',				
-			};
-			/*
-			const aKeyCellStyle={
-				...tdCommonStyle,				
-				height:'1.4em',			
-				minWidth:'1.1em',				
-				fontSize:"0.7em"
-			};
-			const aTableLastStyle={
-				marginBottom:'0rem',
-				position:'relative',				
-				lineHeight:'1',
-				fontSize:""
-			};			*/
-			//const specialTdStyle={...tdStyle,...this.props.specialKeyStyle};
-			//const specialTdAccentStyle={...tdStyle,...this.props.specialKeyAccentStyle};
-			//const specialAKeyCellStyle={...aKeyCellStyle,...this.props.specialKeyStyle};
-			//const specialAKeyCellAccentStyle={...aKeyCellStyle,...this.props.specialKeyAccentStyle};		
-			//const backSpaceFillColor=this.state.alphaNumeric?(specialAKeyCellAccentStyle.color?specialAKeyCellAccentStyle.color:"#000"):(specialTdAccentStyle.color?specialTdAccentStyle.color:"#000");
-			//const enterFillColor=this.state.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
-			//const upFillColor=this.state.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
-			//const downFillColor=this.state.alphaNumeric?(aKeyCellStyle.color?aKeyCellStyle.color:"#000"):(tdStyle.color?tdStyle.color:"#000");
-			//const backSpaceSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+backSpaceFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M896 470v84h-604l152 154-60 60-256-256 256-256 60 60-152 154h604z" /></g></svg>';
-			//const enterSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+enterFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M810 298h86v256h-648l154 154-60 60-256-256 256-256 60 60-154 154h562v-172z" /></g></svg>';
-			//const upSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+upFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 658l-60-60 256-256 256 256-60 60-196-196z" /></g></svg>';
-			//const downSvg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="24" viewBox="0 0 24 24"><g fill="'+downFillColor+'" transform="scale(0.0234375 0.0234375)"><path d="M316 334l196 196 196-196 60 60-256 256-256-256z" /></g></svg>';
-
-			//const backSpaceSvgData=svgSrc(backSpaceSvg);
-			//const enterSvgData=svgSrc(enterSvg);
-			//const upSvgData=svgSrc(upSvg);
-			//const downSvgData=svgSrc(downSvg);
-			//const backSpaceEl = $("img",{src:backSpaceSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
-			//const enterEl = $("img",{src:enterSvgData,style:{width:"90%",height:"100%"}},null);
-			//const upEl = $("img",{src:upSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);
-			//const downEl = $("img",{src:downSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}},null);			 
-			
-			let vkLayout = this.state.alphaNumeric?this.props.layoutAlpha:this.props.layoutNumeric
-			
-			const mutate = img => {
-				const cp = {...img}				
-				cp.src = svgSrc(cp.src)
-				return cp
-			}
-			/*
-			const rows = [
-				{ buttons: [
-					{char: "7"},
-					{char: "8"},
-					{char: "9"},
-					{char: "Backspace", image: {src:backSpaceSvgData,style:{width:"50%",height:"100%",verticalAlign:"middle"}}}
-				]}
-			]*/
-			const genKey = (char,i) => `${char}_${i}`			
-			const vkType = this.getInputVKType()
-			vkLayout = this.props[vkType.layout]
-			if(!vkLayout) return null	
-			const rows = vkLayout[vkType.ver].rows			
-			if(!rows) return null
-			const className = "vkKeyboard"	
-			return $("div",{key:"1",ref:ref=>this.el=ref,style:positionStyle,className},[								  				   					 
-				   rows.map((row,i) => 
-					$("table",{style:tableStyle,ref:ref=>this.el=ref,key:i},
-					   $("tbody",{},	
-						   $("tr",{key: i},[
-								row.buttons.map((btn,j)=>btn.char.length?$(VKTd,
-										{rowSpan: (btn.height || 1).toString(), colSpan:(btn.width || 1).toString(),style:{...tdStyle,...btn.style}, key:genKey(btn.char,j), fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, 
-										(btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char 
-									):$("td",{key:genKey(btn.char,j),style:{border:"none",background:"transparent"},rowSpan: (btn.height || 1).toString(), colSpan:(btn.width || 1).toString()},null)
-								)						 
-						   ])
-					   )
-				    )
-				)
-			]); 		
-			
-		},
-	});	
-
 	const TableElement = $C({
 		check:function(){
 			if(!this.el) return			
@@ -961,6 +577,11 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				this.prev = dRect.width
 			}
 		},
+		onInputEnter:function(e){
+			const event = eventManager.create("keydown",{bubbles:true,key:"ArrowDown"})			
+			e.stopPropagation()
+			eventManager.sendToWindow(event)
+		},
 		componentDidMount:function(){
 			if(this.props.dynamic) checkActivateCalls.add(this.check)
 			if(!this.el) return
@@ -969,6 +590,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.refDiv = documentManager.createElement("div")
 			this.refDiv.className = "refDiv"
 			reactRoot.appendChild(this.refDiv)
+			this.el.addEventListener("cTab",this.onInputEnter)
 		},
 		componentWillUnmount:function(){
 			if(this.props.dynamic) checkActivateCalls.remove(this.check)
@@ -976,6 +598,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const reactRoot = getReactRoot(this.el)
 			if(!reactRoot) return
 			reactRoot.removeChild(this.refDiv)
+			this.el.removeEventListener("cTab",this.onInputEnter)
 		},
 		render:function(){
 			
@@ -1054,7 +677,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(!this.el) return
 			focusModule.switchTo(this)
 			this.setState({focused:true})
-			const cEvent = eventManager.create("cFocus",{bubbles:true,detail:null})
+			const focusMarkerInput = this.el.querySelector("input")
+			let detail = null
+			if(focusMarkerInput){
+				const cls = Array.from(focusMarkerInput.classList)
+				const marker = "marker-"
+				const cl = cls.find(_=>_.indexOf(marker)==0)
+				if(cl) detail = cl.substring(marker.length)
+			}
+			const cEvent = eventManager.create("cFocus",{bubbles:true,detail})
 			this.el.dispatchEvent(cEvent)
 			/*const pc = e.path.find(el=>Array.from(el.classList).some(cl=>cl.includes("marker")))
 			if(!pc || pc==this.el){
@@ -1063,7 +694,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}*/
 			//e.stopPropagation()
 		},
-		onBlur:function(){
+		onBlur:function(e){
+			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
+			focusModule.switchOff(this,e&&e.relatedTarget)
 			if(this.isMounted) this.setState({focused:false})
 		},
 		checkForSibling:function(){
@@ -1139,6 +772,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
 			const focusActions = nodeType=="td"?{onFocus:this.onFocus,onBlur:this.onBlur}:{}
 			const className = "marker"
+			
 			return $(nodeType,{style:{
 				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 				borderLeft:'none',
@@ -1198,15 +832,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.setState({mouseOver:false});
 		},
 		onEnter:function(e){
-			if(this.props.onClickValue)
+			if(e.key == "Enter" && this.props.onClickValue){			
 				this.props.onClickValue("key","enter")
-			e.stopPropagation();
+			}					
 		},
-		componentDidMount:function(){
-			this.el.addEventListener("enter",this.onEnter)
+		componentDidMount:function(){			
+			//this.el.addEventListener("enter",this.onEnter)
 		},
-		componentWDidWillUnMount:function(){
-			this.el.removeEventListener("enter",this.onEnter)
+		componentWillUnmount:function(){			
+			//this.el.removeEventListener("enter",this.onEnter)
 		},
 		onClick:function(e){
 			if(this.props.onClick){
@@ -1225,7 +859,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
 				...this.props.style
 			};			
-			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onMouseLeave:this.onMouseLeave,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onClick:this.onClick,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	});
 	const Interactive = React.createClass({
@@ -1296,7 +930,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				this.prevval = inp.value
 				inp.selectionEnd = inp.value.length
 				inp.selectionStart = inp.value.length
-			}))	{				
+			}))	{								
 				const cEvent = eventManager.create("cTab",{bubbles:true})
 				this.cont.dispatchEvent(cEvent)				
 			}
@@ -1395,7 +1029,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		onMouseUpCall:function(newPos){
 			if(!this.props.div) return
-			if(!this.props.onReorder) return			
+			if(!this.props.onReorder) return 
 			this.setState({visibility:""})
 			this.props.onReorder("reorder",newPos.toString())
 		},
@@ -1453,6 +1087,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
 			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}	
 			const dataType = this.props.dataType
+			const className = this.props.className
 			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					$("div",{key:"xx",style:inp2ContStyle},[
@@ -1461,6 +1096,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,
 							"data-type":dataType,
+							className,
 							content,		
 							style:{...inputStyle,...overRideInputStyle},							
 							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",
@@ -1471,6 +1107,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 									style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
 									ref:ref=>this.inp2=ref,
 									key:"input",
+									className,
 									onChange:this.onChange,
 									onBlur:this.onBlur,
 									onKeyDown:this.onKeyDown,
@@ -1547,7 +1184,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	})
 	const DropDownElement = React.createClass({
 		getInitialState:function(){
-			return {popupMinWidth:0,left:null,top:null};
+			return {popupMinWidth:0,left:0,top:0};
 		},
 		getPopupPos:function(){
 			if(!this.inp||!this.inp.cont) return {};
@@ -1560,34 +1197,28 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				const leftEdge = rect.left - popRect.width
 				const bottomEdge = rect.bottom + popRect.height
 				const topEdge = rect.top - popRect.height;
+				let top = 0
+				let left = 0
 				if(bottomEdge<=windowRect.bottom){					//bottom
-					const leftOffset = 0//rect.left - popRect.left
-					const topOffset = rect.height
-					//log("a")					
-					if(this.state.top!=topOffset||this.state.left!=leftOffset)
-						res = {...res,left:leftOffset,top:topOffset}
+					left = rect.left//rect.left - popRect.left
+					top = rect.bottom					
 				}
 				else if(topEdge>windowRect.top){	//top
-					const topOffset = - popRect.height
-					const leftOffset = 0//rect.left - popRect.left;
-					//log("b")					
-					if(this.state.top!=topOffset||this.state.left!=leftOffset)
-						res = {...res,left:leftOffset,top:topOffset}				
+					top = rect.top - popRect.height
+					left = rect.left//rect.left - popRect.left;							
 				}
 				else if(leftEdge>windowRect.left){	//left
-					const leftOffset = - popRect.width;
-					const topOffset = - popRect.height/2;
-					//log("c")					
-					if(this.state.left!=leftOffset||this.state.top!=topOffset)
-						res = {...res,left:leftOffset,top:topOffset}
+					left = rect.left - popRect.width;
+					top = rect.top - popRect.height/2;					
 				}
 				else if(rightEdge<=windowRect.right){
-					const leftOffset = rect.width;
-					const topOffset = - popRect.height/2;
-					//log("d")					
-					if(this.state.left!=leftOffset||this.state.top!=topOffset)
-						res = {...res,left:leftOffset,top:topOffset}
+					left = rect.right
+					top = rect.top - popRect.height/2;					
 				}
+				top+=getPageYOffset()
+				
+				if(this.state.top!=top||this.state.left!=left)
+						res = {left,top}
 			}
 			return res;
 		},
@@ -1598,6 +1229,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onClick:function(e){
 			if(this.props.onClick)
 				this.props.onClick(e);
+			//e.stopPropagation
 		},
 		onKeyDown:function(e){
 			if(this.props.onKeyDown){
@@ -1605,7 +1237,6 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				return false
 			}
 			let call=""
-			let opt = null
 			switch(e.key){				
 				case "ArrowDown":
 					e.stopPropagation();
@@ -1633,7 +1264,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					break
 			}
 			if(call.length>0 && this.props.onClickValue)
-				this.props.onClickValue("key",call,opt);			
+				this.props.onClickValue("key",call);			
 			return false;
 		},
 		getPopupWidth:function(){
@@ -1649,7 +1280,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			//log(state)
 			if(Object.keys(state).length>0) this.setState(state)
 		},
-		componentDidMount:function(){
+		componentDidMount:function(){			
 			if(this.props.open)
 				checkActivateCalls.add(this.mixState)
 		},
@@ -1666,7 +1297,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		render:function(){
 			//const topPosStyle = this.state.bottom?{top:'',marginTop:-this.state.bottom+"px"}:{top:this.state.top?this.state.top+getPageYOffset()+"px":''}
 			const popupStyle={
-				position:"absolute",
+				position:"fixed",
 				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,
 				minWidth: this.props.noAutoWidth?"":this.state.popupMinWidth + "px",
 				overflow: "auto",				
@@ -1677,8 +1308,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				overflowX:"hidden",
 				//marginLeft:"",
 				lineHeight:"normal",
-				marginLeft:`calc(-${GlobalStyles.borderWidth} + ${this.state.left?this.state.left+"px":"0px"})`,
-				marginTop:`calc(-${GlobalStyles.borderWidth} + ${this.state.top?this.state.top+"px":"0px"})`,
+				left:`calc(${this.state.left?this.state.left+"px":"0px"})`,
+				top:`calc(${this.state.top?this.state.top+"px":"0px"})`,
 				//left:this.state.left?this.state.left+"px":"",
 				//top:this.state.top?this.state.top + getPageYOffset() + "px":"",
 				...this.props.popupStyle
@@ -1696,6 +1327,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 306 306" xml:space="preserve"><polygon points="270.3,58.65 153,175.95 35.7,58.65 0,94.35 153,247.35 306,94.35"/></svg>'
 			const svgData=svgSrc(svg);
 			const urlData = this.props.url?this.props.url:svgData;
+			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""		
 			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
@@ -1703,7 +1335,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const inputChildren = this.props.div? this.props.children.slice(0,parseInt(this.props.div)): null
 			const popupElement = () => [this.props.open?$("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},this.props.div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null];
 			
-			return $(InputElement,{...this.props,inputChildren,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
+			return $(InputElement,{...this.props,className,inputChildren,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
 		}
 	});	
 	const ButtonInputElement = (props) => $(Interactive,{},(actions)=>{
@@ -1742,19 +1374,22 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			this.setState({focused:true})
 		},
-		onBlur:function(){
+		onBlur:function(e){
+			
+			 if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
+			focusModule.switchOff(this, e&&e.relatedTarget)
 			if(this.isMounted) this.setState({focused:false})
 		},
 		componentDidMount:function(){
-			if(this.el) {
+			if(this.el) {				
 				this.el.addEventListener("focus",this.onFocus,true)
-				this.el.addEventListener("blur",this.onBlur,false)
+				this.el.addEventListener("blur",this.onBlur,true)
 			}
 			this.binding = focusModule.reg(this)
 			this.isMounted = true
 		},
 		componentWillUnmount:function(){
-			if(this.el) {
+			if(this.el) {				
 				this.el.removeEventListener("focus",this.onFocus)
 				this.el.removeEventListener("blur",this.onBlur)
 			}
@@ -1835,7 +1470,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	});
 	const PopupElement = React.createClass({
 		getInitialState:function(){
-			return {top:"",left:""};
+			return {top:0,left:0};
 		},
 		calcPosition:function(){
 			if(!this.el) return;			
@@ -1843,29 +1478,34 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(!sibling) return;
 			const sRect = sibling.getBoundingClientRect();
 			const r = this.el.getBoundingClientRect();
-			let left="",top="";
+			let left=0,top=0;
 			switch(this.props.position){
 				case "Left":					
-					left = -r.width+"px";
-					top = "0px";
+					left = sRect.left - r.width;
+					top = sRect.top;
 					break;
 				case "Right":
-					left = sRect.width+"px";
-					top = "0px";					
+					left = sRect.right;
+					top = sRect.top;					
 					break;
 				case "Top":
-					left = "0px";
-					top = -r.height+"px";
+					left = sRect.left;
+					top = sRect.top - r.height;
 					break;
 				case "Bottom":
-					left = "0px";
-					top = sRect.height+"px";
-			}
-			this.setState({top,left});			
+					left = sRect.left;
+					top = sRect.bottom;
+			}			
+			top -= getPageYOffset()
+			if(this.state.top!=top || this.state.left!=left)
+				this.setState({top,left});			
 		},
 		componentDidMount:function(){
 			if(!this.props.position) return;
-			this.calcPosition();
+			checkActivateCalls.add(this.calcPosition)			
+		},
+		componentWillUnmount:function(){
+			checkActivateCalls.remove(this.calcPosition)
 		},
 		render:function(){			
 			return $("div",{ref:ref=>this.el=ref,style:{
@@ -1873,8 +1513,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				zIndex:"6",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,
 				backgroundColor:"white",
-				top:this.state.top,
-				left:this.state.left,
+				top:this.state.top+"px",
+				left:this.state.left+"px",
 				...this.props.style
 			}},this.props.children);
 		}		
@@ -3160,143 +2800,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 	})		
 	
-	//let vkContainers = []
-	//let containerShow = false
-	const VirtualKeyboardContainerElement = (props)=>$("div",{...props},null)
-	/*$C({
-		getInitialState:function(){
-			return {show:containerShow}
-		},
-		update:function(show){
-			this.setState({show})
-		},
-		sizeParent:function(){
-			if(!this.el) return
-			const pRect = this.el.parentNode.getBoundingClientRect()
-			const width = Math.floor(pRect.width)
-			const height = Math.floor(pRect.height)
-			if(this.state.width!=width || this.state.height!=height){			
-				this.setState({width,height})
-			}
-		},
-		componentDidMount:function(){
-			vkContainers.push(this.update)			
-		},
-		componentWillUnmount:function(){
-			const index = vkContainers.indexOf(this.update)
-			vkContainers.splice(index,1)			
-		},
-		render:function(){
-			const extra= { 
-			style:{
-				...this.props.style,
-				position:this.state.show?"static":"absolute",
-				zIndex:"-1"
-			}}
-			return $("div",{...this.props,...extra, ref:ref=>this.el=ref},null)
-		}
-	})*/
-	const vkModule = (() => {
-		const views = []
-		const vks = []
-		const getReactHeight = (el)=>{
-			if(!el) return null
-			const root = getReactRoot(el)
-			if(!root) return null
-			const height = Math.floor(root.parentElement.getBoundingClientRect().height)
-			return height
-			//if(height != this.state.parentHeight)
-			//	this.setState({parentHeight:height})
-		}
-		const regView = (obj) =>{
-			views.push(obj)
-			const unreg = ()=>{
-				const index = views.indexOf(obj)
-				views.splice(index, 1)
-			}
-			return {unreg}
-		}
-		const regVk = (obj) => {
-			vks.push(obj)
-			const unreg = () =>{
-				const index = vks.indexOf(obj)
-				vks.splice(index,1)				
-			}
-			return {unreg}
-		}
-		const onVk = (showVk,val) =>{
-			views.forEach(v=>v(showVk,val))
-			vks.forEach(v=>v(showVk,val))
-		}
-		return {regView,regVk, onVk,getReactHeight}
-	})()
-	const VKMainViewElement = $C({
-		getInitialState:function(){
-			return {parentHeight:0, vkView:false, actual:null}
-		},		
-		updateVkView:function(vkView,actual){
-			if(this.state.vkView != vkView || this.state.actual != actual)
-				this.setState({vkView,actual})
-		},
-		componentDidMount:function(){
-			const perc = parseInt(this.props.atBottomPerc)/100
-			const root = getReactRoot(this.el)
-			if(root) {
-				this.prevRootHeight = root.parentElement.style.maxHeight
-				root.parentElement.style.maxHeight="100%"
-			}
-			this.vkmodule = vkModule.regView(this.updateVkView)			
-		},
-		componentWillUnmount:function(){
-			const root = getReactRoot(this.el)
-			if(root) root.parentElement.style.maxHeight=this.prevRootHeight
-			this.vkmodule.unreg()			
-		},
-		render:function(){
-			
-			let vkHeight = this.state.vkView && this.state.actual?this.state.actual:0
-			const parentHeight = vkModule.getReactHeight(this.el)
-			
-			const height = parentHeight? (Math.floor(parentHeight - vkHeight))+"px": "100%"
-			const style = {
-				...this.props.style,
-				overflowY:"auto",				
-				height:height
-			}
-			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
-		}
-	})
-	const VkViewElement = $C({
-		getInitialState:function(){
-			return {vkView:false, actual:null}
-		},
-		updateVkView:function(vkView,actual){
-			if(this.state.vkView != vkView || this.state.actual != actual)
-				this.setState({vkView,actual})
-		},
-		
-		componentDidMount:function(){
-			const perc = parseInt(this.props.atBottomPerc)/100
-			this.vkmodule = vkModule.regVk(this.updateVkView)
-			//checkActivateCalls.add(this.updateParentWidth)
-		},
-		componentWillUnmount:function(){			
-			this.vkmodule.unreg()
-			//checkActivateCalls.remove(this.updateParentWidth)
-		},
-		render:function(){
-			
-			let height = this.state.vkView && this.state.actual?Math.floor(this.state.actual)+"px":0+"px"
-			
-			const style = {
-				...this.props.style,
-				position:"absolute",
-				width:"100%",
-				height:height
-			}
-			return $("div",{style},this.props.children)
-		}
-	})
+
 	
 	const ColorItem = ({value,onChange,style}) => React.createElement('div',{
 		style: {
@@ -3344,7 +2848,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const onReadySendBlob = ({sendBlob});
 	const transforms= {
 		tp:{
-            DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup, VirtualKeyboard,VirtualKeyboardContainerElement,VKMainViewElement,VkViewElement,
+            DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
             InputElement,AnchorElement,HeightLimitElement,
 			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
