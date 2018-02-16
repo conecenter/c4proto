@@ -2567,7 +2567,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const chldMap = this.props.children.map(child=>({child,basis:this.parseBasis(child.props.incoming.at.style.flexBasis),en:child.props.incoming.at.active&&true,maxLines:1}))
 			const pRect = this.el.getBoundingClientRect()			
 			const chldAWidth = chldMap.filter(_=>_.en).reduce((a,e)=>(a+(e.en?e.basis:0)),0)
-			if(chldAWidth > pRect.width) {maxLines = Math.ceil(chldAWidth/(Math.floor(pRect.width/chldMap[0].basis)*chldMap[0].basis))}
+			if(chldAWidth > pRect.width) {
+				let t = pRect.width
+				maxLines = chldMap.reduce((a,e,i,arr)=>{
+					if(t-e.basis<0) {t = pRect.width;return a+1}
+					if(t-e.basis>=0) {t -=e.basis;return a}
+				},1)
+				//maxLines = Math.ceil(chldAWidth/(Math.floor(pRect.width/chldMap[0].basis)*chldMap[0].basis))
+			}
 			if(chldMap[0].basis>pRect.width) {maxLines = chldMap.filter(_=>_.en).length;maxLines=maxLines>0?maxLines:1}
 			let chldWidth = 0
 			do{
@@ -2587,7 +2594,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}while(true)
 			
 			const same = () =>{
-				if(this.chldMap.length!=chldMap.length || !this.chldMap.every((e,i)=>e.child.key == chldMap[i].child.key && e.en == chldMap[i].en && e.maxLines == chldMap[i].maxLines))
+				if(this.chldMap.length!=chldMap.length || !this.chldMap.every((e,i)=>e.child.key == chldMap[i].child.key && e.en == chldMap[i].en && e.maxLines == chldMap[i].maxLines && e.basis == chldMap[i].basis))
 					return false
 				return true
 			}
