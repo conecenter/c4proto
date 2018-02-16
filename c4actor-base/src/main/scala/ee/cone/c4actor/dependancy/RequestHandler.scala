@@ -19,7 +19,7 @@ case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends
 
   override def canHandle: Class[_] => Boolean = handlerMap.contains
 
-  override def getHandler: Class[_] => RequestHandler[_] = className ⇒ if (handlerMap.contains(className)) handlerMap(className) else throw new Exception("Given class name is not in Registry")
+  override def getHandler: Class[_] => RequestHandler[_] = className ⇒ if (handlerMap.contains(className)) handlerMap(className) else throw new Exception(s"$className: Given class name is not in Registry")
 
   override def handle: Request => Dep[_] = request ⇒ {
     if (canHandle(request.getClass)) {
@@ -27,7 +27,7 @@ case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends
       handler.asInstanceOf[RequestHandler[Request]].handle(request)
     }
     else
-      throw new Exception("Given class name is not in Registry")
+      throw new Exception(s"${request.getClass}: Given class name is not in Registry")
   }
 }
 

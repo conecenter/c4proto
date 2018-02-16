@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.CtxType.Ctx
 import ee.cone.c4actor.DepDraft._
-import ee.cone.c4actor.LULProtocol.LULNode
+import ee.cone.c4actor.LULProtocol.{LULNode, PffNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
@@ -14,6 +14,8 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 @protocol object LULProtocol extends Protocol {
 
   @Id(0x0001) case class LULNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
+
+  @Id(0x0010) case class PffNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
 
 }
 
@@ -34,7 +36,16 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
   type ToResponse = SrcId
 
-  def request
+  def reponsesTest
+  (
+    key: SrcId,
+    @by[ToResponse] responses: Values[Response]
+  ): Values[(SrcId, Request)] = {
+    //println(s"Responses: $key:${responses.head}")
+    Nil
+  }
+
+  def RQtoURSO
   (
     key: SrcId,
     @was requests: Values[Request],
@@ -42,16 +53,18 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   ): Values[(SrcId, UpResolvable)] =
     for (
       request <- requests
+      if handlerRegistry.canHandle(request.getClass)
     ) yield {
       //println(s"RQ $key = $request")
       val dep: Dep[_] = handlerRegistry.handle(request)
       val ctx: Ctx = buildContext(responses)
+      //println(s"CTX = $responses")
       //println(s"CTX $key = $ctx")
       //println(s"UpResolvable $key = ${dep.asInstanceOf[InnerDep[_]].resolve(ctx)}")
       WithPK(UpResolvable(request.asInstanceOf[DepRequest[_]], dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
     }
 
-  def RSOtoRequest
+  def URSOtoRequest
   (
     key: SrcId,
     resolvable: Values[UpResolvable]
@@ -64,7 +77,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
       WithPK(rq.extendPrev(rs.request.srcId))
     }
 
-  def ResponseToLUL
+  def URSOtoResponse
   (
     key: SrcId,
     upResolvable: Values[UpResolvable]
@@ -83,7 +96,7 @@ class DepTestStart(
   def run() = {
     import LEvent.update
 
-    val recs = update(LULNode("1", ""))
+    val recs = update(LULNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666))
     /*
           update(Node("12","1")) ++ update(Node("13","1")) ++
           update(Node("124","12")) ++ update(Node("125","12"))*/
@@ -94,7 +107,7 @@ class DepTestStart(
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(s"Final result: ${ByPK(classOf[UpResolvable]).of(nGlobal)("root").resolvable.value.get}")
+    println(s"Final result: ${ByPK(classOf[UpResolvable]).of(nGlobal)("root").resolvable.value}")
     execution.complete()
 
     /*
@@ -124,7 +137,10 @@ class DepTestApp extends RichDataApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
   with ToStartApp
-  with RqHandlerRegistryImplApp {
+  with RqHandlerRegistryImplApp
+with ByPKRequestHandlerApp {
+  override def handledClasses: List[Class[_]] = classOf[PffNode] :: super.handledClasses
+
   override def handlers: List[RequestHandler[_]] = FooRequestHandler :: RootRequestHandler :: super.handlers
 
   override def protocols: List[Protocol] = LULProtocol :: super.protocols

@@ -1,6 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.CtxType.Ctx
+import ee.cone.c4actor.LULProtocol.PffNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
@@ -48,16 +49,22 @@ object DepDraft {
     def handle: RootDepRequest => Dep[(Int, Int, Int)] = _ => serialView
   }
 
+  def askPyPK[A](className: Class[A], srcId: SrcId) = new RequestDep(ByPKRequest(srcId, className))
+
+  def testView: Dep[Int] = for {
+    a ← askPyPK(classOf[PffNode], "123")
+  } yield a.value
+
   def subView(a: Int): Dep[Int] = for {
-    c ← askFoo("D")
+    c ← askPyPK(classOf[PffNode], "123")
     b ← askFoo("B")
-  } yield a + b + c
+  } yield a + b + c.value
 
   def serialView: Dep[(Int, Int, Int)] = for {
     a ← askFoo("A")
     s ← subView(a)
-    b ← askFoo("B")
-  } yield (a, s, b)
+    b ← askPyPK(classOf[PffNode], "124")
+  } yield (a, s, b.value)
 
   /*
     def parallelView: Dep[(Int,Int)] = for {
