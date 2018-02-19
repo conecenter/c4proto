@@ -1,28 +1,12 @@
 package ee.cone.c4actor.dependancy
 
-import ee.cone.c4actor.CtxType.Ctx
+import ee.cone.c4actor.CtxType.{Ctx, Request}
 import ee.cone.c4actor.{AbstractLens, Lens}
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4proto.{Protocol, protocol}
 
-trait Request extends Product {
-  val srcId: SrcId
-  val parentSrcIds: List[SrcId]
 
-  def addParent(id: SrcId): Request
+
+case class RequestWithSrcId(srcId: SrcId, request: Request, parentSrcIds: List[SrcId] = Nil) {
+  def addParent(id: SrcId): RequestWithSrcId = this.copy(parentSrcIds = id :: this.parentSrcIds)
 }
-
-trait DepRequest[A] extends Lens[Ctx, Option[A]] with Request
-
-abstract class AbstractDepRequest[A] extends AbstractLens[Ctx, Option[A]] with DepRequest[A] with Product {
-  def of: Ctx ⇒ Option[A] = ctx ⇒ ctx.getOrElse(this.srcId, None).asInstanceOf[Option[A]]
-
-  def set: Option[A] ⇒ Ctx ⇒ Ctx = value ⇒ ctx ⇒ ctx + (this.srcId → value)
-}
-
-//TODO wrap request into something
-
-/* TODO use this code to serialize later
-val adapter = registry.byName(classOf[RawSessionData].getName)
-    def genPK(request: RawSessionData): String =
-      UUID.nameUUIDFromBytes(adapter.encode(request)).toString
- */

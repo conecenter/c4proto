@@ -6,5 +6,6 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, was}
 
 package object CtxType {
-  type Ctx = Map[SrcId, _]
+  type Ctx = Map[Request, _]
+  type Request = Product
 }

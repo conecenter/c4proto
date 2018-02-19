@@ -1,5 +1,7 @@
 package ee.cone.c4actor.dependancy
 
+import ee.cone.c4actor.CtxType.Request
+
 trait RequestHandler[A] {
   def canHandle: Class[A]
 
@@ -21,7 +23,7 @@ case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends
 
   override def getHandler: Class[_] => RequestHandler[_] = className ⇒ if (handlerMap.contains(className)) handlerMap(className) else throw new Exception(s"$className: Given class name is not in Registry")
 
-  override def handle: Request => Option[Dep[_]] = request ⇒ { //TODO use map once
+  override def handle: Request => Option[Dep[_]] = request ⇒ {
       val handler: Option[RequestHandler[Request]] = handlerMap.get(request.getClass).map(_.asInstanceOf[RequestHandler[Request]])
       handler.map(_.handle(request))
   }

@@ -1,11 +1,17 @@
 package ee.cone.c4actor
 
+import java.io.{ByteArrayOutputStream, ObjectOutputStream}
+import java.nio.ByteBuffer
+
 import ee.cone.c4actor.CtxType.Ctx
 import ee.cone.c4actor.LULProtocol.PffNode
+import ee.cone.c4actor.TestRequests.{FooDepRequest, RootDepRequest}
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.dependancy.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.DepDraft'
 object DepDraft {
@@ -13,15 +19,7 @@ object DepDraft {
   def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep(a.asInstanceOf[InnerDep[A]], b.asInstanceOf[InnerDep[B]])
 
-  case class FooDepRequest(srcId: SrcId, v: String, parentSrcIds: List[SrcId] = Nil) extends AbstractDepRequest[Int] {
-    def addParent(id: SrcId): DepRequest[Int] = FooDepRequest(srcId, v, id :: parentSrcIds)
-  }
-
-  case class RootDepRequest(srcId: SrcId, v: String, parentSrcIds: List[SrcId] = Nil) extends AbstractDepRequest[Int] {
-    def addParent(id: SrcId): DepRequest[Int] = RootDepRequest(srcId, v, id :: parentSrcIds)
-  }
-
-  def askFoo(v: String): Dep[Int] = new RequestDep(FooDepRequest(s"$v-id", v))
+  def askFoo(v: String): Dep[Int] = new RequestDep[Int](FooDepRequest(v))
 
   /*
     def parallelView: Dep[(Int,Int)] = for {
@@ -49,7 +47,7 @@ object DepDraft {
     def handle: RootDepRequest => Dep[(Int, Int, Int)] = _ => serialView
   }
 
-  def askPyPK[A](className: String, srcId: SrcId) = new RequestDep(ByPKRequest[A](srcId, className))
+  def askPyPK[A](className: String, srcId: SrcId) = new RequestDep[Option[A]](ByPKRequest(className, srcId))
 
   def testView: Dep[Int] = for {
     a ← askPyPK[PffNode](PffNode.getClass.getName, "123")
@@ -76,17 +74,34 @@ object DepDraft {
     val test = serialView.asInstanceOf[InnerDep[_]]
     val r1: Ctx = Map()
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r1))
-    val r2 = r1 + ("A-id" → Some(1))
+    val r2 = r1 + (FooDepRequest("A") → Some(1))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r2))
-    val r3 = r2 + ("123" → Some(Option(PffNode("123", 100))))
+    val r3 = r2 + (ByPKRequest(classOf[PffNode].getName, "123") → Some(Option(PffNode("123", 100))))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r3))
-    val r4 = r3 + ("B-id" → Some(2))
+    val r4 = r3 + (FooDepRequest("B") → Some(2))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r4))
-    val r5 = r4 + ("D-id" → Some(10))
+    val r5 = r4 + (FooDepRequest("D") → Some(10))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r5))
   }
 
-  def buildContext: Values[Response] => Ctx = _.map(curr ⇒ (curr.request.srcId, curr.value)).toMap
+  def buildContext: Values[Response] => Ctx = _.map(curr ⇒ (curr.request.request, curr.value)).toMap
+
+  def serialise(value: Any): Array[Byte] = {
+    val stream: ByteArrayOutputStream = new ByteArrayOutputStream()
+    val oos = new ObjectOutputStream(stream)
+    oos.writeObject(value)
+    oos.close()
+    stream.toByteArray
+  }
+
+  def toBytes(value: Long) =
+    ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
+}
+
+@protocol object TestRequests extends Protocol {
+  @Id(0x3031) case class FooDepRequest(@Id(0x3036) v: String)
+
+  @Id(0x3032) case class RootDepRequest(@Id(0x3037) v: String)
 }
 
 

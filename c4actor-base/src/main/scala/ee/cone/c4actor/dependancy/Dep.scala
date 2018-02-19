@@ -1,6 +1,6 @@
 package ee.cone.c4actor.dependancy
 
-import ee.cone.c4actor.CtxType.Ctx
+import ee.cone.c4actor.CtxType.{Ctx, Request}
 
 trait Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
@@ -33,15 +33,15 @@ class ComposedDep[A, B](inner: InnerDep[A], fm: A ⇒ Dep[B]) extends DepImpl[B]
     }
 }
 
-class RequestDep[A](request: DepRequest[A]) extends DepImpl[A] {
+class RequestDep[A](request: Request) extends DepImpl[A] {
   def resolve(ctx: Ctx): Resolvable[A] =
-    Resolvable(request.of(ctx), Seq(request))
+    Resolvable(ctx.getOrElse(request, None).asInstanceOf[Option[A]], Seq(request))
 }
 
 class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A, B)] {
   def resolve(ctx: Ctx): Resolvable[(A, B)] = {
     ???
-    /*(aDep.resolve(ctx), bDep.resolve(ctx)) match {
+    /*(aDep.resolve(ctx), bDep.resolve(ctx)) match { //TODO test this
       case (NotResolved(aRequests),NotResolved(bRequests)) ⇒
     }*/
   }
