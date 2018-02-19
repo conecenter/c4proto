@@ -10,7 +10,6 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dependancy.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.DepDraft'

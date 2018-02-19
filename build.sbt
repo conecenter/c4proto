@@ -81,6 +81,11 @@ lazy val `c4actor-base` = project.settings(publishSettings)
 lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
+  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`)
+
+lazy val `c4actor-extra` = project.settings(publishSettings)
+  .settings(description := s"$descr / dep stuff")
+  .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
@@ -167,6 +172,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4proto-macros`,
   `c4proto-types`,
   `c4vdom-base`,
-  //`c4ui-canvas`,//TODO add module
+  //`c4ui-canvas`,
+  `c4actor-extra`,
   `c4ui-main`
 )
