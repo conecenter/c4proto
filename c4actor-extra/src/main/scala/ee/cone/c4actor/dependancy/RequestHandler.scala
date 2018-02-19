@@ -1,6 +1,7 @@
 package ee.cone.c4actor.dependancy
 
-import ee.cone.c4actor.CtxType.Request
+import ee.cone.c4actor.CtxType.{Ctx, Request}
+import ee.cone.c4assemble.Types.Values
 
 trait RequestHandler[A] {
   def canHandle: Class[A]
@@ -14,6 +15,8 @@ trait RequestHandlerRegistry {
   def getHandler: Class[_] ⇒ RequestHandler[_]
 
   def handle: Request ⇒ Option[Dep[_]]
+
+  def buildContext: Values[Response] => Ctx = _.map(curr ⇒ (curr.request.request, curr.value)).toMap
 }
 
 case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends RequestHandlerRegistry {

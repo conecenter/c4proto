@@ -46,3 +46,5 @@ class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A
     }*/
   }
 }
+
+case class UnresolvedDep(rq: RequestWithSrcId, resolvable: UpResolvable)

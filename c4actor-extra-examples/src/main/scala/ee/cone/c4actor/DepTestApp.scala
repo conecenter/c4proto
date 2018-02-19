@@ -1,6 +1,5 @@
 package ee.cone.c4actor
 
-import java.nio.ByteBuffer
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
@@ -23,7 +22,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 }
 
-//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.DepTestApp sbt ~'c4actor-base-examples/runMain ee.cone.c4actor.ServerMain'
+//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.DepTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 @assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry) extends Assemble {
 
   def sparkJoiner
@@ -49,74 +48,8 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     //println(s"Responses: $key:${responses.head}")
     Nil
   }
-
-  def RQtoURSO
-  (
-    key: SrcId,
-    @was requests: Values[RequestWithSrcId],
-    @was @by[ToResponse] responses: Values[Response]
-  ): Values[(SrcId, UpResolvable)] =
-    for (
-      request ← requests;
-      dep ← handlerRegistry.handle(request.request)
-    ) yield {
-      //println()
-      //println(s"RQ $key = $request")
-      val ctx: Ctx = buildContext(responses)
-      //println(s"CTX = $responses")
-      //println(s"CTX $key = $ctx")
-      //println(s"UpResolvable $key = ${dep.asInstanceOf[InnerDep[_]].resolve(ctx)}")
-      WithPK(UpResolvable(request, dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
-    }
-
-  def URSOtoRequest
-  (
-    key: SrcId,
-    resolvable: Values[UpResolvable]
-  ): Values[(SrcId, RequestWithSrcId)] =
-    for (
-      rs ← resolvable;
-      rq ← rs.resolvable.requests
-    ) yield {
-      //println()
-      //println(s"RSOtoRequest $key= ${rq.addParent(rs.request.srcId)}")
-      val valueAdapter = adapterRegistry.byName(rq.getClass.getName)
-      val bytes = valueAdapter.encode(rq)
-      val id = UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes).toString
-      WithPK(RequestWithSrcId(id, rq).addParent(rs.request.srcId))
-    }
-
-  def URSOtoResponse
-  (
-    key: SrcId,
-    upResolvable: Values[UpResolvable]
-  ): Values[(ToResponse, Response)] =
-    upResolvable.flatMap { upRes ⇒
-      //println()
-      val response = Response(upRes.request, upRes.resolvable.value, upRes.request.parentSrcIds)
-      //println(s"Resp: $response")
-      WithPK(response) ::
-        (for (srcId ← response.rqList) yield (srcId, response))
-    }
-
-  def UnresolvedDeps
-  (
-    key: SrcId,
-    @was requests: Values[RequestWithSrcId],
-    @was resolvables: Values[UpResolvable]
-  ): Values[(SrcId, UnresolvedDep)] =
-    for (
-      rq ← requests;
-      resv ← resolvables
-      if resv.resolvable.value.isEmpty
-    ) yield {
-      //println(s"UnRes $rq:${resv.resolvable}")
-      WithPK(UnresolvedDep(rq, resv))
-    }
-
 }
 
-case class UnresolvedDep(rq: RequestWithSrcId, resolvable: UpResolvable)
 
 class DepTestStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
@@ -169,12 +102,13 @@ class DepTestApp extends RichDataApp
   with SimpleAssembleProfilerApp
   with ToStartApp
   with RqHandlerRegistryImplApp
-  with ByPKRequestHandlerApp {
+  with ByPKRequestHandlerApp
+  with DepAssembleApp {
   override def handledClasses: List[Class[_]] = classOf[PffNode] :: super.handledClasses
 
   override def handlers: List[RequestHandler[_]] = FooRequestHandler :: RootRequestHandler :: super.handlers
 
-  override def protocols: List[Protocol] = LULProtocol :: TestRequests:: super.protocols
+  override def protocols: List[Protocol] = LULProtocol :: TestRequests :: super.protocols
 
   override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, QAdapterRegistryFactory(protocols)) :: super.assembles
 

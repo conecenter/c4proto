@@ -12,7 +12,7 @@ import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-// sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.DepDraft'
+// sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
 object DepDraft {
 
   def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
