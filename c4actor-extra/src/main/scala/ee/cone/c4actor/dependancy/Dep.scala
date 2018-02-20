@@ -40,10 +40,10 @@ class RequestDep[A](request: Request) extends DepImpl[A] {
 
 class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A, B)] {
   def resolve(ctx: Ctx): Resolvable[(A, B)] = {
-    ???
-    /*(aDep.resolve(ctx), bDep.resolve(ctx)) match { //TODO test this
-      case (NotResolved(aRequests),NotResolved(bRequests)) ⇒
-    }*/
+    val aRsv = aDep.resolve(ctx)
+    val bRsv = bDep.resolve(ctx)
+    val value: Option[(A, B)] = aRsv.value.flatMap(a ⇒ bRsv.value.map(b ⇒ (a,b)))
+    Resolvable[(A,B)](value, aRsv.requests ++ bRsv.requests)
   }
 }
 

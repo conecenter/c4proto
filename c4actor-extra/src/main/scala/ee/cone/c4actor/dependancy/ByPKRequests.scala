@@ -50,8 +50,6 @@ trait ByPKRequestHandlerApp extends AssemblesApp with RequestHandlerRegistryApp 
       rq ← requests
       if rq.request.isInstanceOf[ByPKRequest]
     ) yield {
-      //println()
-      //println(s"ByPK $key:$rq:$items")
       val response = Response(rq, Option(items.headOption))
       WithPK(response) :: (for (id ← rq.parentSrcIds) yield (id, response))
     }).flatten
@@ -59,9 +57,11 @@ trait ByPKRequestHandlerApp extends AssemblesApp with RequestHandlerRegistryApp 
 
 @protocol object ByPKRequestProtocol extends Protocol {
 
-  @Id(0x3046) case class ByPKRequest(
-    @Id(0x3047) className: String,
-    @Id(0x3049) itemSrcId: String
+  @Id(0x0fa6) case class ByPKRequest(
+    @Id(0x0fa7) className: String,
+    @Id(0x0fa8) itemSrcId: String
   )
 
 }
+
+//TODO ByFK try
