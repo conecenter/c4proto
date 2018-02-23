@@ -1255,6 +1255,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					if(e.target.value.length == 0)
 						call = e.key;					
 					break;
+				case "Delete":
+					call = e.key;
+					const actEl = documentManager.activeElement()
+					if(actEl){
+						const button = actEl.querySelector(".button")
+						opt = button?button.dataset.srcKey:null
+					}
+					break
 			}
 			if(call.length>0 && this.props.onClickValue)
 				this.props.onClickValue("key",call);			
@@ -2836,9 +2844,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	}
 	
 
-	const sendVal = ctx =>(action,value) =>{
+	const sendVal = ctx =>(action,value,opt) =>{
 		const act = action.length>0?action:"change"
-		sender.send(ctx,({headers:{"X-r-action":act},value}));
+		const optHeader = opt?{"X-r-opt":opt}:{}
+		sender.send(ctx,({headers:{"X-r-action":act,...optHeader},value}));
 	}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}	
 	const onClickValue = ({sendVal});
