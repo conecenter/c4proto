@@ -222,7 +222,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				width:"100%"				
 			}
 			const barItems = this.props.children[0]
-			const errors = this.props.children[1]
+			//const errors = this.props.children[1]
+			
 			return $("div",{style:style},
 				$("div",{style:menuStyle,className:"menuBar",ref:ref=>this.el=ref},[
 					$("div",{key:"menuBar",style:barStyle,className:"menuBar"},barItems)					
@@ -1215,7 +1216,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					left = rect.right
 					top = rect.top - popRect.height/2;					
 				}
-				top+=getPageYOffset()
+				//top+=getPageYOffset()
 				
 				if(this.state.top!=top||this.state.left!=left)
 						res = {left,top}
