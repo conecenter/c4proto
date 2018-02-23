@@ -63,25 +63,30 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				color:'inherit',
 				padding:"0px",
 				textAlign:'center',
-				...((this.state.touch||this.state.mouseDown)?{backgroundColor:"rgb(25, 118, 210)"}:{}),
-				...this.props.style
+				...this.props.style,				
+				...((this.state.touch||this.state.mouseDown)?{backgroundColor:"rgb(25, 118, 210)"}:{})				
 			};
 			const className = "vkElement"
 			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp,onClick:this.onClick},this.props.children);
 		}
 	});	
 	const VirtualKeyboard = React.createClass({
-		getInputVKType:function(){			
+		getInputVKType:function(){						
+			const layoutAlpha = "layoutAlpha"
+			const layoutNumeric = "layoutNumeric"
 			const input = this.getInput()
 			let vkType = input&&input.dataset.type;vkType = vkType?vkType:"text"
+			const vkContainer = this.getVkContainer()
+			vkType = vkContainer&&vkContainer.static?vkContainer.static:vkType
 			let res
+			const alt = this.state.alt
 			switch(vkType){
-				case "text": res = {layout:"layoutAlpha",ver:"simple"};break;
-				case "extText": res = {layout:"layoutAlpha",ver:"extended"};break;
-				case "num": res = {layout:"layoutNumeric",ver:"simple"};break;
-				case "extNum": res = {layout:"layoutNumeric",ver:"extended"};break;
-				case "extFuncNum": res = {layout:"layoutNumeric",ver:"extendedFunc"};break;
-				default:res = {layout:"alphaLayout", ver:"simple"};break;
+				case "text": res = {layout:layoutAlpha,ver:"simple"};break;
+				case "extText": res = {layout:alt?layoutNumeric:layoutAlpha,ver:"extended"};break;
+				case "num": res = {layout:layoutNumeric,ver:"simple"};break;
+				case "extNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:"extended"};break;
+				case "extFuncNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:alt?"extended":"extendedFunc"};break;
+				default:res = {layout:layoutAlpha, ver:"simple"};break;
 			}
 			this.vkType = res
 			return res
@@ -92,15 +97,11 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		switchMode:function(e){
 			this.setState({alt:!this.state.alt})			
 		},		
-		getVKTypeKey:function(){
-			const {layout,ver} = this.getInputVKType()
-			return layout+ver
-		},
 		getVkContainer:function(){
 			if(!this.root) return null
 			const vkContainer = this.root.querySelector(".vk-container")
 			if(!vkContainer) return null
-			return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position,o:vkContainer}			
+			return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position,o:vkContainer,static:vkContainer.dataset.static}			
 		},
 		getPopupPos:function(thisEl,parentEl){
 			if(!thisEl||!parentEl) return null;			
@@ -178,6 +179,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const tl = vkContainer.position == "tl"
 			const ml = vkContainer.position == "ml"
 			const tm = vkContainer.position == "tm"
+			const tr = vkContainer.position == "tr"
 			
 			let top = vkContainer.rect.top 			
 			let left = vkContainer.rect.left
@@ -200,8 +202,20 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				top = vkContainer.rect.top + vkContainer.rect.height/2 - pHeight/2	
 				left = vkContainer.rect.left					
 			}			
+			if(tr){
+				top = vkContainer.rect.top 
+				left = vkContainer.rect.right - pWidth
+			}
 			top+=getPageYOffset()					
 			return {top,left}
+		},
+		updateState:function(inI,show){					    					
+			if(show) {
+				this.setState(inI)
+				setTimeout(()=>{this.setState({show})},300)
+			}
+			else 
+				this.setState({...inI,show})			
 		},
 		fitIn:function(){			
 			const vkLayout = this.getCurrentLayout()
@@ -209,29 +223,23 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const emK = this.emRatio()
 			if(!emK) return
 			const vkContainer = this.getVkContainer()
+			if(!vkContainer) return this.state.show?this.updateState({},false):null
 			let pWidth = Math.ceil(vkLayout.width * emK); pWidth == 0?1:pWidth
 			const pHeight = Math.ceil(vkLayout.height * emK)
 			let hK = vkContainer.rect.height/pHeight; if(hK == 0) hK = 1
 			let wK = vkContainer.rect.width/pWidth; if(wK == 0) wK = 1
 			let fK = Math.min(hK,wK)*0.9;fK=fK>1?1:fK			 
-			const show = this.showVk()
+			const show = vkContainer.static||this.showVk()
 			const wRect = getWindowRect()				
 			const fontSize = fK
 			const {top,left} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
-			
-			if(this.state.fontSize!=fontSize || this.state.top!=top || this.state.left!=left || this.state.show!=show){					    
-				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,pHeight)			
-				this.setState({fontSize,top,left})
-				if(show) {
-					this.setState({fontSize,top,left})
-					setTimeout(()=>{this.setState({show})},300)
-				}
-				else 
-					this.setState({fontSize,top,left,show})
-			}						
+			if(this.state.fontSize!=fontSize || this.state.top!=top || this.state.left!=left || this.state.show!=show){		
+				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,pHeight)					
+				this.updateState({fontSize,top,left},show)
+			}							
 		},
 		getCurrentLayout:function(){			
-			const vkType = this.getInputVKType()
+			const vkType = this.getInputVKType()			
 			const vkLayout = this.props[vkType.layout]
 			if(!vkLayout) return null	
 			return vkLayout[vkType.ver]			
