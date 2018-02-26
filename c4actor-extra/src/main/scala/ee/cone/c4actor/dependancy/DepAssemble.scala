@@ -1,17 +1,18 @@
 package ee.cone.c4actor.dependancy
 
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import ee.cone.c4actor.CtxType.{Ctx, Request}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.{QAdapterRegistry, QAdapterRegistryFactory, WithPK}
+import ee.cone.c4actor.{QAdapterRegistry, QAdapterRegistryFactory, RichDataApp, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import DepAssembleUtils._
 
-trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp {
-  override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, QAdapterRegistryFactory(protocols)) :: super.assembles
+trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp with RichDataApp{
+  override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry) :: super.assembles
 }
 
 @assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry) extends Assemble {
@@ -83,4 +84,7 @@ object DepAssembleUtils {
 
   private def toBytes(value: Long) =
     ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
+
+  def stringToKey(value : String) =
+    UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8)).toString
 }

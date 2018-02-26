@@ -7,6 +7,7 @@ import ee.cone.c4actor.CtxType.Ctx
 import ee.cone.c4actor.LULProtocol.PffNode
 import ee.cone.c4actor.TestRequests.{FooDepRequest, RootDepRequest}
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.dependancy.ByClassNameRequestProtocol.ByClassNameRequest
 import ee.cone.c4actor.dependancy.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
@@ -43,10 +44,18 @@ object DepDraft {
   case object RootRequestHandler extends RequestHandler[RootDepRequest] {
     def canHandle = classOf[RootDepRequest]
 
-    def handle: RootDepRequest => Dep[(Int, Int, Int)] = _ => serialView
+    def handle: RootDepRequest => Dep[Int] = _ => testList
   }
 
   def askPyPK[A](className: String, srcId: SrcId) = new RequestDep[Option[A]](ByPKRequest(className, srcId))
+
+  def askByClassName[A](className: String, from: Int = -1, to: Int = -1) = new RequestDep[List[A]](ByClassNameRequest(className, from, to))
+
+  def testList: Dep[Int] = for {
+    list ← askByClassName[PffNode](classOf[PffNode].getName, 0, 1)
+  } yield {
+    println(list)
+    list.foldLeft(0)((sum, node) ⇒ sum + node.value)}
 
   def testView: Dep[Int] = for {
     a ← askPyPK[PffNode](PffNode.getClass.getName, "123")

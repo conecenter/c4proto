@@ -16,11 +16,11 @@ case object ByPKRequestHandler extends RequestHandler[ByPKRequest] {
 }
 
 trait ByPKRequestHandlerApp extends AssemblesApp with RequestHandlerRegistryApp with ProtocolsApp {
-  def handledClasses: List[Class[_]] = Nil
+  def byPKClasses: List[Class[_]] = Nil
 
   //override def handlers: List[RequestHandler[_]] = ByPKRequestHandler :: super.handlers
 
-  override def assembles: List[Assemble] = handledClasses.map(className ⇒ new ByPKGenericAssemble(className)) ::: super.assembles
+  override def assembles: List[Assemble] = byPKClasses.map(className ⇒ new ByPKGenericAssemble(className)) ::: super.assembles
 
   override def protocols: List[Protocol] = ByPKRequestProtocol :: super.protocols
 }

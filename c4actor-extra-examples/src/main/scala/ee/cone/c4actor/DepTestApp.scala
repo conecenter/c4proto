@@ -103,8 +103,11 @@ class DepTestApp extends RichDataApp
   with ToStartApp
   with RqHandlerRegistryImplApp
   with ByPKRequestHandlerApp
-  with DepAssembleApp {
-  override def handledClasses: List[Class[_]] = classOf[PffNode] :: super.handledClasses
+  with DepAssembleApp
+  with ByClassNameRequestHandlerApp {
+
+  override def byClassNameClasses: List[Class[_ <: Product]] = classOf[PffNode] :: super.byClassNameClasses
+  override def byPKClasses: List[Class[_]] = classOf[PffNode] :: super.byPKClasses
 
   override def handlers: List[RequestHandler[_]] = FooRequestHandler :: RootRequestHandler :: super.handlers
 
