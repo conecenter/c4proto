@@ -40,7 +40,7 @@ object DefaultPffNode extends DefaultModelFactory(classOf[PffNode], PffNode(_, 0
       session ← sessions
     ) yield {
       //println("Root rq Handle")
-      WithPK(RequestWithSrcId("root", RootDepRequest("kek"),session.sessionKey )) // TODO generate srcId instead of "root"
+      WithPK(RequestWithSrcId("root", RootDepRequest("kek"))) // TODO generate srcId instead of "root"
     }
 
   type ToResponse = SrcId

@@ -27,7 +27,7 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp
   ): Values[(SrcId, UpResolvable)] =
     for (
       request ← requests;
-      dep,contextId ← handlerRegistry.handle(request.request)
+      (dep,contextId) ← handlerRegistry.handle(request.request)
     ) yield {
       val ctx: Ctx = handlerRegistry.buildContext(responses, contextId)
       println()

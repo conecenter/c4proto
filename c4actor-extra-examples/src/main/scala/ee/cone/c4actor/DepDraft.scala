@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import java.io.{ByteArrayOutputStream, ObjectOutputStream}
 import java.nio.ByteBuffer
 
-import ee.cone.c4actor.CtxType.Ctx
+import ee.cone.c4actor.CtxType.{ContextId, Ctx}
 import ee.cone.c4actor.LULProtocol.PffNode
 import ee.cone.c4actor.TestRequests.{FooDepRequest, RootDepRequest}
 import ee.cone.c4actor.Types.SrcId
@@ -46,7 +46,7 @@ object DepDraft {
   case object RootRequestHandler extends RequestHandler[RootDepRequest] {
     def canHandle = classOf[RootDepRequest]
 
-    def handle: RootDepRequest => Dep[_] = _ => testSession
+    def handle: RootDepRequest => (Dep[_], ContextId) = _ => testSession
   }
 
   def askPyPK[A](className: String, srcId: SrcId) = new RequestDep[Option[A]](ByPKRequest(className, srcId))
