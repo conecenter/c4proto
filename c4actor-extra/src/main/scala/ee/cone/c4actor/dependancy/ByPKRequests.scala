@@ -9,16 +9,8 @@ import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
-case object ByPKRequestHandler extends RequestHandler[ByPKRequest] {
-  override def canHandle = classOf[ByPKRequest]
-
-  override def handle: Request => Dep[_] = request ⇒ new RequestDep(request)
-}
-
-trait ByPKRequestHandlerApp extends AssemblesApp with RequestHandlerRegistryApp with ProtocolsApp {
+trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
   def byPKClasses: List[Class[_]] = Nil
-
-  //override def handlers: List[RequestHandler[_]] = ByPKRequestHandler :: super.handlers
 
   override def assembles: List[Assemble] = byPKClasses.map(className ⇒ new ByPKGenericAssemble(className)) ::: super.assembles
 
@@ -50,6 +42,7 @@ trait ByPKRequestHandlerApp extends AssemblesApp with RequestHandlerRegistryApp 
       rq ← requests
       if rq.request.isInstanceOf[ByPKRequest]
     ) yield {
+      println(s"$key:$items")
       val response = Response(rq, Option(items.headOption))
       WithPK(response) :: (for (id ← rq.parentSrcIds) yield (id, response))
     }).flatten
@@ -64,4 +57,6 @@ trait ByPKRequestHandlerApp extends AssemblesApp with RequestHandlerRegistryApp 
 
 }
 
-//TODO ByFK try
+object ByPKUtils{
+  def askByPK[A](Class: Class[A], srcId: SrcId) = new RequestDep[Option[A]](ByPKRequest(Class.getName, srcId))
+}

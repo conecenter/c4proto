@@ -27,9 +27,11 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp
   ): Values[(SrcId, UpResolvable)] =
     for (
       request ← requests;
-      dep ← handlerRegistry.handle(request.request)
+      dep,contextId ← handlerRegistry.handle(request.request)
     ) yield {
-      val ctx: Ctx = handlerRegistry.buildContext(responses)
+      val ctx: Ctx = handlerRegistry.buildContext(responses, contextId)
+      println()
+      println(s"$key:$ctx")
       WithPK(UpResolvable(request, dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
     }
 
@@ -42,6 +44,7 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp
       rs ← resolvable;
       rq ← rs.resolvable.requests
     ) yield {
+      println(s"$key:${rs.resolvable.requests}")
       val id = generatePK(rq, adapterRegistry)
       WithPK(RequestWithSrcId(id, rq).addParent(rs.request.srcId))
     }

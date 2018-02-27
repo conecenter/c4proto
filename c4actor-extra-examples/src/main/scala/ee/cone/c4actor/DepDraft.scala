@@ -12,6 +12,8 @@ import ee.cone.c4actor.dependancy.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4actor.dependancy.SessionAttrRequestUtility.askSessionAttr
+import ee.cone.c4gate.SessionAttr
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
 object DepDraft {
@@ -44,15 +46,21 @@ object DepDraft {
   case object RootRequestHandler extends RequestHandler[RootDepRequest] {
     def canHandle = classOf[RootDepRequest]
 
-    def handle: RootDepRequest => Dep[Int] = _ => testList
+    def handle: RootDepRequest => Dep[_] = _ => testSession
   }
 
   def askPyPK[A](className: String, srcId: SrcId) = new RequestDep[Option[A]](ByPKRequest(className, srcId))
 
   def askByClassName[A](className: String, from: Int = -1, to: Int = -1) = new RequestDep[List[A]](ByClassNameRequest(className, from, to))
 
+  def testSession = for{
+    accessOpt ← askSessionAttr(SessionAttr[PffNode](classOf[PffNode].getName, 0x0f1a, "", NameMetaAttr(0x0f1a.toString) :: Nil))
+  } yield {
+    accessOpt
+  }
+
   def testList: Dep[Int] = for {
-    list ← askByClassName[PffNode](classOf[PffNode].getName, 0, 1)
+    list ← askByClassName[PffNode](classOf[PffNode].getName, -1, -1)
   } yield {
     println(list)
     list.foldLeft(0)((sum, node) ⇒ sum + node.value)}

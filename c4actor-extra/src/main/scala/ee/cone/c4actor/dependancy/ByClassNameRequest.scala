@@ -9,12 +9,6 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 import DepAssembleUtils._
 import ByClassNameRequestUtils._
 
-case object ByClassNameRequestHandler extends RequestHandler[ByClassNameRequest] {
-  def canHandle: Class[ByClassNameRequest] = classOf[ByClassNameRequest]
-
-  def handle: ByClassNameRequest => Dep[_] = request ⇒ new RequestDep(request)
-}
-
 trait ByClassNameRequestHandlerApp extends AssemblesApp with RequestHandlerRegistryApp with ProtocolsApp {
   def byClassNameClasses: List[Class[_ <: Product]] = Nil
 
