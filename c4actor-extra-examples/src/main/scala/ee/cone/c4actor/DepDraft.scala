@@ -12,11 +12,10 @@ import ee.cone.c4actor.dependancy.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dependancy._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4proto.{Id, Protocol, protocol}
-import ee.cone.c4actor.dependancy.SessionAttrRequestUtility.askSessionAttr
 import ee.cone.c4gate.SessionAttr
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
-object DepDraft {
+trait DepDraft extends SessionAttrRequestUtility with RichDataApp{
 
   def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep(a.asInstanceOf[InnerDep[A]], b.asInstanceOf[InnerDep[B]])
@@ -31,7 +30,7 @@ object DepDraft {
   case object FooRequestHandler extends RequestHandler[FooDepRequest] {
     def canHandle = classOf[FooDepRequest]
 
-    def handle: FooDepRequest => ResolvedDep[Int] = fooRq => {
+    def handle: FooDepRequest => (ResolvedDep[Int], ContextId) = fooRq => {
       val response = fooRq.v match {
         case "A" => 1
         case "B" => 2
@@ -39,14 +38,8 @@ object DepDraft {
         case "D" => 10
         case a ⇒ throw new Exception(s"$a can't be handled by FooRequestHandler")
       }
-      new ResolvedDep(response)
+      (new ResolvedDep(response), "")
     }
-  }
-
-  case object RootRequestHandler extends RequestHandler[RootDepRequest] {
-    def canHandle = classOf[RootDepRequest]
-
-    def handle: RootDepRequest => (Dep[_], ContextId) = _ => testSession
   }
 
   def askPyPK[A](className: String, srcId: SrcId) = new RequestDep[Option[A]](ByPKRequest(className, srcId))
@@ -54,7 +47,7 @@ object DepDraft {
   def askByClassName[A](className: String, from: Int = -1, to: Int = -1) = new RequestDep[List[A]](ByClassNameRequest(className, from, to))
 
   def testSession = for{
-    accessOpt ← askSessionAttr(SessionAttr[PffNode](classOf[PffNode].getName, 0x0f1a, "", NameMetaAttr(0x0f1a.toString) :: Nil))
+    accessOpt ← askSessionAttr(SessionAttr[PffNode](classOf[PffNode].getName, 0x0f1a, "", NameMetaAttr(0x0f1a.toString) :: Nil), qAdapterRegistry, defaultModelRegistry)
   } yield {
     accessOpt
   }

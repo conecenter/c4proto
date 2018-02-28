@@ -10,6 +10,7 @@ import ee.cone.c4actor.{QAdapterRegistry, QAdapterRegistryFactory, RichDataApp, 
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import DepAssembleUtils._
+import ee.cone.c4actor.dependancy.ContextIdRequestProtocol.ContextIdRequest
 
 trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp with RichDataApp{
   override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry) :: super.assembles
@@ -25,11 +26,12 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp
     @was requests: Values[RequestWithSrcId],
     @was @by[ToResponse] responses: Values[Response]
   ): Values[(SrcId, UpResolvable)] =
-    for (
-      request ← requests;
-      (dep,contextId) ← handlerRegistry.handle(request.request)
-    ) yield {
-      val ctx: Ctx = handlerRegistry.buildContext(responses, contextId)
+    for {
+      request ← requests
+      pair ← handlerRegistry.handle(request.request)
+    } yield {
+      val (dep, contextId) = pair
+      val ctx: Ctx = handlerRegistry.buildContext(responses)(contextId)
       println()
       println(s"$key:$ctx")
       WithPK(UpResolvable(request, dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
@@ -40,10 +42,11 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp
     key: SrcId,
     resolvable: Values[UpResolvable]
   ): Values[(SrcId, RequestWithSrcId)] =
-    for (
-      rs ← resolvable;
+    for {
+      rs ← resolvable
       rq ← rs.resolvable.requests
-    ) yield {
+      if !rq.isInstanceOf[ContextIdRequest]
+    } yield {
       println(s"$key:${rs.resolvable.requests}")
       val id = generatePK(rq, adapterRegistry)
       WithPK(RequestWithSrcId(id, rq).addParent(rs.request.srcId))
@@ -68,11 +71,11 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with ByPKRequestHandlerApp
     @was requests: Values[RequestWithSrcId],
     @was resolvables: Values[UpResolvable]
   ): Values[(SrcId, UnresolvedDep)] =
-    for (
-      rq ← requests;
+    for {
+      rq ← requests
       resv ← resolvables
       if resv.resolvable.value.isEmpty
-    ) yield {
+    } yield {
       //println(s"UnRes $rq:${resv.resolvable}")
       WithPK(UnresolvedDep(rq, resv))
     }

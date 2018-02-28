@@ -13,7 +13,7 @@ trait RequestHandler[A] {
 trait RequestHandlerRegistry {
   def handle: Request ⇒ Option[(Dep[_], ContextId)]
 
-  def buildContext: Values[Response] => ContextId ⇒ Ctx = responses ⇒ contextId ⇒ responses.map(curr ⇒ (curr.request.request, curr.value)).toMap + (ContextIdRequest() → Option(contextId))
+  def buildContext: Values[Response] ⇒ ContextId ⇒ Ctx = responses ⇒ contextId ⇒ responses.map(curr ⇒ (curr.request.request, curr.value)).toMap + (ContextIdRequest() → Option(contextId))
 }
 
 case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends RequestHandlerRegistry {
