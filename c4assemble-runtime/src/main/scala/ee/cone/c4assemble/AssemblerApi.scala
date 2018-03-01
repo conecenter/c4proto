@@ -42,4 +42,18 @@ trait ByPriority {
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
+trait IndexUpdater {
+  def diffOf[K,V](worldKey: AssembledKey[Index[K,V]]): WorldTransition⇒Map[K,Boolean]
+  def setPart[K,V](worldKey: AssembledKey[Index[K,V]])(
+    nextDiff: Map[K,Boolean], nextIndex: Index[K,V]
+  ): WorldTransition⇒WorldTransition
+}
 
+trait AssembleSeqOptimizer {
+  type Expr = WorldPartExpression with DataDependencyFrom[_] with DataDependencyTo[_]
+  def optimize: List[Expr]⇒List[WorldPartExpression]
+}
+
+trait BackStageFactory {
+  def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression]
+}
