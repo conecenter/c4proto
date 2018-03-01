@@ -27,6 +27,7 @@ import RequestState from "../extra/request-state"
 import WinWifi from "../extra/win-wifi-status"
 
 import UpdateManager from "../extra/update-manager"
+import VirtualKeyboard from "../extra/virtual-keyboard"
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 
@@ -104,6 +105,9 @@ const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerm
 const updateManager = UpdateManager(log,window,metroUi)
 const activeElement=()=>document.activeElement; //todo: remove
 
+
+const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact})
+
 //canvas
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
@@ -122,7 +126,7 @@ const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
 //transforms
-const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms])
+const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms, virtualKeyboard.transforms])
 
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
 
@@ -151,5 +155,6 @@ activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), [
     metroUi.checkActivate,
     focusModule.checkActivate,
     dragDropModule.checkActivate,
-	updateManager.checkActivate
+	updateManager.checkActivate,
+	virtualKeyboard.checkActivate
 ])
