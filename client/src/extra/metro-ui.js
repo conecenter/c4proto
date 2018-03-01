@@ -179,7 +179,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	uiElements.push({ErrorElement})
 	const MenuBarElement=React.createClass({
 		getInitialState:function(){
-			return {fixedHeight:"",scrolled:false}
+			return {fixedHeight:"",scrolled:false, isBurger:false}
 		},
 		process:function(){
 			if(!this.el) return;
@@ -192,14 +192,34 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			else if(this.state.scrolled&&!scrolled) this.setState({scrolled})
 		},
 		componentWillUnmount:function(){
-			removeEventListener("scroll",this.onScroll);
-		},
+			checkActivateCalls.remove(this.calc)
+			//removeEventListener("scroll",this.onScroll);
+		},		
 		componentDidUpdate:function(){
 		//	this.process();
 		},
+		calc:function(){
+			if(!this.leftEl) return						
+			const tCLength = Array.from(this.leftEl.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0)
+			const tLength = this.leftEl.getBoundingClientRect().width
+			
+			if(!this.bpLength && tCLength>0 && tCLength>=tLength && !this.state.isBurger) {
+				this.bpLength = tLength
+				this.setState({isBurger:true})
+			}
+			if(this.bpLength && this.bpLength<tLength && this.state.isBurger){
+				this.bpLength = null
+				this.setState({isBurger:false})
+			}
+		},
+		openBurger:function(e){
+			if(this.props.onClick)
+				this.props.onClick(e)			
+		},
 		componentDidMount:function(){
+			checkActivateCalls.add(this.calc)
 			//this.process();
-			addEventListener("scroll",this.onScroll);
+			//addEventListener("scroll",this.onScroll);
 		},
 		render:function(){
 			const style = {
@@ -221,14 +241,21 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				verticalAlign:'middle',				
 				width:"100%"				
 			}
-			const barItems = this.props.children[0]
+			const burgerPopStyle = {
+				position:"absolute",
+				zIndex:"1000"
+			}
+			const left = this.props.children.filter(_=>!_.key.includes("right"))
+			const svg = `<?xml version="1.0" ?><!DOCTYPE svg  PUBLIC '-//W3C//DTD SVG 1.1//EN'  'http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd'><svg height="32px" id="Layer_1" style="enable-background:new 0 0 32 32;" fill = "white" version="1.1" viewBox="0 0 32 32" width="32px" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M4,10h24c1.104,0,2-0.896,2-2s-0.896-2-2-2H4C2.896,6,2,6.896,2,8S2.896,10,4,10z M28,14H4c-1.104,0-2,0.896-2,2  s0.896,2,2,2h24c1.104,0,2-0.896,2-2S29.104,14,28,14z M28,22H4c-1.104,0-2,0.896-2,2s0.896,2,2,2h24c1.104,0,2-0.896,2-2  S29.104,22,28,22z"/></svg>`
+			const svgData = svgSrc(svg)
 			//const errors = this.props.children[1]
-			
+			const right = this.props.children.filter(_=>_.key.includes("right"))			
+			const menuBurger = $("div",{},[$("img",{key:"burger",src:svgData,style:{fontSize:"1.5em", height:"1em"},onClick:this.openBurger}),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
 			return $("div",{style:style},
-				$("div",{style:menuStyle,className:"menuBar",ref:ref=>this.el=ref},[
-					$("div",{key:"menuBar",style:barStyle,className:"menuBar"},barItems)					
-					//$(ErrorElement,{key:"errors",onClick:this.process})
-				])
+				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
+					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
+					$("div",{key:"right"},right)
+				])				
 			)
 		}		
 	});
