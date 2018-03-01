@@ -1,18 +1,12 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.CtxType.Request
 import ee.cone.c4actor.LULProtocol.{LULNode, PffNode}
-import ee.cone.c4actor.TestRequests.RootDepRequest
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dependancy._
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4gate.{AlienProtocol, SessionAttrApp}
+import ee.cone.c4actor.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp, RootDepApp}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4gate.{AlienProtocol, SessionAttrApp}
 import ee.cone.c4proto.{Id, Protocol, protocol}
-
-import scala.collection.immutable
 
 
 @protocol object LULProtocol extends Protocol {
@@ -26,7 +20,7 @@ import scala.collection.immutable
 object DefaultPffNode extends DefaultModelFactory(classOf[PffNode], PffNode(_, 0))
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.DepTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
-@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry) extends Assemble {
+/*@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry) extends Assemble {
   type ToResponse = SrcId
 
   def reponsesTest
@@ -50,7 +44,7 @@ object DefaultPffNode extends DefaultModelFactory(classOf[PffNode], PffNode(_, 0
     } yield {
       WithPK(TestTransform(res.request.srcId, res.resolvable.value.getOrElse("LUL")))
     }
-}
+}*/
 
 case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
   override def transform(local: Context): Context = access.asInstanceOf[Access[PffNode]].updatingLens.get.set(access.asInstanceOf[Access[PffNode]].initialValue.copy(value = 666))(local)
@@ -118,7 +112,8 @@ class DepTestApp extends RichDataApp
   with ByPKRequestHandlerApp
   with DepAssembleApp
   with ByClassNameRequestHandlerApp
-  with RootDepApp with DepDraft
+  with RootDepApp
+  with DepDraft
   with MortalFactoryApp
   with SessionAttrApp {
 
@@ -126,13 +121,11 @@ class DepTestApp extends RichDataApp
 
   override def byClassNameClasses: List[Class[_ <: Product]] = classOf[PffNode] :: super.byClassNameClasses
 
-  override def byPKClasses: List[Class[_]] = classOf[PffNode] :: super.byPKClasses
+  override def byPKClasses: List[Class[_ <: Product]] = classOf[PffNode] :: super.byPKClasses
 
   override def handlers: List[RequestHandler[_]] = FooRequestHandler :: super.handlers
 
   override def protocols: List[Protocol] = AlienProtocol :: LULProtocol :: TestRequests :: super.protocols
-
-  override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, QAdapterRegistryFactory(protocols)) :: super.assembles
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 

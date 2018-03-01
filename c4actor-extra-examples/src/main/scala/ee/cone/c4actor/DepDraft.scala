@@ -5,17 +5,17 @@ import java.nio.ByteBuffer
 
 import ee.cone.c4actor.CtxType.{ContextId, Ctx}
 import ee.cone.c4actor.LULProtocol.PffNode
-import ee.cone.c4actor.TestRequests.{FooDepRequest, RootDepRequest}
+import ee.cone.c4actor.TestRequests.FooDepRequest
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dependancy.ByClassNameRequestProtocol.ByClassNameRequest
-import ee.cone.c4actor.dependancy.ByPKRequestProtocol.ByPKRequest
-import ee.cone.c4actor.dependancy._
+import ee.cone.c4actor.request.ByClassNameRequestProtocol.ByClassNameRequest
+import ee.cone.c4actor.request.ByPKRequestProtocol.ByPKRequest
+import ee.cone.c4actor.request.SessionAttrRequestUtility
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4gate.SessionAttr
+import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
-trait DepDraft extends SessionAttrRequestUtility with RichDataApp{
+trait DepDraft extends SessionAttrRequestUtility {
 
   def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep(a.asInstanceOf[InnerDep[A]], b.asInstanceOf[InnerDep[B]])
@@ -47,7 +47,7 @@ trait DepDraft extends SessionAttrRequestUtility with RichDataApp{
   def askByClassName[A](className: String, from: Int = -1, to: Int = -1) = new RequestDep[List[A]](ByClassNameRequest(className, from, to))
 
   def testSession = for{
-    accessOpt ← askSessionAttr(SessionAttr[PffNode](classOf[PffNode].getName, 0x0f1a, "", NameMetaAttr(0x0f1a.toString) :: Nil), qAdapterRegistry, defaultModelRegistry)
+    accessOpt ← askSessionAttr(SessionAttr[PffNode](classOf[PffNode].getName, 0x0f1a, "", NameMetaAttr(0x0f1a.toString) :: Nil))
   } yield {
     accessOpt
   }
@@ -109,8 +109,6 @@ trait DepDraft extends SessionAttrRequestUtility with RichDataApp{
 
 @protocol object TestRequests extends Protocol {
   @Id(0x3031) case class FooDepRequest(@Id(0x3036) v: String)
-
-  @Id(0x3032) case class RootDepRequest(@Id(0x3037) v: String)
 }
 
 

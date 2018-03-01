@@ -1,18 +1,22 @@
-package ee.cone.c4actor.dependancy
+package ee.cone.c4actor.request
 
 import java.util.UUID
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.CtxType.ContextId
 import ee.cone.c4actor._
-import ee.cone.c4gate.{SessionAttr, SessionAttrApp, SessionDataProtocolApp}
+import ee.cone.c4gate.SessionAttr
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
-import ee.cone.c4proto._
+import ee.cone.c4proto.{HasId, ToByteString}
 import okio.ByteString
 
 trait SessionAttrRequestUtility extends ModelAccessFactoryApp {
 
-  def askSessionAttr[P <: Product](attr: SessionAttr[P], qAdapterRegistry: QAdapterRegistry, defaultModelRegistry: DefaultModelRegistry): Dep[Option[Access[P]]] = {
+  def qAdapterRegistry: QAdapterRegistry
+
+  def defaultModelRegistry: DefaultModelRegistry
+
+  def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
     val adapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[RawSessionData].getName)
 
     def genPK(request: RawSessionData): String =
@@ -53,8 +57,3 @@ trait SessionAttrRequestUtility extends ModelAccessFactoryApp {
     }
   }
 }
-
-//
-//
-//
-//@Id(0x0f30)

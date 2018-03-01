@@ -1,7 +1,8 @@
-package ee.cone.c4actor.dependancy
+package ee.cone.c4actor.request
 
 import ee.cone.c4actor.CtxType.ContextId
-import ee.cone.c4actor.dependancy.ContextIdRequestProtocol.ContextIdRequest
+import ee.cone.c4actor.RequestDep
+import ee.cone.c4actor.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object ContextIdRequestProtocol extends Protocol{

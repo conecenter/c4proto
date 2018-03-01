@@ -1,12 +1,12 @@
-package ee.cone.c4actor.dependancy
+package ee.cone.c4actor.request
 
 import java.nio.ByteBuffer
 import java.util.UUID
 
-import ee.cone.c4actor.AssemblesApp
 import ee.cone.c4actor.CtxType.ContextId
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dependancy.RootRequestProtocol.RootRequest
+import ee.cone.c4actor._
+import ee.cone.c4actor.request.RootRequestProtocol.RootRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
