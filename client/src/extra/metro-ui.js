@@ -221,6 +221,18 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			//this.process();
 			//addEventListener("scroll",this.onScroll);
 		},
+		parentEl:function(node){
+			if(!this.leftEl||!node) return true
+			let p = node
+			while(p && p !=this.leftEl){
+				p = p.parentElement
+				if(p == this.leftEl) return true
+			}
+			return false
+		},
+		onBurgerBlur:function(e){
+			if(this.props.isBurgerOpen && !this.parentEl(e.relatedTarget)) this.openBurger(e)
+		},
 		render:function(){
 			const style = {
 				//height:this.state.fixedHeight,				
@@ -245,16 +257,31 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				position:"absolute",
 				zIndex:"1000"
 			}
-			const left = this.props.children.filter(_=>!_.key.includes("right"))
-			const svg = `<?xml version="1.0" ?><!DOCTYPE svg  PUBLIC '-//W3C//DTD SVG 1.1//EN'  'http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd'><svg height="32px" id="Layer_1" style="enable-background:new 0 0 32 32;" fill = "white" version="1.1" viewBox="0 0 32 32" width="32px" xml:space="preserve" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><path d="M4,10h24c1.104,0,2-0.896,2-2s-0.896-2-2-2H4C2.896,6,2,6.896,2,8S2.896,10,4,10z M28,14H4c-1.104,0-2,0.896-2,2  s0.896,2,2,2h24c1.104,0,2-0.896,2-2S29.104,14,28,14z M28,22H4c-1.104,0-2,0.896-2,2s0.896,2,2,2h24c1.104,0,2-0.896,2-2  S29.104,22,28,22z"/></svg>`
-			const svgData = svgSrc(svg)
+			const left = this.props.children.filter(_=>!_.key.includes("right"))			
+			const c = {transition:"all 100ms",transformOrigin:"center"}
+			const alt1 = this.props.isBurgerOpen?{transform: "translate(10%, 8%) rotate(-45deg)"}:{}
+			const alt2 = this.props.isBurgerOpen?{transform: "translate(0em,-10%) rotate(45deg)"}:{}
+			const alt3 = this.props.isBurgerOpen?{opacity: "0"}:{}
+			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.8em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[
+				$("g",{key:1,style:{...c,...alt1}},
+					$("line",{"strokeLinecap":"round",x1:"2",y1:"9",x2:"30",y2:"9","strokeWidth":"4","stroke":"white"})
+				),
+				$("g",{key:2,style:{...c,...alt2}},
+					$("line",{"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"})
+				),
+				$("g",{key:3,style:{...c,...alt3}},
+					$("line",{"strokeLinecap":"round",x1:"2",y1:"25",x2:"30",y2:"25","strokeWidth":"4","stroke":"white"})
+				)
+			])					
+						
+			//const svgData = svgSrc(svg)
 			//const errors = this.props.children[1]
 			const right = this.props.children.filter(_=>_.key.includes("right"))			
-			const menuBurger = $("div",{},[$("img",{key:"burger",src:svgData,style:{fontSize:"1.5em", height:"1em"},onClick:this.openBurger}),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
+			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0"},[$("div",{style:{cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
 			return $("div",{style:style},
 				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
 					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
-					$("div",{key:"right"},right)
+					$("div",{key:"right",style:{alignSelf:"center"}},right)
 				])				
 			)
 		}		
