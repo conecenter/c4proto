@@ -217,24 +217,33 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			else 
 				this.setState({...inI,show})			
 		},
+		same:function(aRect,bRect){
+			if(!aRect||!bRect) return false
+			return aRect.top==bRect.top && aRect.left==bRect.left && aRect.height == bRect.height && aRect.width == bRect.width
+		},
 		fitIn:function(){			
 			const vkLayout = this.getCurrentLayout()
 			if(!vkLayout) return
 			const emK = this.emRatio()
 			if(!emK) return
 			const vkContainer = this.getVkContainer()
-			if(!vkContainer) return this.state.show?this.updateState({},false):null
+			if(!vkContainer) return this.state.show?this.updateState({},false):null	
+			const show = vkContainer.static||this.showVk()	
+			const wRect = getWindowRect()				
+			if( this.state.show==show && this.same(this.wRect,wRect) ) return				
+			
 			let pWidth = Math.ceil(vkLayout.width * emK); pWidth == 0?1:pWidth
 			const pHeight = Math.ceil(vkLayout.height * emK)
-			let hK = vkContainer.rect.height/pHeight; if(hK == 0) hK = 1
+			const cHeight  = vkModule.getMaxHeight(this.root)
+			let hK = (vkContainer.rect.height||cHeight)/pHeight; if(hK == 0) hK = 1
 			let wK = vkContainer.rect.width/pWidth; if(wK == 0) wK = 1
-			let fK = Math.min(hK,wK)*0.9;fK=fK>1?1:fK			 
-			const show = vkContainer.static||this.showVk()
-			const wRect = getWindowRect()				
+			let fK = Math.min(hK,wK)*0.9;fK=fK>1?1:fK			 			
+			
+			this.wRect = wRect
 			const fontSize = fK
 			const {top,left} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
 			if(this.state.fontSize!=fontSize || this.state.top!=top || this.state.left!=left || this.state.show!=show){		
-				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,pHeight)					
+				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,cHeight)					
 				this.updateState({fontSize,top,left},show)
 			}							
 		},
@@ -337,13 +346,20 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			if(!fR) return null
 			return fR.height
 		}
+		const getMaxHeight = (rootSpan) => {
+			const root = rootSpan.parentElement
+			if(!root) return 0
+			const cR = vks.find(r=>r.root == rootSpan)
+			if(!cR) return 0
+			return getRootHeight(rootSpan)*cR.obj.maxHeight
+		}
 		const regView = (obj,el) => reg(obj,el,views)
 		const regVk = (obj,el) => reg(obj,el,vks)		
 		const onVk = (showVk,val) =>{			
 			views.forEach(v=>v.obj.f(showVk,val))
 			vks.forEach(v=>v.obj.f(showVk,val))
 		}
-		return {regView,regVk, onVk,getRootHeight}
+		return {regView,regVk, onVk,getRootHeight,getMaxHeight}
 	})()
 	const VKMainViewElement = $C({
 		getInitialState:function(){

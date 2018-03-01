@@ -179,7 +179,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	uiElements.push({ErrorElement})
 	const MenuBarElement=React.createClass({
 		getInitialState:function(){
-			return {fixedHeight:"",scrolled:false, isBurger:false,isBurgerOpen:false}
+			return {fixedHeight:"",scrolled:false, isBurger:false}
 		},
 		process:function(){
 			if(!this.el) return;
@@ -194,7 +194,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		componentWillUnmount:function(){
 			checkActivateCalls.remove(this.calc)
 			//removeEventListener("scroll",this.onScroll);
-		},
+		},		
 		componentDidUpdate:function(){
 		//	this.process();
 		},
@@ -203,7 +203,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const tCLength = Array.from(this.leftEl.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0)
 			const tLength = this.leftEl.getBoundingClientRect().width
 			
-			if(!this.bpLength && tCLength>=tLength && !this.state.isBurger) {
+			if(!this.bpLength && tCLength>0 && tCLength>=tLength && !this.state.isBurger) {
 				this.bpLength = tLength
 				this.setState({isBurger:true})
 			}
@@ -212,8 +212,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				this.setState({isBurger:false})
 			}
 		},
-		openBurger:function(){
-			this.setState({isBurgerOpen:!this.state.isBurgerOpen})
+		openBurger:function(e){
+			if(this.props.onClick)
+				this.props.onClick(e)			
 		},
 		componentDidMount:function(){
 			checkActivateCalls.add(this.calc)
@@ -249,7 +250,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const svgData = svgSrc(svg)
 			//const errors = this.props.children[1]
 			const right = this.props.children.filter(_=>_.key.includes("right"))			
-			const menuBurger = $("div",{},[$("img",{key:"burger",src:svgData,style:{fontSize:"1.5em", height:"1em"},onClick:this.openBurger}),this.state.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
+			const menuBurger = $("div",{},[$("img",{key:"burger",src:svgData,style:{fontSize:"1.5em", height:"1em"},onClick:this.openBurger}),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
 			return $("div",{style:style},
 				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
 					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
