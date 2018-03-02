@@ -1531,27 +1531,37 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(!this.el) return;			
 			const sibling = this.el.previousElementSibling;			
 			if(!sibling) return;
-			const sRect = sibling.getBoundingClientRect();
-			const r = this.el.getBoundingClientRect();
-			let left=0,top=0;
-			switch(this.props.position){
-				case "Left":					
-					left = sRect.left - r.width;
-					top = sRect.top;
-					break;
-				case "Right":
-					left = sRect.right;
-					top = sRect.top;					
-					break;
-				case "Top":
-					left = sRect.left;
-					top = sRect.top - r.height;
-					break;
-				case "Bottom":
-					left = sRect.left;
-					top = sRect.bottom;
+			const rect = sibling.getBoundingClientRect();
+			const popRect = this.el.getBoundingClientRect();		
+			
+			const windowRect = getWindowRect()								
+			const rightEdge = rect.right + popRect.width
+			const leftEdge = rect.left - popRect.width
+			const bottomEdge = rect.bottom + popRect.height
+			const topEdge = rect.top - popRect.height;
+			let top = 0
+			let left = 0
+			if(bottomEdge<=windowRect.bottom){					//bottom
+				left = rect.left//rect.left - popRect.left
+				if(left+ popRect.width> windowRect.right)
+					left = windowRect.right - popRect.width
+				top = rect.bottom					
+			}
+			else if(topEdge>windowRect.top){	//top
+				top = rect.top - popRect.height				
+				left = rect.left//rect.left - popRect.left;							
+				if(left+ popRect.width> windowRect.right)
+					left = windowRect.right - popRect.width
+			}
+			else if(leftEdge>windowRect.left){	//left
+				left = rect.left - popRect.width;
+				top = rect.top - popRect.height/2;					
+			}
+			else if(rightEdge<=windowRect.right){
+				left = rect.right
+				top = rect.top - popRect.height/2;					
 			}			
-			top -= getPageYOffset()
+			//top -= getPageYOffset()
 			if(this.state.top!=top || this.state.left!=left)
 				this.setState({top,left});			
 		},
