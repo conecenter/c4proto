@@ -132,12 +132,16 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4gate-logback`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging)
 
 
 lazy val `c4vdom-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
+
+lazy val `c4vdom-canvas` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .dependsOn(`c4vdom-base`)
 
 //lazy val `c4ui-canvas` = project.settings(publishSettings)
 //  .settings(description := s"$descr")
@@ -180,5 +184,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   //`c4ui-canvas`,
   `c4actor-extra`,
   `c4actor-extra-examples`,
+  `c4vdom-canvas`,
   `c4ui-main`
 )
