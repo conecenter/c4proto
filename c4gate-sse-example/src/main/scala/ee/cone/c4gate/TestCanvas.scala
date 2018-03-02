@@ -1,18 +1,12 @@
 package ee.cone.c4gate
 
-import ee.cone.c4ui.CanvasContent
-import java.text.DecimalFormat
-
-import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, assemble, fieldAccess}
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.{Assemble, fieldAccess}
 import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
-import ee.cone.c4vdom.MutableJsonBuilder
-import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.c4vdom_impl.JsonBuilderImpl
+import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
+import ee.cone.c4vdom.{PathFactory, PathFactoryImpl, _}
 
 class TestCanvasApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -25,10 +19,13 @@ class TestCanvasApp extends ServerApp
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
+  with PublicViewAssembleApp
+  with ModelAccessFactoryApp
+  with SessionAttrApp
+  with MortalFactoryApp
+  with TestCanvasViewApp
 {
-  override def protocols: List[Protocol] = TestCanvasProtocol :: super.protocols
   override def assembles: List[Assemble] =
-    new TestCanvasAssemble ::
       new FromAlienTaskAssemble("/react-app.html") ::
       super.assembles
   def mimeTypes: Map[String, String] = Map(
@@ -42,120 +39,149 @@ class TestCanvasApp extends ServerApp
   )
 }
 
-@protocol object TestCanvasProtocol extends Protocol {
-  @Id(0x0008) case class TestCanvasState(
-    @Id(0x0009) sessionKey: String,
-    @Id(0x000A) x: String,
-    @Id(0x000B) y: String
+trait TestCanvasViewApp extends ByLocationHashViewsApp {
+  def testTags: TestTags[Context]
+  def tags: Tags
+  def tagStyles: TagStyles
+  def testCanvasTags: TestCanvasTags
+  def sessionAttrAccessFactory: SessionAttrAccessFactory
+  def untilPolicy: UntilPolicy
+  def pathFactory: PathFactory
+  private lazy val testCanvasView = TestCanvasView()(
+    testTags,
+    tags,
+    tagStyles,
+    testCanvasTags,
+    sessionAttrAccessFactory,
+    untilPolicy,
+    pathFactory
   )
+  override def byLocationHashViews: List[ByLocationHashView] =
+    testCanvasView :: super.byLocationHashViews
 }
 
-@assemble class TestCanvasAssemble extends Assemble {
-  def joinView(
-    key: SrcId,
-    tasks: Values[FromAlienTask]
-  ): Values[(SrcId,View)] =
-    for(
-      task ← tasks;
-      view ← Option(task.locationHash).collect{
-        case "rectangle" ⇒ ??? //TestCanvasView(task.branchKey,task.branchTask,task.fromAlienState.sessionKey)
-      }
-    ) yield WithPK(view)
 
-  def joinCanvas(
-    key: SrcId,
-    branchTasks: Values[BranchTask]
-  ): Values[(SrcId,CanvasHandler)] =
-    for (
-      branchTask ← branchTasks;
-      state ← Option(branchTask.product).collect { case s: TestCanvasState ⇒ s }
-    ) yield branchTask.branchKey → TestCanvasHandler(branchTask.branchKey, state.sessionKey)
-}
-
-case class TestCanvasHandler(branchKey: SrcId, sessionKey: SrcId) extends CanvasHandler {
-  def messageHandler: BranchMessage ⇒ Context ⇒ Context = ???
-  def view: Context ⇒ CanvasContent = local ⇒ {
-    val decimalFormat = new DecimalFormat("#0.##")
-    val builder = new JsonBuilderImpl()
-    builder.startObject()
-    CanvasSizesKey.of(local).foreach(s ⇒ builder.append("sizes").append(s.sizes))
-    builder.append("width").append(1000,decimalFormat) //map size
-    builder.append("height").append(1000,decimalFormat)
-    val maxScale = 10
-    val zoomSteps = 4096
-    val maxZoom = (Math.log(maxScale.toDouble)*zoomSteps).toInt
-    builder.append("zoomSteps").append(zoomSteps,decimalFormat)
-    builder.append("commandZoom").append(0,decimalFormat)
-    builder.append("maxZoom").append(maxZoom,decimalFormat)
-    builder.append("commands"); {
-      builder.startArray();
-      {
-        startContext("preparingCtx")(builder);
-        {
-          builder.startArray()
-          builder.append(400,decimalFormat)
-          builder.append(400,decimalFormat)
-          builder.append(200,decimalFormat)
-          builder.append(200,decimalFormat)
-          builder.end()
-          builder.append("strokeRect")
-        };
-        {
-          //???
-        }
-
-        endContext(builder)
-      }
-      builder.end()
-    }
-    builder.end()
-    //
-    val res =builder.result.toString
-    CanvasContentImpl(res,System.currentTimeMillis+1000)
-  }
-  private def startContext(name: String)(builder: MutableJsonBuilder) = {
-    builder.startArray()
-    builder.append(name)
-    builder.startArray()
-  }
-  private def endContext(builder: MutableJsonBuilder) = {
-    builder.end()
-    builder.end()
-    builder.append("inContext")
-  }
-}
-
-import TestCanvasStateAccess._
-@fieldAccess object TestCanvasStateAccess {
-  lazy val x: ProdLens[TestCanvasState,String] = ProdLens.of(_.x)
-  lazy val y: ProdLens[TestCanvasState,String] = ProdLens.of(_.y)
-}
-/*
-case class TestCanvasView(branchKey: SrcId, branchTask: BranchTask, sessionKey: SrcId) extends View {
-  def view: Context ⇒ ViewRes = local ⇒ {
-    val branchOperations = BranchOperationsKey.of(local)
-    val tags = TagsKey.of(local)
-    val styles = TagStylesKey.of(local)
-    val tTags = TestTagsKey.of(local)
-    val conductor = ModelAccessFactoryKey.of(local)
-
-    val canvasTasks = ByPK(classOf[TestCanvasState]).of(local)
-    val canvasTaskProd: TestCanvasState =
-      canvasTasks.getOrElse(sessionKey,TestCanvasState(sessionKey,"",""))
-
-
-    val canvasSeed = (t:TestCanvasState) ⇒
-      tags.seed(branchOperations.toSeed(t))(List(styles.height(512),styles.widthAll))(Nil)//view size
+case class TestCanvasView(locationHash: String = "rectangle")(
+  tTags: TestTags[Context],
+  tags: Tags,
+  styles: TagStyles,
+  cTags: TestCanvasTags,
+  sessionAttrAccessFactory: SessionAttrAccessFactory,
+  untilPolicy: UntilPolicy,
+  pathFactory: PathFactory
+) extends ByLocationHashView {
+  import pathFactory.path
+  import TestCanvasStateAccess.sizes
+  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
+    def canvasSeed(access: Access[String]) =
+      cTags.canvas("testCanvas",List(styles.height(512),styles.widthAll), access)(
+        viewRel(0)(local)::viewRel(50)(local)::Nil
+      )
+    val branchTask = ByPK(classOf[BranchTask]).of(local)(CurrentBranchKey.of(local))
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
       List(tags.text("caption", "relocate"))
     )
+    val state: Option[Access[TestCanvasState]] =
+      sessionAttrAccessFactory.to(TestCanvasStateAccess.state)(local)
     val inputs = for {
-      canvasTask ← (conductor to canvasTaskProd).toList
-      tags ← tTags.input(canvasTask to x) :: tTags.input(canvasTask to y) :: Nil
+      canvasTask ← state.toList
+      tags ← tTags.input(canvasTask to sizes) :: canvasSeed(canvasTask to sizes) :: Nil
     } yield tags
-    relocate :: inputs ::: canvasSeed(canvasTaskProd) :: Nil
+    relocate :: inputs ::: Nil
+  }
+  def viewRel: Int ⇒ Context ⇒ ChildPair[OfCanvas] = offset ⇒ local ⇒ {
+    val key = "123"+offset
+    path(key,
+      Rect(10+offset,20,30,40),
+      GotoClick(key),
+      FillStyle("rgb(255,0,0)"), StrokeStyle("#000000"),
+      path("3",
+        Translate(0,50), Rotate(0.1),
+        path("3",Rect(0,0,20,20),FillStyle("rgb(0,0,0)"))
+      ),
+      path("4")
+    )
   }
 }
-*/
-case class CanvasContentImpl(value: String, until: Long) extends CanvasContent
 
+case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
+  def handleClick: (Context) => Context = (l:Context)=>{println("clicked"+vDomKey);l}
+}
+
+/******************************************/
+
+@protocol object TestCanvasProtocol extends Protocol {
+  @Id(0x0008) case class TestCanvasState(
+    @Id(0x0009) srcId: String,
+    @Id(0x000A) sizes: String
+  )
+}
+
+@fieldAccess object TestCanvasStateAccess {
+  lazy val sizes: ProdLens[TestCanvasProtocol.TestCanvasState,String] = ProdLens.of(_.sizes)
+  lazy val state =
+    SessionAttr(Id(0x0009), classOf[TestCanvasState], UserLabel en "(TestCanvasState)")
+}
+
+object TestCanvasStateDefault extends DefaultModelFactory(classOf[TestCanvasState],TestCanvasState(_,""))
+
+trait CanvasApp extends ProtocolsApp with DefaultModelFactoriesApp {
+  def childPairFactory: ChildPairFactory
+  def tagJsonUtils: TagJsonUtils
+
+  lazy val testCanvasTags: TestCanvasTags = new TestCanvasTagsImpl(childPairFactory,tagJsonUtils,CanvasToJsonImpl)
+  lazy val pathFactory: PathFactory = PathFactoryImpl[Context](childPairFactory,CanvasToJsonImpl)
+  
+  override def protocols: List[Protocol] =
+    TestCanvasProtocol :: super.protocols
+  override def defaultModelFactories: List[DefaultModelFactory[_]] =
+    TestCanvasStateDefault :: super.defaultModelFactories
+}
+
+case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: String)(
+  utils: TagJsonUtils,
+  toJson: CanvasToJson,
+  val receive: VDomMessage ⇒ Context ⇒ Context
+) extends VDomValue with Receiver[Context] {
+  def appendJson(builder: MutableJsonBuilder): Unit = {
+    builder.startObject()
+    utils.appendInputAttributes(builder, value, deferSend=false)
+    utils.appendStyles(builder, styles)
+    toJson.appendCanvasJson(attr, builder)
+    builder.end()
+  }
+}
+
+trait TestCanvasTags {
+  def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv]
+}
+
+class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
+  def messageStrBody(o: VDomMessage): String =
+    o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
+  def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =
+    child[OfDiv](
+      key,
+      CanvasElement(children.collect{ case a: CanvasAttr ⇒ a }, style, access.initialValue)(
+        utils, toJson,
+        message ⇒ access.updatingLens.get.set(messageStrBody(message))
+      ),
+      children.filterNot(_.isInstanceOf[CanvasAttr])
+    )
+}
+
+/*
+object T {
+  trait Ch[-C]
+  trait OfA
+  trait OfB extends OfA
+  def a(l: List[Ch[OfA]]) = ???
+  def b(l: List[Ch[OfB]]) = ???
+
+  def chOfA: Ch[OfA] = ???
+  def chOfB: Ch[OfB] = ???
+  a(List(chOfA))
+  def chM: Seq[Ch[OfB]] = List(chOfA,chOfB)
+  b(List(chOfA,chOfB))
+
+}*/
