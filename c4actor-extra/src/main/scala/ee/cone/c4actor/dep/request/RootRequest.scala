@@ -1,12 +1,13 @@
-package ee.cone.c4actor.request
+package ee.cone.c4actor.dep.request
 
 import java.nio.ByteBuffer
 import java.util.UUID
 
-import ee.cone.c4actor.CtxType.ContextId
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.request.RootRequestProtocol.RootRequest
+import ee.cone.c4actor.dep.CtxType.ContextId
+import ee.cone.c4actor.dep.request.RootRequestProtocol.RootRequest
+import ee.cone.c4actor.dep.{Dep, RequestHandler, RequestHandlerRegistryApp, RequestWithSrcId}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
@@ -14,7 +15,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
 trait RootDepApp extends RequestHandlerRegistryApp with AssemblesApp {
-  def rootDep:Dep[_]
+  def rootDep: Dep[_]
 
   override def handlers: List[RequestHandler[_]] = RootRequestHandler(rootDep) :: super.handlers
 
@@ -50,6 +51,7 @@ case class RootRequestHandler(rootDep: Dep[_]) extends RequestHandler[RootReques
 }
 
 object RootRequestUtils {
+
   def genPK(rq: RootRequest): SrcId = {
     val adapter = RootRequestProtocol.adapters.head
     val bytes = adapter.encode(rq)

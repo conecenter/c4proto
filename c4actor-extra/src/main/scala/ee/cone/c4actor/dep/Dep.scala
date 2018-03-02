@@ -1,6 +1,7 @@
-package ee.cone.c4actor
+package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.CtxType.{Ctx, Request}
+import ee.cone.c4actor._
+import ee.cone.c4actor.dep.CtxType.{Ctx, Request}
 
 trait Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B]

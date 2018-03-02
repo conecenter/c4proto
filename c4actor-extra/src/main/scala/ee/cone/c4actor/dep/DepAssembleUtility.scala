@@ -1,10 +1,11 @@
-package ee.cone.c4actor
+package ee.cone.c4actor.dep
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
-import ee.cone.c4actor.CtxType.Request
+import ee.cone.c4actor.QAdapterRegistry
+import ee.cone.c4actor.dep.CtxType.Request
 import ee.cone.c4actor.Types.SrcId
 
 trait DepAssembleUtility {

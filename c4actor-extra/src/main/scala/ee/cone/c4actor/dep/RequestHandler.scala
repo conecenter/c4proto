@@ -1,7 +1,8 @@
-package ee.cone.c4actor
+package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.CtxType.{ContextId, Ctx, Request}
-import ee.cone.c4actor.request.ContextIdRequestProtocol.ContextIdRequest
+import ee.cone.c4actor.dep.CtxType.{ContextId, Ctx, Request}
+import ee.cone.c4actor.dep.Dep
+import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4assemble.Types.Values
 
 trait RequestHandler[A] {

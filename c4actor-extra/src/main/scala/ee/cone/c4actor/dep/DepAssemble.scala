@@ -1,8 +1,10 @@
-package ee.cone.c4actor
+package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.CtxType.Ctx
+import ee.cone.c4actor.{QAdapterRegistry, RichDataApp, WithPK}
+import ee.cone.c4actor.dep.CtxType.Ctx
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.request.ContextIdRequestProtocol.ContextIdRequest
+import ee.cone.c4actor.dep.{InnerDep, UnresolvedDep}
+import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 

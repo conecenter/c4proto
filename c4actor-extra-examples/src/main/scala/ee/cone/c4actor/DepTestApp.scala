@@ -1,9 +1,10 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.LULProtocol.{LULNode, PffNode}
+import ee.cone.c4actor.LULProtocol.{TestNode, PffNode}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp, RootDepApp}
+import ee.cone.c4actor.dep._
+import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp, RootDepApp}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.{AlienProtocol, SessionAttrApp}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -11,7 +12,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object LULProtocol extends Protocol {
 
-  @Id(0x0001) case class LULNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
+  @Id(0x0001) case class TestNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 
   @Id(0x0010) case class PffNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
 
@@ -57,7 +58,7 @@ class DepTestStart(
   def run() = {
     import LEvent.update
 
-    val recs = update(LULNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666)) ++ update(FromAlienState("test", "test", "test", None))
+    val recs = update(TestNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666)) ++ update(FromAlienState("test", "test", "test", None))
     /*
           update(Node("12","1")) ++ update(Node("13","1")) ++
           update(Node("124","12")) ++ update(Node("125","12"))*/
@@ -115,7 +116,8 @@ class DepTestApp extends RichDataApp
   with RootDepApp
   with DepDraft
   with MortalFactoryApp
-  with SessionAttrApp {
+  with SessionAttrApp
+  with ModelAccessFactoryApp {
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 

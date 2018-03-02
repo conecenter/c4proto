@@ -1,4 +1,4 @@
-package ee.cone.c4actor.request
+package ee.cone.c4actor.dep.request
 
 import ee.cone.c4proto.{Protocol, protocol}
 

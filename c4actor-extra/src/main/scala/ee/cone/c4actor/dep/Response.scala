@@ -1,4 +1,4 @@
-package ee.cone.c4actor
+package ee.cone.c4actor.dep
 
 import ee.cone.c4actor.Types.SrcId
 

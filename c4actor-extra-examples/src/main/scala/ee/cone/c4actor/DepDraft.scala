@@ -3,19 +3,17 @@ package ee.cone.c4actor
 import java.io.{ByteArrayOutputStream, ObjectOutputStream}
 import java.nio.ByteBuffer
 
-import ee.cone.c4actor.CtxType.{ContextId, Ctx}
 import ee.cone.c4actor.LULProtocol.PffNode
 import ee.cone.c4actor.TestRequests.FooDepRequest
-import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.request.ByClassNameRequestProtocol.ByClassNameRequest
-import ee.cone.c4actor.request.ByPKRequestProtocol.ByPKRequest
-import ee.cone.c4actor.request.SessionAttrRequestUtility
+import ee.cone.c4actor.dep.CtxType.{ContextId, Ctx}
+import ee.cone.c4actor.dep._
+import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4gate.SessionAttr
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
-trait DepDraft extends SessionAttrRequestUtility {
+trait DepDraft extends CommonRequestUtilityMix {
 
   def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep(a.asInstanceOf[InnerDep[A]], b.asInstanceOf[InnerDep[B]])
@@ -42,10 +40,6 @@ trait DepDraft extends SessionAttrRequestUtility {
     }
   }
 
-  def askPyPK[A](className: String, srcId: SrcId) = new RequestDep[Option[A]](ByPKRequest(className, srcId))
-
-  def askByClassName[A](className: String, from: Int = -1, to: Int = -1) = new RequestDep[List[A]](ByClassNameRequest(className, from, to))
-
   def testSession = for{
     accessOpt ← askSessionAttr(SessionAttr[PffNode](classOf[PffNode].getName, 0x0f1a, "", NameMetaAttr(0x0f1a.toString) :: Nil))
   } yield {
@@ -53,24 +47,24 @@ trait DepDraft extends SessionAttrRequestUtility {
   }
 
   def testList: Dep[Int] = for {
-    list ← askByClassName[PffNode](classOf[PffNode].getName, -1, -1)
+    list ← askByClassName(classOf[PffNode], -1, -1)
   } yield {
     println(list)
     list.foldLeft(0)((sum, node) ⇒ sum + node.value)}
 
   def testView: Dep[Int] = for {
-    a ← askPyPK[PffNode](PffNode.getClass.getName, "123")
+    a ← askByPK(classOf[PffNode], "123")
   } yield a.map(_.value).getOrElse(0)
 
   def subView(a: Int): Dep[Int] = for {
-    c ← askPyPK[PffNode](PffNode.getClass.getName, "123")
+    c ← askByPK(classOf[PffNode], "123")
     b ← askFoo("B")
   } yield a + b + c.map(_.value).getOrElse(0)
 
   def serialView: Dep[(Int, Int, Int)] = for {
     a ← askFoo("A")
     s ← subView(a)
-    b ← askPyPK[PffNode](PffNode.getClass.getName, "124")
+    b ← askByPK(classOf[PffNode], "124")
   } yield (a, s, b.map(_.value).getOrElse(0))
 
   /*

@@ -1,5 +1,4 @@
-package ee.cone.c4actor
-
+package ee.cone.c4actor.dep
 
 object CtxType {
   type Ctx = Map[Request, _]

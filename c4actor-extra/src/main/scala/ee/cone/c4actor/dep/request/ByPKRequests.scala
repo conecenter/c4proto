@@ -1,8 +1,9 @@
-package ee.cone.c4actor.request
+package ee.cone.c4actor.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.request.ByPKRequestProtocol.ByPKRequest
+import ee.cone.c4actor.dep.{RequestWithSrcId, Response}
+import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -55,8 +56,4 @@ trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
     @Id(0x0fa8) itemSrcId: String
   )
 
-}
-
-object ByPKUtils {
-  def askByPK[A](Class: Class[A], srcId: SrcId) = new RequestDep[Option[A]](ByPKRequest(Class.getName, srcId))
 }

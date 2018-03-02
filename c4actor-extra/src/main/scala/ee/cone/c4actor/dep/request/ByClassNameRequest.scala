@@ -1,9 +1,9 @@
-package ee.cone.c4actor.request
+package ee.cone.c4actor.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.request.ByClassNameRequestProtocol.ByClassNameRequest
-import ee.cone.c4actor.request.ByClassNameRequestUtils._
+import ee.cone.c4actor.dep.{DepAssembleUtilityImpl, RequestWithSrcId, Response}
+import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.ByClassNameRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -16,7 +16,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
   override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, stringToKey(className.getName))) ::: super.assembles
 }
 
-@assemble class ByClassNameGenericAssemble[A <: Product](handledClass: Class[A], classSrcId: SrcId) extends Assemble with DepAssembleUtilityImpl {
+@assemble class ByClassNameGenericAssemble[A <: Product](handledClass: Class[A], classSrcId: SrcId) extends Assemble with DepAssembleUtilityImpl with ByClassNameRequestUtils {
   type ToResponse = SrcId
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId
@@ -70,8 +70,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
 
 }
 
-object ByClassNameRequestUtils {
-
+trait ByClassNameRequestUtils {
   private def customTake[A]:List[A] ⇒ Int => List[A] = list ⇒ count ⇒ if (count < 0) list else list.take(count)
   def takeWithDefaultParams[A]:List[A] ⇒ Int ⇒ Int ⇒ List[A] = list ⇒ from ⇒ count ⇒ customTake(list.drop(from))(count)
 }
