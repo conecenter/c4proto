@@ -7,7 +7,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.CtxType.ContextId
 import ee.cone.c4actor.dep.request.RootRequestProtocol.RootRequest
-import ee.cone.c4actor.dep.{Dep, RequestHandler, RequestHandlerRegistryApp, RequestWithSrcId}
+import ee.cone.c4actor.dep.{Dep, RequestHandler, RequestHandlerRegistryApp, DepRequestWithSrcId}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
@@ -32,13 +32,13 @@ case class RootRequestHandler(rootDep: Dep[_]) extends RequestHandler[RootReques
   def SparkRootRequest (
     key: SrcId,
     alienTasks: Values[FromAlienState]
-  ): Values[(SrcId, RequestWithSrcId)] =
+  ): Values[(SrcId, DepRequestWithSrcId)] =
     for {
       alienTask ← alienTasks
     } yield {
       val rootRequest = RootRequest(alienTask.sessionKey)
       val srcId = RootRequestUtils.genPK(rootRequest)
-      (srcId, RequestWithSrcId(srcId, rootRequest))
+      (srcId, DepRequestWithSrcId(srcId, rootRequest))
     }
 }
 

@@ -2,7 +2,7 @@ package ee.cone.c4actor.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.{RequestWithSrcId, Response}
+import ee.cone.c4actor.dep.{DepRequestWithSrcId, DepResponse}
 import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
@@ -21,10 +21,10 @@ trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
   type ToResponse = SrcId
   type ByPkItemSrcId = SrcId
 
-  def RequestWithSrcToItemSrcId(
+  def BPKRequestWithSrcToItemSrcId(
     key: SrcId,
-    @was requests: Values[RequestWithSrcId]
-  ): Values[(ByPkItemSrcId, RequestWithSrcId)] =
+    @was requests: Values[DepRequestWithSrcId]
+  ): Values[(ByPkItemSrcId, DepRequestWithSrcId)] =
     for (
       rq ← requests
       if rq.request.isInstanceOf[ByPKRequest]
@@ -33,18 +33,18 @@ trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
       (byPkRq.itemSrcId, rq)
     }
 
-  def RequestToResponse(
+  def BPKRequestToResponse(
     key: SrcId,
-    @by[ByPkItemSrcId] requests: Values[RequestWithSrcId],
+    @by[ByPkItemSrcId] requests: Values[DepRequestWithSrcId],
     items: Values[A]
-  ): Values[(ToResponse, Response)] =
+  ): Values[(ToResponse, DepResponse)] =
     (for (
       rq ← requests
       if rq.request.isInstanceOf[ByPKRequest]
     ) yield {
       //println()
       //println(s"ByPK$key:$items")
-      val response = Response(rq, Option(items.headOption))
+      val response = DepResponse(rq, Option(items.headOption))
       WithPK(response) :: (for (id ← rq.parentSrcIds) yield (id, response))
     }).flatten
 }

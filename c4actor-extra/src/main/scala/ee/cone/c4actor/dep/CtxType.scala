@@ -1,7 +1,7 @@
 package ee.cone.c4actor.dep
 
 object CtxType {
-  type Ctx = Map[Request, _]
-  type Request = Product
+  type DepCtx = Map[DepRequest, _]
+  type DepRequest = Product
   type ContextId = String
 }

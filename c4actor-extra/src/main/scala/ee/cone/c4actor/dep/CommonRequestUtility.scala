@@ -25,7 +25,7 @@ trait CommonRequestUtility {
 }
 
 trait CommonRequestUtilityMix extends SessionAttrAskMix {
-  def askByClassName[A](Class: Class[A], from: Int, to: Int): Dep[List[A]] = new RequestDep[List[A]](ByClassNameRequest(Class.getName, from, to))
+  def askByClassName[A](Class: Class[A], from: Int = -1, to: Int = -1): Dep[List[A]] = new RequestDep[List[A]](ByClassNameRequest(Class.getName, from, to))
 
   def askByPK[A](Class: Class[A], srcId: SrcId): Dep[Option[A]] = new RequestDep[Option[A]](ByPKRequest(Class.getName, srcId))
 

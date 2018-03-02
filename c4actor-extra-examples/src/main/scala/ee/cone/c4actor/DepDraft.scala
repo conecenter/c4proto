@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 
 import ee.cone.c4actor.LULProtocol.PffNode
 import ee.cone.c4actor.TestRequests.FooDepRequest
-import ee.cone.c4actor.dep.CtxType.{ContextId, Ctx}
+import ee.cone.c4actor.dep.CtxType.{ContextId, DepCtx}
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4assemble.Types.Values
@@ -75,7 +75,7 @@ trait DepDraft extends CommonRequestUtilityMix {
   def main(args: Array[String]): Unit = {
     serialView.asInstanceOf[InnerDep[_]]
     val test = serialView.asInstanceOf[InnerDep[_]]
-    val r1: Ctx = Map()
+    val r1: DepCtx = Map()
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r1))
     val r2 = r1 + (FooDepRequest("A") → Some(1))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r2))
@@ -87,7 +87,7 @@ trait DepDraft extends CommonRequestUtilityMix {
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r5))
   }
 
-  def buildContext: Values[Response] => Ctx = _.map(curr ⇒ (curr.request.request, curr.value)).toMap
+  def buildContext: Values[DepResponse] => DepCtx = _.map(curr ⇒ (curr.request.request, curr.value)).toMap
 
   def serialise(value: Any): Array[Byte] = {
     val stream: ByteArrayOutputStream = new ByteArrayOutputStream()

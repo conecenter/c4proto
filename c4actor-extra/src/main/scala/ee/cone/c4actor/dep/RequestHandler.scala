@@ -1,7 +1,6 @@
 package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.dep.CtxType.{ContextId, Ctx, Request}
-import ee.cone.c4actor.dep.Dep
+import ee.cone.c4actor.dep.CtxType.{ContextId, DepCtx, DepRequest}
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4assemble.Types.Values
 
@@ -12,16 +11,16 @@ trait RequestHandler[A] {
 }
 
 trait RequestHandlerRegistry {
-  def handle: Request ⇒ Option[(Dep[_], ContextId)]
+  def handle: DepRequest ⇒ Option[(Dep[_], ContextId)]
 
-  def buildContext: Values[Response] ⇒ ContextId ⇒ Ctx = responses ⇒ contextId ⇒ responses.map(curr ⇒ (curr.request.request, curr.value)).toMap + (ContextIdRequest() → Option(contextId))
+  def buildContext: Values[DepResponse] ⇒ ContextId ⇒ DepCtx = responses ⇒ contextId ⇒ responses.map(curr ⇒ (curr.request.request, curr.value)).toMap + (ContextIdRequest() → Option(contextId))
 }
 
 case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends RequestHandlerRegistry {
   private lazy val handlerMap: Map[Class[_], RequestHandler[_]] = handlers.map(handler ⇒ (handler.canHandle, handler)).toMap
 
-  override def handle: Request => Option[(Dep[_], ContextId)] = request ⇒ {
-    val handler: Option[RequestHandler[Request]] = handlerMap.get(request.getClass).map(_.asInstanceOf[RequestHandler[Request]])
+  override def handle: DepRequest => Option[(Dep[_], ContextId)] = request ⇒ {
+    val handler: Option[RequestHandler[DepRequest]] = handlerMap.get(request.getClass).map(_.asInstanceOf[RequestHandler[DepRequest]])
     handler.map(_.handle(request))
   }
 }

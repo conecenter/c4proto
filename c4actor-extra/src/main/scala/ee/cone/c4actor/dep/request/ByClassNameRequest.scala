@@ -2,7 +2,7 @@ package ee.cone.c4actor.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.{DepAssembleUtilityImpl, RequestWithSrcId, Response}
+import ee.cone.c4actor.dep.{DepAssembleUtilityImpl, DepRequestWithSrcId, DepResponse}
 import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.ByClassNameRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
@@ -21,7 +21,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId
 
-  def ItemsOnSrcId(
+  def BCNItemsOnSrcId(
     key: SrcId,
     items: Values[A]
   ): Values[(ByCNSrcId, A)] =
@@ -31,10 +31,10 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
       (classSrcId, item)
     }
 
-  def RequestToClassSrcId(
+  def BCNRequestToClassSrcId(
     key: SrcId,
-    @was requests: Values[RequestWithSrcId]
-  ): Values[(ByCNRqSrcId, RequestWithSrcId)] =
+    @was requests: Values[DepRequestWithSrcId]
+  ): Values[(ByCNRqSrcId, DepRequestWithSrcId)] =
     for (
       rq ← requests
       if rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName
@@ -43,17 +43,17 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
       (stringToKey(byCNRq.className), rq)
     }
 
-  def RequestToResponse(
+  def BCNRequestToResponse(
     key: SrcId,
-    @by[ByCNRqSrcId] requests: Values[RequestWithSrcId],
+    @by[ByCNRqSrcId] requests: Values[DepRequestWithSrcId],
     @by[ByCNSrcId] items: Values[A]
-  ): Values[(ToResponse, Response)] =
+  ): Values[(ToResponse, DepResponse)] =
     (for (
       rq ← requests
       if rq.request.isInstanceOf[ByClassNameRequest]
     ) yield {
       val byCNRq = rq.request.asInstanceOf[ByClassNameRequest]
-      val response = Response(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))
+      val response = DepResponse(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))
       WithPK(response) :: (for (id ← rq.parentSrcIds) yield (id, response))
     }
       ).flatten
