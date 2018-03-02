@@ -230,7 +230,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			if(!vkContainer) return this.state.show?this.updateState({},false):null	
 			const show = vkContainer.static||this.showVk()	
 			const wRect = getWindowRect()				
-			if( this.state.show==show && this.same(this.wRect,wRect) ) return				
+			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout) return				
 			
 			let pWidth = Math.ceil(vkLayout.width * emK); pWidth == 0?1:pWidth
 			const pHeight = Math.ceil(vkLayout.height * emK)
@@ -240,6 +240,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			let fK = Math.min(hK,wK)*0.9;fK=fK>1?1:fK			 			
 			
 			this.wRect = wRect
+			this.vkLayout = vkLayout
 			const fontSize = fK
 			const {top,left} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
 			if(this.state.fontSize!=fontSize || this.state.top!=top || this.state.left!=left || this.state.show!=show){		
