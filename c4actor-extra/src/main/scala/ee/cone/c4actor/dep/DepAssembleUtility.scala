@@ -15,7 +15,7 @@ trait DepAssembleUtility {
 }
 
 trait DepAssembleUtilityImpl extends DepAssembleUtility {
-  def generatePK(rq: DepRequest, adapterRegistry: QAdapterRegistry): SrcId = {
+  def generatePK(rq: DepRequest, adapterRegistry: QAdapterRegistry): SrcId = { //TODO ilya custom serializer
     val valueAdapter = adapterRegistry.byName(rq.getClass.getName)
     val bytes = valueAdapter.encode(rq)
     UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes).toString

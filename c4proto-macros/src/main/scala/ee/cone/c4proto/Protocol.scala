@@ -108,6 +108,14 @@ class protocol extends StaticAnnotation {
                   resultFix = s"prep_$propName.reverse",
                   reduce = ("", s":: prep_$propName")
                 )
+              case t"DepCondition" ⇒
+                val name = "DepCondition"
+                ProtoType(
+                  encodeStatement = (s"if(prep_$propName.condType.nonEmpty)", s"prep_$propName)"),
+                  serializerType = adapterOf("DepCondition"),
+                  empty = s"""$name(\"\",\"\",None,None,\"\",None)""",
+                  resultType = s"$name"
+                )
               /*
               //ProtoType("com.squareup.wire.ProtoAdapter.BOOL", "\"\"", "String")
               //String, Option[Boolean], Option[Int], Option[BigDecimal], Option[Instant], Option[$]
