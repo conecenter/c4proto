@@ -89,7 +89,9 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
     function woPx(value){ return value.substring(0,value.length-2) }
     function processFrame(frame,prev){
         const div = canvas.parentNode()
-        const canvasWidth = parseInt(woPx(getComputedStyle(div).width))
+		const cs = getComputedStyle(div)
+        const canvasWidth = parseInt(woPx(cs.width))
+        const canvasHeight = parseInt(woPx(cs.height))		
         if(!canvasWidth) return;
         const fontMeter = system.fontMeter()
         if(!fontMeter.parentElement){
@@ -97,7 +99,7 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
             canvas.appendChild(fontMeter)
         }
         const canvasFontSize = parseInt(woPx(getComputedStyle(fontMeter).height))
-        const sizes = canvasFontSize+","+canvasWidth
+        const sizes = canvasFontSize+","+canvasWidth+","+canvasHeight
         const wasSizes = sent && acknowledgedIndex < sent.index ? sent.sizes : canvas.fromServer().sizes
         if(wasSizes === sizes) return;
         const sentH = canvas.sendToServer({
@@ -172,9 +174,13 @@ export function BaseCanvasSetup(log, util, canvas, system){
         const x = (vExternalPos.x + (parseInt(canvasElement.style.left)||0) - canvasPos.pos.x)|0
         const y = (vExternalPos.y + (parseInt(canvasElement.style.top)||0)  - canvasPos.pos.y)|0
         const viewExternalPos = {x,y}
-        const parentPosEnd = { x: parentPos.end.x|0, y: infinite ? Infinity : parentPos.end.y|0 }
+		const footer = infinite? canvas.scrollNode().querySelector(".mainFooter"):null
+        const parentPosEnd = { x: parentPos.end.x|0, 
+	 	  y: footer ? scrollPos.end.y - footer.getBoundingClientRect().height:infinite ? Infinity : parentPos.end.y|0 
+		}		
         const vExternalEnd = canvas.calcPos(dir=>Math.min(parentPosEnd[dir],scrollPos.end[dir])|0)
-        const viewExternalSize = canvas.calcPos(dir=>Math.max(0, vExternalEnd[dir] - vExternalPos[dir])|0)
+		
+        const viewExternalSize = canvas.calcPos(dir=>Math.max(0, vExternalEnd[dir] - vExternalPos[dir] )|0)
         return {viewExternalSize,viewExternalPos,scrollPos,parentPos}
     }
 
@@ -263,7 +269,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
 
         const canvasElement = canvas.composingElement(ctxName)
         //if(!samePos(p=>p.viewExternalSize)) log({viewExternalSize,ctxName})
-        if(!samePos(p=>p.viewExternalSize)) fixCanvasSize(canvasElement,viewExternalSize)
+        if(!samePos(p=>p.viewExternalSize)) fixCanvasSize(canvasElement,viewExternalSize) //todo: check size
         if(!viewExternalSize.x || !viewExternalSize.y) return;
         const ctx = canvas.getContext(canvasElement)
         canvas.cleanContext(ctx)
