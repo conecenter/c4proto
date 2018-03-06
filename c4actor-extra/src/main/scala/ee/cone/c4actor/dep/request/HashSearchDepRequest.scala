@@ -1,12 +1,14 @@
 package ee.cone.c4actor.dep.request
 
-import ee.cone.c4actor.HashSearch.Response
+import ee.cone.c4actor.HashSearch.{Factory, Request, Response}
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.CtxType.ContextId
-import ee.cone.c4actor.dep.{Dep, RequestDep, RequestHandler, RequestHandlerRegistryApp}
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest, StrEq}
+import ee.cone.c4actor.dep.{Dep, RequestDep, RequestHandler, RequestHandlerRegistryApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.{Id, Protocol, protocol}
+
+import scala.reflect.runtime.{universe => un}
 
 trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with LensRegistryAppTrait with RequestHandlerRegistryApp {
   override def assembles: List[Assemble] = super.assembles // TODO fill in assembler here
@@ -25,6 +27,8 @@ case class HashSearchDepRequestHandler[Model](lensRegistry: LensRegistry, modelC
 
   def handle: HashSearchDepRequest => (Dep[_], ContextId) = request ⇒ new RequestDep[Response[Model]](HashSearchRequestInner(parseCondition(request.condition))) → ""
 
+  case class A()
+
   private def parseCondition(condition: DepCondition): Condition[Model] = condition.condType match {
     case "intersect" ⇒ condFactory.intersect(parseCondition(condition.condLeft.get), parseCondition(condition.condRight.get))
     case "union" ⇒ condFactory.union(parseCondition(condition.condLeft.get), parseCondition(condition.condRight.get))
@@ -39,7 +43,15 @@ case class HashSearchDepRequestHandler[Model](lensRegistry: LensRegistry, modelC
   }
 }
 
-case class HashSearchRequestInner[Model](condition: Condition[Model])
+case class ConditionTransformerRegistry(conditions: List[ConditionTransformer]) {
+  lazy val map
+  (className → ConditionTransformer
+  )
+
+  def get: className → ConditionTransformer
+}
+
+//case class HashSearchRequestInner[Model](condition: Condition[Model])
 
 @protocol object HashSearchDepRequestProtocol extends Protocol {
 
@@ -67,6 +79,65 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
 
 }
 
+/*
+case class HashSearchDepRequestHandler(condFactory: ModelConditionFactory[_], rqFactory : Factory) {
+  def handle[Model <: Product]: HashSearchDepRequest[Model] => (Request[Model]) = rq ⇒ {
+    val factory = condFactory.of[Model]
+    val condition = getCondition(factory, rq.condition)
+    rqFactory.request(condition)
+  }
+
+  private def getCondition[Model](fact: ModelConditionFactory[Model], depCondition: DepCondition[Model]): Condition[Model] =
+    depCondition match {
+      case _: DepAny[Model] ⇒ fact.any
+      case a: DepLeaf[Model, _, _] ⇒ fact.leaf(a.lens, a.by, a.byOptions)
+      case a: DepUnion[Model] ⇒ fact.union(getCondition(fact, a.left), getCondition(fact,a.right))
+      case a: DepIntersect[Model] ⇒ fact.intersect(getCondition(fact, a.left), getCondition(fact,a.right))
+    }
+
+}
+
+case class HashSearchDepRequest[Model](condition: DepCondition[Model])
+
+trait DepCondition[Model <: Product] extends Product {
+  def toUniqueString: String
+
+  def modelName: String
+}
+
+case class DepIntersect[Model: un.TypeTag](left: DepCondition[Model], right: DepCondition[Model]) extends DepCondition[Model] {
+  def toUniqueString: String = s"$productPrefix(${left.toUniqueString},${right.toUniqueString})"
+
+  def modelName: String = un.typeTag[Model].toString()
+}
+
+case class DepUnion[Model: un.TypeTag](left: DepCondition[Model], right: DepCondition[Model]) extends DepCondition[Model] {
+  def toUniqueString: String = s"$productPrefix(${left.toUniqueString},${right.toUniqueString})"
+
+  def modelName: String = un.typeTag[Model].toString()
+}
+
+case class DepAny[Model: un.TypeTag]() extends DepCondition[Model] {
+  def toUniqueString: String = s"DepAny($modelName)"
+
+  def modelName: String = un.typeTag[Model].toString()
+}
+
+case class DepLeaf[Model: un.TypeTag, Field, By <: Product](lens: ProdLens[Model, Field], by: By, byOptions: List[MetaAttr]) extends DepCondition[Model] {
+  def toUniqueString: String = s"$productPrefix([${lens.metaList.mkString(",")}],${by.toString},[${lens.metaList.mkString(",")}])"
+
+  def modelName: String = un.typeTag[Model].toString()
+}
+
+case class A(l: String)
+
+object Test {
+  def main(args: Array[String]): Unit = {
+    val a = DepUnion(DepIntersect(DepAny(), DepAny()), DepLeaf(ProdLens.ofSet[A, String](_.l, value ⇒ _.copy(l = value), "testLens"), A("asd"), Nil)).toUniqueString
+    println(a)
+  }
+}
+*/
 case object StrEqCheck extends ConditionCheck[StrEq, String] {
   def prepare: List[MetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
 
@@ -83,6 +154,7 @@ case object StrEqRanger extends Ranger[StrEq, String] {
   }
 }
 
+/*
 /*
 @Id(0x0f39) case class Intersect(
      condLeft: Condition,
@@ -104,4 +176,4 @@ case object StrEqRanger extends Ranger[StrEq, String] {
   trait By
 
   @Id(0x0f43) case class StrEq() extends By
- */
+ */*/

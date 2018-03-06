@@ -7,6 +7,7 @@ import java.util.UUID
 import ee.cone.c4actor.QAdapterRegistry
 import ee.cone.c4actor.dep.CtxType.DepRequest
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.dep.request.HashSearchDepRequest
 
 trait DepAssembleUtility {
   def generatePK(rq: DepRequest, adapterRegistry: QAdapterRegistry): SrcId
@@ -21,9 +22,13 @@ trait DepAssembleUtilityImpl extends DepAssembleUtility {
     UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes).toString
   }
 
+  def generatePK[Model](rq: HashSearchDepRequest[Model]): SrcId = {
+    UUID.nameUUIDFromBytes(s"${rq.productPrefix}(${rq.condition.toUniqueString})".getBytes(StandardCharsets.UTF_8)).toString
+  }
+
   private def toBytes(value: Long) =
     ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
 
-  def stringToKey(value: String) =
+  def stringToKey(value: String): SrcId =
     UUID.nameUUIDFromBytes(value.getBytes(StandardCharsets.UTF_8)).toString
 }
