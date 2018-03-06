@@ -31,10 +31,11 @@ const createElement = n => document.createElement(n)
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
+const getViewPortRect = () => document.body.getBoundingClientRect()
 const exchangeMix = options => canvas => [
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement)
+    Canvas.ExchangeCanvasSetup(canvas,feedback,getViewPortRect,getRootElement,createElement)
 ]
 const canvasBaseMix = CanvasBaseMix(log,util)
 
