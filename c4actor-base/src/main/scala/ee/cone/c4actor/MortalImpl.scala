@@ -12,7 +12,7 @@ object MortalFactoryImpl extends MortalFactory {
 @assemble class MortalAssemble[Node<:Product](
   classOfMortal: Class[Node]
 ) extends Assemble {
-  def join(
+  def joinMortal(
     key: SrcId,
     mortals: Values[Node],
     @by[Alive] keepAlive: Values[Node]

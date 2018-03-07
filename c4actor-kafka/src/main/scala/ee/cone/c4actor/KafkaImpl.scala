@@ -66,7 +66,9 @@ class KafkaActor(conf: KafkaConfig)(
   execution: Execution
 ) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
+    GCLog("before loadRecent")
     val initialRawWorld = rawSnapshot.loadRecent()
+    GCLog("after loadRecent")
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
       "bootstrap.servers" → conf.bootstrapServers,
@@ -86,17 +88,30 @@ class KafkaActor(conf: KafkaConfig)(
       val endOffset: Long = Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long
       val initialRawObserver = progressObserverFactory.create(endOffset)
       consumer.seek(Single(inboxTopicPartition), initialRawWorld.offset)
-      @tailrec def iteration(world: RawWorld, observer: RawObserver): Unit = {
-        val events = consumer.poll(200 /*timeout*/).asScala.toList.map{ rec ⇒
-          val data: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
-          val offset: Long = rec.offset+1L
-          new RawEvent(data,offset)
-        }
-        val newWorld = world.reduce(events)
-        val newObserver = observer.activate(newWorld)
-        iteration(newWorld, newObserver)
-      }
-      iteration(initialRawWorld, initialRawObserver)
+      iteration(consumer, initialRawWorld, initialRawObserver)
     }
+  }
+  @tailrec private def iteration(
+    consumer: KafkaConsumer[Array[Byte], Array[Byte]],
+    world: RawWorld, observer: RawObserver
+  ): Unit = {
+    val events = consumer.poll(200 /*timeout*/).asScala.toList.map{ rec ⇒
+      val data: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
+      val offset: Long = rec.offset+1L
+      new RawEvent(data,offset)
+    }
+    val newWorld = world.reduce(events)
+    val newObserver = observer.activate(newWorld)
+    //GCLog("iteration done")
+    iteration(consumer, newWorld, newObserver)
+  }
+}
+
+object GCLog extends LazyLogging {
+  def apply(hint: String): Unit = {
+    System.gc()
+    val runtime = Runtime.getRuntime
+    val used = runtime.totalMemory - runtime.freeMemory
+    logger.info(s"$hint: then $used bytes used")
   }
 }
