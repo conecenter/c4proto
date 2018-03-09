@@ -31,7 +31,7 @@ import UpdateManager from "../extra/update-manager"
 import VirtualKeyboard from "../extra/virtual-keyboard"
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
-
+const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
@@ -90,7 +90,7 @@ const miscReact = (()=>{
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image});
+const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image, audioContext});
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []

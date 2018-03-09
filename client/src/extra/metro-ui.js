@@ -9,7 +9,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image}){
+export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image,audioContext}){
 	const $ = React.createElement
 	const $C = React.createClass
 	const GlobalStyles = (()=>{
@@ -2897,6 +2897,32 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		React.createElement('span',{}, value)
 	])	
 	
+	const SoundProducerElement = $C({
+		produce:function(){
+			if(!audioContext) return
+			const audioCtx = audioContext()
+			this.oscillator = audioCtx.createOscillator()
+			this.oscillator.type = 'square'
+			this.oscillator.frequency.setValueAtTime(440, audioCtx.currentTime)
+			this.oscillator.connect(audioCtx.destination)
+			this.oscillator.start()
+			setTimeout(()=>{
+				this.oscillator.stop()
+			},300)
+		},
+		stop:function(){
+			this.oscillator&&this.oscillator.stop()
+		},
+		componentDidMount:function(){
+			this.produce()
+		},
+		componentWillUnmount:function(){
+			this.stop()
+		},
+		render:function(){return null}
+	})
+	
+	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
 		const location = windowManager.location
@@ -2923,7 +2949,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
-            InputElement,AnchorElement,HeightLimitElement,ImageElement,
+            InputElement,AnchorElement,HeightLimitElement,ImageElement,SoundProducerElement,
 			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
