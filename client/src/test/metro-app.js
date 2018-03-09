@@ -26,6 +26,7 @@ import OverlayManager from "../extra/overlay-manager"
 import RequestState from "../extra/request-state"
 import WinWifi from "../extra/win-wifi-status"
 
+import SwitchHost from "../extra/switchhost-module"
 import UpdateManager from "../extra/update-manager"
 import VirtualKeyboard from "../extra/virtual-keyboard"
 
@@ -131,14 +132,16 @@ const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElemen
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
 
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
-
+const switchHost = SwitchHost(log,window)
 const receiversList = [
     branches.receivers,
     feedback.receivers,
 	metroUi.receivers,
     customUi.receivers,
 	cryptoElements.receivers,
-	focusModule.receivers/*,
+	focusModule.receivers,
+	switchHost.receivers
+	/*,
 	requestState.receivers*/
 ]
 const composeUrl = () => {
