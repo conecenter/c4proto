@@ -49,7 +49,7 @@ const windowManager = (()=>{
 	const getPageYOffset = ()=> window.pageYOffset
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location}
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)

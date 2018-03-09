@@ -37,7 +37,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		return {add,remove,check}
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
-	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle} = windowManager
+	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
+	
+	
+	const ImageElement = ({src,style}) => {
+		const srcM = (urlPrefix||"")+src
+		return $("img",{src:srcM,style})
+	}
+	
+	
 	const FlexContainer = ({flexWrap,children,style}) => $("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -259,19 +267,13 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			const left = this.props.children.filter(_=>!_.key.includes("right"))			
 			const c = {transition:"all 100ms",transformOrigin:"center"}
-			const alt1 = this.props.isBurgerOpen?{transform: "translate(10%, 8%) rotate(-45deg)"}:{}
-			const alt2 = this.props.isBurgerOpen?{transform: "translate(0em,-10%) rotate(45deg)"}:{}
+			const alt1 = this.props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
+			const alt2 = this.props.isBurgerOpen?{transform: "rotate(45deg)"}:{}
 			const alt3 = this.props.isBurgerOpen?{opacity: "0"}:{}
-			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.8em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[
-				$("g",{key:1,style:{...c,...alt1}},
-					$("line",{"strokeLinecap":"round",x1:"2",y1:"9",x2:"30",y2:"9","strokeWidth":"4","stroke":"white"})
-				),
-				$("g",{key:2,style:{...c,...alt2}},
-					$("line",{"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"})
-				),
-				$("g",{key:3,style:{...c,...alt3}},
-					$("line",{"strokeLinecap":"round",x1:"2",y1:"25",x2:"30",y2:"25","strokeWidth":"4","stroke":"white"})
-				)
+			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.8em", style:{"enableBackground":"new 0 0 32 33"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
+				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"17":"9",x2:"30",y2:this.props.isBurgerOpen?"17":"9","strokeWidth":"4","stroke":"white"}),							
+				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
+				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:"25",x2:"30",y2:"25","strokeWidth":"4","stroke":"white"})				
 			])					
 						
 			//const svgData = svgSrc(svg)
@@ -2921,7 +2923,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
-            InputElement,AnchorElement,HeightLimitElement,
+            InputElement,AnchorElement,HeightLimitElement,ImageElement,
 			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
