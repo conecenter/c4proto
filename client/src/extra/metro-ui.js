@@ -622,17 +622,19 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		check:function(){
 			if(!this.el) return			
 			if(!this.emEl) return
-			if(!this.refDiv) return
+			if(!this.el.parentElement) return			
 			const dRect = this.el.getBoundingClientRect()
-			const pdRect = this.refDiv.getBoundingClientRect()			
-			if(this.prev!=dRect.width){
+			const pdRect = this.el.parentElement.getBoundingClientRect()			
+			if(this.prev!=pdRect.width){
 				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){
 					const emRect= this.emEl.getBoundingClientRect()
-					const emWidth = dRect.width/emRect.height;
+					const emWidth = pdRect.width/emRect.height;
 					this.props.onClickValue("change",emWidth.toString())					
-				}
-				this.prev = dRect.width
+				}				
+				log(`set: ${dRect.width}`)
+				this.prev = pdRect.width
 			}
+			log(`${this.prev},${dRect.width},${pdRect.width}`)
 		},
 		onInputEnter:function(e){
 			const event = eventManager.create("keydown",{bubbles:true,key:"ArrowDown"})			
@@ -641,20 +643,11 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		componentDidMount:function(){
 			if(this.props.dynamic) checkActivateCalls.add(this.check)
-			if(!this.el) return
-			const reactRoot = getReactRoot(this.el)
-			if(!reactRoot) return
-			this.refDiv = documentManager.createElement("div")
-			this.refDiv.className = "refDiv"
-			reactRoot.appendChild(this.refDiv)
+			if(!this.el) return			
 			this.el.addEventListener("cTab",this.onInputEnter)
 		},
 		componentWillUnmount:function(){
-			if(this.props.dynamic) checkActivateCalls.remove(this.check)
-			if(!this.refDiv) return
-			const reactRoot = getReactRoot(this.el)
-			if(!reactRoot) return
-			reactRoot.removeChild(this.refDiv)
+			if(this.props.dynamic) checkActivateCalls.remove(this.check)			
 			this.el.removeEventListener("cTab",this.onInputEnter)
 		},
 		render:function(){
