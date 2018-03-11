@@ -41,7 +41,7 @@ export function CanvasFactory(util, modList){
     })
 }
 
-export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,createElement,activeElement){
+export function ExchangeCanvasSetup(canvas,feedback,getViewPortRect,rootElement,createElement,activeElement){
     function sendToServer(req){
         return feedback.send({
             url: "/connection",
@@ -68,7 +68,7 @@ export function ExchangeCanvasSetup(canvas,feedback,scrollNode,rootElement,creat
 		}
     }
 
-    return {sendToServer,onZoom,scrollNode,createElement,appendChild}
+    return {sendToServer,onZoom,getViewPortRect,createElement,appendChild}
 }
 /*
 function ElementSystem(){
@@ -89,9 +89,9 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
     function woPx(value){ return value.substring(0,value.length-2) }
     function processFrame(frame,prev){
         const div = canvas.parentNode()
-		const cs = getComputedStyle(div)
+        const cs = getComputedStyle(div)
         const canvasWidth = parseInt(woPx(cs.width))
-        const canvasHeight = parseInt(woPx(cs.height))		
+        const canvasHeight = parseInt(woPx(cs.height))
         if(!canvasWidth) return;
         const fontMeter = system.fontMeter()
         if(!fontMeter.parentElement){
@@ -130,7 +130,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
         if(currentState.parsed !== state.parsed) updateFromServerVersion()
         currentState = state
 
-        if(!canvas.scrollNode()) return state
+        if(!canvas.getViewPortRect()) return state
         //const canvasElement = canvas.visibleElement()
         const parentElement = canvas.parentNode()
         if(!parentElement){
@@ -167,20 +167,16 @@ export function BaseCanvasSetup(log, util, canvas, system){
     }
     function viewPositions(infinite){
         const parentPos = canvas.elementPos(canvas.parentNode())
-        const scrollPos = canvas.elementPos(canvas.scrollNode())
+        const scrollPos = rectToPos(canvas.getViewPortRect())
         const vExternalPos = canvas.calcPos(dir=>Math.max(parentPos.pos[dir],scrollPos.pos[dir])|0)
         const canvasElement = canvas.visibleElement()
         const canvasPos = canvas.elementPos(canvasElement)
         const x = (vExternalPos.x + (parseInt(canvasElement.style.left)||0) - canvasPos.pos.x)|0
         const y = (vExternalPos.y + (parseInt(canvasElement.style.top)||0)  - canvasPos.pos.y)|0
         const viewExternalPos = {x,y}
-		const footer = infinite? canvas.scrollNode().querySelector(".mainFooter"):null
-        const parentPosEnd = { x: parentPos.end.x|0, 
-	 	  y: footer ? scrollPos.end.y - footer.getBoundingClientRect().height:infinite ? Infinity : parentPos.end.y|0 
-		}		
+        const parentPosEnd = { x: parentPos.end.x|0, y: infinite ? Infinity : parentPos.end.y|0 }
         const vExternalEnd = canvas.calcPos(dir=>Math.min(parentPosEnd[dir],scrollPos.end[dir])|0)
-		
-        const viewExternalSize = canvas.calcPos(dir=>Math.max(0, vExternalEnd[dir] - vExternalPos[dir] )|0)
+        const viewExternalSize = canvas.calcPos(dir=>Math.max(0, vExternalEnd[dir] - vExternalPos[dir])|0)
         return {viewExternalSize,viewExternalPos,scrollPos,parentPos}
     }
 
@@ -188,8 +184,8 @@ export function BaseCanvasSetup(log, util, canvas, system){
     function visibleElement(){ return canvas.composingElement("preparingCtx") }
     ////
     function calcPos(calc){ return { x:calc("x"), y:calc("y") } }
-    function elementPos(element){
-        const p = element.getBoundingClientRect()
+    function elementPos(element){ return rectToPos(element.getBoundingClientRect()) }
+    function rectToPos(p){
         return {pos:{x:p.left,y:p.top}, size:{x:p.width,y:p.height}, end:{x:p.right,y:p.bottom}}
     }
     function createCanvas(){ return canvas.createElement('canvas') }

@@ -113,10 +113,18 @@ const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
+const getViewPortRect = () => {
+    const footer = document.body.querySelector(".mainFooter")
+    const bRect = document.body.getBoundingClientRect()
+    return !footer ? bRect : {
+      top: bRect.top, left: bRect.left, right: bRect.right,
+      bottom: footer.getBoundingClientRect().top
+    }
+}
 const exchangeMix = options => canvas => [
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,feedback,getRootElement,getRootElement,createElement,activeElement)
+    Canvas.ExchangeCanvasSetup(canvas,feedback,getViewPortRect,getRootElement,createElement,activeElement)
 ]
 const canvasBaseMix = CanvasBaseMix(log,util)
 
