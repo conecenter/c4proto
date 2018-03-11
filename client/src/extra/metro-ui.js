@@ -271,8 +271,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const alt2 = this.props.isBurgerOpen?{transform: "rotate(45deg)"}:{}
 			const alt3 = this.props.isBurgerOpen?{opacity: "0"}:{}
 			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.8em", style:{"enableBackground":"new 0 0 32 33"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
-				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"17":"9",x2:"30",y2:this.props.isBurgerOpen?"17":"9","strokeWidth":"4","stroke":"white"}),							
-				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
+				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:this.props.isBurgerOpen?"3":"2",y1:this.props.isBurgerOpen?"17":"9",x2:"30",y2:this.props.isBurgerOpen?"17":"9","strokeWidth":"4","stroke":"white"}),							
+				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:this.props.isBurgerOpen?"29":"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
 				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:"25",x2:"30",y2:"25","strokeWidth":"4","stroke":"white"})				
 			])					
 						
@@ -633,8 +633,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				}				
 				log(`set: ${dRect.width}`)
 				this.prev = pdRect.width
-			}
-			log(`${this.prev},${dRect.width},${pdRect.width}`)
+			}			
 		},
 		onInputEnter:function(e){
 			const event = eventManager.create("keydown",{bubbles:true,key:"ArrowDown"})			
@@ -2402,16 +2401,18 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			removeEventListener("resize",this.recalc)
 			this.unreg()
 		},
+		splitTime:function(time){
+			const dateArr = time.split(' ')
+			return dateArr[1]
+		},
 		render:function(){
 			const fullTime = InternalClock.get()
 			let partialTime ="";
 			const cutBy  = !this.state.cutBy&&dateElementPrevCutBy!=this.state.cutBy?dateElementPrevCutBy:this.state.cutBy;
 			dateElementPrevCutBy = cutBy;
 			switch(cutBy){				
-				case 1: const dateArr = fullTime.split(' ');
-						partialTime = dateArr[1];
-						break;
-				default: partialTime = fullTime;break;
+				case 1: partialTime = this.splitTime(fullTime);break;
+				default:partialTime = this.props.short?this.splitTime(fullTime):fullTime;break;
 			}
 			
 			const style={				
