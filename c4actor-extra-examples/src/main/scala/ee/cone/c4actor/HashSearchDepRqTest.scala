@@ -1,6 +1,5 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.dep.RequestDep
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest}
 import ee.cone.c4actor.dep.request.{ByMaker, HashSearchDepRequestHandler, LeafInfoHolder, LeafRegistryImpl}
 
@@ -30,6 +29,6 @@ object HashSearchDepRqTest {
     val any = DepCondition(classOf[Model].getName, "any", None, None, "", None)
     val conjunction = DepCondition(classOf[Model].getName, "union", Option(leaf), Option(any), "", None)
     val request = HashSearchDepRequest(classOf[Model].getName, conjunction)
-    println(handler.handle(request)._1.asInstanceOf[RequestDep[_]].request.toString)
+    println(handler.handle(request, "123").toString)
   }
 }

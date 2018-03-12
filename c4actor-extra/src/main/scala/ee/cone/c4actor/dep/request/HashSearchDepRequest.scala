@@ -1,11 +1,10 @@
 package ee.cone.c4actor.dep.request
 
-import ee.cone.c4actor.HashSearch.{Factory, Request, Response}
+import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.CtxType.ContextId
-import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest}
 import ee.cone.c4actor.dep._
+import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{DepCondition, HashSearchDepRequest}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
