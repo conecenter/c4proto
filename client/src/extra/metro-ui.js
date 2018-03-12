@@ -319,7 +319,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.calc()
 		},
 		componentDidUpdate:function(){
-			this.calc()
+			//this.calc()
 		},
 		render:function(){
 			return $("div",{
@@ -1050,8 +1050,12 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
 		},
-		onBlur:function(e){			
-			if((e.relatedTarget && e.relatedTarget.querySelector(".vkElement")!=null) || (e.relatedTarget && e.relatedTarget.classList.contains("vkElement"))) return
+		onBlur:function(e){						
+			if(e.relatedTarget && (
+				e.relatedTarget.classList.contains("vkElement") ||
+				e.relatedTarget.classList.contains("vkContainer") ||
+				e.relatedTarget.classList.contains("vkKeyboard")
+			)) return
 			if(this.props.onBlur) this.props.onBlur(e)
 		},
 	    onMouseDown:function(e){			
