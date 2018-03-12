@@ -61,7 +61,7 @@ import SomeModelAccess._
   ): Values[(SrcId,Request[SomeModel])] = for {
     request ← requests
   } yield {
-    WithPK(hashSearchFactory.request(HashSearchTestMain.condition(modelConditionFactory,request)))
+    WithPK(hashSearchFactory.request(HashSearchTestMain.condition(modelConditionFactory,request))) //TODO Ilya use such code
   }
 
   def joinResp(
