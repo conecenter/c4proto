@@ -26,11 +26,12 @@ import OverlayManager from "../extra/overlay-manager"
 import RequestState from "../extra/request-state"
 import WinWifi from "../extra/win-wifi-status"
 
+import SwitchHost from "../extra/switchhost-module"
 import UpdateManager from "../extra/update-manager"
 import VirtualKeyboard from "../extra/virtual-keyboard"
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
-
+const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
@@ -48,7 +49,7 @@ const windowManager = (()=>{
 	const getPageYOffset = ()=> window.pageYOffset
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location}
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
@@ -89,7 +90,7 @@ const miscReact = (()=>{
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image});
+const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image, audioContext});
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
@@ -139,14 +140,16 @@ const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElemen
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
 
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
-
+const switchHost = SwitchHost(log,window)
 const receiversList = [
     branches.receivers,
     feedback.receivers,
 	metroUi.receivers,
     customUi.receivers,
 	cryptoElements.receivers,
-	focusModule.receivers/*,
+	focusModule.receivers,
+	switchHost.receivers
+	/*,
 	requestState.receivers*/
 ]
 const composeUrl = () => {
