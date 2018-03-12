@@ -3,7 +3,7 @@ package ee.cone.c4actor.dep.request
 import ee.cone.c4actor.HashSearch.{Factory, Request, Response}
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.CtxType.ContextId
-import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest, StrEq}
+import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest}
 import ee.cone.c4actor.dep.{Dep, RequestDep, RequestHandler, RequestHandlerRegistryApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -19,43 +19,112 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with LensRegis
 
   def conditionFactory: ModelConditionFactory[_]
 
-  override def handlers: List[RequestHandler[_]] = hashSearchModels.map(clas ⇒ HashSearchDepRequestHandler(/*TODO finish this tomorrow*/)) ::: super.handlers
+  //override def handlers: List[RequestHandler[_]] = hashSearchModels.map(clas ⇒ HashSearchDepRequestHandler(/*TODO finish this tomorrow*/)) ::: super.handlers
 }
 
-case class HashSearchDepRequestHandler[Model](lensRegistry: LensRegistry, modelClass: Class[Model], condFactory: ModelConditionFactory[Model]) extends RequestHandler[HashSearchDepRequest] {
+/*trait LensRegistryAppTrait {
+  def lensList: List[ProdLens[_, _]] = Nil
+
+  def lensRegistry: LensRegistry
+}
+
+trait LensRegistryApp extends LensRegistryAppTrait {
+  def lensRegistry = LensRegistryImpl(lensList)
+}*/
+
+trait LeafRegistry {
+  def get(leafName: String): LeafInfoHolder[_, _ <: Product, _]
+}
+
+trait ByMaker {
+  def byName: String
+
+  def make[By]: String ⇒ By
+}
+
+case class ByFactory(byMakers: List[ByMaker]) {
+  lazy val byMakerMap = byMakers.map(maker ⇒ maker.byName → maker.make).toMap
+
+  def make[By](byName: String): String ⇒ By = byMakerMap(byName)
+}
+
+case class LeafInfoHolder[Model, By <: Product, Field](lens: ProdLens[Model, Field], byOptions: List[MetaAttr], check: ConditionCheck[By, Field], modelCl: Class[Model], byCl: Class[By], fieldCl: Class[Field])
+
+// lens, by, byOpt, condCheck
+case class LeafRegistryImpl(leafList: List[LeafInfoHolder[_, _ <: Product, _]]) extends LeafRegistry {
+
+  lazy val leafMap: Map[String, LeafInfoHolder[_, _ <: Product, _]] = leafList.map(leaf ⇒ (s"${leaf.modelCl.getName},${leaf.byCl.getName}", leaf)).toMap
+
+  def get(leafName: String): LeafInfoHolder[_, _ <: Product, _] = {
+    leafMap(leafName)
+  }
+}
+
+case class ModelClassRegistry(list: List[Class[_ <: Product]]) {
+  lazy val classMap = list.map(cl ⇒ cl.getName → cl).toMap[String, Class[_ <: Product]]
+}
+
+case class HashSearchDepRequestHandler(modelCl: ModelClassRegistry, leafs: LeafRegistry, byFactory: ByFactory, condFactory: ModelConditionFactory[_]) extends RequestHandler[HashSearchDepRequest] {
   def canHandle: Class[HashSearchDepRequest] = classOf[HashSearchDepRequest]
 
-  def handle: HashSearchDepRequest => (Dep[_], ContextId) = request ⇒ new RequestDep[Response[Model]](HashSearchRequestInner(parseCondition(request.condition))) → ""
+  def getCl: String ⇒ Class[_ <: Product] = modelCl.classMap
 
-  case class A()
+  def test = classOf[String]
 
-  private def parseCondition(condition: DepCondition): Condition[Model] = condition.condType match {
-    case "intersect" ⇒ condFactory.intersect(parseCondition(condition.condLeft.get), parseCondition(condition.condRight.get))
-    case "union" ⇒ condFactory.union(parseCondition(condition.condLeft.get), parseCondition(condition.condRight.get))
-    case "any" ⇒ condFactory.any
-    case "leaf" ⇒ condFactory.leaf[StrEq, String](lensRegistry.get(condition.lensName).asInstanceOf[ProdLens[Model, String]], parseBy(condition.by.get), Nil) //TODO Ilya fix this hard code
-    case _ ⇒ throw new Exception("Not implemented yet: parseBy(by:By)")
+  def handle: HashSearchDepRequest => (Dep[_], ContextId) = request ⇒ new RequestDep[Response[_]](HashSearchRequestInner(parseCondition(request.condition, condFactory.ofWithCl(getCl(request.modelName))))) → ""
+
+  private def parseCondition[Model](condition: DepCondition, factory: ModelConditionFactory[Model]): Condition[Model] = {
+    condition.condType match {
+      case "intersect" ⇒ factory.intersect(parseCondition(condition.condLeft.get, factory), parseCondition(condition.condRight.get, factory))
+      case "union" ⇒ factory.union(parseCondition(condition.condLeft.get, factory), parseCondition(condition.condRight.get, factory))
+      case "any" ⇒ factory.any
+      //case _ ⇒ throw new Exception("leaf in not done")
+      case "leaf" ⇒
+        val leafInfo = leafs.get(s"${condition.modelClass},${condition.by.get.byName}")
+        makeLeaf(leafInfo.modelCl, leafInfo.byCl, leafInfo.fieldCl)(leafInfo, condition.by.get).asInstanceOf[Condition[Model]]
+      case _ ⇒ throw new Exception("Not implemented yet: parseBy(by:By)")
+    }
   }
 
-  private def parseBy(by: By): StrEq = by.byName match {
+
+  def caster[Model, By <: Product, Field](m: Class[Model], b: Class[By], f: Class[Field]): LeafInfoHolder[_, _, _] ⇒ LeafInfoHolder[Model, By, Field] = _.asInstanceOf[LeafInfoHolder[Model, By, Field]]
+
+  def makeLeaf[Model, By <: Product, Field](modelCl: Class[Model], byClass: Class[By], fieldCl: Class[Field]): (LeafInfoHolder[_, _, _], HashSearchDepRequestProtocol.By) ⇒ ProdConditionImpl[By, Model, Field] = (leafInfo, by) ⇒ {
+    def filterMetaList: ProdLens[Model, Field] ⇒ List[MetaAttr] =
+      _.metaList.collect { case l: NameMetaAttr ⇒ l }
+
+    val by2: By = byFactory.make(by.byName)(by.value)
+    val prepHolder: LeafInfoHolder[Model, By, Field] = caster(modelCl, byClass, fieldCl)(leafInfo)
+    val prepBy: By = prepHolder.check.prepare(prepHolder.byOptions)(by2)
+    ProdConditionImpl(filterMetaList(prepHolder.lens), prepBy)(prepHolder.check.check(prepBy), prepHolder.lens.of)
+  }
+
+
+  def filterMetaList[Model, Field]: ProdLens[Model, Field] ⇒ List[MetaAttr] =
+    _.metaList.collect { case l: NameMetaAttr ⇒ l }
+
+  private def convert[Model, Field](modelCl: Class[Model], fieldCl: Class[Field]): ProdLens[_, _] ⇒ ProdLens[Model, Field] = _.asInstanceOf[ProdLens[Model, Field]]
+
+  /*private def parseBy(by: By): StrEq = by.byName match {
     case "StrEq" ⇒ StrEq(by.value)
     case _ ⇒ throw new Exception("Not implemented yet: parseCondition(condition: DepCondition)")
-  }
+  }*/
 }
 
-case class ConditionTransformerRegistry(conditions: List[ConditionTransformer]) {
+/*case class ConditionTransformerRegistry(conditions: List[ConditionTransformer]) {
   lazy val map
   (className → ConditionTransformer
   )
 
   def get: className → ConditionTransformer
-}
+}*/
 
-//case class HashSearchRequestInner[Model](condition: Condition[Model])
+case class HashSearchRequestInner[Model](condition: Condition[Model])
 
 @protocol object HashSearchDepRequestProtocol extends Protocol {
 
   @Id(0x0f37) case class HashSearchDepRequest(
+    @Id(0x0f3e) modelName: String,
     @Id(0x0f38) condition: DepCondition
   )
 
@@ -71,10 +140,6 @@ case class ConditionTransformerRegistry(conditions: List[ConditionTransformer]) 
   @Id(0x0f4a) case class By(
     @Id(0x0f4b) byName: String,
     @Id(0x0f3b) value: String
-  )
-
-  @Id(0x0f39) case class StrEq(
-    @Id(0x0f3a) value: String
   )
 
 }
@@ -128,16 +193,50 @@ case class DepLeaf[Model: un.TypeTag, Field, By <: Product](lens: ProdLens[Model
 
   def modelName: String = un.typeTag[Model].toString()
 }
+*/
+case class A[Model](l: String, cl: Class[Model]) {
+  def str = cl.getName
+}
 
-case class A(l: String)
+trait B[Model] {
+  def draw = "sdlfdsklfdsjsd"
+}
+
+case class A2[Model: un.TypeTag](l: String) extends B[Model] {
+  def str = un.typeTag[Model].toString()
+}
+
+case class Model(value: String)
+
+case class StrEq(value: String) //todo proto
+case object StrEqCheck extends ConditionCheck[StrEq, String] {
+  def prepare: List[MetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
+
+  def check: StrEq ⇒ String ⇒ Boolean = by ⇒ value ⇒ value == by.value
+}
+
+case object StrEqMaker extends ByMaker {
+  override def byName: String = classOf[StrEq].getName
+
+  override def make[By]: String => By = input ⇒ StrEq(input).asInstanceOf[By]
+}
 
 object Test {
   def main(args: Array[String]): Unit = {
-    val a = DepUnion(DepIntersect(DepAny(), DepAny()), DepLeaf(ProdLens.ofSet[A, String](_.l, value ⇒ _.copy(l = value), "testLens"), A("asd"), Nil)).toUniqueString
-    println(a)
+    val modelClassRegistry = ModelClassRegistry(List(classOf[Model]))
+    val lens = ProdLens.ofSet[Model, String](_.value, l => _.copy(value = l), "ModelLens")
+    val leafRegistry = LeafRegistryImpl(List(LeafInfoHolder(lens, Nil, StrEqCheck, classOf[Model], classOf[StrEq], classOf[String])))
+    val byFactory = ByFactory(List(StrEqMaker))
+    val handler = HashSearchDepRequestHandler(modelClassRegistry, leafRegistry, byFactory, new ModelConditionFactoryImpl)
+    val leaf = DepCondition(classOf[Model].getName, "leaf", None, None, "ModelLens", Option(By(classOf[StrEq].getName, "123")))
+    val any = DepCondition(classOf[Model].getName, "any", None, None, "", None)
+    val conjunction = DepCondition(classOf[Model].getName, "union", Option(leaf), Option(any), "", None)
+    val request = HashSearchDepRequest(classOf[Model].getName, conjunction)
+    println(handler.handle(request)._1.asInstanceOf[RequestDep[_]].request.toString)
   }
 }
-*/
+
+/*
 case object StrEqCheck extends ConditionCheck[StrEq, String] {
   def prepare: List[MetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
 
@@ -152,7 +251,7 @@ case object StrEqRanger extends Ranger[StrEq, String] {
     }
     )
   }
-}
+}*/
 
 /*
 /*
@@ -163,7 +262,7 @@ case object StrEqRanger extends Ranger[StrEq, String] {
 
   @Id(0x0f3c) case class Union(
     @Id(0x0f3d) condLeft: Condition,
-    @Id(0x0f3e) condRight: Condition
+    @Id() condRight: Condition
   ) extends Condition
 
   @Id(0x0f3f) case class Any() extends Condition

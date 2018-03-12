@@ -34,7 +34,7 @@ class ComposedDep[A, B](inner: InnerDep[A], fm: A ⇒ Dep[B]) extends DepImpl[B]
     }
 }
 
-class RequestDep[A](request: DepRequest) extends DepImpl[A] {
+class RequestDep[A](val request: DepRequest) extends DepImpl[A] {
   def resolve(ctx: DepCtx): Resolvable[A] =
     Resolvable(ctx.getOrElse(request, None).asInstanceOf[Option[A]], Seq(request))
 }
