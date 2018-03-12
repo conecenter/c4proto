@@ -1,7 +1,6 @@
 "use strict";
 import React from 'react'
 import {pairOfInputAttributes}  from "../main/vdom-util"
-import Helmet from "react-helmet"
 import Errors from "../extra/errors"
 /*
 todo:
@@ -307,12 +306,20 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(this.props.isOpen&&parseFloat(this.state.maxHeight)!=innerHeight - elTop)						
 				this.setState({maxHeight:innerHeight - elTop + "px"});				
 		},
-		componentDidMount:function(){
+		calc:function(){
 			if(!this.el) return
 			const menuRoot = getParentNode(this.el,"menuBar");
 			const maxRight = menuRoot.getBoundingClientRect().right
 			const elRight = this.el.getBoundingClientRect().right
-			if(elRight>maxRight) this.setState({rightOffset:elRight - maxRight})
+			const rightOffset = elRight>maxRight?elRight - maxRight:0
+			if(this.state.rightOffset != rightOffset) 
+				this.setState({rightOffset})
+		},
+		componentDidMount:function(){
+			this.calc()
+		},
+		componentDidUpdate:function(){
+			this.calc()
 		},
 		render:function(){
 			return $("div",{
@@ -421,29 +428,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			while (nodeOld.hasChildNodes())
 				nodeOld.removeChild(nodeOld.lastChild);
 		},
-		render:function(){
-			const props = this.props
-			/*const fontFaceStyle = `
-			@font-face {
-				font-family: "Open Sans";
-				font-style: normal;
-				font-weight: 400;
-				src: local("Segoe UI"), local("Open Sans"), local("OpenSans"), url(https://themes.googleusercontent.com/static/fonts/opensans/v8/K88pR3goAWT7BTt32Z01mz8E0i7KZn-EPnyo3HZu7kw.woff) format('woff');
-			}`;*/
-			const fontSize = props.style&&props.style.fontSize?props.style.fontSize:"";
-			const padding = props.style&&props.style.padding?props.style.padding:"";
-			const htmlStyle = `
-				html {
-					font-size: ${fontSize};					
-					padding: ${padding};
-				}`;
-			const bodyStyle = `
-				body {
-					margin:0em;
-				}`;
-			return $(Helmet,{},
-				$("style",{},/*fontFaceStyle+*/htmlStyle/*+bodyStyle*/)
-			)
+		render:function(){			
+			return $("div",{style:this.props.style},this.props.children)			
 		}
 	})
 	const GrContainer= ({style,children})=>$("div",{style:{
