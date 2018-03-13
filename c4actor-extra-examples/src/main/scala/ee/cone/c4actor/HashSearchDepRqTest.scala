@@ -29,6 +29,6 @@ object HashSearchDepRqTest {
     val any = DepCondition(classOf[Model].getName, "any", None, None, "", None)
     val conjunction = DepCondition(classOf[Model].getName, "union", Option(leaf), Option(any), "", None)
     val request = HashSearchDepRequest(classOf[Model].getName, conjunction)
-    println(handler.handle(request, "123").toString)
+    println(handler.handle(request).toString)
   }
 }

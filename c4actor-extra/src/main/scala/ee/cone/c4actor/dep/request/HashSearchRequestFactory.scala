@@ -19,10 +19,16 @@ trait ByToStrRegistry {
   def getStr[By](by: By): String
 }
 
-case class ByToStrRegistryImpl(byStrs: List[(Class[_], Product ⇒ String)]) extends ByToStrRegistry {
-  lazy val byStrMap = byStrs.toMap
+trait BySerializer[By] {
+  def byCl: Class[By]
 
-  def getStr[By](by: By): String = byStrMap(by.getClass)(by)
+  def serialize[By2]: By2 ⇒ String
+}
+
+case class ByToStrRegistryImpl(byStrs: List[BySerializer[_]]) extends ByToStrRegistry {
+  lazy val byStrMap: Map[Class[_], BySerializer[_]] = byStrs.map(ser ⇒ ser.byCl → ser).toMap[Class[_], BySerializer[_]]
+
+  def getStr[By](by: By): String = byStrMap(by.getClass).serialize(by)
 }
 
 case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], byToStrReg: ByToStrRegistry) extends HashSearchDepRequestFactory[Model] {
