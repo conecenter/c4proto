@@ -239,9 +239,9 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				left:this.state.left+"px",
 				top:this.state.top+"px",								
 				display:this.state.show?"":"none",
-				width:vkLayout?vkLayout.width+"em":"",
-				height:vkLayout?vkLayout.height+"em":"",
 				fontSize:this.state.fontSize +'em'
+				//width:vkLayout?vkLayout.width+"em":"",
+				//height:vkLayout?vkLayout.height+"em":""				
 			}
 			const wrapperStyle = {									
 				height:"100%",
@@ -250,7 +250,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const btnStyle = {
 				position:"absolute"
 			}		
-			
+			const mainStyle = {				
+			}
 			const mutate = img => {
 				const cp = {...img}				
 				cp.src = svgSrc(cp.src)
