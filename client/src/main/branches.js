@@ -3,6 +3,7 @@ import {mergeAll,splitFirst}    from "../main/util"
 
 export default function Branches(log,branchHandlers){
     const branchesByKey = {}
+    let active = []
     let toModify = []
     const doModify = ({branchKey,by}) => {
         const state = by(branchesByKey[branchKey] || {branchKey, modify})
@@ -24,11 +25,10 @@ export default function Branches(log,branchHandlers){
     }
     //
     const remove = branchKey => modify(branchKey, state=>{
-        if(state.remove) {
-            state.remove()
-            return null
-        }
-        else return state
+        if(state.remove
+)
+    state.remove()
+    return null
     })
     //const setParent = parentBranch => branchKey => modify(branchKey, state=>({...state, parentBranch}))
     const toReceiver = branchHandler => data => {
@@ -38,11 +38,11 @@ export default function Branches(log,branchHandlers){
     }
 
     function branches(data){
-        const active = data.split(";").map(res=>res.split(",")[0])  //.map(res=>res.split(",")).map(res=>[res[0],res.slice(1)])
+        active = data.split(";").map(res = > res.split(",")[0]
+    )  //.map(res=>res.split(",")).map(res=>[res[0],res.slice(1)])
         log({a:"active",active,data})
         const isActive = mergeAll(active.map(k=>({[k]:1})))
         Object.keys(branchesByKey).filter(k=>!isActive[k]).forEach(remove)
-        if(active[0]) modify(active[0], v => v.isRootBranch ? v : {...v,isRootBranch:true})
         //active.forEach([parentKey,childKeys] => childKeys.forEach(setParent(()=>branchesByKey[parentKey])))
     }
 
@@ -58,7 +58,11 @@ export default function Branches(log,branchHandlers){
     )
 
     function checkActivate(){
-        Object.keys(branchesByKey).forEach(k => modify(k, v => (v.checkActivate || (v=>v))(v) ))
+        const [skipRoot, ...branchKeys] = active
+        branchKeys.forEach(k = > modify(k, v = > (v.checkActivate || (v = > v)
+    )
+        (v)
+    ))
     }
 
     return ({receivers,checkActivate})
