@@ -138,7 +138,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		},
 		componentWillUnmount:function(){
 			if(this.props.isStatic) return
-			checkActivateCalls.remove(this.fitIn)			
+			checkActivateCalls.remove(this.fitIn)		
 		},
 		emRatio:function(){
 			if(!this.remRef) return null
