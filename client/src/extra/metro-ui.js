@@ -168,7 +168,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					//$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
 						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
 					]:null
-				const errorEl = $("div",{style:{backgroundColor:"white",padding:"0em 1.25em",borderTop:"0.1em solid #1976d2",borderBottom:"0.1em solid #1976d2"}},
+				const style = {
+					backgroundColor:"white",
+					padding:"0em 1.25em",
+					borderTop:"0.1em solid #1976d2",
+					borderBottom:"0.1em solid #1976d2",
+					...this.props.style
+				}	
+				const errorEl = $("div",{style},
 					$("div",{style:{display:"flex",/*height:"2em",*/height:"auto",margin:"0.2em"}},[
 						$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
 							$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
