@@ -1,16 +1,16 @@
 package ee.cone.c4actor.dep.request
 
-import ee.cone.c4actor.HashSearch.Request
+import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{DepCondition, HashSearchDepRequest}
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, was}
+import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with LensRegistryAppTrait with RequestHandlerRegistryApp {
-  override def assembles: List[Assemble] = super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
@@ -19,12 +19,21 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with LensRegis
   def conditionFactory: ModelConditionFactory[_]
 
   def leafRegistry: LeafRegistry
+
+  def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, conditionFactory)
 }
 
-@assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, factory: HashSearch.Factory, model: Class[Model]) extends Assemble {
+@assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model]) extends Assemble {
   type ToResponse = SrcId
   type HsDepSrcId = SrcId
 
+
+  def DepRqToResponse(
+    key: SrcId,
+    @was request: Values[DepRequestWithSrcId]
+  ): Values[(HsDepSrcId, DepRequestWithSrcId)] = for {
+    rq ← request
+  } yield WithPK(rq)
 
   def HSDepRequestWithSrcToItemSrcId(
     key: SrcId,
@@ -34,8 +43,24 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with LensRegis
     if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
   } yield {
     val hsRq = rq.request.asInstanceOf[HashSearchDepRequest]
-    WithPK(hsDepRequestHandler.handle(hsRq,rq.srcId).asInstanceOf[Request[Model]])
+    WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]]))
   }
+
+  def HSResponseGrab(
+    key: SrcId,
+    responses: Values[Response[Model]],
+    @by[HsDepSrcId] requests: Values[DepRequestWithSrcId]
+  ): Values[(ToResponse, DepResponse)] =
+    (for {
+      rq ← requests
+      if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
+      resp ← responses
+    } yield {
+      val response = DepResponse(rq, Option(resp.lines), rq.parentSrcIds)
+      WithPK(response) :: (for (srcId ← response.rqList) yield (srcId, response))
+    }).flatten
+
+
 }
 
 trait ByMaker[By <: Product] {
@@ -77,12 +102,12 @@ case class LeafRegistryImpl(leafList: List[LeafInfoHolder[_, _ <: Product, _]], 
 
 case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[_]) {
 
-  def handle: (HashSearchDepRequest, SrcId) => HashSearch.Request[_] = (request, srcId) ⇒
-    HashSearch.Request(srcId,parseCondition(
+  def handle: HashSearchDepRequest => Condition[_] = request ⇒
+    parseCondition(
       request.condition, condFactory.ofWithCl(
         leafs.getModelCl(request.modelName)
       )
-    ))
+    )
 
 
   private def parseCondition[Model](condition: DepCondition, factory: ModelConditionFactory[Model]): Condition[Model] = {
