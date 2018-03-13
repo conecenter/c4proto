@@ -121,7 +121,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				...(this.state.mouseOver?this.props.overStyle:null)
 			}
 			const className = this.props.className
-			return $("button",{className,style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			const type = this.props.submit?{type:"submit"}:{}
+			return $("button",{className,...type,style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
 	const uiElements = []

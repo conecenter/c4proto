@@ -179,6 +179,13 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		}			
 	}
 	const sendToServer = (cRNode,type,action) => {if(cRNode.props.onClickValue) cRNode.props.onClickValue(type,action)}
+	const ifLastThenEnter = (index,nodes) =>{
+		const sb = 'button[type="submit"]'
+		if(!nodes.slice(index).find(_=>_.querySelector("input"))) {
+			const node=nodes.slice(index).find(_=>_.querySelector(sb))
+			if(node) node.querySelector(sb).click()
+		}
+	}
 	const onTab = (event) =>{
 		const root = getReactRoot();
 		if(!root) return
@@ -191,14 +198,21 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		
 		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
 		if(cIndex>=0) {
-			if(cIndex+1<nodes.length) nodes[cIndex+1].focus()
+			if(cIndex+1<nodes.length) {
+				nodes[cIndex+1].focus()
+				ifLastThenEnter(cIndex+1,nodes)
+			}
 			else{
 				setTimeout(()=>{
 					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
 					const cIndex = nodes.findIndex(n=>n == currentFocusNode)
 					if(cIndex>=0) {
-						if(cIndex+1<nodes.length) nodes[cIndex+1].focus()
-						else currentFocusNode.focus()
+						if(cIndex+1<nodes.length) {
+							nodes[cIndex+1].focus()
+							ifLastThenEnter(cIndex+1,nodes)
+						}
+						else 
+							currentFocusNode.focus()
 					}					
 				},200)
 			}				
