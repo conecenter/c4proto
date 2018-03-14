@@ -790,7 +790,11 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onMouseDown:function(e){
 			if(!this.props.draggable) return;
 			if(!this.el) return;			
-			if(this.dragBinding) this.dragBinding.dragStart(e,this.el);
+			if(this.dragBinding){
+				const aEl = documentManager.activeElement()
+				if(aEl) aEl.blur()
+				this.dragBinding.dragStart(e,this.el)
+			}
 			//if(this.props.dragData && this.props.onDragDrop)
 			//	this.props.onDragDrop("dragStart","")
 			e.preventDefault();
@@ -1086,7 +1090,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		onMouseUpCall:function(newPos){
 			if(!this.props.div) return
-			if(!this.props.onReorder) return 
+			if(!this.props.onReorder) return			
 			this.setState({visibility:""})
 			this.props.onReorder("reorder",newPos.toString())
 		},
@@ -1294,6 +1298,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				return false
 			}
 			let call=""
+			let opt = null
 			switch(e.key){				
 				case "ArrowDown":
 					e.stopPropagation();
@@ -1321,7 +1326,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					break
 			}
 			if(call.length>0 && this.props.onClickValue)
-				this.props.onClickValue("key",call);			
+				this.props.onClickValue("key",call,opt);			
 			return false;
 		},
 		getPopupWidth:function(){
