@@ -86,9 +86,10 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				case "num": res = {layout:layoutNumeric,ver:"simple"};break;
 				case "extNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:"extended"};break;
 				case "extFuncNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:alt?"extended":"extendedFunc"};break;
+				case "none": res = {layout:"none",ver:"simple"};break;
 				default:res = {layout:layoutAlpha, ver:"simple"};break;
 			}
-			this.vkType = res
+			//this.vkType = res
 			return res
 		},
 		getInitialState:function(){
@@ -115,38 +116,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const bottomEdge = pRect.bottom + popRect.height
 			const topEdge = pRect.top - popRect.height;
 			let top = 0
-			let left = 0
-			
-			/*if(bottomEdge<=windowRect.bottom){					//bottom
-				left = pRect.left//rect.left - popRect.left
-				top = pRect.bottom	
-				if(left + popRect.width>windowRect.right)
-					left = windowRect.right - popRect.width;
-			}
-			else if(topEdge>windowRect.top){	//top
-				top = pRect.top - popRect.height
-				left = pRect.left
-				if(left + popRect.width>windowRect.right)
-					left = windowRect.right - popRect.width;
-			}
-			else if(leftEdge>windowRect.left){	//left
-				left = pRect.left - popRect.width;
-				top = pRect.bottom - popRect.height/2;
-				if(top<windowRect.top)
-					top = windowRect.top
-			}
-			else if(rightEdge>windowRect.right){
-				left = windowRect.right - popRect.width;
-				top = pRect.bottom;
-				if(top<windowRect.top)
-					top = windowRect.top
-			}
-			else if(rightEdge<=windowRect.right){
-				left = pRect.right;
-				top = pRect.bottom - popRect.height/2;
-				if(top<windowRect.top)
-					top = windowRect.top
-			}*/
+			let left = 0			
 			top += getPageYOffset()
 			return {top,left}	
 		},		
@@ -168,7 +138,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		},
 		componentWillUnmount:function(){
 			if(this.props.isStatic) return
-			checkActivateCalls.remove(this.fitIn)			
+			checkActivateCalls.remove(this.fitIn)		
 		},
 		emRatio:function(){
 			if(!this.remRef) return null
@@ -222,12 +192,12 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			return aRect.top==bRect.top && aRect.left==bRect.left && aRect.height == bRect.height && aRect.width == bRect.width
 		},
 		fitIn:function(){			
-			const vkLayout = this.getCurrentLayout()
-			if(!vkLayout) return
+			const vkLayout = this.getCurrentLayout()			
+			if(!vkLayout && this.vkLayout == vkLayout) return
 			const emK = this.emRatio()
 			if(!emK) return
-			const vkContainer = this.getVkContainer()
-			if(!vkContainer) return this.state.show?this.updateState({},false):null	
+			const vkContainer = this.getVkContainer()			
+			if(!vkContainer||!vkLayout) return this.state.show?this.updateState({},false):null	
 			const show = vkContainer.static||this.showVk()	
 			const wRect = getWindowRect()				
 			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout) return				
@@ -256,11 +226,10 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		},
 		getDefaultFontSize:function(){
 			return this.props.style.fontSize?parseFloat(this.props.style.fontSize):1
-		},
+		},		
 		render:function(){			
 			const genKey = (char,i) => `${char}_${i}`			
-			const vkLayout = this.getCurrentLayout()
-			if(!vkLayout) return null
+			const vkLayout = this.getCurrentLayout()		
 			const visible = "visible"
 			const borderSpacing = '0.1em'
 			const positionStyle = {
@@ -270,9 +239,9 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				left:this.state.left+"px",
 				top:this.state.top+"px",								
 				display:this.state.show?"":"none",
-				width:vkLayout.width+"em",
-				height:vkLayout.height+"em",
 				fontSize:this.state.fontSize +'em'
+				//width:vkLayout?vkLayout.width+"em":"",
+				//height:vkLayout?vkLayout.height+"em":""				
 			}
 			const wrapperStyle = {									
 				height:"100%",
@@ -281,26 +250,30 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const btnStyle = {
 				position:"absolute"
 			}		
-			
+			const mainStyle = {				
+			}
 			const mutate = img => {
 				const cp = {...img}				
 				cp.src = svgSrc(cp.src)
 				return cp
 			}
 			
-			const buttons = vkLayout.buttons			
+			const buttons = vkLayout?vkLayout.buttons:[]
 			const className = "vkKeyboard"	
 			return $("div",{},[
 				$("div",{key:"vk",ref:ref=>this.el=ref,style:positionStyle,className},
+					vkLayout?
 					$("div",{style:wrapperStyle},[				
 						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle}, key:genKey(btn.char,j), fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
-					])
+					]):
+					null
 				),
-				$("div",{key:"remRef",className:"vkRemRef",style:{position:"absolute",zIndex:"-1",height:"1em"}, ref:ref=>this.remRef=ref},null)
+				$("div",{key:"emRef",className:"vkRemRef",style:{position:"absolute",zIndex:"-1",height:"1em"}, ref:ref=>this.remRef=ref},null)
 			])	
 			
 		},
 	});	
+	
 	const vkModule = (() => {
 		const views = []
 		const vks = []

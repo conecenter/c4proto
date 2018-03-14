@@ -1,7 +1,6 @@
 "use strict";
 import React from 'react'
 import {pairOfInputAttributes}  from "../main/vdom-util"
-import Helmet from "react-helmet"
 import Errors from "../extra/errors"
 /*
 todo:
@@ -9,7 +8,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
-export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image}){
+export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image,audioContext}){
 	const $ = React.createElement
 	const $C = React.createClass
 	const GlobalStyles = (()=>{
@@ -37,7 +36,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		return {add,remove,check}
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
-	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle} = windowManager
+	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
+	
+	
+	const ImageElement = ({src,style}) => {
+		const srcM = (urlPrefix||"")+src
+		return $("img",{src:srcM,style})
+	}
+	
+	
 	const FlexContainer = ({flexWrap,children,style}) => $("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -161,7 +168,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					//$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
 						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
 					]:null
-				const errorEl = $("div",{style:{backgroundColor:"white",padding:"0em 1.25em",borderTop:"0.1em solid #1976d2",borderBottom:"0.1em solid #1976d2"}},
+				const style = {
+					backgroundColor:"white",
+					padding:"0em 1.25em",
+					borderTop:"0.1em solid #1976d2",
+					borderBottom:"0.1em solid #1976d2",
+					...this.props.style
+				}	
+				const errorEl = $("div",{style},
 					$("div",{style:{display:"flex",/*height:"2em",*/height:"auto",margin:"0.2em"}},[
 						$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
 							$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
@@ -259,19 +273,13 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			const left = this.props.children.filter(_=>!_.key.includes("right"))			
 			const c = {transition:"all 100ms",transformOrigin:"center"}
-			const alt1 = this.props.isBurgerOpen?{transform: "translate(10%, 8%) rotate(-45deg)"}:{}
-			const alt2 = this.props.isBurgerOpen?{transform: "translate(0em,-10%) rotate(45deg)"}:{}
+			const alt1 = this.props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
+			const alt2 = this.props.isBurgerOpen?{transform: "rotate(45deg)"}:{}
 			const alt3 = this.props.isBurgerOpen?{opacity: "0"}:{}
-			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.8em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[
-				$("g",{key:1,style:{...c,...alt1}},
-					$("line",{"strokeLinecap":"round",x1:"2",y1:"9",x2:"30",y2:"9","strokeWidth":"4","stroke":"white"})
-				),
-				$("g",{key:2,style:{...c,...alt2}},
-					$("line",{"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"})
-				),
-				$("g",{key:3,style:{...c,...alt3}},
-					$("line",{"strokeLinecap":"round",x1:"2",y1:"25",x2:"30",y2:"25","strokeWidth":"4","stroke":"white"})
-				)
+			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.8em", style:{"enableBackground":"new 0 0 32 33"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
+				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"17":"9",x2:"30",y2:this.props.isBurgerOpen?"17":"9","strokeWidth":"4","stroke":"white"}),							
+				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:this.props.isBurgerOpen?"3":"2",y1:"17",x2:this.props.isBurgerOpen?"31":"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
+				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:"25",x2:"30",y2:"25","strokeWidth":"4","stroke":"white"})				
 			])					
 						
 			//const svgData = svgSrc(svg)
@@ -305,12 +313,20 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(this.props.isOpen&&parseFloat(this.state.maxHeight)!=innerHeight - elTop)						
 				this.setState({maxHeight:innerHeight - elTop + "px"});				
 		},
-		componentDidMount:function(){
+		calc:function(){
 			if(!this.el) return
 			const menuRoot = getParentNode(this.el,"menuBar");
 			const maxRight = menuRoot.getBoundingClientRect().right
 			const elRight = this.el.getBoundingClientRect().right
-			if(elRight>maxRight) this.setState({rightOffset:elRight - maxRight})
+			const rightOffset = elRight>maxRight?elRight - maxRight:0
+			if(this.state.rightOffset != rightOffset) 
+				this.setState({rightOffset})
+		},
+		componentDidMount:function(){
+			this.calc()
+		},
+		componentDidUpdate:function(){
+			//this.calc()
 		},
 		render:function(){
 			return $("div",{
@@ -419,29 +435,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			while (nodeOld.hasChildNodes())
 				nodeOld.removeChild(nodeOld.lastChild);
 		},
-		render:function(){
-			const props = this.props
-			/*const fontFaceStyle = `
-			@font-face {
-				font-family: "Open Sans";
-				font-style: normal;
-				font-weight: 400;
-				src: local("Segoe UI"), local("Open Sans"), local("OpenSans"), url(https://themes.googleusercontent.com/static/fonts/opensans/v8/K88pR3goAWT7BTt32Z01mz8E0i7KZn-EPnyo3HZu7kw.woff) format('woff');
-			}`;*/
-			const fontSize = props.style&&props.style.fontSize?props.style.fontSize:"";
-			const padding = props.style&&props.style.padding?props.style.padding:"";
-			const htmlStyle = `
-				html {
-					font-size: ${fontSize};					
-					padding: ${padding};
-				}`;
-			const bodyStyle = `
-				body {
-					margin:0em;
-				}`;
-			return $(Helmet,{},
-				$("style",{},/*fontFaceStyle+*/htmlStyle/*+bodyStyle*/)
-			)
+		render:function(){			
+			return $("div",{style:this.props.style},this.props.children)			
 		}
 	})
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -620,17 +615,18 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		check:function(){
 			if(!this.el) return			
 			if(!this.emEl) return
-			if(!this.refDiv) return
+			if(!this.el.parentElement) return			
 			const dRect = this.el.getBoundingClientRect()
-			const pdRect = this.refDiv.getBoundingClientRect()			
-			if(this.prev!=dRect.width){
+			const pdRect = this.el.parentElement.getBoundingClientRect()			
+			if(this.prev!=pdRect.width){
 				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){
 					const emRect= this.emEl.getBoundingClientRect()
-					const emWidth = dRect.width/emRect.height;
+					const emWidth = pdRect.width/emRect.height;
 					this.props.onClickValue("change",emWidth.toString())					
-				}
-				this.prev = dRect.width
-			}
+				}				
+				log(`set: ${dRect.width}`)
+				this.prev = pdRect.width
+			}			
 		},
 		onInputEnter:function(e){
 			const event = eventManager.create("keydown",{bubbles:true,key:"ArrowDown"})			
@@ -639,20 +635,11 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		componentDidMount:function(){
 			if(this.props.dynamic) checkActivateCalls.add(this.check)
-			if(!this.el) return
-			const reactRoot = getReactRoot(this.el)
-			if(!reactRoot) return
-			this.refDiv = documentManager.createElement("div")
-			this.refDiv.className = "refDiv"
-			reactRoot.appendChild(this.refDiv)
+			if(!this.el) return			
 			this.el.addEventListener("cTab",this.onInputEnter)
 		},
 		componentWillUnmount:function(){
-			if(this.props.dynamic) checkActivateCalls.remove(this.check)
-			if(!this.refDiv) return
-			const reactRoot = getReactRoot(this.el)
-			if(!reactRoot) return
-			reactRoot.removeChild(this.refDiv)
+			if(this.props.dynamic) checkActivateCalls.remove(this.check)			
 			this.el.removeEventListener("cTab",this.onInputEnter)
 		},
 		render:function(){
@@ -803,7 +790,11 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onMouseDown:function(e){
 			if(!this.props.draggable) return;
 			if(!this.el) return;			
-			if(this.dragBinding) this.dragBinding.dragStart(e,this.el);
+			if(this.dragBinding){
+				const aEl = documentManager.activeElement()
+				if(aEl) aEl.blur()
+				this.dragBinding.dragStart(e,this.el)
+			}
 			//if(this.props.dragData && this.props.onDragDrop)
 			//	this.props.onDragDrop("dragStart","")
 			e.preventDefault();
@@ -1070,8 +1061,12 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
 		},
-		onBlur:function(e){			
-			if((e.relatedTarget && e.relatedTarget.querySelector(".vkElement")!=null) || (e.relatedTarget && e.relatedTarget.classList.contains("vkElement"))) return
+		onBlur:function(e){						
+			if(e.relatedTarget && (
+				e.relatedTarget.classList.contains("vkElement") ||
+				e.relatedTarget.classList.contains("vkContainer") ||
+				e.relatedTarget.classList.contains("vkKeyboard")
+			)) return
 			if(this.props.onBlur) this.props.onBlur(e)
 		},
 	    onMouseDown:function(e){			
@@ -1084,7 +1079,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		onMouseUpCall:function(newPos){
 			if(!this.props.div) return
-			if(!this.props.onReorder) return 
+			if(!this.props.onReorder) return			
 			this.setState({visibility:""})
 			this.props.onReorder("reorder",newPos.toString())
 		},
@@ -1292,6 +1287,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				return false
 			}
 			let call=""
+			let opt = null
 			switch(e.key){				
 				case "ArrowDown":
 					e.stopPropagation();
@@ -1319,7 +1315,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					break
 			}
 			if(call.length>0 && this.props.onClickValue)
-				this.props.onClickValue("key",call);			
+				this.props.onClickValue("key",call,opt);			
 			return false;
 		},
 		getPopupWidth:function(){
@@ -2407,16 +2403,18 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			removeEventListener("resize",this.recalc)
 			this.unreg()
 		},
+		splitTime:function(time){
+			const dateArr = time.split(' ')
+			return dateArr[1]
+		},
 		render:function(){
 			const fullTime = InternalClock.get()
 			let partialTime ="";
 			const cutBy  = !this.state.cutBy&&dateElementPrevCutBy!=this.state.cutBy?dateElementPrevCutBy:this.state.cutBy;
 			dateElementPrevCutBy = cutBy;
 			switch(cutBy){				
-				case 1: const dateArr = fullTime.split(' ');
-						partialTime = dateArr[1];
-						break;
-				default: partialTime = fullTime;break;
+				case 1: partialTime = this.splitTime(fullTime);break;
+				default:partialTime = this.props.short?this.splitTime(fullTime):fullTime;break;
 			}
 			
 			const style={				
@@ -2895,6 +2893,32 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		React.createElement('span',{}, value)
 	])	
 	
+	const SoundProducerElement = $C({
+		produce:function(){
+			if(!audioContext) return
+			const audioCtx = audioContext()
+			this.oscillator = audioCtx.createOscillator()
+			this.oscillator.type = 'square'
+			this.oscillator.frequency.setValueAtTime(440, audioCtx.currentTime)
+			this.oscillator.connect(audioCtx.destination)
+			this.oscillator.start()
+			setTimeout(()=>{
+				this.oscillator.stop()
+			},300)
+		},
+		stop:function(){
+			this.oscillator&&this.oscillator.stop()
+		},
+		componentDidMount:function(){
+			this.produce()
+		},
+		componentWillUnmount:function(){
+			this.stop()
+		},
+		render:function(){return null}
+	})
+	
+	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
 		const location = windowManager.location
@@ -2921,7 +2945,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
-            InputElement,AnchorElement,HeightLimitElement,
+            InputElement,AnchorElement,HeightLimitElement,ImageElement,SoundProducerElement,
 			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
