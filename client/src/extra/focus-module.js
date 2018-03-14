@@ -187,7 +187,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		}
 	}
 	const onTab = (event) =>{
-		const root = getReactRoot();
+		const root = getReactRoot(event.target)
 		if(!root) return
 		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
 		const cRNode = callbacks.find(o=>o.el == currentFocusNode)
@@ -199,8 +199,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
 		if(cIndex>=0) {
 			if(cIndex+1<nodes.length) {
-				nodes[cIndex+1].focus()
-				ifLastThenEnter(cIndex+1,nodes)
+				nodes[cIndex+1].focus()				
 			}
 			else{
 				setTimeout(()=>{
@@ -208,8 +207,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 					const cIndex = nodes.findIndex(n=>n == currentFocusNode)
 					if(cIndex>=0) {
 						if(cIndex+1<nodes.length) {
-							nodes[cIndex+1].focus()
-							ifLastThenEnter(cIndex+1,nodes)
+							nodes[cIndex+1].focus()							
 						}
 						else 
 							currentFocusNode.focus()
@@ -217,7 +215,15 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				},200)
 			}				
 		}		
-		
+	}
+	const onEnter = (event) =>{
+		const root = getReactRoot(event.target);
+		if(!root) return
+		const detail = event.detail
+		if(!detail) return		
+		const marker = `marker-${detail}`
+		const btn = root.querySelector(`button.${marker}`)
+		if(btn) btn.click()
 	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
@@ -226,6 +232,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	addEventListener("keydown",onKeyDown)
 	addEventListener("paste",onPaste)
 	addEventListener("cTab",onTab)		
+	addEventListener("cEnter",onEnter)
 	const isPrintableKeyCode = (ch)	=> "abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase())
 	const isVk = (el) => el.classList.contains("vkElement")
 	const doCheck = () => {		
