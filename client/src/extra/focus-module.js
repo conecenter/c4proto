@@ -247,6 +247,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				currentFocusNode = null
 			}
 		}
+		if(!relatedTarget) currentFocusNode = null
 	}
 	const switchTo = (node) => {
 		
