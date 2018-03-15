@@ -120,7 +120,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				...(this.state.mouseOver && Object.keys(this.props.overStyle||{}).length==0?{opacity:"0.8"}:null),
 				...(this.state.mouseOver?this.props.overStyle:null)
 			}
-			const className = this.props.className
+			const className = this.props.className			
 			return $("button",{className,style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}
 	});
@@ -976,8 +976,19 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				this.prevval = inp.value
 				inp.selectionEnd = inp.value.length
 				inp.selectionStart = inp.value.length
-			}))	{								
-				const cEvent = eventManager.create("cTab",{bubbles:true})
+			}))	{
+				const markerButton = this.props.mButtonEnter
+				let cEvent
+				if(markerButton){
+					const inp = this.getInput()
+					cEvent = eventManager.create("cEnter",{bubbles:true,detail:markerButton})
+					if(this.props.onBlur) inp.blur()
+					else if(this.props.onChange) inp.dispatchEvent(eventManager.create("input",{bubbles:true}))
+					else {}
+				}
+				else{
+					cEvent = eventManager.create("cTab",{bubbles:true})
+				}
 				this.cont.dispatchEvent(cEvent)				
 			}
 			event.stopPropagation()
@@ -2495,7 +2506,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			e.stopPropagation()
 		},
 		report:function(focusKey){
-			if(this.props.onClickValue) this.props.onClickValue("change",focusKey)
+			if(this.props.onClickValue) this.props.onClickValue("focusChange",focusKey)
 		},
 		componentWillUnmount:function(){			
 			this.el.removeEventListener("cFocus",this.onFocus)
