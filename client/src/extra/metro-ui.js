@@ -767,7 +767,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		    if(!this.props.draggable && !this.props.droppable) return
 			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
 		},
-		/*
+		/* 
 		onEnter:function(e){
 			if(this.el)
 				this.el.parentNode.dispatchEvent(eventManager.create("enter"))
@@ -2647,17 +2647,18 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			let maxLines = 1 
 			
 			const chldMap = this.props.children.map(child=>({child,basis:this.parseBasis(child.props.incoming.at.style.flexBasis),en:child.props.incoming.at.active&&true,maxLines:1}))
+			const chldAMap = chldMap.filter(_=>_.en)
 			const pRect = this.el.getBoundingClientRect()			
-			const chldAWidth = chldMap.filter(_=>_.en).reduce((a,e)=>(a+(e.en?e.basis:0)),0)
+			const chldAWidth = chldAMap.reduce((a,e)=>(a+(e.en?e.basis:0)),0)
 			if(chldAWidth > pRect.width) {
 				let t = pRect.width
-				maxLines = chldMap.reduce((a,e,i,arr)=>{
-					if(t-e.basis<0) {t = pRect.width;return a+1}
+				maxLines = chldAMap.reduce((a,e,i,arr)=>{					
+					if(t-e.basis<0) {t = pRect.width - e.basis;t=t>=0?t:0;return a+1}
 					if(t-e.basis>=0) {t -=e.basis;return a}
 				},1)
 				//maxLines = Math.ceil(chldAWidth/(Math.floor(pRect.width/chldMap[0].basis)*chldMap[0].basis))
 			}
-			if(chldMap[0].basis>pRect.width) {maxLines = chldMap.filter(_=>_.en).length;maxLines=maxLines>0?maxLines:1}
+			if(chldMap[0].basis>pRect.width) {maxLines = chldAMap.length;maxLines=maxLines>0?maxLines:1}
 			let chldWidth = 0
 			do{
 				chldWidth = chldMap.reduce((a,e)=>{
