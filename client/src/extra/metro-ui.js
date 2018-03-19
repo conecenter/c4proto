@@ -116,7 +116,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(this.updateAt<=0) {
 				const width = this.el.getBoundingClientRect().width
 				const height = this.el.getBoundingClientRect().height
-				this.setState({ripple:!this.state.ripple, width,height})
+				const rBox = Math.max(width,height)
+				const top = width>height?-(rBox-height)/2:0
+				const left = width<height?-(rBox-width)/2:0								
+				this.setState({ripple:!this.state.ripple, rBox,top,left})
 				this.updateAt = this.updatePeriod				
 			}
 			this.updateAt-=1
@@ -124,6 +127,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		render:function(){		
 			const defbg = "#eeeeee"
 			const bg = this.props.style&&this.props.style.backgroundColor?this.props.style.backgroundColor:defbg			
+			const oStyle = this.props.ripple?{margin:"0px"}:{}
 			const style={
 				border:'none',
 				cursor:'pointer',
@@ -136,30 +140,30 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				alignSelf:'center',
 				fontFamily:'inherit',				
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-				outlineOffset:GlobalStyles.outlineOffset,				
-				...this.props.style,				
+				outlineOffset:GlobalStyles.outlineOffset,
+				...this.props.style,
+				...oStyle,				
 				...(this.state.mouseOver && Object.keys(this.props.overStyle||{}).length==0?{opacity:"0.8"}:null),
 				...(this.state.mouseOver?this.props.overStyle:null),				
 			}
 			const className = this.props.className
 			
 			const wrap = (el) =>{
-				if(this.props.ripple){					
+				if(this.props.ripple && this.state.top!==undefined && this.state.left!==undefined && this.state.rBox){					
 					const rEl = $("div",{key:"rp",style:{
-						width:this.state.width+"px",
-						height:this.state.height+"px",
+						width:this.state.rBox+"px",
+						height:this.state.rBox+"px",
 						position:"absolute",
-						top:"0px",
-						left:"0px",
+						top:this.state.top+"px",
+						left:this.state.left+"px",
 						backgroundColor:"transparent",
-						transition:this.state.ripple?"transform 1.2s":"transform 0s",
-						boxSizing:"border-box",
-						borderRadius:"50%",
-						boxShadow: "inset 0px 0px 1.4em 0.2em rgba(255,255,255,0.9)",						
-						transform:this.state.ripple?"scale(3,3)":"scale(0,0)",
+						transition:this.state.ripple?"transform 2.1s":"transform 0s",						
+						borderRadius:"50%",						
+						boxShadow: "inset 0px 0px 2.4em 0.5em rgba(255,255,255,0.9)",						
+						transform:this.state.ripple?"scale(2,2)":"scale(0,0)",
 						pointerEvents:"none"
 					}})
-					return $("div",{style:{position:"relative",overflow:"hidden"}},[el,rEl])
+					return $("div",{style:{position:"relative",overflow:"hidden",...this.props.style}},[el,rEl])
 				}
 				else 
 					return el
