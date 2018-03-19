@@ -55,15 +55,11 @@ export default function UpdateManager(log,window,metroUi){
 			if(this.bind) this.bind.remove()
 		},
 		render:function(){			
-			const style = {
-				...this.props.style
-			}
-			const dialogStyle = {				
-				margin:"3.5rem auto 0em auto",
-				...this.props.style
-			}
-			if(checked) return React.createElement("div",{style},this.props.children)
-			return React.createElement(FlexGroup,{style:dialogStyle,caption:""},[
+			if(checked) return React.createElement("div",{},this.props.children)
+			return React.createElement(FlexGroup,{style:{
+				maxWidth:"40%",
+				margin:"3.5rem auto 0em auto"
+			},caption:""},[
 				React.createElement(StatusElement,{key:1},this.props.status),
 				React.createElement(ProgressBar,{key:2,progress:this.state.progress})
 			])

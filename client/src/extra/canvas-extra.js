@@ -57,22 +57,6 @@ export function ScrollViewPositionCanvasSetup(canvas){
     }
     return {setupFrame,processFrame}
 }
-export function ScrollViewPositionMaxHeightCanvasSetup(canvas){
-    function processFrame(frame,prev){       
-		frame.parentHeightFix(frame.viewExternalSize.y + "px")
-    }
-    function setupFrame(){
-        const {viewExternalSize,viewExternalPos,scrollPos,parentPos} = canvas.viewPositions(true)
-        const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
-        //
-		const parentHeight = canvas.parentNode().style.height
-		const parentHeightFix = need => {
-            if(parentHeight !== need) canvas.parentNode().style.height = need //this is not good if parentNode is controlled by React
-        }
-        return {viewExternalSize,viewExternalPos,viewPos,parentHeightFix}
-    }
-    return {setupFrame,processFrame}
-}
 
 export function BoundTextCanvasSetup(canvas){
     function setupContext(utx){

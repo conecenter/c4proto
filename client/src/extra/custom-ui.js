@@ -420,7 +420,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		onContext
 	};
 	const receivers = {
-		ping:PingReceiver.ping		
-	};	
+		ping:PingReceiver.ping
+	};
 	return {transforms,receivers};
 }

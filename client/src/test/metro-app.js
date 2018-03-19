@@ -7,7 +7,7 @@ import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
-import {VDomSender}  from "../main/vdom-util"
+import {VDomSender} from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
@@ -26,12 +26,11 @@ import OverlayManager from "../extra/overlay-manager"
 import RequestState from "../extra/request-state"
 import WinWifi from "../extra/win-wifi-status"
 
-import SwitchHost from "../extra/switchhost-module"
 import UpdateManager from "../extra/update-manager"
 import VirtualKeyboard from "../extra/virtual-keyboard"
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
-const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
+
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
@@ -49,7 +48,7 @@ const windowManager = (()=>{
 	const getPageYOffset = ()=> window.pageYOffset
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix}
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
@@ -90,7 +89,7 @@ const miscReact = (()=>{
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image, audioContext});
+const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image});
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
@@ -113,18 +112,10 @@ const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
-const getViewPortRect = () => {
-    const footer = document.body.querySelector(".mainFooter")
-    const bRect = document.body.getBoundingClientRect()
-    return !footer ? bRect : {
-      top: bRect.top, left: bRect.left, right: bRect.right,
-      bottom: footer.getBoundingClientRect().top
-    }
-}
 const exchangeMix = options => canvas => [
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,feedback,getViewPortRect,getRootElement,createElement,activeElement)
+    Canvas.ExchangeCanvasSetup(canvas, feedback, getRootElement, getRootElement, createElement, activeElement)
 ]
 const canvasBaseMix = CanvasBaseMix(log,util)
 
@@ -135,21 +126,19 @@ const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
 //transforms
-const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms, virtualKeyboard.transforms])
+const transforms = mergeAll([metroUi.transforms, customUi.transforms, cryptoElements.transforms, updateManager.transforms, virtualKeyboard.transforms])
 
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
 
-const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
-const switchHost = SwitchHost(log,window)
+const branches = Branches(log, mergeAll([vDom.branchHandlers, canvas.branchHandlers]))
+
 const receiversList = [
     branches.receivers,
     feedback.receivers,
 	metroUi.receivers,
     customUi.receivers,
 	cryptoElements.receivers,
-	focusModule.receivers,
-	switchHost.receivers
-	/*,
+	focusModule.receivers/*,
 	requestState.receivers*/
 ]
 const composeUrl = () => {
