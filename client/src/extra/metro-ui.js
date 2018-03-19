@@ -30,7 +30,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		const add = (c) => callbacks.push(c)
 		const remove = (c) => {
 			const index = callbacks.indexOf(c)
-			callbacks.splice(index,1)
+			if(index>=0) callbacks.splice(index,1)
 		}
 		const check = () => callbacks.forEach(c=>c())
 		return {add,remove,check}
@@ -60,7 +60,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	}},children);
 	const ButtonElement=React.createClass({
 		getInitialState:function(){
-			return {mouseOver:false,touch:false};
+			return {mouseOver:false,touch:false, ripple:false};
 		},
 		mouseOver:function(){
 			this.setState({mouseOver:true});
@@ -92,16 +92,38 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.el.dispatchEvent(cEvent)							
 		},		
 		componentDidMount:function(){
+			this.updatePeriod = 50
+			this.updateAt = 0
 			if(!this.el) return
 			this.el.addEventListener("enter",this.onEnter)
+			if(this.props.ripple)
+				checkActivateCalls.add(this.rippleAnim)
+		},
+		componentDidUpdate:function(prevProps,prevState){
+			if(this.props.ripple && !prevProps.ripple)
+				checkActivateCalls.add(this.rippleAnim)
+			if(!this.props.ripple && prevProps.ripple)
+				checkActivateCalls.remove(this.rippleAnim)
 		},
 		componentWillUnmount:function(){
 			this.el.removeEventListener("enter",this.onEnter)
+			checkActivateCalls.remove(this.rippleAnim)
 		},
 		componentWillReceiveProps:function(nextProps){
 			this.setState({mouseOver:false,touch:false});
 		},
+		rippleAnim:function(){
+			if(this.updateAt<=0) {
+				const width = this.el.getBoundingClientRect().width
+				const height = this.el.getBoundingClientRect().height
+				this.setState({ripple:!this.state.ripple, width,height})
+				this.updateAt = this.updatePeriod				
+			}
+			this.updateAt-=1
+		},
 		render:function(){		
+			const defbg = "#eeeeee"
+			const bg = this.props.style&&this.props.style.backgroundColor?this.props.style.backgroundColor:defbg			
 			const style={
 				border:'none',
 				cursor:'pointer',
@@ -112,16 +134,38 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				minWidth:'1em',
 				fontSize:'1em',
 				alignSelf:'center',
-				fontFamily:'inherit',
+				fontFamily:'inherit',				
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-				outlineOffset:GlobalStyles.outlineOffset,
-				backgroundColor:this.state.mouseOver?"#ffffff":"#eeeeee",
-				...this.props.style,
+				outlineOffset:GlobalStyles.outlineOffset,				
+				...this.props.style,				
 				...(this.state.mouseOver && Object.keys(this.props.overStyle||{}).length==0?{opacity:"0.8"}:null),
-				...(this.state.mouseOver?this.props.overStyle:null)
+				...(this.state.mouseOver?this.props.overStyle:null),				
 			}
-			const className = this.props.className			
-			return $("button",{className,style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			const className = this.props.className
+			
+			const wrap = (el) =>{
+				if(this.props.ripple){					
+					const rEl = $("div",{key:"rp",style:{
+						width:this.state.width+"px",
+						height:this.state.height+"px",
+						position:"absolute",
+						top:"0px",
+						left:"0px",
+						backgroundColor:"transparent",
+						transition:this.state.ripple?"transform 1.2s":"transform 0s",
+						boxSizing:"border-box",
+						borderRadius:"50%",
+						boxShadow: "inset 0px 0px 1.4em 0.2em rgba(255,255,255,0.9)",						
+						transform:this.state.ripple?"scale(3,3)":"scale(0,0)",
+						pointerEvents:"none"
+					}})
+					return $("div",{style:{position:"relative",overflow:"hidden"}},[el,rEl])
+				}
+				else 
+					return el
+			}
+			const el = $("button",{className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
+			return wrap(el)
 		}
 	});
 	const uiElements = []
@@ -767,7 +811,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		    if(!this.props.draggable && !this.props.droppable) return
 			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
 		},
-		/*
+		/* 
 		onEnter:function(e){
 			if(this.el)
 				this.el.parentNode.dispatchEvent(eventManager.create("enter"))
@@ -2647,17 +2691,18 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			let maxLines = 1 
 			
 			const chldMap = this.props.children.map(child=>({child,basis:this.parseBasis(child.props.incoming.at.style.flexBasis),en:child.props.incoming.at.active&&true,maxLines:1}))
+			const chldAMap = chldMap.filter(_=>_.en)
 			const pRect = this.el.getBoundingClientRect()			
-			const chldAWidth = chldMap.filter(_=>_.en).reduce((a,e)=>(a+(e.en?e.basis:0)),0)
+			const chldAWidth = chldAMap.reduce((a,e)=>(a+(e.en?e.basis:0)),0)
 			if(chldAWidth > pRect.width) {
 				let t = pRect.width
-				maxLines = chldMap.reduce((a,e,i,arr)=>{
-					if(t-e.basis<0) {t = pRect.width;return a+1}
+				maxLines = chldAMap.reduce((a,e,i,arr)=>{					
+					if(t-e.basis<0) {t = pRect.width - e.basis;t=t>=0?t:0;return a+1}
 					if(t-e.basis>=0) {t -=e.basis;return a}
 				},1)
 				//maxLines = Math.ceil(chldAWidth/(Math.floor(pRect.width/chldMap[0].basis)*chldMap[0].basis))
 			}
-			if(chldMap[0].basis>pRect.width) {maxLines = chldMap.filter(_=>_.en).length;maxLines=maxLines>0?maxLines:1}
+			if(chldMap[0].basis>pRect.width) {maxLines = chldAMap.length;maxLines=maxLines>0?maxLines:1}
 			let chldWidth = 0
 			do{
 				chldWidth = chldMap.reduce((a,e)=>{
