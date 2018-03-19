@@ -25,7 +25,8 @@ class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
 
 class IndexFactoryImpl(
   merger: IndexValueMergerFactory,
-  profiler: AssembleProfiler
+  profiler: AssembleProfiler,
+  updater: IndexUpdater
 ) extends IndexFactory {
   def createJoinMapIndex[T,R<:Product,TK,RK](join: Join[T,R,TK,RK]):
     WorldPartExpression
@@ -42,25 +43,9 @@ class IndexFactoryImpl(
     val subNestedDiff: PatchMap[RK,MultiSet[R],R] =
       new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
     new JoinMapIndex[T,TK,RK,R](
-      join, addNestedPatch, addNestedDiff, subNestedDiff, profiler.get(join.name)
+      join, addNestedPatch, addNestedDiff, subNestedDiff, profiler.get(join.name), updater
     )
   }
-}
-
-trait DataDependencyToIndexUpdater[MapKey, Value] extends DataDependencyTo[Index[MapKey, Value]] {
-  private def setPart[V](res: ReadModel, part: Map[MapKey,V]) =
-    (res + (outputWorldKey → part)).asInstanceOf[Map[AssembledKey[_],Map[Object,V]]]
-  protected def setPart(
-    transition: WorldTransition, nextDiff: Map[MapKey, Boolean], nextIndex: Index[MapKey,Value]
-  ): WorldTransition = {
-    val diff = setPart(transition.diff,nextDiff)
-    val next = setPart(transition.result, nextIndex)
-    WorldTransition(transition.prev, diff, next)
-  }
-  protected def diffOf(
-    transition: WorldTransition, worldKey: AssembledKey[Index[MapKey, Value]]
-  ): Map[MapKey, Boolean] =
-    transition.diff.getOrElse(worldKey,Map.empty).asInstanceOf[Map[MapKey, Boolean]]
 }
 
 class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
@@ -68,10 +53,11 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
-  profiler: String ⇒ Int ⇒ Unit
+  profiler: String ⇒ Int ⇒ Unit,
+  updater: IndexUpdater
 ) extends WorldPartExpression
   with DataDependencyFrom[Index[JoinKey, T]]
-  with DataDependencyToIndexUpdater[MapKey, Value]
+  with DataDependencyTo[Index[MapKey, Value]]
 {
   def assembleName = join.assembleName
   def name = join.name
@@ -112,29 +98,11 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
     val currentIndex: Index[MapKey,Value] = outputWorldKey.of(transition.result)
     val nextIndex: Index[MapKey,Value] = addNestedPatch.many(currentIndex, indexDiff)
 
-    val currentDiff = diffOf(transition,outputWorldKey)
+    val currentDiff = updater.diffOf(outputWorldKey)(transition)
     val nextDiff: Map[MapKey, Boolean] = currentDiff ++ indexDiff.transform((_,_)⇒true)
 
     end(indexDiff.size)
-    setPart(transition, nextDiff, nextIndex)
-  }
-}
-
-object PrepareBackStage extends WorldPartExpression {
-  def transform(transition: WorldTransition): WorldTransition =
-    WorldTransition(Option(transition), Map.empty, transition.result)
-}
-
-class ConnectBackStage[MapKey, Value](
-  val outputWorldKey: AssembledKey[Index[MapKey, Value]],
-  val nextKey:        AssembledKey[Index[MapKey, Value]]
-) extends WorldPartExpression with DataDependencyToIndexUpdater[MapKey, Value] {
-  def transform(transition: WorldTransition): WorldTransition = {
-    val diffPart = diffOf(transition.prev.get, nextKey)
-    //println(s"AAA: $nextKey $diffPart")
-    //println(s"BBB: $transition")
-    if(diffPart.isEmpty) transition
-    else setPart(transition, diffPart, nextKey.of(transition.result))
+    updater.setPart(outputWorldKey)(nextDiff, nextIndex)(transition)
   }
 }
 
@@ -154,7 +122,10 @@ class ByPriority[Item](uses: Item⇒List[Item]){
 }
 */
 
-class TreeAssemblerImpl(byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]]) extends TreeAssembler {
+class TreeAssemblerImpl(
+  byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
+  optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
+) extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val replace: PatchMap[Object,Values[Object],Values[Object]] =
       new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
@@ -184,13 +155,11 @@ class TreeAssemblerImpl(byPriority: ByPriority, expressionsDumpers: List[Express
       case e: DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e
     }))
 
-    val wasKeys = (for {
-      e ← expressionsByPriority
-      k ← e.inputWorldKeys
-    } yield k).collect{ case k:JoinKey[_,_] if k.was ⇒ k }.distinct
-    val backStage = PrepareBackStage ::
-      wasKeys.map(k⇒new ConnectBackStage(k,k.copy(was=false)))
-    val transforms = expressionsByPriority ::: backStage ::: Nil
+    val expressionsByPriorityWithLoops =
+      optimizer.optimize(expressionsByPriority.collect{ case e: ExprFrom with DataDependencyTo[_] ⇒ e})
+    val backStage =
+      backStageFactory.create(expressionsByPriorityWithLoops.collect{ case e: ExprFrom ⇒ e })
+    val transforms = expressionsByPriorityWithLoops ::: backStage ::: Nil
     val transformAllOnce = Function.chain(transforms.map(h⇒h.transform(_)))
     @tailrec def transformUntilStable(left: Int, transition: WorldTransition): ReadModel =
       if(transition.diff.isEmpty) transition.result

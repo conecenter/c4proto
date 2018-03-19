@@ -24,6 +24,7 @@ case class CanvasSizes(sizes: String) {
   def canvasFontSize: BigDecimal = BigDecimal(sizes.split(",")(0))
 
   def canvasWidth: BigDecimal = BigDecimal(sizes.split(",")(1))
+  def canvasHeight: BigDecimal = BigDecimal(sizes.split(",")(2))
 }
 
 case class CanvasBranchHandler(branchKey: SrcId, task: BranchTask, handler: CanvasHandler) extends BranchHandler {
