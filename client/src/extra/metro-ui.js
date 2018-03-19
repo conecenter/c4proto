@@ -99,6 +99,12 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(this.props.ripple)
 				checkActivateCalls.add(this.rippleAnim)
 		},
+		componentDidUpdate:function(prevProps,prevState){
+			if(this.props.ripple && !prevProps.ripple)
+				checkActivateCalls.add(this.rippleAnim)
+			if(!this.props.ripple && prevProps.ripple)
+				checkActivateCalls.remove(this.rippleAnim)
+		},
 		componentWillUnmount:function(){
 			this.el.removeEventListener("enter",this.onEnter)
 			checkActivateCalls.remove(this.rippleAnim)
