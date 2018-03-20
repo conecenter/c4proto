@@ -10,7 +10,7 @@ trait HashSearchDepRequestFactory[Model] {
 
   def any: DepCondition
 
-  def leaf[By <: Product, Field](lens: ProdLens[Model, Field], by: By): DepCondition
+  def leaf[By <: Product](lensName: NameMetaAttr, by: By): DepCondition
 
   def request: DepCondition ⇒ HashSearchDepRequest
 }
@@ -22,13 +22,13 @@ trait ByToStrRegistry {
 trait BySerializer[By] {
   def byCl: Class[By]
 
-  def serialize[By2]: By2 ⇒ String
+  def serialize: By ⇒ String
 }
 
 case class ByToStrRegistryImpl(byStrs: List[BySerializer[_]]) extends ByToStrRegistry {
   lazy val byStrMap: Map[Class[_], BySerializer[_]] = byStrs.map(ser ⇒ ser.byCl → ser).toMap[Class[_], BySerializer[_]]
 
-  def getStr[By](by: By): String = byStrMap(by.getClass).serialize(by)
+  def getStr[By](by: By): String = byStrMap(by.getClass).asInstanceOf[BySerializer[By]].serialize(by)
 }
 
 case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], byToStrReg: ByToStrRegistry) extends HashSearchDepRequestFactory[Model] {
@@ -41,8 +41,8 @@ case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], byToStr
   def any: DepCondition =
     DepCondition(modelCl.getName, "any", None, None, "", None)
 
-  def leaf[By <: Product, Field](lens: ProdLens[Model, Field], byInst: By): DepCondition =
-    DepCondition(modelCl.getName, "leaf", None, None, lens.metaList.collect { case a: NameMetaAttr ⇒ a.value }.head, Option(By(byInst.getClass.getName, byToStrReg.getStr(byInst))))
+  def leaf[By <: Product](lensName: NameMetaAttr, byInst: By): DepCondition =
+    DepCondition(modelCl.getName, "leaf", None, None, lensName.value, Option(By(byInst.getClass.getName, byToStrReg.getStr(byInst))))
 
   def request: DepCondition => HashSearchDepRequest =
     cond ⇒ HashSearchDepRequest(modelCl.getName, cond)

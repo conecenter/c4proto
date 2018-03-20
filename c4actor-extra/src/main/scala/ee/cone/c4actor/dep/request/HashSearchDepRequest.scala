@@ -14,7 +14,7 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with LensRegis
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
-  def hashSearchModels: List[Class[_ <: Product]]
+  def hashSearchModels: List[Class[_ <: Product]] = Nil
 
   def conditionFactory: ModelConditionFactory[_]
 
