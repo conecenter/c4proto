@@ -32,22 +32,17 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 	})()
 	const VKButton = React.createClass({
 		getInitialState:function(){
-			return {touch:false,mouseDown:false};
+			return {mouseDown:false};
 		},
 		onClick:function(ev){
 			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
-			if(this.props.onClick){
-				this.props.onClick(ev);				
-				return;
-			}			
+			if(this.props.onClick) this.props.onClick(ev)			
+		},		
+		onMouseDown:function(e){
+			this.setState({mouseDown:true})
+			this.onClick(e)
+			e.preventDefault()
 		},
-		onTouchStart:function(e){
-			this.setState({touch:true});
-		},
-		onTouchEnd:function(e){
-			this.setState({touch:false});
-		},
-		onMouseDown:function(){this.setState({mouseDown:true})},
 		onMouseUp:function(){this.setState({mouseDown:false})},
 		render:function(){					
 			const bStyle={
@@ -59,15 +54,15 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				backgroundColor:'#eeeeee',
 				verticalAlign:'middle',
 				overflow:"hidden",
-				outline:(this.state.touch||this.state.mouseDown)?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',				
+				outline:(this.state.mouseDown?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none'),				
 				color:'inherit',
 				padding:"0px",
 				textAlign:'center',
 				...this.props.style,				
-				...((this.state.touch||this.state.mouseDown)?{backgroundColor:"rgb(25, 118, 210)"}:{})				
+				...(this.state.mouseDown?{backgroundColor:"rgb(25, 118, 210)"}:{})
 			};
 			const className = "vkElement"
-			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp,onClick:this.onClick},this.props.children);
+			return $("button",{style:bStyle,className,onTouchStart:this.onMouseDown,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
 		}
 	});	
 	const VirtualKeyboard = React.createClass({

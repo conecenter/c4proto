@@ -1044,8 +1044,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onDelete:function(event){
 			//log(`Delete`)
 			event.stopPropagation()
+			this.s = null
 			if(this.props.noDel) return
-			this.doIfNotFocused((inp)=>{				
+			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				if(this.isVkEvent(event)){					
 					inp.value = inp.value+event.detail.key
@@ -1054,19 +1055,40 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					inp.value = ""
 				const cEvent = eventManager.create("input",{bubbles:true})				
 				inp.dispatchEvent(cEvent)
-			})					
+			})){				
+				if(this.isVkEvent(event)){					
+					const inp = this.getInput()
+					const value1 = inp.value.substring(0, inp.selectionStart)
+					const value2 = inp.value.substring(inp.selectionEnd)
+					this.s = inp.selectionStart+1
+					inp.value = value1+event.detail.key+value2
+					const cEvent = eventManager.create("input",{bubbles:true})							
+					inp.dispatchEvent(cEvent)
+				}				
+			}
 			
 		},
 		onBackspace:function(event){
 			//log(`Backspace`)
 			event.stopPropagation()
+			this.s = null
 			if(this.props.noDel) return
-			this.doIfNotFocused((inp)=>{				
+			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = inp.value.slice(0,-1)
 				const cEvent = eventManager.create("input",{bubbles:true})				
 				inp.dispatchEvent(cEvent)
-			})
+			})){
+				if(this.isVkEvent(event)){		
+					const inp = this.getInput()
+					const value1 = inp.value.substring(0, inp.selectionStart-1)				
+					const value2 = inp.value.substring(inp.selectionEnd)
+					this.s = inp.selectionStart - 1>=0?inp.selectionStart -1:0
+					inp.value = value1+value2					
+					const cEvent = eventManager.create("input",{bubbles:true})							
+					inp.dispatchEvent(cEvent)
+				}
+			}
 		},
 		onPaste:function(event){
 			//log(`Paste`)
@@ -1105,7 +1127,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			inp.removeEventListener('ccopy',this.onCopy)
 			if(this.dragBinding) this.dragBinding.releaseDD()
 		},
-		componentDidUpdate:function(){
+		componentDidUpdate:function(){			
 			if(this.props.cursorPos){
 				const pos = this.props.cursorPos()
 				const inp = this.getInput()
@@ -1114,6 +1136,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 		},		
 		onChange:function(e){
+			const inp = this.getInput()
+			if(this.s!==null&&this.s!==undefined) {inp.selectionEnd =this.s;inp.selectionStart = this.s}
 			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
 				const newVal = e.target.value.toUpperCase();
 				e.target.value = newVal;
