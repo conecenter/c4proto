@@ -30,5 +30,10 @@ case class ProdLens[C,I](metaList: List[MetaAttr])(val of: C⇒I, val set: I⇒C
   extends AbstractLens[C,I]
 {
   def meta(values: MetaAttr*): ProdLens[C,I] = ProdLens[C,I](metaList ++ values)(of,set)
+  def to[V](inner: ProdLens[I,V]): ProdLens[C,V] = 
+    ProdLens[C,V](metaList ::: inner.metaList)(
+      container => inner.of(of(container)), 
+      item => modify(inner.set(item))
+    )
 }
 
