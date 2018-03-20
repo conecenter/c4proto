@@ -134,7 +134,7 @@ object HashSearchImpl {
     respLines: Values[RespLine]
   ): Values[(HeapId,RespLine)] = for {
     respLine ← respLines
-    tagId ← indexers.heapIds(respLine).distinct
+    tagId ← indexers.heapIds(respLine).distinct //TODO usage here
   } yield tagId → respLine
 
   def reqByHeap(
@@ -142,7 +142,7 @@ object HashSearchImpl {
     requests: Values[Request[RespLine]]
   ): Values[(HeapId,Need[RespLine])] = for {
     request ← single(requests)
-    heapId ← heapIds(indexers, request)
+    heapId ← heapIds(indexers, request) //TODO and here
   } yield heapId → Need[RespLine](ToPrimaryKey(request))
 
   def respHeapPriorityByReq(
@@ -159,7 +159,7 @@ object HashSearchImpl {
     @by[ResponseId] priorities: Values[Priority[RespLine]]
   ): Values[(HeapId,Request[RespLine])] = for {
     request ← single(requests)
-    heapId ← heapIds(indexers, request, priorities)
+    heapId ← heapIds(indexers, request, priorities) //TODO and here
   } yield heapId → request
 
   def respByReq(
