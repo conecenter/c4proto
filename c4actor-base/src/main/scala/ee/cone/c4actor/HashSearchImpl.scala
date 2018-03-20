@@ -33,7 +33,7 @@ object HashSearchImpl {
     case (b: Intersect,Optimal(priorities)) ⇒
       groups(b,options).maxBy(_.map(priorities).min)
     case (b: Branch,o) ⇒ groups(b,o).flatten.distinct
-    case (FullScan,_) ⇒ throw new Exception("full scan not supported")
+    case (FullScan,_) ⇒ throw new Exception("full scan not supported") //TODO ilya
   }
   def heapIds[Model<:Product](indexers: Indexer[Model], req: Request[Model]): List[SrcId] =
     heapIds(expression(indexers)(req.condition),GatherAll)
@@ -54,6 +54,8 @@ object HashSearchImpl {
           case Union(l,FullScan) ⇒ FullScan
           case r ⇒ r
         }
+      case AnyCondition() ⇒
+        FullScan
       case c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
     }
     traverse

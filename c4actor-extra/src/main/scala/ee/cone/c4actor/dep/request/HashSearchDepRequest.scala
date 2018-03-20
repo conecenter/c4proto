@@ -9,7 +9,7 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with LensRegistryAppTrait with RequestHandlerRegistryApp {
+trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp {
   override def assembles: List[Assemble] = hashSearchModels.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
@@ -43,6 +43,7 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with LensRegis
     if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
   } yield {
     val hsRq = rq.request.asInstanceOf[HashSearchDepRequest]
+    println(hsDepRequestHandler.handle(hsRq))
     WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]]))
   }
 
@@ -72,7 +73,7 @@ trait ByMaker[By <: Product] {
 }
 
 trait LeafRegistry {
-  def getLeaf(modelCl: String, byCl: String): LeafInfoHolder[_, _ <: Product, _]
+  def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_, _ <: Product, _]
 
   def getByMaker[By <: Product](byClName: String): String ⇒ By
 
@@ -85,15 +86,20 @@ case class LeafInfoHolder[Model, By <: Product, Field](
 )
 
 
-case class LeafRegistryImpl(leafList: List[LeafInfoHolder[_, _ <: Product, _]], byMakers: List[ByMaker[_ <: Product]], models: List[Class[_ <: Product]]) extends LeafRegistry {
+case class LeafRegistryImpl(
+  leafList: List[LeafInfoHolder[_, _ <: Product, _]],
+  byMakers: List[ByMaker[_ <: Product]],
+  models: List[Class[_ <: Product]]
+) extends LeafRegistry {
 
   private lazy val byMakerMap: Map[String, String => _ <: Product] = byMakers.map(maker ⇒ maker.byName → maker.make).toMap
 
-  private lazy val leafMap: Map[(String, String), LeafInfoHolder[_, _ <: Product, _]] = leafList.map(leaf ⇒ (leaf.modelCl.getName, leaf.byCl.getName) → leaf).toMap
+  private lazy val leafMap: Map[(String, String, String), LeafInfoHolder[_, _ <: Product, _]] =
+    leafList.map(leaf ⇒ (leaf.modelCl.getName, leaf.byCl.getName, leaf.lens.metaList.collect { case NameMetaAttr(v) ⇒ v }.head) → leaf).toMap
 
   private lazy val modelMap: Map[String, Class[_ <: Product]] = models.map(cl ⇒ cl.getName → cl).toMap[String, Class[_ <: Product]]
 
-  def getLeaf(modelCl: String, byCl: String): LeafInfoHolder[_, _ <: Product, _] = leafMap((modelCl, byCl))
+  def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_, _ <: Product, _] = leafMap((modelCl, byCl, lensName))
 
   def getByMaker[By <: Product](byClName: String): String ⇒ By = str ⇒ byMakerMap(byClName)(str).asInstanceOf[By]
 
@@ -116,7 +122,7 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
       case "union" ⇒ factory.union(parseCondition(condition.condLeft.get, factory), parseCondition(condition.condRight.get, factory))
       case "any" ⇒ factory.any
       case "leaf" ⇒
-        val leafInfo: LeafInfoHolder[_, _ <: Product, _] = leafs.getLeaf(condition.modelClass, condition.by.get.byName)
+        val leafInfo: LeafInfoHolder[_, _ <: Product, _] = leafs.getLeaf(condition.modelClass, condition.by.get.byName, condition.lensName)
         makeLeaf(leafInfo.modelCl, leafInfo.byCl, leafInfo.fieldCl)(leafInfo, condition.by.get).asInstanceOf[Condition[Model]]
       case _ ⇒ throw new Exception("Not implemented yet: parseBy(by:By)")
     }
