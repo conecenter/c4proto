@@ -37,7 +37,10 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		onClick:function(ev){
 			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
 			if(this.props.onClick) this.props.onClick(ev)			
-		},		
+		},
+		onTouchStart:function(e){
+			this.setState({mouseDown:true})
+		},
 		onMouseDown:function(e){
 			this.setState({mouseDown:true})
 			this.onClick(e)
@@ -62,7 +65,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				...(this.state.mouseDown?{backgroundColor:"rgb(25, 118, 210)"}:{})
 			};
 			const className = "vkElement"
-			return $("button",{style:bStyle,className,onTouchStart:this.onMouseDown,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
+			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
 		}
 	});	
 	const VirtualKeyboard = React.createClass({

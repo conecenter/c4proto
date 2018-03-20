@@ -74,6 +74,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		onTouchStart:function(e){
 			this.setState({touch:true});
+			
 		},
 		onTouchEnd:function(e){		
 			this.setState({touch:false,mouseOver:false});		
@@ -83,6 +84,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				setTimeout(function(){this.props.onClick(e)}.bind(this),(this.props.delay?parseInt(this.props.delay):0));
 			}				
 		},		
+		onMouseDown:function(e){
+			this.onClick(e)
+		},
 		onEnter:function(event){
 			//log(`Enter ;`)
 			event.stopPropagation()
@@ -168,7 +172,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				else 
 					return el
 			}
-			const el = $("button",{className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onClick:this.onClick,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
+			const el = $("button",{className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onMouseDown:this.onMouseDown,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
 			return wrap(el)
 		}
 	});
