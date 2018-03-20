@@ -116,7 +116,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(this.updateAt<=0) {
 				const width = this.el.getBoundingClientRect().width
 				const height = this.el.getBoundingClientRect().height
-				this.setState({ripple:!this.state.ripple, width,height})
+				const rBox = Math.max(width,height)
+				const top = width>height?-(rBox-height)/2:0
+				const left = width<height?-(rBox-width)/2:0								
+				this.setState({ripple:!this.state.ripple, rBox,top,left})
 				this.updateAt = this.updatePeriod				
 			}
 			this.updateAt-=1
@@ -124,6 +127,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		render:function(){		
 			const defbg = "#eeeeee"
 			const bg = this.props.style&&this.props.style.backgroundColor?this.props.style.backgroundColor:defbg			
+			const oStyle = this.props.ripple?{margin:"0px"}:{}
 			const style={
 				border:'none',
 				cursor:'pointer',
@@ -136,30 +140,30 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				alignSelf:'center',
 				fontFamily:'inherit',				
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-				outlineOffset:GlobalStyles.outlineOffset,				
-				...this.props.style,				
+				outlineOffset:GlobalStyles.outlineOffset,
+				...this.props.style,
+				...oStyle,				
 				...(this.state.mouseOver && Object.keys(this.props.overStyle||{}).length==0?{opacity:"0.8"}:null),
 				...(this.state.mouseOver?this.props.overStyle:null),				
 			}
 			const className = this.props.className
 			
 			const wrap = (el) =>{
-				if(this.props.ripple){					
+				if(this.props.ripple && this.state.top!==undefined && this.state.left!==undefined && this.state.rBox){					
 					const rEl = $("div",{key:"rp",style:{
-						width:this.state.width+"px",
-						height:this.state.height+"px",
+						width:this.state.rBox+"px",
+						height:this.state.rBox+"px",
 						position:"absolute",
-						top:"0px",
-						left:"0px",
+						top:this.state.top+"px",
+						left:this.state.left+"px",
 						backgroundColor:"transparent",
-						transition:this.state.ripple?"transform 1.2s":"transform 0s",
-						boxSizing:"border-box",
-						borderRadius:"50%",
-						boxShadow: "inset 0px 0px 1.4em 0.2em rgba(255,255,255,0.9)",						
-						transform:this.state.ripple?"scale(3,3)":"scale(0,0)",
+						transition:this.state.ripple?"transform 2.1s":"transform 0s",						
+						borderRadius:"50%",						
+						boxShadow: "inset 0px 0px 2.4em 0.5em rgba(255,255,255,0.9)",						
+						transform:this.state.ripple?"scale(2,2)":"scale(0,0)",
 						pointerEvents:"none"
 					}})
-					return $("div",{style:{position:"relative",overflow:"hidden"}},[el,rEl])
+					return $("div",{style:{position:"relative",overflow:"hidden",...this.props.style}},[el,rEl])
 				}
 				else 
 					return el
@@ -1040,8 +1044,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onDelete:function(event){
 			//log(`Delete`)
 			event.stopPropagation()
+			this.s = null
 			if(this.props.noDel) return
-			this.doIfNotFocused((inp)=>{				
+			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				if(this.isVkEvent(event)){					
 					inp.value = inp.value+event.detail.key
@@ -1050,19 +1055,40 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					inp.value = ""
 				const cEvent = eventManager.create("input",{bubbles:true})				
 				inp.dispatchEvent(cEvent)
-			})					
+			})){				
+				if(this.isVkEvent(event)){					
+					const inp = this.getInput()
+					const value1 = inp.value.substring(0, inp.selectionStart)
+					const value2 = inp.value.substring(inp.selectionEnd)
+					this.s = inp.selectionStart+1
+					inp.value = value1+event.detail.key+value2
+					const cEvent = eventManager.create("input",{bubbles:true})							
+					inp.dispatchEvent(cEvent)
+				}				
+			}
 			
 		},
 		onBackspace:function(event){
 			//log(`Backspace`)
 			event.stopPropagation()
+			this.s = null
 			if(this.props.noDel) return
-			this.doIfNotFocused((inp)=>{				
+			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = inp.value.slice(0,-1)
 				const cEvent = eventManager.create("input",{bubbles:true})				
 				inp.dispatchEvent(cEvent)
-			})
+			})){
+				if(this.isVkEvent(event)){		
+					const inp = this.getInput()
+					const value1 = inp.value.substring(0, inp.selectionStart-1)				
+					const value2 = inp.value.substring(inp.selectionEnd)
+					this.s = inp.selectionStart - 1>=0?inp.selectionStart -1:0
+					inp.value = value1+value2					
+					const cEvent = eventManager.create("input",{bubbles:true})							
+					inp.dispatchEvent(cEvent)
+				}
+			}
 		},
 		onPaste:function(event){
 			//log(`Paste`)
@@ -1101,7 +1127,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			inp.removeEventListener('ccopy',this.onCopy)
 			if(this.dragBinding) this.dragBinding.releaseDD()
 		},
-		componentDidUpdate:function(){
+		componentDidUpdate:function(){			
 			if(this.props.cursorPos){
 				const pos = this.props.cursorPos()
 				const inp = this.getInput()
@@ -1110,6 +1136,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 		},		
 		onChange:function(e){
+			const inp = this.getInput()
+			if(this.s!==null&&this.s!==undefined) {inp.selectionEnd =this.s;inp.selectionStart = this.s}
 			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
 				const newVal = e.target.value.toUpperCase();
 				e.target.value = newVal;
