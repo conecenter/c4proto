@@ -43,7 +43,7 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
     if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
   } yield {
     val hsRq = rq.request.asInstanceOf[HashSearchDepRequest]
-    println(hsDepRequestHandler.handle(hsRq))
+    //println("input")
     WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]]))
   }
 
@@ -57,6 +57,7 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
       if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
       resp ← responses
     } yield {
+      //println("output")
       val response = DepResponse(rq, Option(resp.lines), rq.parentSrcIds)
       WithPK(response) :: (for (srcId ← response.rqList) yield (srcId, response))
     }).flatten
@@ -148,7 +149,7 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
 
   @Id(0x0f37) case class HashSearchDepRequest(
     @Id(0x0f3e) modelName: String,
-    @Id(0x0f38) condition: DepCondition
+    @Id(0x0f38) condition: DepCondition //TODO remove
   )
 
   @Id(0x0f44) case class DepCondition(

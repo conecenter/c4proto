@@ -12,8 +12,10 @@ import ee.cone.c4assemble.Types.Values
 object HashSearchImpl {
   case class Need[Model<:Product](requestId: SrcId)
   case class Priority[Model<:Product](heapId: SrcId, priority: Int)
-  def priority[Model<:Product](heapSrcId: SrcId, respLines: Values[Model]): Priority[Model] =
-    Priority(heapSrcId,java.lang.Long.numberOfLeadingZeros(respLines.length))
+  def priority[Model<:Product](heapSrcId: SrcId, respLines: Values[Model]): Priority[Model] = {
+    //println(s"$heapSrcId ${respLines.size} ${respLines.headOption} ${respLines.lastOption}")
+    Priority(heapSrcId, java.lang.Long.numberOfLeadingZeros(respLines.length))
+  }
   sealed trait Expression
   trait Branch extends Expression {
     def left: Expression
@@ -56,7 +58,7 @@ object HashSearchImpl {
         }
       case AnyCondition() ⇒
         FullScan
-      case c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
+      case c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan) //TODO can be FullScan
     }
     traverse
   }
@@ -134,7 +136,7 @@ object HashSearchImpl {
     respLines: Values[RespLine]
   ): Values[(HeapId,RespLine)] = for {
     respLine ← respLines
-    tagId ← indexers.heapIds(respLine).distinct //TODO usage here
+    tagId ← indexers.heapIds(respLine).distinct
   } yield tagId → respLine
 
   def reqByHeap(
@@ -149,9 +151,10 @@ object HashSearchImpl {
     heapId: SrcId,
     @by[HeapId] respLines: Values[RespLine],
     @by[HeapId] needs: Values[Need[RespLine]]
-  ): Values[(ResponseId,Priority[RespLine])] = for {
+  ): Values[(ResponseId,Priority[RespLine])] = {
+    for {
     need ← needs
-  } yield ToPrimaryKey(need) → priority(heapId,respLines)
+  } yield ToPrimaryKey(need) → priority(heapId,respLines)}
 
   def neededRespHeapPriority(
     requestId: SrcId,
