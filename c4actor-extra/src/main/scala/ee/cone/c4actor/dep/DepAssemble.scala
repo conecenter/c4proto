@@ -20,8 +20,18 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
   (
     key: SrcId,
     @was @by[ToResponse] responses: Values[DepResponse]
-  ): Values[(CtxSrcId, DepCtxMap)] =
-    WithPK(DepCtxMap(key, handlerRegistry.buildContextWoSession(responses))) :: Nil
+  ): Values[(CtxSrcId, DepCtxMap)] = {
+    //println(key, handlerRegistry.buildContextWoSession(responses))
+    //println("--------------------------------------------------------------")
+    val prepedResponses: List[DepResponse] = responses.groupBy(_.request).toList.map(_._2).map(list ⇒ list.minBy(_.toString.length))
+    for {
+      resp ← prepedResponses
+      srcId ← {
+        resp.request.srcId :: resp.rqList
+      }
+    } yield
+      srcId → DepCtxMap(prepedResponses.head.request.srcId, handlerRegistry.buildContextWoSession(responses))
+  }
 
   def GenRequestToUpResolvable
   (
@@ -31,11 +41,11 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
   ): Values[(SrcId, UpResolvable)] =
     for {
       request ← requests
-      ctxT ← ctxs
       pair ← handlerRegistry.handle(request.request)
     } yield {
       val (dep, contextId) = pair
-      val ctx: DepCtx = ctxT.map + (ContextIdRequest() → Option(contextId))
+      val ctxT = ctxs.headOption.map(_.ctx).getOrElse(Map.empty)
+      val ctx: DepCtx = ctxT + (ContextIdRequest() → Option(contextId))
       //println()
       //println(s"$key:$ctx")
       WithPK(UpResolvable(request, dep.asInstanceOf[InnerDep[_]].resolve(ctx)))

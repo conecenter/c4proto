@@ -5,4 +5,4 @@ import ee.cone.c4actor.dep.CtxType.DepCtx
 
 case class DepResponse(request: DepRequestWithSrcId, value: Option[_], rqList: List[SrcId] = Nil)
 
-case class DepCtxMap(srcId: SrcId, map: DepCtx)
+case class DepCtxMap(srcId: SrcId, ctx: DepCtx)

@@ -74,8 +74,8 @@ class DepTestStart(
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(s"Final result: ${access.initialValue}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    val newContext = access.updatingLens.get.set(access.initialValue.copy(value = 666))(nGlobal)
-    println(s"Final result: ${ByPK(classOf[UpResolvable]).of(newContext)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
+    //val newContext = access.updatingLens.get.set(access.initialValue.copy(value = 666))(nGlobal)
+    //println(s"Final result: ${ByPK(classOf[UpResolvable]).of(newContext)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
 
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(s"Unresolved: \n${ByPK(classOf[UnresolvedDep]).of(nGlobal).toList.mkString("\n")}")
