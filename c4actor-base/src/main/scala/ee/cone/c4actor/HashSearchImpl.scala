@@ -12,10 +12,8 @@ import ee.cone.c4assemble.Types.Values
 object HashSearchImpl {
   case class Need[Model<:Product](requestId: SrcId)
   case class Priority[Model<:Product](heapId: SrcId, priority: Int)
-  def priority[Model<:Product](heapSrcId: SrcId, respLines: Values[Model]): Priority[Model] = {
-    //println(s"$heapSrcId ${respLines.size} ${respLines.headOption} ${respLines.lastOption}")
+  def priority[Model<:Product](heapSrcId: SrcId, respLines: Values[Model]): Priority[Model] =
     Priority(heapSrcId, java.lang.Long.numberOfLeadingZeros(respLines.length))
-  }
   sealed trait Expression
   trait Branch extends Expression {
     def left: Expression
@@ -35,7 +33,7 @@ object HashSearchImpl {
     case (b: Intersect,Optimal(priorities)) ⇒
       groups(b,options).maxBy(_.map(priorities).min)
     case (b: Branch,o) ⇒ groups(b,o).flatten.distinct
-    case (FullScan,_) ⇒ throw new Exception("full scan not supported") //TODO ilya
+    case (FullScan,_) ⇒ throw new Exception("full scan not supported")
   }
   def heapIds[Model<:Product](indexers: Indexer[Model], req: Request[Model]): List[SrcId] =
     heapIds(expression(indexers)(req.condition),GatherAll)
@@ -58,7 +56,7 @@ object HashSearchImpl {
         }
       case AnyCondition() ⇒
         FullScan
-      case c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan) //TODO can be FullScan
+      case c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
     }
     traverse
   }
@@ -144,17 +142,16 @@ object HashSearchImpl {
     requests: Values[Request[RespLine]]
   ): Values[(HeapId,Need[RespLine])] = for {
     request ← single(requests)
-    heapId ← heapIds(indexers, request) //TODO and here
+    heapId ← heapIds(indexers, request)
   } yield heapId → Need[RespLine](ToPrimaryKey(request))
 
   def respHeapPriorityByReq(
     heapId: SrcId,
     @by[HeapId] respLines: Values[RespLine],
     @by[HeapId] needs: Values[Need[RespLine]]
-  ): Values[(ResponseId,Priority[RespLine])] = {
-    for {
+  ): Values[(ResponseId,Priority[RespLine])] = for {
     need ← needs
-  } yield ToPrimaryKey(need) → priority(heapId,respLines)}
+  } yield ToPrimaryKey(need) → priority(heapId,respLines)
 
   def neededRespHeapPriority(
     requestId: SrcId,
@@ -162,7 +159,7 @@ object HashSearchImpl {
     @by[ResponseId] priorities: Values[Priority[RespLine]]
   ): Values[(HeapId,Request[RespLine])] = for {
     request ← single(requests)
-    heapId ← heapIds(indexers, request, priorities) //TODO and here
+    heapId ← heapIds(indexers, request, priorities)
   } yield heapId → request
 
   def respByReq(
