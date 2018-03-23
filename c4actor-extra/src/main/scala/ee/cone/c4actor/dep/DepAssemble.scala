@@ -14,19 +14,28 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
 @assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry) extends Assemble with DepAssembleUtilityImpl {
 
   type ToResponse = SrcId
+  type CtxSrcId = SrcId
+
+  def BuildContext
+  (
+    key: SrcId,
+    @was @by[ToResponse] responses: Values[DepResponse]
+  ): Values[(CtxSrcId, DepCtxMap)] =
+    WithPK(DepCtxMap(key, handlerRegistry.buildContextWoSession(responses))) :: Nil
 
   def GenRequestToUpResolvable
   (
     key: SrcId,
     @was requests: Values[DepRequestWithSrcId],
-    @was @by[ToResponse] responses: Values[DepResponse]
+    @by[CtxSrcId] ctxs: Values[DepCtxMap]
   ): Values[(SrcId, UpResolvable)] =
     for {
       request ← requests
+      ctxT ← ctxs
       pair ← handlerRegistry.handle(request.request)
     } yield {
       val (dep, contextId) = pair
-      val ctx: DepCtx = handlerRegistry.buildContext(responses)(contextId)
+      val ctx: DepCtx = ctxT.map + (ContextIdRequest() → Option(contextId))
       //println()
       //println(s"$key:$ctx")
       WithPK(UpResolvable(request, dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
@@ -65,7 +74,7 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
   (
     key: SrcId,
     @was requests: Values[DepRequestWithSrcId],
-    @was resolvables: Values[UpResolvable]
+    resolvables: Values[UpResolvable]
   ): Values[(SrcId, UnresolvedDep)] =
     for {
       rq ← requests

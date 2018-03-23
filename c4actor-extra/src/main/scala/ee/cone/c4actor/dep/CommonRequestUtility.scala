@@ -12,6 +12,7 @@ import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4gate.SessionAttr
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
 import ee.cone.c4proto.{HasId, ToByteString}
+import ee.cone.c4actor.dep.request._
 import okio.ByteString
 
 trait CommonRequestUtility {
@@ -32,10 +33,12 @@ trait CommonRequestUtilityMix extends SessionAttrAskMix {
   def askContextId: Dep[ContextId] = new RequestDep[ContextId](ContextIdRequest())
 }
 
-trait SessionAttrAskMix extends CommonRequestUtility with ModelAccessFactoryAppUndef {
+trait SessionAttrAskMix extends CommonRequestUtility with ModelAccessFactoryAppUndef with ByPKRequestHandlerApp {
   def qAdapterRegistry: QAdapterRegistry
 
   def defaultModelRegistry: DefaultModelRegistry
+
+  override def byPKClasses: List[Class[_ <: Product]] = classOf[RawSessionData] :: super.byPKClasses
 
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
     val adapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[RawSessionData].getName)

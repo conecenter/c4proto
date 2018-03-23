@@ -71,6 +71,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
 }
 
 trait ByClassNameRequestUtils {
-  private def customTake[A]:List[A] ⇒ Int => List[A] = list ⇒ count ⇒ if (count < 0) list else list.take(count)
-  def takeWithDefaultParams[A]:List[A] ⇒ Int ⇒ Int ⇒ List[A] = list ⇒ from ⇒ count ⇒ customTake(list.drop(from))(count)
+  private def customTake[A]: List[A] ⇒ Int => List[A] = list ⇒ count ⇒ if (count < 0) list else list.take(count)
+
+  def takeWithDefaultParams[A]: List[A] ⇒ Int ⇒ Int ⇒ List[A] = list ⇒ from ⇒ count ⇒ customTake(list.drop(from))(count)
 }

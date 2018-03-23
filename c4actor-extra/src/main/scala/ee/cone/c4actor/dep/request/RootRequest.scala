@@ -14,12 +14,14 @@ import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
-trait RootDepApp extends RequestHandlerRegistryApp with AssemblesApp {
+trait RootDepApp extends RequestHandlerRegistryApp with AssemblesApp with ProtocolsApp {
   def rootDep: Dep[_]
 
   override def handlers: List[RequestHandler[_]] = RootRequestHandler(rootDep) :: super.handlers
 
   override def assembles: List[Assemble] = new RootRequestCreator :: super.assembles
+
+  override def protocols: List[Protocol] = RootRequestProtocol :: super.protocols
 }
 
 case class RootRequestHandler(rootDep: Dep[_]) extends RequestHandler[RootRequest] {

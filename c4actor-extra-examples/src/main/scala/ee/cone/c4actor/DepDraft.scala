@@ -40,7 +40,7 @@ trait DepDraft extends CommonRequestUtilityMix {
     }
   }
 
-  def testSession = for{
+  def testSession: Dep[Option[Access[PffNode]]] = for{
     accessOpt ← askSessionAttr(SessionAttr[PffNode](classOf[PffNode].getName, 0x0f1a, "", NameMetaAttr(0x0f1a.toString) :: Nil))
   } yield {
     accessOpt
