@@ -140,7 +140,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				currentFocusNode.focus();break;
 			case "Tab":				 
 				currentFocusNode.focus();
-				onTab(event)
+				onTab(event,vk)
 				event.preventDefault();return;
 			case "F2":	
 			case "Enter":
@@ -148,7 +148,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "Delete":
 			    sendEvent(()=>eventManager.create("delete"));break;	
 			case "Backspace":
-				sendEvent(()=>eventManager.create("backspace"));break;			
+				sendEvent(()=>eventManager.create("backspace",{detail}));break;			
 			case "Insert":
 			case "c":
 				if(event.ctrlKey){
@@ -186,8 +186,8 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			if(node) node.querySelector(sb).click()
 		}
 	}
-	const onTab = (event) =>{
-		const root = getReactRoot(event.target)
+	const onTab = (event,vk) =>{		
+		const root = vk?getReactRoot(currentFocusNode):getReactRoot(event.target)
 		if(!root) return
 		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
 		const cRNode = callbacks.find(o=>o.el == currentFocusNode)
