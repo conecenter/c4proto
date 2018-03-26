@@ -1570,9 +1570,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.focus=true;			
 		},
 		reportChange:function(state){					
-			if(this.props.onChange){
-				this.props.onChange({target:{headers:{"X-r-action":"change"},value:state}});				
-			}
+			if(this.props.onChange)
+				this.props.onClickValue("focusChange",state)			
 		},
 		delaySend:function(){
 			if(!this.focus)
