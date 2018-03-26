@@ -10,7 +10,7 @@ import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp {
-  override def assembles: List[Assemble] = hashSearchModels.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
@@ -23,6 +23,8 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
   def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, conditionFactory)
 }
 
+case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, modelCl: String)
+
 @assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model]) extends Assemble {
   type ToResponse = SrcId
   type HsDepSrcId = SrcId
@@ -30,19 +32,23 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
 
   def DepRqToResponse(
     key: SrcId,
-    @was request: Values[DepRequestWithSrcId]
-  ): Values[(HsDepSrcId, DepRequestWithSrcId)] = for {
-    rq ← request
-  } yield WithPK(rq)
-
-  def HSDepRequestWithSrcToItemSrcId(
-    key: SrcId,
-    @was request: Values[DepRequestWithSrcId]
-  ): Values[(SrcId, Request[Model])] = for {
+    request: Values[DepRequestWithSrcId]
+  ): Values[(HsDepSrcId, HashSearchDepRqWrap)] = for {
     rq ← request
     if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
   } yield {
     val hsRq = rq.request.asInstanceOf[HashSearchDepRequest]
+    WithPK(HashSearchDepRqWrap(rq.srcId, hsRq, hsRq.modelName))
+  }
+
+  def HSDepRequestWithSrcToItemSrcId(
+    key: SrcId,
+    @by[HsDepSrcId] request: Values[HashSearchDepRqWrap]
+  ): Values[(SrcId, Request[Model])] = for {
+    rq ← request
+    if rq.modelCl == model.getName
+  } yield {
+    val hsRq: HashSearchDepRequest = rq.request
     //println("input")
     WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]]))
   }
@@ -50,15 +56,18 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
   def HSResponseGrab(
     key: SrcId,
     responses: Values[Response[Model]],
-    @by[HsDepSrcId] requests: Values[DepRequestWithSrcId]
+    request: Values[DepRequestWithSrcId],
+    @by[HsDepSrcId] requests: Values[HashSearchDepRqWrap]
   ): Values[(ToResponse, DepResponse)] =
     (for {
+      srcIdrq ← request
+      if srcIdrq.request.isInstanceOf[HashSearchDepRequest] && srcIdrq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
       rq ← requests
-      if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
+      if rq.modelCl == model.getName
       resp ← responses
     } yield {
       //println("output")
-      val response = DepResponse(rq, Option(resp.lines), rq.parentSrcIds)
+      val response = DepResponse(srcIdrq, Option(resp.lines), srcIdrq.parentSrcIds)
       WithPK(response) :: (for (srcId ← response.rqList) yield (srcId, response))
     }).flatten
 

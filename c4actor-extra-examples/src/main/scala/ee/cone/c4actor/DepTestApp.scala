@@ -1,10 +1,11 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.LULProtocol.{TestNode, PffNode}
+import ee.cone.c4actor.LULProtocol.{PffNode, TestNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp, RootDepApp}
+import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, RootDepApp}
+import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.{AlienProtocol, SessionAttrApp}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -69,13 +70,14 @@ class DepTestStart(
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test ⇒ test.resolvable.value → test.request.srcId))
     val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
-    println(s"Final result: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
+    println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(s"Final result: ${access.initialValue}")
+    println(s"Final result2: ${access.initialValue}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    //val newContext = access.updatingLens.get.set(access.initialValue.copy(value = 666))(nGlobal)
-    //println(s"Final result: ${ByPK(classOf[UpResolvable]).of(newContext)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
+    val newContext = access.updatingLens.get.set(access.initialValue.copy(value = 666))(nGlobal)
+    println(s"Final result3: ${ByPK(classOf[UpResolvable]).of(newContext)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
 
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(s"Unresolved: \n${ByPK(classOf[UnresolvedDep]).of(nGlobal).toList.mkString("\n")}")
@@ -109,8 +111,7 @@ class DepTestApp extends RichDataApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
   with ToStartApp
-  with RqHandlerRegistryImplApp
-  with ByPKRequestHandlerApp
+  //with ByPKRequestHandlerApp
   with DepAssembleApp
   with ByClassNameRequestHandlerApp
   with RootDepApp
@@ -132,4 +133,6 @@ class DepTestApp extends RichDataApp
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
   override def rootDep: Dep[_] = testSession
+
+  override def assembles: List[Assemble] = {println(super.assembles.mkString("\n")); super.assembles}
 }

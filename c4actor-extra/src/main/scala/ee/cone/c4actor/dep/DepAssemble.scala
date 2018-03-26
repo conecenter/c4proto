@@ -19,43 +19,45 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
   def BuildContext
   (
     key: SrcId,
-    @was @by[ToResponse] responses: Values[DepResponse]
-  ): Values[(CtxSrcId, DepCtxMap)] = {
+    @by[ToResponse] responses: Values[DepResponse]
+  ): Values[(CtxSrcId, DepCtxResponses)] = {
     //println(key, handlerRegistry.buildContextWoSession(responses))
     //println("--------------------------------------------------------------")
-    val prepedResponses: List[DepResponse] = responses.groupBy(_.request).toList.map(_._2).map(list ⇒ list.minBy(_.toString.length))
+    //val prepedResponses: List[DepResponse] = responses.groupBy(_.request).toList.map(_._2).map(list ⇒ list.minBy(_.toString.length))
     for {
-      resp ← prepedResponses
+      resp ← responses
       srcId ← {
         resp.request.srcId :: resp.rqList
       }
     } yield
-      srcId → DepCtxMap(prepedResponses.head.request.srcId, handlerRegistry.buildContextWoSession(responses))
+      srcId → DepCtxResponses(responses.head.request.srcId, responses.toList)
   }
 
   def GenRequestToUpResolvable
   (
     key: SrcId,
-    @was requests: Values[DepRequestWithSrcId],
-    @by[CtxSrcId] ctxs: Values[DepCtxMap]
+    requests: Values[DepRequestWithSrcId],
+    @by[CtxSrcId] ctxs: Values[DepCtxResponses]
   ): Values[(SrcId, UpResolvable)] =
     for {
       request ← requests
       pair ← handlerRegistry.handle(request.request)
     } yield {
       val (dep, contextId) = pair
-      val ctxT = ctxs.headOption.map(_.ctx).getOrElse(Map.empty)
-      val ctx: DepCtx = ctxT + (ContextIdRequest() → Option(contextId))
+      val ctxT = handlerRegistry.buildContext(ctxs.headOption.map(_.ctx).getOrElse(Nil))(contextId)
+      //val ctxT = ctxs.headOption.map(_.ctx).getOrElse(Map.empty)
+      val ctx: DepCtx = ctxT
       //println()
       //println(s"$key:$ctx")
       WithPK(UpResolvable(request, dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
     }
 
+  type TempDepRQSrcId = SrcId
   def GenUpResolvableToRequest
   (
     key: SrcId,
-    resolvable: Values[UpResolvable]
-  ): Values[(SrcId, DepRequestWithSrcId)] =
+    @was resolvable: Values[UpResolvable]
+  ): Values[(TempDepRQSrcId, DepRqWithSrcId)] =
     for {
       rs ← resolvable
       rq ← rs.resolvable.requests
@@ -64,13 +66,42 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
       //println()
       //println(s"URTRQ $key:${rs.resolvable.requests}")
       val id = generatePK(rq, adapterRegistry)
-      WithPK(DepRequestWithSrcId(id, rq).addParent(rs.request.srcId))
+      WithPK(DepRqWithSrcId(id, rq))
     }
+
+  type ParentBusSrcId = SrcId
+  def GenUpResolvableToParentBus
+  (
+    key: SrcId,
+    @was resolvable: Values[UpResolvable]
+  ): Values[(ParentBusSrcId, ParentBus)] =
+    for {
+      rs ← resolvable
+      rq ← rs.resolvable.requests
+      if !rq.isInstanceOf[ContextIdRequest]
+    } yield {
+      //println()
+      //println(s"URTRQ $key:${rs.resolvable.requests}")
+      val id = generatePK(rq, adapterRegistry)
+      WithPK(ParentBus(id, rs.request.srcId))
+    }
+
+  def MakeSharedDepRequest
+  (
+    key: SrcId,
+    @by[TempDepRQSrcId] request: Values[DepRqWithSrcId],
+    @by[ParentBusSrcId] parents: Values[ParentBus]
+  ): Values[(SrcId, DepRequestWithSrcId)] =
+    for {
+      rq ← request
+    } yield WithPK(DepRequestWithSrcId(rq.srcId, rq.request,parents.map(_.parentSrcIds).filter(p ⇒ p!= rq.srcId).toList))
+
+
 
   def GenUpResolvableToResponses
   (
     key: SrcId,
-    upResolvable: Values[UpResolvable]
+    @was upResolvable: Values[UpResolvable]
   ): Values[(ToResponse, DepResponse)] =
     upResolvable.flatMap { upRes ⇒
       //println()
@@ -83,7 +114,7 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
   def GenUnresolvedDepCollector
   (
     key: SrcId,
-    @was requests: Values[DepRequestWithSrcId],
+    requests: Values[DepRequestWithSrcId],
     resolvables: Values[UpResolvable]
   ): Values[(SrcId, UnresolvedDep)] =
     for {

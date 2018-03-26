@@ -33,7 +33,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
 
   def BCNRequestToClassSrcId(
     key: SrcId,
-    @was requests: Values[DepRequestWithSrcId]
+    requests: Values[DepRequestWithSrcId]
   ): Values[(ByCNRqSrcId, DepRequestWithSrcId)] =
     for (
       rq ← requests
@@ -50,7 +50,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
   ): Values[(ToResponse, DepResponse)] =
     (for (
       rq ← requests
-      if rq.request.isInstanceOf[ByClassNameRequest]
+      if rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName
     ) yield {
       val byCNRq = rq.request.asInstanceOf[ByClassNameRequest]
       val response = DepResponse(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))

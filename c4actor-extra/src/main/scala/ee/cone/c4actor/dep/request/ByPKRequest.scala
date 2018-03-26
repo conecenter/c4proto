@@ -10,7 +10,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
 trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
-  override def assembles: List[Assemble] = byPKClasses.map(className ⇒ new ByPKGenericAssemble(className)) ::: super.assembles
+  override def assembles: List[Assemble] = byPKClasses.distinct.map(className ⇒ new ByPKGenericAssemble(className)) ::: super.assembles
 
   def byPKClasses: List[Class[_ <: Product]] = Nil
 
@@ -23,12 +23,13 @@ trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
 
   def BPKRequestWithSrcToItemSrcId(
     key: SrcId,
-    @was requests: Values[DepRequestWithSrcId]
+    requests: Values[DepRequestWithSrcId]
   ): Values[(ByPkItemSrcId, DepRequestWithSrcId)] =
     for (
       rq ← requests
-      if rq.request.isInstanceOf[ByPKRequest]
+      if rq.request.isInstanceOf[ByPKRequest] && rq.request.asInstanceOf[ByPKRequest].className==handledClass.getName
     ) yield {
+      //println(s"ByPKRQIn $rq")
       val byPkRq = rq.request.asInstanceOf[ByPKRequest]
       (byPkRq.itemSrcId, rq)
     }
@@ -40,10 +41,10 @@ trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
   ): Values[(ToResponse, DepResponse)] =
     (for (
       rq ← requests
-      if rq.request.isInstanceOf[ByPKRequest]
+      if rq.request.isInstanceOf[ByPKRequest] && rq.request.asInstanceOf[ByPKRequest].className==handledClass.getName
     ) yield {
       //println()
-      //println(s"ByPK$key:$items")
+      //println(s"ByPK $key:$items")
       val response = DepResponse(rq, Option(items.headOption))
       WithPK(response) :: (for (id ← rq.parentSrcIds) yield (id, response))
     }).flatten
