@@ -7,10 +7,6 @@ trait ModelAccessFactoryApp {
   private lazy val modelAccessFactoryImpl = ModelAccessFactoryImpl
 }
 
-trait ModelAccessFactoryAppUndef {
-  def modelAccessFactory: ModelAccessFactory
-}
-
 
 object ModelAccessFactoryImpl extends ModelAccessFactory {
   def to[P <: Product](product: P): Option[Access[P]] = {

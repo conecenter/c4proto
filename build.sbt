@@ -6,8 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.B.A.ilya",
-
+  version := "0.B.D",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -82,17 +81,17 @@ lazy val `c4actor-base` = project.settings(publishSettings)
 lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`)
+  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`)
 
 lazy val `c4actor-extra` = project.settings(publishSettings)
   .settings(description := s"$descr / dep stuff")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4gate-client`)
+  .dependsOn(`c4actor-base`,`c4proto-types`)
 
 lazy val `c4actor-extra-examples` = project.settings(publishSettings)
   .settings(description := s"$descr / dep stuff examples")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`, `c4gate-client`)
+  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4gate-client`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")

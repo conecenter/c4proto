@@ -38,6 +38,8 @@ trait SessionAttrAskMix extends CommonRequestUtility with ModelAccessFactoryAppU
 
   def defaultModelRegistry: DefaultModelRegistry
 
+  def modelAccessFactory: ModelAccessFactory
+
   override def byPKClasses: List[Class[_ <: Product]] = classOf[RawSessionData] :: super.byPKClasses
 
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
