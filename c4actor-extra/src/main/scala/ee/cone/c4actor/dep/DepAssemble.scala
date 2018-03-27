@@ -3,11 +3,12 @@ package ee.cone.c4actor.dep
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.CtxType._
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
+import ee.cone.c4actor.dep.request.DepOuterDamToDepInnerRequestApp
 import ee.cone.c4actor.{QAdapterRegistry, RichDataApp, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
+trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp with DepOuterDamToDepInnerRequestApp{
   override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry) :: super.assembles
 }
 
@@ -71,15 +72,6 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
     } yield {
       rq.innerRequest.srcId → rq
     }
-
-  def DepOuterDamToDepInnerRequest
-  (
-    outerRqId: SrcId,
-    @by[OuterRqByInnerSrcId] outers: Values[DepOuterRequest]
-  ): Values[(SrcId, DepInnerRequest)] = {
-    val inner: DepInnerRequest = Single(outers.map(_.innerRequest).distinct)
-    WithPK(inner) :: Nil
-  }
 
   // end: Produces Requests for the system
 

@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LULProtocol.{PffNode, TestNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, RootDepApp, RootResponse}
+import ee.cone.c4actor.dep.request.ByClassNameRequestHandlerApp
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.{AlienProtocol, SessionAttrApp}
