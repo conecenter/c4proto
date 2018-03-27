@@ -26,52 +26,30 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
 case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, modelCl: String)
 
 @assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model]) extends Assemble {
-  type ToResponse = SrcId
-  type HsDepSrcId = SrcId
 
-
-  def DepRqToResponse(
+  def HSDepRequestWithSrcToItemSrcId(
     key: SrcId,
-    request: Values[DepRequestWithSrcId]
-  ): Values[(HsDepSrcId, HashSearchDepRqWrap)] = for {
+    request: Values[DepInnerRequest]
+  ): Values[(SrcId, Request[Model])] = for {
     rq ← request
     if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
   } yield {
     val hsRq = rq.request.asInstanceOf[HashSearchDepRequest]
-    WithPK(HashSearchDepRqWrap(rq.srcId, hsRq, hsRq.modelName))
-  }
-
-  def HSDepRequestWithSrcToItemSrcId(
-    key: SrcId,
-    @by[HsDepSrcId] request: Values[HashSearchDepRqWrap]
-  ): Values[(SrcId, Request[Model])] = for {
-    rq ← request
-    if rq.modelCl == model.getName
-  } yield {
-    val hsRq: HashSearchDepRequest = rq.request
-    //println("input")
     WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]]))
   }
 
   def HSResponseGrab(
     key: SrcId,
     responses: Values[Response[Model]],
-    request: Values[DepRequestWithSrcId],
-    @by[HsDepSrcId] requests: Values[HashSearchDepRqWrap]
-  ): Values[(ToResponse, DepResponse)] =
-    (for {
-      srcIdrq ← request
-      if srcIdrq.request.isInstanceOf[HashSearchDepRequest] && srcIdrq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
+    requests: Values[DepInnerRequest]
+  ): Values[(SrcId, DepInnerResponse)] =
+    for {
       rq ← requests
-      if rq.modelCl == model.getName
+      if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
       resp ← responses
     } yield {
-      //println("output")
-      val response = DepResponse(srcIdrq, Option(resp.lines), srcIdrq.parentSrcIds)
-      WithPK(response) :: (for (srcId ← response.rqList) yield (srcId, response))
-    }).flatten
-
-
+      WithPK(DepInnerResponse(rq, Option(resp.lines)))
+    }
 }
 
 trait ByMaker[By <: Product] {

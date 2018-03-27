@@ -1,6 +1,5 @@
 package ee.cone.c4actor.dep
 
-import ee.cone.c4actor._
 import ee.cone.c4actor.dep.CtxType.{DepCtx, DepRequest}
 
 trait Dep[A] {
@@ -48,4 +47,4 @@ class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A
   }
 }
 
-case class UnresolvedDep(rq: DepRequestWithSrcId, resolvable: UpResolvable)
+case class UnresolvedDep(rq: DepOuterRequest, resolvable: DepResolvable)

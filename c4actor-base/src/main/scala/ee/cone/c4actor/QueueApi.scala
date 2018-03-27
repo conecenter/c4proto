@@ -146,6 +146,10 @@ case object WriteModelAddKey extends SharedComponentKey[Seq[Update]⇒Context⇒
 
 case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
 
+trait QAdapterRegistryApp {
+  def qAdapterRegistry: QAdapterRegistry
+}
+
 class QAdapterRegistry(
   val byName: Map[String,ProtoAdapter[Product] with HasId],
   val byId: Map[Long,ProtoAdapter[Product] with HasId],

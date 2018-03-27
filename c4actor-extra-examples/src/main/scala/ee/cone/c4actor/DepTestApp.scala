@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LULProtocol.{PffNode, TestNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, RootDepApp}
+import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, RootDepApp, RootResponse}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.{AlienProtocol, SessionAttrApp}
@@ -59,7 +59,7 @@ class DepTestStart(
   def run() = {
     import LEvent.update
 
-    val recs = update(TestNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666)) ++ update(FromAlienState("test", "test", "test", None))
+    val recs = update(TestNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666)) ++ update(FromAlienState("test", "test", "test", None)) ++ update(FromAlienState("test2", "test2", "test2", None))
     /*
           update(Node("12","1")) ++ update(Node("13","1")) ++
           update(Node("124","12")) ++ update(Node("125","12"))*/
@@ -70,7 +70,8 @@ class DepTestStart(
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test ⇒ test.resolvable.value → test.request.srcId))
+    println(ByPK(classOf[RootResponse]).of(nGlobal).values)
+    /*println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test ⇒ test.resolvable.value → test.request.srcId))
     val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
     println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
@@ -81,7 +82,7 @@ class DepTestStart(
 
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(s"Unresolved: \n${ByPK(classOf[UnresolvedDep]).of(nGlobal).toList.mkString("\n")}")
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")*/
     execution.complete()
 
     /*
@@ -132,7 +133,10 @@ class DepTestApp extends RichDataApp
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
-  override def rootDep: Dep[_] = testSession
+  override def rootDep: Dep[_] = testView
 
-  override def assembles: List[Assemble] = {println(super.assembles.mkString("\n")); super.assembles}
+  override def assembles: List[Assemble] = {
+    println(super.assembles.mkString("\n"));
+    super.assembles
+  }
 }

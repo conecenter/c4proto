@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor._
+import ee.cone.c4actor.{QAdapterRegistry, _}
 import ee.cone.c4actor.dep.CtxType.ContextId
 import ee.cone.c4actor.dep.request.RootRequestProtocol.RootRequest
 import ee.cone.c4actor.dep._
@@ -19,9 +19,11 @@ trait RootDepApp extends RequestHandlerRegistryApp with AssemblesApp with Protoc
 
   override def handlers: List[RequestHandler[_]] = RootRequestHandler(rootDep) :: super.handlers
 
-  override def assembles: List[Assemble] = new RootRequestCreator :: super.assembles
+  override def assembles: List[Assemble] = new RootRequestCreator(qAdapterRegistry) :: super.assembles
 
   override def protocols: List[Protocol] = RootRequestProtocol :: super.protocols
+
+  def qAdapterRegistry: QAdapterRegistry
 }
 
 case class RootRequestHandler(rootDep: Dep[_]) extends RequestHandler[RootRequest] {
@@ -30,32 +32,30 @@ case class RootRequestHandler(rootDep: Dep[_]) extends RequestHandler[RootReques
   override def handle: RootRequest => (Dep[_], ContextId) = request ⇒ (rootDep, request.contextId)
 }
 
-case class RootResponse(srcId: String, response: Option[_])
+case class RootResponse(srcId: String, response: Option[_], sessionKey: String)
 
-@assemble class RootRequestCreator extends Assemble {
-  type ToResponse = SrcId
+@assemble class RootRequestCreator(val qAdapterRegistry: QAdapterRegistry) extends Assemble with DepAssembleUtilityImpl {
 
   def SparkRootRequest (
     key: SrcId,
     alienTasks: Values[FromAlienState]
-  ): Values[(SrcId, DepRequestWithSrcId)] =
+  ): Values[(SrcId, DepOuterRequest)] =
     for {
       alienTask ← alienTasks
     } yield {
       val rootRequest = RootRequest(alienTask.sessionKey)
-      val srcId = RootRequestUtils.genPK(rootRequest)
-      (srcId, DepRequestWithSrcId(srcId, rootRequest))
+      WithPK(generateDepOuterRequest(rootRequest, alienTask.sessionKey))
     }
 
   def RootResponseGrabber (
     key: SrcId,
-    @by[ToResponse] responses: Values[DepResponse]
+    responses: Values[DepOuterResponse]
   ): Values[(SrcId, RootResponse)] =
     for {
       resp ← responses
-      if resp.request.request.isInstanceOf[RootRequest]
+      if resp.request.innerRequest.request.isInstanceOf[RootRequest]
     } yield {
-      WithPK(RootResponse(resp.request.srcId, resp.value))
+      WithPK(RootResponse(resp.request.srcId, resp.value, resp.request.innerRequest.request.asInstanceOf[RootRequest].contextId))
     }
 }
 

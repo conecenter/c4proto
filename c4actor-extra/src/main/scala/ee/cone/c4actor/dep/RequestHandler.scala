@@ -13,9 +13,9 @@ trait RequestHandler[A] {
 trait RequestHandlerRegistry {
   def handle: DepRequest ⇒ Option[(Dep[_], ContextId)]
 
-  def buildContext: Values[DepResponse] ⇒ ContextId ⇒ DepCtx = responses ⇒ contextId ⇒ responses.map(curr ⇒ (curr.request.request, curr.value)).toMap + (ContextIdRequest() → Option(contextId))
+  def buildContext: Values[DepOuterResponse] ⇒ ContextId ⇒ DepCtx = responses ⇒ contextId ⇒ responses.map(curr ⇒ (curr.request.innerRequest.request, curr.value)).toMap + (ContextIdRequest() → Option(contextId))
 
-  def buildContextWoSession: Values[DepResponse] ⇒ DepCtx = responses ⇒ responses.map(curr ⇒ (curr.request.request, curr.value)).toMap
+  def buildContextWoSession: Values[DepOuterResponse] ⇒ DepCtx = responses ⇒ responses.map(curr ⇒ (curr.request.innerRequest.request, curr.value)).toMap
 }
 
 case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends RequestHandlerRegistry {

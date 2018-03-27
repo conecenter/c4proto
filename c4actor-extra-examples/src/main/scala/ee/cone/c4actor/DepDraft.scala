@@ -87,8 +87,6 @@ trait DepDraft extends CommonRequestUtilityMix {
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r5))
   }
 
-  def buildContext: Values[DepResponse] => DepCtx = _.map(curr ⇒ (curr.request.request, curr.value)).toMap
-
   def serialise(value: Any): Array[Byte] = {
     val stream: ByteArrayOutputStream = new ByteArrayOutputStream()
     val oos = new ObjectOutputStream(stream)

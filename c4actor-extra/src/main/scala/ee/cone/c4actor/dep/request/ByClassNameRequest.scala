@@ -2,7 +2,7 @@ package ee.cone.c4actor.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.{DepAssembleUtilityImpl, DepRequestWithSrcId, DepResponse}
+import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.ByClassNameRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
@@ -16,8 +16,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
   override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, stringToKey(className.getName))) ::: super.assembles
 }
 
-@assemble class ByClassNameGenericAssemble[A <: Product](handledClass: Class[A], classSrcId: SrcId) extends Assemble with DepAssembleUtilityImpl with ByClassNameRequestUtils {
-  type ToResponse = SrcId
+@assemble class ByClassNameGenericAssemble[A <: Product](handledClass: Class[A], classSrcId: SrcId) extends Assemble with ByClassNameRequestUtils {
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId
 
@@ -28,35 +27,32 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
     for (
       item ← items
     ) yield {
-      (classSrcId, item)
+      (classSrcId+"ByCN", item)
     }
 
   def BCNRequestToClassSrcId(
     key: SrcId,
-    requests: Values[DepRequestWithSrcId]
-  ): Values[(ByCNRqSrcId, DepRequestWithSrcId)] =
+    requests: Values[DepInnerRequest]
+  ): Values[(ByCNRqSrcId, DepInnerRequest)] =
+    for (
+      rq ← requests
+      if rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName
+    ) yield {
+      (classSrcId+"ByCN", rq)
+    }
+
+  def BCNRequestToResponse(
+    key: SrcId,
+    @by[ByCNRqSrcId] requests: Values[DepInnerRequest],
+    @by[ByCNSrcId] items: Values[A]
+  ): Values[(SrcId, DepInnerResponse)] =
     for (
       rq ← requests
       if rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName
     ) yield {
       val byCNRq = rq.request.asInstanceOf[ByClassNameRequest]
-      (stringToKey(byCNRq.className), rq)
+      WithPK(DepInnerResponse(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count))))
     }
-
-  def BCNRequestToResponse(
-    key: SrcId,
-    @by[ByCNRqSrcId] requests: Values[DepRequestWithSrcId],
-    @by[ByCNSrcId] items: Values[A]
-  ): Values[(ToResponse, DepResponse)] =
-    (for (
-      rq ← requests
-      if rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName
-    ) yield {
-      val byCNRq = rq.request.asInstanceOf[ByClassNameRequest]
-      val response = DepResponse(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))
-      WithPK(response) :: (for (id ← rq.parentSrcIds) yield (id, response))
-    }
-      ).flatten
 
 }
 

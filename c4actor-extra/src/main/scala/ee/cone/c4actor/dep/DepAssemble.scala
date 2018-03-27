@@ -1,128 +1,134 @@
 package ee.cone.c4actor.dep
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.CtxType.DepCtx
+import ee.cone.c4actor.dep.CtxType._
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4actor.{QAdapterRegistry, RichDataApp, WithPK}
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by, was}
+import ee.cone.c4assemble._
 
 trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
   override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry) :: super.assembles
 }
 
-@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry) extends Assemble with DepAssembleUtilityImpl {
+// TODO add unresolvedDepAssemble
+@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, val qAdapterRegistry: QAdapterRegistry) extends Assemble with DepAssembleUtilityImpl {
+  type OuterRespForCtx = SrcId
+  type DepResolvableGate = SrcId
+  type OuterRqByInnerSrcId = SrcId
 
-  type ToResponse = SrcId
-  type CtxSrcId = SrcId
-
-  def BuildContext
+  def ResolveRequestWithCtx
   (
-    key: SrcId,
-    @by[ToResponse] responses: Values[DepResponse]
-  ): Values[(CtxSrcId, DepCtxResponses)] = {
-    //println(key, handlerRegistry.buildContextWoSession(responses))
-    //println("--------------------------------------------------------------")
-    //val prepedResponses: List[DepResponse] = responses.groupBy(_.request).toList.map(_._2).map(list ⇒ list.minBy(_.toString.length))
-    for {
-      resp ← responses
-      srcId ← {
-        resp.request.srcId :: resp.rqList
-      }
-    } yield
-      srcId → DepCtxResponses(responses.head.request.srcId, responses.toList)
-  }
-
-  def GenRequestToUpResolvable
-  (
-    key: SrcId,
-    requests: Values[DepRequestWithSrcId],
-    @by[CtxSrcId] ctxs: Values[DepCtxResponses]
-  ): Values[(SrcId, UpResolvable)] =
+    requestId: SrcId,
+    requests: Values[DepOuterRequest],
+    @by[OuterRespForCtx] responses: Values[DepOuterResponse]
+  ): Values[(DepResolvableGate, DepResolvable)] =
     for {
       request ← requests
-      pair ← handlerRegistry.handle(request.request)
+      pair ← handlerRegistry.handle(request.innerRequest.request)
     } yield {
       val (dep, contextId) = pair
-      val ctxT = handlerRegistry.buildContext(ctxs.headOption.map(_.ctx).getOrElse(Nil))(contextId)
-      //val ctxT = ctxs.headOption.map(_.ctx).getOrElse(Map.empty)
-      val ctx: DepCtx = ctxT
-      //println()
-      //println(s"$key:$ctx")
-      WithPK(UpResolvable(request, dep.asInstanceOf[InnerDep[_]].resolve(ctx)))
+      val ctx: DepCtx = handlerRegistry.buildContext(responses)(contextId)
+      val resolvable = dep.asInstanceOf[InnerDep[_]].resolve(ctx)
+      val upRes = DepResolvable(request, resolvable)
+      WithPK(upRes)
     }
 
-  type TempDepRQSrcId = SrcId
-  def GenUpResolvableToRequest
+  def DepResolvableGate
   (
-    key: SrcId,
-    @was resolvable: Values[UpResolvable]
-  ): Values[(TempDepRQSrcId, DepRqWithSrcId)] =
+    depResId: SrcId,
+    @was @by[DepResolvableGate] depResolvables: Values[DepResolvable]
+  ): Values[(SrcId, DepResolvable)] =
     for {
-      rs ← resolvable
-      rq ← rs.resolvable.requests
+      depResolvable ← depResolvables
+    } yield {
+      WithPK(depResolvable)
+    }
+
+
+  // Produces Requests for the system
+  def DepResolvableToDepOuterRequest
+  (
+    depResId: SrcId,
+    depResolvables: Values[DepResolvable]
+  ): Values[(SrcId, DepOuterRequest)] =
+    for {
+      depResolvable ← depResolvables
+      rq ← depResolvable.resolvable.requests
       if !rq.isInstanceOf[ContextIdRequest]
     } yield {
-      //println()
-      //println(s"URTRQ $key:${rs.resolvable.requests}")
-      val id = generatePK(rq, adapterRegistry)
-      WithPK(DepRqWithSrcId(id, rq))
+      val outer = generateDepOuterRequest(rq, depResolvable.request.srcId)
+      WithPK(outer)
     }
 
-  type ParentBusSrcId = SrcId
-  def GenUpResolvableToParentBus
+  def DepOuterRequestToDepOuterDam
   (
-    key: SrcId,
-    @was resolvable: Values[UpResolvable]
-  ): Values[(ParentBusSrcId, ParentBus)] =
+    outerRqId: SrcId,
+    outerRqs: Values[DepOuterRequest]
+  ): Values[(OuterRqByInnerSrcId, DepOuterRequest)] =
     for {
-      rs ← resolvable
-      rq ← rs.resolvable.requests
-      if !rq.isInstanceOf[ContextIdRequest]
+      rq ← outerRqs
     } yield {
-      //println()
-      //println(s"URTRQ $key:${rs.resolvable.requests}")
-      val id = generatePK(rq, adapterRegistry)
-      WithPK(ParentBus(id, rs.request.srcId))
+      rq.innerRequest.srcId → rq
     }
 
-  def MakeSharedDepRequest
+  def DepOuterDamToDepInnerRequest
   (
-    key: SrcId,
-    @by[TempDepRQSrcId] request: Values[DepRqWithSrcId],
-    @by[ParentBusSrcId] parents: Values[ParentBus]
-  ): Values[(SrcId, DepRequestWithSrcId)] =
+    outerRqId: SrcId,
+    @by[OuterRqByInnerSrcId] outers: Values[DepOuterRequest]
+  ): Values[(SrcId, DepInnerRequest)] = {
+    val inner: DepInnerRequest = Single(outers.map(_.innerRequest).distinct)
+    WithPK(inner) :: Nil
+  }
+
+  // end: Produces Requests for the system
+
+  // Produces Responses for the system
+  // from DepResolvable
+  def DepResolvableToDepOuterResponse
+  (
+    depResId: SrcId,
+    depResolvables: Values[DepResolvable]
+  ): Values[(SrcId, DepOuterResponse)] =
     for {
-      rq ← request
-    } yield WithPK(DepRequestWithSrcId(rq.srcId, rq.request,parents.map(_.parentSrcIds).filter(p ⇒ p!= rq.srcId).toList))
-
-
-
-  def GenUpResolvableToResponses
-  (
-    key: SrcId,
-    @was upResolvable: Values[UpResolvable]
-  ): Values[(ToResponse, DepResponse)] =
-    upResolvable.flatMap { upRes ⇒
-      //println()
-      val response = DepResponse(upRes.request, upRes.resolvable.value, upRes.request.parentSrcIds)
-      //println(s"Resp: $response")
-      WithPK(response) ::
-        (for (srcId ← response.rqList) yield (srcId, response))
-    }
-
-  def GenUnresolvedDepCollector
-  (
-    key: SrcId,
-    requests: Values[DepRequestWithSrcId],
-    resolvables: Values[UpResolvable]
-  ): Values[(SrcId, UnresolvedDep)] =
-    for {
-      rq ← requests
-      resv ← resolvables
-      if resv.resolvable.value.isEmpty
+      depResv ← depResolvables
+      resp ← {
+        val rq = depResv.request
+        val resv = depResv.resolvable
+        DepOuterResponse(rq, resv.value) :: Nil
+      }
     } yield {
-      //println(s"UnRes $rq:${resv.resolvable}")
-      WithPK(UnresolvedDep(rq, resv))
+      WithPK(resp)
     }
+
+  // from DepInnerResponse and DepOuterRequest
+  def DepInnerResponseToDepOuterResponse
+  (
+    innerRespId: SrcId,
+    depInnerReps: Values[DepInnerResponse],
+    @by[OuterRqByInnerSrcId] outerRqs: Values[DepOuterRequest]
+  ): Values[(SrcId, DepOuterResponse)] =
+    for {
+      inner ← depInnerReps
+      outer ← outerRqs
+    } yield {
+      val outerResp = DepOuterResponse(outer, inner.value)
+      WithPK(outerResp)
+    }
+
+  // move DepOuterRespTo CtxBuilder index
+  def DepOuterResponseToCtxBuilder
+  (
+    depOuterRespId: SrcId,
+    depOuterResps: Values[DepOuterResponse]
+  ): Values[(OuterRespForCtx, DepOuterResponse)] =
+    for {
+      resp ← depOuterResps
+      srcId ← resp.request.srcId :: resp.request.parentSrcId :: Nil
+    } yield {
+      srcId → resp
+    }
+
+  // end: Produces Responses for the system
+
 }

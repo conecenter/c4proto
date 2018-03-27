@@ -2,10 +2,10 @@ package ee.cone.c4actor.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.{DepRequestWithSrcId, DepResponse}
 import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
+import ee.cone.c4actor.dep.{DepInnerRequest, DepInnerResponse}
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by, was}
+import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
@@ -18,36 +18,31 @@ trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
 }
 
 @assemble class ByPKGenericAssemble[A <: Product](handledClass: Class[A]) extends Assemble {
-  type ToResponse = SrcId
   type ByPkItemSrcId = SrcId
 
   def BPKRequestWithSrcToItemSrcId(
     key: SrcId,
-    requests: Values[DepRequestWithSrcId]
-  ): Values[(ByPkItemSrcId, DepRequestWithSrcId)] =
+    requests: Values[DepInnerRequest]
+  ): Values[(ByPkItemSrcId, DepInnerRequest)] =
     for (
       rq ← requests
-      if rq.request.isInstanceOf[ByPKRequest] && rq.request.asInstanceOf[ByPKRequest].className==handledClass.getName
+      if rq.request.isInstanceOf[ByPKRequest] && rq.request.asInstanceOf[ByPKRequest].className == handledClass.getName
     ) yield {
-      //println(s"ByPKRQIn $rq")
       val byPkRq = rq.request.asInstanceOf[ByPKRequest]
       (byPkRq.itemSrcId, rq)
     }
 
   def BPKRequestToResponse(
     key: SrcId,
-    @by[ByPkItemSrcId] requests: Values[DepRequestWithSrcId],
+    @by[ByPkItemSrcId] requests: Values[DepInnerRequest],
     items: Values[A]
-  ): Values[(ToResponse, DepResponse)] =
-    (for (
+  ): Values[(SrcId, DepInnerResponse)] =
+    for (
       rq ← requests
-      if rq.request.isInstanceOf[ByPKRequest] && rq.request.asInstanceOf[ByPKRequest].className==handledClass.getName
+      if rq.request.isInstanceOf[ByPKRequest] && rq.request.asInstanceOf[ByPKRequest].className == handledClass.getName
     ) yield {
-      //println()
-      //println(s"ByPK $key:$items")
-      val response = DepResponse(rq, Option(items.headOption))
-      WithPK(response) :: (for (id ← rq.parentSrcIds) yield (id, response))
-    }).flatten
+      WithPK(DepInnerResponse(rq, Option(items.headOption)))
+    }
 }
 
 @protocol object ByPKRequestProtocol extends Protocol {
