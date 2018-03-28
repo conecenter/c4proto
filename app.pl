@@ -66,7 +66,7 @@ my $from = sub{
     (
         "FROM openjdk:8",
         &$run(
-            "useradd --home-dir /$user --create-home --user-group --uid $uid --shell /bin/bash $user",
+            "useradd --base-dir / --create-home --user-group --uid $uid --shell /bin/bash $user",
             "apt-get update",
             "apt-get install -y lsof $install",
             "rm -rf /var/lib/apt/lists/*",
