@@ -148,6 +148,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const ml = vkContainer.position == "ml"
 			const tm = vkContainer.position == "tm"
 			const tr = vkContainer.position == "tr"
+			const br = vkContainer.position == "br"
 			
 			let top = vkContainer.rect.top 			
 			let left = vkContainer.rect.left
@@ -174,6 +175,10 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				top = vkContainer.rect.top 
 				left = vkContainer.rect.right - pWidth
 			}
+			if(br){
+				top = vkContainer.rect.bottom - pHeight
+				left = vkContainer.rect.right - pWidth
+			}
 			top+=getPageYOffset()					
 			return {top,left}
 		},
@@ -198,7 +203,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			if(!vkContainer||!vkLayout) return this.state.show?this.updateState({},false):null	
 			const show = vkContainer.static||this.showVk()	
 			const wRect = getWindowRect()				
-			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout) return				
+			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout && vkContainer.o == this.vkContainerO) return				
 			
 			let pWidth = Math.ceil(vkLayout.width * emK); pWidth == 0?1:pWidth
 			const pHeight = Math.ceil(vkLayout.height * emK)
@@ -209,6 +214,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			
 			this.wRect = wRect
 			this.vkLayout = vkLayout
+			this.vkContainerO = vkContainer.o
 			const fontSize = fK
 			const {top,left} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
 			if(this.state.fontSize!=fontSize || this.state.top!=top || this.state.left!=left || this.state.show!=show){		

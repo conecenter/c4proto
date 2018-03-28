@@ -337,7 +337,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			//const svgData = svgSrc(svg)
 			//const errors = this.props.children[1]
 			const right = this.props.children.filter(_=>_.key.includes("right"))			
-			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0"},[$("div",{style:{cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
+			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{outline:"none"}},[$("div",{style:{cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
 			return $("div",{style:style},
 				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
 					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
@@ -1056,21 +1056,24 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					inp.value = inp.value+event.detail.key
 				}
 				else 
-					inp.value = ""
+					inp.value = ""	
 				const cEvent = eventManager.create("input",{bubbles:true})				
-				inp.dispatchEvent(cEvent)
+				inp.dispatchEvent(cEvent)				
 			})){				
-				if(this.isVkEvent(event)){					
-					const inp = this.getInput()
+				const inp = this.getInput()
+				if(this.isVkEvent(event)){	
 					const value1 = inp.value.substring(0, inp.selectionStart)
 					const value2 = inp.value.substring(inp.selectionEnd)
 					this.s = inp.selectionStart+1
 					inp.value = value1+event.detail.key+value2
 					const cEvent = eventManager.create("input",{bubbles:true})							
-					inp.dispatchEvent(cEvent)
-				}				
-			}
-			
+					inp.dispatchEvent(cEvent)					
+				} else if(!event.detail){
+					inp.value = ""
+					const cEvent = eventManager.create("input",{bubbles:true})							
+					inp.dispatchEvent(cEvent)	
+				}
+			}			
 		},
 		onBackspace:function(event){
 			//log(`Backspace`)
