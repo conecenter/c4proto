@@ -2,6 +2,7 @@ package ee.cone.c4gate
 
 import java.util.UUID
 
+import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
