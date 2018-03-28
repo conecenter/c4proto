@@ -6,7 +6,6 @@ trait Condition[Model] extends Product {
 
 trait ModelConditionFactory[Model] {
   def of[OtherModel<:Product]: ModelConditionFactory[OtherModel]
-
   def ofWithCl[OtherModel <: Product]: Class[OtherModel] ⇒ ModelConditionFactory[OtherModel]
   def intersect: (Condition[Model],Condition[Model]) ⇒ Condition[Model]
   def union: (Condition[Model],Condition[Model]) ⇒ Condition[Model]

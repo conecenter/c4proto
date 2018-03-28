@@ -4,7 +4,6 @@ package ee.cone.c4actor
 class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
   def of[OtherModel]: ModelConditionFactory[OtherModel] =
     new ModelConditionFactoryImpl[OtherModel]
-
   def ofWithCl[OtherModel]: Class[OtherModel] ⇒ ModelConditionFactory[OtherModel] = cl ⇒
     new ModelConditionFactoryImpl[OtherModel]
   def intersect: (Condition[Model],Condition[Model]) ⇒ Condition[Model] =

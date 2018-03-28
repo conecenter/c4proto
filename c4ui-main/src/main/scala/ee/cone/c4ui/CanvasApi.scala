@@ -6,12 +6,10 @@ case object CanvasContentKey extends TransientLens[Option[CanvasContent]](None)
 
 trait CanvasContent {
   def value: String
-
   def until: Long
 }
 
-trait CanvasHandler extends Product {
+trait CanvasHandler extends  Product {
   def messageHandler: BranchMessage ⇒ Context ⇒ Context
-
-  def view: Context ⇒ CanvasContent
+  def view: Context⇒CanvasContent
 }

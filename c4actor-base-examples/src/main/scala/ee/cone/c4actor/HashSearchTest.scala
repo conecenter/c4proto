@@ -72,14 +72,6 @@ import SomeModelAccess._
   } yield WithPK(SomeResponse(response.srcId,response.lines))
 }
 
-/*
-DepRequest() ->
-Dep(data1, data2, data3) {condition(data*)}
-
-
-Rq(lens.name, condType)
- */
-
 
 case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
 //todo reg
@@ -100,16 +92,11 @@ class HashSearchTestApp extends RichDataApp
   ) ::: super.assembles
 }
 
-/*
-
-
- */
-
 object HashSearchTestMain extends LazyLogging {
   def condition(modelConditionFactory: ModelConditionFactory[Unit], request: SomeRequest): Condition[SomeModel] = {
     import DefaultConditionChecks._
     val cf = modelConditionFactory.of[SomeModel]
-    val leafs: List[Condition[SomeModel]] = for {
+    val leafs = for {
       lens ← List(fieldA, fieldB, fieldC)
       pattern ← request.pattern
       value ← Option(lens.of(pattern)) if value.nonEmpty

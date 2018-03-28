@@ -13,7 +13,7 @@ object HashSearchImpl {
   case class Need[Model<:Product](requestId: SrcId)
   case class Priority[Model<:Product](heapId: SrcId, priority: Int)
   def priority[Model<:Product](heapSrcId: SrcId, respLines: Values[Model]): Priority[Model] =
-    Priority(heapSrcId, java.lang.Long.numberOfLeadingZeros(respLines.length))
+    Priority(heapSrcId,java.lang.Long.numberOfLeadingZeros(respLines.length))
   sealed trait Expression
   trait Branch extends Expression {
     def left: Expression

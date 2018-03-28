@@ -10,7 +10,7 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
-import ee.cone.c4proto._
+import ee.cone.c4proto.{Id, Protocol, ToByteString, protocol}
 import okio.ByteString
 
 @protocol object SessionDataProtocol extends Protocol {
@@ -55,7 +55,7 @@ class SessionAttrAccessFactoryImpl(
   modelAccessFactory: ModelAccessFactory
 ) extends SessionAttrAccessFactory {
   def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
-    val adapter: ProtoAdapter[Product] with HasId = registry.byName(classOf[RawSessionData].getName)
+    val adapter = registry.byName(classOf[RawSessionData].getName)
     def genPK(request: RawSessionData): String =
       UUID.nameUUIDFromBytes(adapter.encode(request)).toString
     val lens = ProdLens[RawSessionData,P](attr.metaList)(
