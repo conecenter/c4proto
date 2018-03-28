@@ -6,8 +6,6 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp}
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4gate.AlienProtocol.FromAlienState
-import ee.cone.c4gate.{AlienProtocol, SessionAttrApp}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
@@ -59,7 +57,7 @@ class DepTestStart(
   def run() = {
     import LEvent.update
 
-    val recs = update(TestNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666)) ++ update(FromAlienState("test", "test", "test", None)) ++ update(FromAlienState("test2", "test2", "test2", None))
+    val recs = update(TestNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666))
     /*
           update(Node("12","1")) ++ update(Node("13","1")) ++
           update(Node("124","12")) ++ update(Node("125","12"))*/
@@ -115,7 +113,6 @@ class DepTestApp extends RichDataApp
   with DepAssembleApp
   with ByClassNameRequestHandlerApp
   with MortalFactoryApp
-  with SessionAttrApp
   with ByPKRequestHandlerApp
   with ModelAccessFactoryApp
 with CommonRequestUtilityMix {
@@ -130,12 +127,12 @@ with CommonRequestUtilityMix {
 
   override def handlers: List[RequestHandler[_]] = depDraft.FooRequestHandler :: super.handlers
 
-  override def protocols: List[Protocol] = AlienProtocol :: LULProtocol :: TestRequests :: super.protocols
+  override def protocols: List[Protocol] = LULProtocol :: TestRequests :: super.protocols
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
   override def assembles: List[Assemble] = {
-    println(super.assembles.mkString("\n"));
+    println(super.assembles.mkString("\n"))
     super.assembles
   }
 }

@@ -1,15 +1,10 @@
 package ee.cone.c4actor
 
-import java.io.{ByteArrayOutputStream, ObjectOutputStream}
-import java.nio.ByteBuffer
-
 import ee.cone.c4actor.LULProtocol.PffNode
 import ee.cone.c4actor.TestRequests.FooDepRequest
 import ee.cone.c4actor.dep.CtxType.{ContextId, DepCtx}
-import ee.cone.c4actor.dep.{CommonRequestUtility, _}
+import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4gate.SessionAttr
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
