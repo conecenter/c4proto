@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.B.8",
+  version := "0.B.D",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -83,6 +83,21 @@ lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`)
 
+lazy val `c4actor-extra` = project.settings(publishSettings)
+  .settings(description := s"$descr / dep impls")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-base`,`c4proto-types`)
+
+lazy val `c4gate-extra` = project.settings(publishSettings)
+  .settings(description := s"$descr / dep gate impls")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`, `c4proto-types`)
+
+lazy val `c4actor-extra-examples` = project.settings(publishSettings)
+  .settings(description := s"$descr / dep test")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`)
+
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.2.1")
@@ -91,7 +106,9 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   //.settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
-  .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
+  .settings(metaMacroSettings,javaOptions in Universal ++= Seq(
+    "-J-XX:+UseG1GC","-J-XX:MaxGCPauseMillis=200","-J-XX:+ExitOnOutOfMemoryError"
+  ))
   .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
@@ -120,16 +137,12 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging)
 
 
 lazy val `c4vdom-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
-
-lazy val `c4vdom-canvas` = project.settings(publishSettings)
-  .settings(description := s"$descr")
-  .dependsOn(`c4vdom-base`)
 
 //lazy val `c4ui-canvas` = project.settings(publishSettings)
 //  .settings(description := s"$descr")
@@ -169,6 +182,9 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4proto-macros`,
   `c4proto-types`,
   `c4vdom-base`,
-  `c4vdom-canvas`,
+  //`c4ui-canvas`,
+  `c4actor-extra`,
+  `c4gate-extra`,
+  `c4actor-extra-examples`,
   `c4ui-main`
 )

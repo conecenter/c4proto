@@ -76,9 +76,9 @@ class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends Mut
     endElement()
     this
   }
-  def append(value: BigDecimal, decimalFormat: DecimalFormat) = {
+  def append(value: Double, decimalFormat: DecimalFormat) = {
     startElement()
-    result.append(decimalFormat.format(value.bigDecimal))
+    result.append(decimalFormat.format(value))
     endElement()
     this
   }

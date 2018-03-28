@@ -16,11 +16,12 @@ object Single {
 }
 
 object ToPrimaryKey {
-  def apply(node: Product): String = node.productElement(0) match {
-    case s: String ⇒ s
-    case p: Product ⇒ ToPrimaryKey(p)
-    case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
-  }
+  def apply(node: Product): String =
+    if(node.productArity > 0) node.productElement(0) match {
+      case s: String ⇒ s
+      case p: Product ⇒ ToPrimaryKey(p)
+      case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
+    } else ""
 }
 
 class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey[A]) extends DataDependencyTo[A]
@@ -41,4 +42,18 @@ trait ByPriority {
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
+trait IndexUpdater {
+  def diffOf[K,V](worldKey: AssembledKey[Index[K,V]]): WorldTransition⇒Map[K,Boolean]
+  def setPart[K,V](worldKey: AssembledKey[Index[K,V]])(
+    nextDiff: Map[K,Boolean], nextIndex: Index[K,V]
+  ): WorldTransition⇒WorldTransition
+}
 
+trait AssembleSeqOptimizer {
+  type Expr = WorldPartExpression with DataDependencyFrom[_] with DataDependencyTo[_]
+  def optimize: List[Expr]⇒List[WorldPartExpression]
+}
+
+trait BackStageFactory {
+  def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression]
+}

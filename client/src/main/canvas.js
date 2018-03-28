@@ -41,7 +41,18 @@ export function CanvasFactory(util, modList){
     })
 }
 
-export function ExchangeCanvasSetup(canvas,scrollNode,rootElement,createElement,activeElement){
+export function ExchangeCanvasSetup(canvas,feedback,getViewPortRect,rootElement,createElement,activeElement){
+    function sendToServer(req){
+        return feedback.send({
+            url: "/connection",
+            options: {
+                headers: {
+                    ...req,
+                    "X-r-branch": canvas.branchKey()
+                }
+            }
+        })
+    }
     function onZoom(){} //todo to close popup?
     function appendChild(element){
         rootElement().appendChild(element)
@@ -57,7 +68,7 @@ export function ExchangeCanvasSetup(canvas,scrollNode,rootElement,createElement,
 		}
     }
 
-    return {onZoom,scrollNode,createElement,appendChild}
+    return {sendToServer,onZoom,getViewPortRect,createElement,appendChild}
 }
 /*
 function ElementSystem(){
@@ -73,10 +84,14 @@ export function ResizeCanvasSystem(util,createElement){
 
 //state.changedSizes && index >= parseInt(state.changedSizes.sent["X-r-index"]) ? {...state, changedSizes: null} : state
 export function ResizeCanvasSetup(canvas,system,getComputedStyle){
+    let sent
+    let acknowledgedIndex
     function woPx(value){ return value.substring(0,value.length-2) }
     function processFrame(frame,prev){
         const div = canvas.parentNode()
-        const canvasWidth = parseInt(woPx(getComputedStyle(div).width))
+        const cs = getComputedStyle(div)
+        const canvasWidth = parseInt(woPx(cs.width))
+        const canvasHeight = parseInt(woPx(cs.height))
         if(!canvasWidth) return;
         const fontMeter = system.fontMeter()
         if(!fontMeter.parentElement){
@@ -84,11 +99,22 @@ export function ResizeCanvasSetup(canvas,system,getComputedStyle){
             canvas.appendChild(fontMeter)
         }
         const canvasFontSize = parseInt(woPx(getComputedStyle(fontMeter).height))
-        const sizes = canvasFontSize+","+canvasWidth
-        if(canvas.fromServer().value !== sizes)
-            canvas.fromServer().onChange({ target: { value: sizes } })
+        const sizes = canvasFontSize+","+canvasWidth+","+canvasHeight
+        const fixedAcknowledgedIndex = isFinite(acknowledgedIndex) ? acknowledgedIndex : -1
+        const wasSizes = sent && fixedAcknowledgedIndex < sent.index ? sent.sizes : canvas.fromServer().sizes
+        if(wasSizes === sizes) return;
+        const sentH = canvas.sendToServer({
+            "X-r-action": "canvasResize",
+            "X-r-canvas-sizes": sizes
+        })
+        const index = parseInt(sentH["X-r-index"])
+        sent = {sizes,index}
     }
-    return ({processFrame})
+    const ackChange = data => state => {
+        acknowledgedIndex = parseInt(data)
+        return state
+    }
+    return ({processFrame,ackChange})
 }
 
 export function BaseCanvasSetup(log, util, canvas, system){
@@ -99,15 +125,13 @@ export function BaseCanvasSetup(log, util, canvas, system){
         const res = Object.values(currentState.parentNodes||{}).filter(v=>v)
         return res.length === 1 ? res[0] : null
     }
-
-    function sendToServer(req,evColor){ return currentState.sendToServer({ headers: req },evColor)}
-
+    function branchKey(){ return currentState.branchKey }
     function fromServer(){ return currentState.parsed }
     function checkActivate(state){
         if(currentState.parsed !== state.parsed) updateFromServerVersion()
         currentState = state
 
-        if(!canvas.scrollNode()) return state
+        if(!canvas.getViewPortRect()) return state
         //const canvasElement = canvas.visibleElement()
         const parentElement = canvas.parentNode()
         if(!parentElement){
@@ -144,7 +168,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
     }
     function viewPositions(infinite){
         const parentPos = canvas.elementPos(canvas.parentNode())
-        const scrollPos = canvas.elementPos(canvas.scrollNode())
+        const scrollPos = rectToPos(canvas.getViewPortRect())
         const vExternalPos = canvas.calcPos(dir=>Math.max(parentPos.pos[dir],scrollPos.pos[dir])|0)
         const canvasElement = canvas.visibleElement()
         const canvasPos = canvas.elementPos(canvasElement)
@@ -161,8 +185,8 @@ export function BaseCanvasSetup(log, util, canvas, system){
     function visibleElement(){ return canvas.composingElement("preparingCtx") }
     ////
     function calcPos(calc){ return { x:calc("x"), y:calc("y") } }
-    function elementPos(element){
-        const p = element.getBoundingClientRect()
+    function elementPos(element){ return rectToPos(element.getBoundingClientRect()) }
+    function rectToPos(p){
         return {pos:{x:p.left,y:p.top}, size:{x:p.width,y:p.height}, end:{x:p.right,y:p.bottom}}
     }
     function createCanvas(){ return canvas.createElement('canvas') }
@@ -183,7 +207,6 @@ export function BaseCanvasSetup(log, util, canvas, system){
     function setupContext(utx){ return {
         set(k,v){ utx.ctx[k] = v },
         definePath(name,commands){ utx[name] = () => utx.run(commands) },
-        setMainContext(commands){ utx.ctx = utx.mainContext },
         inContext(name,commands){
             if(name !== utx.mainContextName) return;
             utx.ctx = utx.mainContext
@@ -243,7 +266,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
 
         const canvasElement = canvas.composingElement(ctxName)
         //if(!samePos(p=>p.viewExternalSize)) log({viewExternalSize,ctxName})
-        if(!samePos(p=>p.viewExternalSize)) fixCanvasSize(canvasElement,viewExternalSize)
+        if(!samePos(p=>p.viewExternalSize)) fixCanvasSize(canvasElement,viewExternalSize) //todo: check size
         if(!viewExternalSize.x || !viewExternalSize.y) return;
         const ctx = canvas.getContext(canvasElement)
         canvas.cleanContext(ctx)
@@ -269,7 +292,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
         setupFrame,processFrame,viewPositions,composeFrameStart,
         checkActivate, remove,
         zoomToScale, compareFrames, elementPos, updateFromServerVersion,
-        parentNode, sendToServer
+        parentNode, branchKey
     }
 }
 
@@ -418,7 +441,7 @@ export function InteractiveCanvasSetup(canvas){
             "X-r-canvas-rel-x": rPos.x+"",
             "X-r-canvas-rel-y": rPos.y+"",
             "X-r-action": "clickColor"
-        },color)
+        })
     }
     function setupFrame(){
         return {color: getImageData(canvas.getMousePos())}

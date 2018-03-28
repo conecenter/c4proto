@@ -282,7 +282,10 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		for(let i =0;i<ddNode.children.length;i+=1) {
 			if(ddNode.children[i].tagName!="DIV") continue
 			const child = ddNode.children[i]			
-			if(!child.dataset.srcKey) child.dataset.srcKey = child.firstElementChild?child.firstElementChild.dataset.srcKey:i            
+			if(!child.dataset.srcKey) {
+				const srcKeyNode = child.querySelector("[data-src-Key]")
+				child.dataset.srcKey = srcKeyNode?srcKeyNode.dataset.srcKey:i//child.firstElementChild?child.firstElementChild.dataset.srcKey:i            
+			}
 		}
 		addEventListener("mousemove",onMouseMoveDD)
 		addEventListener("touchmove",onMouseMoveDD)

@@ -5,11 +5,6 @@ function ctxToPath(ctx){
     return !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")
 }
 
-export function ctxToBranchPath(ctx){
-    const rCtx = rootCtx(ctx)
-    return [rCtx, rCtx.branchKey + ":" + ctxToPath(ctx)]
-}
-
 export function VDomSender(feedback){ // todo: may be we need a queue to be sure server will receive messages in right order
     const send = (ctx, target) => feedback.send({
         url: "/connection",
@@ -48,7 +43,8 @@ function ctxToArray(ctx,res){
 
 export function VDomSeeds(log,DiffPrepare){
     const seed = ctx => parentNode => {
-        const [rCtx,fromKey] = ctxToBranchPath(ctx)
+        const rCtx = rootCtx(ctx)
+        const fromKey = rCtx.branchKey + ":" + ctxToPath(ctx)
         const branchKey = ctx.value[1]
         rCtx.modify(branchKey, state=>({
             ...state,
@@ -78,7 +74,6 @@ export function VDomSeeds(log,DiffPrepare){
     }
 
     const checkActivate = ctx => state => {
-        if(state.isRootBranch) return state;
         const containerElement = singleParentNode(state)
         const contentElement = state.rootNativeElement
         const wasBox = state.rootBox
