@@ -8,7 +8,8 @@ import ee.cone.c4actor.{QAdapterRegistry, RichDataApp, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp with DepOuterDamToDepInnerRequestApp{
+trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp with DepOuterDamToDepInnerRequestApp {
+
   override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry) :: super.assembles
 }
 

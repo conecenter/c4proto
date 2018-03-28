@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LULProtocol.{PffNode, TestNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.ByClassNameRequestHandlerApp
+import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.{AlienProtocol, SessionAttrApp}
@@ -70,7 +70,6 @@ class DepTestStart(
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(ByPK(classOf[RootResponse]).of(nGlobal).values)
     /*println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test ⇒ test.resolvable.value → test.request.srcId))
     val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
     println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
@@ -115,11 +114,13 @@ class DepTestApp extends RichDataApp
   //with ByPKRequestHandlerApp
   with DepAssembleApp
   with ByClassNameRequestHandlerApp
-  with RootDepApp
-  with DepDraft
   with MortalFactoryApp
   with SessionAttrApp
-  with ModelAccessFactoryApp {
+  with ByPKRequestHandlerApp
+  with ModelAccessFactoryApp
+with CommonRequestUtilityMix {
+
+  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory)
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 
@@ -127,13 +128,11 @@ class DepTestApp extends RichDataApp
 
   override def byPKClasses: List[Class[_ <: Product]] = classOf[PffNode] :: super.byPKClasses
 
-  override def handlers: List[RequestHandler[_]] = FooRequestHandler :: super.handlers
+  override def handlers: List[RequestHandler[_]] = depDraft.FooRequestHandler :: super.handlers
 
   override def protocols: List[Protocol] = AlienProtocol :: LULProtocol :: TestRequests :: super.protocols
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
-
-  override def rootDep: Dep[_] = testView
 
   override def assembles: List[Assemble] = {
     println(super.assembles.mkString("\n"));

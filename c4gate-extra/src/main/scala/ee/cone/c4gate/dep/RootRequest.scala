@@ -1,15 +1,16 @@
-package ee.cone.c4actor.dep
+package ee.cone.c4gate.dep
 
 import java.nio.ByteBuffer
 import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.CtxType.ContextId
-import ee.cone.c4actor.dep.RootRequestProtocol.RootRequest
-import ee.cone.c4actor.{QAdapterRegistry, _}
+import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, QAdapterRegistry, WithPK}
+import ee.cone.c4actor.dep._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4gate.dep.RootRequestProtocol.RootRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
@@ -35,7 +36,7 @@ case class RootResponse(srcId: String, response: Option[_], sessionKey: String)
 
 @assemble class RootRequestCreator(val qAdapterRegistry: QAdapterRegistry) extends Assemble with DepAssembleUtilityImpl {
 
-  def SparkRootRequest (
+  def SparkRootRequest(
     key: SrcId,
     alienTasks: Values[FromAlienState]
   ): Values[(SrcId, DepOuterRequest)] =
@@ -46,7 +47,7 @@ case class RootResponse(srcId: String, response: Option[_], sessionKey: String)
       WithPK(generateDepOuterRequest(rootRequest, alienTask.sessionKey))
     }
 
-  def RootResponseGrabber (
+  def RootResponseGrabber(
     key: SrcId,
     responses: Values[DepOuterResponse]
   ): Values[(SrcId, RootResponse)] =

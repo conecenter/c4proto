@@ -1,6 +1,6 @@
 package ee.cone.c4actor.dep.request
 
-import ee.cone.c4actor.{NameMetaAttr, ProdLens}
+import ee.cone.c4actor.NameMetaAttr
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest}
 
 trait HashSearchDepRequestFactory[Model] {
@@ -45,5 +45,5 @@ case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], byToStr
     DepCondition(modelCl.getName, "leaf", None, None, lensName.value, Option(By(byInst.getClass.getName, byToStrReg.getStr(byInst))))
 
   def request: DepCondition => HashSearchDepRequest =
-    cond ⇒ HashSearchDepRequest(modelCl.getName, cond)
+    cond ⇒ HashSearchDepRequest(modelCl.getName, Option(cond))
 }

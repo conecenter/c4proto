@@ -6,14 +6,14 @@ import java.nio.ByteBuffer
 import ee.cone.c4actor.LULProtocol.PffNode
 import ee.cone.c4actor.TestRequests.FooDepRequest
 import ee.cone.c4actor.dep.CtxType.{ContextId, DepCtx}
-import ee.cone.c4actor.dep._
+import ee.cone.c4actor.dep.{CommonRequestUtility, _}
 import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4gate.SessionAttr
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
-trait DepDraft extends CommonRequestUtilityMix {
+case class DepDraft(factory : CommonRequestUtilityFactory) {
 
   def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep(a.asInstanceOf[InnerDep[A]], b.asInstanceOf[InnerDep[B]])
@@ -40,11 +40,7 @@ trait DepDraft extends CommonRequestUtilityMix {
     }
   }
 
-  def testSession: Dep[Option[Access[PffNode]]] = for{
-    accessOpt ← askSessionAttr(SessionAttr[PffNode](classOf[PffNode].getName, 0x0f1a, "", NameMetaAttr(0x0f1a.toString) :: Nil))
-  } yield {
-    accessOpt
-  }
+  import factory._
 
   def testList: Dep[Int] = for {
     list ← askByClassName(classOf[PffNode], -1, -1)
@@ -86,101 +82,10 @@ trait DepDraft extends CommonRequestUtilityMix {
     val r5 = r4 + (FooDepRequest("D") → Some(10))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r5))
   }
-
-  def serialise(value: Any): Array[Byte] = {
-    val stream: ByteArrayOutputStream = new ByteArrayOutputStream()
-    val oos = new ObjectOutputStream(stream)
-    oos.writeObject(value)
-    oos.close()
-    stream.toByteArray
-  }
-
-  def toBytes(value: Long) =
-    ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
 }
 
 @protocol object TestRequests extends Protocol {
   @Id(0x3031) case class FooDepRequest(@Id(0x3036) v: String)
 }
-
-
-/*
-requests:
-  External DBs
-  ByPK/Key
-  HashSearch
-  Filters
-  Pivots
-class DepTestAssemble {
-  def responses
-  (
-    @was @by[Select] requests: Values[Request],
-    foos: Values[Foo]
-  ): Values[(Requester,Response)]
-  def view
-  (
-    rootRequest: Values[RootRequest],
-    @by[Requester] responses: Values[Response]
-  ): Values[Resolvable]
-  def prepResolve
-  (
-    resolvable: Values[Resolvable]
-  ): Values[(Select,Request)]
-}
-RequestHandler[Req,Resp] {
-  def handle: Req => Dep[Resp]
-}
-FooRequestHandler(BarRequestHandler){
-  def handle: BarRequestHandler =>  FooDep[asdsad]
-}
-FooFactoryApp {
-  def barFactory
-  lazy val fooFactory = FooFactory(barFactory)
-}
-FooFactory(barFactory) {
-  def getFoo(a): Dep[Foo] = for {
-    bar <- barFactory.getBar(6)
-  } yield f(foo,bar)
-}
-FooFactoryApp {
-  def barFactory
-  lazy val fooFactory = FooFactory()
-  override def depHandlers = FooHandler(barFactory) :: super.depHandlers
-}
-case class FooReq(a)
-FooFactory(requestDep) {
-  def getFoo(a): Dep[Foo] = requestDep(FooReq(a))
-}
-FooHandler(barFactory) {
-  def matcher = classOf[FooReq]
-  def handle: FooReq => Dep[Foo] = for {
-    bar <- barFactory.getBar(6)
-  } yield f(foo,bar)
-}
-BarHandlerApp {
-  def requestMotherFactory
-  handlerDeps
-  private lazy val aaa = requestMotherFactory.create(classOf[FooReq])
-  override def requestFactoryList = aaa :: super...
-  lazy val barHandler = BarHandler(aaa)
-  override def requestHandlers = createHandler(barHandler, classOf[BarReq]) :: super...
-}
-BarHandler(
-  askFoo: RequestFactory[FooReq]
-) extends Handler[BarReq] {
-  def handle = req => for {
-    foo <- askFoo(FooReq(1,2))
-  }
-}
-FooHandler(barFactory) {
-  def matcher = classOf[FooReq]
-  def handle: FooReq => Dep[Foo] = for {
-    bar <- barFactory.getBar(6)
-  } yield f(foo,bar)
-}
-*/
-// FooDep.resolve(_) = Resolvable(Some(FooBar),Nil)
-//lazy val a: Int=>Int = identity
-
 
 

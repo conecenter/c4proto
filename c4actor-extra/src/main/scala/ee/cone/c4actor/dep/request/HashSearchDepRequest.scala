@@ -98,7 +98,7 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
 
   def handle: HashSearchDepRequest => Condition[_] = request ⇒
     parseCondition(
-      request.condition, condFactory.ofWithCl(
+      request.condition.get, condFactory.ofWithCl(
         leafs.getModelCl(request.modelName)
       )
     )
@@ -119,7 +119,8 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
   private def caster[Model, By <: Product, Field](m: Class[Model], b: Class[By], f: Class[Field]): LeafInfoHolder[_, _, _] ⇒ LeafInfoHolder[Model, By, Field] = //TODO Ilya try creating generic version
     _.asInstanceOf[LeafInfoHolder[Model, By, Field]]
 
-  private def makeLeaf[Model, By <: Product, Field](modelCl: Class[Model], byClass: Class[By], fieldCl: Class[Field]): (LeafInfoHolder[_, _, _], HashSearchDepRequestProtocol.By) ⇒ ProdConditionImpl[By, Model, Field] = (leafInfo, by) ⇒ {
+  private def makeLeaf[Model, By <: Product, Field](modelCl: Class[Model], byClass: Class[By], fieldCl: Class[Field]):
+  (LeafInfoHolder[_, _, _], HashSearchDepRequestProtocol.By) ⇒ ProdConditionImpl[By, Model, Field] = (leafInfo, by) ⇒ {
     def filterMetaList: ProdLens[Model, Field] ⇒ List[MetaAttr] =
       _.metaList.collect { case l: NameMetaAttr ⇒ l }
 
@@ -136,7 +137,7 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
 
   @Id(0x0f37) case class HashSearchDepRequest(
     @Id(0x0f3e) modelName: String,
-    @Id(0x0f38) condition: DepCondition //TODO remove
+    @Id(0x0f38) condition: Option[DepCondition]
   )
 
   @Id(0x0f44) case class DepCondition(
