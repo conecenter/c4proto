@@ -23,7 +23,7 @@ class K2Tree(points: List[Date2D], maxDepth: Int) {
         case 0 | 1 ⇒ throw new Exception("This shouldn't happen")
         case 2 | 3 ⇒ makeRegion(currPoints) :: Nil
         case _ ⇒
-          val (left, right) = splitByMedian(points, currDepth)
+          val (left, right) = splitByMedian(currPoints, currDepth)
           val incDepth = currDepth + 1
           getRegions(left, incDepth) ::: getRegions(right, incDepth)
       }
@@ -33,7 +33,7 @@ class K2Tree(points: List[Date2D], maxDepth: Int) {
   def splitByMedian(ds: List[Date2D], i: Int): (List[Date2D], List[Date2D]) = {
     val sortBy: Date2D ⇒ Long = if (i % 2 == 0) _.x else _.y
     val sortBy2: Date2D ⇒ Long = if (i % 2 == 1) _.x else _.y
-    val sortedPoints = points.sortBy(sortBy).sortBy(sortBy2)
+    val sortedPoints = ds.sortBy(sortBy).sortBy(sortBy2)
     val medianIndex = ds.size / 2
     (sortedPoints.take(medianIndex), sortedPoints.drop(medianIndex))
   }
