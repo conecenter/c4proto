@@ -16,10 +16,16 @@ trait DepAssembleUtility {
 
   def generatePK(rq: DepRequest): SrcId
 
-  def stringToKey(value: String): SrcId
+
 }
 
-trait DepAssembleUtilityImpl extends DepAssembleUtility {
+trait DepGenericUtility {
+  def stringToKey(value: String): SrcId
+
+  def toBytes(value: Long): Array[Byte]
+}
+
+trait DepAssembleUtilityImpl extends DepGenericUtilityImpl with DepAssembleUtility {
 
   def generateDepOuterRequest(rq: DepRequest, parentId: SrcId): DepOuterRequest = {
     val inner = generateDepInnerRequest(rq)
@@ -47,8 +53,10 @@ trait DepAssembleUtilityImpl extends DepAssembleUtility {
     val parentBytes = parent.getBytes(UTF_8)
     UUID.nameUUIDFromBytes(innerSrcId.getBytes(UTF_8) ++ parentBytes).toString
   }
+}
 
-  private def toBytes(value: Long) =
+trait DepGenericUtilityImpl extends DepGenericUtility {
+  def toBytes(value: Long): Array[Byte] =
     ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
 
   def stringToKey(value: String): SrcId =

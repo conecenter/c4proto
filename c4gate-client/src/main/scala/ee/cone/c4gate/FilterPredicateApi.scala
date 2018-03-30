@@ -6,8 +6,6 @@ trait FilterPredicateBuilder {
   def create[Model<:Product]: Context ⇒ FilterPredicate[Model]
 }
 
-trait FilterPredicate[Model<:Product] {
+trait FilterPredicate[Model<:Product] extends FilterPredicateApi[Model] {
   def add[By<:Product,Field](filterKey: SessionAttr[By], lens: ProdLens[Model,Field])(implicit c: ConditionCheck[By,Field]): FilterPredicate[Model]
-  def accesses: List[Access[_]]
-  def condition: Condition[Model]
 }

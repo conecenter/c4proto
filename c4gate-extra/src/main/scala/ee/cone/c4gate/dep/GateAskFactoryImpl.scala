@@ -5,9 +5,10 @@ import java.util.UUID
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.CtxType.ContextId
-import ee.cone.c4actor.dep.{CommonRequestUtilityFactory, Dep}
+import ee.cone.c4actor.dep.{CommonRequestUtilityFactory, Dep, RequestDep}
 import ee.cone.c4gate.SessionAttr
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
+import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4proto.{HasId, ToByteString}
 import okio.ByteString
 
@@ -59,4 +60,16 @@ case class SessionAttrAskFactoryImpl(
       modelAccessFactory.to(value).map(_.to(lens))
     }
   }
+}
+
+case class CurrentTimeAskFactoryImpl(
+  commonRequestFactory: CommonRequestUtilityFactory
+) extends CurrentTimeAskFactoryApi {
+  def askCurrentTime(eachNSeconds: Long): Dep[Long] =
+    for {
+      contextId ← commonRequestFactory.askContextId
+      time ← new RequestDep[Long](CurrentTimeRequest(contextId, eachNSeconds))
+    } yield {
+      time
+    }
 }

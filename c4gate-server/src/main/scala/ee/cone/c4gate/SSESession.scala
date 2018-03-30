@@ -65,9 +65,10 @@ class PongHandler(
       headers("X-r-connection"),
       userName
     )
+    val refreshPeriodLong: Long = sseConfig.stateRefreshPeriodSeconds.toLong
     val pong = FromAlienPong(
       sessionKey,
-      now.getEpochSecond / sseConfig.stateRefreshPeriodSeconds * sseConfig.stateRefreshPeriodSeconds
+      now.getEpochSecond / refreshPeriodLong * refreshPeriodLong
     )
     pongs(session.sessionKey) = now
     val wasSession = ByPK(classOf[FromAlienState]).of(local).get(session.sessionKey)

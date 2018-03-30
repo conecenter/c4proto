@@ -1,4 +1,4 @@
-package ee.cone.c4actor.dep.request
+package ee.cone.c4actor.dep.hashsearch
 
 import ee.cone.c4actor.NameMetaAttr
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest}
