@@ -4,6 +4,7 @@ import java.awt.{BasicStroke, Color, Font}
 import java.awt.geom.{Ellipse2D, Line2D, Rectangle2D}
 import java.awt.image.BufferedImage
 
+import ee.cone.c4actor.rangers.RangeTreeProtocol.TreeNode
 import ee.cone.c4actor.rangers.{Date2D, K2Tree}
 
 import scala.util.Random
@@ -11,11 +12,18 @@ import scala.util.Random
 object K2TreeTest {
   def main(args: Array[String]): Unit = {
     val points = (for {
-      i ← 0 to 10
-      j ← 0 to 10
-    } yield Date2D(Random.nextInt(100), Random.nextInt(100))).toList
-    val tree = new K2Tree(points, 2)
-    val size = (1000, 1000)
+      i ← 0 to 1000000
+    } yield {
+      val x = Random.nextInt(1000) + 10
+      val y = Random.nextInt(1000) + 10
+      if (y <= x)
+        Date2D(x, y) :: Nil
+      else
+        Nil
+    }).toList.flatten
+    val tree = new K2Tree(points, 3, 10, 1000)
+    val size = (1150, 1150)
+    val scale = 1.0
 
     // create an image
     val canvas = new BufferedImage(size._1, size._2, BufferedImage.TYPE_INT_RGB)
@@ -24,6 +32,7 @@ object K2TreeTest {
     val g = canvas.createGraphics()
 
     // clear background
+
     g.setColor(Color.WHITE)
     g.fillRect(0, 0, canvas.getWidth, canvas.getHeight)
 
@@ -46,17 +55,25 @@ object K2TreeTest {
     // draw a filled and an unfilled Rectangle
 
     //g.fill(new Rectangle2D.Double(20.0, 400.0, 50.0, 20.0))
+    g.scale(1.0, -1.0)
+    g.translate(0.0, -size._2 + 10)
     points.foreach(point ⇒ {
       g.setColor(Color.RED)
-      g.fill(new Ellipse2D.Double(point.x*10-5.0, point.y*10-5.0, 10.0, 10.0))
+      g.fill(new Ellipse2D.Double(point.x * scale - scale / 2, point.y * scale - scale / 2, scale, scale))
     }
     )
 
     g.setColor(Color.BLACK)
-    tree.regions.foreach(region ⇒ {
-      g.draw(new Rectangle2D.Double(region.from.x*10, region.from.y*10, (-region.from.x + region.to.x)*10, (-region.from.y + region.to.y)*10))
+    def recDraw(treeNode: TreeNode): Unit = {
+      if (treeNode.left.isEmpty && treeNode.right.isEmpty) {
+        val region = treeNode.range.get
+        g.draw(new Rectangle2D.Double(region.minX * scale, region.minY * scale, (-region.minX + region.maxX) * scale, (-region.minY + region.maxY) * scale))
+      } else {
+        recDraw(treeNode.left.get)
+        recDraw(treeNode.right.get)
+      }
     }
-    )
+    recDraw(tree.rootNode)
 
 
     /*// draw a line
