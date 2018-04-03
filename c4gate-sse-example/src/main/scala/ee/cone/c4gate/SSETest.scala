@@ -9,6 +9,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4gate.AlienProtocol.FromAlienStatus
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
 
@@ -45,6 +46,9 @@ case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHand
     val (keepTo,freshTo) = task.sending(local)
     val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
     logger.info(s"TestSSEHandler $keepTo $freshTo")
+    ByPK(classOf[FromAlienStatus]).of(local).values.foreach{ status ⇒
+      logger.info(s"${status.isOnline} ... ${status.expirationSecond - now.getEpochSecond}")
+    }
     SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
   }
   def seeds: Context ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil

@@ -51,9 +51,10 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x003D) consumer: String,
     @Id(0x003E) condition: String
   )
-  @Id(0x003F) case class FromAlienPong(
+  @Id(0x003F) case class FromAlienStatus(
     @Id(0x0032) sessionKey: String,
-    @Id(0x0038) lastSecond: Long
+    @Id(0x0038) expirationSecond: Long,
+    @Id(0x005C) isOnline: Boolean
   )
 }
 
