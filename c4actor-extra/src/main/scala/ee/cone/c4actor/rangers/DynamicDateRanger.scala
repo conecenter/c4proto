@@ -5,7 +5,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-case class K2TreeUpdate[Model <: Product](srcId: SrcId, params:K2TreeParams, modelCl: Class[Model])(getDates: Model ⇒ (Long, Long)) extends TxTransform {
+case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: K2TreeParams, modelCl: Class[Model])(getDates: Model ⇒ (Long, Long)) extends TxTransform {
   def transform(local: Context): Context = {
     val tree = ByPK(classOf[TreeNodeOuter]).of(local).get(srcId)
     val now = System.currentTimeMillis()
@@ -73,6 +73,7 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
 
   @Id(0x0f8e) case class K2TreeParams(
     @Id(0x0f9b) srcId: String,
+    @Id(0x0f8c) modelName: String,
     @Id(0x0f8d) updateInterval: Long,
     @Id(0x0f9c) maxDepth: Int,
     @Id(0x0f9d) minInHeap: Int,
