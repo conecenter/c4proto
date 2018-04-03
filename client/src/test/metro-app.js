@@ -26,10 +26,12 @@ import OverlayManager from "../extra/overlay-manager"
 import RequestState from "../extra/request-state"
 import WinWifi from "../extra/win-wifi-status"
 
+import SwitchHost from "../extra/switchhost-module"
 import UpdateManager from "../extra/update-manager"
+import VirtualKeyboard from "../extra/virtual-keyboard"
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
-
+const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
@@ -47,7 +49,7 @@ const windowManager = (()=>{
 	const getPageYOffset = ()=> window.pageYOffset
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location}
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
@@ -88,7 +90,7 @@ const miscReact = (()=>{
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image});
+const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image, audioContext});
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
@@ -104,14 +106,25 @@ const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerm
 const updateManager = UpdateManager(log,window,metroUi)
 const activeElement=()=>document.activeElement; //todo: remove
 
+
+const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact})
+
 //canvas
 const util = Canvas.CanvasUtil()
 const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
+const getViewPortRect = () => {
+    const footer = document.body.querySelector(".mainFooter")
+    const bRect = document.body.getBoundingClientRect()
+    return !footer ? bRect : {
+      top: bRect.top, left: bRect.left, right: bRect.right,
+      bottom: footer.getBoundingClientRect().top
+    }
+}
 const exchangeMix = options => canvas => [
     Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,getRootElement,getRootElement,createElement,activeElement)
+    Canvas.ExchangeCanvasSetup(canvas,getViewPortRect,getRootElement,createElement,activeElement)
 ]
 const canvasBaseMix = CanvasBaseMix(log,util)
 
@@ -122,19 +135,21 @@ const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctx
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
 //transforms
-const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms,canvas.transforms])
+const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms,canvas.transforms,virtualKeyboard.transforms])
 
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
 
 const branches = Branches(log,vDom.branchHandlers)
-
+const switchHost = SwitchHost(log,window)
 const receiversList = [
     branches.receivers,
     feedback.receivers,
 	metroUi.receivers,
     customUi.receivers,
 	cryptoElements.receivers,
-	focusModule.receivers/*,
+	focusModule.receivers,
+	switchHost.receivers
+	/*,
 	requestState.receivers*/
 ]
 const composeUrl = () => {
@@ -151,5 +166,6 @@ activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), [
     metroUi.checkActivate,
     focusModule.checkActivate,
     dragDropModule.checkActivate,
-	updateManager.checkActivate
+	updateManager.checkActivate,
+	virtualKeyboard.checkActivate
 ])

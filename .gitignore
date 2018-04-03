@@ -26,3 +26,5 @@ node_modules
 db-*
 db4*
 db.*
+htdocs
+logback.xml

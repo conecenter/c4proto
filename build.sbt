@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.B.8",
+  version := "0.B.F",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -91,7 +91,9 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   //.settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
-  .settings(metaMacroSettings,javaOptions in Universal ++= Seq("-J-Xmx640m","-J-Xms64m"))
+  .settings(metaMacroSettings,javaOptions in Universal ++= Seq(
+    "-J-XX:+UseG1GC","-J-XX:MaxGCPauseMillis=200","-J-XX:+ExitOnOutOfMemoryError"
+  ))
   .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
@@ -114,13 +116,13 @@ lazy val `c4actor-rdb` = project.settings(publishSettings)
 
 lazy val `c4gate-publish` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .dependsOn(`c4actor-kafka`, `c4gate-proto`)
+  .dependsOn(`c4actor-kafka`, `c4gate-proto`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`)
   .enablePlugins(JavaServerAppPackaging)
 
 

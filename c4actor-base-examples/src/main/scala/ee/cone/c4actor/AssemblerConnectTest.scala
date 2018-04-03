@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ConnProtocol.Node
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by, was}
+import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object ConnProtocol extends Protocol {
@@ -18,25 +18,17 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
       key: SrcId,
       nodes: Values[Node]
   ): Values[(ParentId,Node)] = for {
-      node ← nodes if node.parentId.nonEmpty
+      node ← nodes
   } yield node.parentId → node
-
-  def init(
-    key: SrcId,
-    nodes: Values[Node]
-  ): Values[(SrcId,List[Node])] = for {
-    node ← nodes if node.parentId.isEmpty
-  } yield WithPK(node::Nil)
 
   def connect(
       key: SrcId,
       @was paths: Values[List[Node]],
       @by[ParentId] childNodes: Values[Node]
   ): Values[(SrcId,List[Node])] = for {
-      path ← paths
+      path ← if(key.nonEmpty) paths else List(Nil)
       node ← childNodes
   } yield WithPK(node::path)
-
 
   /*
   By[ParentId,Node] := for(node ← Is[Node] if node.parentId.nonEmpty) yield node.parentId → node
@@ -90,4 +82,7 @@ class ConnTestApp extends RichDataApp
   override def protocols: List[Protocol] = ConnProtocol :: super.protocols
   override def assembles: List[Assemble] = new ConnAssemble :: super.assembles
   override def toStart: List[Executable] = new ConnStart(execution,toUpdate,contextFactory) :: super.toStart
+  override def assembleSeqOptimizer: AssembleSeqOptimizer = new ShortAssembleSeqOptimizer(backStageFactory,indexUpdater)
 }
+
+//C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain'
