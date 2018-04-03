@@ -9,7 +9,7 @@ case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: K2TreeParams, mo
   def transform(local: Context): Context = {
     val tree = ByPK(classOf[TreeNodeOuter]).of(local).get(srcId)
     val now = System.currentTimeMillis()
-    val doUpdate = tree.isEmpty && (now - tree.get.lastUpdateMillis >= params.updateInterval)
+    val doUpdate = tree.isEmpty || (now - tree.get.lastUpdateMillis >= params.updateInterval)
     if (doUpdate) {
       val dates = ByPK(modelCl).of(local).values.toList.map(model ⇒ {
         val (from, to) = getDates(model)
