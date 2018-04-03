@@ -42,8 +42,11 @@ class IndexFactoryImpl(
       new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))
     val subNestedDiff: PatchMap[RK,MultiSet[R],R] =
       new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
+    val allClass = classOf[All].getName
+    val isAllKey: AssembledKey[_]⇒Boolean = { case k: JoinKey[_,_] ⇒ k.keyClassName == allClass }
+    val allKey = Option(All).asInstanceOf[Option[TK]]
     new JoinMapIndex[T,TK,RK,R](
-      join, addNestedPatch, addNestedDiff, subNestedDiff, profiler.get(join.name), updater
+      join, addNestedPatch, addNestedDiff, subNestedDiff, profiler.get(join.name), updater, isAllKey, allKey
     )
   }
 }
@@ -54,11 +57,14 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
   profiler: String ⇒ Int ⇒ Unit,
-  updater: IndexUpdater
+  updater: IndexUpdater,
+  isAllKey: AssembledKey[_]⇒Boolean,
+  allKeyOpt: Option[JoinKey]
 ) extends WorldPartExpression
   with DataDependencyFrom[Index[JoinKey, T]]
   with DataDependencyTo[Index[MapKey, Value]]
 {
+  def allKey = allKeyOpt.get
   def assembleName = join.assembleName
   def name = join.name
   def inputWorldKeys: Seq[AssembledKey[Index[JoinKey, T]]] = join.inputWorldKeys
@@ -70,10 +76,17 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
     add: PatchMap[MapKey,MultiSet[Value],Value],
     ids: Set[JoinKey], res: Map[MapKey,MultiSet[Value]]
   ): Map[MapKey,MultiSet[Value]] = {
-    val worldParts: Seq[Index[JoinKey,T]] =
-      inputWorldKeys.map(getIndex)
+    val worldParts: Seq[JoinKey=>Values[T]] = inputWorldKeys.map{ wKey ⇒
+      val index = getIndex(wKey)
+      if(isAllKey(wKey)) {
+        val values = index.getOrElse(allKey, Nil) //.asInstanceOf[Index[All,T]]
+        (_:JoinKey) ⇒ values
+      } else {
+        (id:JoinKey) ⇒ index.getOrElse(id, Nil)
+      }
+    }
     (res /: ids){(res: Map[MapKey,MultiSet[Value]], id: JoinKey)⇒
-      val args = worldParts.map(_.getOrElse(id, Nil))
+      val args = worldParts.map(_(id))
       add.many(res, join.joins(id, args))
     }
   }
@@ -83,7 +96,14 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
     val ids = (Set.empty[JoinKey] /: inputWorldKeys)((res,key) ⇒
       res ++ transition.diff.getOrElse(key, Map.empty).keys.asInstanceOf[Set[JoinKey]]
     )
-    if (ids.isEmpty) transition else transform(transition,ids)
+    if (ids.isEmpty) transition
+    else if(ids.contains(allKey)) {
+      val allIds = (ids /: inputWorldKeys)((res,key) ⇒
+        res ++ transition.result.getOrElse(key, Map.empty).asInstanceOf[Index[JoinKey,_]].keys.asInstanceOf[Set[JoinKey]]
+      )
+      transform(transition,allIds-allKey)
+    }
+    else transform(transition,ids)
   }
   private def transform(transition: WorldTransition, ids: Set[JoinKey]): WorldTransition = {
     val end = profiler("calculate")
