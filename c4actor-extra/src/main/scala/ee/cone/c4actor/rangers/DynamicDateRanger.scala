@@ -16,77 +16,70 @@ trait K2TreeApp extends AssemblesApp with ProtocolsApp {
 }
 
 object K2TreeUtils {
-  def findRegion(root: TreeNode, date: (Option[Long], Option[Long])): TreeNode = {
+  def findRegion(root: TreeNode, date: (Option[Long], Option[Long])): TreeNode =
     if (root.right.isEmpty && root.left.isEmpty)
       root
-    else {
+    else
       convert(date) match {
         case (x, y) if in(x, y, root.left.get.range.get) ⇒ findRegion(root.left.get, date)
         case (x, y) if in(x, y, root.right.get.range.get) ⇒ findRegion(root.right.get, date)
         case _ ⇒ throw new Exception("DynDateRanger: 26 Dot is not in any region")
       }
-    }
-  }
 
-  def getRegions(root: TreeNode, search: TreeRange): List[TreeNode] = {
+
+  def getRegions(root: TreeNode, search: TreeRange): List[TreeNode] =
     root match {
       case TreeNode(Some(_), None, None) ⇒ root :: Nil
       case TreeNode(_, Some(left), Some(right)) ⇒
         val answerLeft = if (fullyIn(search, left.range.get))
           getAllRegions(left)
-        else if (intersects(search, left.range.get))
+        else if (intersectCorrect(search, left.range.get))
           getRegions(left, search)
         else Nil
         val answerRight = if (fullyIn(search, right.range.get))
           getAllRegions(right)
-        else if (intersects(search, right.range.get))
+        else if (intersectCorrect(search, right.range.get))
           getRegions(right, search)
         else Nil
         answerLeft ::: answerRight
     }
-  }
 
-  def fullyIn(search: TreeRange, b: TreeRange): Boolean = {
+
+  def fullyIn(search: TreeRange, b: TreeRange): Boolean =
     (search.minX <= b.minX) &&
       (search.minY <= b.minY) &&
       (search.maxX >= b.maxX) &&
       (search.maxY >= b.maxY)
-  }
 
-  def intersects(search: TreeRange, b: TreeRange): Boolean = {
-    val atLeastOneInX = inDotRange(search.minX, (b.minX, b.maxX)) || inDotRange(search.maxX, (b.minX, b.maxX))
-    val overX = search.minX <= b.minX && search.maxX >= b.maxX
-    val atLeastOneInY = inDotRange(search.minY, (b.minY, b.maxY)) || inDotRange(search.maxY, (b.minY, b.maxY))
-    val overY = search.minY <= b.minY && search.maxY >= b.maxY
-    val interX = atLeastOneInX && (overY || atLeastOneInY)
-    val interY = atLeastOneInY && (overX || atLeastOneInX)
-    interX || interY
-  }
+
+  def intersectCorrect(search: TreeRange, b: TreeRange): Boolean =
+    (search.minX <= b.maxX) &&
+      (search.minY <= b.maxY) &&
+      (search.maxX >= b.minX) &&
+      (search.maxY >= b.minY)
 
   def inDotRange(x: Long, segment: (Long, Long)): Boolean =
     segment._1 <= x && x <= segment._2
 
-  def getAllRegions(root: TreeNode): List[TreeNode] = {
+  def getAllRegions(root: TreeNode): List[TreeNode] =
     root match {
       case TreeNode(Some(_), None, None) ⇒ root :: Nil
       case TreeNode(_, Some(left), Some(right)) ⇒ getAllRegions(left) ::: getAllRegions(right)
       case _ ⇒ throw new Exception("Node w/o left / right DynDateRanger:39")
     }
-  }
 
   lazy val maxValue = 3155760000000L
   lazy val minValue = 0L
 
   private def in(x: Long, y: Long, range: TreeRange): Boolean = (range.minX <= x && x < range.maxX) && (range.minY <= y && y < range.maxY)
 
-  private def convert(dateOpt: (Option[Long], Option[Long])): (Long, Long) = {
+  private def convert(dateOpt: (Option[Long], Option[Long])): (Long, Long) =
     (dateOpt._1, dateOpt._2) match {
       case (None, None) ⇒ (maxValue, maxValue)
       case (Some(from), None) => (from, maxValue)
       case (None, Some(to)) ⇒ (minValue, to)
       case (Some(from), Some(to)) ⇒ (from, to)
     }
-  }
 }
 
 @assemble class K2SparkJoiner[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long)) extends Assemble {
