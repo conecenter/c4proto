@@ -48,15 +48,15 @@ object K2TreeUtils {
   def fullyIn(search: TreeRange, b: TreeRange): Boolean =
     (search.minX <= b.minX) &&
       (search.minY <= b.minY) &&
-      (search.maxX >= b.maxX) &&
-      (search.maxY >= b.maxY)
+      (search.maxX > b.maxX) &&
+      (search.maxY > b.maxY)
 
 
   def intersectCorrect(search: TreeRange, b: TreeRange): Boolean =
-    (search.minX <= b.maxX) &&
-      (search.minY <= b.maxY) &&
-      (search.maxX >= b.minX) &&
-      (search.maxY >= b.minY)
+    (search.minX < b.maxX) &&
+      (search.minY < b.maxY) &&
+      (search.maxX > b.minX) &&
+      (search.maxY > b.minY)
 
   def inDotRange(x: Long, segment: (Long, Long)): Boolean =
     segment._1 <= x && x <= segment._2
@@ -71,6 +71,7 @@ object K2TreeUtils {
   lazy val maxValue = 3155760000000L
   lazy val minValue = 0L
 
+  def inReg(pair: (Option[Long],Option[Long]), range:TreeRange): Boolean = in(convert(pair)._1, convert(pair)._2, range)
   private def in(x: Long, y: Long, range: TreeRange): Boolean = (range.minX <= x && x < range.maxX) && (range.minY <= y && y < range.maxY)
 
   private def convert(dateOpt: (Option[Long], Option[Long])): (Long, Long) =
