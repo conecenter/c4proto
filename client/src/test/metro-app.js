@@ -75,17 +75,20 @@ const eventManager = (()=>{
 })()
 
 const miscReact = (()=>{
-	const isReactRoot = function(el){
+	const isReactRoot = (el) => {
 		if(el.dataset["reactroot"]=="") return true
 		return false
 	}
-	const getReactRoot = function(el){
+	const getReactRoot = (el) => {
 		if(!el) return documentManager.body().querySelector("[data-reactroot]")		
 		if(isReactRoot(el) || !el.parentNode) return el
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
 	}	
-	return {isReactRoot,getReactRoot}
+	const count = function(){
+		return documentManager.body().querySelectorAll("[data-reactroot]").length
+	}
+	return {isReactRoot,getReactRoot, count}
 })()
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
@@ -102,7 +105,7 @@ const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHe
 window.ScannerProxy = scannerProxy
 const winWifi = WinWifi(log,window.require,window.process,setInterval)
 window.winWifi = winWifi
-const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi});
+const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi, miscReact});
 const updateManager = UpdateManager(log,window,metroUi)
 const activeElement=()=>document.activeElement; //todo: remove
 

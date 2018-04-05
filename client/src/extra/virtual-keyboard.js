@@ -179,6 +179,11 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				top = vkContainer.rect.bottom - pHeight
 				left = vkContainer.rect.right - pWidth
 			}
+			if(this.root && this.root.style.position == "absolute"){
+				const w = this.root.getBoundingClientRect()
+				top-= w.top
+				left -= w.left				
+			}
 			top+=getPageYOffset()					
 			return {top,left}
 		},

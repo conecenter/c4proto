@@ -476,6 +476,38 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		...style
 	}},children);
 	const DocElement = React.createClass({
+		sentData:function(){
+			const values = this.el.getBoundingClientRect()
+			const remH = this.remRef.getBoundingClientRect().height
+			const w = getWindowRect()
+			const ww = w.width
+			const wh = w.height
+			const b = documentManager.body().clientWidth
+			const ss = w - b
+			const width = ww
+			const height = wh
+			if(width!=this.width||height!=this.height){
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:`${width},${height},${remH}`}})
+				this.width = width
+				this.height = height
+			}
+		},
+		onResize:function(){
+			if(!this.el || !this.remRef) return		
+			if(this.wait) this.wait = clearTimeout(this.wait)
+			const count = miscReact.count()
+			if(count != 1) return
+			this.wait = setTimeout(()=>{
+				if(this.unmounted) return
+				this.sentData()
+				this.wait = null
+			},500)
+		},
+		componentWillUnmount:function(){
+			this.unmounted = true
+			if(this.wait) clearTimeout(this.wait)
+			if(this.l) removeEventListener("resize",this.onResize)	
+		},
 		componentDidMount:function(){
 			const node = documentManager.body().querySelector("#dev-content");
 			const nodeOld = documentManager.body().querySelector("#content");
@@ -486,9 +518,19 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(nodeOld)
 			while (nodeOld.hasChildNodes())
 				nodeOld.removeChild(nodeOld.lastChild);
+			const count = miscReact.count()
+			if(count != 1) return
+			if(this.props.onChange && this.el && this.remRef) {
+				this.sentData()
+				this.l = true
+				addEventListener("resize",this.onResize)
+			}
 		},
 		render:function(){			
-			return $("div",{style:this.props.style},this.props.children)			
+			return $("div",{},[
+				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref, onResize:this.onResize},this.props.children),				
+				$("div",{key:"2",style:{height:"1em"},ref:ref=>this.remRef=ref})				
+			])		
 		}
 	})
 	const GrContainer= ({style,children})=>$("div",{style:{
