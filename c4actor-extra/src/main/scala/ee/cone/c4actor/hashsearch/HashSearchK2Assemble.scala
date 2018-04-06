@@ -111,7 +111,7 @@ case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
     heapId: SrcId,
     @by[K2HeapId] responses: Values[Model],
     @by[SharedHeapId] requests: Values[Request[Model]]
-  ): Values[(ResponseId, Model)] =
+  ): Values[(SharedResponseId, Model)] =
     for {
       request ← requests
       line ← responses

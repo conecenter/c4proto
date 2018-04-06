@@ -16,7 +16,7 @@ case class CountEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: Li
 trait HashSearchAssembleSharedKeys {
   // Shared keys
   type SharedHeapId = SrcId
-  type ResponseId = SrcId
+  type SharedResponseId = SrcId
 }
 
 @assemble class HashSearchAssemble[Model <: Product](
@@ -180,7 +180,7 @@ trait HashSearchAssembleSharedKeys {
   def ResponseByRequest(
     requestId: SrcId,
     requests: Values[Request[Model]],
-    @by[ResponseId] responses: Values[Model]
+    @by[SharedResponseId] responses: Values[Model]
   ): Values[(SrcId, Response[Model])] =
     for {
       request ← requests

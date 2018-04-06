@@ -60,6 +60,9 @@ object HashSearchImpl2 {
   def heapIds[Model <: Product](indexers: Indexer[Model], cond: Condition[Model]): List[SrcId] =
     heapIds(expression(indexers)(cond), GatherAll)
 
+
+  def cEstimate[Model <: Product](cond: ConditionInner[Model], priorities: Values[StaticCount[Model]]): CountEstimate[Model] =
+    CountEstimate(ToPrimaryKey(cond), priorities.map(_.count).sum,priorities.map(_.heapId).toList)
   def heapIds[Model <: Product](indexers: Indexer[Model], cond: Condition[Model], priorities: Values[Priority[Model]]): List[SrcId] =
     heapIds(expression(indexers)(cond), Optimal(priorities.groupBy(_.heapId).transform((k, v) ⇒ Single(v).priority)))
 
@@ -153,7 +156,7 @@ object HashSearchImpl2 {
 
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
 
-  def single[RespLine <: Product]: Values[Request[RespLine]] ⇒ Values[Request[RespLine]] =
+  def single[Something]: Values[Something] ⇒ Values[Something] =
     l ⇒ Single.option(l.distinct).toList
 }
 
@@ -164,7 +167,7 @@ import HashSearchImpl2._
   indexers: Indexer[Model]
 ) extends Assemble with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
-  type LeafCondId =
+  type LeafCondId = SrcId
 
   def respLineByHeap(
     respLineId: SrcId,
@@ -186,7 +189,20 @@ import HashSearchImpl2._
     heapId: SrcId,
     @by[StaticHeapId] respLines: Values[Model],
     @by[StaticHeapId] needs: Values[Need[Model]]
-  ): Values[(ResponseId,StaticCount[Model])] = for {
+  ): Values[(LeafCondId,StaticCount[Model])] = for {
     need ← needs
   } yield ToPrimaryKey(need) → count(heapId,respLines)
+
+  def neededRespHeapPriority(
+    requestId: SrcId,
+    requests: Values[ConditionInner[Model]],
+    @by[LeafCondId] priorities: Values[StaticCount[Model]]
+  ): Values[(SrcId,CountEstimate[Model])] = for {
+    request ← single(requests)
+  } yield {
+    val count = cEstimate(request, priorities)
+    request.srcId → count
+  }
+
+  //TODO handle final request
 }
