@@ -67,6 +67,7 @@ const eventManager = (()=>{
 		switch(type){
 			case "keydown": return (new KeyboardEvent(type,params))
 			case "click": return (new MouseEvent(type,params))
+			case "mousedown": return (new MouseEvent(type,params))
 			default: return (new CustomEvent(type,params))
 		}
 	}

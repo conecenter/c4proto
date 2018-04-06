@@ -323,11 +323,12 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			return {unreg}
 		}
 		const getRootHeight = (rootSpan) => {
-			const root = rootSpan.parentElement
+			/*const root = rootSpan.parentElement
 			if(!root) return null
 			const fR = roots.find(r=>r.root == rootSpan)
 			if(!fR) return null
-			return fR.height
+			return fR.height*/
+			return windowManager.getWindowRect().height
 		}
 		const getMaxHeight = (rootSpan) => {
 			const root = rootSpan.parentElement

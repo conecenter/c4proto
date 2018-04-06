@@ -529,7 +529,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		render:function(){			
 			return $("div",{},[
 				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref, onResize:this.onResize},this.props.children),				
-				$("div",{key:"2",style:{height:"1em"},ref:ref=>this.remRef=ref})				
+				$("div",{key:"2",style:{height:"1em", position:"absolute",zIndex:"-1", top:"0px"},ref:ref=>this.remRef=ref})				
 			])		
 		}
 	})

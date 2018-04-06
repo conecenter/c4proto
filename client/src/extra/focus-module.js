@@ -223,7 +223,9 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		if(!detail) return		
 		const marker = `marker-${detail}`
 		const btn = root.querySelector(`button.${marker}`)
-		if(btn) btn.click()
+		if(btn) {
+			btn.dispatchEvent(eventManager.create("mousedown",{bubbles:true}))
+		}
 	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
