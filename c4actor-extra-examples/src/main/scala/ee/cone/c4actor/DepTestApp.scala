@@ -5,6 +5,7 @@ import ee.cone.c4actor.LULProtocol.{PffNode, TestNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp}
+import ee.cone.c4actor.rangers.K2TreeApp
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -115,7 +116,8 @@ class DepTestApp extends RichDataApp
   with MortalFactoryApp
   with ByPKRequestHandlerApp
   with ModelAccessFactoryApp
-with CommonRequestUtilityMix {
+  with CommonRequestUtilityMix
+  with K2TreeApp {
 
   def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory)
 

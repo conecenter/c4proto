@@ -3,7 +3,98 @@ package ee.cone.c4actor.rangers
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
+import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
+
+trait K2TreeApp extends AssemblesApp with ProtocolsApp {
+  def k2ModelRegistry: List[(Class[_ <: Product], _ <: Product ⇒ (Long, Long))] = Nil
+
+  override def assembles: List[Assemble] = k2ModelRegistry.map(pair ⇒ new K2SparkJoiner(pair._1, pair._2)) ::: super.assembles
+
+  override def protocols: List[Protocol] = RangeTreeProtocol :: super.protocols
+}
+
+object K2TreeUtils {
+  def findRegion(root: TreeNode, date: (Option[Long], Option[Long])): TreeNode =
+    if (root.right.isEmpty && root.left.isEmpty)
+      root
+    else
+      convert(date) match {
+        case (x, y) if in(x, y, root.left.get.range.get) ⇒ findRegion(root.left.get, date)
+        case (x, y) if in(x, y, root.right.get.range.get) ⇒ findRegion(root.right.get, date)
+        case _ ⇒ throw new Exception("DynDateRanger: 26 Dot is not in any region")
+      }
+
+
+  def getRegions(root: TreeNode, search: TreeRange): List[TreeNode] =
+    root match {
+      case TreeNode(Some(_), None, None) ⇒ root :: Nil
+      case TreeNode(_, Some(left), Some(right)) ⇒
+        val answerLeft = if (fullyIn(search, left.range.get))
+          getAllRegions(left)
+        else if (intersectCorrect(search, left.range.get))
+          getRegions(left, search)
+        else Nil
+        val answerRight = if (fullyIn(search, right.range.get))
+          getAllRegions(right)
+        else if (intersectCorrect(search, right.range.get))
+          getRegions(right, search)
+        else Nil
+        answerLeft ::: answerRight
+    }
+
+
+  def fullyIn(search: TreeRange, b: TreeRange): Boolean =
+    (search.minX <= b.minX) &&
+      (search.minY <= b.minY) &&
+      (search.maxX > b.maxX) &&
+      (search.maxY > b.maxY)
+
+
+  def intersectCorrect(search: TreeRange, b: TreeRange): Boolean =
+    (search.minX < b.maxX) &&
+      (search.minY < b.maxY) &&
+      (search.maxX > b.minX) &&
+      (search.maxY > b.minY)
+
+  def inDotRange(x: Long, segment: (Long, Long)): Boolean =
+    segment._1 <= x && x <= segment._2
+
+  def getAllRegions(root: TreeNode): List[TreeNode] =
+    root match {
+      case TreeNode(Some(_), None, None) ⇒ root :: Nil
+      case TreeNode(_, Some(left), Some(right)) ⇒ getAllRegions(left) ::: getAllRegions(right)
+      case _ ⇒ throw new Exception("Node w/o left / right DynDateRanger:39")
+    }
+
+  lazy val maxValue = 3155760000000L
+  lazy val minValue = 0L
+
+  def inReg(pair: (Option[Long],Option[Long]), range:TreeRange): Boolean = in(convert(pair)._1, convert(pair)._2, range)
+  private def in(x: Long, y: Long, range: TreeRange): Boolean = (range.minX <= x && x < range.maxX) && (range.minY <= y && y < range.maxY)
+
+  private def convert(dateOpt: (Option[Long], Option[Long])): (Long, Long) =
+    (dateOpt._1, dateOpt._2) match {
+      case (None, None) ⇒ (maxValue, maxValue)
+      case (Some(from), None) => (from, maxValue)
+      case (None, Some(to)) ⇒ (minValue, to)
+      case (Some(from), Some(to)) ⇒ (from, to)
+    }
+}
+
+@assemble class K2SparkJoiner[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long)) extends Assemble {
+  def SparkK2Tree(
+    paramId: SrcId,
+    params: Values[K2TreeParams]
+  ): Values[(SrcId, TxTransform)] =
+    for {
+      param ← params
+      if param.modelName == modelCl.getName
+    } yield {
+      WithPK(K2TreeUpdate[Model](param.srcId, param, modelCl)(modelToDate))
+    }
+}
 
 case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: K2TreeParams, modelCl: Class[Model])(getDates: Model ⇒ (Long, Long)) extends TxTransform {
   def transform(local: Context): Context = {

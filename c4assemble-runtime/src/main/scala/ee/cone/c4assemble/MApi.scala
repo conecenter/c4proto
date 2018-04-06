@@ -77,3 +77,6 @@ class was extends StaticAnnotation
 trait ExpressionsDumper[To] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
 }
+
+sealed abstract class All
+case object All extends All
