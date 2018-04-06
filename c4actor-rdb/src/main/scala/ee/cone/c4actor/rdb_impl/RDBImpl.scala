@@ -112,13 +112,13 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
       val(fromSrcId,fromText) = recode(from)
       val(toSrcId,toText) = recode(to)
       val srcId = Single(List(fromSrcId,toSrcId).filter(_.nonEmpty).distinct)
-      val delay = 0L/*conn.outLongOption("upd")
+      val delay = conn.outLongOption("upd")
         .in(Thread.currentThread.getName)
         .in(typeHex)
         .in(srcId)
         .in(fromText)
         .in(toText)
-        .call().getOrElse(0L)*/
+        .call().getOrElse(0L)
 
       logger.debug(s"from [$fromText] to [$toText] delay $delay")
       logger.warn(s"delay $delay")
