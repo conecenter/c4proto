@@ -157,7 +157,7 @@ object HashSearchImpl {
     requestId: SrcId,
     requests: Values[Request[RespLine]],
     @by[ResponseId] priorities: Values[Priority[RespLine]]
-  ): Values[(HeapId,Request[RespLine])] = for { //Todo make this able to choose my stuff
+  ): Values[(HeapId,Request[RespLine])] = for {
     request ← single(requests)
     heapId ← heapIds(indexers, request, priorities)
   } yield heapId → request

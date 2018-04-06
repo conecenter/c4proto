@@ -5,7 +5,7 @@ import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4assemble.Types.Values
 
 trait RequestHandler[A] {
-  def canHandle: Class[A]
+  def canHandle: Class[A] //TODO read about it, use .getName() in Maps where possible
 
   def handle: A => (Dep[_], ContextId)
 }

@@ -16,7 +16,7 @@ trait DepOuterDamToDepInnerRequestApp extends AssemblesApp {
   def DepOuterDamToDepInnerRequest
   (
     outerRqId: SrcId,
-    @by[OuterRqByInnerSrcId] outers: Values[DepOuterRequest]
+    @by[OuterRqByInnerSrcId] outers: Values[DepOuterRequest] //TODO move it to main DepAssemble
   ): Values[(SrcId, DepInnerRequest)] = {
     val inner: DepInnerRequest = Single(outers.map(_.innerRequest).distinct)
     WithPK(inner) :: Nil

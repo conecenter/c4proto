@@ -1,4 +1,4 @@
-package ee.cone.c4actor.dep.hashsearch
+package ee.cone.c4actor.hashsearch
 
 import ee.cone.c4actor._
 import ee.cone.c4actor.HashSearch.{Request, Response}
@@ -13,19 +13,21 @@ case class ConditionInner[Model <: Product](srcId: SrcId, condition: Serializabl
 
 case class CountEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: List[SrcId])
 
+trait HashSearchAssembleSharedKeys {
+  // Shared keys
+  type SharedHeapId = SrcId
+  type ResponseId = SrcId
+}
+
 @assemble class HashSearchAssemble[Model <: Product](
   modelCl: Class[Model],
   qAdapterRegistry: QAdapterRegistry
-) extends Assemble
+) extends Assemble with HashSearchAssembleSharedKeys
   with DepAssembleUtilityImpl {
   type CondCountId = SrcId
   type CondInnerChildId = SrcId
   type CondInnerId = SrcId
   type RootCondInnerId = SrcId
-
-  // Shared keys
-  type HeapId = SrcId
-  type ResponseId = SrcId
 
   // Parse condition
   def RequestToConditions(
@@ -51,6 +53,7 @@ case class CountEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: Li
       outerRoot.conditionInner.srcId → outerRoot
     }
 
+  // Outpoint for leafs
   def ConditionOuterToInner(
     condOuterId: SrcId,
     @was condOuters: Values[ConditionOuter[Model]]
@@ -113,7 +116,7 @@ case class CountEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: Li
   def ReceiveCountEstimate(
     countEstimateId: SrcId,
     countEstimates: Values[CountEstimate[Model]],
-    condInners: Values[ConditionOuter[Model]]
+    condInners: Values[ConditionInner[Model]]
   ): Values[(CondCountId, CountEstimate[Model])] =
     for {
       countEstimate ← countEstimates
@@ -124,7 +127,7 @@ case class CountEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: Li
 
   def ContEstimateToParents(
     countEstId: SrcId,
-    @by[CondCountId] countEstimates: Values[CountEstimate[Model]],
+    @was @by[CondCountId] countEstimates: Values[CountEstimate[Model]],
     condInners: Values[ConditionInner[Model]],
     @by[CondInnerChildId] parentCondInners: Values[ConditionInner[Model]]
   ): Values[(CondCountId, CountEstimate[Model])] =
@@ -165,7 +168,7 @@ case class CountEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: Li
     requestId: SrcId,
     requests: Values[Request[Model]],
     @by[RootCondInnerId] counts: Values[CountEstimate[Model]]
-  ): Values[(HeapId, Request[Model])] =
+  ): Values[(SharedHeapId, Request[Model])] =
     for {
       request ← requests
       count ← counts

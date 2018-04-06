@@ -22,15 +22,15 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp with DepO
   def ResolveRequestWithCtx
   (
     requestId: SrcId,
-    requests: Values[DepOuterRequest],
+    requests: Values[DepOuterRequest], // TODO make it inner request
     @by[OuterRespForCtx] responses: Values[DepOuterResponse]
   ): Values[(DepResolvableGate, DepResolvable)] =
     for {
       request ← requests
-      pair ← handlerRegistry.handle(request.innerRequest.request)
-    } yield {
-      val (dep, contextId) = pair
-      val ctx: DepCtx = handlerRegistry.buildContext(responses)(contextId)
+      pair ← handlerRegistry.handle(request.innerRequest.request)         // Consider making these into 1
+    } yield {                                                             //
+      val (dep, contextId) = pair                                         //
+      val ctx: DepCtx = handlerRegistry.buildContext(responses)(contextId)//
       val resolvable = dep.asInstanceOf[InnerDep[_]].resolve(ctx)
       val upRes = DepResolvable(request, resolvable)
       WithPK(upRes)

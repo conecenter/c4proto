@@ -25,6 +25,8 @@ trait DepGenericUtility {
   def toBytes(value: Long): Array[Byte]
 }
 
+//TODO API and PLUGIN API
+
 trait DepAssembleUtilityImpl extends DepGenericUtilityImpl with DepAssembleUtility {
 
   def generateDepOuterRequest(rq: DepRequest, parentId: SrcId): DepOuterRequest = {
