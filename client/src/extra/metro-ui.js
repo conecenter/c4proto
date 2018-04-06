@@ -337,7 +337,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			//const svgData = svgSrc(svg)
 			//const errors = this.props.children[1]
 			const right = this.props.children.filter(_=>_.key.includes("right"))			
-			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0"},[$("div",{style:{cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
+			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{outline:"none"}},[$("div",{style:{cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
 			return $("div",{style:style},
 				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
 					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
@@ -476,6 +476,38 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		...style
 	}},children);
 	const DocElement = React.createClass({
+		sentData:function(){
+			const values = this.el.getBoundingClientRect()
+			const remH = this.remRef.getBoundingClientRect().height
+			const w = getWindowRect()
+			const ww = w.width
+			const wh = w.height
+			const b = documentManager.body().clientWidth
+			const ss = w - b
+			const width = ww
+			const height = wh
+			if(width!=this.width||height!=this.height){
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:`${width},${height},${remH}`}})
+				this.width = width
+				this.height = height
+			}
+		},
+		onResize:function(){
+			if(!this.el || !this.remRef) return		
+			if(this.wait) this.wait = clearTimeout(this.wait)
+			const count = miscReact.count()
+			if(count != 1) return
+			this.wait = setTimeout(()=>{
+				if(this.unmounted) return
+				this.sentData()
+				this.wait = null
+			},500)
+		},
+		componentWillUnmount:function(){
+			this.unmounted = true
+			if(this.wait) clearTimeout(this.wait)
+			if(this.l) removeEventListener("resize",this.onResize)	
+		},
 		componentDidMount:function(){
 			const node = documentManager.body().querySelector("#dev-content");
 			const nodeOld = documentManager.body().querySelector("#content");
@@ -486,9 +518,19 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(nodeOld)
 			while (nodeOld.hasChildNodes())
 				nodeOld.removeChild(nodeOld.lastChild);
+			const count = miscReact.count()
+			if(count != 1) return
+			if(this.props.onChange && this.el && this.remRef) {
+				this.sentData()
+				this.l = true
+				addEventListener("resize",this.onResize)
+			}
 		},
 		render:function(){			
-			return $("div",{style:this.props.style},this.props.children)			
+			return $("div",{},[
+				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref, onResize:this.onResize},this.props.children),				
+				$("div",{key:"2",style:{height:"1em"},ref:ref=>this.remRef=ref})				
+			])		
 		}
 	})
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -1056,21 +1098,24 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					inp.value = inp.value+event.detail.key
 				}
 				else 
-					inp.value = ""
+					inp.value = ""	
 				const cEvent = eventManager.create("input",{bubbles:true})				
-				inp.dispatchEvent(cEvent)
+				inp.dispatchEvent(cEvent)				
 			})){				
-				if(this.isVkEvent(event)){					
-					const inp = this.getInput()
+				const inp = this.getInput()
+				if(this.isVkEvent(event)){	
 					const value1 = inp.value.substring(0, inp.selectionStart)
 					const value2 = inp.value.substring(inp.selectionEnd)
 					this.s = inp.selectionStart+1
 					inp.value = value1+event.detail.key+value2
 					const cEvent = eventManager.create("input",{bubbles:true})							
-					inp.dispatchEvent(cEvent)
-				}				
-			}
-			
+					inp.dispatchEvent(cEvent)					
+				} else if(!event.detail){
+					inp.value = ""
+					const cEvent = eventManager.create("input",{bubbles:true})							
+					inp.dispatchEvent(cEvent)	
+				}
+			}			
 		},
 		onBackspace:function(event){
 			//log(`Backspace`)
