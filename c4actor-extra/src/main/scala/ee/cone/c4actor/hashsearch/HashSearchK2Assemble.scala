@@ -7,7 +7,7 @@ import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.rangers.K2TreeUtils._
 import ee.cone.c4actor.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
-import ee.cone.c4actor.{Condition, QAdapterRegistry}
+import ee.cone.c4actor.{Condition, NameMetaAttr, ProdCondition, QAdapterRegistry}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
@@ -29,6 +29,12 @@ object HashSearchMockUtils {
 
   def count[Model <: Product](heapSrcId: SrcId, respLines: Values[Model]): K2Count[Model] =
     K2Count(heapSrcId, respLines.length)
+
+  def isMy[Model](cond: Condition[Model], name: NameMetaAttr): Boolean =
+    cond match {
+      case a: ProdCondition[_, Model] ⇒ a.metaList.collectFirst{case a:NameMetaAttr ⇒ a}.get == name
+      case _ ⇒ false
+    }
 }
 
 import ee.cone.c4actor.hashsearch.HashSearchMockUtils._
@@ -41,6 +47,7 @@ case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
   modelCl: Class[Model],
   getDate: Model ⇒ (Option[Long], Option[Long]),
   conditionToRegion: Condition[Model] ⇒ TreeRange,
+  filterName: NameMetaAttr,
   qAdapterRegistry: QAdapterRegistry
 ) extends Assemble with HashSearchAssembleSharedKeys{
   type K2HeapId = SrcId
@@ -81,6 +88,7 @@ case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
   ): Values[(K2HeapId, K2Need[Model])] =
     for {
       leaf ← single(leafConditions)
+      if isMy(leaf.condition, filterName)
       tree ← trees
       heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf)), qAdapterRegistry)
     } yield heapId → K2Need[Model](ToPrimaryKey(leaf), modelCl)
@@ -103,6 +111,7 @@ case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
   ): Values[(SrcId, CountEstimate[Model])] =
     for {
       request ← requests
+      if isMy(request.condition, filterName)
     } yield request.srcId → CountEstimate[Model](request.srcId, counts.map(_.count).sum, counts.toList.map(_.heapSrcId))
 
 
