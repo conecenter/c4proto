@@ -5,7 +5,7 @@ import ee.cone.c4actor.dep.{DepGenericUtilityImpl, DepInnerRequest, DepInnerResp
 import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4gate.AlienProtocol.FromAlienPong
+import ee.cone.c4gate.AlienProtocol.FromAlienStatus
 import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -34,7 +34,7 @@ trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp {
 
   def FromAlienPongAndRqToInnerResponse(
     alienId: SrcId,
-    pongs: Values[FromAlienPong],
+    pongs: Values[FromAlienStatus],
     @by[PongSrcId] requests: Values[DepInnerRequest]
   ): Values[(SrcId, DepInnerResponse)] =
     for {
@@ -43,7 +43,7 @@ trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp {
       if rq.request.isInstanceOf[CurrentTimeRequest]
     } yield {
       val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
-      val newTime = pong.lastSecond / timeRq.everyPeriod * timeRq.everyPeriod
+      val newTime = pong.expirationSecond / timeRq.everyPeriod * timeRq.everyPeriod
       WithPK(DepInnerResponse(rq, Option(newTime)))
     }
 
