@@ -62,7 +62,7 @@ object HashSearchImpl2 {
 
     def add[NBy <: Product, NField](lens: ProdLens[Model, NField], by: NBy)(
       implicit ranger: Ranger[NBy, NField]
-    ): IndexBuilder[Model] = {
+    ): StaticIndexBuilder[Model] = {
       val (valueToRanges, byToRanges) = ranger.ranges(by)
       IndexerImpl(modelConditionFactory.filterMetaList(lens), by, this)(modelClass, modelConditionFactory, lens.of, valueToRanges, byToRanges.lift)
     }

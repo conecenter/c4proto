@@ -24,7 +24,7 @@ object HashSearch {
   trait StaticIndexBuilder[Model<:Product] {
     def add[By<:Product,Field](lens: ProdLens[Model,Field], by: By)(
       implicit ranger: Ranger[By,Field]
-    ): IndexBuilder[Model]
+    ): StaticIndexBuilder[Model]
     def assemble: List[Assemble]
   }
 }

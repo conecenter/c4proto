@@ -116,7 +116,7 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
     }
   }
 
-  private def caster[Model, By <: Product, Field](m: Class[Model], b: Class[By], f: Class[Field]): LeafInfoHolder[_, _, _] ⇒ LeafInfoHolder[Model, By, Field] = //TODO Ilya try creating generic version
+  private def caster[Model, By <: Product, Field](m: Class[Model], b: Class[By], f: Class[Field]): LeafInfoHolder[_, _, _] ⇒ LeafInfoHolder[Model, By, Field] =
     _.asInstanceOf[LeafInfoHolder[Model, By, Field]]
 
   private def makeLeaf[Model, By <: Product, Field](modelCl: Class[Model], byClass: Class[By], fieldCl: Class[Field]):

@@ -47,27 +47,27 @@ case class ProdConditionImpl[By <: Product, Model, Field](
 }
 
 case class IntersectCondition[Model](
-  left: SerializableCondition[Model],
-  right: SerializableCondition[Model]
+  left: Condition[Model],
+  right: Condition[Model]
 ) extends SerializableCondition[Model] {
   def check(line: Model): Boolean = left.check(line) && right.check(line)
 
   def getPK(modelCl: Class[Model]): QAdapterRegistry => String = reg ⇒ {
-    val id1 = left.getPK(modelCl)(reg)
-    val id2 = right.getPK(modelCl)(reg)
+    val id1 = left.asInstanceOf[SerializableCondition[Model]].getPK(modelCl)(reg)
+    val id2 = right.asInstanceOf[SerializableCondition[Model]].getPK(modelCl)(reg)
     generatePKFromTwoSrcId(id1, id2, "Intersect")
   }
 }
 
 case class UnionCondition[Model](
-  left: SerializableCondition[Model],
-  right: SerializableCondition[Model]
+  left: Condition[Model],
+  right: Condition[Model]
 ) extends SerializableCondition[Model] {
   def check(line: Model): Boolean = left.check(line) || right.check(line)
 
   def getPK(modelCl: Class[Model]): QAdapterRegistry => String = reg ⇒ {
-    val id1 = left.getPK(modelCl)(reg)
-    val id2 = right.getPK(modelCl)(reg)
+    val id1 = left.asInstanceOf[SerializableCondition[Model]].getPK(modelCl)(reg)
+    val id2 = right.asInstanceOf[SerializableCondition[Model]].getPK(modelCl)(reg)
     generatePKFromTwoSrcId(id1, id2, "Union")
   }
 }

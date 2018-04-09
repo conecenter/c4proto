@@ -21,7 +21,7 @@ trait HashSearchAssembleSharedKeys {
 
 @assemble class HashSearchAssemble[Model <: Product](
   modelCl: Class[Model],
-  qAdapterRegistry: QAdapterRegistry
+  val qAdapterRegistry: QAdapterRegistry
 ) extends Assemble with HashSearchAssembleSharedKeys
   with DepAssembleUtilityImpl {
   type CondCountId = SrcId
@@ -74,7 +74,7 @@ trait HashSearchAssembleSharedKeys {
           case UnionCondition(left, right) ⇒ left :: right :: Nil
           case _ ⇒ Nil
         }
-      }
+      }.asInstanceOf[List[SerializableCondition[Model]]]
     } yield {
       val condId = lrCond.getPK(modelCl)(qAdapterRegistry)
       condId → condInner
@@ -96,11 +96,11 @@ trait HashSearchAssembleSharedKeys {
     for {
       condInner ← conditionInners
       lrCond ← {
-        condInner.condition match {
+        (condInner.condition match {
           case IntersectCondition(left, right) ⇒ left :: right :: Nil
           case UnionCondition(left, right) ⇒ left :: right :: Nil
           case _ ⇒ Nil
-        }
+        }).asInstanceOf[List[SerializableCondition[Model]]]
       }
       parentId ← condOuters.map(_.srcId)
     } yield {

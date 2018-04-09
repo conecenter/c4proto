@@ -9,7 +9,7 @@ import ee.cone.c4actor.dep.CtxType.DepRequest
 import ee.cone.c4actor.Types.SrcId
 import StandardCharsets.UTF_8
 
-trait DepAssembleUtility {
+trait DepAssembleUtilityPlugApi {
   def qAdapterRegistry: QAdapterRegistry
 
   def generateDepOuterRequest(rq: DepRequest, parentId: SrcId): DepOuterRequest
@@ -19,15 +19,13 @@ trait DepAssembleUtility {
 
 }
 
-trait DepGenericUtility {
+trait DepGenericUtilityPlugApi {
   def stringToKey(value: String): SrcId
 
   def toBytes(value: Long): Array[Byte]
 }
 
-//TODO API and PLUGIN API
-
-trait DepAssembleUtilityImpl extends DepGenericUtilityImpl with DepAssembleUtility {
+trait DepAssembleUtilityImpl extends DepGenericUtilityImpl with DepAssembleUtilityPlugApi {
 
   def generateDepOuterRequest(rq: DepRequest, parentId: SrcId): DepOuterRequest = {
     val inner = generateDepInnerRequest(rq)
@@ -57,7 +55,7 @@ trait DepAssembleUtilityImpl extends DepGenericUtilityImpl with DepAssembleUtili
   }
 }
 
-trait DepGenericUtilityImpl extends DepGenericUtility {
+trait DepGenericUtilityImpl extends DepGenericUtilityPlugApi {
   def toBytes(value: Long): Array[Byte] =
     ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
 

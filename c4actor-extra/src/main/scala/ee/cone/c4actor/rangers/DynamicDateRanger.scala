@@ -108,7 +108,7 @@ case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: K2TreeParams, mo
       }
       )
       val newTree = K2Tree(dates, params.maxDepth, params.minInHeap, params.maxMinInHeap).rootNode
-      TxAdd(LEvent.update(TreeNodeOuter(srcId, Option(newTree), now)))(local)
+      TxAdd(LEvent.update(TreeNodeOuter(srcId, params.modelName, Option(newTree), now)))(local)
     } else {
       local
     }
@@ -173,6 +173,7 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
 
   @Id(0x0f8f) case class TreeNodeOuter(
     @Id(0x0f90) srcId: String,
+    @Id(0x0f9b) modelName: String,
     @Id(0x0f91) root: Option[TreeNode],
     @Id(0x0f9f) lastUpdateMillis: Long
   )

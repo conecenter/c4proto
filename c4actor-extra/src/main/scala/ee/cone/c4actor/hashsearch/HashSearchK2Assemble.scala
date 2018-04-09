@@ -5,6 +5,7 @@ import java.util.UUID
 
 import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.hashsearch.HashSearchMockAssembleTest.K2TreeAll
 import ee.cone.c4actor.rangers.K2TreeUtils._
 import ee.cone.c4actor.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
 import ee.cone.c4actor.{Condition, NameMetaAttr, ProdCondition, QAdapterRegistry}
@@ -43,6 +44,10 @@ case class K2Need[Model <: Product](requestId: SrcId, modelCl: Class[Model])
 
 case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
 
+object HashSearchMockAssembleTest {
+  type K2TreeAll[Test] = All
+}
+
 @assemble class HashSearchMockAssemble[Model <: Product](
   modelCl: Class[Model],
   getDate: Model ⇒ (Option[Long], Option[Long]),
@@ -52,7 +57,7 @@ case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
 ) extends Assemble with HashSearchAssembleSharedKeys{
   type K2HeapId = SrcId
   type K2ToCountId = SrcId
-  type K2TreeAll[Test] = All
+
 
   def GetTreeToAll(
     treeId: SrcId,
@@ -90,7 +95,7 @@ case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
       leaf ← single(leafConditions)
       if isMy(leaf.condition, filterName)
       tree ← trees
-      heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf)), qAdapterRegistry)
+      heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry)
     } yield heapId → K2Need[Model](ToPrimaryKey(leaf), modelCl)
 
 
