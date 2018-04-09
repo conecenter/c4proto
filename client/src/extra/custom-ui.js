@@ -2,7 +2,7 @@
 import React from 'react'
 import {rootCtx} from "../main/vdom-util"
 
-export default function CustomUi({log,ui,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi}){
+export default function CustomUi({log,ui,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi,miscReact}){
 	const {setTimeout,clearTimeout} = windowManager
 
 	const ChipElement=ui.transforms.tp.ChipElement;
@@ -54,12 +54,14 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				}
 			})
 		},
-		render:function(){
-			const style={
-				fontSize:'0.8rem',
+		render:function(){				
+			const style = {
+				backgroundColor:"black",
 				...this.props.style
-			};			
-			return React.createElement("div",{className:'terminalElement',version:this.props.version,style:style},null);
+			}
+			return React.createElement("div",{className:'terminalElement',version:this.props.version,style},
+				React.createElement("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
+				)
 		},
 	});
 	const MJobCell = React.createClass({
@@ -176,7 +178,9 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			if(this.state.waiting!=on)
 				this.setState({waiting:on})
 		},
-		componentDidMount:function(){					
+		componentDidMount:function(){
+			const count = miscReact.count()
+			if(count>1) return
 			if(PingReceiver)
 				PingReceiver.regCallback(this.signal,this);
 			this.toggleOverlay(!this.state.on);			
@@ -258,10 +262,12 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				zIndex:"1000",
 				backgroundColor:"blue",
 				right:"0.24em",
-				textAlign:"left"
+				textAlign:"left",
+				color:"white"
 			},key:"2"},this.wifiData):null;
+			const on = (this.props.on === false)? false: this.state.on
 			return React.createElement("div",{style:{display:"flex"},onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
-				React.createElement(ConnectionState,{key:"1",onClick:this.props.onClick,on:this.state.on,style:style,iconStyle:iconStyle,imageSvgData}, null),
+				React.createElement(ConnectionState,{key:"1",onClick:this.props.onClick,on,style:style,iconStyle:iconStyle,imageSvgData}, null),
 				wifiDataEl,
 				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"3"},this.state.data)
 			])

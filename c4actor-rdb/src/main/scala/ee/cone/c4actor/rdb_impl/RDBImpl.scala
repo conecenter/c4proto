@@ -120,6 +120,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
         .in(toText)
         .call().getOrElse(0L)
 
+      logger.debug(s"from [$fromText] to [$toText] delay $delay")
       logger.warn(s"delay $delay")
       if(delay > 0L) RDBSleepUntilKey.modify(m ⇒
         m + (task.srcId→(now.plusMillis(delay)→to))
