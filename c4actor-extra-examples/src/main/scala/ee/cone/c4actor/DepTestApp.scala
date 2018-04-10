@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.DepTestProtocol.Spark
-import ee.cone.c4actor.LULProtocol.{PffNode, TestNode}
+import ee.cone.c4actor.TestProtocol.{ValueNode, TestNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp}
@@ -11,15 +11,15 @@ import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
-@protocol object LULProtocol extends Protocol {
+@protocol object TestProtocol extends Protocol {
 
   @Id(0x0001) case class TestNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 
-  @Id(0x0010) case class PffNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
+  @Id(0x0010) case class ValueNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
 
 }
 
-object DefaultPffNode extends DefaultModelFactory(classOf[PffNode], PffNode(_, 0))
+object DefaultPffNode extends DefaultModelFactory(classOf[ValueNode], ValueNode(_, 0))
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.DepTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 /*@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry) extends Assemble {
@@ -49,7 +49,7 @@ object DefaultPffNode extends DefaultModelFactory(classOf[PffNode], PffNode(_, 0
 }*/
 
 case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
-  override def transform(local: Context): Context = access.asInstanceOf[Access[PffNode]].updatingLens.get.set(access.asInstanceOf[Access[PffNode]].initialValue.copy(value = 666))(local)
+  override def transform(local: Context): Context = access.asInstanceOf[Access[ValueNode]].updatingLens.get.set(access.asInstanceOf[Access[ValueNode]].initialValue.copy(value = 666))(local)
 }
 
 
@@ -59,7 +59,7 @@ class DepTestStart(
   def run() = {
     import LEvent.update
 
-    val recs = update(TestNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666)) ++ update(Spark("test"))
+    val recs = update(TestNode("1", "")) ++ update(ValueNode("123", 239)) ++ update(ValueNode("124", 666)) ++ update(Spark("test"))
     /*
           update(Node("12","1")) ++ update(Node("13","1")) ++
           update(Node("124","12")) ++ update(Node("125","12"))*/
@@ -127,18 +127,18 @@ class DepTestApp extends RichDataApp
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 
-  override def byClassNameClasses: List[Class[_ <: Product]] = classOf[PffNode] :: super.byClassNameClasses
+  override def byClassNameClasses: List[Class[_ <: Product]] = classOf[ValueNode] :: super.byClassNameClasses
 
-  override def byPKClasses: List[Class[_ <: Product]] = classOf[PffNode] :: super.byPKClasses
+  override def byPKClasses: List[Class[_ <: Product]] = classOf[ValueNode] :: super.byPKClasses
 
   override def handlers: List[RequestHandler[_]] = {
     println(super.handlers.mkString("\n"))
     depDraft.FooRequestHandler :: super.handlers
   }
 
-  override def protocols: List[Protocol] = LULProtocol :: TestRequests :: super.protocols
+  override def protocols: List[Protocol] = TestProtocol :: TestRequests :: super.protocols
 
-  override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
+  override def toStart: List[Executable] = new HashSearchTesttStart(execution, toUpdate, contextFactory) :: super.toStart
 
   def testDep: Dep[_] = depDraft.serialView
 

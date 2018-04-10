@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.LULProtocol.PffNode
+import ee.cone.c4actor.TestProtocol.ValueNode
 import ee.cone.c4actor.TestRequests.FooDepRequest
 import ee.cone.c4actor.dep.CtxType.{ContextId, DepCtx}
 import ee.cone.c4actor.dep._
@@ -38,24 +38,24 @@ case class DepDraft(factory : CommonRequestUtilityFactory) {
   import factory._
 
   def testList: Dep[Int] = for {
-    list ← askByClassName(classOf[PffNode], -1, -1)
+    list ← askByClassName(classOf[ValueNode], -1, -1)
   } yield {
     println(list)
     list.foldLeft(0)((sum, node) ⇒ sum + node.value)}
 
   def testView: Dep[Int] = for {
-    a ← askByPK(classOf[PffNode], "123")
+    a ← askByPK(classOf[ValueNode], "123")
   } yield a.map(_.value).getOrElse(0)
 
   def subView(a: Int): Dep[Int] = for {
-    c ← askByPK(classOf[PffNode], "123")
+    c ← askByPK(classOf[ValueNode], "123")
     b ← askFoo("B")
   } yield a + b + c.map(_.value).getOrElse(0)
 
   def serialView: Dep[(Int, Int, Int)] = for {
     a ← askFoo("A")
     s ← subView(a)
-    b ← askByPK(classOf[PffNode], "124")
+    b ← askByPK(classOf[ValueNode], "124")
   } yield (a, s, b.map(_.value).getOrElse(0))
 
   /*
@@ -70,7 +70,7 @@ case class DepDraft(factory : CommonRequestUtilityFactory) {
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r1))
     val r2 = r1 + (FooDepRequest("A") → Some(1))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r2))
-    val r3 = r2 + (ByPKRequest(classOf[PffNode].getName, "123") → Some(Option(PffNode("123", 100))))
+    val r3 = r2 + (ByPKRequest(classOf[ValueNode].getName, "123") → Some(Option(ValueNode("123", 100))))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r3))
     val r4 = r3 + (FooDepRequest("B") → Some(2))
     println(serialView.asInstanceOf[InnerDep[_]].resolve(r4))

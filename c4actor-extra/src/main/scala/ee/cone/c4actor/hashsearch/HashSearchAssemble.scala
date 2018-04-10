@@ -7,6 +7,8 @@ import ee.cone.c4actor.dep.DepAssembleUtilityImpl
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
+import scala.collection.immutable
+
 case class ConditionOuter[Model <: Product](srcId: SrcId, conditionInner: ConditionInner[Model], parentSrcId: SrcId, requestId: SrcId)
 
 case class ConditionInner[Model <: Product](srcId: SrcId, condition: SerializableCondition[Model])
@@ -17,6 +19,14 @@ trait HashSearchAssembleSharedKeys {
   // Shared keys
   type SharedHeapId = SrcId
   type SharedResponseId = SrcId
+}
+
+trait HashSearchAssembleApp extends AssemblesApp {
+  def qAdapterRegistry: QAdapterRegistry
+
+  def hashSearchModels: List[Class[_ <: Product]] = Nil
+
+  override def assembles: List[Assemble] = hashSearchModels.map(new HashSearchAssemble(_, qAdapterRegistry)) ::: super.assembles
 }
 
 @assemble class HashSearchAssemble[Model <: Product](
@@ -44,14 +54,13 @@ trait HashSearchAssembleSharedKeys {
 
   def LinkRootOuterWithRootInner(
     outerRootId: SrcId,
-    outerRoots: Values[ConditionOuter[Model]]
+    @was outerRoots: Values[ConditionOuter[Model]]
   ): Values[(RootCondInnerId, ConditionOuter[Model])] =
     for {
       outerRoot ← outerRoots
-      if outerRoot.parentSrcId.nonEmpty && outerRoot.parentSrcId.isEmpty
-    } yield {
-      outerRoot.conditionInner.srcId → outerRoot
-    }
+      if outerRoot.parentSrcId.isEmpty && outerRoot.requestId.nonEmpty
+    } yield outerRoot.conditionInner.srcId → outerRoot
+
 
   // Outpoint for leafs
   def ConditionOuterToInner(
@@ -82,7 +91,7 @@ trait HashSearchAssembleSharedKeys {
 
   def ConditionOuterToInnerId(
     condOuterId: SrcId,
-    condOuters: Values[ConditionOuter[Model]]
+    @was condOuters: Values[ConditionOuter[Model]]
   ): Values[(CondInnerId, ConditionOuter[Model])] =
     for {
       condOuter ← condOuters
@@ -121,27 +130,29 @@ trait HashSearchAssembleSharedKeys {
     for {
       countEstimate ← countEstimates
       condInner ← condInners
-    } yield {
-      condInner.srcId → countEstimate
-    }
+    } yield condInner.srcId → countEstimate
 
   def ContEstimateToParents(
     countEstId: SrcId,
     @was @by[CondCountId] countEstimates: Values[CountEstimate[Model]],
     condInners: Values[ConditionInner[Model]],
     @by[CondInnerChildId] parentCondInners: Values[ConditionInner[Model]]
-  ): Values[(CondCountId, CountEstimate[Model])] =
+  ): Values[(CondCountId, CountEstimate[Model])] = {
     for {
       condInner ← condInners
       result ← condInner.condition match {
-        case IntersectCondition(_, _) ⇒ (countEstimates.minBy(_.count) match {
+        case _: IntersectCondition[Model] ⇒ (countEstimates.minBy(_.count) match {
           case CountEstimate(_, count, list) => (count, list)
         }) :: Nil
-        case UnionCondition(_, _) ⇒ countEstimates.foldLeft[(Int, List[SrcId])]((0, Nil))((z, model) ⇒ {
-          val (count, list) = z
-          (count + model.count, model.heapIds ::: list)
+        case _: UnionCondition[Model] ⇒ {
+          val list = countEstimates.foldLeft[(Int, List[SrcId])]((0, Nil))((z, model) ⇒ {
+            val (count, list) = z
+            (count + model.count, model.heapIds ::: list)
+          }
+          ) :: Nil
+          list
         }
-        ) :: Nil
+        case _: ProdCondition[_, Model] ⇒ countEstimates.map(ce ⇒ (ce.count, ce.heapIds))
         case _ ⇒ Nil
       }
       parent ← parentCondInners
@@ -149,20 +160,35 @@ trait HashSearchAssembleSharedKeys {
       val (count, list) = result
       parent.srcId → CountEstimate[Model](condInner.srcId, count, list)
     }
+  }
 
   def RequestToHeapsByCount(
     requestId: SrcId,
     @by[RootCondInnerId] outerRoots: Values[ConditionOuter[Model]],
     innersRoots: Values[ConditionInner[Model]],
     @by[CondCountId] condCounts: Values[CountEstimate[Model]]
-  ): Values[(RootCondInnerId, CountEstimate[Model])] =
+  ): Values[(RootCondInnerId, CountEstimate[Model])] = {
     for {
-      outerRoot ← outerRoots
-      innerRoot ← innersRoots
-      countEst ← condCounts
+      condInner ← innersRoots
+      result ← condInner.condition match {
+        case _: IntersectCondition[Model] ⇒ (condCounts.minBy(_.count) match {
+          case CountEstimate(_, count, list) => (count, list)
+        }) :: Nil
+        case _: UnionCondition[Model] ⇒
+          condCounts.foldLeft[(Int, List[SrcId])]((0, Nil))((z, model) ⇒ {
+            val (count, list) = z
+            (count + model.count, model.heapIds ::: list)
+          }
+          ) :: Nil
+        case _: ProdCondition[_, Model] ⇒ condCounts.map(ce ⇒ (ce.count, ce.heapIds))
+        case _ ⇒ Nil
+      }
+      outer ← outerRoots
     } yield {
-      outerRoot.requestId → countEst
+      val (count, list) = result
+      outer.requestId → CountEstimate[Model](condInner.srcId, count, list)
     }
+  }
 
   def RequestToHeaps(
     requestId: SrcId,

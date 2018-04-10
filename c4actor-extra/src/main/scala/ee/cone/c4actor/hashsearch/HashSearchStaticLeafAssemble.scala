@@ -149,6 +149,7 @@ import HashSearchImpl2._
     tagId ← indexer.heapIds(respLine).distinct
   } yield tagId → respLine
 
+
   def reqByHeap(
     leafCondId: SrcId,
     leafConds: Values[ConditionInner[Model]]
@@ -156,7 +157,9 @@ import HashSearchImpl2._
     leafCond ← leafConds
     if indexer.isMy(leafCond)
     heapId ← heapIds(indexer, leafCond.condition)
-  } yield heapId → StaticNeed[Model](ToPrimaryKey(leafCond))
+  } yield {
+    heapId → StaticNeed[Model](ToPrimaryKey(leafCond))
+  }
 
   def respHeapPriorityByReq(
     heapId: SrcId,
@@ -187,4 +190,6 @@ import HashSearchImpl2._
       request ← requests
       line ← responses
     } yield ToPrimaryKey(request) → line
+
+
 }
