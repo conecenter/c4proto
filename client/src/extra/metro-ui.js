@@ -2,6 +2,7 @@
 import React from 'react'
 import {pairOfInputAttributes}  from "../main/vdom-util"
 import Errors from "../extra/errors"
+import {ctxToPath} from "../main/vdom-util"
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
@@ -1574,6 +1575,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			this.binding = focusModule.reg(this)
 			this.isMounted = true
+			if(this.props.ctx)
+				this.path = ctxToPath(this.props.ctx)
 		},
 		componentWillUnmount:function(){
 			if(this.el) {				
@@ -3076,6 +3079,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const onDragDrop = ({sendVal});
 	const onReorder = ({sendVal});
 	const onReadySendBlob = ({sendBlob});
+	const ctx = ({ctx:ctx=>ctx})
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
@@ -3101,7 +3105,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onClickValue,		
 		onReadySendBlob,
 		onDragDrop,
-		onReorder
+		onReorder,
+		ctx
 	};
 	const receivers = {
 		download,
