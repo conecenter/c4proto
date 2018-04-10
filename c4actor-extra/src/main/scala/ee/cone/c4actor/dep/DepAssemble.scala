@@ -7,7 +7,7 @@ import ee.cone.c4actor.{QAdapterRegistry, RichDataApp, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
+trait DepAssembleApp extends RequestHandlerRegistryApp with RichDataApp {
 
   override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry) :: super.assembles
 }
@@ -21,7 +21,7 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp {
   def ResolveRequestWithCtx
   (
     requestId: SrcId,
-    requests: Values[DepOuterRequest], // TODO make it inner request
+    requests: Values[DepOuterRequest],
     @by[OuterRespForCtx] responses: Values[DepOuterResponse]
   ): Values[(DepResolvableGate, DepResolvable)] =
     for {

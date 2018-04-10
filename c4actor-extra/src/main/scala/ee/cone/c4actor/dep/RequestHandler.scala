@@ -17,13 +17,14 @@ trait RequestHandlerRegistry {
 
   def buildContextWoSession: Values[DepOuterResponse] ⇒ DepCtx = responses ⇒ responses.map(curr ⇒ (curr.request.innerRequest.request, curr.value)).toMap
 
-  def handleAndBuildContext(request: DepInnerRequest, responses: Values[DepOuterResponse]): Option[Resolvable[_]] =
-    handle(request) match {
+  def handleAndBuildContext(request: DepInnerRequest, responses: Values[DepOuterResponse]): Option[Resolvable[_]] = {
+    handle(request.request) match {
       case Some((dep, contextId)) ⇒
         val ctx = buildContext(responses)(contextId)
         Some(dep.asInstanceOf[InnerDep[_]].resolve(ctx))
       case None ⇒ None
     }
+  }
 }
 
 case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends RequestHandlerRegistry {
@@ -42,5 +43,7 @@ trait RqHandlerRegistryImplApp extends RequestHandlerRegistryApp {
 }
 
 trait RequestHandlerRegistryApp {
+  def handlerRegistry: RequestHandlerRegistry
+
   def handlers: List[RequestHandler[_]] = Nil
 }

@@ -1,6 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.DepTestProtocol.Spark
 import ee.cone.c4actor.LULProtocol.{PffNode, TestNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
@@ -58,7 +59,7 @@ class DepTestStart(
   def run() = {
     import LEvent.update
 
-    val recs = update(TestNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666))
+    val recs = update(TestNode("1", "")) ++ update(PffNode("123", 239)) ++ update(PffNode("124", 666)) ++ update(Spark("test"))
     /*
           update(Node("12","1")) ++ update(Node("13","1")) ++
           update(Node("124","12")) ++ update(Node("125","12"))*/
@@ -69,6 +70,7 @@ class DepTestStart(
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println(ByPK(classOf[DepTestResponse]).of(nGlobal).values.toList)
     /*println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test ⇒ test.resolvable.value → test.request.srcId))
     val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
     println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
@@ -117,7 +119,9 @@ class DepTestApp extends RichDataApp
   with ByPKRequestHandlerApp
   with ModelAccessFactoryApp
   with CommonRequestUtilityMix
-  with K2TreeApp {
+  with K2TreeApp
+  with DepTestAssemble
+  with RqHandlerRegistryImplApp {
 
   def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory)
 
@@ -127,11 +131,17 @@ class DepTestApp extends RichDataApp
 
   override def byPKClasses: List[Class[_ <: Product]] = classOf[PffNode] :: super.byPKClasses
 
-  override def handlers: List[RequestHandler[_]] = depDraft.FooRequestHandler :: super.handlers
+  override def handlers: List[RequestHandler[_]] = {
+    println(super.handlers.mkString("\n"))
+    depDraft.FooRequestHandler :: super.handlers
+  }
 
   override def protocols: List[Protocol] = LULProtocol :: TestRequests :: super.protocols
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
+
+  def testDep: Dep[_] = depDraft.serialView
+
 
   override def assembles: List[Assemble] = {
     println(super.assembles.mkString("\n"))
