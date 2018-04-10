@@ -5,3 +5,4 @@
 *.scala text eol=lf
 *.pl text eol=lf
 *.js text eol=lf
+*.sbt text eol=lf
