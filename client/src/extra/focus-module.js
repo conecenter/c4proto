@@ -144,7 +144,9 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				event.preventDefault();return;
 			case "F2":	
 			case "Enter":
-				sendEvent(()=>eventManager.create("enter",{detail}));break;					
+				sendEvent(()=>eventManager.create("enter",{detail}));break;
+			case "Erase":
+				sendEvent(()=>eventManager.create("erase"));break;
 			case "Delete":
 			    sendEvent(()=>eventManager.create("delete"));break;	
 			case "Backspace":
