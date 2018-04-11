@@ -4,6 +4,10 @@ trait Condition[Model] extends Product {
   def check(model: Model): Boolean
 }
 
+trait SerializableCondition[Model] extends Condition[Model] {
+  def getPK(modelCl: Class[Model]):QAdapterRegistry ⇒ String
+}
+
 trait ModelConditionFactory[Model] {
   def of[OtherModel<:Product]: ModelConditionFactory[OtherModel]
   def ofWithCl[OtherModel <: Product]: Class[OtherModel] ⇒ ModelConditionFactory[OtherModel]
@@ -19,7 +23,7 @@ trait ConditionCheck[By<:Product,Field] extends Product {
   def prepare: List[MetaAttr] ⇒ By ⇒ By
   def check: By ⇒ Field ⇒ Boolean
 }
-trait ProdCondition[By<:Product,Model] extends Condition[Model] {
+trait ProdCondition[By<:Product,Model] extends SerializableCondition[Model] {
   def by: By
   def metaList: List[MetaAttr]
 }

@@ -9,6 +9,10 @@ trait SessionAttrAskUtility {
   def sessionAttrAskFactory: SessionAttrAskFactoryApi
 }
 
+trait CurrentTimeAskUtility {
+  def currentTimeAskFactory: CurrentTimeAskFactoryApi
+}
+
 trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtility with ByPKRequestHandlerApp {
   def qAdapterRegistry: QAdapterRegistry
 
@@ -19,4 +23,8 @@ trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtility 
   override def byPKClasses: List[Class[_ <: Product]] = classOf[RawSessionData] :: super.byPKClasses
 
   def sessionAttrAskFactory: SessionAttrAskFactoryApi = SessionAttrAskFactoryImpl(qAdapterRegistry, defaultModelRegistry, modelAccessFactory, commonRequestUtilityFactory)
+}
+
+trait CurrentTimeAskMix extends CurrentTimeAskUtility with CommonRequestUtility {
+  def currentTimeAskFactory: CurrentTimeAskFactoryApi = CurrentTimeAskFactoryImpl(commonRequestUtilityFactory)
 }

@@ -1,16 +1,16 @@
-package ee.cone.c4gate.dep
+package ee.cone.c4gate.dep.request
 
 import java.nio.ByteBuffer
 import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.CtxType.ContextId
-import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, QAdapterRegistry, WithPK}
 import ee.cone.c4actor.dep._
+import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, QAdapterRegistry, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
-import ee.cone.c4gate.dep.RootRequestProtocol.RootRequest
+import ee.cone.c4gate.dep.request.RootRequestProtocol.RootRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 

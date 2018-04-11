@@ -16,4 +16,15 @@ object HashSearch {
     ): IndexBuilder[Model]
     def assemble: Assemble
   }
+
+  trait StaticFactory {
+    def index[Model<:Product](model: Class[Model]): StaticIndexBuilder[Model]
+    def request[Model<:Product](condition: Condition[Model]): Request[Model]
+  }
+  trait StaticIndexBuilder[Model<:Product] {
+    def add[By<:Product,Field](lens: ProdLens[Model,Field], by: By)(
+      implicit ranger: Ranger[By,Field]
+    ): StaticIndexBuilder[Model]
+    def assemble: List[Assemble]
+  }
 }
