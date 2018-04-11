@@ -119,8 +119,9 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			return {top,left}	
 		},		
 		getInput:function(){
+			if(!this.root) return null
 			const cNode = focusModule.getFocusNode()
-			if(!cNode) return null
+			if(!cNode || !this.root.contains(cNode)) return null
 			const input = cNode.querySelector("input:not([readonly])")
 			return input
 		},	
