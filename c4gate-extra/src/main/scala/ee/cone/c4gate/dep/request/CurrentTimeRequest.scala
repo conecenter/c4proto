@@ -6,18 +6,19 @@ import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.FromAlienStatus
+import ee.cone.c4gate.SSEConfig
 import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp {
+  def sseConfig: SSEConfig
 
-
-  override def assembles: List[Assemble] = new CurrentTimeAssemble :: super.assembles
+  override def assembles: List[Assemble] = new CurrentTimeAssemble(sseConfig) :: super.assembles
 
   override def protocols: List[Protocol] = CurrentTimeRequestProtocol :: super.protocols
 }
 
-@assemble class CurrentTimeAssemble extends Assemble with DepGenericUtilityImpl {
+@assemble class CurrentTimeAssemble(sseConfig: SSEConfig) extends Assemble with DepGenericUtilityImpl {
   type PongSrcId = SrcId
 
   def FromInnerRequestToAlienPongId(
@@ -43,10 +44,10 @@ trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp {
       if rq.request.isInstanceOf[CurrentTimeRequest]
     } yield {
       val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
-      val newTime = pong.expirationSecond / timeRq.everyPeriod * timeRq.everyPeriod
+      val offset = -sseConfig.stateRefreshPeriodSeconds * 2L - sseConfig.tolerateOfflineSeconds
+      val newTime = pong.expirationSecond / timeRq.everyPeriod * timeRq.everyPeriod + offset
       WithPK(DepInnerResponse(rq, Option(newTime)))
     }
-
 }
 
 @protocol object CurrentTimeRequestProtocol extends Protocol {
