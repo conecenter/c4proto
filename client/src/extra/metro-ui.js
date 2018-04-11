@@ -2,6 +2,7 @@
 import React from 'react'
 import {pairOfInputAttributes}  from "../main/vdom-util"
 import Errors from "../extra/errors"
+import {ctxToPath} from "../main/vdom-util"
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
@@ -356,7 +357,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	}
 	const MenuDropdownElement = React.createClass({
 		getInitialState:function(){
-			return {maxHeight:"",rightOffset:0};
+			return {maxHeight:"",right:null};
 		},
 		calcMaxHeight:function(){
 			if(!this.el) return;			
@@ -369,24 +370,27 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(!this.el) return
 			const menuRoot = getParentNode(this.el,"menuBar");
 			const maxRight = menuRoot.getBoundingClientRect().right
-			const elRight = this.el.getBoundingClientRect().right
-			const rightOffset = elRight>maxRight?elRight - maxRight:0
-			if(this.state.rightOffset != rightOffset) 
-				this.setState({rightOffset})
+			const elRight = this.el.getBoundingClientRect().right			
+			if(elRight>maxRight){				
+				if(this.state.right != 0) this.setState({right:0})
+			}
 		},
 		componentDidMount:function(){
+			//checkActivateCalls.add(this.calc)
 			this.calc()
 		},
 		componentDidUpdate:function(){
-			//this.calc()
+			this.calc()
+		},
+		componentWillUnmount:function(){
+			//checkActivateCalls.remove(this.calc)
 		},
 		render:function(){
 			return $("div",{
 				ref:ref=>this.el=ref,
 				style: {
 					position:'absolute',					
-					minWidth:'7em',
-					marginLeft:(-this.state.rightOffset) + "px",
+					minWidth:'7em',					
 					boxShadow:GlobalStyles.boxShadow,
 					zIndex:'6670',
 					transitionProperty:'all',
@@ -395,7 +399,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					borderWidth:GlobalStyles.borderWidth,
 					borderStyle:GlobalStyles.borderStyle,
 					borderColor:"#2196f3",					
-					maxHeight:this.state.maxHeight,					
+					maxHeight:this.state.maxHeight,
+					right:this.state.right!==null?this.state.right+"px":"",
 					...this.props.style
 				}
 			},this.props.children);			
@@ -508,6 +513,18 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(this.wait) clearTimeout(this.wait)
 			if(this.l) removeEventListener("resize",this.onResize)	
 		},
+		initListener:function(){
+			const count = miscReact.count()
+			if(count != 1) return
+			if(this.props.onChange && this.el && this.remRef) {
+				this.sentData()
+				this.l = true
+				addEventListener("resize",this.onResize)
+			}
+		},
+		componentDidUpdate:function(prevProps){
+			this.initListener()
+		},
 		componentDidMount:function(){
 			const node = documentManager.body().querySelector("#dev-content");
 			const nodeOld = documentManager.body().querySelector("#content");
@@ -517,19 +534,13 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			
 			if(nodeOld)
 			while (nodeOld.hasChildNodes())
-				nodeOld.removeChild(nodeOld.lastChild);
-			const count = miscReact.count()
-			if(count != 1) return
-			if(this.props.onChange && this.el && this.remRef) {
-				this.sentData()
-				this.l = true
-				addEventListener("resize",this.onResize)
-			}
+				nodeOld.removeChild(nodeOld.lastChild)			
+			this.initListener()
 		},
 		render:function(){			
 			return $("div",{},[
 				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref, onResize:this.onResize},this.props.children),				
-				$("div",{key:"2",style:{height:"1em"},ref:ref=>this.remRef=ref})				
+				$("div",{key:"2",style:{height:"1em", position:"absolute",zIndex:"-1", top:"0px"},ref:ref=>this.remRef=ref})				
 			])		
 		}
 	})
@@ -1102,21 +1113,23 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				const cEvent = eventManager.create("input",{bubbles:true})				
 				inp.dispatchEvent(cEvent)				
 			})){				
-				const inp = this.getInput()
 				if(this.isVkEvent(event)){	
+					const inp = this.getInput()
 					const value1 = inp.value.substring(0, inp.selectionStart)
 					const value2 = inp.value.substring(inp.selectionEnd)
 					this.s = inp.selectionStart+1
 					inp.value = value1+event.detail.key+value2
 					const cEvent = eventManager.create("input",{bubbles:true})							
 					inp.dispatchEvent(cEvent)					
-				} else if(!event.detail){
-					inp.value = ""
-					const cEvent = eventManager.create("input",{bubbles:true})							
-					inp.dispatchEvent(cEvent)	
 				}
-			}			
+			}									
 		},
+		onErase:function(event){
+			const inp = this.getInput()			
+			inp.value = ""
+			const cEvent = eventManager.create("input",{bubbles:true})							
+			inp.dispatchEvent(cEvent)				
+		},		
 		onBackspace:function(event){
 			//log(`Backspace`)
 			event.stopPropagation()
@@ -1163,6 +1176,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const inp = this.getInput()			
 			inp.addEventListener('enter',this.onEnter)
 			inp.addEventListener('delete',this.onDelete)
+			inp.addEventListener('erase',this.onErase)
 			inp.addEventListener('backspace',this.onBackspace)
 			inp.addEventListener('cpaste',this.onPaste)
 			inp.addEventListener('ccopy',this.onCopy)
@@ -1171,6 +1185,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const inp = this.getInput()			
 			inp.removeEventListener('enter',this.onEnter)
 			inp.removeEventListener('delete',this.onDelete)
+			inp.removeEventListener('erase',this.onErase)
 			inp.removeEventListener('backspace',this.onBackspace)
 			inp.removeEventListener('cpaste',this.onPaste)
 			inp.removeEventListener('ccopy',this.onCopy)
@@ -1570,6 +1585,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			}
 			this.binding = focusModule.reg(this)
 			this.isMounted = true
+			if(this.props.ctx)
+				this.path = ctxToPath(this.props.ctx)
 		},
 		componentWillUnmount:function(){
 			if(this.el) {				
@@ -1976,21 +1993,19 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			textTransform:"none"
 		}
 		const dataType = "extText"
-        return $("div",{style:{margin:"1em 0em",...prop.style}},
-			$("form",{key:"form",onSubmit:e=>e.preventDefault()},[
-				$(ControlWrapperElement,{key:"1"},
-					$(LabelElement,{label:usernameCaption},null),
-					$(InputElement,{...attributesA,style:styleA,focus:prop.focus,dataType},null)			
-				),
-				$(ControlWrapperElement,{key:"2"},
-					$(LabelElement,{label:passwordCaption},null),
-					$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password",dataType},null)			
-				),
-				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-					$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle},buttonCaption)
-				)
-			])
-		)
+        return $("div",{style:{margin:"1em 0em",...prop.style}},[
+			$(ControlWrapperElement,{key:"1"},
+				$(LabelElement,{label:usernameCaption},null),
+				$(InputElement,{...attributesA,style:styleA,focus:prop.focus,dataType},null)			
+			),
+			$(ControlWrapperElement,{key:"2"},
+				$(LabelElement,{label:passwordCaption},null),
+				$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password",dataType, mButtonEnter:"login"},null)			
+			),
+			$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
+				$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
+			)
+		])		
 	}	
 	
 	const CalenderCell = (props) => $(Interactive,{},(actions)=>{		
@@ -3074,6 +3089,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const onDragDrop = ({sendVal});
 	const onReorder = ({sendVal});
 	const onReadySendBlob = ({sendBlob});
+	const ctx = ({ctx:ctx=>ctx})
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
@@ -3099,7 +3115,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onClickValue,		
 		onReadySendBlob,
 		onDragDrop,
-		onReorder
+		onReorder,
+		ctx
 	};
 	const receivers = {
 		download,
