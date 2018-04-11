@@ -65,11 +65,5 @@ case class SessionAttrAskFactoryImpl(
 case class CurrentTimeAskFactoryImpl(
   commonRequestFactory: CommonRequestUtilityFactory
 ) extends CurrentTimeAskFactoryApi {
-  def askCurrentTime(eachNSeconds: Long): Dep[Long] =
-    for {
-      contextId ← commonRequestFactory.askContextId
-      time ← new RequestDep[Long](CurrentTimeRequest(contextId, eachNSeconds))
-    } yield {
-      time
-    }
+  def askCurrentTime(eachNSeconds: Long): Dep[Long] = new RequestDep[Long](CurrentTimeRequest(eachNSeconds))
 }
