@@ -1103,7 +1103,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			event.stopPropagation()
 			this.s = null
 			if(this.props.noDel) return
-			this.doIfNotFocused((inp)=>{				
+			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				if(this.isVkEvent(event)){					
 					inp.value = inp.value+event.detail.key
@@ -1112,7 +1112,17 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					inp.value = ""	
 				const cEvent = eventManager.create("input",{bubbles:true})				
 				inp.dispatchEvent(cEvent)				
-			})						
+			})){				
+				if(this.isVkEvent(event)){	
+					const inp = this.getInput()
+					const value1 = inp.value.substring(0, inp.selectionStart)
+					const value2 = inp.value.substring(inp.selectionEnd)
+					this.s = inp.selectionStart+1
+					inp.value = value1+event.detail.key+value2
+					const cEvent = eventManager.create("input",{bubbles:true})							
+					inp.dispatchEvent(cEvent)					
+				}
+			}									
 		},
 		onErase:function(event){
 			const inp = this.getInput()			
