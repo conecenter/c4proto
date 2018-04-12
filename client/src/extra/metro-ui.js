@@ -2884,7 +2884,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 	})
 	const FilterElement = ({active,children,style}) => {		
-		return $("div",{style},children)
+		return $("div",{style,className:"filterElement"},children)
 	}
 	const ColorCreator = React.createClass({
 		onChange:function(e){
