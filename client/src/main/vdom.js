@@ -1,13 +1,11 @@
 
 import React           from 'react'
 import ReactDOM        from 'react-dom'
-import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
-import update          from 'react/lib/update'
+import update          from 'immutability-helper'
 
 export default function VDom(log,getRootElement, createElement, activeTransforms, changes){
     function never(){ throw ["traverse error"] }
-    const Traverse = React.createClass({
-        mixins: [PureRenderMixin],
+    class Traverse extends React.PureComponent{        
         render(){
             const incoming = this.props.incoming || never()
             const local = this.props.local || {}
@@ -19,16 +17,18 @@ export default function VDom(log,getRootElement, createElement, activeTransforms
                 at.content || null
             return React.createElement(at.tp, at, content)
         }
-    })
-    const RootComponent = React.createClass({
-        mixins: [PureRenderMixin],
-        getInitialState(){ return ({}) },
+    }
+    class RootComponent extends React.PureComponent {
+		constructor(props) {
+		  super(props);
+		  this.state = {}
+		}	        
         render(){ 
             return this.state.incoming ? 
                 React.createElement(Traverse,{incoming: this.state.incoming, local: this.state.local }) : 
                 React.createElement("div",null)
         }
-    })
+    }
     function setupIncomingDiff(ctx) {
         Object.keys(ctx.value).forEach(key => {
             const value = ctx.value[key]

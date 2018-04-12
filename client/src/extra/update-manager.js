@@ -1,5 +1,6 @@
 "use strict"
 import React from 'react'
+import autoBind from 'react-autobind'
 
 export default function UpdateManager(log,window,metroUi){
 	const {process,location,require,setInterval,clearInterval}  = window
@@ -29,11 +30,13 @@ export default function UpdateManager(log,window,metroUi){
 		const check = () => callbacks.forEach(c=>c())
 		return {add,check}
 	})();
-	const UpdaterElement = React.createClass({
-		getInitialState:function(){
-			return {progress:"0%"}
-		},
-		update:function(){
+	class UpdaterElement extends React.Component{
+		constructor(props) {
+		  super(props);
+		  this.state = {progress:"0%"}
+		  autoBind(this)
+		}			
+		update(){
 			const val = getUpdateProgress()			
 			if(val!= undefined) {
 				checked = false
@@ -42,19 +45,19 @@ export default function UpdateManager(log,window,metroUi){
 					this.setState({progress:prg})				
 				}
 			}
-		},
-		componentWillMount:function(){
+		}
+		componentWillMount(){
 			if(!process) return checked = true
 			if(process && !process.execPath.includes(this.props.termApp)) return checked = true
 			if(getUpdateProgress() == undefined) return checked = true
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			this.bind = checkActivateCalls.add(this.update)			
-		},
-		componentWillUnmount:function(){
+		}
+		componentWillUnmount(){
 			if(this.bind) this.bind.remove()
-		},
-		render:function(){			
+		}
+		render(){			
 			const style = {
 				...this.props.style
 			}
@@ -68,7 +71,7 @@ export default function UpdateManager(log,window,metroUi){
 				React.createElement(ProgressBar,{key:2,progress:this.state.progress})
 			])
 		}
-	})
+	}
 	
 	const transforms = {
 		tp:{UpdaterElement}

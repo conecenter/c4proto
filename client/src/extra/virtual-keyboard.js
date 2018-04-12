@@ -1,9 +1,10 @@
 "use strict";
 import React from 'react'
+import autoBind from 'react-autobind'
 
 export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact}){
 	const $ = React.createElement
-	const $C = React.createClass
+	const $C = React.Component
 	const checkActivateCalls=(()=>{
 		const callbacks=[]
 		const add = (c) => callbacks.push(c)
@@ -30,24 +31,26 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		const update = (newStyles) => styles = {...styles,...newStyles}
 		return {...styles,update};
 	})()
-	const VKButton = React.createClass({
-		getInitialState:function(){
-			return {mouseDown:false};
-		},
-		onClick:function(ev){
+	class VKButton extends $C{
+		constructor(props) {
+		  super(props);
+		  this.state = {mouseDown:false}
+		  autoBind(this)
+		}				
+		onClick(ev){
 			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
 			if(this.props.onClick) this.props.onClick(ev)			
-		},
-		onTouchStart:function(e){
+		}
+		onTouchStart(e){
 			this.setState({mouseDown:true})
-		},
-		onMouseDown:function(e){
+		}
+		onMouseDown(e){
 			this.setState({mouseDown:true})
 			this.onClick(e)
 			e.preventDefault()
-		},
-		onMouseUp:function(){this.setState({mouseDown:false})},
-		render:function(){					
+		}
+		onMouseUp(){this.setState({mouseDown:false})}
+		render(){					
 			const bStyle={
 				height:'2.2em',
 				width:'2em',
@@ -67,9 +70,9 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const className = "vkElement"
 			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
 		}
-	});	
-	const VirtualKeyboard = React.createClass({
-		getInputVKType:function(){						
+	}
+	class VirtualKeyboard extends React.Component{
+		getInputVKType(){						
 			const layoutAlpha = "layoutAlpha"
 			const layoutNumeric = "layoutNumeric"
 			const input = this.getInput()
@@ -89,20 +92,22 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			}
 			//this.vkType = res
 			return res
-		},
-		getInitialState:function(){
-			return {left:0,top:0, alt:false,fontSize:1, show:false}
-		},
-		switchMode:function(e){
+		}
+		constructor(props) {
+		  super(props);
+		  this.state = {left:0,top:0, alt:false,fontSize:1, show:false}
+		  autoBind(this)
+		}			
+		switchMode(e){
 			this.setState({alt:!this.state.alt})			
-		},		
-		getVkContainer:function(){
+		}	
+		getVkContainer(){
 			if(!this.root) return null
 			const vkContainer = this.root.querySelector(".vk-container")
 			if(!vkContainer) return null
 			return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position,o:vkContainer,static:vkContainer.dataset.static}			
-		},
-		getPopupPos:function(thisEl,parentEl){
+		}
+		getPopupPos(thisEl,parentEl){
 			if(!thisEl||!parentEl) return null;			
 			const pRect = parentEl.parentNode.getBoundingClientRect()					
 			const popRect = thisEl.getBoundingClientRect()
@@ -117,33 +122,33 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			let left = 0			
 			top += getPageYOffset()
 			return {top,left}	
-		},		
-		getInput:function(){
+		}		
+		getInput(){
 			if(!this.root) return null
 			const cNode = focusModule.getFocusNode()
 			if(!cNode || !this.root.contains(cNode)) return null
 			const input = cNode.querySelector("input:not([readonly])")
 			return input
-		},	
-		showVk:function(){
+		}	
+		showVk(){
 			const input = this.getInput()	
 			if(input) return true
 			return false						
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			this.root = getReactRoot(this.el)
 			if(this.props.isStatic) return
 			checkActivateCalls.add(this.fitIn)			
-		},
-		componentWillUnmount:function(){
+		}
+		componentWillUnmount(){
 			if(this.props.isStatic) return
 			checkActivateCalls.remove(this.fitIn)		
-		},
-		emRatio:function(){
+		}
+		emRatio(){
 			if(!this.remRef) return null
 			return this.remRef.getBoundingClientRect().height
-		},
-		moveToAnchor:function(vkContainer,vkLayout){
+		}
+		moveToAnchor(vkContainer,vkLayout){
 			const bm = vkContainer.position == "bm"
 			const tl = vkContainer.position == "tl"
 			const ml = vkContainer.position == "ml"
@@ -187,20 +192,20 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			}
 			top+=getPageYOffset()					
 			return {top,left}
-		},
-		updateState:function(inI,show){					    					
+		}
+		updateState(inI,show){					    					
 			if(show) {
 				this.setState(inI)
 				setTimeout(()=>{this.setState({show})},300)
 			}
 			else 
 				this.setState({...inI,show})			
-		},
-		same:function(aRect,bRect){
+		}
+		same(aRect,bRect){
 			if(!aRect||!bRect) return false
 			return aRect.top==bRect.top && aRect.left==bRect.left && aRect.height == bRect.height && aRect.width == bRect.width
-		},
-		fitIn:function(){			
+		}
+		fitIn(){			
 			const vkLayout = this.getCurrentLayout()			
 			if(!vkLayout && this.vkLayout == vkLayout) return
 			const emK = this.emRatio()
@@ -227,17 +232,17 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,cHeight)					
 				this.updateState({fontSize,top,left},show)
 			}							
-		},
-		getCurrentLayout:function(){			
+		}
+		getCurrentLayout(){			
 			const vkType = this.getInputVKType()			
 			const vkLayout = this.props[vkType.layout]
 			if(!vkLayout) return null	
 			return vkLayout[vkType.ver]			
-		},
-		getDefaultFontSize:function(){
+		}
+		getDefaultFontSize(){
 			return this.props.style.fontSize?parseFloat(this.props.style.fontSize):1
-		},		
-		render:function(){			
+		}		
+		render(){			
 			const genKey = (char,i) => `${char}_${i}`			
 			const vkLayout = this.getCurrentLayout()		
 			const visible = "visible"
@@ -281,8 +286,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				$("div",{key:"emRef",className:"vkRemRef",style:{position:"absolute",zIndex:"-1",height:"1em"}, ref:ref=>this.remRef=ref},null)
 			])	
 			
-		},
-	});	
+		}
+	}	
 	
 	const vkModule = (() => {
 		const views = []
@@ -346,19 +351,21 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		}
 		return {regView,regVk, onVk,getRootHeight,getMaxHeight}
 	})()
-	const VKMainViewElement = $C({
-		getInitialState:function(){
-			return {height:null, vkView:false}
-		},		
-		updateVkView:function(vkView, height){
+	class VKMainViewElement extends React.Component{
+		constructor(props) {
+		  super(props);
+		  this.state = {height:null, vkView:false}
+		  autoBind(this)
+		}			
+		updateVkView(vkView, height){
 			this.rootHeight = vkModule.getRootHeight(this.root)			
 			if(vkView === null && height === null && this.state.vkView){
 				return this.setState({})
 			}
 			if(vkView!=this.state.vkView || height!=this.state.height) 
 				this.setState({vkView,height:vkView?height:null})
-		},		
-		componentDidMount:function(){			
+		}		
+		componentDidMount(){			
 			this.root = getReactRoot(this.el)
 			if(this.root) {
 				this.prevRootHeight = this.root.parentElement.style.maxHeight
@@ -366,12 +373,12 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			}
 			this.mObj = {f:this.updateVkView, maxHeight:parseInt(this.props.maxHeight)/100}
 			this.vkReg = vkModule.regView(this.mObj,this.el)				
-		},
-		componentWillUnmount:function(){			
+		}
+		componentWillUnmount(){			
 			if(this.root) this.root.parentElement.style.maxHeight=this.prevRootHeight
 			this.vkReg.unreg()			
-		},
-		render:function(){								
+		}
+		render(){								
 			const height = this.state.vkView&&this.state.height&&this.rootHeight? (Math.floor(this.rootHeight - this.state.height))+"px": "100%"			
 			const style = {				
 				overflowY:height=="100%"?"":"auto",				
@@ -379,25 +386,26 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			}			
 			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
 		}
-	})
-	const VkViewElement = $C({
-		getInitialState:function(){
-			return {vkView:false, height:null}
-		},
-		updateVkView:function(vkView,height){
+	}
+	class VkViewElement extends $C{
+		constructor(props) {
+		  super(props);
+		  this.state = {vkView:false, height:null}
+		  autoBind(this)
+		}				
+		updateVkView(vkView,height){
 			//if(vkView === null && this.state.vkView) return this.setState({height})
 			if(vkView!=this.state.vkView || height!=this.state.height) 
 				this.setState({vkView,height:vkView?height:null})
-		},
-		
-		componentDidMount:function(){
+		}		
+		componentDidMount(){
 			this.mObj = {f:this.updateVkView, maxHeight:parseInt(this.props.maxHeight)/100}
 			this.vkReg = vkModule.regVk(this.mObj,this.el)			
-		},
-		componentWillUnmount:function(){			
+		}
+		componentWillUnmount(){			
 			this.vkReg.unreg(this.mObj)			
-		},
-		render:function(){			
+		}
+		render(){			
 			const height = this.state.vkView&&this.state.height?Math.floor(this.state.height)+"px":0+"px"			
 			const style = {				
 				position:"absolute",
@@ -407,15 +415,13 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const className = "vkView"
 			return $("div",{style,ref:ref=>this.el=ref,className},this.props.children)
 		}
-	})
-	
-	
+	}
 	
 	const transforms= {
 		tp:{
             VirtualKeyboard,VKMainViewElement,VkViewElement           
 		}		
-	};
+	}
 	const checkActivate = checkActivateCalls.check	
 	return ({transforms,checkActivate});
 }

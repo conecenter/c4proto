@@ -1,6 +1,7 @@
 "use strict";
 import React from 'react'
 import {rootCtx} from "../main/vdom-util"
+import autoBind from 'react-autobind'
 
 export default function CustomUi({log,ui,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi,miscReact}){
 	const {setTimeout,clearTimeout} = windowManager
@@ -9,24 +10,26 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 	const TDElement=ui.transforms.tp.TDElement;
 	const ConnectionState=ui.transforms.tp.ConnectionState;
 	
-	const StatusElement=React.createClass({
-		getInitialState:function(){
-			return {lit:false};
-		},
-		signal:function(on){
+	class StatusElement extends React.Component{
+		constructor(props) {
+		  super(props);
+		  this.state = {lit:false}
+		  autoBind(this)
+		}		
+		signal(on){
 			if(on) this.setState({lit:true});
 			else this.setState({lit:false});
-		},
-		onClick:function(){
+		}
+		onClick(){
 			customMeasurer().forEach(m=>m._do(this.props.fkey.toLowerCase()))
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			customMeasurer().forEach(m=>m.regCallback(this.props.fkey.toLowerCase(),this.signal));
-		},
-		componentWillUnmount:function(){
+		}
+		componentWillUnmount(){
 			customMeasurer().forEach(m=>m.unregCallback(this.props.fkey.toLowerCase()));
-		},    
-		render:function(){
+		} 
+		render(){
 			const style={
 				marginTop:'.6125rem',
 				backgroundColor:this.state.lit?'#ffa500':'#eeeeee',
@@ -35,17 +38,17 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		
 			return React.createElement(ChipElement,{style,onClick:this.onClick,value:this.props.fkey});
 		}
-	});
-	const TerminalElement=React.createClass({   
-		componentDidMount:function(){
+	}
+	class TerminalElement extends React.Component{   
+		componentDidMount(){
 			customTerminal().forEach(t=>t.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.params||0),this.props.wrk,this.props.ps));
 			log("term mount")
-		},
-		componentWillUnmount:function(){
+		}
+		componentWillUnmount(){
 			customTerminal().forEach(t=>t.destroy());
 			log("term unmount")
-		},
-		componentDidUpdate:function(prevProps, prevState){
+		}
+		componentDidUpdate(prevProps, prevState){
 			customTerminal().forEach(t=>{
 				log("term_update")
 				if(prevProps.version!=this.props.version&&this.props.version!=0){
@@ -53,8 +56,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params,this.props.wrk,this.props.ps);
 				}
 			})
-		},
-		render:function(){				
+		}
+		render(){				
 			const style = {
 				backgroundColor:"black",
 				...this.props.style
@@ -62,36 +65,38 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			return React.createElement("div",{className:'terminalElement',version:this.props.version,style},
 				React.createElement("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
 				)
-		},
-	});
-	const MJobCell = React.createClass({
-		getInitialState:function(){
-			return ({data:null,version:0});
-		},
-		signal:function(data){
+		}
+	}
+	class MJobCell extends React.Component{
+		constructor(props) {
+		  super(props);
+		  this.state = {data:null,version:0}
+		  autoBind(this)
+		}			
+		signal(data){
 			//const gData=(data!=undefined&&parseInt(data)>=0?data:null);
 			const gData=(data?data:null);			
 			this.setState({data:gData});			
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			customMeasurer().forEach(m=>m.regCallback(this.props.fkey,this.signal));
-		},
-		componentWillUnmount:function(){
+		}
+		componentWillUnmount(){
 			customMeasurer().forEach(m=>m.unregCallback(this.props.fkey));
-		},
-		onChange:function(e){
+		}
+		onChange(e){
 			if(this.props.onChange)
 				this.props.onChange(e);
-		},
-		componentWillReceiveProps:function(nextProps){
+		}
+		componentWillReceiveProps(nextProps){
 			if(nextProps.init&&nextProps.init!=this.props.init)
 				this.setState({data:null});
-		},
-		onClick:function(e){
+		}
+		onClick(e){
 			if(this.props.onClick)
 				this.props.onClick(e);
-		},
-		render:function(){
+		}
+		render(){
 			const style={
 				minWidth:'2rem',
 				...this.props.style
@@ -118,22 +123,22 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 					//React.createElement(GotoButton,{key:"2",onClick:this.onClick,style:this.props.buttonStyle,overStyle:this.props.buttonOverStyle},buttonText):null),
 				]),
 			]);
-		},
-	});
+		}
+	}
 
-	const ControlledComparator = React.createClass({
-		componentDidUpdate:function(prevP,prevS){
+	class ControlledComparator extends React.Component{
+		componentDidUpdate(prevP,prevS){
 			if(this.props.onChange&&this.props.data&&prevP.data!==this.props.data){			
 				const e={target:{headers:{"X-r-action":"change"},value:this.props.data.toString()}};
 				log("change w");
 				this.props.onChange(e);
 			}
-		},
-		render:function(){		
+		}
+		render(){		
 			//const value = this.props.data!=null?this.props.data:"";
 			return React.createElement('span',{key:"1"},null);
-		},
-	});
+		}
+	}
 	const IconCheck = ({style})=>{
 		const imageSvg ='<svg version="1.1"  xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 30 30"><g><path fill="#3C763D" d="M22.553,7.684c-4.756,3.671-8.641,7.934-11.881,12.924c-0.938-1.259-1.843-2.539-2.837-3.756 C6.433,15.13,4.027,17.592,5.419,19.3c1.465,1.795,2.737,3.734,4.202,5.529c0.717,0.88,2.161,0.538,2.685-0.35 c3.175-5.379,7.04-9.999,11.973-13.806C26.007,9.339,24.307,6.33,22.553,7.684z"/></g></svg>';
 		const imageSvgData = svgSrc(imageSvg);
@@ -157,28 +162,30 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		return {ping,regCallback,unregCallback};
 	}();	
 	let prevWifiLevel = null
-	const DeviceConnectionState = React.createClass({
-		getInitialState:function(){
-			return {on:true,wifiLevel:null,waiting:null,data:null,showWifiInfo:false};
-		},
-		signal:function(on,data){			
+	class DeviceConnectionState extends React.Component{
+		constructor(props) {
+		  super(props);
+		  this.state = {on:true,wifiLevel:null,waiting:null,data:null,showWifiInfo:false}
+		  autoBind(this)
+		}			
+		signal(on,data){			
 			if(this.state.on!=on)
 				this.setState({on});
 			if(this.state.data!=data)
 				this.setState({data})
-		},
-		wifiCallback:function(wifiLevel,plain){
+		}
+		wifiCallback(wifiLevel,plain){
 			prevWifiLevel = wifiLevel
 			if(this.state.wifiLevel != wifiLevel){
 				this.wifiData = plain
 				this.setState({wifiLevel})
 			}
-		},
-		yellowSignal:function(on){
+		}
+		yellowSignal(on){
 			if(this.state.waiting!=on)
 				this.setState({waiting:on})
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			const count = miscReact.count()
 			if(count>1) return
 			if(PingReceiver)
@@ -190,37 +197,37 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				const branchKey = this.props.onContext()
 				this.yellow = requestState.reg({branchKey,callback:this.yellowSignal})
 			}
-		},
-		componentWillUnmount:function(){			
+		}
+		componentWillUnmount(){			
 			if(PingReceiver)
 				PingReceiver.unregCallback(this);
 			if(this.wifi) this.wifi.unreg();
 			if(this.wifi2) this.wifi2.unreg();
 			if(this.yellow) this.yellow.unreg();
-		},		
-		toggleOverlay:function(on){
+		}		
+		toggleOverlay(on){
 			if(!this.props.overlay) return;
 			if(this.props.msg||this.state.waiting) 
 				overlayManager.delayToggle(this.props.msg||this.state.waiting)
 			else
 				overlayManager.toggle(on)
 			
-		},
-		componentDidUpdate:function(prevProps,prevState){
+		}
+		componentDidUpdate(prevProps,prevState){
 			if(prevState.on != this.state.on){
 				log(`toggle ${this.state.on}`)
 				this.toggleOverlay(!this.state.on);
 			}
-		},
-		onMouseOver:function(){
+		}
+		onMouseOver(){
 			if(this.wifiData)
 				this.setState({showWifiInfo:true});
-		},
-		onMouseOut:function(){
+		}
+		onMouseOut(){
 			if(this.state.showWifiInfo)
 				this.setState({showWifiInfo:false});
-		},
-		render:function(){
+		}
+		render(){
 			const wifiLevel = prevWifiLevel&&!this.state.wifiLevel?prevWifiLevel:this.state.wifiLevel
 			const wifiStyle = wifiLevel!==null?{padding:"0.11em 0em"}:{}
 			const wifiIconStyle = wifiLevel!==null?{width:"0.7em"}:{}
@@ -271,58 +278,61 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				wifiDataEl,
 				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"3"},this.state.data)
 			])
-		},
-	});
-	const CustomMeasurerConnectionState = React.createClass({
-		getInitialState:function(){
-			return {on:false};
-		},
-		signal:function(on){
+		}
+	}
+	class CustomMeasurerConnectionState extends React.Component{
+		constructor(props) {
+		  super(props);
+		  this.state = {on:false}
+		  autoBind(this)
+		}				
+		signal(on){
 			if(this.state.on!=on)
 				this.setState({on});
-		},
-		componentDidMount:function(){					
+		}
+		componentDidMount(){					
 			customMeasurer().forEach(m=>m.regCallback(this.props.fkey,this.signal));
-		},
-		componentWillUnmount:function(){
+		}
+		componentWillUnmount(){
 			customMeasurer().forEach(m=>m.unregCallback(this.props.fkey));
-		},
-		render:function(){
+		}
+		render(){
 			var style ={};
 			var iconStyle ={};
 			if(this.props.style) Object.assign(style,this.props.style);
 			if(this.props.iconStyle) Object.assign(iconStyle,this.props.iconStyle);	
 			return React.createElement(ConnectionState,{on:this.state.on,style,iconStyle});
-		},
-	});
-	const BatteryState = React.createClass({
-		getInitialState:function(){
-			return {batteryLevel:0,isCharging:false};
-		},
-		onLevelChange:function(){
+		}
+	}
+	class BatteryState extends React.Component{
+		constructor(props) {
+		  super(props);
+		  this.state = {batteryLevel:0,isCharging:false}
+		  autoBind(this)		  
+		}		
+		onLevelChange(){
 			if(!this.battery) return;
 			this.setState({batteryLevel:this.battery.level});
-		},
-		onChargingChange:function(){
+		}
+		onChargingChange(){
 			if(!this.battery) return;
 			this.setState({isCharging:this.battery.charging});
-		},
-		onBatteryInit:function(battery){
+		}
+		onBatteryInit(battery){
 			this.battery = battery;
 			this.battery.addEventListener("chargingchange",this.onChargingChange);
 			this.battery.addEventListener("levelchange",this.onLevelChange);
 			this.setState({batteryLevel:this.battery.level,isCharging:this.battery.charging});
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			getBattery&&getBattery(this.onBatteryInit);
-		},
-		componentDidUpdate:function(){},
-		componentWillUnmount:function(){
+		}		
+		componentWillUnmount(){
 			if(!this.battery) return;
 			this.battery.removeEventListener("charginchange",this.onChargingChange);
 			this.battery.removeEventListener("levelchange",this.onLevelChange);
-		},
-		render:function(){
+		}
+		render(){
 			const style={
 				display:"flex",				
 				marginLeft:"0.2em",
@@ -383,20 +393,24 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				]);
 			return getBattery?el:null;
 		}
-	});	
-	const ScannerProxyElement = React.createClass({
-		callback:function(type,data){
+	}
+	class ScannerProxyElement extends React.Component{
+		constructor(props){
+			super(props)
+			autoBind(this)
+		}
+		callback(type,data){
 			if(this.props.onClickValue)
 				this.props.onClickValue(type,data)
-		},
-		scanMode:function(){
+		}
+		scanMode(){
 			return this.props.scanMode
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			if(this.props.barcodeReader)
 				this.binding = scannerProxy.reg(this)
-		},
-		componentDidUpdate:function(prevProps,_){
+		}
+		componentDidUpdate(prevProps,_){
 			if(this.props.barcodeReader && this.props.scanMode!=prevProps.scanMode && this.binding){
 				this.binding.switchTo(this.props.scanMode)
 				return
@@ -406,14 +420,14 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				else if(!this.props.barcodeReader && this.binding) this.binding.unreg()
 			}		
 			
-		},
-		componentWillUnmount:function(){
+		}
+		componentWillUnmount(){
 			this.binding&&this.binding.unreg()
-		},
-		render:function(){
+		}
+		render(){
 			return React.createElement("span");
 		}
-	});	
+	}
 	const ctx = ctx => () =>{
 		return rootCtx(ctx).branchKey
 	}

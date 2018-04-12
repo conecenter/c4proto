@@ -1,5 +1,6 @@
 "use strict";
 import React from 'react'
+import autoBind from 'react-autobind'
 
 export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWindow}){
 	const FlexGroup = ui.transforms.tp.FlexGroup
@@ -68,37 +69,41 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		})
 	}
 	let sentQuery = false
-	const UserQueryStringElement = React.createClass({
-		componentDidMount:function(){
+	const UserQueryStringElement = ({props}) => {		
+		const ref = (ref) =>{
 			if(sentQuery) return
-			sendToServer(this.props.branchKey,"queryString","needScenario")
+			sendToServer(props.branchKey,"queryString","needScenario")
 			sentQuery = true
-		},
-		render:function(){
-			return $("span",{id:"queryString"});
 		}
-	})
+		return $("span",{id:"queryString", ref});
+	}
 	
-	const UserCertificateElement = React.createClass({
-		onCertificate:function(certificate){
+	
+	class UserCertificateElement extends React.Component {
+		constructor(props) {
+		  super(props)		  
+		  autoBind(this)
+		}
+		onCertificate(certificate){
 			if(certificate == null)
 				sendToServer(this.props.branchKey,"error","")
 			else
 				sendToServer(this.props.branchKey,"certificate",certificate.encoded)			
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			DigiModule.requestCertificate(this.onCertificate);
-		},
-		componentWillUnmount:function(){
-			
-		},
-		render:function(){
+		}		
+		render(){
 			return $("span",{id:"userCert"});
 		}
-	});	
+	}
 	let signedDigest = false
-	const SignDigestElement = React.createClass({
-		onCertificate:function(certificate){
+	class SignDigestElement extends React.Component{
+		constructor(props) {
+		  super(props)		  
+		  autoBind(this)
+		}		
+		onCertificate(certificate){
 			const digest64 = this.props.digest
 			const digest = Uint8Array.from(atob(digest64), c => c.charCodeAt(0))			
 			hwcrypto.sign(certificate, {type: 'SHA-256', value: digest}, {}).then(signature => {				
@@ -108,29 +113,30 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 				sendError(error.toString())}
 			);
 			return true;
-		},
-		signDigest:function(digest64){			
+		}
+		signDigest(digest64){			
 			DigiModule.requestCertificate(this.onCertificate,true)
 			return true
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			if(!signedDigest) signedDigest = this.signDigest();
-		},
-		componentDidUpdate:function(prevProps,_){
+		}
+		componentDidUpdate(prevProps,_){
 			if(this.props.digest != prevProps.digest)
 				signedDigest = this.signDigest();
-		},
-		componentWillUnmount:function(){},
-		render:function(){ 
+		}		
+		render(){ 
 			return $("span",{id:"signDigest"});
 		}
-	})
+	}
 	let sentPositiveSign = false	
-	const ReportDigiStatusElement = React.createClass({
-		getInitialState:function(){
-			return {width:0}
-		},
-		updateStatus:function(statusMsg){
+	class ReportDigiStatusElement extends React.Component{		
+		constructor(props) {
+		  super(props)
+		  this.state = {width:0}
+		  autoBind(this)
+		}			
+		updateStatus(statusMsg){
 			const halves = statusMsg.trim().split(':')
 			this.setState({width:(halves[0]*100/halves[1])})
 			if(halves.length == 2 && halves[0] == halves[1]){
@@ -141,16 +147,16 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 				}
 			}
 			return true;
-		},		
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			this.updateStatus(this.props.statusMsg)			
-		},
-		componentDidUpdate:function(prevProps,_){
+		}
+		componentDidUpdate(prevProps,_){
 			if(this.props.statusMsg!=prevProps.statusMsg){
 				this.updateStatus(this.props.statusMsg)
 			}			
-		},
-		render:function(){
+		}
+		render(){
 			const style = {
 				position:"fixed",
 				top:"30%",
@@ -192,35 +198,35 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 				)
 			]);
 		}
-	})
+	}
 	let sentErrorStatus = false
 	let sentAuth = false
-	const DigiHandlerElement = React.createClass({
-		reportError:function(errorCode,errorMsg){
+	class DigiHandlerElement extends React.Component{
+		reportError(errorCode,errorMsg){
 			if(errorMsg && !sentErrorStatus){
 				sendErrorStatus(errorCode,errorMsg)
 				sentErrorStatus = true
 			}
-		},
-		reportAuth:function(authMsg){
+		}
+		reportAuth(authMsg){
 			if(authMsg && !sentAuth){
 				sendToServer(this.props.branchKey,"success","")
 				sendPositiveAuth()
 				sentAuth = true
 			}
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			this.reportError(this.props.errorCode,this.props.errorMsg)
 			this.reportAuth(this.props.authMsg)
-		},
-		componentDidUpdate:function(prevProps,_){
+		}
+		componentDidUpdate(prevProps,_){
 			this.reportError(this.props.errorCode,this.props.errorMsg)
 			this.reportAuth(this.props.authMsg)
-		},
-		render:function(){
+		}
+		render(){
 			return $("span",{id:"handler"})
 		}
-	})
+	}
 	const transforms= {
 		tp:{
 			UserQueryStringElement,UserCertificateElement,SignDigestElement,ReportDigiStatusElement,DigiHandlerElement
