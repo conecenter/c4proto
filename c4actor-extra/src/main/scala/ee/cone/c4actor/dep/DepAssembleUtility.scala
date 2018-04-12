@@ -5,7 +5,7 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 import ee.cone.c4actor.QAdapterRegistry
-import ee.cone.c4actor.dep.CtxType.DepRequest
+import ee.cone.c4actor.dep.DepTypeContainer.DepRequest
 import ee.cone.c4actor.Types.SrcId
 import StandardCharsets.UTF_8
 

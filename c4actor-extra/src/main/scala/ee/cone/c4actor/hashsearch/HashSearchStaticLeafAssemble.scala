@@ -6,11 +6,11 @@ import java.util.UUID
 import ee.cone.c4actor.HashSearch._
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.hashsearch.HashSearchImpl2.{Indexer, StaticNeed}
+import ee.cone.c4actor.hashsearch.StaticHashSearchImpl.{Indexer, StaticFactoryImpl, StaticNeed}
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
 
-object HashSearchImpl2 {
+object StaticHashSearchImpl {
 
   case class StaticNeed[Model <: Product](requestId: SrcId)
 
@@ -132,7 +132,17 @@ object HashSearchImpl2 {
     l ⇒ Single.option(l.distinct).toList
 }
 
-import HashSearchImpl2._
+trait HashSearchStaticLeafFactoryApi {
+  def staticLeafFactory: StaticFactory
+}
+
+trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi{
+  def modelConditionFactory:  ModelConditionFactory[Unit]
+
+  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory)
+}
+
+import StaticHashSearchImpl._
 
 @assemble class HashSearchStaticLeafAssemble[Model <: Product](
   modelCl: Class[Model],

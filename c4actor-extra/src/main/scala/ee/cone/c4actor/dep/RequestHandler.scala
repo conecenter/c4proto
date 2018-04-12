@@ -1,6 +1,6 @@
 package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.dep.CtxType.{ContextId, DepCtx, DepRequest}
+import ee.cone.c4actor.dep.DepTypeContainer.{ContextId, DepCtx, DepRequest}
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4assemble.Types.Values
 
@@ -36,7 +36,7 @@ case class RequestHandlerRegistryImpl(handlers: List[RequestHandler[_]]) extends
   }
 }
 
-trait RqHandlerRegistryImplApp extends RequestHandlerRegistryApp {
+trait RequestHandlerRegistryImplApp extends RequestHandlerRegistryApp with RequestHandlersApp{
   lazy val handlerRegistryImpl = RequestHandlerRegistryImpl(handlers)
 
   def handlerRegistry: RequestHandlerRegistry = handlerRegistryImpl
@@ -44,6 +44,8 @@ trait RqHandlerRegistryImplApp extends RequestHandlerRegistryApp {
 
 trait RequestHandlerRegistryApp {
   def handlerRegistry: RequestHandlerRegistry
+}
 
+trait RequestHandlersApp {
   def handlers: List[RequestHandler[_]] = Nil
 }

@@ -7,7 +7,7 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.HashSearchAssembleApp
-import ee.cone.c4actor.hashsearch.HashSearchImpl2.StaticFactoryImpl
+import ee.cone.c4actor.hashsearch.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -78,7 +78,7 @@ case object IntEqRanger extends Ranger[IntEq, Int] {
 
 trait TestCondition {
   def condition: Condition[ValueNode] = {
-    UnionCondition(
+    IntersectCondition(
       ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.value),
       ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
     )

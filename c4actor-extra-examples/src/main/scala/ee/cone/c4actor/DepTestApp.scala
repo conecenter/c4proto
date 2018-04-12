@@ -112,22 +112,14 @@ class DepTestApp extends RichDataApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
   with ToStartApp
-  //with ByPKRequestHandlerApp
-  with DepAssembleApp
-  with ByClassNameRequestHandlerApp
   with MortalFactoryApp
-  with ByPKRequestHandlerApp
   with ModelAccessFactoryApp
-  with CommonRequestUtilityMix
-  with K2TreeApp
   with DepTestAssemble
-  with RqHandlerRegistryImplApp {
+with DepMainMixApp {
 
   def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory)
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
-
-  override def byClassNameClasses: List[Class[_ <: Product]] = classOf[ValueNode] :: super.byClassNameClasses
 
   override def byPKClasses: List[Class[_ <: Product]] = classOf[ValueNode] :: super.byPKClasses
 
@@ -138,7 +130,7 @@ class DepTestApp extends RichDataApp
 
   override def protocols: List[Protocol] = TestProtocol :: TestRequests :: super.protocols
 
-  override def toStart: List[Executable] = new HashSearchTesttStart(execution, toUpdate, contextFactory) :: super.toStart
+  override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
   def testDep: Dep[_] = depDraft.serialView
 

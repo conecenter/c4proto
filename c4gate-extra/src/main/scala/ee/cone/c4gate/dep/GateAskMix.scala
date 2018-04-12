@@ -1,8 +1,8 @@
 package ee.cone.c4gate.dep
 
+import ee.cone.c4actor.dep.CommonRequestUtilityApi
+import ee.cone.c4actor.dep.request.ByPKRequestApi
 import ee.cone.c4actor.{DefaultModelRegistry, ModelAccessFactory, QAdapterRegistry}
-import ee.cone.c4actor.dep.CommonRequestUtility
-import ee.cone.c4actor.dep.request.ByPKRequestHandlerApp
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
 
 trait SessionAttrAskUtility {
@@ -13,7 +13,7 @@ trait CurrentTimeAskUtility {
   def currentTimeAskFactory: CurrentTimeAskFactoryApi
 }
 
-trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtility with ByPKRequestHandlerApp {
+trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtilityApi with ByPKRequestApi {
   def qAdapterRegistry: QAdapterRegistry
 
   def defaultModelRegistry: DefaultModelRegistry
@@ -25,6 +25,6 @@ trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtility 
   def sessionAttrAskFactory: SessionAttrAskFactoryApi = SessionAttrAskFactoryImpl(qAdapterRegistry, defaultModelRegistry, modelAccessFactory, commonRequestUtilityFactory)
 }
 
-trait CurrentTimeAskMix extends CurrentTimeAskUtility with CommonRequestUtility {
-  def currentTimeAskFactory: CurrentTimeAskFactoryApi = CurrentTimeAskFactoryImpl(commonRequestUtilityFactory)
+trait CurrentTimeAskMix extends CurrentTimeAskUtility {
+  def currentTimeAskFactory: CurrentTimeAskFactoryApi = CurrentTimeAskFactoryImpl
 }

@@ -16,7 +16,7 @@ trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp {
 
   override def assembles: List[Assemble] = new CurrentTimeAssemble :: super.assembles
 
-  override def protocols: List[Protocol] = QProtocol :: CurrentTimeRequestProtocol :: super.protocols
+  override def protocols: List[Protocol] = QProtocol :: CurrentTimeRequestProtocol :: CurrentTimeProtocol :: super.protocols
 }
 
 case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends TxTransform {

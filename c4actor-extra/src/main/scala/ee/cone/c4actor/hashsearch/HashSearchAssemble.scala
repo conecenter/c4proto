@@ -7,7 +7,6 @@ import ee.cone.c4actor.dep.DepAssembleUtilityImpl
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-import scala.collection.immutable
 
 case class ConditionOuter[Model <: Product](srcId: SrcId, conditionInner: ConditionInner[Model], parentSrcId: SrcId, requestId: SrcId)
 
@@ -21,10 +20,12 @@ trait HashSearchAssembleSharedKeys {
   type SharedResponseId = SrcId
 }
 
-trait HashSearchAssembleApp extends AssemblesApp {
-  def qAdapterRegistry: QAdapterRegistry
-
+trait HashSearchModelsApp {
   def hashSearchModels: List[Class[_ <: Product]] = Nil
+}
+
+trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp{
+  def qAdapterRegistry: QAdapterRegistry
 
   override def assembles: List[Assemble] = hashSearchModels.map(new HashSearchAssemble(_, qAdapterRegistry)) ::: super.assembles
 }
@@ -141,17 +142,16 @@ trait HashSearchAssembleApp extends AssemblesApp {
     for {
       condInner ← condInners
       result ← condInner.condition match {
-        case _: IntersectCondition[Model] ⇒ (countEstimates.minBy(_.count) match {
-          case CountEstimate(_, count, list) => (count, list)
-        }) :: Nil
-        case _: UnionCondition[Model] ⇒ {
-          val list = countEstimates.foldLeft[(Int, List[SrcId])]((0, Nil))((z, model) ⇒ {
+        case _: IntersectCondition[Model] ⇒ Utility.minByOpt(countEstimates)(_.count) match {
+          case Some(CountEstimate(_, count, list)) => (count, list) :: Nil
+          case None ⇒ Nil
+        }
+        case _: UnionCondition[Model] ⇒
+          countEstimates.foldLeft[(Int, List[SrcId])]((0, Nil))((z, model) ⇒ {
             val (count, list) = z
             (count + model.count, model.heapIds ::: list)
           }
           ) :: Nil
-          list
-        }
         case _: ProdCondition[_, Model] ⇒ countEstimates.map(ce ⇒ (ce.count, ce.heapIds))
         case _ ⇒ Nil
       }
@@ -162,7 +162,7 @@ trait HashSearchAssembleApp extends AssemblesApp {
     }
   }
 
-  def RequestToHeapsByCount(
+  def CountToRequest(
     requestId: SrcId,
     @by[RootCondInnerId] outerRoots: Values[ConditionOuter[Model]],
     innersRoots: Values[ConditionInner[Model]],
@@ -171,9 +171,10 @@ trait HashSearchAssembleApp extends AssemblesApp {
     for {
       condInner ← innersRoots
       result ← condInner.condition match {
-        case _: IntersectCondition[Model] ⇒ (condCounts.minBy(_.count) match {
-          case CountEstimate(_, count, list) => (count, list)
-        }) :: Nil
+        case _: IntersectCondition[Model] ⇒ Utility.minByOpt(condCounts)(_.count) match {
+          case Some(CountEstimate(_, count, list)) => (count, list) :: Nil
+          case None ⇒ Nil
+        }
         case _: UnionCondition[Model] ⇒
           condCounts.foldLeft[(Int, List[SrcId])]((0, Nil))((z, model) ⇒ {
             val (count, list) = z

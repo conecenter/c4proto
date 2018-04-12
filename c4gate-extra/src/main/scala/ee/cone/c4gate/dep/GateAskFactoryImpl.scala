@@ -4,7 +4,7 @@ import java.util.UUID
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.CtxType.ContextId
+import ee.cone.c4actor.dep.DepTypeContainer.ContextId
 import ee.cone.c4actor.dep.{CommonRequestUtilityFactory, Dep, RequestDep}
 import ee.cone.c4gate.SessionAttr
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
@@ -62,8 +62,6 @@ case class SessionAttrAskFactoryImpl(
   }
 }
 
-case class CurrentTimeAskFactoryImpl(
-  commonRequestFactory: CommonRequestUtilityFactory
-) extends CurrentTimeAskFactoryApi {
+case object CurrentTimeAskFactoryImpl extends CurrentTimeAskFactoryApi {
   def askCurrentTime(eachNSeconds: Long): Dep[Long] = new RequestDep[Long](CurrentTimeRequest(eachNSeconds))
 }

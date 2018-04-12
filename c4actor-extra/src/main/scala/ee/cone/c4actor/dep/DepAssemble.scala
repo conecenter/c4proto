@@ -1,7 +1,7 @@
 package ee.cone.c4actor.dep
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.CtxType._
+import ee.cone.c4actor.dep.DepTypeContainer._
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4actor.{QAdapterRegistry, RichDataApp, WithPK}
 import ee.cone.c4assemble.Types.Values

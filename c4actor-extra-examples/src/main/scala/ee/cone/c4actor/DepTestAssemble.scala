@@ -2,13 +2,13 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.DepTestProtocol.{DepTestRequest, Spark}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.CtxType.ContextId
+import ee.cone.c4actor.dep.DepTypeContainer.ContextId
 import ee.cone.c4actor.dep._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait DepTestAssemble extends AssemblesApp with RequestHandlerRegistryApp with ProtocolsApp{
+trait DepTestAssemble extends AssemblesApp with RequestHandlersApp with ProtocolsApp{
   def testDep: Dep[_]
 
   def testContextId: String = ""
