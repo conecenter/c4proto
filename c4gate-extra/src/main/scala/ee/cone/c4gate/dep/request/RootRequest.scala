@@ -14,12 +14,12 @@ import ee.cone.c4gate.dep.request.RootRequestProtocol.RootRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
-trait RootDepApp extends RequestHandlerRegistryApp with AssemblesApp with ProtocolsApp {
+trait RootDepApp extends RequestHandlersApp with AssemblesApp with ProtocolsApp {
   def rootDep: Dep[_]
 
   override def handlers: List[RequestHandler[_]] = RootRequestHandler(rootDep) :: super.handlers
 
-  override def assembles: List[Assemble] = new FilterListRequestCreator(qAdapterRegistry) :: super.assembles
+  override def assembles: List[Assemble] = new RootRequestCreator(qAdapterRegistry) :: super.assembles
 
   override def protocols: List[Protocol] = RootRequestProtocol :: super.protocols
 
