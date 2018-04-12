@@ -1,21 +1,16 @@
 "use strict";
 import React from 'react'
 import {rootCtx} from "../main/vdom-util"
-import autoBind from 'react-autobind'
 
-export default function CustomUi({log,ui,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi,miscReact}){
+export default function CustomUi({log,ui,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi,miscReact,StatefulComponent}){
 	const {setTimeout,clearTimeout} = windowManager
 
 	const ChipElement=ui.transforms.tp.ChipElement;
 	const TDElement=ui.transforms.tp.TDElement;
 	const ConnectionState=ui.transforms.tp.ConnectionState;
 	
-	class StatusElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {lit:false}
-		  autoBind(this)
-		}		
+	class StatusElement extends StatefulComponent{		
+		getInitialState(){return {lit:false}}
 		signal(on){
 			if(on) this.setState({lit:true});
 			else this.setState({lit:false});
@@ -39,7 +34,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			return React.createElement(ChipElement,{style,onClick:this.onClick,value:this.props.fkey});
 		}
 	}
-	class TerminalElement extends React.Component{   
+	class TerminalElement extends StatefulComponent{   
 		componentDidMount(){
 			customTerminal().forEach(t=>t.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.params||0),this.props.wrk,this.props.ps));
 			log("term mount")
@@ -67,12 +62,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				)
 		}
 	}
-	class MJobCell extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {data:null,version:0}
-		  autoBind(this)
-		}			
+	class MJobCell extends StatefulComponent{		
+		getInitialState(){return {data:null,version:0}}
 		signal(data){
 			//const gData=(data!=undefined&&parseInt(data)>=0?data:null);
 			const gData=(data?data:null);			
@@ -126,7 +117,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		}
 	}
 
-	class ControlledComparator extends React.Component{
+	class ControlledComparator extends StatefulComponent{
 		componentDidUpdate(prevP,prevS){
 			if(this.props.onChange&&this.props.data&&prevP.data!==this.props.data){			
 				const e={target:{headers:{"X-r-action":"change"},value:this.props.data.toString()}};
@@ -162,12 +153,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		return {ping,regCallback,unregCallback};
 	}();	
 	let prevWifiLevel = null
-	class DeviceConnectionState extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {on:true,wifiLevel:null,waiting:null,data:null,showWifiInfo:false}
-		  autoBind(this)
-		}			
+	class DeviceConnectionState extends StatefulComponent{		
+		getInitialState(){return {on:true,wifiLevel:null,waiting:null,data:null,showWifiInfo:false}}
 		signal(on,data){			
 			if(this.state.on!=on)
 				this.setState({on});
@@ -280,12 +267,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			])
 		}
 	}
-	class CustomMeasurerConnectionState extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {on:false}
-		  autoBind(this)
-		}				
+	class CustomMeasurerConnectionState extends StatefulComponent{		
+		getInitialState(){return {on:false}}
 		signal(on){
 			if(this.state.on!=on)
 				this.setState({on});
@@ -304,12 +287,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			return React.createElement(ConnectionState,{on:this.state.on,style,iconStyle});
 		}
 	}
-	class BatteryState extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {batteryLevel:0,isCharging:false}
-		  autoBind(this)		  
-		}		
+	class BatteryState extends StatefulComponent{		
+		getInitialState(){return {batteryLevel:0,isCharging:false}}
 		onLevelChange(){
 			if(!this.battery) return;
 			this.setState({batteryLevel:this.battery.level});
@@ -394,11 +373,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 			return getBattery?el:null;
 		}
 	}
-	class ScannerProxyElement extends React.Component{
-		constructor(props){
-			super(props)
-			autoBind(this)
-		}
+	class ScannerProxyElement extends StatefulComponent{		
 		callback(type,data){
 			if(this.props.onClickValue)
 				this.props.onClickValue(type,data)

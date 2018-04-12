@@ -1,10 +1,8 @@
 "use strict";
 import React from 'react'
-import autoBind from 'react-autobind'
 
-export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact}){
-	const $ = React.createElement
-	const $C = React.Component
+export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact,StatefulComponent}){
+	const $ = React.createElement	
 	const checkActivateCalls=(()=>{
 		const callbacks=[]
 		const add = (c) => callbacks.push(c)
@@ -31,12 +29,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		const update = (newStyles) => styles = {...styles,...newStyles}
 		return {...styles,update};
 	})()
-	class VKButton extends $C{
-		constructor(props) {
-		  super(props);
-		  this.state = {mouseDown:false}
-		  autoBind(this)
-		}				
+	class VKButton extends StatefulComponent{		
+		getInitialState(){return {mouseDown:false}}
 		onClick(ev){
 			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
 			if(this.props.onClick) this.props.onClick(ev)			
@@ -71,7 +65,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
 		}
 	}
-	class VirtualKeyboard extends React.Component{
+	class VirtualKeyboard extends StatefulComponent{
 		getInputVKType(){						
 			const layoutAlpha = "layoutAlpha"
 			const layoutNumeric = "layoutNumeric"
@@ -92,12 +86,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			}
 			//this.vkType = res
 			return res
-		}
-		constructor(props) {
-		  super(props);
-		  this.state = {left:0,top:0, alt:false,fontSize:1, show:false}
-		  autoBind(this)
-		}			
+		}		
+		getInitialState(){return {left:0,top:0, alt:false,fontSize:1, show:false}}		
 		switchMode(e){
 			this.setState({alt:!this.state.alt})			
 		}	
@@ -351,12 +341,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		}
 		return {regView,regVk, onVk,getRootHeight,getMaxHeight}
 	})()
-	class VKMainViewElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {height:null, vkView:false}
-		  autoBind(this)
-		}			
+	class VKMainViewElement extends StatefulComponent{		
+		getInitialState(){return {height:null, vkView:false}}		
 		updateVkView(vkView, height){
 			this.rootHeight = vkModule.getRootHeight(this.root)			
 			if(vkView === null && height === null && this.state.vkView){
@@ -387,12 +373,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
 		}
 	}
-	class VkViewElement extends $C{
-		constructor(props) {
-		  super(props);
-		  this.state = {vkView:false, height:null}
-		  autoBind(this)
-		}				
+	class VkViewElement extends StatefulComponent{		
+		getInitialState(){return {vkView:false, height:null}}				
 		updateVkView(vkView,height){
 			//if(vkView === null && this.state.vkView) return this.setState({height})
 			if(vkView!=this.state.vkView || height!=this.state.height) 

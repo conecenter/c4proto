@@ -1,8 +1,7 @@
 "use strict";
 import React from 'react'
-import autoBind from 'react-autobind'
 
-export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWindow}){
+export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWindow,StatefulComponent}){
 	const FlexGroup = ui.transforms.tp.FlexGroup
 	const $ = React.createElement
 	const sendError = function(msg){
@@ -79,11 +78,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 	}
 	
 	
-	class UserCertificateElement extends React.Component {
-		constructor(props) {
-		  super(props)		  
-		  autoBind(this)
-		}
+	class UserCertificateElement extends StatefulComponent {		
 		onCertificate(certificate){
 			if(certificate == null)
 				sendToServer(this.props.branchKey,"error","")
@@ -98,11 +93,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		}
 	}
 	let signedDigest = false
-	class SignDigestElement extends React.Component{
-		constructor(props) {
-		  super(props)		  
-		  autoBind(this)
-		}		
+	class SignDigestElement extends StatefulComponent{			
 		onCertificate(certificate){
 			const digest64 = this.props.digest
 			const digest = Uint8Array.from(atob(digest64), c => c.charCodeAt(0))			
@@ -130,12 +121,8 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		}
 	}
 	let sentPositiveSign = false	
-	class ReportDigiStatusElement extends React.Component{		
-		constructor(props) {
-		  super(props)
-		  this.state = {width:0}
-		  autoBind(this)
-		}			
+	class ReportDigiStatusElement extends StatefulComponent{				
+		getInitialState(){return {width:0}}	
 		updateStatus(statusMsg){
 			const halves = statusMsg.trim().split(':')
 			this.setState({width:(halves[0]*100/halves[1])})
@@ -201,7 +188,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 	}
 	let sentErrorStatus = false
 	let sentAuth = false
-	class DigiHandlerElement extends React.Component{
+	class DigiHandlerElement extends StatefulComponent{
 		reportError(errorCode,errorMsg){
 			if(errorMsg && !sentErrorStatus){
 				sendErrorStatus(errorCode,errorMsg)

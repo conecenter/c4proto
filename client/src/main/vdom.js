@@ -3,7 +3,7 @@ import React           from 'react'
 import ReactDOM        from 'react-dom'
 import update          from 'immutability-helper'
 
-export default function VDom(log,getRootElement, createElement, activeTransforms, changes){
+export default function VDom(log,getRootElement, createElement, activeTransforms, changes, StatefulPureComponent){
     function never(){ throw ["traverse error"] }
     class Traverse extends React.PureComponent{        
         render(){
@@ -18,11 +18,7 @@ export default function VDom(log,getRootElement, createElement, activeTransforms
             return React.createElement(at.tp, at, content)
         }
     }
-    class RootComponent extends React.PureComponent {
-		constructor(props) {
-		  super(props);
-		  this.state = {}
-		}	        
+    class RootComponent extends StatefulPureComponent {		
         render(){ 
             return this.state.incoming ? 
                 React.createElement(Traverse,{incoming: this.state.incoming, local: this.state.local }) : 
@@ -46,7 +42,7 @@ export default function VDom(log,getRootElement, createElement, activeTransforms
         if(state.remove) return state;
         const rootNativeElement = createElement("div")
         //rootNativeElement.style.overflowX = "hidden"
-		//rootNativeElement.style.minHeight = "100%"
+		rootNativeElement.className = "branch"
         getRootElement().appendChild(rootNativeElement)
         const rootVirtualElement = React.createElement(RootComponent,null)
         const rootComponent = ReactDOM.render(rootVirtualElement, rootNativeElement)

@@ -1,8 +1,7 @@
 "use strict"
 import React from 'react'
-import autoBind from 'react-autobind'
 
-export default function UpdateManager(log,window,metroUi){
+export default function UpdateManager(log,window,metroUi,StatefulComponent){
 	const {process,location,require,setInterval,clearInterval}  = window
 	const getUpdateProgress = () => window.updateProgress
 	const FlexGroup = metroUi.transforms.tp.FlexGroup
@@ -30,12 +29,8 @@ export default function UpdateManager(log,window,metroUi){
 		const check = () => callbacks.forEach(c=>c())
 		return {add,check}
 	})();
-	class UpdaterElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {progress:"0%"}
-		  autoBind(this)
-		}			
+	class UpdaterElement extends StatefulComponent{		
+		getInitialState(){return {progress:"0%"}}
 		update(){
 			const val = getUpdateProgress()			
 			if(val!= undefined) {

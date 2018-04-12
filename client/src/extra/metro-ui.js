@@ -3,16 +3,14 @@ import React from 'react'
 import {pairOfInputAttributes}  from "../main/vdom-util"
 import Errors from "../extra/errors"
 import {ctxToPath} from "../main/vdom-util"
-import autoBind from 'react-autobind'
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
 jsx?
 */
 
-export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image,audioContext}){
-	const $ = React.createElement
-	const $C = React.Component
+export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image,audioContext,StatefulComponent}){
+	const $ = React.createElement	
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -59,13 +57,10 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		flexBasis:minWidth?minWidth:'auto',
 		maxWidth:maxWidth?maxWidth:'auto',
 		...style
-	}},children);
-	class ButtonElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {mouseOver:false,touch:false, ripple:false};
-		  autoBind(this) 
-		}			
+	}},children);	
+	
+	class ButtonElement extends StatefulComponent{		
+		getInitialState(){return {mouseOver:false,touch:false, ripple:false}}
 		mouseOver(){
 			this.setState({mouseOver:true});
 			if(this.props.onMouseOver)
@@ -180,13 +175,13 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 	}
 	const uiElements = []
-	const errors = Errors({log,uiElements,documentManager})	
-	class ErrorElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {show:false,data:null}
-		  autoBind(this)
-		}			
+	const errors = Errors({log,uiElements,documentManager})
+	
+	
+	
+	
+	class ErrorElement extends StatefulComponent{	
+		getInitialState(){return {show:false,data:null}}
 		callback(data){
 			//log(`hehe ${data}`)
 			this.setState({show:true,data})
@@ -250,12 +245,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 	}
 	uiElements.push({ErrorElement})
-	class MenuBarElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {fixedHeight:"",scrolled:false, isBurger:false}
-		  autoBind(this)
-		}			
+	class MenuBarElement extends StatefulComponent{		
+		getInitialState(){return {fixedHeight:"",scrolled:false, isBurger:false}}	
 		process(){
 			if(!this.el) return;
 			const height = this.el.getBoundingClientRect().height + "px";			
@@ -360,12 +351,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 		return parentNode;
 	}
-	class MenuDropdownElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {maxHeight:"",right:null};
-		  autoBind(this)
-		}		
+	class MenuDropdownElement extends StatefulComponent{		
+		getInitialState(){return {maxHeight:"",right:null}}	
 		calcMaxHeight(){
 			if(!this.el) return;			
 			const elTop = this.el.getBoundingClientRect().top;
@@ -413,12 +400,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			},this.props.children);			
 		}				
 	}
-	class FolderMenuElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {mouseEnter:false,touch:false};
-		  autoBind(this)
-		}		
+	class FolderMenuElement extends StatefulComponent{		
+		getInitialState(){return {mouseEnter:false,touch:false}}			
 		mouseEnter(e){
 			this.setState({mouseEnter:true});
 		}
@@ -449,12 +432,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			},this.props.children);
 		}
 	}
-	class ExecutableMenuElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {mouseEnter:false};
-		  autoBind(this)
-		}			
+	class ExecutableMenuElement extends StatefulComponent{		
+		getInitialState(){return {mouseEnter:false}}
 		mouseEnter(e){
 			this.setState({mouseEnter:true});
 		}
@@ -490,7 +469,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		marginTop:'0rem',
 		...style
 	}},children);
-	class DocElement extends React.Component{
+	class DocElement extends StatefulComponent{
 		sentData(){
 			const values = this.el.getBoundingClientRect()
 			const remH = this.remRef.getBoundingClientRect().height
@@ -562,12 +541,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		paddingTop:'0.3125em',
 		...style
 	}},children);
-	class FlexGroup extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {rotated:false,captionOffset:"",containerMinHeight:""};
-		  autoBind(this)
-		}			
+	class FlexGroup extends StatefulComponent{		
+		getInitialState(){return {rotated:false,captionOffset:"",containerMinHeight:""}}
 		getCurrentBpPixels(){
 			const bpPixels = parseInt(this.props.bp || this.bp)
 			if(!this.emEl) return bpPixels*13
@@ -653,7 +628,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			])
 		}	
 	}	
-	class ChipElement extends React.Component{
+	class ChipElement extends StatefulComponent{
 		onClick(){
 			if(this.props.onClick)
 				this.props.onClick()
@@ -726,11 +701,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	)	
 	
 	
-	class TableElement extends $C{
-		constructor(props){
-			super(props)
-			autoBind(this)
-		}
+	class TableElement extends StatefulComponent{		
 		check(){
 			if(!this.el) return			
 			if(!this.emEl) return
@@ -784,12 +755,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					]); 
 		}
 	}
-	class THeadElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {dims:null,floating:false};
-		  autoBind(this)
-		}		
+	class THeadElement extends StatefulComponent{		
+		getInitialState(){return {dims:null,floating:false}}
 		findTable(){
 			if(!this.el) return;
 			let parent = this.el.parentElement;
@@ -832,12 +799,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	}
 	//let lastFocusTr = null
 	const TBodyElement = ({style,children})=>$("tbody",{style:style},children);	
-	class THElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {last:false,focused:false}
-		  autoBind(this)
-		}			
+	class THElement extends StatefulComponent{		
+		getInitialState(){return {last:false,focused:false}}
 		onFocus(e){
 			if(!this.el) return
 			focusModule.switchTo(this)
@@ -862,7 +825,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onBlur(e){
 			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
 			focusModule.switchOff(this,e&&e.relatedTarget)
-			if(this.isMounted) this.setState({focused:false})
+			this.setState({focused:false})
 		}
 		checkForSibling(){
 			if(!this.el) return;
@@ -963,12 +926,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		else	
 			return $(THElement,{...props,style:{padding:'0.1em 0.2em',fontSize:'1em',fontWeight:'normal',borderBottom:'none',...props.style},nodeType:"td",tabIndex:"1"})
 	}	
-	class TRElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {touch:false,mouseOver:false};
-		  autoBind(this)
-		}			
+	class TRElement extends StatefulComponent{		
+		getInitialState(){return {touch:false,mouseOver:false}}
 		onTouchStart(e){
 			if(this.props.onClick){
 				this.setState({touch:true});
@@ -1016,12 +975,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onClick:this.onClick,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	}
-	class Interactive extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {mouseOver:false,mouseEnter:false};
-		  autoBind(this)
-		}			
+	class Interactive extends StatefulComponent{		
+		getInitialState(){return {mouseOver:false,mouseEnter:false}}
 		onMouseOver(e){
 			this.setState({mouseOver:true});
 		}
@@ -1045,12 +1000,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			});
 		}
 	}
-	class InputElementBase extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {visibility:""}
-		  autoBind(this)
-		}			
+	class InputElementBase extends StatefulComponent{		
+		getInitialState(){return {visibility:""}}
 		setFocus(focus){
 			if(!focus) return
 			this.getInput().focus()			
@@ -1347,12 +1298,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		},
 		content:props.value
 		})
-	class MultilineTextElement extends $C{
-		constructor(props) {
-		  super(props);
-		  this.state = {maxItems:0}
-		  autoBind(this)
-		}			
+	class MultilineTextElement extends StatefulComponent{			
+		getInitialState(){return {maxItems:0}}
 		getMaxItems(){			
 		    const maxLines = parseInt(this.props.maxLines?this.props.maxLines:9999)
 			let line = 0
@@ -1388,12 +1335,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return $('div',{style:this.props.styles,ref:ref=>this.el=ref},children)
 		}
 	}
-	class DropDownElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {popupMinWidth:0,left:0,top:0};
-		  autoBind(this)
-		}			
+	class DropDownElement extends StatefulComponent{		
+		getInitialState(){return {popupMinWidth:0,left:0,top:0}}
 		getPopupPos(){
 			if(!this.inp||!this.inp.cont) return {};
 			const rect = this.inp.cont.getBoundingClientRect()
@@ -1569,12 +1512,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			$(ButtonElement,{...props,...actions,style:openButtonStyle})
 		);
 	})
-	class ControlWrapperElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {focused:false}
-		  autoBind(this)
-		}			
+	class ControlWrapperElement extends StatefulComponent{		
+		getInitialState(){ return {focused:false}}
 		onFocus(e){
 			focusModule.switchTo(this)			
 			if(this.el){
@@ -1589,7 +1528,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			
 			 if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
 			focusModule.switchOff(this, e&&e.relatedTarget)
-			if(this.isMounted) this.setState({focused:false})
+			this.setState({focused:false})
 		}
 		componentDidMount(){
 			if(this.el) {				
@@ -1636,7 +1575,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		...style
 	}},label?label:null)
 
-	class FocusableElement extends React.Component{		
+	class FocusableElement extends StatefulComponent{		
 		onFocus(e){
 			clearTimeout(this.timeout);						
 			if(!this.focus) this.reportChange("focus");			
@@ -1678,12 +1617,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return $("div",{ref:ref=>this.el=ref,style:style,tabIndex:"0"},this.props.children);
 		}
 	}
-	class PopupElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {top:0,left:0};
-		  autoBind(this)
-		}			
+	class PopupElement extends StatefulComponent{		
+		getInitialState(){ return {top:0,left:0}}
 		calcPosition(){
 			if(!this.el) return;			
 			const sibling = this.el.previousElementSibling;			
@@ -1742,12 +1677,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}		
 	}
 	const Checkbox = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
-	class CheckboxBase extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {focused:false}
-		  autoBind(this)
-		}		
+	class CheckboxBase extends StatefulComponent{		
+		getInitialState(){ return {focused:false}}
 		onFocus(){
 			focusModule.switchTo(this)
 			this.setState({focused:true})
@@ -1920,12 +1851,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				$("img",{key:"1",style:newIconStyle,src},null)				
 		);
 	}
-	class FileUploadElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {value:"",reading:false};
-		  autoBind(this)
-		}			
+	class FileUploadElement extends StatefulComponent{		
+		getInitialState(){ return {value:"",reading:false}}		
 		onClick(e){
 			if(this.fInp)
 				this.fInp.click();
@@ -2325,7 +2252,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		);				
 	};
 	const DateTimePickerNowSel = ({onClick,value}) => $(CalenderSetNow,{key:"setNow",onClick:onClick},value);
-	class DateTimePicker extends React.Component{
+	class DateTimePicker extends StatefulComponent{
 		setSelection(obj, stpos, endpos){
 			if (obj.createTextRange) { // IE
 				const rng = obj.createTextRange();
@@ -2515,12 +2442,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	let dateElementPrevCutBy = 0;
 	const OneSvg = ({children})=> $("svg",{},$("text",{style:{dominantBaseline:"hanging"}},children))		
 		
-	class DateTimeClockElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {cutBy:0,timeString:""}
-		  autoBind(this)
-		}		
+	class DateTimeClockElement extends StatefulComponent{		
+		getInitialState(){ return {cutBy:0,timeString:""}}			
 		clockTicks(timeString){
 			this.setState({timeString})
 		}
@@ -2604,12 +2527,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 	}
 	const AnchorElement = ({style,href}) =>$("a",{style,href},"get")	
-	class HeightLimitElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {max:false}
-		  autoBind(this)
-		}			
+	class HeightLimitElement extends StatefulComponent{		
+		getInitialState(){ return {max:false}}		
 		findUnder(el,rect){			
 			const sibling = el.nextSibling
 			if(!sibling) {
@@ -2648,11 +2567,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
 		}
 	}	
-	class FocusAnnouncerElement extends React.Component{
-		constructor(props){
-			super(props)
-			autoBind(this)
-		}
+	class FocusAnnouncerElement extends StatefulComponent{		
 		onFocus(e){
 			const focusKey = e.detail?e.detail:""
 			this.report(focusKey)
@@ -2673,7 +2588,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return $('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
 		}
 	}
-	class DragDropHandlerElement extends React.Component{
+	class DragDropHandlerElement extends StatefulComponent{
 		report(action,fromSrcId,toSrcId){
 			if(this.props.onClickValue) this.props.onClickValue("change",JSON.stringify({action,fromSrcId,toSrcId}))
 		}
@@ -2687,12 +2602,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return $('span',{className:"dragDropHandler"})
 		}
 	}
-	class ConfirmationOverlayElement extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {dims:null}
-		  autoBind(this)
-		}		
+	class ConfirmationOverlayElement extends StatefulComponent{		
+		getInitialState(){ return {dims:null}}
 		getRootDims(){
 			if(!this.root){
 				this.root = getReactRoot(this.el)
@@ -2739,7 +2650,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 	}
 	
-	class DragDropDivElement extends $C{
+	class DragDropDivElement extends StatefulComponent{
 		componentDidMount(){
 			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})
 		}
@@ -2771,12 +2682,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			return $("div",{style,ref,...actions},this.props.children)
 		}
 	}
-	class FilterContainerElement extends $C{
-		constructor(props) {
-		  super(props);
-		  this.state = {singleHeight:"0px",version:0}
-		  autoBind(this)
-		}		
+	class FilterContainerElement extends StatefulComponent{		
+		getInitialState(){return {singleHeight:"0px",version:0}}		
 		isOverflown(){
 			if(!this.el) return;
 			const e = this.el;
@@ -2908,7 +2815,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const FilterElement = ({active,children,style}) => {		
 		return $("div",{style,className:"filterElement"},children)
 	}
-	class ColorCreator extends React.Component{
+	class ColorCreator extends StatefulComponent{
 		onChange(e){
 			if(this.props.onChange)
 				this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}});
@@ -2978,12 +2885,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			]);
 		}
 	}
-	class ColorPicker extends React.Component{
-		constructor(props) {
-		  super(props);
-		  this.state = {left:null,top:null}
-		  autoBind(this)
-		}			
+	class ColorPicker extends StatefulComponent{		
+		getInitialState(){return {left:null,top:null}}		
 		recalc(){
 			if(!this.el) return
 			const rect = this.el.getBoundingClientRect()
@@ -3060,7 +2963,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onClick: ev => onChange({target:{headers:{"X-r-action":"change"},value} })
 	},React.createElement('span',{}, value))	
 	
-	class SoundProducerElement extends $C{
+	class SoundProducerElement extends StatefulComponent{
 		produce(){
 			if(!audioContext) return
 			const audioCtx = audioContext()
