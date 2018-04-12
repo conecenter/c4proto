@@ -74,13 +74,14 @@ export function VDomSeeds(log,DiffPrepare){
     }
 
     const checkActivate = ctx => state => {
-        const containerElement = singleParentNode(state)
+        const containerElement = singleParentNode(state)		
         const contentElement = state.rootNativeElement
         const wasBox = state.rootBox
         if(!containerElement || !contentElement)
             return wasBox ? setRootBox(null,ctx,{display:"none"})(state) : state
         const contentPos = elementPos(contentElement)
         const containerPos = elementPos(containerElement)
+		const fontSize = containerElement.style.fontSize
         const targetPos = containerPos // todo f(containerPos,contentPos)
         const d = {
             pos:  calcPos(dir=>(targetPos.pos[dir] -contentPos.pos[dir] )|0),
@@ -98,7 +99,10 @@ export function VDomSeeds(log,DiffPrepare){
             left: box.pos.x+"px",
             top: box.pos.y+"px",
             width: box.size.x+"px",
-            height: box.size.y+"px"
+            height: box.size.y+"px",
+			fontSize:fontSize,
+			overflowY:"auto",
+			overflowX:"hidden"
         })(state)
     }
 

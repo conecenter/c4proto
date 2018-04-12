@@ -1,14 +1,13 @@
 package ee.cone.c4actor.dep
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.CtxType._
+import ee.cone.c4actor.dep.DepTypeContainer._
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
-import ee.cone.c4actor.dep.request.DepOuterDamToDepInnerRequestApp
 import ee.cone.c4actor.{QAdapterRegistry, RichDataApp, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp with DepOuterDamToDepInnerRequestApp {
+trait DepAssembleApp extends RequestHandlerRegistryApp with RichDataApp {
 
   override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry) :: super.assembles
 }
@@ -27,11 +26,8 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp with DepO
   ): Values[(DepResolvableGate, DepResolvable)] =
     for {
       request ← requests
-      pair ← handlerRegistry.handle(request.innerRequest.request)
+      resolvable ← handlerRegistry.handleAndBuildContext(request.innerRequest, responses)
     } yield {
-      val (dep, contextId) = pair
-      val ctx: DepCtx = handlerRegistry.buildContext(responses)(contextId)
-      val resolvable = dep.asInstanceOf[InnerDep[_]].resolve(ctx)
       val upRes = DepResolvable(request, resolvable)
       WithPK(upRes)
     }
@@ -94,6 +90,15 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp with DepO
       WithPK(resp)
     }
 
+  def DepOuterDamToDepInnerRequest
+  (
+    outerRqId: SrcId,
+    @by[OuterRqByInnerSrcId] outers: Values[DepOuterRequest]
+  ): Values[(SrcId, DepInnerRequest)] = {
+    val inner: DepInnerRequest = Single(outers.map(_.innerRequest).distinct)
+    WithPK(inner) :: Nil
+  }
+
   // from DepInnerResponse and DepOuterRequest
   def DepInnerResponseToDepOuterResponse
   (
@@ -108,6 +113,8 @@ trait DepAssembleApp extends RqHandlerRegistryImplApp with RichDataApp with DepO
       val outerResp = DepOuterResponse(outer, inner.value)
       WithPK(outerResp)
     }
+
+
 
   // move DepOuterRespTo CtxBuilder index
   def DepOuterResponseToCtxBuilder

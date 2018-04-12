@@ -1,16 +1,16 @@
-package ee.cone.c4gate.dep
+package ee.cone.c4gate.dep.request
 
 import java.nio.ByteBuffer
 import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.CtxType.ContextId
-import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, QAdapterRegistry, WithPK}
+import ee.cone.c4actor.dep.DepTypeContainer.ContextId
 import ee.cone.c4actor.dep._
+import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, QAdapterRegistry, WithPK}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
-import ee.cone.c4gate.dep.RootRequestProtocol.RootRequest
+import ee.cone.c4gate.dep.request.RootRequestProtocol.RootRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
@@ -19,7 +19,7 @@ trait RootDepApp extends RequestHandlerRegistryApp with AssemblesApp with Protoc
 
   override def handlers: List[RequestHandler[_]] = RootRequestHandler(rootDep) :: super.handlers
 
-  override def assembles: List[Assemble] = new RootRequestCreator(qAdapterRegistry) :: super.assembles
+  override def assembles: List[Assemble] = new FilterListRequestCreator(qAdapterRegistry) :: super.assembles
 
   override def protocols: List[Protocol] = RootRequestProtocol :: super.protocols
 
@@ -65,16 +65,4 @@ case class RootResponse(srcId: String, response: Option[_], sessionKey: String)
     @Id(0x0f33) contextId: String
   )
 
-}
-
-object RootRequestUtils {
-
-  def genPK(rq: RootRequest): SrcId = {
-    val adapter = RootRequestProtocol.adapters.head
-    val bytes = adapter.encode(rq)
-    UUID.nameUUIDFromBytes(toBytes(adapter.id) ++ bytes).toString
-  }
-
-  private def toBytes(value: Long) =
-    ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
 }

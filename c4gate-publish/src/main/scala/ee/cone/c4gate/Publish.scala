@@ -22,6 +22,7 @@ class PublishingObserver(
   mimeTypes: String⇒Option[String]
 ) extends Observer with LazyLogging {
   def activate(global: Context): Seq[Observer] = {
+    //println("AAA")
     logger.debug("publish started")
     val fromPath = Paths.get(fromDir)
     val visitor = new PublishFileVisitor(fromPath,publish(global))
@@ -32,6 +33,7 @@ class PublishingObserver(
       publish(global)(path,body.getBytes(UTF_8))
     }
     logger.debug("publish finished")
+    //println("BBB")
     Nil
   }
   def publish(local: Context)(path: String, body: Array[Byte]): Unit = {
