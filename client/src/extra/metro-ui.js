@@ -64,7 +64,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		constructor(props) {
 		  super(props);
 		  this.state = {mouseOver:false,touch:false, ripple:false};
-		   
+		  autoBind(this) 
 		}			
 		mouseOver(){
 			this.setState({mouseOver:true});
