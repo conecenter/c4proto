@@ -5,22 +5,31 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{DepCondition, HashSearchDepRequest}
+import ee.cone.c4actor.hashsearch.HashSearchModelsApp
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp {
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
+trait ConditionFactoryApp {
+  def conditionFactory: ModelConditionFactory[_]
+}
+
+trait ConditionFactoryImpl {
+  def conditionFactory: ModelConditionFactory[_] = new ModelConditionFactoryImpl[Unit]()
+}
+
+trait HashSearchLeafRegistryApp {
+  def leafModelRegistry: List[(Class[_ <: Product], LeafRegistry)] = Nil
+}
+
+trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with HashSearchLeafRegistryApp with ConditionFactoryApp {
+  override def assembles: List[Assemble] = leafModelRegistry
+    .distinct
+    .map(pair ⇒ new HSDepRequestAssemble(hsDepRequestHandler(pair._2), pair._1)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
-  def hashSearchModels: List[Class[_ <: Product]] = Nil
-
-  def conditionFactory: ModelConditionFactory[_]
-
-  def leafRegistry: LeafRegistry
-
-  def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, conditionFactory)
+  def hsDepRequestHandler: LeafRegistry ⇒ HashSearchDepRequestHandler = HashSearchDepRequestHandler(_, conditionFactory)
 }
 
 case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, modelCl: String)
