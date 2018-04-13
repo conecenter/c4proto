@@ -7,7 +7,7 @@ trait FilterPredicateBuilder {
 }
 
 trait FilterPredicate[Model<:Product] {
-  def add[By<:Product,Field](filterAccess: Access[By], lens: ProdLens[Model,Field])(implicit c: ConditionCheck[By,Field]): FilterPredicate[Model]
+  def addAccess[By<:Product,Field](filterAccess: Access[By], lens: ProdLens[Model,Field])(implicit c: ConditionCheck[By,Field]): FilterPredicate[Model]
   def add[By<:Product,Field](filterKey: SessionAttr[By], lens: ProdLens[Model,Field])(implicit c: ConditionCheck[By,Field]): FilterPredicate[Model]
   def accesses: List[Access[_]]
   def condition: Condition[Model]

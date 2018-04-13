@@ -24,8 +24,8 @@ case class FilterPredicateImpl[Model<:Product,By<:Product,Field](
   def add[SBy<:Product,SField](filterKey: SessionAttr[SBy], lens: ProdLens[Model,SField])(
     implicit c: ConditionCheck[SBy,SField]
   ): FilterPredicate[Model] =
-    add(sessionAttrAccessFactory.to(filterKey)(local).get, lens)
-  def add[SBy<:Product,SField](by: Access[SBy], lens: ProdLens[Model,SField])(
+    addAccess(sessionAttrAccessFactory.to(filterKey)(local).get, lens)
+  def addAccess[SBy<:Product,SField](by: Access[SBy], lens: ProdLens[Model,SField])(
     implicit c: ConditionCheck[SBy,SField]
   ): FilterPredicate[Model] = {
     val nCond = intersect(leaf(lens,by.initialValue,by.metaList)(c),condition)
