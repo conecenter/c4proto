@@ -1,7 +1,7 @@
 "use strict"
 import React from 'react'
 
-export default function UpdateManager(log,window,metroUi){
+export default function UpdateManager(log,window,metroUi,StatefulComponent){
 	const {process,location,require,setInterval,clearInterval}  = window
 	const getUpdateProgress = () => window.updateProgress
 	const FlexGroup = metroUi.transforms.tp.FlexGroup
@@ -29,11 +29,9 @@ export default function UpdateManager(log,window,metroUi){
 		const check = () => callbacks.forEach(c=>c())
 		return {add,check}
 	})();
-	const UpdaterElement = React.createClass({
-		getInitialState:function(){
-			return {progress:"0%"}
-		},
-		update:function(){
+	class UpdaterElement extends StatefulComponent{		
+		getInitialState(){return {progress:"0%"}}
+		update(){
 			const val = getUpdateProgress()			
 			if(val!= undefined) {
 				checked = false
@@ -42,19 +40,19 @@ export default function UpdateManager(log,window,metroUi){
 					this.setState({progress:prg})				
 				}
 			}
-		},
-		componentWillMount:function(){
+		}
+		componentWillMount(){
 			if(!process) return checked = true
 			if(process && !process.execPath.includes(this.props.termApp)) return checked = true
 			if(getUpdateProgress() == undefined) return checked = true
-		},
-		componentDidMount:function(){
+		}
+		componentDidMount(){
 			this.bind = checkActivateCalls.add(this.update)			
-		},
-		componentWillUnmount:function(){
+		}
+		componentWillUnmount(){
 			if(this.bind) this.bind.remove()
-		},
-		render:function(){			
+		}
+		render(){			
 			const style = {
 				...this.props.style
 			}
@@ -68,7 +66,7 @@ export default function UpdateManager(log,window,metroUi){
 				React.createElement(ProgressBar,{key:2,progress:this.state.progress})
 			])
 		}
-	})
+	}
 	
 	const transforms = {
 		tp:{UpdaterElement}
