@@ -18,7 +18,7 @@ export default function VDom(log,getRootElement, createElement, activeTransforms
             return React.createElement(at.tp, at, content)
         }
     }
-    class RootComponent extends StatefulPureComponent {		
+    class RootComponent extends StatefulPureComponent {
         render(){ 
             return this.state.incoming ? 
                 React.createElement(Traverse,{incoming: this.state.incoming, local: this.state.local }) : 
