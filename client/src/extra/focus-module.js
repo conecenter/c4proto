@@ -252,10 +252,11 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		
 		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
 			nodesObj = newNodesObj			
-			/*if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
-				nodesObj[0].n.focus()
+			if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
+				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))
+				inpNodes&&inpNodes.n.focus()
 				//currentFocusNode.focus()
-			}*/
+			}
 		}			
 	}	
 	const reg = (o) => {

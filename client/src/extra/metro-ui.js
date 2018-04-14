@@ -323,12 +323,13 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const left = this.props.children.filter(_=>!_.key.includes("right"))			
 			const c = {transition:"all 100ms",transformOrigin:"center"}
 			const alt1 = this.props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
-			const alt2 = this.props.isBurgerOpen?{transform: "rotate(45deg)"}:{}
-			const alt3 = this.props.isBurgerOpen?{opacity: "0"}:{}
-			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.8em", style:{"enableBackground":"new 0 0 32 33"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
-				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"17":"9",x2:"30",y2:this.props.isBurgerOpen?"17":"9","strokeWidth":"4","stroke":"white"}),							
-				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:this.props.isBurgerOpen?"3":"2",y1:"17",x2:this.props.isBurgerOpen?"31":"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
-				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:"25",x2:"30",y2:"25","strokeWidth":"4","stroke":"white"})				
+			const alt2 = this.props.isBurgerOpen?{opacity: "0"}:{}
+			const alt3 = this.props.isBurgerOpen?{transform: "rotate(45deg)"}:{}
+			
+			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
+				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"9",x2:"30",y2:this.props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":"white"}),							
+				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
+				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"25",x2:"30",y2:this.props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":"white"})				
 			])					
 						
 			//const svgData = svgSrc(svg)

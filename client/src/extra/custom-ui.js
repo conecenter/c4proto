@@ -12,23 +12,33 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 	class StatusElement extends StatefulComponent{		
 		getInitialState(){return {lit:false}}
 		signal(on){
+			if(this.props.onChange)
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:on.toString()}})
 			if(on) this.setState({lit:true});
 			else this.setState({lit:false});
+			
+		}
+		shouldComponentUpdate(nextProps, nextState){
+			if(customMeasurer().length>0 && nextProps.lit!=nextState.lit) return false
+			return true
 		}
 		onClick(){
 			customMeasurer().forEach(m=>m._do(this.props.fkey.toLowerCase()))
 		}
-		componentDidMount(){
+		componentDidMount(){			
 			customMeasurer().forEach(m=>m.regCallback(this.props.fkey.toLowerCase(),this.signal));
 		}
 		componentWillUnmount(){
 			customMeasurer().forEach(m=>m.unregCallback(this.props.fkey.toLowerCase()));
 		} 
 		render(){
+			const backgroundColor = customMeasurer().length>0?(this.state.lit?'#ffa500':'#eeeeee'):(this.props.lit?'#ffa500':'#eeeeee')
+			const borderColor = customMeasurer().length>0?(this.state.lit?'#ffa500':'#eeeeee'):(this.props.lit?'#ffa500':'#eeeeee')
 			const style={
-				marginTop:'.6125rem',
-				backgroundColor:this.state.lit?'#ffa500':'#eeeeee',
-				borderColor:this.state.lit?'#ffa500':'#eeeeee',				
+				marginTop:'.6125em',
+				...this.props.style,
+				backgroundColor,
+				borderColor				
 			};
 		
 			return React.createElement(ChipElement,{style,onClick:this.onClick,value:this.props.fkey});

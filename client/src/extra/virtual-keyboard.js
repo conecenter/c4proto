@@ -126,12 +126,10 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			return false						
 		}
 		componentDidMount(){
-			this.root = getReactRoot(this.el)
-			if(this.props.isStatic) return
+			this.root = getReactRoot(this.el)			
 			checkActivateCalls.add(this.fitIn)			
 		}
-		componentWillUnmount(){
-			if(this.props.isStatic) return
+		componentWillUnmount(){			
 			checkActivateCalls.remove(this.fitIn)		
 		}
 		emRatio(){
