@@ -39,6 +39,7 @@ trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp{
   type CondInnerChildId = SrcId
   type CondInnerId = SrcId
   type RootCondInnerId = SrcId
+  type OuterDamn = SrcId
 
   // Parse condition
   def RequestToConditions(
@@ -53,9 +54,17 @@ trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp{
       WithPK(ConditionOuter(request.requestId, ConditionInner(condId, condition), "", request.requestId))
     }
 
+  def CondOuterDamn(
+    outerId: SrcId,
+    @was outers: Values[ConditionOuter[Model]]
+  ): Values[(OuterDamn, ConditionOuter[Model])] =
+    for {
+      outer ← outers
+    } yield WithPK(outer)
+
   def LinkRootOuterWithRootInner(
     outerRootId: SrcId,
-    @was outerRoots: Values[ConditionOuter[Model]]
+    @by[OuterDamn] outerRoots: Values[ConditionOuter[Model]]
   ): Values[(RootCondInnerId, ConditionOuter[Model])] =
     for {
       outerRoot ← outerRoots
@@ -66,7 +75,7 @@ trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp{
   // Outpoint for leafs
   def ConditionOuterToInner(
     condOuterId: SrcId,
-    @was condOuters: Values[ConditionOuter[Model]]
+    @by[OuterDamn] condOuters: Values[ConditionOuter[Model]]
   ): Values[(SrcId, ConditionInner[Model])] =
     for {
       condOuter ← condOuters
@@ -92,7 +101,7 @@ trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp{
 
   def ConditionOuterToInnerId(
     condOuterId: SrcId,
-    @was condOuters: Values[ConditionOuter[Model]]
+    @by[OuterDamn] condOuters: Values[ConditionOuter[Model]]
   ): Values[(CondInnerId, ConditionOuter[Model])] =
     for {
       condOuter ← condOuters

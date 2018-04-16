@@ -39,8 +39,12 @@ object StaticHashSearchImpl {
     heapIds(expression(indexers)(cond), GatherAll)
 
 
-  def cEstimate[Model <: Product](cond: ConditionInner[Model], priorities: Values[StaticCount[Model]]): CountEstimate[Model] =
-    CountEstimate(ToPrimaryKey(cond), priorities.map(_.count).sum, priorities.map(_.heapId).toList)
+  def cEstimate[Model <: Product](cond: ConditionInner[Model], priorities: Values[StaticCount[Model]]): CountEstimate[Model] = {
+    if (priorities.distinct.size != priorities.size)
+      println("Warning, non singe priority", cond)
+    val priorPrep = priorities.distinct
+    CountEstimate(ToPrimaryKey(cond), priorPrep.map(_.count).sum, priorPrep.map(_.heapId).toList)
+  }
 
   private def expression[Model <: Product](indexers: Indexer[Model]): Condition[Model] ⇒ Expression =
     c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
@@ -86,7 +90,7 @@ object StaticHashSearchImpl {
 
     def isMy(cond: ConditionInner[Model]): Boolean = false
 
-    def assemble: List[Assemble] = Nil
+    def assemble: List[Assemble] = new StaticAssembleShared(modelClass) :: Nil
   }
 
   case class IndexerImpl[By <: Product, Model <: Product, Field](
@@ -136,8 +140,8 @@ trait HashSearchStaticLeafFactoryApi {
   def staticLeafFactory: StaticFactory
 }
 
-trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi{
-  def modelConditionFactory:  ModelConditionFactory[Unit]
+trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi {
+  def modelConditionFactory: ModelConditionFactory[Unit]
 
   def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory)
 }
@@ -171,14 +175,6 @@ import StaticHashSearchImpl._
     heapId → StaticNeed[Model](ToPrimaryKey(leafCond))
   }
 
-  def respHeapPriorityByReq(
-    heapId: SrcId,
-    @by[StaticHeapId] respLines: Values[Model],
-    @by[StaticHeapId] needs: Values[StaticNeed[Model]]
-  ): Values[(LeafCondId, StaticCount[Model])] = for {
-    need ← needs
-  } yield ToPrimaryKey(need) → count(heapId, respLines)
-
   def neededRespHeapPriority(
     requestId: SrcId,
     requests: Values[ConditionInner[Model]],
@@ -190,6 +186,21 @@ import StaticHashSearchImpl._
     val count = cEstimate(request, priorities)
     request.srcId → count
   }
+}
+
+@assemble class StaticAssembleShared[Model <: Product](
+  modelCl: Class[Model]
+) extends Assemble with HashSearchAssembleSharedKeys{
+  type StaticHeapId = SrcId
+  type LeafCondId = SrcId
+
+  def respHeapPriorityByReq(
+    heapId: SrcId,
+    @by[StaticHeapId] respLines: Values[Model],
+    @by[StaticHeapId] needs: Values[StaticNeed[Model]]
+  ): Values[(LeafCondId, StaticCount[Model])] = for {
+    need ← needs
+  } yield ToPrimaryKey(need) → count(heapId, respLines)
 
   def handleRequest(
     heapId: SrcId,
@@ -200,6 +211,4 @@ import StaticHashSearchImpl._
       request ← requests
       line ← responses
     } yield ToPrimaryKey(request) → line
-
-
 }

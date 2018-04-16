@@ -8,7 +8,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.HashSearchMockAssembleTest.K2TreeAll
 import ee.cone.c4actor.rangers.K2TreeUtils._
 import ee.cone.c4actor.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
-import ee.cone.c4actor.{Condition, NameMetaAttr, ProdCondition, QAdapterRegistry}
+import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
@@ -29,7 +29,7 @@ object HashSearchMockUtils {
     l ⇒ Single.option(l.distinct).toList
 
   def count[Model <: Product](heapSrcId: SrcId, respLines: Values[Model]): K2Count[Model] =
-    K2Count(heapSrcId, respLines.length)
+    K2Count(heapSrcId, Log2Pow2(respLines.length))
 
   def isMy[Model](cond: Condition[Model], name: NameMetaAttr): Boolean =
     cond match {

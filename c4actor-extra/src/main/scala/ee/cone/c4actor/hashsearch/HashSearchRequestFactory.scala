@@ -1,6 +1,6 @@
 package ee.cone.c4actor.hashsearch
 
-import ee.cone.c4actor.{NameMetaAttr, QAdapterRegistry}
+import ee.cone.c4actor._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest}
 import ee.cone.c4proto.ToByteString
 
@@ -14,6 +14,10 @@ trait HashSearchDepRequestFactory[Model] {
   def leaf[By <: Product](lensName: NameMetaAttr, by: By): DepCondition
 
   def request: DepCondition ⇒ HashSearchDepRequest
+
+  def conditionToHashSearchRequest: Condition[Model] ⇒ HashSearchDepRequest
+
+  def conditionToDepCond: Condition[Model] ⇒ DepCondition
 }
 
 case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapterRegistry: QAdapterRegistry) extends HashSearchDepRequestFactory[Model] {
@@ -34,4 +38,21 @@ case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapte
 
   def request: DepCondition => HashSearchDepRequest =
     cond ⇒ HashSearchDepRequest(modelCl.getName, Option(cond))
+
+  def conditionToHashSearchRequest: Condition[Model] ⇒ HashSearchDepRequest = cond ⇒
+    request(conditionToDepCond(cond))
+
+  def conditionToDepCond: Condition[Model] ⇒ DepCondition = {
+    case IntersectCondition(left, right) ⇒
+      val leftDep = conditionToDepCond(left)
+      val rightDep = conditionToDepCond(right)
+      intersect(leftDep, rightDep)
+    case UnionCondition(left, right) ⇒
+      val leftDep = conditionToDepCond(left)
+      val rightDep = conditionToDepCond(right)
+      union(leftDep, rightDep)
+    case AnyCondition() ⇒ any
+    case ProdConditionImpl(metaList, by) ⇒ leaf(metaList.collectFirst { case a: NameMetaAttr ⇒ a }.get, by)
+    case cant ⇒ FailWith.apply(s"No such condition node $cant")
+  }
 }
