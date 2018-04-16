@@ -1,4 +1,4 @@
-package ee.cone.c4actor.hashsearch
+package ee.cone.c4actor.hashsearch.index
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
@@ -6,7 +6,8 @@ import java.util.UUID
 import ee.cone.c4actor.HashSearch._
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.hashsearch.StaticHashSearchImpl.{Indexer, StaticFactoryImpl, StaticNeed}
+import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerCondition, InnerConditionEstimate}
+import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
 
@@ -39,11 +40,11 @@ object StaticHashSearchImpl {
     heapIds(expression(indexers)(cond), GatherAll)
 
 
-  def cEstimate[Model <: Product](cond: ConditionInner[Model], priorities: Values[StaticCount[Model]]): CountEstimate[Model] = {
+  def cEstimate[Model <: Product](cond: InnerCondition[Model], priorities: Values[StaticCount[Model]]): InnerConditionEstimate[Model] = {
     if (priorities.distinct.size != priorities.size)
       println("Warning, non singe priority", cond)
     val priorPrep = priorities.distinct
-    CountEstimate(ToPrimaryKey(cond), priorPrep.map(_.count).sum, priorPrep.map(_.heapId).toList)
+    InnerConditionEstimate(cond, priorPrep.map(_.count).sum, priorPrep.map(_.heapId).toList)
   }
 
   private def expression[Model <: Product](indexers: Indexer[Model]): Condition[Model] ⇒ Expression =
@@ -77,7 +78,7 @@ object StaticHashSearchImpl {
 
     def heapIds(model: Model): List[SrcId]
 
-    def isMy(cond: ConditionInner[Model]): Boolean
+    def isMy(cond: InnerCondition[Model]): Boolean
   }
 
   case class EmptyIndexer[Model <: Product]()(
@@ -88,7 +89,7 @@ object StaticHashSearchImpl {
 
     def heapIds(model: Model): List[SrcId] = Nil
 
-    def isMy(cond: ConditionInner[Model]): Boolean = false
+    def isMy(cond: InnerCondition[Model]): Boolean = false
 
     def assemble: List[Assemble] = new StaticAssembleShared(modelClass) :: Nil
   }
@@ -121,7 +122,7 @@ object StaticHashSearchImpl {
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
       _.collectFirst { case l: NameMetaAttr ⇒ l }.get
 
-    def isMy(cond: ConditionInner[Model]): Boolean =
+    def isMy(cond: InnerCondition[Model]): Boolean =
       cond.condition match {
         case a: ProdConditionImpl[By, Model, Field] ⇒ fltML(a.metaList) == fltML(metaList)
         case _ ⇒ false
@@ -166,7 +167,7 @@ import StaticHashSearchImpl._
 
   def reqByHeap(
     leafCondId: SrcId,
-    leafConds: Values[ConditionInner[Model]]
+    leafConds: Values[InnerCondition[Model]]
   ): Values[(StaticHeapId, StaticNeed[Model])] = for {
     leafCond ← leafConds
     if indexer.isMy(leafCond)
@@ -177,14 +178,13 @@ import StaticHashSearchImpl._
 
   def neededRespHeapPriority(
     requestId: SrcId,
-    requests: Values[ConditionInner[Model]],
+    requests: Values[InnerCondition[Model]],
     @by[LeafCondId] priorities: Values[StaticCount[Model]]
-  ): Values[(SrcId, CountEstimate[Model])] = for {
+  ): Values[(SrcId, InnerConditionEstimate[Model])] = for {
     request ← single(requests)
     if indexer.isMy(request)
   } yield {
-    val count = cEstimate(request, priorities)
-    request.srcId → count
+    WithPK(cEstimate(request, priorities))
   }
 }
 
@@ -210,5 +210,6 @@ import StaticHashSearchImpl._
     for {
       request ← requests
       line ← responses
+      if request.condition.check(line)
     } yield ToPrimaryKey(request) → line
 }

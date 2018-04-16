@@ -1,14 +1,15 @@
-package ee.cone.c4actor.hashsearch
+package ee.cone.c4actor.hashsearch.index
 
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
 import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.hashsearch.HashSearchMockAssembleTest.K2TreeAll
+import ee.cone.c4actor._
+import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerCondition, InnerConditionEstimate}
+import ee.cone.c4actor.hashsearch.index.HashSearchMockAssembleTest.K2TreeAll
 import ee.cone.c4actor.rangers.K2TreeUtils._
 import ee.cone.c4actor.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
-import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
@@ -38,8 +39,6 @@ object HashSearchMockUtils {
     }
 }
 
-import ee.cone.c4actor.hashsearch.HashSearchMockUtils._
-
 case class K2Need[Model <: Product](requestId: SrcId, modelCl: Class[Model])
 
 case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
@@ -47,6 +46,8 @@ case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
 object HashSearchMockAssembleTest {
   type K2TreeAll[Test] = All
 }
+
+import HashSearchMockUtils._
 
 @assemble class HashSearchMockAssemble[Model <: Product](
   modelCl: Class[Model],
@@ -88,7 +89,7 @@ object HashSearchMockAssembleTest {
   // LeafRequest receive
   def ReqByHeap(
     leafCondId: SrcId,
-    leafConditions: Values[ConditionInner[Model]],
+    leafConditions: Values[InnerCondition[Model]],
     @by[K2TreeAll[Model]] trees: Values[TreeNodeOuter]
   ): Values[(K2HeapId, K2Need[Model])] =
     for {
@@ -111,13 +112,13 @@ object HashSearchMockAssembleTest {
   // Count response
   def CountByReq(
     needId: K2HeapId,
-    requests: Values[ConditionInner[Model]],
+    requests: Values[InnerCondition[Model]],
     @by[K2ToCountId] counts: Values[K2Count[Model]]
-  ): Values[(SrcId, CountEstimate[Model])] =
+  ): Values[(SrcId, InnerConditionEstimate[Model])] =
     for {
       request ← requests
       if isMy(request.condition, filterName)
-    } yield request.srcId → CountEstimate[Model](request.srcId, counts.map(_.count).sum, counts.toList.map(_.heapSrcId))
+    } yield request.srcId → InnerConditionEstimate[Model](request, counts.map(_.count).sum, counts.toList.map(_.heapSrcId))
 
 
   // Lines Response

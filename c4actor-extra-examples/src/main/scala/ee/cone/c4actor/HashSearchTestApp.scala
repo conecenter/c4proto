@@ -6,16 +6,16 @@ import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.hashsearch.HashSearchAssembleApp
-import ee.cone.c4actor.hashsearch.StaticHashSearchImpl.StaticFactoryImpl
+import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleApp, InnerCondition, OuterCondition}
+import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, Single, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchTestAppp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 class HashSearchTesttStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
-) extends Executable with LazyLogging {
+) extends Executable with LazyLogging with TestCondition {
   def run() = {
     import LEvent.update
 
@@ -26,11 +26,15 @@ class HashSearchTesttStart(
 
     //logger.info(s"${nGlobal.assembled}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(ByPK(classOf[Response[ValueNode]]).of(nGlobal).values.toList)
+    println(ByPK(classOf[ValueNode]).of(nGlobal).values.toList)
+    println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList)
+    println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList.map(_.list.map(elem ⇒ condition.check(elem))))
     execution.complete()
 
   }
 }
+
+case class CustomResponse(list: List[ValueNode])
 
 @assemble class CreateRequest(condition: Condition[ValueNode]) extends Assemble {
   def createRequest(
@@ -45,8 +49,24 @@ class HashSearchTesttStart(
     responseId: SrcId,
     tests: Values[TestNode],
     responses: Values[Response[ValueNode]]
-  ): Values[(SrcId, Firstborn)] = {
+  ): Values[(SrcId, CustomResponse)] = {
     println("Answer", responses.map(_.lines))
+    (responseId → CustomResponse(Single(responses.map(_.lines)))) :: Nil
+  }
+
+  def printAllInners(
+    innerId: SrcId,
+    inners: Values[InnerCondition[ValueNode]]
+  ): Values[(SrcId, Firstborn)] = {
+    println("Inner", inners)
+    Nil
+  }
+
+  def printAllOuters(
+    innerId: SrcId,
+    inners: Values[OuterCondition[ValueNode]]
+  ): Values[(SrcId, Firstborn)] = {
+    println("Outer", inners)
     Nil
   }
 }
@@ -78,7 +98,7 @@ case object IntEqRanger extends Ranger[IntEq, Int] {
 
 trait TestCondition {
   def condition: Condition[ValueNode] = {
-    IntersectCondition(
+    UnionCondition(
       ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.value),
       ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
     )
@@ -111,7 +131,9 @@ class HashSearchTestAppp extends RichDataApp
   override def protocols: List[Protocol] = EqProtocol :: TestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
-    println(super.assembles.mkString("\n"))
+    println((new CreateRequest(condition) :: joiners :::
+      super.assembles).mkString("\n")
+    )
     new CreateRequest(condition) :: joiners :::
       super.assembles
   }

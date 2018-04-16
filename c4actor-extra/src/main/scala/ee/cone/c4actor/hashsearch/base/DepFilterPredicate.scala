@@ -1,4 +1,4 @@
-package ee.cone.c4actor.hashsearch
+package ee.cone.c4actor.hashsearch.base
 
 import ee.cone.c4actor._
 
