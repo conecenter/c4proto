@@ -40,8 +40,7 @@ const requestState = sender//RequestState(sender,log)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
 const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
-//metroUi with hacks
-const press = key => window.dispatchEvent(new KeyboardEvent("keydown",({key})))
+
 const fileReader = ()=> (new window.FileReader());
 
 class StatefulComponent extends React.Component {
