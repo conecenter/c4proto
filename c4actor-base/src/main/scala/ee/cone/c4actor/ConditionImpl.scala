@@ -7,6 +7,10 @@ import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
 
+trait ConditionFactoryMix {
+  def conditionFactory: ModelConditionFactory[_] = new ModelConditionFactoryImpl[Unit]()
+}
+
 class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
   def of[OtherModel]: ModelConditionFactory[OtherModel] =
     new ModelConditionFactoryImpl[OtherModel]

@@ -8,6 +8,10 @@ trait SerializableCondition[Model] extends Condition[Model] {
   def getPK(modelCl: Class[Model]):QAdapterRegistry ⇒ String
 }
 
+trait ConditionFactoryApp {
+  def conditionFactory: ModelConditionFactory[_]
+}
+
 trait ModelConditionFactory[Model] {
   def of[OtherModel<:Product]: ModelConditionFactory[OtherModel]
   def ofWithCl[OtherModel <: Product]: Class[OtherModel] ⇒ ModelConditionFactory[OtherModel]

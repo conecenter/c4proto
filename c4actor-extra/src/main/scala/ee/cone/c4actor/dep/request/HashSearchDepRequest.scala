@@ -6,29 +6,15 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{DepCondition, HashSearchDepRequest}
 import ee.cone.c4actor.utils.{GeneralizedOrigRegistry, GeneralizedOrigRegistryApi}
-import ee.cone.c4actor.hashsearch.HashSearchModelsApp
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by, was}
+import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait ConditionFactoryApp {
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with GeneralizedOrigRegistryApi {
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
+trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with GeneralizedOrigRegistryApi with ConditionFactoryApp {
+  override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
-  def hashSearchModels: List[Class[_ <: Product]] = Nil
-
-  def conditionFactory: ModelConditionFactory[_]
-}
-
-trait ConditionFactoryImpl {
-  def conditionFactory: ModelConditionFactory[_] = new ModelConditionFactoryImpl[Unit]()
-}
-
-trait HashSearchLeafRegistryApp {
-  def leafModelRegistry: List[(Class[_ <: Product], LeafRegistry)] = Nil
-}
   def qAdapterRegistry: QAdapterRegistry
 
   def leafRegistry: LeafRegistry
@@ -65,13 +51,25 @@ case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, mod
     }
 }
 
-trait LeafRegistry {
-  def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_, _ <: Product, _]
-
-  def getModelCl(modelClName: String): Class[_ <: Product]
+trait LeafRegistryApp {
+  def leafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = Nil
 }
 
-case class LeafInfoHolder[Model, By <: Product, Field](
+trait LeafRegistryMix extends LeafRegistryApp {
+  lazy val leafRegistryImpl = LeafRegistryImpl(leafs, leafs.map(_.modelCl))
+
+  def leafRegistry: LeafRegistry = leafRegistryImpl
+}
+
+trait LeafRegistry {
+  def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_ <: Product, _ <: Product, _]
+
+  def getModelCl(modelClName: String): Class[_ <: Product]
+
+  def getModelsList: List[Class[_ <: Product]]
+}
+
+case class LeafInfoHolder[Model <: Product, By <: Product, Field](
   lens: ProdLens[Model, Field], byOptions: List[MetaAttr], check: ConditionCheck[By, Field],
   modelCl: Class[Model], byCl: Class[By], fieldCl: Class[Field]
 )
@@ -85,11 +83,13 @@ case class LeafRegistryImpl(
   private lazy val leafMap: Map[(String, String, String), LeafInfoHolder[_, _ <: Product, _]] =
     leafList.map(leaf ⇒ (leaf.modelCl.getName, leaf.byCl.getName, leaf.lens.metaList.collect { case NameMetaAttr(v) ⇒ v }.head) → leaf).toMap
 
-  private lazy val modelMap: Map[String, Class[_ <: Product]] = models.map(cl ⇒ cl.getName → cl).toMap[String, Class[_ <: Product]]
+  private lazy val modelMap: Map[String, Class[_ <: Product]] = models.map(cl ⇒ cl.getName → cl).distinct.toMap[String, Class[_ <: Product]]
 
-  def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_, _ <: Product, _] = leafMap((modelCl, byCl, lensName))
+  def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_ <: Product, _ <: Product, _] = leafMap((modelCl, byCl, lensName))
 
   def getModelCl(modelClName: String): Class[_ <: Product] = modelMap(modelClName)
+
+  def getModelsList: List[Class[_ <: Product]] = models.distinct
 }
 
 case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[_], generalizedOrigRegistry: GeneralizedOrigRegistry, qAdapterRegistry: QAdapterRegistry) {
