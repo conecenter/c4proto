@@ -52,11 +52,11 @@ class StatefulComponent extends React.Component {
 	}
 }
 class StatefulPureComponent extends React.PureComponent {
-	constructor(props) {
-	  super(props);
-	  this.state = this.getInitialState?this.getInitialState():{}
-	  autoBind(this)
-	}
+    constructor(props) {
+      super(props);
+      this.state = this.getInitialState?this.getInitialState():{}
+      autoBind(this)
+    }
 }
 
 
