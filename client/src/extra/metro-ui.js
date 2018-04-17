@@ -1046,8 +1046,8 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				if(markerButton){
 					const inp = this.getInput()
 					cEvent = eventManager.create("cEnter",{bubbles:true,detail:markerButton})
-					if(this.props.onBlur) inp.blur()
-					else if(this.props.onChange) inp.dispatchEvent(eventManager.create("input",{bubbles:true}))
+					if(this.props.onBlur) this.props.onBlur()
+					else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 					else {}
 				}
 				else{
@@ -1069,8 +1069,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				}
 				else 
 					inp.value = ""	
-				const cEvent = eventManager.create("input",{bubbles:true})				
-				inp.dispatchEvent(cEvent)				
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+				//const cEvent = eventManager.create("input",{bubbles:true})				
+				//inp.dispatchEvent(cEvent)				
 			})){				
 				if(this.isVkEvent(event)){	
 					const inp = this.getInput()
@@ -1078,16 +1079,19 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					const value2 = inp.value.substring(inp.selectionEnd)
 					this.s = inp.selectionStart+1
 					inp.value = value1+event.detail.key+value2
-					const cEvent = eventManager.create("input",{bubbles:true})							
-					inp.dispatchEvent(cEvent)					
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+					//const cEvent = eventManager.create("input",{bubbles:true})							
+					//inp.dispatchEvent(cEvent)					
 				}
 			}									
 		}
 		onErase(event){
 			const inp = this.getInput()			
-			inp.value = ""
-			const cEvent = eventManager.create("input",{bubbles:true})							
-			inp.dispatchEvent(cEvent)				
+			inp.value = ""			
+			if(this.props.onBlur) this.props.onBlur()
+			else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+			//const cEvent = eventManager.create("input",{bubbles:true})							
+			//inp.dispatchEvent(cEvent)				
 		}
 		onBackspace(event){
 			//log(`Backspace`)
@@ -1097,17 +1101,19 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = inp.value.slice(0,-1)
-				const cEvent = eventManager.create("input",{bubbles:true})				
-				inp.dispatchEvent(cEvent)
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+				//const cEvent = eventManager.create("input",{bubbles:true})				
+				//inp.dispatchEvent(cEvent)
 			})){
 				if(this.isVkEvent(event)){		
 					const inp = this.getInput()
 					const value1 = inp.value.substring(0, inp.selectionStart-1)				
 					const value2 = inp.value.substring(inp.selectionEnd)
 					this.s = inp.selectionStart - 1>=0?inp.selectionStart -1:0
-					inp.value = value1+value2					
-					const cEvent = eventManager.create("input",{bubbles:true})							
-					inp.dispatchEvent(cEvent)
+					inp.value = value1+value2
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+					//const cEvent = eventManager.create("input",{bubbles:true})							
+					//inp.dispatchEvent(cEvent)
 				}
 			}
 		}
@@ -1116,8 +1122,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = event.detail
-				const cEvent = eventManager.create("input",{bubbles:true})
-				inp.dispatchEvent(cEvent)
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+				//const cEvent = eventManager.create("input",{bubbles:true})
+				//inp.dispatchEvent(cEvent)
 			})				
 			event.stopPropagation()
 		}
@@ -1173,7 +1180,11 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 				e.relatedTarget.classList.contains("vkContainer") ||
 				e.relatedTarget.classList.contains("vkKeyboard")
 			)) return
-			if(this.props.onBlur) this.props.onBlur(e)
+			if(this.props.onBlur) {
+				const inp = this.getInput()
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+				this.props.onBlur()
+			}
 		}
 	    onMouseDown(e){			
 			if(!this.props.div) return

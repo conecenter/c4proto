@@ -163,6 +163,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		return {ping,regCallback,unregCallback};
 	}();	
 	let prevWifiLevel = null
+	let wifiData = null
 	class DeviceConnectionState extends StatefulComponent{		
 		getInitialState(){return {on:true,wifiLevel:null,waiting:null,data:null,showWifiInfo:false}}
 		signal(on,data){			
@@ -173,8 +174,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 		}
 		wifiCallback(wifiLevel,plain){
 			prevWifiLevel = wifiLevel
-			if(this.state.wifiLevel != wifiLevel){
-				this.wifiData = plain
+			wifiData = plain
+			if(this.state.wifiLevel != wifiLevel){				
 				this.setState({wifiLevel})
 			}
 		}
@@ -216,9 +217,8 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				this.toggleOverlay(!this.state.on);
 			}
 		}
-		onMouseOver(){
-			if(this.wifiData)
-				this.setState({showWifiInfo:true});
+		onMouseOver(){			
+			this.setState({showWifiInfo:true});
 		}
 		onMouseOut(){
 			if(this.state.showWifiInfo)
@@ -258,7 +258,7 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				</svg>`;
 				imageSvgData = svgSrc(wifiSvg)				
 			}	
-			const wifiDataEl = this.state.showWifiInfo?React.createElement("pre",{style:{
+			const wifiDataEl = this.state.showWifiInfo&&wifiData?React.createElement("pre",{style:{
 				position:"absolute",
 				marginTop:"2.7em",
 				width:"40em",
@@ -268,9 +268,9 @@ export default function CustomUi({log,ui,requestState,customMeasurer,customTermi
 				right:"0.24em",
 				textAlign:"left",
 				color:"white"
-			},key:"2"},this.wifiData):null;
+			},key:"2"},wifiData):null;
 			const on = (this.props.on === false)? false: this.state.on
-			return React.createElement("div",{style:{display:"flex"},onMouseOver:this.onMouseOver,onMouseOut:this.onMouseOut},[
+			return React.createElement("div",{style:{display:"flex"},onMouseEnter:this.onMouseOver,onMouseLeave:this.onMouseOut},[
 				React.createElement(ConnectionState,{key:"1",onClick:this.props.onClick,on,style:style,iconStyle:iconStyle,imageSvgData}, null),
 				wifiDataEl,
 				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"3"},this.state.data)
