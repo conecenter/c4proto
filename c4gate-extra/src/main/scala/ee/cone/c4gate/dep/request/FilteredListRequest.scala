@@ -35,7 +35,7 @@ case class FilteredListRequestHandler(flr: List[FLRequestDef]) extends RequestHa
   def handle: FilteredListRequest => (Dep[_], ContextId) = request ⇒ (depMap(request.listName), request.contextId)
 }
 
-case class FilteredListResponse(srcId: String, listName: String, response: Option[_], sessionKey: String)
+case class FilteredListResponse(srcId: String, listName: String, sessionKey: String, response: Option[_])
 
 @assemble class FilterListRequestCreator(val qAdapterRegistry: QAdapterRegistry, listName: String) extends Assemble with DepAssembleUtilityImpl {
 
@@ -58,7 +58,7 @@ case class FilteredListResponse(srcId: String, listName: String, response: Optio
       resp ← responses
       if resp.request.innerRequest.request.isInstanceOf[FilteredListRequest] && resp.request.innerRequest.request.asInstanceOf[FilteredListRequest].listName == listName
     } yield {
-      WithPK(FilteredListResponse(resp.request.srcId, listName, resp.value, resp.request.innerRequest.request.asInstanceOf[FilteredListRequest].contextId))
+      WithPK(FilteredListResponse(resp.request.srcId, listName, resp.request.innerRequest.request.asInstanceOf[FilteredListRequest].contextId, resp.value))
     }
 }
 
