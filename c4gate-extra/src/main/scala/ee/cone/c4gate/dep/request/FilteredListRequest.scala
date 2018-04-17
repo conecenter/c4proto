@@ -18,7 +18,7 @@ trait FilterListRequestApi {
 
 trait FilterListRequestHandlerApp extends RequestHandlersApp with AssemblesApp with ProtocolsApp with FilterListRequestApi {
 
-  override def handlers: List[RequestHandler[_]] = filterDepList.map(df ⇒ FilteredListRequestHandler(df.requestDep, df.listName)) ::: super.handlers
+  override def handlers: List[RequestHandler[_]] = FilteredListRequestHandler(filterDepList) :: super.handlers
 
   override def assembles: List[Assemble] = filterDepList.map(df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName)) ::: super.assembles
 
@@ -27,10 +27,12 @@ trait FilterListRequestHandlerApp extends RequestHandlersApp with AssemblesApp w
   def qAdapterRegistry: QAdapterRegistry
 }
 
-case class FilteredListRequestHandler(fListDep: Dep[_], listName: String) extends RequestHandler[FilteredListRequest] {
-  override def canHandle: Class[FilteredListRequest] = classOf[FilteredListRequest]
+case class FilteredListRequestHandler(flr: List[FLRequestDef]) extends RequestHandler[FilteredListRequest] {
+  def canHandle: Class[FilteredListRequest] = classOf[FilteredListRequest]
 
-  override def handle: FilteredListRequest => (Dep[_], ContextId) = request ⇒ (fListDep, request.contextId)
+  private lazy val depMap: Map[String, Dep[_]] = flr.map(elem ⇒ elem.listName → elem.requestDep).toMap
+
+  def handle: FilteredListRequest => (Dep[_], ContextId) = request ⇒ (depMap(request.listName), request.contextId)
 }
 
 case class FilteredListResponse(srcId: String, listName: String, response: Option[_], sessionKey: String)

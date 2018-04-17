@@ -28,7 +28,6 @@ class HashSearchTesttStart(
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(ByPK(classOf[ValueNode]).of(nGlobal).values.toList)
     println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList.map(_.list.map(elem ⇒ condition.check(elem))))
     execution.complete()
 
   }
@@ -36,14 +35,11 @@ class HashSearchTesttStart(
 
 case class CustomResponse(list: List[ValueNode])
 
-@assemble class CreateRequest(condition: Condition[ValueNode]) extends Assemble {
+@assemble class CreateRequest(condition: List[Condition[ValueNode]]) extends Assemble {
   def createRequest(
     testId: SrcId,
     tests: Values[TestNode]
-  ): Values[(SrcId, Request[ValueNode])] =
-    for {
-      test ← tests
-    } yield WithPK(Request(testId, condition))
+  ): Values[(SrcId, Request[ValueNode])] = tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId+cond.toString, cond))))
 
   def grabResponse(
     responseId: SrcId,
@@ -97,12 +93,23 @@ case object IntEqRanger extends Ranger[IntEq, Int] {
 }
 
 trait TestCondition {
-  def condition: Condition[ValueNode] = {
+  def condition1: Condition[ValueNode] = {
     UnionCondition(
       ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.value),
       ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
     )
   }
+
+  def condition2: Condition[ValueNode] = {
+    IntersectCondition(
+      ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.value),
+      ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
+    )
+  }
+
+  def condition3 = IntersectCondition(condition1, condition2)
+
+  def conditions = condition1 :: condition2 :: condition3 :: Nil
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl)
 
@@ -131,10 +138,10 @@ class HashSearchTestAppp extends RichDataApp
   override def protocols: List[Protocol] = EqProtocol :: TestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
-    println((new CreateRequest(condition) :: joiners :::
+    println((new CreateRequest(conditions) :: joiners :::
       super.assembles).mkString("\n")
     )
-    new CreateRequest(condition) :: joiners :::
+    new CreateRequest(conditions) :: joiners :::
       super.assembles
   }
 }
