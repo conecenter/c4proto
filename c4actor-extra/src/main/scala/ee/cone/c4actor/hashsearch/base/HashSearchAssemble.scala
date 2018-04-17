@@ -74,7 +74,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   with DepAssembleUtilityImpl {
   type CondInnerId = SrcId
   type RootCondInnerId = SrcId
-  type RoorRequestId = SrcId
+  type RootRequestId = SrcId
   type ResCondDamn = SrcId
   type OuterParentEstimate = SrcId
   type InnerParentEstimate = SrcId
@@ -210,7 +210,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     requestId: SrcId,
     @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]],
     condEstimates: Values[InnerConditionEstimate[Model]]
-  ): Values[(RoorRequestId, InnerConditionEstimate[Model])] =
+  ): Values[(RootRequestId, InnerConditionEstimate[Model])] =
     for {
       rootCond ← rootConditions
       estimate ← condEstimates
@@ -219,7 +219,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   def RequestToHeaps(
     requestId: SrcId,
     requests: Values[Request[Model]],
-    @by[RoorRequestId] counts: Values[InnerConditionEstimate[Model]]
+    @by[RootRequestId] counts: Values[InnerConditionEstimate[Model]]
   ): Values[(SharedHeapId, Request[Model])] =
     for {
       request ← requests
@@ -238,7 +238,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
       request ← requests
     } yield {
       val pk = ToPrimaryKey(request)
-      pk → Response(pk, request, responses.toList.distinct)
+      pk → Response(pk, request, responses.toList.distinct.filter(request.condition.check))
     }
 
 }
