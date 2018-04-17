@@ -104,7 +104,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     rootCondId: SrcId,
     @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]]
   ): Values[(SrcId, InnerCondition[Model])] = {
-    val inner = Single(rootConditions.map(_.conditionInner))
+    val inner = Single(rootConditions.map(_.conditionInner).distinct)
     WithPK(inner) :: Nil
   }
 
