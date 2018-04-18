@@ -237,7 +237,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	addEventListener("paste",onPaste)
 	addEventListener("cTab",onTab)		
 	addEventListener("cEnter",onEnter)
-	const isPrintableKeyCode = (ch)	=> "abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase())
+	const isPrintableKeyCode = (ch)	=> ch&&("abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase()))
 	const isVk = (el) => el.classList.contains("vkElement")
 	const doCheck = () => {		
 		const root = getReactRoot();

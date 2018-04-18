@@ -482,7 +482,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const width = ww
 			const height = wh
 			if(width!=this.width||height!=this.height){
-				this.props.onChange({target:{headers:{"X-r-action":"change"},value:`${width},${height},${remH}`}})
+				this.props.onWResize && this.props.onWResize({target:{headers:{"X-r-action":"change"},value:`${width},${height},${remH}`}})
 				this.width = width
 				this.height = height
 			}
@@ -1248,6 +1248,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const inputType = this.props.inputType;//this.props.inputType?this.props.inputType:"input"
 			const type = this.props.type?this.props.type:"text"
+			const auto = this.props.autocomplete?this.props.autocomplete:{}
 			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
 			const rows= this.props.rows?this.props.rows:"2";
 			const content = this.props.content;
@@ -1261,7 +1262,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 						$(inputType,{
 							key:"1",
 							ref:(ref)=>this.inp=ref,
-							type,rows,readOnly,placeholder,
+							type,rows,readOnly,placeholder,auto,
 							"data-type":dataType,
 							className,
 							content,		
@@ -1948,7 +1949,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			...attributesB.style,
 			textTransform:"none"
 		}
-		const dataType = "extText"
+		const dataType = "extText"		
         return $("div",{style:{margin:"1em 0em",...prop.style}},[
 			$(ControlWrapperElement,{key:"1"},
 				$(LabelElement,{label:usernameCaption},null),
@@ -1956,7 +1957,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			),
 			$(ControlWrapperElement,{key:"2"},
 				$(LabelElement,{label:passwordCaption},null),
-				$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password",dataType, mButtonEnter:"login"},null)			
+				$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login"},null)			
 			),
 			$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
 				$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
@@ -3020,6 +3021,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		sender.send(ctx,({headers:{"X-r-action":act,...optHeader},value}));
 	}
 	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}	
+	const onWResize = ({sendVal}) 
 	const onClickValue = ({sendVal});
 	const onDragDrop = ({sendVal});
 	const onReorder = ({sendVal});
