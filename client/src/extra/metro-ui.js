@@ -43,7 +43,28 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		const srcM = (urlPrefix||"")+src
 		return $("img",{src:srcM,style})
 	}
-	
+	const resizeListener = (() =>{
+		const delay = 500
+		const callbacks = []
+		let wait
+		const reg = (o)=>{
+			callbacks.push(o)
+			const unreg=()=>{
+				const index = callbacks.indexOf(o)
+				if(index>=0) callbacks.splice(index,1)
+			}
+			return {unreg}
+		}
+		const onResize = () =>{
+			if(wait) wait = clearTimeout(wait)
+			wait = setTimeout(()=>{
+				callbacks.forEach(c=>c())
+				wait = null
+			},delay)	
+		}
+		addEventListener("resize",onResize)
+		return {reg}
+	})()
 	
 	const FlexContainer = ({flexWrap,children,style}) => $("div",{style:{
 		display:'flex',
@@ -482,34 +503,28 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			const width = ww
 			const height = wh
 			if(width!=this.width||height!=this.height){
-				this.props.onWResize && this.props.onWResize({target:{headers:{"X-r-action":"change"},value:`${width},${height},${remH}`}})
+				this.props.onWResize && this.props.onWResize("change",`${width},${height},${remH}`)
 				this.width = width
 				this.height = height
 			}
 		}
 		onResize(){
-			if(!this.el || !this.remRef) return		
-			if(this.wait) this.wait = clearTimeout(this.wait)
+			if(!this.el || !this.remRef) return					
 			const count = miscReact.count()
 			if(count != 1) return
-			this.wait = setTimeout(()=>{
-				if(this.unmounted) return
-				this.sentData()
-				this.wait = null
-			},500)
+			if(this.unmounted) return
+			this.sentData()			
 		}
 		componentWillUnmount(){
-			this.unmounted = true
-			if(this.wait) clearTimeout(this.wait)
-			if(this.l) removeEventListener("resize",this.onResize)	
+			this.unmounted = true			
+			if(this.resizeL) this.resizeL.unreg()	
 		}
 		initListener(){
 			const count = miscReact.count()
 			if(count != 1) return
-			if(this.props.onChange && this.el && this.remRef) {
+			if(this.props.onWResize && this.el && this.remRef) {
 				this.sentData()
-				this.l = true
-				addEventListener("resize",this.onResize)
+				this.resizeL = resizeListener.reg(this.onResize)
 			}
 		}
 		componentDidUpdate(prevProps){
@@ -2485,7 +2500,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			//log("call update")
 		}
 		componentDidMount(){
-			addEventListener("resize",this.recalc)			
+			this.resizeL = resizeListener.reg(this.recalc)					
 			this.recalc()
 			const clockTicks = this.clockTicks;
 			const updateInterval = 5*60
@@ -2500,7 +2515,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			if(prevState.timeString.length == 0 && this.state.timeString.length>0) this.recalc();
 		}
 		componentWillUnmount(){
-			removeEventListener("resize",this.recalc)
+			this.resizeL.unreg()			
 			this.unreg()
 		}
 		splitTime(time){
@@ -2592,14 +2607,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 		report(focusKey){
 			if(this.props.onClickValue) this.props.onClickValue("focusChange",focusKey)
-		}
+		}		
 		componentWillUnmount(){			
 			this.el.removeEventListener("cFocus",this.onFocus)
-			this.el.removeEventListener("focus",this.onFocus)
+			this.el.removeEventListener("focus",this.onFocus)			
 		}
 		componentDidMount(){			
 			this.el.addEventListener("cFocus",this.onFocus)
-			this.el.addEventListener("focus",this.onFocus)
+			this.el.addEventListener("focus",this.onFocus)			
 		}
 		render(){
 			return $('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
@@ -3003,8 +3018,77 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.stop()
 		}
 		render(){return null}
+	}	
+	class ExpandByMaxHeightElement extends StatefulComponent{		
+	    calcHeight() {
+			const wHeight = windowManager.getWindowRect().height
+			const cHeight = Array.from(documentManager.body().children).reduce((a,e)=>{
+				const height = e.getBoundingClientRect().height
+				if(a<height) return height
+				return a
+			},0)
+			return Math.max(wHeight,cHeight)
+		}		
+		check(){
+			let height = this.calcHeight() + windowManager.getPageYOffset() - this.el.getBoundingClientRect().top
+			height=height<0?0:height
+			if(this.pHeight!=height && this.props.onWResize) {
+				this.pHeight = height
+				this.props.onWResize("change",height.toString())
+			}				
+		}
+		componentDidMount(){
+			const count = miscReact.count()
+			if(count!=1) return		
+			this.check()
+			this.resizeL = resizeListener.reg(this.check)
+		}
+		componentDidUpdate(){			
+		}
+		componentWillUnmount(){
+			if(this.resizeL) this.resizeL.unreg()
+		}
+		render(){
+			return $("div",{style:{display:"inline-block"},ref:ref=>this.el=ref},this.props.children)		
+		}
 	}
-	
+	class ZoomOnPopupElement extends StatefulComponent{		
+		onMouseDown(e){			
+			let el
+			if(!this.props.zoomed){
+				const elements = documentManager.elementsFromPoint(e.clientX,e.clientY)
+				el = elements.find(e=>e==this.el)
+			}
+			e.ctrlKey&&(el||e.target==this.el) && this.props.onClickValue && this.props.onClickValue("change",this.maxZoomK().toString())
+		}
+		componentDidMount(){
+			addEventListener("mousedown",this.onMouseDown,true)
+		}
+		maxZoomK(){
+			let child
+			if(child = this.el.firstElementChild){				
+				const rect = child.getBoundingClientRect()
+				const wRect= windowManager.getWindowRect()
+				if(rect.height<wRect.height && rect.width<wRect.width){
+					return ((wRect.width-rect.width>wRect.height-rect.height)?wRect.height/rect.height:wRect.width/rect.width)*0.9					
+				}			
+			}
+			return 1
+		}
+		componentWillUnmount(){
+			removeEventListener("mousedown",this.onMouseDown)
+		}
+		render(){
+			const zoomedStyle = this.props.zoomed?{position:"fixed",top:"0px",left:"0px",display:"flex",justifyContent:"center",height:"100%",width:"100%"}:{}
+			const style = {				
+				...zoomedStyle,
+				...this.props.style
+			}
+			const className = "ZoomPopup"
+			return $("div",{className,ref:ref=>this.el=ref, style},this.props.children)
+		}
+	}
+
 	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
@@ -3051,12 +3135,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			DragDropDivElement,
 			FilterContainerElement,
 			FilterElement,
-			ColorCreator,ColorItem,ColorPicker
+			ColorCreator,ColorItem,ColorPicker,
+			ExpandByMaxHeightElement,ZoomOnPopupElement
 		},
 		onClickValue,		
 		onReadySendBlob,
 		onDragDrop,
 		onReorder,
+		onWResize,
 		ctx
 	};
 	const receivers = {

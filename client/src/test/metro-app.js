@@ -72,11 +72,12 @@ const documentManager = (()=>{
 	const addFirst = (node) => document.body.insertBefore(node,document.body.firstChild)
 	const remove = (node) => document.body.removeChild(node)
 	const createElement = (type) => document.createElement(type)
+	const elementsFromPoint = (x,y)=> document.elementsFromPoint(x,y)
 	const body = () => document.body
 	const execCopy = () => document.execCommand('copy')
 	const activeElement = () =>document.activeElement
 	const nodeFromPoint = (x,y)=>document.elementFromPoint(x,y)
-	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document,nodeFromPoint}
+	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document,nodeFromPoint,elementsFromPoint}
 })()
 const eventManager = (()=>{
 	const create = (type,params) => {
