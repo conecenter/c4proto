@@ -70,13 +70,18 @@ trait LeafRegistry {
 }
 
 case class LeafInfoHolder[Model <: Product, By <: Product, Field](
-  lens: ProdLens[Model, Field], byOptions: List[MetaAttr], check: ConditionCheck[By, Field],
-  modelCl: Class[Model], byCl: Class[By], fieldCl: Class[Field]
+  lens: ProdLens[Model, Field],
+  byOptions: List[MetaAttr],
+  check: ConditionCheck[By, Field],
+
+  modelCl: Class[Model],
+  byCl: Class[By],
+  fieldCl: Class[Field]
 )
 
 
 case class LeafRegistryImpl(
-  leafList: List[LeafInfoHolder[_<: Product, _ <: Product, _]],
+  leafList: List[LeafInfoHolder[_ <: Product, _ <: Product, _]],
   models: List[Class[_ <: Product]]
 ) extends LeafRegistry {
 
@@ -108,7 +113,7 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
       case "union" ⇒ factory.union(parseCondition(condition.condLeft.get, factory), parseCondition(condition.condRight.get, factory))
       case "any" ⇒ factory.any
       case "leaf" ⇒
-        val leafInfo: LeafInfoHolder[_<: Product, _ <: Product, _] = leafs.getLeaf(condition.modelClass, condition.by.get.byClName, condition.lensName)
+        val leafInfo: LeafInfoHolder[_ <: Product, _ <: Product, _] = leafs.getLeaf(condition.modelClass, condition.by.get.byClName, condition.lensName)
         makeLeaf(leafInfo.modelCl, leafInfo.byCl, leafInfo.fieldCl)(leafInfo, condition.by.get).asInstanceOf[Condition[Model]]
       case _ ⇒ throw new Exception("Not implemented yet: parseBy(by:By)")
     }
