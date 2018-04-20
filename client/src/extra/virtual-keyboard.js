@@ -78,9 +78,10 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			switch(vkType){
 				case "text": res = {layout:layoutAlpha,ver:"simple"};break;
 				case "extText": res = {layout:alt?layoutNumeric:layoutAlpha,ver:"extended"};break;
+				case "extFuncText": res = {layout:alt?layoutNumeric:layoutAlpha,ver:"extendedFunc"};break;
 				case "num": res = {layout:layoutNumeric,ver:"simple"};break;
 				case "extNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:"extended"};break;
-				case "extFuncNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:alt?"extended":"extendedFunc"};break;
+				case "extFuncNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:"extendedFunc"};break;
 				case "none": res = {layout:"none",ver:"simple"};break;
 				default:res = {layout:layoutAlpha, ver:"simple"};break;
 			}

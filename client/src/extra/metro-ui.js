@@ -1010,9 +1010,13 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onKeyDown(e){
 			if(!this.inp) return
 			if(e.key == "Escape"){
-				if(this.prevval != undefined) this.getInput().value = this.prevval
-				this.prevval = undefined
-				this.getInput().blur()
+				if(this.prevval != undefined) {
+					const inp = this.getInput()
+					inp.value = this.prevval
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+				}
+				this.prevval = undefined				
+				this.getInput().parentElement.focus()
 			}			
 			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
 			/*if(e.keyCode == 13) {
