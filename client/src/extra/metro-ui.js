@@ -2,14 +2,15 @@
 import React from 'react'
 import {pairOfInputAttributes}  from "../main/vdom-util"
 import Errors from "../extra/errors"
-import {ctxToPath} from "../main/vdom-util"
+import {ctxToPath,rootCtx} from "../main/vdom-util"
+
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
 jsx?
 */
 
-export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image,audioContext,StatefulComponent}){
+export default function MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent}){
 	const $ = React.createElement	
 	const GlobalStyles = (()=>{
 		let styles = {
@@ -1581,13 +1582,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onClick(e){
 			e.stopPropagation()
 		}
-		onRef(path){
-			log(`ex ${path}`)
+		onRef(path){			
 			return (ref)=> this.el=ref
-		}
+		}		
 		render(){
 			const className = "focusWrapper"//this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
 			const {style,children} = this.props
+			const focusedStyle  = this.state.focused
+			const propsOnPath = (p0,p1) => /*p0 == p1 && p1.length>0 || */this.state.focused?{outlineStyle:"dashed"}:{outlineStyle:"none"}
+			
 			return $(Consumer,{},path=>
 				$("div",{style:{
 					width:"100%",				
@@ -1595,7 +1598,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 					boxSizing:"border-box",
 					outlineWidth:"1px",
 					outlineColor:"red",				
-					outlineStyle:this.state.focused?"dashed":"none",
+					...propsOnPath(path,this.path),
 					outlineOffset:"-1px",
 					...style
 				},tabIndex:"1",
@@ -1897,7 +1900,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 		onChange(e){
 			if(this.state.reading) return;
-			const reader= fileReader();
+			const reader= miscUtil.fileReader()
 			const file = e.target.files[0];
 			reader.onload=(event)=>{				
 				if(this.props.onReadySendBlob){
@@ -3005,6 +3008,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	
 	class SoundProducerElement extends StatefulComponent{
 		produce(){
+			const audioContext = miscUtil.audioContext
 			if(!audioContext) return
 			const audioCtx = audioContext()
 			this.oscillator = audioCtx.createOscillator()
@@ -3103,6 +3107,230 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		}
 	}
 
+	class BatteryState extends StatefulComponent{		
+		getInitialState(){return {batteryLevel:0,isCharging:false}}
+		onLevelChange(){
+			if(!this.battery) return;
+			this.setState({batteryLevel:this.battery.level});
+		}
+		onChargingChange(){
+			if(!this.battery) return;
+			this.setState({isCharging:this.battery.charging});
+		}
+		onBatteryInit(battery){
+			this.battery = battery;
+			this.battery.addEventListener("chargingchange",this.onChargingChange);
+			this.battery.addEventListener("levelchange",this.onLevelChange);
+			this.setState({batteryLevel:this.battery.level,isCharging:this.battery.charging});
+		}
+		componentDidMount(){			
+			miscUtil.getBattery&&miscUtil.getBattery(this.onBatteryInit);
+		}		
+		componentWillUnmount(){
+			if(!this.battery) return;
+			this.battery.removeEventListener("charginchange",this.onChargingChange);
+			this.battery.removeEventListener("levelchange",this.onLevelChange);
+		}
+		render(){
+			const style={
+				display:"flex",				
+				marginLeft:"0.2em",
+				marginRight:"0.2em",
+				alignSelf:"center",
+				...this.props.style
+			};
+			const svgStyle = {				
+				height:"1em"				
+			};
+			const textStyle={
+				fontSize:"0.5em",
+				alignSelf:"center"
+				//verticalAlign:"middle",
+			};
+			const svgImgStyle = {
+				enableBackground:"new 0 0 60 60",
+				verticalAlign:"top",
+				height:"100%"
+			}
+			
+			const statusColor = this.state.batteryLevel>0.2?"green":"red";
+			const batteryLevel = Math.round(this.state.batteryLevel*100);
+			const el=React.createElement("div",{style},[
+					React.createElement("span",{key:"2",style:textStyle},batteryLevel + "%"),
+					React.createElement("div",{key:"1",style:svgStyle},
+						React.createElement("svg",{
+							key:"1",
+							xmlns:"http://www.w3.org/2000/svg", 
+							xmlnsXlink:"http://www.w3.org/1999/xlink",
+							version:"1.1",
+							x:"0px",
+							y:"0px",
+							viewBox:"0 0 60 60",
+							style:svgImgStyle,
+							xmlSpace:"preserve"},[
+								React.createElement("path",{key:"1",fill:"white",stroke:"white",d:"M42.536,4 H36V0H24 v4h-6.536 C15.554,4,14,5.554,14,7.464 v49.07 2C14,58.446,15.554,60,17.464,60 h25.071   C44.446,60,46,58.446,46,56.536 V7.464 C46,5.554,44.446,4,42.536,4z M44,56.536 C44,57.344,43.343,58,42.536,58 H17.464   C16.657,58,16,57.344,16,56.536V7.464C16,6.656,16.657,6,17.464,6H24h12h6.536C43.343,6,44,6.656,44,7.464V56.536z"},null),
+								React.createElement("rect",{
+									key:"_2",
+									fill:"white",
+									x:"15.4",
+									y:5.2 +"",
+									width:"28.8",
+									height:(52.6 - this.state.batteryLevel*52.6)+""
+								},null),
+								React.createElement("rect",{
+									key:"_1",
+									fill:statusColor,
+									x:"15.4",
+									y:5.2 + (52.6 - this.state.batteryLevel*52.6)+"",
+									width:"28.8",
+									height:(this.state.batteryLevel*52.6)+""
+								},null),
+								React.createElement("path",{key:"2",fill:(this.state.isCharging?"rgb(33, 150, 243)":"transparent"),d:"M37,29h-3V17.108c0.013-0.26-0.069-0.515-0.236-0.72c-0.381-0.467-1.264-0.463-1.642,0.004   c-0.026,0.032-0.05,0.066-0.072,0.103L22.15,32.474c-0.191,0.309-0.2,0.696-0.023,1.013C22.303,33.804,22.637,34,23,34h4   l0.002,12.929h0.001c0.001,0.235,0.077,0.479,0.215,0.657C27.407,47.833,27.747,48,28.058,48c0.305,0,0.636-0.16,0.825-0.398   c0.04-0.05,0.074-0.103,0.104-0.159l8.899-16.979c0.163-0.31,0.151-0.682-0.03-0.981S37.35,29,37,29z"},null),
+							]
+						)
+					)					
+				]);
+			return miscUtil.getBattery?el:null;
+		}
+	}
+	const PingReceiver = function(){
+		let pingerTimeout=null;
+		let callbacks=[];
+		function ping(data){			
+			if(pingerTimeout){clearTimeout(pingerTimeout); pingerTimeout = null;}
+			if(!callbacks.length) return;
+			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o.func(false,null));},5000);
+			callbacks.forEach((o)=>o.func(true,null));
+		};		
+		function regCallback(func,obj){
+			callbacks.push({obj,func});
+		};
+		function unregCallback(obj){
+			callbacks=callbacks.filter((o)=>o.obj!=obj);
+		};
+		return {ping,regCallback,unregCallback};
+	}();	
+	let prevWifiLevel = null
+	let wifiData = null
+	class DeviceConnectionState extends StatefulComponent{		
+		getInitialState(){return {on:true,wifiLevel:null,waiting:null,data:null,showWifiInfo:false}}
+		signal(on,data){			
+			if(this.state.on!=on)
+				this.setState({on});
+			if(this.state.data!=data)
+				this.setState({data})
+		}
+		wifiCallback(wifiLevel,plain){
+			prevWifiLevel = wifiLevel
+			wifiData = plain
+			if(this.state.wifiLevel != wifiLevel){				
+				this.setState({wifiLevel})
+				const lvl = this.wifiLevel(wifiLevel)
+				if(lvl!==null) this.props.onClickValue("change",lvl.toString())
+			}
+		}
+		yellowSignal(on){
+			if(this.state.waiting!=on)
+				this.setState({waiting:on})
+		}
+		componentDidMount(){
+			const count = miscReact.count()
+			if(count>1) return
+			if(PingReceiver)
+				PingReceiver.regCallback(this.signal,this);
+			this.toggleOverlay(!this.state.on);			
+			this.wifi = miscUtil.scannerProxy.regWifi(this.wifiCallback)
+			this.wifi2 = miscUtil.winWifi.regWifi(this.wifiCallback)			
+			if(this.props.onContext && requestState.reg){
+				const branchKey = this.props.onContext()
+				this.yellow = requestState.reg({branchKey,callback:this.yellowSignal})
+			}
+		}
+		componentWillUnmount(){			
+			if(PingReceiver)
+				PingReceiver.unregCallback(this);
+			if(this.wifi) this.wifi.unreg();
+			if(this.wifi2) this.wifi2.unreg();
+			if(this.yellow) this.yellow.unreg();
+		}		
+		toggleOverlay(on){
+			if(!this.props.overlay) return;
+			if(this.props.msg||this.state.waiting) 
+				overlayManager.delayToggle(this.props.msg||this.state.waiting)
+			else
+				overlayManager.toggle(on)
+			
+		}
+		componentDidUpdate(prevProps,prevState){
+			if(prevState.on != this.state.on){
+				log(`toggle ${this.state.on}`)
+				this.toggleOverlay(!this.state.on);
+			}
+		}
+		onMouseOver(){			
+			this.setState({showWifiInfo:true});
+		}
+		onMouseOut(){
+			if(this.state.showWifiInfo)
+				this.setState({showWifiInfo:false});
+		}
+		wifiLevel(newLevel){
+			const _lvl = newLevel?newLevel:this.state.wifiLevel
+			return prevWifiLevel&&!_lvl?prevWifiLevel:_lvl
+		}
+		render(){
+			const wifiLevel = this.wifiLevel()||(this.props.wifiLevel?this.props.wifiLevel:null)
+			const wifiStyle = wifiLevel!==null?{padding:"0.11em 0em"}:{}
+			const wifiIconStyle = wifiLevel!==null?{width:"0.7em"}:{}
+			const waitingStyle = (this.props.msg || this.state.waiting)?{backgroundColor:"yellow",color:"rgb(114, 114, 114)"}:{}
+			const style={
+				color:"white",
+				textAlign:"center",
+				...waitingStyle,
+				...wifiStyle,
+				...this.props.style
+			};
+			const iconStyle={
+				...wifiIconStyle
+			};
+			if(this.props.style) Object.assign(style,this.props.style);
+			if(this.props.iconStyle) Object.assign(iconStyle,this.props.iconStyle);
+			let imageSvgData = null;
+			if(wifiLevel !== null){ //0 - 4
+				const wL = parseInt(wifiLevel)
+				const getColor = (cond) => cond?"white":"transparent"
+				const l4C = getColor(wL>=4)
+				const l3C = getColor(wL>=3)
+				const l2C = getColor(wL>=2)
+				const l1C = getColor(wL>=1)
+				const wifiSvg = `
+				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" x="0px" y="0px" viewBox="0 0 147.586 147.586" style="enable-background:new 0 0 147.586 147.586;" xml:space="preserve">
+					<path style="stroke:white;fill: ${l2C};" d="M48.712,94.208c-2.929,2.929-2.929,7.678,0,10.606c2.93,2.929,7.678,2.929,10.607,0   c7.98-7.98,20.967-7.98,28.947,0c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197c2.929-2.929,2.929-7.678,0-10.606   C85.044,80.378,62.542,80.378,48.712,94.208z"></path>
+					<path style="stroke:white;fill: ${l3C};" d="M26.73,72.225c-2.929,2.929-2.929,7.678,0,10.606s7.677,2.93,10.607,0   c20.102-20.102,52.811-20.102,72.912,0c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197   c2.929-2.929,2.929-7.678,0-10.606C94.906,46.275,52.681,46.275,26.73,72.225z"></path>
+					<path style="stroke:white;fill: ${l4C};" d="M145.39,47.692c-39.479-39.479-103.715-39.479-143.193,0c-2.929,2.929-2.929,7.678,0,10.606   c2.93,2.929,7.678,2.929,10.607,0c16.29-16.291,37.95-25.262,60.989-25.262s44.699,8.972,60.989,25.262   c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197C148.319,55.37,148.319,50.621,145.39,47.692z"></path>
+					<circle style="stroke:white;fill: ${l1C};" cx="73.793" cy="121.272" r="8.231"></circle>
+				</svg>`;
+				imageSvgData = svgSrc(wifiSvg)				
+			}	
+			const wifiDataEl = this.state.showWifiInfo&&wifiData?React.createElement("pre",{style:{
+				position:"absolute",
+				marginTop:"2.7em",
+				width:"40em",
+				fontSize:"12px",
+				zIndex:"1000",
+				backgroundColor:"blue",
+				right:"0.24em",
+				textAlign:"left",
+				color:"white"
+			},key:"2"},wifiData):null;
+			const on = (this.props.on === false)? false: this.state.on
+			return React.createElement("div",{style:{display:"flex"},onMouseEnter:this.onMouseOver,onMouseLeave:this.onMouseOut},[
+				React.createElement(ConnectionState,{key:"1",onClick:this.props.onClick,on,style:style,iconStyle:iconStyle,imageSvgData}, null),
+				wifiDataEl,
+				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"3"},this.state.data)
+			])
+		}
+	}
 	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
@@ -3120,15 +3348,14 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const sendVal = ctx =>(action,value,opt) =>{
 		const act = action.length>0?action:"change"
 		const optHeader = opt?{"X-r-opt":opt}:{}
-		sender.send(ctx,({headers:{"X-r-action":act,...optHeader},value}));
+		requestState.send(ctx,({headers:{"X-r-action":act,...optHeader},value}));
 	}
-	const sendBlob = ctx => (name,value) => {sender.send(ctx,({headers:{"X-r-action":name},value}));}	
+	const sendBlob = ctx => (name,value) => {requestState.send(ctx,({headers:{"X-r-action":name},value}));}	
 	const onWResize = ({sendVal}) 
 	const onClickValue = ({sendVal});
 	const onDragDrop = ({sendVal});
 	const onReorder = ({sendVal});
-	const onReadySendBlob = ({sendBlob});
-	const ctx = ({ctx:ctx=>ctx})
+	const onReadySendBlob = ({sendBlob});	
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
@@ -3150,17 +3377,20 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			FilterContainerElement,
 			FilterElement,
 			ColorCreator,ColorItem,ColorPicker,
-			ExpandByMaxHeightElement,ZoomOnPopupElement
+			ExpandByMaxHeightElement,ZoomOnPopupElement,
+			BatteryState,DeviceConnectionState
 		},
 		onClickValue,		
 		onReadySendBlob,
 		onDragDrop,
 		onReorder,
 		onWResize,
-		ctx
+		ctx:({ctx:ctx=>ctx}),
+		onContext:({ctx:ctx=>()=>rootCtx(ctx).branchKey})
 	};
 	const receivers = {
 		download,
+		//ping:PingReceiver.ping,
 		...errors.receivers
 	}	
 	const checkActivate = checkActivateCalls.check	
