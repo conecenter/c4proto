@@ -284,7 +284,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const checkActivate = doCheck
 	const focusTo = (data) => setTimeout(()=>{		
-		const preferedFocusObj = callbacks.find(o=>o.el.classList.contains(`marker-${data}`))
+		const preferedFocusObj = callbacks.find(o=>o.path&&o.path.includes(data))
 		if(preferedFocusObj) {
 			switchTo(preferedFocusObj)
 			preferedFocusObj.el.focus()

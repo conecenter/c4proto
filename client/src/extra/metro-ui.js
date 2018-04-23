@@ -38,6 +38,7 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	const {isReactRoot,getReactRoot} = miscReact
 	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
 	
+	const {Provider, Consumer} = React.createContext("")
 	
 	const ImageElement = ({src,style}) => {
 		const srcM = (urlPrefix||"")+src
@@ -1549,16 +1550,15 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onFocus(e){
 			focusModule.switchTo(this)			
 			if(this.el){
-				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.props.focusMarker})
+				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.path})
 				e.preventDefault();
 				this.el.dispatchEvent(cEvent)
 				//e.stopPropagation();
 			}
 			this.setState({focused:true})
 		}
-		onBlur(e){
-			
-			 if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
+		onBlur(e){			
+			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
 			focusModule.switchOff(this, e&&e.relatedTarget)
 			this.setState({focused:false})
 		}
@@ -1581,22 +1581,28 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 		onClick(e){
 			e.stopPropagation()
 		}
+		onRef(path){
+			log(`ex ${path}`)
+			return (ref)=> this.el=ref
+		}
 		render(){
-			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
+			const className = "focusWrapper"//this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
 			const {style,children} = this.props
-			return $("div",{style:{
-				width:"100%",				
-				padding:"0.4em 0.3125em",
-				boxSizing:"border-box",
-				outlineWidth:"1px",
-				outlineColor:"red",				
-				outlineStyle:this.state.focused?"dashed":"none",
-				outlineOffset:"-1px",
-				...style
-			},tabIndex:"1",
-			className,
-			onClick:this.onClick,
-			ref:ref=>this.el=ref},children);
+			return $(Consumer,{},path=>
+				$("div",{style:{
+					width:"100%",				
+					padding:"0.4em 0.3125em",
+					boxSizing:"border-box",
+					outlineWidth:"1px",
+					outlineColor:"red",				
+					outlineStyle:this.state.focused?"dashed":"none",
+					outlineOffset:"-1px",
+					...style
+				},tabIndex:"1",
+				className,
+				onClick:this.onClick,
+				ref:this.onRef(path)},children)
+			)
 		}
 	}
 	
@@ -2617,7 +2623,9 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 			this.el.addEventListener("focus",this.onFocus)			
 		}
 		render(){
-			return $('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
+			return $(Provider,{value:this.props.path},
+				$('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
+			)
 		}
 	}
 	class DragDropHandlerElement extends StatefulComponent{
@@ -3022,19 +3030,25 @@ export default function MetroUi({log,sender,svgSrc,fileReader,documentManager,fo
 	class ExpandByMaxHeightElement extends StatefulComponent{		
 	    calcHeight() {
 			const wHeight = windowManager.getWindowRect().height
-			const cHeight = Array.from(documentManager.body().children).reduce((a,e)=>{
+			const wWidth = windowManager.getWindowRect().width
+			/*const cHeight = Array.from(documentManager.body().children).reduce((a,e)=>{
 				const height = e.getBoundingClientRect().height
 				if(a<height) return height
 				return a
 			},0)
-			return Math.max(wHeight,cHeight)
+			return Math.max(wHeight,cHeight)*/
+			return {wWidth,wHeight}
 		}		
 		check(){
-			let height = this.calcHeight() + windowManager.getPageYOffset() - this.el.getBoundingClientRect().top
+			const wHeight = windowManager.getWindowRect().height			
+			const rect =  this.el.getBoundingClientRect()
+			let height = wHeight - rect.top
 			height=height<0?0:height
-			if(this.pHeight!=height && this.props.onWResize) {
+			let width = rect.width<0?0:rect.width
+			if((this.pHeight!=height||this.pWidth!=width) && this.props.onWResize) {
 				this.pHeight = height
-				this.props.onWResize("change",height.toString())
+				this.pWidth = width
+				this.props.onWResize("change",`${width},${height}`)
 			}				
 		}
 		componentDidMount(){
