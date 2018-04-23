@@ -238,7 +238,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
       request ← requests
     } yield {
       val pk = ToPrimaryKey(request)
-      pk → Response(pk, request, responses.toList.distinct.filter(request.condition.check))
+      pk → Response(pk, request, responses.distinct.toList)
     }
 
 }

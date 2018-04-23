@@ -210,5 +210,6 @@ import StaticHashSearchImpl._
     for {
       request ← requests
       line ← responses
+      if request.condition.check(line)
     } yield ToPrimaryKey(request) → line
 }
