@@ -190,7 +190,7 @@ import StaticHashSearchImpl._
 
 @assemble class StaticAssembleShared[Model <: Product](
   modelCl: Class[Model]
-) extends Assemble with HashSearchAssembleSharedKeys{
+) extends Assemble with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
 
@@ -206,10 +206,12 @@ import StaticHashSearchImpl._
     heapId: SrcId,
     @by[StaticHeapId] responses: Values[Model],
     @by[SharedHeapId] requests: Values[Request[Model]]
-  ): Values[(SharedResponseId, Model)] =
+  ): Values[(SharedResponseId, Model)] = {
+    println(requests.toString().take(50), responses.size)
     for {
       request ← requests
       line ← responses
       if request.condition.check(line)
     } yield ToPrimaryKey(request) → line
+  }
 }
