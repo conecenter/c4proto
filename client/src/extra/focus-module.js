@@ -1,3 +1,5 @@
+import {rootCtx} from "../main/vdom-util"
+
 export default function FocusModule({log,documentManager,eventManager,windowManager,miscReact}){		
 	let nodesObj = [];
 	let currentFocusNode = null;
@@ -276,7 +278,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		if(!relatedTarget) currentFocusNode = null
 	}
 	const switchTo = (node) => {
-		
+		//log(rootCtx(node.props.ctx))
 		const roNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(roNode&&roNode.state.focused) roNode.onBlur()
 			if(!node.el) return			

@@ -202,9 +202,12 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const vkContainer = this.getVkContainer()			
 			if(!vkContainer||!vkLayout) return this.state.show?this.updateState({},false):null	
 			const show = vkContainer.static||this.showVk()	
-			const wRect = getWindowRect()				
-			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout && vkContainer.o == this.vkContainerO) return				
-			
+			const wRect = this.root&&this.root.getBoundingClientRect()				
+			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout && vkContainer.o == this.vkContainerO) {
+				if(!this.iter||this.iter<=0) return
+				this.iter-=1
+			}
+			if(!this.iter||this.iter<0) this.iter=1
 			let pWidth = Math.ceil(vkLayout.width * emK); pWidth == 0?1:pWidth
 			const pHeight = Math.ceil(vkLayout.height * emK)
 			const cHeight  = vkModule.getMaxHeight(this.root)
@@ -222,6 +225,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				this.updateState({fontSize,top,left},show)
 			}							
 		}
+		
 		getCurrentLayout(){			
 			const vkType = this.getInputVKType()			
 			const vkLayout = this.props[vkType.layout]
