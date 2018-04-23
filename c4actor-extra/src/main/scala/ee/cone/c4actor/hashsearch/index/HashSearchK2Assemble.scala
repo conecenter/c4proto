@@ -126,11 +126,13 @@ import HashSearchMockUtils._
     heapId: SrcId,
     @by[K2HeapId] responses: Values[Model],
     @by[SharedHeapId] requests: Values[Request[Model]]
-  ): Values[(SharedResponseId, Model)] =
+  ): Values[(SharedResponseId, Model)] = {
+    println(requests.toString().take(50), responses.size)
     for {
       request ← requests
       line ← responses
       if request.condition.check(line)
     } yield ToPrimaryKey(request) → line
+  }
 
 }
