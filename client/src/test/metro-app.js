@@ -25,11 +25,11 @@ import DragDropModule from "../extra/dragdrop-module"
 import OverlayManager from "../extra/overlay-manager"
 import RequestState from "../extra/request-state"
 import WinWifi from "../extra/win-wifi-status"
-
+import React from 'react'
 import SwitchHost from "../extra/switchhost-module"
 import UpdateManager from "../extra/update-manager"
 import VirtualKeyboard from "../extra/virtual-keyboard"
-
+import autoBind from 'react-autobind'
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
@@ -43,6 +43,23 @@ const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
 //metroUi with hacks
 const press = key => window.dispatchEvent(new KeyboardEvent("keydown",({key})))
 const fileReader = ()=> (new window.FileReader());
+
+class StatefulComponent extends React.Component {
+	constructor(props) {
+	  super(props);
+	  this.state = this.getInitialState?this.getInitialState():{}
+	  autoBind(this)
+	}
+}
+class StatefulPureComponent extends React.PureComponent {
+    constructor(props) {
+      super(props);
+      this.state = this.getInitialState?this.getInitialState():{}
+      autoBind(this)
+    }
+}
+
+
 
 const windowManager = (()=>{
 	const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth})
@@ -67,6 +84,7 @@ const eventManager = (()=>{
 		switch(type){
 			case "keydown": return (new KeyboardEvent(type,params))
 			case "click": return (new MouseEvent(type,params))
+			case "mousedown": return (new MouseEvent(type,params))
 			default: return (new CustomEvent(type,params))
 		}
 	}
@@ -76,24 +94,27 @@ const eventManager = (()=>{
 
 const miscReact = (()=>{
 	const isReactRoot = (el) => {
-		if(el.dataset["reactroot"]=="") return true
+		if(el.parentElement.classList.contains("branch")) return true
 		return false
 	}
 	const getReactRoot = (el) => {
-		if(!el) return documentManager.body().querySelector("[data-reactroot]")		
+		if(!el) {
+			const a = documentManager.body().querySelector("div.branch")
+			return a&&a.firstElementChild
+		}			
 		if(isReactRoot(el) || !el.parentNode) return el
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
 	}	
 	const count = function(){
-		return documentManager.body().querySelectorAll("[data-reactroot]").length
+		return documentManager.body().querySelectorAll("div.branch").length
 	}
 	return {isReactRoot,getReactRoot, count}
 })()
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image, audioContext});
+const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image, audioContext, StatefulComponent});
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
@@ -105,12 +126,12 @@ const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHe
 window.ScannerProxy = scannerProxy
 const winWifi = WinWifi(log,window.require,window.process,setInterval)
 window.winWifi = winWifi
-const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi, miscReact});
-const updateManager = UpdateManager(log,window,metroUi)
+const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi, miscReact,StatefulComponent});
+const updateManager = UpdateManager(log,window,metroUi, StatefulComponent)
 const activeElement=()=>document.activeElement; //todo: remove
 
 
-const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact})
+const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact,StatefulComponent})
 
 //canvas
 const util = Canvas.CanvasUtil()
@@ -136,11 +157,11 @@ const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
 const parentWindow = ()=> parent
-const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
+const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow,StatefulComponent});
 //transforms
 const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms, virtualKeyboard.transforms])
 
-const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
+const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement,StatefulPureComponent)
 
 const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
 const switchHost = SwitchHost(log,window)

@@ -1,7 +1,6 @@
 "use strict";
 import React 	from 'react'
 import ReactDOM from 'react-dom'
-import PureRenderMixin from 'react/lib/ReactComponentWithPureRenderMixin'
 
 export default function Errors({log,uiElements,documentManager}){
 	const callbacks = [];
