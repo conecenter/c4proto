@@ -207,7 +207,7 @@ import StaticHashSearchImpl._
     @by[StaticHeapId] responses: Values[Model],
     @by[SharedHeapId] requests: Values[Request[Model]]
   ): Values[(SharedResponseId, Model)] = {
-    println(requests.toString().take(50), responses.size)
+    //println(heapId, responses.size, requests.headOption.map(ToPrimaryKey(_)))
     for {
       request ← requests
       line ← responses

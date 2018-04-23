@@ -28,6 +28,10 @@ class HashSearchTesttStart(
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(ByPK(classOf[ValueNode]).of(nGlobal).values.toList)
     println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList)
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    val newNGlobal = TxAdd(LEvent.update(ValueNode("124", 239)))(nGlobal)
+    println(ByPK(classOf[ValueNode]).of(newNGlobal).values.toList)
+    println(ByPK(classOf[CustomResponse]).of(newNGlobal).values.toList)
     execution.complete()
 
   }
@@ -39,21 +43,21 @@ case class CustomResponse(list: List[ValueNode])
   def createRequest(
     testId: SrcId,
     tests: Values[TestNode]
-  ): Values[(SrcId, Request[ValueNode])] = tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId+cond.toString, cond))))
+  ): Values[(SrcId, Request[ValueNode])] = tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId+"_"+cond.toString.take(10), cond))))
 
   def grabResponse(
     responseId: SrcId,
     tests: Values[TestNode],
     responses: Values[Response[ValueNode]]
   ): Values[(SrcId, CustomResponse)] = {
-    println("Answer", responses.map(_.lines))
-    (responseId → CustomResponse(Single(responses.map(_.lines)))) :: Nil
+    //println("Answer", responses.map(_.lines))
+    (responseId → CustomResponse(responses.flatMap(_.lines).toList)) :: Nil
   }
 
   def printAllInners(
     innerId: SrcId,
     inners: Values[InnerCondition[ValueNode]]
-  ): Values[(SrcId, Firstborn)] = {
+  ): Values[(SrcId, CustomResponse)] = {
     println("Inner", inners)
     Nil
   }
@@ -61,7 +65,7 @@ case class CustomResponse(list: List[ValueNode])
   def printAllOuters(
     innerId: SrcId,
     inners: Values[OuterCondition[ValueNode]]
-  ): Values[(SrcId, Firstborn)] = {
+  ): Values[(SrcId, CustomResponse)] = {
     println("Outer", inners)
     Nil
   }
@@ -109,7 +113,7 @@ trait TestCondition {
 
   def condition3 = IntersectCondition(condition1, condition2)
 
-  def conditions = condition1 :: condition2 :: condition3 :: Nil
+  def conditions = condition1 :: condition2 /*:: condition3*/ :: Nil
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl)
 
