@@ -78,8 +78,14 @@ export default function CanvasManager(canvasFactory,sender,ctxToBranchPath){
         })
     }
 
+    const canvasStyle = prop => {
+        if(prop.isGreedy || !prop.value) return prop.style;
+        const [cmdUnitsPerEMZoom,aspectRatioX,aspectRatioY,pxMapH] = prop.value.split(",")
+        return ({ ...prop.style, height: pxMapH+"px" })
+    }
+
     const Canvas = prop => {
-        return React.createElement("div",{ style: prop.style, ref: canvasRef(prop) },[])
+        return React.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
     }
 
     const transforms = {

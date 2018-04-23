@@ -29,51 +29,6 @@ export function OverlayCanvasSetup(canvas){
     return {setupContext,processFrame}
 }
 
-export function ScrollViewPositionCanvasSetup(canvas){
-/*
-    function handleWheel(ev){
-        const mainNode=canvas.parentNode()
-        var parentNode=mainNode.parentNode
-        while(parentNode){//!=document
-            if(mainNode.getBoundingClientRect().height>parentNode.getBoundingClientRect().height){
-                parentNode.scrollTop=(parentNode.scrollTop+ev.deltaY*6)
-            }
-            parentNode=parentNode.parentNode
-        }
-    }*/
-    function processFrame(frame,prev){
-        //if(!prev) canvas.visibleElement().addEventListener("wheel",handleWheel)
-        frame.parentHeightFix(canvas.fromServer().height + "px")
-    }
-    function setupFrame(){
-        const {viewExternalSize,viewExternalPos,scrollPos,parentPos} = canvas.viewPositions(false)
-        const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
-        //
-        const parentHeight = canvas.parentNode().style.height
-        const parentHeightFix = need => {
-            if(parentHeight !== need) canvas.parentNode().style.height = need //this is not good if parentNode is controlled by React
-        }
-        return {viewExternalSize,viewExternalPos,viewPos,parentHeightFix}
-    }
-    return {setupFrame,processFrame}
-}
-export function ScrollViewPositionMaxHeightCanvasSetup(canvas){
-    function processFrame(frame,prev){       
-		frame.parentHeightFix(frame.viewExternalSize.y + "px")
-    }
-    function setupFrame(){
-        const {viewExternalSize,viewExternalPos,scrollPos,parentPos} = canvas.viewPositions(true)
-        const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
-        //
-		const parentHeight = canvas.parentNode().style.height
-		const parentHeightFix = need => {
-            if(parentHeight !== need) canvas.parentNode().style.height = need //this is not good if parentNode is controlled by React
-        }
-        return {viewExternalSize,viewExternalPos,viewPos,parentHeightFix}
-    }
-    return {setupFrame,processFrame}
-}
-
 export function BoundTextCanvasSetup(canvas){
     function setupContext(utx){
         const ellipsisChar="...";

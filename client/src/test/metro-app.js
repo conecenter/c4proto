@@ -111,7 +111,7 @@ const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 
 //canvas
 const util = Canvas.CanvasUtil()
-const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
+const baseCanvasSystem = Canvas.BaseCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
 const getViewPortRect = () => {
     const footer = document.body.querySelector(".mainFooter")
@@ -122,11 +122,11 @@ const getViewPortRect = () => {
     }
 }
 const exchangeMix = options => canvas => [
-    Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
+    Canvas.ResizeCanvasSetup(canvas),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
     Canvas.ExchangeCanvasSetup(canvas,getViewPortRect,getRootElement,createElement,activeElement)
 ]
-const canvasBaseMix = CanvasBaseMix(log,util)
+const canvasBaseMix = CanvasBaseMix(log,util,baseCanvasSystem)
 
 const ddMix = options => canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener)
 const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]

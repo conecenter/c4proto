@@ -13,19 +13,16 @@ object CanvasToJsonImpl extends CanvasToJson {
 
     val decimalFormat = new DecimalFormat("#0.##")
     //val builder = new JsonBuilderImpl()
-    builder.append("width").append(1000,decimalFormat) //map size
-    builder.append("height").append(1000,decimalFormat)
+    builder.append("width").append(100,decimalFormat) //map size
+    builder.append("height").append(100,decimalFormat)
     builder.append("options");{
       builder.startObject()
       builder.append("noOverlay").append(false)
       builder.end()
     }
-    val maxScale = 10
     val zoomSteps = 4096
-    val maxZoom = (Math.log(maxScale.toDouble)*zoomSteps).toInt
     builder.append("zoomSteps").append(zoomSteps,decimalFormat)
-    builder.append("commandZoom").append(0,decimalFormat)
-    builder.append("maxZoom").append(maxZoom,decimalFormat)
+    builder.append("minCmdUnitsPerEM").append(1,decimalFormat)
   }
 }
 
