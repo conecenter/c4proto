@@ -90,10 +90,14 @@ object ConditionSerializationUtils {
     UUID.nameUUIDFromBytes(value.getBytes(UTF_8)).toString
 
   def generateByPK(metaList: List[MetaAttr], rq: Product, qAdapterRegistry: QAdapterRegistry, bonusStr: String): SrcId = {
-    val lensNameMetaBytes = metaList.collectFirst { case NameMetaAttr(name) ⇒ name.getBytes(UTF_8) }.getOrElse(Array.emptyByteArray)
-    val valueAdapter = qAdapterRegistry.byName(rq.getClass.getName)
-    val bytes = valueAdapter.encode(rq)
-    UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes ++ lensNameMetaBytes ++ bonusStr.getBytes(UTF_8)).toString
+    try {
+      val lensNameMetaBytes = metaList.collectFirst { case NameMetaAttr(name) ⇒ name.getBytes(UTF_8) }.getOrElse(Array.emptyByteArray)
+      val valueAdapter = qAdapterRegistry.byName(rq.getClass.getName)
+      val bytes = valueAdapter.encode(rq)
+      UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes ++ lensNameMetaBytes ++ bonusStr.getBytes(UTF_8)).toString
+    } catch {
+      case _: Exception ⇒ s"Can't serialize $rq $bonusStr $metaList"
+    }
   }
 
   def generatePKFromTwoSrcId(a: SrcId, b: SrcId, bonusStr: String): SrcId = {
