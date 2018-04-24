@@ -179,7 +179,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				top-= w.top
 				left -= w.left				
 			}
-			top+=getPageYOffset()					
+			top+=this.root?(this.root.style.display=="block"?this.root.scrollTop:getPageYOffset()):0
 			return {top,left}
 		}
 		updateState(inI,show){					    					
