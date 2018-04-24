@@ -182,18 +182,6 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
       outer.parentInnerId → estimate
     }
 
-  /*def InnerEstimateToParentInner(
-    condEstimateId: SrcId,
-    @by[OuterParentEstimate] estimates: Values[InnerConditionEstimate[Model]],
-    outers: Values[OuterCondition[Model]]
-  ): Values[(InnerParentEstimate, InnerConditionEstimate[Model])] =
-    for {
-      outer ← outers
-      estimate ← estimates
-    } yield {
-      println(outer.conditionInner, estimate)
-      outer.conditionInner.srcId → estimate}*/
-
   def InnerEstimateParseWithInnerCond(
     innerCondId: SrcId,
     @by[InnerParentEstimate] estimates: Values[InnerConditionEstimate[Model]],
