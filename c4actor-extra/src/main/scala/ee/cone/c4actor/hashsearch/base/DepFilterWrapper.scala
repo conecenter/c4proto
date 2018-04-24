@@ -30,9 +30,9 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
   def add[SBy <: Product, SField](
     byDep: Dep[Option[Access[SBy]]],
     lens: ProdLens[Model, SField],
-    byOptions: List[MetaAttr] = Nil,
-    byCl: Class[SBy],
-    fieldCl: Class[SField]
+    byOptions: List[MetaAttr] = Nil, // take from access
+    byCl: Class[SBy], // move to ranger
+    fieldCl: Class[SField] // move to ranger
   )(
     implicit checker: ConditionCheck[SBy, SField], ranger: Ranger[SBy, SField]
   ): DepFilterWrapperApi[Model] = {
