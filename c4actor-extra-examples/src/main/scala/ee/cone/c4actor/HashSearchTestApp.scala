@@ -80,7 +80,7 @@ case class CustomResponse(list: List[ValueNode])
 
 }
 
-case object IntEqCheck extends ConditionCheck[IntEq, Int] {
+case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int] {
   def prepare: List[MetaAttr] ⇒ IntEq ⇒ IntEq = _ ⇒ identity[IntEq]
 
   def check: IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ value == by.value
@@ -90,7 +90,7 @@ case object IntEqCheck extends ConditionCheck[IntEq, Int] {
   def fieldCl: Class[Int] = classOf[Int]
 }
 
-case object IntEqRanger extends Ranger[IntEq, Int] {
+case object IntEqRanger extends RangerWithCl[IntEq, Int] {
   def ranges: IntEq ⇒ (Int ⇒ List[IntEq], PartialFunction[Product, List[IntEq]]) = {
     case IntEq(0) ⇒ (
       value ⇒ List(IntEq(value)), {

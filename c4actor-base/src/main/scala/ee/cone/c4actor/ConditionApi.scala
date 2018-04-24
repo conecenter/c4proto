@@ -26,8 +26,6 @@ trait ModelConditionFactory[Model] {
 trait ConditionCheck[By<:Product,Field] extends Product {
   def prepare: List[MetaAttr] ⇒ By ⇒ By
   def check: By ⇒ Field ⇒ Boolean
-  def byCl: Class[By]
-  def fieldCl: Class[Field]
 }
 trait ProdCondition[By<:Product,Model] extends SerializableCondition[Model] {
   def by: By

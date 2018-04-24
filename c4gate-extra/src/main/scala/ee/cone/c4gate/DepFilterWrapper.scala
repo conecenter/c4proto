@@ -62,7 +62,7 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
     lens: ProdLens[Model, SField],
     byOptions: List[MetaAttr] = Nil
   )(
-    implicit checker: ConditionCheck[SBy, SField]
+    implicit checker: ConditionCheckWithCl[SBy, SField]
   ): DepFilterWrapperApi[Model] = {
     val (sByCl, sFieldCl) = (checker.byCl, checker.fieldCl)
     val rangerOpt: Option[Ranger[SBy, SField]] = rangerRegistry.getByCl(sByCl, sFieldCl)

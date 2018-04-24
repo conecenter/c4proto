@@ -12,10 +12,6 @@ case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
   def prepare: List[MetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
   def check: StrEq ⇒ String ⇒ Boolean = by ⇒ value ⇒ value == by.value
-
-  def byCl: Class[StrEq] = classOf[StrEq]
-
-  def fieldCl: Class[String] = classOf[String]
 }
 case object StrEqRanger extends Ranger[StrEq,String] {
   def ranges: StrEq ⇒ (String ⇒ List[StrEq], PartialFunction[Product,List[StrEq]]) = {
@@ -24,10 +20,6 @@ case object StrEqRanger extends Ranger[StrEq,String] {
       { case p@StrEq(v) ⇒ List(p) }
     )
   }
-
-  def byCl: Class[StrEq] = classOf[StrEq]
-
-  def fieldCl: Class[String] = classOf[String]
 }
 object DefaultConditionChecks {
   implicit lazy val strEq: ConditionCheck[StrEq,String] = StrEqCheck
