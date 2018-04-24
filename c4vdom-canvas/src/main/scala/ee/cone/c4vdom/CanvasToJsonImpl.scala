@@ -22,7 +22,9 @@ object CanvasToJsonImpl extends CanvasToJson {
     }
     val zoomSteps = 4096
     builder.append("zoomSteps").append(zoomSteps,decimalFormat)
-    builder.append("minCmdUnitsPerEM").append(1,decimalFormat)
+    builder.append("minCmdUnitsPerEMZoom").append(0,decimalFormat)
+    builder.append("initialFit").append("x")
+    builder.append("isGreedy").append(true)
   }
 }
 

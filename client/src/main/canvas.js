@@ -71,10 +71,10 @@ function ElementSystem(){
 //state.changedSizes && index >= parseInt(state.changedSizes.sent["X-r-index"]) ? {...state, changedSizes: null} : state
 export function ResizeCanvasSetup(canvas,system){
     function processFrame(frame,prev){
-        const {zoom,parentPos,zoomIsChanging,pxPerEM} = frame
+        const {zoom,parentPos,zoomIsChanging,pxPerEMZoom} = frame
         if(zoomIsChanging) return;
         const screenScale = canvas.zoomToScale(zoom)
-        const cmdUnitsPerEMZoom = (canvas.scaleToZoom(pxPerEM) - zoom)|0
+        const cmdUnitsPerEMZoom = (pxPerEMZoom - zoom)|0
         const aspectRatio = canvas.calcPos(dir => parentPos.size[dir]|0)
         const pxMapH = ((canvas.fromServer().height||0)*screenScale)|0
         const sizes = [cmdUnitsPerEMZoom,aspectRatio.x,aspectRatio.y,pxMapH].join(",")
@@ -161,8 +161,21 @@ export function BaseCanvasSetup(log, util, canvas, system){
         //const parentPosEnd = { x: parentPos.end.x|0, y: infinite ? Infinity : parentPos.end.y|0 }
         const vExternalEnd = canvas.calcPos(dir=>Math.min(parentPos.end[dir],scrollPos.end[dir])|0)
         const viewExternalSize = canvas.calcPos(dir=>Math.max(0, vExternalEnd[dir] - vExternalPos[dir])|0)
-        const pxPerEM = canvas.elementPos(system.fontMeter()).size.y
-        return {viewExternalSize,viewExternalPos,scrollPos,parentPos,pxPerEM}
+        //
+        const pxPerEMZoom = canvas.scaleToZoom(canvas.elementPos(system.fontMeter()).size.y)
+        const fromServer = canvas.fromServer()
+        const maxZoom = pxPerEMZoom - fromServer.minCmdUnitsPerEMZoom
+        const mSize = canvas.mapSize()
+        const minZooms = canvas.calcPos(dir=>Math.min(
+            canvas.scaleToZoom(viewExternalSize[dir]/mSize[dir]),
+            maxZoom
+        ))
+        const minZoom = Math.min(minZooms.x,minZooms.y)
+        const initialZoom =
+            fromServer.initialFit == "xy" ? minZoom :
+            fromServer.initialFit == "x" ? minZooms.x : 0
+        //
+        return {viewExternalSize,viewExternalPos,scrollPos,parentPos,pxPerEMZoom,maxZoom,minZoom,initialZoom}
     }
 
     const composingElement = util.cached(name => createCanvas());
@@ -446,9 +459,11 @@ export function InteractiveCanvasSetup(canvas){
 export function ScrollViewPositionCanvasSetup(canvas){
     function setupFrame(){
         const viewPositions = canvas.viewPositions()
-        const {scrollPos,parentPos} = viewPositions
+        const {scrollPos,parentPos,initialZoom} = viewPositions
         const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
-        return {...viewPositions,viewPos}
+        //const targetViewPos
+        const zoom = initialZoom
+        return {...viewPositions,viewPos,zoom}
     }
     return ({setupFrame})
 }
@@ -456,19 +471,19 @@ export function ScrollViewPositionCanvasSetup(canvas){
 export function DragViewPositionCanvasSetup(canvas){
     let animation
     function setupFrame(){
-        return (animation||animateStableZoom(0,time=>canvas.calcPos(dir=>0)))(Date.now())
+        return (animation||animateStableZoom(initialZoom=>initialZoom,time=>canvas.calcPos(dir=>0)))(Date.now())
     }
     function dragPos(from,mousePos){
         const dPos = canvas.dMousePos(mousePos, mousePos.prev)
         const viewPos = canvas.calcPos(dir=>from.viewPos[dir] - dPos[dir])
-        animation = animateStableZoom(from.zoom, time=>viewPos)
+        animation = animateStableZoom(initialZoom=>from.zoom, time=>viewPos)
     }
     function dropPos(from,mousePos){
         const mousePosR = canvas.findMousePos(mousePos, p => mousePos.t-p.t > 50)
         if(!mousePosR) return;
         const d = canvas.dMousePos(mousePos,mousePosR)
         const k = 300
-        animation = animateStableZoom(from.zoom, time => canvas.calcPos(dir => from.viewPos[dir] + d[dir] / d.t * k * (Math.exp((mousePos.t-time)/k)-1)))
+        animation = animateStableZoom(initialZoom=>from.zoom, time => canvas.calcPos(dir => from.viewPos[dir] + d[dir] / d.t * k * (Math.exp((mousePos.t-time)/k)-1)))
     }
     function drag(dragEvent){
         if(canvas.extraDragIsActive && canvas.extraDragIsActive()) return;
@@ -496,10 +511,11 @@ export function DragViewPositionCanvasSetup(canvas){
         const maxViewPos = canvas.calcPos(dir=> mapSize[dir]*screenScale - viewExternalSize[dir])
         return canvas.calcPos(dir => limit(0,maxViewPos[dir])(pos[dir]) )
     }
-    function animateStableZoom(zoom, getPos){//undefined+1 is NaN, NaN!==NaN
+    function animateStableZoom(getZoom, getPos){//undefined+1 is NaN, NaN!==NaN
         return time => {
             const viewPositions = canvas.viewPositions()
-            const {viewExternalSize} = viewPositions
+            const {viewExternalSize,initialZoom} = viewPositions
+            const zoom = getZoom(initialZoom)
             const viewPos = limitPos(zoom, viewExternalSize, getPos(time))
             return {...viewPositions,time,limitedTargetZoom:zoom,zoom,tileZoom:zoom,viewPos}
         }
@@ -513,17 +529,12 @@ export function DragViewPositionCanvasSetup(canvas){
         const pointPos = canvas.calcPos(dir => (from.viewPos[dir]+mouseRelPos[dir])/fromScale)
         return time => {
             const viewPositions = canvas.viewPositions()
-            const {viewExternalSize,pxPerEM} = viewPositions
+            const {viewExternalSize,minZoom,maxZoom} = viewPositions
             const animationPeriod = 200
             const passed = time - from.time
             const done = Math.min(passed/animationPeriod, 1)
             const zoomIsChanging = passed < 500
-
-            const fromServer = canvas.fromServer()
-            const maxScale = pxPerEM / fromServer.minCmdUnitsPerEM
-            const minScales = canvas.calcPos(dir=>viewExternalSize[dir]/mapSize[dir])
-            const minScale = Math.min(minScales.x,minScales.y,1,maxScale)
-            const limitZoom = limit(canvas.scaleToZoom(minScale), canvas.scaleToZoom(maxScale))
+            const limitZoom = limit(minZoom, maxZoom)
             const zoom = limitZoom(targetZoom*done + from.zoom*(1-done))
             const tileZoom = limitZoom(zoomIsChanging ? tempTileZoom : targetZoom)
             const limitedTargetZoom = limitZoom(targetZoom)
