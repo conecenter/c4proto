@@ -10,7 +10,7 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with GeneralizedOrigRegistryApi with ConditionFactoryApp {
+trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with GeneralizedOrigRegistryApi with ModelConditionFactoryApp {
   override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
@@ -19,7 +19,7 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
 
   def leafRegistry: LeafRegistry
 
-  def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, conditionFactory, generalizedOrigRegistry, qAdapterRegistry)
+  def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, modelConditionFactory, generalizedOrigRegistry, qAdapterRegistry)
 }
 
 case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, modelCl: String)
