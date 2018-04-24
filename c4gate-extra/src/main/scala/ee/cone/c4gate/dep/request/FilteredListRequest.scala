@@ -12,11 +12,11 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class FLRequestDef(listName: String, requestDep: Dep[_])
 
-trait FilterListRequestApi {
+trait FilterListRequestApp {
   def filterDepList: List[FLRequestDef] = Nil
 }
 
-trait FilterListRequestHandlerApp extends RequestHandlersApp with AssemblesApp with ProtocolsApp with FilterListRequestApi {
+trait FilterListRequestHandlerApp extends RequestHandlersApp with AssemblesApp with ProtocolsApp with FilterListRequestApp {
 
   override def handlers: List[RequestHandler[_]] = FilteredListRequestHandler(filterDepList) :: super.handlers
 

@@ -6,8 +6,8 @@ import java.util.UUID
 import ee.cone.c4actor.HashSearch.{Factory, IndexBuilder, Request, Response}
 import ee.cone.c4actor.HashSearchImpl._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble._
 
 object HashSearchImpl {
   case class Need[Model<:Product](requestId: SrcId)

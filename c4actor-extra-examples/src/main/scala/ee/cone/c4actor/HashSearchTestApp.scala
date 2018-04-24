@@ -84,6 +84,10 @@ case object IntEqCheck extends ConditionCheck[IntEq, Int] {
   def prepare: List[MetaAttr] ⇒ IntEq ⇒ IntEq = _ ⇒ identity[IntEq]
 
   def check: IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ value == by.value
+
+  def byCl: Class[IntEq] = classOf[IntEq]
+
+  def fieldCl: Class[Int] = classOf[Int]
 }
 
 case object IntEqRanger extends Ranger[IntEq, Int] {
@@ -94,6 +98,9 @@ case object IntEqRanger extends Ranger[IntEq, Int] {
     }
     )
   }
+  def byCl: Class[IntEq] = classOf[IntEq]
+
+  def fieldCl: Class[Int] = classOf[Int]
 }
 
 trait TestCondition {

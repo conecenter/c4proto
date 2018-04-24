@@ -38,7 +38,7 @@ class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
     _.metaList.collect { case l: NameMetaAttr ⇒ l }
 }
 
-import ConditionSerializationUtils._
+import ee.cone.c4actor.ConditionSerializationUtils._
 
 case class ProdConditionImpl[By <: Product, Model, Field](
   metaList: List[MetaAttr], by: By
