@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor._
+import ee.cone.c4actor.{FilterPredicateApi, _}
 
 trait FilterPredicateBuilder {
   def create[Model<:Product]: Context ⇒ FilterPredicate[Model]

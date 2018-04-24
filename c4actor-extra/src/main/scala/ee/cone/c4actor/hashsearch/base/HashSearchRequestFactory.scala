@@ -1,8 +1,19 @@
 package ee.cone.c4actor.hashsearch.base
 
-import ee.cone.c4actor._
+import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.{Condition, _}
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{By, DepCondition, HashSearchDepRequest}
 import ee.cone.c4proto.ToByteString
+
+trait HashSearchDepRequestFactoryApp {
+  def hashSearchDepRequestFactory: HashSearchDepRequestFactory[_]
+}
+
+trait HashSearchDepRequestFactoryMix extends HashSearchDepRequestFactoryApp{
+  def qAdapterRegistry: QAdapterRegistry
+
+  def hashSearchDepRequestFactory: HashSearchDepRequestFactory[_] = HashSearchDepRequestFactoryImpl(Firstborn.getClass, qAdapterRegistry)
+}
 
 trait HashSearchDepRequestFactory[Model] {
   def intersect: (DepCondition, DepCondition) ⇒ DepCondition
@@ -18,6 +29,8 @@ trait HashSearchDepRequestFactory[Model] {
   def conditionToHashSearchRequest: Condition[Model] ⇒ HashSearchDepRequest
 
   def conditionToDepCond: Condition[Model] ⇒ DepCondition
+
+  def ofWithCl[OtherModel](otherModel: Class[OtherModel]): HashSearchDepRequestFactory[OtherModel]
 }
 
 case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapterRegistry: QAdapterRegistry) extends HashSearchDepRequestFactory[Model] {
@@ -55,4 +68,6 @@ case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapte
     case ProdConditionImpl(metaList, by) ⇒ leaf(metaList.collectFirst { case a: NameMetaAttr ⇒ a }.get, by)
     case cant ⇒ FailWith.apply(s"No such condition node $cant")
   }
+
+  def ofWithCl[OtherModel](otherModel: Class[OtherModel]): HashSearchDepRequestFactory[OtherModel] = HashSearchDepRequestFactoryImpl(otherModel, qAdapterRegistry)
 }
