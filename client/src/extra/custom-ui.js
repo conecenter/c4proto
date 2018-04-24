@@ -1,6 +1,5 @@
 "use strict";
 import React from 'react'
-
 export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,windowManager,miscReact,miscUtil,StatefulComponent}){
 	const {setTimeout,clearTimeout} = windowManager
 
@@ -24,7 +23,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
 		onClick(){
 			customMeasurer().forEach(m=>m._do(this.props.fkey.toLowerCase()))
 		}
-		componentDidMount(){			
+		componentDidMount(){
 			customMeasurer().forEach(m=>m.regCallback(this.props.fkey.toLowerCase(),this.signal));
 		}
 		componentWillUnmount(){
@@ -144,7 +143,6 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
 		const imageSvgData = svgSrc(imageSvg);
 		return React.createElement("img",{style:style,src:imageSvgData},null);		
 	};	
-	
 	class CustomMeasurerConnectionState extends StatefulComponent{		
 		getInitialState(){return {on:false}}
 		signal(on){
@@ -165,7 +163,6 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
 			return React.createElement(ConnectionState,{on:this.state.on,style,iconStyle});
 		}
 	}
-	
 	class ScannerProxyElement extends StatefulComponent{		
 		callback(type,data){
 			if(this.props.onClickValue)

@@ -130,7 +130,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			this.root = getReactRoot(this.el)			
 			checkActivateCalls.add(this.fitIn)			
 		}
-		componentWillUnmount(){			
+		componentWillUnmount(){
 			checkActivateCalls.remove(this.fitIn)		
 		}
 		emRatio(){
@@ -179,6 +179,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				top-= w.top
 				left -= w.left				
 			}
+
 			top+=this.root?(this.root.style.display=="block"?this.root.scrollTop:getPageYOffset()):0
 			return {top,left}
 		}
@@ -201,7 +202,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			if(!emK) return
 			const vkContainer = this.getVkContainer()			
 			if(!vkContainer||!vkLayout) return this.state.show?this.updateState({},false):null	
-			const show = vkContainer.static||this.showVk()	
+			const show = vkContainer.static||this.showVk()
 			const wRect = this.root&&this.root.getBoundingClientRect()				
 			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout && vkContainer.o == this.vkContainerO) {
 				if(!this.iter||this.iter<=0) return
@@ -225,7 +226,6 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				this.updateState({fontSize,top,left},show)
 			}							
 		}
-		
 		getCurrentLayout(){			
 			const vkType = this.getInputVKType()			
 			const vkLayout = this.props[vkType.layout]

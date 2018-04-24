@@ -253,7 +253,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		})	
 		
 		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
-			nodesObj = newNodesObj			
+			nodesObj = newNodesObj
 			if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
 				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))
 				inpNodes&&inpNodes.n.focus()
@@ -285,7 +285,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		currentFocusNode = node.el		
 	}
 	const checkActivate = doCheck
-	const focusTo = (data) => setTimeout(()=>{		
+	const focusTo = (data) => setTimeout(()=>{
 		const preferedFocusObj = callbacks.find(o=>o.path&&o.path.includes(data))
 		if(preferedFocusObj) {
 			switchTo(preferedFocusObj)

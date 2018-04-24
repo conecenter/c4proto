@@ -10,6 +10,7 @@ extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-d
 jsx?
 */
 
+
 export default function MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent}){
 	const $ = React.createElement	
 	const GlobalStyles = (()=>{
@@ -38,13 +39,12 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
 	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
-	
-	const {Provider, Consumer} = React.createContext("")
-	
+	const {Provider, Consumer} = React.createContext("")	
 	const ImageElement = ({src,style}) => {
 		const srcM = (urlPrefix||"")+src
 		return $("img",{src:srcM,style})
 	}
+
 	const resizeListener = (() =>{
 		const delay = 500
 		const callbacks = []
@@ -67,7 +67,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		addEventListener("resize",onResize)
 		return {reg}
 	})()
-	
+
 	const FlexContainer = ({flexWrap,children,style}) => $("div",{style:{
 		display:'flex',
 		flexWrap:flexWrap?flexWrap:'nowrap',
@@ -352,7 +352,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
 				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"9",x2:"30",y2:this.props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":"white"}),							
 				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
-				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"25",x2:"30",y2:this.props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":"white"})				
+				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"25",x2:"30",y2:this.props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":"white"
 			])					
 						
 			//const svgData = svgSrc(svg)
@@ -519,7 +519,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentWillUnmount(){
 			this.unmounted = true			
-			if(this.resizeL) this.resizeL.unreg()	
+			if(this.resizeL) this.resizeL.unreg()
 		}
 		initListener(){
 			const count = miscReact.count()
@@ -1089,10 +1089,11 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					inp.value = inp.value+event.detail.key
 				}
 				else 
-					inp.value = ""	
+					inp.value = ""
 				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				//const cEvent = eventManager.create("input",{bubbles:true})				
 				//inp.dispatchEvent(cEvent)				
+
 			})){				
 				if(this.isVkEvent(event)){	
 					const inp = this.getInput()
@@ -1102,17 +1103,17 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					inp.value = value1+event.detail.key+value2
 					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 					//const cEvent = eventManager.create("input",{bubbles:true})							
-					//inp.dispatchEvent(cEvent)					
-				}
+					//inp.dispatchEvent(cEvent)
+        }
 			}									
 		}
 		onErase(event){
-			const inp = this.getInput()			
+			const inp = this.getInput()	
 			inp.value = ""			
 			if(this.props.onBlur) this.props.onBlur()
 			else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 			//const cEvent = eventManager.create("input",{bubbles:true})							
-			//inp.dispatchEvent(cEvent)				
+			//inp.dispatchEvent(cEvent)	
 		}
 		onBackspace(event){
 			//log(`Backspace`)
@@ -1122,7 +1123,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = inp.value.slice(0,-1)
-				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+        if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				//const cEvent = eventManager.create("input",{bubbles:true})				
 				//inp.dispatchEvent(cEvent)
 			})){
@@ -1146,7 +1147,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				//const cEvent = eventManager.create("input",{bubbles:true})
 				//inp.dispatchEvent(cEvent)
-			})				
+      })				
 			event.stopPropagation()
 		}
 		onCopy(event){
@@ -1794,7 +1795,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				backgroundColor:props.onChange?"white":"#eeeeee",
 				...props.altLabel?{height:"1.655em",width:"1.655em"}:null,
 				...props.checkBoxStyle
-			}; 
+			};
+
 			const labelStyle={
 				maxWidth:"calc(100% - 2.165em)",
 				padding:"0rem 0.3125em",
@@ -1977,7 +1979,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			...attributesB.style,
 			textTransform:"none"
 		}
-		const dataType = "extText"		
+
+		const dataType = "extText"
         return $("div",{style:{margin:"1em 0em",...prop.style}},[
 			$(ControlWrapperElement,{key:"1"},
 				$(LabelElement,{label:usernameCaption},null),
@@ -1985,8 +1988,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			),
 			$(ControlWrapperElement,{key:"2"},
 				$(LabelElement,{label:passwordCaption},null),
-				$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login"},null)			
-			),
+				$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login"},null)
+       ),
 			$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
 				$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
 			)
@@ -2509,7 +2512,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			//log("call update")
 		}
 		componentDidMount(){
-			this.resizeL = resizeListener.reg(this.recalc)					
+      this.resizeL = resizeListener.reg(this.recalc)
 			this.recalc()
 			const clockTicks = this.clockTicks;
 			const updateInterval = 5*60
@@ -2524,8 +2527,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(prevState.timeString.length == 0 && this.state.timeString.length>0) this.recalc();
 		}
 		componentWillUnmount(){
-			this.resizeL.unreg()			
-			this.unreg()
+			this.resizeL.unreg()
+      this.unreg()
 		}
 		splitTime(time){
 			const dateArr = time.split(' ')
@@ -3009,6 +3012,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	class SoundProducerElement extends StatefulComponent{
 		produce(){
 			const audioContext = miscUtil.audioContext
+
 			if(!audioContext) return
 			const audioCtx = audioContext()
 			this.oscillator = audioCtx.createOscillator()
@@ -3331,7 +3335,6 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			])
 		}
 	}
-	
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
 		const location = windowManager.location
@@ -3379,7 +3382,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			ColorCreator,ColorItem,ColorPicker,
 			ExpandByMaxHeightElement,ZoomOnPopupElement,
 			BatteryState,DeviceConnectionState
-		},
+    },
 		onClickValue,		
 		onReadySendBlob,
 		onDragDrop,
@@ -3390,7 +3393,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	};
 	const receivers = {
 		download,
-		//ping:PingReceiver.ping,
+		ping:PingReceiver.ping,
 		...errors.receivers
 	}	
 	const checkActivate = checkActivateCalls.check	
