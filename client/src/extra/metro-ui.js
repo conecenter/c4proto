@@ -1794,7 +1794,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				backgroundColor:props.onChange?"white":"#eeeeee",
 				...props.altLabel?{height:"1.655em",width:"1.655em"}:null,
 				...props.checkBoxStyle
-			};
+			}; 
 			const labelStyle={
 				maxWidth:"calc(100% - 2.165em)",
 				padding:"0rem 0.3125em",
