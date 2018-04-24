@@ -1,6 +1,6 @@
 package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.ConditionFactoryMix
+import ee.cone.c4actor.ModelConditionFactoryMix
 import ee.cone.c4actor.dep.request.ByPKRequestHandlerApp
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.index.HashSearchStaticLeafFactoryMix
@@ -17,5 +17,5 @@ trait DepMainHashSearchMixApp
     with HashSearchAssembleApp
     with HashSearchStaticLeafFactoryMix
     with GeneralizedOrigFactoryMix
-    with ConditionFactoryMix
+    with ModelConditionFactoryMix
 
