@@ -47,15 +47,15 @@ class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A
   }
 }
 
-class SeqParallelDep(depSeq: Seq[InnerDep[_]]) extends DepImpl[Seq[_]] {
-  def resolve(ctx: DepCtx): Resolvable[Seq[_]] = {
-    val seqResolved: Seq[Resolvable[_]] = depSeq.map(_.resolve(ctx))
-    val valueSeq: Seq[Option[_]] = seqResolved.map(_.value)
-    val resolvedSeq: Option[Seq[_]] = if (valueSeq.forall(opt => opt.isDefined))
+class SeqParallelDep[A](depSeq: Seq[InnerDep[A]]) extends DepImpl[Seq[A]] {
+  def resolve(ctx: DepCtx): Resolvable[Seq[A]] = {
+    val seqResolved: Seq[Resolvable[A]] = depSeq.map(_.resolve(ctx))
+    val valueSeq: Seq[Option[A]] = seqResolved.map(_.value)
+    val resolvedSeq: Option[Seq[A]] = if (valueSeq.forall(opt => opt.isDefined))
       Some(valueSeq.map(_.get))
     else
       None
     val requestSeq: Seq[DepRequest] = seqResolved.flatMap(_.requests)
-    Resolvable[Seq[_]](resolvedSeq, requestSeq)
+    Resolvable[Seq[A]](resolvedSeq, requestSeq)
   }
 }

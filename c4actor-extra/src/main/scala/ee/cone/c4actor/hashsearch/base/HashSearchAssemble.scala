@@ -2,7 +2,7 @@ package ee.cone.c4actor.hashsearch.base
 
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor._
+import ee.cone.c4actor.{SerializableCondition, _}
 import ee.cone.c4actor.dep.DepAssembleUtilityImpl
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
@@ -181,18 +181,6 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     } yield {
       outer.parentInnerId → estimate
     }
-
-  /*def InnerEstimateToParentInner(
-    condEstimateId: SrcId,
-    @by[OuterParentEstimate] estimates: Values[InnerConditionEstimate[Model]],
-    outers: Values[OuterCondition[Model]]
-  ): Values[(InnerParentEstimate, InnerConditionEstimate[Model])] =
-    for {
-      outer ← outers
-      estimate ← estimates
-    } yield {
-      println(outer.conditionInner, estimate)
-      outer.conditionInner.srcId → estimate}*/
 
   def InnerEstimateParseWithInnerCond(
     innerCondId: SrcId,
