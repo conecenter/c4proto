@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.HashSearch.StaticIndexBuilder
+import ee.cone.c4actor.StaticHashSearchApi._
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.request.{LeafInfoHolder, LeafRegistryApp}
 import ee.cone.c4actor.dep.{Dep, InnerDep, RequestDep, SeqParallelDep}
@@ -101,7 +101,7 @@ trait DepFilterWrapperApi[Model <: Product] {
     lens: ProdLens[Model, Field],
     byOptions: List[MetaAttr]
   )(
-    implicit checker: ConditionCheck[By, Field]
+    implicit checker: ConditionCheckWithCl[By, Field]
   ): DepFilterWrapperApi[Model]
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]]
