@@ -134,7 +134,6 @@ with DepMainMixApp {
 
   def testDep: Dep[_] = depDraft.serialView
 
-
   override def assembles: List[Assemble] = {
     println(super.assembles.mkString("\n"))
     super.assembles
