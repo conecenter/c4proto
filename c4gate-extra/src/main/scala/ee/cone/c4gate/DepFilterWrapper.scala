@@ -100,7 +100,7 @@ trait DepFilterWrapperApi[Model <: Product] {
   def add[By <: Product, Field](
     byDep: Dep[Option[Access[By]]],
     lens: ProdLens[Model, Field],
-    byOptions: List[MetaAttr]
+    byOptions: List[MetaAttr] = Nil
   )(
     implicit checker: ConditionCheckWithCl[By, Field]
   ): DepFilterWrapperApi[Model]
