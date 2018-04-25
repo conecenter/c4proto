@@ -7,7 +7,9 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleApp, InnerCondition, OuterCondition}
+import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
+import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, Single, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -16,7 +18,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 class HashSearchTesttStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging with TestCondition {
-  def run() = {
+  def run(): Unit = {
     import LEvent.update
 
     val recs = update(TestNode("1", "")) ++ update(ValueNode("123", 239)) ++ update(ValueNode("124", 666))
@@ -120,7 +122,7 @@ trait TestCondition {
 
   def condition3 = IntersectCondition(condition1, condition2)
 
-  def conditions = condition1 :: condition2 /*:: condition3*/ :: Nil
+  def conditions: List[Condition[ValueNode]] = condition1 :: condition2 /*:: condition3*/ :: Nil
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl)
 

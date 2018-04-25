@@ -1,9 +1,10 @@
 package ee.cone.c4actor.hashsearch.base
 
 import ee.cone.c4actor.HashSearch.{Request, Response}
+import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.{SerializableCondition, _}
 import ee.cone.c4actor.dep.DepAssembleUtilityImpl
+import ee.cone.c4actor.hashsearch.condition.{ConditionSerializationUtils, ConditionSerializationsUtilsApp}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
@@ -17,7 +18,7 @@ case class RootCondition[Model <: Product](srcId: SrcId, conditionInner: InnerCo
 
 case class OuterCondition[Model <: Product](srcId: SrcId, conditionInner: InnerCondition[Model], parentInnerId: SrcId) extends OuterConditionApi[Model]
 
-case class InnerCondition[Model <: Product](srcId: SrcId, condition: SerializableCondition[Model])
+case class InnerCondition[Model <: Product](srcId: SrcId, condition: Condition[Model])
 
 case class ResolvableCondition[Model <: Product](outerCondition: OuterConditionApi[Model], childInnerConditions: List[InnerCondition[Model]])
 
@@ -33,20 +34,18 @@ trait HashSearchModelsApp {
   def hashSearchModels: List[Class[_ <: Product]] = Nil
 }
 
-trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp {
+trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with ConditionSerializationsUtilsApp{
   def qAdapterRegistry: QAdapterRegistry
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry)) ::: super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, conditionSerializer)) ::: super.assembles
 }
 
 object HashSearchAssembleUtils {
-  def parseCondition[Model <: Product]: SerializableCondition[Model] ⇒ List[SerializableCondition[Model]] = cond ⇒ {
-    cond match {
-      case IntersectCondition(left, right) ⇒ left :: right :: Nil
-      case UnionCondition(left, right) ⇒ left :: right :: Nil
-      case _ ⇒ Nil
-    }
-  }.asInstanceOf[List[SerializableCondition[Model]]]
+  def parseCondition[Model <: Product]: Condition[Model] ⇒ List[Condition[Model]] = {
+    case IntersectCondition(left, right) ⇒ left :: right :: Nil
+    case UnionCondition(left, right) ⇒ left :: right :: Nil
+    case _ ⇒ Nil
+  }
 
   def bestEstimate[Model <: Product]: InnerCondition[Model] ⇒ Values[InnerConditionEstimate[Model]] ⇒ Option[InnerConditionEstimate[Model]] =
     inner ⇒ estimates ⇒ {
@@ -69,7 +68,8 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
 
 @assemble class HashSearchAssemble[Model <: Product](
   modelCl: Class[Model],
-  val qAdapterRegistry: QAdapterRegistry
+  val qAdapterRegistry: QAdapterRegistry,
+  condSer: ConditionSerializationUtils
 ) extends Assemble with HashSearchAssembleSharedKeys
   with DepAssembleUtilityImpl {
   type CondInnerId = SrcId
@@ -87,9 +87,9 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     for {
       request ← requests
     } yield {
-      val condition = request.condition.asInstanceOf[SerializableCondition[Model]]
-      val condId = condition.getPK(modelCl)(qAdapterRegistry)
-      WithPK(RootCondition(generatePKFromTwoSrcId(request.requestId, condId), InnerCondition(condId, condition), request.requestId))
+      val condition = request.condition
+      val condId = condSer.getPK(modelCl, condition)
+      WithPK(RootCondition(condSer.srcIdFromSrcIds(request.requestId, condId), InnerCondition(condId, condition), request.requestId))
     }
 
   def RootCondToInnerCondition(
@@ -115,7 +115,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     for {
       rootCond ← rootConditions
     } yield {
-      val children = parseCondition(rootCond.conditionInner.condition).map(cond ⇒ InnerCondition(cond.getPK(modelCl)(qAdapterRegistry), cond))
+      val children = parseCondition(rootCond.conditionInner.condition).map(cond ⇒ InnerCondition(condSer.getPK(modelCl,cond), cond))
       WithPK(ResolvableCondition(rootCond, children))
     }
 
@@ -126,7 +126,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     for {
       outerCond ← outerConditions
     } yield {
-      val children = parseCondition(outerCond.conditionInner.condition).map(cond ⇒ InnerCondition(cond.getPK(modelCl)(qAdapterRegistry), cond))
+      val children = parseCondition(outerCond.conditionInner.condition).map(cond ⇒ InnerCondition(condSer.getPK(modelCl,cond), cond))
       WithPK(ResolvableCondition(outerCond, children))
     }
 

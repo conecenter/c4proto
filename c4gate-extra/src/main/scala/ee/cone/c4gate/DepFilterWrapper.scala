@@ -1,12 +1,13 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.StaticHashSearchApi._
+import ee.cone.c4actor.hashsearch.index.StaticHashSearchApi._
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.request.{LeafInfoHolder, LeafRegistryApp}
 import ee.cone.c4actor.dep.{Dep, InnerDep, RequestDep, SeqParallelDep}
 import ee.cone.c4actor.hashsearch.base.{HashSearchDepRequestFactory, HashSearchDepRequestFactoryApp, HashSearchModelsApp}
+import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.HashSearchStaticLeafFactoryApi
-import ee.cone.c4actor.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp}
+import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.dep.request.{FLRequestDef, FilterListRequestApp}
 

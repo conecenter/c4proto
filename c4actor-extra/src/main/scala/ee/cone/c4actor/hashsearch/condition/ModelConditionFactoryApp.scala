@@ -1,4 +1,6 @@
-package ee.cone.c4actor
+package ee.cone.c4actor.hashsearch.condition
+
+import ee.cone.c4actor.ModelConditionFactory
 
 trait ModelConditionFactoryApp {
   def modelConditionFactory: ModelConditionFactory[_]

@@ -1,36 +1,58 @@
 
-package ee.cone.c4actor.hashsearch.base
+package ee.cone.c4actor.hashsearch.condition
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{Condition, NameMetaAttr, ProdCondition, QAdapterRegistry}
 
 import scala.collection.immutable.Seq
 
-class ConditionSerializationUtils(qAdapterRegistry: QAdapterRegistry) {
-  def uuid(data: String): UUID =  UUID.nameUUIDFromBytes(data.getBytes(UTF_8))
+trait ConditionSerializationsUtilsApp {
+  def qAdapterRegistry: QAdapterRegistry
+
+  def conditionSerializer: ConditionSerializationUtils = ConditionSerializationUtils(qAdapterRegistry)
+}
+
+case class ConditionSerializationUtils(qAdapterRegistry: QAdapterRegistry) {
+  def srcIdFromSrcIds(srcIdList: SrcId*): SrcId =
+    uuidFromSrcIdSeq(srcIdList.to[Seq]).toString
+
+  def uuidFromSrcIdSeq(srcIdList: Seq[SrcId]): UUID =
+    uuidFromSeq(srcIdList.map(uuid))
+
+  def uuid(data: String): UUID = UUID.nameUUIDFromBytes(data.getBytes(UTF_8))
+
   def uuidFromSeq(data: Seq[UUID]): UUID = {
-    val b = ByteBuffer.allocate(java.lang.Long.BYTES*2*data.size)
-    data.foreach(e⇒b.putLong(e.getMostSignificantBits).putLong(e.getLeastSignificantBits))
+    val b = ByteBuffer.allocate(java.lang.Long.BYTES * 2 * data.size)
+    data.foreach(e ⇒ b.putLong(e.getMostSignificantBits).putLong(e.getLeastSignificantBits))
     UUID.nameUUIDFromBytes(b.array())
   }
+
   def getPK[Model](modelCl: Class[Model], condition: Condition[Model]): SrcId = {
-    val get: Any⇒UUID = {
-      case c: ProdCondition[_,_] ⇒
-        val rq = c.by
+    def get: Any ⇒ UUID = {
+      case c: ProdCondition[_, _] ⇒
+        val rq: Product = c.by
         val byClassName = rq.getClass.getName
-        val valueAdapter = qAdapterRegistry.byName(byClassName)
-        val bytesHash = UUID.nameUUIDFromBytes(valueAdapter.encode(rq))
-        val byHash = uuid(byClassName) :: bytesHash :: Nil
-        val names = c.metaList.collect{ case NameMetaAttr(name) ⇒ uuid(name) }
-        uuidFromSeq(uuid(modelCl.getName) :: byHash ::: names)
+        val valueAdapterOpt = qAdapterRegistry.byName.get(byClassName)
+        valueAdapterOpt match {
+          case Some(valueAdapter) ⇒
+            val bytesHash = UUID.nameUUIDFromBytes(valueAdapter.encode(rq))
+            val byHash = uuid(byClassName) :: bytesHash :: Nil
+            val names = c.metaList.collect { case NameMetaAttr(name) ⇒ uuid(name) }
+            uuidFromSeq(uuid(modelCl.getName) :: byHash ::: names)
+          case None ⇒
+            println(s"[Warning] NonSerializable condition: ${c.getClass}")
+            uuid(c.toString)
+        }
       case c: Condition[_] ⇒
         uuidFromSeq(uuid(c.getClass.getName) :: c.productIterator.map(get).toList)
     }
     get(condition).toString
   }
+
   /*
     def toBytes(value: Long): Array[Byte] =
       ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
