@@ -6,7 +6,7 @@ import ee.cone.c4actor.TestProtocol.{ValueNode, TestNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp}
-import ee.cone.c4actor.rangers.K2TreeApp
+import ee.cone.c4actor.hashsearch.rangers.K2TreeApp
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -56,7 +56,7 @@ case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
 class DepTestStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
-  def run() = {
+  def run(): Unit = {
     import LEvent.update
 
     val recs = update(TestNode("1", "")) ++ update(ValueNode("123", 239)) ++ update(ValueNode("124", 666)) ++ update(Spark("test"))

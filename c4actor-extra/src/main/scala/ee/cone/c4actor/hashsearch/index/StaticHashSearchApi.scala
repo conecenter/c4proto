@@ -1,6 +1,7 @@
-package ee.cone.c4actor
+package ee.cone.c4actor.hashsearch.index
 
 import ee.cone.c4actor.HashSearch.Request
+import ee.cone.c4actor.{Condition, ProdLens, Ranger}
 import ee.cone.c4assemble.Assemble
 
 object StaticHashSearchApi {

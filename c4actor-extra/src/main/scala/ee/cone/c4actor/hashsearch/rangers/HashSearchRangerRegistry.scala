@@ -1,6 +1,4 @@
-package ee.cone.c4actor.rangers
-
-import ee.cone.c4actor.RangerWithCl
+package ee.cone.c4actor.hashsearch.rangers
 
 trait HashSearchRangerRegistryApp {
   def hashSearchRangerRegistry: HashSearchRangerRegistryApi

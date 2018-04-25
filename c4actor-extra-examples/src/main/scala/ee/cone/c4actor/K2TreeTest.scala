@@ -4,8 +4,8 @@ import java.awt.{BasicStroke, Color, Font}
 import java.awt.geom.{Ellipse2D, Line2D, Rectangle2D}
 import java.awt.image.BufferedImage
 
-import ee.cone.c4actor.rangers.RangeTreeProtocol.TreeNode
-import ee.cone.c4actor.rangers.{Date2D, K2Tree}
+import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.TreeNode
+import ee.cone.c4actor.hashsearch.rangers.{Date2D, K2Tree}
 
 import scala.util.Random
 
@@ -21,7 +21,7 @@ object K2TreeTest {
       else
         Nil
     }).toList.flatten
-    val tree = new K2Tree(points, 3, 10, 1000)
+    val tree = K2Tree(points, 3, 10, 1000)
     val size = (1150, 1150)
     val scale = 1.0
 

@@ -3,7 +3,7 @@ package ee.cone.c4actor.hashsearch.index
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
-import ee.cone.c4actor.StaticHashSearchApi._
+import StaticHashSearchApi._
 import ee.cone.c4actor.HashSearch._
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId

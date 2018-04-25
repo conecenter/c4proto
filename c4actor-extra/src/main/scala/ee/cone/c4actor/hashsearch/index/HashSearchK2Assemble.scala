@@ -8,8 +8,8 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerCondition, InnerConditionEstimate}
 import ee.cone.c4actor.hashsearch.index.HashSearchMockAssembleTest.K2TreeAll
-import ee.cone.c4actor.rangers.K2TreeUtils._
-import ee.cone.c4actor.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
+import ee.cone.c4actor.hashsearch.rangers.K2TreeUtils._
+import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
