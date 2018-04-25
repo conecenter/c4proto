@@ -1,3 +1,5 @@
+import {rootCtx} from "../main/vdom-util"
+
 export default function FocusModule({log,documentManager,eventManager,windowManager,miscReact}){		
 	let nodesObj = [];
 	let currentFocusNode = null;
@@ -237,7 +239,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	addEventListener("paste",onPaste)
 	addEventListener("cTab",onTab)		
 	addEventListener("cEnter",onEnter)
-	const isPrintableKeyCode = (ch)	=> "abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase())
+	const isPrintableKeyCode = (ch)	=> ch&&("abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase()))
 	const isVk = (el) => el.classList.contains("vkElement")
 	const doCheck = () => {		
 		const root = getReactRoot();
@@ -251,11 +253,12 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		})	
 		
 		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
-			nodesObj = newNodesObj			
-			/*if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
-				nodesObj[0].n.focus()
+			nodesObj = newNodesObj
+			if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
+				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))
+				inpNodes&&inpNodes.n.focus()
 				//currentFocusNode.focus()
-			}*/
+			}
 		}			
 	}	
 	const reg = (o) => {
@@ -275,15 +278,15 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		if(!relatedTarget) currentFocusNode = null
 	}
 	const switchTo = (node) => {
-		
+		//log(rootCtx(node.props.ctx))
 		const roNode = callbacks.find(o=>o.el == currentFocusNode)
 		if(roNode&&roNode.state.focused) roNode.onBlur()
 			if(!node.el) return			
 		currentFocusNode = node.el		
 	}
 	const checkActivate = doCheck
-	const focusTo = (data) => setTimeout(()=>{		
-		const preferedFocusObj = callbacks.find(o=>o.el.classList.contains(`marker-${data}`))
+	const focusTo = (data) => setTimeout(()=>{
+		const preferedFocusObj = callbacks.find(o=>o.path&&o.path.includes(data))
 		if(preferedFocusObj) {
 			switchTo(preferedFocusObj)
 			preferedFocusObj.el.focus()

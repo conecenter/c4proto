@@ -82,6 +82,7 @@ export function VDomSeeds(log,DiffPrepare){
         const contentPos = elementPos(contentElement)
         const containerPos = elementPos(containerElement)
 		const fontSize = containerElement.style.fontSize
+		const zIndex = containerElement.style.zIndex
         const targetPos = containerPos // todo f(containerPos,contentPos)
         const d = {
             pos:  calcPos(dir=>(targetPos.pos[dir] -contentPos.pos[dir] )|0),
@@ -101,6 +102,7 @@ export function VDomSeeds(log,DiffPrepare){
             width: box.size.x+"px",
             height: box.size.y+"px",
 			fontSize:fontSize,
+			zIndex:zIndex,
 			overflowY:"auto",
 			overflowX:"hidden"
         })(state)
