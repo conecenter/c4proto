@@ -352,7 +352,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
 				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"9",x2:"30",y2:this.props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":"white"}),							
 				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
-				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"25",x2:"30",y2:this.props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":"white"
+				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"25",x2:"30",y2:this.props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":"white"})				
 			])					
 						
 			//const svgData = svgSrc(svg)
@@ -1147,7 +1147,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				//const cEvent = eventManager.create("input",{bubbles:true})
 				//inp.dispatchEvent(cEvent)
-      })				
+    	  })				
 			event.stopPropagation()
 		}
 		onCopy(event){
@@ -2512,7 +2512,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			//log("call update")
 		}
 		componentDidMount(){
-      this.resizeL = resizeListener.reg(this.recalc)
+      		this.resizeL = resizeListener.reg(this.recalc)
 			this.recalc()
 			const clockTicks = this.clockTicks;
 			const updateInterval = 5*60
@@ -2528,7 +2528,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentWillUnmount(){
 			this.resizeL.unreg()
-      this.unreg()
+      		this.unreg()
 		}
 		splitTime(time){
 			const dateArr = time.split(' ')
