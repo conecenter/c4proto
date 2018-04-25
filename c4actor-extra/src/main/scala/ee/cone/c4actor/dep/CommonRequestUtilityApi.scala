@@ -1,7 +1,7 @@
 package ee.cone.c4actor.dep
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.CtxType.ContextId
+import ee.cone.c4actor.dep.DepTypeContainer.ContextId
 import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.ByClassNameRequest
 import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
@@ -22,7 +22,7 @@ case object CommonRequestUtilityFactoryImpl extends CommonRequestUtilityFactory{
   def askContextId: Dep[ContextId] = new RequestDep[ContextId](ContextIdRequest())
 }
 
-trait CommonRequestUtility {
+trait CommonRequestUtilityApi {
   def commonRequestUtilityFactory: CommonRequestUtilityFactory
 }
 
