@@ -5,13 +5,12 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{DepCondition, HashSearchDepRequest}
-import ee.cone.c4actor.hashsearch.condition.ModelConditionFactoryApp
 import ee.cone.c4actor.utils.{GeneralizedOrigRegistry, GeneralizedOrigRegistryApi}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with GeneralizedOrigRegistryApi with ModelConditionFactoryApp {
+trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with GeneralizedOrigRegistryApi {
   override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
@@ -19,6 +18,8 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
   def qAdapterRegistry: QAdapterRegistry
 
   def leafRegistry: LeafRegistry
+
+  def modelConditionFactory: ModelConditionFactory[Unit]
 
   def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, modelConditionFactory, generalizedOrigRegistry, qAdapterRegistry)
 }
@@ -98,7 +99,7 @@ case class LeafRegistryImpl(
   def getModelsList: List[Class[_ <: Product]] = models.distinct
 }
 
-case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[_], generalizedOrigRegistry: GeneralizedOrigRegistry, qAdapterRegistry: QAdapterRegistry) {
+case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[Unit], generalizedOrigRegistry: GeneralizedOrigRegistry, qAdapterRegistry: QAdapterRegistry) {
 
   def handle: HashSearchDepRequest => Condition[_] = request ⇒
     parseCondition(
