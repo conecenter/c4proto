@@ -463,7 +463,8 @@ export function ScrollViewPositionCanvasSetup(canvas){
         const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
         //const targetViewPos
         const zoom = initialZoom
-        return {...viewPositions,viewPos,zoom}
+        const tileZoom = initialZoom
+        return {...viewPositions,viewPos,tileZoom,zoom}
     }
     return ({setupFrame})
 }
@@ -542,7 +543,7 @@ export function DragViewPositionCanvasSetup(canvas){
             const viewPos = limitPos(zoom, viewExternalSize, canvas.calcPos(dir => pointPos[dir]*scale - mouseRelPos[dir]))
 
             //console.log(d,from.limitedTargetZoom,targetZoom,limitedTargetZoom)
-            return {...viewPositions,time,viewExternalSize,limitedTargetZoom,zoom,tileZoom,zoomIsChanging,viewPos}
+            return {...viewPositions,time,limitedTargetZoom,zoom,tileZoom,zoomIsChanging,viewPos}
         }
     }
     function processFrame(frame, prev){
