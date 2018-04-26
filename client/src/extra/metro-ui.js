@@ -2635,8 +2635,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 	}
 	class DragDropHandlerElement extends StatefulComponent{
-		report(action,fromSrcId,toSrcId){
-			if(this.props.onClickValue) this.props.onClickValue("change",JSON.stringify({action,fromSrcId,toSrcId}))
+		report(action,fromSrcId,toSrcId){			
+			if((!Array.isArray(this.props.filterActions)||this.props.filterActions.includes(action))&&this.props.onDragDrop)
+				this.props.onDragDrop("reorder",JSON.stringify({action,fromSrcId,toSrcId}))
 		}
 		componentDidMount(){
 			this.dragBinding = dragDropModule.regReporter(this.report)
@@ -2708,7 +2709,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		onMouseDown(e){
 			if(!this.props.draggable) return
-			this.dragBinding.dragStart(e,this.el,"div")
+			this.dragBinding.dragStart(e,this.el,"div",this.props.dragStyle)
 		}
 		onMouseUp(){
 			if(!this.props.droppable) return
@@ -3035,7 +3036,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		render(){return null}
 	}	
-	class ExpandByMaxHeightElement extends StatefulComponent{		
+	class InteractiveAreaElement extends StatefulComponent{		
 	    calcHeight() {
 			const wHeight = windowManager.getWindowRect().height
 			const wWidth = windowManager.getWindowRect().width
@@ -3061,7 +3062,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentDidMount(){
 			const count = miscReact.count()
-			if(count!=1) return		
+			if(count!=1) return
+			if(!this.props.onWResize) return
 			this.check()
 			this.resizeL = resizeListener.reg(this.check)
 		}
@@ -3071,7 +3073,12 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.resizeL) this.resizeL.unreg()
 		}
 		render(){
-			return $("div",{style:{display:"inline-block"},ref:ref=>this.el=ref},this.props.children)		
+			const filterActions = ["dragDrop"]
+			return $("div",{style:{display:"inline-block"},ref:ref=>this.el=ref},[
+				$("div",{key:"remref",style:{position:"absolute",zIndex:"-1",height:"1em"},ref:ref=>this.remRef=ref}),
+				$(DragDropHandlerElement,{key:"dhandler",onDragDrop:this.props.onDragDrop,filterActions}),
+				$("div",{key:"children"},this.props.children)
+			])		
 		}
 	}
 	class ZoomOnPopupElement extends StatefulComponent{		
@@ -3335,6 +3342,14 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			])
 		}
 	}
+	const DragWrapperElement = (props)=> {					
+		const dragData = props.dragData
+		const dragStyle = {border:"1px solid grey",backgroundColor:"grey"}
+		return $(DragDropDivElement,{draggable:true,droppable:true,dragStyle,dragData},[
+			$("div",{key:"1",style:props.style},props.caption),
+			$("div",{key:"2"},props.children)
+		])		
+	}
 	const download = (data) =>{
 		const anchor = documentManager.createElement("a")
 		const location = windowManager.location
@@ -3380,8 +3395,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			FilterContainerElement,
 			FilterElement,
 			ColorCreator,ColorItem,ColorPicker,
-			ExpandByMaxHeightElement,ZoomOnPopupElement,
-			BatteryState,DeviceConnectionState
+			InteractiveAreaElement,ZoomOnPopupElement,
+			BatteryState,DeviceConnectionState,
+			DragWrapperElement
     },
 		onClickValue,		
 		onReadySendBlob,
