@@ -28,3 +28,4 @@ db4*
 db.*
 htdocs
 /logback.xml
+.stignore

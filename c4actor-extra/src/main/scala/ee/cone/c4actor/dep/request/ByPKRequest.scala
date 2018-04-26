@@ -9,10 +9,12 @@ import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
-trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
-  override def assembles: List[Assemble] = byPKClasses.distinct.map(className ⇒ new ByPKGenericAssemble(className)) ::: super.assembles
-
+trait ByPKRequestApi {
   def byPKClasses: List[Class[_ <: Product]] = Nil
+}
+
+trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp with ByPKRequestApi {
+  override def assembles: List[Assemble] = byPKClasses.distinct.map(className ⇒ new ByPKGenericAssemble(className)) ::: super.assembles
 
   override def protocols: List[Protocol] = ByPKRequestProtocol :: super.protocols
 }

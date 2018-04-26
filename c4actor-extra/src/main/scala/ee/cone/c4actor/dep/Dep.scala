@@ -1,6 +1,6 @@
 package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.dep.CtxType.{DepCtx, DepRequest}
+import ee.cone.c4actor.dep.DepTypeContainer.{DepCtx, DepRequest}
 
 trait Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
@@ -47,4 +47,15 @@ class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A
   }
 }
 
-case class UnresolvedDep(rq: DepOuterRequest, resolvable: DepResolvable)
+class SeqParallelDep[A](depSeq: Seq[InnerDep[A]]) extends DepImpl[Seq[A]] {
+  def resolve(ctx: DepCtx): Resolvable[Seq[A]] = {
+    val seqResolved: Seq[Resolvable[A]] = depSeq.map(_.resolve(ctx))
+    val valueSeq: Seq[Option[A]] = seqResolved.map(_.value)
+    val resolvedSeq: Option[Seq[A]] = if (valueSeq.forall(opt => opt.isDefined))
+      Some(valueSeq.map(_.get))
+    else
+      None
+    val requestSeq: Seq[DepRequest] = seqResolved.flatMap(_.requests)
+    Resolvable[Seq[A]](resolvedSeq, requestSeq)
+  }
+}
