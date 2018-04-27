@@ -82,17 +82,13 @@ case class CustomResponse(list: List[ValueNode])
 
 }
 
-case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int] {
+case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
   def prepare: List[MetaAttr] ⇒ IntEq ⇒ IntEq = _ ⇒ identity[IntEq]
 
   def check: IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ value == by.value
-
-  def byCl: Class[IntEq] = classOf[IntEq]
-
-  def fieldCl: Class[Int] = classOf[Int]
 }
 
-case object IntEqRanger extends RangerWithCl[IntEq, Int] {
+case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
   def ranges: IntEq ⇒ (Int ⇒ List[IntEq], PartialFunction[Product, List[IntEq]]) = {
     case IntEq(0) ⇒ (
       value ⇒ List(IntEq(value)), {
@@ -100,9 +96,6 @@ case object IntEqRanger extends RangerWithCl[IntEq, Int] {
     }
     )
   }
-  def byCl: Class[IntEq] = classOf[IntEq]
-
-  def fieldCl: Class[Int] = classOf[Int]
 }
 
 trait TestCondition {
@@ -126,7 +119,7 @@ trait TestCondition {
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl)
 
-  def joiners: List[Assemble] = factory.index(classOf[ValueNode]).add(lens, IntEq(0))(IntEqRanger).assemble
+  def joiners: List[Assemble] = factory.index(classOf[ValueNode]).add(lens, IntEq(0))(IntEqRanger()).assemble
 
   def lens: ProdLens[ValueNode, Int] = ProdLens.ofSet[ValueNode, Int](_.value, value ⇒ _.copy(value = value), "testLens")
 }

@@ -37,7 +37,7 @@ trait DepFilterWrapperCollectorMix
     with FilterListRequestApp
     with HashSearchModelsApp
     with HashSearchDepRequestFactoryApp {
-  override def assembles: List[Assemble] = filterWrappers.flatMap(_.getAssembles) ::: super.assembles
+  //override def assembles: List[Assemble] = filterWrappers.flatMap(_.getAssembles) ::: super.assembles
 
   override def leafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = filterWrappers.flatMap(_.getLeafs) ::: super.leafs
 
@@ -84,6 +84,8 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
 
   def getAssembles: List[Assemble] = staticIndex.assemble
 
+  def getStaticIndex: StaticIndexBuilder[Model] = staticIndex
+
   def getFilterDep: HashSearchDepRequestFactory[_] ⇒ Dep[List[Model]] = factory ⇒ {
     val typedFactory = factory.ofWithCl(modelCl)
     for {
@@ -100,14 +102,16 @@ trait DepFilterWrapperApi[Model <: Product] {
   def add[By <: Product, Field](
     byDep: Dep[Option[Access[By]]],
     lens: ProdLens[Model, Field],
-    byOptions: List[MetaAttr]
+    byOptions: List[MetaAttr] = Nil
   )(
     implicit checker: ConditionCheckWithCl[By, Field]
   ): DepFilterWrapperApi[Model]
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]]
 
-  def getAssembles: List[Assemble]
+  //def getAssembles: List[Assemble]
+
+  def getStaticIndex: StaticIndexBuilder[Model]
 
   def getFilterDep: HashSearchDepRequestFactory[_] ⇒ Dep[List[Model]]
 

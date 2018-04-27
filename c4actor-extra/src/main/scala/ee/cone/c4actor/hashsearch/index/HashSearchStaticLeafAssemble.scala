@@ -35,6 +35,7 @@ object StaticHashSearchImpl {
 
   private def heapIds(expr: Expression, options: Options) = (expr, options) match {
     case (Leaf(ids), _) ⇒ ids
+    case (FullScan, _) ⇒ Nil
   }
 
   def heapIds[Model <: Product](indexers: Indexer[Model], cond: Condition[Model]): List[SrcId] =
@@ -45,7 +46,7 @@ object StaticHashSearchImpl {
     if (priorities.distinct.size != priorities.size)
       println("Warning, non singe priority", cond)
     val priorPrep = priorities.distinct
-    InnerConditionEstimate(cond, priorPrep.map(_.count).sum, priorPrep.map(_.heapId).toList)
+    InnerConditionEstimate(cond, Log2Pow2(priorPrep.map(_.count).sum), priorPrep.map(_.heapId).toList)
   }
 
   private def expression[Model <: Product](indexers: Indexer[Model]): Condition[Model] ⇒ Expression =
@@ -106,6 +107,11 @@ object StaticHashSearchImpl {
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = for {
       c ← Option(condition.asInstanceOf[ProdCondition[By, Model]])
+      a ← {
+        if (byToRanges(c.by).isEmpty)
+          println("[Warning] something went wrong StaticLeaf:112", metaList, c.metaList, c.by, by)
+        Some(1)
+      }
       if metaList == c.metaList
       ranges ← byToRanges(c.by)
     } yield heapIds(c.metaList, ranges).distinct
@@ -125,7 +131,7 @@ object StaticHashSearchImpl {
 
     def isMy(cond: InnerCondition[Model]): Boolean =
       cond.condition match {
-        case a: ProdConditionImpl[By, Model, Field] ⇒ fltML(a.metaList) == fltML(metaList)
+        case a: ProdConditionImpl[By, Model, Field] ⇒ fltML(a.metaList) == fltML(metaList) && a.by.getClass.getName == by.getClass.getName
         case _ ⇒ false
       }
 
