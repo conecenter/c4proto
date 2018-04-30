@@ -65,7 +65,7 @@ const windowManager = (()=>{
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
 	const addFirst = (node) => document.body.insertBefore(node,document.body.firstChild)
-	const remove = (node) => document.body.removeChild(node)
+	const remove = (node) => node.parentElement.removeChild(node)
 	const createElement = (type) => document.createElement(type)
 	const elementsFromPoint = (x,y)=> document.elementsFromPoint(x,y)
 	const body = () => document.body
