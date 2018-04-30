@@ -2700,18 +2700,22 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	class DragDropDivElement extends StatefulComponent{
 		componentDidMount(){
 			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})
+			addEventListener("mouseup",this.onMouseUp)
 		}
 		componentDidUpdate(){
 			this.dragBinding.update({node:this.el,dragData:this.props.dragData})
 		}
 		componentWillUnmount(){
 			this.dragBinding.release()
+			removeEventListener("mouseup",this.onMouseUp)
 		}
 		onMouseDown(e){
 			if(!this.props.draggable) return
 			this.dragBinding.dragStart(e,this.el,"div",this.props.dragStyle)
 		}
-		onMouseUp(){
+		onMouseUp(e){
+			const elements = documentManager.elementsFromPoint(e.clientX,e.clientY)
+			if(!elements.includes(this.el)) return			
 			if(!this.props.droppable) return
 			this.dragBinding.dragDrop(this.el)
 		}	
@@ -2720,8 +2724,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				...this.props.style
 			}
 			const actions = {
-				onMouseDown:this.onMouseDown,
-				onMouseUp:this.onMouseUp,
+				onMouseDown:this.onMouseDown,				
 				onTouchStart:this.onMouseDown,
 				onTouchEnd:this.onMouseUp
 			}
@@ -3036,29 +3039,19 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		render(){return null}
 	}	
-	class InteractiveAreaElement extends StatefulComponent{		
-	    calcHeight() {
-			const wHeight = windowManager.getWindowRect().height
-			const wWidth = windowManager.getWindowRect().width
-			/*const cHeight = Array.from(documentManager.body().children).reduce((a,e)=>{
-				const height = e.getBoundingClientRect().height
-				if(a<height) return height
-				return a
-			},0)
-			return Math.max(wHeight,cHeight)*/
-			return {wWidth,wHeight}
-		}		
+	class InteractiveAreaElement extends StatefulComponent{					    			
 		check(){
 			const wHeight = windowManager.getWindowRect().height			
 			const rect =  this.el.getBoundingClientRect()
 			let height = wHeight - rect.top
-			height=height<0?0:height
-			let width = rect.width<0?0:rect.width
+			height=(height<0?0:height)*0.95
+			let width = (rect.width<0?0:rect.width)*0.95
 			if((this.pHeight!=height||this.pWidth!=width) && this.props.onWResize) {
 				this.pHeight = height
 				this.pWidth = width
-				this.props.onWResize("change",`${width},${height}`)
-			}				
+				const pxEm = this.remRef.getBoundingClientRect().height
+				this.props.onWResize("change",`${width},${height},${pxEm}`)
+			}			
 		}
 		componentDidMount(){
 			const count = miscReact.count()
@@ -3067,13 +3060,19 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.check()
 			this.resizeL = resizeListener.reg(this.check)
 		}
-		componentDidUpdate(){			
+		componentDidUpdate(prevProps,prevState){	
+			if(prevState.scale!=this.state.scale){
+				this.check()
+			}
 		}
 		componentWillUnmount(){
 			if(this.resizeL) this.resizeL.unreg()
 		}
 		render(){
 			const filterActions = ["dragDrop"]
+			const scaleStyle = {				
+				fontSize:this.state.scale+"em"
+			}
 			return $("div",{style:{display:"inline-block"},ref:ref=>this.el=ref},[
 				$("div",{key:"remref",style:{position:"absolute",zIndex:"-1",height:"1em"},ref:ref=>this.remRef=ref}),
 				$(DragDropHandlerElement,{key:"dhandler",onDragDrop:this.props.onDragDrop,filterActions}),
@@ -3094,6 +3093,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			addEventListener("mousedown",this.onMouseDown,true)
 		}
 		maxZoomK(){
+			if(this.props.zoomed) return 1
 			let child
 			if(child = this.el.firstElementChild){				
 				const rect = child.getBoundingClientRect()
