@@ -2618,7 +2618,11 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			e.stopPropagation()
 		}
 		report(focusKey){
-			if(this.props.onClickValue) this.props.onClickValue("focusChange",focusKey)
+			if(this.timeout) {clearTimeout(this.timeout);this.timeout = null}
+			this.timeout = setTimeout(()=>{
+				if(!this.timeout) return
+				if(this.props.onClickValue) this.props.onClickValue("focusChange",focusKey)
+			}, 150)			
 		}		
 		componentWillUnmount(){			
 			this.el.removeEventListener("cFocus",this.onFocus)
@@ -3020,13 +3024,15 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!audioContext) return
 			const audioCtx = audioContext()
 			this.oscillator = audioCtx.createOscillator()
-			this.oscillator.type = 'square'
-			this.oscillator.frequency.setValueAtTime(440, audioCtx.currentTime)
+			this.oscillator.type = this.props.type||'square'
+			const freq = (this.props.freq?parseInt(this.props.freq):null)||440
+			this.oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime)
 			this.oscillator.connect(audioCtx.destination)
 			this.oscillator.start()
+			const period = (this.props.period?parseInt(this.props.period):null)||300
 			setTimeout(()=>{
 				this.oscillator.stop()
-			},300)
+			},period)
 		}
 		stop(){
 			this.oscillator&&this.oscillator.stop()
@@ -3061,9 +3067,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.resizeL = resizeListener.reg(this.check)
 		}
 		componentDidUpdate(prevProps,prevState){	
-			if(prevState.scale!=this.state.scale){
-				this.check()
-			}
+			this.check()			
 		}
 		componentWillUnmount(){
 			if(this.resizeL) this.resizeL.unreg()
@@ -3081,16 +3085,28 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 	}
 	class ZoomOnPopupElement extends StatefulComponent{		
+		getInitialState(){
+			return {width:0,height:0}
+		}
 		onMouseDown(e){			
 			let el
-			if(!this.props.zoomed){
+			/*if(!this.props.zoomed){
 				const elements = documentManager.elementsFromPoint(e.clientX,e.clientY)
 				el = elements.find(e=>e==this.el)
-			}
-			e.ctrlKey&&(el||e.target==this.el) && this.props.onClickValue && this.props.onClickValue("change",this.maxZoomK().toString())
+			}*/
+			if(e.target==this.el||e.target == this.el.firstElementChild){
+				this.props.onClickValue && this.props.onClickValue("change",this.maxZoomK().toString())
+				e.stopPropagation()
+			}			
+		}
+		resize(){
+			const rect = this.el.getBoundingClientRect()
+			if(this.state.width!= rect.width || this.state.height !=rect.height)
+				this.setState({width:rect.width,height:rect.height})
 		}
 		componentDidMount(){
 			addEventListener("mousedown",this.onMouseDown,true)
+			
 		}
 		maxZoomK(){
 			if(this.props.zoomed) return 1
@@ -3106,15 +3122,20 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentWillUnmount(){
 			removeEventListener("mousedown",this.onMouseDown)
+			
 		}
 		render(){
-			const zoomedStyle = this.props.zoomed?{position:"fixed",top:"0px",left:"0px",display:"flex",justifyContent:"center",height:"100%",width:"100%"}:{}
+			const zoomedStyle = this.props.zoomed?{position:"fixed",top:"0px",left:"0px",display:"flex",justifyContent:"center",height:"100%",width:"100%",cursor:"zoom-out"}:{position:"relative"}			
 			const style = {				
 				...zoomedStyle,
-				...this.props.style
+				...this.props.style				
 			}
+			const nonZoomed = !this.props.zoomed?{position:"absolute", zIndex:"10000",width:"100%",height:"100%",cursor:"zoom-in"}:{}
 			const className = "ZoomPopup"
-			return $("div",{className,ref:ref=>this.el=ref, style},this.props.children)
+			return $("div",{className,ref:ref=>this.el=ref, style},[			
+				$("div",{key:1,style:nonZoomed,onMouseDown:this.MouseDown}),
+				$("div",{key:2,style:{alignSelf:"center"}},this.props.children)
+			])
 		}
 	}
 
