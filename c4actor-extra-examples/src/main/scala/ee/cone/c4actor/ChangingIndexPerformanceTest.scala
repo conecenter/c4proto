@@ -29,11 +29,15 @@ import scala.util.Random
 
 }
 
-case class SrcIdContainer(instrId: SrcId, srcId: SrcId)
+case class SrcIdContainer(srcId: SrcId, instrId: SrcId)
+
+case class SrcIdListContainer(srcId: SrcId, list: Values[SrcId])
 
 case class ResultNode(srcId: SrcId, modelsSize: Int, result: String)
 
-@assemble class ChangingIndexAssemble(instruction: NodeInstruction) extends Assemble {
+case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
+
+@assemble class ChangingIndexAssemble(constant: NodeInstruction) extends Assemble {
   type InstructionId = SrcId
 
   def ModelsToInstruction(
@@ -42,7 +46,7 @@ case class ResultNode(srcId: SrcId, modelsSize: Int, result: String)
   ): Values[(InstructionId, PerformanceNode)] =
     for {
       model ← models
-    } yield instruction.srcId → model
+    } yield constant.srcId → model
 
   def ModelsNInstructionToResult(
     instructionId: SrcId,
@@ -52,8 +56,20 @@ case class ResultNode(srcId: SrcId, modelsSize: Int, result: String)
     (for {
       instruction ← instructions
     } yield {
-      models.slice(instruction.from, instruction.to).map(model ⇒ WithPK(SrcIdContainer(instruction.srcId, model.srcId)))
+      models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
     }).flatten
+
+  def ModelsNInstructionToResultList(
+    instructionId: SrcId,
+    @by[InstructionId] models: Values[PerformanceNode],
+    instructions: Values[NodeInstruction]
+  ): Values[(InstructionId, SrcIdListContainer)] =
+    for {
+      instruction ← instructions
+    } yield {
+      val idList = models.slice(instruction.from, instruction.to).map(_.srcId)
+      instruction.srcId → SrcIdListContainer(instruction.srcId, idList)
+    }
 
   def CollectResponses(
     instructionId: SrcId,
@@ -63,6 +79,18 @@ case class ResultNode(srcId: SrcId, modelsSize: Int, result: String)
     for {
       instr ← instructions
     } yield WithPK(ResultNode(instr.srcId, srcIdContainers.size, srcIdContainers.map(_.srcId).groupBy(_.head).keys.toString))
+
+  def CollectResponsesList(
+    instructionId: SrcId,
+    @by[InstructionId] srcIdContainers: Values[SrcIdListContainer],
+    instructions: Values[NodeInstruction]
+  ): Values[(SrcId, ResultNodeFromList)] =
+    for {
+      instr ← instructions
+      list ← srcIdContainers
+    } yield {
+      WithPK(ResultNodeFromList(instr.srcId, list.list.size, list.list.groupBy(_.head).keys.toString))
+    }
 }
 
 class ChangingIndexPerformanceTest(
@@ -88,14 +116,17 @@ class ChangingIndexPerformanceTest(
     println("Change index")
     val firstGlobal = TxAdd(LEvent.update(NodeInstruction("test", 0, worldSize / 2)))(nGlobal)
     println(ByPK(classOf[ResultNode]).of(firstGlobal))
+    println(ByPK(classOf[ResultNodeFromList]).of(firstGlobal))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
     val secondGlobal = TxAdd(LEvent.update(NodeInstruction("test", worldSize / 2, worldSize)))(firstGlobal)
     println(ByPK(classOf[ResultNode]).of(secondGlobal))
+    println(ByPK(classOf[ResultNodeFromList]).of(secondGlobal))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
-    val thirdGlobal = TxAdd(LEvent.update(NodeInstruction("test", worldSize / 4, 3 * worldSize / 4)))(secondGlobal)
+    val thirdGlobal = TxAdd(LEvent.update(NodeInstruction("test", 0, 0)))(secondGlobal)
     println(ByPK(classOf[ResultNode]).of(thirdGlobal))
+    println(ByPK(classOf[ResultNodeFromList]).of(thirdGlobal))
     execution.complete()
   }
 }
