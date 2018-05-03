@@ -410,7 +410,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					position:'absolute',					
 					minWidth:'7em',					
 					boxShadow:GlobalStyles.boxShadow,
-					zIndex:'6670',
+					zIndex:'10002',
 					transitionProperty:'all',
 					transitionDuration:'0.15s',
 					transformOrigin:'50% 0%',
@@ -3376,7 +3376,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		const location = windowManager.location
 		const path = data//location.pathname.replace(/(.*)\/[^/]*/, "$1/"+data);
 		
-		anchor.href = location.protocol+"//"+location.host+path
+		//anchor.href = location.protocol+"//"+location.host+path
+		anchor.href = path
 		anchor.download = data.split('/').reverse()[0]
 		documentManager.add(anchor)
 		anchor.click()

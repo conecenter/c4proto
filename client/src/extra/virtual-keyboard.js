@@ -141,6 +141,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const bm = vkContainer.position == "bm"
 			const tl = vkContainer.position == "tl"
 			const ml = vkContainer.position == "ml"
+			const mr = vkContainer.position == "mr"
 			const tm = vkContainer.position == "tm"
 			const tr = vkContainer.position == "tr"
 			const br = vkContainer.position == "br"
@@ -166,6 +167,10 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				top = vkContainer.rect.top + vkContainer.rect.height/2 - pHeight/2	
 				left = vkContainer.rect.left					
 			}			
+			if(mr){
+				top = vkContainer.rect.top + vkContainer.rect.height/2 - pHeight/2	
+				left = vkContainer.rect.right - pWidth
+			}
 			if(tr){
 				top = vkContainer.rect.top 
 				left = vkContainer.rect.right - pWidth

@@ -111,6 +111,7 @@ const miscUtil = (()=>{
 	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
 	const Scanner = window.Scanner
 	const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})	
+	window.ScannerProxy = scannerProxy
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 	const fileReader = ()=> (new window.FileReader())
 	return {winWifi,getBattery,scannerProxy,audioContext,fileReader}
