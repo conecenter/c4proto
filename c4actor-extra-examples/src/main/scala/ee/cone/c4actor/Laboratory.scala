@@ -4,10 +4,19 @@ import ee.cone.c4actor.utils.GeneralizedOrigFactory
 
 object Laboratory {
   def main(args: Array[String]): Unit = {
-    val a = A(2, "1")
-    println(a.copy(b = 2))
-    println(a.copy(2))
-    //println(test2(a))
+    val test1 = (2,Test(2))
+    val hash = test1._2.hashCode()
+    val test2 = (1,test1._2.copy())
+    val hash2 = test2._2.hashCode
+  }
+
+  case class Test(a: Int){
+    lazy val hashLazy = {
+      println("Here")
+      runtime.ScalaRunTime._hashCode(this)}
+
+    override def hashCode: Int = hashLazy
+
   }
 
 

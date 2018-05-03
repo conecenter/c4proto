@@ -7,7 +7,8 @@ import StaticHashSearchApi._
 import ee.cone.c4actor.HashSearch._
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerCondition, InnerConditionEstimate}
+import ee.cone.c4actor.hashsearch.base._
+import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUtilsApp}
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
@@ -53,10 +54,11 @@ object StaticHashSearchImpl {
     c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
 
   class StaticFactoryImpl(
-    modelConditionFactory: ModelConditionFactory[Unit]
+    modelConditionFactory: ModelConditionFactory[Unit],
+    serializer: SerializationUtils
   ) extends StaticFactory {
     def index[Model <: Product](cl: Class[Model]): Indexer[Model] =
-      EmptyIndexer[Model]()(cl, modelConditionFactory.of[Model])
+      EmptyIndexer[Model]()(cl, modelConditionFactory.of[Model], serializer)
 
     def request[Model <: Product](condition: Condition[Model]): Request[Model] =
       Request(UUID.nameUUIDFromBytes(condition.toString.getBytes(UTF_8)).toString, condition)
@@ -67,11 +69,13 @@ object StaticHashSearchImpl {
 
     def modelConditionFactory: ModelConditionFactory[Model]
 
+    def serializer: SerializationUtils
+
     def add[NBy <: Product, NField](lens: ProdLens[Model, NField], by: NBy)(
       implicit ranger: Ranger[NBy, NField]
     ): StaticIndexBuilder[Model] = {
       val (valueToRanges, byToRanges) = ranger.ranges(by)
-      IndexerImpl(modelConditionFactory.filterMetaList(lens), by, this)(modelClass, modelConditionFactory, lens.of, valueToRanges, byToRanges.lift)
+      IndexerImpl(modelConditionFactory.filterMetaList(lens), by, this)(serializer, modelClass, modelConditionFactory, lens.of, valueToRanges, byToRanges.lift)
     }
 
     def assemble: List[Assemble]
@@ -85,7 +89,8 @@ object StaticHashSearchImpl {
 
   case class EmptyIndexer[Model <: Product]()(
     val modelClass: Class[Model],
-    val modelConditionFactory: ModelConditionFactory[Model]
+    val modelConditionFactory: ModelConditionFactory[Model],
+    val serializer: SerializationUtils
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = None
 
@@ -99,6 +104,7 @@ object StaticHashSearchImpl {
   case class IndexerImpl[By <: Product, Model <: Product, Field](
     metaList: List[MetaAttr], by: By, next: Indexer[Model]
   )(
+    val serializer: SerializationUtils,
     val modelClass: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
     of: Model ⇒ Field,
@@ -123,7 +129,15 @@ object StaticHashSearchImpl {
       range ← ranges
     } yield {
       //println(range,range.hashCode())
-      letters3(metaList.hashCode ^ range.hashCode)
+      //letters3(metaList.hashCode ^ range.hashCode)
+      getHeapSrcId(metaList, range)
+    }
+
+    private def getHeapSrcId(metaList: List[MetaAttr], range: By): SrcId = {
+      val metaListUUID = serializer.uuidFromMetaAttrList(metaList)
+      val rangeUUID = serializer.uuidFromOrig(range, by.getClass.getName)
+      val srcId = serializer.uuidFromSeq(metaListUUID, rangeUUID).toString
+      s"$metaList$range$srcId"
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
@@ -135,7 +149,7 @@ object StaticHashSearchImpl {
         case _ ⇒ false
       }
 
-    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this) :: next.assemble
+    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this, serializer) :: next.assemble
   }
 
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
@@ -148,17 +162,18 @@ trait HashSearchStaticLeafFactoryApi {
   def staticLeafFactory: StaticFactory
 }
 
-trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi {
+trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
 
-  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory)
+  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer)
 }
 
 import StaticHashSearchImpl._
 
 @assemble class HashSearchStaticLeafAssemble[Model <: Product](
   modelCl: Class[Model],
-  indexer: Indexer[Model]
+  indexer: Indexer[Model],
+  serializer: SerializationUtils
 ) extends Assemble with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
@@ -212,13 +227,22 @@ import StaticHashSearchImpl._
   def handleRequest(
     heapId: SrcId,
     @by[StaticHeapId] responses: Values[Model],
-    @by[SharedHeapId] requests: Values[Request[Model]]
-  ): Values[(SharedResponseId, Model)] = {
-    //println(heapId, responses.size, requests.headOption.map(ToPrimaryKey(_)))
+    @by[SharedHeapId] requests: Values[RootInnerCondition[Model]]
+  ): Values[(SharedResponseId, ResponseModelList[Model])] = {
+    //if (requests.nonEmpty)
+    //println(heapId, responses.size, requests.size, modelCl.getSimpleName)
+    //val time = System.currentTimeMillis()
     for {
       request ← requests
-      line ← responses
-      if request.condition.check(line)
-    } yield ToPrimaryKey(request) → line
+    } yield {
+      val lines = for {
+        line ← responses
+        if request.condition.check(line)
+      } yield line
+      WithPK(ResponseModelList(request.srcId, lines))
+    }
+    /*val time2 = System.currentTimeMillis() - time
+    if (time2 > 0)
+      println("{TIME-git}", time2)*/
   }
 }

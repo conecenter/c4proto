@@ -4,7 +4,7 @@ import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepAssembleUtilityImpl
-import ee.cone.c4actor.hashsearch.condition.{ConditionSerializationUtils, ConditionSerializationsUtilsApp}
+import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUtilsApp}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
@@ -16,6 +16,8 @@ trait OuterConditionApi[Model <: Product] extends Product {
 
 case class RootCondition[Model <: Product](srcId: SrcId, conditionInner: InnerCondition[Model], requestId: SrcId) extends OuterConditionApi[Model]
 
+case class RootInnerCondition[Model <: Product](srcId: SrcId, condition: Condition[Model])
+
 case class OuterCondition[Model <: Product](srcId: SrcId, conditionInner: InnerCondition[Model], parentInnerId: SrcId) extends OuterConditionApi[Model]
 
 case class InnerCondition[Model <: Product](srcId: SrcId, condition: Condition[Model])
@@ -23,6 +25,10 @@ case class InnerCondition[Model <: Product](srcId: SrcId, condition: Condition[M
 case class ResolvableCondition[Model <: Product](outerCondition: OuterConditionApi[Model], childInnerConditions: List[InnerCondition[Model]])
 
 case class InnerConditionEstimate[Model <: Product](conditionInner: InnerCondition[Model], count: Int, heapIds: List[SrcId])
+
+case class SrcIdContainer[Model <: Product](srcId: SrcId, modelCl: Class[Model])
+
+case class ResponseModelList[Model <: Product](srcId: SrcId, modelList: Values[Model]) extends LazyHashCodeProduct
 
 trait HashSearchAssembleSharedKeys {
   // Shared keys
@@ -34,10 +40,10 @@ trait HashSearchModelsApp {
   def hashSearchModels: List[Class[_ <: Product]] = Nil
 }
 
-trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with ConditionSerializationsUtilsApp{
+trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp {
   def qAdapterRegistry: QAdapterRegistry
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, conditionSerializer)) ::: super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer)) ::: super.assembles
 }
 
 object HashSearchAssembleUtils {
@@ -69,7 +75,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
 @assemble class HashSearchAssemble[Model <: Product](
   modelCl: Class[Model],
   val qAdapterRegistry: QAdapterRegistry,
-  condSer: ConditionSerializationUtils
+  condSer: SerializationUtils
 ) extends Assemble with HashSearchAssembleSharedKeys
   with DepAssembleUtilityImpl {
   type CondInnerId = SrcId
@@ -88,7 +94,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
       request ← requests
     } yield {
       val condition = request.condition
-      val condId = condSer.getPK(modelCl, condition)
+      val condId = condSer.getConditionPK(modelCl, condition)
       WithPK(RootCondition(condSer.srcIdFromSrcIds(request.requestId, condId), InnerCondition(condId, condition), request.requestId))
     }
 
@@ -108,6 +114,14 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     WithPK(inner) :: Nil
   }
 
+  def RootCondIntoRootInnerCondition(
+    rootInnerId: SrcId,
+    @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]]
+  ): Values[(SrcId, RootInnerCondition[Model])] = {
+    val inner = Single(rootConditions.map(_.conditionInner).distinct)
+    WithPK(RootInnerCondition(inner.srcId, inner.condition)) :: Nil
+  }
+
   def RootCondToResolvableCond(
     rootCondId: SrcId,
     rootConditions: Values[RootCondition[Model]]
@@ -115,7 +129,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     for {
       rootCond ← rootConditions
     } yield {
-      val children = parseCondition(rootCond.conditionInner.condition).map(cond ⇒ InnerCondition(condSer.getPK(modelCl,cond), cond))
+      val children = parseCondition(rootCond.conditionInner.condition).map(cond ⇒ InnerCondition(condSer.getConditionPK(modelCl, cond), cond))
       WithPK(ResolvableCondition(rootCond, children))
     }
 
@@ -126,7 +140,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     for {
       outerCond ← outerConditions
     } yield {
-      val children = parseCondition(outerCond.conditionInner.condition).map(cond ⇒ InnerCondition(condSer.getPK(modelCl,cond), cond))
+      val children = parseCondition(outerCond.conditionInner.condition).map(cond ⇒ InnerCondition(condSer.getConditionPK(modelCl, cond), cond))
       WithPK(ResolvableCondition(outerCond, children))
     }
 
@@ -194,39 +208,49 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
       WithPK(bestEstimate)
     }
 
-  def CountEstimateToRequest(
+  def CountEstimateNRootInnerToHeaps(
     requestId: SrcId,
-    @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]],
+    rootInnerConds: Values[RootInnerCondition[Model]],
     condEstimates: Values[InnerConditionEstimate[Model]]
-  ): Values[(RootRequestId, InnerConditionEstimate[Model])] =
+  ): Values[(SharedHeapId, RootInnerCondition[Model])] =
     for {
-      rootCond ← rootConditions
-      estimate ← condEstimates
-    } yield rootCond.requestId → estimate
+      rootInner ← rootInnerConds
+      estimate ← Single.option(condEstimates).toList
+      heapId ← estimate.heapIds
+    } yield heapId → rootInner
 
-  def RequestToHeaps(
-    requestId: SrcId,
-    requests: Values[Request[Model]],
-    @by[RootRequestId] counts: Values[InnerConditionEstimate[Model]]
-  ): Values[(SharedHeapId, Request[Model])] =
+
+  type RequestId = SrcId
+
+  def ResponsesToRequest(
+    rootInnerId: SrcId,
+    rootInnerConds: Values[RootInnerCondition[Model]],
+    @by[SharedResponseId] responses: Values[ResponseModelList[Model]],
+    @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]]
+  ): Values[(RequestId, ResponseModelList[Model])] = {
+    val finalList = responses.flatMap(_.modelList)
+    val distinctList = DistinctBySrcIdGit(finalList)
+    //val time = System.currentTimeMillis()
     for {
-      request ← requests
-      count ← Single.option(counts).toList
-      heapId ← count.heapIds
+      root ← rootConditions
     } yield {
-      heapId → request
+      WithPK(ResponseModelList(root.requestId, distinctList))
+      /*val time2 = System.currentTimeMillis()-time
+    if (time2 > 0)
+      println("{TIME2-git}", time2)*/
     }
+  }
 
   def ResponseByRequest(
     requestId: SrcId,
     requests: Values[Request[Model]],
-    @by[SharedResponseId] responses: Values[Model]
+    @by[RequestId] responses: Values[ResponseModelList[Model]]
   ): Values[(SrcId, Response[Model])] =
     for {
       request ← requests
     } yield {
       val pk = ToPrimaryKey(request)
-      pk → Response(pk, request, responses.distinct.toList)
+      WithPK(Response(pk, request, Single.option(responses).map(_.modelList).toList.flatten))
     }
 
 }

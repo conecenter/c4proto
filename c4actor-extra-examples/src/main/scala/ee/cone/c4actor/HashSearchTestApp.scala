@@ -7,7 +7,7 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleApp, InnerCondition, OuterCondition}
-import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
+import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, SerializationUtilsApp, SerializationUtilsMix}
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
 import ee.cone.c4assemble.Types.Values
@@ -17,7 +17,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchTestAppp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 class HashSearchTesttStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
-) extends Executable with LazyLogging with TestCondition {
+) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
 
@@ -39,13 +39,13 @@ class HashSearchTesttStart(
   }
 }
 
-case class CustomResponse(list: List[ValueNode])
+case class CustomResponse(srcId: SrcId, list: List[ValueNode])
 
 @assemble class CreateRequest(condition: List[Condition[ValueNode]]) extends Assemble {
   def createRequest(
     testId: SrcId,
     tests: Values[TestNode]
-  ): Values[(SrcId, Request[ValueNode])] = tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId+"_"+cond.toString.take(10), cond))))
+  ): Values[(SrcId, Request[ValueNode])] = tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))))
 
   def grabResponse(
     responseId: SrcId,
@@ -53,7 +53,7 @@ case class CustomResponse(list: List[ValueNode])
     responses: Values[Response[ValueNode]]
   ): Values[(SrcId, CustomResponse)] = {
     //println("Answer", responses.map(_.lines))
-    (responseId → CustomResponse(responses.flatMap(_.lines).toList)) :: Nil
+    (responseId → CustomResponse(responseId, responses.flatMap(_.lines).toList)) :: Nil
   }
 
   def printAllInners(
@@ -98,7 +98,7 @@ case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classO
   }
 }
 
-trait TestCondition {
+trait TestCondition extends SerializationUtilsApp {
   def condition1: Condition[ValueNode] = {
     UnionCondition(
       ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.value),
@@ -109,7 +109,8 @@ trait TestCondition {
   def condition2: Condition[ValueNode] = {
     IntersectCondition(
       ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.value),
-      ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
+      AnyCondition()
+      //ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
     )
   }
 
@@ -117,7 +118,7 @@ trait TestCondition {
 
   def conditions: List[Condition[ValueNode]] = condition1 :: condition2 /*:: condition3*/ :: Nil
 
-  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl)
+  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer)
 
   def joiners: List[Assemble] = factory.index(classOf[ValueNode]).add(lens, IntEq(0))(IntEqRanger()).assemble
 
@@ -133,7 +134,8 @@ class HashSearchTestAppp extends RichDataApp
   with MortalFactoryApp
   with ModelAccessFactoryApp
   with TestCondition
-  with HashSearchAssembleApp {
+  with HashSearchAssembleApp
+  with SerializationUtilsMix {
 
   override def toStart: List[Executable] = new HashSearchTesttStart(execution, toUpdate, contextFactory) :: super.toStart
 
