@@ -9,7 +9,7 @@ trait HashSearchRangersApp {
 }
 
 trait HashSearchRangerRegistryMix extends HashSearchRangerRegistryApp with HashSearchRangersApp {
-  def hashSearchRangerRegistry: HashSearchRangerRegistryApi = HashSearchRangerRegistryImpl(hashSearchRangers)
+  def hashSearchRangerRegistry: HashSearchRangerRegistryApi = HashSearchRangerRegistryImpl(hashSearchRangers.distinct)
 }
 
 trait HashSearchRangerRegistryApi {
