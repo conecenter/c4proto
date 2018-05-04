@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.EqProtocol.{IntEq, StrStartsWith, TestObject}
+import ee.cone.c4actor.EqProtocol.{ChangingNode, IntEq, StrStartsWith, TestObject}
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
@@ -21,19 +21,23 @@ class HashSearchExtraTestStart(
   def run(): Unit = {
     import LEvent.update
 
-    val recs = update(TestNode("1", "")) ++ update(TestObject("123", 239, "abc")) ++ update(TestObject("124", 666, "adb"))
+    val world = for {
+      i ← 1 to 10000
+    } yield TestObject(i.toString, 239, i.toString.take(5))
+    val recs = /*update(TestNode("1", "")) ++ */update(ChangingNode("test", "")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val context: Context = contextFactory.create()
     val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
 
     //logger.info(s"${nGlobal.assembled}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList)
+    //println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
+    println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList.map(_.list.size))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    val newNGlobal = TxAdd(LEvent.update(TestObject("124", 239, "adb")))(nGlobal)
-    println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(newNGlobal).values.toList)
+    val newNGlobal = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobal)
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
+    println(ByPK(classOf[CustomResponse]).of(newNGlobal).values.toList.map(_.list.size))
     execution.complete()
 
   }
@@ -41,11 +45,23 @@ class HashSearchExtraTestStart(
 
 case class CustomResponse(srcId: SrcId, list: List[TestObject])
 
-@assemble class CreateRequest(condition: List[Condition[TestObject]]) extends Assemble {
+@assemble class CreateRequest(condition: List[Condition[TestObject]], changingCondition: String ⇒ Condition[TestObject]) extends Assemble {
   def createRequest(
     testId: SrcId,
     tests: Values[TestNode]
-  ): Values[(SrcId, Request[TestObject])] = tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))))
+  ): Values[(SrcId, Request[TestObject])] =
+    tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))))
+
+  def createRequestChanging(
+    testId: SrcId,
+    tests: Values[ChangingNode]
+  ): Values[(SrcId, Request[TestObject])] =
+    for {
+      test ← tests
+    } yield {
+      val cond = changingCondition(test.value)
+      WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))
+    }
 
   def grabResponse(
     responseId: SrcId,
@@ -60,7 +76,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
     innerId: SrcId,
     inners: Values[InnerCondition[TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
-    println("Inner", inners)
+    //println("Inner", inners)
     Nil
   }
 
@@ -68,13 +84,18 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
     innerId: SrcId,
     inners: Values[OuterCondition[TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
-    println("Outer", inners)
+    //println("Outer", inners)
     Nil
   }
 }
 
 
 @protocol object EqProtocol extends Protocol {
+
+  @Id(0xaabc) case class ChangingNode(
+    @Id(0xaabd) srcId: String,
+    @Id(0xaabe) value: String
+  )
 
   @Id(0x4567) case class IntEq(
     @Id(0xabcd) value: Int
@@ -92,7 +113,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 
 }
 
-case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[StrStartsWith],classOf[String]) {
+case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[StrStartsWith], classOf[String]) {
   def prepare: List[MetaAttr] => StrStartsWith => StrStartsWith = _ ⇒ by ⇒ by
 
   def check: StrStartsWith => String => Boolean = {
@@ -105,9 +126,9 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[StrStartsWith], cla
     case StrStartsWith("") ⇒ (
       value ⇒ (
         for {
-      i ← 1 to 5
-    } yield StrStartsWith(value.take(i))
-        ).toList,{
+          i ← 1 to 5
+        } yield StrStartsWith(value.take(i))
+        ).toList :+ StrStartsWith(""), {
       case StrStartsWith(v) ⇒ StrStartsWith(v.take(5)) :: Nil
     })
   }
@@ -130,6 +151,13 @@ case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classO
 }
 
 trait TestCondition extends SerializationUtilsApp {
+  def changingCondition: String ⇒ Condition[TestObject] = value ⇒ {
+    IntersectCondition(
+      ProdConditionImpl(NameMetaAttr("testLensStr") :: Nil, StrStartsWith(value))(StrStartsWithChecker.check(StrStartsWith(value)), _.valueStr),
+      AnyCondition()
+    )
+  }
+
   def condition1: Condition[TestObject] = {
     UnionCondition(
       ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.valueInt),
@@ -139,21 +167,24 @@ trait TestCondition extends SerializationUtilsApp {
 
   def condition2: Condition[TestObject] = {
     IntersectCondition(
-      ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.valueInt),
+      IntersectCondition(
+        ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.valueInt),
+        AnyCondition()
+        //ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
+      ),
       AnyCondition()
-      //ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
     )
   }
 
   def condition3 = IntersectCondition(condition1, condition2)
 
-  def conditions: List[Condition[TestObject]] = condition1 :: condition2 /*:: condition3*/ :: Nil
+  def conditions: List[Condition[TestObject]] = condition1 /*:: condition2*//*:: condition3*/ :: Nil
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer)
 
   def joiners: List[Assemble] = factory.index(classOf[TestObject])
     .add(lensInt, IntEq(0))(IntEqRanger())
-    //.add(lensStr, StrStartsWith(""))(StrStartsWithRanger)
+    .add(lensStr, StrStartsWith(""))(StrStartsWithRanger)
     .assemble
 
   def lensInt: ProdLens[TestObject, Int] = ProdLens.ofSet[TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt")
@@ -181,12 +212,23 @@ class HashSearchExtraTestApp extends RichDataApp
   override def protocols: List[Protocol] = EqProtocol :: TestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
-    println((new CreateRequest(conditions) :: joiners :::
+    println((new CreateRequest(conditions, changingCondition) :: joiners :::
       super.assembles).mkString("\n")
     )
-    new CreateRequest(conditions) :: joiners :::
+    new CreateRequest(conditions, changingCondition) :: joiners :::
       super.assembles
   }
 
-  lazy val assembleProfiler:AssembleProfiler = NoAssembleProfiler
+  lazy val assembleProfiler: AssembleProfiler = ValueAssembleProfiler2
+}
+
+object ValueAssembleProfiler2 extends AssembleProfiler {
+  def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
+    val startTime = System.currentTimeMillis
+    finalCount ⇒ {
+      val period = System.currentTimeMillis - startTime
+      if (period > 10)
+        println(s"assembling by ${Thread.currentThread.getName} rule $ruleName $startAction $finalCount items in $period ms")
+    }
+  }
 }

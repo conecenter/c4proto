@@ -7,6 +7,23 @@ import scala.annotation.tailrec
 import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 
+object PrintColored{
+  def apply[R](color: String)(f: ⇒ R): R = {
+    val colorAnsi = color match {
+      case "y" ⇒ Console.YELLOW
+      case "g" ⇒ Console.GREEN
+      case "b" ⇒ Console.BLUE
+      case "r" ⇒ Console.RED
+      case "" ⇒ Console.RESET
+    }
+    print(colorAnsi)
+    val result = f
+    println(result)
+    print(Console.RESET)
+    result
+  }
+}
+
 object Utility {
   def minByOpt[A, B](list: TraversableOnce[A])(f: A => B)(implicit cmp: Ordering[B]): Option[A] = {
     if (list.isEmpty)

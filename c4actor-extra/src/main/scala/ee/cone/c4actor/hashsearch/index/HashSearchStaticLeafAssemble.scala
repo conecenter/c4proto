@@ -137,7 +137,7 @@ object StaticHashSearchImpl {
       val metaListUUID = serializer.uuidFromMetaAttrList(metaList)
       val rangeUUID = serializer.uuidFromOrig(range, by.getClass.getName)
       val srcId = serializer.uuidFromSeq(metaListUUID, rangeUUID).toString
-      s"$metaList$range$srcId"
+      s"$metaList$range" //TODO reverse it
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
@@ -230,9 +230,9 @@ import StaticHashSearchImpl._
     @by[StaticHeapId] responses: Values[Model],
     @by[SharedHeapId] requests: Values[RootInnerCondition[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
-    /*if (requests.nonEmpty)
-      println(heapId, responses.size, requests.size, modelCl.getSimpleName)
-    val time = System.currentTimeMillis()*/
+    if (requests.nonEmpty)
+      println(Console.YELLOW + "HR", heapId, responses.size, requests.size, modelCl.getSimpleName + Console.RESET)
+    val time = System.currentTimeMillis()
     val result = for {
       request ← requests.par
     } yield {
@@ -242,9 +242,10 @@ import StaticHashSearchImpl._
       } yield line
       request.srcId → ResponseModelList(request.srcId + heapId, lines.toList) // TODO srcId = heapId + requestId
     }
-    /*val time2 = System.currentTimeMillis() - time
-    if (time2 > 0)
-      println("{TIME-git}", time2)*/
-    result.to[Values]
+    val newResult = result.to[Values]
+    val time2 = System.currentTimeMillis() - time
+    if (requests.nonEmpty)
+      println(Console.RED + "{TIME-git}", time2 + Console.RESET)
+    newResult
   }
 }

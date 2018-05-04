@@ -214,12 +214,15 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     requestId: SrcId,
     rootInnerConds: Values[RootInnerCondition[Model]],
     condEstimates: Values[InnerConditionEstimate[Model]]
-  ): Values[(SharedHeapId, RootInnerCondition[Model])] =
+  ): Values[(SharedHeapId, RootInnerCondition[Model])] = {
+    if (rootInnerConds.nonEmpty)
+      println(condEstimates.flatMap(_.heapIds), rootInnerConds.head.srcId)
     for {
       rootInner ← rootInnerConds
       estimate ← Single.option(condEstimates).toList
       heapId ← estimate.heapIds
     } yield heapId → rootInner
+  }
 
 
   type RequestId = SrcId
