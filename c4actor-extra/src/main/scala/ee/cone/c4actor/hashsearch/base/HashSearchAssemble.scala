@@ -8,6 +8,8 @@ import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUt
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
+import scala.collection.parallel.immutable.ParSeq
+
 trait OuterConditionApi[Model <: Product] extends Product {
   def srcId: SrcId
 
@@ -28,7 +30,7 @@ case class InnerConditionEstimate[Model <: Product](conditionInner: InnerConditi
 
 case class SrcIdContainer[Model <: Product](srcId: SrcId, modelCl: Class[Model])
 
-case class ResponseModelList[Model <: Product](srcId: SrcId, modelList: Values[Model]) extends LazyHashCodeProduct
+case class ResponseModelList[Model <: Product](srcId: SrcId, modelList: List[Model]) extends LazyHashCodeProduct
 
 trait HashSearchAssembleSharedKeys {
   // Shared keys
@@ -228,17 +230,18 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     @by[SharedResponseId] responses: Values[ResponseModelList[Model]],
     @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]]
   ): Values[(RequestId, ResponseModelList[Model])] = {
+    /*val time = System.currentTimeMillis()*/
     val finalList = responses.flatMap(_.modelList)
-    val distinctList = DistinctBySrcIdGit(finalList)
-    //val time = System.currentTimeMillis()
-    for {
-      root ← rootConditions
+    val distinctList = DistinctBySrcIdFunctional(finalList)
+    val result = for {
+      root ← rootConditions.par
     } yield {
-      WithPK(ResponseModelList(root.requestId, distinctList))
-      /*val time2 = System.currentTimeMillis()-time
-    if (time2 > 0)
-      println("{TIME2-git}", time2)*/
+      root.requestId → ResponseModelList(root.requestId + rootInnerId, distinctList)
     }
+    /*val time2 = System.currentTimeMillis() - time
+    if (time2 > 0)
+            println("{TIME2-git}", time2)*/
+    result.to[Values]
   }
 
   def ResponseByRequest(

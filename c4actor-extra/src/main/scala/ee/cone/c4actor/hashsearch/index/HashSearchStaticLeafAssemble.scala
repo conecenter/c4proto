@@ -143,11 +143,12 @@ object StaticHashSearchImpl {
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
       _.collectFirst { case l: NameMetaAttr ⇒ l }.get
 
-    def isMy(cond: InnerCondition[Model]): Boolean =
+    def isMy(cond: InnerCondition[Model]): Boolean = {
       cond.condition match {
         case a: ProdConditionImpl[By, Model, Field] ⇒ fltML(a.metaList) == fltML(metaList) && a.by.getClass.getName == by.getClass.getName
         case _ ⇒ false
       }
+    }
 
     def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this, serializer) :: next.assemble
   }
@@ -229,20 +230,21 @@ import StaticHashSearchImpl._
     @by[StaticHeapId] responses: Values[Model],
     @by[SharedHeapId] requests: Values[RootInnerCondition[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
-    //if (requests.nonEmpty)
-    //println(heapId, responses.size, requests.size, modelCl.getSimpleName)
-    //val time = System.currentTimeMillis()
-    for {
-      request ← requests
+    /*if (requests.nonEmpty)
+      println(heapId, responses.size, requests.size, modelCl.getSimpleName)
+    val time = System.currentTimeMillis()*/
+    val result = for {
+      request ← requests.par
     } yield {
       val lines = for {
-        line ← responses
+        line ← responses.par
         if request.condition.check(line)
       } yield line
-      WithPK(ResponseModelList(request.srcId, lines))
+      request.srcId → ResponseModelList(request.srcId + heapId, lines.toList) // TODO srcId = heapId + requestId
     }
     /*val time2 = System.currentTimeMillis() - time
     if (time2 > 0)
       println("{TIME-git}", time2)*/
+    result.to[Values]
   }
 }

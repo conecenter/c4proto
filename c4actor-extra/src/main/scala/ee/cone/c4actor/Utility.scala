@@ -25,10 +25,10 @@ object Log2Pow2 {
 }
 
 object DistinctBySrcIdFunctional {
-  def apply[A <: Product](xs: List[A]): List[A] = collectUnique(xs, Set(), Nil)
+  def apply[A<:Product](xs: Iterable[A]): List[A] = collectUnique(xs, Set(), Nil)
 
   @tailrec
-  def collectUnique[A <: Product](list: List[A], set: Set[SrcId], accum: List[A]): List[A] =
+  def collectUnique[A<:Product](list: Iterable[A], set: Set[SrcId], accum: List[A]): List[A] =
     list match {
       case Nil => accum.reverse
       case (x :: xs) =>

@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.EqProtocol.IntEq
+import ee.cone.c4actor.EqProtocol.{IntEq, StrStartsWith, TestObject}
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
@@ -11,46 +11,46 @@ import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, Serialization
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, Single, assemble}
+import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchTestAppp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
-class HashSearchTesttStart(
+//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
+class HashSearchExtraTestStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
 
-    val recs = update(TestNode("1", "")) ++ update(ValueNode("123", 239)) ++ update(ValueNode("124", 666))
+    val recs = update(TestNode("1", "")) ++ update(TestObject("123", 239, "abc")) ++ update(TestObject("124", 666, "adb"))
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val context: Context = contextFactory.create()
     val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
 
     //logger.info(s"${nGlobal.assembled}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(ByPK(classOf[ValueNode]).of(nGlobal).values.toList)
+    println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
     println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    val newNGlobal = TxAdd(LEvent.update(ValueNode("124", 239)))(nGlobal)
-    println(ByPK(classOf[ValueNode]).of(newNGlobal).values.toList)
+    val newNGlobal = TxAdd(LEvent.update(TestObject("124", 239, "adb")))(nGlobal)
+    println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
     println(ByPK(classOf[CustomResponse]).of(newNGlobal).values.toList)
     execution.complete()
 
   }
 }
 
-case class CustomResponse(srcId: SrcId, list: List[ValueNode])
+case class CustomResponse(srcId: SrcId, list: List[TestObject])
 
-@assemble class CreateRequest(condition: List[Condition[ValueNode]]) extends Assemble {
+@assemble class CreateRequest(condition: List[Condition[TestObject]]) extends Assemble {
   def createRequest(
     testId: SrcId,
     tests: Values[TestNode]
-  ): Values[(SrcId, Request[ValueNode])] = tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))))
+  ): Values[(SrcId, Request[TestObject])] = tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))))
 
   def grabResponse(
     responseId: SrcId,
     tests: Values[TestNode],
-    responses: Values[Response[ValueNode]]
+    responses: Values[Response[TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
     //println("Answer", responses.map(_.lines))
     (responseId → CustomResponse(responseId, responses.flatMap(_.lines).toList)) :: Nil
@@ -58,7 +58,7 @@ case class CustomResponse(srcId: SrcId, list: List[ValueNode])
 
   def printAllInners(
     innerId: SrcId,
-    inners: Values[InnerCondition[ValueNode]]
+    inners: Values[InnerCondition[TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
     println("Inner", inners)
     Nil
@@ -66,7 +66,7 @@ case class CustomResponse(srcId: SrcId, list: List[ValueNode])
 
   def printAllOuters(
     innerId: SrcId,
-    inners: Values[OuterCondition[ValueNode]]
+    inners: Values[OuterCondition[TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
     println("Outer", inners)
     Nil
@@ -80,6 +80,37 @@ case class CustomResponse(srcId: SrcId, list: List[ValueNode])
     @Id(0xabcd) value: Int
   )
 
+  @Id(0xaaaa) case class StrStartsWith(
+    @Id(0xaaab) value: String
+  )
+
+  @Id(0xaaad) case class TestObject(
+    @Id(0xaaae) srcId: String,
+    @Id(0xaaba) valueInt: Int,
+    @Id(0xaabb) valueStr: String
+  )
+
+}
+
+case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[StrStartsWith],classOf[String]) {
+  def prepare: List[MetaAttr] => StrStartsWith => StrStartsWith = _ ⇒ by ⇒ by
+
+  def check: StrStartsWith => String => Boolean = {
+    case StrStartsWith(v) ⇒ _.startsWith(v)
+  }
+}
+
+case object StrStartsWithRanger extends RangerWithCl(classOf[StrStartsWith], classOf[String]) {
+  def ranges: StrStartsWith => (String => List[StrStartsWith], PartialFunction[Product, List[StrStartsWith]]) = {
+    case StrStartsWith("") ⇒ (
+      value ⇒ (
+        for {
+      i ← 1 to 5
+    } yield StrStartsWith(value.take(i))
+        ).toList,{
+      case StrStartsWith(v) ⇒ StrStartsWith(v.take(5)) :: Nil
+    })
+  }
 }
 
 case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
@@ -99,16 +130,16 @@ case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classO
 }
 
 trait TestCondition extends SerializationUtilsApp {
-  def condition1: Condition[ValueNode] = {
+  def condition1: Condition[TestObject] = {
     UnionCondition(
-      ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.value),
-      ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
+      ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.valueInt),
+      ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.valueInt)
     )
   }
 
-  def condition2: Condition[ValueNode] = {
+  def condition2: Condition[TestObject] = {
     IntersectCondition(
-      ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.value),
+      ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.valueInt),
       AnyCondition()
       //ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
     )
@@ -116,20 +147,24 @@ trait TestCondition extends SerializationUtilsApp {
 
   def condition3 = IntersectCondition(condition1, condition2)
 
-  def conditions: List[Condition[ValueNode]] = condition1 :: condition2 /*:: condition3*/ :: Nil
+  def conditions: List[Condition[TestObject]] = condition1 :: condition2 /*:: condition3*/ :: Nil
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer)
 
-  def joiners: List[Assemble] = factory.index(classOf[ValueNode]).add(lens, IntEq(0))(IntEqRanger()).assemble
+  def joiners: List[Assemble] = factory.index(classOf[TestObject])
+    .add(lensInt, IntEq(0))(IntEqRanger())
+    //.add(lensStr, StrStartsWith(""))(StrStartsWithRanger)
+    .assemble
 
-  def lens: ProdLens[ValueNode, Int] = ProdLens.ofSet[ValueNode, Int](_.value, value ⇒ _.copy(value = value), "testLens")
+  def lensInt: ProdLens[TestObject, Int] = ProdLens.ofSet[TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt")
+
+  def lensStr: ProdLens[TestObject, String] = ProdLens.ofSet[TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr")
 }
 
-class HashSearchTestAppp extends RichDataApp
+class HashSearchExtraTestApp extends RichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp
-  with SimpleAssembleProfilerApp
   with ToStartApp
   with MortalFactoryApp
   with ModelAccessFactoryApp
@@ -137,10 +172,10 @@ class HashSearchTestAppp extends RichDataApp
   with HashSearchAssembleApp
   with SerializationUtilsMix {
 
-  override def toStart: List[Executable] = new HashSearchTesttStart(execution, toUpdate, contextFactory) :: super.toStart
+  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
 
-  override def hashSearchModels: List[Class[_ <: Product]] = classOf[ValueNode] :: super.hashSearchModels
+  override def hashSearchModels: List[Class[_ <: Product]] = classOf[TestObject] :: super.hashSearchModels
 
 
   override def protocols: List[Protocol] = EqProtocol :: TestProtocol :: super.protocols
@@ -152,4 +187,6 @@ class HashSearchTestAppp extends RichDataApp
     new CreateRequest(conditions) :: joiners :::
       super.assembles
   }
+
+  lazy val assembleProfiler:AssembleProfiler = NoAssembleProfiler
 }
