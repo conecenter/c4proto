@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.B.F",
+  version := "0.C.4",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -83,6 +83,21 @@ lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`)
 
+lazy val `c4actor-extra` = project.settings(publishSettings)
+  .settings(description := s"$descr / dep impls")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-base`,`c4proto-types`)
+
+lazy val `c4gate-extra` = project.settings(publishSettings)
+  .settings(description := s"$descr / dep gate impls")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`, `c4proto-types`)
+
+lazy val `c4actor-extra-examples` = project.settings(publishSettings)
+  .settings(description := s"$descr / dep test")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`)
+
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.2.1")
@@ -122,7 +137,7 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging)
 
 
@@ -172,5 +187,8 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4proto-types`,
   `c4vdom-base`,
   `c4vdom-canvas`,
+  `c4actor-extra`,
+  `c4gate-extra`,
+  `c4actor-extra-examples`,
   `c4ui-main`
 )

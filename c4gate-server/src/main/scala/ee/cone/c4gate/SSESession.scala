@@ -65,12 +65,13 @@ class PongHandler(
       headers("X-r-connection"),
       userName
     )
+    val refreshPeriodLong = sseConfig.stateRefreshPeriodSeconds*1L
     val status = FromAlienStatus(
       sessionKey,
       now.getEpochSecond /
-        sseConfig.stateRefreshPeriodSeconds *
-        sseConfig.stateRefreshPeriodSeconds +
-        sseConfig.stateRefreshPeriodSeconds +
+        refreshPeriodLong *
+        refreshPeriodLong +
+        refreshPeriodLong +
         sseConfig.tolerateOfflineSeconds,
       isOnline = true
     )

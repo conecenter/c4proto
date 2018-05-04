@@ -61,6 +61,10 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	}
 	const onMouseMove = (event) => {
 		if(!cNode) return;
+		if(cNode.style.display == "none") {
+			cNode.style.display = ""
+			report("dragStart",dragNode)
+		}
 		const {x,y} = getXY(event)
 		curMousePoint.y = y
 		curMousePoint.x = x
@@ -79,9 +83,9 @@ export default function DragDropModule({log,documentManager,windowManager}){
 				x>=listRect.left&&
 				x<=listRect.right				
 			)   
-				report("dragEnd",dragNode)
+				onDrag()&&report("dragEnd",dragNode)
 			else
-				report("dragEndOutside",dragNode)
+				onDrag()&&report("dragEndOutside",dragNode)
 		}
 		dragEnd();
 	}
@@ -119,7 +123,7 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		}
 		const update = (props) =>{
 			const index = dragElements.indexOf(dragEl)			
-			dragElements[index].dragData = props.dragData			
+			dragElements[index].dragData = props.dragData						
 		}
 		return ({update,release,dragOver,dragStart,dragDrop})
 	}
@@ -142,12 +146,13 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			toSrcId = tEl.dragData?tEl.dragData:""
 		reporters.forEach(r=>r(action,fromSrcId,toSrcId))
 	}
-	const dragStart = (event,node,div) => {
+	const dragStart = (event,node,div,style) => {
 		const {x,y} = getXY(event)
 		let listNode
 		let refNode
 		if(!div){ //td
 			cNode = documentManager.createElement("table")	
+			Object.assign(cNode.style,style)
 			listRect = getListRect(node);
 			listNode = getListNode(node);					
 			//callbacks.push(callback)
@@ -156,10 +161,12 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		}
 		else{ //div
 			cNode = node.cloneNode(true)
+			Object.assign(cNode.style,style)
 			listRect = node.getBoundingClientRect()
 			listNode = node			
 			refNode = node
 		}
+		cNode.style.display = "none"
 		scrollNodes = findScrollNodes(listNode)	
 		dragNode = node	
 		const refRect = refNode.getBoundingClientRect();			
@@ -180,12 +187,11 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		addEventListener("mouseup",onMouseUp)
 		addEventListener("touchend",onMouseUp)
 		addEventListener("keydown",onKeyDown)
-		checkActivateCalls.add(doCheck)		
-		report("dragStart",dragNode)
+		//checkActivateCalls.add(doCheck)				
 		//return ({release});
 	}
 	const getData = (node) => {const el = dragElements.find(el=>el.node == node); if(el) return el.dragData; else return null;}
-	const onDrag = () => cNode&&true		
+	const onDrag = () => cNode&&cNode.style.display!="none"		
 	const onKeyDown = (event) => {
 		if(event.key == "Escape") onEsc()
 	}

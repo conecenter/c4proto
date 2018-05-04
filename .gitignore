@@ -27,4 +27,5 @@ db-*
 db4*
 db.*
 htdocs
-logback.xml
+/logback.xml
+.stignore

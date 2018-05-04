@@ -23,10 +23,13 @@ case class FilterPredicateImpl[Model<:Product,By<:Product,Field](
   import modelConditionFactory._
   def add[SBy<:Product,SField](filterKey: SessionAttr[SBy], lens: ProdLens[Model,SField])(
     implicit c: ConditionCheck[SBy,SField]
+  ): FilterPredicate[Model] =
+    addAccess(sessionAttrAccessFactory.to(filterKey)(local).get, lens)
+  def addAccess[SBy<:Product,SField](by: Access[SBy], lens: ProdLens[Model,SField])(
+    implicit c: ConditionCheck[SBy,SField]
   ): FilterPredicate[Model] = {
-    val by = sessionAttrAccessFactory.to(filterKey)(local)
-    val nCond = intersect(leaf(lens,by.get.initialValue,by.get.metaList)(c),condition)
-    FilterPredicateImpl(by.toList ::: accesses, nCond)(sessionAttrAccessFactory,modelConditionFactory,local)
+    val nCond = intersect(leaf(lens,by.initialValue,by.metaList)(c),condition)
+    FilterPredicateImpl(by :: accesses, nCond)(sessionAttrAccessFactory,modelConditionFactory,local)
   }
 }
 

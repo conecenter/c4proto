@@ -1,5 +1,6 @@
 
 import "babel-polyfill"
+import React from 'react'
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
@@ -28,6 +29,13 @@ const log = v => console.log(v)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
 
+class StatefulPureComponent extends React.PureComponent {
+    constructor(props) {
+        super(props);
+        this.state = this.getInitialState ? this.getInitialState() : {}
+    }
+}
+
 const util = Canvas.CanvasUtil()
 const baseCanvasSystem = Canvas.BaseCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
@@ -46,7 +54,7 @@ const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctx
 const exampleAuth = ExampleAuth(pairOfInputAttributes)
 const transforms = mergeAll([exampleAuth.transforms, canvas.transforms])
 
-const vDom = VDomMix(log,exampleRequestState,transforms,getRootElement,createElement)
+const vDom = VDomMix(log,exampleRequestState,transforms,getRootElement,createElement,StatefulPureComponent)
 const branches = Branches(log,vDom.branchHandlers)
 
 const receiversList = [branches.receivers,feedback.receivers,{fail},exampleRequestState.receivers]

@@ -25,13 +25,12 @@ import DragDropModule from "../extra/dragdrop-module"
 import OverlayManager from "../extra/overlay-manager"
 import RequestState from "../extra/request-state"
 import WinWifi from "../extra/win-wifi-status"
-
+import React from 'react'
 import SwitchHost from "../extra/switchhost-module"
 import UpdateManager from "../extra/update-manager"
 import VirtualKeyboard from "../extra/virtual-keyboard"
-
+import autoBind from 'react-autobind'
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
-const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
@@ -40,33 +39,47 @@ const requestState = sender//RequestState(sender,log)
 const getRootElement = () => document.body
 const createElement = n => document.createElement(n)
 const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
-//metroUi with hacks
-const press = key => window.dispatchEvent(new KeyboardEvent("keydown",({key})))
-const fileReader = ()=> (new window.FileReader());
 
+class StatefulComponent extends React.Component {
+	constructor(props) {
+	  super(props);
+	  this.state = this.getInitialState?this.getInitialState():{}
+	  autoBind(this)
+	}
+}
+class StatefulPureComponent extends React.PureComponent {
+    constructor(props) {
+      super(props);
+      this.state = this.getInitialState?this.getInitialState():{}
+      autoBind(this)
+    }
+}
 const windowManager = (()=>{
 	const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth})
 	const getPageYOffset = ()=> window.pageYOffset
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix}
+	const location = () => window.location
+	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix,location}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
 	const addFirst = (node) => document.body.insertBefore(node,document.body.firstChild)
 	const remove = (node) => document.body.removeChild(node)
 	const createElement = (type) => document.createElement(type)
+	const elementsFromPoint = (x,y)=> document.elementsFromPoint(x,y)
 	const body = () => document.body
 	const execCopy = () => document.execCommand('copy')
 	const activeElement = () =>document.activeElement
 	const nodeFromPoint = (x,y)=>document.elementFromPoint(x,y)
-	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document,nodeFromPoint}
+	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document,nodeFromPoint,elementsFromPoint}
 })()
 const eventManager = (()=>{
 	const create = (type,params) => {
 		switch(type){
 			case "keydown": return (new KeyboardEvent(type,params))
 			case "click": return (new MouseEvent(type,params))
+			case "mousedown": return (new MouseEvent(type,params))
 			default: return (new CustomEvent(type,params))
 		}
 	}
@@ -75,39 +88,47 @@ const eventManager = (()=>{
 })()
 
 const miscReact = (()=>{
-	const isReactRoot = function(el){
-		if(el.dataset["reactroot"]=="") return true
+	const isReactRoot = (el) => {
+		if(el.parentElement.classList.contains("branch")) return true
 		return false
 	}
-	const getReactRoot = function(el){
-		if(!el) return documentManager.body().querySelector("[data-reactroot]")		
+	const getReactRoot = (el) => {
+		if(!el) {
+			const a = documentManager.body().querySelector("div.branch")
+			return a&&a.firstElementChild
+		}			
 		if(isReactRoot(el) || !el.parentNode) return el
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
 	}	
-	return {isReactRoot,getReactRoot}
+	const count = function(){
+		return documentManager.body().querySelectorAll("div.branch").length
+	}
+	return {isReactRoot,getReactRoot, count}
+})()
+const miscUtil = (()=>{
+	const winWifi = WinWifi(log,window.require,window.process,setInterval)
+	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
+	const Scanner = window.Scanner
+	const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})	
+	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
+	const fileReader = ()=> (new window.FileReader())
+	return {winWifi,getBattery,scannerProxy,audioContext,fileReader}
 })()
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,sender:requestState,svgSrc,fileReader,documentManager,focusModule,eventManager,dragDropModule,windowManager,miscReact,Image, audioContext});
+const metroUi = MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image, miscUtil,StatefulComponent});
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
-const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
-const Scanner = window.Scanner
 const innerHeight = () => window.innerHeight
 const scrollBy = (x,y) => window.scrollBy(x,y)
-const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})
-window.ScannerProxy = scannerProxy
-const winWifi = WinWifi(log,window.require,window.process,setInterval)
-window.winWifi = winWifi
-const customUi = CustomUi({log,ui:metroUi,requestState,customMeasurer,customTerminal,svgSrc,overlayManager,getBattery,scannerProxy,windowManager,winWifi});
-const updateManager = UpdateManager(log,window,metroUi)
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,overlayManager,windowManager,miscReact,miscUtil,StatefulComponent});
+const updateManager = UpdateManager(log,window,metroUi, StatefulComponent)
 const activeElement=()=>document.activeElement; //todo: remove
 
-
-const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact})
+const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact,StatefulComponent})
 
 //canvas
 const util = Canvas.CanvasUtil()
@@ -133,24 +154,21 @@ const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctxToBranchPath)
 const parentWindow = ()=> parent
-const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow});
+const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow,StatefulComponent});
 //transforms
 const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms,canvas.transforms,virtualKeyboard.transforms])
 
-const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement)
+const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement,StatefulPureComponent)
 
 const branches = Branches(log,vDom.branchHandlers)
 const switchHost = SwitchHost(log,window)
 const receiversList = [
     branches.receivers,
     feedback.receivers,
-	metroUi.receivers,
-    customUi.receivers,
+	metroUi.receivers,    
 	cryptoElements.receivers,
 	focusModule.receivers,
-	switchHost.receivers
-	/*,
-	requestState.receivers*/
+	switchHost.receivers	
 ]
 const composeUrl = () => {
     const port = parseInt(location.port)

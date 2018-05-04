@@ -54,6 +54,8 @@ object HashSearchImpl {
           case Union(l,FullScan) ⇒ FullScan
           case r ⇒ r
         }
+      case AnyCondition() ⇒
+        FullScan
       case c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
     }
     traverse

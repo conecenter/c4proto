@@ -1,7 +1,7 @@
 
 export function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
-function ctxToPath(ctx){
+export function ctxToPath(ctx){
     return !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")
 }
 
@@ -79,13 +79,15 @@ export function VDomSeeds(log,DiffPrepare){
 
     const checkActivate = ctx => state => {
         if(state.isRootBranch) return state;
-        const containerElement = singleParentNode(state)
+        const containerElement = singleParentNode(state)		
         const contentElement = state.rootNativeElement
         const wasBox = state.rootBox
         if(!containerElement || !contentElement)
             return wasBox ? setRootBox(null,ctx,{display:"none"})(state) : state
         const contentPos = elementPos(contentElement)
         const containerPos = elementPos(containerElement)
+		const fontSize = containerElement.style.fontSize
+		const zIndex = containerElement.style.zIndex
         const targetPos = containerPos // todo f(containerPos,contentPos)
         const d = {
             pos:  calcPos(dir=>(targetPos.pos[dir] -contentPos.pos[dir] )|0),
@@ -103,7 +105,11 @@ export function VDomSeeds(log,DiffPrepare){
             left: box.pos.x+"px",
             top: box.pos.y+"px",
             width: box.size.x+"px",
-            height: box.size.y+"px"
+            height: box.size.y+"px",
+			fontSize:fontSize,
+			zIndex:zIndex,
+			overflowY:"auto",
+			overflowX:"hidden"
         })(state)
     }
 
