@@ -211,7 +211,7 @@ import StaticHashSearchImpl._
   }
 }
 
-@deprecated("Update to match new HS API")
+//TODO update before using to match new HS API
 @assemble class StaticAssembleShared[Model <: Product](
   modelCl: Class[Model]
 ) extends Assemble with HashSearchAssembleSharedKeys {
