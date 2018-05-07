@@ -31,6 +31,13 @@ object Utility {
     else
       Option(list.minBy(f)(cmp))
   }
+
+  def reduceOpt[A](list: TraversableOnce[A])(f: (A, A) ⇒ A): Option[A] = {
+    if (list.isEmpty)
+      None
+    else
+      Option(list.reduce(f))
+  }
 }
 
 object FailWith {
@@ -48,7 +55,7 @@ object DistinctBySrcIdFunctional {
   def collectUnique[A<:Product](list: Iterable[A], set: Set[SrcId], accum: List[A]): List[A] =
     list match {
       case Nil => accum.reverse
-      case (x :: xs) =>
+      case x :: xs =>
         if (set(ToPrimaryKey(x))) collectUnique(xs, set, accum) else collectUnique(xs, set + ToPrimaryKey(x), x :: accum)
     }
 }

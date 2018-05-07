@@ -40,6 +40,9 @@ case class SerializationUtils(qAdapterRegistry: QAdapterRegistry) {
   def srcIdFromSrcIds(srcIdList: SrcId*): SrcId =
     uuidFromSrcIdSeq(srcIdList.to[Seq]).toString
 
+  def srcIdFromSrcIds(srcIdList: List[SrcId]): SrcId =
+    uuidFromSrcIdSeq(srcIdList).toString
+
   def uuidFromSrcIdSeq(srcIdList: Seq[SrcId]): UUID =
     uuidFromSeq(srcIdList.map(uuid))
 
@@ -68,7 +71,7 @@ case class SerializationUtils(qAdapterRegistry: QAdapterRegistry) {
             val names = c.metaList.collect { case NameMetaAttr(name) ⇒ uuid(name) }
             uuidFromSeq(uuid(modelCl.getName) :: byHash ::: names)
           case None ⇒
-            println(s"[Warning] NonSerializable condition: ${c.getClass}")
+            PrintColored("r")(s"[Warning] NonSerializable condition: ${c.getClass}")
             uuid(c.toString)
         }
       case c: Condition[_] ⇒

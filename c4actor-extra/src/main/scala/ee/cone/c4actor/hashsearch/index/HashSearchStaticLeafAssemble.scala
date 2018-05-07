@@ -43,11 +43,11 @@ object StaticHashSearchImpl {
     heapIds(expression(indexers)(cond), GatherAll)
 
 
-  def cEstimate[Model <: Product](cond: InnerCondition[Model], priorities: Values[StaticCount[Model]]): InnerConditionEstimate[Model] = {
+  def cEstimate[Model <: Product](cond: InnerLeaf[Model], priorities: Values[StaticCount[Model]]): InnerConditionEstimate[Model] = {
     if (priorities.distinct.size != priorities.size)
       println("Warning, non singe priority", cond)
     val priorPrep = priorities.distinct
-    InnerConditionEstimate(cond, Log2Pow2(priorPrep.map(_.count).sum), priorPrep.map(_.heapId).toList)
+    InnerConditionEstimate(cond.srcId, Log2Pow2(priorPrep.map(_.count).sum), priorPrep.map(_.heapId).toList)
   }
 
   private def expression[Model <: Product](indexers: Indexer[Model]): Condition[Model] ⇒ Expression =
@@ -84,7 +84,7 @@ object StaticHashSearchImpl {
 
     def heapIds(model: Model): List[SrcId]
 
-    def isMy(cond: InnerCondition[Model]): Boolean
+    def isMy(cond: InnerLeaf[Model]): Boolean
   }
 
   case class EmptyIndexer[Model <: Product]()(
@@ -96,7 +96,7 @@ object StaticHashSearchImpl {
 
     def heapIds(model: Model): List[SrcId] = Nil
 
-    def isMy(cond: InnerCondition[Model]): Boolean = false
+    def isMy(cond: InnerLeaf[Model]): Boolean = false
 
     def assemble: List[Assemble] = new StaticAssembleShared(modelClass) :: Nil
   }
@@ -143,7 +143,7 @@ object StaticHashSearchImpl {
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
       _.collectFirst { case l: NameMetaAttr ⇒ l }.get
 
-    def isMy(cond: InnerCondition[Model]): Boolean = {
+    def isMy(cond: InnerLeaf[Model]): Boolean = {
       cond.condition match {
         case a: ProdConditionImpl[By, Model, Field] ⇒ fltML(a.metaList) == fltML(metaList) && a.by.getClass.getName == by.getClass.getName
         case _ ⇒ false
@@ -190,7 +190,7 @@ import StaticHashSearchImpl._
 
   def reqByHeap(
     leafCondId: SrcId,
-    leafConds: Values[InnerCondition[Model]]
+    leafConds: Values[InnerLeaf[Model]]
   ): Values[(StaticHeapId, StaticNeed[Model])] = for {
     leafCond ← leafConds
     if indexer.isMy(leafCond)
@@ -201,7 +201,7 @@ import StaticHashSearchImpl._
 
   def neededRespHeapPriority(
     requestId: SrcId,
-    requests: Values[InnerCondition[Model]],
+    requests: Values[InnerLeaf[Model]],
     @by[LeafCondId] priorities: Values[StaticCount[Model]]
   ): Values[(SrcId, InnerConditionEstimate[Model])] = for {
     request ← single(requests)
@@ -211,6 +211,7 @@ import StaticHashSearchImpl._
   }
 }
 
+@deprecated("Update to match new HS API")
 @assemble class StaticAssembleShared[Model <: Product](
   modelCl: Class[Model]
 ) extends Assemble with HashSearchAssembleSharedKeys {
@@ -228,24 +229,24 @@ import StaticHashSearchImpl._
   def handleRequest(
     heapId: SrcId,
     @by[StaticHeapId] responses: Values[Model],
-    @by[SharedHeapId] requests: Values[RootInnerCondition[Model]]
+    @by[SharedHeapId] requests: Values[InnerUnionList[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
-    if (requests.nonEmpty)
-      println(Console.YELLOW + "HR", heapId, responses.size, requests.size, modelCl.getSimpleName + Console.RESET)
-    val time = System.currentTimeMillis()
+    /*if (requests.nonEmpty)
+      println(Console.YELLOW + "HR", heapId, responses.size, requests.map(_.srcId), modelCl.getSimpleName + Console.RESET)
+    val time = System.currentTimeMillis()*/
     val result = for {
       request ← requests.par
     } yield {
       val lines = for {
         line ← responses.par
-        if request.condition.check(line)
+        if request.check(line)
       } yield line
       request.srcId → ResponseModelList(request.srcId + heapId, lines.toList) // TODO srcId = heapId + requestId
     }
     val newResult = result.to[Values]
-    val time2 = System.currentTimeMillis() - time
+    /*val time2 = System.currentTimeMillis() - time
     if (requests.nonEmpty)
-      println(Console.RED + "{TIME-git}", time2 + Console.RESET)
+      println(Console.RED + "{TIME-git}", time2 + Console.RESET)*/
     newResult
   }
 }

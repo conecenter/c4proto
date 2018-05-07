@@ -3,10 +3,9 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.EqProtocol.{ChangingNode, IntEq, StrStartsWith, TestObject}
 import ee.cone.c4actor.HashSearch.{Request, Response}
-import ee.cone.c4actor.QProtocol.Firstborn
-import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
+import ee.cone.c4actor.TestProtocol.TestNode
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleApp, InnerCondition, OuterCondition}
+import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, SerializationUtilsApp, SerializationUtilsMix}
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
@@ -24,7 +23,7 @@ class HashSearchExtraTestStart(
     val world = for {
       i ← 1 to 10000
     } yield TestObject(i.toString, 239, i.toString.take(5))
-    val recs = /*update(TestNode("1", "")) ++ */update(ChangingNode("test", "")) ++ world.flatMap(update)
+    val recs = /*update(TestNode("1", "")) ++ */ update(ChangingNode("test", "")) ++ update(ChangingNode("test-safe", "")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val context: Context = contextFactory.create()
     val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
@@ -72,9 +71,9 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
     (responseId → CustomResponse(responseId, responses.flatMap(_.lines).toList)) :: Nil
   }
 
-  def printAllInners(
+  /*def printAllInners(
     innerId: SrcId,
-    inners: Values[InnerCondition[TestObject]]
+    inners: Values[InnerLeaf[TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
     //println("Inner", inners)
     Nil
@@ -86,7 +85,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
   ): Values[(SrcId, CustomResponse)] = {
     //println("Outer", inners)
     Nil
-  }
+  }*/
 }
 
 
@@ -137,13 +136,13 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[StrStartsWith], cla
 case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
   def prepare: List[MetaAttr] ⇒ IntEq ⇒ IntEq = _ ⇒ identity[IntEq]
 
-  def check: IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ value == by.value
+  def check: IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ true
 }
 
 case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
   def ranges: IntEq ⇒ (Int ⇒ List[IntEq], PartialFunction[Product, List[IntEq]]) = {
     case IntEq(0) ⇒ (
-      value ⇒ List(IntEq(value)), {
+      value ⇒ List(IntEq(value), IntEq(0)), {
       case p@IntEq(v) ⇒ List(p)
     }
     )
@@ -153,8 +152,11 @@ case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classO
 trait TestCondition extends SerializationUtilsApp {
   def changingCondition: String ⇒ Condition[TestObject] = value ⇒ {
     IntersectCondition(
-      ProdConditionImpl(NameMetaAttr("testLensStr") :: Nil, StrStartsWith(value))(StrStartsWithChecker.check(StrStartsWith(value)), _.valueStr),
-      AnyCondition()
+      IntersectCondition(
+        ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(0))(IntEqCheck.check(IntEq(0)), _.valueInt),
+        AnyCondition()
+      ),
+      ProdConditionImpl(NameMetaAttr("testLensStr") :: Nil, StrStartsWith(value))(StrStartsWithChecker.check(StrStartsWith(value)), _.valueStr)
     )
   }
 
@@ -183,8 +185,8 @@ trait TestCondition extends SerializationUtilsApp {
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer)
 
   def joiners: List[Assemble] = factory.index(classOf[TestObject])
-    .add(lensInt, IntEq(0))(IntEqRanger())
-    .add(lensStr, StrStartsWith(""))(StrStartsWithRanger)
+    .add[IntEq, Int](lensInt, IntEq(0))(IntEqRanger())
+    .add[StrStartsWith, String](lensStr, StrStartsWith(""))(StrStartsWithRanger)
     .assemble
 
   def lensInt: ProdLens[TestObject, Int] = ProdLens.ofSet[TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt")
@@ -228,7 +230,7 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
     finalCount ⇒ {
       val period = System.currentTimeMillis - startTime
       if (period > 10)
-        println(s"assembling by ${Thread.currentThread.getName} rule $ruleName $startAction $finalCount items in $period ms")
+        println(s"assembling rule $ruleName $startAction $finalCount items in $period ms")
     }
   }
 }

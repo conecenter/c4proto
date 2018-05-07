@@ -6,7 +6,7 @@ import java.util.UUID
 import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerCondition, InnerConditionEstimate}
+import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerLeaf, InnerConditionEstimate}
 import ee.cone.c4actor.hashsearch.index.HashSearchMockAssembleTest.K2TreeAll
 import ee.cone.c4actor.hashsearch.rangers.K2TreeUtils._
 import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
@@ -89,7 +89,7 @@ import HashSearchMockUtils._
   // LeafRequest receive
   def ReqByHeap(
     leafCondId: SrcId,
-    leafConditions: Values[InnerCondition[Model]],
+    leafConditions: Values[InnerLeaf[Model]],
     @by[K2TreeAll[Model]] trees: Values[TreeNodeOuter]
   ): Values[(K2HeapId, K2Need[Model])] =
     for {
@@ -112,13 +112,13 @@ import HashSearchMockUtils._
   // Count response
   def CountByReq(
     needId: K2HeapId,
-    requests: Values[InnerCondition[Model]],
+    requests: Values[InnerLeaf[Model]],
     @by[K2ToCountId] counts: Values[K2Count[Model]]
   ): Values[(SrcId, InnerConditionEstimate[Model])] =
     for {
       request ← requests
       if isMy(request.condition, filterName)
-    } yield request.srcId → InnerConditionEstimate[Model](request, counts.map(_.count).sum, counts.toList.map(_.heapSrcId))
+    } yield request.srcId → InnerConditionEstimate[Model](request.srcId, counts.map(_.count).sum, counts.toList.map(_.heapSrcId))
 
 
   // Lines Response

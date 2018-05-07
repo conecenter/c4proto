@@ -8,29 +8,27 @@ import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUt
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-import scala.collection.parallel.immutable.ParSeq
+case class RootCondition[Model <: Product](srcId: SrcId, innerUnion: InnerUnionList[Model], requestId: SrcId)
 
-trait OuterConditionApi[Model <: Product] extends Product {
-  def srcId: SrcId
-
-  def conditionInner: InnerCondition[Model]
-}
-
-case class RootCondition[Model <: Product](srcId: SrcId, conditionInner: InnerCondition[Model], requestId: SrcId) extends OuterConditionApi[Model]
-
-case class RootInnerCondition[Model <: Product](srcId: SrcId, condition: Condition[Model])
-
-case class OuterCondition[Model <: Product](srcId: SrcId, conditionInner: InnerCondition[Model], parentInnerId: SrcId) extends OuterConditionApi[Model]
-
-case class InnerCondition[Model <: Product](srcId: SrcId, condition: Condition[Model])
-
-case class ResolvableCondition[Model <: Product](outerCondition: OuterConditionApi[Model], childInnerConditions: List[InnerCondition[Model]])
-
-case class InnerConditionEstimate[Model <: Product](conditionInner: InnerCondition[Model], count: Int, heapIds: List[SrcId])
-
-case class SrcIdContainer[Model <: Product](srcId: SrcId, modelCl: Class[Model])
+case class InnerConditionEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: List[SrcId])
 
 case class ResponseModelList[Model <: Product](srcId: SrcId, modelList: List[Model]) extends LazyHashCodeProduct
+
+case class InnerIntersectList[Model <: Product](srcId: SrcId, innerLeafs: List[InnerLeaf[Model]]) extends LazyHashCodeProduct with InnerCondition[Model] {
+  def check(model: Model): Boolean = innerLeafs.forall(_.check(model))
+}
+
+case class InnerUnionList[Model <: Product](srcId: SrcId, innerIntersects: List[InnerIntersectList[Model]]) extends LazyHashCodeProduct with InnerCondition[Model] {
+  def check(model: Model): Boolean = innerIntersects.foldLeft(false)((z, inter) ⇒ z || inter.check(model))
+}
+
+case class InnerLeaf[Model <: Product](srcId: SrcId, condition: Condition[Model]) extends InnerCondition[Model] {
+  def check(model: Model): Boolean = condition.check(model)
+}
+
+sealed trait InnerCondition[Model <: Product] {
+  def check(model: Model): Boolean
+}
 
 trait HashSearchAssembleSharedKeys {
   // Shared keys
@@ -55,21 +53,81 @@ object HashSearchAssembleUtils {
     case _ ⇒ Nil
   }
 
-  def bestEstimate[Model <: Product]: InnerCondition[Model] ⇒ Values[InnerConditionEstimate[Model]] ⇒ Option[InnerConditionEstimate[Model]] =
-    inner ⇒ estimates ⇒ {
-      val distinctEstimates = estimates.distinct
-      inner.condition match {
-        case _: IntersectCondition[Model] ⇒ Utility.minByOpt(distinctEstimates)(_.count).map(_.copy(conditionInner = inner))
-        case _: UnionCondition[Model] ⇒
-          import scala.util.control.Exception._
-          allCatch.opt(
-            distinctEstimates.reduce[InnerConditionEstimate[Model]](
-              (a, b) ⇒ a.copy(count = a.count + b.count, heapIds = a.heapIds ::: b.heapIds)
-            ).copy(conditionInner = inner)
-          )
-        case _ ⇒ None
-      }
-    }
+  def bestEstimateInter[Model <: Product]: Values[InnerConditionEstimate[Model]] ⇒ Option[InnerConditionEstimate[Model]] = estimates ⇒ {
+    val distinctEstimates = estimates.distinct
+    Utility.minByOpt(distinctEstimates)(_.count)
+  }
+
+  def bestEstimateUnion[Model <: Product]: Values[InnerConditionEstimate[Model]] ⇒ Option[InnerConditionEstimate[Model]] = estimates ⇒ {
+    val distinctEstimates = estimates.distinct
+    Utility.reduceOpt(distinctEstimates)(
+      (a, b) ⇒ a.copy(count = a.count + b.count, heapIds = (a.heapIds ::: b.heapIds).distinct)
+    )
+  }
+
+  private case class ParseLeaf[Model <: Product](cond: Condition[Model])
+
+  private case class ParseIntersect[Model <: Product](list: List[ParseLeaf[Model]])
+
+  private case class ParseUnion[Model <: Product](list: List[ParseIntersect[Model]])
+
+  def conditionToUnionList[Model <: Product]: Class[Model] ⇒ SerializationUtils ⇒ Condition[Model] ⇒ InnerUnionList[Model] = model ⇒ ser ⇒ cond ⇒ {
+    val parsed: ParseUnion[Model] = flattenCondition(cond)
+    parsedToPublic(model)(ser)(parsed)
+  }
+
+  private def parsedToPublic[Model <: Product]: Class[Model] ⇒ SerializationUtils ⇒ ParseUnion[Model] ⇒ InnerUnionList[Model] = model ⇒ ser ⇒ parsed ⇒ {
+    val inters = for {
+      inter ← parsed.list
+    } yield interParsedToPublic(model)(ser)(inter)
+    val pk = ser.srcIdFromSrcIds("InnerUnionList" :: inters.map(_.srcId))
+    InnerUnionList(pk, inters)
+  }
+
+  private def interParsedToPublic[Model <: Product]: Class[Model] ⇒ SerializationUtils ⇒ ParseIntersect[Model] ⇒ InnerIntersectList[Model] = model ⇒ ser ⇒ parsed ⇒ {
+    val leafs = for {
+      leaf ← parsed.list
+    } yield leafParsedToPublic(model)(ser)(leaf)
+    val pk = ser.srcIdFromSrcIds("InnerIntersectList" :: leafs.map(_.srcId))
+    InnerIntersectList(pk, leafs)
+  }
+
+  private def leafParsedToPublic[Model <: Product]: Class[Model] ⇒ SerializationUtils ⇒ ParseLeaf[Model] ⇒ InnerLeaf[Model] = model ⇒ ser ⇒ {
+    case ParseLeaf(a) ⇒
+      val pk = ser.getConditionPK(model, a)
+      InnerLeaf(pk, a)
+  }
+
+  private def flattenCondition[Model <: Product]: Condition[Model] ⇒ ParseUnion[Model] = {
+    case a: ProdCondition[_, Model] ⇒
+      ParseUnion(List(ParseIntersect(List(ParseLeaf(a)))))
+    case a: AnyCondition[Model] ⇒
+      ParseUnion(List(ParseIntersect(List(ParseLeaf(a)))))
+    case a: IntersectCondition[Model] ⇒
+      val left = flattenCondition(a.left)
+      val right = flattenCondition(a.right)
+      interParseUnion(left, right)
+    case a: UnionCondition[Model] ⇒
+      val left = flattenCondition(a.left)
+      val right = flattenCondition(a.right)
+      uniteParseUnion(left, right)
+  }
+
+  private def uniteParseUnion[Model <: Product](a: ParseUnion[Model], b: ParseUnion[Model]): ParseUnion[Model] = {
+    ParseUnion((a.list ::: b.list).distinct)
+  }
+
+  private def interParseUnion[Model <: Product](a: ParseUnion[Model], b: ParseUnion[Model]): ParseUnion[Model] = {
+    val inters = for {
+      interL ← a.list
+      interR ← b.list
+    } yield interInter(interL, interR)
+    ParseUnion(inters.distinct)
+  }
+
+  private def interInter[Model <: Product](a: ParseIntersect[Model], b: ParseIntersect[Model]): ParseIntersect[Model] = {
+    ParseIntersect((a.list ::: b.list).distinct)
+  }
 }
 
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
@@ -80,14 +138,11 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   condSer: SerializationUtils
 ) extends Assemble with HashSearchAssembleSharedKeys
   with DepAssembleUtilityImpl {
-  type CondInnerId = SrcId
-  type RootCondInnerId = SrcId
-  type RootRequestId = SrcId
-  type ResCondDamn = SrcId
-  type OuterParentEstimate = SrcId
-  type InnerParentEstimate = SrcId
+  type InnerUnionId = SrcId
+  type InnerIntersectId = SrcId
+  type InnerLeafId = SrcId
 
-  // Parse condition
+  // Handle root
   def RequestToRootCondition(
     requestId: SrcId,
     requests: Values[Request[Model]]
@@ -95,143 +150,108 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     for {
       request ← requests
     } yield {
-      val condition = request.condition
-      val condId = condSer.getConditionPK(modelCl, condition)
-      WithPK(RootCondition(condSer.srcIdFromSrcIds(request.requestId, condId), InnerCondition(condId, condition), request.requestId))
+      val condition: Condition[Model] = request.condition
+      val condUnion: InnerUnionList[Model] = conditionToUnionList(modelCl)(condSer)(condition)
+      WithPK(RootCondition(condSer.srcIdFromSrcIds(request.requestId, condUnion.srcId), condUnion, request.requestId))
     }
 
-  def RootCondToInnerCondition(
+  def RootCondToInnerConditionId(
     rootCondId: SrcId,
     rootConditions: Values[RootCondition[Model]]
-  ): Values[(RootCondInnerId, RootCondition[Model])] =
+  ): Values[(InnerUnionId, RootCondition[Model])] =
     for {
       rootCond ← rootConditions
-    } yield rootCond.conditionInner.srcId → rootCond
+    } yield rootCond.innerUnion.srcId → rootCond
 
-  def RootCondIntoInnerCondition(
+  def RootCondIntoInnerUnionList(
     rootCondId: SrcId,
-    @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]]
-  ): Values[(SrcId, InnerCondition[Model])] = {
-    val inner = Single(rootConditions.map(_.conditionInner).distinct)
+    @by[InnerUnionId] rootConditions: Values[RootCondition[Model]]
+  ): Values[(SrcId, InnerUnionList[Model])] = {
+    val inner = Single(rootConditions.map(_.innerUnion).distinct)
     WithPK(inner) :: Nil
   }
 
-  def RootCondIntoRootInnerCondition(
-    rootInnerId: SrcId,
-    @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]]
-  ): Values[(SrcId, RootInnerCondition[Model])] = {
-    val inner = Single(rootConditions.map(_.conditionInner).distinct)
-    WithPK(RootInnerCondition(inner.srcId, inner.condition)) :: Nil
-  }
-
-  def RootCondToResolvableCond(
-    rootCondId: SrcId,
-    rootConditions: Values[RootCondition[Model]]
-  ): Values[(ResCondDamn, ResolvableCondition[Model])] =
+  // Handle Union
+  def InnerUnionListToInnerInterIds(
+    innerUnionId: SrcId,
+    innerUnions: Values[InnerUnionList[Model]]
+  ): Values[(InnerIntersectId, InnerUnionList[Model])] =
     for {
-      rootCond ← rootConditions
-    } yield {
-      val children = parseCondition(rootCond.conditionInner.condition).map(cond ⇒ InnerCondition(condSer.getConditionPK(modelCl, cond), cond))
-      WithPK(ResolvableCondition(rootCond, children))
-    }
+      union ← innerUnions
+      inter ← union.innerIntersects
+    } yield inter.srcId → union
 
-  def OuterCondToResolvableCond(
-    outerCondId: SrcId,
-    outerConditions: Values[OuterCondition[Model]]
-  ): Values[(ResCondDamn, ResolvableCondition[Model])] =
-    for {
-      outerCond ← outerConditions
-    } yield {
-      val children = parseCondition(outerCond.conditionInner.condition).map(cond ⇒ InnerCondition(condSer.getConditionPK(modelCl, cond), cond))
-      WithPK(ResolvableCondition(outerCond, children))
-    }
-
-  def ResolvableConditionDamn(
-    resId: SrcId,
-    @was @by[ResCondDamn] resConds: Values[ResolvableCondition[Model]]
-  ): Values[(SrcId, ResolvableCondition[Model])] =
-    for {
-      res ← resConds
-    } yield WithPK(res)
-
-  def ResolvableCondToOuters(
-    resId: SrcId,
-    resConditions: Values[ResolvableCondition[Model]]
-  ): Values[(SrcId, OuterCondition[Model])] =
-    for {
-      res ← resConditions
-      inner ← res.childInnerConditions
-    } yield {
-      val parentId = ToPrimaryKey(res)
-      WithPK(OuterCondition(generatePKFromTwoSrcId(parentId, inner.srcId), inner, res.outerCondition.conditionInner.srcId))
-    }
-
-  def OuterConditionToInnerId(
-    outerId: SrcId,
-    outerConditions: Values[OuterCondition[Model]]
-  ): Values[(CondInnerId, OuterCondition[Model])] =
-    for {
-      outer ← outerConditions
-    } yield outer.conditionInner.srcId → outer
-
-  def ConditionOuterToInner(
-    condOuterId: SrcId,
-    @by[CondInnerId] condOuters: Values[OuterCondition[Model]]
-  ): Values[(SrcId, InnerCondition[Model])] = {
-    val inner: InnerCondition[Model] = Single(condOuters.map(_.conditionInner).distinct)
+  def InnerUnionIntoInnerInters(
+    innerInterId: SrcId,
+    @by[InnerIntersectId] innerUnions: Values[InnerUnionList[Model]]
+  ): Values[(SrcId, InnerIntersectList[Model])] = {
+    val inner = Single(innerUnions.flatMap(_.innerIntersects.filter(_.srcId == innerInterId)).distinct)
     WithPK(inner) :: Nil
   }
 
-  // end parseCondition
-
-
-  // Parse count response
-  def LeafInnerCondEstimateToOuterParent(
-    condEstimateId: SrcId,
-    @was condEstimates: Values[InnerConditionEstimate[Model]],
-    @by[CondInnerId] condOuters: Values[OuterCondition[Model]]
-  ): Values[(InnerParentEstimate, InnerConditionEstimate[Model])] =
+  // Handle Inter
+  def InnerInterListToInnerLeafIds(
+    innerInterId: SrcId,
+    innerInters: Values[InnerIntersectList[Model]]
+  ): Values[(InnerLeafId, InnerIntersectList[Model])] =
     for {
-      estimate ← condEstimates
-      outer ← condOuters
-    } yield {
-      outer.parentInnerId → estimate
-    }
+      inter ← innerInters
+      leaf ← inter.innerLeafs
+    } yield leaf.srcId → inter
 
-  def InnerEstimateParseWithInnerCond(
-    innerCondId: SrcId,
-    @by[InnerParentEstimate] estimates: Values[InnerConditionEstimate[Model]],
-    innerConditions: Values[InnerCondition[Model]]
-  ): Values[(SrcId, InnerConditionEstimate[Model])] =
-    for {
-      inner ← innerConditions
-      bestEstimate ← bestEstimate(inner)(estimates)
-    } yield {
-      WithPK(bestEstimate)
-    }
+  def InnerInterListIntoLeafs(
+    innerInterId: SrcId,
+    @by[InnerLeafId] innerInters: Values[InnerIntersectList[Model]]
+  ): Values[(SrcId, InnerLeaf[Model])] = {
+    val inner = Single(innerInters.flatMap(_.innerLeafs.filter(_.srcId == innerInterId)).distinct)
+    WithPK(inner) :: Nil
+  }
 
-  def CountEstimateNRootInnerToHeaps(
-    requestId: SrcId,
-    rootInnerConds: Values[RootInnerCondition[Model]],
-    condEstimates: Values[InnerConditionEstimate[Model]]
-  ): Values[(SharedHeapId, RootInnerCondition[Model])] = {
-    if (rootInnerConds.nonEmpty)
-      println(condEstimates.flatMap(_.heapIds), rootInnerConds.head.srcId)
+  // Handle count for Leaf
+  def LeafInnerCondEstToInnerInter(
+    leafCondEstimateId: SrcId,
+    leafCondEstimates: Values[InnerConditionEstimate[Model]],
+    innerLeafs: Values[InnerLeaf[Model]],
+    @by[InnerLeafId] innerIntersects: Values[InnerIntersectList[Model]]
+  ): Values[(InnerIntersectId, InnerConditionEstimate[Model])] =
     for {
-      rootInner ← rootInnerConds
-      estimate ← Single.option(condEstimates).toList
+      leafEstimate ← Single.option(leafCondEstimates).toList
+      _ ← Single.option(innerLeafs).toList
+      inter ← innerIntersects
+    } yield inter.srcId → leafEstimate
+
+  // Handle count for Inter
+  def LeafInnerCondEstIntoInterInnerCondEstToInnerUnion(
+    innerInterId: SrcId,
+    innerInters: Values[InnerIntersectList[Model]],
+    @by[InnerIntersectId] leafCondEstimates: Values[InnerConditionEstimate[Model]],
+    @by[InnerIntersectId] innerUnions: Values[InnerUnionList[Model]]
+  ): Values[(InnerUnionId, InnerConditionEstimate[Model])] =
+    for {
+      inter ← innerInters
+      estimate ← bestEstimateInter(leafCondEstimates).toList
+      union ← innerUnions
+    } yield union.srcId → estimate.copy[Model](srcId = inter.srcId)
+
+  // Handle count for Union
+  def InnerInterEstimateIntoInnerUnionCondEstimateToHeap(
+    innerUnionId: SrcId,
+    innerUnions: Values[InnerUnionList[Model]],
+    @by[InnerUnionId] interCondEstimates: Values[InnerConditionEstimate[Model]]
+  ): Values[(SharedHeapId, InnerUnionList[Model])] =
+    for {
+      union ← innerUnions
+      estimate ← bestEstimateUnion(interCondEstimates).toList
       heapId ← estimate.heapIds
-    } yield heapId → rootInner
-  }
-
+    } yield heapId → union
 
   type RequestId = SrcId
 
   def ResponsesToRequest(
-    rootInnerId: SrcId,
-    rootInnerConds: Values[RootInnerCondition[Model]],
+    innerUnionId: SrcId,
+    innerUnions: Values[InnerUnionList[Model]],
     @by[SharedResponseId] responses: Values[ResponseModelList[Model]],
-    @by[RootCondInnerId] rootConditions: Values[RootCondition[Model]]
+    @by[InnerUnionId] rootConditions: Values[RootCondition[Model]]
   ): Values[(RequestId, ResponseModelList[Model])] = {
     /*val time = System.currentTimeMillis()*/
     val finalList = responses.flatMap(_.modelList)
@@ -239,12 +259,13 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     val result = for {
       root ← rootConditions.par
     } yield {
-      root.requestId → ResponseModelList(root.requestId + rootInnerId, distinctList)
+      root.requestId → ResponseModelList(root.requestId + innerUnionId, distinctList)
     }
+    val transResult = result.to[Values]
     /*val time2 = System.currentTimeMillis() - time
     if (time2 > 0)
             println("{TIME2-git}", time2)*/
-    result.to[Values]
+    transResult
   }
 
   def ResponseByRequest(
