@@ -67,17 +67,23 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
   ): DepFilterWrapperApi[Model] = {
     val (sByCl, sFieldCl) = (checker.byCl, checker.fieldCl)
     val rangerOpt: Option[Ranger[SBy, SField]] = rangerRegistry.getByCl(sByCl, sFieldCl)
-    val newIndex: StaticIndexBuilder[Model] = rangerOpt.map(staticIndex.add(lens, defaultModelRegistry.get[SBy](sByCl.getName).create(""))(_)).getOrElse(staticIndex)
+    val newIndex: StaticIndexBuilder[Model] = rangerOpt.map(
+      staticIndex.add(
+        lens,
+        defaultModelRegistry.get[SBy](sByCl.getName).create("")
+      )(_)
+    ).getOrElse(staticIndex)
     val newLeafs = LeafInfoHolder(lens, byOptions, checker, modelCl, sByCl, sFieldCl) :: leafs
     import modelConditionFactory._
-    val newFunc: Option[Access[SBy]] ⇒ Condition[Model] = byResolved ⇒ leaf(lens, byResolved.get.initialValue, byOptions)(checker)
-    val concatedFunc: Seq[Option[Access[_ <: Product]]] ⇒ Condition[Model] = {
+    val newFunc: Option[Access[SBy]] ⇒ Condition[Model] = byResolved ⇒ leaf[SBy, SField](lens, byResolved.get.initialValue, byOptions)(checker)
+    val concatFunc: Seq[Option[Access[_ <: Product]]] ⇒ Condition[Model] = {
       case Seq(x, rest@_*) ⇒
-        val head = newFunc(x.asInstanceOf[Option[Access[SBy]]])
-        val tail = depToCondFunction(rest)
+        val access: Option[Access[SBy]] = x.asInstanceOf[Option[Access[SBy]]]
+        val head: Condition[Model] = newFunc(access)
+        val tail: Condition[Model] = depToCondFunction(rest)
         intersect(head, tail)
     }
-    DepFilterWrapperImpl(newLeafs, newIndex, byDep.asInstanceOf[InnerDep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatedFunc, listName, modelCl, defaultModelRegistry, modelConditionFactory, rangerRegistry)
+    DepFilterWrapperImpl(newLeafs, newIndex, byDep.asInstanceOf[InnerDep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, defaultModelRegistry, modelConditionFactory, rangerRegistry)
   }
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = leafs

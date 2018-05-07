@@ -95,7 +95,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
 class ChangingIndexPerformanceTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
-) extends Executable with LazyLogging with TestCondition {
+) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
     val worldSize = 100000
