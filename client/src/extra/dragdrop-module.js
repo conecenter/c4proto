@@ -150,6 +150,8 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		const {x,y} = getXY(event)
 		let listNode
 		let refNode
+		const old = Array.from(documentManager.body().querySelectorAll(".dragClone"))
+		old.forEach(o=>documentManager.remove(o))
 		if(!div){ //td
 			cNode = documentManager.createElement("table")	
 			Object.assign(cNode.style,style)
@@ -160,13 +162,14 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			cNode.appendChild(node.parentNode.cloneNode(true));
 		}
 		else{ //div
-			cNode = node.cloneNode(true)
+			cNode = node.cloneNode(true)			
 			Object.assign(cNode.style,style)
 			listRect = node.getBoundingClientRect()
 			listNode = node			
 			refNode = node
 		}
 		cNode.style.display = "none"
+		cNode.className ="dragClone"
 		scrollNodes = findScrollNodes(listNode)	
 		dragNode = node	
 		const refRect = refNode.getBoundingClientRect();			

@@ -65,7 +65,7 @@ const windowManager = (()=>{
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
 	const addFirst = (node) => document.body.insertBefore(node,document.body.firstChild)
-	const remove = (node) => document.body.removeChild(node)
+	const remove = (node) => node.parentElement.removeChild(node)
 	const createElement = (type) => document.createElement(type)
 	const elementsFromPoint = (x,y)=> document.elementsFromPoint(x,y)
 	const body = () => document.body
@@ -111,6 +111,7 @@ const miscUtil = (()=>{
 	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
 	const Scanner = window.Scanner
 	const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})	
+	window.ScannerProxy = scannerProxy
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 	const fileReader = ()=> (new window.FileReader())
 	return {winWifi,getBattery,scannerProxy,audioContext,fileReader}
