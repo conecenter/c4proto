@@ -10,6 +10,7 @@ import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{Iterable, Map, Seq}
+import scala.collection.parallel.immutable.{ParIterable, ParSeq}
 
 class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
   def one(res: Map[K,V], key: K, diffV: DV): Map[K,V] = {
@@ -71,12 +72,8 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   def outputWorldKey: AssembledKey[Index[MapKey, Value]] = join.outputWorldKey
   override def toString: String = s"${super.toString} ($assembleName,$name,$inputWorldKeys,$outputWorldKey)"
 
-  def recalculateSome(
-    getIndex: AssembledKey[Index[JoinKey,T]]⇒Index[JoinKey,T],
-    add: PatchMap[MapKey,MultiSet[Value],Value],
-    ids: Set[JoinKey], res: Map[MapKey,MultiSet[Value]]
-  ): Map[MapKey,MultiSet[Value]] = {
-    val worldParts: Seq[JoinKey=>Values[T]] = inputWorldKeys.map{ wKey ⇒
+  def getWorldParts(getIndex: AssembledKey[Index[JoinKey,T]]⇒Index[JoinKey,T]): Seq[JoinKey=>Values[T]] =
+    inputWorldKeys.map{ wKey ⇒
       val index = getIndex(wKey)
       if(isAllKey(wKey)) {
         val values = index.getOrElse(allKey, Nil) //.asInstanceOf[Index[All,T]]
@@ -85,10 +82,38 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
         (id:JoinKey) ⇒ index.getOrElse(id, Nil)
       }
     }
+
+  def recalculateSome(
+    getIndex: AssembledKey[Index[JoinKey,T]]⇒Index[JoinKey,T],
+    add: PatchMap[MapKey,MultiSet[Value],Value],
+    ids: Set[JoinKey], res: Map[MapKey,MultiSet[Value]]
+  ): Map[MapKey,MultiSet[Value]] = {
+    val worldParts = getWorldParts(getIndex)
     (res /: ids){(res: Map[MapKey,MultiSet[Value]], id: JoinKey)⇒
       val args = worldParts.map(_(id))
       add.many(res, join.joins(id, args))
     }
+  }
+  private def calcSeq(transition: WorldTransition, ids: Set[JoinKey]): Map[MapKey, MultiSet[Value]] = {
+    val prevOutput = recalculateSome(_.of(transition.prev.get.result), subNestedDiff, ids, Map.empty)
+    recalculateSome(_.of(transition.result), addNestedDiff, ids, prevOutput)
+  }
+  def recalculateSomePar(
+    getIndex: AssembledKey[Index[JoinKey,T]]⇒Index[JoinKey,T],
+    add: PatchMap[MapKey,MultiSet[Value],Value],
+    ids: ParSeq[JoinKey], res: Map[MapKey,MultiSet[Value]]
+  ): Map[MapKey,MultiSet[Value]] = {
+    val worldParts = getWorldParts(getIndex)
+    val jRes: ParSeq[(MapKey, Value)] = ids.flatMap{ id ⇒
+      val args = worldParts.map(_(id))
+      join.joins(id, args)
+    }
+    add.many(res, jRes.seq)
+  }
+  private def calcPar(transition: WorldTransition, idSet: Set[JoinKey]): Map[MapKey, MultiSet[Value]] = {
+    val ids: ParSeq[JoinKey] = idSet.toVector.par
+    val prevOutput = recalculateSomePar(_.of(transition.prev.get.result), subNestedDiff, ids, Map.empty)
+    recalculateSomePar(_.of(transition.result), addNestedDiff, ids, prevOutput)
   }
 
   def transform(transition: WorldTransition): WorldTransition = {
@@ -106,9 +131,8 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
     else transform(transition,ids)
   }
   private def transform(transition: WorldTransition, ids: Set[JoinKey]): WorldTransition = {
-    val end = profiler("calculate")
-    val prevOutput = recalculateSome(_.of(transition.prev.get.result), subNestedDiff, ids, Map.empty)
-    val indexDiff = recalculateSome(_.of(transition.result), addNestedDiff, ids, prevOutput)
+    val end = profiler(s"calculate ${transition.isParallel}")
+    val indexDiff = if(transition.isParallel) calcPar(transition,ids) else calcSeq(transition,ids)
     end(ids.size)
     if(indexDiff.isEmpty) transition else patch(transition, indexDiff)
   }
@@ -186,11 +210,11 @@ class TreeAssemblerImpl(
       else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
       else throw new Exception(s"unstable assemble ${transition.diff}")
 
-    replaced ⇒ prevWorld ⇒ {
-      val prevTransition = WorldTransition(None,Map.empty,prevWorld)
+    (replaced,isParallel) ⇒ prevWorld ⇒ {
+      val prevTransition = WorldTransition(None,Map.empty,prevWorld,isParallel)
       val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
       val currentWorld = add.many(prevWorld, replaced)
-      val transition = WorldTransition(Option(prevTransition),diff,currentWorld)
+      val transition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel)
       transformUntilStable(1000, transition)
     }
   }
