@@ -211,7 +211,6 @@ import StaticHashSearchImpl._
   }
 }
 
-//TODO update before using to match new HS API
 @assemble class StaticAssembleShared[Model <: Product](
   modelCl: Class[Model]
 ) extends Assemble with HashSearchAssembleSharedKeys {
@@ -241,7 +240,7 @@ import StaticHashSearchImpl._
         line ← responses.par
         if request.check(line)
       } yield line
-      request.srcId → ResponseModelList(request.srcId + heapId, lines.toList) // TODO srcId = heapId + requestId
+      request.srcId → ResponseModelList(request.srcId + heapId, lines.toList)
     }
     val newResult = result.to[Values]
     /*val time2 = System.currentTimeMillis() - time
