@@ -12,9 +12,12 @@ import ee.cone.c4gate.dep.request.CurrentTimeProtocol.CurrentTimeNode
 import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp {
+trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp{
 
-  override def assembles: List[Assemble] = new CurrentTimeAssemble :: super.assembles
+
+  override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig("CurrentTimeRequestAssemble", 10L) :: super.currentTimeConfig
+
+  override def assembles: List[Assemble] = new CurrentTimeRequestAssemble :: super.assembles
 
   override def protocols: List[Protocol] = QProtocol :: CurrentTimeRequestProtocol :: CurrentTimeProtocol :: super.protocols
 }
@@ -40,7 +43,18 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   )
 }
 
-@assemble class CurrentTimeAssemble extends Assemble with DepGenericUtilityImpl {
+case class CurrentTimeConfig(srcId: SrcId, periodSeconds: Long)
+
+trait CurrentTimeConfigApp {
+  def currentTimeConfig: List[CurrentTimeConfig] = Nil
+}
+
+trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp{
+  override def assembles: List[Assemble] = new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
+}
+
+
+@assemble class CurrentTimeAssemble(configList: List[CurrentTimeConfig]) extends Assemble with DepGenericUtilityImpl {
   type PongSrcId = SrcId
 
   def FromFirstBornCreateNowTime(
@@ -49,7 +63,8 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   ): Values[(SrcId, TxTransform)] =
     for {
       _ ← firstborns
-    } yield WithPK(CurrentTimeTransform("CurrentTimeAssemble", 10L))
+      config ← configList
+    } yield WithPK(CurrentTimeTransform(config.srcId, config.periodSeconds))
 
   def GetCurrentTimeToAll(
     nowTimeId: SrcId,
@@ -58,14 +73,16 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
     for {
       nowTimeNode ← nowTimes
     } yield All → nowTimeNode
+}
 
+@assemble class CurrentTimeRequestAssemble extends Assemble {
   def FromAlienPongAndRqToInnerResponse(
     alienId: SrcId,
     @by[All] pongs: Values[CurrentTimeNode],
     requests: Values[DepInnerRequest]
   ): Values[(SrcId, DepInnerResponse)] =
     for {
-      pong ← pongs.filter(_.srcId == "CurrentTimeAssemble")
+      pong ← pongs.filter(_.srcId == "CurrentTimeRequestAssemble")
       rq ← requests
       if rq.request.isInstanceOf[CurrentTimeRequest]
     } yield {
