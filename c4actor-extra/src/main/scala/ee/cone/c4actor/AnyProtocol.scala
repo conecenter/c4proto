@@ -1,7 +1,8 @@
 package ee.cone.c4actor
 
+import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.AnyProtocol.AnyObject
-import ee.cone.c4proto.{Id, Protocol, ToByteString, protocol}
+import ee.cone.c4proto._
 
 object AnyAdapter {
   def decode[Model <: Product](qAdapterRegistry: QAdapterRegistry): AnyObject ⇒ Model = any ⇒ {
@@ -15,7 +16,14 @@ object AnyAdapter {
   }
 
   def encode[Model <: Product](qAdapterRegistry: QAdapterRegistry): Model ⇒ AnyObject = model ⇒ {
-    val adapter = qAdapterRegistry.byName(model.getClass.getName)
+    val adapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(model.getClass.getName)
+    val byteString = adapter.encode(model)
+    val adapterId = adapter.id
+    AnyObject(adapterId, ToByteString(byteString))
+  }
+
+  def encode[Model <: Product](qAdapterRegistry: QAdapterRegistry, modelCl: Class[Model]): Model ⇒ AnyObject = model ⇒ {
+    val adapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(model.getClass.getName)
     val byteString = adapter.encode(model)
     val adapterId = adapter.id
     AnyObject(adapterId, ToByteString(byteString))

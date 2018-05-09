@@ -96,7 +96,7 @@ lazy val `c4gate-extra` = project.settings(publishSettings)
 lazy val `c4actor-extra-examples` = project.settings(publishSettings)
   .settings(description := s"$descr / dep test")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`)
+  .dependsOn(`c4actor-base`, `c4proto-types`, `c4gate-logback`, `c4actor-extra`, `c4actor-kafka`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")

@@ -8,6 +8,8 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, SerializationUtilsApp, SerializationUtilsMix}
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
+import ee.cone.c4actor.hashsearch.index.dynamic.DynamicIndexAssemble
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.IndexByNode
 import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
@@ -15,7 +17,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 class HashSearchExtraTestStart(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
+  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory, rawWorldFactory: RawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/ observer: Option[Observer]
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -33,10 +35,18 @@ class HashSearchExtraTestStart(
     //println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
     println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList.map(_.list.size))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    val newNGlobal = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobal)
+    val newNGlobal: Context = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobal) // TODO apply transforms by hand
+    val newNew = observer.get.activate(newNGlobal)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
     println(ByPK(classOf[CustomResponse]).of(newNGlobal).values.toList.map(_.list.size))
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(nGlobal)
+    val newNew2 = newNew.head.activate(newNGlobal2)
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
+    println(ByPK(classOf[CustomResponse]).of(newNGlobal2).values.toList.map(_.list.size))
+    println(ByPK(classOf[IndexByNode]).of(newNGlobal2).values)
     execution.complete()
 
   }
@@ -195,23 +205,34 @@ trait TestCondition extends SerializationUtilsApp {
 }
 
 class HashSearchExtraTestApp extends RichDataApp
-  with ExecutableApp
-  with VMExecutionApp
+  with ServerApp
+  with EnvConfigApp with VMExecutionApp
+  with ParallelObserversApp
+  with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp
+  with ExecutableApp
   with ToStartApp
   with MortalFactoryApp
   with ModelAccessFactoryApp
   with TestCondition
   with HashSearchAssembleApp
-  with SerializationUtilsMix {
+  with SerializationUtilsMix
+  with DynamicIndexAssemble {
 
-  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory) :: super.toStart
+
+  override def rawQSender: RawQSender = NoRawQSender
+
+  override def parallelAssembleOn: Boolean = true
+
+  override def dynamicIndexAssembleDebugMode: Boolean = true
+
+  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver) :: super.toStart
 
 
   override def hashSearchModels: List[Class[_ <: Product]] = classOf[TestObject] :: super.hashSearchModels
 
 
-  override def protocols: List[Protocol] = EqProtocol :: TestProtocol :: super.protocols
+  override def protocols: List[Protocol] = AnyProtocol :: EqProtocol :: TestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
     println((new CreateRequest(conditions, changingCondition) :: joiners :::

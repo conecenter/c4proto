@@ -14,6 +14,8 @@ object PrintColored{
       case "g" ⇒ Console.GREEN
       case "b" ⇒ Console.BLUE
       case "r" ⇒ Console.RED
+      case "c" ⇒ Console.CYAN
+      case "m" ⇒ Console.MAGENTA
       case "" ⇒ Console.RESET
     }
     print(colorAnsi)
