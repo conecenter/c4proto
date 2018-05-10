@@ -17,7 +17,12 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 class HashSearchExtraTestStart(
-  execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory, rawWorldFactory: RawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/ observer: Option[Observer]
+  execution: Execution,
+  toUpdate: ToUpdate,
+  contextFactory: ContextFactory,
+  rawWorldFactory: RawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
+  observer: Option[Observer],
+  qAdapterRegistry: QAdapterRegistry
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
@@ -31,22 +36,22 @@ class HashSearchExtraTestStart(
     val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
 
     //logger.info(s"${nGlobal.assembled}")
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
     println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList.map(_.list.size))
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal: Context = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobal) // TODO apply transforms by hand
-    val newNew = observer.get.activate(newNGlobal)
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    val newNGlobalA = ActivateContext(newNGlobal)
+    println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(newNGlobal).values.toList.map(_.list.size))
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(nGlobal)
-    val newNew2 = newNew.head.activate(newNGlobal2)
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println(ByPK(classOf[CustomResponse]).of(newNGlobalA).values.toList.map(_.list.size))
+    println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(newNGlobalA)
+    val newNGlobal2A = ActivateContext(newNGlobal2)
+    println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(newNGlobal2).values.toList.map(_.list.size))
-    println(ByPK(classOf[IndexByNode]).of(newNGlobal2).values)
+    println(ByPK(classOf[CustomResponse]).of(newNGlobal2A).values.toList.map(_.list.size))
+    println(ByPK(classOf[IndexByNode]).of(newNGlobal2A).values.map(_.byInstance.get).map(AnyAdapter.decode(qAdapterRegistry)))
     execution.complete()
 
   }
@@ -226,7 +231,7 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def dynamicIndexAssembleDebugMode: Boolean = true
 
-  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver) :: super.toStart
+  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver, qAdapterRegistry) :: super.toStart
 
 
   override def hashSearchModels: List[Class[_ <: Product]] = classOf[TestObject] :: super.hashSearchModels
