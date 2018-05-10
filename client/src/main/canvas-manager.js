@@ -88,10 +88,7 @@ export default function CanvasManager(canvasFactory,sender,ctxToBranchPath){
         return React.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
     }
 
-    const transforms = {
-        tp: ({Canvas}),
-        ctx: { ctx: ctx => ctx }
-    };
+    const transforms = { tp: ({Canvas}) };
     return ({transforms});
 
 }
