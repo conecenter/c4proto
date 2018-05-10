@@ -3404,7 +3404,6 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		onDragDrop,
 		onReorder,
 		onWResize,
-		ctx:({ctx:ctx=>ctx}),
 		onContext:({ctx:ctx=>()=>rootCtx(ctx).branchKey})
 	};
 	const receivers = {
