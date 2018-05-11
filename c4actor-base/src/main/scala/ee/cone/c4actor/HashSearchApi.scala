@@ -5,7 +5,9 @@ import ee.cone.c4assemble.Assemble
 
 object HashSearch {
   case class Request[Model<:Product](requestId: SrcId, condition: Condition[Model])
-  case class Response[Model<:Product](srcId: SrcId, request: Request[Model], lines: List[Model])
+  case class Response[Model<:Product](srcId: SrcId, request: Request[Model], linesHashed: PreHashed[List[Model]]) extends {
+    lazy val lines: List[Model] = linesHashed.value
+  }
   trait Factory {
     def index[Model<:Product](model: Class[Model]): IndexBuilder[Model]
     def request[Model<:Product](condition: Condition[Model]): Request[Model]

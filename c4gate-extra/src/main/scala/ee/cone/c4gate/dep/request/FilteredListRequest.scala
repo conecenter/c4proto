@@ -2,7 +2,7 @@ package ee.cone.c4gate.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypeContainer.ContextId
-import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, QAdapterRegistry, WithPK}
+import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
@@ -16,11 +16,11 @@ trait FilterListRequestApp {
   def filterDepList: List[FLRequestDef] = Nil
 }
 
-trait FilterListRequestHandlerApp extends RequestHandlersApp with AssemblesApp with ProtocolsApp with FilterListRequestApp {
+trait FilterListRequestHandlerApp extends RequestHandlersApp with AssemblesApp with ProtocolsApp with FilterListRequestApp with PreHashingApp{
 
   override def handlers: List[RequestHandler[_]] = FilteredListRequestHandler(filterDepList) :: super.handlers
 
-  override def assembles: List[Assemble] = filterDepList.map(df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName)) ::: super.assembles
+  override def assembles: List[Assemble] = filterDepList.map(df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, preHashing)) ::: super.assembles
 
   override def protocols: List[Protocol] = DepFilteredListRequestProtocol :: super.protocols
 
@@ -35,9 +35,11 @@ case class FilteredListRequestHandler(flr: List[FLRequestDef]) extends RequestHa
   def handle: FilteredListRequest => (Dep[_], ContextId) = request ⇒ (depMap(request.listName), request.contextId)
 }
 
-case class FilteredListResponse(srcId: String, listName: String, sessionKey: String, response: Option[_])
+case class FilteredListResponse(srcId: String, listName: String, sessionKey: String, responseHashed: PreHashed[Option[_]]) extends LazyHashCodeProduct {
+  lazy val response: Option[_] = responseHashed.value
+}
 
-@assemble class FilterListRequestCreator(val qAdapterRegistry: QAdapterRegistry, listName: String) extends Assemble with DepAssembleUtilityImpl {
+@assemble class FilterListRequestCreator(val qAdapterRegistry: QAdapterRegistry, listName: String, preHashing: PreHashing) extends Assemble with DepAssembleUtilityImpl {
 
   def SparkFilterListRequest(
     key: SrcId,
@@ -58,7 +60,7 @@ case class FilteredListResponse(srcId: String, listName: String, sessionKey: Str
       resp ← responses
       if resp.request.innerRequest.request.isInstanceOf[FilteredListRequest] && resp.request.innerRequest.request.asInstanceOf[FilteredListRequest].listName == listName
     } yield {
-      WithPK(FilteredListResponse(resp.request.srcId, listName, resp.request.innerRequest.request.asInstanceOf[FilteredListRequest].contextId, resp.value))
+      WithPK(FilteredListResponse(resp.request.srcId, listName, resp.request.innerRequest.request.asInstanceOf[FilteredListRequest].contextId, preHashing.wrap(resp.value)))
     }
 }
 

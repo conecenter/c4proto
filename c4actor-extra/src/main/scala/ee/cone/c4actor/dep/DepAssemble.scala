@@ -3,17 +3,22 @@ package ee.cone.c4actor.dep
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypeContainer._
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
-import ee.cone.c4actor.{QAdapterRegistry, RichDataApp, WithPK}
+import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
-trait DepAssembleApp extends RequestHandlerRegistryApp with RichDataApp {
+trait DepAssembleApp extends RequestHandlerRegistryApp with PreHashingApp with AssemblesApp{
+  def qAdapterRegistry: QAdapterRegistry
 
-  override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry) :: super.assembles
+  override def assembles: List[Assemble] = new DepAssemble(handlerRegistry, qAdapterRegistry, preHashing) :: super.assembles
 }
 
 // TODO add unresolvedDepAssemble
-@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, val qAdapterRegistry: QAdapterRegistry) extends Assemble with DepAssembleUtilityImpl {
+@assemble class DepAssemble(
+  handlerRegistry: RequestHandlerRegistry,
+  val qAdapterRegistry: QAdapterRegistry,
+  preHashing: PreHashing
+) extends Assemble with DepAssembleUtilityImpl {
   type OuterRespForCtx = SrcId
   type DepResolvableGate = SrcId
   type OuterRqByInnerSrcId = SrcId
@@ -28,7 +33,7 @@ trait DepAssembleApp extends RequestHandlerRegistryApp with RichDataApp {
       request ← requests
       resolvable ← handlerRegistry.handleAndBuildContext(request.innerRequest, responses)
     } yield {
-      val upRes = DepResolvable(request, resolvable)
+      val upRes = DepResolvable(request, preHashing.wrap(resolvable))
       WithPK(upRes)
     }
 
@@ -84,7 +89,7 @@ trait DepAssembleApp extends RequestHandlerRegistryApp with RichDataApp {
       resp ← {
         val rq = depResv.request
         val resv = depResv.resolvable
-        DepOuterResponse(rq, resv.value) :: Nil
+        DepOuterResponse(rq, preHashing.wrap(resv.value)) :: Nil
       }
     } yield {
       WithPK(resp)
@@ -110,10 +115,9 @@ trait DepAssembleApp extends RequestHandlerRegistryApp with RichDataApp {
       inner ← depInnerReps
       outer ← outerRqs
     } yield {
-      val outerResp = DepOuterResponse(outer, inner.value)
+      val outerResp = DepOuterResponse(outer, inner.valueHashed)
       WithPK(outerResp)
     }
-
 
 
   // move DepOuterRespTo CtxBuilder index

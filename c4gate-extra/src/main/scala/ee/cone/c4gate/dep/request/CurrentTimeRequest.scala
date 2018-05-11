@@ -12,12 +12,12 @@ import ee.cone.c4gate.dep.request.CurrentTimeProtocol.CurrentTimeNode
 import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp{
+trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with PreHashingApp{
 
 
   override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig("CurrentTimeRequestAssemble", 10L) :: super.currentTimeConfig
 
-  override def assembles: List[Assemble] = new CurrentTimeRequestAssemble :: super.assembles
+  override def assembles: List[Assemble] = new CurrentTimeRequestAssemble(preHashing) :: super.assembles
 
   override def protocols: List[Protocol] = QProtocol :: CurrentTimeRequestProtocol :: CurrentTimeProtocol :: super.protocols
 }
@@ -75,7 +75,7 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp{
     } yield All → nowTimeNode
 }
 
-@assemble class CurrentTimeRequestAssemble extends Assemble {
+@assemble class CurrentTimeRequestAssemble(preHashing: PreHashing) extends Assemble {
   def FromAlienPongAndRqToInnerResponse(
     alienId: SrcId,
     @by[All] pongs: Values[CurrentTimeNode],
@@ -88,7 +88,7 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp{
     } yield {
       val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
       val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
-      WithPK(DepInnerResponse(rq, Option(newTime)))
+      WithPK(DepInnerResponse(rq, preHashing.wrap(Option(newTime))))
     }
 }
 

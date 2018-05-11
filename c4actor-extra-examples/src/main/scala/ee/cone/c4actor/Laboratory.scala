@@ -1,42 +1,24 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.utils.GeneralizedOrigFactory
 
 object Laboratory {
   def main(args: Array[String]): Unit = {
-    val test1 = (2,Test(2))
-    val hash = test1._2.hashCode()
-    val test2 = (1,test1._2.copy())
-    val hash2 = test2._2.hashCode
+    val world = for{
+      i ← 1 to 50000
+    } yield A(i.toString, i)
+    val list1 = world.slice(0, 20000).toList
+    val list2 = world.slice(10000,50000).toList
+    val list3 = world.slice(20000,350000).toList
+    val list4 = world.slice(35000,49000).toList
+    val list5 = world.slice(0,50000).toList
+
+    TimeColored("r", "test") {
+      println(MergeBySrcId(scala.collection.immutable.Seq(list1, list2, list3, list4, list5)).map(_.srcId).distinct.size)
+    }
   }
 
-  case class Test(a: Int){
-    lazy val hashLazy = {
-      println("Here")
-      runtime.ScalaRunTime._hashCode(this)}
-
-    override def hashCode: Int = hashLazy
-
-  }
-
-
-  case class A(b: Int, z: String)
-
-  case class B(srcId: String, value: Option[Int])
-
-  def test[B](implicit copy: String ⇒ B) = {
-    copy("")
-  }
-
-  def test2[E <: HasCopy[E]](a: E) = {
-    a.copy("")
-  }
-
-  trait HasCopy[C] {
-    def copy: String ⇒ C
-  }
-
-  case object GeneralizedB extends GeneralizedOrigFactory[B](classOf[B], str ⇒ _.copy(srcId = str))
-
+  case class A(srcId: SrcId, value: Int)
 }
 
