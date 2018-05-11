@@ -10,17 +10,19 @@ import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-case class FLRequestDef(listName: String, requestDep: Dep[_])
+case class FLRequestDef(listName: String, requestDep: Dep[_], matches: List[String] = List("*"))
 
 trait FilterListRequestApp {
   def filterDepList: List[FLRequestDef] = Nil
 }
 
-trait FilterListRequestHandlerApp extends RequestHandlersApp with AssemblesApp with ProtocolsApp with FilterListRequestApp with PreHashingApp{
+trait FilterListRequestHandlerApp extends RequestHandlersApp with AssemblesApp with ProtocolsApp with FilterListRequestApp with PreHashingApp {
 
   override def handlers: List[RequestHandler[_]] = FilteredListRequestHandler(filterDepList) :: super.handlers
 
-  override def assembles: List[Assemble] = filterDepList.map(df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, preHashing)) ::: super.assembles
+  override def assembles: List[Assemble] = filterDepList.map(
+    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.matches, preHashing)
+  ) ::: super.assembles
 
   override def protocols: List[Protocol] = DepFilteredListRequestProtocol :: super.protocols
 
@@ -39,7 +41,29 @@ case class FilteredListResponse(srcId: String, listName: String, sessionKey: Str
   lazy val response: Option[_] = responseHashed.value
 }
 
-@assemble class FilterListRequestCreator(val qAdapterRegistry: QAdapterRegistry, listName: String, preHashing: PreHashing) extends Assemble with DepAssembleUtilityImpl {
+object FilterListRequestCreatorUtils {
+  def parseUrl(url: String): String = {
+    val split = url.split("c4.html#").toList
+    try {
+      if (split.size == 1) {
+        ""
+      } else {
+        split.tail.head
+      }
+    } catch {
+      case _: Exception ⇒ ""
+    }
+  }
+}
+
+import FilterListRequestCreatorUtils._
+
+@assemble class FilterListRequestCreator(
+  val qAdapterRegistry: QAdapterRegistry,
+  listName: String,
+  matches: List[String],
+  preHashing: PreHashing
+) extends Assemble with DepAssembleUtilityImpl {
 
   def SparkFilterListRequest(
     key: SrcId,
@@ -47,6 +71,7 @@ case class FilteredListResponse(srcId: String, listName: String, sessionKey: Str
   ): Values[(SrcId, DepOuterRequest)] =
     for {
       alienTask ← alienTasks
+      if matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))
     } yield {
       val filterRequest = FilteredListRequest(alienTask.sessionKey, listName)
       WithPK(generateDepOuterRequest(filterRequest, alienTask.sessionKey))
