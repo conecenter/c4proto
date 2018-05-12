@@ -74,9 +74,7 @@ import IndexNodeThanosUtils._
       case _ ⇒ FailWith("Multiple indexNodes in [Thanos] - SoulIndexNodeCreation")
     }
 
-
-  // TODO REWRITE
-  def RealityTimeInnerLeafIndexByNode(
+  def RealityInnerLeafIndexByNode(
     innerLeafId: SrcId,
     innerLeafs: Values[InnerLeaf[Model]],
     indexByNodes: Values[IndexByNode]
@@ -87,17 +85,9 @@ import IndexNodeThanosUtils._
         if (debugMode)
           PrintColored("r")(s"[Thanos] Created ByNode for ${x.condition}")
         val typedCondition = x.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
-        WithPK(RealityTransform(x.srcId, modelCl, typedCondition.by.getClass, encode(qAdapterRegistry)(typedCondition.by))) :: Nil
-      case (Nil, x :: Nil) ⇒
-        if (!x.alwaysAlive) {
-          if (debugMode)
-            PrintColored("g")(s"[Thanos] Waiting for timeout ByNode ${decode(qAdapterRegistry)(x.byInstance.get)}")
-          WithPK(TimeTransform(x.srcId, x)) :: Nil
-        } else {
-          if (debugMode)
-            PrintColored("g")(s"[Thanos] ByNode ${decode(qAdapterRegistry)(x.byInstance.get)} is alwaysAlive")
-          Nil
-        }
+        val parentId = getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(typedCondition.by.getClass.getName).id)
+        WithPK(RealityTransform(x.srcId, parentId, encode(qAdapterRegistry)(typedCondition.by))) :: Nil
+      case (Nil, _ :: Nil) ⇒ Nil
       case (x :: Nil, y :: Nil) ⇒
         if (debugMode)
           PrintColored("y")(s"[Thanos] Both alive ${x.condition} ${decode(qAdapterRegistry)(y.byInstance.get)}")
@@ -108,29 +98,14 @@ import IndexNodeThanosUtils._
   }
 }
 
-case class RealityTransform[Model <: ProductWithId, By <: Product](srcId: SrcId, modelCl: Class[Model], byCl: Class[By], byInstance: AnyObject) extends TxTransform {
+case class RealityTransform[Model <: ProductWithId, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyObject) extends TxTransform {
   override def transform(local: Context): Context = {
     val now = Instant.now.getEpochSecond
     TxAdd(
       LEvent.update(
-        IndexByNode(srcId, modelCl.getName, byCl.getName, alwaysAlive = true, now, None, Some(byInstance))
+        IndexByNode(srcId, parentNodeId, Some(byInstance))
       )
     )(local)
-  }
-}
-
-case class TimeTransform(srcId: SrcId, byNode: IndexByNode) extends TxTransform {
-  override def transform(local: Context): Context = {
-    if (!byNode.alwaysAlive) {
-      val now = Instant.now.getEpochSecond
-      val lifeTime = byNode.lastPong + byNode.keepAliveSeconds.get
-      if (lifeTime <= now)
-        TxAdd(LEvent.delete(byNode))(local)
-      else
-        local
-    } else {
-      local
-    }
   }
 }
 
