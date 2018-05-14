@@ -103,10 +103,11 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		onClick(e){			
 			if(this.props.onClick){
 				setTimeout(function(){this.props.onClick(e)}.bind(this),(this.props.delay?parseInt(this.props.delay):0));
-			}				
+			}					
 		}	
 		onMouseDown(e){
 			this.onClick(e)
+			e.stopPropagation()
 		}
 		onEnter(event){
 			//log(`Enter ;`)
@@ -121,6 +122,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.updateAt = 0
 			if(!this.el) return
 			this.el.addEventListener("enter",this.onEnter)
+			this.el.addEventListener("mousedown",this.onMouseDown)
 			if(this.props.ripple)
 				checkActivateCalls.add(this.rippleAnim)
 		}
@@ -132,6 +134,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentWillUnmount(){
 			this.el.removeEventListener("enter",this.onEnter)
+			this.el.removeEventListener("mousedown",this.onMouseDown)
 			checkActivateCalls.remove(this.rippleAnim)
 		}
 		componentWillReceiveProps(nextProps){
@@ -193,7 +196,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				else 
 					return el
 			}
-			const el = $("button",{className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onMouseDown:this.onMouseDown,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
+			const el = $("button",{className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
 			return wrap(el)
 		}
 	}
@@ -267,7 +270,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				return null
 		}
 	}
-	uiElements.push({ErrorElement})
+	uiElements.push({ErrorElement})	
 	class MenuBarElement extends StatefulComponent{		
 		getInitialState(){return {fixedHeight:"",scrolled:false, isBurger:false}}	
 		process(){
@@ -290,10 +293,10 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const tLength = this.leftEl.getBoundingClientRect().width
 			
 			if(!this.bpLength && tCLength>0 && tCLength>=tLength && !this.state.isBurger) {
-				this.bpLength = tLength
+				this.bpLength = tCLength				
 				this.setState({isBurger:true})
 			}
-			if(this.bpLength && this.bpLength<tLength && this.state.isBurger){
+			if(this.bpLength && this.bpLength<tLength && this.state.isBurger){					
 				this.bpLength = null
 				this.setState({isBurger:false})
 			}
@@ -723,7 +726,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		check(){
 			if(!this.el) return			
 			if(!this.emEl) return
-			if(!this.el.parentElement) return			
+			if(!this.el.parentElement) return	
+			const count = miscReact.count()
+			if(count!=1) return
 			const dRect = this.el.getBoundingClientRect()
 			const pdRect = this.el.parentElement.getBoundingClientRect()			
 			if(this.prev!=pdRect.width){
@@ -732,7 +737,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					const emWidth = pdRect.width/emRect.height;
 					this.props.onClickValue("change",emWidth.toString())					
 				}				
-				log(`set: ${dRect.width}`)
+				//log(`set: ${dRect.width}`)
 				this.prev = pdRect.width
 			}			
 		}
@@ -969,14 +974,15 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentDidMount(){			
 			//this.el.addEventListener("enter",this.onEnter)
+			this.el.addEventListener("mousedown",this.onClick)
 		}
 		componentWillUnmount(){			
-			//this.el.removeEventListener("enter",this.onEnter)
+			this.el.removeEventListener("mousedown",this.onClick)
 		}
-		onClick(e){
+		onClick(e){		
 			if(this.props.onClick){
 				if(!this.sentClick) {
-					this.props.onClick(e)
+					this.props.onClick(e)					
 					this.sentClick = true
 					setTimeout(()=>{this.sentClick=false},1000)
 				}
@@ -990,7 +996,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
 				...this.props.style
 			};			
-			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onClick:this.onClick,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	}
 	class Interactive extends StatefulComponent{		
@@ -1057,7 +1063,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		getInput(){ return this.inp2||this.inp}
 		onEnter(event){
 			//log(`Enter ;`)
-			if(this.isVkEvent(event) || !this.doIfNotFocused((inp)=>{				
+			if((this.isVkEvent(event) || this.props.vkOnly) || !this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.selectionEnd = inp.value.length
 				inp.selectionStart = inp.value.length
@@ -1085,23 +1091,23 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.props.noDel) return
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
-				if(this.isVkEvent(event)){					
+				if(this.isVkEvent(event)||this.props.vkOnly){					
 					inp.value = inp.value+event.detail.key
 				}
 				else 
 					inp.value = ""
-				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+				this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				//const cEvent = eventManager.create("input",{bubbles:true})				
 				//inp.dispatchEvent(cEvent)				
 
 			})){				
-				if(this.isVkEvent(event)){	
+				if(this.isVkEvent(event)||this.props.vkOnly){	
 					const inp = this.getInput()
 					const value1 = inp.value.substring(0, inp.selectionStart)
 					const value2 = inp.value.substring(inp.selectionEnd)
 					this.s = inp.selectionStart+1
-					inp.value = value1+event.detail.key+value2
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+					inp.value = value1+event.detail.key+value2					
+					this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 					//const cEvent = eventManager.create("input",{bubbles:true})							
 					//inp.dispatchEvent(cEvent)
         }
@@ -1123,11 +1129,11 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = inp.value.slice(0,-1)
-        if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+            if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				//const cEvent = eventManager.create("input",{bubbles:true})				
 				//inp.dispatchEvent(cEvent)
 			})){
-				if(this.isVkEvent(event)){		
+				if(this.isVkEvent(event)||this.props.vkOnly){		
 					const inp = this.getInput()
 					const value1 = inp.value.substring(0, inp.selectionStart-1)				
 					const value2 = inp.value.substring(inp.selectionEnd)
@@ -1270,8 +1276,10 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const inputType = this.props.inputType;//this.props.inputType?this.props.inputType:"input"
 			const type = this.props.type?this.props.type:"text"
-			const auto = this.props.autocomplete?this.props.autocomplete:{}
-			const readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
+			const auto = this.props.autocomplete?this.props.autocomplete:null
+			const vkOnly = this.props.vkOnly?"vk":null
+			let readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
+			readOnly = !readOnly&&vkOnly?"true":null
 			const rows= this.props.rows?this.props.rows:"2";
 			const content = this.props.content;
 			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
@@ -1287,6 +1295,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 							type,rows,readOnly,placeholder,auto,
 							"data-type":dataType,
 							className,
+							name:vkOnly,
 							content,		
 							style:{...inputStyle,...overRideInputStyle},							
 							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",
@@ -1300,6 +1309,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 									className,
 									onChange:this.onChange,
 									onBlur:this.onBlur,
+									readOnly,
+									name:vkOnly,
 									onKeyDown:this.onKeyDown,
 									"data-type":dataType,
 									value:this.props.value})
@@ -1441,6 +1452,10 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					if(e.target.value.length == 0)
 						call = e.key;					
 					break;
+				case "Escape":					
+					call = e.key;
+					e.preventDefault()
+					break;	
 				case "Delete":
 					call = e.key;
 					const actEl = documentManager.activeElement()
@@ -1736,22 +1751,25 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		componentDidMount(){
 			if(this.el) {
 				this.el.addEventListener("focus",this.onFocus,true)
+				this.el.addEventListener("mousedown",this.onClick)
 				this.el.addEventListener("blur",this.onBlur)
 				this.el.addEventListener("delete",this.onDelete)
 			}
 			this.binding = focusModule.reg(this)
 		}
 		componentWillUnmount(){
-			if(this.el) {
+			if(this.el) {				
 				this.el.removeEventListener("focus",this.onFocus)
+				this.el.removeEventListener("mousedown",this.onClick)
 				this.el.removeEventListener("blur",this.onBlur)
 				this.el.removeEventListener("delete",this.onDelete)
 			}
 			if(this.binding) this.binding.unreg()
 		}
-		onClick(){
+		onClick(e){
 			if(this.props.onChange) 
-				this.props.onChange({target:{headers:{"X-r-action":"change"},value:(this.props.value?"":"checked")}})					
+				this.props.onChange({target:{headers:{"X-r-action":"change"},value:(this.props.value?"":"checked")}})			
+			e&&e.stopPropagation()
 		}
 		render(){
 			const props = this.props			
@@ -1823,7 +1841,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const checkImage = props.checkImage?props.checkImage:defaultCheckImage;
 			const {onMouseOver,onMouseOut} = props		
 			return $("div",{style,tabIndex:"1",ref:ref=>this.el=ref},
-				$("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1",onClick:this.onClick},[
+				$("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1"},[
 					$("span",{style:checkBoxStyle,key:"1"},checkImage),
 					labelEl
 				])
@@ -1972,23 +1990,23 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
 		const styleA = {
-			...attributesA.style,
-			//textTransform:"none"
+			...attributesA.style
+			//textTransform:"uppercase"
 		}
 		const styleB = {
 			...attributesB.style,
 			textTransform:"none"
 		}
-
+        const vkOnly = prop.vkOnly
 		const dataType = "extText"
         return $("div",{style:{margin:"1em 0em",...prop.style}},[
 			$(ControlWrapperElement,{key:"1"},
 				$(LabelElement,{label:usernameCaption},null),
-				$(InputElement,{...attributesA,style:styleA,focus:prop.focus,dataType},null)			
+				$(InputElement,{...attributesA,vkOnly,style:styleA,focus:prop.focus,dataType},null)			
 			),
 			$(ControlWrapperElement,{key:"2"},
 				$(LabelElement,{label:passwordCaption},null),
-				$(InputElement,{...attributesB,style:styleB,onKeyDown:()=>false,focus:false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login"},null)
+				$(InputElement,{...attributesB,vkOnly,style:styleB,onKeyDown:()=>false,focus:false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login"},null)
        ),
 			$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
 				$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
@@ -3066,7 +3084,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.check()
 			this.resizeL = resizeListener.reg(this.check)
 		}
-		componentDidUpdate(prevProps,prevState){	
+		componentDidUpdate(prevProps,prevState){
 			this.check()			
 		}
 		componentWillUnmount(){
@@ -3088,8 +3106,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		getInitialState(){
 			return {width:0,height:0}
 		}
-		onMouseDown(e){			
-			let el
+		onMouseDown(e){						
+			if(!this.el) return
 			/*if(!this.props.zoomed){
 				const elements = documentManager.elementsFromPoint(e.clientX,e.clientY)
 				el = elements.find(e=>e==this.el)

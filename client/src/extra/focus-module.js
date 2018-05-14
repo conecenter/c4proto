@@ -140,6 +140,8 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				best = findBestDistance(0);break;
 			case "Escape":
 				currentFocusNode.focus();break;
+			case " " :
+				event.preventDefault();
 			case "Tab":				 
 				currentFocusNode.focus();
 				onTab(event,vk)
