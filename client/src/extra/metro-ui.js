@@ -515,8 +515,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		onResize(){
 			if(!this.el || !this.remRef) return					
-			const count = miscReact.count()
-			if(count != 1) return
+			//const count = miscReact.count()
+			//if(count != 1) return
 			if(this.unmounted) return
 			this.sentData()			
 		}
