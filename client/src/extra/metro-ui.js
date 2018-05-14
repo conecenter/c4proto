@@ -54,6 +54,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const unreg=()=>{
 				const index = callbacks.indexOf(o)
 				if(index>=0) callbacks.splice(index,1)
+				return null	
 			}
 			return {unreg}
 		}
@@ -515,19 +516,23 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		onResize(){
 			if(!this.el || !this.remRef) return					
-			//const count = miscReact.count()
-			//if(count != 1) return
+			const count = miscReact.count()
+			if(count != 1) return
 			if(this.unmounted) return
 			this.sentData()			
 		}
 		componentWillUnmount(){
 			this.unmounted = true			
-			if(this.resizeL) this.resizeL.unreg()
+			if(this.resizeL) {
+				log(`delete listener`)
+				this.resizeL = this.resizeL.unreg()
+			}
 		}
 		initListener(){
 			const count = miscReact.count()
 			if(count != 1) return
-			if(this.props.onWResize && this.el && this.remRef) {
+			if(this.props.onWResize && this.el && this.remRef && !this.resizeL) {
+				log(`init listener`)
 				this.sentData()
 				this.resizeL = resizeListener.reg(this.onResize)
 			}
