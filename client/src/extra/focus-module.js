@@ -139,9 +139,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "ArrowRight":
 				best = findBestDistance(0);break;
 			case "Escape":
-				currentFocusNode.focus();break;
-			case " " :
-				event.preventDefault();
+				currentFocusNode.focus();break;			
 			case "Tab":				 
 				currentFocusNode.focus();
 				onTab(event,vk)
