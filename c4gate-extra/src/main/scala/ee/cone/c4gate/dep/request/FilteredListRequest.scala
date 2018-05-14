@@ -10,7 +10,7 @@ import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-case class FLRequestDef(listName: String, requestDep: Dep[_], matches: List[String] = List("*"))
+case class FLRequestDef(listName: String, requestDep: Dep[_], matches: List[String] = List(".*"))
 
 trait FilterListRequestApp {
   def filterDepList: List[FLRequestDef] = Nil
