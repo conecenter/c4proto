@@ -3083,8 +3083,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			}			
 		}
 		componentDidMount(){
-			const count = miscReact.count()
-			if(count!=1) return
+		//	const count = miscReact.count()
+	//		if(count!=1) return
 			if(!this.props.onWResize) return
 			this.check()
 			this.resizeL = resizeListener.reg(this.check)
