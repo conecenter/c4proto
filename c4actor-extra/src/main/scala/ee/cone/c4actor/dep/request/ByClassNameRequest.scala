@@ -8,15 +8,15 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with DepAssembleUtilityImpl {
+trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with DepAssembleUtilityImpl with PreHashingApp{
   def byClassNameClasses: List[Class[_ <: Product]] = Nil
 
   override def protocols: List[Protocol] = ByClassNameRequestProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, stringToKey(className.getName))) ::: super.assembles
+  override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, stringToKey(className.getName), preHashing)) ::: super.assembles
 }
 
-@assemble class ByClassNameGenericAssemble[A <: Product](handledClass: Class[A], classSrcId: SrcId) extends Assemble with ByClassNameRequestUtils {
+@assemble class ByClassNameGenericAssemble[A <: Product](handledClass: Class[A], classSrcId: SrcId, preHashing: PreHashing) extends Assemble with ByClassNameRequestUtils {
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId
 
@@ -51,7 +51,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with D
       if rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName
     ) yield {
       val byCNRq = rq.request.asInstanceOf[ByClassNameRequest]
-      WithPK(DepInnerResponse(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count))))
+      WithPK(DepInnerResponse(rq, preHashing.wrap(Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))))
     }
 
 }
