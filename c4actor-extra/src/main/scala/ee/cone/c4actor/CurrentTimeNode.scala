@@ -40,7 +40,7 @@ trait CurrentTimeConfigApp {
 trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with ProtocolsApp{
   override def assembles: List[Assemble] = new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
 
-  override def protocols: List[Protocol] = CurrentTimeProtocol :: super.protocols
+  override def protocols: List[Protocol] = QProtocol :: CurrentTimeProtocol :: super.protocols
 }
 
 

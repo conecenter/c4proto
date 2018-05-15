@@ -18,10 +18,9 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   )
 
   // B
-  @Id(0x0180) case class IndexNodeSetting(
+  @Id(0x0180) case class IndexNodeSettings(
     @Id(0x0181) srcId: String,
-    @Id(0x0182) allAlwaysAlive: Boolean,
-    @Id(0x0183) keepAliveSeconds: Option[Long]
+    @Id(0x0182) allAlwaysAlive: Boolean
   )
 
   // C
@@ -38,7 +37,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   )
 
   // E
-  @Id(0x0190) case class IndexByNodeSetting(
+  @Id(0x0190) case class IndexByNodeSettings(
     @Id(0x0191) srcId: String,
     @Id(0x0192) alwaysAlive: Boolean,
     @Id(0x0193) keepAliveSeconds: Option[Long]

@@ -8,7 +8,7 @@ import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 
 object PrintColored{
-  def apply[R](color: String)(f: ⇒ R): R = {
+  def apply[R](color: String, bgColor: String = "")(f: ⇒ R): R = {
     val colorAnsi = color match {
       case "y" ⇒ Console.YELLOW
       case "g" ⇒ Console.GREEN
@@ -16,9 +16,14 @@ object PrintColored{
       case "r" ⇒ Console.RED
       case "c" ⇒ Console.CYAN
       case "m" ⇒ Console.MAGENTA
-      case "" ⇒ Console.RESET
+      case "" ⇒ Console.BLACK
+    }
+    val bgColorAnsi = bgColor match {
+      case "w" ⇒ Console.WHITE_B
+      case "" ⇒ Console.BLACK_B
     }
     print(colorAnsi)
+    print(bgColorAnsi)
     val result = f
     println(result)
     print(Console.RESET)

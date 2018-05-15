@@ -6,43 +6,86 @@ import ee.cone.c4actor.AnyProtocol.AnyObject
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.{HashSearchModelsApp, InnerLeaf}
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexNode}
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol._
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble._
 import AnyAdapter._
+import ee.cone.c4actor.CurrentTimeProtocol.CurrentTimeNode
+import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUtilsApp}
 
+case class ProductWithId[Model <: Product](modelCl: Class[Model], modelId: Int)
+
 trait DynamicIndexModelsApp {
-  def dynIndexModels: List[(Class[_ <: ProductWithId], Int)]
+  def dynIndexModels: List[ProductWithId[_ <: Product]] = Nil
 }
 
-trait DynamicIndexAssemble extends AssemblesApp with WithIndexNodeProtocol with DynamicIndexModelsApp with SerializationUtilsApp {
+trait DynamicIndexAssemble extends AssemblesApp with WithIndexNodeProtocol with DynamicIndexModelsApp with SerializationUtilsApp with CurrentTimeConfigApp {
   def qAdapterRegistry: QAdapterRegistry
 
-  override def assembles: List[Assemble] = dynIndexModels.distinct.map(p ⇒ new IndexNodeThanos(p._1, p._2, dynamicIndexAssembleDebugMode, qAdapterRegistry, serializer)) ::: super.assembles
+  def dynamicIndexRefreshRateSeconds: Long
+
+  override def currentTimeConfig: List[CurrentTimeConfig] =
+    CurrentTimeConfig("DynamicIndexAssembleGC", dynamicIndexRefreshRateSeconds) ::
+      CurrentTimeConfig("DynamicIndexAssembleRefresh", dynamicIndexRefreshRateSeconds) ::
+      super.currentTimeConfig
+
+  override def assembles: List[Assemble] = {
+    modelListIntegrityCheck(dynIndexModels)
+    dynIndexModels.distinct.map(p ⇒ new IndexNodeThanos(p.modelCl, p.modelId, dynamicIndexAssembleDebugMode, qAdapterRegistry, serializer, dynamicIndexRefreshRateSeconds)) ::: super.assembles
+  }
 
   def dynamicIndexAssembleDebugMode: Boolean = false
-}
 
-object IndexNodeThanosUtils {
-  def getIndexNodeSrcId(ser: SerializationUtils, modelId: Int, byId: Long): SrcId = {
-    val modelSrc = ser.uuid(modelId.toString)
-    val bySrc = ser.uuid(byId.toString)
-    val caseClassSrc = ser.uuid("IndexNode")
-    ser.uuidFromSeq(modelSrc, bySrc, caseClassSrc).toString
+  private def modelListIntegrityCheck: List[ProductWithId[_ <: Product]] ⇒ Unit = list ⇒ {
+    val map = list.distinct.groupBy(_.modelId)
+    if (map.values.forall(_.size == 1)) {
+    } else {
+      FailWith.apply(s"Dyn model List contains models with same Id: ${map.filter(_._2.size > 1)}")
+    }
   }
 }
 
+object IndexNodeThanosUtils {
+  def getIndexNodeSrcId(ser: SerializationUtils, modelId: Int, byId: Long, lensName: List[String]): SrcId = {
+    val modelSrc = ser.uuid(modelId.toString)
+    val bySrc = ser.uuid(byId.toString)
+    val lensSrc = ser.uuidFromSrcIdSeq(lensName)
+    val caseClassSrc = ser.uuid("IndexNode")
+    ser.uuidFromSeq(caseClassSrc, modelSrc, bySrc, lensSrc).toString
+  }
+}
+
+case class IndexNodeRich[Model <: Product](
+  srcId: SrcId,
+  keepAllAlive: Boolean,
+  indexNode: IndexNode,
+  indexNodeSettings: Option[IndexNodeSettings],
+  indexByNodes: List[IndexByNodeRich[Model]]
+)
+
+case class IndexByNodeRich[Model <: Product](
+  srcId: SrcId,
+  isAlive: Boolean,
+  indexByNode: IndexByNode,
+  indexByNodeStats: IndexByNodeStats,
+  indexByNodeSettings: Option[IndexByNodeSettings]
+)
+
+case class SrcIdContainer[Mode <: Product](srcId: SrcId)
+
 import IndexNodeThanosUtils._
 
-@assemble class IndexNodeThanos[Model <: ProductWithId](
+@assemble class IndexNodeThanos[Model <: Product](
   modelCl: Class[Model],
   modelId: Int,
   debugMode: Boolean,
   qAdapterRegistry: QAdapterRegistry,
-  ser: SerializationUtils
+  ser: SerializationUtils,
+  refreshRateSeconds: Long = 60
 ) extends Assemble {
   type IndexNodeId = SrcId
+  type IndexByNodeId = SrcId
 
   def SoulLeafToIndexNodeId(
     leafId: SrcId,
@@ -53,7 +96,22 @@ import IndexNodeThanosUtils._
       if leaf.condition.isInstanceOf[ProdCondition[_ <: Product, Model]]
     } yield {
       val prod = leaf.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
-      getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(prod.by.getClass.getName).id) → leaf
+      val nameList = prod.metaList.filter(_.isInstanceOf[NameMetaAttr]).map(_.asInstanceOf[NameMetaAttr]).map(_.value)
+      getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(prod.by.getClass.getName).id, nameList) → leaf
+    }
+
+  def SoulIndexNodeContainerToLeafId(
+    leafId: SrcId,
+    innerLeafs: Values[InnerLeaf[Model]]
+  ): Values[(IndexByNodeId, SrcIdContainer[Model])] =
+    for {
+      leaf ← innerLeafs
+      if leaf.condition.isInstanceOf[ProdCondition[_ <: Product, Model]]
+    } yield {
+      val prod = leaf.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
+      val nameList = prod.metaList.filter(_.isInstanceOf[NameMetaAttr]).map(_.asInstanceOf[NameMetaAttr]).map(_.value)
+      val srcId = getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(prod.by.getClass.getName).id, nameList)
+      leaf.srcId → SrcIdContainer[Model](srcId)
     }
 
   def SoulIndexNodeCreation(
@@ -63,15 +121,18 @@ import IndexNodeThanosUtils._
   ): Values[(SrcId, TxTransform)] =
     (indexNodes.toList, leafs.toList) match {
       case (Nil, Seq(x, xs@_*)) ⇒
-        if (debugMode)
-          PrintColored("y")(s"[Thanos] Created IndexNode for ${x.condition}")
         val prod = x.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
         val byId = qAdapterRegistry.byName(prod.by.getClass.getName).id
-        val srcId = getIndexNodeSrcId(ser, modelId, byId)
-        val nameList = prod.metaList.filter(_.isInstanceOf[NameMetaAttr]).map(_.asInstanceOf[NameMetaAttr])
-        WithPK(SoulTransform(srcId, modelId, byId, nameList.map(_.value))) :: Nil
-      case (_::Nil, _) ⇒ Nil
-      case _ ⇒ FailWith("Multiple indexNodes in [Thanos] - SoulIndexNodeCreation")
+        val nameList = prod.metaList.filter(_.isInstanceOf[NameMetaAttr]).map(_.asInstanceOf[NameMetaAttr]).map(_.value)
+        val srcId = getIndexNodeSrcId(ser, modelId, byId, nameList)
+        if (debugMode)
+          PrintColored("y")(s"[Thanos.Soul] Created IndexNode for ${(prod.by.getClass.getName, nameList)},${(modelCl.getName, modelId)}")
+        WithPK(SoulTransform(srcId, modelId, byId, nameList)) :: Nil
+      case (x :: Nil, y) ⇒
+        if (debugMode)
+          PrintColored("y")(s"[Thanos.Soul] Both alive $x ${y.map(_.condition).head}")
+        Nil
+      case _ ⇒ FailWith.apply("Multiple indexNodes in [Thanos.Soul] - SoulIndexNodeCreation")
     }
 
   def RealityInnerLeafIndexByNode(
@@ -83,27 +144,146 @@ import IndexNodeThanosUtils._
     (filteredLeafs.toList, indexByNodes.toList) match {
       case (x :: Nil, Nil) ⇒
         if (debugMode)
-          PrintColored("r")(s"[Thanos] Created ByNode for ${x.condition}")
+          PrintColored("r")(s"[Thanos.Reality] Created ByNode for ${x.condition}")
         val typedCondition = x.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
-        val parentId = getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(typedCondition.by.getClass.getName).id)
+        val nameList = typedCondition.metaList.filter(_.isInstanceOf[NameMetaAttr]).map(_.asInstanceOf[NameMetaAttr]).map(_.value)
+        val parentId = getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(typedCondition.by.getClass.getName).id, nameList)
         WithPK(RealityTransform(x.srcId, parentId, encode(qAdapterRegistry)(typedCondition.by))) :: Nil
       case (Nil, _ :: Nil) ⇒ Nil
       case (x :: Nil, y :: Nil) ⇒
-        if (debugMode)
-          PrintColored("y")(s"[Thanos] Both alive ${x.condition} ${decode(qAdapterRegistry)(y.byInstance.get)}")
+        /*if (debugMode)
+          PrintColored("r")(s"[Thanos.Reality] Both alive ${x.condition} ${decode(qAdapterRegistry)(y.byInstance.get)}")*/
         Nil
       case (Nil, Nil) ⇒ Nil
-      case _ ⇒ FailWith.apply("Multiple inputs in [Thanos] - RealityGiveLifeToIndexByNode")
+      case _ ⇒ FailWith.apply("Multiple inputs in [Thanos.Reality] - RealityGiveLifeToIndexByNode")
     }
   }
+
+  type TimeIndexNodeThanos = All
+
+  def TimeFilterCurrentTimeNode(
+    timeNode: SrcId,
+    firstborns: Values[Firstborn],
+    @by[All] currentTimeNodes: Values[CurrentTimeNode]
+  ): Values[(TimeIndexNodeThanos, CurrentTimeNode)] =
+    for {
+      pong ← currentTimeNodes
+      if pong.srcId == "DynamicIndexAssembleRefresh"
+    } yield All → pong
+
+  def TimeInnerLeafIndexByNodeToPong(
+    innerLeafId: SrcId,
+    innerLeafs: Values[InnerLeaf[Model]],
+    indexByNodes: Values[IndexByNode],
+    @by[TimeIndexNodeThanos] pongs: Values[CurrentTimeNode]
+  ): Values[(SrcId, TxTransform)] =
+    (for {
+      pong ← pongs.headOption.to[Values]
+    } yield {
+      (innerLeafs, indexByNodes) match {
+        case (Seq(x), Seq(y)) ⇒
+          if (debugMode)
+            PrintColored("g")(s"[Thanos.Time] Both alive, ping ${pong.currentTimeSeconds} ${x.condition} ${decode(qAdapterRegistry)(y.byInstance.get)}")
+          WithPK(TimeTransform(y.srcId, pong.currentTimeSeconds)) :: Nil
+        case _ ⇒ Nil
+      }
+    }).flatten
+
+  type PowerIndexNodeThanos = All
+
+  def PowerFilterCurrentTimeNode(
+    timeNode: SrcId,
+    firstborn: Values[Firstborn],
+    @by[All] currentTimeNodes: Values[CurrentTimeNode]
+  ): Values[(PowerIndexNodeThanos, CurrentTimeNode)] =
+    for {
+      pong ← currentTimeNodes
+      if pong.srcId == "DynamicIndexAssembleGC"
+    } yield WithAll(pong)
+
+  def SpaceIndexByNodeRich(
+    indexByNodeId: SrcId,
+    innerLeafs: Values[InnerLeaf[Model]],
+    indexByNodes: Values[IndexByNode],
+    indexByNodeStats: Values[IndexByNodeStats],
+    indexByNodeSettings: Values[IndexByNodeSettings],
+    @by[PowerIndexNodeThanos] currentTimes: Values[CurrentTimeNode]
+  ): Values[(SrcId, IndexByNodeRich[Model])] =
+    for {
+      node ← indexByNodes
+      stats ← indexByNodeStats
+    } yield {
+      val currentTime = Single(currentTimes).currentTimeSeconds
+      val leafIsPresent = innerLeafs.nonEmpty
+      val setting = indexByNodeSettings.headOption
+      val isAlive = leafIsPresent ||
+        (setting.isDefined && (setting.get.alwaysAlive || currentTime - setting.get.keepAliveSeconds.get - stats.lastPongSeconds < 0)) ||
+        (currentTime - refreshRateSeconds * 1 - stats.lastPongSeconds < 0)
+      val rich = IndexByNodeRich[Model](node.srcId, isAlive, node, stats, setting)
+      if (debugMode)
+        PrintColored("b", "w")(s"[Thanos.Space] Updated IndexByNodeRich ${(isAlive, node.srcId, innerLeafs.headOption.map(_.condition.asInstanceOf[ProdCondition[_ <: Product, Model]].by))}")
+      WithPK(rich)
+    }
+
+  def SpaceIndexByNodeRichToIndexNodeId(
+    indexByNodeRichId: SrcId,
+    indexByNodeRichs: Values[IndexByNodeRich[Model]],
+    @by[IndexByNodeId] parentContainers: Values[SrcIdContainer[Model]]
+  ): Values[(IndexNodeId, IndexByNodeRich[Model])] =
+    for {
+      parentId ← parentContainers.map(_.srcId)
+      indexByNode ← indexByNodeRichs
+    } yield parentId → indexByNode
+
+  def SpaceIndexNodeRich(
+    indexNodeId: SrcId,
+    indexNodes: Values[IndexNode],
+    indexNodeSettings: Values[IndexNodeSettings],
+    @by[IndexNodeId] indexByNodeRichs: Values[IndexByNodeRich[Model]]
+  ): Values[(SrcId, IndexNodeRich[Model])] =
+    for {
+      indexNode ← indexNodes
+    } yield {
+      val settings = indexNodeSettings.headOption
+      val isAlive = settings.isDefined && settings.get.allAlwaysAlive
+      val rich = IndexNodeRich[Model](indexNode.srcId, isAlive, indexNode, settings, indexByNodeRichs.toList)
+      if (debugMode)
+        PrintColored("b", "w")(s"[Thanos.Space] Updated IndexNodeRich ${(isAlive, indexNode.srcId, indexByNodeRichs.map(_.srcId.take(5)))}")
+      WithPK(rich)
+    }
+
+  def PowerGCIndexByNodes(
+    indexNodeRichId: SrcId,
+    indexNodeRichs: Values[IndexNodeRich[Model]],
+    @by[PowerIndexNodeThanos] currentTimes: Values[CurrentTimeNode]
+  ): Values[(SrcId, TxTransform)] =
+    for {
+      parent ← indexNodeRichs
+      if !parent.keepAllAlive
+      child ← parent.indexByNodes
+      if !child.isAlive
+    } yield {
+      if (debugMode)
+        PrintColored("m")(s"[Thanos.Power] Deleted IndexByNode $child")
+      WithPK(PowerTransform(child.srcId))
+    }
 }
 
-case class RealityTransform[Model <: ProductWithId, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyObject) extends TxTransform {
+case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyObject) extends TxTransform {
   override def transform(local: Context): Context = {
-    val now = Instant.now.getEpochSecond
     TxAdd(
       LEvent.update(
         IndexByNode(srcId, parentNodeId, Some(byInstance))
+      )
+    )(local)
+  }
+}
+
+case class TimeTransform(srcId: SrcId, newTime: Long) extends TxTransform {
+  override def transform(local: Context): Context = {
+    TxAdd(
+      LEvent.update(
+        IndexByNodeStats(srcId, newTime)
       )
     )(local)
   }
@@ -116,4 +296,9 @@ case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName
         IndexNode(srcId, modelId, byAdapterId, lensName)
       )
     )(local)
+}
+
+case class PowerTransform(srcId: SrcId) extends TxTransform {
+  override def transform(local: Context): Context =
+    TxAdd(LEvent.delete(IndexByNodeStats(srcId, 0L)) ++ LEvent.delete(IndexByNode(srcId, "", None)))(local)
 }

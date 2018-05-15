@@ -3,13 +3,14 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.EqProtocol.{ChangingNode, IntEq, StrStartsWith, TestObject}
 import ee.cone.c4actor.HashSearch.{Request, Response}
+import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.TestNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, SerializationUtilsApp, SerializationUtilsMix}
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
-import ee.cone.c4actor.hashsearch.index.dynamic.DynamicIndexAssemble
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.IndexByNode
+import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeRich, ProductWithId}
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodeStats, IndexNode}
 import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
@@ -30,28 +31,40 @@ class HashSearchExtraTestStart(
     val world = for {
       i ← 1 to 10000
     } yield TestObject(i.toString, 239, i.toString.take(5))
-    val recs = /*update(TestNode("1", "")) ++ */ update(ChangingNode("test", "")) ++ update(ChangingNode("test-safe", "")) ++ world.flatMap(update)
+    val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test")) ++ update(ChangingNode("test", "")) ++ update(ChangingNode("test-safe", "")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val context: Context = contextFactory.create()
     val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
+    val nGlobalActive = ActivateContext(nGlobal)
+    val nGlobalAA = ActivateContext(nGlobalActive)
 
     //logger.info(s"${nGlobal.assembled}")
     println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(nGlobal).values.toList.map(_.list.size))
+    println(ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
+    println(ByPK(classOf[IndexNode]).of(nGlobalAA).values)
+    println(ByPK(classOf[IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
+    println(ByPK(classOf[IndexByNodeStats]).of(nGlobalAA).values)
+    Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    val newNGlobal: Context = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobal) // TODO apply transforms by hand
+    val newNGlobal: Context = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobalAA)
     val newNGlobalA = ActivateContext(newNGlobal)
+    val newNGlobalAA = ActivateContext(newNGlobalA)
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(newNGlobalA).values.toList.map(_.list.size))
+    println(ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
+    println(ByPK(classOf[IndexByNode]).of(newNGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
+    println(ByPK(classOf[IndexByNodeStats]).of(newNGlobalAA).values)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(newNGlobalA)
+    val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(newNGlobalAA)
+    Thread.sleep(10000)
     val newNGlobal2A = ActivateContext(newNGlobal2)
+    val newNGlobal2AA = ActivateContext(newNGlobal2A)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(newNGlobal2A).values.toList.map(_.list.size))
-    println(ByPK(classOf[IndexByNode]).of(newNGlobal2A).values.map(_.byInstance.get).map(AnyAdapter.decode(qAdapterRegistry)))
+    println(ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
+    println(ByPK(classOf[IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
+    println(ByPK(classOf[IndexByNodeStats]).of(newNGlobal2AA).values)
     execution.complete()
 
   }
@@ -222,6 +235,7 @@ class HashSearchExtraTestApp extends RichDataApp
   with TestCondition
   with HashSearchAssembleApp
   with SerializationUtilsMix
+  with CurrentTimeAssembleMix
   with DynamicIndexAssemble {
 
 
@@ -248,6 +262,10 @@ class HashSearchExtraTestApp extends RichDataApp
   }
 
   lazy val assembleProfiler: AssembleProfiler = ValueAssembleProfiler2
+
+  override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: super.dynIndexModels
+
+  def dynamicIndexRefreshRateSeconds: Long = 1L
 }
 
 object ValueAssembleProfiler2 extends AssembleProfiler {
