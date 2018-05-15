@@ -72,8 +72,6 @@ case class IndexByNodeRich[Model <: Product](
   indexByNodeSettings: Option[IndexByNodeSettings]
 )
 
-case class SrcIdContainer[Mode <: Product](srcId: SrcId)
-
 import IndexNodeThanosUtils._
 
 @assemble class IndexNodeThanos[Model <: Product](
@@ -98,20 +96,6 @@ import IndexNodeThanosUtils._
       val prod = leaf.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
       val nameList = prod.metaList.filter(_.isInstanceOf[NameMetaAttr]).map(_.asInstanceOf[NameMetaAttr]).map(_.value)
       getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(prod.by.getClass.getName).id, nameList) → leaf
-    }
-
-  def SoulIndexNodeContainerToLeafId(
-    leafId: SrcId,
-    innerLeafs: Values[InnerLeaf[Model]]
-  ): Values[(IndexByNodeId, SrcIdContainer[Model])] =
-    for {
-      leaf ← innerLeafs
-      if leaf.condition.isInstanceOf[ProdCondition[_ <: Product, Model]]
-    } yield {
-      val prod = leaf.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
-      val nameList = prod.metaList.filter(_.isInstanceOf[NameMetaAttr]).map(_.asInstanceOf[NameMetaAttr]).map(_.value)
-      val srcId = getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(prod.by.getClass.getName).id, nameList)
-      leaf.srcId → SrcIdContainer[Model](srcId)
     }
 
   def SoulIndexNodeCreation(
@@ -227,13 +211,11 @@ import IndexNodeThanosUtils._
 
   def SpaceIndexByNodeRichToIndexNodeId(
     indexByNodeRichId: SrcId,
-    indexByNodeRichs: Values[IndexByNodeRich[Model]],
-    @by[IndexByNodeId] parentContainers: Values[SrcIdContainer[Model]]
+    indexByNodeRichs: Values[IndexByNodeRich[Model]]
   ): Values[(IndexNodeId, IndexByNodeRich[Model])] =
     for {
-      parentId ← parentContainers.map(_.srcId)
       indexByNode ← indexByNodeRichs
-    } yield parentId → indexByNode
+    } yield indexByNode.indexByNode.indexNodeId → indexByNode
 
   def SpaceIndexNodeRich(
     indexNodeId: SrcId,
@@ -264,7 +246,7 @@ import IndexNodeThanosUtils._
       if !child.isAlive
     } yield {
       if (debugMode)
-        PrintColored("m")(s"[Thanos.Power] Deleted IndexByNode $child")
+        PrintColored("m")(s"[Thanos.Power] Deleted ${(child.indexByNode.srcId, decode(qAdapterRegistry)(child.indexByNode.byInstance.get))}")
       WithPK(PowerTransform(child.srcId))
     }
 }
