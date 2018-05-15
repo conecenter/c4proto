@@ -90,7 +90,8 @@ object StaticHashSearchImpl {
   case class EmptyIndexer[Model <: Product]()(
     val modelClass: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
-    val serializer: SerializationUtils
+    val serializer: SerializationUtils,
+    debugMode: Boolean = false
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = None
 
@@ -98,7 +99,7 @@ object StaticHashSearchImpl {
 
     def isMy(cond: InnerLeaf[Model]): Boolean = false
 
-    def assemble: List[Assemble] = new StaticAssembleShared(modelClass) :: Nil
+    def assemble: List[Assemble] = new StaticAssembleShared(modelClass, debugMode) :: Nil
   }
 
   case class IndexerImpl[By <: Product, Model <: Product, Field](
@@ -137,7 +138,7 @@ object StaticHashSearchImpl {
       val metaListUUID = serializer.uuidFromMetaAttrList(metaList)
       val rangeUUID = serializer.uuidFromOrig(range, by.getClass.getName)
       val srcId = serializer.uuidFromSeq(metaListUUID, rangeUUID).toString
-      srcId //s"$metaList$range" //TODO reverse it
+      s"$metaList$range$srcId"
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
@@ -212,7 +213,8 @@ import StaticHashSearchImpl._
 }
 
 @assemble class StaticAssembleShared[Model <: Product](
-  modelCl: Class[Model]
+  modelCl: Class[Model],
+  debugMode: Boolean = false
 ) extends Assemble with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
@@ -230,22 +232,18 @@ import StaticHashSearchImpl._
     @by[StaticHeapId] responses: Values[Model],
     @by[SharedHeapId] requests: Values[InnerUnionList[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
-    /*if (requests.nonEmpty)
-      println(Console.YELLOW + "HR", heapId, responses.size, requests.map(_.srcId), modelCl.getSimpleName + Console.RESET)
-    val time = System.currentTimeMillis()*/
-    val result = for {
-      request ← requests.par
-    } yield {
-      val lines = for {
-        line ← responses.par
-        if request.check(line)
-      } yield line
-      request.srcId → ResponseModelList(request.srcId + heapId, lines.toList)
+    TimeColored("r", ("handleRequest", heapId, requests.size, responses.size), requests.isEmpty || !debugMode) {
+      val result = for {
+        request ← requests.par
+      } yield {
+        val lines = for {
+          line ← responses.par
+          if request.check(line)
+        } yield line
+        request.srcId → ResponseModelList(request.srcId + heapId, lines.toList)
+      }
+      val newResult = result.to[Values]
+      newResult
     }
-    val newResult = result.to[Values]
-    /*val time2 = System.currentTimeMillis() - time
-    if (requests.nonEmpty)
-      println(Console.RED + "{TIME-git}", time2 + Console.RESET)*/
-    newResult
   }
 }

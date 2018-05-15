@@ -71,7 +71,7 @@ case class SerializationUtils(qAdapterRegistry: QAdapterRegistry) {
             val names = c.metaList.collect { case NameMetaAttr(name) ⇒ uuid(name) }
             uuidFromSeq(uuid(modelCl.getName) :: byHash ::: names)
           case None ⇒
-            PrintColored("r")(s"[Warning] NonSerializable condition: ${c.getClass}")
+            PrintColored("r")(s"[Warning] NonSerializable condition by: ${rq.getClass}")
             uuid(c.toString)
         }
       case c: Condition[_] ⇒

@@ -6,9 +6,33 @@ import ee.cone.c4assemble.ToPrimaryKey
 import scala.annotation.tailrec
 import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
+import scala.collection.immutable.Seq
 
-object PrintColored{
+object TimeColored {
+  def apply[R, F](color: String, tag: F, doNotPrint: Boolean = false, lowerBound: Long = 0L)(f: ⇒ R): R = {
+    if (!doNotPrint) {
+      val tagColored = PrintColored.makeColored(color)(tag)
+      val timeStart = System.currentTimeMillis()
+      val result = f
+      val endTime = System.currentTimeMillis() - timeStart
+      if (endTime > lowerBound)
+        println(s"[$tagColored] $endTime")
+      result
+    }
+    else {
+      f
+    }
+  }
+}
+
+object PrintColored {
   def apply[R](color: String, bgColor: String = "")(f: ⇒ R): R = {
+    val result = f
+    println(makeColored(color)(result))
+    result
+  }
+
+  def makeColored[R](color: String, bgColor: String = "")(f: R): String = {
     val colorAnsi = color match {
       case "y" ⇒ Console.YELLOW
       case "g" ⇒ Console.GREEN
@@ -22,12 +46,15 @@ object PrintColored{
       case "w" ⇒ Console.WHITE_B
       case "" ⇒ Console.BLACK_B
     }
-    print(colorAnsi)
-    print(bgColorAnsi)
-    val result = f
-    println(result)
-    print(Console.RESET)
-    result
+    s"$colorAnsi$bgColorAnsi$f${Console.RESET}"
+  }
+}
+
+object SingleInSeq {
+  def apply[C](l: Seq[C]): Seq[C] = l match {
+    case Seq() ⇒ l
+    case Seq(_) ⇒ l
+    case _ ⇒ FailWith.apply("Non single in SingleInSeq")
   }
 }
 
@@ -55,11 +82,60 @@ object Log2Pow2 {
   def apply(x: Int): Int = math.pow(2.0, (math.log(x) / math.log(2)).toInt).toInt
 }
 
+object MergeBySrcId {
+  def apply[A <: Product](seqOfSeq: Seq[List[A]]): List[A] = {
+    if (seqOfSeq.size == 1) {
+      seqOfSeq.head
+    } else {
+      combine(seqOfSeq)
+    }
+  }
+
+  private def combine[A <: Product](xss: Seq[List[A]]): List[A] = {
+    val b = List.newBuilder[A]
+    var its: Seq[List[(String, A)]] = xss.map(elem ⇒ elem.map(item ⇒ ToPrimaryKey(item) → item))
+    var lastItem: Option[A] = None
+    while (its.nonEmpty) {
+      its = its.filter(_.nonEmpty)
+      val (minElem, newIts) = minElemAndNewIter(its, lastItem)
+      lastItem = if (minElem.isDefined) minElem else lastItem
+      if (minElem.isDefined)
+        b += minElem.get
+      its = newIts
+    }
+    b.result
+  }
+
+  def minElemAndNewIter[A <: Product](in: Seq[List[(String, A)]], lastItem: Option[A]): (Option[A], Seq[List[(String, A)]]) = {
+    if (in.nonEmpty) {
+      val inWIndex: Seq[(List[(String, A)], Int)] = in.zipWithIndex
+      val minElem: ((String, A), Int) = in.map(_.head).zipWithIndex.minBy(_._1._1)
+      val ((_, item), minIndex) = minElem
+      val newIn = inWIndex.map(pair ⇒ {
+        val (list, index) = pair
+        if (index != minIndex)
+          pair
+        else
+          (list.tail, index)
+      }
+      )
+      if (lastItem.isEmpty || (lastItem.isDefined && item != lastItem.get))
+        (Option(item), newIn.unzip._1)
+      else
+        (None, newIn.unzip._1)
+    } else {
+      (None, in)
+    }
+  }
+
+
+}
+
 object DistinctBySrcIdFunctional {
-  def apply[A<:Product](xs: Iterable[A]): List[A] = collectUnique(xs, Set(), Nil)
+  def apply[A <: Product](xs: Iterable[A]): List[A] = collectUnique(xs, Set(), Nil)
 
   @tailrec
-  def collectUnique[A<:Product](list: Iterable[A], set: Set[SrcId], accum: List[A]): List[A] =
+  private def collectUnique[A <: Product](list: Iterable[A], set: Set[SrcId], accum: List[A]): List[A] =
     list match {
       case Nil => accum.reverse
       case x :: xs =>
@@ -67,18 +143,18 @@ object DistinctBySrcIdFunctional {
     }
 }
 
-trait LazyHashCodeProduct extends Product{
+trait LazyHashCodeProduct extends Product {
   lazy val savedHashCode: Int = runtime.ScalaRunTime._hashCode(this)
 
   override def hashCode(): Int = savedHashCode
 }
 
-object DistinctBySrcIdGit{
-  def apply[Repr, A<:Product, That](xs: IterableLike[A, Repr])(implicit cbf: CanBuildFrom[Repr, A, That]): That =
+object DistinctBySrcIdGit {
+  def apply[Repr, A <: Product, That](xs: IterableLike[A, Repr])(implicit cbf: CanBuildFrom[Repr, A, That]): That =
     new ConeCollectionGit(xs).distinctBySrcId
 }
 
-class ConeCollectionGit[A<:Product, Repr](xs: IterableLike[A, Repr]){
+class ConeCollectionGit[A <: Product, Repr](xs: IterableLike[A, Repr]) {
   def distinctBy[B, That](f: A => B)(implicit cbf: CanBuildFrom[Repr, A, That]): That = {
     val builder = cbf(xs.repr)
     val i = xs.iterator
@@ -93,6 +169,7 @@ class ConeCollectionGit[A<:Product, Repr](xs: IterableLike[A, Repr]){
     }
     builder.result
   }
+
   def distinctBySrcId[That](implicit cbf: CanBuildFrom[Repr, A, That]): That = distinctBy(ToPrimaryKey(_))
 
   //to Use implicit:

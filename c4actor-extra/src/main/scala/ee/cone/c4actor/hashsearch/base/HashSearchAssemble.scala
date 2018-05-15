@@ -10,15 +10,19 @@ import ee.cone.c4assemble._
 
 case class RootCondition[Model <: Product](srcId: SrcId, innerUnion: InnerUnionList[Model], requestId: SrcId)
 
-case class InnerConditionEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: List[SrcId])
+case class InnerConditionEstimate[Model <: Product](srcId: SrcId, count: Int, heapIds: List[SrcId]) extends LazyHashCodeProduct
 
 case class ResponseModelList[Model <: Product](srcId: SrcId, modelList: List[Model]) extends LazyHashCodeProduct
 
-case class InnerIntersectList[Model <: Product](srcId: SrcId, innerLeafs: List[InnerLeaf[Model]]) extends LazyHashCodeProduct with InnerCondition[Model] {
+case class OuterIntersectList[Model <: Product](srcId: SrcId, innerLeaf: InnerLeaf[Model]) extends LazyHashCodeProduct
+
+case class InnerIntersectList[Model <: Product](srcId: SrcId, innerLeafs: List[InnerLeaf[Model]]) extends InnerCondition[Model] {
   def check(model: Model): Boolean = innerLeafs.forall(_.check(model))
 }
 
-case class InnerUnionList[Model <: Product](srcId: SrcId, innerIntersects: List[InnerIntersectList[Model]]) extends LazyHashCodeProduct with InnerCondition[Model] {
+case class OuterUnionList[Model <: Product](srcId: SrcId, innerIntersect: InnerIntersectList[Model]) extends LazyHashCodeProduct
+
+case class InnerUnionList[Model <: Product](srcId: SrcId, innerIntersects: List[InnerIntersectList[Model]]) extends InnerCondition[Model] {
   def check(model: Model): Boolean = innerIntersects.foldLeft(false)((z, inter) ⇒ z || inter.check(model))
 }
 
@@ -26,7 +30,7 @@ case class InnerLeaf[Model <: Product](srcId: SrcId, condition: Condition[Model]
   def check(model: Model): Boolean = condition.check(model)
 }
 
-sealed trait InnerCondition[Model <: Product] {
+sealed trait InnerCondition[Model <: Product] extends LazyHashCodeProduct {
   def check(model: Model): Boolean
 }
 
@@ -40,10 +44,12 @@ trait HashSearchModelsApp {
   def hashSearchModels: List[Class[_ <: Product]] = Nil
 }
 
-trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp {
+trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp{
   def qAdapterRegistry: QAdapterRegistry
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer)) ::: super.assembles
+  def debugModeHashSearchAssemble: Boolean = false
+
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, preHashing, debugModeHashSearchAssemble)) ::: super.assembles
 }
 
 object HashSearchAssembleUtils {
@@ -104,12 +110,12 @@ object HashSearchAssembleUtils {
     case a: AnyCondition[Model] ⇒
       ParseUnion(List(ParseIntersect(List(ParseLeaf(a)))))
     case a: IntersectCondition[Model] ⇒
-      val left = flattenCondition(a.left)
-      val right = flattenCondition(a.right)
+      val left: ParseUnion[Model] = flattenCondition(a.left)
+      val right: ParseUnion[Model] = flattenCondition(a.right)
       interParseUnion(left, right)
     case a: UnionCondition[Model] ⇒
-      val left = flattenCondition(a.left)
-      val right = flattenCondition(a.right)
+      val left: ParseUnion[Model] = flattenCondition(a.left)
+      val right: ParseUnion[Model] = flattenCondition(a.right)
       uniteParseUnion(left, right)
   }
 
@@ -135,7 +141,9 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
 @assemble class HashSearchAssemble[Model <: Product](
   modelCl: Class[Model],
   val qAdapterRegistry: QAdapterRegistry,
-  condSer: SerializationUtils
+  condSer: SerializationUtils,
+  preHashing: PreHashing,
+  debugMode: Boolean = false
 ) extends Assemble with HashSearchAssembleSharedKeys
   with DepAssembleUtilityImpl {
   type InnerUnionId = SrcId
@@ -175,17 +183,17 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   def InnerUnionListToInnerInterIds(
     innerUnionId: SrcId,
     innerUnions: Values[InnerUnionList[Model]]
-  ): Values[(InnerIntersectId, InnerUnionList[Model])] =
+  ): Values[(InnerIntersectId, OuterUnionList[Model])] =
     for {
       union ← innerUnions
       inter ← union.innerIntersects
-    } yield inter.srcId → union
+    } yield inter.srcId → OuterUnionList(union.srcId, inter)
 
   def InnerUnionIntoInnerInters(
     innerInterId: SrcId,
-    @by[InnerIntersectId] innerUnions: Values[InnerUnionList[Model]]
+    @by[InnerIntersectId] outerUnions: Values[OuterUnionList[Model]]
   ): Values[(SrcId, InnerIntersectList[Model])] = {
-    val inner = Single(innerUnions.flatMap(_.innerIntersects.filter(_.srcId == innerInterId)).distinct)
+    val inner = outerUnions.head.innerIntersect
     WithPK(inner) :: Nil
   }
 
@@ -193,18 +201,20 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   def InnerInterListToInnerLeafIds(
     innerInterId: SrcId,
     innerInters: Values[InnerIntersectList[Model]]
-  ): Values[(InnerLeafId, InnerIntersectList[Model])] =
+  ): Values[(InnerLeafId, OuterIntersectList[Model])] =
     for {
       inter ← innerInters
       leaf ← inter.innerLeafs
-    } yield leaf.srcId → inter
+    } yield leaf.srcId → OuterIntersectList(inter.srcId, leaf)
 
   def InnerInterListIntoLeafs(
     innerInterId: SrcId,
-    @by[InnerLeafId] innerInters: Values[InnerIntersectList[Model]]
+    @by[InnerLeafId] outerInters: Values[OuterIntersectList[Model]]
   ): Values[(SrcId, InnerLeaf[Model])] = {
-    val inner = Single(innerInters.flatMap(_.innerLeafs.filter(_.srcId == innerInterId)).distinct)
-    WithPK(inner) :: Nil
+    TimeColored("g", ("InnerInterListIntoLeafs", outerInters.size), doNotPrint = !debugMode) {
+      val inner = outerInters.head.innerLeaf
+      WithPK(inner) :: Nil
+    }
   }
 
   // Handle count for Leaf
@@ -212,26 +222,28 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     leafCondEstimateId: SrcId,
     leafCondEstimates: Values[InnerConditionEstimate[Model]],
     innerLeafs: Values[InnerLeaf[Model]],
-    @by[InnerLeafId] innerIntersects: Values[InnerIntersectList[Model]]
+    @by[InnerLeafId] outerIntersects: Values[OuterIntersectList[Model]]
   ): Values[(InnerIntersectId, InnerConditionEstimate[Model])] =
-    for {
-      leafEstimate ← Single.option(leafCondEstimates).toList
-      _ ← Single.option(innerLeafs).toList
-      inter ← innerIntersects
-    } yield inter.srcId → leafEstimate
+    TimeColored("b", ("LeafInnerCondEstToInnerInter", outerIntersects.size, innerLeafs.map(_.condition)), doNotPrint = !debugMode) {
+      for {
+        leafEstimate ← SingleInSeq(leafCondEstimates)
+        _ ← SingleInSeq(innerLeafs)
+        inter ← outerIntersects
+      } yield inter.srcId → leafEstimate
+    }
 
   // Handle count for Inter
   def LeafInnerCondEstIntoInterInnerCondEstToInnerUnion(
     innerInterId: SrcId,
     innerInters: Values[InnerIntersectList[Model]],
     @by[InnerIntersectId] leafCondEstimates: Values[InnerConditionEstimate[Model]],
-    @by[InnerIntersectId] innerUnions: Values[InnerUnionList[Model]]
+    @by[InnerIntersectId] outerUnions: Values[OuterUnionList[Model]]
   ): Values[(InnerUnionId, InnerConditionEstimate[Model])] =
     for {
       inter ← innerInters
       estimate ← bestEstimateInter(leafCondEstimates).toList
-      union ← innerUnions
-    } yield union.srcId → estimate.copy[Model](srcId = inter.srcId)
+      union ← outerUnions
+    } yield union.srcId → estimate
 
   // Handle count for Union
   def InnerInterEstimateIntoInnerUnionCondEstimateToHeap(
@@ -253,19 +265,16 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     @by[SharedResponseId] responses: Values[ResponseModelList[Model]],
     @by[InnerUnionId] rootConditions: Values[RootCondition[Model]]
   ): Values[(RequestId, ResponseModelList[Model])] = {
-    /*val time = System.currentTimeMillis()*/
-    val finalList = responses.flatMap(_.modelList)
-    val distinctList = DistinctBySrcIdFunctional(finalList)
-    val result = for {
-      root ← rootConditions.par
-    } yield {
-      root.requestId → ResponseModelList(root.requestId + innerUnionId, distinctList)
+    TimeColored("g", ("ResponsesToRequest", responses.size, responses.map(_.modelList.size).sum), doNotPrint = !debugMode) {
+      val distinctList = MergeBySrcId(responses.map(_.modelList))
+      val result = for {
+        root ← rootConditions.par
+      } yield {
+        root.requestId → ResponseModelList(root.requestId + innerUnionId, distinctList)
+      }
+      val transResult = result.to[Values]
+      transResult
     }
-    val transResult = result.to[Values]
-    /*val time2 = System.currentTimeMillis() - time
-    if (time2 > 0)
-            println("{TIME2-git}", time2)*/
-    transResult
   }
 
   def ResponseByRequest(
@@ -273,11 +282,13 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     requests: Values[Request[Model]],
     @by[RequestId] responses: Values[ResponseModelList[Model]]
   ): Values[(SrcId, Response[Model])] =
-    for {
-      request ← requests
-    } yield {
-      val pk = ToPrimaryKey(request)
-      WithPK(Response(pk, request, Single.option(responses).map(_.modelList).toList.flatten))
+    TimeColored("y", ("ResponseByRequest", responses.size, responses.map(_.modelList.size).size), doNotPrint = !debugMode) {
+      for {
+        request ← requests
+      } yield {
+        val pk = ToPrimaryKey(request)
+        WithPK(Response(pk, request, preHashing.wrap(Single.option(responses).map(_.modelList).toList.flatten)))
+      }
     }
 
 }
