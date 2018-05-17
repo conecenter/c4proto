@@ -65,7 +65,7 @@ object StaticHashSearchImpl {
   }
 
   abstract class Indexer[Model <: Product] extends StaticIndexBuilder[Model] {
-    def modelClass: Class[Model]
+    def modelCl: Class[Model]
 
     def modelConditionFactory: ModelConditionFactory[Model]
 
@@ -75,7 +75,7 @@ object StaticHashSearchImpl {
       implicit ranger: Ranger[NBy, NField]
     ): StaticIndexBuilder[Model] = {
       val (valueToRanges, byToRanges) = ranger.ranges(by)
-      IndexerImpl(modelConditionFactory.filterMetaList(lens), by, this)(serializer, modelClass, modelConditionFactory, lens.of, valueToRanges, byToRanges.lift)
+      IndexerImpl(modelConditionFactory.filterMetaList(lens), by, this)(serializer, modelCl, modelConditionFactory, lens.of, valueToRanges, byToRanges.lift)
     }
 
     def assemble: List[Assemble]
@@ -88,7 +88,7 @@ object StaticHashSearchImpl {
   }
 
   case class EmptyIndexer[Model <: Product]()(
-    val modelClass: Class[Model],
+    val modelCl: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
     val serializer: SerializationUtils,
     debugMode: Boolean = false
@@ -99,14 +99,14 @@ object StaticHashSearchImpl {
 
     def isMy(cond: InnerLeaf[Model]): Boolean = false
 
-    def assemble: List[Assemble] = new StaticAssembleShared(modelClass, debugMode) :: Nil
+    def assemble: List[Assemble] = new StaticAssembleShared(modelCl, debugMode) :: Nil
   }
 
   case class IndexerImpl[By <: Product, Model <: Product, Field](
     metaList: List[MetaAttr], by: By, next: Indexer[Model]
   )(
     val serializer: SerializationUtils,
-    val modelClass: Class[Model],
+    val modelCl: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
     of: Model ⇒ Field,
     valueToRanges: Field ⇒ List[By],
@@ -137,8 +137,9 @@ object StaticHashSearchImpl {
     private def getHeapSrcId(metaList: List[MetaAttr], range: By): SrcId = {
       val metaListUUID = serializer.uuidFromMetaAttrList(metaList)
       val rangeUUID = serializer.uuidFromOrig(range, by.getClass.getName)
-      val srcId = serializer.uuidFromSeq(metaListUUID, rangeUUID).toString
-      s"$metaList$range$srcId"
+      val modelUUID = serializer.uuid(modelCl.getName)
+      val srcId = serializer.uuidFromSeq(modelUUID, metaListUUID, rangeUUID).toString
+      s"${modelCl.getName}$metaList$range$srcId"
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
@@ -151,7 +152,7 @@ object StaticHashSearchImpl {
       }
     }
 
-    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this, serializer) :: next.assemble
+    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelCl, this, serializer) :: next.assemble
   }
 
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)

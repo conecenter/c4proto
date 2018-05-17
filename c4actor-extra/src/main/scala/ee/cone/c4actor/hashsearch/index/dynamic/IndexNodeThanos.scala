@@ -20,8 +20,13 @@ trait DynamicIndexModelsApp {
   def dynIndexModels: List[ProductWithId[_ <: Product]] = Nil
 }
 
-trait DynamicIndexAssemble extends AssemblesApp with WithIndexNodeProtocol with DynamicIndexModelsApp with SerializationUtilsApp with CurrentTimeConfigApp {
-  def qAdapterRegistry: QAdapterRegistry
+trait DynamicIndexAssemble
+  extends AssemblesApp
+    with WithIndexNodeProtocol
+    with DynamicIndexModelsApp
+    with SerializationUtilsApp
+    with CurrentTimeConfigApp
+    with HashSearchDynamicIndexApp {
 
   def dynamicIndexRefreshRateSeconds: Long
 

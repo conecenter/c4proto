@@ -11,12 +11,12 @@ import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, Serialization
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeRich, ProductWithId}
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodeStats, IndexNode}
-import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
+import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-  //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
+//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 class HashSearchExtraTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
@@ -161,6 +161,8 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[StrStartsWith], cla
   }
 }
 
+object DefaultStrStartsWith extends DefaultModelFactory[StrStartsWith](classOf[StrStartsWith], _ ⇒ StrStartsWith(""))
+
 case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
   def prepare: List[MetaAttr] ⇒ IntEq ⇒ IntEq = _ ⇒ identity[IntEq]
 
@@ -176,6 +178,8 @@ case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classO
     )
   }
 }
+
+object DefaultIntEq extends DefaultModelFactory[IntEq](classOf[IntEq], id ⇒ IntEq(0))
 
 trait TestCondition extends SerializationUtilsApp {
   def changingCondition: String ⇒ Condition[TestObject] = value ⇒ {
@@ -236,8 +240,18 @@ class HashSearchExtraTestApp extends RichDataApp
   with HashSearchAssembleApp
   with SerializationUtilsMix
   with CurrentTimeAssembleMix
-  with DynamicIndexAssemble {
+  with DynamicIndexAssemble
+  with LensRegistryMix
+  with HashSearchRangerRegistryMix
+with DefaultModelFactoriesApp
+with ProdLensesApp{
 
+
+  override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
+
+  override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultIntEq :: DefaultStrStartsWith :: super.defaultModelFactories
+
+  override def hashSearchRangers: List[RangerWithCl[_ <: Product, _]] = StrStartsWithRanger :: IntEqRanger() :: super.hashSearchRangers
 
   override def rawQSender: RawQSender = NoRawQSender
 

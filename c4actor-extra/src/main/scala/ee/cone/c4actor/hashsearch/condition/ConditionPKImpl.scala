@@ -46,6 +46,9 @@ case class SerializationUtils(qAdapterRegistry: QAdapterRegistry) {
   def uuidFromSrcIdSeq(srcIdList: Seq[SrcId]): UUID =
     uuidFromSeq(srcIdList.map(uuid))
 
+  def srcIdFromStringList(strList: List[String]): SrcId =
+    uuidFromSeq(strList.map(str ⇒ uuid(str))).toString
+
   def uuid(data: String): UUID = UUID.nameUUIDFromBytes(data.getBytes(UTF_8))
 
   def uuidFromSeq(data: UUID*): UUID = {

@@ -1,25 +1,41 @@
 package ee.cone.c4actor
 
 
-trait LensRegistryAppTrait {
+trait ProdLensesApp {
   def lensList: List[ProdLens[_, _]] = Nil
-
-  def lensRegistry: LensRegistry
 }
 
-trait LensRegistryApp extends LensRegistryAppTrait {
+trait LensRegistryApp {
+  def lensRegistry: LensRegistryApi
+}
+
+trait LensRegistryMix extends ProdLensesApp {
   def lensRegistry = LensRegistryImpl(lensList)
 }
 
-trait LensRegistry {
-  def get[C, I](lensName: String): ProdLens[C, I]
+trait LensRegistryApi {
+  def get[C, I](lensName: List[String]): ProdLens[C, I]
+
+  def get[Model](lensName: List[String], modelCl: Class[Model]): ProdLens[Model, _]
+
+  def get[Model, Field](lensName: List[String], modelCl: Class[Model], fieldCl: Class[Field]): ProdLens[Model, Field]
 }
 
-case class LensRegistryImpl(lensList: List[ProdLens[_, _]]) extends LensRegistry {
-  private def getNameMetaAttr(prodLens: ProdLens[_, _]): NameMetaAttr = prodLens.metaList.find(_.isInstanceOf[NameMetaAttr])
-    .getOrElse(throw new Exception("Lens w/o name!")).asInstanceOf[NameMetaAttr]
+case class LensRegistryImpl(lensList: List[ProdLens[_, _]]) extends LensRegistryApi {
+  private def getNames(prodLens: ProdLens[_, _]): List[String] = prodLens.metaList.collect { case a: NameMetaAttr ⇒ a }
+    .map(_.value) match {
+    case Nil ⇒ FailWith.apply(s"Lens without name in LensRegistryImpl: $prodLens")
+    case a ⇒ a
+  }
 
-  lazy val lensMap: Map[String, ProdLens[_, _]] = lensList.map(lens ⇒ (getNameMetaAttr(lens).value, lens)).toMap
+  lazy val lensMap: Map[List[String], ProdLens[_, _]] = lensList.map(lens ⇒ (getNames(lens), lens)).toMap
 
-  def get[C, I](lensName: String): ProdLens[C, I] = lensMap.get(lensName).asInstanceOf[ProdLens[C, I]]
+  def get[C, I](lensName: List[String]): ProdLens[C, I] =
+    lensMap(lensName).asInstanceOf[ProdLens[C, I]]
+
+  def get[Model](lensName: List[String], modelCl: Class[Model]): ProdLens[Model, _] =
+    lensMap(lensName).asInstanceOf[ProdLens[Model, _]]
+
+  def get[Model, Field](lensName: List[String], modelCl: Class[Model], fieldCl: Class[Field]): ProdLens[Model, Field] =
+    lensMap(lensName).asInstanceOf[ProdLens[Model, Field]]
 }

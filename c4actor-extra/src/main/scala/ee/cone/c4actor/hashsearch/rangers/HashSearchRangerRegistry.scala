@@ -21,6 +21,8 @@ trait HashSearchRangerRegistryApi {
   def getByName[By <: Product, Field](rangerName: String): Option[RangerWithCl[By, Field]]
 
   def getByById[By <: Product, Field](byId: Long): Option[RangerWithCl[By, Field]]
+
+  def getByIdUntyped(byId: Long): Option[RangerWithCl[_ <: Product, _]]
 }
 
 case class HashSearchRangerRegistryImpl(rangers: List[RangerWithCl[_ <: Product, _]], qAdapterRegistry: QAdapterRegistry) extends HashSearchRangerRegistryApi {
@@ -41,4 +43,6 @@ case class HashSearchRangerRegistryImpl(rangers: List[RangerWithCl[_ <: Product,
 
   def getByById[By <: Product, Field](byId: Long): Option[RangerWithCl[By, Field]] =
     byIdMap.get(byId).map(_.asInstanceOf[RangerWithCl[By, Field]])
+
+  def getByIdUntyped(byId: Long): Option[RangerWithCl[_ <: Product, _]] = byIdMap.get(byId)
 }
