@@ -4,6 +4,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	let nodesObj = [];
 	let currentFocusNode = null;
 	let preferNode = null;
+	let lastMousePos = {};
 	const callbacks = []
 	
 	const {addEventListener,setTimeout} = windowManager
@@ -231,6 +232,13 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			btn.dispatchEvent(eventManager.create("mousedown",{bubbles:true}))
 		}
 	}
+	const getLastClickNode = () =>{
+		const {x,y} = lastMousePos
+		return x&&y&&documentManager.nodeFromPoint(x,y)		
+	}
+	const onMouseDown = (e) => {
+		lastMousePos = {x:e.clientX,y:e.clientY}
+	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
 		sendEvent(()=>eventManager.create("cpaste",{detail:data}))
@@ -239,6 +247,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	addEventListener("paste",onPaste)
 	addEventListener("cTab",onTab)		
 	addEventListener("cEnter",onEnter)
+	addEventListener("mousedown",onMouseDown,true)
 	const isPrintableKeyCode = (ch)	=> ch&&("abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase()))
 	const isVk = (el) => el.classList.contains("vkElement")
 	const doCheck = () => {		
@@ -270,12 +279,15 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		return {unreg}
 	}	
 	const switchOff = (node,relatedTarget) => {
+		const lastNode = getLastClickNode()
+		if(lastNode && lastNode.tagName == "CANVAS") return currentFocusNode && currentFocusNode.focus()
 		if(currentFocusNode == node.el && relatedTarget) {
 			if(!nodesObj.find(o=>o.n.contains(relatedTarget))) {				
 				currentFocusNode = null
 			}
 		}
 		if(!relatedTarget) currentFocusNode = null
+		lastMousePos = {}
 	}
 	const switchTo = (node) => {
 		//log(rootCtx(node.props.ctx))
