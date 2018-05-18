@@ -27,7 +27,7 @@ trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with Data
   def transform(transition: WorldTransition): WorldTransition
 }
 object WorldTransition { type Diff = Map[AssembledKey[_],Map[Object,Boolean]] }
-case class WorldTransition(prev: Option[WorldTransition], diff: Diff, result: ReadModel)
+case class WorldTransition(prev: Option[WorldTransition], diff: Diff, result: ReadModel, isParallel: Boolean)
 
 trait AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit

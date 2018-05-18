@@ -7,7 +7,8 @@ import StaticHashSearchApi._
 import ee.cone.c4actor.HashSearch._
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerCondition, InnerConditionEstimate}
+import ee.cone.c4actor.hashsearch.base._
+import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUtilsApp}
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
@@ -42,21 +43,22 @@ object StaticHashSearchImpl {
     heapIds(expression(indexers)(cond), GatherAll)
 
 
-  def cEstimate[Model <: Product](cond: InnerCondition[Model], priorities: Values[StaticCount[Model]]): InnerConditionEstimate[Model] = {
+  def cEstimate[Model <: Product](cond: InnerLeaf[Model], priorities: Values[StaticCount[Model]]): InnerConditionEstimate[Model] = {
     if (priorities.distinct.size != priorities.size)
       println("Warning, non singe priority", cond)
     val priorPrep = priorities.distinct
-    InnerConditionEstimate(cond, Log2Pow2(priorPrep.map(_.count).sum), priorPrep.map(_.heapId).toList)
+    InnerConditionEstimate(cond.srcId, Log2Pow2(priorPrep.map(_.count).sum), priorPrep.map(_.heapId).toList)
   }
 
   private def expression[Model <: Product](indexers: Indexer[Model]): Condition[Model] ⇒ Expression =
     c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
 
   class StaticFactoryImpl(
-    modelConditionFactory: ModelConditionFactory[Unit]
+    modelConditionFactory: ModelConditionFactory[Unit],
+    serializer: SerializationUtils
   ) extends StaticFactory {
     def index[Model <: Product](cl: Class[Model]): Indexer[Model] =
-      EmptyIndexer[Model]()(cl, modelConditionFactory.of[Model])
+      EmptyIndexer[Model]()(cl, modelConditionFactory.of[Model], serializer)
 
     def request[Model <: Product](condition: Condition[Model]): Request[Model] =
       Request(UUID.nameUUIDFromBytes(condition.toString.getBytes(UTF_8)).toString, condition)
@@ -67,11 +69,13 @@ object StaticHashSearchImpl {
 
     def modelConditionFactory: ModelConditionFactory[Model]
 
+    def serializer: SerializationUtils
+
     def add[NBy <: Product, NField](lens: ProdLens[Model, NField], by: NBy)(
       implicit ranger: Ranger[NBy, NField]
     ): StaticIndexBuilder[Model] = {
       val (valueToRanges, byToRanges) = ranger.ranges(by)
-      IndexerImpl(modelConditionFactory.filterMetaList(lens), by, this)(modelClass, modelConditionFactory, lens.of, valueToRanges, byToRanges.lift)
+      IndexerImpl(modelConditionFactory.filterMetaList(lens), by, this)(serializer, modelClass, modelConditionFactory, lens.of, valueToRanges, byToRanges.lift)
     }
 
     def assemble: List[Assemble]
@@ -80,25 +84,28 @@ object StaticHashSearchImpl {
 
     def heapIds(model: Model): List[SrcId]
 
-    def isMy(cond: InnerCondition[Model]): Boolean
+    def isMy(cond: InnerLeaf[Model]): Boolean
   }
 
   case class EmptyIndexer[Model <: Product]()(
     val modelClass: Class[Model],
-    val modelConditionFactory: ModelConditionFactory[Model]
+    val modelConditionFactory: ModelConditionFactory[Model],
+    val serializer: SerializationUtils,
+    debugMode: Boolean = false
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = None
 
     def heapIds(model: Model): List[SrcId] = Nil
 
-    def isMy(cond: InnerCondition[Model]): Boolean = false
+    def isMy(cond: InnerLeaf[Model]): Boolean = false
 
-    def assemble: List[Assemble] = new StaticAssembleShared(modelClass) :: Nil
+    def assemble: List[Assemble] = new StaticAssembleShared(modelClass, debugMode) :: Nil
   }
 
   case class IndexerImpl[By <: Product, Model <: Product, Field](
     metaList: List[MetaAttr], by: By, next: Indexer[Model]
   )(
+    val serializer: SerializationUtils,
     val modelClass: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
     of: Model ⇒ Field,
@@ -123,19 +130,28 @@ object StaticHashSearchImpl {
       range ← ranges
     } yield {
       //println(range,range.hashCode())
-      letters3(metaList.hashCode ^ range.hashCode)
+      //letters3(metaList.hashCode ^ range.hashCode)
+      getHeapSrcId(metaList, range)
+    }
+
+    private def getHeapSrcId(metaList: List[MetaAttr], range: By): SrcId = {
+      val metaListUUID = serializer.uuidFromMetaAttrList(metaList)
+      val rangeUUID = serializer.uuidFromOrig(range, by.getClass.getName)
+      val srcId = serializer.uuidFromSeq(metaListUUID, rangeUUID).toString
+      srcId // s"$metaList$range" //TODO reverse it
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
       _.collectFirst { case l: NameMetaAttr ⇒ l }.get
 
-    def isMy(cond: InnerCondition[Model]): Boolean =
+    def isMy(cond: InnerLeaf[Model]): Boolean = {
       cond.condition match {
         case a: ProdConditionImpl[By, Model, Field] ⇒ fltML(a.metaList) == fltML(metaList) && a.by.getClass.getName == by.getClass.getName
         case _ ⇒ false
       }
+    }
 
-    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this) :: next.assemble
+    def assemble: List[Assemble] = new HashSearchStaticLeafAssemble[Model](modelClass, this, serializer) :: next.assemble
   }
 
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
@@ -148,17 +164,18 @@ trait HashSearchStaticLeafFactoryApi {
   def staticLeafFactory: StaticFactory
 }
 
-trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi {
+trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
 
-  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory)
+  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer)
 }
 
 import StaticHashSearchImpl._
 
 @assemble class HashSearchStaticLeafAssemble[Model <: Product](
   modelCl: Class[Model],
-  indexer: Indexer[Model]
+  indexer: Indexer[Model],
+  serializer: SerializationUtils
 ) extends Assemble with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
@@ -174,7 +191,7 @@ import StaticHashSearchImpl._
 
   def reqByHeap(
     leafCondId: SrcId,
-    leafConds: Values[InnerCondition[Model]]
+    leafConds: Values[InnerLeaf[Model]]
   ): Values[(StaticHeapId, StaticNeed[Model])] = for {
     leafCond ← leafConds
     if indexer.isMy(leafCond)
@@ -185,7 +202,7 @@ import StaticHashSearchImpl._
 
   def neededRespHeapPriority(
     requestId: SrcId,
-    requests: Values[InnerCondition[Model]],
+    requests: Values[InnerLeaf[Model]],
     @by[LeafCondId] priorities: Values[StaticCount[Model]]
   ): Values[(SrcId, InnerConditionEstimate[Model])] = for {
     request ← single(requests)
@@ -195,8 +212,10 @@ import StaticHashSearchImpl._
   }
 }
 
+
 @assemble class StaticAssembleShared[Model <: Product](
-  modelCl: Class[Model]
+  modelCl: Class[Model],
+  debugMode: Boolean = false
 ) extends Assemble with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
@@ -212,13 +231,20 @@ import StaticHashSearchImpl._
   def handleRequest(
     heapId: SrcId,
     @by[StaticHeapId] responses: Values[Model],
-    @by[SharedHeapId] requests: Values[Request[Model]]
-  ): Values[(SharedResponseId, Model)] = {
-    //println(heapId, responses.size, requests.headOption.map(ToPrimaryKey(_)))
-    for {
-      request ← requests
-      line ← responses
-      if request.condition.check(line)
-    } yield ToPrimaryKey(request) → line
+    @by[SharedHeapId] requests: Values[InnerUnionList[Model]]
+  ): Values[(SharedResponseId, ResponseModelList[Model])] = {
+    TimeColored("r", ("handleRequest", heapId, requests.size, responses.size), requests.isEmpty || !debugMode) {
+      val result = for {
+        request ← requests.par
+      } yield {
+        val lines = for {
+          line ← responses.par
+          if request.check(line)
+        } yield line
+        request.srcId → ResponseModelList(request.srcId + heapId, lines.toList)
+      }
+      val newResult = result.to[Values]
+      newResult
+    }
   }
 }

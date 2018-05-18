@@ -7,7 +7,7 @@ import scala.collection.immutable.Map
 object PrepareBackStage extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
     //println("pbs")
-    WorldTransition(Option(transition), Map.empty, transition.result)
+    WorldTransition(Option(transition), Map.empty, transition.result, transition.isParallel)
   }
 }
 
