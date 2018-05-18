@@ -31,7 +31,7 @@ class HashSearchExtraTestStart(
     val world = for {
       i ← 1 to 10000
     } yield TestObject(i.toString, 239, i.toString.take(5))
-    val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test")) ++ update(ChangingNode("test", "")) ++ update(ChangingNode("test-safe", "")) ++ world.flatMap(update)
+    val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test")) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val context: Context = contextFactory.create()
     val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
@@ -287,8 +287,8 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
     val startTime = System.currentTimeMillis
     finalCount ⇒ {
       val period = System.currentTimeMillis - startTime
-      if (period > 10)
-        println(s"assembling rule $ruleName $startAction $finalCount items in $period ms")
+      if (period > 0)
+        println(s"${Console.WHITE_B}${Console.BLACK}assembling rule $ruleName $startAction $finalCount items in $period ms${Console.RESET}")
     }
   }
 }

@@ -19,7 +19,7 @@ trait HashSearchDynamicIndexApp
     with AssemblesApp
     with DynamicIndexModelsApp
     with SerializationUtilsApp {
-  override def assembles: List[Assemble] = dynIndexModels.map(model ⇒ new HashSearchDynamicIndexAssemble(
+  override def assembles: List[Assemble] = dynIndexModels.distinct.map(model ⇒ new HashSearchDynamicIndexAssemble(
     model.modelCl, model.modelId,
     hashSearchRangerRegistry, defaultModelRegistry, qAdapterRegistry, lensRegistry, serializer
   )
@@ -135,9 +135,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
   ): Values[(SrcId, Model)] = {
     rangerRegistry.getByByIdUntyped(nodeBy.indexNode.indexByNode.byInstance.get.adapterId) match {
       case Some(ranger) ⇒
-        TimeColored("r", "ToHeapsInner", !debug, -1L)(
-          modelsToHeapsInnerBy(models, ranger.byCl, ranger.fieldCl, ranger, nodeBy)
-        )
+        modelsToHeapsInnerBy(models, ranger.byCl, ranger.fieldCl, ranger, nodeBy)
       case None ⇒
         Nil
     }
@@ -287,7 +285,7 @@ trait DynamicIndexSharedTypes {
     (for {
       nodeBy ← indexByNodeWithDirective
     } yield {
-      TimeColored("y", "ModelToHeap", modelId != "100", -1L)(modelToHeapsBy(models, nodeBy, modelId == "100"))
+      TimeColored("y", s"ModelToHeap", modelId != "100", -1L)(modelToHeapsBy(models, nodeBy, modelId == "100"))
     }).flatten
   }
 
@@ -351,13 +349,15 @@ trait DynamicIndexSharedTypes {
   def PrintTest(
     lusdf: SrcId,
     firstborn: Values[Firstborn],
-    @by[All] lule: Values[A]
+    @by[All] lule: Values[A],
+    @by[IndexByNodeRichAll] indexByNodeWithDirective: Values[IndexByNodeWithDirective[Model]]
   ): Values[(All, Model)] = {
     for {
       a ← lule
     } yield {
       PrintColored("", "w")(s"[HEAPS] ${a.srcId.slice(41, 80)}:${a.size}")
     }
+    PrintColored("b","w")(s"${indexByNodeWithDirective.size}")
     PrintColored("", "w")(s"---------------------------------------")
     Nil
   }
