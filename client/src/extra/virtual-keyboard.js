@@ -118,11 +118,11 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			if(!this.root) return null
 			const cNode = focusModule.getFocusNode()
 			if(!cNode || !this.root.contains(cNode)) return null
-			const input = cNode.querySelector("input:not([readonly])")
+			const input = cNode.querySelector("input:not([readonly])")||cNode.querySelector('input[name="vk"]')
 			return input
 		}	
 		showVk(){
-			const input = this.getInput()	
+			const input = this.getInput()				
 			if(input) return true
 			return false						
 		}
@@ -202,9 +202,9 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		}
 		fitIn(){			
 			const vkLayout = this.getCurrentLayout()			
-			if(!vkLayout && this.vkLayout == vkLayout) return
+			if(!vkLayout && this.vkLayout == vkLayout) return 
 			const emK = this.emRatio()
-			if(!emK) return
+			if(!emK) return 
 			const vkContainer = this.getVkContainer()			
 			if(!vkContainer||!vkLayout) return this.state.show?this.updateState({},false):null	
 			const show = vkContainer.static||this.showVk()
