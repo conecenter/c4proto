@@ -73,7 +73,6 @@ case class IndexByNodeRich[Model <: Product](
   srcId: SrcId,
   isAlive: Boolean,
   indexByNode: IndexByNode,
-  indexByNodeStats: IndexByNodeStats,
   indexByNodeSettings: Option[IndexByNodeSettings]
 )
 
@@ -208,7 +207,7 @@ import IndexNodeThanosUtils._
       val isAlive = leafIsPresent ||
         (setting.isDefined && (setting.get.alwaysAlive || currentTime - setting.get.keepAliveSeconds.get - stats.lastPongSeconds < 0)) ||
         (currentTime - refreshRateSeconds * 1 - stats.lastPongSeconds < 0)
-      val rich = IndexByNodeRich[Model](node.srcId, isAlive, node, stats, setting)
+      val rich = IndexByNodeRich[Model](node.srcId, isAlive, node, setting)
       if (debugMode)
         PrintColored("b", "w")(s"[Thanos.Space] Updated IndexByNodeRich ${(isAlive, node.srcId, innerLeafs.headOption.map(_.condition.asInstanceOf[ProdCondition[_ <: Product, Model]].by))}")
       WithPK(rich)

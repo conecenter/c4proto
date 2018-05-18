@@ -41,7 +41,7 @@ class HashSearchExtraTestStart(
     //logger.info(s"${nGlobal.assembled}")
     println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
+    println("Answer", ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
     println(ByPK(classOf[IndexNode]).of(nGlobalAA).values)
     println(ByPK(classOf[IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
     println(ByPK(classOf[IndexByNodeStats]).of(nGlobalAA).values)
@@ -52,7 +52,7 @@ class HashSearchExtraTestStart(
     val newNGlobalAA = ActivateContext(newNGlobalA)
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
+    println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
     println(ByPK(classOf[IndexByNode]).of(newNGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
     println(ByPK(classOf[IndexByNodeStats]).of(newNGlobalAA).values)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -62,7 +62,7 @@ class HashSearchExtraTestStart(
     val newNGlobal2AA = ActivateContext(newNGlobal2A)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
-    println(ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
+    println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
     println(ByPK(classOf[IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
     println(ByPK(classOf[IndexByNodeStats]).of(newNGlobal2AA).values)
     execution.complete()
@@ -243,8 +243,8 @@ class HashSearchExtraTestApp extends RichDataApp
   with DynamicIndexAssemble
   with LensRegistryMix
   with HashSearchRangerRegistryMix
-with DefaultModelFactoriesApp
-with ProdLensesApp{
+  with DefaultModelFactoriesApp
+  with ProdLensesApp {
 
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
@@ -257,7 +257,7 @@ with ProdLensesApp{
 
   override def parallelAssembleOn: Boolean = true
 
-  override def dynamicIndexAssembleDebugMode: Boolean = true
+  override def dynamicIndexAssembleDebugMode: Boolean = false
 
   override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver, qAdapterRegistry) :: super.toStart
 
@@ -268,10 +268,10 @@ with ProdLensesApp{
   override def protocols: List[Protocol] = AnyProtocol :: EqProtocol :: TestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
-    println((new CreateRequest(conditions, changingCondition) :: joiners :::
+    println((new CreateRequest(conditions, changingCondition) :: /*joiners*/
       super.assembles).mkString("\n")
     )
-    new CreateRequest(conditions, changingCondition) :: joiners :::
+    new CreateRequest(conditions, changingCondition) :: /*joiners*/
       super.assembles
   }
 
