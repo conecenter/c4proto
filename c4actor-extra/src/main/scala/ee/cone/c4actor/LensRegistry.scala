@@ -10,7 +10,21 @@ trait LensRegistryApp {
 }
 
 trait LensRegistryMix extends ProdLensesApp {
-  def lensRegistry = LensRegistryImpl(lensList)
+  def lensRegistry = {
+    lensIntegrityCheck
+    LensRegistryImpl(lensList)
+  }
+
+  private def lensIntegrityCheck = {
+    val errors = lensList.groupBy(prodLens ⇒ prodLens.metaList.collect { case a: NameMetaAttr ⇒ a }
+      .map(_.value) match {
+      case Nil ⇒ FailWith.apply(s"Lens without name in LensRegistryImpl: $prodLens")
+      case a ⇒ a
+    }
+    ).filter(_._2.size > 1)
+    if (errors.nonEmpty)
+      FailWith.apply(s"Non unique lens name: $errors")
+  }
 }
 
 trait LensRegistryApi {

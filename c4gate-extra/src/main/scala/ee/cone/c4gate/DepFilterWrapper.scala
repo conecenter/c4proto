@@ -5,7 +5,6 @@ import ee.cone.c4actor.dep.request.{LeafInfoHolder, LeafRegistryApp}
 import ee.cone.c4actor.dep.{Dep, InnerDep, RequestDep, SeqParallelDep}
 import ee.cone.c4actor.hashsearch.base.{HashSearchDepRequestFactory, HashSearchDepRequestFactoryApp}
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
-import ee.cone.c4actor.hashsearch.index.HashSearchStaticLeafFactoryApi
 import ee.cone.c4actor.hashsearch.rangers.HashSearchRangerRegistryApp
 import ee.cone.c4gate.dep.request.{FLRequestDef, FilterListRequestApp}
 
@@ -13,7 +12,7 @@ trait DepFilterWrapperApp {
   def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[String] = ".*" :: Nil): DepFilterWrapperApi[Model]
 }
 
-trait DepFilterWrapperMix extends DepFilterWrapperApp with HashSearchStaticLeafFactoryApi with HashSearchRangerRegistryApp {
+trait DepFilterWrapperMix extends DepFilterWrapperApp with HashSearchRangerRegistryApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
 
   def defaultModelRegistry: DefaultModelRegistry
