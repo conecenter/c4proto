@@ -38,8 +38,6 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
   def rangerRegistry: HashSearchRangerRegistryApi
 
   def cDynEstimate[Model <: Product](cond: InnerLeaf[Model], priorities: Values[DynamicCount[Model]]): Values[InnerConditionEstimate[Model]] = {
-    if (priorities.distinct.size != priorities.size)
-      println("Warning, non singe priority", cond, priorities)
     val priorPrep = priorities.distinct
     if (priorPrep.nonEmpty)
       InnerConditionEstimate[Model](cond.srcId, Log2Pow2(priorPrep.map(_.count).sum), priorPrep.map(_.heapId).toList) :: Nil

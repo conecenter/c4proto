@@ -93,14 +93,19 @@ import IndexNodeThanosUtils._
     leafId: SrcId,
     innerLeafs: Values[InnerLeaf[Model]]
   ): Values[(IndexNodeId, InnerLeaf[Model])] =
-    for {
+    (for {
       leaf ← innerLeafs
       if leaf.condition.isInstanceOf[ProdCondition[_ <: Product, Model]]
     } yield {
       val prod = leaf.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
       val nameList = prod.metaList.filter(_.isInstanceOf[NameMetaAttr]).map(_.asInstanceOf[NameMetaAttr]).map(_.value)
-      getIndexNodeSrcId(ser, modelId, qAdapterRegistry.byName(prod.by.getClass.getName).id, nameList) → leaf
-    }
+      val byIdOpt = qAdapterRegistry.byName.get(prod.by.getClass.getName).map(_.id)
+      if (byIdOpt.isDefined) {
+        (getIndexNodeSrcId(ser, modelId, byIdOpt.get, nameList) → leaf) :: Nil
+      } else {
+        Nil
+      }
+    }).flatten
 
   def SoulIndexNodeCreation(
     indexNodeId: SrcId,
@@ -184,10 +189,10 @@ import IndexNodeThanosUtils._
     firstborn: Values[Firstborn],
     @by[All] currentTimeNodes: Values[CurrentTimeNode]
   ): Values[(PowerIndexNodeThanos, CurrentTimeNode)] =
-    for {
+    (for {
       pong ← currentTimeNodes
       if pong.srcId == "DynamicIndexAssembleGC"
-    } yield WithAll(pong)
+    } yield WithAll(pong)).headOption.to[Values]
 
   def SpaceIndexByNodeRich(
     indexByNodeId: SrcId,
