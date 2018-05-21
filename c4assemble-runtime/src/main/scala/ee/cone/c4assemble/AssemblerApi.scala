@@ -27,7 +27,7 @@ object ToPrimaryKey {
 class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey[A]) extends DataDependencyTo[A]
 
 object TreeAssemblerTypes {
-  type Replace = Map[AssembledKey[_],Index[Object,Object]] ⇒ ReadModel ⇒ ReadModel
+  type Replace = (Map[AssembledKey[_],Index[Object,Object]], Boolean) ⇒ ReadModel ⇒ ReadModel
   type MultiSet[T] = Map[T,Int]
 }
 

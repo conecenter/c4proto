@@ -13,13 +13,13 @@ trait ByPKRequestApi {
   def byPKClasses: List[Class[_ <: Product]] = Nil
 }
 
-trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp with ByPKRequestApi {
-  override def assembles: List[Assemble] = byPKClasses.distinct.map(className ⇒ new ByPKGenericAssemble(className)) ::: super.assembles
+trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp with ByPKRequestApi with PreHashingApp{
+  override def assembles: List[Assemble] = byPKClasses.distinct.map(className ⇒ new ByPKGenericAssemble(className, preHashing)) ::: super.assembles
 
   override def protocols: List[Protocol] = ByPKRequestProtocol :: super.protocols
 }
 
-@assemble class ByPKGenericAssemble[A <: Product](handledClass: Class[A]) extends Assemble {
+@assemble class ByPKGenericAssemble[A <: Product](handledClass: Class[A], preHashing: PreHashing) extends Assemble {
   type ByPkItemSrcId = SrcId
 
   def BPKRequestWithSrcToItemSrcId(
@@ -43,7 +43,7 @@ trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp with ByPKRequ
       rq ← requests
       if rq.request.isInstanceOf[ByPKRequest] && rq.request.asInstanceOf[ByPKRequest].className == handledClass.getName
     ) yield {
-      WithPK(DepInnerResponse(rq, Option(items.headOption)))
+      WithPK(DepInnerResponse(rq, preHashing.wrap(Option(items.headOption))))
     }
 }
 
