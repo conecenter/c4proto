@@ -4,10 +4,10 @@ import React from 'react'
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
-import VDomMix       from "../main/vdom-mix"
-import {VDomSender,pairOfInputAttributes,ctxToBranchPath}  from "../main/vdom-util"
+import withState     from "../main/active-state"
+import {VDomCore,VDomAttributes} from "../main/vdom-core"
+import {VDomSender,pairOfInputAttributes} from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
-import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
 import {ExampleAuth} from "../test/vdom-auth"
@@ -27,38 +27,22 @@ const exampleRequestState = ExampleRequestState(sender)
 
 const log = v => console.log(v)
 const getRootElement = () => document.body
-const createElement = n => document.createElement(n)
-
-class StatefulPureComponent extends React.PureComponent {
-    constructor(props) {
-        super(props);
-        this.state = this.getInitialState ? this.getInitialState() : {}
-    }
-}
 
 const util = Canvas.CanvasUtil()
-const baseCanvasSystem = Canvas.BaseCanvasSystem(util,createElement)
-const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
-const getViewPortRect = () => document.body.getBoundingClientRect()
-const exchangeMix = options => canvas => [
-    Canvas.ResizeCanvasSetup(canvas),
-    Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,getViewPortRect,getRootElement,createElement)
-]
-const canvasBaseMix = CanvasBaseMix(log,util,baseCanvasSystem)
 
-const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log)]
+const exchangeMix = options => canvas => Canvas.ExchangeCanvasSetup(canvas)
+const canvasMods = [CanvasBaseMix(log,util),exchangeMix,CanvasExtraMix(log)]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctxToBranchPath)
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender)
 
 const exampleAuth = ExampleAuth(pairOfInputAttributes)
-const transforms = mergeAll([exampleAuth.transforms, canvas.transforms])
+const vDomAttributes = VDomAttributes(exampleRequestState)
+const transforms = mergeAll([vDomAttributes.transforms, exampleAuth.transforms, canvas.transforms])
 
-const vDom = VDomMix(log,exampleRequestState,transforms,getRootElement,createElement,StatefulPureComponent)
-const branches = Branches(log,vDom.branchHandlers)
+const vDom = VDomCore(log,transforms,getRootElement)
 
-const receiversList = [branches.receivers,feedback.receivers,{fail},exampleRequestState.receivers]
+const receiversList = [vDom.receivers,feedback.receivers,{fail},exampleRequestState.receivers]
 const createEventSource = () => new EventSource(location.protocol+"//"+location.host+"/sse")
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)
-activate(requestAnimationFrame, [connection.checkActivate,branches.checkActivate])
+activate(requestAnimationFrame, withState(log,[connection.checkActivate,vDom.checkActivate,canvas.checkActivate]))

@@ -5,13 +5,14 @@ export function mergeAll(list){
     return list.reduce(merger((left,right) => { throw ["unable to merge",left,right] }), {})
 }
 
+export function spreadAll(...args){ return Object.assign({},...args) }
+
 export function merger(resolve){
     const mergePair = (left,right) => (
         isObj(left) && isObj(right) ?
-        Object.keys(right).filter(k => k in left).reduce(
-            (was,k) => ({...was, [k]: mergePair(left[k],right[k]) }),
-            {...left,...right}
-        ) :
+        spreadAll(left,right,...Object.keys(right).filter(k => k in left).map(
+            k => ({[k]: mergePair(left[k],right[k]) })
+        )) :
         resolve(left,right)
     )
     return mergePair

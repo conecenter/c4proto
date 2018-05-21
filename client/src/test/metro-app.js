@@ -6,10 +6,10 @@ import "eventsource-polyfill"
 import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
-import VDomMix       from "../main/vdom-mix"
-import {VDomSender,ctxToBranchPath}  from "../main/vdom-util"
+import withState     from "../main/active-state"
+import {VDomCore,VDomAttributes} from "../main/vdom-core"
+import {VDomSender}  from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
-import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
 import ScannerProxy  from "../extra/scanner-proxy"
@@ -37,7 +37,6 @@ const sender = VDomSender(feedback)
 const log = v => { if(window.console) console.log("log",v)}
 const requestState = sender//RequestState(sender,log)
 const getRootElement = () => document.body
-const createElement = n => document.createElement(n)
 const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
 
 class StatefulComponent extends React.Component {
@@ -132,38 +131,22 @@ const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 
 //canvas
 const util = Canvas.CanvasUtil()
-const baseCanvasSystem = Canvas.BaseCanvasSystem(util,createElement)
-const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
-const getViewPortRect = () => {
-    const footer = document.body.querySelector(".mainFooter")
-    const bRect = document.body.getBoundingClientRect()
-    return !footer ? bRect : {
-      top: bRect.top, left: bRect.left, right: bRect.right,
-      bottom: footer.getBoundingClientRect().top
-    }
-}
-const exchangeMix = options => canvas => [
-    Canvas.ResizeCanvasSetup(canvas),
-    Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,getViewPortRect,getRootElement,createElement,activeElement)
-]
-const canvasBaseMix = CanvasBaseMix(log,util,baseCanvasSystem)
 
+const exchangeMix = options => canvas => CanvasExtra.ExchangeCanvasSetup(canvas,activeElement)
 const ddMix = options => canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener)
-const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
+const canvasMods = [CanvasBaseMix(log,util),exchangeMix,CanvasExtraMix(log),ddMix]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctxToBranchPath)
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender)
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow,StatefulComponent});
 //transforms
-const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms,canvas.transforms,virtualKeyboard.transforms])
+const vDomAttributes = VDomAttributes(requestState)
+const transforms = mergeAll([vDomAttributes.transforms,metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms,canvas.transforms,virtualKeyboard.transforms])
 
-const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement,StatefulPureComponent)
-
-const branches = Branches(log,vDom.branchHandlers)
+const vDom = VDomCore(log,transforms,getRootElement)
 const switchHost = SwitchHost(log,window)
 const receiversList = [
-    branches.receivers,
+    vDom.receivers,
     feedback.receivers,
 	metroUi.receivers,    
 	cryptoElements.receivers,
@@ -178,12 +161,13 @@ const composeUrl = () => {
 const createEventSource = () => new EventSource(window.sseUrl||composeUrl()+"?"+(new Date()).getTime())
 
 const connection = SSEConnection(createEventSource, receiversList, 5000)
-activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), [
+activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), withState(log,[
     connection.checkActivate,
-    branches.checkActivate,
+    vDom.checkActivate,
+    canvas.checkActivate,
     metroUi.checkActivate,
     focusModule.checkActivate,
     dragDropModule.checkActivate,
 	updateManager.checkActivate,
 	virtualKeyboard.checkActivate
-])
+]))
