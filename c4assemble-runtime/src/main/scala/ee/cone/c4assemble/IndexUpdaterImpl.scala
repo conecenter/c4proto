@@ -12,7 +12,7 @@ class IndexUpdaterImpl() extends IndexUpdater {
       (res + (worldKey → part)).asInstanceOf[Map[AssembledKey[_],Map[Object,W]]]
     val diff = set(transition.diff, worldKey, nextDiff)
     val next = set(transition.result, worldKey, nextIndex)
-    WorldTransition(transition.prev, diff, next)
+    WorldTransition(transition.prev, diff, next, transition.isParallel)
   }
   def diffOf[K,V](worldKey: AssembledKey[Index[K,V]]): WorldTransition⇒Map[K,Boolean] =
     _.diff.getOrElse(worldKey,Map.empty).asInstanceOf[Map[K,Boolean]]

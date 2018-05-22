@@ -22,7 +22,8 @@ class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
-  getDependencies: ()⇒List[DataDependencyTo[_]]
+  getDependencies: ()⇒List[DataDependencyTo[_]],
+  isParallel: Boolean
 ) extends ToInject {
   private def toTree(updates: Iterable[Update]): Map[AssembledKey[Index[SrcId,Product]], Index[SrcId,Product]] =
     updates.groupBy(_.valueTypeId).flatMap { case (valueTypeId, tpUpdates) ⇒
@@ -36,15 +37,15 @@ class AssemblerInit(
           }
       )
     }
-  private def reduce(out: Seq[Update]): Context ⇒ Context = context ⇒ {
+  private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {
     val diff = toTree(out).asInstanceOf[Map[AssembledKey[_],Index[Object,Object]]]
-    val nAssembled = TreeAssemblerKey.of(context)(diff)(context.assembled)
+    val nAssembled = TreeAssemblerKey.of(context)(diff,isParallel)(context.assembled)
     new Context(context.injected, nAssembled, context.transient)
   }
 
   private def add(out: Seq[Update]): Context ⇒ Context =
     if(out.isEmpty) identity[Context]
-    else WriteModelKey.modify(_.enqueue(out)).andThen(reduce(out.toList))
+    else WriteModelKey.modify(_.enqueue(out)).andThen(reduce(out.toList, isParallel = false))
   def toInject: List[Injectable] =
     TreeAssemblerKey.set(treeAssembler.replace(getDependencies())) :::
       WriteModelDebugAddKey.set(out ⇒
@@ -53,6 +54,6 @@ class AssemblerInit(
           .andThen(add(out.map(toUpdate.toUpdate)))
       ) :::
       WriteModelAddKey.set(add) :::
-      ReadModelAddKey.set(reduce)
+      ReadModelAddKey.set(reduce(_,isParallel))
 }
 
