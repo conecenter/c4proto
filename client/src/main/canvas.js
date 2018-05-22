@@ -37,8 +37,8 @@ export function CanvasFactory(util, modList){
         drag        : l => frame => l.forEach(s=>s(frame)),
         processFrame: l => (frame,prev) => l.map(s=>s(frame,prev)),
         setupContext: l => opt => util.setup(utx=>l.map(s=>s(utx)).concat(opt), {}),
-        setupFrame  : l => () => util.setup(frame=>l.map(s=>s()), {}),
-        remove      : l => () => l.forEach(s=>s()),
+        setupFrame  : l => () => util.setup(frame=>l.map(s=>s()), {})
+        //remove      : l => () => l.forEach(s=>s()),
     })
 }
 
@@ -69,18 +69,25 @@ export function BaseCanvasSetup(log, util, canvas){
     let lastFrame
     let currentState = {}
     let fromServerVersion = 0
+    let toRemove = []
     function parentNode(){ return currentState.parentNode }
     function document(){ return canvas.parentNode().ownerDocument }
-    function appendChild(element){
-        document().body.appendChild(element)
-        element.style.position = "absolute"
+    function appendChild(el){
+        regRemove(()=>el.parentNode && el.parentNode.removeChild(el))
+        document().body.appendChild(el)
+        el.style.position = "absolute"
+    }
+    function addEventListener(el,evName,handler,capture){
+        regRemove(()=>el.removeEventListener(evName,handler,capture))
+        el.addEventListener(evName,handler,capture)
     }
 
     const fontMeter = util.cached(()=>canvas.document().createElement('div'))
     function setupFontMeter(){
-        if(fontMeter().parentElement) return;
-        fontMeter().style.cssText = "height:1em;padding:0px;margin:0px"
-        appendChild(fontMeter())
+        const el = fontMeter()
+        if(el.parentElement) return;
+        el.style.cssText = "height:1em;padding:0px;margin:0px"
+        appendChild(el)
     }
 
     function sendToServer(req,evColor){ return currentState.sendToServer({ headers: req },evColor)}
@@ -90,7 +97,7 @@ export function BaseCanvasSetup(log, util, canvas){
         if(currentState.parsed !== state.parsed) updateFromServerVersion()
         currentState = state
 
-        if(!canvas.getViewPortRect() || !canvas.parentNode()) return state
+        if(!canvas.parentNode() || !canvas.getViewPortRect()) return state
 
         setupFontMeter()
 
@@ -103,12 +110,11 @@ export function BaseCanvasSetup(log, util, canvas){
         //console.log("canvas-gen-time",Date.now()-startTime)
         return state
     }
-    function removeElement(el){
-        if(el && el.parentNode) el.parentNode.removeChild(el)
+    function regRemove(f){
+        toRemove = [f,...toRemove]
     }
     function remove() {
-        removeElement(canvas.visibleElement())
-        removeElement(fontMeter())
+        toRemove.forEach(f=>f())
     }
 
     ////
@@ -270,7 +276,7 @@ export function BaseCanvasSetup(log, util, canvas){
         setupContext,cleanContext,getContext,calcPos,fromServer,
         composingElement,visibleElement,mapSize,createCanvasWithSize,
         setupFrame,processFrame,viewPositions,composeFrameStart,
-        checkActivate, remove,
+        checkActivate, remove, addEventListener,
         zoomToScale, scaleToZoom,
         compareFrames, elementPos, updateFromServerVersion,
         parentNode, sendToServer, document
@@ -338,21 +344,8 @@ export function TiledCanvasSetup(canvas){
 export function MouseCanvasSetup(canvas){
     let currentDrag = noDrag
     let mousePos = { x:0, y:0, t:0 }
-    let added = false
     function mouseMove(ev){ currentDrag(ev,false) }
     function mouseUp(ev){ currentDrag(ev,true) }
-    function needMouseWindowListeners(){
-        if(added) return null
-        const win = canvas.document().defaultView
-        win.addEventListener("mousemove",mouseMove,false)
-        win.addEventListener("mouseup",mouseUp,false) // capture (true) causes popup close to be later
-        added = true
-    }
-    function remove() {
-        const win = canvas.document().defaultView
-        win.removeEventListener("mousemove",mouseMove,false)
-        win.removeEventListener("mouseup",mouseUp,false)
-    }
     function getMousePos(){ return mousePos }
     function regMousePos(ev, prev){
         mousePos = { prev, x:ev.clientX, y:ev.clientY, t:Date.now() }
@@ -372,8 +365,11 @@ export function MouseCanvasSetup(canvas){
         ev.preventDefault()
     }
     function processFrame(frame, prev){
-        needMouseWindowListeners()
-        if(!prev) canvas.visibleElement().addEventListener("mousedown", handleMouseDown)//ie selectstart?
+        if(prev) return;
+        const win = canvas.document().defaultView
+        canvas.addEventListener(win,"mousemove",mouseMove,false)
+        canvas.addEventListener(win,"mouseup",mouseUp,false) // capture (true) causes popup close to be later
+        canvas.addEventListener(canvas.visibleElement(),"mousedown", handleMouseDown)//ie selectstart?
     }
     function dMousePos(p1,p0){ return { x: p1.x-p0.x, y: p1.y-p0.y, t: p1.t-p0.t } }
     function findMousePos(pLast, cond){
@@ -383,7 +379,7 @@ export function MouseCanvasSetup(canvas){
         const rect = canvas.elementPos(el)
         return canvas.calcPos(dir=>pos[dir] - rect.pos[dir])
     }
-    return {processFrame,dMousePos,findMousePos,getMousePos,relPos,remove}
+    return {processFrame,dMousePos,findMousePos,getMousePos,relPos}
 }
 
 export function NoOverlayCanvasSetup(canvas){
@@ -530,7 +526,7 @@ export function DragViewPositionCanvasSetup(canvas){
         }
     }
     function processFrame(frame, prev){
-        if(!prev) canvas.visibleElement().addEventListener("wheel", handleWheel)
+        if(!prev) canvas.addEventListener(canvas.visibleElement(),"wheel", handleWheel)
     }
     return {drag,setupFrame,processFrame}
 }

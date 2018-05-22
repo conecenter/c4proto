@@ -43,8 +43,10 @@ const setupRootElement = state => {
     const get = state.getRootElement
     const parentNode = get && get()
     if(!parentNode) return state
+    const was = parentNode.c4rootNativeElement
+    if(was) parentNode.removeChild(was)
     const rootNativeElement = parentNode.ownerDocument.createElement("span")
-    parentNode.appendChild(rootNativeElement)
+    parentNode.appendChild(parentNode.c4rootNativeElement = rootNativeElement)
     return {...state, rootNativeElement}
 }
 
