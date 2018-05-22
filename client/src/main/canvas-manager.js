@@ -18,10 +18,13 @@ const chainFromTree = (before,children,after) => root => {
     return traverse(root)
 }
 
-///
+const bufferToArrayInner = r => r ? [...bufferToArrayInner(r.prev),r.values] : []
+const bufferToArray = r => [].concat(...bufferToArrayInner(r))
+const bufferAdd = values => prev => !prev || prev.values.length > values.length ?
+    { prev, values } : bufferAdd(prev.values.concat(values))(prev.prev)
 
 const addCommands = commands => res => ({
-    ...res, commands: res.commands.concat(commands)
+    ...res, commandsBuffer: bufferAdd(commands)(res.commandsBuffer)
 })
 
 const color = (fromN,pos)=>{
@@ -41,7 +44,7 @@ const colorInject = (commands,ctx) => res => {
     const nRes = nCommands === commands ? res : {
         ...res,
         colorIndex: res.colorIndex+1,
-        colorToContext: { ...res.colorToContext, [colorKeyGen(res.colorIndex)]: ctx }
+        colorToContextBuffer: bufferAdd([{ [colorKeyGen(res.colorIndex)]: ctx }])(res.colorToContextBuffer)
     }
     return addCommands(nCommands)(nRes)
 }
@@ -50,7 +53,7 @@ const gatherDataFromPathTree = root => chainFromTree(
     node => colorInject(node.at.commands||[], node.at.ctx),
     node => (node.chl||[]).map(key=>node[key]),
     node => addCommands(node.at.commandsFinally||[])
-)(root)({ colorIndex: 0, colorToContext: {}, commands: [] })
+)(root)({ colorIndex: 0 })
 
 export default function CanvasManager(canvasFactory,sender,ctxToBranchPath){
     //todo: prop.options are considered only once; do we need to rebuild canvas if they change?
@@ -59,7 +62,9 @@ export default function CanvasManager(canvasFactory,sender,ctxToBranchPath){
         const ctx = prop.ctx
         const [rCtx, branchKey] = ctxToBranchPath(ctx)
         const aliveUntil = el ? null : Date.now()+200
-        const {commands,colorToContext} = gatherDataFromPathTree(prop.children)
+        const {commandsBuffer,colorToContextBuffer} = gatherDataFromPathTree(prop.children)
+        const commands = bufferToArray(commandsBuffer)
+        const colorToContext = Object.assign({},...bufferToArray(colorToContextBuffer))
         rCtx.modify(branchKey, state=>{
             const canvas = state.canvas || canvasFactory(prop.options||{})
             return ({
