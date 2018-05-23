@@ -677,7 +677,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.el.removeEventListener("enter",this.onEnter)
 		}
 		render(){
-			const {value,style,children} = this.props
+			const {value,style,tooltip,children} = this.props			
+			const title = tooltip?tooltip:null
 			return	$("div",{style:{
 				fontSize:'1em',
 				color:'white',
@@ -699,7 +700,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				MozUserSelect:"none",
 				userSelect:"none",				
 				...style
-			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey},[value,children])
+			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
 		}
 	}
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{
@@ -1121,10 +1122,12 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			}									
 		}
 		onErase(event){
+			
 			const inp = this.getInput()	
 			inp.value = ""			
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
 			if(this.props.onBlur) this.props.onBlur()
-			else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+			//else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 			//const cEvent = eventManager.create("input",{bubbles:true})							
 			//inp.dispatchEvent(cEvent)	
 		}
@@ -1572,7 +1575,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	class ControlWrapperElement extends StatefulComponent{		
 		getInitialState(){ return {focused:false}}
 		onFocus(e){
-			focusModule.switchTo(this)			
+			const res = focusModule.switchTo(this)			
+			if(!res) return
 			if(this.el){
 				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.path})
 				e.preventDefault();
@@ -1583,8 +1587,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		onBlur(e){			
 			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
-			focusModule.switchOff(this, e&&e.relatedTarget)
-			this.setState({focused:false})
+			const res = focusModule.switchOff(this, e&&e.relatedTarget)
+			if(res) this.setState({focused:false})
 		}
 		componentDidMount(){
 			if(this.el) {				
@@ -1613,7 +1617,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const {style,children} = this.props
 			const focusedStyle  = this.state.focused
 			const propsOnPath = (p0,p1) => /*p0 == p1 && p1.length>0 || */this.state.focused?{outlineStyle:"dashed"}:{outlineStyle:"none"}
-			
+			const sticky = this.props.sticky?"sticky":null
 			return $(Consumer,{},path=>
 				$("div",{style:{
 					width:"100%",				
@@ -1627,6 +1631,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				},tabIndex:"1",
 				className,
 				onClick:this.onClick,
+				"data-sticky":sticky,
 				ref:this.onRef(path)},children)
 			)
 		}
@@ -3256,16 +3261,20 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		function ping(data){			
 			if(pingerTimeout){clearTimeout(pingerTimeout); pingerTimeout = null;}
 			if(!callbacks.length) return;
-			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o.func(false,null));},5000);
-			callbacks.forEach((o)=>o.func(true,null));
+			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o(false,null));},5000);
+			callbacks.forEach((o)=>o(true,null));
 		};		
-		function regCallback(func,obj){
-			callbacks.push({obj,func});
-		};
-		function unregCallback(obj){
-			callbacks=callbacks.filter((o)=>o.obj!=obj);
-		};
-		return {ping,regCallback,unregCallback};
+		function reg(o){
+			callbacks.push(o)
+			log(`reg`)
+			const unreg = function(){
+				const index = callbacks.indexOf(o)
+				if(index>=0) callbacks.splice(index,1)				
+				log(`unreg`)
+			}
+			return {unreg}
+		}		
+		return {ping,reg};
 	}();	
 	let prevWifiLevel = null
 	let wifiData = null
@@ -3292,9 +3301,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentDidMount(){
 			const count = miscReact.count()
-			if(count>1) return
-			if(PingReceiver)
-				PingReceiver.regCallback(this.signal,this);
+			//if(count>1) return	
+			//log(`mount`)
+			if(PingReceiver) this.pingR = PingReceiver.reg(this.signal)
 			this.toggleOverlay(!this.state.on);			
 			this.wifi = miscUtil.scannerProxy.regWifi(this.wifiCallback)
 			this.wifi2 = miscUtil.winWifi.regWifi(this.wifiCallback)			
@@ -3304,8 +3313,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			}
 		}
 		componentWillUnmount(){			
-			if(PingReceiver)
-				PingReceiver.unregCallback(this);
+			if(this.pingR) this.pingR.unreg();
 			if(this.wifi) this.wifi.unreg();
 			if(this.wifi2) this.wifi2.unreg();
 			if(this.yellow) this.yellow.unreg();
@@ -3318,7 +3326,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				overlayManager.toggle(on)
 			
 		}
-		componentDidUpdate(prevProps,prevState){
+		componentDidUpdate(prevProps,prevState){			
+			const count = miscReact.count()			
+			if(PingReceiver && !this.pingR) this.pingR = PingReceiver.reg(this.signal)
 			if(prevState.on != this.state.on){
 				log(`toggle ${this.state.on}`)
 				this.toggleOverlay(!this.state.on);
