@@ -341,11 +341,13 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				justifyContent:'flex-start',
 				backgroundColor:'#2196f3',
 				verticalAlign:'middle',				
-				width:"100%"				
+				width:"100%",
+				...this.props.style				
 			}
 			const burgerPopStyle = {
 				position:"absolute",
-				zIndex:"1000"
+				zIndex:"1000",
+				backgroundColor:"inherit"
 			}
 			const left = this.props.children.filter(_=>!_.key.includes("right"))			
 			const c = {transition:"all 100ms",transformOrigin:"center"}
@@ -362,10 +364,10 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			//const svgData = svgSrc(svg)
 			//const errors = this.props.children[1]
 			const right = this.props.children.filter(_=>_.key.includes("right"))			
-			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{outline:"none"}},[$("div",{style:{cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
+			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[$("div",{style:{backgroundColor:"inherit",cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
 			return $("div",{style:style},
 				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
-					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
+					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{backgroundColor:"inherit",flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
 					$("div",{key:"right",style:{alignSelf:"center"}},right)
 				])				
 			)
@@ -444,7 +446,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		render(){		
 			const selStyle={
 				position:'relative',
-                backgroundColor:'#c0ced8',
+                backgroundColor:'inherit',
                 whiteSpace:'nowrap',
                 paddingRight:'0.8em',
 				cursor:"pointer",
@@ -476,7 +478,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const newStyle={
                 minWidth:'7em',
                 height:'2.5em',
-                backgroundColor:'#c0ced8',
+               // backgroundColor:'#c0ced8',
                 cursor:'pointer',
 				...this.props.style,
 				...(this.state.mouseEnter?this.props.overStyle:null)
@@ -1284,7 +1286,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const auto = this.props.autocomplete?this.props.autocomplete:null
 			const vkOnly = this.props.vkOnly?"vk":null
 			let readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
-			readOnly = !readOnly&&vkOnly?"true":null
+			readOnly = !readOnly&&vkOnly?"true":readOnly
 			const rows= this.props.rows?this.props.rows:"2";
 			const content = this.props.content;
 			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
@@ -1510,7 +1512,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				overflow: "auto",				
 				maxHeight: "10em",				
 				backgroundColor: "white",
-				zIndex: "666",
+				zIndex: "10003",
 				boxSizing:"border-box",
 				overflowX:"hidden",
 				//marginLeft:"",
@@ -3153,7 +3155,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				...zoomedStyle,
 				...this.props.style				
 			}
-			const nonZoomed = !this.props.zoomed?{position:"absolute", zIndex:"10000",width:"100%",height:"100%",cursor:"zoom-in"}:{}
+			const nonZoomed = !this.props.zoomed?{position:"absolute", zIndex:"9998",width:"100%",height:"100%",cursor:"zoom-in"}:{}
 			const className = "ZoomPopup"
 			return $("div",{className,ref:ref=>this.el=ref, style},[			
 				$("div",{key:1,style:nonZoomed,onMouseDown:this.MouseDown}),
@@ -3407,7 +3409,27 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		documentManager.remove(anchor)
 	}
 	
-
+    class NoShowUntilElement extends StatefulComponent{
+		render(){
+			let mmRef
+			let remRef
+			const doOnRef = (num)=>(ref) => {
+					if(!mmRef && num==0) mmRef = ref
+					if(!remRef && num==1) remRef = ref
+					if(remRef && mmRef && !this.props.show&&this.props.onClickValue) {
+						const mmH = mmRef.getBoundingClientRect().height
+						const remH = remRef.getBoundingClientRect().height
+						this.props.onClickValue("change",(mmH/remH).toString())
+					}
+				}
+			return $("div",{},[		    
+				
+				$("div",{key:"mm",ref:doOnRef(0),style:{height:"1mm",position:"absolute",zIndex:"-1"}}),
+				$("div",{key:"em",ref:doOnRef(1),style:{height:"1em",position:"absolute",zIndex:"-1"}}),
+				$("div",{key:"children"},this.props.show?this.props.children:null)			
+			])
+		}
+	}
 	const sendVal = ctx =>(action,value,opt) =>{
 		const act = action.length>0?action:"change"
 		const optHeader = opt?{"X-r-opt":opt}:{}
@@ -3442,7 +3464,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			ColorCreator,ColorItem,ColorPicker,
 			InteractiveAreaElement,ZoomOnPopupElement,
 			BatteryState,DeviceConnectionState,
-			DragWrapperElement
+			DragWrapperElement,
+			NoShowUntilElement
     },
 		onClickValue,		
 		onReadySendBlob,

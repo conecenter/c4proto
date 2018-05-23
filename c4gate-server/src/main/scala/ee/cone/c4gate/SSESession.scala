@@ -16,6 +16,7 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.concurrent.TrieMap
 import java.nio.charset.StandardCharsets.UTF_8
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPost}
@@ -49,7 +50,7 @@ case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
 class PongHandler(
     qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
     pongs: TrieMap[String,Instant] = TrieMap()
-) extends RHttpHandler with ToInject {
+) extends RHttpHandler with ToInject with LazyLogging {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
@@ -83,6 +84,7 @@ class PongHandler(
         (if(wasStatus != Option(status)) LEvent.update(status) else Nil)
     ).andThen(qMessages.send)(local)
     httpExchange.sendResponseHeaders(200, 0)
+    //logger.debug(s"pong $headers")
     true
   }
 }
@@ -95,13 +97,14 @@ object SSEMessage {
   }
 }
 
-class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHandler {
+class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHandler with LazyLogging {
   override def beforeServerStart(): Unit = ()
   override def afterConnect(connectionKey: String, sender: SenderToAgent): Unit = {
     val allowOrigin =
       config.allowOrigin.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
     val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
     val data = s"$connectionKey ${config.pongURL}"
+    //logger.debug(s"connection $connectionKey")
     SSEMessage.message(sender, "connect", data, header)
   }
   override def afterDisconnect(key: String): Unit = ()
