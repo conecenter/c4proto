@@ -749,7 +749,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.el) return			
 			if(!this.emEl) return
 			if(!this.el.parentElement) return	
-			const isSibling = miscReact.isSibling(this.el)
+			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return
 			const dRect = this.el.getBoundingClientRect()
 			const pdRect = this.el.parentElement.getBoundingClientRect()			
