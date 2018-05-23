@@ -101,10 +101,7 @@ const miscReact = (()=>{
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
 	}	
-	const count = function(){
-		return documentManager.body().querySelectorAll("div.branch").length
-	}
-	return {isReactRoot,getReactRoot, count}
+	return {isReactRoot,getReactRoot}
 })()
 const miscUtil = (()=>{
 	const winWifi = WinWifi(log,window.require,window.process,setInterval)

@@ -13,6 +13,19 @@ jsx?
 
 export default function MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent}){
 	const $ = React.createElement	
+	const Branches = (()=>{
+		let main =""
+		const store = (o)=>{
+			if(!o.length) return
+			main = o.split(/[,;]/)[0]
+		}
+		const get = () => main
+		const isSibling = (o) => {
+			if(main.length==0) return false
+			return main != o.branchKey
+		}
+		return {store, get, isSibling}
+	})()
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -518,8 +531,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		onResize(){
 			if(!this.el || !this.remRef) return					
-			const count = miscReact.count()
-			if(count != 1) return
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return			
 			if(this.unmounted) return
 			this.sentData()			
 		}
@@ -530,9 +543,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				this.resizeL = this.resizeL.unreg()
 			}
 		}
-		initListener(){
-			const count = miscReact.count()
-			if(count != 1) return
+		initListener(){			
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return
 			if(this.props.onWResize && this.el && this.remRef && !this.resizeL) {
 				log(`init listener`)
 				this.sentData()
@@ -545,6 +558,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		componentDidMount(){
 			const node = documentManager.body().querySelector("#dev-content");
 			const nodeOld = documentManager.body().querySelector("#content");
+			this.ctx = rootCtx(this.props.ctx)
 			if(node)
 			while (node.hasChildNodes())
 				node.removeChild(node.lastChild);
@@ -735,8 +749,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.el) return			
 			if(!this.emEl) return
 			if(!this.el.parentElement) return	
-			const count = miscReact.count()
-			if(count!=1) return
+			const isSibling = miscReact.isSibling(this.el)
+			if(isSibling) return
 			const dRect = this.el.getBoundingClientRect()
 			const pdRect = this.el.parentElement.getBoundingClientRect()			
 			if(this.prev!=pdRect.width){
@@ -756,7 +770,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentDidMount(){
 			if(this.props.dynamic) checkActivateCalls.add(this.check)
-			if(!this.el) return			
+			if(!this.el) return	
+			this.ctx = rootCtx(this.props.ctx)
 			this.el.addEventListener("cTab",this.onInputEnter)
 		}
 		componentWillUnmount(){
@@ -1530,7 +1545,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const buttonImageStyle={				
 				verticalAlign:"middle",
 				display:"inline",
-				height:"auto",
+				height:"100%",
+				width:"100%",
 				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
 				transition:"all 200ms ease",
 				boxSizing:"border-box",
@@ -3089,9 +3105,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				this.props.onWResize("change",`${width},${height},${pxEm}`)
 			}			
 		}
-		componentDidMount(){
-		//	const count = miscReact.count()
-	//		if(count!=1) return
+		componentDidMount(){		
 			if(!this.props.onWResize) return
 			this.check()
 			this.resizeL = resizeListener.reg(this.check)
@@ -3261,7 +3275,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		function ping(data){			
 			if(pingerTimeout){clearTimeout(pingerTimeout); pingerTimeout = null;}
 			if(!callbacks.length) return;
-			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o(false,null));},5000);
+			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o(false,null));},2500);
 			callbacks.forEach((o)=>o(true,null));
 		};		
 		function reg(o){
@@ -3299,18 +3313,19 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.state.waiting!=on)
 				this.setState({waiting:on})
 		}
-		componentDidMount(){
-			const count = miscReact.count()
-			//if(count>1) return	
-			//log(`mount`)
+		componentDidMount(){	
+			if(!this.el) return		
+			this.ctx = rootCtx(this.props.ctx)
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return			
 			if(PingReceiver) this.pingR = PingReceiver.reg(this.signal)
 			this.toggleOverlay(!this.state.on);			
 			this.wifi = miscUtil.scannerProxy.regWifi(this.wifiCallback)
 			this.wifi2 = miscUtil.winWifi.regWifi(this.wifiCallback)			
-			if(this.props.onContext && requestState.reg){
+			/*if(this.props.onContext && requestState.reg){
 				const branchKey = this.props.onContext()
 				this.yellow = requestState.reg({branchKey,callback:this.yellowSignal})
-			}
+			}*/
 		}
 		componentWillUnmount(){			
 			if(this.pingR) this.pingR.unreg();
@@ -3323,11 +3338,12 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.props.msg||this.state.waiting) 
 				overlayManager.delayToggle(this.props.msg||this.state.waiting)
 			else
-				overlayManager.toggle(on)
-			
+				overlayManager.toggle(on)			
 		}
-		componentDidUpdate(prevProps,prevState){			
-			const count = miscReact.count()			
+		componentDidUpdate(prevProps,prevState){
+			if(!this.el) return
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return	
 			if(PingReceiver && !this.pingR) this.pingR = PingReceiver.reg(this.signal)
 			if(prevState.on != this.state.on){
 				log(`toggle ${this.state.on}`)
@@ -3391,7 +3407,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				color:"white"
 			},key:"2"},wifiData):null;
 			const on = (this.props.on === false)? false: this.state.on
-			return React.createElement("div",{style:{display:"flex"},onMouseEnter:this.onMouseOver,onMouseLeave:this.onMouseOut},[
+			return React.createElement("div",{ref:ref=>this.el=ref,style:{display:"flex"},onMouseEnter:this.onMouseOver,onMouseLeave:this.onMouseOut},[
 				React.createElement(ConnectionState,{key:"1",onClick:this.props.onClick,on,style:style,iconStyle:iconStyle,imageSvgData}, null),
 				wifiDataEl,
 				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"3"},this.state.data)
@@ -3487,7 +3503,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	};
 	const receivers = {
 		download,
-		ping:PingReceiver.ping,
+		ping:PingReceiver.ping,		
+		branches:Branches.store,
 		...errors.receivers
 	}	
 	const checkActivate = checkActivateCalls.check	
