@@ -5,6 +5,12 @@ import ee.cone.c4actor.AnyProtocol.AnyObject
 import ee.cone.c4proto._
 
 object AnyAdapter {
+  def decodeOpt[Model <: Product](qAdapterRegistry: QAdapterRegistry): AnyObject ⇒ Option[Model] = any ⇒ {
+    qAdapterRegistry.byId.get(any.adapterId).map(adapter ⇒
+      adapter.decode(any.value).asInstanceOf[Model]
+    )
+  }
+
   def decode[Model <: Product](qAdapterRegistry: QAdapterRegistry): AnyObject ⇒ Model = any ⇒ {
     val adapter = qAdapterRegistry.byId(any.adapterId)
     adapter.decode(any.value).asInstanceOf[Model]
@@ -30,7 +36,7 @@ object AnyAdapter {
   }
 }
 
-@protocol object AnyProtocol extends Protocol{
+@protocol object AnyProtocol extends Protocol {
 
   @Id(0x00aa) case class AnyObject(
     @Id(0x00ab) adapterId: Long,

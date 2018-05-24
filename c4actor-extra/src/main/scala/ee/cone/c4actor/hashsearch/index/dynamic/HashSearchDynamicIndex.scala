@@ -22,11 +22,17 @@ trait HashSearchDynamicIndexApp
   override def assembles: List[Assemble] = dynIndexModels.distinct.map(model ⇒ new HashSearchDynamicIndexAssemble(
     model.modelCl, model.modelId,
     hashSearchRangerRegistry, defaultModelRegistry, qAdapterRegistry, lensRegistry, serializer
-  )
+  )(model.modelCl)
   ) ::: super.assembles
 }
 
-sealed trait HashSearchDynamicIndexAssembleUtils {
+
+// By is Orig:
+//   lens is obligatory
+//   ranger is optional
+sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
+  def modelClass: Class[Model]
+
   def defaultModelRegistry: DefaultModelRegistry
 
   def qAdapterRegistry: QAdapterRegistry
@@ -37,7 +43,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
 
   def rangerRegistry: HashSearchRangerRegistryApi
 
-  def cDynEstimate[Model <: Product](cond: InnerLeaf[Model], priorities: Values[DynamicCount[Model]]): Values[InnerConditionEstimate[Model]] = {
+  def cDynEstimate(cond: InnerLeaf[Model], priorities: Values[DynamicCount[Model]]): Values[InnerConditionEstimate[Model]] = {
     val priorPrep = priorities.distinct
     if (priorPrep.nonEmpty)
       InnerConditionEstimate[Model](cond.srcId, Log2Pow2(priorPrep.map(_.count).sum), priorPrep.map(_.heapId).toList) :: Nil
@@ -56,22 +62,28 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
     ranger.ranges(directive)
   }
 
-  def modelsToHeapIds[Model <: Product, By <: Product, Field](
+  def modelsToHeapIds[By <: Product, Field](
     byCl: Class[By],
     fieldCl: Class[Field],
     models: Values[Model],
     lensName: List[String],
     fieldToHeaps: Field ⇒ List[By]
   ): Values[(SrcId, Model)] = {
-    val lens: ProdLens[Model, Field] = lensRegistryApi.get[Model, Field](lensName)
-    models.par.flatMap(model ⇒ {
-      val heaps: List[By] = fieldToHeaps(lens.of(model))
-      heapsToSrcIds(lensName, heaps, model.getClass.getName).map(srcId ⇒ srcId → model)
+    val lensOpt: Option[ProdLens[Model, Field]] = lensRegistryApi.getOpt[Model, Field](lensName)
+    lensOpt match {
+      case Some(lens) =>
+        models.par.flatMap(model ⇒ {
+          val heaps: List[By] = fieldToHeaps(lens.of(model))
+          heapsToSrcIds(lensName, heaps).map(srcId ⇒ srcId → model)
+        }
+        ).to[Values]
+      case None ⇒
+        Nil
     }
-    ).to[Values]
+
   }
 
-  def modelsToHeapIdsBy[Model <: Product, By <: Product, Field](
+  def modelsToHeapIdsBy[By <: Product, Field](
     byCl: Class[By],
     fieldCl: Class[Field],
     models: Values[Model],
@@ -80,26 +92,32 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
     byRequestAny: AnyObject,
     byToHeaps: PartialFunction[Product, List[By]]
   ): Values[(SrcId, Model)] = {
-    val lens: ProdLens[Model, Field] = lensRegistryApi.get[Model, Field](lensName)
-    val byRequest: By = decode[By](qAdapterRegistry)(byRequestAny)
-    val requestedList = byToHeaps.apply(byRequest)
-    models.flatMap(model ⇒ {
-      val heaps: List[By] = fieldToHeaps(lens.of(model))
-      val intersectedHeap: List[By] = requestedList.intersect(heaps)
-      heapsToSrcIds(lensName, intersectedHeap, model.getClass.getName).map(srcId ⇒ srcId → model)
+    val lensOpt: Option[ProdLens[Model, Field]] = lensRegistryApi.getOpt[Model, Field](lensName)
+    lensOpt match {
+      case Some(lens) ⇒
+        val byRequest: By = decode[By](qAdapterRegistry)(byRequestAny)
+        val requestedList = byToHeaps.apply(byRequest)
+        models.flatMap(model ⇒ {
+          val heaps: List[By] = fieldToHeaps(lens.of(model))
+          val intersectedHeap: List[By] = requestedList.intersect(heaps)
+          heapsToSrcIds(lensName, intersectedHeap).map(srcId ⇒ srcId → model)
+        }
+        )
+      case None ⇒
+        Nil
     }
-    )
+
   }
 
   def heapsToSrcIds[By <: Product](
-    lensName: List[String], heaps: List[By], modelName: String
+    lensName: List[String], heaps: List[By]
   ): List[SrcId] = {
     heaps.map(heap ⇒ {
       val metaListUUID = serializer.uuidFromSeq(lensName.map(str ⇒ serializer.uuid(str)))
       val rangeUUID = serializer.uuidFromOrig(heap, heap.getClass.getName)
-      val modelUUID = serializer.uuid(modelName)
+      val modelUUID = serializer.uuid(modelClass.getName)
       val srcId = serializer.uuidFromSeq(modelUUID, metaListUUID, rangeUUID).toString
-      s"$modelName$lensName$heap$srcId"
+      s"${modelClass.getName}$lensName$heap$srcId"
     }
     )
   }
@@ -109,7 +127,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
   ): RangerWithCl[_, _] ⇒ RangerWithCl[By, Field] =
     _.asInstanceOf[RangerWithCl[By, Field]]
 
-  def modelsToHeaps[Model <: Product](
+  def modelsToHeaps(
     models: Values[Model], node: IndexNodeWithDirective[Model]
   ): Values[(SrcId, Model)] = {
     rangerRegistry.getByByIdUntyped(node.indexNode.indexNode.byAdapterId) match {
@@ -120,7 +138,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
     }
   }
 
-  private def modelsToHeapsInner[Model <: Product, By <: Product, Field](
+  private def modelsToHeapsInner[By <: Product, Field](
     models: Values[Model], byCl: Class[By], fieldCl: Class[Field], ranger: RangerWithCl[_ <: Product, _], node: IndexNodeWithDirective[Model]
   ): Values[(SrcId, Model)] = {
     val rangerTyped: RangerWithCl[By, Field] = rangerCaster(byCl, fieldCl)(ranger)
@@ -128,7 +146,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
     modelsToHeapIds(byCl, fieldCl, models, node.indexNode.indexNode.lensName, left)
   }
 
-  def modelToHeapsBy[Model <: Product](
+  def modelToHeapsBy(
     models: Values[Model], nodeBy: IndexByNodeWithDirective[Model], debug: Boolean = false
   ): Values[(SrcId, Model)] = {
     rangerRegistry.getByByIdUntyped(nodeBy.indexNode.indexByNode.byInstance.get.adapterId) match {
@@ -139,7 +157,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
     }
   }
 
-  private def modelsToHeapsInnerBy[Model <: Product, By <: Product, Field](
+  private def modelsToHeapsInnerBy[By <: Product, Field](
     models: Values[Model], byCl: Class[By], fieldCl: Class[Field], ranger: RangerWithCl[_ <: Product, _], nodeBy: IndexByNodeWithDirective[Model]
   ): Values[(SrcId, Model)] = {
     val rangerTyped: RangerWithCl[By, Field] = rangerCaster(byCl, fieldCl)(ranger)
@@ -147,21 +165,21 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
     modelsToHeapIdsBy(byCl, fieldCl, models, nodeBy.lensName, left, nodeBy.indexNode.indexByNode.byInstance.get, right)
   }
 
-  def leafToHeapIds[Model <: Product](
-    prodCond: ProdCondition[_ <: Product, _], directives: Values[RangerDirective[Model]], modelCl: Class[Model]
+  def leafToHeapIds(
+    prodCond: ProdCondition[_ <: Product, _], directives: Values[RangerDirective[Model]]
   ): List[SrcId] = {
     rangerRegistry.getByByCl(prodCond.by.getClass.getName) match {
       case Some(ranger) ⇒
-        leafToHeapIdsInner(modelCl, ranger.byCl, ranger.fieldCl, ranger, prodCond, directives.map(_.directive))
+        leafToHeapIdsInner(ranger.byCl, ranger.fieldCl, ranger, prodCond, directives.map(_.directive))
       case None ⇒
         Nil
     }
   }
 
-  private def leafToHeapIdsInner[Model <: Product, By <: Product, Field](
-    modelCl: Class[Model], byCl: Class[By], fieldCl: Class[Field], ranger: RangerWithCl[_ <: Product, _], prodCond: ProdCondition[_ <: Product, _], directives: Seq[AnyObject]
+  private def leafToHeapIdsInner[By <: Product, Field](
+    byCl: Class[By], fieldCl: Class[Field], ranger: RangerWithCl[_ <: Product, _], prodCond: ProdCondition[_ <: Product, _], directives: Seq[AnyObject]
   ): List[SrcId] = {
-    val prodConditionTyped: ProdCondition[By, Model] = castProdCondition(modelCl, byCl)(prodCond)
+    val prodConditionTyped: ProdCondition[By, Model] = castProdCondition(byCl)(prodCond)
     val byClName: SrcId = byCl.getName
     val byAdapterId: Long = qAdapterRegistry.byName(byClName).id
     val directive: By = directives.collectFirst {
@@ -171,10 +189,10 @@ sealed trait HashSearchDynamicIndexAssembleUtils {
     val (_, right) = typedRanger.ranges(directive)
     val ranges: List[By] = right.apply(prodConditionTyped.by)
     val lensName = prodCond.metaList.collect { case a: NameMetaAttr ⇒ a.value }
-    heapsToSrcIds(lensName, ranges, modelCl.getName)
+    heapsToSrcIds(lensName, ranges)
   }
 
-  private def castProdCondition[By <: Product, Model <: Product](modelCl: Class[Model], byCl: Class[By]): ProdCondition[_ <: Product, _] ⇒ ProdCondition[By, Model] =
+  private def castProdCondition[By <: Product](byCl: Class[By]): ProdCondition[_ <: Product, _] ⇒ ProdCondition[By, Model] =
     _.asInstanceOf[ProdCondition[By, Model]]
 }
 
@@ -209,9 +227,9 @@ trait DynamicIndexSharedTypes {
   val qAdapterRegistry: QAdapterRegistry,
   val lensRegistryApi: LensRegistryApi,
   val serializer: SerializationUtils
-) extends Assemble
+)(val modelClass: Class[Model]) extends Assemble
   with HashSearchAssembleSharedKeys
-  with HashSearchDynamicIndexAssembleUtils
+  with HashSearchDynamicIndexAssembleUtils[Model]
   with DynamicIndexSharedTypes {
   type DynamicHeapId = SrcId
   type IndexNodeRichAll = All
@@ -283,7 +301,7 @@ trait DynamicIndexSharedTypes {
     (for {
       nodeBy ← indexByNodeWithDirective
     } yield {
-      TimeColored("y", s"ModelToHeap", modelId != "100", -1L)(modelToHeapsBy(models, nodeBy, modelId == "100"))
+      modelToHeapsBy(models, nodeBy, modelId == "100")
     }).flatten
   }
 
@@ -297,7 +315,7 @@ trait DynamicIndexSharedTypes {
     for {
       leaf ← leafConditions
       if leaf.condition.isInstanceOf[ProdCondition[_ <: Product, _]]
-      heapId ← leafToHeapIds(leaf.condition.asInstanceOf[ProdCondition[_ <: Product, _]], indexNodeDirectives, modelCl)
+      heapId ← leafToHeapIds(leaf.condition.asInstanceOf[ProdCondition[_ <: Product, _]], indexNodeDirectives)
     } yield heapId → DynamicNeed[Model](leaf.srcId)
 
   def DynNeedToDynCountToRequest(
@@ -337,7 +355,7 @@ trait DynamicIndexSharedTypes {
     }).to[Values]
 
 
-  def Test(
+  /*def Test(
     modelId: SrcId,
     @by[DynamicHeapId] models: Values[Model]
   ): Values[(All, A)] = {
@@ -358,7 +376,7 @@ trait DynamicIndexSharedTypes {
     PrintColored("b","w")(s"${indexByNodeWithDirective.size}")
     PrintColored("", "w")(s"---------------------------------------")
     Nil
-  }
+  }*/
 }
 
 case class A(srcId: SrcId, size: Int)

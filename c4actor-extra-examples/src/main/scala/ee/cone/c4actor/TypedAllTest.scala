@@ -25,6 +25,8 @@ class TypedAllTestStart(
     val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
     val nGlobalActive = ActivateContext(nGlobal)
     val nGlobalAA = ActivateContext(nGlobalActive)
+    val nGlobalAAA = ActivateContext(nGlobalAA)
+    val nGlobalAAAA = ActivateContext(nGlobalAAA)
 
     //logger.info(s"${nGlobal.assembled}")
     println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
@@ -60,7 +62,7 @@ trait TypedAllType {
     firstborn: Values[Firstborn],
     @by[TestAll[Model]] models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
-    println("[TYPED]", models)
+    println(s"[TYPED,$modelCl]", models)
     Nil
   }
 
@@ -79,7 +81,7 @@ trait TypedAllType {
     firstborn: Values[Firstborn],
     @by[FixedAll] models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
-    println("[FIXED]", models)
+    println(s"[FIXED,$modelCl]", models)
     Nil
   }
 
@@ -93,11 +95,22 @@ trait TypedAllType {
 
   def FixedAllGrabber2(
     srcId: SrcId,
+    firstborn: Values[Firstborn],
     @by[TestBy[Model]] models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
-    println("[FIXEDBy]", models)
+    println(s"[FIXEDBy,$modelCl]", models)
     Nil
   }
+
+  def CreateTx(
+    srcId: SrcId,
+    firstborn: Values[Firstborn],
+    @by[FixedAll] models: Values[Model]
+  ): Values[(SrcId, TxTransform)] = WithPK(TestTx(srcId + modelCl.getName)) :: Nil
+}
+
+case class TestTx(srcId: SrcId) extends TxTransform {
+  def transform(local: Context): Context = TxAdd(LEvent.update(Model2(srcId)))(local)
 }
 
 

@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.EqProtocol.{ChangingNode, IntEq, StrStartsWith, TestObject}
+import ee.cone.c4actor.EqProtocol.{IntEq, StrStartsWith, TestObject, TestObject2, ChangingNode}
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.TestNode
@@ -90,6 +90,12 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
       WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))
     }
 
+  def createRequestChanging2(
+    testId: SrcId,
+    tests: Values[ChangingNode]
+  ): Values[(SrcId, Request[TestObject2])] =
+    Nil
+
   def grabResponse(
     responseId: SrcId,
     tests: Values[TestNode],
@@ -133,6 +139,12 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
   )
 
   @Id(0xaaad) case class TestObject(
+    @Id(0xaaae) srcId: String,
+    @Id(0xaaba) valueInt: Int,
+    @Id(0xaabb) valueStr: String
+  )
+
+  @Id(0xaa01) case class TestObject2(
     @Id(0xaaae) srcId: String,
     @Id(0xaaba) valueInt: Int,
     @Id(0xaabb) valueStr: String
@@ -255,15 +267,11 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def rawQSender: RawQSender = NoRawQSender
 
-  override def parallelAssembleOn: Boolean = true
+  override def parallelAssembleOn: Boolean = false
 
-  override def dynamicIndexAssembleDebugMode: Boolean = false
+  override def dynamicIndexAssembleDebugMode: Boolean = true
 
   override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver, qAdapterRegistry) :: super.toStart
-
-
-  override def hashSearchModels: List[Class[_ <: Product]] = classOf[TestObject] :: super.hashSearchModels
-
 
   override def protocols: List[Protocol] = AnyProtocol :: EqProtocol :: TestProtocol :: super.protocols
 
@@ -277,7 +285,7 @@ class HashSearchExtraTestApp extends RichDataApp
 
   lazy val assembleProfiler: AssembleProfiler = ValueAssembleProfiler2
 
-  override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: super.dynIndexModels
+  override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: ProductWithId(classOf[TestObject2], 2) :: super.dynIndexModels
 
   def dynamicIndexRefreshRateSeconds: Long = 1L
 }
@@ -287,7 +295,7 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
     val startTime = System.currentTimeMillis
     finalCount ⇒ {
       val period = System.currentTimeMillis - startTime
-      if (period > 0)
+      if (period > 1000)
         println(s"${Console.WHITE_B}${Console.BLACK}assembling rule $ruleName $startAction $finalCount items in $period ms${Console.RESET}")
     }
   }

@@ -28,6 +28,8 @@ trait LensRegistryMix extends ProdLensesApp {
 }
 
 trait LensRegistryApi {
+  def getOpt[C, I](lensName: List[String]): Option[ProdLens[C, I]]
+
   def get[C, I](lensName: List[String]): ProdLens[C, I]
 
   def get[Model](lensName: List[String], modelCl: Class[Model]): ProdLens[Model, _]
@@ -52,4 +54,7 @@ case class LensRegistryImpl(lensList: List[ProdLens[_, _]]) extends LensRegistry
 
   def get[Model, Field](lensName: List[String], modelCl: Class[Model], fieldCl: Class[Field]): ProdLens[Model, Field] =
     lensMap(lensName).asInstanceOf[ProdLens[Model, Field]]
+
+  def getOpt[C, I](lensName: List[String]): Option[ProdLens[C, I]] =
+    lensMap.get(lensName).map(_.asInstanceOf[ProdLens[C, I]])
 }

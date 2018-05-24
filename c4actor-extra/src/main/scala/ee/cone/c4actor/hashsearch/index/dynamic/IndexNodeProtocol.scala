@@ -27,6 +27,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   @Id(0x0170) case class IndexByNode(
     @Id(0x0175) srcId: String,
     @Id(0x0177) indexNodeId: String,
+    @Id(0x0194) modelId: Int,
     @Id(0x0173) byInstance: Option[AnyObject]
   )
 
