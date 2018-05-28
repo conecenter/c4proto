@@ -110,6 +110,7 @@ const miscUtil = (()=>{
 	const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})	
 	window.ScannerProxy = scannerProxy
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
+	const audio = () => {return new Audio()}
 	const fileReader = ()=> (new window.FileReader())
 	return {winWifi,getBattery,scannerProxy,audioContext,fileReader}
 })()
