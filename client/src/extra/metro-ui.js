@@ -3595,6 +3595,47 @@ ACAAIAAgACAAAA==`
 			])
 		}
 	}
+	class CanvasMaxHeightElement extends StatefulComponent{
+		setHeight(height){
+			if(this.state.height != height) this.setState({height})
+		}
+		check(){
+			const bRect = this.root.getBoundingClientRect()			
+			const rect = this.el.getBoundingClientRect()			
+			if(this.footer){
+				const fRect = this.footer.getBoundingClientRect()							
+				this.setHeight(Math.max(fRect.top - rect.top, this.origHeight - rect.top))
+				
+			}
+			else {
+				this.setHeight(this.origHeight - rect.top)
+			}
+		}		
+		setRootRect(){
+			this.rootRect = this.root.getBoundingClientRect()
+			this.origHeight = this.rootRect.height
+		}
+		componentDidMount(){
+			this.root = miscReact.getReactRoot(this.el)
+			this.setRootRect()
+			this.footer = this.root.querySelector(".mainFooter")			
+			checkActivateCalls.add(this.check)
+		}
+		componentDidUpdate(prevProps,prevState){
+			if(prevState.height==this.state.height){
+				this.setRootRect()
+			}
+		}
+		componentWillUnmount(){
+			checkActivateCalls.remove(this.check)
+		}
+		render(){		
+			const style = {
+				height:!this.state.height?"auto":this.state.height+"px"
+			}
+			return $("div",{style,ref:ref=>this.el=ref},this.props.children)
+		}
+	}
 	const sendVal = ctx =>(action,value,opt) =>{
 		const act = action.length>0?action:"change"
 		const optHeader = opt?{"X-r-opt":opt}:{}
@@ -3630,6 +3671,7 @@ ACAAIAAgACAAAA==`
 			InteractiveAreaElement,ZoomOnPopupElement,
 			BatteryState,DeviceConnectionState,
 			DragWrapperElement,
+			CanvasMaxHeightElement,
 			NoShowUntilElement
     },
 		onClickValue,		
