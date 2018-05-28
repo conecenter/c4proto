@@ -3620,12 +3620,7 @@ ACAAIAAgACAAAA==`
 			this.setRootRect()
 			this.footer = this.root.querySelector(".mainFooter")			
 			checkActivateCalls.add(this.check)
-		}
-		componentDidUpdate(prevProps,prevState){
-			if(prevState.height==this.state.height){
-				this.setRootRect()
-			}
-		}
+		}		
 		componentWillUnmount(){
 			checkActivateCalls.remove(this.check)
 		}
