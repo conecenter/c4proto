@@ -10,8 +10,8 @@ import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with GeneralizedOrigRegistryApi with PreHashingApp {
-  override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model, preHashing)) ::: super.assembles
+trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with GeneralizedOrigRegistryApi with DepResponseFactoryApp{
+  override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
@@ -26,7 +26,7 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
 
 case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, modelCl: String)
 
-@assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model], preHashing: PreHashing) extends Assemble {
+@assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model], util: DepResponseFactory) extends Assemble {
 
   def HSDepRequestWithSrcToItemSrcId(
     key: SrcId,
@@ -44,13 +44,13 @@ case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, mod
     key: SrcId,
     responses: Values[Response[Model]],
     requests: Values[DepInnerRequest]
-  ): Values[(SrcId, DepInnerResponse)] =
+  ): Values[(SrcId, DepResponse)] =
     for {
       rq ← requests
       if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
       resp ← responses
     } yield {
-      WithPK(DepInnerResponse(rq, preHashing.wrap(Option(resp.lines))))
+      WithPK(util.wrap(rq, Option(resp.lines)))
     }
 }
 

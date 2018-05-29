@@ -2,16 +2,15 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.TestProtocol.ValueNode
 import ee.cone.c4actor.TestRequests.FooDepRequest
-import ee.cone.c4actor.dep.DepTypes.{ContextId, DepCtx}
+import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
+import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
+import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.ByPKRequest
+import ee.cone.c4actor.dep_impl.{RequestDep, ResolvedDep}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
-case class DepDraft(factory : CommonRequestUtilityFactory) {
-
-  def parallel[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
-    new ParallelDep(a.asInstanceOf[InnerDep[A]], b.asInstanceOf[InnerDep[B]])
+case class DepDraft(factory : CommonRequestUtilityFactory, valueNode: AskByPK[ValueNode]) {
 
   def askFoo(v: String): Dep[Int] = new RequestDep[Int](FooDepRequest(v))
 
@@ -20,18 +19,18 @@ case class DepDraft(factory : CommonRequestUtilityFactory) {
       (a,b) ← parallel(askFoo("A"), askFoo("B"))
     } yield (a,b)*/
 
-  case object FooRequestHandler extends RequestHandler[FooDepRequest] {
-    def canHandle = classOf[FooDepRequest]
+  case object FooRequestHandler extends DepHandler {
+    def className = classOf[FooDepRequest].getName
 
-    def handle: FooDepRequest => (ResolvedDep[Int], ContextId) = fooRq => {
-      val response = fooRq.v match {
+    def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_] = fooRq ⇒ ctx ⇒  {
+      val response = fooRq.asInstanceOf[FooDepRequest].v match {
         case "A" => 1
         case "B" => 2
         case "C" => 3
         case "D" => 10
         case a ⇒ throw new Exception(s"$a can't be handled by FooRequestHandler")
       }
-      (new ResolvedDep(response), "")
+      new ResolvedDep(response).resolve(ctx)
     }
   }
 
@@ -44,19 +43,20 @@ case class DepDraft(factory : CommonRequestUtilityFactory) {
     list.foldLeft(0)((sum, node) ⇒ sum + node.value)}
 
   def testView: Dep[Int] = for {
-    a ← askByPK(classOf[ValueNode], "123")
-  } yield a.map(_.value).getOrElse(0)
+    a ← valueNode.ask("123")
+  } yield a.map(_.value).headOption.getOrElse(0)
 
   def subView(a: Int): Dep[Int] = for {
-    c ← askByPK(classOf[ValueNode], "123")
+    c ← valueNode.ask("123")
     b ← askFoo("B")
-  } yield a + b + c.map(_.value).getOrElse(0)
+  } yield a + b + c.map(_.value).headOption.getOrElse(0)
 
   def serialView: Dep[(Int, Int, Int)] = for {
     a ← askFoo("A")
+    t ← new RequestDep[String](ContextIdRequest())
     s ← subView(a)
-    b ← askByPK(classOf[ValueNode], "124")
-  } yield (a, s, b.map(_.value).getOrElse(0))
+    b ← valueNode.ask("124")
+  } yield TimeColored("g", t)((a, s, b.map(_.value).headOption.getOrElse(0)))
 
   /*
     def parallelView: Dep[(Int,Int)] = for {
@@ -64,18 +64,17 @@ case class DepDraft(factory : CommonRequestUtilityFactory) {
     } yield (a,b)*/
 
   def main(args: Array[String]): Unit = {
-    serialView.asInstanceOf[InnerDep[_]]
-    val test = serialView.asInstanceOf[InnerDep[_]]
+    val test = serialView
     val r1: DepCtx = Map()
-    println(serialView.asInstanceOf[InnerDep[_]].resolve(r1))
+    println(serialView.resolve(r1))
     val r2 = r1 + (FooDepRequest("A") → Some(1))
-    println(serialView.asInstanceOf[InnerDep[_]].resolve(r2))
+    println(serialView.resolve(r2))
     val r3 = r2 + (ByPKRequest(classOf[ValueNode].getName, "123") → Some(Option(ValueNode("123", 100))))
-    println(serialView.asInstanceOf[InnerDep[_]].resolve(r3))
+    println(serialView.resolve(r3))
     val r4 = r3 + (FooDepRequest("B") → Some(2))
-    println(serialView.asInstanceOf[InnerDep[_]].resolve(r4))
+    println(serialView.resolve(r4))
     val r5 = r4 + (FooDepRequest("D") → Some(10))
-    println(serialView.asInstanceOf[InnerDep[_]].resolve(r5))
+    println(serialView.resolve(r5))
   }
 }
 

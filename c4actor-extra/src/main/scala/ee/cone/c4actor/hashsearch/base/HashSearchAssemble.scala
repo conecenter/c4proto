@@ -3,8 +3,6 @@ package ee.cone.c4actor.hashsearch.base
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.DepAssembleUtilityImpl
-import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUtilsApp}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 
@@ -144,8 +142,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   condSer: SerializationUtils,
   preHashing: PreHashing,
   debugMode: Boolean = false
-) extends Assemble with HashSearchAssembleSharedKeys
-  with DepAssembleUtilityImpl {
+) extends Assemble with HashSearchAssembleSharedKeys {
   type InnerUnionId = SrcId
   type InnerIntersectId = SrcId
   type InnerLeafId = SrcId
