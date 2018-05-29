@@ -12,7 +12,7 @@ import ee.cone.c4proto.ToByteString
 case class DepResponseImpl(innerRequest: DepInnerRequest, valueHashed: PreHashed[Option[_]]) extends DepResponse {
   def value: Option[_] = valueHashed.value
 }
-case class DepInnerResolvable(result: DepResponse, subRequests: Seq[DepOuterRequest])
+case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOuterRequest)])
 
 @assemble class DepAssemble(reg: DepRequestHandlerRegistry) extends Assemble {
 
@@ -21,8 +21,8 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[DepOuterRequ
     @was resolvableSeq: Values[DepInnerResolvable]
   ): Values[(GroupId, DepOuterRequest)] = for {
     resolvable ← resolvableSeq
-    outer ← resolvable.subRequests
-  } yield outer.innerRequest.srcId → outer
+    pair ← resolvable.subRequests
+  } yield pair
 
   def toSingleInnerRequest(
     innerId: SrcId,
@@ -56,7 +56,11 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[DepOuterRequ
   } yield WithPK(handle(responses))
 }
 
-case class DepRequestHandlerRegistry(util: DepReqRespFactory, handlerSeq: Seq[DepHandler])(
+case class DepRequestHandlerRegistry(
+  depOuterRequestFactory: DepOuterRequestFactory,
+  depResponseFactory: DepResponseFactory,
+  handlerSeq: Seq[DepHandler]
+)(
   handlers: Map[String,DepHandler] = CheckedMap(handlerSeq.map(h⇒h.className→h))
 ) {
   def handle(req: DepInnerRequest): Option[Values[DepResponse]⇒DepInnerResolvable] =
@@ -66,23 +70,26 @@ case class DepRequestHandlerRegistry(util: DepReqRespFactory, handlerSeq: Seq[De
         value ← response.value
       } yield response.innerRequest.request → value).toMap
       val resolvable: Resolvable[_] = handler.handle(req.request)(ctx)
-      val response = util.response(req,resolvable.value)
-      DepInnerResolvable(response, resolvable.requests.map(util.outerRequest(req.srcId)))
+      val response = depResponseFactory.wrap(req,resolvable.value)
+      DepInnerResolvable(response, resolvable.requests.map(depOuterRequestFactory.pair(req.srcId)))
     }
 }
 
-case class DepReqRespFactoryImpl(uuidUtil: UUIDUtil)(preHashing: PreHashing, qAdapterRegistry: QAdapterRegistry) extends DepReqRespFactory {
-  def outerRequest(parentId: SrcId)(rq: DepRequest): DepOuterRequest = {
+case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseFactory {
+  def wrap(req: DepInnerRequest, value: Option[_]): DepResponse =
+    DepResponseImpl(req,preHashing.wrap(value))
+}
+
+case class DepOuterRequestFactoryImpl(uuidUtil: UUIDUtil)(qAdapterRegistry: QAdapterRegistry) extends DepOuterRequestFactory {
+  def pair(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest) = {
     val valueAdapter = qAdapterRegistry.byName(rq.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(rq))
     val innerId = uuidUtil.srcIdFromSerialized(valueAdapter.id, bytes)
     val inner = DepInnerRequest(innerId, rq)
     val outerId = uuidUtil.srcIdFromSrcIds(parentId, inner.srcId)
-    DepOuterRequest(outerId, inner, parentId)
+    inner.srcId → DepOuterRequest(outerId, inner, parentId)
   }
-  def response(req: DepInnerRequest, value: Option[_]): DepResponse =
-    DepResponseImpl(req,preHashing.wrap(value))
 }
 
-// comment handleAndBuildContext, ContextId: ContextIdRequest() →
-// generateDepOuterRequest -> outerRequest
+
+// ContextId: ContextIdRequest() →

@@ -46,7 +46,7 @@ trait DepHandlerFactory extends Product {
 // api for integration with joiners
 
 // to use dep system from joiners:
-// Values[(GroupId, DepOuterRequest)] ... yield outer.innerRequest.srcId → outer //todo ret pair
+// Values[(GroupId, DepOuterRequest)] ... yield depOuterRequestFactory.pair(parentId)(rq)
 // @by[GroupId] Values[DepResponse] ...
 
 // to implement dep handler using joiners:
@@ -54,14 +54,18 @@ trait DepHandlerFactory extends Product {
 // Values[(SrcId, DepResponse)]
 
 case class DepInnerRequest(srcId: SrcId, request: DepRequest) //TODO Store serialized version
+
 case class DepOuterRequest(srcId: SrcId, innerRequest: DepInnerRequest, parentSrcId: SrcId)
+trait DepOuterRequestFactory extends Product {
+  def pair(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest)
+}
+
 trait DepResponse extends Product {
   def innerRequest: DepInnerRequest
   def value: Option[_]
 }
-trait DepReqRespFactory extends Product { //todo 2 fac
-  def outerRequest(parentId: SrcId)(rq: DepRequest): DepOuterRequest
-  def response(req: DepInnerRequest, value: Option[_]): DepResponse
+trait DepResponseFactory extends Product {
+  def wrap(req: DepInnerRequest, value: Option[_]): DepResponse
 }
 
 /******************************************************************************/
