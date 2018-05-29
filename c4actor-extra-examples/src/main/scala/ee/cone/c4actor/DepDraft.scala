@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.TestProtocol.ValueNode
 import ee.cone.c4actor.TestRequests.FooDepRequest
-import ee.cone.c4actor.dep.DepTypeContainer.{ContextId, DepCtx}
+import ee.cone.c4actor.dep.DepTypes.{ContextId, DepCtx}
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}

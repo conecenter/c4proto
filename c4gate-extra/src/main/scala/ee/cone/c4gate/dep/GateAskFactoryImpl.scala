@@ -4,7 +4,7 @@ import java.util.UUID
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.DepTypeContainer.ContextId
+import ee.cone.c4actor.dep.DepTypes.ContextId
 import ee.cone.c4actor.dep.{CommonRequestUtilityFactory, Dep, RequestDep}
 import ee.cone.c4gate.SessionAttr
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
