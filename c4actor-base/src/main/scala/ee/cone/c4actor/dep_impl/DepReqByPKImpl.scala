@@ -34,14 +34,14 @@ object ByPKTypes {
   }
 }
 
-@assemble class ByPKGenericAssemble[A <: Product](handledClass: Class[A], util: DepReqRespFactory) extends Assemble {
+@assemble class ByPKGenericAssemble[A <: Product](handledClass: Class[A], util: DepResponseFactory) extends Assemble {
   def BPKRequestToResponse(
     key: SrcId,
     @by[ByPkItemSrcId] requests: Values[InnerByPKRequest],
     items: Values[A]
   ): Values[(SrcId, DepResponse)] = for (
     rq ← requests if rq.className == handledClass.getName
-  ) yield WithPK(util.response(rq.request, Option(items)))
+  ) yield WithPK(util.wrap(rq.request, Option(items)))
 }
 
 object ByPKAssembles {
@@ -49,15 +49,15 @@ object ByPKAssembles {
     new ByPKAssemble :: askByPKs.distinct.collect{ case bc: AskByPKImpl[_] ⇒ bc.assemble }
 }
 
-case class AskByPKFactoryImpl(depAskFactory: DepAskFactory, depReqRespFactory: DepReqRespFactory) extends AskByPKFactory {
+case class AskByPKFactoryImpl(depAskFactory: DepAskFactory, util: DepResponseFactory) extends AskByPKFactory {
   def forClass[A<:Product](cl: Class[A]): AskByPK[A] =
-    AskByPKImpl(cl.getName, depReqRespFactory)(cl,depAskFactory.forClasses(classOf[ByPKRequest],classOf[Values[A]]))
+    AskByPKImpl(cl.getName, util)(cl,depAskFactory.forClasses(classOf[ByPKRequest],classOf[Values[A]]))
 }
-case class AskByPKImpl[A<:Product](name: String, depReqRespFactory: DepReqRespFactory)(
+case class AskByPKImpl[A<:Product](name: String, util: DepResponseFactory)(
   theClass: Class[A], depAsk: DepAsk[ByPKRequest,Values[A]]
 ) extends AskByPK[A] {
   def ask: SrcId ⇒ Dep[Values[A]] = id ⇒ depAsk.ask(ByPKRequest(name,id))
-  def assemble: Assemble = new ByPKGenericAssemble(theClass, depReqRespFactory)
+  def assemble: Assemble = new ByPKGenericAssemble(theClass, util)
 }
 
 /*

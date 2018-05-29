@@ -20,10 +20,10 @@ trait DepAssembleApp extends AssemblesApp {
   lazy val depFactory: DepFactory = DepFactoryImpl()
   lazy val depAskFactory: DepAskFactory = DepAskFactoryImpl()
   lazy val depHandlerFactory: DepHandlerFactory = DepHandlerFactoryImpl()
+  lazy val depResponseFactory: DepResponseFactory = DepResponseFactoryImpl()(preHashing)
+  lazy val depOuterRequestFactory: DepOuterRequestFactory = DepOuterRequestFactoryImpl(uuidUtil)(qAdapterRegistry)
   private lazy val requestHandlerRegistry =
-    DepRequestHandlerRegistry(depReqUtil,depRequestHandlers)()
-  private lazy val depReqUtil =
-    DepReqRespFactoryImpl(uuidUtil)(preHashing,qAdapterRegistry)
+    DepRequestHandlerRegistry(depOuterRequestFactory,depResponseFactory,depRequestHandlers)()
   override def assembles: List[Assemble] =
     new DepAssemble(requestHandlerRegistry) :: super.assembles
 }
@@ -36,10 +36,10 @@ trait AskByPKsApp {
 
 trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
   def askByPKs: List[AbstractAskByPK]
-  def depReqRespFactory: DepReqRespFactory
+  def depResponseFactory: DepResponseFactory
   def depAskFactory: DepAskFactory
 
-  lazy val askByPKFactory: AskByPKFactory = AskByPKFactoryImpl(depAskFactory,depReqRespFactory)
+  lazy val askByPKFactory: AskByPKFactory = AskByPKFactoryImpl(depAskFactory,depResponseFactory)
   override def assembles: List[Assemble] = ByPKAssembles(askByPKs) ::: super.assembles
   override def protocols: List[Protocol] = ByPKRequestProtocol :: super.protocols
 }
