@@ -114,9 +114,11 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
       if(ByPK(classOf[HttpPostAllow]).of(nLocal).contains(requestId)){
         qMessages.send(nLocal)
         httpExchange.sendResponseHeaders(200, 0)
+        //logger.debug(s"200 $path $headers")
       } else {
         logger.warn(path)
         httpExchange.sendResponseHeaders(429, 0) //Too Many Requests
+        //logger.debug(s"429 $path $headers")
       }
     }(local)
     true
