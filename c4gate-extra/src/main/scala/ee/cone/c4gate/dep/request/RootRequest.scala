@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.DepTypeContainer.ContextId
+import ee.cone.c4actor.dep.DepTypes.ContextId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, QAdapterRegistry, WithPK}
 import ee.cone.c4assemble.Types.Values
