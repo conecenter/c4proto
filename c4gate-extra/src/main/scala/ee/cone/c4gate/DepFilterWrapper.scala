@@ -1,12 +1,15 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.hashsearch.index.StaticHashSearchApi._
+import collection.immutable.Seq
+
 import ee.cone.c4actor._
+import ee.cone.c4actor.dep.Dep
 import ee.cone.c4actor.dep.request.{LeafInfoHolder, LeafRegistryApp}
-import ee.cone.c4actor.dep.{Dep, InnerDep, RequestDep, SeqParallelDep}
+import ee.cone.c4actor.dep_impl.{RequestDep, SeqParallelDep}
 import ee.cone.c4actor.hashsearch.base.{HashSearchDepRequestFactory, HashSearchDepRequestFactoryApp, HashSearchModelsApp}
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.HashSearchStaticLeafFactoryApi
+import ee.cone.c4actor.hashsearch.index.StaticHashSearchApi._
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.dep.request.{FLRequestDef, FilterListRequestApp}
@@ -49,7 +52,7 @@ trait DepFilterWrapperCollectorMix
 case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
   leafs: List[LeafInfoHolder[Model, _ <: Product, _]],
   staticIndex: StaticIndexBuilder[Model],
-  depAccessSeq: Seq[InnerDep[Option[Access[_ <: Product]]]]
+  depAccessSeq: Seq[Dep[Option[Access[_ <: Product]]]]
 )(
   depToCondFunction: Seq[Option[Access[_ <: Product]]] ⇒ Condition[Model],
   val listName: String,
@@ -84,7 +87,7 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
         val tail: Condition[Model] = depToCondFunction(rest)
         intersect(head, tail)
     }
-    DepFilterWrapperImpl(newLeafs, newIndex, byDep.asInstanceOf[InnerDep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, defaultModelRegistry, modelConditionFactory, rangerRegistry, matches)
+    DepFilterWrapperImpl(newLeafs, newIndex, byDep.asInstanceOf[Dep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, defaultModelRegistry, modelConditionFactory, rangerRegistry, matches)
   }
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = leafs

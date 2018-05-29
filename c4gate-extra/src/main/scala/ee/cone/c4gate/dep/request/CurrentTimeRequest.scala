@@ -5,19 +5,19 @@ import java.time.Instant
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.{DepGenericUtilityImpl, DepInnerRequest, DepInnerResponse}
+import ee.cone.c4actor.dep._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4gate.dep.request.CurrentTimeProtocol.CurrentTimeNode
 import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with PreHashingApp{
+trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp{
 
 
   override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig("CurrentTimeRequestAssemble", 10L) :: super.currentTimeConfig
 
-  override def assembles: List[Assemble] = new CurrentTimeRequestAssemble(preHashing) :: super.assembles
+  override def assembles: List[Assemble] = new CurrentTimeRequestAssemble(depResponseFactory) :: super.assembles
 
   override def protocols: List[Protocol] = QProtocol :: CurrentTimeRequestProtocol :: CurrentTimeProtocol :: super.protocols
 }
@@ -54,7 +54,7 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp{
 }
 
 
-@assemble class CurrentTimeAssemble(configList: List[CurrentTimeConfig]) extends Assemble with DepGenericUtilityImpl {
+@assemble class CurrentTimeAssemble(configList: List[CurrentTimeConfig]) extends Assemble {
   type PongSrcId = SrcId
 
   def FromFirstBornCreateNowTime(
@@ -75,12 +75,12 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp{
     } yield All → nowTimeNode
 }
 
-@assemble class CurrentTimeRequestAssemble(preHashing: PreHashing) extends Assemble {
+@assemble class CurrentTimeRequestAssemble(util: DepResponseFactory) extends Assemble {
   def FromAlienPongAndRqToInnerResponse(
     alienId: SrcId,
     @by[All] pongs: Values[CurrentTimeNode],
     requests: Values[DepInnerRequest]
-  ): Values[(SrcId, DepInnerResponse)] =
+  ): Values[(SrcId, DepResponse)] =
     for {
       pong ← pongs.filter(_.srcId == "CurrentTimeRequestAssemble")
       rq ← requests
@@ -88,7 +88,7 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp{
     } yield {
       val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
       val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
-      WithPK(DepInnerResponse(rq, preHashing.wrap(Option(newTime))))
+      WithPK(util.wrap(rq, Option(newTime)))
     }
 }
 
