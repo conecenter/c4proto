@@ -13,6 +13,19 @@ jsx?
 
 export default function MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent}){
 	const $ = React.createElement	
+	const Branches = (()=>{
+		let main =""
+		const store = (o)=>{
+			if(!o.length) return
+			main = o.split(/[,;]/)[0]
+		}
+		const get = () => main
+		const isSibling = (o) => {
+			if(main.length==0) return false
+			return main != o.branchKey
+		}
+		return {store, get, isSibling}
+	})()
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -517,9 +530,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			}
 		}
 		onResize(){
-			if(!this.el || !this.remRef) return					
-			const count = miscReact.count()
-			if(count != 1) return
+			if(!this.el || !this.remRef) return				
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return			
 			if(this.unmounted) return
 			this.sentData()			
 		}
@@ -530,9 +543,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				this.resizeL = this.resizeL.unreg()
 			}
 		}
-		initListener(){
-			const count = miscReact.count()
-			if(count != 1) return
+		initListener(){			
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return
 			if(this.props.onWResize && this.el && this.remRef && !this.resizeL) {
 				log(`init listener`)
 				this.sentData()
@@ -545,6 +558,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		componentDidMount(){
 			const node = documentManager.body().querySelector("#dev-content");
 			const nodeOld = documentManager.body().querySelector("#content");
+			this.ctx = rootCtx(this.props.ctx)
 			if(node)
 			while (node.hasChildNodes())
 				node.removeChild(node.lastChild);
@@ -677,7 +691,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.el.removeEventListener("enter",this.onEnter)
 		}
 		render(){
-			const {value,style,children} = this.props
+			const {value,style,tooltip,children} = this.props			
+			const title = tooltip?tooltip:null
 			return	$("div",{style:{
 				fontSize:'1em',
 				color:'white',
@@ -699,7 +714,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				MozUserSelect:"none",
 				userSelect:"none",				
 				...style
-			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey},[value,children])
+			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
 		}
 	}
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{
@@ -734,8 +749,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.el) return			
 			if(!this.emEl) return
 			if(!this.el.parentElement) return	
-			const count = miscReact.count()
-			if(count!=1) return
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return
 			const dRect = this.el.getBoundingClientRect()
 			const pdRect = this.el.parentElement.getBoundingClientRect()			
 			if(this.prev!=pdRect.width){
@@ -755,7 +770,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		componentDidMount(){
 			if(this.props.dynamic) checkActivateCalls.add(this.check)
-			if(!this.el) return			
+			if(!this.el) return	
+			this.ctx = rootCtx(this.props.ctx)
 			this.el.addEventListener("cTab",this.onInputEnter)
 		}
 		componentWillUnmount(){
@@ -889,6 +905,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.binding) this.binding.unreg()			
 		}			
 		onMouseDown(e){
+			if(this.props.onClick) this.props.onClick(e)
 			if(!this.props.draggable) return;
 			if(!this.el) return;			
 			if(this.dragBinding){
@@ -1121,10 +1138,12 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			}									
 		}
 		onErase(event){
+			
 			const inp = this.getInput()	
 			inp.value = ""			
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
 			if(this.props.onBlur) this.props.onBlur()
-			else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+			//else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 			//const cEvent = eventManager.create("input",{bubbles:true})							
 			//inp.dispatchEvent(cEvent)	
 		}
@@ -1527,7 +1546,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const buttonImageStyle={				
 				verticalAlign:"middle",
 				display:"inline",
-				height:"auto",
+				height:"100%",
+				width:"100%",
 				transform:this.props.open?"rotate(180deg)":"rotate(0deg)",
 				transition:"all 200ms ease",
 				boxSizing:"border-box",
@@ -1572,7 +1592,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	class ControlWrapperElement extends StatefulComponent{		
 		getInitialState(){ return {focused:false}}
 		onFocus(e){
-			focusModule.switchTo(this)			
+			const res = focusModule.switchTo(this)			
+			if(!res) return
 			if(this.el){
 				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.path})
 				e.preventDefault();
@@ -1583,8 +1604,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}
 		onBlur(e){			
 			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
-			focusModule.switchOff(this, e&&e.relatedTarget)
-			this.setState({focused:false})
+			const res = focusModule.switchOff(this, e&&e.relatedTarget)
+			if(res) this.setState({focused:false})
 		}
 		componentDidMount(){
 			if(this.el) {				
@@ -1613,7 +1634,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const {style,children} = this.props
 			const focusedStyle  = this.state.focused
 			const propsOnPath = (p0,p1) => /*p0 == p1 && p1.length>0 || */this.state.focused?{outlineStyle:"dashed"}:{outlineStyle:"none"}
-			
+			const sticky = this.props.sticky?"sticky":null
 			return $(Consumer,{},path=>
 				$("div",{style:{
 					width:"100%",				
@@ -1627,6 +1648,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				},tabIndex:"1",
 				className,
 				onClick:this.onClick,
+				"data-sticky":sticky,
 				ref:this.onRef(path)},children)
 			)
 		}
@@ -3022,7 +3044,125 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			)
 		}
 	}
-	
+	const beepMidi = `data:audio/mpeg;base64,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
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAP/7ksDVgAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uSwP+AAAAB
+LAAAAAAAACWAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAP/7ksD/gAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uSwP+AAAAB
+LAAAAAAAACWAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAP/7ksD/gAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAgACAAIAAg
+ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
+IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA//uSwP+AAAAB
+LAAAAAAAACWAAAAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
+ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
+IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
+ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
+IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
+ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
+IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
+ACAAIAAgACAAAA==`
 	const ColorItem = ({value,onChange,style}) => React.createElement('div',{
 		style: {
 			width:'6em',
@@ -3044,23 +3184,43 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	
 	class SoundProducerElement extends StatefulComponent{
 		produce(){
+			const audio = miscUtil.audio
+			if(!audio) return
+			try{
+				this.audio = audio(beepMidi)
+				this.audio.play()
+			}
+			catch(e){log(e)}
+		}
+		/*
+		produce(){
 			const audioContext = miscUtil.audioContext
 
 			if(!audioContext) return
-			const audioCtx = audioContext()
-			this.oscillator = audioCtx.createOscillator()
+			if(this.audioContext) return
+			this.audioCtx = audioContext()
+			this.oscillator = this.audioCtx.createOscillator()
 			this.oscillator.type = this.props.type||'square'
 			const freq = (this.props.freq?parseInt(this.props.freq):null)||440
-			this.oscillator.frequency.setValueAtTime(freq, audioCtx.currentTime)
-			this.oscillator.connect(audioCtx.destination)
+			this.oscillator.frequency.setValueAtTime(freq, this.audioCtx.currentTime)
+			this.oscillator.connect(this.audioCtx.destination)
 			this.oscillator.start()
 			const period = (this.props.period?parseInt(this.props.period):null)||300
 			setTimeout(()=>{
-				this.oscillator.stop()
+				this.stop()
 			},period)
 		}
 		stop(){
 			this.oscillator&&this.oscillator.stop()
+			this.audioCtx&&this.audioCtx.close().then(()=>this.audioCtx = null) 
+		}*/
+		componentDidUpdate(){
+			this.audio&&this.stop()
+			this.produce()
+		}
+		stop(){
+			this.audio&&this.audio.stop()
+			this.audio = null
 		}
 		componentDidMount(){
 			this.produce()
@@ -3084,9 +3244,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				this.props.onWResize("change",`${width},${height},${pxEm}`)
 			}			
 		}
-		componentDidMount(){
-		//	const count = miscReact.count()
-	//		if(count!=1) return
+		componentDidMount(){		
 			if(!this.props.onWResize) return
 			this.check()
 			this.resizeL = resizeListener.reg(this.check)
@@ -3256,16 +3414,20 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		function ping(data){			
 			if(pingerTimeout){clearTimeout(pingerTimeout); pingerTimeout = null;}
 			if(!callbacks.length) return;
-			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o.func(false,null));},5000);
-			callbacks.forEach((o)=>o.func(true,null));
+			pingerTimeout=setTimeout(function(){callbacks.forEach((o)=>o(false,null));},2500);
+			callbacks.forEach((o)=>o(true,null));
 		};		
-		function regCallback(func,obj){
-			callbacks.push({obj,func});
-		};
-		function unregCallback(obj){
-			callbacks=callbacks.filter((o)=>o.obj!=obj);
-		};
-		return {ping,regCallback,unregCallback};
+		function reg(o){
+			callbacks.push(o)
+			log(`reg`)
+			const unreg = function(){
+				const index = callbacks.indexOf(o)
+				if(index>=0) callbacks.splice(index,1)				
+				log(`unreg`)
+			}
+			return {unreg}
+		}		
+		return {ping,reg};
 	}();	
 	let prevWifiLevel = null
 	let wifiData = null
@@ -3290,22 +3452,22 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.state.waiting!=on)
 				this.setState({waiting:on})
 		}
-		componentDidMount(){
-			const count = miscReact.count()
-			if(count>1) return
-			if(PingReceiver)
-				PingReceiver.regCallback(this.signal,this);
+		componentDidMount(){	
+			if(!this.el) return		
+			this.ctx = rootCtx(this.props.ctx)
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return			
+			if(PingReceiver) this.pingR = PingReceiver.reg(this.signal)
 			this.toggleOverlay(!this.state.on);			
 			this.wifi = miscUtil.scannerProxy.regWifi(this.wifiCallback)
 			this.wifi2 = miscUtil.winWifi.regWifi(this.wifiCallback)			
-			if(this.props.onContext && requestState.reg){
+			/*if(this.props.onContext && requestState.reg){
 				const branchKey = this.props.onContext()
 				this.yellow = requestState.reg({branchKey,callback:this.yellowSignal})
-			}
+			}*/
 		}
 		componentWillUnmount(){			
-			if(PingReceiver)
-				PingReceiver.unregCallback(this);
+			if(this.pingR) this.pingR.unreg();
 			if(this.wifi) this.wifi.unreg();
 			if(this.wifi2) this.wifi2.unreg();
 			if(this.yellow) this.yellow.unreg();
@@ -3315,10 +3477,13 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.props.msg||this.state.waiting) 
 				overlayManager.delayToggle(this.props.msg||this.state.waiting)
 			else
-				overlayManager.toggle(on)
-			
+				overlayManager.toggle(on)			
 		}
 		componentDidUpdate(prevProps,prevState){
+			if(!this.el) return
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return	
+			if(PingReceiver && !this.pingR) this.pingR = PingReceiver.reg(this.signal)
 			if(prevState.on != this.state.on){
 				log(`toggle ${this.state.on}`)
 				this.toggleOverlay(!this.state.on);
@@ -3381,7 +3546,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				color:"white"
 			},key:"2"},wifiData):null;
 			const on = (this.props.on === false)? false: this.state.on
-			return React.createElement("div",{style:{display:"flex"},onMouseEnter:this.onMouseOver,onMouseLeave:this.onMouseOut},[
+			return React.createElement("div",{ref:ref=>this.el=ref,style:{display:"flex"},onMouseEnter:this.onMouseOver,onMouseLeave:this.onMouseOut},[
 				React.createElement(ConnectionState,{key:"1",onClick:this.props.onClick,on,style:style,iconStyle:iconStyle,imageSvgData}, null),
 				wifiDataEl,
 				React.createElement("span",{style:{fontSize:"10px",alignSelf:"center"},key:"3"},this.state.data)
@@ -3430,6 +3595,42 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			])
 		}
 	}
+	class CanvasMaxHeightElement extends StatefulComponent{
+		setHeight(height){
+			if(this.state.height != height) this.setState({height})
+		}
+		check(){
+			const bRect = this.root.getBoundingClientRect()			
+			const rect = this.el.getBoundingClientRect()			
+			if(this.footer){
+				const fRect = this.footer.getBoundingClientRect()							
+				this.setHeight(Math.max(fRect.top - rect.top, this.origHeight - rect.top))
+				
+			}
+			else {
+				this.setHeight(this.origHeight - rect.top)
+			}
+		}		
+		setRootRect(){
+			this.rootRect = this.root.getBoundingClientRect()
+			this.origHeight = this.rootRect.height
+		}
+		componentDidMount(){
+			this.root = miscReact.getReactRoot(this.el)
+			this.setRootRect()
+			this.footer = this.root.querySelector(".mainFooter")			
+			checkActivateCalls.add(this.check)
+		}		
+		componentWillUnmount(){
+			checkActivateCalls.remove(this.check)
+		}
+		render(){		
+			const style = {
+				height:!this.state.height?"auto":this.state.height+"px"
+			}
+			return $("div",{style,ref:ref=>this.el=ref},this.props.children)
+		}
+	}
 	const sendVal = ctx =>(action,value,opt) =>{
 		const act = action.length>0?action:"change"
 		const optHeader = opt?{"X-r-opt":opt}:{}
@@ -3465,6 +3666,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			InteractiveAreaElement,ZoomOnPopupElement,
 			BatteryState,DeviceConnectionState,
 			DragWrapperElement,
+			CanvasMaxHeightElement,
 			NoShowUntilElement
     },
 		onClickValue,		
@@ -3476,7 +3678,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	};
 	const receivers = {
 		download,
-		ping:PingReceiver.ping,
+		ping:PingReceiver.ping,		
+		branches:Branches.store,
 		...errors.receivers
 	}	
 	const checkActivate = checkActivateCalls.check	
