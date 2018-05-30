@@ -62,31 +62,34 @@ object HashSearchImpl {
   }
 
   class FactoryImpl(
-    modelConditionFactory: ModelConditionFactory[Unit]
+    modelConditionFactory: ModelConditionFactory[Unit],
+    preHashing: PreHashing
   ) extends Factory {
     def index[Model<:Product](cl: Class[Model]): Indexer[Model] =
-      EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model])
+      EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model], preHashing)
     def request[Model<:Product](condition: Condition[Model]): Request[Model] =
       Request(UUID.nameUUIDFromBytes(condition.toString.getBytes(UTF_8)).toString,condition)
   }
 
   abstract class Indexer[Model<:Product] extends IndexBuilder[Model] {
+    def preHashing: PreHashing
     def modelClass: Class[Model]
     def modelConditionFactory: ModelConditionFactory[Model]
     def add[NBy<:Product,NField](lens: ProdLens[Model,NField], by: NBy)(
       implicit ranger: Ranger[NBy,NField]
     ): IndexBuilder[Model] = {
       val(valueToRanges,byToRanges) = ranger.ranges(by)
-      IndexerImpl(modelConditionFactory.filterMetaList(lens),by,this)(modelClass,modelConditionFactory,lens.of,valueToRanges,byToRanges.lift)
+      IndexerImpl(modelConditionFactory.filterMetaList(lens),by,this)(preHashing,modelClass,modelConditionFactory,lens.of,valueToRanges,byToRanges.lift)
     }
-    def assemble = new HashSearchAssemble(modelClass,this)
+    def assemble = new HashSearchAssemble(modelClass,this, preHashing)
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]]
     def heapIds(model: Model): List[SrcId]
   }
 
   case class EmptyIndexer[Model<:Product]()(
     val modelClass: Class[Model],
-    val modelConditionFactory: ModelConditionFactory[Model]
+    val modelConditionFactory: ModelConditionFactory[Model],
+    val preHashing: PreHashing
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = None
     def heapIds(model: Model): List[SrcId] = Nil
@@ -95,6 +98,7 @@ object HashSearchImpl {
   case class IndexerImpl[By<:Product,Model<:Product,Field](
     metaList: List[MetaAttr], by: By, next: Indexer[Model]
   )(
+    val preHashing: PreHashing,
     val modelClass: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
     of: Model⇒Field,
@@ -124,7 +128,8 @@ object HashSearchImpl {
 
 @assemble class HashSearchAssemble[RespLine<:Product](
   classOfRespLine: Class[RespLine],
-  indexers: Indexer[RespLine]
+  indexers: Indexer[RespLine],
+  preHashing: PreHashing
 ) extends Assemble {
   type HeapId = SrcId
   type ResponseId = SrcId
@@ -179,7 +184,7 @@ object HashSearchImpl {
     request ← single(requests)
   } yield {
     val pk = ToPrimaryKey(request)
-    pk → Response(pk, request, respLines.toList.distinct)
+    pk → Response(pk, request, preHashing.wrap(respLines.toList.distinct))
   }
   //.foldRight(List.empty[RespLine])((line,res)⇒)
 }
