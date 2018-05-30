@@ -49,7 +49,7 @@ case class SessionAttrAskFactoryImpl(
     import commonRequestFactory._
     for {
       contextId ← askContextId
-      rawModel ← rawDataAsk.ask(genPK(rawSessionData(contextId)))
+      rawModel ← rawDataAsk.seq(genPK(rawSessionData(contextId)))
     } yield {
       val request = rawSessionData(contextId)
       val pk = genPK(request)

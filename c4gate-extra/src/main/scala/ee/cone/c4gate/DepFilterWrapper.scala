@@ -101,7 +101,7 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
     for {
       seq ← new SeqParallelDep[Option[Access[_ <: Product]]](depAccessSeq)
       list ← {
-        val rq = typedFactory.conditionToHashSearchRequest(depToCondFunction(seq))
+        val rq = typedFactory.conditionToHashSearchRequest(depToCondFunction(seq)) //HashSearchDepRequest
         new RequestDep[List[Model]](rq)
       }
     } yield list

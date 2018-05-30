@@ -4,49 +4,48 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4assemble.Types.Values
 
-import scala.collection.immutable.Seq
+import scala.collection.immutable.{Seq,Map}
 
 /******************************************************************************/
 // general api for code that uses and returns Dep-s
 
-case class Resolvable[+A](value: Option[A], requests: Seq[DepRequest] = Nil) //?hashed
+case class Resolvable[+A](value: Option[A], requests: Seq[DepRequest] = Nil)  // low-level //?hashed
 
 trait Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
   def map[B](f: A ⇒ B): Dep[B]
-  def resolve(ctx: DepCtx): Resolvable[A]
+  def resolve(ctx: DepCtx): Resolvable[A] // low-level
 }
 
 object DepTypes {
   type DepRequest = Product
-  type DepCtx = Map[DepRequest, _]
+  type DepCtx = Map[DepRequest, _] // low-level
   type GroupId = SrcId
 }
 
 trait DepFactory extends Product {
   def parallelSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]]
+  def uncheckedRequestDep[Out](request: DepRequest): Dep[Out] // low-level; try to use more high-level DepAsk instead of this unchecked version
 }
 
+/******************************************************************************/
+
+// api for type-safe dep-request asking/handling
+
+trait DepHandler extends Product
 trait DepAsk[In<:Product,Out] extends Product {
-  def ask: In⇒Dep[Out]
+  def ask: In ⇒ Dep[Out]
+  def by(handler: In ⇒ Dep[Out]): DepHandler
+  def by[ReasonIn<:Product](reason: DepAsk[ReasonIn,_], handler: ReasonIn ⇒ Map[In,Out]): DepHandler
 }
 trait DepAskFactory extends Product {
   def forClasses[In<:Product,Out](in: Class[In], out: Class[Out]): DepAsk[In,Out]
 }
 
-trait DepHandler extends Product {
-  def className: String
-  def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_]
-}
-trait DepHandlerFactory extends Product {
-  def by[In<:Product,Out](ask: DepAsk[In,Out])(handler: In ⇒ DepCtx ⇒ Resolvable[Out]): DepHandler
-}
-
-/******************************************************************************/
 // api for integration with joiners
 
 // to use dep system from joiners:
-// Values[(GroupId, DepOuterRequest)] ... yield depOuterRequestFactory.pair(parentId)(rq)
+// Values[(GroupId, DepOuterRequest)] ... yield depOuterRequestFactory.tupled(parentId)(rq)
 // @by[GroupId] Values[DepResponse] ...
 
 // to implement dep handler using joiners:
@@ -57,7 +56,7 @@ case class DepInnerRequest(srcId: SrcId, request: DepRequest) //TODO Store seria
 
 case class DepOuterRequest(srcId: SrcId, innerRequest: DepInnerRequest, parentSrcId: SrcId)
 trait DepOuterRequestFactory extends Product {
-  def pair(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest)
+  def tupled(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest)
 }
 
 trait DepResponse extends Product {
@@ -73,7 +72,8 @@ trait DepResponseFactory extends Product {
 
 trait AbstractAskByPK
 trait AskByPK[A<:Product] extends AbstractAskByPK {
-  def ask: SrcId ⇒ Dep[Values[A]]
+  def seq(id: SrcId): Dep[Values[A]]
+  def option(id: SrcId): Dep[Option[A]]
 }
 trait AskByPKFactory {
   def forClass[A<:Product](cl: Class[A]): AskByPK[A]

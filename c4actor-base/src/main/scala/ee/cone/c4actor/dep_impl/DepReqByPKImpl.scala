@@ -6,7 +6,7 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dep_impl.ByPKTypes.ByPkItemSrcId
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object ByPKRequestProtocol extends Protocol {
@@ -56,7 +56,8 @@ case class AskByPKFactoryImpl(depAskFactory: DepAskFactory, util: DepResponseFac
 case class AskByPKImpl[A<:Product](name: String, util: DepResponseFactory)(
   theClass: Class[A], depAsk: DepAsk[ByPKRequest,Values[A]]
 ) extends AskByPK[A] {
-  def ask: SrcId ⇒ Dep[Values[A]] = id ⇒ depAsk.ask(ByPKRequest(name,id))
+  def seq(id: SrcId): Dep[Values[A]] = depAsk.ask(ByPKRequest(name,id))
+  def option(id: SrcId): Dep[Option[A]] = seq(id).map(Single.option)
   def assemble: Assemble = new ByPKGenericAssemble(theClass, util)
 }
 

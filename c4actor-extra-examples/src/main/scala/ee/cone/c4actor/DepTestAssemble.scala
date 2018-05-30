@@ -52,7 +52,7 @@ case class DepTestResponse(srcId: String, response: Option[_])
     for {
       spark ← sparks
     } yield {
-      f.pair("test")(DepTestRequest())
+      f.tupled("test")(DepTestRequest())
     }
 
   def HarvestBirth(

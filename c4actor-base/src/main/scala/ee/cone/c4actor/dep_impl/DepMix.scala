@@ -15,15 +15,14 @@ trait DepAssembleApp extends AssemblesApp {
   def preHashing: PreHashing
   def uuidUtil: UUIDUtil
   def qAdapterRegistry: QAdapterRegistry
-  def depRequestHandlers: Seq[DepHandler]
+  def depHandlers: Seq[DepHandler]
   //
   lazy val depFactory: DepFactory = DepFactoryImpl()
-  lazy val depAskFactory: DepAskFactory = DepAskFactoryImpl()
-  lazy val depHandlerFactory: DepHandlerFactory = DepHandlerFactoryImpl()
+  lazy val depAskFactory: DepAskFactory = DepAskFactoryImpl(depFactory)
   lazy val depResponseFactory: DepResponseFactory = DepResponseFactoryImpl()(preHashing)
   lazy val depOuterRequestFactory: DepOuterRequestFactory = DepOuterRequestFactoryImpl(uuidUtil)(qAdapterRegistry)
   private lazy val requestHandlerRegistry =
-    DepRequestHandlerRegistry(depOuterRequestFactory,depResponseFactory,depRequestHandlers)()
+    DepRequestHandlerRegistry(depOuterRequestFactory,depResponseFactory,depHandlers)()
   override def assembles: List[Assemble] =
     new DepAssemble(requestHandlerRegistry) :: super.assembles
 }

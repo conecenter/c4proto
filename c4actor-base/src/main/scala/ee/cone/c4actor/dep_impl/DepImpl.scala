@@ -57,24 +57,6 @@ class SeqParallelDep[A](depSeq: Seq[Dep[A]]) extends DepImpl[Seq[A]] {
 case class DepFactoryImpl() extends DepFactory {
   def parallelSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]] =
     new SeqParallelDep[A](value.asInstanceOf[Seq[Dep[A]]])
-}
-
-
-case class DepAskImpl[In<:Product,Out](name: String)(val inClass: Class[In]) extends DepAsk[In,Out] {
-  def ask: In ⇒ Dep[Out] = request ⇒ new RequestDep[Out](request)
-}
-
-case class DepAskFactoryImpl() extends DepAskFactory {
-  def forClasses[In<:Product,Out](in: Class[In], out: Class[Out]): DepAsk[In,Out] =
-    DepAskImpl[In,Out](in.getName)(in)
-}
-
-case class DepHandlerImpl(className: String)(val handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_]) extends DepHandler
-
-case class DepHandlerFactoryImpl() extends DepHandlerFactory {
-  def by[In<:Product,Out](ask: DepAsk[In,Out])(handler: In ⇒ DepCtx ⇒ Resolvable[Out]): DepHandler =
-    ask match {
-      case a: DepAskImpl[_,_] ⇒
-        DepHandlerImpl(a.name)(handler.asInstanceOf[DepRequest ⇒ DepCtx ⇒ Resolvable[_]])
-    }
+  def uncheckedRequestDep[Out](request: DepRequest): Dep[Out] =
+    new RequestDep[Out](request)
 }

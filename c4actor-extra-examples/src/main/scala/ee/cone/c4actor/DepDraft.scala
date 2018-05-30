@@ -43,11 +43,11 @@ case class DepDraft(factory : CommonRequestUtilityFactory, valueNode: AskByPK[Va
     list.foldLeft(0)((sum, node) ⇒ sum + node.value)}
 
   def testView: Dep[Int] = for {
-    a ← valueNode.ask("123")
+    a ← valueNode.seq("123")
   } yield a.map(_.value).headOption.getOrElse(0)
 
   def subView(a: Int): Dep[Int] = for {
-    c ← valueNode.ask("123")
+    c ← valueNode.seq("123")
     b ← askFoo("B")
   } yield a + b + c.map(_.value).headOption.getOrElse(0)
 
@@ -55,7 +55,7 @@ case class DepDraft(factory : CommonRequestUtilityFactory, valueNode: AskByPK[Va
     a ← askFoo("A")
     t ← new RequestDep[String](ContextIdRequest())
     s ← subView(a)
-    b ← valueNode.ask("124")
+    b ← valueNode.seq("124")
   } yield TimeColored("g", t)((a, s, b.map(_.value).headOption.getOrElse(0)))
 
   /*
