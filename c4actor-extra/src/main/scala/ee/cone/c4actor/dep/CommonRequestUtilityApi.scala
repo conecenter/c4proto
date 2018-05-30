@@ -18,8 +18,8 @@ case class CommonRequestUtilityFactoryImpl(
   depAskFactory: DepAskFactory,
   contextAsk: DepAsk[ContextIdRequest,ContextId]
 ) extends CommonRequestUtilityFactory{
-  def askByClassName[A](Class: Class[A], from: Int = -1, to: Int = -1): Dep[List[A]] =
-    ???
+  def askByClassName[A](aCl: Class[A], from: Int = -1, to: Int = -1): Dep[List[A]] =
+    depAskFactory.forClasses(classOf[ByClassNameRequest], classOf[List[A]]).ask(ByClassNameRequest(aCl.getName, from, to))
 
   def askContextId: Dep[ContextId] =
     contextAsk.ask(ContextIdRequest())

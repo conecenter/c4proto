@@ -3,6 +3,7 @@ package ee.cone.c4gate.dep.request
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypes.ContextId
 import ee.cone.c4actor._
+import ee.cone.c4actor.dep.ContextTypes.ContextId
 import ee.cone.c4actor.dep._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, assemble}

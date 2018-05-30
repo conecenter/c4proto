@@ -6,7 +6,7 @@ import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.TestProtocol.TestNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
-import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, SerializationUtilsApp, SerializationUtilsMix}
+import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
 import ee.cone.c4assemble.Types.Values
@@ -204,6 +204,8 @@ class HashSearchExtraTestApp extends RichDataApp
   with TestCondition
   with HashSearchAssembleApp
   with SerializationUtilsMix {
+
+
 
   override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
