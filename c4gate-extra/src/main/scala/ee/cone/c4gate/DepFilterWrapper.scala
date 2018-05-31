@@ -1,7 +1,5 @@
 package ee.cone.c4gate
 
-import collection.immutable.Seq
-
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.Dep
 import ee.cone.c4actor.dep.request.{LeafInfoHolder, LeafRegistryApp}
@@ -13,6 +11,8 @@ import ee.cone.c4actor.hashsearch.index.StaticHashSearchApi._
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.dep.request.{FLRequestDef, FilterListRequestApp}
+
+import scala.collection.immutable.Seq
 
 trait DepFilterWrapperApp {
   def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[String] = ".*" :: Nil): DepFilterWrapperApi[Model]
@@ -44,7 +44,7 @@ trait DepFilterWrapperCollectorMix
 
   override def leafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = filterWrappers.flatMap(_.getLeafs) ::: super.leafs
 
-  override def filterDepList: List[FLRequestDef] = filterWrappers.map(wrapper ⇒ FLRequestDef(wrapper.listName, wrapper.getFilterDep(hashSearchDepRequestFactory), wrapper.matches)) ::: super.filterDepList
+  override def filterDepList: List[FLRequestDef] = filterWrappers.map(wrapper ⇒ FLRequestDef(wrapper.listName, wrapper.matches)(wrapper.getFilterDep(hashSearchDepRequestFactory))) ::: super.filterDepList
 
   override def hashSearchModels: List[Class[_ <: Product]] = filterWrappers.map(_.modelCl) ::: super.hashSearchModels
 }
@@ -84,7 +84,7 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
       case Seq(x, rest@_*) ⇒
         val access: Option[Access[SBy]] = x.asInstanceOf[Option[Access[SBy]]]
         val head: Condition[Model] = newFunc(access)
-        val tail: Condition[Model] = depToCondFunction(rest)
+        val tail: Condition[Model] = depToCondFunction(rest.to[Seq])
         intersect(head, tail)
     }
     DepFilterWrapperImpl(newLeafs, newIndex, byDep.asInstanceOf[Dep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, defaultModelRegistry, modelConditionFactory, rangerRegistry, matches)
@@ -96,13 +96,13 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
 
   def getStaticIndex: StaticIndexBuilder[Model] = staticIndex
 
-  def getFilterDep: HashSearchDepRequestFactory[_] ⇒ Dep[List[Model]] = factory ⇒ {
+  def getFilterDep: HashSearchDepRequestFactory[_] ⇒ Dep[List[_]] = factory ⇒ {
     val typedFactory = factory.ofWithCl(modelCl)
     for {
       seq ← new SeqParallelDep[Option[Access[_ <: Product]]](depAccessSeq)
       list ← {
         val rq = typedFactory.conditionToHashSearchRequest(depToCondFunction(seq)) //HashSearchDepRequest
-        new RequestDep[List[Model]](rq)
+        new RequestDep[List[_]](rq)
       }
     } yield list
   }
@@ -123,7 +123,7 @@ trait DepFilterWrapperApi[Model <: Product] {
 
   def getStaticIndex: StaticIndexBuilder[Model]
 
-  def getFilterDep: HashSearchDepRequestFactory[_] ⇒ Dep[List[Model]]
+  def getFilterDep: HashSearchDepRequestFactory[_] ⇒ Dep[List[_]]
 
   def modelCl: Class[Model]
 
