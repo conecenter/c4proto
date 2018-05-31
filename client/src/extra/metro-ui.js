@@ -3581,7 +3581,7 @@ ACAAIAAgACAAAA==`
 			const doOnRef = (num)=>(ref) => {
 					if(!mmRef && num==0) mmRef = ref
 					if(!remRef && num==1) remRef = ref
-					if(remRef && mmRef && !this.props.show && this.props.onClickValue) {
+					if(remRef && mmRef && !this.props.show&&this.props.onClickValue) {
 						const mmH = mmRef.getBoundingClientRect().height
 						const remH = remRef.getBoundingClientRect().height
 						this.props.onClickValue("change",(mmH/remH).toString())						
@@ -3600,6 +3600,9 @@ ACAAIAAgACAAAA==`
 		}
 	}
 	class CanvasMaxHeightElement extends StatefulComponent{
+		getInitialState(){
+			return {height:null}			
+		}
 		setHeight(height){
 			if(this.state.height != height) this.setState({height})
 		}
@@ -3624,7 +3627,7 @@ ACAAIAAgACAAAA==`
 			this.setRootRect()
 			this.footer = this.root.querySelector(".mainFooter")			
 			checkActivateCalls.add(this.check)
-		}		
+		}			
 		componentWillUnmount(){
 			checkActivateCalls.remove(this.check)
 		}
@@ -3632,7 +3635,9 @@ ACAAIAAgACAAAA==`
 			const style = {
 				height:!this.state.height?"auto":this.state.height+"px"
 			}
-			return $("div",{style,ref:ref=>this.el=ref},this.props.children)
+			const drawChildren = this.state.height?this.props.children:null
+			
+			return $("div",{style,ref:ref=>this.el=ref},drawChildren)
 		}
 	}
 	const sendVal = ctx =>(action,value,opt) =>{
