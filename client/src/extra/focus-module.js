@@ -287,7 +287,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const switchOff = (node,relatedTarget) => {
 		const lastNode = getLastClickNode()
 		if(lastNode && lastNode.tagName == "CANVAS") {
-			currentFocusNode && currentFocusNode.focus()
+			//currentFocusNode && currentFocusNode.focus()
 			return false
 		}
 		if(currentFocusNode == node.el && relatedTarget) {					

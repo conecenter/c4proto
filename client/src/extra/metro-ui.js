@@ -51,7 +51,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		return {add,remove,check}
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
-	const {setTimeout,clearTimeout,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
+	const {setTimeout,clearTimeout,setInterval,clearInterval,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
 	const {Provider, Consumer} = React.createContext("")	
 	const ImageElement = ({src,style}) => {
 		const srcM = (urlPrefix||"")+src
@@ -3581,14 +3581,18 @@ ACAAIAAgACAAAA==`
 			const doOnRef = (num)=>(ref) => {
 					if(!mmRef && num==0) mmRef = ref
 					if(!remRef && num==1) remRef = ref
-					if(remRef && mmRef && !this.props.show&&this.props.onClickValue) {
+					if(remRef && mmRef && !this.props.show && this.props.onClickValue) {
 						const mmH = mmRef.getBoundingClientRect().height
 						const remH = remRef.getBoundingClientRect().height
-						this.props.onClickValue("change",(mmH/remH).toString())
+						this.props.onClickValue("change",(mmH/remH).toString())						
+						this.interval = setInterval(()=>{
+							if(this.props.show) return clearInterval(this.interval)
+							this.props.onClickValue("change",(mmH/remH).toString())			
+						}, 1000)
+						
 					}
 				}
-			return $("div",{},[		    
-				
+			return $("div",{},[		    				
 				$("div",{key:"mm",ref:doOnRef(0),style:{height:"1mm",position:"absolute",zIndex:"-1"}}),
 				$("div",{key:"em",ref:doOnRef(1),style:{height:"1em",position:"absolute",zIndex:"-1"}}),
 				$("div",{key:"children"},this.props.show?this.props.children:null)			
