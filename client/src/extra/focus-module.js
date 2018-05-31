@@ -4,6 +4,8 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	let nodesObj = [];
 	let currentFocusNode = null;
 	let preferNode = null;
+	let lastMousePos = {};
+	let stickyNode = null;
 	const callbacks = []
 	
 	const {addEventListener,setTimeout} = windowManager
@@ -231,6 +233,13 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			btn.dispatchEvent(eventManager.create("mousedown",{bubbles:true}))
 		}
 	}
+	const getLastClickNode = () =>{
+		const {x,y} = lastMousePos
+		return x&&y&&documentManager.nodeFromPoint(x,y)		
+	}
+	const onMouseDown = (e) => {
+		lastMousePos = {x:e.clientX,y:e.clientY}
+	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
 		sendEvent(()=>eventManager.create("cpaste",{detail:data}))
@@ -239,6 +248,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	addEventListener("paste",onPaste)
 	addEventListener("cTab",onTab)		
 	addEventListener("cEnter",onEnter)
+	addEventListener("mousedown",onMouseDown,true)
 	const isPrintableKeyCode = (ch)	=> ch&&("abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase()))
 	const isVk = (el) => el.classList.contains("vkElement")
 	const doCheck = () => {		
@@ -254,8 +264,13 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		
 		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
 			nodesObj = newNodesObj
+			const st = nodesObj.find(_=>_.n.dataset.sticky&&true)
+			if(st) {
+				stickyNode = st.n
+				//return stickyNode.focus()
+			}
 			if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
-				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))
+				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))				
 				inpNodes&&inpNodes.n.focus()
 				//currentFocusNode.focus()
 			}
@@ -270,19 +285,44 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		return {unreg}
 	}	
 	const switchOff = (node,relatedTarget) => {
-		if(currentFocusNode == node.el && relatedTarget) {
-			if(!nodesObj.find(o=>o.n.contains(relatedTarget))) {				
-				currentFocusNode = null
+		const lastNode = getLastClickNode()
+		if(lastNode && lastNode.tagName == "CANVAS") {
+			currentFocusNode && currentFocusNode.focus()
+			return false
+		}
+		if(currentFocusNode == node.el && relatedTarget) {					
+			if(!nodesObj.find(o=>o.n.contains(relatedTarget))) {
+				if(stickyNode && currentFocusNode == stickyNode) return false				
+				currentFocusNode = null				
+				if(stickyNode) {
+					currentFocusNode = stickyNode
+					stickyNode.focus()
+					return true
+				}
 			}
 		}
-		if(!relatedTarget) currentFocusNode = null
+		//if(stickyNode) return stickyNode.focus()			
+		if(!relatedTarget) {
+			if(stickyNode && currentFocusNode == stickyNode) return false
+			currentFocusNode = null			
+			if(stickyNode) {
+				currentFocusNode = stickyNode
+				stickyNode.focus()
+				return true
+			}
+		}
+		lastMousePos = {}
+		if(stickyNode && currentFocusNode == stickyNode) return false
+		return true
 	}
 	const switchTo = (node) => {
 		//log(rootCtx(node.props.ctx))
-		const roNode = callbacks.find(o=>o.el == currentFocusNode)
+		if(stickyNode && currentFocusNode == stickyNode) return false
+		const roNode = callbacks.find(o=>o.el == currentFocusNode)		
 		if(roNode&&roNode.state.focused) roNode.onBlur()
-			if(!node.el) return			
-		currentFocusNode = node.el		
+			if(!node.el) return	false
+		currentFocusNode = node.el	
+		return true
 	}
 	const checkActivate = doCheck
 	const focusTo = (data) => setTimeout(()=>{

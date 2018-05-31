@@ -24,6 +24,11 @@ const bufferAdd = values => prev => !prev || prev.values.length > values.length 
     { prev, values } : bufferAdd(prev.values.concat(values))(prev.prev)
 
 const addCommands = commands => someKeys({ commandsBuffer: bufferAdd(commands) })
+/* w/o someKeys
+const addCommands = commands => res => ({
+    ...res, commandsBuffer: bufferAdd(commands)(res.commandsBuffer)
+})
+*/
 
 const color = (fromN,pos)=>{
     const size = 5
@@ -43,6 +48,13 @@ const colorInject = (commands,ctx) => res => {
         colorIndex: r => r+1,
         colorToContextBuffer: bufferAdd([{ [colorKeyGen(res.colorIndex)]: ctx }])
     })(res)
+/* w/o someKeys
+    const nRes = nCommands === commands ? res : {
+        ...res,
+        colorIndex: res.colorIndex+1,
+        colorToContextBuffer: bufferAdd([{ [colorKeyGen(res.colorIndex)]: ctx }])(res.colorToContextBuffer)
+    }
+*/
     return addCommands(nCommands)(nRes)
 }
 
@@ -50,7 +62,7 @@ const gatherDataFromPathTree = root => chainFromTree(
     node => colorInject(node.at.commands||[], node.at.ctx),
     node => (node.chl||[]).map(key=>node[key]),
     node => addCommands(node.at.commandsFinally||[])
-)(root)({ colorIndex: 0, colorToContext: {}, commands: [] })
+)(root)({ colorIndex: 0 })
 
 export default function CanvasManager(canvasFactory,sender,ctxToBranchPath){
     //todo: prop.options are considered only once; do we need to rebuild canvas if they change?
@@ -65,7 +77,7 @@ export default function CanvasManager(canvasFactory,sender,ctxToBranchPath){
         const commands = bufferToArray(commandsBuffer)
         const colorToContext = spreadAll(...bufferToArray(colorToContextBuffer))
         const parsed = {...prop,commands}
-        const sendToServer = (target,color) => sender.send(colorToContext[color], target)
+        const sendToServer = (target,color) => sender.send(colorToContext[color], target) //?move closure
         rCtx.modify("CANVAS_UPD",branchByKey.one(rCtx.branchKey,canvasByKey.one(path, state => {
             const canvas = state && state.canvas || canvasFactory(prop.options||{})
             return ({...state, canvas, aliveUntil, parsed, parentNode, sendToServer})
