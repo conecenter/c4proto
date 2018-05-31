@@ -128,20 +128,20 @@ with DepAssembleApp with AskByPKsApp{
 
   override def askByPKs: List[AbstractAskByPK] = askByPKFactory.forClass(classOf[ValueNode]) :: super.askByPKs
 
-  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[ValueNode]))
+  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[ValueNode]), depAskFactory)
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 
   override def depHandlers: List[DepHandler] = {
     println(super.depHandlers.mkString("\n"))
-    depDraft.FooRequestHandler :: super.depHandlers
+    depDraft.handlerLUL :: depDraft.FooRequestHandler :: super.depHandlers
   }
 
   override def protocols: List[Protocol] = ContextIdRequestProtocol :: TestProtocol :: TestRequests :: super.protocols
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
-  def testDep: Dep[_] = depDraft.serialView
+  def testDep: Dep[Any] = depDraft.serialView.asInstanceOf[Dep[Any]]
 
   override def assembles: List[Assemble] = {
     println(super.assembles.mkString("\n"))
