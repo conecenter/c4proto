@@ -1,7 +1,6 @@
 package ee.cone.c4gate.dep
 
-import ee.cone.c4actor.dep.request.AskByPKFactoryApp
-import ee.cone.c4actor.dep.{AbstractAskByPK, AskByPK, CommonRequestUtilityApi}
+import ee.cone.c4actor.dep.{AbstractAskByPK, AskByPK, AskByPKFactoryApp, CommonRequestUtilityApi}
 import ee.cone.c4actor.dep_impl.AskByPKsApp
 import ee.cone.c4actor.{DefaultModelRegistry, ModelAccessFactory, QAdapterRegistry}
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData

@@ -2,17 +2,22 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.DepTestProtocol.{DepTestRequest, Spark}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.ContextTypes.ContextId
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest, GroupId}
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4actor.dep_impl.DepHandlersApp
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{All, Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait DepTestAssemble extends AssemblesApp with DepHandlersApp with ProtocolsApp with DepOuterRequestFactoryApp{
-  def testDep: Dep[_]
+trait DepTestAssemble
+  extends AssemblesApp
+    with DepHandlersApp
+    with ProtocolsApp
+    with DepOuterRequestFactoryApp
+    with DepAskFactoryApp
+    with ContextIdInjectApp {
+  def testDep: Dep[Any]
 
   def testContextId: String = "LUL"
 
@@ -21,7 +26,9 @@ trait DepTestAssemble extends AssemblesApp with DepHandlersApp with ProtocolsApp
 
   override def protocols: List[Protocol] = DepTestProtocol :: super.protocols
 
-  override def depHandlers: List[DepHandler] = DepTestHandler(testDep, testContextId) :: super.depHandlers
+  private val testRequestAsk = depAskFactory.forClasses(classOf[DepTestRequest], classOf[Any])
+
+  override def depHandlers: List[DepHandler] = testRequestAsk.by(_ ⇒ testDep) :: inject[DepTestRequest](testRequestAsk, _ ⇒ testContextId) :: super.depHandlers
 
   override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depOuterRequestFactory) :: super.assembles
 }

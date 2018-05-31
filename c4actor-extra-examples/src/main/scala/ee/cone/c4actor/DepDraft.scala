@@ -10,7 +10,7 @@ import ee.cone.c4actor.dep_impl.{RequestDep, ResolvedDep}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
-case class DepDraft(factory : CommonRequestUtilityFactory, valueNode: AskByPK[ValueNode]) {
+case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[ValueNode], depAskFactory: DepAskFactory) {
 
   def askFoo(v: String): Dep[Int] = new RequestDep[Int](FooDepRequest(v))
 
@@ -19,10 +19,22 @@ case class DepDraft(factory : CommonRequestUtilityFactory, valueNode: AskByPK[Va
       (a,b) ← parallel(askFoo("A"), askFoo("B"))
     } yield (a,b)*/
 
-  case object FooRequestHandler extends DepHandler {
-    def className = classOf[FooDepRequest].getName
+  def handlerLUL: DepHandler = depAskFactory.forClasses(classOf[FooDepRequest], classOf[Int]).by(foo ⇒ {
+    val response = foo.v match {
+      case "A" => 1
+      case "B" => 2
+      case "C" => 3
+      case "D" => 10
+      case a ⇒ throw new Exception(s"$a can't be handled by FooRequestHandler")
+    }
+    new ResolvedDep(response)
+  }
+  )
 
-    def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_] = fooRq ⇒ ctx ⇒  {
+  case object FooRequestHandler extends DepHandler {
+    def className: String = classOf[FooDepRequest].getName
+
+    def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_] = fooRq ⇒ ctx ⇒ {
       val response = fooRq.asInstanceOf[FooDepRequest].v match {
         case "A" => 1
         case "B" => 2
@@ -40,7 +52,8 @@ case class DepDraft(factory : CommonRequestUtilityFactory, valueNode: AskByPK[Va
     list ← askByClassName(classOf[ValueNode], -1, -1)
   } yield {
     println(list)
-    list.foldLeft(0)((sum, node) ⇒ sum + node.value)}
+    list.foldLeft(0)((sum, node) ⇒ sum + node.value)
+  }
 
   def testView: Dep[Int] = for {
     a ← valueNode.seq("123")
@@ -79,7 +92,9 @@ case class DepDraft(factory : CommonRequestUtilityFactory, valueNode: AskByPK[Va
 }
 
 @protocol object TestRequests extends Protocol {
+
   @Id(0x3031) case class FooDepRequest(@Id(0x3036) v: String)
+
 }
 
 

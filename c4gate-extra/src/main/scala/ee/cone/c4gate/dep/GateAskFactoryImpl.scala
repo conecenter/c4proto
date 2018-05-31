@@ -49,12 +49,12 @@ case class SessionAttrAskFactoryImpl(
     import commonRequestFactory._
     for {
       contextId ← askContextId
-      rawModel ← rawDataAsk.seq(genPK(rawSessionData(contextId)))
+      rawModel ← rawDataAsk.option(genPK(rawSessionData(contextId)))
     } yield {
       val request = rawSessionData(contextId)
       val pk = genPK(request)
 
-      val value = rawModel.headOption.getOrElse({
+      val value = rawModel.getOrElse({
         val model = defaultModelRegistry.get[P](attr.className).create(pk)
         lens.set(model)(request.copy(srcId = pk))
       }
