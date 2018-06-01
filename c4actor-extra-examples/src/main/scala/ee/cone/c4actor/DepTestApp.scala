@@ -2,13 +2,15 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.DepTestProtocol.Spark
-import ee.cone.c4actor.TestProtocol.{ValueNode, TestNode}
+import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.{ByClassNameRequestHandlerApp, ByPKRequestHandlerApp}
-import ee.cone.c4actor.hashsearch.rangers.K2TreeApp
+import ee.cone.c4actor.dep.request.ContextIdRequestProtocol
+import ee.cone.c4actor.dep_impl.{AskByPKsApp, ByPKRequestHandlerApp, DepAssembleApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.{Id, Protocol, protocol}
+
+import scala.collection.immutable
 
 
 @protocol object TestProtocol extends Protocol {
@@ -115,24 +117,31 @@ class DepTestApp extends RichDataApp
   with MortalFactoryApp
   with ModelAccessFactoryApp
   with DepTestAssemble
-with DepMainMixApp {
+with CommonRequestUtilityMix
+with ByPKRequestHandlerApp
+with DepAssembleApp with AskByPKsApp{
 
-  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory)
+  def uuidUtil: UUIDUtil = UUIDUtilImpl()
+
+  def depRequestHandlers: immutable.Seq[DepHandler] = depHandlers
+
+
+  override def askByPKs: List[AbstractAskByPK] = askByPKFactory.forClass(classOf[ValueNode]) :: super.askByPKs
+
+  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[ValueNode]), depAskFactory)
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 
-  override def byPKClasses: List[Class[_ <: Product]] = classOf[ValueNode] :: super.byPKClasses
-
-  override def handlers: List[RequestHandler[_]] = {
-    println(super.handlers.mkString("\n"))
-    depDraft.FooRequestHandler :: super.handlers
+  override def depHandlers: List[DepHandler] = {
+    println(super.depHandlers.mkString("\n"))
+    depDraft.handlerLUL :: depDraft.FooRequestHandler :: super.depHandlers
   }
 
-  override def protocols: List[Protocol] = TestProtocol :: TestRequests :: super.protocols
+  override def protocols: List[Protocol] = ContextIdRequestProtocol :: TestProtocol :: TestRequests :: super.protocols
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
-  def testDep: Dep[_] = depDraft.serialView
+  def testDep: Dep[Any] = depDraft.serialView.asInstanceOf[Dep[Any]]
 
   override def assembles: List[Assemble] = {
     println(super.assembles.mkString("\n"))

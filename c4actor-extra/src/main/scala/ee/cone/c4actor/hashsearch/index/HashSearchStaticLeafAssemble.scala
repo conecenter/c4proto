@@ -8,7 +8,6 @@ import ee.cone.c4actor.HashSearch._
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base._
-import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUtilsApp}
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.Values
@@ -137,8 +136,8 @@ object StaticHashSearchImpl {
     private def getHeapSrcId(metaList: List[MetaAttr], range: By): SrcId = {
       val metaListUUID = serializer.uuidFromMetaAttrList(metaList)
       val rangeUUID = serializer.uuidFromOrig(range, by.getClass.getName)
-      val srcId = serializer.uuidFromSeq(metaListUUID, rangeUUID).toString
-      srcId // s"$metaList$range" //TODO reverse it
+      val srcId = serializer.uuidFromSeqMany(metaListUUID, rangeUUID).toString
+      s"$metaList$range$srcId"
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =

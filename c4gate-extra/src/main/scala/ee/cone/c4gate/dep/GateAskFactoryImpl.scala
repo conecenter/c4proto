@@ -4,8 +4,9 @@ import java.util.UUID
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.DepTypeContainer.ContextId
-import ee.cone.c4actor.dep.{CommonRequestUtilityFactory, Dep, RequestDep}
+import ee.cone.c4actor.dep.ContextTypes.ContextId
+import ee.cone.c4actor.dep.{AskByPK, CommonRequestUtilityFactory, Dep}
+import ee.cone.c4actor.dep_impl.RequestDep
 import ee.cone.c4gate.SessionAttr
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
 import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
@@ -16,7 +17,8 @@ case class SessionAttrAskFactoryImpl(
   qAdapterRegistry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,
-  commonRequestFactory: CommonRequestUtilityFactory
+  commonRequestFactory: CommonRequestUtilityFactory,
+  rawDataAsk: AskByPK[RawSessionData]
 ) extends SessionAttrAskFactoryApi {
 
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
@@ -47,7 +49,7 @@ case class SessionAttrAskFactoryImpl(
     import commonRequestFactory._
     for {
       contextId ← askContextId
-      rawModel ← askByPK(classOf[RawSessionData], genPK(rawSessionData(contextId)))
+      rawModel ← rawDataAsk.option(genPK(rawSessionData(contextId)))
     } yield {
       val request = rawSessionData(contextId)
       val pk = genPK(request)
