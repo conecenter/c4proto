@@ -182,7 +182,9 @@ trait TestCondition extends SerializationUtilsApp {
 
   def conditions: List[Condition[TestObject]] = condition1 /*:: condition2*//*:: condition3*/ :: Nil
 
-  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer)
+  def uuidUtil: UUIDUtil
+
+  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer, uuidUtil)
 
   def joiners: List[Assemble] = factory.index(classOf[TestObject])
     .add[IntEq, Int](lensInt, IntEq(0))(IntEqRanger())

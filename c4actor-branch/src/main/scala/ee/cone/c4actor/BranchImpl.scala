@@ -154,14 +154,12 @@ case class BranchTxTransform(
 
 //class UnconfirmedException() extends Exception
 
-class BranchOperationsImpl(registry: QAdapterRegistry) extends BranchOperations {
-  private def toBytes(value: Long) =
-    ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
+class BranchOperationsImpl(registry: QAdapterRegistry, uuidUtil: UUIDUtil) extends BranchOperations {
   def toSeed(value: Product): BranchResult = {
     val valueAdapter = registry.byName(value.getClass.getName)
-    val bytes = valueAdapter.encode(value)
-    val id = UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes)
-    BranchResult(id.toString, valueAdapter.id, ToByteString(bytes), Nil, "")
+    val bytes = ToByteString(valueAdapter.encode(value))
+    val id = uuidUtil.srcIdFromSerialized(valueAdapter.id, bytes)
+    BranchResult(id, valueAdapter.id, bytes, Nil, "")
   }
   def toRel(seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)

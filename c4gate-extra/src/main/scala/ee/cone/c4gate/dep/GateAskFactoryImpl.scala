@@ -18,14 +18,15 @@ case class SessionAttrAskFactoryImpl(
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,
   commonRequestFactory: CommonRequestUtilityFactory,
-  rawDataAsk: AskByPK[RawSessionData]
+  rawDataAsk: AskByPK[RawSessionData],
+  uuidUtil: UUIDUtil
 ) extends SessionAttrAskFactoryApi {
 
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
     val adapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[RawSessionData].getName)
 
     def genPK(request: RawSessionData): String =
-      UUID.nameUUIDFromBytes(adapter.encode(request)).toString
+      uuidUtil.srcIdFromSerialized(adapter.id,ToByteString(adapter.encode(request)))
 
     val lens = ProdLens[RawSessionData, P](attr.metaList)(
       rawData ⇒ qAdapterRegistry.byId(rawData.valueTypeId).decode(rawData.value).asInstanceOf[P],

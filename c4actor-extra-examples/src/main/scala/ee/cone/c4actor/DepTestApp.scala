@@ -121,8 +121,6 @@ with CommonRequestUtilityMix
 with ByPKRequestHandlerApp
 with DepAssembleApp with AskByPKsApp{
 
-  def uuidUtil: UUIDUtil = UUIDUtilImpl()
-
   def depRequestHandlers: immutable.Seq[DepHandler] = depHandlers
 
 

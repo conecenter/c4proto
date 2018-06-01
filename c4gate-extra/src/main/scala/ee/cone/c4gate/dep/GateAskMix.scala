@@ -2,7 +2,7 @@ package ee.cone.c4gate.dep
 
 import ee.cone.c4actor.dep.{AbstractAskByPK, AskByPK, AskByPKFactoryApp, CommonRequestUtilityApi}
 import ee.cone.c4actor.dep_impl.AskByPKsApp
-import ee.cone.c4actor.{DefaultModelRegistry, ModelAccessFactory, QAdapterRegistry}
+import ee.cone.c4actor.{DefaultModelRegistry, ModelAccessFactory, QAdapterRegistry, UUIDUtil}
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
 
 trait SessionAttrAskUtility {
@@ -20,11 +20,13 @@ trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtilityA
 
   def modelAccessFactory: ModelAccessFactory
 
+  def uuidUtil: UUIDUtil
+
   private lazy val rawDataAsk: AskByPK[RawSessionData] = askByPKFactory.forClass(classOf[RawSessionData])
 
   override def askByPKs: List[AbstractAskByPK] = rawDataAsk :: super.askByPKs
 
-  def sessionAttrAskFactory: SessionAttrAskFactoryApi = SessionAttrAskFactoryImpl(qAdapterRegistry, defaultModelRegistry, modelAccessFactory, commonRequestUtilityFactory, rawDataAsk)
+  def sessionAttrAskFactory: SessionAttrAskFactoryApi = SessionAttrAskFactoryImpl(qAdapterRegistry, defaultModelRegistry, modelAccessFactory, commonRequestUtilityFactory, rawDataAsk, uuidUtil)
 }
 
 trait CurrentTimeAskMix extends CurrentTimeAskUtility {
