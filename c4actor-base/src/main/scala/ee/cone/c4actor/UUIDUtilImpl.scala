@@ -16,10 +16,12 @@ case class UUIDUtilImpl() extends UUIDUtil { // to base
     data.foreach(e ⇒ b.putLong(e.getMostSignificantBits).putLong(e.getLeastSignificantBits))
     UUID.nameUUIDFromBytes(b.array())
   }
-  def uuidFromSrcIdSeq(srcIdList: Seq[SrcId]): UUID =
+  def uuidFromStrings(srcIdList: Seq[SrcId]): UUID =
     uuidFromSeq(srcIdList.map(uuid))
   def srcIdFromSrcIds(srcIdList: SrcId*): SrcId =
-    uuidFromSrcIdSeq(srcIdList.to[Seq]).toString
+    uuidFromStrings(srcIdList.to[Seq]).toString
+  def srcIdFromStrings(stringList: String*): SrcId =
+    uuidFromStrings(stringList.to[Seq]).toString
 
   def toBytes(value: Long): Array[Byte] =
     ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()

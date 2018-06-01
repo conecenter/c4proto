@@ -54,13 +54,14 @@ object StaticHashSearchImpl {
 
   class StaticFactoryImpl(
     modelConditionFactory: ModelConditionFactory[Unit],
-    serializer: SerializationUtils
+    serializer: SerializationUtils,
+    uuidUtil: UUIDUtil
   ) extends StaticFactory {
     def index[Model <: Product](cl: Class[Model]): Indexer[Model] =
       EmptyIndexer[Model]()(cl, modelConditionFactory.of[Model], serializer)
 
     def request[Model <: Product](condition: Condition[Model]): Request[Model] =
-      Request(UUID.nameUUIDFromBytes(condition.toString.getBytes(UTF_8)).toString, condition)
+      Request(uuidUtil.srcIdFromStrings(condition.toString), condition)
   }
 
   abstract class Indexer[Model <: Product] extends StaticIndexBuilder[Model] {
@@ -165,8 +166,9 @@ trait HashSearchStaticLeafFactoryApi {
 
 trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
+  def uuidUtil: UUIDUtil
 
-  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer)
+  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, uuidUtil)
 }
 
 import StaticHashSearchImpl._
