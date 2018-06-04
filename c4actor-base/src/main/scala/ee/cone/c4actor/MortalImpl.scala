@@ -30,9 +30,8 @@ case class Killing(hash: SrcId, ev: LEvent[Product])
   def aggregateKilling(
     key: SrcId,
     @by[KillingId] killings: Values[Killing]
-  ): Values[(SrcId,TxTransform)] = for {
-    killing ← killings
-  } yield WithPK(SimpleTxTransform(s"kill/$key", killings.map(_.ev)))
+  ): Values[(SrcId, TxTransform)] =
+    WithPK(SimpleTxTransform(s"kill/$key${classOfMortal.getName}", killings.map(_.ev))) :: Nil
 }
 
 case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) extends TxTransform {
