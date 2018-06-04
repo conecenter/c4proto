@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.Killing.KillerId
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
@@ -10,28 +11,31 @@ case class MortalFactoryImpl(anUUIDUtil: UUIDUtil) extends MortalFactory {
 }
 
 case class Killing(hash: SrcId, ev: LEvent[Product])
+object Killing {
+  type KillerId = SrcId
+}
 
 @assemble class MortalAssemble[Node<:Product](
   classOfMortal: Class[Node],
   anUUIDUtil: UUIDUtil
 ) extends Assemble {
-  type KillingId = SrcId
-
   def createKilling(
     key: SrcId,
     mortals: Values[Node],
     @by[Alive] keepAlive: Values[Node]
-  ): Values[(KillingId,Killing)] = for {
+  ): Values[(KillerId,Killing)] = for {
     mortal ← mortals if keepAlive.isEmpty
     ev ← LEvent.delete(mortal)
     killing ← Seq(Killing(anUUIDUtil.srcIdFromSrcIds(ev.srcId,ev.className/*it's just string*/),ev))
   } yield killing.hash.substring(0,1) → killing
+}
 
+@assemble class MortalFatalityAssemble extends Assemble {
   def aggregateKilling(
     key: SrcId,
-    @by[KillingId] killings: Values[Killing]
+    @by[KillerId] killings: Values[Killing]
   ): Values[(SrcId, TxTransform)] =
-    WithPK(SimpleTxTransform(s"kill/$key${classOfMortal.getName}", killings.map(_.ev))) :: Nil
+    WithPK(SimpleTxTransform(s"killer/$key", killings.map(_.ev))) :: Nil
 }
 
 case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) extends TxTransform {

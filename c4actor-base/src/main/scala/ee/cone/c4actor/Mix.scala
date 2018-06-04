@@ -144,6 +144,7 @@ trait MortalFactoryApp extends AssemblesApp {
   def uuidUtil: UUIDUtil
   //
   def mortal: MortalFactory = MortalFactoryImpl(uuidUtil)
+  override def assembles: List[Assemble] = new MortalFatalityAssemble() :: super.assembles
 }
 
 trait NoAssembleProfilerApp {
