@@ -63,7 +63,7 @@ case class DepRequestHandlerRegistry(
   handlerSeq: Seq[DepHandler]
 )(
   handlers: Map[String,(DepRequest,DepCtx)⇒Resolvable[_]] =
-  handlerSeq.collect { case h: InternalDepHandler ⇒ h }.groupBy(_.requestClName)
+  handlerSeq.groupBy(_.requestClassName)
       .transform { (k, handlers) ⇒
         val by = Single(handlers.collect { case h: ByDepHandlerApi[_] ⇒ h.handle.asInstanceOf[DepRequest ⇒ Dep[_]] })
         val adds = handlers.collect { case h: AddDepHandlerApi[_, _] ⇒ h.add.asInstanceOf[DepRequest ⇒ DepCtx] }
@@ -103,7 +103,7 @@ case class DepOuterRequestFactoryImpl(uuidUtil: UUIDUtil)(qAdapterRegistry: QAda
 trait InternalDepHandler extends DepHandler {
   def rqCl: Class[_]
 
-  def requestClName: String = rqCl.getName
+  def requestClassName: String = rqCl.getName
 }
 
 case class ByDepHandlerImpl[RequestIn <: DepRequest]

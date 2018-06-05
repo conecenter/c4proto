@@ -32,7 +32,9 @@ trait DepFactory extends Product {
 
 // api for type-safe dep-request asking/handling
 
-trait DepHandler extends Product
+trait DepHandler extends Product {
+  def requestClassName: String
+}
 
 abstract class AddDepHandlerApi[RequestIn <: DepRequest, ReasonIn <: DepRequest](
   val requestInCl: Class[RequestIn], val reasonInCl: Class[ReasonIn]
