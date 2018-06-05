@@ -4,7 +4,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4assemble.Types.Values
 
-import scala.collection.immutable.{Map, Seq}
+import scala.collection.immutable.{Seq,Map}
 
 /******************************************************************************/
 // general api for code that uses and returns Dep-s
@@ -32,31 +32,17 @@ trait DepFactory extends Product {
 
 // api for type-safe dep-request asking/handling
 
-trait DepHandler extends Product {
-  def requestClassName: String
-}
+trait DepHandler extends Product
 
-abstract class AddDepHandlerApi[RequestIn <: DepRequest, ReasonIn <: DepRequest](
-  val requestInCl: Class[RequestIn], val reasonInCl: Class[ReasonIn]
-) extends DepHandler {
-  def add: ReasonIn ⇒ Map[RequestIn, _]
-}
+trait DepAsk[RequestIn <: Product, Out] extends Product {
+  def ask: RequestIn ⇒ Dep[Out]
 
-abstract class ByDepHandlerApi[RequestIn <: DepRequest](
-  val requestInCl: Class[RequestIn]
-) extends DepHandler {
-  def handle: RequestIn ⇒ Dep[_]
-}
+  def by(handler: RequestIn ⇒ Dep[Out]): DepHandler
 
-trait DepAsk[In<:Product,Out] extends Product {
-  def ask: In ⇒ Dep[Out]
-
-  def by(handler: In ⇒ Dep[Out]): ByDepHandlerApi[In]
-
-  def add[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ Map[In, Out]): AddDepHandlerApi[In, ReasonIn]
+  def byParent[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ Map[RequestIn, Out]): DepHandler
 }
 trait DepAskFactory extends Product {
-  def forClasses[In<:Product,Out](in: Class[In], out: Class[Out]): DepAsk[In,Out]
+  def forClasses[RequestIn <: Product, Out](in: Class[RequestIn], out: Class[Out]): DepAsk[RequestIn, Out]
 }
 
 // api for integration with joiners

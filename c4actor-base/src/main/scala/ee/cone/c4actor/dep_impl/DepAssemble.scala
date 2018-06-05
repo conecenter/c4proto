@@ -1,5 +1,6 @@
 package ee.cone.c4actor.dep_impl
 
+import scala.collection.immutable.{Seq,Map}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest, GroupId}
@@ -7,8 +8,6 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4proto.ToByteString
-
-import scala.collection.immutable.{Map, Seq}
 
 case class DepResponseImpl(innerRequest: DepInnerRequest, valueHashed: PreHashed[Option[_]]) extends DepResponse {
   def value: Option[_] = valueHashed.value
@@ -63,10 +62,10 @@ case class DepRequestHandlerRegistry(
   handlerSeq: Seq[DepHandler]
 )(
   handlers: Map[String,(DepRequest,DepCtx)⇒Resolvable[_]] =
-  handlerSeq.groupBy(_.requestClassName)
+    handlerSeq.collect{ case h: InternalDepHandler ⇒ h }.groupBy(_.className)
       .transform { (k, handlers) ⇒
-        val by = Single(handlers.collect { case h: ByDepHandlerApi[_] ⇒ h.handle.asInstanceOf[DepRequest ⇒ Dep[_]] })
-        val adds = handlers.collect { case h: AddDepHandlerApi[_, _] ⇒ h.add.asInstanceOf[DepRequest ⇒ DepCtx] }
+        val by = Single(handlers.collect { case h: ByDepHandler ⇒ h.handler })
+        val adds = handlers.collect { case h: AddDepHandler ⇒ h.handler }
         (req: DepRequest, ctx: DepCtx) ⇒
         //by(req).resolve(adds.foldLeft(ctx)((acc:DepCtx,add)⇒acc ++ (add(req):DepCtx)))
         by(req).resolve(ctx ++ adds.flatMap(_(req)))
@@ -100,31 +99,15 @@ case class DepOuterRequestFactoryImpl(uuidUtil: UUIDUtil)(qAdapterRegistry: QAda
   }
 }
 
-trait InternalDepHandler extends DepHandler {
-  def rqCl: Class[_]
-
-  def requestClassName: String = rqCl.getName
-}
-
-case class ByDepHandlerImpl[RequestIn <: DepRequest]
-(rqCl: Class[RequestIn])
-  (val handle: RequestIn ⇒ Dep[_])
-  extends ByDepHandlerApi(rqCl) with InternalDepHandler
-
-case class AddDepHandlerImpl[RequestIn <: DepRequest, ReasonIn <: DepRequest]
-(requestCl: Class[RequestIn], rqCl: Class[ReasonIn])
-  (val add: ReasonIn ⇒ Map[RequestIn, _])
-  extends AddDepHandlerApi(requestCl, rqCl) with InternalDepHandler
-
+abstract class InternalDepHandler(val className: String) extends DepHandler
+case class ByDepHandler(name: String)(val handler: DepRequest ⇒ Dep[_]) extends InternalDepHandler(name)
+case class AddDepHandler(name: String)(val handler: DepRequest ⇒ DepCtx) extends InternalDepHandler(name)
 case class DepAskImpl[In<:Product,Out](name: String, depFactory: DepFactory)(val inClass: Class[In]) extends DepAsk[In,Out] {
   def ask: In ⇒ Dep[Out] = request ⇒ depFactory.uncheckedRequestDep[Out](request)
-
-  def by(handler: In ⇒ Dep[Out]): ByDepHandlerApi[In] = ByDepHandlerImpl(inClass)(handler.asInstanceOf[In ⇒ Dep[_]])
-
-  def add[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ Map[In, Out]): AddDepHandlerApi[In, ReasonIn] =
-    AddDepHandlerImpl(inClass, reason match { case a: DepAskImpl[ReasonIn, _] ⇒ a.inClass })(handler.asInstanceOf[ReasonIn ⇒ Map[In, _]])
+  def by(handler: In ⇒ Dep[Out]): DepHandler = ByDepHandler(name)(handler.asInstanceOf[DepRequest ⇒ Dep[_]])
+  def byParent[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ Map[In, Out]): DepHandler =
+    AddDepHandler(reason match { case DepAskImpl(nm,_) ⇒ nm })(handler.asInstanceOf[DepRequest ⇒ DepCtx])
 }
-
 case class DepAskFactoryImpl(depFactory: DepFactory) extends DepAskFactory {
   def forClasses[In<:Product,Out](in: Class[In], out: Class[Out]): DepAsk[In,Out] =
     DepAskImpl[In,Out](in.getName, depFactory)(in)
