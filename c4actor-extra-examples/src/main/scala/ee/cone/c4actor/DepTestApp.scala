@@ -114,7 +114,6 @@ class DepTestApp extends RichDataApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
   with ToStartApp
-  with MortalFactoryApp
   with ModelAccessFactoryApp
   with DepTestAssemble
 with CommonRequestUtilityMix

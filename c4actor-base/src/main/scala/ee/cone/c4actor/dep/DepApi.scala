@@ -4,7 +4,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4assemble.Types.Values
 
-import scala.collection.immutable.{Seq,Map}
+import scala.collection.immutable.{Map, Seq}
 
 /******************************************************************************/
 // general api for code that uses and returns Dep-s
@@ -33,10 +33,25 @@ trait DepFactory extends Product {
 // api for type-safe dep-request asking/handling
 
 trait DepHandler extends Product
+
+abstract class AddDepHandlerApi[RequestIn <: DepRequest, ReasonIn <: DepRequest](
+  val requestInCl: Class[RequestIn], val reasonInCl: Class[ReasonIn]
+) extends DepHandler {
+  def add: ReasonIn ⇒ Map[RequestIn, _]
+}
+
+abstract class ByDepHandlerApi[RequestIn <: DepRequest](
+  val requestInCl: Class[RequestIn]
+) extends DepHandler {
+  def handle: RequestIn ⇒ Dep[_]
+}
+
 trait DepAsk[In<:Product,Out] extends Product {
   def ask: In ⇒ Dep[Out]
-  def by(handler: In ⇒ Dep[Out]): DepHandler
-  def by[ReasonIn<:Product](reason: DepAsk[ReasonIn,_], handler: ReasonIn ⇒ Map[In,Out]): DepHandler
+
+  def by(handler: In ⇒ Dep[Out]): ByDepHandlerApi[In]
+
+  def add[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ Map[In, Out]): AddDepHandlerApi[In, ReasonIn]
 }
 trait DepAskFactory extends Product {
   def forClasses[In<:Product,Out](in: Class[In], out: Class[Out]): DepAsk[In,Out]

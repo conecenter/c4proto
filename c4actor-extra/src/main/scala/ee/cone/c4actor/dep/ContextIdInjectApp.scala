@@ -9,5 +9,5 @@ trait ContextIdInjectApp extends DepAskFactoryApp {
   private lazy val sessionIdAsk: DepAsk[ContextIdRequest, ContextId] = depAskFactory.forClasses(classOf[ContextIdRequest], classOf[ContextId])
 
   def inject[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ ContextId): DepHandler =
-    sessionIdAsk.by(reason, (rq: ReasonIn) ⇒ Map(ContextIdRequest() → handler(rq)))
+    sessionIdAsk.add(reason, (rq: ReasonIn) ⇒ Map(ContextIdRequest() → handler(rq)))
 }
