@@ -32,7 +32,7 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   )
 
   case object FooRequestHandler extends DepHandler {
-    def className: String = classOf[FooDepRequest].getName
+    def requestClassName: String = classOf[FooDepRequest].getName
 
     def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_] = fooRq ⇒ ctx ⇒ {
       val response = fooRq.asInstanceOf[FooDepRequest].v match {

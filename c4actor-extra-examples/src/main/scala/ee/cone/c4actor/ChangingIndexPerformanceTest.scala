@@ -1,7 +1,5 @@
 package ee.cone.c4actor
 
-import java.util.UUID
-
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, PerformanceNode}
 import ee.cone.c4actor.Types.SrcId
@@ -135,8 +133,7 @@ class ChangingIndexPerformanceTestApp extends RichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp
-  with ToStartApp
-  with MortalFactoryApp {
+  with ToStartApp {
   override def toStart: List[Executable] = new ChangingIndexPerformanceTest(execution, toUpdate, contextFactory) :: super.toStart
 
   override def protocols: List[Protocol] = PerformanceProtocol :: super.protocols

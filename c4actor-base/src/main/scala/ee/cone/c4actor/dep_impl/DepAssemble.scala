@@ -105,7 +105,7 @@ case class AddDepHandler(name: String)(val handler: DepRequest ⇒ DepCtx) exten
 case class DepAskImpl[In<:Product,Out](name: String, depFactory: DepFactory)(val inClass: Class[In]) extends DepAsk[In,Out] {
   def ask: In ⇒ Dep[Out] = request ⇒ depFactory.uncheckedRequestDep[Out](request)
   def by(handler: In ⇒ Dep[Out]): DepHandler = ByDepHandler(name)(handler.asInstanceOf[DepRequest ⇒ Dep[_]])
-  def by[ReasonIn<:Product](reason: DepAsk[ReasonIn,_], handler: ReasonIn ⇒ Map[In,Out]): DepHandler =
+  def byParent[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ Map[In, Out]): DepHandler =
     AddDepHandler(reason match { case DepAskImpl(nm,_) ⇒ nm })(handler.asInstanceOf[DepRequest ⇒ DepCtx])
 }
 case class DepAskFactoryImpl(depFactory: DepFactory) extends DepAskFactory {

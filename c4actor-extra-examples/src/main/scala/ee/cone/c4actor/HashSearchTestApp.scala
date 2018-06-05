@@ -201,7 +201,6 @@ class HashSearchExtraTestApp extends RichDataApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp
   with ToStartApp
-  with MortalFactoryApp
   with ModelAccessFactoryApp
   with TestCondition
   with HashSearchAssembleApp

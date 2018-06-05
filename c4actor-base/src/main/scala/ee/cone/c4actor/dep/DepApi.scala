@@ -33,13 +33,16 @@ trait DepFactory extends Product {
 // api for type-safe dep-request asking/handling
 
 trait DepHandler extends Product
-trait DepAsk[In<:Product,Out] extends Product {
-  def ask: In ⇒ Dep[Out]
-  def by(handler: In ⇒ Dep[Out]): DepHandler
-  def by[ReasonIn<:Product](reason: DepAsk[ReasonIn,_], handler: ReasonIn ⇒ Map[In,Out]): DepHandler
+
+trait DepAsk[RequestIn <: Product, Out] extends Product {
+  def ask: RequestIn ⇒ Dep[Out]
+
+  def by(handler: RequestIn ⇒ Dep[Out]): DepHandler
+
+  def byParent[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ Map[RequestIn, Out]): DepHandler
 }
 trait DepAskFactory extends Product {
-  def forClasses[In<:Product,Out](in: Class[In], out: Class[Out]): DepAsk[In,Out]
+  def forClasses[RequestIn <: Product, Out](in: Class[RequestIn], out: Class[Out]): DepAsk[RequestIn, Out]
 }
 
 // api for integration with joiners

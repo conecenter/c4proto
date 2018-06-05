@@ -44,7 +44,7 @@ trait DepTestAssemble
 }
 
 case class DepTestHandler(dep: Dep[_], contextId: String) extends DepHandler {
-  def className: String = classOf[DepTestRequest].getName
+  def requestClassName: String = classOf[DepTestRequest].getName
 
   def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_] = _ ⇒ ctx ⇒ dep.resolve(ctx + (ContextIdRequest() →  contextId))
 }
