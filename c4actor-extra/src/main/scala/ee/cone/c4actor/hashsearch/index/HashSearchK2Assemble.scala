@@ -6,25 +6,26 @@ import java.util.UUID
 import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerLeaf, InnerConditionEstimate}
+import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerConditionEstimate, InnerLeaf}
 import ee.cone.c4actor.hashsearch.index.HashSearchMockAssembleTest.K2TreeAll
 import ee.cone.c4actor.hashsearch.rangers.K2TreeUtils._
 import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
+import ee.cone.c4proto.ToByteString
 
 object HashSearchMockUtils {
-  def heapId(cl: Class[_], node: TreeNode, qAdapterRegistry: QAdapterRegistry): SrcId = {
+  def heapId(cl: Class[_], node: TreeNode, qAdapterRegistry: QAdapterRegistry, uuidUtil: UUIDUtil): SrcId = {
     val clName = cl.getName
     val valueAdapter = qAdapterRegistry.byName(node.getClass.getName)
-    val bytes = valueAdapter.encode(node)
-    UUID.nameUUIDFromBytes(clName.getBytes(UTF_8) ++ bytes).toString
+    val bytes = ToByteString(valueAdapter.encode(node))
+    uuidUtil.srcIdFromSerialized(valueAdapter.id, bytes)
   }
 
-  def heapIds(cl: Class[_], nodes: List[TreeNode], qAdapterRegistry: QAdapterRegistry): List[SrcId] =
+  def heapIds(cl: Class[_], nodes: List[TreeNode], qAdapterRegistry: QAdapterRegistry, uuidUtil: UUIDUtil): List[SrcId] =
     for {
       node ← nodes
-    } yield heapId(cl, node, qAdapterRegistry)
+    } yield heapId(cl, node, qAdapterRegistry, uuidUtil)
 
   def single[Something]: Values[Something] ⇒ Values[Something] =
     l ⇒ Single.option(l.distinct).toList
@@ -54,7 +55,8 @@ import HashSearchMockUtils._
   getDate: Model ⇒ (Option[Long], Option[Long]),
   conditionToRegion: Condition[Model] ⇒ TreeRange,
   filterName: NameMetaAttr,
-  qAdapterRegistry: QAdapterRegistry
+  qAdapterRegistry: QAdapterRegistry,
+  uuidUtil: UUIDUtil
 ) extends Assemble with HashSearchAssembleSharedKeys{
   type K2HeapId = SrcId
   type K2ToCountId = SrcId
@@ -81,7 +83,7 @@ import HashSearchMockUtils._
     for {
       respLine ← respLines
       tree ← trees
-      tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry) :: Nil
+      tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry, uuidUtil) :: Nil
     } yield tagId → respLine
 
   // end index builder
@@ -96,7 +98,7 @@ import HashSearchMockUtils._
       leaf ← single(leafConditions)
       if isMy(leaf.condition, filterName)
       tree ← trees
-      heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry)
+      heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry, uuidUtil)
     } yield heapId → K2Need[Model](ToPrimaryKey(leaf), modelCl)
 
 

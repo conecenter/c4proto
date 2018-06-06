@@ -51,12 +51,13 @@ object SessionDataAssembles {
 class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
-  modelAccessFactory: ModelAccessFactory
+  modelAccessFactory: ModelAccessFactory,
+  uuidUtil: UUIDUtil
 ) extends SessionAttrAccessFactory {
   def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
     val adapter = registry.byName(classOf[RawSessionData].getName)
     def genPK(request: RawSessionData): String =
-      UUID.nameUUIDFromBytes(adapter.encode(request)).toString
+      uuidUtil.srcIdFromSerialized(adapter.id,ToByteString(adapter.encode(request)))
     val lens = ProdLens[RawSessionData,P](attr.metaList)(
       rawData ⇒ registry.byId(rawData.valueTypeId).decode(rawData.value).asInstanceOf[P],
       value ⇒ rawData ⇒ {

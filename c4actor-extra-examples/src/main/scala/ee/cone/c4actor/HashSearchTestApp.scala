@@ -6,7 +6,7 @@ import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.TestProtocol.TestNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
-import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, SerializationUtilsApp, SerializationUtilsMix}
+import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
 import ee.cone.c4assemble.Types.Values
@@ -182,7 +182,9 @@ trait TestCondition extends SerializationUtilsApp {
 
   def conditions: List[Condition[TestObject]] = condition1 /*:: condition2*//*:: condition3*/ :: Nil
 
-  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer)
+  def uuidUtil: UUIDUtil
+
+  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer, uuidUtil)
 
   def joiners: List[Assemble] = factory.index(classOf[TestObject])
     .add[IntEq, Int](lensInt, IntEq(0))(IntEqRanger())
@@ -199,11 +201,12 @@ class HashSearchExtraTestApp extends RichDataApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp
   with ToStartApp
-  with MortalFactoryApp
   with ModelAccessFactoryApp
   with TestCondition
   with HashSearchAssembleApp
   with SerializationUtilsMix {
+
+
 
   override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory) :: super.toStart
 

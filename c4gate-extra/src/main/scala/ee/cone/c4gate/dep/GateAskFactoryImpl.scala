@@ -4,8 +4,9 @@ import java.util.UUID
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.DepTypeContainer.ContextId
-import ee.cone.c4actor.dep.{CommonRequestUtilityFactory, Dep, RequestDep}
+import ee.cone.c4actor.dep.ContextTypes.ContextId
+import ee.cone.c4actor.dep.{AskByPK, CommonRequestUtilityFactory, Dep}
+import ee.cone.c4actor.dep_impl.RequestDep
 import ee.cone.c4gate.SessionAttr
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
 import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
@@ -16,14 +17,16 @@ case class SessionAttrAskFactoryImpl(
   qAdapterRegistry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,
-  commonRequestFactory: CommonRequestUtilityFactory
+  commonRequestFactory: CommonRequestUtilityFactory,
+  rawDataAsk: AskByPK[RawSessionData],
+  uuidUtil: UUIDUtil
 ) extends SessionAttrAskFactoryApi {
 
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
     val adapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[RawSessionData].getName)
 
     def genPK(request: RawSessionData): String =
-      UUID.nameUUIDFromBytes(adapter.encode(request)).toString
+      uuidUtil.srcIdFromSerialized(adapter.id,ToByteString(adapter.encode(request)))
 
     val lens = ProdLens[RawSessionData, P](attr.metaList)(
       rawData ⇒ qAdapterRegistry.byId(rawData.valueTypeId).decode(rawData.value).asInstanceOf[P],
@@ -47,7 +50,7 @@ case class SessionAttrAskFactoryImpl(
     import commonRequestFactory._
     for {
       contextId ← askContextId
-      rawModel ← askByPK(classOf[RawSessionData], genPK(rawSessionData(contextId)))
+      rawModel ← rawDataAsk.option(genPK(rawSessionData(contextId)))
     } yield {
       val request = rawSessionData(contextId)
       val pk = genPK(request)
