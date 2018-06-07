@@ -59,4 +59,10 @@ case class DepFactoryImpl() extends DepFactory {
     new SeqParallelDep[A](value.asInstanceOf[Seq[Dep[A]]])
   def uncheckedRequestDep[Out](request: DepRequest): Dep[Out] =
     new RequestDep[Out](request)
+
+  def resolvedRequestDep[Out](response: Out): Dep[Out] =
+    new ResolvedDep[Out](response)
+
+  def parallelTuple[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
+    new ParallelDep[A, B](a, b)
 }

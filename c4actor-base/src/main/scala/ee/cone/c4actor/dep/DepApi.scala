@@ -24,8 +24,10 @@ object DepTypes {
 }
 
 trait DepFactory extends Product {
+  def parallelTuple[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)]
   def parallelSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]]
   def uncheckedRequestDep[Out](request: DepRequest): Dep[Out] // low-level; try to use more high-level DepAsk instead of this unchecked version
+  def resolvedRequestDep[Out](response: Out): Dep[Out]
 }
 
 /******************************************************************************/
