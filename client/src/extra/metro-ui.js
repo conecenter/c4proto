@@ -477,7 +477,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		render(){
 			const newStyle={
                 minWidth:'7em',
-                height:'2.5em',
+               // height:'2.5em',
                // backgroundColor:'#c0ced8',
                 cursor:'pointer',
 				...this.props.style,

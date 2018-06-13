@@ -2,6 +2,8 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 	let referenceCounter = 0;
 	let isOn = false
 	let interval = null
+//	let scannerChangeEvent = document.createEvent('ScannerChange');
+//	scannerChangeEvent.initEvent('onScannerChange', true, true);
 	const {activeElement,document} = documentManager
 	const callbacks = [];
 	const wifiCallbacks = [];
@@ -21,7 +23,9 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 		switch(scanMode){
 			case "uhf": if(isOn) Scanner&&Scanner.setUHFenable(); else Scanner&&Scanner.setUHFdisable(); break;
 			default: if(isOn) Scanner&&Scanner.setScannerEnable(); else Scanner&&Scanner.setScannerDisable();
-		}			
+		}		
+		let event = eventManager.create('onScannerChange', { 'detail': value, bubbles:true });	
+		documentManager.body().dispatchEvent(event);
 		log(`scanner: set ${value} ${scanMode}`)
 	}
 	const receiveAction = (barCode) => {Object.keys(callbacks).forEach(k=>callbacks[k]("barCode",barCode)); log(callbacks);}
