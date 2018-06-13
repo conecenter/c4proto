@@ -3459,8 +3459,8 @@ ACAAIAAgACAAAA==`
 		componentDidMount(){	
 			if(!this.el) return		
 			this.ctx = rootCtx(this.props.ctx)
-			const isSibling = Branches.isSibling(this.ctx)
-			if(isSibling) return			
+//			const isSibling = Branches.isSibling(this.ctx)
+//			if(isSibling) return
 			if(PingReceiver) this.pingR = PingReceiver.reg(this.signal)
 			this.toggleOverlay(!this.state.on);			
 			this.wifi = miscUtil.scannerProxy.regWifi(this.wifiCallback)
