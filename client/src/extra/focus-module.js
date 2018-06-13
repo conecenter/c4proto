@@ -230,7 +230,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		const marker = `marker-${detail}`
 		const btn = root.querySelector(`button.${marker}`)
 		if(btn) {
-			btn.dispatchEvent(eventManager.create("mousedown",{bubbles:true}))
+			btn.dispatchEvent(eventManager.create("click",{bubbles:true}))
 		}
 	}
 	const getLastClickNode = () =>{
@@ -287,7 +287,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const switchOff = (node,relatedTarget) => {
 		const lastNode = getLastClickNode()
 		if(lastNode && lastNode.tagName == "CANVAS") {
-			currentFocusNode && currentFocusNode.focus()
+			//currentFocusNode && currentFocusNode.focus()
 			return false
 		}
 		if(currentFocusNode == node.el && relatedTarget) {					
