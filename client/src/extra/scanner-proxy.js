@@ -2,8 +2,6 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 	let referenceCounter = 0;
 	let isOn = false
 	let interval = null
-//	let scannerChangeEvent = document.createEvent('ScannerChange');
-//	scannerChangeEvent.initEvent('onScannerChange', true, true);
 	const {activeElement,document} = documentManager
 	const callbacks = [];
 	const wifiCallbacks = [];

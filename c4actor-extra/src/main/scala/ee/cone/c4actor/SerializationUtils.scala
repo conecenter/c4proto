@@ -1,14 +1,10 @@
-
-package ee.cone.c4actor.hashsearch.condition
+package ee.cone.c4actor
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor._
-
-import scala.collection.immutable.Seq
 
 trait SerializationUtilsApp {
   def serializer: SerializationUtils
@@ -48,7 +44,7 @@ case class SerializationUtils(qAdapterRegistry: QAdapterRegistry) {
 
   def uuid(data: String): UUID = UUID.nameUUIDFromBytes(data.getBytes(UTF_8))
 
-  def uuidFromSeq(data: UUID*): UUID = {
+  def uuidFromSeqMany(data: UUID*): UUID = {
     uuidFromSeq(data.to[Seq])
   }
 
@@ -71,7 +67,7 @@ case class SerializationUtils(qAdapterRegistry: QAdapterRegistry) {
             val names = c.metaList.collect { case NameMetaAttr(name) ⇒ uuid(name) }
             uuidFromSeq(uuid(modelCl.getName) :: byHash ::: names)
           case None ⇒
-            PrintColored("r")(s"[Warning] NonSerializable condition: ${c.getClass}")
+            PrintColored("r")(s"[Warning] NonSerializable condition by: ${rq.getClass}")
             uuid(c.toString)
         }
       case c: Condition[_] ⇒
@@ -80,27 +76,4 @@ case class SerializationUtils(qAdapterRegistry: QAdapterRegistry) {
 
     get(condition).toString
   }
-
-  /*
-    def toBytes(value: Long): Array[Byte] =
-      ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
-
-    def stringToKey(value: String): SrcId =
-      UUID.nameUUIDFromBytes(value.getBytes(UTF_8)).toString
-
-    def generateByPK(metaList: List[MetaAttr], rq: Product, qAdapterRegistry: QAdapterRegistry, bonusStr: String): SrcId = {
-      try {
-        val lensNameMetaBytes = metaList.collectFirst { case NameMetaAttr(name) ⇒ name.getBytes(UTF_8) }.getOrElse(Array.emptyByteArray)
-        val valueAdapter = qAdapterRegistry.byName(rq.getClass.getName)
-        val bytes = valueAdapter.encode(rq)
-        UUID.nameUUIDFromBytes(toBytes(valueAdapter.id) ++ bytes ++ lensNameMetaBytes ++ bonusStr.getBytes(UTF_8)).toString
-      } catch {
-        case _: Exception ⇒ s"Can't serialize $rq $bonusStr $metaList"
-      }
-    }
-
-    def generatePKFromTwoSrcId(a: SrcId, b: SrcId, bonusStr: String): SrcId = {
-      UUID.nameUUIDFromBytes(a.getBytes(UTF_8) ++ b.getBytes(UTF_8) ++ bonusStr.getBytes(UTF_8)).toString
-    }*/
 }
-

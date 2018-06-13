@@ -60,7 +60,7 @@ const windowManager = (()=>{
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
 	const location = () => window.location
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix,location}
+	return {getWindowRect,setInterval,clearInterval,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix,location}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
@@ -101,10 +101,7 @@ const miscReact = (()=>{
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
 	}	
-	const count = function(){
-		return documentManager.body().querySelectorAll("div.branch").length
-	}
-	return {isReactRoot,getReactRoot, count}
+	return {isReactRoot,getReactRoot}
 })()
 const miscUtil = (()=>{
 	const winWifi = WinWifi(log,window.require,window.process,setInterval)
@@ -113,6 +110,7 @@ const miscUtil = (()=>{
 	const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})	
 	window.ScannerProxy = scannerProxy
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
+	const audio = () => {return new Audio()}
 	const fileReader = ()=> (new window.FileReader())
 	return {winWifi,getBattery,scannerProxy,audioContext,fileReader}
 })()
