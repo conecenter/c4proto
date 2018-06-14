@@ -5,7 +5,7 @@ import ee.cone.c4actor.DepTestProtocol.Spark
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.ContextIdRequestProtocol
+import ee.cone.c4actor.dep.request._
 import ee.cone.c4actor.dep_impl.{AskByPKsApp, ByPKRequestHandlerApp, DepAssembleApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -75,10 +75,14 @@ class DepTestStart(
     println(ByPK(classOf[DepTestResponse]).of(nGlobal).values.toList)
     /*println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test ⇒ test.resolvable.value → test.request.srcId))
     val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
-    println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
+    println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")*/
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println(s"Final result2: ${access.initialValue}")
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    val newLocal = TxAdd(LEvent.update(ValueNode("124", 555)))(nGlobal)
+    println(ByPK(classOf[DepTestResponse]).of(newLocal).values.toList)
+
+    val newLocal2 = TxAdd(LEvent.update(ValueNode("123", 100)))(newLocal)
+    println(ByPK(classOf[DepTestResponse]).of(newLocal2).values.toList)
+    /*println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     val newContext = access.updatingLens.get.set(access.initialValue.copy(value = 666))(nGlobal)
     println(s"Final result3: ${ByPK(classOf[UpResolvable]).of(newContext)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")
 
@@ -118,14 +122,17 @@ class DepTestApp extends RichDataApp
   with DepTestAssemble
 with CommonRequestUtilityMix
 with ByPKRequestHandlerApp
-with DepAssembleApp with AskByPKsApp{
+with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassNameAllRequestHandlerApp with ByClassNameRequestApp{
 
   def depRequestHandlers: immutable.Seq[DepHandler] = depHandlers
 
 
   override def askByPKs: List[AbstractAskByPK] = askByPKFactory.forClass(classOf[ValueNode]) :: super.askByPKs
 
-  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[ValueNode]), depAskFactory)
+
+  override def byClNameAllClasses: List[Class[_ <: Product]] = classOf[ValueNode] :: super.byClNameAllClasses
+
+  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[ValueNode]), depAskFactory, byClassNameAllAsk)
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 
