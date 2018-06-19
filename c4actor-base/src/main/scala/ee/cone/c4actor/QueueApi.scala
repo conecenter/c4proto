@@ -7,7 +7,7 @@ import com.squareup.wire.ProtoAdapter
 
 import scala.collection.immutable.{Map, Queue, Seq}
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
-import ee.cone.c4assemble.Types.{Index, ReadModel}
+import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
@@ -75,24 +75,24 @@ class Context(
 object ByPK {
   def apply[V<:Product](cl: Class[V]): ByPrimaryKeyGetter[V] =
     ByPrimaryKeyGetter(raw(cl.getName))
-  def raw[V<:Product](className: String): AssembledKey[Index[SrcId,V]] =
-    JoinKey[SrcId,V](was=false, "SrcId", classOf[SrcId].getName, className)
+  def raw[V<:Product](className: String): AssembledKey =
+    JoinKey(was=false, "SrcId", classOf[SrcId].getName, className)
   //todo: def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
 }
 
-case class ByPrimaryKeyGetter[V<:Product](joinKey: AssembledKey[Index[SrcId,V]])
+case class ByPrimaryKeyGetter[V<:Product](joinKey: AssembledKey)
   extends Getter[Context,Map[SrcId,V]]
 {
   def of: Context ⇒ Map[SrcId, V] = context ⇒
     UniqueIndexMap(joinKey.of(context.assembled))
 }
 
-case class UniqueIndexMap[K,V](index: Index[K,V]) extends Map[K,V] {
-  def +[B1 >: V](kv: (K, B1)): Map[K, B1] = UniqueIndexMap(index + (kv._1→List(kv._2)))
-  def get(key: K): Option[V] = Single.option(index.getOrElse(key,Nil))
-  def iterator: Iterator[(K, V)] = index.iterator.map{ case (k,v) ⇒ (k,Single(v)) }
+case class UniqueIndexMap[K,V](index: Index) extends Map[K,V] {
+  def +[B1 >: V](kv: (K, B1)): Map[K, B1] = throw new Exception("not implemented")//UniqueIndexMap(index + (kv._1→List(kv._2))) //diffFromJoinRes
+  def get(key: K): Option[V] = index.get(key).fold(None:Option[V])(ms ⇒ Option(Single(ms.keys.toList).value.asInstanceOf[V]))
+  def iterator: Iterator[(K, V)] = index.iterator.map{ case (k,v) ⇒ (k,Single(v.keys.toList).value).asInstanceOf[(K,V)] }
   def -(key: K): Map[K, V] = UniqueIndexMap(index - key)
-  override def keysIterator: Iterator[K] = index.keysIterator // to work with non-Single
+  override def keysIterator: Iterator[K] = index.keysIterator.asInstanceOf[Iterator[K]] // to work with non-Single
 }
 
 trait Lens[C,I] extends Getter[C,I] {

@@ -4,7 +4,8 @@ package ee.cone.c4assemble
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 
-import scala.collection.immutable.{Seq,Map}
+import scala.collection.immutable.Seq
+import scala.collection.parallel.immutable.ParIterable
 
 object Single {
   def apply[C](l: Seq[C]): C = if(l.isEmpty) {
@@ -24,11 +25,10 @@ object ToPrimaryKey {
     } else ""
 }
 
-class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey[A]) extends DataDependencyTo[A]
+class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends DataDependencyTo[A]
 
 object TreeAssemblerTypes {
-  type Replace = (Map[AssembledKey[_],Index[Object,Object]], Boolean) ⇒ ReadModel ⇒ ReadModel
-  type MultiSet[T] = Map[T,Int]
+  type Replace = (ReadModel, Boolean) ⇒ ReadModel ⇒ ReadModel
 }
 
 trait TreeAssembler {
@@ -43,9 +43,8 @@ trait ByPriority {
 // moment -> mod/index -> key/srcId -> value -> count
 
 trait IndexUpdater {
-  def diffOf[K,V](worldKey: AssembledKey[Index[K,V]]): WorldTransition⇒Map[K,Boolean]
-  def setPart[K,V](worldKey: AssembledKey[Index[K,V]])(
-    nextDiff: Map[K,Boolean], nextIndex: Index[K,V]
+  def setPart[K,V](worldKey: AssembledKey)(
+    nextDiff: Index, nextIndex: Index
   ): WorldTransition⇒WorldTransition
 }
 

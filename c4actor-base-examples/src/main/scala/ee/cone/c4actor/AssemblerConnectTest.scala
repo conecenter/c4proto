@@ -82,7 +82,7 @@ class ConnTestApp extends RichDataApp
   override def protocols: List[Protocol] = ConnProtocol :: super.protocols
   override def assembles: List[Assemble] = new ConnAssemble :: super.assembles
   override def toStart: List[Executable] = new ConnStart(execution,toUpdate,contextFactory) :: super.toStart
-  override def assembleSeqOptimizer: AssembleSeqOptimizer = new ShortAssembleSeqOptimizer(backStageFactory,indexUpdater)
+  override def assembleSeqOptimizer: AssembleSeqOptimizer = new ShortAssembleSeqOptimizer(indexFactory,backStageFactory,indexUpdater)
 }
 
 //C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain'

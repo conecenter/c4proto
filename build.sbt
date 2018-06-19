@@ -19,6 +19,8 @@ lazy val publishSettings = Seq(
   mainClass in Compile := Some("ee.cone.c4actor.ServerMain")
 )
 
+fork := true
+
 scalaVersion in ThisBuild := "2.11.8"
 
 //dockerBaseImage := "openjdk:8"

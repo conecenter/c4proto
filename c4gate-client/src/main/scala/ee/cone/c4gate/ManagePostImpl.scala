@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.{Index, Values}
+import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 
@@ -27,7 +27,7 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
 
 case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
-  private def valueLines(index: Index[Any, Product])(k: Any): List[String] =
+  private def valueLines(index: Index)(k: Any): List[String] =
     index.getOrElse(k,Nil).flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
@@ -35,11 +35,11 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform wi
     val WorldKeyAlias = """(\w+),(\w+)""".r
     val worldKeyAlias = headers("X-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
-    val (indexStr,index): (String,Index[Any, Product]) = Single.option(world.keys.toList.collect{
+    val (indexStr,index): (String,Index) = Single.option(world.keys.toList.collect{
       case worldKey@JoinKey(false,`alias`,keyClassName,valueClassName)
         if valueClassName.split("\\W").last == keyClassAlias ⇒
         (s"$worldKey",worldKey.of(world))
-    }).getOrElse(("[index not found]",Map.empty))
+    }).getOrElse(("[index not found]",emptyEachIndex))
     val res: List[String] = headers("X-r-selection") match {
       case k if k.startsWith(":") ⇒ k.tail :: valueLines(index)(k.tail)
       case "keys" ⇒ index.keys.map(_.toString).toList.sorted

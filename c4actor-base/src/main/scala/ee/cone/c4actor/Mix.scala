@@ -40,14 +40,8 @@ trait ExpressionsDumpersApp {
   def expressionsDumpers: List[ExpressionsDumper[Unit]] = Nil
 }
 
-trait SimpleIndexValueMergerFactoryApp {
-  def indexValueMergerFactory: IndexValueMergerFactory = new SimpleIndexValueMergerFactory
-}
-
-trait TreeIndexValueMergerFactoryApp {
-  def indexValueMergerFactory: IndexValueMergerFactory =
-    new TreeIndexValueMergerFactory(16)
-}
+trait SimpleIndexValueMergerFactoryApp //compat
+trait TreeIndexValueMergerFactoryApp //compat
 
 trait ServerApp extends RichDataApp with RichObserverApp
 
@@ -72,7 +66,6 @@ trait RichDataApp extends ProtocolsApp
   with ExpressionsDumpersApp
 {
   def assembleProfiler: AssembleProfiler
-  def indexValueMergerFactory: IndexValueMergerFactory
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
@@ -87,12 +80,12 @@ trait RichDataApp extends ProtocolsApp
   lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater)
   lazy val uuidUtil: UUIDUtil = UUIDUtilImpl()
-  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexValueMergerFactory,assembleProfiler,indexUpdater)
-  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
+  lazy val indexFactory: IndexFactory = new IndexFactoryImpl(assembleProfiler,indexUpdater,preHashing)()
+  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexFactory,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexFactory)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols

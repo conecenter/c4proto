@@ -5,17 +5,17 @@ import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
 
 sealed trait RuleDef
-case class JoinDef(params: Seq[AType], in: AType, out: AType) extends RuleDef
-case class AType(name: String, was: Boolean, key: KVType, value: KVType)
+case class JoinDef(params: Seq[AType], inKeyType: KVType, out: AType) extends RuleDef
+case class AType(name: String, was: Boolean, key: KVType, value: KVType, strValuePre: String, many: Boolean)
 
-sealed trait KVType
-case class SimpleKVType(name: String) extends KVType
-case class GenericKVType(name: String, of: String) extends KVType
+sealed trait KVType { def str: String }
+case class SimpleKVType(name: String, str: String) extends KVType
+case class GenericKVType(name: String, of: String, str: String) extends KVType
 object KVType {
-  def unapply(n: Any): Option[KVType] = n match {
+  def unapply(t: Any): Option[KVType] = t match {
     case Some(e) ⇒ unapply(e)
-    case Type.Name(n) ⇒ Option(SimpleKVType(n))
-    case Type.Apply(Type.Name(n),Seq(Type.Name(of))) ⇒ Option(GenericKVType(n,of))
+    case Type.Name(n) ⇒ Option(SimpleKVType(n,n))
+    case Type.Apply(Type.Name(n),Seq(Type.Name(of))) ⇒ Option(GenericKVType(n,of,s"$t"))
   }
 }
 
@@ -28,7 +28,8 @@ class assemble extends StaticAnnotation {
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${KVType(outKeyType)},${KVType(outValType)})] = $expr" ⇒
         val param"$keyName: ${KVType(inKeyType)}" = params.head
         val joinDefParams = params.tail.map{
-          case param"..$mods ${Term.Name(paramName)}: Values[${KVType(inValType)}]" ⇒
+          case param"..$mods ${Term.Name(paramName)}: $manyT[${KVType(inValType)}]" ⇒
+            val many = manyT match { case t"Values" ⇒ true case t"Each" ⇒ false }
             val (was,annInKeyType) = mods.foldLeft((false,inKeyType)){ (st,ann) ⇒
               ann match {
                 case mod"@was" ⇒
@@ -47,9 +48,9 @@ class assemble extends StaticAnnotation {
                   st.copy(_2=annInKeyTypeV)
               }
             }
-            AType(paramName, was, annInKeyType, inValType)
+            AType(paramName, was, annInKeyType, inValType, s"$manyT", many)
         }
-        Option(JoinDef(joinDefParams,AType("",was=false,inKeyType,SimpleKVType("Product")),AType(defName,was=false,outKeyType,outValType)))
+        Option(JoinDef(joinDefParams,inKeyType,AType(defName,was=false,outKeyType,outValType,"",many=false)))
     }
     //val classArg =
     val classArgs = paramss.toList.flatten.collect{
@@ -59,30 +60,53 @@ class assemble extends StaticAnnotation {
     def classOfExpr(className: String) =
       classArgs.getOrElse(className,s"classOf[$className]") + ".getName"
     def classOfT(kvType: KVType) = kvType match {
-      case SimpleKVType(n) ⇒ classOfExpr(n)
-      case GenericKVType(n,of) ⇒ s"classOf[$n[_]].getName+'['+${classOfExpr(of)}+']'"
+      case SimpleKVType(n,_) ⇒ classOfExpr(n)
+      case GenericKVType(n,of,_) ⇒ s"classOf[$n[_]].getName+'['+${classOfExpr(of)}+']'"
     }
+    /*
     def tp(kvType: KVType) = kvType match {
       case SimpleKVType(n) ⇒ n
       case GenericKVType(n,of) ⇒ s"$n[$of]"
-    }
-    def expr(genType: AType, specType: AType): String = {
-      s"""ee.cone.c4assemble.JoinKey[${tp(genType.key)},${tp(genType.value)}](${specType.was},"${tp(specType.key)}",${classOfT(specType.key)},${classOfT(specType.value)})"""
+    }*/
+    def expr(specType: AType): String = {
+      s"""ee.cone.c4assemble.JoinKey(
+         |${specType.was},
+         |"${specType.key.str}",${classOfT(specType.key)},${classOfT(specType.value)}
+         |)""".stripMargin
     }
     val joinImpl = rules.collect{
-      case JoinDef(params,in,out) ⇒
-        val tParams = s"${tp(in.value)},${tp(out.value)},${tp(in.key)},${tp(out.key)}"
+      case JoinDef(params,inKeyType,out) ⇒
+        val (seqParams,eachParams) = params.partition(_.many)
+        val fun = s"""
+           |(indexRawSeqSeq,diffIndexRawSeq) => {
+           |  val Seq(${params.map(p⇒s"${p.name}_diffIndexRaw").mkString(",")}) = diffIndexRawSeq
+           |  ${params.map(p⇒s"val ${p.name}_diffIndex = indexFactory.wrapIndex(${p.name}_diffIndexRaw); ").mkString}
+           |  val diffIds = indexFactory.keySet(diffIndexRawSeq)
+           |  val diffAll = diffIds.contains(ee.cone.c4assemble.All)
+           |  for {
+           |    (dir,indexRawSeq) <- indexRawSeqSeq
+           |    Seq(${params.map(p⇒s"${p.name}_indexRaw").mkString(",")}) = indexRawSeq
+           |    ${params.map(p⇒s"${p.name}_index = indexFactory.wrapIndex(${p.name}_indexRaw); ").mkString}
+           |    id <- if(!diffAll) diffIds else indexFactory.keySet(indexRawSeq) - ee.cone.c4assemble.All
+           |    ${seqParams.map(p⇒s"${p.name}_arg = indexFactory.wrapValues(${p.name}_index(id)); ").mkString}
+           |    ${seqParams.map(p⇒s"${p.name}_isChanged = ${p.name}_diffIndex(id).nonEmpty; ").mkString}
+           |    ${eachParams.map(p⇒s"${p.name}_parts = indexFactory.partition(${p.name}_index(id),${p.name}_diffIndex(id)); ").mkString}
+           |    ${if(eachParams.nonEmpty) eachParams.map(p⇒s"(${p.name}_isChanged,${p.name}_items) <- ${p.name}_parts").mkString("; ") else "_ <- indexFactory.nonEmptySeq"} if(
+           |      ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty && ").mkString}
+           |      (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
+           |    )
+           |    ${eachParams.map(p⇒s"${p.name}_item <- ${p.name}_items; ${p.name}_arg = ${p.name}_item.value; ").mkString}
+           |    (byKey,product) <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.strValuePre}[${p.value.str}]]").mkString(",")})
+           |  } yield indexFactory.result(byKey,product,dir)
+           |}
+         """.stripMargin
         s"""
-           |indexFactory.createJoinMapIndex[$tParams](new ee.cone.c4assemble.Join[$tParams](
+           |indexFactory.createJoinMapIndex(new ee.cone.c4assemble.Join(
            |  getClass.getName,
            |  "${out.name}",
-           |  collection.immutable.Seq(${params.map(expr(in,_)).mkString(",")}),
-           |  ${expr(out,out)},
-           |  (key,in) ⇒ in match {
-           |    case Seq(${params.map(_ ⇒ "Nil").mkString(",")}) ⇒ Nil
-           |    case Seq(${params.map(_.name).mkString(",")}) ⇒
-           |      ${out.name}(key, ${params.map(param ⇒ s"${param.name}.asInstanceOf[Values[${tp(param.value)}]]").mkString(",")})
-           |  }
+           |  collection.immutable.Seq(${params.map(expr).mkString(",")}),
+           |  ${expr(out)},
+           |  $fun
            |))
          """.stripMargin
     }.mkString(s"override def dataDependencies = indexFactory ⇒ List(",",",")")

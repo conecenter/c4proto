@@ -59,7 +59,7 @@ case class PrometheusTx(path: String, compressor: Compressor) extends TxTransfor
       "runtime_mem_free" → runtime.freeMemory
     )
     val keyCounts: List[(String, Long)] = local.assembled.collect {
-      case (worldKey:JoinKey[_,_], index: Map[_, _])
+      case (worldKey:JoinKey, index: Map[_, _])
         if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
         s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → index.size.toLong
     }.toList
