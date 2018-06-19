@@ -6,13 +6,15 @@ import Types.{DMultiSet, _}
 import ee.cone.c4actor.PreHashed
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
-import scala.collection.{GenIterable, GenSeq}
+import scala.collection.{GenIterable, GenMap, GenSeq}
 import scala.collection.parallel.immutable.{ParIterable, ParMap}
 
 object Types {
   type Values[V] = Seq[V]
   type Each[V] = V
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
+  type DPMap[K,V] = GenMap[K,V] //ParMap[K,V]
+  type DPIterable[V] = GenIterable[V]
   type DMultiSet = Map[PreHashed[Product],Int]
   type Index = DMap[Any,DMultiSet]
   type ReadModel = DMap[AssembledKey,Index]
@@ -54,7 +56,7 @@ trait IndexFactory {
   def nonEmptySeq: Seq[_]
   def keySet(indexSeq: Seq[Index]): Set[Any]
   def mergeIndex: Compose[Index]
-  def diffFromJoinRes: ParIterable[JoinRes]⇒Option[Index]
+  def diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index]
   def result(key: Any, product: Product, count: Int): JoinRes
 }
 
@@ -73,7 +75,7 @@ class Join(
   val name: String,
   val inputWorldKeys: Seq[AssembledKey],
   val outputWorldKey: AssembledKey,
-  val joins: (ParIterable[(Int,Seq[Index])], Seq[Index]) ⇒ ParIterable[JoinRes]
+  val joins: (DPIterable[(Int,Seq[Index])], Seq[Index]) ⇒ DPIterable[JoinRes]
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 

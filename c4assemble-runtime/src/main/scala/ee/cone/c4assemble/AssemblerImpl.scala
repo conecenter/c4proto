@@ -10,15 +10,15 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import scala.annotation.tailrec
 import scala.collection.GenIterable
 import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
-import scala.collection.parallel.immutable.{ParIterable, ParMap, ParSeq}
+import scala.collection.parallel.immutable.{ParMap, ParSeq}
 
 object IndexFactoryUtil {
-  def group[K,V](by: JoinRes⇒K, wrap: ParMap[K,V]⇒Map[K,V], inner: ParIterable[JoinRes] ⇒ Option[V]): ParIterable[JoinRes] ⇒ Option[DMap[K,V]] =
-    (in:ParIterable[JoinRes]) ⇒ {
+  def group[K,V](by: JoinRes⇒K, wrap: DPMap[K,V]⇒DMap[K,V], inner: DPIterable[JoinRes] ⇒ Option[V]): DPIterable[JoinRes] ⇒ Option[DMap[K,V]] =
+    (in:DPIterable[JoinRes]) ⇒ {
       val m = for {(k,part) ← in.groupBy(by); v ← inner(part) } yield k→v
       if(m.isEmpty) None else Option(wrap(m))
     }
-  def sumOpt: ParIterable[JoinRes] ⇒ Option[Int] = part ⇒ {
+  def sumOpt: DPIterable[JoinRes] ⇒ Option[Int] = part ⇒ {
     val sum = part.map(_.count).sum
     if(sum==0) None else Option(sum)
   }
@@ -39,8 +39,8 @@ class IndexFactoryImpl(
   val wrapValues: Option[DMultiSet] ⇒ Values[Product] =
     _.fold(Nil:Values[Product])(m⇒DValuesImpl(m.asInstanceOf[TreeMap[PreHashed[Product],Int]])),
   val mergeIndex: Compose[Index] = Merge[Any,DMultiSet](_.isEmpty,Merge(_==0,_+_)),
-  val diffFromJoinRes: ParIterable[JoinRes]⇒Option[Index] =
-    IndexFactoryUtil.group[Any,DMultiSet](_.byKey, _.seq,
+  val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
+    IndexFactoryUtil.group[Any,DMultiSet](_.byKey, _.seq.toMap,
       IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, emptyMultiSet++_, IndexFactoryUtil.sumOpt)
     )
 ) extends IndexFactory {
@@ -84,10 +84,10 @@ class JoinMapIndex(
   def transform(transition: WorldTransition): WorldTransition = {
     //println(s"rule $outputWorldKey <- $inputWorldKeys")
     if (inputWorldKeys.forall(k ⇒ k.of(transition.diff).isEmpty)) transition
-    else {
+    else { //
       val end = profiler(s"calculate ${transition.isParallel}")
       val joinRes = join.joins(
-        ParSeq(
+        Seq(///ParSeq
           -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
           +1→inputWorldKeys.map(_.of(transition.result))
         ),

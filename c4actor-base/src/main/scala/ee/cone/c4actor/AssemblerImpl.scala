@@ -28,7 +28,7 @@ class AssemblerInit(
 ) extends ToInject {
   private def toTree(assembled: ReadModel, updates: Iterable[Update]): ReadModel =
     (for {
-      (valueTypeId, tpUpdates) ← updates.par.groupBy(_.valueTypeId)
+      (valueTypeId, tpUpdates) ← updates.groupBy(_.valueTypeId) //.par
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = ByPK.raw[Product](valueAdapter.className)
       wasIndex = wKey.of(assembled)
