@@ -22,8 +22,15 @@ object IndexFactoryUtil {
     val sum = part.map(_.count).sum
     if(sum==0) None else Option(sum)
   }
-}*/
+}
+val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
+    IndexFactoryUtil.group[Any,DMultiSet](_.byKey, _.seq.toMap,
+      IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, emptyMultiSet++_, IndexFactoryUtil.sumOpt)
+    )
 
+*/
+
+/*
 object IndexFactoryUtil {
   def group[K,V](by: JoinRes⇒K, empty: V, isEmpty: V⇒Boolean, inner: (V,JoinRes)⇒V): (DMap[K,V],JoinRes)⇒DMap[K,V] =
     (res,jRes) ⇒ {
@@ -33,7 +40,15 @@ object IndexFactoryUtil {
       if(isEmpty(will)) res - k else res + (k→will)
     }
 }
-
+val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
+    ((in:DPIterable[JoinRes])⇒in.foldLeft(emptyIndex)(
+      IndexFactoryUtil.group[Any,DMultiSet](_.byKey, emptyMultiSet, _.isEmpty,
+        IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, 0, _==0,
+          (res,jRes)⇒res+jRes.count
+        )
+      )
+    )).andThen(in⇒Option(in).filter(_.nonEmpty))
+*/
 
 class IndexFactoryImpl(
   profiler: AssembleProfiler,
@@ -50,19 +65,20 @@ class IndexFactoryImpl(
   val wrapValues: Option[DMultiSet] ⇒ Values[Product] =
     _.fold(Nil:Values[Product])(m⇒DValuesImpl(m.asInstanceOf[TreeMap[PreHashed[Product],Int]])),
   val mergeIndex: Compose[Index] = Merge[Any,DMultiSet](_.isEmpty,Merge(_==0,_+_)),
-  /*
-  val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
-    IndexFactoryUtil.group[Any,DMultiSet](_.byKey, _.seq.toMap,
-      IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, emptyMultiSet++_, IndexFactoryUtil.sumOpt)
-    )*/
-  val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
-    ((in:DPIterable[JoinRes])⇒in.foldLeft(emptyIndex)(
-      IndexFactoryUtil.group[Any,DMultiSet](_.byKey, emptyMultiSet, _.isEmpty,
-        IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, 0, _==0,
-          (res,jRes)⇒res+jRes.count
-        )
-      )
-    )).andThen(in⇒Option(in).filter(_.nonEmpty))
+  val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] = {
+    def valuesDiffFromJoinRes(in: DPIterable[JoinRes]): Option[DMultiSet] = {
+      val m = in.foldLeft(emptyMultiSet) { (res, jRes) ⇒
+        val k = jRes.productHashed
+        val was = res.getOrElse(k,0)
+        val will = was + jRes.count
+        if(will==0) res - k else res + (k→will)
+      }
+      if(m.isEmpty) None else Option(m.seq)
+    }
+    in ⇒
+      val m = for {(k,part) ← in.groupBy(_.byKey); v ← valuesDiffFromJoinRes(part) } yield k→v
+      if(m.isEmpty) None else Option(m.seq.toMap)
+  }
 ) extends IndexFactory {
 
   def createJoinMapIndex(join: Join):
