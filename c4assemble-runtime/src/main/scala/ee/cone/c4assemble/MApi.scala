@@ -7,7 +7,6 @@ import ee.cone.c4actor.PreHashed
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.{GenIterable, GenMap, GenSeq}
-import scala.collection.parallel.immutable.{ParIterable, ParMap}
 
 object Types {
   type Values[V] = Seq[V]
@@ -23,7 +22,6 @@ object Types {
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
   def emptyReadModel: ReadModel = emptyDMap
   def emptyIndex: Index = emptyDMap
-  def emptyEachIndex: Index = emptyDMap
 }
 
 trait Getter[C,+I] {

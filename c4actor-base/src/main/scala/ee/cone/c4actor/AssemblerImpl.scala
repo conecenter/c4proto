@@ -26,9 +26,9 @@ class AssemblerInit(
   isParallel: Boolean,
   composes: IndexFactory
 ) extends ToInject {
-  private def toTree(assembled: ReadModel, updates: Iterable[Update]): ReadModel =
+  private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
     (for {
-      (valueTypeId, tpUpdates) ← updates.groupBy(_.valueTypeId) //.par
+      (valueTypeId, tpUpdates) ← updates.groupBy(_.valueTypeId)
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = ByPK.raw[Product](valueAdapter.className)
       wasIndex = wKey.of(assembled)
@@ -42,10 +42,10 @@ class AssemblerInit(
         add = if(rawValue.size > 0) Seq(composes.result(srcId,valueAdapter.decode(rawValue),+1)) else Nil
         res ← remove ++ add
       } yield res)
-    } yield wKey → indexDiff).seq
+    } yield wKey → indexDiff).seq.toMap
 
   private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {
-    val diff = toTree(context.assembled, out)
+    val diff = toTree(context.assembled, if(isParallel) out.par else out)
     val nAssembled = TreeAssemblerKey.of(context)(diff,isParallel)(context.assembled)
     new Context(context.injected, nAssembled, context.transient)
   }

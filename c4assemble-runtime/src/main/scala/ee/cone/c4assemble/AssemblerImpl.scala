@@ -10,8 +10,8 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import scala.annotation.tailrec
 import scala.collection.GenIterable
 import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
-import scala.collection.parallel.immutable.{ParMap, ParSeq}
 
+/*
 object IndexFactoryUtil {
   def group[K,V](by: JoinRes⇒K, wrap: DPMap[K,V]⇒DMap[K,V], inner: DPIterable[JoinRes] ⇒ Option[V]): DPIterable[JoinRes] ⇒ Option[DMap[K,V]] =
     (in:DPIterable[JoinRes]) ⇒ {
@@ -22,7 +22,18 @@ object IndexFactoryUtil {
     val sum = part.map(_.count).sum
     if(sum==0) None else Option(sum)
   }
+}*/
+
+object IndexFactoryUtil {
+  def group[K,V](by: JoinRes⇒K, empty: V, isEmpty: V⇒Boolean, inner: (V,JoinRes)⇒V): (DMap[K,V],JoinRes)⇒DMap[K,V] =
+    (res,jRes) ⇒ {
+      val k = by(jRes)
+      val was = res.getOrElse(k,empty)
+      val will = inner(was,jRes)
+      if(isEmpty(will)) res - k else res + (k→will)
+    }
 }
+
 
 class IndexFactoryImpl(
   profiler: AssembleProfiler,
@@ -39,10 +50,19 @@ class IndexFactoryImpl(
   val wrapValues: Option[DMultiSet] ⇒ Values[Product] =
     _.fold(Nil:Values[Product])(m⇒DValuesImpl(m.asInstanceOf[TreeMap[PreHashed[Product],Int]])),
   val mergeIndex: Compose[Index] = Merge[Any,DMultiSet](_.isEmpty,Merge(_==0,_+_)),
+  /*
   val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
     IndexFactoryUtil.group[Any,DMultiSet](_.byKey, _.seq.toMap,
       IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, emptyMultiSet++_, IndexFactoryUtil.sumOpt)
-    )
+    )*/
+  val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
+    ((in:DPIterable[JoinRes])⇒in.foldLeft(emptyIndex)(
+      IndexFactoryUtil.group[Any,DMultiSet](_.byKey, emptyMultiSet, _.isEmpty,
+        IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, 0, _==0,
+          (res,jRes)⇒res+jRes.count
+        )
+      )
+    )).andThen(in⇒Option(in).filter(_.nonEmpty))
 ) extends IndexFactory {
 
   def createJoinMapIndex(join: Join):
@@ -86,11 +106,12 @@ class JoinMapIndex(
     if (inputWorldKeys.forall(k ⇒ k.of(transition.diff).isEmpty)) transition
     else { //
       val end = profiler(s"calculate ${transition.isParallel}")
+      val worlds = Seq(
+        -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
+        +1→inputWorldKeys.map(_.of(transition.result))
+      )
       val joinRes = join.joins(
-        Seq(///ParSeq
-          -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
-          +1→inputWorldKeys.map(_.of(transition.result))
-        ),
+        if(transition.isParallel) worlds.par else worlds,
         inputWorldKeys.map(_.of(transition.diff))
       )
       end(joinRes.size)

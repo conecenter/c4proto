@@ -5,7 +5,6 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.Seq
-import scala.collection.parallel.immutable.ParIterable
 
 object Single {
   def apply[C](l: Seq[C]): C = if(l.isEmpty) {

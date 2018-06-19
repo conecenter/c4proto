@@ -39,7 +39,7 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform wi
       case worldKey@JoinKey(false,`alias`,keyClassName,valueClassName)
         if valueClassName.split("\\W").last == keyClassAlias ⇒
         (s"$worldKey",worldKey.of(world))
-    }).getOrElse(("[index not found]",emptyEachIndex))
+    }).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("X-r-selection") match {
       case k if k.startsWith(":") ⇒ k.tail :: valueLines(index)(k.tail)
       case "keys" ⇒ index.keys.map(_.toString).toList.sorted
