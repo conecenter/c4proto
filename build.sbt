@@ -155,7 +155,7 @@ lazy val `c4vdom-canvas` = project.settings(publishSettings)
 lazy val `c4ui-main` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-client`, `c4actor-extra`) // TODO add here dep if needed
+  .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-client`)
 
 lazy val `c4gate-client` = project.settings(publishSettings)
   .settings(description := s"$descr")
