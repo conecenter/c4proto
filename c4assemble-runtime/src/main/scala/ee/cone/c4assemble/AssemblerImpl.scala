@@ -70,7 +70,8 @@ class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
   def name = join.name
   def inputWorldKeys: Seq[AssembledKey[Index[JoinKey, T]]] = join.inputWorldKeys
   def outputWorldKey: AssembledKey[Index[MapKey, Value]] = join.outputWorldKey
-  override def toString: String = s"${super.toString} ($assembleName,$name,$inputWorldKeys,$outputWorldKey)"
+
+  override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
 
   def getWorldParts(getIndex: AssembledKey[Index[JoinKey,T]]⇒Index[JoinKey,T]): Seq[JoinKey=>Values[T]] =
     inputWorldKeys.map{ wKey ⇒
