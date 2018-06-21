@@ -79,25 +79,23 @@ class assemble extends StaticAnnotation {
         val (seqParams,eachParams) = params.partition(_.many)
         val fun = s"""
            |(indexRawSeqSeq,diffIndexRawSeq) => {
-           |  val Seq(${params.map(p⇒s"${p.name}_diffIndexRaw").mkString(",")}) = diffIndexRawSeq
-           |  ${params.map(p⇒s"val ${p.name}_diffIndex = indexFactory.wrapIndex(${p.name}_diffIndexRaw); ").mkString}
-           |  val diffIds = indexFactory.keySet(diffIndexRawSeq)
-           |  val diffAll = diffIds.contains(ee.cone.c4assemble.All)
+           |  val iUtil = indexFactory.util
+           |  val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
+           |  val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq)
            |  for {
            |    (dir,indexRawSeq) <- indexRawSeqSeq
-           |    Seq(${params.map(p⇒s"${p.name}_indexRaw").mkString(",")}) = indexRawSeq
-           |    ${params.map(p⇒s"${p.name}_index = indexFactory.wrapIndex(${p.name}_indexRaw); ").mkString}
-           |    id <- if(!diffAll) diffIds else indexFactory.keySet(indexRawSeq) - ee.cone.c4assemble.All
-           |    ${seqParams.map(p⇒s"${p.name}_arg = indexFactory.wrapValues(${p.name}_index(id)); ").mkString}
-           |    ${seqParams.map(p⇒s"${p.name}_isChanged = ${p.name}_diffIndex(id).nonEmpty; ").mkString}
-           |    ${eachParams.map(p⇒s"${p.name}_parts = indexFactory.partition(${p.name}_index(id),${p.name}_diffIndex(id)); ").mkString}
-           |    ${if(eachParams.nonEmpty) eachParams.map(p⇒s"(${p.name}_isChanged,${p.name}_items) <- ${p.name}_parts").mkString("; ") else "_ <- indexFactory.nonEmptySeq"} if(
+           |    Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
+           |    id <- invalidateKeySet(indexRawSeq)
+           |    ${seqParams.map(p⇒s"${p.name}_arg = ${p.name}_index.getValues(id); ").mkString}
+           |    ${seqParams.map(p⇒s"${p.name}_isChanged = ${p.name}_diffIndex.getValues(id).nonEmpty; ").mkString}
+           |    ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id); ").mkString}
+           |    ${if(eachParams.nonEmpty) eachParams.map(p⇒s"(${p.name}_isChanged,${p.name}_items) <- ${p.name}_parts").mkString("; ") else "_ <- iUtil.nonEmptySeq"} if(
            |      ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty && ").mkString}
            |      (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
            |    )
            |    ${eachParams.map(p⇒s"${p.name}_item <- ${p.name}_items; ${p.name}_arg = ${p.name}_item.value; ").mkString}
            |    (byKey,product) <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.strValuePre}[${p.value.str}]]").mkString(",")})
-           |  } yield indexFactory.result(byKey,product,dir)
+           |  } yield iUtil.result(byKey,product,dir)
            |}
          """.stripMargin
         s"""

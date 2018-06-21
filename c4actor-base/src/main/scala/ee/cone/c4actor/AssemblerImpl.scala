@@ -24,7 +24,7 @@ class AssemblerInit(
   treeAssembler: TreeAssembler,
   getDependencies: ()⇒List[DataDependencyTo[_]],
   isParallel: Boolean,
-  composes: IndexFactory
+  composes: IndexUtil
 ) extends ToInject {
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
     (for {
@@ -32,16 +32,12 @@ class AssemblerInit(
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = ByPK.raw[Product](valueAdapter.className)
       wasIndex = wKey.of(assembled)
-      indexDiff ← composes.diffFromJoinRes(for {
+      indexDiff ← Option(composes.mergeIndex(for {
         (srcId, iUpdates) ← tpUpdates.groupBy(_.srcId)
-        remove = for{
-          wasValues ← wasIndex.get(srcId).toSeq
-          (prodH,count) ← wasValues
-        } yield new JoinRes(srcId,prodH,-count)
         rawValue = iUpdates.last.value
-        add = if(rawValue.size > 0) Seq(composes.result(srcId,valueAdapter.decode(rawValue),+1)) else Nil
-        res ← remove ++ add
-      } yield res)
+        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
+        res ← composes.removingDiff(wasIndex,srcId) :: add
+      } yield res)) if indexDiff.keySet.nonEmpty
     } yield wKey → indexDiff).seq.toMap
 
   private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {

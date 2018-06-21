@@ -80,12 +80,13 @@ trait RichDataApp extends ProtocolsApp
   lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater)
   lazy val uuidUtil: UUIDUtil = UUIDUtilImpl()
-  lazy val indexFactory: IndexFactory = new IndexFactoryImpl(assembleProfiler,indexUpdater,preHashing)()
-  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexFactory,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
+  lazy val indexUtil: IndexUtil = new IndexUtilImpl(preHashing)
+  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,assembleProfiler,indexUpdater)
+  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexFactory)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols

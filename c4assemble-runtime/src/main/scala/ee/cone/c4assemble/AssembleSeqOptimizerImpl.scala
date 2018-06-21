@@ -11,7 +11,7 @@ class LoopExpression[MapKey, Value](
   main: WorldPartExpression, // with DataDependencyTo[Index[MapKey, Value]],
   continue: List[WorldPartExpression],
   updater: IndexUpdater
-)(composes: IndexFactory,
+)(composes: IndexUtil,
   //val outputWorldKey: AssembledKey[Index[MapKey, Value]] = main.outputWorldKey,
   continueF: WorldTransition⇒WorldTransition = Function.chain(continue.map(h⇒h.transform(_)))
 ) extends WorldPartExpression {
@@ -20,8 +20,8 @@ class LoopExpression[MapKey, Value](
   ): (Index, Index) = {
     val transitionA = main.transform(transition)
     val diffPart = outputWorldKey.of(transitionA.diff)
-    if(diffPart.isEmpty) (resDiff, outputWorldKey.of(transitionA.result))
-    else if(left>0) inner(left - 1, continueF(transitionA), composes.mergeIndex(resDiff,diffPart))
+    if(diffPart.keySet.isEmpty) (resDiff, outputWorldKey.of(transitionA.result))
+    else if(left>0) inner(left - 1, continueF(transitionA), composes.mergeIndex(Seq(resDiff,diffPart)))
     else throw new Exception(s"unstable local assemble ${transitionA.diff}")
   }
   def transform(transition: WorldTransition): WorldTransition = {
@@ -36,7 +36,7 @@ class LoopExpression[MapKey, Value](
 }
 
 class ShortAssembleSeqOptimizer(
-  composes: IndexFactory,
+  composes: IndexUtil,
   backStageFactory: BackStageFactory,
   updater: IndexUpdater
 ) extends AssembleSeqOptimizer {

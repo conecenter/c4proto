@@ -89,10 +89,10 @@ case class ByPrimaryKeyGetter[V<:Product](joinKey: AssembledKey)
 
 case class UniqueIndexMap[K,V](index: Index) extends Map[K,V] {
   def +[B1 >: V](kv: (K, B1)): Map[K, B1] = throw new Exception("not implemented")//UniqueIndexMap(index + (kv._1→List(kv._2))) //diffFromJoinRes
-  def get(key: K): Option[V] = index.get(key).fold(None:Option[V])(ms ⇒ Option(Single(ms.keys.toList).value.asInstanceOf[V]))
-  def iterator: Iterator[(K, V)] = index.iterator.map{ case (k,v) ⇒ (k,Single(v.keys.toList).value).asInstanceOf[(K,V)] }
-  def -(key: K): Map[K, V] = UniqueIndexMap(index - key)
-  override def keysIterator: Iterator[K] = index.keysIterator.asInstanceOf[Iterator[K]] // to work with non-Single
+  def get(key: K): Option[V] = Single.option(index.getValues(key)).asInstanceOf[Option[V]]
+  def iterator: Iterator[(K, V)] = index.keySet.iterator.map{ k ⇒ (k,Single(index.getValues(k))).asInstanceOf[(K,V)] }
+  def -(key: K): Map[K, V] = throw new Exception("not implemented")//UniqueIndexMap(index - key)
+  override def keysIterator: Iterator[K] = index.keySet.iterator.asInstanceOf[Iterator[K]] // to work with non-Single
 }
 
 trait Lens[C,I] extends Getter[C,I] {

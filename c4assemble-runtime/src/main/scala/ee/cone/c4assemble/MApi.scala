@@ -2,26 +2,40 @@
 package ee.cone.c4assemble
 
 import collection.immutable.{Iterable, Map, Seq, TreeMap}
-import Types.{DMultiSet, _}
-import ee.cone.c4actor.PreHashed
+import Types._
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.{GenIterable, GenMap, GenSeq}
+
+trait DIndex {
+  def keySet: Set[Any]
+  def getValues(k: Any): Values[Product]
+}
+object EmptyIndex extends DIndex {
+  def keySet: Set[Any] = Set.empty
+  def getValues(k: Any): Values[Product] = Nil
+}
+
+trait IndexUtil {
+  def mergeIndex(l: DPIterable[Index]): Index
+  def removingDiff(index: Index, key: Any): Index
+  def result(key: Any, product: Product, count: Int): Index //m
+  type Partitioning = Iterable[(Boolean,()⇒DPIterable[Product])]
+  def partition(currentIndex: Index, diffIndex: Index, key: Any): Partitioning  //m
+  def nonEmptySeq: Seq[Unit] //m
+  def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ Set[Any] //m
+}
 
 object Types {
   type Values[V] = Seq[V]
   type Each[V] = V
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
-  type DPMap[K,V] = GenMap[K,V] //ParMap[K,V]
   type DPIterable[V] = GenIterable[V]
-  type DMultiSet = Map[PreHashed[Product],Int]
-  type Index = DMap[Any,DMultiSet]
+  type Index = DIndex //DMap[Any,DMultiSet]
   type ReadModel = DMap[AssembledKey,Index]
-
-  type Compose[V] = (V,V)⇒V
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
   def emptyReadModel: ReadModel = emptyDMap
-  def emptyIndex: Index = emptyDMap
+  def emptyIndex: Index = EmptyIndex//emptyDMap
 }
 
 trait Getter[C,+I] {
@@ -48,14 +62,13 @@ trait IndexFactory {
     with DataDependencyFrom[Index]
     with DataDependencyTo[Index]
 
+  def util: IndexUtil
+/*
   def partition(current: Option[DMultiSet], diff: Option[DMultiSet]): Iterable[(Boolean,GenIterable[PreHashed[Product]])]
   def wrapIndex: Object ⇒ Any ⇒ Option[DMultiSet]
   def wrapValues: Option[DMultiSet] ⇒ Values[Product]
   def nonEmptySeq: Seq[_]
-  def keySet(indexSeq: Seq[Index]): Set[Any]
-  def mergeIndex: Compose[Index]
-  def diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index]
-  def result(key: Any, product: Product, count: Int): JoinRes
+  def keySet(indexSeq: Seq[Index]): Set[Any]*/
 }
 
 trait DataDependencyFrom[From] {
@@ -73,7 +86,7 @@ class Join(
   val name: String,
   val inputWorldKeys: Seq[AssembledKey],
   val outputWorldKey: AssembledKey,
-  val joins: (DPIterable[(Int,Seq[Index])], Seq[Index]) ⇒ DPIterable[JoinRes]
+  val joins: (DPIterable[(Int,Seq[Index])], Seq[Index]) ⇒ DPIterable[Index]
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 
@@ -95,4 +108,4 @@ trait ExpressionsDumper[To] {
 sealed abstract class All
 case object All extends All
 
-class JoinRes(val byKey: Any, val productHashed: PreHashed[Product], val count: Int)
+//class JoinRes(val byKey: Any, val productHashed: PreHashed[Product], val count: Int)

@@ -28,7 +28,7 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
 case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index)(k: Any): List[String] =
-    index.getOrElse(k,Nil).flatMap(v⇒s"$v".split("\n")).map(indent).toList
+    index.getValues(k).flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
     val world = local.assembled
@@ -42,8 +42,8 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform wi
     }).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("X-r-selection") match {
       case k if k.startsWith(":") ⇒ k.tail :: valueLines(index)(k.tail)
-      case "keys" ⇒ index.keys.map(_.toString).toList.sorted
-      case "all" ⇒ index.keys.map(k⇒k.toString→k).toList.sortBy(_._1).flatMap{
+      case "keys" ⇒ index.keySet.map(_.toString).toList.sorted
+      case "all" ⇒ index.keySet.map(k⇒k.toString→k).toList.sortBy(_._1).flatMap{
         case(ks,k) ⇒ ks :: valueLines(index)(k)
       }
     }
