@@ -59,7 +59,7 @@ trait DepAskFactory extends Product {
 
 case class DepInnerRequest(srcId: SrcId, request: DepRequest) //TODO Store serialized version
 
-case class DepUnresolvedRequest(srcId: SrcId, request: DepRequest, responses: List[DepResponse])
+case class DepUnresolvedRequest(srcId: SrcId, request: DepRequest, responses: Int)
 
 case class DepOuterRequest(srcId: SrcId, innerRequest: DepInnerRequest, parentSrcId: SrcId)
 trait DepOuterRequestFactory extends Product {
