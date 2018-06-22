@@ -84,15 +84,17 @@ case class ByPrimaryKeyGetter[V<:Product](joinKey: AssembledKey)
   extends Getter[Context,Map[SrcId,V]]
 {
   def of: Context ⇒ Map[SrcId, V] = context ⇒
-    UniqueIndexMap(joinKey.of(context.assembled))
+    UniqueIndexMap(joinKey.of(context.assembled))(IndexUtilKey.of(context))
 }
 
-case class UniqueIndexMap[K,V](index: Index) extends Map[K,V] {
+case object IndexUtilKey extends SharedComponentKey[IndexUtil]
+
+case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
   def +[B1 >: V](kv: (K, B1)): Map[K, B1] = throw new Exception("not implemented")//UniqueIndexMap(index + (kv._1→List(kv._2))) //diffFromJoinRes
-  def get(key: K): Option[V] = Single.option(index.getValues(key)).asInstanceOf[Option[V]]
-  def iterator: Iterator[(K, V)] = index.keySet.iterator.map{ k ⇒ (k,Single(index.getValues(k))).asInstanceOf[(K,V)] }
+  def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,None)).asInstanceOf[Option[V]]
+  def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,None))).asInstanceOf[(K,V)] }
   def -(key: K): Map[K, V] = throw new Exception("not implemented")//UniqueIndexMap(index - key)
-  override def keysIterator: Iterator[K] = index.keySet.iterator.asInstanceOf[Iterator[K]] // to work with non-Single
+  override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
 }
 
 trait Lens[C,I] extends Getter[C,I] {

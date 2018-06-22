@@ -20,7 +20,7 @@ class LoopExpression[MapKey, Value](
   ): (Index, Index) = {
     val transitionA = main.transform(transition)
     val diffPart = outputWorldKey.of(transitionA.diff)
-    if(diffPart.keySet.isEmpty) (resDiff, outputWorldKey.of(transitionA.result))
+    if(composes.isEmpty(diffPart)) (resDiff, outputWorldKey.of(transitionA.result))
     else if(left>0) inner(left - 1, continueF(transitionA), composes.mergeIndex(Seq(resDiff,diffPart)))
     else throw new Exception(s"unstable local assemble ${transitionA.diff}")
   }

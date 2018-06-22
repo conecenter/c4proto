@@ -13,25 +13,24 @@ import scala.annotation.tailrec
 import scala.collection.GenIterable
 import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
 
-class NonSingleValuesException(k: Product, v: Int) extends Exception
+//class NonSingleValuesException(k: Product, v: Int) extends Exception
 
-case class DValuesImpl(asMultiSet: DMultiSet) extends Seq[Product] {
+//trait IndexOpt extends Product
+//case object UndefinedIndexOpt extends IndexOpt
+//case class DefIndexOpt(key: AssembledKey) extends IndexOpt
+
+case class DValuesImpl(asMultiSet: DMultiSet)(onDistinct: (Product,Int)⇒Unit) extends Seq[Product] {
   def length: Int = asMultiSet.size
   private def value(kv: (PreHashed[Product],Int)): Product = {
     val(k,count) = kv
-    if(count<1) throw new NonSingleValuesException(k.value,count)
-    if(count>1) println(s"non-single ($count) ${k.value.getClass}")
+    if(count!=1) onDistinct(k.value,count)
     k.value
   }
   def apply(idx: Int): Product = value(asMultiSet.view(idx,idx+1).head)
   def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
 }
 
-class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]) extends Index {
-  def keySet: Set[Any] = data.keySet
-  def getValues(k: Any): Values[Product] =
-    getMS(k).fold(Nil:Values[Product])(v⇒DValuesImpl(v))
-}
+class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val opt: IndexOpt*/) extends Index
 
 object IndexTypes {
   type DMultiSet = Map[PreHashed[Product],Int]
@@ -56,27 +55,53 @@ class IndexUtilImpl(
   mergeIndexInner: Compose[InnerIndex] = Merge[Any,DMultiSet](_.isEmpty,IndexUtilImpl.toOrdered(Merge(_==0,_+_)))
 ) extends IndexUtil {
 
-  def mergeIndex(l: DPIterable[Index]): Index =
-    makeIndex(l.collect{ case i: IndexImpl ⇒ i.data }.foldLeft(Map.empty:InnerIndex)(mergeIndexInner))
+  def makeIndex(data: InnerIndex/*, opt: IndexOpt*/): Index = if(data.isEmpty) emptyIndex else {
+    val all = data.get(All)
+    new IndexImpl(data, if(all.nonEmpty) (k:Any)⇒all else data.get/*, opt*/)
+  }
+
+  def data(index: Index): InnerIndex = index match {
+    case i: IndexImpl ⇒ i.data
+    case i if i == emptyIndex ⇒ Map.empty
+  }
+
+  def getMS(index: Index, key: Any): Option[DMultiSet] = index match {
+    case i: IndexImpl ⇒ i.getMS(key)
+    case _ if index == emptyIndex ⇒ None
+  }
+
+  def isEmpty(index: Index): Boolean = data(index).isEmpty
+
+  def keySet(index: Index): Set[Any] = data(index).keySet
+
+  def nonEmpty(index: Index, key: Any): Boolean = getMS(index,key).nonEmpty
+
+  def getValues(index: Index, key: Any, onDistinctOpt: Option[(Product,Int)⇒Unit]): Values[Product] =
+    getMS(index,key).fold(Nil:Values[Product])(v ⇒
+      DValuesImpl(v)(onDistinctOpt.getOrElse(onDistinct(allowDistinct=false,"")))
+    )
+
+  def onDistinct(allowDistinct: Boolean, hint: String): (Product,Int)⇒Unit =
+    (item,count) ⇒ {
+      def text = s"non-single $hint ($count) ${item.getClass}"
+      if(count<1) throw new Exception(text) else if(!allowDistinct) println(text)
+    }
+
+  def mergeIndex(l: DPIterable[Index]): Index = {
+    /*val opt: IndexOpt = nonEmptyIndexList.map(_.opt).reduce((a,b)⇒
+      if(a==b) a else throw new Exception(s"can not merge $a and $b")
+    )*/
+    makeIndex(l.map(data).foldLeft(Map.empty: InnerIndex)(mergeIndexInner))
+  }
 
   def emptyMS: DMultiSet = Map.empty
 
-  def makeIndex(data: InnerIndex): Index = if(data.isEmpty) emptyIndex else {
-    val all = data.get(All)
-    new IndexImpl(data, if(all.nonEmpty) (k:Any)⇒all else data.get)
-  }
-
   def removingDiff(index: Index, key: Any): Index = getMS(index,key).fold(emptyIndex){
-    values ⇒ makeIndex(Map(key→values.transform((k,v)⇒ -v)))
+    values ⇒ makeIndex(Map(key→values.transform((k,v)⇒ -v))/*, index match { case i: IndexImpl ⇒ i.opt }*/)
   }
 
-  def result(key: Any, product: Product, count: Int): Index =
-    makeIndex(Map(key→Map(preHashing.wrap(product)→count)))
-
-  def getMS(index: Index, key: Any): Option[DMultiSet] = index match {
-    case i if i eq EmptyIndex ⇒ None
-    case i: IndexImpl ⇒ i.getMS(key)
-  }
+  def result(key: Any, product: Product, count: Int/*, opt: IndexOpt*/): Index =
+    makeIndex(Map(key→Map(preHashing.wrap(product)→count))/*, opt*/)
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
@@ -91,9 +116,9 @@ class IndexUtilImpl(
   }
 
   def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ Set[Any] = {
-    val diffKeySet = diffIndexSeq.map(_.keySet).reduce(_++_)
+    val diffKeySet = diffIndexSeq.map(keySet).reduce(_++_)
     if(diffKeySet.contains(All))
-      (indexSeq:Seq[Index]) ⇒ indexSeq.map(_.keySet).reduce(_++_) - All
+      (indexSeq:Seq[Index]) ⇒ indexSeq.map(keySet).reduce(_++_) - All
     else (indexSeq:Seq[Index]) ⇒ diffKeySet
   }
 }
@@ -109,7 +134,7 @@ class IndexFactoryImpl(
     WorldPartExpression
       with DataDependencyFrom[Index]
       with DataDependencyTo[Index]
-  = new JoinMapIndex(join, updater, util, profiler.get(join.name))
+  = new JoinMapIndex(join, updater, util, profiler.get(join.name)/*, DefIndexOpt(join.outputWorldKey)*/)
 }
 
 class JoinMapIndex(
@@ -117,6 +142,7 @@ class JoinMapIndex(
   updater: IndexUpdater,
   composes: IndexUtil,
   profiler: String ⇒ Int ⇒ Unit
+  //indexOpt: IndexOpt
 ) extends WorldPartExpression
   with DataDependencyFrom[Index]
   with DataDependencyTo[Index]
@@ -129,7 +155,7 @@ class JoinMapIndex(
 
   def transform(transition: WorldTransition): WorldTransition = {
     //println(s"rule $outputWorldKey <- $inputWorldKeys")
-    if (inputWorldKeys.forall(k ⇒ k.of(transition.diff).keySet.isEmpty)) transition
+    if (inputWorldKeys.forall(k ⇒ composes.isEmpty(k.of(transition.diff)))) transition
     else { //
       val end = profiler(s"calculate ${transition.isParallel}")
       val worlds = Seq(
@@ -139,14 +165,15 @@ class JoinMapIndex(
       val joinRes = join.joins(
         if(transition.isParallel) worlds.par else worlds,
         inputWorldKeys.map(_.of(transition.diff))
+        /*indexOpt*/
       )
       end(joinRes.size)
       val indexDiff = composes.mergeIndex(joinRes)
-      if(indexDiff.keySet.isEmpty) transition else {
+      if(composes.isEmpty(indexDiff)) transition else {
         val end = profiler("patch    ")
         val nextDiff = composes.mergeIndex(Seq(outputWorldKey.of(transition.diff), indexDiff))
         val nextResult = composes.mergeIndex(Seq(outputWorldKey.of(transition.result), indexDiff))
-        end(indexDiff.keySet.size)
+        end(composes.keySet(indexDiff).size)
         updater.setPart(outputWorldKey)(nextDiff, nextResult)(transition)
       }
     }
@@ -200,7 +227,7 @@ class TreeAssemblerImpl(
 
     (diff,isParallel) ⇒ prevWorld ⇒ {
       val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel)
-      val currentWorld = Merge[AssembledKey,Index](_.keySet.isEmpty,(a,b)⇒composes.mergeIndex(Seq(a,b)))(prevWorld, diff)
+      val currentWorld = Merge[AssembledKey,Index](composes.isEmpty,(a,b)⇒composes.mergeIndex(Seq(a,b)))(prevWorld, diff)
       val transition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel)
       transformUntilStable(1000, transition)
     }

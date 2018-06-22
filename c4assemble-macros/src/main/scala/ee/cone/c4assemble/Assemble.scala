@@ -6,7 +6,7 @@ import scala.meta._
 
 sealed trait RuleDef
 case class JoinDef(params: Seq[AType], inKeyType: KVType, out: AType) extends RuleDef
-case class AType(name: String, was: Boolean, key: KVType, value: KVType, strValuePre: String, many: Boolean)
+case class AType(name: String, was: Boolean, key: KVType, value: KVType, strValuePre: String, many: Boolean, distinct: Boolean)
 
 sealed trait KVType { def str: String }
 case class SimpleKVType(name: String, str: String) extends KVType
@@ -30,12 +30,15 @@ class assemble extends StaticAnnotation {
         val joinDefParams = params.tail.map{
           case param"..$mods ${Term.Name(paramName)}: $manyT[${KVType(inValType)}]" ⇒
             val many = manyT match { case t"Values" ⇒ true case t"Each" ⇒ false }
-            val (was,annInKeyType) = mods.foldLeft((false,inKeyType)){ (st,ann) ⇒
+            val paramRes = AType(paramName, was=false, inKeyType, inValType, s"$manyT", many, distinct=false)
+            mods.foldLeft(paramRes){ (st,ann) ⇒
               ann match {
+                case mod"@distinct" ⇒
+                  st.copy(distinct=true)
                 case mod"@was" ⇒
-                  st.copy(_1=true)
+                  st.copy(was=true)
                 case mod"@by[${KVType(annInKeyTypeV)}]" ⇒
-                  st.copy(_2=annInKeyTypeV)
+                  st.copy(key=annInKeyTypeV)
                 case Mod.Annot(
                   Term.Apply(
                     Term.ApplyType(
@@ -45,12 +48,11 @@ class assemble extends StaticAnnotation {
                     Nil
                   )
                 ) ⇒
-                  st.copy(_2=annInKeyTypeV)
+                  st.copy(key=annInKeyTypeV)
               }
             }
-            AType(paramName, was, annInKeyType, inValType, s"$manyT", many)
         }
-        Option(JoinDef(joinDefParams,inKeyType,AType(defName,was=false,outKeyType,outValType,"",many=false)))
+        Option(JoinDef(joinDefParams,inKeyType,AType(defName,was=false,outKeyType,outValType,"",many=false,distinct=false)))
     }
     //val classArg =
     val classArgs = paramss.toList.flatten.collect{
@@ -82,12 +84,13 @@ class assemble extends StaticAnnotation {
            |  val iUtil = indexFactory.util
            |  val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
            |  val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq)
+           |  ${seqParams.map(p⇒s"""val ${p.name}_onDistinct = Option(iUtil.onDistinct(${p.distinct},"${out.name} ${p.name}"));""").mkString}
            |  for {
            |    (dir,indexRawSeq) <- indexRawSeqSeq
            |    Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
            |    id <- invalidateKeySet(indexRawSeq)
-           |    ${seqParams.map(p⇒s"${p.name}_arg = ${p.name}_index.getValues(id); ").mkString}
-           |    ${seqParams.map(p⇒s"${p.name}_isChanged = ${p.name}_diffIndex.getValues(id).nonEmpty; ").mkString}
+           |    ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_onDistinct); ").mkString}
+           |    ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,id); ").mkString}
            |    ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id); ").mkString}
            |    ${if(eachParams.nonEmpty) eachParams.map(p⇒s"(${p.name}_isChanged,${p.name}_items) <- ${p.name}_parts").mkString("; ") else "_ <- iUtil.nonEmptySeq"} if(
            |      ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty && ").mkString}

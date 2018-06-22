@@ -35,9 +35,9 @@ class AssemblerInit(
       indexDiff ← Option(composes.mergeIndex(for {
         (srcId, iUpdates) ← tpUpdates.groupBy(_.srcId)
         rawValue = iUpdates.last.value
-        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
+        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1/*,UndefinedIndexOpt*/) :: Nil else Nil
         res ← composes.removingDiff(wasIndex,srcId) :: add
-      } yield res)) if indexDiff.keySet.nonEmpty
+      } yield res)) if !composes.isEmpty(indexDiff)
     } yield wKey → indexDiff).seq.toMap
 
   private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {

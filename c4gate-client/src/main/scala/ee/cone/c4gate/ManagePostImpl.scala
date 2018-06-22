@@ -9,13 +9,13 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 
-@assemble class ManagementPostAssemble(actorName: String) extends Assemble {
+@assemble class ManagementPostAssemble(actorName: String, indexUtil: IndexUtil) extends Assemble {
   def joinHttpPostHandler(
     key: SrcId,
     posts: Values[HttpPost]
   ): Values[(SrcId, TxTransform)] =
     for(post ← posts if post.path == s"/manage/$actorName")
-      yield WithPK(ManageHttpPostTx(post.srcId, post))
+      yield WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil))
 
   def joinConsumers(
     key: SrcId,
@@ -25,10 +25,10 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
       yield WithPK(LocalPostConsumer(s"/manage/$actorName"))
 }
 
-case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
+case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index)(k: Any): List[String] =
-    index.getValues(k).flatMap(v⇒s"$v".split("\n")).map(indent).toList
+    indexUtil.getValues(index,k,None).flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
     val world = local.assembled
@@ -42,8 +42,8 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost) extends TxTransform wi
     }).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("X-r-selection") match {
       case k if k.startsWith(":") ⇒ k.tail :: valueLines(index)(k.tail)
-      case "keys" ⇒ index.keySet.map(_.toString).toList.sorted
-      case "all" ⇒ index.keySet.map(k⇒k.toString→k).toList.sortBy(_._1).flatMap{
+      case "keys" ⇒ indexUtil.keySet(index).map(_.toString).toList.sorted
+      case "all" ⇒ indexUtil.keySet(index).map(k⇒k.toString→k).toList.sortBy(_._1).flatMap{
         case(ks,k) ⇒ ks :: valueLines(index)(k)
       }
     }

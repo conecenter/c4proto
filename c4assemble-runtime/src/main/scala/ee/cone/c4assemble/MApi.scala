@@ -7,19 +7,15 @@ import Types._
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.{GenIterable, GenMap, GenSeq}
 
-trait DIndex {
-  def keySet: Set[Any]
-  def getValues(k: Any): Values[Product]
-}
-object EmptyIndex extends DIndex {
-  def keySet: Set[Any] = Set.empty
-  def getValues(k: Any): Values[Product] = Nil
-}
-
 trait IndexUtil {
+  def isEmpty(index: Index): Boolean
+  def keySet(index: Index): Set[Any]
   def mergeIndex(l: DPIterable[Index]): Index
+  def getValues(index: Index, key: Any, onDistinct: Option[(Product,Int)⇒Unit]): Values[Product] //m
+  def onDistinct(allowDistinct: Boolean, hint: String): (Product,Int)⇒Unit
+  def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, key: Any): Index
-  def result(key: Any, product: Product, count: Int): Index //m
+  def result(key: Any, product: Product, count: Int/*, opt: IndexOpt*/): Index //m
   type Partitioning = Iterable[(Boolean,()⇒DPIterable[Product])]
   def partition(currentIndex: Index, diffIndex: Index, key: Any): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
@@ -31,7 +27,8 @@ object Types {
   type Each[V] = V
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
   type DPIterable[V] = GenIterable[V]
-  type Index = DIndex //DMap[Any,DMultiSet]
+  trait Index //DMap[Any,DMultiSet]
+  private object EmptyIndex extends Index
   type ReadModel = DMap[AssembledKey,Index]
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
   def emptyReadModel: ReadModel = emptyDMap
@@ -86,7 +83,7 @@ class Join(
   val name: String,
   val inputWorldKeys: Seq[AssembledKey],
   val outputWorldKey: AssembledKey,
-  val joins: (DPIterable[(Int,Seq[Index])], Seq[Index]) ⇒ DPIterable[Index]
+  val joins: (DPIterable[(Int,Seq[Index])], Seq[Index]/*, IndexOpt*/) ⇒ DPIterable[Index]
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 
@@ -100,6 +97,7 @@ case class JoinKey(was: Boolean, keyAlias: String, keyClassName: String, valueCl
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
 class was extends StaticAnnotation
+class distinct extends StaticAnnotation
 
 trait ExpressionsDumper[To] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
