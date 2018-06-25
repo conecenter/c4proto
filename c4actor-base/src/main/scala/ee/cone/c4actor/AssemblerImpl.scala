@@ -57,5 +57,6 @@ class AssemblerInit(
           .andThen(add(out.map(toUpdate.toUpdate)))
       ) :::
       WriteModelAddKey.set(add) :::
-      ReadModelAddKey.set(reduce(_,isParallel))
+      ReadModelAddKey.set(reduce(_,isParallel)) :::
+      IndexUtilKey.set(composes)
 }
