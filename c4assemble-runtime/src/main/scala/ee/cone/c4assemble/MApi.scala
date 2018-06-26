@@ -68,7 +68,7 @@ trait Assemble {
 }
 
 case class JoinKey[K,V<:Product](was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String)
-  extends AssembledKey[Index[K, V]](Map.empty)
+  extends AssembledKey[Index[K,V]](Map.empty)
 
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
