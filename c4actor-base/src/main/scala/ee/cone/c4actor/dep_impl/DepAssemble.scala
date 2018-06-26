@@ -54,6 +54,15 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
     req ← innerRequests
     handle ← reg.handle(req)
   } yield WithPK(handle(responses))
+
+  def DepUnresolvedRequestProducer(
+    requestId: SrcId,
+    requests: Values[DepInnerRequest],
+    responses: Values[DepResponse]
+  ): Values[(SrcId, DepUnresolvedRequest)] =
+    (for {
+      rq ← requests
+    } yield if (responses.forall(_.value.isEmpty)) WithPK(DepUnresolvedRequest(rq.srcId, rq.request, responses.size)) :: Nil else Nil).flatten
 }
 
 case class DepRequestHandlerRegistry(
