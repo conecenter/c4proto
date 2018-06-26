@@ -68,9 +68,7 @@ trait Assemble {
 }
 
 case class JoinKey[K,V<:Product](was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String)
-  extends AssembledKey[Index[K, V]](Map.empty) {
-  override def toString: String = s"$productPrefix(${if (was) "@was " else ""}@by[$keyAlias] ($keyClassName, $valueClassName))"
-}
+  extends AssembledKey[Index[K, V]](Map.empty)
 
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
