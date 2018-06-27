@@ -215,10 +215,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			return wrap(el)
 		}
 	}
+	
 	const uiElements = []
 	const errors = Errors({log,uiElements,documentManager})
-	
-	
 	
 	
 	class ErrorElement extends StatefulComponent{	
@@ -285,7 +284,28 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				return null
 		}
 	}
-	uiElements.push({ErrorElement})	
+	uiElements.push({ErrorElement})
+	
+	const MenuBurger = (props) => {	
+	
+		const c = {transition:"all 100ms",transformOrigin:"center"}
+		const alt1 = props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
+		const alt2 = props.isBurgerOpen?{opacity: "0"}:{}
+		const alt3 = props.isBurgerOpen?{transform: "rotate(45deg)"}:{}	
+		const color = props.style&&props.style.color?props.style.color:"white"
+		const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
+				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:props.isBurgerOpen?"16":"9",x2:"30",y2:props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":color}),							
+				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":color}),								
+				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:props.isBurgerOpen?"16":"25",x2:"30",y2:props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":color})				
+		])
+		const style = {
+			backgroundColor:"inherit",
+			cursor:"pointer",
+			...props.style
+		}
+		return $("div",{style,onClick:props.onClick},svg)
+	}
+	
 	class MenuBarElement extends StatefulComponent{		
 		getInitialState(){return {fixedHeight:"",scrolled:false, isBurger:false}}	
 		process(){
@@ -363,22 +383,14 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				zIndex:"1000",
 				backgroundColor:"inherit"
 			}
-			const left = this.props.children.filter(_=>!_.key.includes("right"))			
-			const c = {transition:"all 100ms",transformOrigin:"center"}
-			const alt1 = this.props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
-			const alt2 = this.props.isBurgerOpen?{opacity: "0"}:{}
-			const alt3 = this.props.isBurgerOpen?{transform: "rotate(45deg)"}:{}
-			
-			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
-				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"9",x2:"30",y2:this.props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":"white"}),							
-				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
-				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"25",x2:"30",y2:this.props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":"white"})				
-			])					
-						
+			const left = this.props.children.filter(_=>!_.key.includes("right"))						
 			//const svgData = svgSrc(svg)
 			//const errors = this.props.children[1]
 			const right = this.props.children.filter(_=>_.key.includes("right"))			
-			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[$("div",{style:{backgroundColor:"inherit",cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
+			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[
+				$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:this.props.isBurgerOpen,key:"burger",onClick:this.openBurger}),
+				this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null
+			])
 			return $("div",{style:style},
 				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
 					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{whiteSpace:"nowrap",backgroundColor:"inherit",flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
@@ -1755,7 +1767,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			checkActivateCalls.remove(this.calcPosition)
 		}
 		render(){			
-			return $("div",{ref:ref=>this.el=ref,style:{
+			return $("div",{ref:ref=>this.el=ref,style:{				
 				position:"fixed",
 				zIndex:"6",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,
@@ -2787,6 +2799,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			return $("div",{style,ref,...actions},this.props.children)
 		}
 	}
+	/*
 	class FilterContainerElement extends StatefulComponent{		
 		getInitialState(){return {singleHeight:"0px",version:0}}		
 		isOverflown(){
@@ -2916,10 +2929,10 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				$("div",{key:"contents",style:filterStyle,ref:el=>this.el=el},children)
 			])
 		}
-	}
+	}	
 	const FilterElement = ({active,children,style}) => {		
 		return $("div",{style,className:"filterElement"},children)
-	}
+	}*/
 	class ColorCreator extends StatefulComponent{
 		onChange(e){
 			if(this.props.onChange)
@@ -3666,7 +3679,7 @@ ACAAIAAgACAAAA==`
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
 			DateTimeClockElement,
-            MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
+            MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,MenuBurger,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
 			SignIn,ChangePassword,
@@ -3674,15 +3687,13 @@ ACAAIAAgACAAAA==`
 			FocusAnnouncerElement,
 			ConfirmationOverlayElement,
 			DragDropHandlerElement,
-			DragDropDivElement,
-			FilterContainerElement,
-			FilterElement,
+			DragDropDivElement,			
 			ColorCreator,ColorItem,ColorPicker,
 			InteractiveAreaElement,ZoomOnPopupElement,
 			BatteryState,DeviceConnectionState,
 			DragWrapperElement,
 			CanvasMaxHeightElement,
-			NoShowUntilElement
+			NoShowUntilElement			
     },
 		onClickValue,		
 		onReadySendBlob,
