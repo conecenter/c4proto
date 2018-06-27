@@ -4,8 +4,7 @@ package ee.cone.c4assemble
 // see Topological sorting
 
 import Types._
-import ee.cone.c4actor.{PreHashed, PreHashing}
-import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex}
+import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 
@@ -19,46 +18,97 @@ import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
 //case object UndefinedIndexOpt extends IndexOpt
 //case class DefIndexOpt(key: AssembledKey) extends IndexOpt
 
-case class DValuesImpl(asMultiSet: DMultiSet)(onDistinct: (Product,Int)⇒Unit) extends Seq[Product] {
+/*
+trait DValues extends Product {
+  def setOnDistinct(onDistinct: Count⇒Unit): Seq[Product]
+}
+
+case class SingleValues(item: Product) extends DValues with Seq[Product] {
+  def setOnDistinct(onDistinct: Count⇒Unit): Seq[Product] = this
+
+  def length: Int = 1
+  def apply(idx: Int): Product =
+    if(idx==0) item else throw new IndexOutOfBoundsException
+  def iterator: Iterator[Product] = Iterator(item)
+}*/
+
+case class Del(item: Product)
+
+case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Product] {
   def length: Int = asMultiSet.size
-  private def value(kv: (PreHashed[Product],Int)): Product = {
-    val(k,count) = kv
-    if(count!=1) onDistinct(k.value,count)
-    k.value
-  }
+  private def value(kv: (String,Products)): Product =
+    IndexUtilImpl.single(kv._2,warning)
   def apply(idx: Int): Product = value(asMultiSet.view(idx,idx+1).head)
   def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
 }
 
-class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val opt: IndexOpt*/) extends Index
+class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val opt: IndexOpt*/) extends Index {
+  override def toString: String = s"IndexImpl($data)"
+}
 
 object IndexTypes {
-  type DMultiSet = Map[PreHashed[Product],Int]
+  type Products = List[Product]
+  type DMultiSet = Map[String,Products]
   type InnerIndex = DMap[Any,DMultiSet]
 }
 
 // todo All on upd, Tree on upd
 
 object IndexUtilImpl {
+  def single(items: Products, warning: String): Product =
+    if(items.tail.isEmpty) items.head else {
+      val distinct = items.distinct
+      def text = s"non-single $warning"
+      if(distinct.tail.nonEmpty) throw new Exception(text)
+      if(warning.nonEmpty) println(text)
+      distinct.head
+    }
+
   def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] = {
-    val empty: DMultiSet = TreeMap.empty[PreHashed[Product],Int](Ordering.by(p⇒ToPrimaryKey(p.value)))
+    //val empty: DMultiSet = TreeMap.empty(Ordering.by(p⇒ToPrimaryKey(p.value)))
     (a, b) ⇒ {
       val res = inner(a, b)
-      if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]]) empty ++ res else res
+      val tRes = if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
+        TreeMap.empty[String,Products] ++ res else res
+      //println(s"T a:$a b:$b r:$res/${res.getClass} t:$tRes/${tRes.getClass}")
+      tRes
     }
   }
+
+  def inverse(a: Product): Product = a match { case Del(i) ⇒ i case i ⇒ Del(i) }
+
+  def exclude(a: Product, l: Products): Products =
+    if(l.isEmpty) l else if(a==l.head) l.tail else {
+      val tail = exclude(a, l.tail)
+      if(tail eq l.tail) l else l.head :: tail
+    }
+
+  def mergeProducts(aList: Products, bList: Products): Products =
+    if(aList.isEmpty) bList else {
+      val item = inverse(aList.head)
+      val nextB = exclude(item, bList)
+      val res = mergeProducts(aList.tail, nextB)
+      if(bList eq nextB) aList.head :: res else res
+    }
+
+
 }
 
-class IndexUtilImpl(
-  preHashing: PreHashing,
+case class IndexUtilImpl()(
   val nonEmptySeq: Seq[Unit] = Seq(()),
-  mergeIndexInner: Compose[InnerIndex] = Merge[Any,DMultiSet](_.isEmpty,IndexUtilImpl.toOrdered(Merge(_==0,_+_)))
+  mergeIndexInner: Compose[InnerIndex] =
+    Merge[Any,DMultiSet](v⇒v.isEmpty,
+      IndexUtilImpl.toOrdered(
+        Merge[String,Products](v⇒v.isEmpty, IndexUtilImpl.mergeProducts)
+      )
+    )
 ) extends IndexUtil {
 
-  def makeIndex(data: InnerIndex/*, opt: IndexOpt*/): Index = if(data.isEmpty) emptyIndex else {
-    val all = data.get(All)
-    new IndexImpl(data, if(all.nonEmpty) (k:Any)⇒all else data.get/*, opt*/)
-  }
+  def makeIndex(data: InnerIndex/*, opt: IndexOpt*/): Index =
+    if(data.isEmpty) emptyIndex else {
+      val all = data.get(All)
+      new IndexImpl(data, if(all.nonEmpty) (k:Any)⇒all else data.get/*, opt*/)
+    }
 
   def data(index: Index): InnerIndex = index match {
     case i: IndexImpl ⇒ i.data
@@ -76,40 +126,49 @@ class IndexUtilImpl(
 
   def nonEmpty(index: Index, key: Any): Boolean = getMS(index,key).nonEmpty
 
-  def getValues(index: Index, key: Any, onDistinctOpt: Option[(Product,Int)⇒Unit]): Values[Product] =
-    getMS(index,key).fold(Nil:Values[Product])(v ⇒
-      DValuesImpl(v)(onDistinctOpt.getOrElse(onDistinct(allowDistinct=false,"")))
-    )
-
-  def onDistinct(allowDistinct: Boolean, hint: String): (Product,Int)⇒Unit =
-    (item,count) ⇒ {
-      def text = s"non-single $hint ($count) ${item.getClass}"
-      if(count<1) throw new Exception(text) else if(!allowDistinct) println(text)
-    }
+  def getValues(index: Index, key: Any, warning: String): Values[Product] =
+    getMS(index,key).fold(Nil:Values[Product])(v ⇒ DValuesImpl(v,warning))
 
   def mergeIndex(l: DPIterable[Index]): Index = {
     /*val opt: IndexOpt = nonEmptyIndexList.map(_.opt).reduce((a,b)⇒
       if(a==b) a else throw new Exception(s"can not merge $a and $b")
     )*/
+
+    val res =
     makeIndex(l.map(data).foldLeft(Map.empty: InnerIndex)(mergeIndexInner))
+/*
+    if((for {
+      d ← l.map(data)
+      ms ← d.values
+      count ← ms.values if count <0
+    } yield d).nonEmpty) {
+      println(s"removing04: $l ==> $res")
+    }*/
+    //val log = s"removing03: $l ==> ${l.map(data)} ==> $res"
+    //if(log.length < 1000) println(log)
+    res
   }
 
   def emptyMS: DMultiSet = Map.empty
 
   def removingDiff(index: Index, key: Any): Index = getMS(index,key).fold(emptyIndex){
-    values ⇒ makeIndex(Map(key→values.transform((k,v)⇒ -v))/*, index match { case i: IndexImpl ⇒ i.opt }*/)
+    values ⇒ makeIndex(Map(key→values.transform((k,v)⇒ v.map(IndexUtilImpl.inverse)))/*, index match { case i: IndexImpl ⇒ i.opt }*/)
   }
 
-  def result(key: Any, product: Product, count: Int/*, opt: IndexOpt*/): Index =
-    makeIndex(Map(key→Map(preHashing.wrap(product)→count))/*, opt*/)
+  def result(key: Any, product: Product): Index =
+    makeIndex(Map(key→Map(ToPrimaryKey(product)→(product::Nil)))/*, opt*/)
 
-  def partition(currentIndex: Index, diffIndex: Index, key: Any): Partitioning = {
+  def del(product: Product): Product = Del(product)
+
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
-      val changed =
-        diffValues.keys.filter(currentValues.contains).map(_.value)
-      lazy val unchanged =
-        currentValues.keys.filter(k⇒ !diffValues.contains(k)).map(_.value)
+      val changed = for {
+        (k,v) ← diffValues; values ← currentValues.get(k)
+      } yield IndexUtilImpl.single(values,warning)
+      lazy val unchanged = for {
+        (k,values) ← currentValues if !diffValues.contains(k)
+      } yield IndexUtilImpl.single(values,warning)
       val unchangedRes = (false,()⇒unchanged) :: Nil
       if(changed.nonEmpty) (true,()⇒changed) :: unchangedRes else unchangedRes
     }
@@ -159,8 +218,8 @@ class JoinMapIndex(
     else { //
       val end = profiler(s"calculate ${transition.isParallel}")
       val worlds = Seq(
-        -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
-        +1→inputWorldKeys.map(_.of(transition.result))
+        true→inputWorldKeys.map(_.of(transition.prev.get.result)),
+        false→inputWorldKeys.map(_.of(transition.result))
       )
       val joinRes = join.joins(
         if(transition.isParallel) worlds.par else worlds,
@@ -259,14 +318,27 @@ object AssembleDataDependencies {
 object Merge {
   type Compose[V] = (V,V)⇒V
   def bigFirst[K,V](inner: Compose[DMap[K,V]]): Compose[DMap[K,V]] =
-    (a,b) ⇒ if(a.size < b.size) inner(b,a) else inner(a,b)
+    (a,b) ⇒ {
+      //println(if(a.size < b.size) "swap"  else "no-swap")
+      if(a.size < b.size) inner(b,a) else inner(a,b)
+    }
   def apply[K,V](isEmpty: V⇒Boolean, inner: Compose[V]): Compose[DMap[K,V]] =
-    bigFirst((big,small) ⇒ small.foldLeft(big){ (res,kv)⇒
-      val (k,was) = kv
-      val will = res.get(k).fold(was)(inner(_,was))
-      if(isEmpty(will)) res - k else res + (k → will)
+    bigFirst((bigMap,smallMap) ⇒ {
+      val res =
+      smallMap.foldLeft(bigMap){ (resMap,kv)⇒
+        val (k,smallVal) = kv
+        val bigValOpt = resMap.get(k)
+        val resVal = if(bigValOpt.isEmpty) smallVal else inner(bigValOpt.get,smallVal)
+        if(isEmpty(resVal)) resMap - k else resMap + (k → resVal)
+      }
+      //println(s"b$bigMap s$smallMap r$res")
+      res
     })
 }
+
+/*
+* override def toString: String = s"$productPrefix(${if (was) "@was " else ""}@by[$keyAlias] ($keyClassName, $valueClassName))"*/
+
 
 // if we need more: scala rrb vector, java...binarySearch
 // also consider: http://docs.scala-lang.org/overviews/collections/performance-characteristics.html

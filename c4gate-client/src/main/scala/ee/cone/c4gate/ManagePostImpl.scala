@@ -28,7 +28,7 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
 case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index)(k: Any): List[String] =
-    indexUtil.getValues(index,k,None).flatMap(v⇒s"$v".split("\n")).map(indent).toList
+    indexUtil.getValues(index,k,"").flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
     val world = local.assembled

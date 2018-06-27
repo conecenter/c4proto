@@ -4,7 +4,7 @@ import ee.cone.c4actor.Killing.KillerId
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble, by, distinct}
 
 case class MortalFactoryImpl(anUUIDUtil: UUIDUtil) extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl,anUUIDUtil)
@@ -22,7 +22,7 @@ object Killing {
   def createKilling(
     key: SrcId,
     mortals: Values[Node],
-    @by[Alive] keepAlive: Values[Node]
+    @distinct @by[Alive] keepAlive: Values[Node]
   ): Values[(KillerId,Killing)] = for {
     mortal ← mortals if keepAlive.isEmpty
     ev ← LEvent.delete(mortal)

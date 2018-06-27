@@ -84,21 +84,21 @@ class assemble extends StaticAnnotation {
            |  val iUtil = indexFactory.util
            |  val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
            |  val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq)
-           |  ${seqParams.map(p⇒s"""val ${p.name}_onDistinct = Option(iUtil.onDistinct(${p.distinct},"${out.name} ${p.name}"));""").mkString}
+           |  ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name}";""").mkString}
            |  for {
-           |    (dir,indexRawSeq) <- indexRawSeqSeq
+           |    (was,indexRawSeq) <- indexRawSeqSeq
            |    Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
            |    id <- invalidateKeySet(indexRawSeq)
-           |    ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_onDistinct); ").mkString}
+           |    ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_warn); ").mkString}
            |    ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,id); ").mkString}
-           |    ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id); ").mkString}
+           |    ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id,${p.name}_warn); ").mkString}
            |    ${if(eachParams.nonEmpty) eachParams.map(p⇒s"(${p.name}_isChanged,${p.name}_items) <- ${p.name}_parts").mkString("; ") else "_ <- iUtil.nonEmptySeq"} if(
            |      ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty && ").mkString}
            |      (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
            |    )
            |    ${eachParams.map(p⇒s"${p.name}_item <- ${p.name}_items; ${p.name}_arg = ${p.name}_item.value; ").mkString}
            |    (byKey,product) <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.strValuePre}[${p.value.str}]]").mkString(",")})
-           |  } yield iUtil.result(byKey,product,dir)
+           |  } yield iUtil.result(byKey,if(was)iUtil.del(product) else product)
            |}
          """.stripMargin
         s"""

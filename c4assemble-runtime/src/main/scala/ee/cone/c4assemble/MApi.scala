@@ -11,13 +11,13 @@ trait IndexUtil {
   def isEmpty(index: Index): Boolean
   def keySet(index: Index): Set[Any]
   def mergeIndex(l: DPIterable[Index]): Index
-  def getValues(index: Index, key: Any, onDistinct: Option[(Product,Int)⇒Unit]): Values[Product] //m
-  def onDistinct(allowDistinct: Boolean, hint: String): (Product,Int)⇒Unit
+  def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, key: Any): Index
-  def result(key: Any, product: Product, count: Int/*, opt: IndexOpt*/): Index //m
+  def result(key: Any, product: Product): Index //m
+  def del(product: Product): Product //m
   type Partitioning = Iterable[(Boolean,()⇒DPIterable[Product])]
-  def partition(currentIndex: Index, diffIndex: Index, key: Any): Partitioning  //m
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
   def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ Set[Any] //m
 }
@@ -83,7 +83,7 @@ class Join(
   val name: String,
   val inputWorldKeys: Seq[AssembledKey],
   val outputWorldKey: AssembledKey,
-  val joins: (DPIterable[(Int,Seq[Index])], Seq[Index]/*, IndexOpt*/) ⇒ DPIterable[Index]
+  val joins: (DPIterable[(Boolean,Seq[Index])], Seq[Index]/*, IndexOpt*/) ⇒ DPIterable[Index]
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 

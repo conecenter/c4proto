@@ -35,10 +35,15 @@ class AssemblerInit(
       indexDiff ← Option(composes.mergeIndex(for {
         (srcId, iUpdates) ← tpUpdates.groupBy(_.srcId)
         rawValue = iUpdates.last.value
-        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1/*,UndefinedIndexOpt*/) :: Nil else Nil
-        res ← composes.removingDiff(wasIndex,srcId) :: add
+        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue)) :: Nil else Nil
+        res ← {
+          val remove = composes.removingDiff(wasIndex,srcId)
+          remove :: add
+        }
       } yield res)) if !composes.isEmpty(indexDiff)
-    } yield wKey → indexDiff).seq.toMap
+    } yield {
+      wKey → indexDiff
+    }).seq.toMap
 
   private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {
     val diff = toTree(context.assembled, if(isParallel) out.par else out)

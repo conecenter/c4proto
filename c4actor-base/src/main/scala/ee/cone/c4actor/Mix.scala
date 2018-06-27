@@ -80,7 +80,7 @@ trait RichDataApp extends ProtocolsApp
   lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val uuidUtil: UUIDUtil = UUIDUtilImpl()
-  lazy val indexUtil: IndexUtil = new IndexUtilImpl(preHashing)
+  lazy val indexUtil: IndexUtil = IndexUtilImpl()()
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,assembleProfiler,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
