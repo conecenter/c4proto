@@ -4,7 +4,7 @@ package ee.cone.c4assemble
 // see Topological sorting
 
 import Types._
-import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, Products}
+import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 
@@ -36,7 +36,7 @@ case class Del(item: Product)
 
 case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Product] {
   def length: Int = asMultiSet.size
-  private def value(kv: (String,Products)): Product =
+  private def value(kv: (InnerKey,Products)): Product =
     IndexUtilImpl.single(kv._2,warning)
   def apply(idx: Int): Product = value(asMultiSet.view(idx,idx+1).head)
   def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
@@ -48,7 +48,8 @@ class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val 
 
 object IndexTypes {
   type Products = List[Product]
-  type DMultiSet = Map[String,Products]
+  type InnerKey = Int
+  type DMultiSet = Map[InnerKey,Products]
   type InnerIndex = DMap[Any,DMultiSet]
 }
 
@@ -56,7 +57,7 @@ object IndexTypes {
 
 object IndexUtilImpl {
   def single(items: Products, warning: String): Product =
-    if(items.tail.isEmpty) items.head else {
+    if(items.tail.isEmpty && !items.head.isInstanceOf[Del]) items.head else {
       val distinct = items.distinct
       def text = s"non-single $warning"
       if(distinct.tail.nonEmpty) throw new Exception(text)
@@ -69,7 +70,7 @@ object IndexUtilImpl {
     (a, b) ⇒ {
       val res = inner(a, b)
       val tRes = if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
-        TreeMap.empty[String,Products] ++ res else res
+        TreeMap.empty[InnerKey,Products] ++ res else res
       //println(s"T a:$a b:$b r:$res/${res.getClass} t:$tRes/${tRes.getClass}")
       tRes
     }
@@ -99,7 +100,7 @@ case class IndexUtilImpl()(
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v⇒v.isEmpty,
       IndexUtilImpl.toOrdered(
-        Merge[String,Products](v⇒v.isEmpty, IndexUtilImpl.mergeProducts)
+        Merge[InnerKey,Products](v⇒v.isEmpty, IndexUtilImpl.mergeProducts)
       )
     )
 ) extends IndexUtil {
@@ -155,8 +156,13 @@ case class IndexUtilImpl()(
     values ⇒ makeIndex(Map(key→values.transform((k,v)⇒ v.map(IndexUtilImpl.inverse)))/*, index match { case i: IndexImpl ⇒ i.opt }*/)
   }
 
+  def hash(product: Product): Int = product match {
+    case Del(item) ⇒ hash(item)
+    case item ⇒ item.hashCode
+  }
+
   def result(key: Any, product: Product): Index =
-    makeIndex(Map(key→Map(ToPrimaryKey(product)→(product::Nil)))/*, opt*/)
+    makeIndex(Map(key→Map(hash(product)→(product::Nil)))/*, opt*/)
 
   def del(product: Product): Product = Del(product)
 
