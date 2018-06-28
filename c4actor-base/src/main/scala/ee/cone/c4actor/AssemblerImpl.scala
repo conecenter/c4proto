@@ -35,11 +35,9 @@ class AssemblerInit(
       indexDiff ← Option(composes.mergeIndex(for {
         (srcId, iUpdates) ← tpUpdates.groupBy(_.srcId)
         rawValue = iUpdates.last.value
-        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue)) :: Nil else Nil
-        res ← {
-          val remove = composes.removingDiff(wasIndex,srcId)
-          remove :: add
-        }
+        remove = composes.removingDiff(wasIndex,srcId)
+        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
+        res ← remove :: add
       } yield res)) if !composes.isEmpty(indexDiff)
     } yield {
       wKey → indexDiff

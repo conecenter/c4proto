@@ -86,7 +86,7 @@ class assemble extends StaticAnnotation {
            |  val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq)
            |  ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name}";""").mkString}
            |  for {
-           |    (was,indexRawSeq) <- indexRawSeqSeq
+           |    (dir,indexRawSeq) <- indexRawSeqSeq
            |    Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
            |    id <- invalidateKeySet(indexRawSeq)
            |    ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_warn); ").mkString}
@@ -98,7 +98,7 @@ class assemble extends StaticAnnotation {
            |    )
            |    ${eachParams.map(p⇒s"${p.name}_item <- ${p.name}_items; ${p.name}_arg = ${p.name}_item.value; ").mkString}
            |    (byKey,product) <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.strValuePre}[${p.value.str}]]").mkString(",")})
-           |  } yield iUtil.result(byKey,if(was)iUtil.del(product) else product)
+           |  } yield iUtil.result(byKey,product,dir)
            |}
          """.stripMargin
         s"""

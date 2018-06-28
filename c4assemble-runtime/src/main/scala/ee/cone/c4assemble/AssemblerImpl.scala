@@ -32,7 +32,8 @@ case class SingleValues(item: Product) extends DValues with Seq[Product] {
   def iterator: Iterator[Product] = Iterator(item)
 }*/
 
-case class Del(item: Product)
+
+case class Count(item: Product, count: Int)
 
 case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Product] {
   def length: Int = asMultiSet.size
@@ -47,7 +48,7 @@ class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val 
 }
 
 object IndexTypes {
-  type Products = List[Product]
+  type Products = List[Count]
   type InnerKey = Int
   type DMultiSet = Map[InnerKey,Products]
   type InnerIndex = DMap[Any,DMultiSet]
@@ -57,12 +58,12 @@ object IndexTypes {
 
 object IndexUtilImpl {
   def single(items: Products, warning: String): Product =
-    if(items.tail.isEmpty && !items.head.isInstanceOf[Del]) items.head else {
+    if(items.tail.isEmpty && items.head.count==1) items.head.item else {
       val distinct = items.distinct
       def text = s"non-single $warning"
       if(distinct.tail.nonEmpty) throw new Exception(text)
       if(warning.nonEmpty) println(text)
-      distinct.head
+      distinct.head.item
     }
 
   def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] = {
@@ -76,23 +77,20 @@ object IndexUtilImpl {
     }
   }
 
-  def inverse(a: Product): Product = a match { case Del(i) ⇒ i case i ⇒ Del(i) }
+  def inverse(a: Count): Count = a.copy(count = -a.count)
 
-  def exclude(a: Product, l: Products): Products =
-    if(l.isEmpty) l else if(a==l.head) l.tail else {
-      val tail = exclude(a, l.tail)
-      if(tail eq l.tail) l else l.head :: tail
+  def mergeProduct(a: Count, l: Products): Products =
+    if(l.isEmpty) a::Nil else {
+      val b = l.head
+      if(a.item!=b.item) b :: mergeProduct(a,l.tail) else {
+        val count = a.count + b.count
+        if(count==0) l.tail else b.copy(count=count) :: l.tail
+      }
     }
 
   def mergeProducts(aList: Products, bList: Products): Products =
-    if(aList.isEmpty) bList else {
-      val item = inverse(aList.head)
-      val nextB = exclude(item, bList)
-      val res = mergeProducts(aList.tail, nextB)
-      if(bList eq nextB) aList.head :: res else res
-    }
-
-
+    if(aList.isEmpty) bList
+    else mergeProducts(aList.tail, mergeProduct(aList.head, bList))
 }
 
 case class IndexUtilImpl()(
@@ -156,15 +154,8 @@ case class IndexUtilImpl()(
     values ⇒ makeIndex(Map(key→values.transform((k,v)⇒ v.map(IndexUtilImpl.inverse)))/*, index match { case i: IndexImpl ⇒ i.opt }*/)
   }
 
-  def hash(product: Product): Int = product match {
-    case Del(item) ⇒ hash(item)
-    case item ⇒ item.hashCode
-  }
-
-  def result(key: Any, product: Product): Index =
-    makeIndex(Map(key→Map(hash(product)→(product::Nil)))/*, opt*/)
-
-  def del(product: Product): Product = Del(product)
+  def result(key: Any, product: Product, count: Int): Index =
+    makeIndex(Map(key→Map(product.hashCode→(Count(product,count)::Nil)))/*, opt*/)
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
@@ -224,8 +215,8 @@ class JoinMapIndex(
     else { //
       val end = profiler(s"calculate ${transition.isParallel}")
       val worlds = Seq(
-        true→inputWorldKeys.map(_.of(transition.prev.get.result)),
-        false→inputWorldKeys.map(_.of(transition.result))
+        -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
+        +1→inputWorldKeys.map(_.of(transition.result))
       )
       val joinRes = join.joins(
         if(transition.isParallel) worlds.par else worlds,

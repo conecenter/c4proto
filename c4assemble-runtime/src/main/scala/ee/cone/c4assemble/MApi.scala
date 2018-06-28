@@ -14,8 +14,7 @@ trait IndexUtil {
   def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, key: Any): Index
-  def result(key: Any, product: Product): Index //m
-  def del(product: Product): Product //m
+  def result(key: Any, product: Product, count: Int): Index //m
   type Partitioning = Iterable[(Boolean,()⇒DPIterable[Product])]
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
@@ -83,7 +82,7 @@ class Join(
   val name: String,
   val inputWorldKeys: Seq[AssembledKey],
   val outputWorldKey: AssembledKey,
-  val joins: (DPIterable[(Boolean,Seq[Index])], Seq[Index]/*, IndexOpt*/) ⇒ DPIterable[Index]
+  val joins: (DPIterable[(Int,Seq[Index])], Seq[Index]/*, IndexOpt*/) ⇒ DPIterable[Index]
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 

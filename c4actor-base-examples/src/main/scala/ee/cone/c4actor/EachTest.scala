@@ -32,13 +32,13 @@ class EachTestExecutable(execution: Execution, rawWorldFactory: RawWorldFactory,
     ))(voidContext)
 
     assert(emptyIndex==indexUtil.mergeIndex(Seq(
-      indexUtil.result("1",indexUtil.del(Item("1","2"))),
-      indexUtil.result("1",Item("1","2"))
+      indexUtil.result("1",Item("1","2"),-1),
+      indexUtil.result("1",Item("1","2"),+1)
     )))
 
     println(indexUtil.mergeIndex(Seq(
-      indexUtil.result("1",indexUtil.del(Item("1","2"))),
-      indexUtil.result("1",Item("1","3"))
+      indexUtil.result("1",Item("1","2"),-1),
+      indexUtil.result("1",Item("1","3"),+1)
     )))
 
     execution.complete()
