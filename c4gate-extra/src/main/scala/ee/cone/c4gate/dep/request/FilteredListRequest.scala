@@ -23,7 +23,7 @@ trait FilterListRequestHandlerApp
     with ProtocolsApp
     with FilterListRequestApp
     with DepAskFactoryApp
-    with ContextIdInjectApp
+    with CommonIdInjectApps
     with DepOuterRequestFactoryApp
     with PreHashingApp {
 
@@ -34,7 +34,9 @@ trait FilterListRequestHandlerApp
   override def depHandlers: List[DepHandler] = fltAsk.by(rq ⇒ {
     depMap(rq.listName)
   }
-  ) :: inject[FilteredListRequest](fltAsk, _.contextId) :: super.depHandlers
+  ) :: injectContext[FilteredListRequest](fltAsk, _.contextId) ::
+    injectUser[FilteredListRequest](fltAsk, _.userId) ::
+    injectRole[FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
   override def assembles: List[Assemble] = filterDepList.map(
     df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.matches, depOuterRequestFactory, preHashing)
@@ -66,6 +68,10 @@ object FilterListRequestCreatorUtils {
 
 import ee.cone.c4gate.dep.request.FilterListRequestCreatorUtils._
 
+
+// TODO need to throw this into world
+case class SessionWithUserId(contextId: String, userId: String, roleId: String)
+
 @assemble class FilterListRequestCreator(
   val qAdapterRegistry: QAdapterRegistry,
   listName: String,
@@ -76,13 +82,21 @@ import ee.cone.c4gate.dep.request.FilterListRequestCreatorUtils._
 
   def SparkFilterListRequest(
     key: SrcId,
-    alienTasks: Values[FromAlienState]
+    alienTasks: Values[FromAlienState],
+    sessionWithUser: Values[SessionWithUserId]
   ): Values[(GroupId, DepOuterRequest)] =
     for {
       alienTask ← alienTasks
       if matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))
     } yield {
-      val filterRequest = FilteredListRequest(alienTask.sessionKey, listName)
+      val (userId, roleId) =
+        if (sessionWithUser.nonEmpty)
+          sessionWithUser.head match {
+            case p ⇒ (p.userId, p.roleId)
+          }
+        else
+          ("", "")
+      val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, listName)
       u.tupled(alienTask.sessionKey)(filterRequest)
     }
 
@@ -102,6 +116,8 @@ import ee.cone.c4gate.dep.request.FilterListRequestCreatorUtils._
 
   @Id(0x0a01) case class FilteredListRequest(
     @Id(0x0a02) contextId: String,
+    @Id(0x0a05) userId: String,
+    @Id(0x0a06) roleId: String,
     @Id(0x0a03) listName: String
   )
 
