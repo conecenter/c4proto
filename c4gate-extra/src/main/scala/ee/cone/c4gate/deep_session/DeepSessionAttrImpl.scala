@@ -8,11 +8,11 @@ import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{RawRoleData, RawUser
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
-case class DeepSessionAttrAccessFactoryImpl(
+class DeepSessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,
-  uuidUtil: UUIDUtil,
+  val uuidUtil: UUIDUtil,
   sessionAttrAccessFactory: SessionAttrAccessFactory
 ) extends DeepSessionAttrAccessFactory with OrigKeyGenerator {
   lazy val rawDataAdapter = registry.byName(classOf[RawSessionData].getName)
@@ -38,7 +38,7 @@ case class DeepSessionAttrAccessFactoryImpl(
       valueTypeId = 0,
       value = ByteString.EMPTY
     )
-
+    // Session
     val contextKey = CurrentSessionKey.of(local)
     val stubRawData: RawSessionData = RawSessionData(
       srcId = "",
@@ -47,7 +47,7 @@ case class DeepSessionAttrAccessFactoryImpl(
     )
     val rawDataPK = genPK(stubRawData, rawDataAdapter)
     val rawDataOpt: Option[RawSessionData] = dataByPK.of(local).get(rawDataPK)
-
+    // User
     val userKey = CurrentUserIdKey.of(local)
     val stubRawUserData: RawUserData = RawUserData(
       srcId = "",
@@ -56,7 +56,7 @@ case class DeepSessionAttrAccessFactoryImpl(
     )
     val rawUserDataPK = genPK(stubRawUserData, rawUserAdapter)
     val rawUserDataOpt: Option[RawUserData] = userByPK.of(local).get(rawUserDataPK)
-
+    // Role
     val roleKey = CurrentRoleIdKey.of(local)
     val stubRawRoleData: RawRoleData = RawRoleData(
       srcId = "",
@@ -65,9 +65,9 @@ case class DeepSessionAttrAccessFactoryImpl(
     )
     val rawRoleDataPK = genPK(stubRawRoleData, rawRoleAdapter)
     val rawRoleDataOpt: Option[RawRoleData] = roleByPK.of(local).get(rawRoleDataPK)
-
+    // Rest
     val lensRaw = ProdLens[RawSessionData, P](attr.metaList)(
-      rawRoleData ⇒ registry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
+      rawSessionData ⇒ registry.byId(rawSessionData.dataNode.get.valueTypeId).decode(rawSessionData.dataNode.get.value).asInstanceOf[P],
       value ⇒ rawRoleData ⇒ {
         val valueAdapter = registry.byName(attr.className)
         val byteString = ToByteString(valueAdapter.encode(value))
@@ -88,7 +88,7 @@ case class DeepSessionAttrAccessFactoryImpl(
 
     val defaultModel: SrcId ⇒ P = defaultModelRegistry.get[P](attr.className).create
     val defaultRawData = lensRaw.set(defaultModel(rawDataPK))(stubRawData.copy(srcId = rawDataPK))
-    val defaultRawUserData = lensRawUser.set(defaultModel(rawUserDataPK))(stubRawUserData.copy(srcId = rawDataPK))
+    val defaultRawUserData = lensRawUser.set(defaultModel(rawUserDataPK))(stubRawUserData.copy(srcId = rawUserDataPK))
 
     val data = DeepRawSessionData[P](rawDataOpt, rawUserDataOpt, rawRoleDataOpt, (defaultRawData, defaultRawUserData), (rawDataPK, rawUserDataPK, rawRoleDataPK))
 
@@ -144,6 +144,10 @@ case class DeepRawSessionData[P <: Product](
   default: (RawSessionData, RawUserData),
   srcIds: (SrcId, SrcId, SrcId)
 ) {
+
+
+  override def toString: SrcId = s"$productPrefix(\n\t$sessionData\n\t$userData\n\t$roleData\n\t$default\n\t$srcIds\n)"
+
   def get: (Long, okio.ByteString) = {
     if (sessionData.isDefined)
       sessionData.get.dataNode.get match {
