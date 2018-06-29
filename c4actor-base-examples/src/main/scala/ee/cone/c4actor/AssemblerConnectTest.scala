@@ -28,7 +28,10 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   ): Values[(SrcId,List[Node])] = for {
       path ← if(key.nonEmpty) paths else List(Nil)
       node ← childNodes
-  } yield WithPK(node::path)
+  } yield {
+    println(s"A$key")
+    WithPK(node::path)
+  }
 
   /*
   By[ParentId,Node] := for(node ← Is[Node] if node.parentId.nonEmpty) yield node.parentId → node
