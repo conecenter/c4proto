@@ -209,7 +209,8 @@ class JoinMapIndex(
   def name = join.name
   def inputWorldKeys: Seq[AssembledKey] = join.inputWorldKeys
   def outputWorldKey: AssembledKey = join.outputWorldKey
-  override def toString: String = s"${super.toString} ($assembleName,$name,$inputWorldKeys,$outputWorldKey)"
+
+  override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
 
   def transform(transition: WorldTransition): WorldTransition = {
     //println(s"rule $outputWorldKey <- $inputWorldKeys")

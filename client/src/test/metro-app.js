@@ -60,7 +60,7 @@ const windowManager = (()=>{
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
 	const location = () => window.location
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix,location}
+	return {getWindowRect,setInterval,clearInterval,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix,location}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)

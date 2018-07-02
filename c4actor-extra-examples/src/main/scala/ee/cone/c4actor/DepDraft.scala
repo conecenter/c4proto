@@ -1,16 +1,17 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.TestProtocol.ValueNode
+import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
 import ee.cone.c4actor.TestRequests.FooDepRequest
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4actor.dep._
+import ee.cone.c4actor.dep.request.ByClassNameAllAsk
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dep_impl.{RequestDep, ResolvedDep}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
-case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[ValueNode], depAskFactory: DepAskFactory) {
+case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[ValueNode], depAskFactory: DepAskFactory, kek: ByClassNameAllAsk) {
 
   def askFoo(v: String): Dep[Int] = new RequestDep[Int](FooDepRequest(v))
 
@@ -32,7 +33,7 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   )
 
   case object FooRequestHandler extends DepHandler {
-    def className: String = classOf[FooDepRequest].getName
+    def requestClassName: String = classOf[FooDepRequest].getName
 
     def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_] = fooRq ⇒ ctx ⇒ {
       val response = fooRq.asInstanceOf[FooDepRequest].v match {
@@ -69,7 +70,8 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
     t ← new RequestDep[String](ContextIdRequest())
     s ← subView(a)
     b ← valueNode.seq("124")
-  } yield TimeColored("g", t)((a, s, b.map(_.value).headOption.getOrElse(0)))
+    test ← kek.askByClAll(classOf[ValueNode])
+  } yield TimeColored("g", (t, test))((a, s, b.map(_.value).headOption.getOrElse(0)))
 
   /*
     def parallelView: Dep[(Int,Int)] = for {
