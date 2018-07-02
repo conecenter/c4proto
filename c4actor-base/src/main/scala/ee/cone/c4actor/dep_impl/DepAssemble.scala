@@ -79,7 +79,7 @@ case class DepRequestHandlerRegistry(
       } yield response.innerRequest.request → value).toMap
       val resolvable: Resolvable[_] = handle(req.request,ctx)
       val response = depResponseFactory.wrap(req,resolvable.value)
-      DepInnerResolvable(response, resolvable.requests.map(depOuterRequestFactory.tupled(req.srcId)))
+      DepInnerResolvable(response, resolvable.requests.distinct.map(depOuterRequestFactory.tupled(req.srcId)))
     }
 }
 

@@ -66,7 +66,7 @@ object IndexUtilImpl {
       distinct.head.item
     }
 
-  def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] = { // Ordering.by can drop keys!
+  def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] = { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
     (a, b) ⇒ {
       val res = inner(a, b)
       val tRes = if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
