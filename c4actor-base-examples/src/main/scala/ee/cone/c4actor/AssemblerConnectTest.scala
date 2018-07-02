@@ -11,6 +11,8 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   @Id(0x0001) case class Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 }
 
+case class ConnNodePath(path: List[Node])
+
 @assemble class ConnAssemble extends Assemble {
   type ParentId = SrcId
 
@@ -23,14 +25,15 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
   def connect(
       key: SrcId,
-      @was paths: Values[List[Node]],
+      @was paths: Values[ConnNodePath],
       @by[ParentId] childNodes: Values[Node]
-  ): Values[(SrcId,List[Node])] = for {
-      path ← if(key.nonEmpty) paths else List(Nil)
+  ): Values[(SrcId,ConnNodePath)] = {
+    for {
+      path ← if(key.nonEmpty) paths else List(ConnNodePath(Nil))
       node ← childNodes
-  } yield {
-    println(s"A$key")
-    WithPK(node::path)
+    } yield {
+      WithPK(path.copy(path=node::path.path))
+    }
   }
 
   /*
@@ -52,7 +55,14 @@ class ConnStart(
     val context = contextFactory.create()
     val nGlobal = ReadModelAddKey.of(context)(updates)(context)
 
-    logger.info(s"${nGlobal.assembled}")
+    //logger.info(s"${nGlobal.assembled}")
+    assert(
+      ByPK(classOf[ConnNodePath]).of(nGlobal)("125") ==
+      ConnNodePath(List(
+        Node("125","12"), Node("12","1"), Node("1","")
+      ))
+    )
+
     execution.complete()
     /*
     Map(

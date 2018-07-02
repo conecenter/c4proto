@@ -46,7 +46,7 @@ class ShortAssembleSeqOptimizer(
     val singleInputKeys = getSingleKeys(expressionsByPriority.flatMap(_.inputWorldKeys))
     expressionsByPriority.map{ e ⇒ e.outputWorldKey match {
       case key:JoinKey ⇒
-        val wKey = key.copy(was=true)
+        val wKey = key.withWas(was=true)
         if(
           singleOutputKeys(key) && singleInputKeys(wKey) &&
             e.inputWorldKeys.contains(wKey)

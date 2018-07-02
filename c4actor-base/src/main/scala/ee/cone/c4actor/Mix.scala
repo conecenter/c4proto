@@ -85,14 +85,15 @@ trait RichDataApp extends ProtocolsApp
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
+  private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct) ::: super.dataDependencies
+    ProtocolDataDependencies(protocols.distinct,origKeyFactory)() ::: super.dataDependencies
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::

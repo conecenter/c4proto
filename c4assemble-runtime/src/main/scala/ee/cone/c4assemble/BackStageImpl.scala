@@ -34,6 +34,6 @@ class BackStageFactoryImpl(updater: IndexUpdater, composes: IndexUtil) extends B
         case k:JoinKey if k.was ⇒ k
       }) // multiple @was are not supported due to possible different join loop rates
     } yield key).distinct
-    PrepareBackStage :: wasKeys.map(k⇒new ConnectBackStage(k,k.copy(was=false), updater, composes))
+    PrepareBackStage :: wasKeys.map(k⇒new ConnectBackStage(k,k.withWas(was=false), updater, composes))
   }
 }

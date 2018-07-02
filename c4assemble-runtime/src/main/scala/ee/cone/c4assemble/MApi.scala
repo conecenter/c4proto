@@ -7,7 +7,8 @@ import Types._
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.{GenIterable, GenMap, GenSeq}
 
-trait IndexUtil {
+trait IndexUtil extends Product {
+  def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
   def isEmpty(index: Index): Boolean
   def keySet(index: Index): Set[Any]
   def mergeIndex(l: DPIterable[Index]): Index
@@ -90,8 +91,13 @@ trait Assemble {
   def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = ???
 }
 
-case class JoinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String)
-  extends AssembledKey
+trait JoinKey extends AssembledKey {
+  def was: Boolean
+  def keyAlias: String
+  def keyClassName: String
+  def valueClassName: String
+  def withWas(was: Boolean): JoinKey
+}
 
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation

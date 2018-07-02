@@ -71,7 +71,7 @@ class assemble extends StaticAnnotation {
       case GenericKVType(n,of) ⇒ s"$n[$of]"
     }*/
     def expr(specType: AType): String = {
-      s"""ee.cone.c4assemble.JoinKey(
+      s"""indexFactory.util.joinKey(
          |${specType.was},
          |"${specType.key.str}",${classOfT(specType.key)},${classOfT(specType.value)}
          |)""".stripMargin

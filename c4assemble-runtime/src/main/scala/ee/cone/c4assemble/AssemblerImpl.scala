@@ -91,6 +91,14 @@ object IndexUtilImpl {
     else mergeProducts(aList.tail, mergeProduct(aList.head, bList))
 }
 
+case class JoinKeyImpl(
+  was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String
+) extends JoinKey {
+  override def toString: String =
+    s"JK(${if (was) "@was " else ""}@by[$keyAlias] $valueClassName)"
+  def withWas(was: Boolean): JoinKey = copy(was=was)
+}
+
 case class IndexUtilImpl()(
   val nonEmptySeq: Seq[Unit] = Seq(()),
   mergeIndexInner: Compose[InnerIndex] =
@@ -100,6 +108,9 @@ case class IndexUtilImpl()(
       )
     )
 ) extends IndexUtil {
+
+  def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey =
+    JoinKeyImpl(was,keyAlias,keyClassName,valueClassName)
 
   def makeIndex(data: InnerIndex/*, opt: IndexOpt*/): Index =
     if(data.isEmpty) emptyIndex else {
@@ -246,7 +257,7 @@ class TreeAssemblerImpl(
     //umlClients.foreach(_(s"# rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}"))
     val byOutput: ExprByOutput = expressions.groupBy(_.outputWorldKey)
     val permitWas: ExprByOutput = byOutput.keys.collect{
-      case k: JoinKey if !k.was ⇒ k.copy(was=true) → Nil
+      case k: JoinKey if !k.was ⇒ k.withWas(was=true) → Nil
     }.toMap
     val uses = originals ++ permitWas ++ byOutput
     val expressionsByPriority: List[ExprFrom] =
@@ -319,15 +330,11 @@ object Merge {
     })
 }
 
-/*
-* override def toString: String = s"$productPrefix(${if (was) "@was " else ""}@by[$keyAlias] ($keyClassName, $valueClassName))"*/
-
-
 // if we need more: scala rrb vector, java...binarySearch
 // also consider: http://docs.scala-lang.org/overviews/collections/performance-characteristics.html
 
 
-
+////////////////////////////////////////////////////////////////////////////////
 
 
 //type DPMap[K,V] = GenMap[K,V] //ParMap[K,V]
