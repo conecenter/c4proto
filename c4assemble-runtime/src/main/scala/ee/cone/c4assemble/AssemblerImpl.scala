@@ -49,7 +49,7 @@ class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val 
 
 object IndexTypes {
   type Products = List[Count]
-  type InnerKey = Int
+  type InnerKey = (String,Int)
   type DMultiSet = Map[InnerKey,Products]
   type InnerIndex = DMap[Any,DMultiSet]
 }
@@ -66,13 +66,11 @@ object IndexUtilImpl {
       distinct.head.item
     }
 
-  def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] = {
-    //val empty: DMultiSet = TreeMap.empty(Ordering.by(p⇒ToPrimaryKey(p.value)))
+  def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] = { // Ordering.by can drop keys!
     (a, b) ⇒ {
       val res = inner(a, b)
       val tRes = if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
         TreeMap.empty[InnerKey,Products] ++ res else res
-      //println(s"T a:$a b:$b r:$res/${res.getClass} t:$tRes/${tRes.getClass}")
       tRes
     }
   }
@@ -123,28 +121,20 @@ case class IndexUtilImpl()(
 
   def keySet(index: Index): Set[Any] = data(index).keySet
 
-  def nonEmpty(index: Index, key: Any): Boolean = getMS(index,key).nonEmpty
+  def nonEmpty(index: Index, key: Any): Boolean = {
+    val res = getMS(index,key).nonEmpty
+    res
+  }
 
-  def getValues(index: Index, key: Any, warning: String): Values[Product] =
-    getMS(index,key).fold(Nil:Values[Product])(v ⇒ DValuesImpl(v,warning))
+  def getValues(index: Index, key: Any, warning: String): Values[Product] = {
+    val res = getMS(index,key).fold(Nil:Values[Product])(v ⇒ DValuesImpl(v,warning))
+    res
+  }
+
 
   def mergeIndex(l: DPIterable[Index]): Index = {
-    /*val opt: IndexOpt = nonEmptyIndexList.map(_.opt).reduce((a,b)⇒
-      if(a==b) a else throw new Exception(s"can not merge $a and $b")
-    )*/
-
     val res =
-    makeIndex(l.map(data).foldLeft(Map.empty: InnerIndex)(mergeIndexInner))
-/*
-    if((for {
-      d ← l.map(data)
-      ms ← d.values
-      count ← ms.values if count <0
-    } yield d).nonEmpty) {
-      println(s"removing04: $l ==> $res")
-    }*/
-    //val log = s"removing03: $l ==> ${l.map(data)} ==> $res"
-    //if(log.length < 1000) println(log)
+      makeIndex(l.map(data).foldLeft(Map.empty: InnerIndex)(mergeIndexInner))
     res
   }
 
@@ -155,7 +145,7 @@ case class IndexUtilImpl()(
   }
 
   def result(key: Any, product: Product, count: Int): Index =
-    makeIndex(Map(key→Map(product.hashCode→(Count(product,count)::Nil)))/*, opt*/)
+    makeIndex(Map(key→Map((ToPrimaryKey(product),product.hashCode)→(Count(product,count)::Nil)))/*, opt*/)
 
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
@@ -173,9 +163,10 @@ case class IndexUtilImpl()(
 
   def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ Set[Any] = {
     val diffKeySet = diffIndexSeq.map(keySet).reduce(_++_)
-    if(diffKeySet.contains(All))
-      (indexSeq:Seq[Index]) ⇒ indexSeq.map(keySet).reduce(_++_) - All
-    else (indexSeq:Seq[Index]) ⇒ diffKeySet
+    val res = if(diffKeySet.contains(All))
+        (indexSeq:Seq[Index]) ⇒ indexSeq.map(keySet).reduce(_++_) - All
+      else (indexSeq:Seq[Index]) ⇒ diffKeySet
+    res
   }
 }
 
@@ -218,11 +209,8 @@ class JoinMapIndex(
         -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
         +1→inputWorldKeys.map(_.of(transition.result))
       )
-      val joinRes = join.joins(
-        if(transition.isParallel) worlds.par else worlds,
-        inputWorldKeys.map(_.of(transition.diff))
-        /*indexOpt*/
-      )
+      val worldDiffs = inputWorldKeys.map(_.of(transition.diff))
+      val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
       end(joinRes.size)
       val indexDiff = composes.mergeIndex(joinRes)
       if(composes.isEmpty(indexDiff)) transition else {
@@ -316,7 +304,6 @@ object Merge {
   type Compose[V] = (V,V)⇒V
   def bigFirst[K,V](inner: Compose[DMap[K,V]]): Compose[DMap[K,V]] =
     (a,b) ⇒ {
-      //println(if(a.size < b.size) "swap"  else "no-swap")
       if(a.size < b.size) inner(b,a) else inner(a,b)
     }
   def apply[K,V](isEmpty: V⇒Boolean, inner: Compose[V]): Compose[DMap[K,V]] =
@@ -328,7 +315,6 @@ object Merge {
         val resVal = if(bigValOpt.isEmpty) smallVal else inner(bigValOpt.get,smallVal)
         if(isEmpty(resVal)) resMap - k else resMap + (k → resVal)
       }
-      //println(s"b$bigMap s$smallMap r$res")
       res
     })
 }

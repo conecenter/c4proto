@@ -93,7 +93,7 @@ class assemble extends StaticAnnotation {
            |    ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,id); ").mkString}
            |    ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id,${p.name}_warn); ").mkString}
            |    ${if(eachParams.nonEmpty) eachParams.map(p⇒s"(${p.name}_isChanged,${p.name}_items) <- ${p.name}_parts").mkString("; ") else "_ <- iUtil.nonEmptySeq"} if(
-           |      ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty && ").mkString}
+           |      (${if(eachParams.nonEmpty)"true" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty").mkString(" || ")}) &&
            |      (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
            |    )
            |    ${eachParams.map(p⇒s"${p.name}_item <- ${p.name}_items; ${p.name}_arg = ${p.name}_item.value; ").mkString}
