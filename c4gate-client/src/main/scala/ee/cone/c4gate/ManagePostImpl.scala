@@ -36,8 +36,8 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil) 
     val worldKeyAlias = headers("X-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
     val (indexStr,index): (String,Index) = Single.option(world.keys.toList.collect{
-      case worldKey@JoinKey(false,`alias`,keyClassName,valueClassName)
-        if valueClassName.split("\\W").last == keyClassAlias ⇒
+      case worldKey: JoinKey if !worldKey.was && worldKey.keyAlias == alias &&
+        worldKey.valueClassName.split("\\W").last == keyClassAlias ⇒
         (s"$worldKey",worldKey.of(world))
     }).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("X-r-selection") match {
