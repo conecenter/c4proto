@@ -34,12 +34,14 @@ class AssemblerInit(
 ) extends ToInject {
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
     (for {
-      (valueTypeId, tpUpdates) ← updates.groupBy(_.valueTypeId)
+      tpPair ← updates.groupBy(_.valueTypeId)
+      (valueTypeId, tpUpdates) = tpPair
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = origKeyFactory.rawKey(valueAdapter.className)
       wasIndex = wKey.of(assembled)
       indexDiff ← Option(composes.mergeIndex(for {
-        (srcId, iUpdates) ← tpUpdates.groupBy(_.srcId)
+        iPair ← tpUpdates.groupBy(_.srcId)
+        (srcId, iUpdates) = iPair
         rawValue = iUpdates.last.value
         remove = composes.removingDiff(wasIndex,srcId)
         add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil

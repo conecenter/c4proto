@@ -86,17 +86,19 @@ class assemble extends StaticAnnotation {
            |  val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq)
            |  ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name}";""").mkString}
            |  for {
-           |    (dir,indexRawSeq) <- indexRawSeqSeq
+           |    indexRawSeqI <- indexRawSeqSeq
+           |    (dir,indexRawSeq) = indexRawSeqI
            |    Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
            |    id <- invalidateKeySet(indexRawSeq)
            |    ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_warn); ").mkString}
            |    ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,id); ").mkString}
            |    ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id,${p.name}_warn); ").mkString}
-           |    ${if(eachParams.nonEmpty) eachParams.map(p⇒s"(${p.name}_isChanged,${p.name}_items) <- ${p.name}_parts").mkString("; ") else "_ <- iUtil.nonEmptySeq"} if(
-           |      (${if(eachParams.nonEmpty)"true" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty").mkString(" || ")}) &&
+           |    ${eachParams.map(p⇒s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
+           |    pass <- if(
+           |      ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}
            |      (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
-           |    )
-           |    ${eachParams.map(p⇒s"${p.name}_item <- ${p.name}_items; ${p.name}_arg = ${p.name}_item.value; ").mkString}
+           |    ) iUtil.nonEmptySeq else Nil;
+           |    ${eachParams.map(p⇒s"${p.name}_arg <- ${p.name}_items(); ").mkString}
            |    (byKey,product) <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.strValuePre}[${p.value.str}]]").mkString(",")})
            |  } yield iUtil.result(byKey,product,dir)
            |}

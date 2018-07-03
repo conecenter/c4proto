@@ -5,7 +5,7 @@ import ee.cone.c4actor.WithPK
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.ByPKRequest
 import ee.cone.c4actor.dep_impl.ByPKTypes.ByPkItemSrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -23,25 +23,24 @@ object ByPKTypes {
 }
 
 @assemble class ByPKAssemble extends Assemble {
-  def BPKRequestWithSrcToItemSrcId(
+  def byPKRequestWithSrcToItemSrcId(
     key: SrcId,
-    requests: Values[DepInnerRequest]
-  ): Values[(ByPkItemSrcId, InnerByPKRequest)] = for {
-    rq ← requests if rq.request.isInstanceOf[ByPKRequest]
-  } yield {
-    val brq = rq.request.asInstanceOf[ByPKRequest]
-    brq.itemSrcId → InnerByPKRequest(rq, brq.className)
-  }
+    rq: Each[DepInnerRequest]
+  ): Values[(ByPkItemSrcId, InnerByPKRequest)] =
+    if(!rq.request.isInstanceOf[ByPKRequest]) Nil else {
+      val brq = rq.request.asInstanceOf[ByPKRequest]
+      List(brq.itemSrcId → InnerByPKRequest(rq, brq.className))
+    }
 }
 
 @assemble class ByPKGenericAssemble[A <: Product](handledClass: Class[A], util: DepResponseFactory) extends Assemble {
   def BPKRequestToResponse(
     key: SrcId,
-    @by[ByPkItemSrcId] requests: Values[InnerByPKRequest],
+    @by[ByPkItemSrcId] rq: Each[InnerByPKRequest],
     items: Values[A]
-  ): Values[(SrcId, DepResponse)] = for (
-    rq ← requests if rq.className == handledClass.getName
-  ) yield WithPK(util.wrap(rq.request, Option(items)))
+  ): Values[(SrcId, DepResponse)] =
+    if(rq.className != handledClass.getName) Nil
+    else List(WithPK(util.wrap(rq.request, Option(items))))
 }
 
 object ByPKAssembles {

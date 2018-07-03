@@ -7,7 +7,7 @@ import com.typesafe.scalalogging.LazyLogging
 import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.FromAlienStatus
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
@@ -33,10 +33,10 @@ class TestSSEApp extends ServerApp
 @assemble class TestSSEAssemble extends Assemble {
   def joinView(
     key: SrcId,
-    tasks: Values[BranchTask]
+    task: Each[BranchTask]
   ): Values[(SrcId,BranchHandler)] = {
     //println(s"joinView ${tasks}")
-    for(task ← tasks) yield task.branchKey → TestSSEHandler(task.branchKey, task)
+    List(WithPK(TestSSEHandler(task.branchKey, task)))
   }
 }
 

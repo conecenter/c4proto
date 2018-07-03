@@ -12,17 +12,16 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
 @assemble class ManagementPostAssemble(actorName: String, indexUtil: IndexUtil) extends Assemble {
   def joinHttpPostHandler(
     key: SrcId,
-    posts: Values[HttpPost]
+    post: Each[HttpPost]
   ): Values[(SrcId, TxTransform)] =
-    for(post ← posts if post.path == s"/manage/$actorName")
-      yield WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil))
+    if(post.path == s"/manage/$actorName")
+      List(WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil))) else Nil
 
   def joinConsumers(
     key: SrcId,
-    firsts: Values[Firstborn]
+    first: Each[Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
-    for(_ ← firsts)
-      yield WithPK(LocalPostConsumer(s"/manage/$actorName"))
+    List(WithPK(LocalPostConsumer(s"/manage/$actorName")))
 }
 
 case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil) extends TxTransform with LazyLogging {

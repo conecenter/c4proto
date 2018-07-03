@@ -1,11 +1,11 @@
 package ee.cone.c4actor.dep_impl
 
-import scala.collection.immutable.{Seq,Map}
+import scala.collection.immutable.{Map, Seq}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest, GroupId}
 import ee.cone.c4actor.dep._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.ToByteString
 
@@ -18,11 +18,8 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
 
   def resolvableToSubRequests(
     innerId: SrcId,
-    @was resolvableSeq: Values[DepInnerResolvable]
-  ): Values[(GroupId, DepOuterRequest)] = for {
-    resolvable ← resolvableSeq
-    pair ← resolvable.subRequests
-  } yield pair
+    @was resolvable: Each[DepInnerResolvable]
+  ): Values[(GroupId, DepOuterRequest)] = resolvable.subRequests
 
   def toSingleInnerRequest(
     innerId: SrcId,
@@ -32,37 +29,31 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
 
   def resolvableToResponse(
     innerId: SrcId,
-    @was resolvableSeq: Values[DepInnerResolvable]
-  ): Values[(SrcId, DepResponse)] = for {
-    resolvable ← resolvableSeq
-  } yield WithPK(resolvable.result)
+    @was resolvable: Each[DepInnerResolvable]
+  ): Values[(SrcId, DepResponse)] = List(WithPK(resolvable.result))
 
   def responseToParent(
     innerId: SrcId,
-    responses: Values[DepResponse],
-    @by[GroupId] outerRequests: Values[DepOuterRequest]
-  ): Values[(GroupId, DepResponse)] = for {
-    response ← responses
-    outer ← outerRequests
-  } yield outer.parentSrcId → response
+    response: Each[DepResponse],
+    @by[GroupId] outer: Each[DepOuterRequest]
+  ): Values[(GroupId, DepResponse)] = List(outer.parentSrcId → response)
 
   def handle(
     innerId: SrcId,
-    innerRequests: Values[DepInnerRequest],
+    req: Each[DepInnerRequest],
     @by[GroupId] responses: Values[DepResponse]
   ): Values[(SrcId, DepInnerResolvable)] = for {
-    req ← innerRequests
-    handle ← reg.handle(req)
+    handle ← reg.handle(req).toList
   } yield WithPK(handle(responses))
 
-  def DepUnresolvedRequestProducer(
+  def unresolvedRequestProducer(
     requestId: SrcId,
-    requests: Values[DepInnerRequest],
+    rq: Each[DepInnerRequest],
     responses: Values[DepResponse]
   ): Values[(SrcId, DepUnresolvedRequest)] =
-    (for {
-      rq ← requests
-    } yield if (responses.forall(_.value.isEmpty)) WithPK(DepUnresolvedRequest(rq.srcId, rq.request, responses.size)) :: Nil else Nil).flatten
+    if (responses.forall(_.value.isEmpty))
+      List(WithPK(DepUnresolvedRequest(rq.srcId, rq.request, responses.size)))
+    else Nil
 }
 
 case class DepRequestHandlerRegistry(

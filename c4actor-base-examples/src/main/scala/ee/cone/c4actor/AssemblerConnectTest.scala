@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ConnProtocol.Node
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -18,19 +18,16 @@ case class ConnNodePath(path: List[Node])
 
   def nodesByParentId(
       key: SrcId,
-      nodes: Values[Node]
-  ): Values[(ParentId,Node)] = for {
-      node ← nodes
-  } yield node.parentId → node
+      node: Each[Node]
+  ): Values[(ParentId,Node)] = List(node.parentId → node)
 
   def connect(
       key: SrcId,
       @was paths: Values[ConnNodePath],
-      @by[ParentId] childNodes: Values[Node]
+      @by[ParentId] node: Each[Node]
   ): Values[(SrcId,ConnNodePath)] = {
     for {
       path ← if(key.nonEmpty) paths else List(ConnNodePath(Nil))
-      node ← childNodes
     } yield {
       WithPK(path.copy(path=node::path.path))
     }

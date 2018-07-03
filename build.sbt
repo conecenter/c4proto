@@ -17,7 +17,10 @@ lazy val publishSettings = Seq(
   licenses := ourLicense,
   fork := true, //looks like sbt hangs for a minute on System.exit
   mainClass in Compile := Some("ee.cone.c4actor.ServerMain")
+  //scalacOptions += "-feature"//"-deprecation",
 )
+
+
 
 fork := true
 

@@ -6,7 +6,7 @@ import java.util.UUID
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, JoinKey, assemble}
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
@@ -22,11 +22,11 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 @assemble class ActorAccessAssemble extends Assemble {
   def join(
     key: SrcId,
-    firsts: Values[Firstborn],
+    first: Each[Firstborn],
     accessKeys: Values[ActorAccessKey]
-  ): Values[(SrcId,TxTransform)] = for {
-    first ← firsts if accessKeys.isEmpty
-  } yield WithPK(ActorAccessCreateTx(s"ActorAccessCreateTx-${first.srcId}",first))
+  ): Values[(SrcId,TxTransform)] =
+    if(accessKeys.nonEmpty) Nil
+    else List(WithPK(ActorAccessCreateTx(s"ActorAccessCreateTx-${first.srcId}",first)))
 }
 
 case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransform {
@@ -37,15 +37,12 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
 @assemble class PrometheusAssemble(compressor: Compressor) extends Assemble {
   def join(
     key: SrcId,
-    firsts: Values[Firstborn],
-    accessKeys: Values[ActorAccessKey]
-  ): Values[(SrcId,TxTransform)] = for {
-    first ← firsts
-    accessKey ← accessKeys
-  } yield {
+    first: Each[Firstborn],
+    accessKey: Each[ActorAccessKey]
+  ): Values[(SrcId,TxTransform)] = {
     val path = s"/${accessKey.value}-metrics"
     println(s"Prometheus metrics at $path")
-    WithPK(PrometheusTx(path, compressor))
+    List(WithPK(PrometheusTx(path, compressor)))
   }
 }
 

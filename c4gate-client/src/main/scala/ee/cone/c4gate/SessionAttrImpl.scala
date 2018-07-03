@@ -5,7 +5,7 @@ import java.util.UUID
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
@@ -37,19 +37,14 @@ object SessionDataAssembles {
 
   def joinBySessionKey(
     srcId: SrcId,
-    sessionDataValues: Values[RawSessionData]
-  ): Values[(SessionKey, RawSessionData)] = for {
-    sd ← sessionDataValues
-  } yield sd.sessionKey → sd
+    sd: Each[RawSessionData]
+  ): Values[(SessionKey, RawSessionData)] = List(sd.sessionKey → sd)
 
   def joinSessionLife(
     key: SrcId,
-    sessions: Values[FromAlienState],
-    @by[SessionKey] sessionDataValues: Values[RawSessionData]
-  ): Values[(Alive, RawSessionData)] = for {
-    session ← sessions
-    sessionData ← sessionDataValues
-  } yield WithPK(sessionData)
+    session: Each[FromAlienState],
+    @by[SessionKey] sessionData: Each[RawSessionData]
+  ): Values[(Alive, RawSessionData)] = List(WithPK(sessionData))
 }
 
 class SessionAttrAccessFactoryImpl(

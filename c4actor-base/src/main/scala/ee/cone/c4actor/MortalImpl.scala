@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import ee.cone.c4actor.Killing.KillerId
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, distinct}
 
 case class MortalFactoryImpl(anUUIDUtil: UUIDUtil) extends MortalFactory {
@@ -21,10 +21,9 @@ object Killing {
 ) extends Assemble {
   def createKilling(
     key: SrcId,
-    mortals: Values[Node],
+    mortal: Each[Node],
     @distinct @by[Alive] keepAlive: Values[Node]
-  ): Values[(KillerId,Killing)] = for {
-    mortal ← mortals if keepAlive.isEmpty
+  ): Values[(KillerId,Killing)] = if(keepAlive.nonEmpty) Nil else for {
     ev ← LEvent.delete(mortal)
     killing ← Seq(Killing(anUUIDUtil.srcIdFromSrcIds(ev.srcId,ev.className/*it's just string*/),ev))
   } yield killing.hash.substring(0,1) → killing
