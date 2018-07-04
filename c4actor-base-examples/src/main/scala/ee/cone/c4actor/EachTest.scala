@@ -14,8 +14,8 @@ class EachTestApp extends RichDataApp
   override def protocols: List[Protocol] = EachTestProtocol :: super.protocols
   override def toStart: List[Executable] = new EachTestExecutable(execution, rawWorldFactory, indexUtil) :: super.toStart
   override def assembles =
-  //new EachTestAssemble ::
-    new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
+  new EachTestAssemble ::
+  //  new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
       super.assembles
 }
 

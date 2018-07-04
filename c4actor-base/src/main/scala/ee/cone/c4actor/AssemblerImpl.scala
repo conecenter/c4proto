@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
@@ -31,7 +32,7 @@ class AssemblerInit(
   isParallel: Boolean,
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactory
-) extends ToInject {
+) extends ToInject with LazyLogging {
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
     (for {
       tpPair ← updates.groupBy(_.valueTypeId)
@@ -53,7 +54,10 @@ class AssemblerInit(
 
   private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {
     val diff = toTree(context.assembled, if(isParallel) out.par else out)
+    val started = System.currentTimeMillis
     val nAssembled = TreeAssemblerKey.of(context)(diff,isParallel)(context.assembled)
+    val period = System.currentTimeMillis - started
+    if(period > 1000) logger.info(s"long join $period")
     new Context(context.injected, nAssembled, context.transient)
   }
 

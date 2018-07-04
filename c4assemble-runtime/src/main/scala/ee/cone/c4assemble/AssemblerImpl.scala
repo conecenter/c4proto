@@ -11,6 +11,7 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import scala.annotation.tailrec
 import scala.collection.GenIterable
 import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
+import scala.collection.parallel.immutable.ParVector
 
 //class NonSingleValuesException(k: Product, v: Int) extends Exception
 
@@ -161,22 +162,25 @@ case class IndexUtilImpl()(
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
-      val changed = for {
+      val changed = (for {
         (k,v) ← diffValues; values ← currentValues.get(k)
-      } yield IndexUtilImpl.single(values,warning)
-      lazy val unchanged = for {
+      } yield IndexUtilImpl.single(values,warning)).par
+      lazy val unchanged = (for {
         (k,values) ← currentValues if !diffValues.contains(k)
-      } yield IndexUtilImpl.single(values,warning)
+      } yield IndexUtilImpl.single(values,warning)).par
       val unchangedRes = (false,()⇒unchanged) :: Nil
       if(changed.nonEmpty) (true,()⇒changed) :: unchangedRes else unchangedRes
     }
   }
 
-  def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ Set[Any] = {
-    val diffKeySet = diffIndexSeq.map(keySet).reduce(_++_)
-    val res = if(diffKeySet.contains(All))
-        (indexSeq:Seq[Index]) ⇒ indexSeq.map(keySet).reduce(_++_) - All
-      else (indexSeq:Seq[Index]) ⇒ diffKeySet
+  def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ DPIterable[Any] = {
+    val diffKeySet = diffIndexSeq.map(keySet).reduce(_ ++ _)
+    val res = if(diffKeySet.contains(All)){
+      (indexSeq: Seq[Index]) ⇒ (indexSeq.map(keySet).reduce(_ ++ _) - All).to[ParVector]
+    } else {
+      val ids = diffKeySet.to[ParVector]
+      (indexSeq:Seq[Index]) ⇒ ids
+    }
     res
   }
 }
@@ -216,7 +220,7 @@ class JoinMapIndex(
     //println(s"rule $outputWorldKey <- $inputWorldKeys")
     if (inputWorldKeys.forall(k ⇒ composes.isEmpty(k.of(transition.diff)))) transition
     else { //
-      val end = profiler(s"calculate ${transition.isParallel}")
+      val end  = profiler(s"calculate    ${transition.isParallel}")
       val worlds = Seq(
         -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
         +1→inputWorldKeys.map(_.of(transition.result))
@@ -224,12 +228,14 @@ class JoinMapIndex(
       val worldDiffs = inputWorldKeys.map(_.of(transition.diff))
       val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
       end(joinRes.size)
+      val endR = profiler(s"find-changes ${transition.isParallel}")
       val indexDiff = composes.mergeIndex(joinRes)
+      endR(composes.keySet(indexDiff).size)
       if(composes.isEmpty(indexDiff)) transition else {
-        val end = profiler("patch    ")
+        val end = profiler("patch")
         val nextDiff = composes.mergeIndex(Seq(outputWorldKey.of(transition.diff), indexDiff))
         val nextResult = composes.mergeIndex(Seq(outputWorldKey.of(transition.result), indexDiff))
-        end(composes.keySet(indexDiff).size)
+        end(-1)
         updater.setPart(outputWorldKey)(nextDiff, nextResult)(transition)
       }
     }
