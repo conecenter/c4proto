@@ -16,7 +16,7 @@ trait DepTestAssemble
     with ProtocolsApp
     with DepOuterRequestFactoryApp
     with DepAskFactoryApp
-    with ContextIdInjectApp {
+    with CommonIdInjectApps {
   def testDep: Dep[Any]
 
   def testContextId: String = "LUL"
@@ -28,7 +28,7 @@ trait DepTestAssemble
 
   private val testRequestAsk = depAskFactory.forClasses(classOf[DepTestRequest], classOf[Any])
 
-  override def depHandlers: List[DepHandler] = testRequestAsk.by(_ ⇒ testDep) :: inject[DepTestRequest](testRequestAsk, _ ⇒ testContextId) :: super.depHandlers
+  override def depHandlers: List[DepHandler] = testRequestAsk.by(_ ⇒ testDep) :: injectContext[DepTestRequest](testRequestAsk, _ ⇒ testContextId) :: super.depHandlers
 
   override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depOuterRequestFactory) :: super.assembles
 }
