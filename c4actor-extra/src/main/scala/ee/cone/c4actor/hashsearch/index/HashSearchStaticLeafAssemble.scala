@@ -10,7 +10,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base._
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 
 object StaticHashSearchImpl {
 
@@ -183,34 +183,32 @@ import StaticHashSearchImpl._
 
   def respLineByHeap(
     respLineId: SrcId,
-    respLines: Values[Model]
+    respLine: Each[Model]
   ): Values[(StaticHeapId, Model)] = for {
-    respLine ← respLines
     tagId ← indexer.heapIds(respLine).distinct
   } yield tagId → respLine
 
 
   def reqByHeap(
     leafCondId: SrcId,
-    leafConds: Values[InnerLeaf[Model]]
-  ): Values[(StaticHeapId, StaticNeed[Model])] = for {
-    leafCond ← leafConds
-    if indexer.isMy(leafCond)
-    heapId ← heapIds(indexer, leafCond.condition)
-  } yield {
-    heapId → StaticNeed[Model](ToPrimaryKey(leafCond))
-  }
+    leafCond: Each[InnerLeaf[Model]]
+  ): Values[(StaticHeapId, StaticNeed[Model])] =
+    if(indexer.isMy(leafCond))
+      for {
+        heapId ← heapIds(indexer, leafCond.condition)
+      } yield {
+        heapId → StaticNeed[Model](ToPrimaryKey(leafCond))
+      }
+    else Nil
 
   def neededRespHeapPriority(
     requestId: SrcId,
-    requests: Values[InnerLeaf[Model]],
+    request: Each[InnerLeaf[Model]],
     @by[LeafCondId] priorities: Values[StaticCount[Model]]
-  ): Values[(SrcId, InnerConditionEstimate[Model])] = for {
-    request ← single(requests)
-    if indexer.isMy(request)
-  } yield {
-    WithPK(cEstimate(request, priorities))
-  }
+  ): Values[(SrcId, InnerConditionEstimate[Model])] =
+    if(indexer.isMy(request))
+      List(WithPK(cEstimate(request, priorities)))
+    else Nil
 }
 
 
@@ -224,10 +222,9 @@ import StaticHashSearchImpl._
   def respHeapPriorityByReq(
     heapId: SrcId,
     @by[StaticHeapId] respLines: Values[Model],
-    @by[StaticHeapId] needs: Values[StaticNeed[Model]]
-  ): Values[(LeafCondId, StaticCount[Model])] = for {
-    need ← needs
-  } yield ToPrimaryKey(need) → count(heapId, respLines)
+    @by[StaticHeapId] need: Each[StaticNeed[Model]]
+  ): Values[(LeafCondId, StaticCount[Model])] =
+    List(ToPrimaryKey(need) → count(heapId, respLines))
 
   def handleRequest(
     heapId: SrcId,

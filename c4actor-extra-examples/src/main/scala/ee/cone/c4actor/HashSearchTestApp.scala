@@ -9,7 +9,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -47,20 +47,18 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 @assemble class CreateRequest(condition: List[Condition[TestObject]], changingCondition: String ⇒ Condition[TestObject]) extends Assemble {
   def createRequest(
     testId: SrcId,
-    tests: Values[TestNode]
-  ): Values[(SrcId, Request[TestObject])] =
-    tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))))
+    test: Each[TestNode]
+  ): Values[(SrcId, Request[TestObject])] = for {
+    cond ← condition
+  } yield WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))
 
   def createRequestChanging(
     testId: SrcId,
-    tests: Values[ChangingNode]
-  ): Values[(SrcId, Request[TestObject])] =
-    for {
-      test ← tests
-    } yield {
-      val cond = changingCondition(test.value)
-      WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))
-    }
+    test: Each[ChangingNode]
+  ): Values[(SrcId, Request[TestObject])] = {
+    val cond = changingCondition(test.value)
+    List(WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond)))
+  }
 
   def grabResponse(
     responseId: SrcId,

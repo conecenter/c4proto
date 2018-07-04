@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, PerformanceNode}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -40,55 +40,38 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
   def ModelsToInstruction(
     modelId: SrcId,
-    models: Values[PerformanceNode]
-  ): Values[(InstructionId, PerformanceNode)] =
-    for {
-      model ← models
-    } yield constant.srcId → model
+    model: Each[PerformanceNode]
+  ): Values[(InstructionId, PerformanceNode)] = List(constant.srcId → model)
 
   def ModelsNInstructionToResult(
     instructionId: SrcId,
     @by[InstructionId] models: Values[PerformanceNode],
-    instructions: Values[NodeInstruction]
+    instruction: Each[NodeInstruction]
   ): Values[(InstructionId, SrcIdContainer)] =
-    (for {
-      instruction ← instructions
-    } yield {
       models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
-    }).flatten
 
   def ModelsNInstructionToResultList(
     instructionId: SrcId,
     @by[InstructionId] models: Values[PerformanceNode],
-    instructions: Values[NodeInstruction]
-  ): Values[(InstructionId, SrcIdListContainer)] =
-    for {
-      instruction ← instructions
-    } yield {
-      val idList = models.slice(instruction.from, instruction.to).map(_.srcId)
-      instruction.srcId → SrcIdListContainer(instruction.srcId, idList)
-    }
+    instruction: Each[NodeInstruction]
+  ): Values[(InstructionId, SrcIdListContainer)] = {
+    val idList = models.slice(instruction.from, instruction.to).map(_.srcId)
+    List(WithPK(SrcIdListContainer(instruction.srcId, idList)))
+  }
 
   def CollectResponses(
     instructionId: SrcId,
     @by[InstructionId] srcIdContainers: Values[SrcIdContainer],
-    instructions: Values[NodeInstruction]
+    instr: Each[NodeInstruction]
   ): Values[(SrcId, ResultNode)] =
-    for {
-      instr ← instructions
-    } yield WithPK(ResultNode(instr.srcId, srcIdContainers.size, srcIdContainers.map(_.srcId).groupBy(_.head).keys.toString))
+    List(WithPK(ResultNode(instr.srcId, srcIdContainers.size, srcIdContainers.map(_.srcId).groupBy(_.head).keys.toString)))
 
   def CollectResponsesList(
     instructionId: SrcId,
-    @by[InstructionId] srcIdContainers: Values[SrcIdListContainer],
-    instructions: Values[NodeInstruction]
+    @by[InstructionId] list: Each[SrcIdListContainer],
+    instr: Each[NodeInstruction]
   ): Values[(SrcId, ResultNodeFromList)] =
-    for {
-      instr ← instructions
-      list ← srcIdContainers
-    } yield {
-      WithPK(ResultNodeFromList(instr.srcId, list.list.size, list.list.groupBy(_.head).keys.toString))
-    }
+    List(WithPK(ResultNodeFromList(instr.srcId, list.list.size, list.list.groupBy(_.head).keys.toString)))
 }
 
 class ChangingIndexPerformanceTest(

@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.EachTestProtocol.Item
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.{Assemble, IndexUtil, assemble, by}
@@ -12,7 +13,10 @@ class EachTestApp extends RichDataApp
 {
   override def protocols: List[Protocol] = EachTestProtocol :: super.protocols
   override def toStart: List[Executable] = new EachTestExecutable(execution, rawWorldFactory, indexUtil) :: super.toStart
-  override def assembles = new EachTestNotEffectiveAssemble :: super.assembles
+  override def assembles =
+  //new EachTestAssemble ::
+    new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
+      super.assembles
 }
 
 @protocol object EachTestProtocol extends Protocol {
@@ -30,32 +34,34 @@ case class EachTestItem(item: Item, valueItem: Item)
   def join(
     key: SrcId,
     vItem: Each[Item],
-    @by[Item] item: Each[Item]
+    @by[ByParent] item: Each[Item]
   ): Values[(SrcId,EachTestItem)] = {
     List(WithPK(EachTestItem(item,vItem)))
   }
 }
 
 @assemble class EachTestNotEffectiveAssemble extends Assemble {
-  type ByVal = SrcId
+  type ByParent = SrcId
   def joinByVal(
     key: SrcId,
     items: Values[Item]
-  ): Values[(ByVal, Item)] = for {
+  ): Values[(ByParent, Item)] = for {
     item ← items
   } yield item.parent -> item
   def join(
     key: SrcId,
     vItems: Values[Item],
-    @by[Item] items: Values[Item]
+    @by[ByParent] items: Values[Item]
   ): Values[(SrcId,EachTestItem)] = for {
     vItem ← vItems
-    item ← vItem
+    item ← items
   } yield WithPK(EachTestItem(item,vItem))
 }
 
 
-class EachTestExecutable(execution: Execution, rawWorldFactory: RawWorldFactory, indexUtil: IndexUtil) extends Executable {
+class EachTestExecutable(
+  execution: Execution, rawWorldFactory: RawWorldFactory, indexUtil: IndexUtil
+) extends Executable with LazyLogging {
   def run(): Unit = {
     val rawWorld = rawWorldFactory.create()
     val voidContext = rawWorld match { case w: RichRawWorld ⇒ w.context }
@@ -79,17 +85,25 @@ class EachTestExecutable(execution: Execution, rawWorldFactory: RawWorldFactory,
       indexUtil.result("1",Item("1","3"),+1)
     )))*/
 
+    def measure[R](f: ⇒R): R = {
+      val startTime = System.currentTimeMillis
+      val res = f
+      logger.info(s"${System.currentTimeMillis - startTime}")
+      res
+    }
+
     Function.chain[Context](Seq(
-      Seq(TxAdd(LEvent.update(Item(s"V","")))),
-      (1 to 1000).map(n⇒TxAdd(LEvent.update(Item(s"$n","V")))),
-      Seq{ (l:Context) ⇒
+      TxAdd(LEvent.update(Item(s"V",""))),
+      l ⇒ measure(Function.chain[Context](
+        (1 to 3000).map(n⇒TxAdd(LEvent.update(Item(s"$n","V"))))
+      )(l)),
+      { (l:Context) ⇒
         val r = ByPK(classOf[EachTestItem]).of(l)
-        println(r.keys.size)
-        println(r.values.forall(_.valueItem.parent.isEmpty))
+        assert(r.keys.size==3000)
+        assert(r.values.forall(_.valueItem.parent.isEmpty))
         l
       }
-    ).flatten)(voidContext)
-
+    ))(voidContext)
 
     execution.complete()
   }

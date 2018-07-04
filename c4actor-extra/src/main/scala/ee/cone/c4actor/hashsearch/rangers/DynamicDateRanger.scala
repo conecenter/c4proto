@@ -3,7 +3,7 @@ package ee.cone.c4actor.hashsearch.rangers
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -86,14 +86,11 @@ object K2TreeUtils {
 @assemble class K2SparkJoiner[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long)) extends Assemble {
   def SparkK2Tree(
     paramId: SrcId,
-    params: Values[K2TreeParams]
+    param: Each[K2TreeParams]
   ): Values[(SrcId, TxTransform)] =
-    for {
-      param ← params
-      if param.modelName == modelCl.getName
-    } yield {
-      WithPK(K2TreeUpdate[Model](param.srcId, param, modelCl)(modelToDate))
-    }
+    if(param.modelName == modelCl.getName)
+      List(WithPK(K2TreeUpdate[Model](param.srcId, param, modelCl)(modelToDate)))
+    else Nil
 }
 
 case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: K2TreeParams, modelCl: Class[Model])(getDates: Model ⇒ (Long, Long)) extends TxTransform {
