@@ -229,20 +229,14 @@ import StaticHashSearchImpl._
   def handleRequest(
     heapId: SrcId,
     @by[StaticHeapId] responses: Values[Model],
-    @by[SharedHeapId] requests: Values[InnerUnionList[Model]]
+    @by[SharedHeapId] request: Each[InnerUnionList[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
-    TimeColored("r", ("handleRequest", heapId, requests.size, responses.size), requests.isEmpty || !debugMode) {
-      val result = for {
-        request ← requests.par
-      } yield {
-        val lines = for {
-          line ← responses.par
-          if request.check(line)
-        } yield line
-        request.srcId → ResponseModelList(request.srcId + heapId, lines.toList)
-      }
-      val newResult = result.to[Values]
-      newResult
-    }
+    //TimeColored("r", ("handleRequest", heapId, requests.size, responses.size), requests.isEmpty || !debugMode) {
+    val lines = for {
+      line ← responses.par
+      if request.check(line)
+    } yield line
+    List(request.srcId → ResponseModelList(request.srcId + heapId, lines.toList))
+    //}
   }
 }
