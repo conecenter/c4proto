@@ -31,6 +31,8 @@ import UpdateManager from "../extra/update-manager"
 import VirtualKeyboard from "../extra/virtual-keyboard"
 import autoBind from 'react-autobind'
 import MetroUiFilters   from "../extra/metro-ui-filters"
+
+
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
@@ -166,7 +168,7 @@ const transforms = mergeAll([
 	updateManager.transforms,
 	canvas.transforms,
 	virtualKeyboard.transforms,
-	metroUiFilters.transforms
+	metroUiFilters.transforms	
 ])
 
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement,StatefulPureComponent)

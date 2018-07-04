@@ -324,8 +324,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}		
 		calc(){
 			if(!this.leftEl) return						
-			const tCLength = Array.from(this.leftEl.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0)
-			const tLength = this.leftEl.getBoundingClientRect().width
+			const tCLength = Math.round(Array.from(this.leftEl.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0))
+			const tLength = Math.round(this.leftEl.getBoundingClientRect().width)
 			
 			if(!this.bpLength && tCLength>0 && tCLength>=tLength && !this.state.isBurger) {
 				this.bpLength = tCLength				
@@ -1924,7 +1924,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	};	
 	const ConnectionState = (props) => {
 		const {style,iconStyle,on} = props;
-		const fillColor = style.color?style.color:"black";
+		const fillColor = style&&style.color?style.color:"black";
 		const contStyle={
 			borderRadius:"1em",
 			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} ${fillColor}`,
@@ -1945,7 +1945,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			//top:'-0.05em',
 			//left:'-0.025em',
 			verticalAlign:"top",
-			width:"0.5em",
+			//width:"0.5em",
 			//lineHeight:"1",			
 			...iconStyle
 		};			
