@@ -99,8 +99,11 @@ class assemble extends StaticAnnotation {
            |      (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
            |    ) iUtil.nonEmptySeq else Nil;
            |    ${eachParams.map(p⇒s"${p.name}_arg <- ${p.name}_items(); ").mkString}
-           |    (byKey,product) <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.strValuePre}[${p.value.str}]]").mkString(",")})
-           |  } yield iUtil.result(byKey,product,dir)
+           |    pair <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.strValuePre}[${p.value.str}]]").mkString(",")})
+           |  } yield {
+           |    val (byKey,product) = pair
+           |    iUtil.result(byKey,product,dir)
+           |  }
            |}
          """.stripMargin
         s"""
