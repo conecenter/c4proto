@@ -44,10 +44,11 @@ trait HashSearchModelsApp {
 
 trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp{
   def qAdapterRegistry: QAdapterRegistry
+  def idGenUtil: IdGenUtil
 
   def debugModeHashSearchAssemble: Boolean = false
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, preHashing, debugModeHashSearchAssemble)) ::: super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, idGenUtil, preHashing, debugModeHashSearchAssemble)) ::: super.assembles
 }
 
 object HashSearchAssembleUtils {
@@ -140,6 +141,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   modelCl: Class[Model],
   val qAdapterRegistry: QAdapterRegistry,
   condSer: SerializationUtils,
+  idGenUtil: IdGenUtil,
   preHashing: PreHashing,
   debugMode: Boolean = false
 ) extends Assemble with HashSearchAssembleSharedKeys {
@@ -154,7 +156,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   ): Values[(SrcId, RootCondition[Model])] = {
     val condition: Condition[Model] = request.condition
     val condUnion: InnerUnionList[Model] = conditionToUnionList(modelCl)(condSer)(condition)
-    List(WithPK(RootCondition(condSer.srcIdFromSrcIds(request.requestId, condUnion.srcId), condUnion, request.requestId)))
+    List(WithPK(RootCondition(idGenUtil.srcIdFromSrcIds(request.requestId, condUnion.srcId), condUnion, request.requestId)))
   }
 
   def RootCondToInnerConditionId(

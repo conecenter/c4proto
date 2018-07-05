@@ -15,17 +15,17 @@ import ee.cone.c4assemble._
 import ee.cone.c4proto.ToByteString
 
 object HashSearchMockUtils {
-  def heapId(cl: Class[_], node: TreeNode, qAdapterRegistry: QAdapterRegistry, uuidUtil: UUIDUtil): SrcId = {
+  def heapId(cl: Class[_], node: TreeNode, qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): SrcId = {
     val clName = cl.getName
     val valueAdapter = qAdapterRegistry.byName(node.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(node))
-    uuidUtil.srcIdFromSerialized(valueAdapter.id, bytes)
+    idGenUtil.srcIdFromSerialized(valueAdapter.id, bytes)
   }
 
-  def heapIds(cl: Class[_], nodes: List[TreeNode], qAdapterRegistry: QAdapterRegistry, uuidUtil: UUIDUtil): List[SrcId] =
+  def heapIds(cl: Class[_], nodes: List[TreeNode], qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): List[SrcId] =
     for {
       node ← nodes
-    } yield heapId(cl, node, qAdapterRegistry, uuidUtil)
+    } yield heapId(cl, node, qAdapterRegistry, idGenUtil)
 
   def single[Something]: Values[Something] ⇒ Values[Something] =
     l ⇒ Single.option(l.distinct).toList
@@ -56,7 +56,7 @@ import HashSearchMockUtils._
   conditionToRegion: Condition[Model] ⇒ TreeRange,
   filterName: NameMetaAttr,
   qAdapterRegistry: QAdapterRegistry,
-  uuidUtil: UUIDUtil
+  idGenUtil: IdGenUtil
 ) extends Assemble with HashSearchAssembleSharedKeys{
   type K2HeapId = SrcId
   type K2ToCountId = SrcId
@@ -76,7 +76,7 @@ import HashSearchMockUtils._
     @by[K2TreeAll[Model]] tree: Each[TreeNodeOuter]
   ): Values[(K2HeapId, Model)] =
     for {
-      tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry, uuidUtil) :: Nil
+      tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry, idGenUtil) :: Nil
     } yield tagId → respLine
 
   // end index builder
@@ -90,7 +90,7 @@ import HashSearchMockUtils._
     if(isMy(leaf.condition, filterName))
       for {
         tree ← trees
-        heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry, uuidUtil)
+        heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry, idGenUtil)
       } yield heapId → K2Need[Model](ToPrimaryKey(leaf), modelCl)
     else Nil
 

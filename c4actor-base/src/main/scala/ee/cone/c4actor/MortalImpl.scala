@@ -6,7 +6,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, distinct}
 
-case class MortalFactoryImpl(anUUIDUtil: UUIDUtil) extends MortalFactory {
+case class MortalFactoryImpl(anUUIDUtil: IdGenUtil) extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl,anUUIDUtil)
 }
 
@@ -17,7 +17,7 @@ object Killing {
 
 @assemble class MortalAssemble[Node<:Product](
   classOfMortal: Class[Node],
-  anUUIDUtil: UUIDUtil
+  anUUIDUtil: IdGenUtil
 ) extends Assemble {
   def createKilling(
     key: SrcId,

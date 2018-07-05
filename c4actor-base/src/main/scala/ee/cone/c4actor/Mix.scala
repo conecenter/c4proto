@@ -75,11 +75,11 @@ trait RichDataApp extends ProtocolsApp
   lazy val contextFactory = new ContextFactory(toInject)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
-  lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, uuidUtil)
+  lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
   def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer //new ShortAssembleSeqOptimizer(backStageFactory,indexUpdater) //make abstract
   lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
-  lazy val uuidUtil: UUIDUtil = UUIDUtilImpl()
+  lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   lazy val indexUtil: IndexUtil = IndexUtilImpl()()
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,assembleProfiler,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
@@ -136,9 +136,9 @@ trait ParallelObserversApp {
 }
 
 trait MortalFactoryApp extends AssemblesApp {
-  def uuidUtil: UUIDUtil
+  def idGenUtil: IdGenUtil
   //
-  def mortal: MortalFactory = MortalFactoryImpl(uuidUtil)
+  def mortal: MortalFactory = MortalFactoryImpl(idGenUtil)
   override def assembles: List[Assemble] = new MortalFatalityAssemble() :: super.assembles
 }
 

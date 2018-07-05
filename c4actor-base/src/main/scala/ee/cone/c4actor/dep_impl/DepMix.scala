@@ -13,14 +13,14 @@ trait DepHandlersApp {
 
 trait DepAssembleApp extends AssemblesApp {
   def preHashing: PreHashing
-  def uuidUtil: UUIDUtil
+  def idGenUtil: IdGenUtil
   def qAdapterRegistry: QAdapterRegistry
   def depHandlers: Seq[DepHandler]
   //
   lazy val depFactory: DepFactory = DepFactoryImpl()
   lazy val depAskFactory: DepAskFactory = DepAskFactoryImpl(depFactory)
   lazy val depResponseFactory: DepResponseFactory = DepResponseFactoryImpl()(preHashing)
-  lazy val depOuterRequestFactory: DepOuterRequestFactory = DepOuterRequestFactoryImpl(uuidUtil)(qAdapterRegistry)
+  lazy val depOuterRequestFactory: DepOuterRequestFactory = DepOuterRequestFactoryImpl(idGenUtil)(qAdapterRegistry)
   private lazy val requestHandlerRegistry =
     DepRequestHandlerRegistry(depOuterRequestFactory,depResponseFactory,depHandlers)()
   override def assembles: List[Assemble] =

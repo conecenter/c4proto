@@ -55,13 +55,13 @@ object StaticHashSearchImpl {
   class StaticFactoryImpl(
     modelConditionFactory: ModelConditionFactory[Unit],
     serializer: SerializationUtils,
-    uuidUtil: UUIDUtil
+    idGenUtil: IdGenUtil
   ) extends StaticFactory {
     def index[Model <: Product](cl: Class[Model]): Indexer[Model] =
       EmptyIndexer[Model]()(cl, modelConditionFactory.of[Model], serializer)
 
     def request[Model <: Product](condition: Condition[Model]): Request[Model] =
-      Request(uuidUtil.srcIdFromStrings(condition.toString), condition)
+      Request(idGenUtil.srcIdFromStrings(condition.toString), condition)
   }
 
   abstract class Indexer[Model <: Product] extends StaticIndexBuilder[Model] {
@@ -135,10 +135,10 @@ object StaticHashSearchImpl {
     }
 
     private def getHeapSrcId(metaList: List[MetaAttr], range: By): SrcId = {
-      val metaListUUID = serializer.uuidFromMetaAttrList(metaList)
-      val rangeUUID = serializer.uuidFromOrig(range, by.getClass.getName)
-      val srcId = serializer.uuidFromSeqMany(metaListUUID, rangeUUID).toString
-      s"$metaList$range$srcId"
+      val metaListUUID = serializer.srcIdFromMetaAttrList(metaList)
+      val rangeUUID = serializer.srcIdFromOrig(range, by.getClass.getName)
+      val srcId = serializer.srcIdFromSeqMany(metaListUUID, rangeUUID).toString
+      s"$metaList$range$srcId" //todo are we interpolating all this?
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
@@ -166,9 +166,9 @@ trait HashSearchStaticLeafFactoryApi {
 
 trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
-  def uuidUtil: UUIDUtil
+  def idGenUtil: IdGenUtil
 
-  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, uuidUtil)
+  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, idGenUtil)
 }
 
 import StaticHashSearchImpl._

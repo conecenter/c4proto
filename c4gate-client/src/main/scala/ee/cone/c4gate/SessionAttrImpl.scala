@@ -51,7 +51,7 @@ class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,
-  val uuidUtil: UUIDUtil
+  val idGenUtil: IdGenUtil
 ) extends SessionAttrAccessFactory with OrigKeyGenerator{
   def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
     val adapter = registry.byName(classOf[RawSessionData].getName)

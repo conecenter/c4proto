@@ -22,7 +22,7 @@ case class SessionAttrAskFactoryImpl(
   rawDataAsk: AskByPK[RawSessionData],
   rawUserDataAsk: AskByPK[RawUserData],
   rawRoleDataAsk: AskByPK[RawRoleData],
-  uuidUtil: UUIDUtil
+  idGenUtil: IdGenUtil
 ) extends SessionAttrAskFactoryApi with OrigKeyGenerator {
 
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {

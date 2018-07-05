@@ -88,13 +88,13 @@ case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseF
     DepResponseImpl(req,preHashing.wrap(value))
 }
 
-case class DepOuterRequestFactoryImpl(uuidUtil: UUIDUtil)(qAdapterRegistry: QAdapterRegistry) extends DepOuterRequestFactory {
+case class DepOuterRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepOuterRequestFactory {
   def tupled(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest) = {
     val valueAdapter = qAdapterRegistry.byName(rq.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(rq))
-    val innerId = uuidUtil.srcIdFromSerialized(valueAdapter.id, bytes)
+    val innerId = idGenUtil.srcIdFromSerialized(valueAdapter.id, bytes)
     val inner = DepInnerRequest(innerId, rq)
-    val outerId = uuidUtil.srcIdFromSrcIds(parentId, inner.srcId)
+    val outerId = idGenUtil.srcIdFromSrcIds(parentId, inner.srcId)
     inner.srcId → DepOuterRequest(outerId, inner, parentId)
   }
 }

@@ -10,10 +10,11 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with SerializationUtilsApp with DepResponseFactoryApp{
   def byClassNameClasses: List[Class[_ <: Product]] = Nil
+  def idGenUtil: IdGenUtil
 
   override def protocols: List[Protocol] = ByClassNameRequestProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, serializer.srcIdFromSrcIds(className.getName), depResponseFactory)) ::: super.assembles
+  override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, idGenUtil.srcIdFromSrcIds(className.getName), depResponseFactory)) ::: super.assembles
 }
 
 case class InnerByClassNameRequest(request: DepInnerRequest, className: String, from: Int, to: Int)
