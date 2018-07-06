@@ -4,7 +4,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto.Protocol
@@ -54,29 +54,28 @@ case class TcpConnectionTxTransform(
 @assemble class TcpAssemble extends Assemble {
   type ConnectionKey = SrcId
 
-  def joinTcpWrite(key: SrcId, writes: Values[TcpWrite]): Values[(ConnectionKey, TcpWrite)] =
-    writes.map(write⇒write.connectionKey→write)
+  def joinTcpWrite(key: SrcId, write: Each[TcpWrite]): Values[(ConnectionKey, TcpWrite)] =
+    List(write.connectionKey→write)
 
   def joinTxTransform(
       key: SrcId,
-      tcpConnections: Values[TcpConnection],
+      c: Each[TcpConnection],
       tcpDisconnects: Values[TcpDisconnect],
       @by[ConnectionKey] writes: Values[TcpWrite]
   ): Values[(SrcId,TxTransform)] =
-    for(c ← tcpConnections)
-      yield WithPK(TcpConnectionTxTransform(c.connectionKey, tcpDisconnects, writes.sortBy(_.priority)))
+    List(WithPK(TcpConnectionTxTransform(c.connectionKey, tcpDisconnects, writes.sortBy(_.priority))))
 
   def lifeOfConnectionToDisconnects(
     key: SrcId,
     tcpConnections: Values[TcpConnection],
-    tcpDisconnects: Values[TcpDisconnect]
+    d: Each[TcpDisconnect]
   ): Values[(Alive,TcpDisconnect)] =
-    for(d ← tcpDisconnects if tcpConnections.nonEmpty) yield WithPK(d)
+    if(tcpConnections.nonEmpty) List(WithPK(d)) else Nil
 
   def lifeOfConnectionToTcpWrites(
     key: SrcId,
     tcpConnections: Values[TcpConnection],
-    @by[ConnectionKey] writes: Values[TcpWrite]
+    @by[ConnectionKey] d: Each[TcpWrite]
   ): Values[(Alive,TcpWrite)] =
-    for(d ← writes if tcpConnections.nonEmpty) yield WithPK(d)
+    if(tcpConnections.nonEmpty) List(WithPK(d)) else Nil
 }

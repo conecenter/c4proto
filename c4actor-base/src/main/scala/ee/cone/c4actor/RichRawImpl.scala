@@ -3,6 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
 import ee.cone.c4assemble.Single
+import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.{Map, Seq}
 
@@ -22,7 +23,7 @@ class ContextFactory(toInjects: List[ToInject]) {
   def create(): Context = {
     val injected = for(toInject ← toInjects; injected ← toInject.toInject)
       yield Map(injected.pair)
-    new Context(Merge(Nil,injected), Map.empty, Map.empty)
+    new Context(Merge(Nil,injected), emptyReadModel, Map.empty)
   }
 }
 

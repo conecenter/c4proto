@@ -6,7 +6,7 @@ import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest, GroupId}
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
 import ee.cone.c4actor.dep_impl.DepHandlersApp
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -54,22 +54,15 @@ case class DepTestResponse(srcId: String, response: Option[_])
 @assemble class DepTestAssembles(val qAdapterRegistry: QAdapterRegistry, f: DepOuterRequestFactory) extends Assemble {
   def GiveBirth(
     firstBornId: SrcId,
-    sparks: Values[Spark]
+    spark: Each[Spark]
   ): Values[(GroupId, DepOuterRequest)] =
-    for {
-      spark ← sparks
-    } yield {
-      f.tupled("test")(DepTestRequest())
-    }
+    List(f.tupled("test")(DepTestRequest()))
 
   def HarvestBirth(
     responseId: SrcId,
-    responses: Values[DepResponse]
+    resp: Each[DepResponse]
   ): Values[(SrcId, DepTestResponse)] =
-    for {
-      resp ← responses
-      if resp.innerRequest.request.isInstanceOf[DepTestRequest]
-    } yield {
-      WithPK(DepTestResponse(resp.innerRequest.srcId, resp.value))
-    }
+    if(resp.innerRequest.request.isInstanceOf[DepTestRequest])
+      List(WithPK(DepTestResponse(resp.innerRequest.srcId, resp.value)))
+    else Nil
 }

@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ConnProtocol.Node
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -11,24 +11,27 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   @Id(0x0001) case class Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 }
 
+case class ConnNodePath(path: List[Node])
+
 @assemble class ConnAssemble extends Assemble {
   type ParentId = SrcId
 
   def nodesByParentId(
       key: SrcId,
-      nodes: Values[Node]
-  ): Values[(ParentId,Node)] = for {
-      node ← nodes
-  } yield node.parentId → node
+      node: Each[Node]
+  ): Values[(ParentId,Node)] = List(node.parentId → node)
 
   def connect(
       key: SrcId,
-      @was paths: Values[List[Node]],
-      @by[ParentId] childNodes: Values[Node]
-  ): Values[(SrcId,List[Node])] = for {
-      path ← if(key.nonEmpty) paths else List(Nil)
-      node ← childNodes
-  } yield WithPK(node::path)
+      @was paths: Values[ConnNodePath],
+      @by[ParentId] node: Each[Node]
+  ): Values[(SrcId,ConnNodePath)] = {
+    for {
+      path ← if(key.nonEmpty) paths else List(ConnNodePath(Nil))
+    } yield {
+      WithPK(path.copy(path=node::path.path))
+    }
+  }
 
   /*
   By[ParentId,Node] := for(node ← Is[Node] if node.parentId.nonEmpty) yield node.parentId → node
@@ -49,7 +52,14 @@ class ConnStart(
     val context = contextFactory.create()
     val nGlobal = ReadModelAddKey.of(context)(updates)(context)
 
-    logger.info(s"${nGlobal.assembled}")
+    //logger.info(s"${nGlobal.assembled}")
+    assert(
+      ByPK(classOf[ConnNodePath]).of(nGlobal)("125") ==
+      ConnNodePath(List(
+        Node("125","12"), Node("12","1"), Node("1","")
+      ))
+    )
+
     execution.complete()
     /*
     Map(
@@ -82,7 +92,7 @@ class ConnTestApp extends RichDataApp
   override def protocols: List[Protocol] = ConnProtocol :: super.protocols
   override def assembles: List[Assemble] = new ConnAssemble :: super.assembles
   override def toStart: List[Executable] = new ConnStart(execution,toUpdate,contextFactory) :: super.toStart
-  override def assembleSeqOptimizer: AssembleSeqOptimizer = new ShortAssembleSeqOptimizer(backStageFactory,indexUpdater)
+  override def assembleSeqOptimizer: AssembleSeqOptimizer = new ShortAssembleSeqOptimizer(indexUtil,backStageFactory,indexUpdater)
 }
 
 //C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain'

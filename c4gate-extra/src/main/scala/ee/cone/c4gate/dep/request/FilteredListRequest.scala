@@ -5,7 +5,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.dep.DepTypes.GroupId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.DepHandlersApp
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
@@ -82,13 +82,10 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
 
   def SparkFilterListRequest(
     key: SrcId,
-    alienTasks: Values[FromAlienState],
+    alienTask: Each[FromAlienState],
     sessionWithUser: Values[SessionWithUserId]
   ): Values[(GroupId, DepOuterRequest)] =
-    for {
-      alienTask ← alienTasks
-      if matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))
-    } yield {
+    if(matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))){
       val (userId, roleId) =
         if (sessionWithUser.nonEmpty)
           sessionWithUser.head match {
@@ -97,19 +94,16 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
         else
           ("", "")
       val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, listName)
-      u.tupled(alienTask.sessionKey)(filterRequest)
-    }
+      List(u.tupled(alienTask.sessionKey)(filterRequest))
+    } else Nil
 
   def FilterListResponseGrabber(
     key: SrcId,
-    responses: Values[DepResponse]
+    resp: Each[DepResponse]
   ): Values[(SrcId, FilteredListResponse)] =
-    for {
-      resp ← responses
-      if resp.innerRequest.request.isInstanceOf[FilteredListRequest] && resp.innerRequest.request.asInstanceOf[FilteredListRequest].listName == listName
-    } yield {
-      WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, resp.innerRequest.request.asInstanceOf[FilteredListRequest].contextId, preHashing.wrap(resp.value)))
-    }
+    if(resp.innerRequest.request.isInstanceOf[FilteredListRequest] && resp.innerRequest.request.asInstanceOf[FilteredListRequest].listName == listName)
+      List(WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, resp.innerRequest.request.asInstanceOf[FilteredListRequest].contextId, preHashing.wrap(resp.value))))
+    else Nil
 }
 
 @protocol object DepFilteredListRequestProtocol extends Protocol {

@@ -56,6 +56,8 @@ push @tasks, ["setup_kafka", sub{
 push @tasks, ["es_examples", sub{
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
+    sy("C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain' ");
+
 }];
 push @tasks, ["not_effective_join_bench", sub{
     sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");

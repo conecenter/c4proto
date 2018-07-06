@@ -4,7 +4,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByClassNameAllRequestProtocol.ByClassNameAllRequest
 import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, WithPK}
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -40,21 +40,17 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
 
   def GatherAllModels(
     modelId: SrcId,
-    models: Values[Model]
-  ): Values[(ByClassNameRequestAll, Model)] =
-    for {
-      model ← models
-    } yield All → model
+    model: Each[Model]
+  ): Values[(ByClassNameRequestAll, Model)] = List(All → model)
 
   def HandleRequest(
     requestId: SrcId,
-    requests: Values[DepInnerRequest],
+    rq: Each[DepInnerRequest],
     @by[ByClassNameRequestAll] models: Values[Model]
   ): Values[(SrcId, DepResponse)] =
-    for {
-      rq ← requests
-      if rq.request.isInstanceOf[ByClassNameAllRequest] && rq.request.asInstanceOf[ByClassNameAllRequest].className == modelCl.getName
-    } yield WithPK(util.wrap(rq, Option(models)))
+    if(rq.request.isInstanceOf[ByClassNameAllRequest] && rq.request.asInstanceOf[ByClassNameAllRequest].className == modelCl.getName)
+      List(WithPK(util.wrap(rq, Option(models))))
+    else Nil
 }
 
 @protocol object ByClassNameAllRequestProtocol extends Protocol {

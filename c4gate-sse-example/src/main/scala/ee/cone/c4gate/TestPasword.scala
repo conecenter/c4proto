@@ -4,7 +4,7 @@ import java.time.Instant
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AuthProtocol.{PasswordChangeRequest, PasswordHashOfUser}
 import ee.cone.c4proto.Protocol
@@ -33,11 +33,10 @@ class TestPasswordApp extends ServerApp
 @assemble class TestPasswordAssemble extends Assemble {
   def joinView(
     key: SrcId,
-    fromAliens: Values[FromAlienTask]
+    fromAlien: Each[FromAlienTask]
   ): Values[(SrcId,View)] =
     for(
-      fromAlien ← fromAliens;
-      view ← Option(fromAlien.locationHash).collect{
+      view ← List(fromAlien.locationHash).collect{
         case "password" ⇒ ??? //TestPasswordRootView(fromAlien.branchKey,fromAlien.fromAlienState)
         case "anti-dos" ⇒ ??? //TestAntiDosRootView(fromAlien.branchKey)
         case "failures" ⇒ ??? //TestFailuresRootView(fromAlien.branchKey,fromAlien.fromAlienState)

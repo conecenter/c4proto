@@ -33,10 +33,10 @@ trait DeepSessionAttrFactoryImplApp {
 
   def modelAccessFactory: ModelAccessFactory
 
-  def uuidUtil: UUIDUtil
+  def idGenUtil: IdGenUtil
 
   def sessionAttrAccessFactory: SessionAttrAccessFactory
 
   lazy val deepSessionAttrAccessFactory: DeepSessionAttrAccessFactory =
-    new DeepSessionAttrAccessFactoryImpl(qAdapterRegistry, defaultModelRegistry, modelAccessFactory, uuidUtil, sessionAttrAccessFactory)
+    new DeepSessionAttrAccessFactoryImpl(qAdapterRegistry, defaultModelRegistry, modelAccessFactory, idGenUtil, sessionAttrAccessFactory)
 }

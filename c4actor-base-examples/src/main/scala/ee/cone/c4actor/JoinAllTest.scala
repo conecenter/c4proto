@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.JoinAllTestProtocol.{Item, RegistryItem}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -26,21 +26,16 @@ case class JoinAllTestItem(srcId: String)
 @assemble class JoinAllTestAssemble extends Assemble {
   def joinReg(
     key: SrcId,
-    regItems: Values[RegistryItem]
-  ): Values[(All,RegistryItem)] = for {
-    regItem <- regItems
-  } yield All -> regItem
+    regItem: Each[RegistryItem]
+  ): Values[(All,RegistryItem)] = List(All -> regItem)
 
   def join(
     key: SrcId,
-    @by[All] regItems: Values[RegistryItem],
-    items: Values[Item]
-  ): Values[(SrcId,JoinAllTestItem)] = for {
-    item <- items
-    regItem <- regItems
-  } yield {
+    @by[All] regItem: Each[RegistryItem],
+    item: Each[Item]
+  ): Values[(SrcId,JoinAllTestItem)] = {
     println(s"recalc: ${item.srcId}-${regItem.srcId}")
-    WithPK(JoinAllTestItem(s"${item.srcId}-${regItem.srcId}"))
+    List(WithPK(JoinAllTestItem(s"${item.srcId}-${regItem.srcId}")))
   }
 }
 
