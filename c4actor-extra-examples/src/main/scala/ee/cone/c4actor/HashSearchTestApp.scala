@@ -1,16 +1,19 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.EqProtocol.{IntEq, StrStartsWith, TestObject, TestObject2, ChangingNode}
+import ee.cone.c4actor.EqProtocol.{ChangingNode, IntEq, StrStartsWith, TestObject, TestObject2}
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.TestNode
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.dep.request.CurrentTimeAssembleMix
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
-import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, ProductWithId}
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodeStats, IndexNode}
+import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -248,11 +251,11 @@ class HashSearchExtraTestApp extends RichDataApp
   with TestCondition
   with HashSearchAssembleApp
   with SerializationUtilsMix
-  with CurrentTimeAssembleMix
   with DynamicIndexAssemble
   with LensRegistryMix
   with HashSearchRangerRegistryMix
   with DefaultModelFactoriesApp
+  with CurrentTimeAssembleMix
   with ProdLensesApp {
 
 
@@ -260,9 +263,6 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultIntEq :: DefaultStrStartsWith :: super.defaultModelFactories
 
-
-
-  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory) :: super.toStart
   override def hashSearchRangers: List[RangerWithCl[_ <: Product, _]] = StrStartsWithRanger :: IntEqRanger() :: super.hashSearchRangers
 
   override def rawQSender: RawQSender = NoRawQSender
@@ -273,7 +273,7 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver, qAdapterRegistry) :: super.toStart
 
-  override def protocols: List[Protocol] = AnyProtocol :: EqProtocol :: TestProtocol :: super.protocols
+  override def protocols: List[Protocol] = AnyOrigProtocol :: EqProtocol :: TestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
     println((new CreateRequest(conditions, changingCondition) :: /*joiners*/
@@ -295,8 +295,16 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
     val startTime = System.currentTimeMillis
     finalCount ⇒ {
       val period = System.currentTimeMillis - startTime
-      if (period > 1000)
-        println(s"${Console.WHITE_B}${Console.BLACK}assembling rule $ruleName $startAction $finalCount items in $period ms${Console.RESET}")
+      if (period > 0)
+        println(s"${Console.WHITE_B}${Console.BLACK}rule ${trimStr(ruleName, 20)}|${trimStr(startAction, 10)} $finalCount|$period ms${Console.RESET}")
     }
+  }
+
+  def trimStr(str: String, limit: Int): String = {
+    val length = str.length
+    if (length >= limit)
+      str.take(limit)
+    else
+      str + List.range(0, limit - length).map(_ ⇒ "").mkString(" ")
   }
 }

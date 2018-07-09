@@ -3,6 +3,7 @@ package ee.cone.c4actor.hashsearch.base
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.hashsearch.index.dynamic.DynamicIndexModelsApp
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 

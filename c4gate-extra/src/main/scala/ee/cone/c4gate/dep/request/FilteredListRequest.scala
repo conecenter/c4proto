@@ -11,7 +11,7 @@ import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-case class FLRequestDef(listName: String, matches: List[String] = List(".*"))(val requestDep: Dep[List[_]])
+case class FLRequestDef(listName: String, matches: List[String] = List(".*"))(val requestDep: Dep[List[_ <: Product]])
 
 trait FilterListRequestApp {
   def filterDepList: List[FLRequestDef] = Nil
@@ -27,9 +27,9 @@ trait FilterListRequestHandlerApp
     with DepOuterRequestFactoryApp
     with PreHashingApp {
 
-  private lazy val depMap: Map[String, Dep[List[_]]] = filterDepList.map(elem ⇒ elem.listName → elem.requestDep).toMap
+  private lazy val depMap: Map[String, Dep[List[_ <: Product]]] = filterDepList.map(elem ⇒ elem.listName → elem.requestDep).toMap
 
-  private def fltAsk: DepAsk[FilteredListRequest, List[_]] = depAskFactory.forClasses(classOf[FilteredListRequest], classOf[List[_]])
+  private def fltAsk: DepAsk[FilteredListRequest, List[_ <: Product]] = depAskFactory.forClasses(classOf[FilteredListRequest], classOf[List[_ <: Product]])
 
   override def depHandlers: List[DepHandler] = fltAsk.by(rq ⇒ {
     depMap(rq.listName)
@@ -85,7 +85,7 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     alienTask: Each[FromAlienState],
     sessionWithUser: Values[SessionWithUserId]
   ): Values[(GroupId, DepOuterRequest)] =
-    if(matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))){
+    if (matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))) {
       val (userId, roleId) =
         if (sessionWithUser.nonEmpty)
           sessionWithUser.head match {
@@ -101,9 +101,11 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     key: SrcId,
     resp: Each[DepResponse]
   ): Values[(SrcId, FilteredListResponse)] =
-    if(resp.innerRequest.request.isInstanceOf[FilteredListRequest] && resp.innerRequest.request.asInstanceOf[FilteredListRequest].listName == listName)
-      List(WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, resp.innerRequest.request.asInstanceOf[FilteredListRequest].contextId, preHashing.wrap(resp.value))))
-    else Nil
+    resp.innerRequest.request match {
+      case request: FilteredListRequest if request.listName == listName ⇒
+        List(WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, request.contextId, preHashing.wrap(resp.value))))
+      case _ ⇒ Nil
+    }
 }
 
 @protocol object DepFilteredListRequestProtocol extends Protocol {

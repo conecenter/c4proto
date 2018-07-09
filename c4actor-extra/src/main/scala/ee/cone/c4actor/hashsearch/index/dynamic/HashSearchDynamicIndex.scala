@@ -1,6 +1,5 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
-import ee.cone.c4actor.AnyProtocol.AnyObject
 import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.base._
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp, RangerWithCl}
@@ -8,8 +7,8 @@ import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4actor.AnyAdapter._
+import ee.cone.c4actor.AnyOrigProtocol.AnyOrig
 import ee.cone.c4actor.QProtocol.Firstborn
-import ee.cone.c4actor.hashsearch.condition.{SerializationUtils, SerializationUtilsApp}
 
 trait HashSearchDynamicIndexApp
   extends HashSearchRangerRegistryApp
@@ -55,7 +54,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
     byCl: Class[By],
     fieldCl: Class[Field],
     ranger: RangerWithCl[By, Field],
-    anyObject: Option[AnyObject]
+    anyObject: Option[AnyOrig]
   ): (Field ⇒ List[By], PartialFunction[Product, List[By]]) = {
     val directive: By = anyObject.map(decode[By](qAdapterRegistry, byCl)(_))
       .getOrElse(defaultModelRegistry.get[By](byCl.getName).create(""))
@@ -89,7 +88,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
     models: Values[Model],
     lensName: List[String],
     fieldToHeaps: Field ⇒ List[By],
-    byRequestAny: AnyObject,
+    byRequestAny: AnyOrig,
     byToHeaps: PartialFunction[Product, List[By]]
   ): Values[(SrcId, Model)] = {
     val lensOpt: Option[ProdLens[Model, Field]] = lensRegistryApi.getOpt[Model, Field](lensName)
@@ -113,11 +112,16 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
     lensName: List[String], heaps: List[By]
   ): List[SrcId] = {
     heaps.map(heap ⇒ {
-      val metaListUUID = serializer.uuidFromSeq(lensName.map(str ⇒ serializer.uuid(str)))
+      val metaListUUID = serializer.srcIdFromSrcIds(lensName)
+      val rangeUUID = serializer.srcIdFromOrig(heap, heap.getClass.getName)
+      val modelUUID = serializer.srcIdFromSeqMany(modelClass.getName)
+      val srcId = serializer.srcIdFromSeqMany(modelUUID, metaListUUID, rangeUUID).toString
+
+      /*val metaListUUID = serializer.uuidFromSeq(lensName.map(str ⇒ serializer.uuid(str)))
       val rangeUUID = serializer.uuidFromOrig(heap, heap.getClass.getName)
       val modelUUID = serializer.uuid(modelClass.getName)
-      val srcId = serializer.uuidFromSeq(modelUUID, metaListUUID, rangeUUID).toString
-      s"${modelClass.getName}$lensName$heap$srcId"
+      val srcId = serializer.uuidFromSeq(modelUUID, metaListUUID, rangeUUID).toString*/
+      s"${modelClass.getName}$lensName$heap$srcId" // TODO replace with "srcId"
     }
     )
   }
@@ -177,7 +181,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
   }
 
   private def leafToHeapIdsInner[By <: Product, Field](
-    byCl: Class[By], fieldCl: Class[Field], ranger: RangerWithCl[_ <: Product, _], prodCond: ProdCondition[_ <: Product, _], directives: Seq[AnyObject]
+    byCl: Class[By], fieldCl: Class[Field], ranger: RangerWithCl[_ <: Product, _], prodCond: ProdCondition[_ <: Product, _], directives: Seq[AnyOrig]
   ): List[SrcId] = {
     val prodConditionTyped: ProdCondition[By, Model] = castProdCondition(byCl)(prodCond)
     val byClName: SrcId = byCl.getName
@@ -196,7 +200,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
     _.asInstanceOf[ProdCondition[By, Model]]
 }
 
-case class RangerDirective[Model <: Product](srcId: SrcId, directive: AnyObject)
+case class RangerDirective[Model <: Product](srcId: SrcId, directive: AnyOrig)
 
 case class IndexNodeWithDirective[Model <: Product](
   srcId: SrcId,

@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.Dep
 import ee.cone.c4actor.dep.request.{LeafInfoHolder, LeafRegistryApp}
-import ee.cone.c4actor.dep.{Dep, InnerDep, RequestDep, SeqParallelDep}
+import ee.cone.c4actor.dep_impl.{RequestDep, SeqParallelDep}
 import ee.cone.c4actor.hashsearch.base.{HashSearchDepRequestFactory, HashSearchDepRequestFactoryApp, HashSearchModelsApp}
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.HashSearchStaticLeafFactoryApi
@@ -40,12 +40,12 @@ trait DepFilterWrapperCollectorMix
 
   override def leafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = filterWrappers.flatMap(_.getLeafs) ::: super.leafs
 
-  override def filterDepList: List[FLRequestDef] = filterWrappers.map(wrapper ⇒ FLRequestDef(wrapper.listName, wrapper.getFilterDep(hashSearchDepRequestFactory), wrapper.matches)) ::: super.filterDepList
+  override def filterDepList: List[FLRequestDef] = filterWrappers.map(wrapper ⇒ FLRequestDef(wrapper.listName,  wrapper.matches)(wrapper.getFilterDep(hashSearchDepRequestFactory))) ::: super.filterDepList
 }
 
 case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
   leafs: List[LeafInfoHolder[Model, _ <: Product, _]],
-  depAccessSeq: Seq[InnerDep[Option[Access[_ <: Product]]]]
+  depAccessSeq: Seq[Dep[Option[Access[_ <: Product]]]]
 )(
   depToCondFunction: Seq[Option[Access[_ <: Product]]] ⇒ Condition[Model],
   val listName: String,
@@ -71,7 +71,7 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
         val tail: Condition[Model] = depToCondFunction(rest.to[Seq])
         intersect(head, tail)
     }
-    DepFilterWrapperImpl(newLeafs, byDep.asInstanceOf[InnerDep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, modelConditionFactory, matches)
+    DepFilterWrapperImpl(newLeafs, byDep.asInstanceOf[Dep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, modelConditionFactory, matches)
   }
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = leafs
@@ -82,7 +82,7 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
       seq ← new SeqParallelDep[Option[Access[_ <: Product]]](depAccessSeq)
       list ← {
         val rq = typedFactory.conditionToHashSearchRequest(depToCondFunction(seq)) //HashSearchDepRequest
-        new RequestDep[List[_]](rq)
+        new RequestDep[List[Model]](rq)
       }
     } yield list
   }
