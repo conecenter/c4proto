@@ -229,10 +229,10 @@ trait TestCondition extends SerializationUtilsApp {
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer, idGenUtil)
 
-  def joiners: List[Assemble] = factory.index(classOf[TestObject])
+  def joiners: List[Assemble] = Nil /*factory.index(classOf[TestObject])
     .add[IntEq, Int](lensInt, IntEq(0))(IntEqRanger())
     .add[StrStartsWith, String](lensStr, StrStartsWith(""))(StrStartsWithRanger)
-    .assemble
+    .assemble*/
 
   def lensInt: ProdLens[TestObject, Int] = ProdLens.ofSet[TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt")
 

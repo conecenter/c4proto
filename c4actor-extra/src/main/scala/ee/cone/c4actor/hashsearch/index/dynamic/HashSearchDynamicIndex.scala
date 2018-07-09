@@ -5,7 +5,7 @@ import ee.cone.c4actor.hashsearch.base._
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp, RangerWithCl}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4actor.AnyAdapter._
 import ee.cone.c4actor.AnyOrigProtocol.AnyOrig
 import ee.cone.c4actor.QProtocol.Firstborn
@@ -243,36 +243,30 @@ trait DynamicIndexSharedTypes {
   // Mock DynamicIndexDirectiveAll if none defined
   def DynamicIndexDirectiveMock(
     directiveId: SrcId,
-    firstborn: Values[Firstborn]
+    firstborn: Each[Firstborn]
   ): Values[(DynamicIndexDirectiveAll, RangerDirective[Model])] =
     Nil
 
   // START: If node.keepAllAlive
   def IndexNodeRichToIndexNodeAll(
     indexNodeId: SrcId,
-    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model]], // TODO forEach
-    indexNodeRiches: Values[IndexNodeRich[Model]]
+    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model]],
+    node: Each[IndexNodeRich[Model]]
   ): Values[(IndexNodeRichAll, IndexNodeWithDirective[Model])] =
-    for {
-      node ← indexNodeRiches
-      if node.keepAllAlive
-    } yield {
+    if (node.keepAllAlive) {
       val directive: Option[RangerDirective[Model]] = indexNodeDirectives.collectFirst {
         case a if a.directive.adapterId == node.indexNode.byAdapterId ⇒ a
       }
-      All → IndexNodeWithDirective(node.srcId, node, directive)
+      (All → IndexNodeWithDirective(node.srcId, node, directive)) :: Nil
     }
+    else Nil
 
   def ModelToHeapIdByIndexNode(
     modelId: SrcId,
-    models: Values[Model],
-    @by[IndexNodeRichAll] indexNodeWithDirective: Values[IndexNodeWithDirective[Model]] // TODO forEach
+    models: Values[Model], // TODO forEach
+    @by[IndexNodeRichAll] node: Each[IndexNodeWithDirective[Model]]
   ): Values[(DynamicHeapId, Model)] =
-    (for {
-      node ← indexNodeWithDirective
-    } yield {
-      modelsToHeaps(models, node)
-    }).flatten
+    modelsToHeaps(models, node)
 
   // END: If node.keepAllAlive
 
@@ -280,12 +274,9 @@ trait DynamicIndexSharedTypes {
   def IndexNodeRichToIndexByNodeWithDirectiveAll(
     indexNodeId: SrcId,
     @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model]], // TODO forEach
-    indexNodeRiches: Values[IndexNodeRich[Model]]
+    node: Each[IndexNodeRich[Model]]
   ): Values[(IndexByNodeRichAll, IndexByNodeWithDirective[Model])] =
-    (for {
-      node ← indexNodeRiches
-      if !node.keepAllAlive
-    } yield {
+    if (!node.keepAllAlive) {
       val directive = indexNodeDirectives.collectFirst {
         case a if a.directive.adapterId == node.indexNode.byAdapterId ⇒ a
       }
@@ -295,49 +286,44 @@ trait DynamicIndexSharedTypes {
       } yield {
         All → IndexByNodeWithDirective(nodeBy.srcId, lensName, nodeBy, directive)
       }
-    }).flatten
+    }
+    else Nil
 
   def ModelToHeapIdByIndexByNode(
     modelId: SrcId,
-    models: Values[Model],
-    @by[IndexByNodeRichAll] indexByNodeWithDirective: Values[IndexByNodeWithDirective[Model]] // TODO forEach
-  ): Values[(DynamicHeapId, Model)] = {
-    (for {
-      nodeBy ← indexByNodeWithDirective
-    } yield {
-      modelToHeapsBy(models, nodeBy, modelId == "100")
-    }).flatten
-  }
+    models: Values[Model], // TODO forEach
+    @by[IndexByNodeRichAll] nodeBy: Each[IndexByNodeWithDirective[Model]]
+  ): Values[(DynamicHeapId, Model)] =
+    modelToHeapsBy(models, nodeBy, modelId == "100")
 
   // END: !If node.keepAllAlive
 
   def RequestToDynNeedToHeap(
     leafCondId: SrcId,
-    leafConditions: Values[InnerLeaf[Model]],
+    leaf: Each[InnerLeaf[Model]],
     @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model]] // TODO forEach
   ): Values[(DynamicHeapId, DynamicNeed[Model])] =
-    for {
-      leaf ← leafConditions
-      if leaf.condition.isInstanceOf[ProdCondition[_ <: Product, _]]
-      heapId ← leafToHeapIds(leaf.condition.asInstanceOf[ProdCondition[_ <: Product, _]], indexNodeDirectives)
-    } yield heapId → DynamicNeed[Model](leaf.srcId)
+    leaf.condition match {
+      case prodCond: ProdCondition[_, _] ⇒
+        for {
+          heapId ← leafToHeapIds(prodCond, indexNodeDirectives)
+        } yield heapId → DynamicNeed[Model](leaf.srcId)
+      case _ ⇒ Nil
+    }
 
   def DynNeedToDynCountToRequest(
     heapId: SrcId,
     @by[DynamicHeapId] models: Values[Model],
-    @by[DynamicHeapId] needs: Values[DynamicNeed[Model]]
+    @by[DynamicHeapId] need: Each[DynamicNeed[Model]]
   ): Values[(LeafConditionId, DynamicCount[Model])] =
-    for {
-      need ← needs
-    } yield need.requestId → DynamicCount[Model](heapId, models.length)
+    (need.requestId → DynamicCount[Model](heapId, models.length)) :: Nil
 
   def DynCountsToCondEstimate(
     leafCondId: SrcId,
-    leafConditions: Values[InnerLeaf[Model]],
+    leaf: Each[InnerLeaf[Model]],
     @by[LeafConditionId] counts: Values[DynamicCount[Model]] // TODO add Index*Node here or maybeNot
   ): Values[(SrcId, InnerConditionEstimate[Model])] =
     for {
-      leaf ← leafConditions
       condEstimate ← cDynEstimate(leaf, counts)
     } yield {
       WithPK(condEstimate)
@@ -346,24 +332,21 @@ trait DynamicIndexSharedTypes {
   def DynHandleRequest(
     heapId: SrcId,
     @by[DynamicHeapId] models: Values[Model],
-    @by[SharedHeapId] requests: Values[InnerUnionList[Model]]
-  ): Values[(SharedResponseId, ResponseModelList[Model])] =
-    (for {
-      request ← requests.par
-    } yield {
-      val lines = for {
-        line ← models.par
-        if request.check(line)
-      } yield line
-      request.srcId → ResponseModelList[Model](request.srcId + heapId, lines.toList)
-    }).to[Values]
+    @by[SharedHeapId] request: Each[InnerUnionList[Model]]
+  ): Values[(SharedResponseId, ResponseModelList[Model])] = {
+    val lines = for {
+      line ← models.par
+      if request.check(line)
+    } yield line
+    (request.srcId → ResponseModelList[Model](request.srcId + heapId, lines.toList)) :: Nil
+  }
 
 
   /*def Test(
     modelId: SrcId,
     @by[DynamicHeapId] models: Values[Model]
   ): Values[(All, A)] = {
-    Seq(All → A(modelId, models.size)).to[Values]
+    (All → A(modelId, models.size)) :: Nil
   }
 
   def PrintTest(
@@ -377,7 +360,7 @@ trait DynamicIndexSharedTypes {
     } yield {
       PrintColored("", "w")(s"[HEAPS] ${a.srcId.slice(41, 80)}:${a.size}")
     }
-    PrintColored("b","w")(s"${indexByNodeWithDirective.size}")
+    //PrintColored("b", "w")(s"${indexByNodeWithDirective.size}")
     PrintColored("", "w")(s"---------------------------------------")
     Nil
   }*/
