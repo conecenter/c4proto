@@ -18,7 +18,11 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		return {add,remove,check}
 	})();
 	const {getComputedStyle} = windowManager
-	const filters  = (props) => $("div",{className:"filters", style:props.style},props.children)
+	const filters  = (props) => {
+		const keys = props.keys
+		const children = keys?props.children.filter(_=>keys.includes(_.key)):props.children
+		return $("div",{className:"filters", style:props.style},children)
+	}
 	
 	const calcLines = (fAMap, width) => {
 		let t = 0
@@ -46,7 +50,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		for(let i=0,li=0,le=0;lines.length>0&&i<fMap.length;i++){
 			const fa = fMap[i], line = lines[li]
 			if(!fa.active && fa!=line.e[le]){
-				if(line.width+fa.basis<finalFWidth){fa.active = "true";line.width+=fa.basis}							
+				if(line.width+fa.basis<finalFWidth){fa.active = true;line.width+=fa.basis}							
 				else break
 			}			
 			if(le+1>=line.e.length){ if(li+1<lines.length) {li++;le=0}}
@@ -74,6 +78,21 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		}
 		return lines		
 	}
+	const calcMsOpts = (el) => {
+		const els = el.querySelectorAll(".msOpt")
+		const msOpts = Array.from(els,o=>{
+			const rc = o.getBoundingClientRect()
+			const width = rc.width
+			const cs = getComputedStyle(o)
+			const height = rc.height
+			return {width:width+parseInt(cs.marginLeft)+parseInt(cs.marginRight),height:height,o}
+		})
+		const msWidth = msOpts.reduce((a,e)=>(a+e.width),0)
+		const fits = (tWidth) => tWidth >= msWidth
+		const msHeightF = () => msOpts.reduce((a,e)=>(a<e.height?e.height:a),0)
+		return {msWidth,fits,msHeightF}
+	}	
+	
 	class wn extends StatefulComponent {		
 		calc(){
 			if(!this.el) return
@@ -83,19 +102,13 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 				bWidth = o?o.getBoundingClientRect().width:0
 			}
 			const tWidth = parseFloat(this.props.style.flexBasis)|| 0 //this.el.getBoundingClientRect().width			
-			const msOpts = Array.from(this.el.querySelectorAll(".msOpt"),o=>{
-				const rc = o.getBoundingClientRect()
-				const width = rc.width
-				const cs = getComputedStyle(o)
-				const height = rc.height
-				return {width:width+parseInt(cs.marginLeft)+parseInt(cs.marginRight),height:height,o}
-			})
-			const msWidth = msOpts.reduce((a,e)=>(a+e.width),0)
-			const msHeight = msOpts.reduce((a,e)=>(a<e.height?e.height:a),0)
-			const shouldBurger = tWidth < msWidth
+			const {msWidth,fits,msHeightF} = calcMsOpts(this.el)			
+			
+			const msHeight = msHeightF()
+			const shouldBurger = !fits(tWidth)
 			const oneLine = !shouldBurger?Array.from(this.el.querySelectorAll(".cButton")).reduce((a,e)=>(a+e.getBoundingClientRect().width),0)+msWidth<=tWidth:false
 			//log(`${tWidth - bWidth},${msWidth},${shouldBurger}`)
-			if(this.state.shouldBurger != shouldBurger || this.state.msHeight != msHeight, this.state.oneLine!=oneLine)
+			if(this.state.shouldBurger != shouldBurger || this.state.msHeight != msHeight || this.state.oneLine!=oneLine)
 				this.setState({shouldBurger,msHeight,oneLine})
 		}
 		componentDidUpdate(){
@@ -131,21 +144,21 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 			const buttonsRight  = children.filter(_=>_.props.incoming.at.className.includes("cButton") && _.props.incoming.at.className.includes("rightMost"))
 			const msOpts = children.filter(_=>_.props.incoming.at.className.includes("msOpt"))
 			const msBOpts = children.filter(_=>_.props.incoming.at.className.includes("msBOpt"))
+			const popupPostSt = className.includes("w1")?{left:"0px"}:{right:"0px"}
 			const burger = this.state.shouldBurger?$("div",{onBlur:this.onBurgerBlur,tabIndex:"0",key:"burger",className:"burger",style:{position:"relative",outline:"none",padding:"0.3em"}},[
 				$(MenuBurger,{key:"burgerButton",style:{color:"black"},className:"cButton",isBurgerOpen:this.state.show,onClick:this.openBurger}),
-				$("div",{key:"burgerWrapper",style:{border:"1px solid #2196f3",position:"absolute",zIndex:"9",backgroundColor:"white",left:"0px",visibility:!this.state.show?"hidden":""}},msBOpts)				
+				$("div",{key:"burgerWrapper",style:{border:"1px solid #2196f3",position:"absolute",zIndex:"600",backgroundColor:"white",...popupPostSt,display:!this.state.show?"none":""}},msBOpts)				
 			]):null
 			const msOptsLine = !this.state.shouldBurger?msOpts:null
-			const drStyle = className.includes("w1")?{justifyContent:"flex-end"}:{}
-			
-			return $("div",{className,style:{...style,position:"relative"},ref:this.onRef},[
+			const drStyle = className.includes("w1")?{justifyContent:"flex-end"}:{}			
+			return $("div",{className,style:{...style,position:"relative"},ref:this.onRef, "data-burger":this.state.shouldBurger},[
 				$("div",{key:"buttons",style:{display:"flex",...drStyle}},[buttons,burger,this.state.oneLine?$("div",{key:"oneLine",style:{marginTop:"1mm",display:"flex"}},msOptsLine):null,buttonsRight]),
 				!this.state.oneLine?$("div",{key:"msOpts",style:{display:"flex", overflow:"hidden",position:"absolute",width:"100%",...drStyle}},msOptsLine):null,
 				!this.state.oneLine&&!this.state.shouldBurger?$("div",{key:"heightFix",style:{height:this.state.msHeight+"px"}}):null,
 				this.state.shouldBurger?$("div",{key:"hidden",style:{position:"absolute",zIndex:"-1",visibility:"hidden"}},msOpts):null
 			])
 		}
-	}	
+	}
 	
 	class TableOptsElement extends StatefulComponent{		
 		getFilters(){
@@ -169,17 +182,23 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 			if(!this["w"+num]) return 0
 			const a = Array.from(this["w"+num].querySelectorAll(".cButton"))			
 			const min = parseFloat(this.props.wMinWidth)*this.px2em	
-			if(a.length>0) return a.reduce((a,e)=>a+e.getBoundingClientRect().width,0) + 2*this.px2em
+			const {fits} = calcMsOpts(this["w"+num])			
+			if(a.length>0) {
+				const ww = a.reduce((a,e)=>a+e.getBoundingClientRect().width,0)
+				const shouldBurger = !fits(ww)
+				return ww + (shouldBurger?2*this.px2em:0)
+			}
 			return min
 		}
 		calc(){
 			this.px2em = this.remRef.getBoundingClientRect().height
 			let fMap 
 			if(!this.props.hide)
-				fMap = this.getFilters().map(f=>({active:f.props.incoming.at.active=="true",o:f,basis:parseFloat(f.props.incoming.at.style.flexBasis)*this.px2em}))	
+				fMap = this.getFilters().map(f=>({active:f.props.incoming.at.active=="true"?true:false,o:f,basis:parseFloat(f.props.incoming.at.style.flexBasis)*this.px2em}))	
 			else 
 				fMap = []
-			const fAMap = fMap.filter(_=>_.active)
+			let fAMap = this.props.open?(fMap.forEach(_=>_.active=true),fMap):fMap.filter(_=>_.active)
+			fAMap = fAMap.length ==0 && fMap.length>0? (fMap[0].active=true,[fMap[0]]):fAMap 
 			const tWidth = this.el.getBoundingClientRect().width*0.95
 			const w1MinWWidth = this.getMinWWidth(1)
 			const w2MinWWidth = this.getMinWWidth(2)
@@ -197,10 +216,10 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 			const finalFWidth = tWidth - w1Width - w2Width - w3MinWWidth
 			
 			enableWhileFit(fMap,fAMap,optimized,finalFWidth)
-			const fMapChanged = Array.isArray(this.fMap) && this.fMap.length!=fMap
 			this.fMap = fMap
+			const fMapChanged = Array.isArray(this.state.fMap)&& ((this.state.fMap.length!=fMap.length) || (this.state.fMap.length == fMap.length && !this.state.fMap.every((e,i)=>fMap[i].active == e.active)))
 			if(this.state.finalFWidth != finalFWidth || this.state.w1Width != w1Width || this.state.w2Width != w2Width || fMapChanged)
-				this.setState({show:true,finalFWidth, w1Width,w2Width})			
+				this.setState({show:true,finalFWidth, w1Width,w2Width,fMap})			
 		}
 		componentDidMount(){
 			checkActivateCalls.add(this.calc)			
@@ -208,26 +227,27 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		componentWillUnmount(){
 			checkActivateCalls.remove(this.calc)
 		}
-		showMinimalFilters(wn1,wn2){
+		showMinimalFilters(wn1,wn2){			
 			const f = this.fMap.filter(_=>_.active).map(_=>_.o)
 			if(f.length==0 && this.state.finalFWidth && !wn1.concat(wn2).some(_=>_.props.incoming.at.className.split(' ').includes("msOpt"))){
 				let fw = this.state.finalFWidth
 				let done = false
-				return this.getFilters().filter(_=>{
+				const a = this.getFilters().filter((_,i)=>{
 					if(done) return false
 					const w = parseFloat(_.props.incoming.at.style.flexBasis)*this.px2em
-					if(fw - w>0) {fw-=w; return true}
+					if(fw - w>0 || i==0) {fw-=w; return true}
 					done = true
 					return false
 				})
+				return a.map(_=>_.key)
 			}		
-			return f
+			return f.map(_=>_.key)
 		}
 		render(){			
 			const wn1 = this.getWN(1)
 			const wn2 = this.getWN(2)
 			const wn3 = this.getWN(3)
-			const fl = this.fMap&&!this.props.open?this.showMinimalFilters(wn1,wn2):this.getFilters()						
+			const fl = this.fMap&&!this.props.open?this.showMinimalFilters(wn1,wn2):null					
 			const style = {
 				display:"flex",
 				flex:"1 1",
@@ -251,7 +271,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 			const w3style = {}
 			return $("div",{className:"tableOpts", ref:ref=>this.el=ref, style},[
 			    $("div",{key:"remRef",ref:ref=>this.remRef=ref,style:{height:"1em",position:"absolute",zIndex:"-1"}}),
-				$(filters,{key:1,style:fstyle},fl),
+				$(filters,{key:1,style:fstyle,keys:fl},this.getFilters()),
 				(wn1.length>0?$(wn,{key:2,className:"w1 z",style:w1style,ref:ref=>this.w1=ref?ref.el:null},wn1):null),
 				(wn3.length>0?$(wn,{key:"tx",className:"w3 z",style:w3style,ref:ref=>this.w3=ref?ref.el:null},wn3):null),
 				(wn2.length>0?$(wn,{key:3,className:"w2 z",style:w2style,ref:ref=>this.w2=ref?ref.el:null},wn2):null)

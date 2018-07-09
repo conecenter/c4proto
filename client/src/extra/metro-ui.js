@@ -211,7 +211,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				else 
 					return el
 			}
-			const el = $("button",{className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
+			const el = $("button",{title:this.props.hint,className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
 			return wrap(el)
 		}
 	}
@@ -582,10 +582,10 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.initListener()
 		}
 		render(){			
-			return $("div",{},[
+			return [
 				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref},this.props.children),				
 				$("div",{key:"2",style:{height:"1em", position:"absolute",zIndex:"-1", top:"0px"},ref:ref=>this.remRef=ref})				
-			])		
+			]
 		}
 	}
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -801,17 +801,19 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				height:"1em"
 			}			
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
-			return $("table",{style:{
+			return [
+				$("table",{
+					key:"table",
+					style:{
 					borderCollapse:'separate',
 					borderSpacing:GlobalStyles.borderSpacing,
 					width:'100%',
 					lineHeight:"1.1",
 					minWidth:"0",
 					...style
-					},ref:ref=>this.el=ref},[
-						emRefEl,
-						children
-					]); 
+					},ref:ref=>this.el=ref},children),
+					emRefEl
+				]
 		}
 	}
 	class THeadElement extends StatefulComponent{		
@@ -1270,7 +1272,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.setState({visibility:""})
 			this.props.onReorder("reorder",newPos.toString())
 		}
-		render(){				
+		render(){						
 			const inpContStyle={
 				display:"flex",
 				height:"auto",
@@ -1448,11 +1450,15 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				}
 				else if(leftEdge>windowRect.left){	//left
 					left = rect.left - popRect.width;
-					top = rect.top - popRect.height/2;					
+					top = rect.top - popRect.height/2;
+					if(top+popRect.height>windowRect.bottom) top=windowRect.bottom - popRect.height
+					if(top<0) top=0
 				}
 				else if(rightEdge<=windowRect.right){
 					left = rect.right
-					top = rect.top - popRect.height/2;					
+					top = rect.top - popRect.height/2;		
+					if(top+popRect.height>windowRect.bottom) top=windowRect.bottom - popRect.height
+					if(top<0) top=0
 				}
 				//top+=getPageYOffset()
 				
@@ -1726,9 +1732,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const sibling = this.el.previousElementSibling;			
 			if(!sibling) return;
 			const rect = sibling.getBoundingClientRect();
-			const popRect = this.el.getBoundingClientRect();		
-			
-			const windowRect = getWindowRect()								
+			const popRect = this.el.getBoundingClientRect();					
+			const windowRect = {top:0,left:0,right:documentManager.body().clientWidth,bottom:getWindowRect().height}
 			const rightEdge = rect.right + popRect.width
 			const leftEdge = rect.left - popRect.width
 			const bottomEdge = rect.bottom + popRect.height
