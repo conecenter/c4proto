@@ -3,10 +3,10 @@ package ee.cone.c4actor
 import ee.cone.c4actor.Killing.KillerId
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{Assemble, assemble, by, distinct}
 
-case class MortalFactoryImpl(anUUIDUtil: UUIDUtil) extends MortalFactory {
+case class MortalFactoryImpl(anUUIDUtil: IdGenUtil) extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl,anUUIDUtil)
 }
 
@@ -17,14 +17,13 @@ object Killing {
 
 @assemble class MortalAssemble[Node<:Product](
   classOfMortal: Class[Node],
-  anUUIDUtil: UUIDUtil
+  anUUIDUtil: IdGenUtil
 ) extends Assemble {
   def createKilling(
     key: SrcId,
-    mortals: Values[Node],
-    @by[Alive] keepAlive: Values[Node]
-  ): Values[(KillerId,Killing)] = for {
-    mortal ← mortals if keepAlive.isEmpty
+    mortal: Each[Node],
+    @distinct @by[Alive] keepAlive: Values[Node]
+  ): Values[(KillerId,Killing)] = if(keepAlive.nonEmpty) Nil else for {
     ev ← LEvent.delete(mortal)
     killing ← Seq(Killing(anUUIDUtil.srcIdFromSrcIds(ev.srcId,ev.className/*it's just string*/),ev))
   } yield killing.hash.substring(0,1) → killing

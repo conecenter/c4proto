@@ -4,16 +4,17 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.{DepResponse, _}
 import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.ByClassNameRequest
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with SerializationUtilsApp with DepResponseFactoryApp{
   def byClassNameClasses: List[Class[_ <: Product]] = Nil
+  def idGenUtil: IdGenUtil
 
   override def protocols: List[Protocol] = ByClassNameRequestProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, serializer.srcIdFromSrcIds(className.getName), depResponseFactory)) ::: super.assembles
+  override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, idGenUtil.srcIdFromSrcIds(className.getName), depResponseFactory)) ::: super.assembles
 }
 
 case class InnerByClassNameRequest(request: DepInnerRequest, className: String, from: Int, to: Int)
@@ -24,37 +25,28 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
 
   def BCNItemsOnSrcId(
     key: SrcId,
-    items: Values[A]
-  ): Values[(ByCNSrcId, A)] =
-    for (
-      item ← items
-    ) yield {
-      (classSrcId+"ByCN", item)
-    }
+    item: Each[A]
+  ): Values[(ByCNSrcId, A)] = List((classSrcId+"ByCN")→item)
+
 
   def BCNRequestToClassSrcId(
     key: SrcId,
-    requests: Values[DepInnerRequest]
+    rq: Each[DepInnerRequest]
   ): Values[(ByCNRqSrcId, DepInnerRequest)] =
-    for (
-      rq ← requests
-      if rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName
-    ) yield {
-      (classSrcId+"ByCN", rq)
-    }
+    if(rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName)
+      List((classSrcId+"ByCN")→rq)
+    else Nil
+
 
   def BCNRequestToResponse(
     key: SrcId,
-    @by[ByCNRqSrcId] requests: Values[DepInnerRequest],
+    @by[ByCNRqSrcId] rq: Each[DepInnerRequest],
     @by[ByCNSrcId] items: Values[A]
   ): Values[(SrcId, DepResponse)] =
-    for (
-      rq ← requests
-      if rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName
-    ) yield {
+    if(rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName){
       val byCNRq = rq.request.asInstanceOf[ByClassNameRequest]
-      WithPK(depResponseFactory.wrap(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count))))
-    }
+      List(WithPK(depResponseFactory.wrap(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))))
+    } else Nil
 
 }
 

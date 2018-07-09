@@ -1,38 +1,39 @@
 package ee.cone.c4assemble
 
-import ee.cone.c4assemble.Types.Index
+import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.Map
 
 object PrepareBackStage extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
     //println("pbs")
-    WorldTransition(Option(transition), Map.empty, transition.result, transition.isParallel)
+    WorldTransition(Option(transition), emptyReadModel, transition.result, transition.isParallel)
   }
 }
 
 class ConnectBackStage[MapKey, Value](
-  val outputWorldKey: AssembledKey[Index[MapKey, Value]],
-  val nextKey:        AssembledKey[Index[MapKey, Value]],
-  updater: IndexUpdater
+  val outputWorldKey: AssembledKey,
+  val nextKey:        AssembledKey,
+  updater: IndexUpdater,
+  composes: IndexUtil
 ) extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
-    val diffPart = updater.diffOf(nextKey)(transition.prev.get)
+    val diffPart = nextKey.of(transition.prev.get.diff)
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")
-    if(diffPart.isEmpty) transition
+    if(composes.isEmpty(diffPart)) transition
     else updater.setPart(outputWorldKey)(diffPart, nextKey.of(transition.result))(transition)
   }
 }
 
-class BackStageFactoryImpl(updater: IndexUpdater) extends BackStageFactory {
+class BackStageFactoryImpl(updater: IndexUpdater, composes: IndexUtil) extends BackStageFactory {
   def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression] = {
     val wasKeys = (for {
       e ← l
       key ← Single.option(e.inputWorldKeys.collect{
-        case k:JoinKey[_,_] if k.was ⇒ k.asInstanceOf[JoinKey[_,Product]]
+        case k:JoinKey if k.was ⇒ k
       }) // multiple @was are not supported due to possible different join loop rates
     } yield key).distinct
-    PrepareBackStage :: wasKeys.map(k⇒new ConnectBackStage(k,k.copy(was=false), updater))
+    PrepareBackStage :: wasKeys.map(k⇒new ConnectBackStage(k,k.withWas(was=false), updater, composes))
   }
 }

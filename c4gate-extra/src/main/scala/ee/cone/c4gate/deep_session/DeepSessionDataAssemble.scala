@@ -3,7 +3,7 @@ package ee.cone.c4gate.deep_session
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{MortalFactory, WithPK}
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{RawRoleData, RawUserData}
 
@@ -19,42 +19,29 @@ object DeepSessionDataAssembles {
   type UserId = SrcId
 
   def RawUserDataByRoleId(
-    rawData: SrcId,
-    rawUserData: Values[RawUserData]
+    srcId: SrcId,
+    rawData: Each[RawUserData]
   ): Values[(UserId, RawUserData)] =
-    for {
-      rawData ← rawUserData
-    } yield rawData.userId → rawData
+    List(rawData.userId → rawData)
 
   def ModelWithRawUserDataLife(
     modelId: SrcId,
-    @by[UserId] rawUserData: Values[RawUserData],
-    models: Values[User]
-  ): Values[(Alive, RawUserData)] =
-    for {
-      rawData ← rawUserData
-      _ ← models
-    } yield WithPK(rawData)
+    @by[UserId] rawData: Each[RawUserData],
+    model: Each[User]
+  ): Values[(Alive, RawUserData)] = List(WithPK(rawData))
 }
 
 @assemble class RawRoleDataAssemble[Role <: Product](roleCl: Class[Role]) extends Assemble {
   type RoleId = SrcId
 
   def RawRoleDataByRoleId(
-    rawData: SrcId,
-    rawRoleData: Values[RawRoleData]
-  ): Values[(RoleId, RawRoleData)] =
-    for {
-      rawData ← rawRoleData
-    } yield rawData.roleId → rawData
+    srcId: SrcId,
+    rawData: Each[RawRoleData]
+  ): Values[(RoleId, RawRoleData)] = List(rawData.roleId → rawData)
 
   def ModelWithRawRoleDataLife(
     modelId: SrcId,
-    @by[RoleId] rawRoleData: Values[RawRoleData],
-    models: Values[Role]
-  ): Values[(Alive, RawRoleData)] =
-    for {
-      rawData ← rawRoleData
-      _ ← models
-    } yield WithPK(rawData)
+    @by[RoleId] rawData: Each[RawRoleData],
+    model: Each[Role]
+  ): Values[(Alive, RawRoleData)] = List(WithPK(rawData))
 }

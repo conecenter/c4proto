@@ -13,7 +13,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto
 import ee.cone.c4proto._
@@ -59,9 +59,9 @@ object ToExternalDBAssembles {
 )  extends Assemble {
   def join(
     key: SrcId,
-    items: Values[Item]
+    item: Each[Item]
   ): Values[(NeedSrcId,HasState)] =
-    for(item ← items; e ← LEvent.update(item)) yield {
+    for(e ← LEvent.update(item)) yield {
       val u = toUpdate.toUpdate(e)
       val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
       key → HasState(key,u.valueTypeId,u.value)
@@ -83,7 +83,7 @@ object ToExternalDBAssembles {
   def join(
     key: SrcId,
     @by[TypeHex] tasks: Values[ToExternalDBTask]
-  ): Values[(SrcId,TxTransform)] = List(key → ToExternalDBTx(key, tasks.toList))
+  ): Values[(SrcId,TxTransform)] = List(WithPK(ToExternalDBTx(key, tasks.toList)))
 }
 
 case class ToExternalDBTask(
@@ -148,7 +148,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 @assemble class FromExternalDBSyncAssemble extends Assemble {
   def joinTxTransform(
     key: SrcId,
-    firsts: Values[Firstborn]
+    first: Each[Firstborn]
   ): Values[(SrcId,TxTransform)] =
     List("externalDBSync").map(k⇒k→FromExternalDBSyncTransform(k))
 }

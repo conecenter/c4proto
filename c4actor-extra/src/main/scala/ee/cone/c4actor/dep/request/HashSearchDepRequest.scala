@@ -6,7 +6,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{DepCondition, HashSearchDepRequest}
 import ee.cone.c4actor.utils.{GeneralizedOrigRegistry, GeneralizedOrigRegistryApi}
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -30,28 +30,21 @@ case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, mod
 
   def HSDepRequestWithSrcToItemSrcId(
     key: SrcId,
-    request: Values[DepInnerRequest]
+    rq: Each[DepInnerRequest]
   ): Values[(SrcId, Request[Model])] =
-    for {
-      rq ← request
-      if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
-    } yield {
+    if(rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName){
       val hsRq = rq.request.asInstanceOf[HashSearchDepRequest]
-      WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]]))
-    }
+      List(WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]])))
+    } else Nil
 
   def HSResponseGrab(
     key: SrcId,
-    responses: Values[Response[Model]],
-    requests: Values[DepInnerRequest]
+    resp: Each[Response[Model]],
+    rq: Each[DepInnerRequest]
   ): Values[(SrcId, DepResponse)] =
-    for {
-      rq ← requests
-      if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
-      resp ← responses
-    } yield {
-      WithPK(util.wrap(rq, Option(resp.lines)))
-    }
+    if(rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName)
+      List(WithPK(util.wrap(rq, Option(resp.lines))))
+    else Nil
 }
 
 trait LeafRegistryApp {

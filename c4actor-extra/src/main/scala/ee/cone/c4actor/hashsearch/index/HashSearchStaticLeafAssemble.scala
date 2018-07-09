@@ -10,7 +10,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base._
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 
 object StaticHashSearchImpl {
 
@@ -55,13 +55,13 @@ object StaticHashSearchImpl {
   class StaticFactoryImpl(
     modelConditionFactory: ModelConditionFactory[Unit],
     serializer: SerializationUtils,
-    uuidUtil: UUIDUtil
+    idGenUtil: IdGenUtil
   ) extends StaticFactory {
     def index[Model <: Product](cl: Class[Model]): Indexer[Model] =
       EmptyIndexer[Model]()(cl, modelConditionFactory.of[Model], serializer)
 
     def request[Model <: Product](condition: Condition[Model]): Request[Model] =
-      Request(uuidUtil.srcIdFromStrings(condition.toString), condition)
+      Request(idGenUtil.srcIdFromStrings(condition.toString), condition)
   }
 
   abstract class Indexer[Model <: Product] extends StaticIndexBuilder[Model] {
@@ -135,10 +135,10 @@ object StaticHashSearchImpl {
     }
 
     private def getHeapSrcId(metaList: List[MetaAttr], range: By): SrcId = {
-      val metaListUUID = serializer.uuidFromMetaAttrList(metaList)
-      val rangeUUID = serializer.uuidFromOrig(range, by.getClass.getName)
-      val srcId = serializer.uuidFromSeqMany(metaListUUID, rangeUUID).toString
-      s"$metaList$range$srcId"
+      val metaListUUID = serializer.srcIdFromMetaAttrList(metaList)
+      val rangeUUID = serializer.srcIdFromOrig(range, by.getClass.getName)
+      val srcId = serializer.srcIdFromSeqMany(metaListUUID, rangeUUID).toString
+      s"$metaList$range$srcId" //todo are we interpolating all this?
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
@@ -166,9 +166,9 @@ trait HashSearchStaticLeafFactoryApi {
 
 trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
-  def uuidUtil: UUIDUtil
+  def idGenUtil: IdGenUtil
 
-  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, uuidUtil)
+  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, idGenUtil)
 }
 
 import StaticHashSearchImpl._
@@ -183,34 +183,32 @@ import StaticHashSearchImpl._
 
   def respLineByHeap(
     respLineId: SrcId,
-    respLines: Values[Model]
+    respLine: Each[Model]
   ): Values[(StaticHeapId, Model)] = for {
-    respLine ← respLines
     tagId ← indexer.heapIds(respLine).distinct
   } yield tagId → respLine
 
 
   def reqByHeap(
     leafCondId: SrcId,
-    leafConds: Values[InnerLeaf[Model]]
-  ): Values[(StaticHeapId, StaticNeed[Model])] = for {
-    leafCond ← leafConds
-    if indexer.isMy(leafCond)
-    heapId ← heapIds(indexer, leafCond.condition)
-  } yield {
-    heapId → StaticNeed[Model](ToPrimaryKey(leafCond))
-  }
+    leafCond: Each[InnerLeaf[Model]]
+  ): Values[(StaticHeapId, StaticNeed[Model])] =
+    if(indexer.isMy(leafCond))
+      for {
+        heapId ← heapIds(indexer, leafCond.condition)
+      } yield {
+        heapId → StaticNeed[Model](ToPrimaryKey(leafCond))
+      }
+    else Nil
 
   def neededRespHeapPriority(
     requestId: SrcId,
-    requests: Values[InnerLeaf[Model]],
+    request: Each[InnerLeaf[Model]],
     @by[LeafCondId] priorities: Values[StaticCount[Model]]
-  ): Values[(SrcId, InnerConditionEstimate[Model])] = for {
-    request ← single(requests)
-    if indexer.isMy(request)
-  } yield {
-    WithPK(cEstimate(request, priorities))
-  }
+  ): Values[(SrcId, InnerConditionEstimate[Model])] =
+    if(indexer.isMy(request))
+      List(WithPK(cEstimate(request, priorities)))
+    else Nil
 }
 
 
@@ -224,28 +222,21 @@ import StaticHashSearchImpl._
   def respHeapPriorityByReq(
     heapId: SrcId,
     @by[StaticHeapId] respLines: Values[Model],
-    @by[StaticHeapId] needs: Values[StaticNeed[Model]]
-  ): Values[(LeafCondId, StaticCount[Model])] = for {
-    need ← needs
-  } yield ToPrimaryKey(need) → count(heapId, respLines)
+    @by[StaticHeapId] need: Each[StaticNeed[Model]]
+  ): Values[(LeafCondId, StaticCount[Model])] =
+    List(ToPrimaryKey(need) → count(heapId, respLines))
 
   def handleRequest(
     heapId: SrcId,
     @by[StaticHeapId] responses: Values[Model],
-    @by[SharedHeapId] requests: Values[InnerUnionList[Model]]
+    @by[SharedHeapId] request: Each[InnerUnionList[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
-    TimeColored("r", ("handleRequest", heapId, requests.size, responses.size), requests.isEmpty || !debugMode) {
-      val result = for {
-        request ← requests.par
-      } yield {
-        val lines = for {
-          line ← responses.par
-          if request.check(line)
-        } yield line
-        request.srcId → ResponseModelList(request.srcId + heapId, lines.toList)
-      }
-      val newResult = result.to[Values]
-      newResult
-    }
+    //TimeColored("r", ("handleRequest", heapId, requests.size, responses.size), requests.isEmpty || !debugMode) {
+    val lines = for {
+      line ← responses.par
+      if request.check(line)
+    } yield line
+    List(request.srcId → ResponseModelList(request.srcId + heapId, lines.toList))
+    //}
   }
 }

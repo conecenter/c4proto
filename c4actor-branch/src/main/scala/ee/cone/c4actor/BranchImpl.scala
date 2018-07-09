@@ -5,7 +5,7 @@ import java.nio.ByteBuffer
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.{BranchResult, SessionFailure}
 import ee.cone.c4actor.BranchTypes._
@@ -154,11 +154,11 @@ case class BranchTxTransform(
 
 //class UnconfirmedException() extends Exception
 
-class BranchOperationsImpl(registry: QAdapterRegistry, uuidUtil: UUIDUtil) extends BranchOperations {
+class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) extends BranchOperations {
   def toSeed(value: Product): BranchResult = {
     val valueAdapter = registry.byName(value.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(value))
-    val id = uuidUtil.srcIdFromSerialized(valueAdapter.id, bytes)
+    val id = idGenUtil.srcIdFromSerialized(valueAdapter.id, bytes)
     BranchResult(id, valueAdapter.id, bytes, Nil, "")
   }
   def toRel(seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
@@ -168,10 +168,10 @@ class BranchOperationsImpl(registry: QAdapterRegistry, uuidUtil: UUIDUtil) exten
 @assemble class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations) extends Assemble {
   def mapBranchSeedsByChild(
     key: SrcId,
-    branchResults: Values[BranchResult]
-  ): Values[(BranchKey,BranchRel)] =
-    for(branchResult ← branchResults; child ← branchResult.children)
-      yield operations.toRel(child, branchResult.hash, parentIsSession=false)
+    branchResult: Each[BranchResult]
+  ): Values[(BranchKey,BranchRel)] = for {
+    child ← branchResult.children
+  } yield operations.toRel(child, branchResult.hash, parentIsSession=false)
 
   def joinBranchTask(
       key: SrcId,
@@ -190,23 +190,22 @@ class BranchOperationsImpl(registry: QAdapterRegistry, uuidUtil: UUIDUtil) exten
     key: SrcId,
     @by[BranchKey] seeds: Values[BranchRel],
     @by[BranchKey] posts: Values[MessageFromAlien],
-    handlers: Values[BranchHandler]
+    handler: Each[BranchHandler]
   ): Values[(SrcId,TxTransform)] =
-    for(handler ← Single.option(handlers).toList)
-      yield key → BranchTxTransform(key,
+    List(key → BranchTxTransform(key,
         seeds.headOption.map(_.seed),
         seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
         posts.sortBy(_.index).toList,
         handler
-      )
+    ))
 
   type SessionKey = SrcId
 
   def failuresBySession(
     key: SrcId,
-    failures: Values[SessionFailure]
+    failure: Each[SessionFailure]
   ): Values[(SessionKey,SessionFailure)] =
-    for(f ← failures; k ← f.sessionKeys) yield k → f
+    for(k ← failure.sessionKeys) yield k → failure
 
   def joinSessionFailures(
     key: SrcId,

@@ -12,7 +12,7 @@ class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with Lazy
   def run(): Unit = {
     val toStart = getToStart()
     logger.debug(s"tracking ${toStart.size} services")
-    toStart.foreach(f ⇒ future().map(_⇒f.run()))
+    toStart.foreach(f ⇒ future(()).map(_⇒f.run()))
   }
   def onShutdown(hint: String, f: () ⇒ Unit): Unit =
     Runtime.getRuntime.addShutdownHook(new Thread(){

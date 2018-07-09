@@ -24,8 +24,8 @@ trait SessionAttrAccessFactoryImplApp {
   def qAdapterRegistry: QAdapterRegistry
   def defaultModelRegistry: DefaultModelRegistry
   def modelAccessFactory: ModelAccessFactory
-  def uuidUtil: UUIDUtil
+  def idGenUtil: IdGenUtil
 
   lazy val sessionAttrAccessFactory: SessionAttrAccessFactory =
-    new SessionAttrAccessFactoryImpl(qAdapterRegistry,defaultModelRegistry,modelAccessFactory,uuidUtil)
+    new SessionAttrAccessFactoryImpl(qAdapterRegistry,defaultModelRegistry,modelAccessFactory,idGenUtil)
 }

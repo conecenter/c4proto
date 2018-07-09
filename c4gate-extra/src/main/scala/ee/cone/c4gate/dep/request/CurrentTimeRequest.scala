@@ -6,7 +6,7 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4gate.dep.request.CurrentTimeProtocol.CurrentTimeNode
 import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
@@ -59,37 +59,28 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp{
 
   def FromFirstBornCreateNowTime(
     firstBornId: SrcId,
-    firstborns: Values[Firstborn]
-  ): Values[(SrcId, TxTransform)] =
-    for {
-      _ ← firstborns
-      config ← configList
-    } yield WithPK(CurrentTimeTransform(config.srcId, config.periodSeconds))
+    firstborn: Each[Firstborn]
+  ): Values[(SrcId, TxTransform)] = for {
+    config ← configList
+  } yield WithPK(CurrentTimeTransform(config.srcId, config.periodSeconds))
 
   def GetCurrentTimeToAll(
     nowTimeId: SrcId,
-    nowTimes: Values[CurrentTimeNode]
-  ): Values[(All, CurrentTimeNode)] =
-    for {
-      nowTimeNode ← nowTimes
-    } yield All → nowTimeNode
+    nowTimeNode: Each[CurrentTimeNode]
+  ): Values[(All, CurrentTimeNode)] = List(All → nowTimeNode)
 }
 
 @assemble class CurrentTimeRequestAssemble(util: DepResponseFactory) extends Assemble {
   def FromAlienPongAndRqToInnerResponse(
     alienId: SrcId,
-    @by[All] pongs: Values[CurrentTimeNode],
-    requests: Values[DepInnerRequest]
+    @by[All] pong: Each[CurrentTimeNode],
+    rq: Each[DepInnerRequest]
   ): Values[(SrcId, DepResponse)] =
-    for {
-      pong ← pongs.filter(_.srcId == "CurrentTimeRequestAssemble")
-      rq ← requests
-      if rq.request.isInstanceOf[CurrentTimeRequest]
-    } yield {
+    if(pong.srcId == "CurrentTimeRequestAssemble" && rq.request.isInstanceOf[CurrentTimeRequest]) {
       val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
       val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
-      WithPK(util.wrap(rq, Option(newTime)))
-    }
+      List(WithPK(util.wrap(rq, Option(newTime))))
+    } else Nil
 }
 
 @protocol object CurrentTimeRequestProtocol extends Protocol {

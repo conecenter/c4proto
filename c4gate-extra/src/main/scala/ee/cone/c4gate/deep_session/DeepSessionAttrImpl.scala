@@ -12,7 +12,7 @@ class DeepSessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,
-  val uuidUtil: UUIDUtil,
+  val idGenUtil: IdGenUtil,
   sessionAttrAccessFactory: SessionAttrAccessFactory
 ) extends DeepSessionAttrAccessFactory with OrigKeyGenerator {
   lazy val rawDataAdapter = registry.byName(classOf[RawSessionData].getName)
