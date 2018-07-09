@@ -137,8 +137,7 @@ object StaticHashSearchImpl {
     private def getHeapSrcId(metaList: List[MetaAttr], range: By): SrcId = {
       val metaListUUID = serializer.srcIdFromMetaAttrList(metaList)
       val rangeUUID = serializer.srcIdFromOrig(range, by.getClass.getName)
-      val srcId = serializer.srcIdFromSeqMany(metaListUUID, rangeUUID).toString
-      s"$metaList$range$srcId" //todo are we interpolating all this?
+      serializer.srcIdFromSeqMany(metaListUUID, rangeUUID).toString
     }
 
     def fltML: List[MetaAttr] ⇒ NameMetaAttr =
