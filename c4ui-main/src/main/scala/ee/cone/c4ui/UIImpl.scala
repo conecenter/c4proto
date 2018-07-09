@@ -3,7 +3,7 @@ package ee.cone.c4ui
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
@@ -25,11 +25,10 @@ case object VDomStateKey extends TransientLens[Option[VDomState]](None)
 @assemble class VDomAssemble extends Assemble {
   def joinBranchHandler(
     key: SrcId,
-    tasks: Values[BranchTask],
-    views: Values[View]
+    task: Each[BranchTask],
+    view: Each[View]
   ): Values[(SrcId,BranchHandler)] =
-    for(task ← tasks; view ← views) yield task.branchKey →
-      VDomBranchHandler(task.branchKey, VDomBranchSender(task),view)
+    List(WithPK(VDomBranchHandler(task.branchKey, VDomBranchSender(task),view)))
 }
 
 case class VDomBranchSender(pass: BranchTask) extends VDomSender[Context] {

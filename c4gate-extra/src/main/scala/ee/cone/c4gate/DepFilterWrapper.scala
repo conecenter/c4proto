@@ -1,12 +1,17 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
+import ee.cone.c4actor.dep.Dep
 import ee.cone.c4actor.dep.request.{LeafInfoHolder, LeafRegistryApp}
 import ee.cone.c4actor.dep.{Dep, InnerDep, RequestDep, SeqParallelDep}
-import ee.cone.c4actor.hashsearch.base.{HashSearchDepRequestFactory, HashSearchDepRequestFactoryApp}
+import ee.cone.c4actor.hashsearch.base.{HashSearchDepRequestFactory, HashSearchDepRequestFactoryApp, HashSearchModelsApp}
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
-import ee.cone.c4actor.hashsearch.rangers.HashSearchRangerRegistryApp
+import ee.cone.c4actor.hashsearch.index.HashSearchStaticLeafFactoryApi
+import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp}
+import ee.cone.c4assemble.Assemble
 import ee.cone.c4gate.dep.request.{FLRequestDef, FilterListRequestApp}
+
+import scala.collection.immutable.Seq
 
 trait DepFilterWrapperApp {
   def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[String] = ".*" :: Nil): DepFilterWrapperApi[Model]
@@ -63,7 +68,7 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
       case Seq(x, rest@_*) ⇒
         val access: Option[Access[SBy]] = x.asInstanceOf[Option[Access[SBy]]]
         val head: Condition[Model] = newFunc(access)
-        val tail: Condition[Model] = depToCondFunction(rest)
+        val tail: Condition[Model] = depToCondFunction(rest.to[Seq])
         intersect(head, tail)
     }
     DepFilterWrapperImpl(newLeafs, byDep.asInstanceOf[InnerDep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, modelConditionFactory, matches)
@@ -76,8 +81,8 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
     for {
       seq ← new SeqParallelDep[Option[Access[_ <: Product]]](depAccessSeq)
       list ← {
-        val rq = typedFactory.conditionToHashSearchRequest(depToCondFunction(seq))
-        new RequestDep[List[Model]](rq)
+        val rq = typedFactory.conditionToHashSearchRequest(depToCondFunction(seq)) //HashSearchDepRequest
+        new RequestDep[List[_]](rq)
       }
     } yield list
   }

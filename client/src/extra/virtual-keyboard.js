@@ -118,11 +118,11 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			if(!this.root) return null
 			const cNode = focusModule.getFocusNode()
 			if(!cNode || !this.root.contains(cNode)) return null
-			const input = cNode.querySelector("input:not([readonly])")
+			const input = cNode.querySelector("input:not([readonly])")||cNode.querySelector('input[name="vk"]')
 			return input
 		}	
 		showVk(){
-			const input = this.getInput()	
+			const input = this.getInput()				
 			if(input) return true
 			return false						
 		}
@@ -186,7 +186,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			}
 
 			top+=this.root?(this.root.style.display=="block"?this.root.scrollTop:getPageYOffset()):0
-			return {top,left}
+			return {top,left, cpHeight:pHeight}
 		}
 		updateState(inI,show){					    					
 			if(show) {
@@ -202,9 +202,9 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		}
 		fitIn(){			
 			const vkLayout = this.getCurrentLayout()			
-			if(!vkLayout && this.vkLayout == vkLayout) return
+			if(!vkLayout && this.vkLayout == vkLayout) return 
 			const emK = this.emRatio()
-			if(!emK) return
+			if(!emK) return 
 			const vkContainer = this.getVkContainer()			
 			if(!vkContainer||!vkLayout) return this.state.show?this.updateState({},false):null	
 			const show = vkContainer.static||this.showVk()
@@ -217,7 +217,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			let pWidth = Math.ceil(vkLayout.width * emK); pWidth == 0?1:pWidth
 			const pHeight = Math.ceil(vkLayout.height * emK)
 			const cHeight  = vkModule.getMaxHeight(this.root)
-			let hK = (vkContainer.rect.height||cHeight)/pHeight; if(hK == 0) hK = 1
+			let hK = (cHeight||vkContainer.rect.height)/pHeight; if(hK == 0) hK = 1
 			let wK = vkContainer.rect.width/pWidth; if(wK == 0) wK = 1
 			let fK = Math.min(hK,wK)*0.9;fK=fK>1?1:fK			 			
 			
@@ -225,9 +225,9 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			this.vkLayout = vkLayout
 			this.vkContainerO = vkContainer.o
 			const fontSize = fK
-			const {top,left} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
+			const {top,left,cpHeight} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
 			if(this.state.fontSize!=fontSize || this.state.top!=top || this.state.left!=left || this.state.show!=show){		
-				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,cHeight)					
+				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,cpHeight)					
 				this.updateState({fontSize,top,left},show)
 			}							
 		}

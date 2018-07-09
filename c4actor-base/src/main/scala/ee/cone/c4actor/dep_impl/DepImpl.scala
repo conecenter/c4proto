@@ -1,20 +1,12 @@
-package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.dep.DepTypeContainer.{DepCtx, DepRequest}
+package ee.cone.c4actor.dep_impl
 
-trait Dep[A] {
-  def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
+import collection.immutable.Seq
+import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
+import ee.cone.c4actor.dep._
 
-  def map[B](f: A ⇒ B): Dep[B]
-}
-
-trait InnerDep[B] extends Dep[B] {
-  def resolve(ctx: DepCtx): Resolvable[B]
-}
-
-abstract class DepImpl[A] extends InnerDep[A] {
+abstract class DepImpl[A] extends Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B] = new ComposedDep[A, B](this, f)
-
   def map[B](f: A ⇒ B): Dep[B] = new ComposedDep[A, B](this, v ⇒ new ResolvedDep(f(v)))
 }
 
@@ -22,11 +14,11 @@ class ResolvedDep[A](value: A) extends DepImpl[A] {
   def resolve(ctx: DepCtx): Resolvable[A] = Resolvable(Option(value))
 }
 
-class ComposedDep[A, B](inner: InnerDep[A], fm: A ⇒ Dep[B]) extends DepImpl[B] {
+class ComposedDep[A, B](inner: Dep[A], fm: A ⇒ Dep[B]) extends DepImpl[B] {
   def resolve(ctx: DepCtx): Resolvable[B] =
     inner.resolve(ctx) match {
       case Resolvable(Some(v), requests) ⇒
-        val res = fm(v.asInstanceOf[A]).asInstanceOf[InnerDep[B]].resolve(ctx)
+        val res = fm(v.asInstanceOf[A]).resolve(ctx)
         res.copy(requests = res.requests ++ requests)
       case Resolvable(None, requests) ⇒
         Resolvable[Nothing](None, requests)
@@ -35,10 +27,12 @@ class ComposedDep[A, B](inner: InnerDep[A], fm: A ⇒ Dep[B]) extends DepImpl[B]
 
 class RequestDep[A](val request: DepRequest) extends DepImpl[A] {
   def resolve(ctx: DepCtx): Resolvable[A] =
-    Resolvable(ctx.getOrElse(request, None).asInstanceOf[Option[A]], Seq(request))
+    Resolvable(ctx.get(request).asInstanceOf[Option[A]], Seq(request))
 }
 
-class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A, B)] {
+
+
+class ParallelDep[A, B](aDep: Dep[A], bDep: Dep[B]) extends DepImpl[(A, B)] {
   def resolve(ctx: DepCtx): Resolvable[(A, B)] = {
     val aRsv = aDep.resolve(ctx)
     val bRsv = bDep.resolve(ctx)
@@ -47,7 +41,7 @@ class ParallelDep[A, B](aDep: InnerDep[A], bDep: InnerDep[B]) extends DepImpl[(A
   }
 }
 
-class SeqParallelDep[A](depSeq: Seq[InnerDep[A]]) extends DepImpl[Seq[A]] {
+class SeqParallelDep[A](depSeq: Seq[Dep[A]]) extends DepImpl[Seq[A]] {
   def resolve(ctx: DepCtx): Resolvable[Seq[A]] = {
     val seqResolved: Seq[Resolvable[A]] = depSeq.map(_.resolve(ctx))
     val valueSeq: Seq[Option[A]] = seqResolved.map(_.value)
@@ -58,4 +52,17 @@ class SeqParallelDep[A](depSeq: Seq[InnerDep[A]]) extends DepImpl[Seq[A]] {
     val requestSeq: Seq[DepRequest] = seqResolved.flatMap(_.requests)
     Resolvable[Seq[A]](resolvedSeq, requestSeq)
   }
+}
+
+case class DepFactoryImpl() extends DepFactory {
+  def parallelSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]] =
+    new SeqParallelDep[A](value.asInstanceOf[Seq[Dep[A]]])
+  def uncheckedRequestDep[Out](request: DepRequest): Dep[Out] =
+    new RequestDep[Out](request)
+
+  def resolvedRequestDep[Out](response: Out): Dep[Out] =
+    new ResolvedDep[Out](response)
+
+  def parallelTuple[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
+    new ParallelDep[A, B](a, b)
 }

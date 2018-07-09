@@ -7,7 +7,7 @@ import SSEConnection from "../main/sse-connection"
 import Feedback      from "../main/feedback"
 import activate      from "../main/activator"
 import VDomMix       from "../main/vdom-mix"
-import {VDomSender}  from "../main/vdom-util"
+import {VDomSender,ctxToBranchPath}  from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
 import Branches      from "../main/branches"
 import * as Canvas   from "../main/canvas"
@@ -60,7 +60,7 @@ const windowManager = (()=>{
 	const getComputedStyle = n => window.getComputedStyle(n)
 	const screenRefresh = () => location.reload()
 	const location = () => window.location
-	return {getWindowRect,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix,location}
+	return {getWindowRect,setInterval,clearInterval,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix,location}
 })()
 const documentManager = (()=>{
 	const add = (node) => document.body.appendChild(node)
@@ -101,10 +101,7 @@ const miscReact = (()=>{
 		const parentEl = el.parentNode
 		return getReactRoot(parentEl)
 	}	
-	const count = function(){
-		return documentManager.body().querySelectorAll("div.branch").length
-	}
-	return {isReactRoot,getReactRoot, count}
+	return {isReactRoot,getReactRoot}
 })()
 const miscUtil = (()=>{
 	const winWifi = WinWifi(log,window.require,window.process,setInterval)
@@ -113,6 +110,7 @@ const miscUtil = (()=>{
 	const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})	
 	window.ScannerProxy = scannerProxy
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
+	const audio = () => {return new Audio()}
 	const fileReader = ()=> (new window.FileReader())
 	return {winWifi,getBattery,scannerProxy,audioContext,fileReader}
 })()
@@ -133,7 +131,7 @@ const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 
 //canvas
 const util = Canvas.CanvasUtil()
-const resizeCanvasSystem = Canvas.ResizeCanvasSystem(util,createElement)
+const baseCanvasSystem = Canvas.BaseCanvasSystem(util,createElement)
 const mouseCanvasSystem = Canvas.MouseCanvasSystem(util,addEventListener)
 const getViewPortRect = () => {
     const footer = document.body.querySelector(".mainFooter")
@@ -144,24 +142,24 @@ const getViewPortRect = () => {
     }
 }
 const exchangeMix = options => canvas => [
-    Canvas.ResizeCanvasSetup(canvas,resizeCanvasSystem,getComputedStyle),
+    Canvas.ResizeCanvasSetup(canvas),
     Canvas.MouseCanvasSetup(canvas,mouseCanvasSystem),
-    Canvas.ExchangeCanvasSetup(canvas,feedback,getViewPortRect,getRootElement,createElement,activeElement)
+    Canvas.ExchangeCanvasSetup(canvas,getViewPortRect,getRootElement,createElement,activeElement)
 ]
-const canvasBaseMix = CanvasBaseMix(log,util)
+const canvasBaseMix = CanvasBaseMix(log,util,baseCanvasSystem)
 
 const ddMix = options => canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener)
 const canvasMods = [canvasBaseMix,exchangeMix,CanvasExtraMix(log),ddMix]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods))
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, ctxToBranchPath)
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow,StatefulComponent});
 //transforms
-const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms, virtualKeyboard.transforms])
+const transforms = mergeAll([metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms,canvas.transforms,virtualKeyboard.transforms])
 
 const vDom = VDomMix(console.log,requestState,transforms,getRootElement,createElement,StatefulPureComponent)
 
-const branches = Branches(log,mergeAll([vDom.branchHandlers,canvas.branchHandlers]))
+const branches = Branches(log,vDom.branchHandlers)
 const switchHost = SwitchHost(log,window)
 const receiversList = [
     branches.receivers,

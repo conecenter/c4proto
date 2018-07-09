@@ -15,7 +15,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.HttpProtocol._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4actor._
 import ee.cone.c4gate.AlienProtocol.{PostConsumer, ToAlienWrite}
@@ -114,9 +114,11 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
       if(ByPK(classOf[HttpPostAllow]).of(nLocal).contains(requestId)){
         qMessages.send(nLocal)
         httpExchange.sendResponseHeaders(200, 0)
+        //logger.debug(s"200 $path $headers")
       } else {
         logger.warn(path)
         httpExchange.sendResponseHeaders(429, 0) //Too Many Requests
+        //logger.debug(s"429 $path $headers")
       }
     }(local)
     true
@@ -185,30 +187,28 @@ case class HttpPostAllow(condition: SrcId)
 
   def postsByCondition(
     key: SrcId,
-    posts: Values[HttpPost]
+    post: Each[HttpPost]
   ): Values[(Condition, HttpPost)] =
-    for(post ← posts)
-      yield post.headers.find(_.key=="X-r-branch").map(_.value).getOrElse(post.path) → post
+    List(post.headers.find(_.key=="X-r-branch").map(_.value).getOrElse(post.path) → post)
 
   def consumersByCondition(
     key: SrcId,
-    consumers: Values[PostConsumer]
+    c: Each[PostConsumer]
   ): Values[(Condition, LocalPostConsumer)] =
-    for(c ← consumers) yield WithPK(LocalPostConsumer(c.condition))
+    List(WithPK(LocalPostConsumer(c.condition)))
 
   def lifeToPosts(
     key: SrcId,
     @by[Condition] consumers: Values[LocalPostConsumer],
-    @by[Condition] posts: Values[HttpPost]
+    @by[Condition] post: Each[HttpPost]
   ): Values[(Alive, HttpPost)] = //it's not ok if postConsumers.size > 1
-    for(post ← posts if consumers.nonEmpty) yield WithPK(post)
+    if(consumers.nonEmpty) List(WithPK(post)) else Nil
 
   def alivePostsBySession(
     key: SrcId,
-    @by[Alive] posts: Values[HttpPost]
+    @by[Alive] post: Each[HttpPost]
   ): Values[(ASessionKey, HttpPost)] =
-    for(post ← posts)
-      yield post.headers.find(_.key=="X-r-session").map(_.value).getOrElse("") → post
+    List(post.headers.find(_.key=="X-r-session").map(_.value).getOrElse("") → post)
 
   def allowSessionPosts(
     key: SrcId,

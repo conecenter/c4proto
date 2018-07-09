@@ -26,7 +26,7 @@ object ProtoAdapterTest extends App with LazyLogging {
     case Seq(g:Group) ⇒ g
   }
   assert(group0==group1)
-  logger.info(s"OK$group1")
+  logger.info(s"OK $group1")
 }
 
 @protocol object MyProtocol extends Protocol {

@@ -3,6 +3,8 @@ import React           from 'react'
 import ReactDOM        from 'react-dom'
 import update          from 'immutability-helper'
 
+import {merger}        from "../main/util"
+
 export default function VDom(log,getRootElement, createElement, activeTransforms, changes, StatefulPureComponent){
     function never(){ throw ["traverse error"] }
     class Traverse extends React.PureComponent{        
@@ -11,6 +13,7 @@ export default function VDom(log,getRootElement, createElement, activeTransforms
             const local = this.props.local || {}
             const at = local.at && incoming.at ? Object.assign({}, incoming.at, local.at) : local.at || incoming.at || never() 
             const content =
+                at.content && at.content[0] === "rawMerge" ? merger((l,r)=>r)(incoming,local) :
                 incoming.chl ? incoming.chl.map(
                     key => React.createElement(Traverse, {key, incoming:incoming[key], local:local[key]})
                 ) :

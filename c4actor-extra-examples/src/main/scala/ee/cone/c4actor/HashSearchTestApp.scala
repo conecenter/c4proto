@@ -7,11 +7,9 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.TestProtocol.TestNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
-import ee.cone.c4actor.hashsearch.condition.{ConditionCheckWithCl, SerializationUtilsApp, SerializationUtilsMix}
+import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
-import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeRich, ProductWithId}
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodeStats, IndexNode}
-import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
+import ee.cone.c4actor.hashsearch.rangers.RangerWithCl
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -75,20 +73,18 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 @assemble class CreateRequest(condition: List[Condition[TestObject]], changingCondition: String ⇒ Condition[TestObject]) extends Assemble {
   def createRequest(
     testId: SrcId,
-    tests: Values[TestNode]
-  ): Values[(SrcId, Request[TestObject])] =
-    tests.flatMap(test ⇒ condition.map(cond ⇒ WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))))
+    test: Each[TestNode]
+  ): Values[(SrcId, Request[TestObject])] = for {
+    cond ← condition
+  } yield WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))
 
   def createRequestChanging(
     testId: SrcId,
-    tests: Values[ChangingNode]
-  ): Values[(SrcId, Request[TestObject])] =
-    for {
-      test ← tests
-    } yield {
-      val cond = changingCondition(test.value)
-      WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))
-    }
+    test: Each[ChangingNode]
+  ): Values[(SrcId, Request[TestObject])] = {
+    val cond = changingCondition(test.value)
+    List(WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond)))
+  }
 
   def createRequestChanging2(
     testId: SrcId,
@@ -226,7 +222,9 @@ trait TestCondition extends SerializationUtilsApp {
 
   def conditions: List[Condition[TestObject]] = condition1 /*:: condition2*//*:: condition3*/ :: Nil
 
-  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer)
+  def idGenUtil: IdGenUtil
+
+  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer, idGenUtil)
 
   def joiners: List[Assemble] = factory.index(classOf[TestObject])
     .add[IntEq, Int](lensInt, IntEq(0))(IntEqRanger())
@@ -246,7 +244,6 @@ class HashSearchExtraTestApp extends RichDataApp
   with TreeIndexValueMergerFactoryApp
   with ExecutableApp
   with ToStartApp
-  with MortalFactoryApp
   with ModelAccessFactoryApp
   with TestCondition
   with HashSearchAssembleApp
@@ -263,6 +260,9 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultIntEq :: DefaultStrStartsWith :: super.defaultModelFactories
 
+
+
+  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory) :: super.toStart
   override def hashSearchRangers: List[RangerWithCl[_ <: Product, _]] = StrStartsWithRanger :: IntEqRanger() :: super.hashSearchRangers
 
   override def rawQSender: RawQSender = NoRawQSender

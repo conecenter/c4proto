@@ -7,7 +7,7 @@ import ee.cone.c4actor.BranchTypes.BranchKey
 import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.HttpPost
@@ -44,10 +44,9 @@ case class MessageFromAlienImpl(
 @assemble class MessageFromAlienAssemble extends Assemble {
   def mapHttpPostByBranch(
     key: SrcId,
-    posts: Values[HttpPost]
-  ): Values[(BranchKey, MessageFromAlien)] = for(
-    post ← posts if post.path == "/connection";
-    headers ← Option(post.headers.flatMap(h ⇒
+    post: Each[HttpPost]
+  ): Values[(BranchKey, MessageFromAlien)] = if(post.path != "/connection") Nil else for(
+    headers ← List(post.headers.flatMap(h ⇒
       if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
     ).toMap);
     branchKey ← headers.get("X-r-branch");
@@ -57,9 +56,9 @@ case class MessageFromAlienImpl(
 
   def consumersForHandlers(
     key: SrcId,
-    handlers: Values[BranchHandler]
+    h: Each[BranchHandler]
   ): Values[(SrcId,LocalPostConsumer)] =
-    for(h ← handlers) yield WithPK(LocalPostConsumer(h.branchKey))
+    List(WithPK(LocalPostConsumer(h.branchKey)))
 
 }
 
@@ -67,20 +66,20 @@ case class MessageFromAlienImpl(
   // more rich session may be joined
   def fromAliensToSeeds(
     key: SrcId,
-    fromAliens: Values[FromAlienState]
-  ): Values[(BranchKey, BranchRel)] =
-  for(fromAlien ← fromAliens; child ← Option(operations.toSeed(fromAlien)))
-    yield operations.toRel(child, fromAlien.sessionKey, parentIsSession = true)
+    fromAlien: Each[FromAlienState]
+  ): Values[(BranchKey, BranchRel)] = {
+    val child = operations.toSeed(fromAlien)
+    List(operations.toRel(child, fromAlien.sessionKey, parentIsSession = true))
+  }
 }
 
 @assemble class FromAlienTaskAssemble(file: String) extends Assemble {
   def mapBranchTaskByLocationHash(
     key: SrcId,
-    tasks: Values[BranchTask]
+    task: Each[BranchTask]
   ): Values[(SrcId, FromAlienTask)] =
     for (
-      task ← tasks;
-      fromAlien ← Option(task.product).collect { case s: FromAlienState ⇒ s };
+      fromAlien ← List(task.product).collect { case s: FromAlienState ⇒ s };
       url ← Option(new URL(fromAlien.location))
         if /*url.getHost == host && (*/ url.getFile == file || url.getPath == file
     ) yield task.branchKey → FromAlienTask(

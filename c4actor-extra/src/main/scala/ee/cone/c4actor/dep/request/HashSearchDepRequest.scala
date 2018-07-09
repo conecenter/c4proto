@@ -6,12 +6,12 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{DepCondition, HashSearchDepRequest}
 import ee.cone.c4actor.utils.{GeneralizedOrigRegistry, GeneralizedOrigRegistryApi}
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHandlerRegistryApp with GeneralizedOrigRegistryApi with PreHashingApp {
-  override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model, preHashing)) ::: super.assembles
+trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with GeneralizedOrigRegistryApi with DepResponseFactoryApp{
+  override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
@@ -26,32 +26,25 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with RequestHa
 
 case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, modelCl: String)
 
-@assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model], preHashing: PreHashing) extends Assemble {
+@assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model], util: DepResponseFactory) extends Assemble {
 
   def HSDepRequestWithSrcToItemSrcId(
     key: SrcId,
-    request: Values[DepInnerRequest]
+    rq: Each[DepInnerRequest]
   ): Values[(SrcId, Request[Model])] =
-    for {
-      rq ← request
-      if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
-    } yield {
+    if(rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName){
       val hsRq = rq.request.asInstanceOf[HashSearchDepRequest]
-      WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]]))
-    }
+      List(WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]])))
+    } else Nil
 
   def HSResponseGrab(
     key: SrcId,
-    responses: Values[Response[Model]],
-    requests: Values[DepInnerRequest]
-  ): Values[(SrcId, DepInnerResponse)] =
-    for {
-      rq ← requests
-      if rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName
-      resp ← responses
-    } yield {
-      WithPK(DepInnerResponse(rq, preHashing.wrap(Option(resp.lines))))
-    }
+    resp: Each[Response[Model]],
+    rq: Each[DepInnerRequest]
+  ): Values[(SrcId, DepResponse)] =
+    if(rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName)
+      List(WithPK(util.wrap(rq, Option(resp.lines))))
+    else Nil
 }
 
 trait LeafRegistryApp {
