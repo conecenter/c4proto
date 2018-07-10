@@ -3,6 +3,7 @@ package ee.cone.c4actor.hashsearch.base
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.hashsearch.index.dynamic.DynamicIndexModelsApp
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 
@@ -38,8 +39,8 @@ trait HashSearchAssembleSharedKeys {
   type SharedResponseId = SrcId
 }
 
-trait HashSearchModelsApp {
-  def hashSearchModels: List[Class[_ <: Product]] = Nil
+trait HashSearchModelsApp extends DynamicIndexModelsApp {
+  def hashSearchModels: List[Class[_ <: Product]] = dynIndexModels.map(_.modelCl)
 }
 
 trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp{

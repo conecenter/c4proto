@@ -9,7 +9,7 @@ import ee.cone.c4actor.dep_impl.RequestDep
 import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{RawRoleData, RawUserData}
 import ee.cone.c4gate.deep_session.{DeepRawSessionData, TxDeepRawDataLens, UserLevelAttr}
-import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
+import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4gate.{OrigKeyGenerator, SessionAttr}
 import ee.cone.c4proto.{HasId, ToByteString}
 import okio.ByteString
