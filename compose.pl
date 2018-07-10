@@ -90,8 +90,8 @@ my $template_yml = sub{+{
             &$app_user(),
             C4APP_IMAGE => "zoo",
             command => ["perl",$c_script[1]],
-            &$volumes("db4"),
             tty => true,
+            &$volumes("db4"),
         },
         sshd => {
             C4APP_IMAGE => "sshd",
