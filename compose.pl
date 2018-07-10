@@ -11,7 +11,7 @@ my $inbox_prefix = '';
 my $bin = "kafka/bin";
 
 my $bootstrap_server = "broker:9092";
-my $c_script = "inbox_configure.pl";
+my @c_script = ("inbox_configure.pl","purger.pl");
 my $user = "c4";
 
 my $gen_ip = sub{
@@ -73,7 +73,7 @@ my $template_yml = sub{+{
         inbox_configure => {
             &$app_user(),
             C4APP_IMAGE => "zoo",
-            command => ["perl",$c_script],
+            command => ["perl",$c_script[0]],
             depends_on => ["broker"],
         },
         gate => {
@@ -89,7 +89,7 @@ my $template_yml = sub{+{
         purger => {
             &$app_user(),
             C4APP_IMAGE => "zoo",
-            command => ["perl","purge.pl"],
+            command => ["perl",$c_script[1]],
             &$volumes("db4"),
         },
         sshd => {
