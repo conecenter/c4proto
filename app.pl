@@ -15,7 +15,7 @@ my $temp = "target";
 my $docker_build = "$temp/docker_build";
 my $user = "c4";
 my $uid = 1979;
-my @c_script = ("inbox_configure.pl","purge.pl");
+my @c_script = ("inbox_configure.pl","purger.pl");
 my $developer = $ENV{USER} || die;
 
 ################################################################################
