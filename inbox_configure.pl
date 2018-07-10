@@ -18,7 +18,7 @@ my $compression = "compression.type=producer";
 sy("$kafka_configs --alter --entity-name .inbox --add-config $infinite_lag,$compression");
 die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
 
-print "...\n"
+print "...\n";
 
 ################################################################################
 
