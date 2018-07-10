@@ -1,9 +1,11 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
+import java.time.Instant
+
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.hashsearch.base.{HashSearchModelsApp, InnerLeaf}
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol._
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexNodeSettings, _}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import AnyAdapter._
@@ -11,6 +13,8 @@ import ee.cone.c4actor.AnyOrigProtocol.AnyOrig
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.CurrentTimeNode
 import ee.cone.c4actor.dep.request.{CurrentTimeConfig, CurrentTimeConfigApp}
+
+import scala.collection.immutable
 
 case class ProductWithId[Model <: Product](modelCl: Class[Model], modelId: Int)
 
@@ -250,15 +254,15 @@ sealed trait ThanosTimeTypes {
     indexNodeId: SrcId,
     indexNode: Each[IndexNode],
     indexNodeSettings: Values[IndexNodeSettings],
-    @by[IndexNodeId] indexByNodeRichs: Values[IndexByNodeRich[Model]]
+    @by[IndexNodeId] indexByNodeRiches: Values[IndexByNodeRich[Model]]
   ): Values[(SrcId, IndexNodeRich[Model])] =
     if (indexNode.modelId == modelId) {
       val settings = indexNodeSettings.headOption
       val isAlive = settings.isDefined && settings.get.allAlwaysAlive
       if (!isAlive) {
-        val rich = IndexNodeRich[Model](indexNode.srcId, isAlive, indexNode, indexByNodeRichs.toList)
+        val rich = IndexNodeRich[Model](indexNode.srcId, isAlive, indexNode, indexByNodeRiches.toList)
         if (debugMode)
-          PrintColored("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich None Alive ${(isAlive, indexNode.srcId, indexByNodeRichs.size)}")
+          PrintColored("b", "w")(s"[Thanos.Space, $modelId] Updated IndexNodeRich None Alive ${(isAlive, indexNode.srcId, indexByNodeRiches.size)}")
         WithPK(rich) :: Nil
       } else {
         Nil
@@ -303,11 +307,19 @@ sealed trait ThanosTimeTypes {
 
 case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyOrig, modelId: Int) extends TxTransform {
   override def transform(local: Context): Context = {
-    TxAdd(
-      LEvent.update(
-        IndexByNode(srcId, parentNodeId, modelId, Some(byInstance))
-      )
+    val parentOpt: Option[IndexNodeSettings] = ByPK(classOf[IndexNodeSettings]).of(local).get(parentNodeId)
+    val settings: immutable.Seq[LEvent[IndexByNodeSettings]] = if (parentOpt.isDefined) {
+      val IndexNodeSettings(_, keepAlive, aliveSeconds) = parentOpt.get
+      LEvent.update(IndexByNodeSettings(srcId, keepAlive, aliveSeconds))
+    } else Nil
+    val now = Instant.now
+    val nowSeconds = now.getEpochSecond
+    val firstTime = System.currentTimeMillis()
+    val timedLocal = TxAdd(
+      LEvent.update(IndexByNode(srcId, parentNodeId, modelId, Some(byInstance))) ++ settings ++ LEvent.update(IndexByNodeStats(srcId, nowSeconds))
     )(local)
+    val secondTime = System.currentTimeMillis()
+    TxAdd(LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))))(timedLocal)
   }
 }
 
@@ -322,11 +334,15 @@ case class TimeTransform(srcId: SrcId, newTime: Long) extends TxTransform {
 }
 
 case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName: List[String]) extends TxTransform {
-  def transform(local: Context): Context =
-    TxAdd(
+  def transform(local: Context): Context = {
+    val firstTime = System.currentTimeMillis()
+    val timedLocal = TxAdd(
       LEvent.update(IndexNode(srcId, modelId, byAdapterId, lensName)) ++
-        LEvent.update(IndexNodeSettings(srcId, true))
+        LEvent.update(IndexNodeSettings(srcId, true, None))
     )(local)
+    val secondTime = System.currentTimeMillis()
+    TxAdd(LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))))(timedLocal)
+  }
 }
 
 case class PowerTransform(srcId: SrcId, parentId: SrcId) extends TxTransform {

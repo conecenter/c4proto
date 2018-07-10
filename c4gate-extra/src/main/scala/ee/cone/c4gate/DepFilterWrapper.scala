@@ -40,7 +40,8 @@ trait DepFilterWrapperCollectorMix
 
   override def leafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = filterWrappers.flatMap(_.getLeafs) ::: super.leafs
 
-  override def filterDepList: List[FLRequestDef] = filterWrappers.map(wrapper ⇒ FLRequestDef(wrapper.listName,  wrapper.matches)(wrapper.getFilterDep(hashSearchDepRequestFactory))) ::: super.filterDepList
+  override def filterDepList: List[FLRequestDef] =
+    filterWrappers.map(wrapper ⇒ FLRequestDef(wrapper.listName,  wrapper.matches)(wrapper.getFilterDep(hashSearchDepRequestFactory).asInstanceOf[Dep[List[_]]])) ::: super.filterDepList
 }
 
 case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](

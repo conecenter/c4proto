@@ -20,7 +20,8 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   // B
   @Id(0x0180) case class IndexNodeSettings(
     @Id(0x0181) srcId: String,
-    @Id(0x0182) allAlwaysAlive: Boolean
+    @Id(0x0182) allAlwaysAlive: Boolean,
+    @Id(0x0195) keepAliveSeconds: Option[Long]
   )
 
   // C
@@ -42,6 +43,11 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0191) srcId: String,
     @Id(0x0192) alwaysAlive: Boolean,
     @Id(0x0193) keepAliveSeconds: Option[Long]
+  )
+
+  @Id(0x0196) case class TimeMeasurement(
+    @Id(0x0197) srcId: String,
+    @Id(0x0198) measurement: Option[Long]
   )
 
 

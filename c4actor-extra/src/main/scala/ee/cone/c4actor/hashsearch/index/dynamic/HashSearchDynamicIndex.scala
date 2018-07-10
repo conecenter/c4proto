@@ -3,7 +3,7 @@ package ee.cone.c4actor.hashsearch.index.dynamic
 import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.base._
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp, RangerWithCl}
-import ee.cone.c4assemble.{All, Assemble, assemble, by}
+import ee.cone.c4assemble._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4actor.AnyAdapter._
@@ -267,7 +267,6 @@ trait DynamicIndexSharedTypes {
     @by[IndexNodeRichAll] node: Each[IndexNodeWithDirective[Model]]
   ): Values[(DynamicHeapId, Model)] =
     modelsToHeaps(models, node)
-
   // END: If node.keepAllAlive
 
   // START: !If node.keepAllAlive
@@ -306,7 +305,7 @@ trait DynamicIndexSharedTypes {
     leaf.condition match {
       case prodCond: ProdCondition[_, _] ⇒
         for {
-          heapId ← leafToHeapIds(prodCond, indexNodeDirectives)
+          heapId ← leafToHeapIds(prodCond, indexNodeDirectives).distinct
         } yield heapId → DynamicNeed[Model](leaf.srcId)
       case _ ⇒ Nil
     }
@@ -314,7 +313,7 @@ trait DynamicIndexSharedTypes {
   def DynNeedToDynCountToRequest(
     heapId: SrcId,
     @by[DynamicHeapId] models: Values[Model],
-    @by[DynamicHeapId] need: Each[DynamicNeed[Model]]
+    @by[DynamicHeapId] need: Each[DynamicNeed[Model]] // TODO not distinct
   ): Values[(LeafConditionId, DynamicCount[Model])] =
     (need.requestId → DynamicCount[Model](heapId, models.length)) :: Nil
 
@@ -331,7 +330,7 @@ trait DynamicIndexSharedTypes {
 
   def DynHandleRequest(
     heapId: SrcId,
-    @by[DynamicHeapId] models: Values[Model],
+    @by[DynamicHeapId] @distinct models: Values[Model],
     @by[SharedHeapId] request: Each[InnerUnionList[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
     val lines = for {
