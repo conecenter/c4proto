@@ -83,9 +83,9 @@ class AssemblerInit(
 
 //
 case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
-  def +[B1 >: V](kv: (K, B1)): Map[K, B1] = throw new Exception("not implemented")//UniqueIndexMap(index + (kv._1→List(kv._2))) //diffFromJoinRes
+  def +[B1 >: V](kv: (K, B1)): Map[K, B1] = iterator.toMap + kv
   def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"")).asInstanceOf[Option[V]]
   def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
-  def -(key: K): Map[K, V] = throw new Exception("not implemented")//UniqueIndexMap(index - key)
+  def -(key: K): Map[K, V] = iterator.toMap - key
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
 }
