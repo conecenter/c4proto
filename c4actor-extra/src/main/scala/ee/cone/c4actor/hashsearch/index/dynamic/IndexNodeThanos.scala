@@ -83,6 +83,11 @@ case class IndexNodeRich[Model <: Product](
   indexByNodes: List[IndexByNodeRich[Model]]
 )
 
+case class IndexByNodeRichCount[Model <: Product](
+  srcId: SrcId,
+  indexByNodeCount: Int
+)
+
 case class IndexByNodeRich[Model <: Product](
   srcId: SrcId,
   isAlive: Boolean,
@@ -282,14 +287,22 @@ sealed trait ThanosTimeTypes {
     }
     else Nil
 
+  def PowerIndexByNodeCounter(
+    indexNodeId: SrcId,
+    @by[IndexNodeId] indexByNodeRiches: Values[IndexByNodeRich[Model]]
+  ): Values[(IndexNodeId, IndexByNodeRichCount[Model])] =
+    WithPK(IndexByNodeRichCount[Model](indexNodeId, indexByNodeRiches.size)) :: Nil
+
   def SpaceIndexNodeRichAllAlive(
     indexNodeId: SrcId,
     indexNode: Each[IndexNode],
-    indexNodeSettings: Values[IndexNodeSettings]
+    indexNodeSettings: Values[IndexNodeSettings],
+    @by[IndexNodeId] childCounts: Values[IndexByNodeRichCount[Model]]
   ): Values[(SrcId, IndexNodeRich[Model])] =
     if (indexNode.modelId == modelId) {
       val settings = indexNodeSettings.headOption
-      val isAlive = settings.isDefined && settings.get.allAlwaysAlive
+      val childCount = childCounts.headOption.map(_.indexByNodeCount).getOrElse(0)
+      val isAlive = (settings.isDefined && settings.get.allAlwaysAlive) || (settings.isDefined && settings.get.keepAliveSeconds.isEmpty && childCount > autoCount)
       if (isAlive) {
         val rich = IndexNodeRich[Model](indexNode.srcId, isAlive, indexNode, Nil)
         if (debugMode)
