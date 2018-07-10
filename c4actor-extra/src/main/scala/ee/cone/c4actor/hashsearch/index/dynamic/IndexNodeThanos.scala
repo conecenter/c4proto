@@ -351,7 +351,7 @@ case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName
     val firstTime = System.currentTimeMillis()
     val timedLocal = TxAdd(
       LEvent.update(IndexNode(srcId, modelId, byAdapterId, lensName)) ++
-        LEvent.update(IndexNodeSettings(srcId, true, None))
+        LEvent.update(IndexNodeSettings(srcId, false, None))
     )(local)
     val secondTime = System.currentTimeMillis()
     TxAdd(LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))))(timedLocal)
