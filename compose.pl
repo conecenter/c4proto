@@ -75,6 +75,7 @@ my $template_yml = sub{+{
             C4APP_IMAGE => "zoo",
             command => ["perl",$c_script],
             depends_on => ["broker"],
+            &$volumes("db4"),
         },
         gate => {
             C4APP_IMAGE => "gate-server",
