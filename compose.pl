@@ -75,7 +75,6 @@ my $template_yml = sub{+{
             C4APP_IMAGE => "zoo",
             command => ["perl",$c_script],
             depends_on => ["broker"],
-            &$volumes("db4"),
         },
         gate => {
             C4APP_IMAGE => "gate-server",
@@ -86,6 +85,12 @@ my $template_yml = sub{+{
             C4APP_IMAGE => "gate-server",
             C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.SnapshotMakerApp",
             #restart => "on-failure",
+        },
+        purger => {
+            &$app_user(),
+            C4APP_IMAGE => "zoo",
+            command => ["perl","purge.pl"],
+            &$volumes("db4"),
         },
         sshd => {
             C4APP_IMAGE => "sshd",

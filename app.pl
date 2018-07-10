@@ -15,7 +15,7 @@ my $temp = "target";
 my $docker_build = "$temp/docker_build";
 my $user = "c4";
 my $uid = 1979;
-my $c_script = "inbox_configure.pl";
+my @c_script = ("inbox_configure.pl","purge.pl");
 my $developer = $ENV{USER} || die;
 
 ################################################################################
@@ -132,8 +132,8 @@ my $gen_docker_conf = sub{
             "compression.type=uncompressed", #probably better compaction for .state topics
             "message.max.bytes=25000000" #seems to be compressed
         );
-        &$gcp($c_script=>$ctx_dir,$c_script);
-        &$mkdirs($ctx_dir,"db4");
+        &$gcp($_=>$ctx_dir,$_) for @c_script;
+        &$mkdirs($ctx_dir,"db4")
         (&$from("telnet"))
     });
     &$build("composer"=>sub{
