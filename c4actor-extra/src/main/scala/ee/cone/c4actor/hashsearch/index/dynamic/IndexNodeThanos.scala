@@ -40,11 +40,21 @@ trait DynamicIndexAssemble
   override def assembles: List[Assemble] = {
     modelListIntegrityCheck(dynIndexModels)
     new ThanosTimeFilters ::
-      dynIndexModels.distinct.map(p ⇒ new IndexNodeThanos(p.modelCl, p.modelId, dynamicIndexAssembleDebugMode, qAdapterRegistry, serializer, dynamicIndexRefreshRateSeconds)) :::
+      dynIndexModels.distinct.map(p ⇒
+        new IndexNodeThanos(
+          p.modelCl, p.modelId,
+          dynamicIndexAssembleDebugMode, qAdapterRegistry, serializer,
+          dynamicIndexRefreshRateSeconds, dynamicIndexAutoStaticNodeCount, dynamicIndexAutoStaticLiveSeconds
+        )
+      ) :::
       super.assembles
   }
 
   def dynamicIndexAssembleDebugMode: Boolean = false
+
+  def dynamicIndexAutoStaticNodeCount: Int = 1000
+
+  def dynamicIndexAutoStaticLiveSeconds: Long = 60L * 60L
 
   private def modelListIntegrityCheck: List[ProductWithId[_ <: Product]] ⇒ Unit = list ⇒ {
     val map = list.distinct.groupBy(_.modelId)
@@ -115,7 +125,9 @@ sealed trait ThanosTimeTypes {
   debugMode: Boolean,
   qAdapterRegistry: QAdapterRegistry,
   ser: SerializationUtils,
-  refreshRateSeconds: Long = 60
+  refreshRateSeconds: Long = 60,
+  autoCount: Int,
+  autoLive: Long
 ) extends Assemble with ThanosTimeTypes {
   type IndexNodeId = SrcId
   type IndexByNodeId = SrcId
@@ -183,7 +195,7 @@ sealed trait ThanosTimeTypes {
         byIdOpt match {
           case Some(byId) =>
             val parentId = getIndexNodeSrcId(ser, modelId, byId, nameList)
-            WithPK(RealityTransform(x.srcId, parentId, encode(qAdapterRegistry)(typedCondition.by), modelId)) :: Nil
+            WithPK(RealityTransform(x.srcId, parentId, encode(qAdapterRegistry)(typedCondition.by), modelId, autoLive)) :: Nil
           case None =>
             Nil
         }
@@ -258,7 +270,7 @@ sealed trait ThanosTimeTypes {
   ): Values[(SrcId, IndexNodeRich[Model])] =
     if (indexNode.modelId == modelId) {
       val settings = indexNodeSettings.headOption
-      val isAlive = settings.isDefined && settings.get.allAlwaysAlive
+      val isAlive = (settings.isDefined && settings.get.allAlwaysAlive) || (settings.isDefined && settings.get.keepAliveSeconds.isEmpty && indexByNodeRiches.size > autoCount)
       if (!isAlive) {
         val rich = IndexNodeRich[Model](indexNode.srcId, isAlive, indexNode, indexByNodeRiches.toList)
         if (debugMode)
@@ -305,12 +317,13 @@ sealed trait ThanosTimeTypes {
     else Nil
 }
 
-case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyOrig, modelId: Int) extends TxTransform {
+case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyOrig, modelId: Int, defaultLive: Long) extends TxTransform {
   override def transform(local: Context): Context = {
     val parentOpt: Option[IndexNodeSettings] = ByPK(classOf[IndexNodeSettings]).of(local).get(parentNodeId)
     val settings: immutable.Seq[LEvent[IndexByNodeSettings]] = if (parentOpt.isDefined) {
       val IndexNodeSettings(_, keepAlive, aliveSeconds) = parentOpt.get
-      LEvent.update(IndexByNodeSettings(srcId, keepAlive, aliveSeconds))
+      val liveFor = aliveSeconds.getOrElse(defaultLive)
+      LEvent.update(IndexByNodeSettings(srcId, keepAlive, Some(liveFor)))
     } else Nil
     val now = Instant.now
     val nowSeconds = now.getEpochSecond
