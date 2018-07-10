@@ -1,10 +1,10 @@
 
 use strict;
 
-print "HI inbox\n";
+print "HI inbox 2\n";
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
-sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
+sub syf{ print "$_[0]\n"; my $res = scalar `$_[0]`; print "=result=\n$res"; $res }
 
 my $zoo_port = 2181;
 my $bin = "kafka/bin";
