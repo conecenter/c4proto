@@ -133,7 +133,7 @@ my $gen_docker_conf = sub{
             "message.max.bytes=25000000" #seems to be compressed
         );
         &$gcp($_=>$ctx_dir,$_) for @c_script;
-        &$mkdirs($ctx_dir,"db4")
+        &$mkdirs($ctx_dir,"db4");
         (&$from("telnet"))
     });
     &$build("composer"=>sub{
