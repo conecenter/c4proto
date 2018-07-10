@@ -35,6 +35,7 @@ my $rm = sub{
   }
 };
 
+print "looking at snapshots\n";
 my @snapshots = map{
   my($sn,$i)=@$_;
   $i < $fresh_count || $$sn{age} < $fresh_days ? $sn : {%$sn,rm=>1}
@@ -43,6 +44,7 @@ my @snapshots = map{
     { path=>$_, offset=>hex($1), age=>(-M) } : ()
 } reverse sort </c4/db4/snapshots/*>);
 &$rm(map{$$_{path}} grep{$$_{rm}} @snapshots);
+print "snapshots cleared\n";
 
 my $min_snapshot_offset = min(map{$$_{offset}} grep{!$$_{rm}} @snapshots);
 if(defined $min_snapshot_offset){
