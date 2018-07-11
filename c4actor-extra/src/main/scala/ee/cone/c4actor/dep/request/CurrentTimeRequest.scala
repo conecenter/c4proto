@@ -1,4 +1,4 @@
-package ee.cone.c4gate.dep.request
+package ee.cone.c4actor.dep.request
 
 import java.time.Instant
 
@@ -6,10 +6,10 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
+import ee.cone.c4actor.dep.request.CurrentTimeProtocol.CurrentTimeNode
+import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
-import ee.cone.c4gate.dep.request.CurrentTimeProtocol.CurrentTimeNode
-import ee.cone.c4gate.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp{
@@ -19,7 +19,7 @@ trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentT
 
   override def assembles: List[Assemble] = new CurrentTimeRequestAssemble(depResponseFactory) :: super.assembles
 
-  override def protocols: List[Protocol] = QProtocol :: CurrentTimeRequestProtocol :: CurrentTimeProtocol :: super.protocols
+  override def protocols: List[Protocol] = QProtocol :: CurrentTimeRequestProtocol :: super.protocols
 }
 
 case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends TxTransform {
@@ -49,7 +49,10 @@ trait CurrentTimeConfigApp {
   def currentTimeConfig: List[CurrentTimeConfig] = Nil
 }
 
-trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp{
+trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with ProtocolsApp{
+
+  override def protocols: List[Protocol] = CurrentTimeProtocol :: super.protocols
+
   override def assembles: List[Assemble] = new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
 }
 

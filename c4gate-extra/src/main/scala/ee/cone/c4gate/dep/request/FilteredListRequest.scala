@@ -85,7 +85,7 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     alienTask: Each[FromAlienState],
     sessionWithUser: Values[SessionWithUserId]
   ): Values[(GroupId, DepOuterRequest)] =
-    if(matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))){
+    if (matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))) {
       val (userId, roleId) =
         if (sessionWithUser.nonEmpty)
           sessionWithUser.head match {
@@ -101,9 +101,11 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     key: SrcId,
     resp: Each[DepResponse]
   ): Values[(SrcId, FilteredListResponse)] =
-    if(resp.innerRequest.request.isInstanceOf[FilteredListRequest] && resp.innerRequest.request.asInstanceOf[FilteredListRequest].listName == listName)
-      List(WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, resp.innerRequest.request.asInstanceOf[FilteredListRequest].contextId, preHashing.wrap(resp.value))))
-    else Nil
+    resp.innerRequest.request match {
+      case request: FilteredListRequest if request.listName == listName ⇒
+        List(WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, request.contextId, preHashing.wrap(resp.value))))
+      case _ ⇒ Nil
+    }
 }
 
 @protocol object DepFilteredListRequestProtocol extends Protocol {
