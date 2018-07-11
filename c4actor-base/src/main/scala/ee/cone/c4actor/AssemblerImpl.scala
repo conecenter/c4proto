@@ -57,7 +57,7 @@ class AssemblerInit(
     val started = System.currentTimeMillis
     val nAssembled = TreeAssemblerKey.of(context)(diff,isParallel)(context.assembled)
     val period = System.currentTimeMillis - started
-    if(period > 1000) logger.info(s"long join $period")
+    if(period > 1000) logger.info(s"long join $period ms")
     new Context(context.injected, nAssembled, context.transient)
   }
 
