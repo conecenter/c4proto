@@ -151,7 +151,7 @@ my $build = sub{
     #DumpFile("docker-compose.yml",$generated);
     my $text = Dump($generated);
     #$text=~s/(\n\s+-\s+)([^\n]*\S:\d\d)/$1"$2"/gs;
-    $text=~s/\b(tty:\s)"(true)"/$1$2/;
+    $text=~s/\b(tty:\s)'(true)'/$1$2/;
     &$put_text("docker-compose.yml",$text);
     sy("cp docker-compose.yml c4deploy/docker-compose.yml.dump");
     sy("docker-compose -p $location build --pull");
