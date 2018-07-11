@@ -22,10 +22,10 @@ my $gen_ip = sub{
 sub so{ print join(" ",@_),"\n"; system @_ }
 sub sy{ &so and die $? }
 
-#my $put_text = sub{
-#    my($fn,$content)=@_;
-#    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
-#};
+my $put_text = sub{
+    my($fn,$content)=@_;
+    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+};
 my %merge;
 my $merge = sub{&{$merge{join "-",map{ref}@_}||sub{$_[$#_]}}};
 $merge{"HASH-HASH"} = sub{
@@ -148,10 +148,11 @@ my $build = sub{
     } keys %$override_services };
     my $generated = { %$override, services => $generated_services };
 
-    DumpFile("docker-compose.yml",$generated);
-    #my $text = Dump($generated);
+    #DumpFile("docker-compose.yml",$generated);
+    my $text = Dump($generated);
     #$text=~s/(\n\s+-\s+)([^\n]*\S:\d\d)/$1"$2"/gs;
-    #&$put_text("docker-compose.yml",$text);
+    $text=~s/\b(tty:\s)"(true)"/$1$2/;
+    &$put_text("docker-compose.yml",$text);
     sy("cp docker-compose.yml c4deploy/docker-compose.yml.dump");
     sy("docker-compose -p $location build --pull");
 };
