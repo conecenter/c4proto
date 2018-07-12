@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, _}
 import ee.cone.c4proto
 
@@ -20,17 +20,15 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
   type ParentSrcId = SrcId
   def joinChildNodeByParent(
     key: SrcId,
-    rawChildNode: Values[RawChildNode]
-  ): Values[(ParentSrcId,RawChildNode)] =
-    rawChildNode.map(child ⇒ child.parentSrcId → child)
+    child: Each[RawChildNode]
+  ): Values[(ParentSrcId,RawChildNode)] = List(child.parentSrcId → child)
+
   def joinParentNodeWithChildren(
     key: SrcId,
     @by[ParentSrcId] childNodes: Values[RawChildNode],
-    rawParentNode: Values[RawParentNode]
+    parent: Each[RawParentNode]
   ): Values[(SrcId,ParentNodeWithChildren)] =
-    rawParentNode.map(parent ⇒
-      parent.srcId → ParentNodeWithChildren(parent.srcId, parent.caption, childNodes)
-    )
+    List(parent.srcId → ParentNodeWithChildren(parent.srcId, parent.caption, childNodes))
   /* todo:
   IO[SrcId,ParentNodeWithChildren](
     for(parent <- IO[SrcId,RawParentNode])

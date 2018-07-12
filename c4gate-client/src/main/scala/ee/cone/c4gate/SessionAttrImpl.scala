@@ -5,10 +5,10 @@ import java.util.UUID
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
-import ee.cone.c4gate.SessionDataProtocol.RawSessionData
+import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
 import ee.cone.c4proto.{Id, Protocol, ToByteString, protocol}
 import okio.ByteString
 
@@ -16,6 +16,10 @@ import okio.ByteString
   @Id(0x0066) case class RawSessionData(
     @Id(0x0061) srcId: String,
     @Id(0x0067) sessionKey: String,
+    @Id(0x0a66) dataNode: Option[RawDataNode] // Always isDefined
+  )
+
+  @Id(0x0a65) case class RawDataNode(
     @Id(0x0068) domainSrcId: String,
     @Id(0x0069) fieldId: Long,
     @Id(0x0064) valueTypeId: Long,
@@ -33,36 +37,31 @@ object SessionDataAssembles {
 
   def joinBySessionKey(
     srcId: SrcId,
-    sessionDataValues: Values[RawSessionData]
-  ): Values[(SessionKey, RawSessionData)] = for {
-    sd ← sessionDataValues
-  } yield sd.sessionKey → sd
+    sd: Each[RawSessionData]
+  ): Values[(SessionKey, RawSessionData)] = List(sd.sessionKey → sd)
 
   def joinSessionLife(
     key: SrcId,
-    sessions: Values[FromAlienState],
-    @by[SessionKey] sessionDataValues: Values[RawSessionData]
-  ): Values[(Alive, RawSessionData)] = for {
-    session ← sessions
-    sessionData ← sessionDataValues
-  } yield WithPK(sessionData)
+    session: Each[FromAlienState],
+    @by[SessionKey] sessionData: Each[RawSessionData]
+  ): Values[(Alive, RawSessionData)] = List(WithPK(sessionData))
 }
 
 class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
-  modelAccessFactory: ModelAccessFactory
-) extends SessionAttrAccessFactory {
+  modelAccessFactory: ModelAccessFactory,
+  val idGenUtil: IdGenUtil
+) extends SessionAttrAccessFactory with OrigKeyGenerator{
   def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
     val adapter = registry.byName(classOf[RawSessionData].getName)
-    def genPK(request: RawSessionData): String =
-      UUID.nameUUIDFromBytes(adapter.encode(request)).toString
     val lens = ProdLens[RawSessionData,P](attr.metaList)(
-      rawData ⇒ registry.byId(rawData.valueTypeId).decode(rawData.value).asInstanceOf[P],
+      rawData ⇒ registry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
       value ⇒ rawData ⇒ {
         val valueAdapter = registry.byName(attr.className)
         val byteString = ToByteString(valueAdapter.encode(value))
-        rawData.copy(valueTypeId = valueAdapter.id, value = byteString)
+        val newDataNode = rawData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
+        rawData.copy(dataNode = Option(newDataNode))
       }
     )
     val byPK = ByPK(classOf[RawSessionData])
@@ -71,13 +70,17 @@ class SessionAttrAccessFactoryImpl(
       val request: RawSessionData = RawSessionData(
         srcId = "",
         sessionKey = sessionKey,
-        domainSrcId = attr.pk,
-        fieldId = attr.id,
-        valueTypeId = 0,
-        value = ByteString.EMPTY
+        dataNode = Option(
+          RawDataNode(
+            domainSrcId = attr.pk,
+            fieldId = attr.id,
+            valueTypeId = 0,
+            value = ByteString.EMPTY
+          )
+        )
       )
-      val pk = genPK(request)//val deepPK = genPK(request.copy(sessionKey=""))
-      val value = byPK.of(local).getOrElse(pk,{
+      val pk = genPK(request, adapter)//val deepPK = genPK(request.copy(sessionKey=""))
+      val value: RawSessionData = byPK.of(local).getOrElse(pk,{
         val model = defaultModelRegistry.get[P](attr.className).create(pk)
         lens.set(model)(request.copy(srcId=pk))
       })

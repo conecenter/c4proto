@@ -6,25 +6,26 @@ import java.util.UUID
 import ee.cone.c4actor.HashSearch.Request
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerLeaf, InnerConditionEstimate}
+import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerConditionEstimate, InnerLeaf}
 import ee.cone.c4actor.hashsearch.index.HashSearchMockAssembleTest.K2TreeAll
 import ee.cone.c4actor.hashsearch.rangers.K2TreeUtils._
 import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4proto.ToByteString
 
 object HashSearchMockUtils {
-  def heapId(cl: Class[_], node: TreeNode, qAdapterRegistry: QAdapterRegistry): SrcId = {
+  def heapId(cl: Class[_], node: TreeNode, qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): SrcId = {
     val clName = cl.getName
     val valueAdapter = qAdapterRegistry.byName(node.getClass.getName)
-    val bytes = valueAdapter.encode(node)
-    UUID.nameUUIDFromBytes(clName.getBytes(UTF_8) ++ bytes).toString
+    val bytes = ToByteString(valueAdapter.encode(node))
+    idGenUtil.srcIdFromSerialized(valueAdapter.id, bytes)
   }
 
-  def heapIds(cl: Class[_], nodes: List[TreeNode], qAdapterRegistry: QAdapterRegistry): List[SrcId] =
+  def heapIds(cl: Class[_], nodes: List[TreeNode], qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): List[SrcId] =
     for {
       node ← nodes
-    } yield heapId(cl, node, qAdapterRegistry)
+    } yield heapId(cl, node, qAdapterRegistry, idGenUtil)
 
   def single[Something]: Values[Something] ⇒ Values[Something] =
     l ⇒ Single.option(l.distinct).toList
@@ -54,7 +55,8 @@ import HashSearchMockUtils._
   getDate: Model ⇒ (Option[Long], Option[Long]),
   conditionToRegion: Condition[Model] ⇒ TreeRange,
   filterName: NameMetaAttr,
-  qAdapterRegistry: QAdapterRegistry
+  qAdapterRegistry: QAdapterRegistry,
+  idGenUtil: IdGenUtil
 ) extends Assemble with HashSearchAssembleSharedKeys{
   type K2HeapId = SrcId
   type K2ToCountId = SrcId
@@ -62,26 +64,19 @@ import HashSearchMockUtils._
 
   def GetTreeToAll(
     treeId: SrcId,
-    params: Values[K2TreeParams],
-    trees: Values[TreeNodeOuter]
+    param: Each[K2TreeParams],
+    tree: Each[TreeNodeOuter]
   ): Values[(K2TreeAll[Model], TreeNodeOuter)] =
-    for {
-      param ← params
-      if param.modelName == modelCl.getName
-      tree ← trees
-    } yield All → tree
-
+    if(param.modelName == modelCl.getName) List(All → tree) else Nil
 
   // Index builder
   def RespLineByHeap(
     respLineId: SrcId,
-    respLines: Values[Model],
-    @by[K2TreeAll[Model]] trees: Values[TreeNodeOuter]
+    respLine: Each[Model],
+    @by[K2TreeAll[Model]] tree: Each[TreeNodeOuter]
   ): Values[(K2HeapId, Model)] =
     for {
-      respLine ← respLines
-      tree ← trees
-      tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry) :: Nil
+      tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry, idGenUtil) :: Nil
     } yield tagId → respLine
 
   // end index builder
@@ -89,50 +84,42 @@ import HashSearchMockUtils._
   // LeafRequest receive
   def ReqByHeap(
     leafCondId: SrcId,
-    leafConditions: Values[InnerLeaf[Model]],
+    leaf: Each[InnerLeaf[Model]],
     @by[K2TreeAll[Model]] trees: Values[TreeNodeOuter]
   ): Values[(K2HeapId, K2Need[Model])] =
-    for {
-      leaf ← single(leafConditions)
-      if isMy(leaf.condition, filterName)
-      tree ← trees
-      heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry)
-    } yield heapId → K2Need[Model](ToPrimaryKey(leaf), modelCl)
-
+    if(isMy(leaf.condition, filterName))
+      for {
+        tree ← trees
+        heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry, idGenUtil)
+      } yield heapId → K2Need[Model](ToPrimaryKey(leaf), modelCl)
+    else Nil
 
   def RespHeapCountByReq(
     heapId: SrcId,
     @by[K2HeapId] respLines: Values[Model],
-    @by[K2HeapId] needs: Values[K2Need[Model]]
+    @by[K2HeapId] need: Each[K2Need[Model]]
   ): Values[(K2ToCountId, K2Count[Model])] =
-    for {
-      need ← needs
-    } yield need.requestId → count(heapId, respLines)
+    List(need.requestId → count(heapId, respLines))
 
   // Count response
   def CountByReq(
     needId: K2HeapId,
-    requests: Values[InnerLeaf[Model]],
+    request: Each[InnerLeaf[Model]],
     @by[K2ToCountId] counts: Values[K2Count[Model]]
   ): Values[(SrcId, InnerConditionEstimate[Model])] =
-    for {
-      request ← requests
-      if isMy(request.condition, filterName)
-    } yield request.srcId → InnerConditionEstimate[Model](request.srcId, counts.map(_.count).sum, counts.toList.map(_.heapSrcId))
-
+    if(isMy(request.condition, filterName))
+      List(WithPK(InnerConditionEstimate[Model](request.srcId, counts.map(_.count).sum, counts.toList.map(_.heapSrcId))))
+    else Nil
 
   // Lines Response
   def RespByReq(
     heapId: SrcId,
-    @by[K2HeapId] responses: Values[Model],
-    @by[SharedHeapId] requests: Values[Request[Model]]
+    @by[K2HeapId] line: Each[Model],
+    @by[SharedHeapId] request: Each[Request[Model]]
   ): Values[(SharedResponseId, Model)] = {
-    println(requests.toString().take(50), responses.size)
-    for {
-      request ← requests
-      line ← responses
-      if request.condition.check(line)
-    } yield ToPrimaryKey(request) → line
+    //println(requests.toString().take(50), responses.size)
+      if(request.condition.check(line)) List(ToPrimaryKey(request) → line)
+      else Nil
   }
 
 }

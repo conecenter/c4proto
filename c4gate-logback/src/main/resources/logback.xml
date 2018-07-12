@@ -1,5 +1,6 @@
 <configuration scan="true">
-    <statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" />
+    <!--statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" /-->
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
     <include file="./logback.xml"/>
     <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>

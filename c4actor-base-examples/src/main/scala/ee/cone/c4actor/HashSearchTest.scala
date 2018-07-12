@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.HashSearchTestProtocol.{SomeModel, SomeRequest}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -57,19 +57,15 @@ import SomeModelAccess._
 ) extends Assemble {
   def joinReq(
     srcId: SrcId,
-    requests: Values[SomeRequest]
-  ): Values[(SrcId,Request[SomeModel])] = for {
-    request ← requests
-  } yield {
-    WithPK(hashSearchFactory.request(HashSearchTestMain.condition(modelConditionFactory,request)))
-  }
+    request: Each[SomeRequest]
+  ): Values[(SrcId,Request[SomeModel])] =
+    List(WithPK(hashSearchFactory.request(HashSearchTestMain.condition(modelConditionFactory,request))))
 
   def joinResp(
     srcId: SrcId,
-    responses: Values[Response[SomeModel]]
-  ): Values[(SrcId,SomeResponse)] = for {
-    response ← responses
-  } yield WithPK(SomeResponse(response.srcId,response.lines))
+    response: Each[Response[SomeModel]]
+  ): Values[(SrcId,SomeResponse)] =
+    List(WithPK(SomeResponse(response.srcId,response.lines)))
 }
 
 

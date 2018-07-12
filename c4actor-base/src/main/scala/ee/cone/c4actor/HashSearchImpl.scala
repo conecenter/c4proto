@@ -7,7 +7,7 @@ import ee.cone.c4actor.HashSearch.{Factory, IndexBuilder, Request, Response}
 import ee.cone.c4actor.HashSearchImpl._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 
 object HashSearchImpl {
   case class Need[Model<:Product](requestId: SrcId)
@@ -63,12 +63,13 @@ object HashSearchImpl {
 
   class FactoryImpl(
     modelConditionFactory: ModelConditionFactory[Unit],
-    preHashing: PreHashing
+    preHashing: PreHashing,
+    idGenUtil: IdGenUtil
   ) extends Factory {
     def index[Model<:Product](cl: Class[Model]): Indexer[Model] =
       EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model], preHashing)
     def request[Model<:Product](condition: Condition[Model]): Request[Model] =
-      Request(UUID.nameUUIDFromBytes(condition.toString.getBytes(UTF_8)).toString,condition)
+      Request(idGenUtil.srcIdFromStrings(condition.toString),condition)
   }
 
   abstract class Indexer[Model<:Product] extends IndexBuilder[Model] {
@@ -122,8 +123,8 @@ object HashSearchImpl {
     }
   }
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
-  def single[RespLine<:Product]: Values[Request[RespLine]]⇒Values[Request[RespLine]] =
-    l ⇒ Single.option(l.distinct).toList
+  //def single[RespLine<:Product]: Values[Request[RespLine]]⇒Values[Request[RespLine]] =
+  //  l ⇒ Single.option(l.distinct).toList
 }
 
 @assemble class HashSearchAssemble[RespLine<:Product](
@@ -136,55 +137,47 @@ object HashSearchImpl {
 
   def respLineByHeap(
     respLineId: SrcId,
-    respLines: Values[RespLine]
+    respLine: Each[RespLine]
   ): Values[(HeapId,RespLine)] = for {
-    respLine ← respLines
     tagId ← indexers.heapIds(respLine).distinct
   } yield tagId → respLine
 
   def reqByHeap(
     requestId: SrcId,
-    requests: Values[Request[RespLine]]
+    request: Each[Request[RespLine]]
   ): Values[(HeapId,Need[RespLine])] = for {
-    request ← single(requests)
     heapId ← heapIds(indexers, request)
   } yield heapId → Need[RespLine](ToPrimaryKey(request))
 
   def respHeapPriorityByReq(
     heapId: SrcId,
     @by[HeapId] respLines: Values[RespLine],
-    @by[HeapId] needs: Values[Need[RespLine]]
-  ): Values[(ResponseId,Priority[RespLine])] = for {
-    need ← needs
-  } yield ToPrimaryKey(need) → priority(heapId,respLines)
+    @by[HeapId] need: Each[Need[RespLine]]
+  ): Values[(ResponseId,Priority[RespLine])] =
+    List(ToPrimaryKey(need) → priority(heapId,respLines))
 
   def neededRespHeapPriority(
     requestId: SrcId,
-    requests: Values[Request[RespLine]],
+    request: Each[Request[RespLine]],
     @by[ResponseId] priorities: Values[Priority[RespLine]]
   ): Values[(HeapId,Request[RespLine])] = for {
-    request ← single(requests)
     heapId ← heapIds(indexers, request, priorities)
   } yield heapId → request
 
   def respByReq(
     heapId: SrcId,
-    @by[HeapId] respLines: Values[RespLine],
-    @by[HeapId] requests: Values[Request[RespLine]]
-  ): Values[(ResponseId,RespLine)] = for {
-    request ← requests
-    line ← respLines if request.condition.check(line)
-  } yield ToPrimaryKey(request) → line
+    @by[HeapId] line: Each[RespLine],
+    @by[HeapId] request: Each[Request[RespLine]]
+  ): Values[(ResponseId,RespLine)] =
+    if(request.condition.check(line)) List(ToPrimaryKey(request) → line) else Nil
 
   def responses(
     requestId: SrcId,
-    requests: Values[Request[RespLine]],
-    @by[ResponseId] respLines: Values[RespLine]
-  ): Values[(SrcId,Response[RespLine])] = for {
-    request ← single(requests)
-  } yield {
+    request: Each[Request[RespLine]],
+    @by[ResponseId] @distinct respLines: Values[RespLine]
+  ): Values[(SrcId,Response[RespLine])] = {
     val pk = ToPrimaryKey(request)
-    pk → Response(pk, request, preHashing.wrap(respLines.toList.distinct))
+    List(WithPK(Response(pk, request, preHashing.wrap(respLines.toList))))
   }
   //.foldRight(List.empty[RespLine])((line,res)⇒)
 }

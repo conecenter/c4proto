@@ -9,7 +9,7 @@ import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 
 class TestConsumerApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -39,16 +39,16 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 @assemble class TestAssemble extends Assemble {
   def joinTestHttpPostHandler(
     key: SrcId,
-    posts: Values[HttpPost]
+    post: Each[HttpPost]
   ): Values[(SrcId, TxTransform)] =
-    for(post ← posts if post.path == "/abc")
-      yield WithPK(TestHttpPostHandler(post.srcId,post))
+    if(post.path == "/abc")
+      List(WithPK(TestHttpPostHandler(post.srcId,post))) else Nil
 
   def needConsumer(
     key: SrcId,
-    firsts: Values[Firstborn]
+    first: Each[Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
-    for(_ ← firsts) yield WithPK(LocalPostConsumer("/abc"))
+    List(WithPK(LocalPostConsumer("/abc")))
 
   def joinDebug(
     key: SrcId,

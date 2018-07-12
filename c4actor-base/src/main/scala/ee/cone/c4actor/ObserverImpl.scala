@@ -4,7 +4,7 @@ import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
-import ee.cone.c4assemble.Types.Index
+import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.{Map, Seq}
 import scala.util.{Success, Try}
@@ -13,7 +13,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
   def get(global: Context): Map[SrcId,Option[Context]⇒Context] =
     ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
   private def handle(global: Context, key: SrcId): Option[Context]⇒Context = prevOpt ⇒ {
-    val local = prevOpt.getOrElse(new Context(global.injected, Map.empty, Map.empty))
+    val local = prevOpt.getOrElse(new Context(global.injected, emptyReadModel, Map.empty))
     if( //todo implement skip for outdated world
         OffsetWorldKey.of(global) < OffsetWorldKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
@@ -24,7 +24,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
           case Some(tr) ⇒
             val prepLocal = new Context(global.injected, global.assembled, local.transient)
             val nextLocal = (tr.transform _).andThen(qMessages.send)(prepLocal)
-            new Context(global.injected, Map.empty, nextLocal.transient)
+            new Context(global.injected, emptyReadModel, nextLocal.transient)
         }
       }
     } catch {
@@ -34,7 +34,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
         Function.chain(List(
           ErrorKey.set(exception :: was),
           SleepUntilKey.set(Instant.now.plusSeconds(was.size))
-        ))(new Context(global.injected, Map.empty, Map.empty))
+        ))(new Context(global.injected, emptyReadModel, Map.empty))
     }
   }
 }

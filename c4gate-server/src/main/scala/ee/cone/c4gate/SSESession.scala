@@ -7,7 +7,7 @@ import com.sun.net.httpserver.HttpExchange
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4gate.AlienProtocol.{FromAlienStatus, _}
 import ee.cone.c4proto.Protocol
 
@@ -156,43 +156,40 @@ object SSEAssembles {
 
   def joinToAlienWrite(
     key: SrcId,
-    writes: Values[ToAlienWrite]
-  ): Values[(SessionKey, ToAlienWrite)] =
-    writes.map(write⇒write.sessionKey→write)
+    write: Each[ToAlienWrite]
+  ): Values[(SessionKey, ToAlienWrite)] = List(write.sessionKey→write)
 
   def joinTxTransform(
     key: SrcId,
-    fromAliens: Values[FromAlienState],
-    statuses: Values[FromAlienStatus],
+    session: Each[FromAlienState],
+    status: Each[FromAlienStatus],
     @by[SessionKey] writes: Values[ToAlienWrite]
-  ): Values[(SrcId,TxTransform)] = for {
-    session ← fromAliens
-    status ← statuses
-  } yield WithPK(SessionTxTransform(
+  ): Values[(SrcId,TxTransform)] = List(WithPK(SessionTxTransform(
     session.sessionKey, session, status, writes.sortBy(_.priority)
-  ))
+  )))
 
   def lifeOfSessionToWrite(
     key: SrcId,
     fromAliens: Values[FromAlienState],
-    @by[SessionKey] writes: Values[ToAlienWrite]
+    @by[SessionKey] write: Each[ToAlienWrite]
   ): Values[(Alive,ToAlienWrite)] =
-    for(write ← writes if fromAliens.nonEmpty) yield WithPK(write)
+    if(fromAliens.nonEmpty) List(WithPK(write)) else Nil
 
   def lifeOfSessionPong(
     key: SrcId,
     fromAliens: Values[FromAlienState],
-    statuses: Values[FromAlienStatus]
+    status: Each[FromAlienStatus]
   ): Values[(Alive,FromAlienStatus)] =
-    for(status ← statuses if fromAliens.nonEmpty) yield WithPK(status)
+    if(fromAliens.nonEmpty) List(WithPK(status)) else Nil
 
   def checkAuthenticatedSession(
     key: SrcId,
     fromAliens: Values[FromAlienState],
-    authenticatedSessions: Values[AuthenticatedSession]
-  ): Values[(SrcId,TxTransform)] = for {
-    authenticatedSession ← authenticatedSessions if fromAliens.isEmpty
-  } yield WithPK(CheckAuthenticatedSessionTxTransform(authenticatedSession))
+    authenticatedSession: Each[AuthenticatedSession]
+  ): Values[(SrcId,TxTransform)] =
+    if(fromAliens.isEmpty)
+      List(WithPK(CheckAuthenticatedSessionTxTransform(authenticatedSession)))
+    else Nil
 }
 
 case class CheckAuthenticatedSessionTxTransform(

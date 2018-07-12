@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.C.6",
+  version := "0.C.E",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -17,6 +17,7 @@ lazy val publishSettings = Seq(
   licenses := ourLicense,
   fork := true, //looks like sbt hangs for a minute on System.exit
   mainClass in Compile := Some("ee.cone.c4actor.ServerMain")
+  //scalacOptions += "-feature"//"-deprecation",
 )
 
 scalaVersion in ThisBuild := "2.11.8"

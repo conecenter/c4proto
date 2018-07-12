@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4proto.Protocol
@@ -26,9 +26,9 @@ abstract class TestTxTransformApp extends ServerApp
 @assemble class TestDelayAssemble extends Assemble {
   def joinTestHttpPostHandler(
     key: SrcId,
-    posts: Values[HttpPost]
+    post: Each[HttpPost]
   ): Values[(SrcId, TxTransform)] =
-    posts.map(post ⇒ post.srcId → TestDelayHttpPostHandler(post.srcId, post))
+    List(WithPK(TestDelayHttpPostHandler(post.srcId, post)))
 }
 
 case class TestDelayHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {

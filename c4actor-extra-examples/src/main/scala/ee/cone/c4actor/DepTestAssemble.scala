@@ -2,25 +2,35 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.DepTestProtocol.{DepTestRequest, Spark}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.dep.DepTypeContainer.ContextId
+import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest, GroupId}
 import ee.cone.c4actor.dep._
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{All, Assemble, assemble, by}
+import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.ContextIdRequest
+import ee.cone.c4actor.dep_impl.DepHandlersApp
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait DepTestAssemble extends AssemblesApp with RequestHandlersApp with ProtocolsApp{
-  def testDep: Dep[_]
+trait DepTestAssemble
+  extends AssemblesApp
+    with DepHandlersApp
+    with ProtocolsApp
+    with DepOuterRequestFactoryApp
+    with DepAskFactoryApp
+    with CommonIdInjectApps {
+  def testDep: Dep[Any]
 
-  def testContextId: String = ""
+  def testContextId: String = "LUL"
 
   def qAdapterRegistry: QAdapterRegistry
 
 
   override def protocols: List[Protocol] = DepTestProtocol :: super.protocols
 
-  override def handlers: List[RequestHandler[_]] = DepTestHandler(testDep, testContextId) :: super.handlers
+  private val testRequestAsk = depAskFactory.forClasses(classOf[DepTestRequest], classOf[Any])
 
-  override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry) :: super.assembles
+  override def depHandlers: List[DepHandler] = testRequestAsk.by(_ ⇒ testDep) :: injectContext[DepTestRequest](testRequestAsk, _ ⇒ testContextId) :: super.depHandlers
+
+  override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depOuterRequestFactory) :: super.assembles
 }
 
 @protocol object DepTestProtocol extends Protocol {
@@ -33,33 +43,26 @@ trait DepTestAssemble extends AssemblesApp with RequestHandlersApp with Protocol
 
 }
 
-case class DepTestHandler(dep: Dep[_], contextId: String) extends RequestHandler[DepTestRequest] {
-  def canHandle: Class[DepTestRequest] = classOf[DepTestRequest]
+case class DepTestHandler(dep: Dep[_], contextId: String) extends DepHandler {
+  def requestClassName: String = classOf[DepTestRequest].getName
 
-  def handle: DepTestRequest => (Dep[_], ContextId) = _ ⇒ (dep, contextId)
+  def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_] = _ ⇒ ctx ⇒ dep.resolve(ctx + (ContextIdRequest() →  contextId))
 }
 
 case class DepTestResponse(srcId: String, response: Option[_])
 
-@assemble class DepTestAssembles(val qAdapterRegistry: QAdapterRegistry) extends Assemble with DepAssembleUtilityImpl {
+@assemble class DepTestAssembles(val qAdapterRegistry: QAdapterRegistry, f: DepOuterRequestFactory) extends Assemble {
   def GiveBirth(
     firstBornId: SrcId,
-    sparks: Values[Spark]
-  ): Values[(SrcId, DepOuterRequest)] =
-    for {
-      spark ← sparks
-    } yield {
-      WithPK(generateDepOuterRequest(DepTestRequest(), "test"))
-    }
+    spark: Each[Spark]
+  ): Values[(GroupId, DepOuterRequest)] =
+    List(f.tupled("test")(DepTestRequest()))
 
   def HarvestBirth(
     responseId: SrcId,
-    responses: Values[DepOuterResponse]
+    resp: Each[DepResponse]
   ): Values[(SrcId, DepTestResponse)] =
-    for {
-      resp ← responses
-      if resp.request.innerRequest.request.isInstanceOf[DepTestRequest]
-    } yield {
-      WithPK(DepTestResponse(resp.request.srcId, resp.value))
-    }
+    if(resp.innerRequest.request.isInstanceOf[DepTestRequest])
+      List(WithPK(DepTestResponse(resp.innerRequest.srcId, resp.value)))
+    else Nil
 }

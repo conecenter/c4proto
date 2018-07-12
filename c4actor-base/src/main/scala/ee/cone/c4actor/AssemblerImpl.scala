@@ -1,18 +1,24 @@
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{AssembledKey, DataDependencyTo, OriginalWorldPart, TreeAssembler}
+import ee.cone.c4assemble._
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
-import ee.cone.c4assemble.Types.Index
+import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Seq}
 
-object ProtocolDataDependencies {
-  def apply(protocols: List[Protocol]): List[DataDependencyTo[_]] =
+case class OrigKeyFactory(composes: IndexUtil) {
+  def rawKey(className: String): AssembledKey =
+    composes.joinKey(was=false, "SrcId", classOf[SrcId].getName, className)
+}
+
+case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: OrigKeyFactory) {
+  def apply(): List[DataDependencyTo[_]] =
     protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
-      new OriginalWorldPart(ByPK.raw(adapter.className))
+      new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
     }
 }
 
@@ -23,29 +29,46 @@ class AssemblerInit(
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
   getDependencies: ()⇒List[DataDependencyTo[_]],
-  isParallel: Boolean
-) extends ToInject {
-  private def toTree(updates: Iterable[Update]): Map[AssembledKey[Index[SrcId,Product]], Index[SrcId,Product]] =
-    updates.groupBy(_.valueTypeId).flatMap { case (valueTypeId, tpUpdates) ⇒
-      qAdapterRegistry.byId.get(valueTypeId).map(valueAdapter ⇒
-        ByPK.raw[Product](valueAdapter.className) →
-          tpUpdates.groupBy(_.srcId).map { case (srcId, iUpdates) ⇒
-            val rawValue = iUpdates.last.value
-            val values =
-              if(rawValue.size > 0) valueAdapter.decode(rawValue) :: Nil else Nil
-            srcId → values
-          }
-      )
-    }
+  isParallel: Boolean,
+  composes: IndexUtil,
+  origKeyFactory: OrigKeyFactory
+) extends ToInject with LazyLogging {
+  private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
+    (for {
+      tpPair ← updates.groupBy(_.valueTypeId)
+      (valueTypeId, tpUpdates) = tpPair
+      valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
+      wKey = origKeyFactory.rawKey(valueAdapter.className)
+      wasIndex = wKey.of(assembled)
+      indexDiff ← Option(composes.mergeIndex(for {
+        iPair ← tpUpdates.groupBy(_.srcId)
+        (srcId, iUpdates) = iPair
+        rawValue = iUpdates.last.value
+        remove = composes.removingDiff(wasIndex,srcId)
+        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
+        res ← remove :: add
+      } yield res)) if !composes.isEmpty(indexDiff)
+    } yield {
+      wKey → indexDiff
+    }).seq.toMap
+
   private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {
-    val diff = toTree(out).asInstanceOf[Map[AssembledKey[_],Index[Object,Object]]]
+    val diff = toTree(context.assembled, if(isParallel) out.par else out)
+    val started = System.currentTimeMillis
     val nAssembled = TreeAssemblerKey.of(context)(diff,isParallel)(context.assembled)
+    val period = System.currentTimeMillis - started
+    if(period > 1000) logger.info(s"long join $period ms")
     new Context(context.injected, nAssembled, context.transient)
   }
 
   private def add(out: Seq[Update]): Context ⇒ Context =
     if(out.isEmpty) identity[Context]
     else WriteModelKey.modify(_.enqueue(out)).andThen(reduce(out.toList, isParallel = false))
+
+  private def getOrigIndex(context: Context, className: String): Map[SrcId,Product] = {
+    UniqueIndexMap(origKeyFactory.rawKey(className).of(context.assembled))(composes)
+  }
+
   def toInject: List[Injectable] =
     TreeAssemblerKey.set(treeAssembler.replace(getDependencies())) :::
       WriteModelDebugAddKey.set(out ⇒
@@ -54,6 +77,15 @@ class AssemblerInit(
           .andThen(add(out.map(toUpdate.toUpdate)))
       ) :::
       WriteModelAddKey.set(add) :::
-      ReadModelAddKey.set(reduce(_,isParallel))
+      ReadModelAddKey.set(reduce(_,isParallel)) :::
+      GetOrigIndexKey.set(getOrigIndex)
 }
 
+//
+case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
+  def +[B1 >: V](kv: (K, B1)): Map[K, B1] = iterator.toMap + kv
+  def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"")).asInstanceOf[Option[V]]
+  def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
+  def -(key: K): Map[K, V] = iterator.toMap - key
+  override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
+}

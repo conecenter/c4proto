@@ -140,8 +140,8 @@ export function BaseCanvasSetup(log, util, canvas){
         const vExternalPos = canvas.calcPos(dir=>Math.max(parentPos.pos[dir],scrollPos.pos[dir])|0)
         const canvasElement = canvas.visibleElement()
         const canvasPos = canvas.elementPos(canvasElement)
-        const x = (vExternalPos.x + (parseInt(canvasElement.style.left)||0) - canvasPos.pos.x)|0
-        const y = (vExternalPos.y + (parseInt(canvasElement.style.top)||0)  - canvasPos.pos.y)|0
+        const x = (vExternalPos.x + (parseInt(canvasElement.style.left)||0) - (canvasPos.pos.x|0))|0
+        const y = (vExternalPos.y + (parseInt(canvasElement.style.top)||0)  - (canvasPos.pos.y|0))|0
         const viewExternalPos = {x,y}
         //const parentPosEnd = { x: parentPos.end.x|0, y: infinite ? Infinity : parentPos.end.y|0 }
         const vExternalEnd = canvas.calcPos(dir=>Math.min(parentPos.end[dir],scrollPos.end[dir])|0)

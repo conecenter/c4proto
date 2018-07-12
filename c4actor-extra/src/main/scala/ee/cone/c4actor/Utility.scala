@@ -12,11 +12,11 @@ object TimeColored {
   def apply[R, F](color: String, tag: F, doNotPrint: Boolean = false, lowerBound: Long = 0L)(f: ⇒ R): R = {
     if (!doNotPrint) {
       val tagColored = PrintColored.makeColored(color)(tag)
-      val timeStart = System.currentTimeMillis()
+      val timeStart = System.nanoTime()
       val result = f
-      val endTime = System.currentTimeMillis() - timeStart
-      if (endTime > lowerBound)
-        println(s"[$tagColored] $endTime")
+      val endTime = (System.nanoTime() - timeStart) / 1000
+      if (endTime / 1000 > lowerBound)
+        println(s"[$tagColored] ${endTime / 1000},${(endTime % 1000 + 1000).toString.drop(1)}ms")
       result
     }
     else {
@@ -26,21 +26,27 @@ object TimeColored {
 }
 
 object PrintColored {
-  def apply[R](color: String)(f: ⇒ R): R = {
+  def apply[R](color: String = "", bgColor: String = "")(f: ⇒ R): R = {
     val result = f
-    println(makeColored(color)(result))
+    println(makeColored(color, bgColor)(result))
     result
   }
 
-  def makeColored[R](color: String)(f: R): String = {
+  def makeColored[R](color: String, bgColor: String = "")(f: R): String = {
     val colorAnsi = color match {
       case "y" ⇒ Console.YELLOW
       case "g" ⇒ Console.GREEN
       case "b" ⇒ Console.BLUE
       case "r" ⇒ Console.RED
-      case "" ⇒ Console.RESET
+      case "c" ⇒ Console.CYAN
+      case "m" ⇒ Console.MAGENTA
+      case "" ⇒ Console.BLACK
     }
-    s"$colorAnsi$f${Console.RESET}"
+    val bgColorAnsi = bgColor match {
+      case "w" ⇒ Console.WHITE_B
+      case "" ⇒ Console.BLACK_B
+    }
+    s"$colorAnsi$bgColorAnsi$f${Console.RESET}"
   }
 }
 
