@@ -211,14 +211,13 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				else 
 					return el
 			}
-			const el = $("button",{className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
+			const el = $("button",{title:this.props.hint,className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
 			return wrap(el)
 		}
 	}
+	
 	const uiElements = []
 	const errors = Errors({log,uiElements,documentManager})
-	
-	
 	
 	
 	class ErrorElement extends StatefulComponent{	
@@ -285,7 +284,28 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				return null
 		}
 	}
-	uiElements.push({ErrorElement})	
+	uiElements.push({ErrorElement})
+	
+	const MenuBurger = (props) => {	
+	
+		const c = {transition:"all 100ms",transformOrigin:"center"}
+		const alt1 = props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
+		const alt2 = props.isBurgerOpen?{opacity: "0"}:{}
+		const alt3 = props.isBurgerOpen?{transform: "rotate(45deg)"}:{}	
+		const color = props.style&&props.style.color?props.style.color:"white"
+		const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
+				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:props.isBurgerOpen?"16":"9",x2:"30",y2:props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":color}),							
+				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":color}),								
+				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:props.isBurgerOpen?"16":"25",x2:"30",y2:props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":color})				
+		])
+		const style = {
+			backgroundColor:"inherit",
+			cursor:"pointer",
+			...props.style
+		}
+		return $("div",{style,onClick:props.onClick},svg)
+	}
+	
 	class MenuBarElement extends StatefulComponent{		
 		getInitialState(){return {fixedHeight:"",scrolled:false, isBurger:false}}	
 		process(){
@@ -304,8 +324,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 		}		
 		calc(){
 			if(!this.leftEl) return						
-			const tCLength = Array.from(this.leftEl.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0)
-			const tLength = this.leftEl.getBoundingClientRect().width
+			const tCLength = Math.round(Array.from(this.leftEl.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0))
+			const tLength = Math.round(this.leftEl.getBoundingClientRect().width)
 			
 			if(!this.bpLength && tCLength>0 && tCLength>=tLength && !this.state.isBurger) {
 				this.bpLength = tCLength				
@@ -363,22 +383,14 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				zIndex:"1000",
 				backgroundColor:"inherit"
 			}
-			const left = this.props.children.filter(_=>!_.key.includes("right"))			
-			const c = {transition:"all 100ms",transformOrigin:"center"}
-			const alt1 = this.props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
-			const alt2 = this.props.isBurgerOpen?{opacity: "0"}:{}
-			const alt3 = this.props.isBurgerOpen?{transform: "rotate(45deg)"}:{}
-			
-			const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
-				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"9",x2:"30",y2:this.props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":"white"}),							
-				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":"white"}),								
-				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:this.props.isBurgerOpen?"16":"25",x2:"30",y2:this.props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":"white"})				
-			])					
-						
+			const left = this.props.children.filter(_=>!_.key.includes("right"))						
 			//const svgData = svgSrc(svg)
 			//const errors = this.props.children[1]
 			const right = this.props.children.filter(_=>_.key.includes("right"))			
-			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[$("div",{style:{backgroundColor:"inherit",cursor:"pointer",marginLeft:"0.5em"},key:"burger",onClick:this.openBurger},svg),this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null])
+			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[
+				$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:this.props.isBurgerOpen,key:"burger",onClick:this.openBurger}),
+				this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null
+			])
 			return $("div",{style:style},
 				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
 					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{whiteSpace:"nowrap",backgroundColor:"inherit",flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
@@ -570,10 +582,10 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.initListener()
 		}
 		render(){			
-			return $("div",{},[
+			return [
 				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref},this.props.children),				
 				$("div",{key:"2",style:{height:"1em", position:"absolute",zIndex:"-1", top:"0px"},ref:ref=>this.remRef=ref})				
-			])		
+			]
 		}
 	}
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -789,17 +801,19 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				height:"1em"
 			}			
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
-			return $("table",{style:{
+			return [
+				$("table",{
+					key:"table",
+					style:{
 					borderCollapse:'separate',
 					borderSpacing:GlobalStyles.borderSpacing,
 					width:'100%',
 					lineHeight:"1.1",
 					minWidth:"0",
 					...style
-					},ref:ref=>this.el=ref},[
-						emRefEl,
-						children
-					]); 
+					},ref:ref=>this.el=ref},children),
+					emRefEl
+				]
 		}
 	}
 	class THeadElement extends StatefulComponent{		
@@ -1258,7 +1272,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.setState({visibility:""})
 			this.props.onReorder("reorder",newPos.toString())
 		}
-		render(){				
+		render(){						
 			const inpContStyle={
 				display:"flex",
 				height:"auto",
@@ -1436,11 +1450,15 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				}
 				else if(leftEdge>windowRect.left){	//left
 					left = rect.left - popRect.width;
-					top = rect.top - popRect.height/2;					
+					top = rect.top - popRect.height/2;
+					if(top+popRect.height>windowRect.bottom) top=windowRect.bottom - popRect.height
+					if(top<0) top=0
 				}
 				else if(rightEdge<=windowRect.right){
 					left = rect.right
-					top = rect.top - popRect.height/2;					
+					top = rect.top - popRect.height/2;		
+					if(top+popRect.height>windowRect.bottom) top=windowRect.bottom - popRect.height
+					if(top<0) top=0
 				}
 				//top+=getPageYOffset()
 				
@@ -1714,9 +1732,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const sibling = this.el.previousElementSibling;			
 			if(!sibling) return;
 			const rect = sibling.getBoundingClientRect();
-			const popRect = this.el.getBoundingClientRect();		
-			
-			const windowRect = getWindowRect()								
+			const popRect = this.el.getBoundingClientRect();					
+			const windowRect = {top:0,left:0,right:documentManager.body().clientWidth,bottom:getWindowRect().height}
 			const rightEdge = rect.right + popRect.width
 			const leftEdge = rect.left - popRect.width
 			const bottomEdge = rect.bottom + popRect.height
@@ -1755,7 +1772,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			checkActivateCalls.remove(this.calcPosition)
 		}
 		render(){			
-			return $("div",{ref:ref=>this.el=ref,style:{
+			return $("div",{ref:ref=>this.el=ref,style:{				
 				position:"fixed",
 				zIndex:"6",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,
@@ -1912,7 +1929,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	};	
 	const ConnectionState = (props) => {
 		const {style,iconStyle,on} = props;
-		const fillColor = style.color?style.color:"black";
+		const fillColor = style&&style.color?style.color:"black";
 		const contStyle={
 			borderRadius:"1em",
 			border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} ${fillColor}`,
@@ -1933,7 +1950,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			//top:'-0.05em',
 			//left:'-0.025em',
 			verticalAlign:"top",
-			width:"0.5em",
+			//width:"0.5em",
 			//lineHeight:"1",			
 			...iconStyle
 		};			
@@ -2787,150 +2804,29 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			return $("div",{style,ref,...actions},this.props.children)
 		}
 	}
-	class FilterContainerElement extends StatefulComponent{		
-		getInitialState(){return {singleHeight:"0px",version:0}}		
-		isOverflown(){
-			if(!this.el) return;
-			const e = this.el;
-			const p = e.parentNode.getBoundingClientRect()
-			const c = Array.from(e.children)
-			
-			
-			const singleHeight = c.length>0?c[0].getBoundingClientRect().height:null			
-			if(singleHeight != this.state.singleHeight)
-				this.setState({singleHeight:singleHeight})
-			
-		}	
-		componentDidMount(){			
-			this.isOverflown()
-			checkActivateCalls.add(this.calc)
-		}
-		componentDidUpdate(prevProps){
-			this.isOverflown()
-		}
-		componentWillUnmount(){
-			checkActivateCalls.remove(this.calc)
-		}
-		calc(){
-			if(!this.el) return
-			let maxLines = 1 
-			
-			const chldMap = this.props.children.map(child=>({child,basis:this.parseBasis(child.props.incoming.at.style.flexBasis),en:child.props.incoming.at.active&&true,maxLines:1}))
-			const chldAMap = chldMap.filter(_=>_.en)
-			const pRect = this.el.getBoundingClientRect()			
-			const chldAWidth = chldAMap.reduce((a,e)=>(a+(e.en?e.basis:0)),0)
-			if(chldAWidth > pRect.width) {
-				let t = pRect.width
-				maxLines = chldAMap.reduce((a,e,i,arr)=>{					
-					if(t-e.basis<0) {t = pRect.width - e.basis;t=t>=0?t:0;return a+1}
-					if(t-e.basis>=0) {t -=e.basis;return a}
-				},1)
-				//maxLines = Math.ceil(chldAWidth/(Math.floor(pRect.width/chldMap[0].basis)*chldMap[0].basis))
-			}
-			if(chldMap[0].basis>pRect.width) {maxLines = chldAMap.length;maxLines=maxLines>0?maxLines:1}
-			let chldWidth = 0
-			do{
-				chldWidth = chldMap.reduce((a,e)=>{
-					e.maxLines = maxLines
-					return a+(e.en?e.basis:0);
-				},0)				
-				const firstPassiveIndex = chldMap.findIndex(_=>!_.child.props.incoming.at.active && !_.en)
-				if(firstPassiveIndex==-1) break;
-				const child = chldMap[firstPassiveIndex]
-				let lineWidth = Math.floor(pRect.width/child.basis)*child.basis;lineWidth = lineWidth?lineWidth:child.basis
-				
-				if(chldWidth+child.basis<=lineWidth*maxLines) {					
-					child.en=true					
-				}
-				else break;
-			}while(true)
-			
-			const same = () =>{
-				if(this.chldMap.length!=chldMap.length || !this.chldMap.every((e,i)=>e.child.key == chldMap[i].child.key && e.en == chldMap[i].en && e.maxLines == chldMap[i].maxLines && e.basis == chldMap[i].basis))
-					return false
-				return true
-			}
-		
-			if(!this.chldMap || !same()) this.update(chldMap)
-		}
-		update(chldMap){
-			this.chldMap = chldMap
-			this.setState({...this.state,version:this.state.version+1})
-		}
-		parseBasis(strBasis){
-			if(!this.emEl) return 0;
-			const emBasis = parseFloat(strBasis)
-			const pixelBasis = this.emEl.getBoundingClientRect().height * emBasis
-			return pixelBasis
-		}
-		render(){
-		//	log(`render`)
-			const children = this.props.open||!Array.isArray(this.chldMap)?this.props.children:this.chldMap.filter(_=>_.en).map(_=>this.props.children.find(c=>c.key == _.child.key))
-			const maxLines = !Array.isArray(this.chldMap)?1:this.chldMap.reduce((a,e)=>(e.maxLines>a?e.maxLines:a),1)
-			const style = {
-				backgroundColor: "#c0ced8",
-				height:this.props.open||!this.state.singleHeight?"auto":this.state.singleHeight*maxLines+"px",
-				marginBottom:"0.4em",
-				overflow:"hidden",
-				padding:".15625em",
-				width:"100%",
-				...this.props.style
-			}
-			const buttonStyle = {
-				"float":"right",
-				marginLeft:"0.6em"
-			}
-			const filterStyle = {
-				display:"flex",
-				flexWrap:"wrap"
-			}
-			const fStyle=(h) => ({
-				visibility:h?"":"hidden"
-			})
-			const imgStyle = {
-				transform:!this.props.open?"rotate(180deg)":"",
-				transition:"transform 140ms",
-				height:"1em",
-				width:"1em"
-			}	
-			
-			const arrowSvg = `<svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-								 width="150px" height="150px" viewBox="0 0 451.847 451.846" style="enable-background:new 0 0 451.847 451.846;"
-								 xml:space="preserve">
-								<path d="M248.292,106.406l194.281,194.29c12.365,12.359,12.365,32.391,0,44.744c-12.354,12.354-32.391,12.354-44.744,0
-									L225.923,173.529L54.018,345.44c-12.36,12.354-32.395,12.354-44.748,0c-12.359-12.354-12.359-32.391,0-44.75L203.554,106.4
-									c6.18-6.174,14.271-9.259,22.369-9.259C234.018,97.141,242.115,100.232,248.292,106.406z"/>
-							</svg>`
-			const svgData = svgSrc(arrowSvg)
-			const img = $("img",{src:svgData,style:imgStyle})
-			const emElStyle={
-				position:"absolute",
-				top:"0",
-				zIndex:"-1",
-				height:"1em"
-			}			
-			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
-			return $("div",{style},[
-				emRefEl,
-				$("div",{key:"buttons",style:buttonStyle},$(ButtonElement,{onClick:this.props.onClick},img)),
-				$("div",{key:"contents",style:filterStyle,ref:el=>this.el=el},children)
-			])
-		}
-	}
-	const FilterElement = ({active,children,style}) => {		
-		return $("div",{style,className:"filterElement"},children)
-	}
+
 	class ColorCreator extends StatefulComponent{
 		onChange(e){
-			if(this.props.onChange)
-				this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}});
+			if(this.timeout) return
+			const value = e.target.value
+			this.timeout = setTimeout(()=>{				
+				if(this.props.onChange)
+					this.props.onChange({target:{headers:{"X-r-action":"change"},value}})
+				this.timeout = null
+			},500)
+			
 		}
 		onBlur(e){
 			if(this.props.onBlur)
 				this.props.onBlur(e)
 		}
-		componentDidMount(){				
-			this.drawCanvasImage();//camvas.imcludeImage(...)
+		componentDidMount(){			
+			//this.el.addEventListener("input",this.onChange,false)
+			//this.drawCanvasImage();//camvas.imcludeImage(...)
+		}
+		componentWillUnmount(){
+			this.timeout = null
+			//this.el.removeEventListener("input",this.onChange,false)
 		}
 		drawCanvasImage(){
 			if(this.canvasEl) {
@@ -2975,6 +2871,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			};
 			const inputStyle={
 				width:'10em',
+				border:"none",
 				...this.props.style
 			};
 			const canvasStyle ={
@@ -2982,12 +2879,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				height:'100%',
 			}    			
 			//return React.createElement('input',{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null);
-			return React.createElement("div",{style:contStyle},[
-				React.createElement('input',{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null)/*,
-				React.createElement("div",{key:"2",style:popupStyle},[
-					React.createElement("canvas",{ref:ref=>this.canvasEl=ref},null)
-				])*/
-			]);
+			return $("input",{type:"color",key:1,style:inputStyle,onChange:this.onChange, onInput:this.onChange,value:this.props.value, ref:ref=>this.el=ref})
 		}
 	}
 	class ColorPicker extends StatefulComponent{		
@@ -3598,11 +3490,11 @@ ACAAIAAgACAAAA==`
 			}, 1000)
 		}		
 		render(){			
-			return $("div",{},[		    				
+			return [		    				
 				$("div",{key:"mm",ref:ref=>this.mmRef = ref,style:{height:"1mm",position:"absolute",zIndex:"-1"}}),
 				$("div",{key:"em",ref:ref=>this.remRef = ref,style:{height:"1em",position:"absolute",zIndex:"-1"}}),
 				$("div",{key:"children"},this.props.show?this.props.children:null)			
-			])
+			]
 		}
 	}
 	class CanvasMaxHeightElement extends StatefulComponent{
@@ -3666,7 +3558,7 @@ ACAAIAAgACAAAA==`
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
 			DateTimeClockElement,
-            MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
+            MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,MenuBurger,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
 			SignIn,ChangePassword,
@@ -3674,15 +3566,13 @@ ACAAIAAgACAAAA==`
 			FocusAnnouncerElement,
 			ConfirmationOverlayElement,
 			DragDropHandlerElement,
-			DragDropDivElement,
-			FilterContainerElement,
-			FilterElement,
+			DragDropDivElement,			
 			ColorCreator,ColorItem,ColorPicker,
 			InteractiveAreaElement,ZoomOnPopupElement,
 			BatteryState,DeviceConnectionState,
 			DragWrapperElement,
 			CanvasMaxHeightElement,
-			NoShowUntilElement
+			NoShowUntilElement			
     },
 		onClickValue,		
 		onReadySendBlob,
