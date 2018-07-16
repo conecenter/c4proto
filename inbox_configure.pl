@@ -1,8 +1,10 @@
 
 use strict;
 
+print "HI inbox 2\n";
+
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
-sub syf{ my $res = scalar `$_[0]`; print "$_[0]\n$res"; $res }
+sub syf{ print "$_[0]\n"; my $res = scalar `$_[0]`; print "=result=\n$res"; $res }
 
 my $zoo_port = 2181;
 my $bin = "kafka/bin";
@@ -15,5 +17,7 @@ my $infinite_lag = "min.compaction.lag.ms=9223372036854775807";
 my $compression = "compression.type=producer";
 sy("$kafka_configs --alter --entity-name .inbox --add-config $infinite_lag,$compression");
 die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
+
+print "...\n";
 
 sleep 3600;
