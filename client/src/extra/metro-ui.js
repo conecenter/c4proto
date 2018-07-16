@@ -2815,7 +2815,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.el) return
 			let maxLines = 1 
 			
-			const chldMap = this.props.children.map(child=>({child,basis:this.parseBasis(child.props.incoming.at.style.flexBasis),en:child.props.incoming.at.active&&true,maxLines:1}))
+			const chldMap = this.props.children.map(child=>({child,basis:this.parseBasis(child.props.at.style.flexBasis),en:child.props.at.active&&true,maxLines:1}))
 			const chldAMap = chldMap.filter(_=>_.en)
 			const pRect = this.el.getBoundingClientRect()			
 			const chldAWidth = chldAMap.reduce((a,e)=>(a+(e.en?e.basis:0)),0)
@@ -2834,7 +2834,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					e.maxLines = maxLines
 					return a+(e.en?e.basis:0);
 				},0)				
-				const firstPassiveIndex = chldMap.findIndex(_=>!_.child.props.incoming.at.active && !_.en)
+				const firstPassiveIndex = chldMap.findIndex(_=>!_.child.props.at.active && !_.en)
 				if(firstPassiveIndex==-1) break;
 				const child = chldMap[firstPassiveIndex]
 				let lineWidth = Math.floor(pRect.width/child.basis)*child.basis;lineWidth = lineWidth?lineWidth:child.basis

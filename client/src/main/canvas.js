@@ -38,38 +38,19 @@ export function CanvasFactory(util, modList){
         processFrame: l => (frame,prev) => l.map(s=>s(frame,prev)),
         setupContext: l => opt => util.setup(utx=>l.map(s=>s(utx)).concat(opt), {}),
         setupFrame  : l => () => util.setup(frame=>l.map(s=>s()), {})
+        //remove      : l => () => l.forEach(s=>s()),
     })
 }
 
-export function ExchangeCanvasSetup(canvas,getViewPortRect,rootElement,createElement,activeElement){
-    function onZoom(){} //todo to close popup?
-    function appendChild(element){
-        rootElement().appendChild(element)
-        element.style.position = "absolute"
-        element.style.zIndex = "554"
-		element.style.outline = "none"
-		if(element.tagName == "CANVAS"){
-			element.tabIndex = "1"
-			element.onclick = ()=>{
-				const aElement = activeElement?activeElement():null;
-				if(aElement&&element!=aElement) aElement.blur&&aElement.blur();
-			}			
-		}
+export function ExchangeCanvasSetup(canvas){
+    function getViewPortRect(){
+        return canvas.document().body.getBoundingClientRect()
     }
-
-    return {onZoom,getViewPortRect,createElement,appendChild}
+    return ({getViewPortRect})
 }
-/*
-function ElementSystem(){
-    function createElement(tagName){ return document.createElement(tagName) }
-    function appendChild(element){ document.body.appendChild(element) }
-    return {createElement,appendChild}
-}
-*/
-
 
 //state.changedSizes && index >= parseInt(state.changedSizes.sent["X-r-index"]) ? {...state, changedSizes: null} : state
-export function ResizeCanvasSetup(canvas,system){
+export function ResizeCanvasSetup(canvas){
     function processFrame(frame,prev){
         const {zoom,parentPos,zoomIsChanging,pxPerEMZoom} = frame
         if(zoomIsChanging) return;
@@ -84,25 +65,29 @@ export function ResizeCanvasSetup(canvas,system){
     return ({processFrame})
 }
 
-export function BaseCanvasSystem(util,createElement){
-    const fontMeter = util.cached(()=>createElement('div'))
-    return ({fontMeter})
-}
-
-export function BaseCanvasSetup(log, util, canvas, system){
+export function BaseCanvasSetup(log, util, canvas){
     let lastFrame
     let currentState = {}
     let fromServerVersion = 0
-    function parentNode(){
-        const res = Object.values(currentState.parentNodes||{}).filter(v=>v)
-        return res.length === 1 ? res[0] : null
+    let toRemove = []
+    function parentNode(){ return currentState.parentNode }
+    function document(){ return canvas.parentNode().ownerDocument }
+    function appendChild(el){
+        regRemove(()=>el.parentNode && el.parentNode.removeChild(el))
+        document().body.appendChild(el)
+        el.style.position = "absolute"
+    }
+    function addEventListener(el,evName,handler,capture){
+        regRemove(()=>el.removeEventListener(evName,handler,capture))
+        el.addEventListener(evName,handler,capture)
     }
 
+    const fontMeter = util.cached(()=>canvas.document().createElement('div'))
     function setupFontMeter(){
-        const fontMeter = system.fontMeter()
-        if(fontMeter.parentElement) return;
-        fontMeter.style.cssText = "height:1em;padding:0px;margin:0px"
-        canvas.appendChild(fontMeter)
+        const el = fontMeter()
+        if(el.parentElement) return;
+        el.style.cssText = "height:1em;padding:0px;margin:0px"
+        appendChild(el)
     }
 
     function sendToServer(req,evColor){ return currentState.sendToServer({ headers: req },evColor)}
@@ -112,13 +97,8 @@ export function BaseCanvasSetup(log, util, canvas, system){
         if(currentState.parsed !== state.parsed) updateFromServerVersion()
         currentState = state
 
-        if(!canvas.getViewPortRect()) return state
-        //const canvasElement = canvas.visibleElement()
-        const parentElement = canvas.parentNode()
-        if(!parentElement){
-            //if(canvasElement.parentNode) canvasElement.parentNode.removeChild(canvasElement)
-            return state
-        }
+        if(!canvas.parentNode() || !canvas.getViewPortRect()) return state
+
         setupFontMeter()
 
         const newFrame = canvas.setupFrame()
@@ -130,9 +110,11 @@ export function BaseCanvasSetup(log, util, canvas, system){
         //console.log("canvas-gen-time",Date.now()-startTime)
         return state
     }
+    function regRemove(f){
+        toRemove = [f,...toRemove]
+    }
     function remove() {
-        const canvasElement = canvas.visibleElement()
-        if(canvasElement.parentNode) canvasElement.parentNode.removeChild(canvasElement)
+        toRemove.forEach(f=>f())
     }
 
     ////
@@ -141,7 +123,10 @@ export function BaseCanvasSetup(log, util, canvas, system){
     }
     function processFrame(frame, prev){
         const canvasElement = canvas.visibleElement()
-        if(!canvasElement.parentNode) canvas.appendChild(canvasElement)
+        if(!canvasElement.parentNode) {
+            appendChild(canvasElement)
+            if(canvas.setupCanvasElement) canvas.setupCanvasElement(canvasElement)
+        }
         const same = canvas.compareFrames(frame,prev)
         const samePos = comparePos(same)
         if(!samePos(p=>p.viewExternalPos)){
@@ -162,7 +147,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
         const vExternalEnd = canvas.calcPos(dir=>Math.min(parentPos.end[dir],scrollPos.end[dir])|0)
         const viewExternalSize = canvas.calcPos(dir=>Math.max(0, vExternalEnd[dir] - vExternalPos[dir])|0)
         //
-        const pxPerEMZoom = canvas.scaleToZoom(canvas.elementPos(system.fontMeter()).size.y)
+        const pxPerEMZoom = canvas.scaleToZoom(canvas.elementPos(fontMeter()).size.y)
         const fromServer = canvas.fromServer()
         const maxZoom = pxPerEMZoom - fromServer.minCmdUnitsPerEMZoom
         const mSize = canvas.mapSize()
@@ -186,7 +171,7 @@ export function BaseCanvasSetup(log, util, canvas, system){
     function rectToPos(p){
         return {pos:{x:p.left,y:p.top}, size:{x:p.width,y:p.height}, end:{x:p.right,y:p.bottom}}
     }
-    function createCanvas(){ return canvas.createElement('canvas') }
+    function createCanvas(){ return canvas.document().createElement('canvas') }
     function fixCanvasSize(canvasElement,size){
         canvasElement.width = size.x
         canvasElement.height = size.y
@@ -291,16 +276,16 @@ export function BaseCanvasSetup(log, util, canvas, system){
         setupContext,cleanContext,getContext,calcPos,fromServer,
         composingElement,visibleElement,mapSize,createCanvasWithSize,
         setupFrame,processFrame,viewPositions,composeFrameStart,
-        checkActivate, remove,
+        checkActivate, remove, addEventListener,
         zoomToScale, scaleToZoom,
         compareFrames, elementPos, updateFromServerVersion,
-        parentNode, sendToServer
+        parentNode, sendToServer, document
     }
 }
 
 export function ComplexFillCanvasSetup(util, canvas){
     const image = util.cached(url=>{
-        const image = canvas.createElement("img")
+        const image = canvas.document().createElement("img")
         image.onload = () => canvas.updateFromServerVersion()
         image.src = url
         return image
@@ -356,41 +341,35 @@ export function TiledCanvasSetup(canvas){
     return ({forTiles})
 }
 
-export function MouseCanvasSystem(util,addEventListener){
+export function MouseCanvasSetup(canvas){
     let currentDrag = noDrag
     let mousePos = { x:0, y:0, t:0 }
-    const needMouseWindowListeners = util.cached(()=>{
-        addEventListener("mousemove",ev=>currentDrag(ev,false),false)
-        addEventListener("mouseup",ev=>currentDrag(ev,true),false) // capture (true) causes popup close to be later
-        return true
-    })
+    function mouseMove(ev){ currentDrag(ev,false) }
+    function mouseUp(ev){ currentDrag(ev,true) }
     function getMousePos(){ return mousePos }
     function regMousePos(ev, prev){
-        return mousePos = { prev, x:ev.clientX, y:ev.clientY, t:Date.now() }
+        mousePos = { prev, x:ev.clientX, y:ev.clientY, t:Date.now() }
     }
     function noDrag(ev,isLast){
         regMousePos(ev, null)
     }
     function setCurrentDrag(f){ currentDrag = f || noDrag }
-
-    return {getMousePos,regMousePos,setCurrentDrag,needMouseWindowListeners}
-}
-
-export function MouseCanvasSetup(canvas, system){
-    function getMousePos(){ return system.getMousePos() }
     function handleMouseDown(ev){
-        system.regMousePos(ev, null)
-        system.setCurrentDrag((ev,isLast) => {
-            const mousePos = system.regMousePos(ev, canvas.getMousePos())
+        regMousePos(ev, null)
+        setCurrentDrag((ev,isLast) => {
+            regMousePos(ev, canvas.getMousePos())
             canvas.drag({isLast,mousePos})
             //console.log("drag",isLast)
-            if(isLast) system.setCurrentDrag(null)
+            if(isLast) setCurrentDrag(null)
         })
         ev.preventDefault()
     }
     function processFrame(frame, prev){
-        system.needMouseWindowListeners()
-        if(!prev) canvas.visibleElement().addEventListener("mousedown", handleMouseDown)//ie selectstart?
+        if(prev) return;
+        const win = canvas.document().defaultView
+        canvas.addEventListener(win,"mousemove",mouseMove,false)
+        canvas.addEventListener(win,"mouseup",mouseUp,false) // capture (true) causes popup close to be later
+        canvas.addEventListener(canvas.visibleElement(),"mousedown", handleMouseDown)//ie selectstart?
     }
     function dMousePos(p1,p0){ return { x: p1.x-p0.x, y: p1.y-p0.y, t: p1.t-p0.t } }
     function findMousePos(pLast, cond){
@@ -500,7 +479,7 @@ export function DragViewPositionCanvasSetup(canvas){
         const mouseRelPos = canvas.relPos(canvas.visibleElement(), mousePos)
         const from = canvas.setupFrame()
         animation = animateChangingZoom(from, - Math.sign(ev.deltaY)/2, mouseRelPos)
-        canvas.onZoom()
+        if(canvas.onZoom) canvas.onZoom() //todo to close popup?
 		ev.preventDefault();
     }
     function limit(from, to){
@@ -547,7 +526,7 @@ export function DragViewPositionCanvasSetup(canvas){
         }
     }
     function processFrame(frame, prev){
-        if(!prev) canvas.visibleElement().addEventListener("wheel", handleWheel)
+        if(!prev) canvas.addEventListener(canvas.visibleElement(),"wheel", handleWheel)
     }
     return {drag,setupFrame,processFrame}
 }

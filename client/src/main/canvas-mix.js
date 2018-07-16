@@ -2,9 +2,9 @@
 import * as Canvas from "../main/canvas"
 
 
-export function CanvasBaseMix(log,util,system){
+export function CanvasBaseMix(log,util){
     return options => canvas => [
-         Canvas.BaseCanvasSetup(log,util,canvas,system),
+         Canvas.BaseCanvasSetup(log,util,canvas),
          Canvas.ComplexFillCanvasSetup(util,canvas),
          Canvas.InteractiveCanvasSetup(canvas),
          options.singleTile ?
@@ -12,7 +12,9 @@ export function CanvasBaseMix(log,util,system){
              Canvas.TiledCanvasSetup(canvas),
          options.disableDragAndZoom ?
              Canvas.ScrollViewPositionCanvasSetup(canvas) :
-             Canvas.DragViewPositionCanvasSetup(canvas)
+             Canvas.DragViewPositionCanvasSetup(canvas),
+         Canvas.ResizeCanvasSetup(canvas),
+         Canvas.MouseCanvasSetup(canvas)
     ]
 }
 

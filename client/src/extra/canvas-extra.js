@@ -391,3 +391,27 @@ export function TransitionCanvasSetup(canvas,log){
     };
     return {processFrame,setupContext,setupFrame};
 }
+
+export function ExchangeCanvasSetup(canvas,activeElement){
+    function setupCanvasElement(element){
+        element.style.zIndex = "554"
+		element.style.outline = "none"
+		if(element.tagName == "CANVAS"){
+			element.tabIndex = "1"
+			element.onclick = ()=>{
+				const aElement = activeElement?activeElement():null;
+				if(aElement&&element!=aElement) aElement.blur&&aElement.blur();
+			}
+		}
+    }
+    function getViewPortRect(){
+        const body = canvas.document().body
+        const footer = body.querySelector(".mainFooter")
+        const bRect = body.getBoundingClientRect()
+        return !footer ? bRect : {
+          top: bRect.top, left: bRect.left, right: bRect.right,
+          bottom: footer.getBoundingClientRect().top
+        }
+    }
+    return {getViewPortRect,setupCanvasElement}
+}
