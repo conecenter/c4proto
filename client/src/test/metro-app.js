@@ -30,6 +30,9 @@ import SwitchHost from "../extra/switchhost-module"
 import UpdateManager from "../extra/update-manager"
 import VirtualKeyboard from "../extra/virtual-keyboard"
 import autoBind from 'react-autobind'
+import MetroUiFilters   from "../extra/metro-ui-filters"
+
+
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
@@ -138,9 +141,21 @@ const canvasMods = [CanvasBaseMix(log,util),exchangeMix,CanvasExtraMix(log),ddMi
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender)
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow,StatefulComponent});
+
+const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComponent})
+
 //transforms
 const vDomAttributes = VDomAttributes(requestState)
-const transforms = mergeAll([vDomAttributes.transforms,metroUi.transforms,customUi.transforms,cryptoElements.transforms,updateManager.transforms,canvas.transforms,virtualKeyboard.transforms])
+const transforms = mergeAll([
+        vDomAttributes.transforms,
+	metroUi.transforms,
+	customUi.transforms,
+	cryptoElements.transforms,
+	updateManager.transforms,
+	canvas.transforms,
+	virtualKeyboard.transforms,
+	metroUiFilters.transforms	
+])
 
 const vDom = VDomCore(log,transforms,getRootElement)
 const switchHost = SwitchHost(log,window)
@@ -168,5 +183,6 @@ activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), withState(log,
     focusModule.checkActivate,
     dragDropModule.checkActivate,
 	updateManager.checkActivate,
-	virtualKeyboard.checkActivate
+	virtualKeyboard.checkActivate,
+	metroUiFilters.checkActivate
 ]))

@@ -265,10 +265,8 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
 			nodesObj = newNodesObj
 			const st = nodesObj.find(_=>_.n.dataset.sticky&&true)
-			if(st) {
-				stickyNode = st.n
-				//return stickyNode.focus()
-			}
+			stickyNode = st?st.n:null
+				//return stickyNode.focus()			
 			if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
 				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))				
 				inpNodes&&inpNodes.n.focus()
