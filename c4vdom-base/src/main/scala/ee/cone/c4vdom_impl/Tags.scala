@@ -39,10 +39,11 @@ case class StyledValue(tagName: TagName, styles: List[TagStyle])(utils: TagJsonU
   }
 }
 
-case class SeedElement(seed: Product, styles: List[TagStyle])(utils: TagJsonUtils) extends SeedVDomValue {
+case class SeedElement(seed: Product, styles: List[TagStyle], src: String)(utils: TagJsonUtils) extends SeedVDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
-    builder.append("tp").append("div")
+    builder.append("tp").append("iframe")
+    builder.append("src").append(src)
     utils.appendStyles(builder, styles)
     builder.append("ref");{
       builder.startArray()
@@ -66,7 +67,7 @@ class TagsImpl(
     tag(key, DivTagName, attr)(children)
   def divButton[State](key:VDomKey)(action:State⇒State)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
     child[OfDiv](key,DivButton()((_:VDomMessage)⇒action), children)
-  def seed(product: Product)(attr: List[TagStyle])(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
-    child[OfDiv](product.productElement(0).toString,SeedElement(product,attr)(utils), children)
+  def seed(product: Product)(attr: List[TagStyle], src: String)(children: List[ChildPair[OfDiv]]): ChildPair[OfDiv] =
+    child[OfDiv](product.productElement(0).toString,SeedElement(product,attr,src)(utils), children)
 }
 

@@ -73,15 +73,7 @@ export default function CanvasManager(canvasFactory,sender){
         const rCtx = rootCtx(ctx)
         const path = ctxToPath(ctx)
         const aliveUntil = parentNode ? null : Date.now()+200
-        const {commandsBuffer,colorToContextBuffer} = gatherDataFromPathTree(prop.children)
-        const commands = bufferToArray(commandsBuffer)
-        const colorToContext = spreadAll(...bufferToArray(colorToContextBuffer))
-        const parsed = {...prop,commands}
-        const sendToServer = (target,color) => sender.send(colorToContext[color], target) //?move closure
-        rCtx.modify("CANVAS_UPD",branchByKey.one(rCtx.branchKey,canvasByKey.one(path, state => {
-            const canvas = state && state.canvas || canvasFactory(prop.options||{})
-            return ({...state, canvas, aliveUntil, parsed, parentNode, sendToServer})
-        })))
+        rCtx.modify("CANVAS_UPD",branchByKey.one(rCtx.branchKey,canvasByKey.one(path, state => ({...state, aliveUntil, prop, parentNode}))))
     }
 
     const canvasStyle = prop => {
@@ -94,12 +86,31 @@ export default function CanvasManager(canvasFactory,sender){
         return React.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
     }
 
+    const setup = state => {
+        const was = state.commandsFrom || {}
+        if(was.prop === state.prop) return state
+        const prop = state.prop || {}
+        const {commandsBuffer,colorToContextBuffer} = gatherDataFromPathTree(prop.children)
+        const commands = bufferToArray(commandsBuffer)
+        const colorToContext = spreadAll(...bufferToArray(colorToContextBuffer))
+        const parsed = {...prop,commands}
+        const sendToServer = (target,color) => sender.send(colorToContext[color], target) //?move closure
+        const canvas = state.canvas || canvasFactory(prop.options||{})
+        return ({...state, canvas, parsed, sendToServer, commandsFrom: {prop}})
+    }
+
+    const innerActivate = state => {
+        const canvas = state && state.canvas
+        const checkActivate = canvas && canvas.checkActivate
+        return checkActivate ? checkActivate(state) : state
+    }
+
     const checkActivate = modify => modify("CANVAS_FRAME",branchByKey.all(canvasByKey.all(state=>{
         if(state.aliveUntil && Date.now() > state.aliveUntil) {
             state.canvas.remove()
             return null
         }
-        return state.canvas.checkActivate(state)
+        return innerActivate(setup(state))
     })))
 
     const transforms = { tp: ({Canvas}) };

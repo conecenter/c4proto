@@ -17,12 +17,16 @@ class TestCoWorkApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with UIApp
+  with PublishingApp
   with TestTagsApp
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
+  with PublicViewAssembleApp
   with ModelAccessFactoryApp
+  with SessionAttrApp
   with SessionAttrAccessFactoryImplApp
+  with MortalFactoryApp
   with DefaultModelFactoriesApp
   with ByLocationHashViewsApp
   with TestCoWorkerViewApp
@@ -34,6 +38,12 @@ class TestCoWorkApp extends ServerApp
       super.assembles
   override def defaultModelFactories: List[DefaultModelFactory[_]] =
     ContentDefault :: super.defaultModelFactories
+  def mimeTypes: Map[String, String] = Map(
+    "html" → "text/html; charset=UTF-8"
+  )
+  def publishFromStrings: List[(String, String)] = List(
+    "/blank.html" → s"""<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>"""
+  )
 }
 
 @fieldAccess object TestContentAccess {
@@ -92,7 +102,7 @@ case class TestCoLeaderView(locationHash: String = "leader")(
     val seeds = fromAliens.toList.sortBy(_.sessionKey)
       .map(branchOperations.toSeed)
     divButton("add")(stats)(List(text("caption", "stats"))) ::
-      seeds.map(seed(_)(List(styles.width(100), styles.height(100)))(Nil))
+      seeds.map(seed(_)(List(styles.width(100), styles.height(100)), "/blank.html")(Nil))
   }
   private def stats: Context ⇒ Context = local ⇒ {
     logger.info(WorldStats.make(local))

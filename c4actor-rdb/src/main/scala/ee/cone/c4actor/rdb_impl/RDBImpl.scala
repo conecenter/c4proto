@@ -75,7 +75,7 @@ object ToExternalDBAssembles {
     @by[NeedSrcId] needStates: Values[HasState],
     hasStates: Values[HasState]
   ): Values[(TypeHex, ToExternalDBTask)] = {
-    if (hasStates == needStates) Nil else {
+    if (hasStates.toList == needStates.toList) Nil else {
       val typeHex = Hex(Single((hasStates ++ needStates).map(_.valueTypeId).distinct))
       List(typeHex → ToExternalDBTask(key, typeHex, Single.option(hasStates), Single.option(needStates)))
     }

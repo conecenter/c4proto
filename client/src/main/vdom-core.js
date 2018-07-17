@@ -40,7 +40,8 @@ class Traverse extends React.PureComponent{
 //todo branch LIFE
 const setupRootElement = state => {
     if(state.rootNativeElement) return state
-    const get = state.getRootElement
+    const gets = Object.keys(state.getRootElement||{}).map(k=>state.getRootElement[k]).filter(f=>f)
+    const get = gets.length === 1 ? gets[0] : null
     const parentNode = get && get()
     if(!parentNode) return state
     const was = parentNode.c4rootNativeElement
@@ -51,21 +52,22 @@ const setupRootElement = state => {
 }
 
 const merging = state => {
-    if(!state.incoming) return state
     const was = state.mergedFrom || {}
     if(state.incoming===was.incoming && state.local===was.local) return state
     const merge = merger((l,r)=>r)
-    const merged = Object.keys(state.local||{}).sort()
+    const merged = !state.incoming ? null :
+        Object.keys(state.local||{}).sort()
         .reduce((m,k)=>merge(m,state.local[k].patch), state.incoming)
     return {...state, mergedFrom: {incoming: state.incoming, local: state.local}, merged}
 }
 
 const rendering = state => {
-    if(!state.merged) return state
     const was = state.renderedFrom || {}
     if(state.merged === was.merged && state.rootNativeElement === was.rootNativeElement) return state
-    const rootVirtualElement = React.createElement(Traverse,state.merged)
-    ReactDOM.render(rootVirtualElement, state.rootNativeElement)
+    if(state.merged && state.rootNativeElement){
+        const rootVirtualElement = React.createElement(Traverse,state.merged)
+        ReactDOM.render(rootVirtualElement, state.rootNativeElement)
+    }
     return {...state, renderedFrom: {merged: state.merged, rootNativeElement: state.rootNativeElement} }
 }
 
@@ -111,7 +113,7 @@ export function VDomCore(log,activeTransforms,getRootElement){
 
     const branches = (data,modify) => {
         const rKey = data.match(/^[^,;]+/)
-        if(rKey) modify("BRANCHES",branchByKey.one(rKey, v => v.getRootElement ? v : {...v,getRootElement}))
+        if(rKey) modify("BRANCHES",branchByKey.one(rKey, getRootElementByKey.one("", st=>getRootElement)))
     }
 
     const ackChange = (data,modify) => {
@@ -126,11 +128,14 @@ export function VDomCore(log,activeTransforms,getRootElement){
     return ({receivers,checkActivate})
 }
 
+
 const getRootElementFrame = el => () => {
     const contentWindow = el && el.contentWindow
     const body = contentWindow && contentWindow.document.body
     return body && body.id && body
 }
+
+const getRootElementByKey = dictKeys(f=>({getRootElement:f}))
 
 export function VDomAttributes(sender){
     const sendThen = ctx => event => sender.send(ctx,{value:""})
@@ -145,8 +150,8 @@ export function VDomAttributes(sender){
     const seed = ctx => parentNode => {
         const rCtx = rootCtx(ctx)
         const branchKey = ctx.value[1]
-        const getRootElement = getRootElementFrame(parentNode)
-        rCtx.modify("SEED",branchByKey.one(branchKey, state=>({...state, getRootElement})))
+        const getRootElement = parentNode && getRootElementFrame(parentNode)
+        rCtx.modify("SEED",branchByKey.one(branchKey, getRootElementByKey.one(rCtx.branchKey, st=>getRootElement)))
     }
     const ref = ({seed})
     const ctx = { ctx: ctx => ctx }
