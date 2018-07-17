@@ -140,10 +140,10 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		}
 		render(){
 			const {className,style,children} = this.props
-			const buttons = children.filter(_=>_.props.incoming.at.className.includes("cButton") && !_.props.incoming.at.className.includes("rightMost"))
-			const buttonsRight  = children.filter(_=>_.props.incoming.at.className.includes("cButton") && _.props.incoming.at.className.includes("rightMost"))
-			const msOpts = children.filter(_=>_.props.incoming.at.className.includes("msOpt"))
-			const msBOpts = children.filter(_=>_.props.incoming.at.className.includes("msBOpt"))
+			const buttons = children.filter(_=>_.props.at.className.includes("cButton") && !_.props.at.className.includes("rightMost"))
+			const buttonsRight  = children.filter(_=>_.props.at.className.includes("cButton") && _.props.at.className.includes("rightMost"))
+			const msOpts = children.filter(_=>_.props.at.className.includes("msOpt"))
+			const msBOpts = children.filter(_=>_.props.at.className.includes("msBOpt"))
 			const popupPostSt = className.includes("w1")?{left:"0px"}:{right:"0px"}
 			const burger = this.state.shouldBurger?$("div",{onBlur:this.onBurgerBlur,tabIndex:"0",key:"burger",className:"burger",style:{position:"relative",outline:"none",padding:"0.3em"}},[
 				$(MenuBurger,{key:"burgerButton",style:{color:"black"},className:"cButton",isBurgerOpen:this.state.show,onClick:this.openBurger}),
@@ -162,10 +162,10 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 	
 	class TableOptsElement extends StatefulComponent{		
 		getFilters(){
-			return this.props.children.filter(c=>c.props.incoming.at.className == "filter")
+			return this.props.children.filter(c=>c.props.at.className == "filter")
 		}		
 		getWN(n){
-			return this.props.children.filter(c=>c.props.incoming.at.className.split(' ').includes("w"+n))
+			return this.props.children.filter(c=>c.props.at.className.split(' ').includes("w"+n))
 		}
 		getMaxWWidth(num,fAMapLength){
 			if(!this["w"+num]) return 0
@@ -194,7 +194,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 			this.px2em = this.remRef.getBoundingClientRect().height
 			let fMap 
 			if(!this.props.hide)
-				fMap = this.getFilters().map(f=>({active:f.props.incoming.at.active=="true"?true:false,o:f,basis:parseFloat(f.props.incoming.at.style.flexBasis)*this.px2em}))	
+				fMap = this.getFilters().map(f=>({active:f.props.at.active=="true"?true:false,o:f,basis:parseFloat(f.props.at.style.flexBasis)*this.px2em}))
 			else 
 				fMap = []
 			let fAMap = this.props.open?(fMap.forEach(_=>_.active=true),fMap):fMap.filter(_=>_.active)
@@ -229,12 +229,12 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		}
 		showMinimalFilters(wn1,wn2){			
 			const f = this.fMap.filter(_=>_.active).map(_=>_.o)
-			if(f.length==0 && this.state.finalFWidth && !wn1.concat(wn2).some(_=>_.props.incoming.at.className.split(' ').includes("msOpt"))){
+			if(f.length==0 && this.state.finalFWidth && !wn1.concat(wn2).some(_=>_.props.at.className.split(' ').includes("msOpt"))){
 				let fw = this.state.finalFWidth
 				let done = false
 				const a = this.getFilters().filter((_,i)=>{
 					if(done) return false
-					const w = parseFloat(_.props.incoming.at.style.flexBasis)*this.px2em
+					const w = parseFloat(_.props.at.style.flexBasis)*this.px2em
 					if(fw - w>0 || i==0) {fw-=w; return true}
 					done = true
 					return false
