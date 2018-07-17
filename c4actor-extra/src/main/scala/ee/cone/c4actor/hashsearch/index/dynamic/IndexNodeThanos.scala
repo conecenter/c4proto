@@ -32,6 +32,8 @@ trait DynamicIndexAssemble
 
   def dynamicIndexRefreshRateSeconds: Long
 
+  def dynamicIndexNodeDefaultSetting: IndexNodeSettings = IndexNodeSettings("", true, None)
+
   override def currentTimeConfig: List[CurrentTimeConfig] =
     CurrentTimeConfig("DynamicIndexAssembleGC", dynamicIndexRefreshRateSeconds * 5) ::
       CurrentTimeConfig("DynamicIndexAssembleRefresh", dynamicIndexRefreshRateSeconds) ::
@@ -44,7 +46,7 @@ trait DynamicIndexAssemble
         new IndexNodeThanos(
           p.modelCl, p.modelId,
           dynamicIndexAssembleDebugMode, qAdapterRegistry, serializer,
-          dynamicIndexRefreshRateSeconds, dynamicIndexAutoStaticNodeCount, dynamicIndexAutoStaticLiveSeconds
+          dynamicIndexRefreshRateSeconds, dynamicIndexAutoStaticNodeCount, dynamicIndexAutoStaticLiveSeconds, dynamicIndexNodeDefaultSetting
         )
       ) :::
       super.assembles
@@ -132,7 +134,8 @@ sealed trait ThanosTimeTypes {
   ser: SerializationUtils,
   refreshRateSeconds: Long = 60,
   autoCount: Int,
-  autoLive: Long
+  autoLive: Long,
+  dynamicIndexNodeDefaultSetting: IndexNodeSettings
 ) extends Assemble with ThanosTimeTypes {
   type IndexNodeId = SrcId
   type IndexByNodeId = SrcId
@@ -359,12 +362,13 @@ case class TimeTransform(srcId: SrcId, newTime: Long) extends TxTransform {
   }
 }
 
-case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName: List[String]) extends TxTransform {
+case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName: List[String], default: IndexNodeSettings) extends TxTransform {
   def transform(local: Context): Context = {
     val firstTime = System.currentTimeMillis()
+    val IndexNodeSettings(_, alive, time) = default
     val timedLocal = TxAdd(
       LEvent.update(IndexNode(srcId, modelId, byAdapterId, lensName)) ++
-        LEvent.update(IndexNodeSettings(srcId, true, None))
+        LEvent.update(IndexNodeSettings(srcId, allAlwaysAlive = alive, keepAliveSeconds = time))
     )(local)
     val secondTime = System.currentTimeMillis()
     TxAdd(LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))))(timedLocal)
