@@ -52,6 +52,7 @@ export function ExchangeCanvasSetup(canvas){
 //state.changedSizes && index >= parseInt(state.changedSizes.sent["X-r-index"]) ? {...state, changedSizes: null} : state
 export function ResizeCanvasSetup(canvas){
     function processFrame(frame,prev){
+        if(!canvas.getSizesSyncEnabled()) return;
         const {zoom,parentPos,zoomIsChanging,pxPerEMZoom} = frame
         if(zoomIsChanging) return;
         const screenScale = canvas.zoomToScale(zoom)
@@ -70,6 +71,7 @@ export function BaseCanvasSetup(log, util, canvas){
     let currentState = {}
     let fromServerVersion = 0
     let toRemove = []
+    function getSizesSyncEnabled(){ return currentState.sizesSyncEnabled }
     function parentNode(){ return currentState.parentNode }
     function document(){ return canvas.parentNode().ownerDocument }
     function appendChild(el){
@@ -279,7 +281,7 @@ export function BaseCanvasSetup(log, util, canvas){
         checkActivate, remove, addEventListener,
         zoomToScale, scaleToZoom,
         compareFrames, elementPos, updateFromServerVersion,
-        parentNode, sendToServer, document
+        parentNode, sendToServer, document, getSizesSyncEnabled
     }
 }
 

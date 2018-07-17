@@ -86,6 +86,14 @@ export default function CanvasManager(canvasFactory,sender){
         return React.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
     }
 
+    const checkIsRootBranch = brSt => brSt && brSt.getRootElement && !!brSt.getRootElement[""]
+
+    const passSyncEnabled = brSt => state => {
+        const sizesSyncEnabled = checkIsRootBranch(brSt)
+        if(sizesSyncEnabled === state.sizesSyncEnabled) return state
+        return ({...state, sizesSyncEnabled})
+    }
+
     const setup = state => {
         const was = state.commandsFrom || {}
         if(was.prop === state.prop) return state
@@ -105,13 +113,16 @@ export default function CanvasManager(canvasFactory,sender){
         return checkActivate ? checkActivate(state) : state
     }
 
-    const checkActivate = modify => modify("CANVAS_FRAME",branchByKey.all(canvasByKey.all(state=>{
-        if(state.aliveUntil && Date.now() > state.aliveUntil) {
+    const beMortal = state => {
+        if(state && state.aliveUntil && Date.now() > state.aliveUntil) {
             state.canvas.remove()
             return null
-        }
-        return innerActivate(setup(state))
-    })))
+        } else return state
+    }
+
+    const checkActivate = modify => modify("CANVAS_FRAME",branchByKey.all(brSt=>canvasByKey.all(
+        state=>beMortal(innerActivate(setup(passSyncEnabled(brSt)(state))))
+    )(brSt)))
 
     const transforms = { tp: ({Canvas}) };
     return ({transforms,checkActivate});
