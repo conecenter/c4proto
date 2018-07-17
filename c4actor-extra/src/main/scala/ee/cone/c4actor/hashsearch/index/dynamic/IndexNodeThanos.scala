@@ -171,7 +171,7 @@ sealed trait ThanosTimeTypes {
             val srcId = getIndexNodeSrcId(ser, modelId, byId, nameList)
             if (debugMode)
               PrintColored("y")(s"[Thanos.Soul, $modelId] Created IndexNode for ${(prod.by.getClass.getName, nameList)},${(modelCl.getName, modelId)}")
-            WithPK(SoulTransform(srcId, modelId, byId, nameList)) :: Nil
+            WithPK(SoulTransform(srcId, modelId, byId, nameList, dynamicIndexNodeDefaultSetting)) :: Nil
           case None =>
             PrintColored("r")(s"[Thanos.Soul, $modelId] Non serializable condition: $prod")
             Nil
