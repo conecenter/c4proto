@@ -24,6 +24,13 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0195) keepAliveSeconds: Option[Long]
   )
 
+  // Combined stats about children of one node
+  @Id(0x0200) case class IndexByNodesStats(
+    @Id(0x0185) srcId: String,
+    @Id(0x0186) lastPongSeconds: Long,
+    @Id(0x0199) aliveList: List[String]
+  )
+
   // C
   @Id(0x0170) case class IndexByNode(
     @Id(0x0175) srcId: String,
@@ -32,10 +39,9 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0173) byInstance: Option[AnyOrig]
   )
 
-  // D
-  @Id(0x0184) case class IndexByNodeStats(
-    @Id(0x185) srcId: String,
-    @Id(0x186) lastPongSeconds: Long
+  @Id(0x0201) case class IndexByNodeLastSeen(
+    @Id(0x0202) srcId: String,
+    @Id(0x0203) lastSeenAtSeconds: Long
   )
 
   // E

@@ -71,11 +71,11 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
     val lensOpt: Option[ProdLens[Model, Field]] = lensRegistryApi.getOpt[Model, Field](lensName)
     lensOpt match {
       case Some(lens) =>
-        models.par.flatMap(model ⇒ {
+        models.flatMap(model ⇒ {
           val heaps: List[By] = fieldToHeaps(lens.of(model))
           heapsToSrcIds(lensName, heaps).map(srcId ⇒ srcId → model)
         }
-        ).to[Values]
+        )
       case None ⇒
         Nil
     }
@@ -116,12 +116,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
       val rangeUUID = serializer.srcIdFromOrig(heap, heap.getClass.getName)
       val modelUUID = serializer.srcIdFromSeqMany(modelClass.getName)
       val srcId = serializer.srcIdFromSeqMany(modelUUID, metaListUUID, rangeUUID).toString
-
-      /*val metaListUUID = serializer.uuidFromSeq(lensName.map(str ⇒ serializer.uuid(str)))
-      val rangeUUID = serializer.uuidFromOrig(heap, heap.getClass.getName)
-      val modelUUID = serializer.uuid(modelClass.getName)
-      val srcId = serializer.uuidFromSeq(modelUUID, metaListUUID, rangeUUID).toString*/
-      s"${modelClass.getName}$lensName$heap$srcId" // TODO replace with "srcId"
+      srcId
     }
     )
   }
@@ -151,7 +146,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
   }
 
   def modelToHeapsBy(
-    models: Values[Model], nodeBy: IndexByNodeWithDirective[Model], debug: Boolean = false
+    models: Values[Model], nodeBy: IndexByNodeWithDirective[Model]
   ): Values[(SrcId, Model)] = {
     rangerRegistry.getByByIdUntyped(nodeBy.indexNode.indexByNode.byInstance.get.adapterId) match {
       case Some(ranger) ⇒
@@ -263,16 +258,16 @@ trait DynamicIndexSharedTypes {
 
   def ModelToHeapIdByIndexNode(
     modelId: SrcId,
-    models: Values[Model], // TODO forEach
+    models: Each[Model],
     @by[IndexNodeRichAll] node: Each[IndexNodeWithDirective[Model]]
   ): Values[(DynamicHeapId, Model)] =
-    modelsToHeaps(models, node)
+    modelsToHeaps(models :: Nil, node)
   // END: If node.keepAllAlive
 
   // START: !If node.keepAllAlive
   def IndexNodeRichToIndexByNodeWithDirectiveAll(
     indexNodeId: SrcId,
-    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model]], // TODO forEach
+    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model]],
     node: Each[IndexNodeRich[Model]]
   ): Values[(IndexByNodeRichAll, IndexByNodeWithDirective[Model])] =
     if (!node.keepAllAlive) {
@@ -290,17 +285,17 @@ trait DynamicIndexSharedTypes {
 
   def ModelToHeapIdByIndexByNode(
     modelId: SrcId,
-    models: Values[Model], // TODO forEach
+    models: Each[Model],
     @by[IndexByNodeRichAll] nodeBy: Each[IndexByNodeWithDirective[Model]]
   ): Values[(DynamicHeapId, Model)] =
-    modelToHeapsBy(models, nodeBy, modelId == "100")
+    modelToHeapsBy(models :: Nil, nodeBy)
 
   // END: !If node.keepAllAlive
 
   def RequestToDynNeedToHeap(
     leafCondId: SrcId,
     leaf: Each[InnerLeaf[Model]],
-    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model]] // TODO forEach
+    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model]]
   ): Values[(DynamicHeapId, DynamicNeed[Model])] =
     leaf.condition match {
       case prodCond: ProdCondition[_, _] ⇒
@@ -313,14 +308,14 @@ trait DynamicIndexSharedTypes {
   def DynNeedToDynCountToRequest(
     heapId: SrcId,
     @by[DynamicHeapId] models: Values[Model],
-    @by[DynamicHeapId] need: Each[DynamicNeed[Model]] // TODO not distinct
+    @by[DynamicHeapId] need: Each[DynamicNeed[Model]]
   ): Values[(LeafConditionId, DynamicCount[Model])] =
     (need.requestId → DynamicCount[Model](heapId, models.length)) :: Nil
 
   def DynCountsToCondEstimate(
     leafCondId: SrcId,
     leaf: Each[InnerLeaf[Model]],
-    @by[LeafConditionId] counts: Values[DynamicCount[Model]] // TODO add Index*Node here or maybeNot
+    @by[LeafConditionId] counts: Values[DynamicCount[Model]]
   ): Values[(SrcId, InnerConditionEstimate[Model])] =
     for {
       condEstimate ← cDynEstimate(leaf, counts)

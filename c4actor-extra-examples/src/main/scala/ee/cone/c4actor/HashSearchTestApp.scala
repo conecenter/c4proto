@@ -10,8 +10,8 @@ import ee.cone.c4actor.dep.request.CurrentTimeAssembleMix
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
-import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, ProductWithId}
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodeStats, IndexNode}
+import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeStats, ProductWithId}
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexNode}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
