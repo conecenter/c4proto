@@ -11,7 +11,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeStats, ProductWithId}
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexNode}
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodesStats, IndexNode, IndexNodeSettings}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -45,7 +45,7 @@ class HashSearchExtraTestStart(
     println("Answer", ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
     println(ByPK(classOf[IndexNode]).of(nGlobalAA).values)
     println(ByPK(classOf[IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
-    println(ByPK(classOf[IndexByNodeStats]).of(nGlobalAA).values)
+    println(ByPK(classOf[IndexByNodesStats]).of(nGlobalAA).values)
     Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal: Context = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobalAA)
@@ -55,7 +55,7 @@ class HashSearchExtraTestStart(
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
     println(ByPK(classOf[IndexByNode]).of(newNGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
-    println(ByPK(classOf[IndexByNodeStats]).of(newNGlobalAA).values)
+    println(ByPK(classOf[IndexByNodesStats]).of(newNGlobalAA).values)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(newNGlobalAA)
     Thread.sleep(10000)
@@ -65,7 +65,7 @@ class HashSearchExtraTestStart(
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
     println(ByPK(classOf[IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
-    println(ByPK(classOf[IndexByNodeStats]).of(newNGlobal2AA).values)
+    println(ByPK(classOf[IndexByNodesStats]).of(newNGlobal2AA).values)
     execution.complete()
 
   }
@@ -288,6 +288,8 @@ class HashSearchExtraTestApp extends RichDataApp
   override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: ProductWithId(classOf[TestObject2], 2) :: super.dynIndexModels
 
   def dynamicIndexRefreshRateSeconds: Long = 1L
+
+  override def dynamicIndexNodeDefaultSetting: IndexNodeSettings = IndexNodeSettings("", false, Some(100L))
 }
 
 object ValueAssembleProfiler2 extends AssembleProfiler {

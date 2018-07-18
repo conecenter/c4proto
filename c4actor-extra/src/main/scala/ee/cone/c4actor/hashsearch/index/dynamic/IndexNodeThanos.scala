@@ -288,7 +288,7 @@ sealed trait ThanosPingTypes {
         val lastPong = indexByNodesLastSeen.headOption.map(_.lastSeenAtSeconds).getOrElse(0L)
         val setting = indexByNodeSettings.headOption
         val isAlive =
-          leafIsPresent ||
+          leafIsPresent || indexByNodesLastSeen.isEmpty ||
             (setting.isDefined && (setting.get.alwaysAlive || currentTime - setting.get.keepAliveSeconds.getOrElse(0L) - lastPong <= 0))
         val rich = IndexByNodeRich[Model](node.srcId, isAlive, node)
         if (debugMode)
@@ -305,7 +305,7 @@ sealed trait ThanosPingTypes {
         case Some(byId) ⇒
           val parentId = getIndexNodeSrcId(ser, modelId, byId, nameList)
           val stubIndexByNode = IndexByNode(leaf.srcId, parentId, modelId, Some(encode(qAdapterRegistry)(typedCondition.by)))
-          val rich = IndexByNodeRich[Model](leaf.srcId, true, stubIndexByNode)
+          val rich = IndexByNodeRich[Model](leaf.srcId, isAlive = true, stubIndexByNode)
           if (debugMode)
             PrintColored("b", "w")(s"[Thanos.Space, $modelId] Created from leaf IndexByNodeRich ${(leaf.srcId, innerLeafs.headOption.map(_.condition.asInstanceOf[ProdCondition[_ <: Product, Model]].by))}")
           WithPK(rich) :: Nil
