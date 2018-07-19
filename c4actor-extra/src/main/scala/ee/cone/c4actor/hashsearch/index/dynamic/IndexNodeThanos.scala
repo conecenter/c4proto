@@ -41,7 +41,6 @@ trait DynamicIndexAssemble
   override def assembles: List[Assemble] = {
     modelListIntegrityCheck(dynIndexModels)
     new ThanosTimeFilters ::
-      new ThanosMindAssembleTime ::
       dynIndexModels.distinct.map(p ⇒
         new IndexNodeThanos(
           p.modelCl, p.modelId,
@@ -132,31 +131,6 @@ sealed trait ThanosTimeTypes {
     } yield WithAll(CurrentTimeNode("DynamicIndexAssembleGC", pong.currentTimeSeconds / (refreshRateSeconds * 5) * (refreshRateSeconds * 5)))).headOption.to[Values]
 }
 
-sealed trait ThanosPingTypes {
-  type IndexNodeTimeId = SrcId
-  type IndexByNodeTimeId = SrcId
-}
-
-@assemble class ThanosMindAssembleTime() extends Assemble with ThanosPingTypes with ThanosTimeTypes {
-  def NodesStatsFromNodes(
-    nodeId: SrcId,
-    node: Each[IndexNode],
-    @by[TimeIndexNodeThanos] pong: Each[CurrentTimeNode],
-    @by[IndexByNodeTimeId] children: Values[IndexByNode]
-  ): Values[(SrcId, TxTransform)] =
-    WithPK(TimeTransform(node.srcId, pong.currentTimeSeconds, children.map(_.srcId))) :: Nil
-
-  def NodesStatsToNodes(
-    statsId: SrcId,
-    stats: Each[IndexByNodesStats]
-  ): Values[(IndexByNodeTimeId, IndexByNodeStats)] =
-    for {
-      childId ← stats.aliveList
-    } yield WithPK(IndexByNodeStats(childId, stats.lastPongSeconds, stats.srcId))
-
-
-}
-
 @assemble class IndexNodeThanos[Model <: Product](
   modelCl: Class[Model],
   modelId: Int,
@@ -167,7 +141,7 @@ sealed trait ThanosPingTypes {
   autoCount: Int,
   autoLive: Long,
   dynamicIndexNodeDefaultSetting: IndexNodeSettings
-) extends Assemble with ThanosTimeTypes with ThanosPingTypes {
+) extends Assemble with ThanosTimeTypes {
   type IndexNodeId = SrcId
   type IndexByNodeId = SrcId
 
@@ -259,18 +233,6 @@ sealed trait ThanosPingTypes {
     }
   }
 
-  // ByNode ping if alive
-  def IndexByNodeToPing(
-    innerLeafId: SrcId,
-    innerLeafs: Values[InnerLeaf[Model]],
-    indexByNodes: Values[IndexByNode]
-  ): Values[(IndexByNodeTimeId, IndexByNode)] =
-    (innerLeafs.toList, indexByNodes.toList) match {
-      case (_ :: Nil, y :: Nil) ⇒
-        (y.indexNodeId → y) :: Nil
-      case _ ⇒ Nil
-    }
-
   // ByNode rich
   def SpaceIndexByNodeRich(
     indexByNodeId: SrcId,
@@ -341,16 +303,23 @@ sealed trait ThanosPingTypes {
     }
     else Nil
 
+  // Count children
+  def PowerIndexByNodeCounter(
+    indexNodeId: SrcId,
+    @by[IndexNodeId] indexByNodeRiches: Values[IndexByNodeRich[Model]]
+  ): Values[(SrcId, IndexByNodeRichCount[Model])] =
+    WithPK(IndexByNodeRichCount[Model](indexNodeId, indexByNodeRiches.size)) :: Nil
+
   // NodeRich - static
   def SpaceIndexNodeRichAllAlive(
     indexNodeId: SrcId,
     indexNode: Each[IndexNode],
     indexNodeSettings: Values[IndexNodeSettings],
-    childCounts: Values[IndexByNodesStats]
+    childCounts: Values[IndexByNodeRichCount[Model]]
   ): Values[(SrcId, IndexNodeRich[Model])] =
     if (indexNode.modelId == modelId) {
       val settings = indexNodeSettings.headOption
-      val childCount = childCounts.headOption.map(_.aliveList.size).getOrElse(0)
+      val childCount = childCounts.headOption.map(_.indexByNodeCount).getOrElse(0)
       val isAlive = (settings.isDefined && settings.get.allAlwaysAlive) || (settings.isDefined && settings.get.keepAliveSeconds.isEmpty && childCount > autoCount)
       if (isAlive) {
         val rich = IndexNodeRich[Model](indexNode.srcId, isAlive, indexNode, Nil)
@@ -396,16 +365,6 @@ case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, paren
     )(local)
     val secondTime = System.currentTimeMillis()
     TxAdd(LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))))(timedLocal)
-  }
-}
-
-case class TimeTransform(srcId: SrcId, newTime: Long, present: Values[SrcId]) extends TxTransform {
-  def transform(local: Context): Context = {
-    TxAdd(
-      LEvent.update(
-        IndexByNodesStats(srcId, newTime, present.toList)
-      )
-    )(local)
   }
 }
 
