@@ -153,7 +153,8 @@ export function VDomAttributes(sender){
         const getRootElement = parentNode && getRootElementFrame(parentNode)
         rCtx.modify("SEED",branchByKey.one(branchKey, getRootElementByKey.one(rCtx.branchKey, st=>getRootElement)))
     }
-    const ref = ({seed})
+    const root = ctx => parentNode => {}
+    const ref = ({seed,root})
     const ctx = { ctx: ctx => ctx }
     const transforms = {onClick,onChange,onBlur,ref,ctx}
     return ({transforms})
