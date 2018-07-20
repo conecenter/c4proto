@@ -12,10 +12,10 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp{
+trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp {
 
 
-  override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig("CurrentTimeRequestAssemble", 10L) :: super.currentTimeConfig
+  override def currentTimeConfig: List[CurrentTimeConfig] = CurrentTimeConfig(CurrentTimeRequestAssembleTimeId.id, 10L) :: super.currentTimeConfig
 
   override def assembles: List[Assemble] = new CurrentTimeRequestAssemble(depResponseFactory) :: super.assembles
 
@@ -31,16 +31,18 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
     if (prev.isEmpty || prev.get != currentTimeNode) {
       TxAdd(LEvent.update(currentTimeNode))(local)
     } else {
-      SleepUntilKey.set(now.plusSeconds(refreshRateSeconds))(local)
+      local
     }
   }
 }
 
 @protocol object CurrentTimeProtocol extends Protocol {
+
   @Id(0x0123) case class CurrentTimeNode(
     @Id(0x0124) srcId: String,
     @Id(0x0125) currentTimeSeconds: Long
   )
+
 }
 
 case class CurrentTimeConfig(srcId: SrcId, periodSeconds: Long)
@@ -49,11 +51,15 @@ trait CurrentTimeConfigApp {
   def currentTimeConfig: List[CurrentTimeConfig] = Nil
 }
 
-trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with ProtocolsApp{
+trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with ProtocolsApp {
 
   override def protocols: List[Protocol] = CurrentTimeProtocol :: super.protocols
 
   override def assembles: List[Assemble] = new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
+}
+
+object CurrentTimeRequestAssembleTimeId {
+  val id: String = "CurrentTimeRequestAssemble"
 }
 
 
@@ -70,20 +76,33 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with
   def GetCurrentTimeToAll(
     nowTimeId: SrcId,
     nowTimeNode: Each[CurrentTimeNode]
-  ): Values[(All, CurrentTimeNode)] = List(All → nowTimeNode)
+  ): Values[(All, CurrentTimeNode)] =
+    List(All → nowTimeNode)
 }
 
 @assemble class CurrentTimeRequestAssemble(util: DepResponseFactory) extends Assemble {
+  type CurrentTimeRequestAssembleTimeAll = All
+
+  def FilterTimeForCurrentTimeRequestAssemble(
+    timeId: SrcId,
+    time: Each[CurrentTimeNode]
+  ): Values[(CurrentTimeRequestAssembleTimeAll, CurrentTimeNode)] =
+    if (time.srcId == CurrentTimeRequestAssembleTimeId.id)
+      List(All → time)
+    else
+      Nil
+
   def FromAlienPongAndRqToInnerResponse(
     alienId: SrcId,
-    @by[All] pong: Each[CurrentTimeNode],
+    @by[CurrentTimeRequestAssembleTimeAll] pong: Each[CurrentTimeNode],
     rq: Each[DepInnerRequest]
   ): Values[(SrcId, DepResponse)] =
-    if(pong.srcId == "CurrentTimeRequestAssemble" && rq.request.isInstanceOf[CurrentTimeRequest]) {
-      val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
-      val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
-      List(WithPK(util.wrap(rq, Option(newTime))))
-    } else Nil
+    rq.request match {
+      case timeRq: CurrentTimeRequest ⇒
+        val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
+        WithPK(util.wrap(rq, Option(newTime))) :: Nil
+      case _ ⇒ Nil
+    }
 }
 
 @protocol object CurrentTimeRequestProtocol extends Protocol {

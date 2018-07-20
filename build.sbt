@@ -169,7 +169,7 @@ lazy val `c4gate-logback` = project.settings(publishSettings)
   //.settings(libraryDependencies += "org.codehaus.groovy" % "groovy-all" % "2.4.12")
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
-lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
+lazy val `c4proto-aggregate` = project.in(file(".")).enablePlugins(ScalaNativePlugin).settings(publishSettings).aggregate(
   `c4actor-base`,
   `c4actor-base-examples`,
   `c4actor-branch`,
