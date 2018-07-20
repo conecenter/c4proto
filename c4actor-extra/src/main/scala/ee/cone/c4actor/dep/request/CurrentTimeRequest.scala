@@ -82,6 +82,7 @@ object CurrentTimeRequestAssembleTimeId {
 
 @assemble class CurrentTimeRequestAssemble(util: DepResponseFactory) extends Assemble {
   type CurrentTimeRequestAssembleTimeAll = All
+  type FilterTimeRequests = SrcId
 
   def FilterTimeForCurrentTimeRequestAssemble(
     timeId: SrcId,
@@ -92,17 +93,24 @@ object CurrentTimeRequestAssembleTimeId {
     else
       Nil
 
-  def FromAlienPongAndRqToInnerResponse(
-    alienId: SrcId,
-    @by[CurrentTimeRequestAssembleTimeAll] pong: Each[CurrentTimeNode],
+  def FilterTimeRequests(
+    requestId: SrcId,
     rq: Each[DepInnerRequest]
-  ): Values[(SrcId, DepResponse)] =
+  ): Values[(FilterTimeRequests, DepInnerRequest)] =
     rq.request match {
-      case timeRq: CurrentTimeRequest ⇒
-        val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
-        WithPK(util.wrap(rq, Option(newTime))) :: Nil
+      case _: CurrentTimeRequest ⇒ WithPK(rq) :: Nil
       case _ ⇒ Nil
     }
+
+  def TimeToDepResponse(
+    alienId: SrcId,
+    @by[CurrentTimeRequestAssembleTimeAll] pong: Each[CurrentTimeNode],
+    @by[FilterTimeRequests] rq: Each[DepInnerRequest]
+  ): Values[(SrcId, DepResponse)] = {
+    val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
+    val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
+    WithPK(util.wrap(rq, Option(newTime))) :: Nil
+  }
 }
 
 @protocol object CurrentTimeRequestProtocol extends Protocol {
