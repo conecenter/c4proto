@@ -582,6 +582,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.initListener()
 		}
 		render(){			
+			const isSibling = Branches.isSibling(this.ctx)						
 			return [
 				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref},this.props.children),				
 				$("div",{key:"2",style:{height:"1em", position:"absolute",zIndex:"-1", top:"0px"},ref:ref=>this.remRef=ref})				
@@ -2614,28 +2615,34 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			
 			const style={				
 				display:"inline-block",
-				verticalAlign:"middle",
-				alignSelf:"center",
+				//verticalAlign:"middle",
+				//alignSelf:"center",
 				margin:"0 0.2em",
 				minWidth:"0",
 				whiteSpace:"nowrap",
 				position:"relative",
-				flex:"1 1 0%",				
-				...this.props.style					
+				flex:"1 1 0%",
+				...this.props.style	
 			}
 			const shadowStyle = {				
 				visibility:"hidden"
 			}
+			const textWStyle = {
+				display:"inline-block",
+				verticalAlign:"middle"
+			}
 			const textStyle = {
 				position:"absolute",
-				right:"0em"
+				right:"0em"					
 			}
 			//const localDate = new Date(serverTime)
 			//const lastChar = partialTime[partialTime.length-1]
-			return $("div",{style,ref:ref=>this.contEl=ref},[			
-				$("span",{style:shadowStyle,ref:ref=>this.shadowEl=ref,key:"shadow"},fullTime),
-				$("span",{style:textStyle,key:"date"},partialTime)
-			]);
+			return $("div",{style,ref:ref=>this.contEl=ref},
+				$("div",{style:textWStyle},[			
+					$("span",{style:shadowStyle,ref:ref=>this.shadowEl=ref,key:"shadow"},fullTime),
+					$("span",{style:textStyle,key:"date"},partialTime)
+				])
+			)
 		}
 	}
 	const AnchorElement = ({style,href}) =>$("a",{style,href},"get")	
@@ -2811,7 +2818,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const value = e.target.value
 			this.timeout = setTimeout(()=>{				
 				if(this.props.onChange)
-					this.props.onChange({target:{headers:{"X-r-action":"change"},value}})
+					this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
 				this.timeout = null
 			},500)
 			
@@ -3480,7 +3487,10 @@ ACAAIAAgACAAAA==`
 			if(mmH<=0||remH<=0) return null
 			return mmH/remH
 		}
-		componentDidMount(){				
+		componentDidMount(){	
+			this.ctx = rootCtx(this.props.ctx)
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return
 			this.props.onClickValue("change",this.ratio().toString())	
 			this.interval = setInterval(()=>{
 				if(this.props.show) return 

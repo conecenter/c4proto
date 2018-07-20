@@ -192,6 +192,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		}
 		calc(){
 			this.px2em = this.remRef.getBoundingClientRect().height
+			if(this.px2em == 0) return
 			let fMap 
 			if(!this.props.hide)
 				fMap = this.getFilters().map(f=>({active:f.props.at.active=="true"?true:false,o:f,basis:parseFloat(f.props.at.style.flexBasis)*this.px2em}))
