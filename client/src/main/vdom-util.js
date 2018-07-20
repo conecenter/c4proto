@@ -49,3 +49,19 @@ export const dictKeys = f => ({
 })
 
 export const branchByKey = dictKeys(f=>({branchByKey:f}))
+
+export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
+    const inpKeys = Object.keys(inpKeysObj)
+    const changed = state => {
+        const will = spreadAll(...inpKeys.map(k=>({[k]: state && state[k]})))
+        return ({...state, [cacheKey]:will})
+    }
+    const doRun = f(changed)
+    return state => {
+        const was = state && state[cacheKey]
+        if(inpKeys.every(k=>(was && was[k])===(state && state[k]))) return state
+        const res = doRun(state)
+        log(cacheKey+" "+(state===res?"deferred":"done"))
+        return res
+    }
+}

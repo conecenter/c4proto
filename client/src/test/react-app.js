@@ -33,7 +33,7 @@ const util = Canvas.CanvasUtil()
 const exchangeMix = options => canvas => Canvas.ExchangeCanvasSetup(canvas)
 const canvasMods = [CanvasBaseMix(log,util),exchangeMix,CanvasExtraMix(log)]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender)
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, log)
 
 const exampleAuth = ExampleAuth(pairOfInputAttributes)
 const vDomAttributes = VDomAttributes(exampleRequestState)

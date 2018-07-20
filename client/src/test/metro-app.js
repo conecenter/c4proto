@@ -137,7 +137,7 @@ const exchangeMix = options => canvas => CanvasExtra.ExchangeCanvasSetup(canvas,
 const ddMix = options => canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener)
 const canvasMods = [CanvasBaseMix(log,util),exchangeMix,CanvasExtraMix(log),ddMix]
 
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender)
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, log)
 const parentWindow = ()=> parent
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow,StatefulComponent});
 

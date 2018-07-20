@@ -1,7 +1,7 @@
 
 import React           from 'react'
 import {spreadAll}     from "../main/util"
-import {dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys} from "../main/vdom-util"
+import {dictKeys,branchByKey,rootCtx,ctxToPath,chain,someKeys,ifInputsChanged} from "../main/vdom-util"
 
 const replaceArrayTree = replace => root => {
     const traverse = arr => {
@@ -64,7 +64,7 @@ const gatherDataFromPathTree = root => chainFromTree(
     node => addCommands(node.at.commandsFinally||[])
 )(root)({ colorIndex: 0 })
 
-export default function CanvasManager(canvasFactory,sender){
+export default function CanvasManager(canvasFactory,sender, log){
     //todo: prop.options are considered only once; do we need to rebuild canvas if they change?
     // todo branches cleanup?
     const canvasByKey = dictKeys(f=>({canvasByKey:f}))
@@ -94,9 +94,7 @@ export default function CanvasManager(canvasFactory,sender){
         return ({...state, sizesSyncEnabled})
     }
 
-    const setup = state => {
-        const was = state.commandsFrom || {}
-        if(was.prop === state.prop) return state
+    const setup = ifInputsChanged(log)("commandsFrom", {prop:1}, changed => state => {
         const prop = state.prop || {}
         const {commandsBuffer,colorToContextBuffer} = gatherDataFromPathTree(prop.children)
         const commands = bufferToArray(commandsBuffer)
@@ -104,8 +102,8 @@ export default function CanvasManager(canvasFactory,sender){
         const parsed = {...prop,commands}
         const sendToServer = (target,color) => sender.send(colorToContext[color], target) //?move closure
         const canvas = state.canvas || canvasFactory(prop.options||{})
-        return ({...state, canvas, parsed, sendToServer, commandsFrom: {prop}})
-    }
+        return ({...changed(state), canvas, parsed, sendToServer})
+    })
 
     const innerActivate = state => {
         const canvas = state && state.canvas
