@@ -54,6 +54,32 @@ class SeqParallelDep[A](depSeq: Seq[Dep[A]]) extends DepImpl[Seq[A]] {
   }
 }
 
+/*
+  Resolved if at least one is resolved
+ */
+class SeqOptionParallelDep[A](depSeq: Seq[Dep[A]]) extends DepImpl[Seq[Option[A]]] {
+  def resolve(ctx: DepCtx): Resolvable[Seq[Option[A]]] = {
+    val seqResolved: Seq[Resolvable[A]] = depSeq.map(_.resolve(ctx))
+    val valueSeq: Seq[Option[A]] = seqResolved.map(_.value)
+    val atLestOneIsResolved: Boolean = valueSeq.collectFirst{case Some(a) ⇒ a}.isDefined
+    val requestSeq: Seq[DepRequest] = seqResolved.flatMap(_.requests)
+    val resolvedSeq = if (atLestOneIsResolved) Some(valueSeq) else None
+    Resolvable[Seq[Option[A]]](resolvedSeq, requestSeq)
+  }
+}
+
+/*
+  Preserves order but ignores unresolved in output
+ */
+class SeqUncheckedParallelDep[A](depSeq: Seq[Dep[A]]) extends DepImpl[Seq[A]] {
+  def resolve(ctx: DepCtx): Resolvable[Seq[A]] = {
+    val seqResolved: Seq[Resolvable[A]] = depSeq.map(_.resolve(ctx))
+    val valueSeq: Seq[A] = seqResolved.collect{case r if r.value.isDefined ⇒ r.value.get}
+    val requestSeq: Seq[DepRequest] = seqResolved.flatMap(_.requests)
+    Resolvable[Seq[A]](Option(valueSeq), requestSeq)
+  }
+}
+
 case class DepFactoryImpl() extends DepFactory {
   def parallelSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]] =
     new SeqParallelDep[A](value.asInstanceOf[Seq[Dep[A]]])
@@ -65,4 +91,10 @@ case class DepFactoryImpl() extends DepFactory {
 
   def parallelTuple[A, B](a: Dep[A], b: Dep[B]): Dep[(A, B)] =
     new ParallelDep[A, B](a, b)
+
+  def parOptSeq[A](value: Seq[Dep[A]]): Dep[Seq[Option[A]]] =
+    new SeqOptionParallelDep[A](value)
+
+  def parUnsafeSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]] =
+    new SeqUncheckedParallelDep[A](value)
 }
