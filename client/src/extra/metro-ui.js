@@ -771,6 +771,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){
 					const emRect= this.emEl.getBoundingClientRect()
 					const emWidth = pdRect.width/emRect.height;
+					log(emWidth.toString())
 					this.props.onClickValue("change",emWidth.toString())					
 				}				
 				//log(`set: ${dRect.width}`)
