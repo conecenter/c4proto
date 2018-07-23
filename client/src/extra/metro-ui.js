@@ -765,11 +765,12 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.el.parentElement) return	
 			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return
+			const emRect= this.emEl.getBoundingClientRect()
+			if(emRect.height == 0) return
 			const dRect = this.el.getBoundingClientRect()
 			const pdRect = this.el.parentElement.getBoundingClientRect()			
 			if(this.prev!=pdRect.width){
-				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){
-					const emRect= this.emEl.getBoundingClientRect()
+				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){					
 					const emWidth = pdRect.width/emRect.height;
 					log(emWidth.toString())
 					this.props.onClickValue("change",emWidth.toString())					
@@ -793,8 +794,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.props.dynamic) checkActivateCalls.remove(this.check)			
 			this.el.removeEventListener("cTab",this.onInputEnter)
 		}
-		render(){
-			
+		render(){			
 			const {style,children} = this.props
 			const emElStyle={
 				position:"absolute",
