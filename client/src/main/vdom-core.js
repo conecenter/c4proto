@@ -83,10 +83,10 @@ export function VDomCore(log,activeTransforms,getRootElement){
 
     const setupRootElement = ifInputsChanged(log)("rootElementFrom", {rootParentElement:1,frameParentElement:1}, changed => state => {
         const parentNode = state.rootParentElement || state.frameParentElement
-        const was = parentNode.c4rootNativeElement
+        const was = parentNode && parentNode.c4rootNativeElement
         if(was) parentNode.removeChild(was)
-        const rootNativeElement = parentNode.ownerDocument.createElement("span")
-        parentNode.appendChild(parentNode.c4rootNativeElement = rootNativeElement)
+        const rootNativeElement = parentNode && parentNode.ownerDocument.createElement("span")
+        if(rootNativeElement) parentNode.appendChild(parentNode.c4rootNativeElement = rootNativeElement)
         return {...changed(state), rootNativeElement}
     })
 
