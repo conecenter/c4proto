@@ -582,6 +582,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.initListener()
 		}
 		render(){			
+			const isSibling = Branches.isSibling(this.ctx)						
 			return [
 				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref},this.props.children),				
 				$("div",{key:"2",style:{height:"1em", position:"absolute",zIndex:"-1", top:"0px"},ref:ref=>this.remRef=ref})				
@@ -764,12 +765,14 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.el.parentElement) return	
 			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return
+			const emRect= this.emEl.getBoundingClientRect()
+			if(emRect.height == 0) return
 			const dRect = this.el.getBoundingClientRect()
 			const pdRect = this.el.parentElement.getBoundingClientRect()			
 			if(this.prev!=pdRect.width){
-				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){
-					const emRect= this.emEl.getBoundingClientRect()
+				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){					
 					const emWidth = pdRect.width/emRect.height;
+					log(emWidth.toString())
 					this.props.onClickValue("change",emWidth.toString())					
 				}				
 				//log(`set: ${dRect.width}`)
@@ -791,8 +794,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.props.dynamic) checkActivateCalls.remove(this.check)			
 			this.el.removeEventListener("cTab",this.onInputEnter)
 		}
-		render(){
-			
+		render(){			
 			const {style,children} = this.props
 			const emElStyle={
 				position:"absolute",
@@ -2614,28 +2616,34 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			
 			const style={				
 				display:"inline-block",
-				verticalAlign:"middle",
-				alignSelf:"center",
+				//verticalAlign:"middle",
+				//alignSelf:"center",
 				margin:"0 0.2em",
 				minWidth:"0",
 				whiteSpace:"nowrap",
 				position:"relative",
-				flex:"1 1 0%",				
-				...this.props.style					
+				flex:"1 1 0%",
+				...this.props.style	
 			}
 			const shadowStyle = {				
 				visibility:"hidden"
 			}
+			const textWStyle = {
+				display:"inline-block",
+				verticalAlign:"middle"
+			}
 			const textStyle = {
 				position:"absolute",
-				right:"0em"
+				right:"0em"					
 			}
 			//const localDate = new Date(serverTime)
 			//const lastChar = partialTime[partialTime.length-1]
-			return $("div",{style,ref:ref=>this.contEl=ref},[			
-				$("span",{style:shadowStyle,ref:ref=>this.shadowEl=ref,key:"shadow"},fullTime),
-				$("span",{style:textStyle,key:"date"},partialTime)
-			]);
+			return $("div",{style,ref:ref=>this.contEl=ref},
+				$("div",{style:textWStyle},[			
+					$("span",{style:shadowStyle,ref:ref=>this.shadowEl=ref,key:"shadow"},fullTime),
+					$("span",{style:textStyle,key:"date"},partialTime)
+				])
+			)
 		}
 	}
 	const AnchorElement = ({style,href}) =>$("a",{style,href},"get")	
@@ -2811,7 +2819,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			const value = e.target.value
 			this.timeout = setTimeout(()=>{				
 				if(this.props.onChange)
-					this.props.onChange({target:{headers:{"X-r-action":"change"},value}})
+					this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
 				this.timeout = null
 			},500)
 			
@@ -3480,7 +3488,10 @@ ACAAIAAgACAAAA==`
 			if(mmH<=0||remH<=0) return null
 			return mmH/remH
 		}
-		componentDidMount(){				
+		componentDidMount(){	
+			this.ctx = rootCtx(this.props.ctx)
+			const isSibling = Branches.isSibling(this.ctx)
+			if(isSibling) return
 			this.props.onClickValue("change",this.ratio().toString())	
 			this.interval = setInterval(()=>{
 				if(this.props.show) return 

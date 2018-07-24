@@ -362,8 +362,9 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		componentDidMount(){			
 			this.root = getReactRoot(this.el)
 			if(this.root) {
-				this.prevRootHeight = this.root.parentElement.style.maxHeight
-				this.root.parentElement.style.maxHeight="100%"
+				const vkMain = this.root.querySelector(".vkMain")
+				this.prevRootHeight = vkMain.style.maxHeight
+				vkMain.style.maxHeight="100%"
 			}
 			this.mObj = {f:this.updateVkView, maxHeight:parseInt(this.props.maxHeight)/100}
 			this.vkReg = vkModule.regView(this.mObj,this.el)				
@@ -378,7 +379,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				overflowY:height=="100%"?"":"auto",				
 				height:height
 			}			
-			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
+			const className = "vkMain"
+			return $("div",{style, ref:ref=>this.el=ref,className},this.props.children)
 		}
 	}
 	class VkViewElement extends StatefulComponent{		

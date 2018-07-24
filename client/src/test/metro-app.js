@@ -90,18 +90,17 @@ const eventManager = (()=>{
 })()
 
 const miscReact = (()=>{
-	const isReactRoot = (el) => {
-		if(el.parentElement.classList.contains("branch")) return true
-		return false
-	}
+	const isReactRoot = (el) => true
 	const getReactRoot = (el) => {
-		if(!el) {
-			const a = documentManager.body().querySelector("div.branch")
-			return a&&a.firstElementChild
-		}			
-		if(isReactRoot(el) || !el.parentNode) return el
-		const parentEl = el.parentNode
-		return getReactRoot(parentEl)
+		if(!el){
+			return documentManager.body().querySelector('span[tp="span"]')		
+		}
+		let e = el
+		while(e){
+			if(e.tagName == "BODY") return e.querySelector('span[tp="span"]')
+			e = e.parentNode
+		}
+		return null
 	}	
 	return {isReactRoot,getReactRoot}
 })()
