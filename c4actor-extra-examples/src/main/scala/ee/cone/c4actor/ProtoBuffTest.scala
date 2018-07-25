@@ -13,11 +13,11 @@ import scala.concurrent.{Await, Future}
 import scala.util.Random
 import AnyAdapter._
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.TestProtocol.{TestOrig, TestOrigForDecode}
+import ee.cone.c4actor.ProtoBuffTestProtocol.{TestOrig, TestOrigForDecode}
 
 import scala.collection.immutable
 
-@protocol object TestProtocol extends Protocol {
+@protocol object ProtoBuffTestProtocol extends Protocol {
 
   import AnyOrigProtocol._
 
@@ -38,7 +38,7 @@ trait Adapters extends ProtocolsApp with QAdapterRegistryApp {
 
   def qAdapterRegistry: QAdapterRegistry = TestQAdapterRegistryFactory(protocols)
 
-  override def protocols: List[Protocol] = TestProtocol :: AnyOrigProtocol :: QProtocol :: super.protocols
+  override def protocols: List[Protocol] = ProtoBuffTestProtocol :: AnyOrigProtocol :: QProtocol :: super.protocols
 }
 
 
