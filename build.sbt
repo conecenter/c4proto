@@ -57,7 +57,7 @@ lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSetting
   .settings(description := s"$descr / scalameta macros to generate Protobuf adapters for case classes")
 lazy val `c4proto-api` = project.settings(publishSettings)
   .settings(description := s"$descr / runtime dependency for generated Protobuf adapters")
-  .settings(libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0")
+  .settings(libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.3.0-RC1")
 
 lazy val `c4proto-types` = project.settings(publishSettings)
   .settings(description := s"$descr / additional data types to use in messages")
@@ -87,6 +87,7 @@ lazy val `c4actor-base-examples` = project.settings(publishSettings)
 lazy val `c4actor-extra` = project.settings(publishSettings)
   .settings(description := s"$descr / dep impls")
   .settings(metaMacroSettings)
+  .settings(libraryDependencies += "com.google.guava" % "guava" % "25.1-jre")
   .dependsOn(`c4actor-base`,`c4proto-types`)
 
 lazy val `c4gate-extra` = project.settings(publishSettings)
