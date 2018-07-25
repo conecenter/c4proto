@@ -1,37 +1,40 @@
-package ee.cone.c4actor.proto
+package ee.cone.c4actor
 
 import java.lang.management.ManagementFactory
 import java.util
 import java.util.concurrent.{Callable, Executors}
 
-import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.AnyAdapter.{decode, encode}
 import ee.cone.c4actor.AnyOrigProtocol.AnyOrig
-import ee.cone.c4actor._
-import ee.cone.c4actor.proto.ProtoBuffTestProtocol.{ProtoOrig, TestProtoOrig}
 import ee.cone.c4proto._
 
-import scala.collection.immutable
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{Await, Future}
 import scala.util.Random
+import AnyAdapter._
+import com.squareup.wire.ProtoAdapter
+import ee.cone.c4actor.ProtoBuffTestProtocol.{TestOrig, TestOrigForDecode}
+
+import scala.collection.immutable
 
 @protocol object ProtoBuffTestProtocol extends Protocol {
 
   import AnyOrigProtocol._
 
-  @Id(0x1) case class ProtoOrig(
+  @Id(0x1) case class TestOrig(
     @Id(0x2) srcId: String,
     @Id(0x3) list: List[String],
     @Id(0x4) byteStr: List[AnyOrig]
   )
 
-  @Id(0x5) case class TestProtoOrig(
+  @Id(0x5) case class TestOrigForDecode(
     @Id(0x6) srcId: String,
     @Id(0x7) number: Long
   )
 
 }
 
-trait ProtoBuffAdapters extends ProtocolsApp with QAdapterRegistryApp {
+trait Adapters extends ProtocolsApp with QAdapterRegistryApp {
 
   def qAdapterRegistry: QAdapterRegistry = TestQAdapterRegistryFactory(protocols)
 
@@ -43,7 +46,7 @@ trait ProtoBuffAdapters extends ProtocolsApp with QAdapterRegistryApp {
 This code proves that there is a problem with okio: SegmentPool.java blocks concurrent execution
  */
 
-object ProtoBuffTest extends ProtoBuffAdapters {
+object ProtoBuffTest extends Adapters {
   def main(args: Array[String]): Unit = {
     println(ManagementFactory.getRuntimeMXBean.getName)
     Thread.sleep(10000)
@@ -97,12 +100,12 @@ class SerializationRunnable(pid: Int, number: Int, qAdapterRegistry: QAdapterReg
 
 object TestCode {
   def test(number: Int, qAdapterRegistry: QAdapterRegistry): Long = {
-    val testOrigs = for (i ← 1 to number) yield TestProtoOrig(Random.nextString(10), i)
+    val testOrigs = for (i ← 1 to number) yield TestOrigForDecode(Random.nextString(10), i)
     val time = System.currentTimeMillis()
     val encoded: immutable.Seq[AnyOrig] = testOrigs.map(encode(qAdapterRegistry)(_))
-    val testOrigsss: immutable.Seq[ProtoOrig] = encoded.zipWithIndex.map { case (a, b) ⇒ ProtoOrig(b.toString, a.toString.split(",").toList, List(a)) }
+    val testOrigsss: immutable.Seq[TestOrig] = encoded.zipWithIndex.map { case (a, b) ⇒ TestOrig(b.toString, a.toString.split(",").toList, List(a)) }
     val encoded2: immutable.Seq[AnyOrig] = testOrigsss.map(encode(qAdapterRegistry)(_))
-    val decoded: immutable.Seq[ProtoOrig] = encoded2.map(decode[ProtoOrig](qAdapterRegistry))
+    val decoded: immutable.Seq[TestOrig] = encoded2.map(decode[TestOrig](qAdapterRegistry))
     if (testOrigsss != decoded)
       throw new Exception("NOT EQUAL")
     val time2 = System.currentTimeMillis()
