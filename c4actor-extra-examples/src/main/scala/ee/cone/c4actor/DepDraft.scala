@@ -67,10 +67,12 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
 
   def serialView: Dep[(Int, Int, Int)] = for {
     (a, t) ← depFactory.parallelTuple(askFoo("A"), new RequestDep[String](ContextIdRequest()))
+    Seq(i,j) ← depFactory.parallelSeq(askFoo("A") :: askFoo("A") :: Nil)
     s ← subView(a)
     b ← valueNode.seq("124")
     test ← kek.askByClAll(classOf[ValueNode])
-  } yield TimeColored("g", (t, test))((a, s, b.map(_.value).headOption.getOrElse(0)))
+    if s == 242
+  } yield TimeColored("g", (t, test, i, j))((a, s, b.map(_.value).headOption.getOrElse(0)))
 
   /*
     def parallelView: Dep[(Int,Int)] = for {
