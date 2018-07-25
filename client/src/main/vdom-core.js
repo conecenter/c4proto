@@ -62,51 +62,60 @@ function setupIncomingDiff(by,content,parent) {
     return changes.length>0 ? spreadAll(content, ...changes) : content
 }
 
-export function VDomCore(log,activeTransforms,getRootElement){
+const oValues = o => Object.keys(o||{}).sort().map(k=>o[k])
 
-    const findRootParent = ifInputsChanged(log)("rootParentFrom", {getRootElement:1}, changed => state => {
-        const get = state.getRootElement
-        const rootParentElement = get && get()
-        return get && !rootParentElement ? state : {...changed(state), rootParentElement}
+export function VDomCore(log,activeTransforms,getRootElement){
+        
+    const joinSeeds = ifInputsChanged(log)("seedsFrom", {branchByKey:1}, changed => state => {
+      const seedByKey = spreadAll(...oValues(state.branchByKey).map(brSt=>
+          spreadAll(...oValues(brSt.seedByKey).filter(seed=>seed.element).map(seed=>({[seed.branchKey]:seed})))
+      ))
+      return branchByKey.all(brSt=>checkUpdate({seed:seedByKey[brSt.branchKey]})(brSt))(changed(state))
+    })
+    
+    const joinBranches = ifInputsChanged(log)("branchesFrom", {branchByKey:1,activeBranchesStr:1}, changed => state => {
+        return branchByKey.all(brSt=>{
+            const isRoot  = brSt.branchKey && state.activeBranchesStr.startsWith(brSt.branchKey)
+            const isActive = brSt.branchKey && state.activeBranchesStr.includes(brSt.branchKey) 
+            return checkUpdate({ isActive, isRoot })(brSt)
+        })(changed(state))
+    })
+    
+    const findRootParent = ifInputsChanged(log)("rootParentFrom", {isRoot:1}, changed => state => {
+        if(!state.isRoot) return changed(state)
+        const rootParentElement = getRootElement()
+        if(!rootParentElement) return state
+        return {...changed(state), rootParentElement}
     })
 
-    const findFrameParent = ifInputsChanged(log)("frameParentFrom", {seedByKey:1}, changed => state => {
-        const seeds = Object.keys(state.seedByKey||{}).map(k=>state.seedByKey[k]).filter(f=>f.element)
-        const seed = seeds.length === 1 ? seeds[0] : null
+    const findFrameParent = ifInputsChanged(log)("frameParentFrom", {seed:1}, changed => state => {
+        const seed = state.seed
         const frameElement = seed && seed.element
         const fontSize = seed && seed.fontSize
         const contentWindow = frameElement && frameElement.contentWindow
         const body = contentWindow && contentWindow.document.body
         const frameParentElement = body && body.id && body
-        return frameElement && !frameParentElement ? state : {...changed(state), frameParentElement, fontSize}
+        if(frameElement && !frameParentElement) return state;
+        if(frameParentElement)
+            frameParentElement.style.fontSize = fontSize || ""
+        return ({...changed(state), frameParentElement})
     })
 
     const setupRootElement = ifInputsChanged(log)("rootElementFrom", {rootParentElement:1,frameParentElement:1}, changed => state => {
         const parentNode = state.rootParentElement || state.frameParentElement
-        const was = parentNode && parentNode.c4rootNativeElement
-        if(was) parentNode.removeChild(was)
-        const rootNativeElement = parentNode && parentNode.ownerDocument.createElement("span")
-        if(rootNativeElement) parentNode.appendChild(parentNode.c4rootNativeElement = rootNativeElement)
+        const rootNativeElement = state.rootNativeElement || parentNode && parentNode.ownerDocument.createElement("span")
+        if(rootNativeElement) parentNode.appendChild(rootNativeElement)
         return {...changed(state), rootNativeElement}
-    })
-
-    const setupRootStyle = ifInputsChanged(log)("rootStyleFrom", {rootNativeElement:1,fontSize:1}, changed => state => {
-        if(state.rootNativeElement)
-            state.rootNativeElement.style.fontSize = state.fontSize || ""
-        return changed(state)
     })
 
     const merging = ifInputsChanged(log)("mergedFrom", {incoming:1,local:1}, changed => state => {
         const merge = merger((l,r)=>r)
         const merged = !state.incoming ? null :
-            Object.keys(state.local||{}).sort()
-            .reduce((m,k)=>merge(m,state.local[k].patch), state.incoming)
+            oValues(state.local).reduce((m,v)=>merge(m,v.patch), state.incoming)
         return {...changed(state), merged}
     })
 
     const rendering = ifInputsChanged(log)("renderedFrom", {merged:1,rootNativeElement:1}, changed => state => {
-        //if(state.rootNativeElement !== was.rootNativeElement && was.rootNativeElement)
-        //    ReactDOM.unmountComponentAtNode(was.rootNativeElement)
         if(state.merged && state.rootNativeElement){
             const rootVirtualElement = React.createElement(Traverse,state.merged)
             ReactDOM.render(rootVirtualElement, state.rootNativeElement)
@@ -114,15 +123,28 @@ export function VDomCore(log,activeTransforms,getRootElement){
         return changed(state)
     })
 
-    const checkActivateBranch = chain([
-        findRootParent,
-        findFrameParent,
-        setupRootElement,
-        setupRootStyle,
-        merging,
-        rendering
-    ])
-    const checkActivate = modify => modify("FRAME",branchByKey.all(checkActivateBranch))
+    const mortality = ifInputsChanged(log)("lifeFrom", {isActive:1}, changed => state => {
+        if(state.isActive) return changed(state)
+        if(Date.now()-state.incomingTime < 2000) return state 
+        if(state.rootNativeElement) {
+            ReactDOM.unmountComponentAtNode(state.rootNativeElement)
+            //parentNode.removeChild(was)
+        }
+        return null
+    })
+    
+    const checkActivate = modify => modify("FRAME",chain([
+        joinBranches,
+        joinSeeds,
+        branchByKey.all(chain([
+            findRootParent,
+            findFrameParent,
+            setupRootElement,
+            merging,
+            rendering,
+            mortality
+        ]))
+    ]))
 
     const showDiff = (data,modify) => {
         const [branchKey,body] = splitFirst(" ", data)
@@ -133,13 +155,13 @@ export function VDomCore(log,activeTransforms,getRootElement){
             const was = state && state.incoming
             if(!was && !value["$set"]) return null
             const incoming = update(was || {}, nValue)
-            return {...state,incoming}
+            const incomingTime = Date.now()
+            return {...state,incoming,incomingTime,branchKey}
         }))
     }
 
     const branches = (data,modify) => {
-        const rKey = data.match(/^[^,;]+/)
-        if(rKey) modify("BRANCHES",branchByKey.one(rKey, checkUpdate({getRootElement})))
+        modify("BRANCHES", checkUpdate({activeBranchesStr:data}))
     }
 
     const ackChange = (data,modify) => {
@@ -173,11 +195,11 @@ export function VDomAttributes(sender){
     }
     const seed = ctx => element => {
         const rCtx = rootCtx(ctx)
-        const brPath = rCtx.branchKey + ctxToPath(ctx)
+        const path = ctxToPath(ctx)
         const branchKey = ctx.value[1]
         const fontSize = element && element.style.fontSize
-        rCtx.modify("SEED",branchByKey.one(branchKey, seedByKey.one(brPath,
-          checkUpdate({element,fontSize})
+        rCtx.modify("SEED",branchByKey.one(rCtx.branchKey, seedByKey.one(path,
+          checkUpdate({branchKey,element,fontSize})
         )))
     }
     const root = ctx => parentNode => {}

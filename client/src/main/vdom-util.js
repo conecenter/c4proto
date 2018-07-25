@@ -61,7 +61,7 @@ export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
         const was = state && state[cacheKey]
         if(inpKeys.every(k=>(was && was[k])===(state && state[k]))) return state
         const res = doRun(state)
-        log(cacheKey+" "+(state===res?"deferred":"done"))
+        log({hint:cacheKey, status:state===res?"deferred":"done", state:res})
         return res
     }
 }
