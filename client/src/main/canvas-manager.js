@@ -86,7 +86,7 @@ export default function CanvasManager(canvasFactory,sender, log){
         return React.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
     }
 
-    const checkIsRootBranch = brSt => brSt && brSt.getRootElement && !!brSt.getRootElement[""]
+    const checkIsRootBranch = brSt => brSt && brSt.isRoot
 
     const passSyncEnabled = brSt => state => {
         const sizesSyncEnabled = checkIsRootBranch(brSt)
