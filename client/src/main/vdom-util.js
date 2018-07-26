@@ -38,7 +38,7 @@ export const chain = functions => arg => functions.reduce((res,f)=>f(res), arg)
 const oneKey = (k,by) => st => {
     const was = st && st[k]
     const will = by(was)
-    return was === will ? st : will ? {...(st||{}), [k]: will} :
+    return was === will ? st : will ? {...(st||{}), [k]: will} : !st ? st :
         spreadAll(...Object.keys(st).filter(ck=>ck!==k).map(ck=>({[ck]:st[ck]})))
 }
 export const someKeys = bys => chain(Object.keys(bys).map(k=>oneKey(k,bys[k])))
