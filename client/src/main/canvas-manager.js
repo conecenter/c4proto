@@ -71,9 +71,10 @@ export default function CanvasManager(canvasFactory,sender, log){
     const canvasRef = prop => parentNode => {
         const ctx = prop.ctx
         const rCtx = rootCtx(ctx)
+        const branchKey = rCtx.branchKey
         const path = ctxToPath(ctx)
         const aliveUntil = parentNode ? null : Date.now()+200
-        rCtx.modify("CANVAS_UPD",branchByKey.one(rCtx.branchKey,canvasByKey.one(path, state => ({...state, aliveUntil, prop, parentNode}))))
+        rCtx.modify("CANVAS_UPD",canvasByKey.one(branchKey+":"+path, state => ({...state, branchKey, aliveUntil, prop, parentNode})))
     }
 
     const canvasStyle = prop => {
@@ -86,10 +87,10 @@ export default function CanvasManager(canvasFactory,sender, log){
         return React.createElement("div",{ style: canvasStyle(prop), ref: canvasRef(prop) },[])
     }
 
-    const checkIsRootBranch = brSt => brSt && brSt.isRoot
+    const checkIsRootBranch = (allSt,branchKey) => allSt && allSt.activeBranchesStr && allSt.activeBranchesStr.startsWith(branchKey)
 
-    const passSyncEnabled = brSt => state => {
-        const sizesSyncEnabled = checkIsRootBranch(brSt)
+    const passSyncEnabled = allSt => state => {
+        const sizesSyncEnabled = checkIsRootBranch(allSt,state.branchKey)
         if(sizesSyncEnabled === state.sizesSyncEnabled) return state
         return ({...state, sizesSyncEnabled})
     }
@@ -118,9 +119,9 @@ export default function CanvasManager(canvasFactory,sender, log){
         } else return state
     }
 
-    const checkActivate = modify => modify("CANVAS_FRAME",branchByKey.all(brSt=>canvasByKey.all(
-        state=>beMortal(innerActivate(setup(passSyncEnabled(brSt)(state))))
-    )(brSt)))
+    const checkActivate = modify => modify("CANVAS_FRAME",allSt=>canvasByKey.all(
+        state=>beMortal(innerActivate(setup(passSyncEnabled(allSt)(state))))
+    )(allSt))
 
     const transforms = { tp: ({Canvas}) };
     return ({transforms,checkActivate});
