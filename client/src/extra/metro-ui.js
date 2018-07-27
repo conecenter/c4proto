@@ -2646,6 +2646,11 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			)
 		}
 	}
+	
+	const TimeElement = (props) => {
+		return $(InputElement,{type:"time",value:props.value,onBlur:props.onBlur,onChange:props.onChange})
+	}	
+	
 	const AnchorElement = ({style,href}) =>$("a",{style,href},"get")	
 	class HeightLimitElement extends StatefulComponent{		
 		getInitialState(){ return {max:false}}		
@@ -3568,7 +3573,7 @@ ACAAIAAgACAAAA==`
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
-			DateTimeClockElement,
+			DateTimeClockElement,TimeElement,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,MenuBurger,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
