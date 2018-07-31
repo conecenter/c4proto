@@ -1231,16 +1231,23 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			inp.removeEventListener('ccopy',this.onCopy)
 			if(this.dragBinding) this.dragBinding.releaseDD()
 		}
-		componentDidUpdate(){			
+		componentDidUpdate(){						
 			if(this.props.cursorPos){
 				const pos = this.props.cursorPos()
 				const inp = this.getInput()
 				if(pos.ss) inp.selectionStart = pos.ss
 				if(pos.se) inp.selectionEnd = pos.se
 			}
+			if(this.k){
+				const inp = this.getInput()
+				inp.selectionStart = this.k
+				inp.selectionEnd = this.k
+				this.k = null
+			}
 		}	
 		onChange(e){
 			const inp = this.getInput()
+			this.k = inp.selectionStart
 			if(this.s!==null&&this.s!==undefined) {inp.selectionEnd =this.s;inp.selectionStart = this.s}
 			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
 				const newVal = e.target.value.toUpperCase();
