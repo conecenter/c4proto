@@ -17,8 +17,6 @@ import ee.cone.c4proto.{BigDecimalProtocol, Id, Protocol, protocol}
 trait SandboxApp
   extends ProtocolsApp {
   override def protocols: List[Protocol] = SandboxProtocol :: OtherProtocol :: super.protocols
-
-  override def assembles: List[Assemble] = new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
 }
 
 
