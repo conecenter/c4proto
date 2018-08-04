@@ -1,20 +1,14 @@
 package ee.cone.c4actor.sandbox
 
-import ee.cone.c4actor.PerformanceProtocol.NodeInstruction
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.ProtocolsApp
 import ee.cone.c4actor.sandbox.OtherProtocol.{OtherOrig1, OtherOrig2}
-import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, QProtocol}
-import ee.cone.c4assemble.Assemble
-import ee.cone.c4proto.{BigDecimalProtocol, Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 
 /*
   This file can be edited for learning purposes, feel free to experiment here
-
-  To start this app type the following into console:
-  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.sandbox.Sandbox sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
  */
 
-trait SandboxApp
+trait SandboxProtocolsApp
   extends ProtocolsApp {
   override def protocols: List[Protocol] = SandboxProtocol :: OtherProtocol :: super.protocols
 }
