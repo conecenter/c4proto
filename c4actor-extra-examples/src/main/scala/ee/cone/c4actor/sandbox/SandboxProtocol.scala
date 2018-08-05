@@ -1,7 +1,7 @@
 package ee.cone.c4actor.sandbox
 
 import ee.cone.c4actor.ProtocolsApp
-import ee.cone.c4actor.sandbox.OtherProtocol.{OtherOrig1, OtherOrig2}
+import ee.cone.c4actor.sandbox.OtherProtocol.{OtherOrig, OtherOrig2}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 /*
@@ -21,7 +21,7 @@ trait SandboxProtocolsApp
   @Id(0x0230) case class SandboxOrig(
     @Id(0x0231) srcId: String,
     @Id(0x0232) value: Int,
-    @Id(0x0233) otherOrig: Option[OtherOrig1],
+    @Id(0x0233) otherOrig: Option[OtherOrig],
     @Id(0x0234) list: List[OtherOrig2]
   )
 
@@ -29,7 +29,7 @@ trait SandboxProtocolsApp
 
 @protocol object OtherProtocol extends Protocol {
 
-  @Id(0x0235) case class OtherOrig1(
+  @Id(0x0235) case class OtherOrig(
     @Id(0x0236) srcId: String
   )
 
