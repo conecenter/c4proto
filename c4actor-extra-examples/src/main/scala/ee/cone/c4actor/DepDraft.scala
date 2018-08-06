@@ -11,7 +11,7 @@ import ee.cone.c4actor.dep_impl.{RequestDep, ResolvedDep}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 // sbt ~'c4actor-extra-examples/run-main ee.cone.c4actor.DepDraft'
-case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[ValueNode], depAskFactory: DepAskFactory, kek: ByClassNameAllAsk) {
+case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[ValueNode], depAskFactory: DepAskFactory, kek: ByClassNameAllAsk, depFactory: DepFactory) {
 
   def askFoo(v: String): Dep[Int] = new RequestDep[Int](FooDepRequest(v))
 
@@ -66,12 +66,13 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   } yield a + b + c.map(_.value).headOption.getOrElse(0)
 
   def serialView: Dep[(Int, Int, Int)] = for {
-    a ← askFoo("A")
-    t ← new RequestDep[String](ContextIdRequest())
+    (a, t) ← depFactory.parallelTuple(askFoo("A"), new RequestDep[String](ContextIdRequest()))
+    Seq(i,j) ← depFactory.parallelSeq(askFoo("A") :: askFoo("A") :: Nil)
     s ← subView(a)
     b ← valueNode.seq("124")
     test ← kek.askByClAll(classOf[ValueNode])
-  } yield TimeColored("g", (t, test))((a, s, b.map(_.value).headOption.getOrElse(0)))
+    if s == 242
+  } yield TimeColored("g", (t, test, i, j))((a, s, b.map(_.value).headOption.getOrElse(0)))
 
   /*
     def parallelView: Dep[(Int,Int)] = for {

@@ -28,7 +28,7 @@ object TimeColored {
 object PrintColored {
   def apply[R](color: String = "", bgColor: String = "")(f: ⇒ R): R = {
     val result = f
-    println(makeColored(color, bgColor)(result))
+    println(makeColored(color.toLowerCase, bgColor.toLowerCase)(result))
     result
   }
 
