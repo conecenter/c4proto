@@ -2,9 +2,9 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Firstborn
-import ee.cone.c4actor.TypedAllTestProtocol.{Model1, Model2}
+import ee.cone.c4actor.TypedAllTestProtocol.{Model1, Model2, ModelTest}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -35,7 +35,9 @@ class TypedAllTestStart(
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+    val test = TxAdd(update(ModelTest("1", 1)) ++ update(ModelTest("2", 2)))(nGlobalAAAA)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+    val test2 = TxAdd(update(ModelTest("1", 3)) ++ update(ModelTest("3", 5)) ++ update(ModelTest("2", 2)))(test)
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
     execution.complete()
 
@@ -45,6 +47,33 @@ class TypedAllTestStart(
 trait TypedAllType {
   type TestAll[T] = All
   type TestBy[T] = SrcId
+}
+
+@assemble class TestAllEach extends Assemble {
+  type FixedAll = All
+
+  def test1(
+    srcId: SrcId,
+    test: Each[ModelTest]
+  ): Values[(FixedAll, ModelTest)] = (All → test) :: Nil
+
+  def test2(
+    srcId: SrcId,
+    firstborn: Values[Firstborn],
+    @by[FixedAll] test: Each[ModelTest]
+  ): Values[(SrcId, Nothing)] = {
+    println(test)
+    Nil
+  }
+
+  def test3(
+    srcId: SrcId,
+    firstborn: Values[Firstborn],
+    @by[FixedAll] test: Values[ModelTest]
+  ): Values[(SrcId, Nothing)] = {
+    println(test)
+    Nil
+  }
 }
 
 @assemble class TypedAllTestAssemble[Model <: Product](modelCl: Class[Model]) extends Assemble with TypedAllType {
@@ -124,6 +153,11 @@ case class TestTx(srcId: SrcId) extends TxTransform {
     @Id(0xabcd) srcId: String
   )
 
+  @Id(0x789a) case class ModelTest(
+    @Id(0x1234) srcId: String,
+    @Id(0x1235) value: Int
+  )
+
 }
 
 class TypedAllTestApp extends RichDataApp
@@ -133,8 +167,7 @@ class TypedAllTestApp extends RichDataApp
   with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp
   with ExecutableApp
-  with ToStartApp
-  with MortalFactoryApp {
+  with ToStartApp {
 
 
   override def rawQSender: RawQSender = NoRawQSender
@@ -147,7 +180,7 @@ class TypedAllTestApp extends RichDataApp
   override def protocols: List[Protocol] = TypedAllTestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
-    new TypedAllTestAssemble(classOf[Model1]) :: new TypedAllTestAssemble(classOf[Model2]) ::
+    new TypedAllTestAssemble(classOf[Model1]) :: new TypedAllTestAssemble(classOf[Model2]) :: new TestAllEach ::
       super.assembles
   }
 
