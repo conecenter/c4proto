@@ -1,7 +1,5 @@
 package ee.cone.c4actor
 
-import java.nio.ByteBuffer
-
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.ToByteString
 

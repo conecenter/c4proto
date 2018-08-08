@@ -21,7 +21,7 @@ trait ConditionCheck[By<:Product,Field] extends Product {
   /*
     Checks if incoming By has default value and equals true always
    */
-  def defaultBy: Option[By ⇒ Boolean] = None
+  def defaultBy: Option[By ⇒ Boolean]
 }
 trait ProdCondition[By<:Product,Model] extends Condition[Model] {
   def by: By
