@@ -13,6 +13,7 @@ import ee.cone.c4actor.AnyOrigProtocol.AnyOrig
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.CurrentTimeNode
 import ee.cone.c4actor.dep.request.{CurrentTimeConfig, CurrentTimeConfigApp}
+import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp}
 
 import scala.collection.immutable
 
@@ -28,7 +29,8 @@ trait DynamicIndexAssemble
     with DynamicIndexModelsApp
     with SerializationUtilsApp
     with CurrentTimeConfigApp
-    with HashSearchDynamicIndexApp {
+    with HashSearchDynamicIndexApp
+    with HashSearchRangerRegistryApp {
 
   def dynamicIndexRefreshRateSeconds: Long
 
@@ -44,7 +46,7 @@ trait DynamicIndexAssemble
       dynIndexModels.distinct.map(p ⇒
         new IndexNodeThanos(
           p.modelCl, p.modelId,
-          dynamicIndexAssembleDebugMode, qAdapterRegistry, serializer,
+          dynamicIndexAssembleDebugMode, qAdapterRegistry, serializer, hashSearchRangerRegistry,
           dynamicIndexRefreshRateSeconds, dynamicIndexAutoStaticNodeCount, dynamicIndexAutoStaticLiveSeconds, dynamicIndexNodeDefaultSetting, dynamicIndexDeleteAnywaySeconds
         )
       ) :::
@@ -133,12 +135,15 @@ sealed trait ThanosTimeTypes {
     } yield WithAll(CurrentTimeNode("DynamicIndexAssembleGC", pong.currentTimeSeconds / (refreshRateSeconds * 5) * (refreshRateSeconds * 5)))).headOption.to[Values]
 }
 
+import ee.cone.c4actor.hashsearch.rangers.IndexType._
+
 @assemble class IndexNodeThanos[Model <: Product](
   modelCl: Class[Model],
   modelId: Int,
   debugMode: Boolean,
   qAdapterRegistry: QAdapterRegistry,
   ser: SerializationUtils,
+  hashSearchRangerRegistryApi: HashSearchRangerRegistryApi,
   refreshRateSeconds: Long = 60,
   autoCount: Int,
   autoLive: Long,
@@ -181,7 +186,8 @@ sealed trait ThanosTimeTypes {
             val srcId = getIndexNodeSrcId(ser, modelId, byId, nameList)
             if (debugMode)
               PrintColored("y")(s"[Thanos.Soul, $modelId] Created IndexNode for ${(prod.by.getClass.getName, nameList)},${(modelCl.getName, modelId)}")
-            WithPK(SoulTransform(srcId, modelId, byId, nameList, dynamicIndexNodeDefaultSetting)) :: Nil
+            val indexType = hashSearchRangerRegistryApi.getByByCl(prod.by.getClass.getName).map(_.indexType).getOrElse(Default)
+            WithPK(SoulTransform(srcId, modelId, byId, nameList, dynamicIndexNodeDefaultSetting, indexType)) :: Nil
           case None =>
             PrintColored("r")(s"[Thanos.Soul, $modelId] Non serializable condition: $prod")
             Nil
@@ -383,13 +389,14 @@ case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, paren
   }
 }
 
-case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName: List[String], default: IndexNodeSettings) extends TxTransform {
+case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName: List[String], default: IndexNodeSettings, indexType: IndexType) extends TxTransform {
   def transform(local: Context): Context = {
     val firstTime = System.currentTimeMillis()
     val IndexNodeSettings(_, alive, time) = default
+    val aliveWithType = if (indexType == Static) true else alive
     val timedLocal = TxAdd(
       LEvent.update(IndexNode(srcId, modelId, byAdapterId, lensName)) ++
-        LEvent.update(IndexNodeSettings(srcId, allAlwaysAlive = alive, keepAliveSeconds = time))
+        LEvent.update(IndexNodeSettings(srcId, allAlwaysAlive = aliveWithType, keepAliveSeconds = time))
     )(local)
     val secondTime = System.currentTimeMillis()
     TxAdd(LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))))(timedLocal)
