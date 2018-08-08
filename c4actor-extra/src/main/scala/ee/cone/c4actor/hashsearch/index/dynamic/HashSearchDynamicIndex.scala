@@ -36,9 +36,13 @@ import DynIndexTypes._
 //   ranger is optional
 sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
 
+  lazy val anyModelKey: SrcId = serializer.u.srcIdFromStrings(modelClass.getName, modelId.toString)
+
   def decodeBy: AnyOrig ⇒ DecodedBy = AnyAdapter.decodeProduct(qAdapterRegistry)
 
   def modelClass: Class[Model]
+
+  def modelId: Int
 
   def defaultModelRegistry: DefaultModelRegistry
 
@@ -236,7 +240,7 @@ trait DynamicIndexSharedTypes {
 
 @assemble class HashSearchDynamicIndexAssemble[Model <: Product](
   modelCl: Class[Model],
-  modelId: Int,
+  val modelId: Int,
   val rangerRegistry: HashSearchRangerRegistryApi,
   val defaultModelRegistry: DefaultModelRegistry,
   val qAdapterRegistry: QAdapterRegistry,
@@ -257,6 +261,13 @@ trait DynamicIndexSharedTypes {
     firstborn: Each[Firstborn]
   ): Values[(DynamicIndexDirectiveAll, RangerDirective[Model])] =
     Nil
+
+  // AllHeap
+  def AllHeap(
+    modelId: SrcId,
+    model: Each[Model]
+  ): Values[(DynamicHeapId, Model)] =
+    (anyModelKey → model) :: Nil
 
   // START: If node.keepAllAlive
   def IndexNodeRichToIndexNodeAll(
@@ -326,7 +337,7 @@ trait DynamicIndexSharedTypes {
         for {
           heapId ← leafToHeapIds(prodCond, indexNodeDirectives).distinct
         } yield heapId → DynamicNeed[Model](leaf.srcId)
-      case _ ⇒ Nil
+      case AnyCondition() ⇒ (anyModelKey → DynamicNeed[Model](leaf.srcId)) :: Nil
     }
 
   def DynNeedToDynCountToRequest(
