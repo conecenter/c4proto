@@ -100,14 +100,14 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
     models: Values[Model],
     lensName: List[String],
     fieldToHeaps: Field ⇒ List[By],
-    byRequestAny: List[DecodedBy],
+    byRequestAny: DecodedBy,
     byToHeaps: PartialFunction[Product, List[By]]
   ): Values[(SrcId, Model)] = {
     val lensOpt: Option[ProdLens[Model, Field]] = lensRegistryApi.getOpt[Model, Field](lensName)
     lensOpt match {
       case Some(lens) ⇒
-        val byRequests: List[By] = byRequestAny.map(_.asInstanceOf[By])
-        val requestedList = byRequests.flatMap(byToHeaps.apply)
+        val byRequest: By = byRequestAny.asInstanceOf[By]
+        val requestedList = byToHeaps(byRequest)
         models.flatMap(model ⇒ {
           val heaps: List[By] = fieldToHeaps(lens.of(model))
           val intersectedHeap: List[By] = requestedList.intersect(heaps)
@@ -173,7 +173,7 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
   ): Values[(SrcId, Model)] = {
     val rangerTyped: RangerWithCl[By, Field] = rangerCaster(byCl, fieldCl)(ranger)
     val (left, right): (Field ⇒ List[By], PartialFunction[Product, List[By]]) = prepareRanger(byCl, fieldCl, rangerTyped, nodeBy.directive)
-    modelsToHeapIdsBy(byCl, fieldCl, models, nodeBy.lensName, left, nodeBy.byNodes, right)
+    modelsToHeapIdsBy(byCl, fieldCl, models, nodeBy.lensName, left, nodeBy.byNode, right)
   }
 
   def leafToHeapIds(
@@ -227,7 +227,7 @@ case class IndexByDirective[Model <: Product](
   byAdapterId: Long,
   lensName: List[String],
   directive: Option[DecodedBy],
-  byNodes: List[DecodedBy]
+  byNode: DecodedBy
 )
 
 case class DynamicNeed[Model <: Product](requestId: SrcId)
@@ -308,13 +308,16 @@ trait DynamicIndexSharedTypes {
         case a if a.directive.adapterId == node.indexNode.byAdapterId ⇒ a
       }
       val lensName = node.indexNode.lensName
-      (All → IndexByDirective[Model](
+      for {
+        decoded ← node.indexByNodes.map(_.indexByNode.byInstance.get).map(decodeBy)
+      } yield
+      All → IndexByDirective[Model](
         node.srcId,
         node.indexNode.byAdapterId,
         lensName,
         directive.map(dir ⇒ decodeBy(dir.directive)),
-        node.indexByNodes.map(_.indexByNode.byInstance.get).map(decodeBy)
-      )) :: Nil
+        decoded
+      )
     }
     else Nil
 
