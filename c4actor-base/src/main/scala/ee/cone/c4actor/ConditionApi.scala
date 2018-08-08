@@ -18,6 +18,10 @@ trait ModelConditionFactory[Model] {
 trait ConditionCheck[By<:Product,Field] extends Product {
   def prepare: List[MetaAttr] ⇒ By ⇒ By
   def check: By ⇒ Field ⇒ Boolean
+  /*
+    Checks if incoming By has default value and equals true always
+   */
+  def defaultBy: Option[By ⇒ Boolean]
 }
 trait ProdCondition[By<:Product,Model] extends Condition[Model] {
   def by: By
