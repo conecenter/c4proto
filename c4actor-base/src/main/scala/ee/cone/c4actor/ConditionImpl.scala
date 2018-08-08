@@ -8,11 +8,17 @@ class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
   def ofWithCl[OtherModel]: Class[OtherModel] ⇒ ModelConditionFactory[OtherModel] = cl ⇒
     new ModelConditionFactoryImpl[OtherModel]
 
-  def intersect: (Condition[Model], Condition[Model]) ⇒ Condition[Model] =
-    IntersectCondition(_, _)
+  def intersect: (Condition[Model], Condition[Model]) ⇒ Condition[Model] = {
+    case (AnyCondition(), left) ⇒ left
+    case (right, AnyCondition()) ⇒ right
+    case (left, right) ⇒ IntersectCondition(left, right)
+  }
 
-  def union: (Condition[Model], Condition[Model]) ⇒ Condition[Model] =
-    UnionCondition(_, _)
+  def union: (Condition[Model], Condition[Model]) ⇒ Condition[Model] = {
+    case (AnyCondition(), _) ⇒ AnyCondition()
+    case (_, AnyCondition()) ⇒ AnyCondition()
+    case (left, right) ⇒ UnionCondition(left, right)
+  }
 
   def any: Condition[Model] =
     AnyCondition()
@@ -21,7 +27,10 @@ class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
     implicit check: ConditionCheck[By, Field]
   ): Condition[Model] = {
     val preparedBy = check.prepare(byOptions)(by)
-    ProdConditionImpl(filterMetaList(lens), preparedBy)(check.check(preparedBy), lens.of)
+    if (check.defaultBy.exists(default ⇒ default(preparedBy)))
+      AnyCondition()
+    else
+      ProdConditionImpl(filterMetaList(lens), preparedBy)(check.check(preparedBy), lens.of)
   }
 
   def filterMetaList[Field]: ProdLens[Model, Field] ⇒ List[MetaAttr] =

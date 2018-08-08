@@ -157,6 +157,8 @@ case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[StrStartsW
   def check: StrStartsWith => String => Boolean = {
     case StrStartsWith(v) ⇒ _.startsWith(v)
   }
+
+  def defaultBy: Option[StrStartsWith => Boolean] = None
 }
 
 case object StrStartsWithRanger extends RangerWithCl(classOf[StrStartsWith], classOf[String]) {
@@ -178,6 +180,8 @@ case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int](classOf[IntEq], 
   def prepare: List[MetaAttr] ⇒ IntEq ⇒ IntEq = _ ⇒ identity[IntEq]
 
   def check: IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ true
+
+  def defaultBy: Option[IntEq => Boolean] = None
 }
 
 case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {

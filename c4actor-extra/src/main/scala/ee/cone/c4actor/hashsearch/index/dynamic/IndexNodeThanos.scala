@@ -45,7 +45,7 @@ trait DynamicIndexAssemble
         new IndexNodeThanos(
           p.modelCl, p.modelId,
           dynamicIndexAssembleDebugMode, qAdapterRegistry, serializer,
-          dynamicIndexRefreshRateSeconds, dynamicIndexAutoStaticNodeCount, dynamicIndexAutoStaticLiveSeconds, dynamicIndexNodeDefaultSetting
+          dynamicIndexRefreshRateSeconds, dynamicIndexAutoStaticNodeCount, dynamicIndexAutoStaticLiveSeconds, dynamicIndexNodeDefaultSetting, dynamicIndexDeleteAnywaySeconds
         )
       ) :::
       super.assembles
@@ -56,6 +56,8 @@ trait DynamicIndexAssemble
   def dynamicIndexAutoStaticNodeCount: Int = 1000
 
   def dynamicIndexAutoStaticLiveSeconds: Long = 60L * 60L
+
+  def dynamicIndexDeleteAnywaySeconds: Long = 60L * 60L * 24L * 1L
 
   private def modelListIntegrityCheck: List[ProductWithId[_ <: Product]] ⇒ Unit = list ⇒ {
     val map = list.distinct.groupBy(_.modelId)
@@ -140,7 +142,8 @@ sealed trait ThanosTimeTypes {
   refreshRateSeconds: Long = 60,
   autoCount: Int,
   autoLive: Long,
-  dynamicIndexNodeDefaultSetting: IndexNodeSettings
+  dynamicIndexNodeDefaultSetting: IndexNodeSettings,
+  deleteAnyway: Long
 ) extends Assemble with ThanosTimeTypes {
   type IndexNodeId = SrcId
   type IndexByNodeId = SrcId
@@ -344,9 +347,21 @@ sealed trait ThanosTimeTypes {
       } yield {
         if (debugMode)
           PrintColored("m")(s"[Thanos.Power, $modelId] Deleted ${(child.indexByNode.srcId, decode(qAdapterRegistry)(child.indexByNode.byInstance.get))}")
-        s"Power-${child.srcId}" → PowerTransform(child.srcId, parent.srcId)
+        s"Power-${child.srcId}" → PowerTransform(child.srcId)
       }
     else Nil
+
+  def PowerGCIndexForStatic(
+    indexByNodeId: SrcId,
+    indexByNodes: Each[IndexByNode],
+    indexByNodesLastSeen: Values[IndexByNodeLastSeen],
+    @by[PowerIndexNodeThanos] currentTimes: Each[CurrentTimeNode]
+  ): Values[(SrcId, TxTransform)] =
+    if (indexByNodesLastSeen.nonEmpty && currentTimes.currentTimeSeconds - indexByNodesLastSeen.head.lastSeenAtSeconds > deleteAnyway) {
+      (s"Anyway-${indexByNodes.srcId}" → PowerTransform(indexByNodes.srcId)) :: Nil
+    } else {
+      Nil
+    }
 }
 
 case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyOrig, modelId: Int, defaultLive: Long) extends TxTransform {
@@ -381,7 +396,7 @@ case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName
   }
 }
 
-case class PowerTransform(srcId: SrcId, parentId: SrcId) extends TxTransform {
+case class PowerTransform(srcId: SrcId) extends TxTransform {
   def transform(local: Context): Context =
     TxAdd(LEvent.delete(IndexByNodeLastSeen(srcId, 0L)) ++ LEvent.delete(IndexByNode(srcId, "", 0, None)) ++ LEvent.delete(IndexByNodeSettings(srcId, false, None)))(local)
 }
