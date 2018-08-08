@@ -17,6 +17,8 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
+import scala.collection.immutable
+
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.HashSearchExtraTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 class HashSearchExtraTestStart(
   execution: Execution,
@@ -273,7 +275,7 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def parallelAssembleOn: Boolean = false
 
-  override def dynamicIndexAssembleDebugMode: Boolean = true
+  override def dynamicIndexAssembleDebugMode: Boolean = false
 
   override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver, qAdapterRegistry) :: super.toStart
 
@@ -312,5 +314,13 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
       str.take(limit)
     else
       str + List.range(0, limit - length).map(_ ⇒ "").mkString(" ")
+  }
+
+  override def getOpt(ruleName: String, in: immutable.Seq[AssembledKey], out: AssembledKey): Option[String => Int => Unit] = Some{
+    if (ruleName != "ModelToHeapIdByIndexByNode")
+      get(ruleName)
+    else {
+      get(ruleName + in.mkString("|"))
+    }
   }
 }
