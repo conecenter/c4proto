@@ -186,7 +186,9 @@ import ee.cone.c4actor.hashsearch.rangers.IndexType._
             val srcId = getIndexNodeSrcId(ser, modelId, byId, nameList)
             if (debugMode)
               PrintColored("y")(s"[Thanos.Soul, $modelId] Created IndexNode for ${(prod.by.getClass.getName, nameList)},${(modelCl.getName, modelId)}")
-            val indexType = hashSearchRangerRegistryApi.getByByCl(prod.by.getClass.getName).map(_.indexType).getOrElse(Default)
+            val indexType: IndexType =
+              hashSearchRangerRegistryApi
+                .getByByIdUntyped(byId).map(_.indexType).getOrElse(Default)
             WithPK(SoulTransform(srcId, modelId, byId, nameList, dynamicIndexNodeDefaultSetting, indexType)) :: Nil
           case None =>
             PrintColored("r")(s"[Thanos.Soul, $modelId] Non serializable condition: $prod")
