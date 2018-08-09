@@ -12,7 +12,7 @@ export function CanvasBaseMix(log,util){
              Canvas.TiledCanvasSetup(canvas),
          options.disableDragAndZoom ?
              Canvas.ScrollViewPositionCanvasSetup(canvas) :
-             Canvas.DragViewPositionCanvasSetup(canvas),
+             Canvas.DragViewPositionCanvasSetup(log,canvas),
          Canvas.ResizeCanvasSetup(canvas),
          Canvas.MouseCanvasSetup(canvas)
     ]

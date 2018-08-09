@@ -1,3 +1,4 @@
+import MultiTouch from "../main/multitouch"
 
 export function CanvasUtil(){
     function cached(recalculate){
@@ -347,10 +348,17 @@ export function MouseCanvasSetup(canvas){
     let currentDrag = noDrag
     let mousePos = { x:0, y:0, t:0 }
     function mouseMove(ev){ currentDrag(ev,false) }
-    function mouseUp(ev){ currentDrag(ev,true) }
+    function mouseUp(ev){ 
+		const clientX = ev.clientX||ev.changedTouches[0].clientX
+		const clientY = ev.clientY||ev.changedTouches[0].clientY
+		const evt = {...ev,clientX,clientY}
+		currentDrag(evt,true) 
+	}
     function getMousePos(){ return mousePos }
     function regMousePos(ev, prev){
-        mousePos = { prev, x:ev.clientX, y:ev.clientY, t:Date.now() }
+		const clientX = ev.clientX||ev.touches[0].clientX
+		const clientY = ev.clientY||ev.touches[0].clientY
+        mousePos = { prev, x:clientX, y:clientY, t:Date.now() }
     }
     function noDrag(ev,isLast){
         regMousePos(ev, null)
@@ -370,8 +378,11 @@ export function MouseCanvasSetup(canvas){
         if(prev) return;
         const win = canvas.document().defaultView
         canvas.addEventListener(win,"mousemove",mouseMove,false)
+        canvas.addEventListener(win,"touchmove",mouseMove,false)
         canvas.addEventListener(win,"mouseup",mouseUp,false) // capture (true) causes popup close to be later
+        canvas.addEventListener(win,"touchend",mouseUp,false) // capture (true) causes popup close to be later
         canvas.addEventListener(canvas.visibleElement(),"mousedown", handleMouseDown)//ie selectstart?
+        canvas.addEventListener(canvas.visibleElement(),"touchstart", handleMouseDown)//ie selectstart?
     }
     function dMousePos(p1,p0){ return { x: p1.x-p0.x, y: p1.y-p0.y, t: p1.t-p0.t } }
     function findMousePos(pLast, cond){
@@ -450,7 +461,7 @@ export function ScrollViewPositionCanvasSetup(canvas){
     return ({setupFrame})
 }
 
-export function DragViewPositionCanvasSetup(canvas){
+export function DragViewPositionCanvasSetup(log,canvas){
     let animation
     function setupFrame(){
         return (animation||animateStableZoom(initialZoom=>initialZoom,time=>canvas.calcPos(dir=>0)))(Date.now())
@@ -474,8 +485,8 @@ export function DragViewPositionCanvasSetup(canvas){
         (dragEvent.isLast?dropPos:dragPos)(from, mousePos)
     }
     function handleWheel(ev){
-        if(ev.ctrlKey) return;
-		if(!ev.altKey) return;
+        if(!ev.ctrlKey) return;
+		//if(!ev.altKey) return;
         const time = Date.now()
         const mousePos = { x:ev.clientX, y:ev.clientY, t:time }
         const mouseRelPos = canvas.relPos(canvas.visibleElement(), mousePos)
@@ -527,8 +538,20 @@ export function DragViewPositionCanvasSetup(canvas){
             return {...viewPositions,time,limitedTargetZoom,zoom,tileZoom,zoomIsChanging,viewPos}
         }
     }
+	let multiTouch
+	function handlePinch(ev){		
+		if(!ev.diff) return
+        const time = Date.now()
+        const pos = { x:ev.clientX, y:ev.clientY, t:time }
+        const relPos = canvas.relPos(canvas.visibleElement(), pos)
+        const from = canvas.setupFrame()
+        animation = animateChangingZoom(from, - Math.sign(ev.diff<0?100:-100)/2, pos)
+        if(canvas.onZoom) canvas.onZoom() //todo to close popup?
+		
+	}
     function processFrame(frame, prev){
         if(!prev) canvas.addEventListener(canvas.visibleElement(),"wheel", handleWheel)
+		if(!prev) multiTouch = MultiTouch(log,canvas.visibleElement(),handlePinch)	
     }
     return {drag,setupFrame,processFrame}
 }

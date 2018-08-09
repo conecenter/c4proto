@@ -131,6 +131,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			checkActivateCalls.add(this.fitIn)			
 		}
 		componentWillUnmount(){
+			this.unmounted = true
 			checkActivateCalls.remove(this.fitIn)		
 		}
 		emRatio(){
@@ -189,9 +190,10 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			return {top,left, cpHeight:pHeight}
 		}
 		updateState(inI,show){					    					
+			if(this.unmounted) return
 			if(show) {
 				this.setState(inI)
-				setTimeout(()=>{this.setState({show})},300)
+				setTimeout(()=>{if(!this.unmounted)this.setState({show})},300)
 			}
 			else 
 				this.setState({...inI,show})			
@@ -352,6 +354,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 	class VKMainViewElement extends StatefulComponent{		
 		getInitialState(){return {height:null, vkView:false}}		
 		updateVkView(vkView, height){
+			if(this.unmounted) return
 			this.rootHeight = vkModule.getRootHeight(this.root)			
 			if(vkView === null && height === null && this.state.vkView){
 				return this.setState({})
@@ -369,7 +372,8 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			this.mObj = {f:this.updateVkView, maxHeight:parseInt(this.props.maxHeight)/100}
 			this.vkReg = vkModule.regView(this.mObj,this.el)				
 		}
-		componentWillUnmount(){			
+		componentWillUnmount(){	
+			this.unmounted = true
 			if(this.root) this.root.parentElement.style.maxHeight=this.prevRootHeight
 			this.vkReg.unreg()			
 		}
@@ -386,6 +390,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 	class VkViewElement extends StatefulComponent{		
 		getInitialState(){return {vkView:false, height:null}}				
 		updateVkView(vkView,height){
+			if(this.unmounted) return
 			//if(vkView === null && this.state.vkView) return this.setState({height})
 			if(vkView!=this.state.vkView || height!=this.state.height) 
 				this.setState({vkView,height:vkView?height:null})
@@ -395,6 +400,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			this.vkReg = vkModule.regVk(this.mObj,this.el)			
 		}
 		componentWillUnmount(){			
+			this.unmounted = true
 			this.vkReg.unreg(this.mObj)			
 		}
 		render(){			
