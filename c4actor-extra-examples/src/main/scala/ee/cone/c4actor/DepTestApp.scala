@@ -132,7 +132,7 @@ with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassName
 
   override def byClNameAllClasses: List[Class[_ <: Product]] = classOf[ValueNode] :: super.byClNameAllClasses
 
-  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[ValueNode]), depAskFactory, byClassNameAllAsk)
+  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[ValueNode]), depAskFactory, byClassNameAllAsk, depFactory)
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 

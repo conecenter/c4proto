@@ -48,9 +48,11 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
     rq: Each[DepInnerRequest],
     @by[ByClassNameRequestAll] models: Values[Model]
   ): Values[(SrcId, DepResponse)] =
-    if(rq.request.isInstanceOf[ByClassNameAllRequest] && rq.request.asInstanceOf[ByClassNameAllRequest].className == modelCl.getName)
-      List(WithPK(util.wrap(rq, Option(models))))
-    else Nil
+    rq.request match {
+      case request: ByClassNameAllRequest if request.className == modelCl.getName ⇒
+        List(WithPK(util.wrap(rq, Option(models.toList))))
+      case _ ⇒ Nil
+    }
 }
 
 @protocol object ByClassNameAllRequestProtocol extends Protocol {

@@ -14,6 +14,7 @@ case class Resolvable[+A](value: Option[A], requests: Seq[DepRequest] = Nil)  //
 trait Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
   def map[B](f: A ⇒ B): Dep[B]
+  def filter(p: A ⇒ Boolean): Dep[A]
   def resolve(ctx: DepCtx): Resolvable[A] // low-level
 }
 
@@ -28,6 +29,8 @@ trait DepFactory extends Product {
   def parallelSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]]
   def uncheckedRequestDep[Out](request: DepRequest): Dep[Out] // low-level; try to use more high-level DepAsk instead of this unchecked version
   def resolvedRequestDep[Out](response: Out): Dep[Out]
+  def parOptSeq[A](value: Seq[Dep[A]]): Dep[Seq[Option[A]]]
+  def parUnsafeSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]]
 }
 
 /******************************************************************************/

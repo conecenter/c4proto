@@ -33,9 +33,10 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
     key: SrcId,
     rq: Each[DepInnerRequest]
   ): Values[(ByCNRqSrcId, DepInnerRequest)] =
-    if(rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName)
-      List((classSrcId+"ByCN")→rq)
-    else Nil
+    rq.request match {
+      case request: ByClassNameRequest if request.className == handledClass.getName => List((classSrcId + "ByCN") → rq)
+      case _ => Nil
+    }
 
 
   def BCNRequestToResponse(
@@ -43,10 +44,11 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
     @by[ByCNRqSrcId] rq: Each[DepInnerRequest],
     @by[ByCNSrcId] items: Values[A]
   ): Values[(SrcId, DepResponse)] =
-    if(rq.request.isInstanceOf[ByClassNameRequest] && rq.request.asInstanceOf[ByClassNameRequest].className == handledClass.getName){
-      val byCNRq = rq.request.asInstanceOf[ByClassNameRequest]
-      List(WithPK(depResponseFactory.wrap(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))))
-    } else Nil
+    rq.request match {
+      case byCNRq: ByClassNameRequest if byCNRq.className == handledClass.getName =>
+        List(WithPK(depResponseFactory.wrap(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))))
+      case _ => Nil
+    }
 
 }
 
