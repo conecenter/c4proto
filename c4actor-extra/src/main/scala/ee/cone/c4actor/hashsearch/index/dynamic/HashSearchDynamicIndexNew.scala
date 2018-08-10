@@ -84,14 +84,14 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
     node: IndexNodeRich[Model],
     indexNodeDirectives: Values[RangerDirective[Model, By]],
     build: Boolean
-  ): Values[(IndexNodeDirectiveAll, IndexDirective[Model, By])] =
+  ): Values[(All, IndexDirective[Model, By])] =
     WithAll(
       IndexDirective[Model, By](
         node.srcId,
         node.indexNode.byAdapterId,
         node.indexNode.lensName,
         indexNodeDirectives.collectFirst { case a if a.lensName == node.indexNode.lensName ⇒ a.directive },
-        needBuild = true
+        needBuild = build
       )
     ) :: Nil
 
@@ -101,7 +101,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
     lensRegistry.getOpt[Model, Field](node.lensName) match {
       case Some(lens) ⇒
         val modelSrcIdId = ToPrimaryKey(model)
-        val srcId = idGenUtil.srcIdFromStrings(modelSrcIdId:: byClassName :: node.lensName: _*)
+        val srcId = idGenUtil.srcIdFromStrings(modelSrcIdId :: byClassName :: node.lensName: _*)
         WithPK(IndexModel[Model, By](srcId, modelSrcIdId, lens.of(model), node.lensName)) :: Nil
       case None ⇒
         Nil
@@ -123,7 +123,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
   def indexModelToHeaps(
     model: IndexModel[Model, By],
     node: IndexDirective[Model, By]
-  ): Values[(InnerDynamicHeapId[By], IndexModel[Model, By])] =
+  ): Values[(String, IndexModel[Model, By])] =
     if (node.needBuild) {
       val (modelToHeaps, _) = ranger.ranges(node.directive.getOrElse(defaultBy))
       val field = model.field.asInstanceOf[Field]
@@ -135,7 +135,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
   def indexModelToHeapsBy(
     model: IndexModel[Model, By],
     node: IndexByDirective[Model, By]
-  ): Values[(InnerDynamicHeapId[By], IndexModel[Model, By])] = {
+  ): Values[(String, IndexModel[Model, By])] = {
     val (modelToHeaps, rqToHeaps) = ranger.ranges(node.directive.getOrElse(defaultBy))
     val field = model.field.asInstanceOf[Field]
     val ranges = modelToHeaps(field)
@@ -291,10 +291,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
     model: Each[Model],
     @by[IndexNodeDirectiveAll] node: Each[IndexDirective[Model, By]]
   ): Values[(InnerIndexModel[By], IndexModel[Model, By])] =
-    if (node.needBuild)
-      modelToIndexModel(model, node)
-    else
-      Nil
+    modelToIndexModel(model, node)
 
   // Index node to heaps
   def IndexModelToHeap(
@@ -343,7 +340,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   def SparkOuterHeap(
     heapId: SrcId,
     @by[SharedHeapId] request: Each[InnerUnionList[Model]],
-    @by[InnerDynamicHeapId[By]] innerModel: Each[IndexModel[Model, By]]
+    @by[InnerDynamicHeapId[By]] innerModel: Each[IndexModel[Model, By]] // TODO fix this
   ): Values[(OuterDynamicHeapId, ModelNeed[Model, By])] =
     WithPK(ModelNeed[Model, By](innerModel.modelSrcId, heapId)) :: Nil
 

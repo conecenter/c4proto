@@ -32,7 +32,7 @@ class HashSearchExtraTestStart(
     import LEvent.update
 
     val world = for {
-      i ← 1 to 10
+      i ← 1 to 10000
     } yield TestObject(i.toString, 239, i.toString.take(5))
     val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test")) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList

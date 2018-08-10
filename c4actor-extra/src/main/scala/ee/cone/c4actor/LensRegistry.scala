@@ -44,12 +44,12 @@ case class ClassesAttr(modelClName: String, fieldClName: String) extends MetaAtt
 case class LensRegistryImpl(lensList: List[ProdLens[_, _]]) extends LensRegistryApi {
   private def getNames(prodLens: ProdLens[_, _]): List[String] = prodLens.metaList.collect { case a: NameMetaAttr ⇒ a }
     .map(_.value) match {
-    case Nil ⇒ FailWith.apply(s"Lens without name in LensRegistryImpl: $prodLens")
+    case Nil ⇒ FailWith.apply(s"Lens without name in LensRegistryImpl: $prodLens, supply NameMetaAttr")
     case a ⇒ a
   }
 
   private def getClasses(prodLens: ProdLens[_, _]): (String, String) = prodLens.metaList.collectFirst { case a: ClassesAttr ⇒ a } match {
-    case None ⇒ FailWith.apply(s"Lens without modelName in LensRegistryImpl: $prodLens")
+    case None ⇒ FailWith.apply(s"Lens without modelName in LensRegistryImpl: $prodLens, supply ClassesAttr")
     case Some(str) ⇒ (str.modelClName, str.fieldClName)
   }
 
