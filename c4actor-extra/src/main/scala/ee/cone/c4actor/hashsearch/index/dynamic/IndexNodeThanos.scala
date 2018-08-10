@@ -74,11 +74,6 @@ trait DynamicIndexAssemble
 
 object IndexNodeThanosUtils {
   def getIndexNodeSrcId(ser: SerializationUtils, modelId: Int, byId: Long, lensName: List[String]): SrcId = {
-    /*val modelSrc = ser.uuid(modelId.toString)
-    val bySrc = ser.uuid(byId.toString)
-    val lensSrc = ser.uuidFromSrcIdSeq(lensName)
-    val caseClassSrc = ser.uuid("IndexNode")
-    ser.uuidFromSeq(caseClassSrc, modelSrc, bySrc, lensSrc).toString*/
     ser.srcIdFromSrcIds("IndexNode" :: modelId.toString :: byId.toString :: lensName)
   }
 }
@@ -212,7 +207,7 @@ trait IndexNodeThanosUtils[Model <: Product] {
 
   type FilterEmAll = SrcId
 
-  def SpaceLeafToPreparedNodeId(
+  def SpaceLeafToFilterEmAll(
     leafId: SrcId,
     leaf: Each[InnerLeaf[Model]]
   ): Values[(FilterEmAll, PreparedLeaf[Model])] =
@@ -224,9 +219,9 @@ trait IndexNodeThanosUtils[Model <: Product] {
 
   def SpaceLeafToPreparedNodeId(
     leafId: SrcId,
-    @by[FilterEmAll] leafs: Values[PreparedLeaf[Model]]
+    @by[FilterEmAll] @distinct leafs: Values[PreparedLeaf[Model]]
   ): Values[(IndexByNodeId, PreparedLeaf[Model])] =
-    WithPK(Single(leafs.distinct)) :: Nil
+    WithPK(Single(leafs)) :: Nil
 
   // Node creation
   def SoulIndexNodeCreation(

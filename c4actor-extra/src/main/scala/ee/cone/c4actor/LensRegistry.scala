@@ -49,7 +49,7 @@ case class LensRegistryImpl(lensList: List[ProdLens[_, _]]) extends LensRegistry
   }
 
   private def getClasses(prodLens: ProdLens[_, _]): (String, String) = prodLens.metaList.collectFirst { case a: ClassesAttr ⇒ a } match {
-    case None ⇒ FailWith.apply(s"Lens without modelName in LensRegistryImpl: $prodLens, supply ClassesAttr")
+    case None ⇒ FailWith.apply(s"Lens without modelName in LensRegistryImpl: $prodLens, supply ClassAttr")
     case Some(str) ⇒ (str.modelClName, str.fieldClName)
   }
 
