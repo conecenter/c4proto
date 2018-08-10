@@ -87,7 +87,7 @@ class assemble extends StaticAnnotation {
            |  val iUtil = indexFactory.util
            |  val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
            |  val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq)
-           |  ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name}";""").mkString}
+           |  ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${classOfT(p.value)};""").mkString}
            |  for {
            |    indexRawSeqI <- indexRawSeqSeq
            |    (dir,indexRawSeq) = indexRawSeqI

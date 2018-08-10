@@ -10,6 +10,8 @@ import ee.cone.c4actor.AnyAdapter._
 import ee.cone.c4actor.AnyOrigProtocol.AnyOrig
 import ee.cone.c4actor.QProtocol.Firstborn
 
+
+/*
 trait HashSearchDynamicIndexApp
   extends HashSearchRangerRegistryApp
     with QAdapterRegistryApp
@@ -24,6 +26,8 @@ trait HashSearchDynamicIndexApp
   )(model.modelCl)
   ) ::: super.assembles
 }
+
+
 
 object DynIndexTypes {
   type DecodedBy = Product
@@ -207,36 +211,11 @@ sealed trait HashSearchDynamicIndexAssembleUtils[Model <: Product] {
     _.asInstanceOf[ProdCondition[By, Model]]
 }
 
-case class RangerDirective[Model <: Product](srcId: SrcId, directive: AnyOrig)
-
 /*case class IndexNodeWithDirective[Model <: Product](
   srcId: SrcId,
   indexNode: IndexNodeRich[Model],
   directive: Option[RangerDirective[Model]]
 )*/
-
-case class IndexDirective[Model <: Product](
-  srcId: SrcId,
-  byAdapterId: Long,
-  lensName: List[String],
-  directive: Option[DecodedBy]
-)
-
-case class IndexByDirective[Model <: Product](
-  srcId: SrcId,
-  byAdapterId: Long,
-  lensName: List[String],
-  directive: Option[DecodedBy],
-  byNode: DecodedBy
-)
-
-case class DynamicNeed[Model <: Product](requestId: SrcId)
-
-case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
-
-trait DynamicIndexSharedTypes {
-  type DynamicIndexDirectiveAll = All
-}
 
 @assemble class HashSearchDynamicIndexAssemble[Model <: Product](
   modelCl: Class[Model],
@@ -398,4 +377,4 @@ trait DynamicIndexSharedTypes {
   }*/
 }
 
-case class A(srcId: SrcId, size: Int)
+case class A(srcId: SrcId, size: Int)*/

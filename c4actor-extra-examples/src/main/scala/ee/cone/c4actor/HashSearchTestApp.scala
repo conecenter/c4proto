@@ -32,7 +32,7 @@ class HashSearchExtraTestStart(
     import LEvent.update
 
     val world = for {
-      i ← 1 to 10000
+      i ← 1 to 10
     } yield TestObject(i.toString, 239, i.toString.take(5))
     val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test")) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
@@ -167,13 +167,15 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[StrStartsWith], cla
   def ranges: StrStartsWith => (String => List[StrStartsWith], PartialFunction[Product, List[StrStartsWith]]) = {
     case StrStartsWith("") ⇒ (
       value ⇒ (
-        for {
+        (for {
           i ← 1 to 5
         } yield StrStartsWith(value.take(i))
-        ).toList :+ StrStartsWith(""), {
+        ).toList :+ StrStartsWith("")).distinct, {
       case StrStartsWith(v) ⇒ StrStartsWith(v.take(5)) :: Nil
     })
   }
+
+  def prepareRequest: StrStartsWith => StrStartsWith = in ⇒ in.copy(value = in.value.take(5))
 }
 
 object DefaultStrStartsWith extends DefaultModelFactory[StrStartsWith](classOf[StrStartsWith], _ ⇒ StrStartsWith(""))
@@ -189,11 +191,13 @@ case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int](classOf[IntEq], 
 case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
   def ranges: IntEq ⇒ (Int ⇒ List[IntEq], PartialFunction[Product, List[IntEq]]) = {
     case IntEq(0) ⇒ (
-      value ⇒ List(IntEq(value), IntEq(0)), {
+      value ⇒ List(IntEq(value), IntEq(0)).distinct, {
       case p@IntEq(v) ⇒ List(p)
     }
     )
   }
+
+  def prepareRequest: IntEq => IntEq = identity
 }
 
 object DefaultIntEq extends DefaultModelFactory[IntEq](classOf[IntEq], id ⇒ IntEq(0))
@@ -240,9 +244,9 @@ trait TestCondition extends SerializationUtilsApp {
     .add[StrStartsWith, String](lensStr, StrStartsWith(""))(StrStartsWithRanger)
     .assemble*/
 
-  def lensInt: ProdLens[TestObject, Int] = ProdLens.ofSet[TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt")
+  def lensInt: ProdLens[TestObject, Int] = ProdLens.ofSet[TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt", ClassAttr(classOf[TestObject], classOf[Int]))
 
-  def lensStr: ProdLens[TestObject, String] = ProdLens.ofSet[TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr")
+  def lensStr: ProdLens[TestObject, String] = ProdLens.ofSet[TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[TestObject], classOf[String]))
 }
 
 class HashSearchExtraTestApp extends RichDataApp
@@ -291,7 +295,7 @@ class HashSearchExtraTestApp extends RichDataApp
 
   lazy val assembleProfiler: AssembleProfiler = ValueAssembleProfiler2
 
-  override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: ProductWithId(classOf[TestObject2], 2) :: super.dynIndexModels
+  override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: super.dynIndexModels
 
   def dynamicIndexRefreshRateSeconds: Long = 1L
 
