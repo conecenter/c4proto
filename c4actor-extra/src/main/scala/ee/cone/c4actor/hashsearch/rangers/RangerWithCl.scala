@@ -11,4 +11,6 @@ import IndexType._
 
 abstract class RangerWithCl[By <: Product, Field](val byCl: Class[By], val fieldCl: Class[Field]) extends Ranger[By, Field] {
   def indexType: IndexType = Default
+
+  def prepareRequest: By ⇒ By
 }
