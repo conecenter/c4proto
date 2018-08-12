@@ -97,7 +97,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
 
   def modelToIndexModel(
     model: Model, node: IndexDirective[Model, By]
-  ): Values[(InnerIndexModel[By], IndexModel[Model, By])] =
+  ): Values[(String, IndexModel[Model, By])] =
     lensRegistry.getOpt[Model, Field](node.lensName) match {
       case Some(lens) ⇒
         val modelSrcIdId = ToPrimaryKey(model)
@@ -110,7 +110,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
   def modelToIndexModelBy(
     model: Model,
     nodeBy: IndexByDirective[Model, By]
-  ): Values[(InnerIndexModel[By], IndexModel[Model, By])] =
+  ): Values[(String, IndexModel[Model, By])] =
     lensRegistry.getOpt[Model, Field](nodeBy.lensName) match {
       case Some(lens) ⇒
         val modelSrcIdId = ToPrimaryKey(model)
@@ -168,9 +168,9 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
   }
 
 
-  type InnerIndexModel[ByType] = SrcId
+  type InnerIndexModel[ModelType, ByType] = SrcId
 
-  type InnerDynamicHeapId[ByType] = SrcId
+  type InnerDynamicHeapId[ModelType, ByType] = SrcId
 
   type OuterDynamicHeapId = SrcId
 
@@ -213,8 +213,8 @@ case class IndexByDirective[Model <: Product, By <: Product](
 )
 
 case class ModelNeed[Model <: Product, By <: Product](
-  srcId: SrcId,
-  toSrcId: SrcId
+  modelSrcId: SrcId,
+  heapSrcId: SrcId
 )
 
 case class DynamicNeed[Model <: Product](requestId: SrcId)
@@ -290,22 +290,22 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
     modelId: SrcId,
     model: Each[Model],
     @by[IndexNodeDirectiveAll] node: Each[IndexDirective[Model, By]]
-  ): Values[(InnerIndexModel[By], IndexModel[Model, By])] =
+  ): Values[(InnerIndexModel[Model, By], IndexModel[Model, By])] =
     modelToIndexModel(model, node)
 
   // Index node to heaps
   def IndexModelToHeap(
     indexModelId: SrcId,
-    @by[InnerIndexModel[By]] model: Each[IndexModel[Model, By]],
+    @by[InnerIndexModel[Model, By]] model: Each[IndexModel[Model, By]],
     @by[IndexNodeDirectiveAll] node: Each[IndexDirective[Model, By]]
-  ): Values[(InnerDynamicHeapId[By], IndexModel[Model, By])] =
+  ): Values[(InnerDynamicHeapId[Model, By], IndexModel[Model, By])] =
     indexModelToHeaps(model, node)
 
   def IndexModelToHeapBy(
     indexModelId: SrcId,
-    @by[InnerIndexModel[By]] model: Each[IndexModel[Model, By]],
+    @by[InnerIndexModel[Model, By]] model: Each[IndexModel[Model, By]],
     @by[IndexNodeDirectiveAll] node: Each[IndexByDirective[Model, By]]
-  ): Values[(InnerDynamicHeapId[By], IndexModel[Model, By])] =
+  ): Values[(InnerDynamicHeapId[Model, By], IndexModel[Model, By])] =
     indexModelToHeapsBy(model, node)
 
   // end index node to heaps
@@ -315,7 +315,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
     leafCondId: SrcId,
     leaf: Each[InnerLeaf[Model]],
     @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model, By]]
-  ): Values[(InnerDynamicHeapId[By], DynamicNeed[Model])] =
+  ): Values[(InnerDynamicHeapId[Model, By], DynamicNeed[Model])] =
     leaf.condition match {
       case prodCond: ProdCondition[By, Model] if prodCond.by.getClass.getName == byClassName ⇒
         val lensName = prodCond.metaList.collect { case a: NameMetaAttr ⇒ a.value }
@@ -327,8 +327,8 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
 
   def DynNeedToDynCountToRequest(
     heapId: SrcId,
-    @by[InnerDynamicHeapId[By]] innerModels: Values[IndexModel[Model, By]],
-    @by[InnerDynamicHeapId[By]] needs: Values[DynamicNeed[Model]]
+    @by[InnerDynamicHeapId[Model, By]] innerModels: Values[IndexModel[Model, By]],
+    @by[InnerDynamicHeapId[Model, By]] needs: Values[DynamicNeed[Model]]
   ): Values[(LeafConditionId, DynamicCount[Model])] = {
     val modelsSize = innerModels.size
     for {
@@ -340,7 +340,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   def SparkOuterHeap(
     heapId: SrcId,
     @by[SharedHeapId] request: Each[InnerUnionList[Model]],
-    @by[InnerDynamicHeapId[By]] innerModel: Each[IndexModel[Model, By]]
+    @by[InnerDynamicHeapId[Model, By]] innerModel: Each[IndexModel[Model, By]]
   ): Values[(OuterDynamicHeapId, ModelNeed[Model, By])] =
     WithPK(ModelNeed[Model, By](innerModel.modelSrcId, heapId)) :: Nil
 
@@ -349,7 +349,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
     model: Each[Model],
     @by[OuterDynamicHeapId] @distinct need: Each[ModelNeed[Model, By]]
   ): Values[(OuterDynamicHeapId, Model)] =
-    (need.toSrcId → model) :: Nil
+    (need.heapSrcId → model) :: Nil
 }
 
 sealed trait DynIndexCommonUtils[Model <: Product] {
@@ -359,7 +359,7 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
 
   def modelId: Int
 
-  lazy val anyModelKey = idGenUtil.srcIdFromStrings(modelClass.getName, modelId.toString)
+  lazy val anyModelKey: SrcId = idGenUtil.srcIdFromStrings(modelClass.getName, modelId.toString)
 
   def cDynEstimate(cond: InnerLeaf[Model], priorities: Values[DynamicCount[Model]]): Values[InnerConditionEstimate[Model]] = {
     val priorPrep = priorities.distinct
@@ -380,22 +380,42 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
   type OuterDynamicHeapId = SrcId
   type IndexNodeDirectiveAll = All
   type LeafConditionId = SrcId
+  type AllHeapId = SrcId
 
   // AllHeap
   def AllHeap(
     modelId: SrcId,
     model: Each[Model]
+  ): Values[(AllHeapId, Model)] =
+    (anyModelKey → model) :: Nil
+
+  def AllHeapCreate(
+    modelId: SrcId,
+    @by[AllHeapId] model: Each[Model]
   ): Values[(OuterDynamicHeapId, Model)] =
     (anyModelKey → model) :: Nil
 
   def RequestToDynNeedToHeap(
     leafCondId: SrcId,
     leaf: Each[InnerLeaf[Model]]
-  ): Values[(OuterDynamicHeapId, DynamicNeed[Model])] =
+  ): Values[(AllHeapId, DynamicNeed[Model])] =
     leaf.condition match {
       case AnyCondition() ⇒ (anyModelKey → DynamicNeed[Model](leaf.srcId)) :: Nil
       case _ ⇒ Nil
     }
+
+  def DynNeedToDynCountToRequest(
+    heapId: SrcId,
+    @by[AllHeapId] models: Values[Model],
+    @by[AllHeapId] needs: Values[DynamicNeed[Model]]
+  ): Values[(LeafConditionId, DynamicCount[Model])] =
+    if (heapId == anyModelKey) {
+      val size = models.size
+      for {
+        need ← needs
+      } yield need.requestId → DynamicCount[Model](heapId, size)
+    } else Nil
+
 
   def DynCountsToCondEstimate(
     leafCondId: SrcId,
