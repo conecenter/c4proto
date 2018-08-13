@@ -25,6 +25,10 @@ trait HashSearchRangerRegistryApi {
   def getByById[By <: Product, Field](byId: Long): Option[RangerWithCl[By, Field]]
 
   def getByByIdUntyped(byId: Long): Option[RangerWithCl[_ <: Product, _]]
+
+  def getByClasses: List[Class[_ <: Product]]
+
+  def getAll: List[RangerWithCl[Product, Any]]
 }
 
 case class HashSearchRangerRegistryImpl(rangers: List[RangerWithCl[_ <: Product, _]], qAdapterRegistry: QAdapterRegistry) extends HashSearchRangerRegistryApi {
@@ -55,4 +59,10 @@ case class HashSearchRangerRegistryImpl(rangers: List[RangerWithCl[_ <: Product,
   def getByByCl[By <: Product](byClName: String): Option[RangerWithCl[By, _]] = {
     byByCl.get(byClName).map(_.asInstanceOf[RangerWithCl[By, _]])
   }
+
+  lazy val byList: List[Class[_ <: Product]] = rangers.map(_.byCl)
+
+  def getByClasses: List[Class[_ <: Product]] = byList
+
+  def getAll: List[RangerWithCl[Product, Any]] = rangers.map(_.asInstanceOf[RangerWithCl[Product, Any]])
 }
