@@ -1,7 +1,5 @@
 package ee.cone.c4actor
 
-import java.nio.ByteBuffer
-
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.ToByteString
 
@@ -23,7 +21,7 @@ case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry) 
     u.srcIdFromStrings(metaAttr.productPrefix +: metaAttr.productIterator.map(_.toString).to[Seq]:_*)
   def srcIdFromOrig(orig: Product, origClName: String): SrcId = { //2 //todo is it bad, className lost?
     val adapter = qAdapterRegistry.byName(origClName)
-    u.srcIdFromSerialized(0,ToByteString(adapter.encode(orig)))
+    u.srcIdFromSerialized(adapter.id,ToByteString(adapter.encode(orig)))
   }
   def srcIdFromSeqMany(data: SrcId*): SrcId = { //3
     u.srcIdFromSrcIds(data:_*)

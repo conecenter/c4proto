@@ -27,6 +27,22 @@ import scala.util.Random
 
 }
 
+case class Test[Model, Model2](model: Model, model2: Model2)
+
+case class Test2[Model, Model2](model: Model, model2: Model2)
+
+@assemble class LUL[Model, Model2](modelCl: Class[Model], model2: Class[Model2]) extends Assemble {
+
+  def test(
+    modelId: SrcId,
+    model: Each[Test[Model, Model2]]
+  ): Values[(SrcId, Test2[Model, Model2])] = {
+    println(modelCl, model2, model)
+    WithPK(Test2(model.model, model.model2)) :: Nil
+  }
+
+}
+
 case class SrcIdContainer(srcId: SrcId, instrId: SrcId)
 
 case class SrcIdListContainer(srcId: SrcId, list: Values[SrcId])
@@ -43,12 +59,37 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
     model: Each[PerformanceNode]
   ): Values[(InstructionId, PerformanceNode)] = List(constant.srcId → model)
 
+  def test3(
+    modelId: SrcId,
+    firstb: Each[PerformanceNode]
+  ): Values[(SrcId, Test[PerformanceNode, NodeInstruction])] =
+    if (firstb.srcId.toInt < 10)
+      WithPK(Test(firstb, NodeInstruction(firstb.srcId, 1, 1))) :: Nil
+    else Nil
+
+  def test4(
+    modelId: SrcId,
+    firstb: Each[PerformanceNode]
+  ): Values[(SrcId, Test[String, NodeInstruction])] =
+    if (firstb.srcId.toInt < 10)
+      WithPK(Test(firstb.srcId, NodeInstruction(firstb.srcId, 1, 1))) :: Nil
+    else Nil
+
+  def test5(
+    modelId: SrcId,
+    firstb: Each[PerformanceNode]
+  ): Values[(SrcId, Test[PerformanceNode, Int])] =
+    if (firstb.srcId.toInt < 10)
+      WithPK(Test(firstb, 1)) :: Nil
+    else Nil
+
+
   def ModelsNInstructionToResult(
     instructionId: SrcId,
     @by[InstructionId] models: Values[PerformanceNode],
     instruction: Each[NodeInstruction]
   ): Values[(InstructionId, SrcIdContainer)] =
-      models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
+    models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
 
   def ModelsNInstructionToResultList(
     instructionId: SrcId,
@@ -83,7 +124,7 @@ class ChangingIndexPerformanceTest(
     val world: immutable.Seq[PerformanceNode] =
       for {
         i ← 1 to worldSize
-      } yield PerformanceNode(i.toString, Random.nextString(5))
+      } yield PerformanceNode(i.toString, Random.nextDouble().toString)
     val worldUpdate: immutable.Seq[LEvent[PerformanceNode]] = world.flatMap(update)
     val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val context: Context = contextFactory.create()
@@ -121,7 +162,7 @@ class ChangingIndexPerformanceTestApp extends RichDataApp
 
   override def protocols: List[Protocol] = PerformanceProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
+  override def assembles: List[Assemble] = new LUL(classOf[PerformanceNode], classOf[NodeInstruction]) :: new LUL(classOf[String], classOf[NodeInstruction]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
 
   lazy val assembleProfiler = ValueAssembleProfiler
 }
@@ -134,4 +175,13 @@ object ValueAssembleProfiler extends AssembleProfiler {
       println(s"assembling by ${Thread.currentThread.getName} rule $ruleName $startAction $finalCount items in $period ms")
     }
   }
+
+  override def getOpt(ruleName: String, in: immutable.Seq[AssembledKey], out: AssembledKey): Option[String ⇒ Int ⇒ Unit] =
+    Some { startAction ⇒
+      val startTime = System.currentTimeMillis
+      finalCount ⇒ {
+        val period = System.currentTimeMillis - startTime
+        println(s"assembling by ${Thread.currentThread.getName} rule $ruleName\nin:${in.mkString("|")}\nout:$out\n$startAction $finalCount items in $period ms")
+      }
+    }
 }
