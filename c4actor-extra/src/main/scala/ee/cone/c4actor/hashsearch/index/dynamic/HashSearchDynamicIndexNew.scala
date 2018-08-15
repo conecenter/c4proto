@@ -340,7 +340,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   def SparkOuterHeap(
     heapId: SrcId,
     @by[SharedHeapId] request: Each[InnerUnionList[Model]],
-    @by[InnerDynamicHeapId[Model, By]] innerModel: Each[IndexModel[Model, By]]
+    @by[InnerDynamicHeapId[Model, By]] @distinct innerModel: Each[IndexModel[Model, By]]
   ): Values[(OuterDynamicHeapId, ModelNeed[Model, By])] =
     WithPK(ModelNeed[Model, By](innerModel.modelSrcId, heapId)) :: Nil
 
