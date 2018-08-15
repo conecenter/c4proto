@@ -132,14 +132,14 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
     }
     else Nil
 
-  def indexModelToHeapsBy(
+  def indexModelToHeapsBy( // TODO check this performance step by step
     model: IndexModel[Model, By],
     node: IndexByDirective[Model, By]
   ): Values[(String, IndexModel[Model, By])] = {
     val (modelToHeaps, rqToHeaps) = ranger.ranges(node.directive.getOrElse(defaultBy))
     val field = model.field.asInstanceOf[Field]
-    val ranges = modelToHeaps(field)
-    val heaps = rqToHeaps(node.byNode)
+    val ranges: List[By] = modelToHeaps(field)
+    val heaps: List[By] = rqToHeaps(node.byNode)
     heapToSrcIds(node.lensName, ranges.intersect(heaps)).map(srcId ⇒ srcId → model)
   }
 
@@ -304,7 +304,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   def IndexModelToHeapBy(
     indexModelId: SrcId,
     @by[InnerIndexModel[Model, By]] model: Each[IndexModel[Model, By]],
-    @by[IndexNodeDirectiveAll] node: Each[IndexByDirective[Model, By]]
+    @by[IndexNodeDirectiveAll] node: Each[IndexByDirective[Model, By]] // TODO check if all works with each
   ): Values[(InnerDynamicHeapId[Model, By], IndexModel[Model, By])] =
     indexModelToHeapsBy(model, node)
 
@@ -340,7 +340,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   def SparkOuterHeap(
     heapId: SrcId,
     @by[SharedHeapId] request: Each[InnerUnionList[Model]],
-    @by[InnerDynamicHeapId[Model, By]] innerModel: Each[IndexModel[Model, By]]
+    @by[InnerDynamicHeapId[Model, By]] @distinct innerModel: Each[IndexModel[Model, By]]
   ): Values[(OuterDynamicHeapId, ModelNeed[Model, By])] =
     WithPK(ModelNeed[Model, By](innerModel.modelSrcId, heapId)) :: Nil
 

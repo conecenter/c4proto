@@ -17,6 +17,7 @@ import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSear
 import ee.cone.c4proto.ToByteString
 
 import scala.collection.immutable
+import scala.collection.immutable.Seq
 
 case class ProductWithId[Model <: Product](modelCl: Class[Model], modelId: Int)
 
@@ -43,7 +44,7 @@ trait DynamicIndexAssemble
 
   override def assembles: List[Assemble] = {
     modelListIntegrityCheck(dynIndexModels)
-    new ThanosTimeFilters ::
+    new ThanosTimeFilters(maxTransforms = dynamicIndexMaxEvents) ::
       dynIndexModels.distinct.map(p ⇒
         new IndexNodeThanos(
           p.modelCl, p.modelId,
@@ -54,6 +55,8 @@ trait DynamicIndexAssemble
       ) :::
       super.assembles
   }
+
+  def dynamicIndexMaxEvents: Int = 100000
 
   def dynamicIndexAssembleDebugMode: Boolean = false
 
@@ -108,9 +111,11 @@ sealed trait ThanosTimeTypes {
   type TimeIndexNodeThanos = All
 
   type PowerIndexNodeThanos = All
+
+  type ThanosLEventsTransforms = All
 }
 
-@assemble class ThanosTimeFilters(refreshRateSeconds: Long = 60) extends Assemble with ThanosTimeTypes {
+@assemble class ThanosTimeFilters(refreshRateSeconds: Long = 60, maxTransforms: Int) extends Assemble with ThanosTimeTypes {
   def TimeFilterCurrentTimeNode(
     timeNode: SrcId,
     firstborns: Values[Firstborn],
@@ -130,6 +135,14 @@ sealed trait ThanosTimeTypes {
       pong ← currentTimeNodes
       if pong.srcId == "DynamicIndexAssembleRefresh"
     } yield WithAll(CurrentTimeNode("DynamicIndexAssembleGC", pong.currentTimeSeconds / (refreshRateSeconds * 5) * (refreshRateSeconds * 5)))).headOption.to[Values]
+
+
+  def ApplyThanosTransforms(
+    firsBornId: SrcId,
+    firstborn: Values[Firstborn],
+    @by[ThanosLEventsTransforms] @distinct events: Values[LEventTransform]
+  ): Values[(SrcId, TxTransform)] =
+    WithPK(CollectiveTransform("ThanosTX", events.take(maxTransforms))) :: Nil
 }
 
 import ee.cone.c4actor.hashsearch.rangers.IndexType._
@@ -228,7 +241,7 @@ trait IndexNodeThanosUtils[Model <: Product] {
     indexNodeId: SrcId,
     indexNodes: Values[IndexNode],
     @by[IndexNodeId] leafs: Values[InnerLeaf[Model]]
-  ): Values[(SrcId, TxTransform)] =
+  ): Values[(ThanosLEventsTransforms, LEventTransform)] =
     (indexNodes.toList.filter(_.modelId == modelId), leafs.toList) match {
       case (Nil, Seq(x, xs@_*)) ⇒
         val prod = x.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
@@ -242,7 +255,7 @@ trait IndexNodeThanosUtils[Model <: Product] {
             val indexType: IndexType =
               hashSearchRangerRegistryApi
                 .getByByIdUntyped(byId).map(_.indexType).getOrElse(Default)
-            WithPK(SoulTransform(srcId, modelId, byId, nameList, dynamicIndexNodeDefaultSetting, indexType)) :: Nil
+            WithAll(SoulTransform(srcId, modelId, byId, nameList, dynamicIndexNodeDefaultSetting, indexType)) :: Nil
           case None =>
             PrintColored("r")(s"[Thanos.Soul, $modelId] Non serializable condition: $prod")
             Nil
@@ -264,23 +277,23 @@ trait IndexNodeThanosUtils[Model <: Product] {
     @by[IndexByNodeId] innerLeafs: Values[PreparedLeaf[Model]],
     indexByNodes: Values[IndexByNode],
     indexByNodesLastSeen: Values[IndexByNodeLastSeen]
-  ): Values[(SrcId, TxTransform)] = {
+  ): Values[(ThanosLEventsTransforms, LEventTransform)] = {
     (innerLeafs.toList, indexByNodes.toList.filter(_.modelId == modelId)) match {
       case (x :: Nil, Nil) ⇒
         if (debugMode)
           PrintColored("r")(s"[Thanos.Reality, $modelId] Created ByNode for ${x.byOrig}")
         val parentId = getIndexNodeSrcId(ser, modelId, x.byId, x.lensName)
-        WithPK(RealityTransform(x.srcId, parentId, x.by, modelId, autoLive)) :: Nil
+        WithAll(RealityTransform(x.srcId, parentId, x.by, modelId, autoLive)) :: Nil
       case (Nil, y :: Nil) ⇒
         if (indexByNodesLastSeen.isEmpty)
-          WithPK(MindTransform(y.srcId)) :: Nil
+          WithAll(MindTransform(y.srcId)) :: Nil
         else
           Nil
       case (x :: Nil, y :: Nil) ⇒
         if (debugMode)
           PrintColored("r")(s"[Thanos.Reality, $modelId] Both alive ${x.byOrig} ${decode(qAdapterRegistry)(y.byInstance.get)}")
         if (indexByNodesLastSeen.nonEmpty)
-          WithPK(RevertedMindTransform(x.srcId)) :: Nil
+          WithAll(RevertedMindTransform(x.srcId)) :: Nil
         else
           Nil
       case (Nil, Nil) ⇒ Nil
@@ -384,7 +397,7 @@ trait IndexNodeThanosUtils[Model <: Product] {
   def PowerGCIndexByNodes(
     indexNodeRichId: SrcId,
     parent: Each[IndexNodeRich[Model]]
-  ): Values[(SrcId, TxTransform)] =
+  ): Values[(ThanosLEventsTransforms, LEventTransform)] =
     if (!parent.keepAllAlive)
       for {
         child ← parent.indexByNodes
@@ -392,7 +405,7 @@ trait IndexNodeThanosUtils[Model <: Product] {
       } yield {
         if (debugMode)
           PrintColored("m")(s"[Thanos.Power, $modelId] Deleted ${(child.indexByNode.srcId, decode(qAdapterRegistry)(child.indexByNode.byInstance.get))}")
-        s"Power-${child.srcId}" → PowerTransform(child.srcId)
+         WithAll( PowerTransform(child.srcId, s"Power-${child.srcId}"))
       }
     else Nil
 
@@ -401,16 +414,16 @@ trait IndexNodeThanosUtils[Model <: Product] {
     indexByNodes: Each[IndexByNode],
     indexByNodesLastSeen: Values[IndexByNodeLastSeen],
     @by[PowerIndexNodeThanos] currentTimes: Each[CurrentTimeNode]
-  ): Values[(SrcId, TxTransform)] =
+  ): Values[(ThanosLEventsTransforms, LEventTransform)] =
     if (indexByNodesLastSeen.nonEmpty && currentTimes.currentTimeSeconds - indexByNodesLastSeen.head.lastSeenAtSeconds > deleteAnyway) {
-      (s"Anyway-${indexByNodes.srcId}" → PowerTransform(indexByNodes.srcId)) :: Nil
+      WithAll(PowerTransform(indexByNodes.srcId, s"Anyway-${indexByNodes.srcId}")) :: Nil
     } else {
       Nil
     }
 }
 
-case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyOrig, modelId: Int, defaultLive: Long) extends TxTransform {
-  def transform(local: Context): Context = {
+case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, byInstance: AnyOrig, modelId: Int, defaultLive: Long) extends LEventTransform {
+  def lEvents(local: Context): Seq[LEvent[Product]] = {
     val parentOpt: Option[IndexNodeSettings] = ByPK(classOf[IndexNodeSettings]).of(local).get(parentNodeId)
     val settings: immutable.Seq[LEvent[IndexByNodeSettings]] = if (parentOpt.isDefined) {
       val IndexNodeSettings(_, keepAlive, aliveSeconds) = parentOpt.get
@@ -420,45 +433,43 @@ case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, paren
     val now = Instant.now
     val nowSeconds = now.getEpochSecond
     val firstTime = System.currentTimeMillis()
-    val timedLocal = TxAdd(
+    val timedLocal: Seq[LEvent[Product]] =
       LEvent.update(IndexByNode(srcId, parentNodeId, modelId, Some(byInstance))) ++ settings ++ LEvent.delete(IndexByNodeLastSeen(srcId, nowSeconds))
-    )(local)
     val secondTime = System.currentTimeMillis()
-    TxAdd(LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))))(timedLocal)
+    LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))) ++ timedLocal
   }
 }
 
-case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName: List[String], default: IndexNodeSettings, indexType: IndexType) extends TxTransform {
-  def transform(local: Context): Context = {
+case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, lensName: List[String], default: IndexNodeSettings, indexType: IndexType) extends LEventTransform {
+  def lEvents(local: Context): Seq[LEvent[Product]] = {
     val firstTime = System.currentTimeMillis()
     val IndexNodeSettings(_, alive, time) = default
     val aliveWithType = if (indexType == Static) true else alive
-    val timedLocal = TxAdd(
+    val timedLocal: Seq[LEvent[Product]] =
       LEvent.update(IndexNode(srcId, modelId, byAdapterId, lensName)) ++
         LEvent.update(IndexNodeSettings(srcId, allAlwaysAlive = aliveWithType, keepAliveSeconds = time))
-    )(local)
     val secondTime = System.currentTimeMillis()
-    TxAdd(LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))))(timedLocal)
+    LEvent.update(TimeMeasurement(srcId, Option(secondTime - firstTime))) ++ timedLocal
   }
 }
 
-case class PowerTransform(srcId: SrcId) extends TxTransform {
-  def transform(local: Context): Context =
-    TxAdd(LEvent.delete(IndexByNodeLastSeen(srcId, 0L)) ++ LEvent.delete(IndexByNode(srcId, "", 0, None)) ++ LEvent.delete(IndexByNodeSettings(srcId, false, None)))(local)
+case class PowerTransform(srcId: SrcId, extraKey: String) extends LEventTransform {
+  def lEvents(local: Context): Seq[LEvent[Product]] =
+    LEvent.delete(IndexByNodeLastSeen(srcId, 0L)) ++ LEvent.delete(IndexByNode(srcId, "", 0, None)) ++ LEvent.delete(IndexByNodeSettings(srcId, false, None))
 }
 
-case class MindTransform(srcId: SrcId) extends TxTransform {
-  def transform(local: Context): Context = {
+case class MindTransform(srcId: SrcId) extends LEventTransform {
+  def lEvents(local: Context): Seq[LEvent[Product]] = {
     val now = Instant.now
     val nowSeconds = now.getEpochSecond
-    TxAdd(LEvent.update(IndexByNodeLastSeen(srcId, nowSeconds)))(local)
+   LEvent.update(IndexByNodeLastSeen(srcId, nowSeconds))
   }
 }
 
-case class RevertedMindTransform(srcId: SrcId) extends TxTransform {
-  def transform(local: Context): Context = {
+case class RevertedMindTransform(srcId: SrcId) extends LEventTransform {
+  def lEvents(local: Context): Seq[LEvent[Product]] = {
     val now = Instant.now
     val nowSeconds = now.getEpochSecond
-    TxAdd(LEvent.delete(IndexByNodeLastSeen(srcId, nowSeconds)))(local)
+    LEvent.delete(IndexByNodeLastSeen(srcId, nowSeconds))
   }
 }
