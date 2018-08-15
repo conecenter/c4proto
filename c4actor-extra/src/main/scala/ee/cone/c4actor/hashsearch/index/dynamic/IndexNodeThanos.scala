@@ -56,7 +56,7 @@ trait DynamicIndexAssemble
       super.assembles
   }
 
-  def dynamicIndexMaxEvents: Int = 5000
+  def dynamicIndexMaxEvents: Int = 100000
 
   def dynamicIndexAssembleDebugMode: Boolean = false
 
@@ -140,7 +140,7 @@ sealed trait ThanosTimeTypes {
   def ApplyThanosTransforms(
     firsBornId: SrcId,
     firstborn: Values[Firstborn],
-    @by[ThanosLEventsTransforms] events: Values[LEventTransform]
+    @by[ThanosLEventsTransforms] @distinct events: Values[LEventTransform]
   ): Values[(SrcId, TxTransform)] =
     WithPK(CollectiveTransform("ThanosTX", events.take(maxTransforms))) :: Nil
 }
@@ -241,7 +241,7 @@ trait IndexNodeThanosUtils[Model <: Product] {
     indexNodeId: SrcId,
     indexNodes: Values[IndexNode],
     @by[IndexNodeId] leafs: Values[InnerLeaf[Model]]
-  ): Values[(ThanosLEventsTransforms, LEventTransform)] = // TODO agregate
+  ): Values[(ThanosLEventsTransforms, LEventTransform)] =
     (indexNodes.toList.filter(_.modelId == modelId), leafs.toList) match {
       case (Nil, Seq(x, xs@_*)) ⇒
         val prod = x.condition.asInstanceOf[ProdCondition[_ <: Product, Model]]
