@@ -67,7 +67,7 @@ object HashSearchImpl {
     idGenUtil: IdGenUtil
   ) extends Factory {
     def index[Model<:Product](cl: Class[Model]): Indexer[Model] =
-      EmptyIndexer[Model]()(cl,modelConditionFactory.of[Model](cl), preHashing)
+      EmptyIndexer[Model]()(cl,modelConditionFactory.ofWithCl[Model](cl), preHashing)
     def request[Model<:Product](condition: Condition[Model]): Request[Model] =
       Request(idGenUtil.srcIdFromStrings(condition.toString),condition)
   }
