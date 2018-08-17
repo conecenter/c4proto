@@ -114,8 +114,9 @@ class MD5HashingTest(
 
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
+    println(GlobalCounter.times, GlobalCounter.time)
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     execution.complete()
-
   }
 
 
@@ -140,7 +141,7 @@ class MD5HashingTestApp extends RichDataApp
 
   override def protocols: List[Protocol] = MD5HashingProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMD5(idGenUtil)) :: super.assembles
+  override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMD5()) :: super.assembles
 
   lazy val assembleProfiler = ValueAssembleProfiler
 }

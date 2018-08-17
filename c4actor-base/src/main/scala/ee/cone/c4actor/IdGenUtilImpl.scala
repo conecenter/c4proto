@@ -11,7 +11,7 @@ import okio.ByteString
 case class IdGenUtilImpl()(
   proto: MessageDigest = MessageDigest.getInstance("MD5")
 ) extends IdGenUtil {
-  def md5(data: Array[Byte]*): String = {
+  private def md5(data: Array[Byte]*): String = {
     val d = proto.clone().asInstanceOf[MessageDigest] // much faster than getInstance("MD5")
     data.foreach{ bytes ⇒
       val l = bytes.length
@@ -23,8 +23,8 @@ case class IdGenUtilImpl()(
     }
     Base64.getEncoder.encodeToString(d.digest)
   }
-  def toBytes(value: String): Array[Byte] = value.getBytes(UTF_8)
-  def toBytes(value: Long): Array[Byte] =
+  private def toBytes(value: String): Array[Byte] = value.getBytes(UTF_8)
+  private def toBytes(value: Long): Array[Byte] =
     ByteBuffer.allocate(java.lang.Long.BYTES).putLong(value).array()
 
   def srcIdFromSrcIds(srcIdList: SrcId*): SrcId = md5(srcIdList.map(toBytes):_*)
