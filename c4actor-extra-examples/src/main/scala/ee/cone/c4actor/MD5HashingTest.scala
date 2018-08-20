@@ -1,5 +1,7 @@
 package ee.cone.c4actor
 
+import java.lang.management.ManagementFactory
+
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.MD5HashingProtocol.{TestOrigEasy, TestOrigHard}
 import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, PerformanceNode}
@@ -86,6 +88,8 @@ class MD5HashingTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run(): Unit = {
+    //println(ManagementFactory.getRuntimeMXBean.getName)
+    //Thread.sleep(10000)
     import LEvent.update
     val worldSize = 50000
     val world: immutable.Seq[Product] =
