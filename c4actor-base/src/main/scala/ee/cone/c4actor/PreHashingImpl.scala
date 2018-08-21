@@ -9,15 +9,10 @@ final class PreHashedImpl[T](code: Int, val value: T) extends PreHashed[T] {
   override def hashCode: Int = code
 
   override def equals(that: Any): Boolean = {
-    GlobalCounter.times = GlobalCounter.times + 1
-    val now = System.currentTimeMillis()
-    val answer = that match {
+    that match {
       case that: PreHashed[_] ⇒ value == that.value
       case _ => false
     }
-    val after = System.currentTimeMillis()
-    GlobalCounter.time = GlobalCounter.time + after - now
-    answer
   }
 
   override def toString: String = s"PreHashed(${value.toString})"
@@ -31,7 +26,3 @@ final class PreHashedImpl[T](code: Int, val value: T) extends PreHashed[T] {
   * so to avoid possible non-initialized this, hashCode should be "c"?
   * pr in abstract class extending Product?
   * *************/
-object GlobalCounter {
-  var time: Long = 0
-  var times: Long = 0
-}

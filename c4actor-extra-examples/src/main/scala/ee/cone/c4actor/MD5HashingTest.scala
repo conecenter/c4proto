@@ -43,25 +43,6 @@ case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[TestO
 @assemble class MD5HashingAssemble(preHashing: PreHashing) extends Assemble {
   type HashedId = SrcId
 
-  def HashMD5Easy(
-    srcId: SrcId,
-    easy: Each[TestOrigEasy]
-  ): Values[(SrcId, HashedRich[TestOrigEasy])] =
-    WithPK(HashedRich(easy.srcId, preHashing.wrap(easy))) :: Nil
-
-  def HashMD5Hard(
-    srcId: SrcId,
-    easy: Each[TestOrigHard]
-  ): Values[(SrcId, HashedRich[TestOrigHard])] =
-    WithPK(HashedRich(easy.srcId, preHashing.wrap(easy))) :: Nil
-
-  def EasyAndHard(
-    srcId: SrcId,
-    easy: Each[HashedRich[TestOrigEasy]],
-    hard: Each[HashedRich[TestOrigHard]]
-  ): Values[(SrcId, HashedRichFixed)] =
-    WithPK(HashedRichFixed(easy.srcId + hard.srcId, preHashing.wrap((easy, hard) :: (easy, hard) :: (easy, hard) :: (easy, hard) :: Nil))) :: Nil
-
   def nonHashMD5Easy(
     srcId: SrcId,
     easy: Each[TestOrigEasy]
@@ -81,6 +62,25 @@ case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[TestO
   ): Values[(SrcId, NonHashedRichFixed)] =
     WithPK(NonHashedRichFixed(easy.srcId + hard.srcId, (easy, hard) :: (easy, hard) :: (easy, hard) :: (easy, hard) :: Nil)) :: Nil
 
+  def HashMD5Easy(
+    srcId: SrcId,
+    easy: Each[TestOrigEasy]
+  ): Values[(SrcId, HashedRich[TestOrigEasy])] =
+    WithPK(HashedRich(easy.srcId, preHashing.wrap(easy))) :: Nil
+
+  def HashMD5Hard(
+    srcId: SrcId,
+    easy: Each[TestOrigHard]
+  ): Values[(SrcId, HashedRich[TestOrigHard])] =
+    WithPK(HashedRich(easy.srcId, preHashing.wrap(easy))) :: Nil
+
+  def EasyAndHard(
+    srcId: SrcId,
+    easy: Each[HashedRich[TestOrigEasy]],
+    hard: Each[HashedRich[TestOrigHard]]
+  ): Values[(SrcId, HashedRichFixed)] =
+    WithPK(HashedRichFixed(easy.srcId + hard.srcId, preHashing.wrap((easy, hard) :: (easy, hard) :: (easy, hard) :: (easy, hard) :: Nil))) :: Nil
+
 
 }
 
@@ -88,8 +88,8 @@ class MD5HashingTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run(): Unit = {
-    //println(ManagementFactory.getRuntimeMXBean.getName)
-    //Thread.sleep(10000)
+    println(ManagementFactory.getRuntimeMXBean.getName)
+    Thread.sleep(5000)
     import LEvent.update
     val worldSize = 50000
     val world: immutable.Seq[Product] =
@@ -118,7 +118,6 @@ class MD5HashingTest(
 
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
-    println(GlobalCounter.times, GlobalCounter.time)
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     execution.complete()
   }

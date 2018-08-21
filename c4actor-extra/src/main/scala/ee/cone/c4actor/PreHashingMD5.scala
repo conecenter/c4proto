@@ -8,17 +8,21 @@ import ee.cone.c4proto.BigDecimalFactory
 case class PreHashingMD5() extends PreHashing {
   def wrap[T](value: T): PreHashed[T] = {
     val (first, second) = getProductHashOuter(value)
-    new PreHashedMD5(first, second, value, value.hashCode())
+    new PreHashedMD5(first, second, value, (first ^ second).toInt)
   }
 
-  private lazy val messenger: MessageDigest = MessageDigest.getInstance("MD5")
+  //private lazy val messenger: MessageDigest = MessageDigest.getInstance("MD5")
 
-  private val byteBufferSize: Int = 10096
+  private val murmur: MurmurHash3 = new MurmurHash3()
+
+  private val byteBufferSize: Int = 4096
 
   def getProductHashOuter[Model](model: Model): (Long, Long) = {
-    val messengerInner: MessageDigest = messenger.clone().asInstanceOf[MessageDigest]
-    getProductHash(model, messengerInner, new Array[Byte](8), new Array[Byte](byteBufferSize), 0)
-    getTupledLong(messengerInner.digest)
+    //val messengerInner: MessageDigest = messenger.clone().asInstanceOf[MessageDigest]
+    val innerMurMur = murmur.clone()
+    getProductHash(model, innerMurMur, new Array[Byte](8), new Array[Byte](byteBufferSize), 0)
+    //getTupledLong(messengerInner.digest)
+    (innerMurMur.digest()(0), innerMurMur.digest()(1))
   }
 
   def getTupledLong(bytes: Array[Byte]): (Long, Long) = {
@@ -34,22 +38,25 @@ case class PreHashingMD5() extends PreHashing {
     (long1, long2)
   }
 
-  def writeBytes(messengerInner: MessageDigest, data: Array[Byte], writeType: Byte, byteBuffer: Array[Byte], offset: Int): Int = {
+  def writeBytes(messengerInner: MurmurHash3, data: Array[Byte], writeType: Byte, byteBuffer: Array[Byte], offset: Int): Int = {
     val dataLength = data.length
     if (dataLength + offset < byteBufferSize - 1) {
       byteBuffer(offset) = writeType
       copyArray(byteBuffer, data, offset + 1, writeType)
       offset + 1 + dataLength
     } else if (dataLength < byteBufferSize) {
-      messengerInner.update(byteBuffer, 0, offset)
+      messengerInner.update(byteBuffer, offset)
       copyArray(byteBuffer, data, 0, writeType)
       dataLength
     } else {
       println(s"Byte buffer too small for $dataLength bytes")
-      messengerInner.update(byteBuffer)
-      messengerInner.update(data :+ writeType)
+      messengerInner.update(byteBuffer, offset)
+      messengerInner.update(data :+ writeType, dataLength + 1)
       0
     }
+    /*messengerInner.update(data, data.length)
+    messengerInner.update(writeType)
+    0*/
   }
 
   def copyArray[T](to: Array[T], from: Array[T], offset: Int, writeType: Int): Unit = {
@@ -74,23 +81,28 @@ case class PreHashingMD5() extends PreHashing {
 
   val emptyArray: Array[Byte] = new Array[Byte](0)
 
-  def getProductHash[Model](model: Model, messengerInner: MessageDigest, primitive: Array[Byte], byteBuffer: Array[Byte], offset: Int): Int = {
+  def getProductHash[Model](model: Model, messengerInner: MurmurHash3, primitive: Array[Byte], byteBuffer: Array[Byte], offset: Int): Int = {
     model match {
-      /*case i: List[_] ⇒
-        for {
-          field ← i
-        } yield getProductHash(field, messengerInner, primitive)
-        (emptyArray, (50 + i.size).toByte)*/
+      case i: List[_] ⇒
+        val newOffset = i.foldLeft(offset)((count, elem) ⇒ getProductHash(elem, messengerInner, primitive, byteBuffer, count))
+        (emptyArray, (10 + i.length).toByte, newOffset)
+        writeBytes(messengerInner, emptyArray, (10 + i.length).toByte, byteBuffer, newOffset)
+      case f: PreHashedMD5[_] ⇒
+        val newOffset = getProductHash(f.MD5Hash1, messengerInner, primitive, byteBuffer, offset)
+        val newOffset2 = getProductHash(f.MD5Hash2, messengerInner, primitive, byteBuffer, newOffset)
+        writeBytes(messengerInner, emptyArray, 6, byteBuffer, newOffset2)
       case g: Product ⇒
         val newOffset = g.productIterator.foldLeft(offset)((count, elem) ⇒ getProductHash(elem, messengerInner, primitive, byteBuffer, count))
         (emptyArray, (10 + g.productArity).toByte, newOffset)
         writeBytes(messengerInner, emptyArray, (10 + g.productArity).toByte, byteBuffer, newOffset)
       case e: String ⇒
-        writeBytes(messengerInner, e.getBytes(UTF_8), 5, byteBuffer, offset)
-      case f: PreHashedMD5[_] ⇒
-        val newOffset = getProductHash(f.MD5Hash1, messengerInner, primitive, byteBuffer, offset)
-        val newOffset2 = getProductHash(f.MD5Hash2, messengerInner, primitive, byteBuffer, newOffset)
-        writeBytes(messengerInner, emptyArray, 6, byteBuffer, newOffset2)
+        /*val a = e.hashCode
+        primitive(0) = (a >> 24).toByte
+        primitive(1) = (a >> 16).toByte
+        primitive(2) = (a >> 8).toByte
+        primitive(3) = (a >> 0).toByte
+        writeBytes(messengerInner, primitive, 4, byteBuffer, offset)*/
+      writeBytes(messengerInner, e.getBytes(UTF_8), 5, byteBuffer, offset)
       case j: BigDecimal ⇒
         writeBytes(messengerInner, emptyArray, 7, byteBuffer, getProductHash(BigDecimalFactory.unapply(j).get, messengerInner, primitive, byteBuffer, offset))
       case a: Int ⇒
