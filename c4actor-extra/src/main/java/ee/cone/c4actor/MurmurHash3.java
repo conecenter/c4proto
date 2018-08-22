@@ -2,19 +2,15 @@ package ee.cone.c4actor;
 
 public class MurmurHash3 implements MurmurConstants, Java128HashInterface {
 
-    private long X64_128_C1 = 0x87c37b91114253d5L;
+    private static final long X64_128_C1 = 0x87c37b91114253d5L;
 
-    private long X64_128_C2 = 0x4cf5ad432745937fL;
+    private static final long X64_128_C2 = 0x4cf5ad432745937fL;
 
     private long murmur1 = 0;
     private long murmur2 = 0;
 
-    public MurmurHash3 clone() {
-        return new MurmurHash3();
-    }
-
     private long getLong(byte[] data, int offset) {
-        return (long) (data[offset + 6] & UNSIGNED_MASK) << 56
+        return (long) (data[offset + 7] & UNSIGNED_MASK) << 56
                 | (long) (data[offset + 6] & UNSIGNED_MASK) << 48
                 | (long) (data[offset + 5] & UNSIGNED_MASK) << 40
                 | (long) (data[offset + 4] & UNSIGNED_MASK) << 32
@@ -116,7 +112,7 @@ public class MurmurHash3 implements MurmurConstants, Java128HashInterface {
     @Override
     public void updateString(String a) {
         final int len = a.length();
-
+        updateInt(len);
         final int nblocks = len / 8;
 
         long h1 = murmur1;
@@ -266,10 +262,11 @@ public class MurmurHash3 implements MurmurConstants, Java128HashInterface {
 
         while (remaining >= 16) {
             remaining -= 16;
-            current += 8;
             long k1 = getLong(data, current);
             current += 8;
+
             long k2 = getLong(data, current);
+            current += 8;
 
             h1 ^= mixK1(k1);
 

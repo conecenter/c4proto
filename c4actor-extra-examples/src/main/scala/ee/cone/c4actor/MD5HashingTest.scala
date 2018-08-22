@@ -144,7 +144,7 @@ class MD5HashingTestApp extends RichDataApp
 
   override def protocols: List[Protocol] = MD5HashingProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMD5()) :: super.assembles
+  override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMurMur3()) :: super.assembles
 
   lazy val assembleProfiler = ValueAssembleProfiler
 }

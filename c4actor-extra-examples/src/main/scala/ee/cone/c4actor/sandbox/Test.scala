@@ -1,8 +1,9 @@
 package ee.cone.c4actor.sandbox
 
 import ee.cone.c4actor.MD5HashingProtocol.{TestOrigEasy, TestOrigHard}
-import ee.cone.c4actor.{PreHashed, PreHashingImpl, PreHashingMD5, TimeColored}
+import ee.cone.c4actor.{PreHashed, PreHashingImpl, PreHashingMurMur3, TimeColored}
 import ee.cone.c4actor.Types.SrcId
+import okio.ByteString
 
 import scala.collection.immutable
 import scala.util.Random
@@ -81,8 +82,15 @@ object Test {
     )
     println("started")
     Thread.sleep(5000)*/
-    TimeColored("g", "murmur")({
-      val hashing = PreHashingMD5()
+    PreHashingMurMur3().wrap(Array[Byte](1,2,3,1,1,
+      1,1,1,1,1,
+      1,1,1,1,1,
+      1,1,1,1,1,
+      1,1,1,1,1,
+      1,1,1,1,5,
+      6,7,8,9,10))
+    /*TimeColored("g", "murmur")({
+      val hashing = PreHashingMurMur3()
       val riches = world.map(item ⇒ HashedRich("12321321", hashing.wrap(item))).toList
       val riches2 = HashedRichFixed("aasd", hashing.wrap(riches.take(1000)))
 
@@ -92,7 +100,7 @@ object Test {
     }
     )
 
-    Thread.sleep(1000)
+    Thread.sleep(1000)*/
   }
 
   def generateRandomEasy: SrcId ⇒ TestOrigEasy = srcId ⇒
