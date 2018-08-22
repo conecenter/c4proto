@@ -1,8 +1,5 @@
 package ee.cone.c4actor
 
-import java.nio.charset.StandardCharsets.UTF_8
-import java.security.MessageDigest
-
 import ee.cone.c4proto.BigDecimalFactory
 
 case class PreHashingMD5() extends PreHashing {
@@ -11,60 +8,12 @@ case class PreHashingMD5() extends PreHashing {
     new PreHashedMD5(first, second, value, (first ^ second).toInt)
   }
 
-  //private lazy val messenger: MessageDigest = MessageDigest.getInstance("MD5")
-
   private val murmur: MurmurHash3 = new MurmurHash3()
 
-  private val byteBufferSize: Int = 4096
-
   def getProductHashOuter[Model](model: Model): (Long, Long) = {
-    //val messengerInner: MessageDigest = messenger.clone().asInstanceOf[MessageDigest]
     val innerMurMur = murmur.clone()
-    getProductHash(model, innerMurMur, new Array[Byte](8), new Array[Byte](byteBufferSize), 0)
-    //getTupledLong(messengerInner.digest)
-    (innerMurMur.digest()(0), innerMurMur.digest()(1))
-  }
-
-  def getTupledLong(bytes: Array[Byte]): (Long, Long) = {
-    val ff = 0xff
-    var long1: Long = 0L
-    for {
-      i ← 0 to 7
-    } long1 = (long1 << 8) + (bytes(i) & ff)
-    var long2 = 0
-    for {
-      i ← 0 to 7
-    } long2 = (long2 << 8) + (bytes(i) & ff)
-    (long1, long2)
-  }
-
-  def writeBytes(messengerInner: MurmurHash3, data: Array[Byte], writeType: Byte, byteBuffer: Array[Byte], offset: Int): Int = {
-    val dataLength = data.length
-    if (dataLength + offset < byteBufferSize - 1) {
-      byteBuffer(offset) = writeType
-      copyArray(byteBuffer, data, offset + 1, writeType)
-      offset + 1 + dataLength
-    } else if (dataLength < byteBufferSize) {
-      messengerInner.update(byteBuffer, offset)
-      copyArray(byteBuffer, data, 0, writeType)
-      dataLength
-    } else {
-      println(s"Byte buffer too small for $dataLength bytes")
-      messengerInner.update(byteBuffer, offset)
-      messengerInner.update(data :+ writeType, dataLength + 1)
-      0
-    }
-    /*messengerInner.update(data, data.length)
-    messengerInner.update(writeType)
-    0*/
-  }
-
-  def copyArray[T](to: Array[T], from: Array[T], offset: Int, writeType: Int): Unit = {
-    val copyCount = if (writeType == 1 || writeType == 4 || writeType == 8) writeType else from.length
-    //println(to.length, from.length, copyCount)
-    for {
-      i ← 0 until copyCount
-    } to(offset + i) = from(i)
+    getProductHash(model, innerMurMur)
+    (innerMurMur.digest1, innerMurMur.digest2)
   }
 
   /*
@@ -81,51 +30,40 @@ case class PreHashingMD5() extends PreHashing {
 
   val emptyArray: Array[Byte] = new Array[Byte](0)
 
-  def getProductHash[Model](model: Model, messengerInner: MurmurHash3, primitive: Array[Byte], byteBuffer: Array[Byte], offset: Int): Int = {
+  def getProductHash[Model](model: Model, messengerInner: MurmurHash3): Unit = {
     model match {
       case i: List[_] ⇒
-        val newOffset = i.foldLeft(offset)((count, elem) ⇒ getProductHash(elem, messengerInner, primitive, byteBuffer, count))
-        (emptyArray, (10 + i.length).toByte, newOffset)
-        writeBytes(messengerInner, emptyArray, (10 + i.length).toByte, byteBuffer, newOffset)
+        i.foreach(getProductHash(_, messengerInner))
+        messengerInner.updateByte((10 + i.length).toByte) // TODO this is sad, but with out it can cause stackOverFlow
       case f: PreHashedMD5[_] ⇒
-        val newOffset = getProductHash(f.MD5Hash1, messengerInner, primitive, byteBuffer, offset)
-        val newOffset2 = getProductHash(f.MD5Hash2, messengerInner, primitive, byteBuffer, newOffset)
-        writeBytes(messengerInner, emptyArray, 6, byteBuffer, newOffset2)
+        messengerInner.updateLong(f.MD5Hash1)
+        messengerInner.updateLong(f.MD5Hash2)
+        messengerInner.updateByte(6)
       case g: Product ⇒
-        val newOffset = g.productIterator.foldLeft(offset)((count, elem) ⇒ getProductHash(elem, messengerInner, primitive, byteBuffer, count))
-        (emptyArray, (10 + g.productArity).toByte, newOffset)
-        writeBytes(messengerInner, emptyArray, (10 + g.productArity).toByte, byteBuffer, newOffset)
+        var counter = 0
+        val arity = g.productArity
+        while (counter < arity) {
+          getProductHash(g.productElement(counter), messengerInner)
+          counter = counter + 1
+        }
+        messengerInner.updateByte((10+arity).toByte)
       case e: String ⇒
-        /*val a = e.hashCode
-        primitive(0) = (a >> 24).toByte
-        primitive(1) = (a >> 16).toByte
-        primitive(2) = (a >> 8).toByte
-        primitive(3) = (a >> 0).toByte
-        writeBytes(messengerInner, primitive, 4, byteBuffer, offset)*/
-      writeBytes(messengerInner, e.getBytes(UTF_8), 5, byteBuffer, offset)
+        messengerInner.updateString(e)
+        messengerInner.updateByte(5)
       case j: BigDecimal ⇒
-        writeBytes(messengerInner, emptyArray, 7, byteBuffer, getProductHash(BigDecimalFactory.unapply(j).get, messengerInner, primitive, byteBuffer, offset))
+        getProductHash(BigDecimalFactory.unapply(j).get, messengerInner) // TODO this allocates new ByteArray each time
       case a: Int ⇒
-        primitive(0) = (a >> 24).toByte
-        primitive(1) = (a >> 16).toByte
-        primitive(2) = (a >> 8).toByte
-        primitive(3) = (a >> 0).toByte
-        writeBytes(messengerInner, primitive, 4, byteBuffer, offset)
+        messengerInner.updateInt(a)
+        messengerInner.updateByte(4)
       case b: Long ⇒
-        primitive(0) = (b >> 56).toByte
-        primitive(1) = (b >> 48).toByte
-        primitive(2) = (b >> 40).toByte
-        primitive(3) = (b >> 32).toByte
-        primitive(4) = (b >> 24).toByte
-        primitive(5) = (b >> 16).toByte
-        primitive(6) = (b >> 8).toByte
-        primitive(7) = (b >> 0).toByte
-        writeBytes(messengerInner, primitive, 8, byteBuffer, offset)
+        messengerInner.updateLong(b)
+        messengerInner.updateByte(8)
       case c: Boolean ⇒
-        primitive(0) = if (c) 1 else 0
-        writeBytes(messengerInner, primitive, 1, byteBuffer, offset)
+        messengerInner.updateBoolean(c)
+        messengerInner.updateByte(1)
       case d: okio.ByteString ⇒
-        writeBytes(messengerInner, d.toByteArray, 9, byteBuffer, offset)
+        messengerInner.updateBytes(d.toByteArray)
+        messengerInner.updateByte(9)
       case h ⇒ FailWith.apply(s"Unsupported type ${h.getClass} by PreHashingMD5")
     }
   }
@@ -136,7 +74,7 @@ final class PreHashedMD5[T](val MD5Hash1: Long, val MD5Hash2: Long, val value: T
 
   override def equals(obj: scala.Any): Boolean = {
     obj match {
-      case a: PreHashedMD5[_] ⇒ a.MD5Hash1 == MD5Hash1 && a.MD5Hash2 == MD5Hash2 // TODO check string and long comparision
+      case a: PreHashedMD5[_] ⇒ a.MD5Hash1 == MD5Hash1 && a.MD5Hash2 == MD5Hash2
       case _ ⇒ false
     }
   }

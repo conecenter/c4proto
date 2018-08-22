@@ -9,12 +9,12 @@ import scala.util.Random
 
 object Test {
   def main(args: Array[String]): Unit = {
-    val worldSize = 50000
+    val worldSize = 100000
     val world: immutable.Seq[Product] =
       (for {
         i ← 1 to worldSize
       } yield generateRandomEasy(i.toString) :: generateHard(i.toString) :: Nil).flatten
-    Thread.sleep(5000)
+
     /*
         import java.security.MessageDigest
         val md = MessageDigest.getInstance("MD5")
@@ -72,20 +72,22 @@ object Test {
 
     /*TimeColored("g", "simple")({
       val riches = world.map(item ⇒ NonHashedRich("12321321", item)).toList
-      val riches2 = NonHashedRichFixed("aasd", riches)
+      val riches2 = NonHashedRichFixed("aasd", riches.take(1000))
 
       val riches3 = world.map(item ⇒ NonHashedRich("12321321", item)).toList
-      val riches4 = NonHashedRichFixed("aasd", riches3)
+      val riches4 = NonHashedRichFixed("aasd", riches3.take(1000))
       println(riches == riches3 && riches2 == riches4)
     }
-    )*/
+    )
+    println("started")
+    Thread.sleep(5000)*/
     TimeColored("g", "murmur")({
       val hashing = PreHashingMD5()
       val riches = world.map(item ⇒ HashedRich("12321321", hashing.wrap(item))).toList
-      val riches2 = HashedRichFixed("aasd", hashing.wrap(riches))
+      val riches2 = HashedRichFixed("aasd", hashing.wrap(riches.take(1000)))
 
       val riches3 = world.map(item ⇒ HashedRich("12321321", hashing.wrap(item))).toList
-      val riches4 = HashedRichFixed("aasd", hashing.wrap(riches3))
+      val riches4 = HashedRichFixed("aasd", hashing.wrap(riches3.take(1000)))
       println(riches == riches3 && riches2 == riches4)
     }
     )
