@@ -66,7 +66,8 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   } yield a + b + c.map(_.value).headOption.getOrElse(0)
 
   def serialView: Dep[(Int, Int, Int)] = for {
-    (a, t) ← depFactory.parallelTuple(askFoo("A"), new RequestDep[String](ContextIdRequest()))
+    b ← depFactory.parallelTuple(askFoo("A"), new RequestDep[String](ContextIdRequest()))
+    (a,t) = b
     Seq(i,j) ← depFactory.parallelSeq(askFoo("A") :: askFoo("A") :: Nil)
     s ← subView(a)
     b ← valueNode.list("124")

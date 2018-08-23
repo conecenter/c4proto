@@ -25,6 +25,8 @@ case class SessionAttrAskFactoryImpl(
   idGenUtil: IdGenUtil
 ) extends SessionAttrAskFactoryApi with OrigKeyGenerator {
 
+  def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String ⇒ Dep[Option[Access[P]]] = pk ⇒ askSessionAttr(attr.withPK(pk))
+
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
     if (attr.metaList.collectFirst { case UserLevelAttr ⇒ "" }.isEmpty)
       oldAsk(attr)

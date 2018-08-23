@@ -6,6 +6,7 @@ import ee.cone.c4gate.SessionAttr
 
 trait SessionAttrAskFactoryApi {
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]]
+  def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String ⇒ Dep[Option[Access[P]]]
 }
 
 trait CurrentTimeAskFactoryApi {
