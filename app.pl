@@ -234,11 +234,15 @@ my $webpack = sub{
 
 my $composer = sub{
     my($cmd,$comp,$args)=@_;
+    my $build_temp = `hostname`=~/(\w+)/ ? "c4build_temp/$1" : die;
+    sy("rsync -a $docker_build/ $user\@$host:$build_temp/");
+    my $docker = "ssh $user\@$host docker ";
+    #
     my $img = "c4-$comp-composer";
-    sy("docker build -t $img $docker_build/composer");
-    sy("docker run --rm --userns=host "
+    sy("$docker build -t $img $build_temp/composer");
+    sy("$docker run --rm --userns=host "
         ." -v /var/run/docker.sock:/var/run/docker.sock "
-        ." -v \$(pwd)/$docker_build:/c4deploy "
+        ." -v \$(pwd)/$build_temp:/c4deploy "
         ." $img $cmd $comp $args");
 };
 
