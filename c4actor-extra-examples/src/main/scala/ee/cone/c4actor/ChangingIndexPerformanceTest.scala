@@ -176,12 +176,12 @@ object ValueAssembleProfiler extends AssembleProfiler {
     }
   }
 
-  override def getOpt(ruleName: String, in: immutable.Seq[AssembledKey], out: AssembledKey): Option[String ⇒ Int ⇒ Unit] =
+/*  override def getOpt(ruleName: String, in: immutable.Seq[AssembledKey], out: AssembledKey): Option[String ⇒ Int ⇒ Unit] =
     Some { startAction ⇒
       val startTime = System.currentTimeMillis
       finalCount ⇒ {
         val period = System.currentTimeMillis - startTime
         println(s"assembling by ${Thread.currentThread.getName} rule $ruleName\nin:${in.mkString("|")}\nout:$out\n$startAction $finalCount items in $period ms")
       }
-    }
+    }*/
 }

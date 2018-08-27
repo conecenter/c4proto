@@ -58,7 +58,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
 
-  // Data - C orig (TODO in rich isAlive: Boolean) form D, D - stats (usage) update every pong , E - custom setting (Always lives)
+  // Data - C orig (TODO in rich isAlive: Boolean) form D, D - stats (usage) updateBytes every pong , E - custom setting (Always lives)
   // TODO C,D clean up after week or so if no D.rich.notActive, E
   // B,E creation only by hand
   // A, C creation on demand

@@ -48,7 +48,7 @@ class HashSearchExtraTestStart(
     println(ByPK(classOf[IndexNode]).of(nGlobalAA).values)
     println(ByPK(classOf[IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
     println(ByPK(classOf[IndexByNodesStats]).of(nGlobalAA).values)
-    Thread.sleep(3000)
+    //Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal: Context = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobalAA)
     val newNGlobalA = ActivateContext(newNGlobal)
@@ -60,7 +60,7 @@ class HashSearchExtraTestStart(
     println(ByPK(classOf[IndexByNodesStats]).of(newNGlobalAA).values)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(newNGlobalAA)
-    Thread.sleep(10000)
+    //Thread.sleep(10000)
     val newNGlobal2A = ActivateContext(newNGlobal2)
     val newNGlobal2AA = ActivateContext(newNGlobal2A)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
@@ -68,6 +68,8 @@ class HashSearchExtraTestStart(
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
     println(ByPK(classOf[IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
     println(ByPK(classOf[IndexByNodesStats]).of(newNGlobal2AA).values)
+    println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+    println(newNGlobal2AA.assembled.values.toList(5) match {case a:IndexImpl ⇒ a.data.keys.toList})
     execution.complete()
 
   }

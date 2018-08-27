@@ -11,7 +11,7 @@ import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-case class FLRequestDef(listName: String, matches: List[String] = List(".*"))(val requestDep: Dep[List[_]])
+case class FLRequestDef(listName: String, filterPK: String, matches: List[String] = List(".*"))(val requestDep: Dep[List[_]])
 
 trait FilterListRequestApp {
   def filterDepList: List[FLRequestDef] = Nil
@@ -27,19 +27,19 @@ trait FilterListRequestHandlerApp
     with DepOuterRequestFactoryApp
     with PreHashingApp {
 
-  private lazy val depMap: Map[String, Dep[List[_]]] = filterDepList.map(elem ⇒ elem.listName → elem.requestDep).toMap
+  private lazy val depMap: Map[(String, String), Dep[List[_]]] = filterDepList.map(elem ⇒ (elem.listName, elem.filterPK) → elem.requestDep).toMap
 
   private def fltAsk: DepAsk[FilteredListRequest, List[_]] = depAskFactory.forClasses(classOf[FilteredListRequest], classOf[List[_]])
 
   override def depHandlers: List[DepHandler] = fltAsk.by(rq ⇒ {
-    depMap(rq.listName)
+    depMap((rq.listName, rq.filterPK))
   }
   ) :: injectContext[FilteredListRequest](fltAsk, _.contextId) ::
     injectUser[FilteredListRequest](fltAsk, _.userId) ::
     injectRole[FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
   override def assembles: List[Assemble] = filterDepList.map(
-    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.matches, depOuterRequestFactory, preHashing)
+    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depOuterRequestFactory, preHashing)
   ) ::: super.assembles
 
   override def protocols: List[Protocol] = DepFilteredListRequestProtocol :: super.protocols
@@ -47,7 +47,7 @@ trait FilterListRequestHandlerApp
   def qAdapterRegistry: QAdapterRegistry
 }
 
-case class FilteredListResponse(srcId: String, listName: String, sessionKey: String, responseHashed: PreHashed[Option[_]]) extends LazyHashCodeProduct {
+case class FilteredListResponse(srcId: String, listName: String, filterPK: String, sessionKey: String, responseHashed: PreHashed[Option[_]]) extends LazyHashCodeProduct {
   lazy val response: Option[_] = responseHashed.value
 }
 
@@ -75,6 +75,7 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
 @assemble class FilterListRequestCreator(
   val qAdapterRegistry: QAdapterRegistry,
   listName: String,
+  filterPK: String,
   matches: List[String],
   u: DepOuterRequestFactory,
   preHashing: PreHashing
@@ -93,7 +94,7 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
           }
         else
           ("", "")
-      val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, listName)
+      val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, listName, filterPK)
       List(u.tupled(alienTask.sessionKey)(filterRequest))
     } else Nil
 
@@ -102,8 +103,8 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     resp: Each[DepResponse]
   ): Values[(SrcId, FilteredListResponse)] =
     resp.innerRequest.request match {
-      case request: FilteredListRequest if request.listName == listName ⇒
-        List(WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, request.contextId, preHashing.wrap(resp.value))))
+      case request: FilteredListRequest if request.listName == listName && request.filterPK == filterPK ⇒
+        List(WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, filterPK, request.contextId, preHashing.wrap(resp.value))))
       case _ ⇒ Nil
     }
 }
@@ -114,7 +115,8 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     @Id(0x0a02) contextId: String,
     @Id(0x0a05) userId: String,
     @Id(0x0a06) roleId: String,
-    @Id(0x0a03) listName: String
+    @Id(0x0a03) listName: String,
+    @Id(0x0a07) filterPK: String
   )
 
 }

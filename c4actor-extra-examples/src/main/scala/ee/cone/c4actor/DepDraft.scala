@@ -57,19 +57,20 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   }
 
   def testView: Dep[Int] = for {
-    a ← valueNode.seq("123")
+    a ← valueNode.list("123")
   } yield a.map(_.value).headOption.getOrElse(0)
 
   def subView(a: Int): Dep[Int] = for {
-    c ← valueNode.seq("123")
+    c ← valueNode.list("123")
     b ← askFoo("B")
   } yield a + b + c.map(_.value).headOption.getOrElse(0)
 
   def serialView: Dep[(Int, Int, Int)] = for {
-    (a, t) ← depFactory.parallelTuple(askFoo("A"), new RequestDep[String](ContextIdRequest()))
+    b ← depFactory.parallelTuple(askFoo("A"), new RequestDep[String](ContextIdRequest()))
+    (a,t) = b
     Seq(i,j) ← depFactory.parallelSeq(askFoo("A") :: askFoo("A") :: Nil)
     s ← subView(a)
-    b ← valueNode.seq("124")
+    b ← valueNode.list("124")
     test ← kek.askByClAll(classOf[ValueNode])
     if s == 242
   } yield TimeColored("g", (t, test, i, j))((a, s, b.map(_.value).headOption.getOrElse(0)))

@@ -40,7 +40,7 @@ object ByPKTypes {
     items: Values[A]
   ): Values[(SrcId, DepResponse)] =
     if(rq.className != handledClass.getName) Nil
-    else List(WithPK(util.wrap(rq.request, Option(items))))
+    else List(WithPK(util.wrap(rq.request, Option(items.toList))))
 }
 
 object ByPKAssembles {
@@ -50,13 +50,13 @@ object ByPKAssembles {
 
 case class AskByPKFactoryImpl(depAskFactory: DepAskFactory, util: DepResponseFactory) extends AskByPKFactory {
   def forClass[A<:Product](cl: Class[A]): AskByPK[A] =
-    AskByPKImpl(cl.getName, util)(cl,depAskFactory.forClasses(classOf[ByPKRequest],classOf[Values[A]]))
+    AskByPKImpl(cl.getName, util)(cl,depAskFactory.forClasses(classOf[ByPKRequest],classOf[List[A]]))
 }
 case class AskByPKImpl[A<:Product](name: String, util: DepResponseFactory)(
-  theClass: Class[A], depAsk: DepAsk[ByPKRequest,Values[A]]
+  theClass: Class[A], depAsk: DepAsk[ByPKRequest,List[A]]
 ) extends AskByPK[A] {
-  def seq(id: SrcId): Dep[Values[A]] = depAsk.ask(ByPKRequest(name,id))
-  def option(id: SrcId): Dep[Option[A]] = seq(id).map(Single.option)
+  def list(id: SrcId): Dep[List[A]] = depAsk.ask(ByPKRequest(name,id))
+  def option(id: SrcId): Dep[Option[A]] = list(id).map(Single.option)
   def assemble: Assemble = new ByPKGenericAssemble(theClass, util)
 }
 

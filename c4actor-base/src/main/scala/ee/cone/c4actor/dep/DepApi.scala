@@ -82,7 +82,7 @@ trait DepResponseFactory extends Product {
 
 trait AbstractAskByPK
 trait AskByPK[A<:Product] extends AbstractAskByPK {
-  def seq(id: SrcId): Dep[Values[A]]
+  def list(id: SrcId): Dep[List[A]]
   def option(id: SrcId): Dep[Option[A]]
 }
 trait AskByPKFactory {
