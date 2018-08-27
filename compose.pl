@@ -155,6 +155,9 @@ my $build = sub{
     &$put_text("docker-compose.yml",$text);
     sy("cp docker-compose.yml c4deploy/docker-compose.yml.dump");
     sy("docker-compose -p $location build --pull");
+    my %images = map{$_?($_=>1):()} map{$$_{image}} values %$generated_services;
+    my $images_str = join " ", sort keys %images;
+    &$put_text("c4deploy/save.sh","docker save $images_str");
 };
 
 # pass src commit
@@ -178,8 +181,10 @@ my @tasks = (
     }],
     ["push", sub{
         my($location)=@_;
-        &$build($location,[],1);
-        sy("docker-compose -p $location push");
+        &$build($location,[],0); #todo fix need_commit
+        #&$build($location,[],1);
+        #my $images_str = &$put_text("c4deploy/save.sh","docker save $images_str");
+        #sy("docker-compose -p $location push");
     }],
 );
 
