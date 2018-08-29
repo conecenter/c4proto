@@ -18,10 +18,6 @@ my $composes = require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
 my $ssh_add  = sub{"ssh-add $ENV{C4DEPLOY_CONF}/id_rsa"};
 my $composes_txt = "(".(join '|', sort keys %$composes).")";
 
-my $gen_ip = sub{
-    join ".", 127, map{hex} md5_hex($_[0]||die)=~/(..)(..)(..)/ ? ($1,$2,$3) : die
-};
-
 my $get_host_port = sub{grep{$_||die}@{($$composes{$_[0]}||die "composition expected")}{qw(host port dir)}};
 
 my $ssh_ctl = sub{
@@ -41,18 +37,18 @@ push @tasks, ["ssh", $composes_txt, sub{
     sy(&$ssh_ctl($_[0],""))
 }];
 
+my $split_app = sub{ my($app)=@_; $app=~/^(\w+)-(\w+)$/ ? ($1,$2) : die $app };
+
 push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     my($proj,$app)=@_;
     sy(&$ssh_add());
-    my($comp,$service) = $app=~/^(\w+)-(\w+)$/ ? ($1,$2) : die $app;
+    my($comp,$service) = &$split_app($app);
     my ($host,$port,$ddir) = &$get_host_port($comp);
     my $repo = "$ddir/$comp/$service";
-    my $ip = &$gen_ip($comp);
     #
     so(&$remote($comp,"mv $repo ".rand()));
     #
     my $git = "cd $repo && git ";
-    my $hook = "$repo/.git/hooks/post-update";
     sy(&$remote($comp,"mkdir -p $repo"));
     sy(&$remote($comp,"touch $repo/.dummy"));
     sy(&$remote($comp,"$git init"));
@@ -61,8 +57,6 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     sy(&$remote($comp,"$git config user.name deploy"));
     sy(&$remote($comp,"$git add .dummy"));
     sy(&$remote($comp,"$git commit -am-"));
-    sy(&$remote($comp,"echo \"cd .. && unset GIT_DIR && git reset --hard && exec sh +x compose-up.sh\" > $hook"));
-    sy(&$remote($comp,"chmod +x $hook"));
     #
     my $bdir = "$ENV{C4DEPLOY_CONF}/$proj";
     my $adir = "$bdir/$app.adc";
@@ -73,37 +67,9 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     -e $_ or mkdir $_ or die $_ for $adir, $tmp;
     !-e $_ or rename $_, "$tmp/".rand() or die $_ for $git_dir, $cloned;
     #
-    my $img_pre = "$ip:5000/c4-";
-    my $comp_img = $img_pre."composer";
-    my $from_img = $img_pre."zoo";
     &$put_text("$adir/vconf.json",'{"git.postCommit" : "push"}');
-    &$put_text("$adir/.dockerignore",".dockerignore\nDockerfile\n.git\ncompose-up.sh");
-    &$put_text("$adir/Dockerfile","FROM $from_img\nCOPY . /c4\nCMD sh start.run\n");
-    &$put_text("$adir/compose-up.sh", join "", map{"$_ || exit\n"}
-        "docker pull $comp_img",
-        "docker run --rm --userns=host "
-        ." -v /var/run/docker.sock:/var/run/docker.sock "
-        ." -v \$HOME/$ddir/$comp:/c4deploy "
-        ." $comp_img up $comp main/docker-compose.yml",
-    );
     sy("cd $tmp && git clone ssh://c4\@$host:$port/~/$repo");
     sy("mv $cloned/.git $git_dir");
-    #my $post_commit = "$git_dir/hooks/post-commit";
-    #&$put_text($post_commit,"git push");
-    #sy("chmod +x $post_commit");
-}];
-
-push @tasks, ["run_registry", $composes_txt, sub{
-    my($comp)=@_;
-    sy(&$ssh_add());
-    my $ip = &$gen_ip($comp);
-    sy(&$remote($comp,"curl $ip:5000 || docker run -d -p $ip:5000:5000 --restart=unless-stopped --name $comp-registry registry:2"));
-}];
-push @tasks, ["ssh_registry", $composes_txt, sub{
-    my($comp)=@_;
-    sy(&$ssh_add());
-    my $ip = &$gen_ip($comp);
-    sy(&$ssh_ctl($comp," -L $ip:5000:$ip:5000 "));
 }];
 
 my $list_snapshots = sub{
@@ -221,36 +187,204 @@ push @tasks, ["stop", $composes_txt, sub{
     &$stop($comp);
 }];
 
+my $restart = sub{
+    my($app)=@_;
+    my($comp,$service) = &$split_app($app);
+    sy(&$remote($comp,"docker restart $comp\_$service\_1"));
+};
+
 my $remote_single_cmd = sub{
     my($app, $cmds)=@_;
-    my($comp,$service) = $app=~/^(\w+)-(\w+)$/ ? ($1,$2) : die $app;
+    my($comp,$service) = &$split_app($app);
     sy(&$remote($comp,sub{"cd $_[0]/$service && $cmds"}));
 };
 
-push @tasks, ["start","$composes_txt",sub{
-    my($comp)=@_;
-    &$ssh_add();
-    &$remote_single_cmd("$comp-main","sh compose-up.sh");
+push @tasks, ["restart","$composes_txt-<service>",sub{
+    my($app)=@_;
+    sy(&$ssh_add());
+    &$remote_single_cmd($app,"git reset --hard");
+    &$restart($app);
 }];
 
 push @tasks, ["revert_list","$composes_txt-<service>",sub{
     my($app)=@_;
-    &$ssh_add();
+    sy(&$ssh_add());
     &$remote_single_cmd($app,'git log --format=format:"%H  %ad  %ar  %an" --date=local --reverse');
     print "\n";
 }];
 push @tasks, ["revert_to","$composes_txt-<service> <commit>",sub{
     my($app,$commit)=@_;
-    &$ssh_add();
+    sy(&$ssh_add());
     my $time = time;
-    &$remote_single_cmd($app,"git checkout $commit -b $commit-$time && sh compose-up.sh");
+    &$remote_single_cmd($app,"git checkout $commit -b $commit-$time");
+    &$restart($app);
 }];
 push @tasks, ["revert_off","$composes_txt-<service>",sub{
     my($app)=@_;
-    &$ssh_add();
-    &$remote_single_cmd($app,"git checkout master && sh compose-up.sh");
+    sy(&$ssh_add());
+    &$remote_single_cmd($app,"git checkout master");
+    &$restart($app);
 }];
 
+#### composer
+
+use List::Util qw(reduce);
+use YAML::XS qw(LoadFile DumpFile Dump);
+$YAML::XS::QuoteNumericStrings = 1;
+
+my $inbox_prefix = '';
+my $bin = "kafka/bin";
+
+my $bootstrap_server = "broker:9092";
+my @c_script = ("inbox_configure.pl","purger.pl");
+my $user = "c4";
+
+# pass src commit
+# migrate states
+# >2 >4
+# fix kafka configs
+# move settings to scala
+
+my %merge;
+my $merge = sub{&{$merge{join "-",map{ref}@_}||sub{$_[$#_]}}};
+$merge{"HASH-HASH"} = sub{
+    my($b,$o)=@_;
+    +{map{
+        my $k = $_;
+        ($k=>&$merge(map{(exists $$_{$k})?$$_{$k}:()} $b,$o));
+    } keys %{+{%$b,%$o}}};
+};
+$merge{"ARRAY-ARRAY"} = sub{[map{@$_}@_]};
+
+my $extract_env = sub{
+    my($opt) = @_;
+    my %env = map{/^C4/?($_=>$$opt{$_}):()} keys %$opt;
+    my %def = map{/^C4/?():($_=>$$opt{$_})} keys %$opt;
+    &$merge({environment => \%env}, \%def);
+};
+
+my $app_user = sub{
+    my %opt = @_;
+    (user=>$user, working_dir=>"/$user");
+};
+
+my $volumes = sub{(volumes => [map{"$_:/$user/$_"}@_])};
+
+my $template_yml = sub{+{
+    services => {
+        zookeeper => {
+            &$app_user(),
+            C4APP_IMAGE => "zoo",
+            command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
+            &$volumes("db4"),
+        },
+        broker => {
+            &$app_user(),
+            C4APP_IMAGE => "zoo",
+            command => ["$bin/kafka-server-start.sh","server.properties"],
+            depends_on => ["zookeeper"],
+            &$volumes("db4"),
+        },
+        inbox_configure => {
+            &$app_user(),
+            C4APP_IMAGE => "zoo",
+            command => ["perl",$c_script[0]],
+            depends_on => ["broker"],
+        },
+        gate => {
+            C4APP_IMAGE => "gate-server",
+            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
+            C4STATE_REFRESH_SECONDS => 100,
+        },
+        snapshot_maker => {
+            C4APP_IMAGE => "gate-server",
+            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.SnapshotMakerApp",
+            #restart => "on-failure",
+        },
+        purger => {
+            &$app_user(),
+            C4APP_IMAGE => "zoo",
+            command => ["perl",$c_script[1]],
+            tty => "true",
+            &$volumes("db4"),
+        },
+        sshd => {
+            C4APP_IMAGE => "sshd",
+            command => ["/usr/sbin/sshd", "-D"],
+            &$volumes("db4"),
+            expose => [22],
+        },
+        haproxy => {
+            C4APP_IMAGE => "haproxy",
+            expose => [80],
+        }
+    },
+    volumes => { db4 => {} },
+    version => "3.2",
+}};
+
+my $remote_build = sub{
+    my($build_comp,$dir,$nm,$tag)=@_;
+    my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
+    my $rsync_to = sub{
+        my($from_path,$comp,$to_path)=@_;
+        my ($host,$port,$dir) = &$get_host_port($comp);
+        "rsync -e 'ssh -p $port' -a $from_path $user\@$host:$to_path";
+    };
+    sy(&$remote($build_comp,"mkdir -p $build_temp"));
+    sy(&$rsync_to("$dir/$nm",$build_comp,$build_temp));
+    sy(&$remote($build_comp,"docker build -t $tag $build_temp/$nm"));
+};
+
+
+push @tasks, ["compose_up","<builder> $composes_txt [options]",sub{
+    my($build_comp,$run_comp,@opt)=@_;
+    sy(&$ssh_add());
+
+    my $override = reduce{&$merge($a,$b)} &$template_yml(),
+        map{LoadFile($_)} grep{/\.yml$/} @opt;
+    my $override_services = $$override{services} || {};
+    my %was;
+    my $generated_services = {map{
+        my $service_name = $_;
+        my $service = $$override_services{$service_name} || die;
+        my $img = $$service{C4APP_IMAGE} || $service_name;
+        my $build_parent_dir = (grep{-e "$_/$img/Dockerfile"} @opt)[0];
+        my $tag = "c4-$run_comp-$img";
+        $build_parent_dir and !($was{$img}++) and &$remote_build($build_comp,$build_parent_dir,$img,$tag);
+        ##todo: !$need_commit or `cat $dockerfile`=~/c4commit/ or die "need commit and rebuild";
+        my $generated_service = {
+            restart=>"unless-stopped",
+            ($$service{C4STATE_TOPIC_PREFIX}?(
+                &$app_user(),
+                depends_on => ["broker"],
+                C4BOOTSTRAP_SERVERS => $bootstrap_server,
+                C4INBOX_TOPIC_PREFIX => $inbox_prefix,
+                &$volumes("db4"),
+            ):()),
+            image => $tag
+        };
+        ($service_name => &$extract_env(&$merge($generated_service,$service)));
+    } keys %$override_services };
+    my $generated = { %$override, services => $generated_services };
+
+    #DumpFile("docker-compose.yml",$generated);
+    my $yml_str = Dump($generated);
+    #$text=~s/(\n\s+-\s+)([^\n]*\S:\d\d)/$1"$2"/gs;
+    $yml_str=~s/\b(tty:\s)'(true)'/$1$2/;
+    ##todo: fix need_commit; ...[some.yml]
+    my $yml_path = "/tmp/$$-docker-compose.yml";
+    &$put_text($yml_path,$yml_str);
+    print "generated $yml_path\n";
+    if($build_comp ne $run_comp){
+        my %images = map{$_?($_=>1):()} map{$$_{image}} values %$generated_services;
+        my $images_str = join " ", sort keys %images;
+        sy(&$remote($build_comp,"docker save $images_str").' | '.&$remote($run_comp,"docker load"));
+    }
+    sy(&$remote($run_comp,"docker-compose -f - -p $run_comp up -d --remove-orphans")." < $yml_path");
+}];
+
+####
 
 if($ARGV[0]) {
     my($cmd,@args)=@ARGV;
