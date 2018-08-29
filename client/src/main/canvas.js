@@ -60,9 +60,16 @@ export function ResizeCanvasSetup(canvas){
         const cmdUnitsPerEMZoom = (pxPerEMZoom - zoom)|0
         const aspectRatio = canvas.calcPos(dir => parentPos.size[dir]|0)
         const pxMapH = ((canvas.fromServer().height||0)*screenScale)|0
-        const sizes = [cmdUnitsPerEMZoom,aspectRatio.x,aspectRatio.y,pxMapH].join(",")
-        if(canvas.fromServer().value !== sizes)
-            canvas.fromServer().onChange({ target: { value: sizes } })
+		if(prev && prev.mapH){
+			if(prev.mapH-8 > pxMapH || pxMapH>prev.mapH+8 ) frame.mapH = pxMapH
+			else frame.mapH = prev.mapH
+		}
+		else	
+			frame.mapH = pxMapH
+        const sizes = [cmdUnitsPerEMZoom,aspectRatio.x,aspectRatio.y,frame.mapH].join(",")
+        if(canvas.fromServer().value !== sizes){			
+			canvas.fromServer().onChange({ target: { value: sizes } })			
+		}		
     }
     return ({processFrame})
 }
@@ -137,14 +144,25 @@ export function BaseCanvasSetup(log, util, canvas){
             canvasElement.style.top = frame.viewExternalPos.y+"px"
         }
     }
+	function getWindowScrollOffset(node){
+		const w = node.ownerDocument.defaultView
+		const x = w.scrollX
+		const y = w.scrollY
+		return {x,y}
+	}
     function viewPositions(){
         const parentPos = canvas.elementPos(canvas.parentNode())
         const scrollPos = rectToPos(canvas.getViewPortRect())
         const vExternalPos = canvas.calcPos(dir=>Math.max(parentPos.pos[dir],scrollPos.pos[dir])|0)
         const canvasElement = canvas.visibleElement()
         const canvasPos = canvas.elementPos(canvasElement)
-        const x = (vExternalPos.x + (parseInt(canvasElement.style.left)||0) - (canvasPos.pos.x|0))|0
-        const y = (vExternalPos.y + (parseInt(canvasElement.style.top)||0)  - (canvasPos.pos.y|0))|0
+		const scrollOffset = getWindowScrollOffset(canvasElement)
+        const x = ( vExternalPos.x + scrollOffset.x 
+			//+(parseInt(canvasElement.style.left)||0) - (canvasPos.pos.x|0)
+			)|0
+        const y = ( vExternalPos.y + scrollOffset.y
+			//+ (parseInt(canvasElement.style.top)||0)  - (canvasPos.pos.y|0)
+			)|0
         const viewExternalPos = {x,y}
         //const parentPosEnd = { x: parentPos.end.x|0, y: infinite ? Infinity : parentPos.end.y|0 }
         const vExternalEnd = canvas.calcPos(dir=>Math.min(parentPos.end[dir],scrollPos.end[dir])|0)

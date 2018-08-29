@@ -126,12 +126,16 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			if(input) return true
 			return false						
 		}
+		getRoot(){
+			if(!this.root|| !this.root.parentElement) return getReactRoot(this.el)				
+			return this.root
+		}
 		componentDidMount(){
-			this.root = getReactRoot(this.el)			
+			this.root = this.getRoot()				
 			checkActivateCalls.add(this.fitIn)			
 		}
 		componentWillUnmount(){
-			this.unmounted = true
+			this.unmounted = true			
 			checkActivateCalls.remove(this.fitIn)		
 		}
 		emRatio(){
@@ -205,6 +209,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		fitIn(){			
 			const vkLayout = this.getCurrentLayout()			
 			if(!vkLayout && this.vkLayout == vkLayout) return 
+			this.root = this.getRoot()
 			const emK = this.emRatio()
 			if(!emK) return 
 			const vkContainer = this.getVkContainer()			
@@ -242,7 +247,7 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		getDefaultFontSize(){
 			return this.props.style.fontSize?parseFloat(this.props.style.fontSize):1
 		}		
-		render(){			
+		render(){					    
 			const genKey = (char,i) => `${char}_${i}`			
 			const vkLayout = this.getCurrentLayout()		
 			const visible = "visible"
