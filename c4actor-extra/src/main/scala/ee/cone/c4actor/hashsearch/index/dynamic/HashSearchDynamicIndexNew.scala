@@ -58,6 +58,10 @@ trait HashSearchDynamicIndexApp
 
 sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Field] {
 
+  val murMurHash: MurmurHash3 = new MurmurHash3()
+
+  lazy val preHashing: PreHashingMurMur3 = PreHashingMurMur3()
+
   def qAdapterRegistry: QAdapterRegistry
 
   def lensRegistry: LensRegistryApi
@@ -69,6 +73,8 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
   def ranger: RangerWithCl[By, Field]
 
   def modelClass: Class[Model]
+
+  lazy val modelClassName: String = modelClass.getName
 
   lazy val byClass: Class[By] = ranger.byCl
 
@@ -102,7 +108,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
       case Some(lens) ⇒
         val modelSrcIdId = ToPrimaryKey(model)
         val srcId = idGenUtil.srcIdFromStrings(modelSrcIdId :: byClassName :: node.lensName: _*)
-        WithPK(IndexModel[Model, By](srcId, modelSrcIdId, lens.of(model), node.lensName)) :: Nil
+        (srcId → IndexModel[Model, By](srcId, modelSrcIdId, lens.of(model), node.lensName)) :: Nil
       case None ⇒
         Nil
     }
@@ -115,7 +121,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
       case Some(lens) ⇒
         val modelSrcIdId = ToPrimaryKey(model)
         val srcId = idGenUtil.srcIdFromStrings(modelSrcIdId :: nodeBy.lensName: _*)
-        WithPK(IndexModel[Model, By](srcId, modelSrcIdId, lens.of(model), nodeBy.lensName)) :: Nil
+        (srcId → IndexModel[Model, By](srcId, modelSrcIdId, lens.of(model), nodeBy.lensName)) :: Nil
       case None ⇒
         Nil
     }
@@ -132,31 +138,26 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
     }
     else Nil
 
-  def indexModelToHeapsBy( // TODO check this performance step by step
+  def indexModelToHeapsBy(
     model: IndexModel[Model, By],
     node: IndexByDirective[Model, By]
   ): Values[(String, IndexModel[Model, By])] = {
-    val (modelToHeaps, rqToHeaps) = ranger.ranges(node.directive.getOrElse(defaultBy))
+    val funTuple = ranger.ranges(node.directive)
     val field = model.field.asInstanceOf[Field]
-    val ranges: List[By] = modelToHeaps(field)
-    val heaps: List[By] = rqToHeaps(node.byNode)
-    heapToSrcIds(node.lensName, ranges.intersect(heaps)).map(srcId ⇒ srcId → model)
+    val ranges: List[By] = funTuple._1(field)
+    heapToSrcIds(node.lensName, ranges.filter(node.bySet.contains)).map(srcId ⇒ srcId → model)
   }
 
   def heapToSrcIds(
     lensName: List[String],
     ranges: List[By]
   ): List[SrcId] = {
-    ranges.map(heap ⇒ idGenUtil.srcIdFromStrings(
-      modelClass.getName :: heapID(heap) :: lensName: _* // TODO May be slow
+    ranges.map(heap ⇒ {
+      val instance = new MurmurHash3()
+      preHashing.calculateModelHash(modelClassName :: heap :: lensName, instance)
+      instance.getStringHash
+    }
     )
-    )
-  }
-
-  def heapID(
-    heap: By
-  ): String = {
-    idGenUtil.srcIdFromSerialized(byAdapter.id, ToByteString(byAdapter.encode(heap)))
   }
 
   def leafToHeapIds(
@@ -208,9 +209,11 @@ case class IndexByDirective[Model <: Product, By <: Product](
   srcId: SrcId,
   byAdapterId: Long,
   lensName: List[String],
-  directive: Option[By],
-  byNode: By
-)
+  nodes: List[By],
+  directive: By
+) {
+  lazy val bySet: Set[By] = nodes.toSet
+}
 
 case class ModelNeed[Model <: Product, By <: Product](
   modelSrcId: SrcId,
@@ -272,13 +275,16 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
         nodeBy ← node.indexByNodes
         if nodeBy.isAlive
       } yield {
+        val directive = directiveOpt.getOrElse(defaultBy)
+        val funTuple = ranger.ranges(directive)
+        val bys = funTuple._2(nodeBy.indexByNode.byInstance.map(AnyAdapter.decode[By](qAdapterRegistry)).get)
         WithAll(
           IndexByDirective[Model, By](
             nodeBy.srcId,
             node.indexNode.byAdapterId,
             node.indexNode.lensName,
-            directiveOpt,
-            nodeBy.indexByNode.byInstance.map(AnyAdapter.decode[By](qAdapterRegistry)).get
+            bys,
+            directive
           )
         )
       }
@@ -304,7 +310,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   def IndexModelToHeapBy(
     indexModelId: SrcId,
     @by[InnerIndexModel[Model, By]] model: Each[IndexModel[Model, By]],
-    @by[IndexNodeDirectiveAll] node: Each[IndexByDirective[Model, By]] // TODO check if all works with each
+    @by[IndexNodeDirectiveAll] node: Each[IndexByDirective[Model, By]]
   ): Values[(InnerDynamicHeapId[Model, By], IndexModel[Model, By])] =
     indexModelToHeapsBy(model, node)
 

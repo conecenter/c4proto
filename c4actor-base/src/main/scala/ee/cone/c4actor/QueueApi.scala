@@ -75,6 +75,12 @@ class Context(
 object ByPK {
   def apply[V<:Product](cl: Class[V]): ByPrimaryKeyGetter[V] =
     ByPrimaryKeyGetter(cl.getName)
+
+  def singleGeneric[V[_] <: Product, I <: Product](cl: Class[V[_]], inner: Class[I]): ByPrimaryKeyGetter[V[I]] =
+    ByPrimaryKeyGetter[V[I]](s"${cl.getName}[${inner.getName}]")
+
+  def doubleGeneric[V[_, _] <: Product, I <: Product, J <: Product](cl: Class[V[_, _]], inner1: Class[I], inner2: Class[J]): ByPrimaryKeyGetter[V[I, J]] =
+    ByPrimaryKeyGetter[V[I, J]](s"${cl.getName}[${inner1.getName},${inner2.getName}]")
 }
 //todo? def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
 

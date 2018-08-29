@@ -361,6 +361,11 @@ public class MurmurHash3 implements MurmurConstants, Java128HashInterface {
         murmur2 = 0;
     }
 
+    @Override
+    public String getStringHash() {
+        return Long.toHexString(murmur1) + Long.toHexString(murmur2);
+    }
+
     private long mixK1(long k1) {
         k1 *= X64_128_C1;
         k1 = Long.rotateLeft(k1, 31);
