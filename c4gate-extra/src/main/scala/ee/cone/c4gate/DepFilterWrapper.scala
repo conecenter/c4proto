@@ -13,8 +13,10 @@ import ee.cone.c4gate.dep.request.{FLRequestDef, FilterListRequestApp}
 
 import scala.collection.immutable.Seq
 
+case class DepFilterPK(filtersPK: String, matches: List[String])
+
 trait DepFilterWrapperApp {
-  def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[String] = ".*" :: Nil): DepFilterWrapperApi[Model]
+  def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[DepFilterPK] = DepFilterPK("", ".*" :: Nil) :: Nil): DepFilterWrapperApi[Model]
 }
 
 trait DepFilterWrapperMix extends DepFilterWrapperApp with HashSearchRangerRegistryApp {
@@ -22,7 +24,7 @@ trait DepFilterWrapperMix extends DepFilterWrapperApp with HashSearchRangerRegis
 
   def defaultModelRegistry: DefaultModelRegistry
 
-  def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[String] = ".*" :: Nil): DepFilterWrapperApi[Model] = {
+  def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[DepFilterPK] = DepFilterPK("", ".*" :: Nil) :: Nil): DepFilterWrapperApi[Model] = {
     val modelCondFactoryTyped = modelConditionFactory.ofWithCl(modelCl)
     DepFilterWrapperImpl(Nil, Seq())({ case Seq() ⇒ modelCondFactoryTyped.any }, listName, modelCl, modelCondFactoryTyped, matches)
   }
@@ -40,22 +42,21 @@ trait DepFilterWrapperCollectorMix
 
   override def leafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = filterWrappers.flatMap(_.getLeafs) ::: super.leafs
 
-  override def filterDepList: List[FLRequestDef] =
-    filterWrappers.map(wrapper ⇒ FLRequestDef(wrapper.listName,  wrapper.matches)(wrapper.getFilterDep(hashSearchDepRequestFactory).asInstanceOf[Dep[List[_]]])) ::: super.filterDepList
+  override def filterDepList: List[FLRequestDef] = filterWrappers.flatMap(_.filterRequests(hashSearchDepRequestFactory)) ::: super.filterDepList
 }
 
 case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
   leafs: List[LeafInfoHolder[Model, _ <: Product, _]],
-  depAccessSeq: Seq[Dep[Option[Access[_ <: Product]]]]
+  depAccessSeq: Seq[String ⇒ Dep[Option[Access[_ <: Product]]]]
 )(
   depToCondFunction: Seq[Option[Access[_ <: Product]]] ⇒ Condition[Model],
   val listName: String,
   val modelCl: Class[Model],
   modelConditionFactory: ModelConditionFactory[Model],
-  val matches: List[String]
+  val matches: List[DepFilterPK]
 ) extends DepFilterWrapperApi[Model] {
   def add[SBy <: Product, SField](
-    byDep: Dep[Option[Access[SBy]]],
+    byDep: String ⇒ Dep[Option[Access[SBy]]],
     lens: ProdLens[Model, SField],
     byOptions: List[MetaAttr] = Nil
   )(
@@ -72,26 +73,35 @@ case class DepFilterWrapperImpl[Model <: Product, By <: Product, Field](
         val tail: Condition[Model] = depToCondFunction(rest.to[Seq])
         intersect(head, tail)
     }
-    DepFilterWrapperImpl(newLeafs, byDep.asInstanceOf[Dep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, modelConditionFactory, matches)
+    DepFilterWrapperImpl(newLeafs, byDep.asInstanceOf[String ⇒ Dep[Option[Access[_ <: Product]]]] +: depAccessSeq)(concatFunc, listName, modelCl, modelConditionFactory, matches)
   }
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = leafs
 
-  def getFilterDep: HashSearchDepRequestFactory[_] ⇒ Dep[List[Model]] = factory ⇒ {
+  def getFilterDep: HashSearchDepRequestFactory[_] ⇒ String ⇒ Dep[List[Model]] = factory ⇒ filterPK ⇒ {
     val typedFactory = factory.ofWithCl(modelCl)
     for {
-      seq ← new SeqParallelDep[Option[Access[_ <: Product]]](depAccessSeq)
+      seq ← new SeqParallelDep[Option[Access[_ <: Product]]](depAccessSeq.map(_.apply(filterPK)))
       list ← {
-        val rq = typedFactory.conditionToHashSearchRequest(depToCondFunction(seq)) //HashSearchDepRequest
+        val rq = typedFactory.conditionToHashSearchRequest(depToCondFunction(seq))
         new RequestDep[List[Model]](rq)
       }
     } yield list
   }
+
+  def filterRequests: HashSearchDepRequestFactory[_] ⇒ List[FLRequestDef] = factory ⇒
+    for {
+      depFilterPK ← matches
+      DepFilterPK(filtersPK, matches) = depFilterPK
+      preAppliedLambda = getFilterDep(factory)
+    } yield {
+      FLRequestDef(listName, filtersPK, matches)(preAppliedLambda(filtersPK).asInstanceOf[Dep[List[_]]])
+    }
 }
 
 trait DepFilterWrapperApi[Model <: Product] {
   def add[By <: Product, Field](
-    byDep: Dep[Option[Access[By]]],
+    byDep: String ⇒ Dep[Option[Access[By]]],
     lens: ProdLens[Model, Field],
     byOptions: List[MetaAttr] = Nil
   )(
@@ -100,11 +110,9 @@ trait DepFilterWrapperApi[Model <: Product] {
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]]
 
-  def getFilterDep: HashSearchDepRequestFactory[_] ⇒ Dep[List[Model]]
+  def filterRequests: HashSearchDepRequestFactory[_] ⇒ List[FLRequestDef]
 
   def modelCl: Class[Model]
 
   def listName: String
-
-  def matches: List[String]
 }

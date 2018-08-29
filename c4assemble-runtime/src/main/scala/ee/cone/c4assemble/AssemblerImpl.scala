@@ -175,7 +175,13 @@ class IndexFactoryImpl(
     WorldPartExpression
       with DataDependencyFrom[Index]
       with DataDependencyTo[Index]
-  = new JoinMapIndex(join, updater, util, profiler.get(join.name)/*, DefIndexOpt(join.outputWorldKey)*/)
+  = new JoinMapIndex(join, updater, util,
+    profiler.getOpt(join.name, join.inputWorldKeys, join.outputWorldKey) match {
+      case Some(l) ⇒ l
+      case None ⇒ profiler.get(join.name)
+    }
+    /*, DefIndexOpt(join.outputWorldKey)*/
+  )
 }
 
 class JoinMapIndex(

@@ -175,3 +175,7 @@ class ConeCollectionGit[A <: Product, Repr](xs: IterableLike[A, Repr]) {
   //to Use implicit:
   //  implicit def toDistinct[A, Repr](xs: IterableLike[A, Repr]): ConeCollection[A, Repr] = new ConeCollection(xs)
 }
+
+object ClassAttr {
+  def apply(a: Class[_], b: Class[_]): ClassesAttr = ClassesAttr(a.getName, b.getName)
+}

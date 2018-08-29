@@ -11,11 +11,13 @@ case class AType(name: String, was: Boolean, key: KVType, value: KVType, strValu
 sealed trait KVType { def str: String }
 case class SimpleKVType(name: String, str: String) extends KVType
 case class GenericKVType(name: String, of: String, str: String) extends KVType
+case class DoubleGenericKVType(name: String, of1: String, of2: String, str: String) extends KVType
 object KVType {
   def unapply(t: Any): Option[KVType] = t match {
     case Some(e) ⇒ unapply(e)
     case Type.Name(n) ⇒ Option(SimpleKVType(n,n))
     case Type.Apply(Type.Name(n),Seq(Type.Name(of))) ⇒ Option(GenericKVType(n,of,s"$t"))
+    case Type.Apply(Type.Name(n), Seq(Type.Name(of1), Type.Name(of2))) ⇒ Option(DoubleGenericKVType(n, of1, of2, s"$t"))
   }
 }
 
@@ -64,6 +66,7 @@ class assemble extends StaticAnnotation {
     def classOfT(kvType: KVType) = kvType match {
       case SimpleKVType(n,_) ⇒ classOfExpr(n)
       case GenericKVType(n,of,_) ⇒ s"classOf[$n[_]].getName+'['+${classOfExpr(of)}+']'"
+      case DoubleGenericKVType(n, of1, of2, _) ⇒ s"classOf[$n[_, _]].getName+'['+${classOfExpr(of1)}+','+${classOfExpr(of2)}+']'"
     }
     /*
     def tp(kvType: KVType) = kvType match {
@@ -84,7 +87,7 @@ class assemble extends StaticAnnotation {
            |  val iUtil = indexFactory.util
            |  val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
            |  val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq)
-           |  ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name}";""").mkString}
+           |  ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${classOfT(p.value)};""").mkString}
            |  for {
            |    indexRawSeqI <- indexRawSeqSeq
            |    (dir,indexRawSeq) = indexRawSeqI

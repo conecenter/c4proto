@@ -64,6 +64,7 @@ trait RichDataApp extends ProtocolsApp
   with ToInjectApp
   with DefaultModelFactoriesApp
   with ExpressionsDumpersApp
+  with PreHashingApp
 {
   def assembleProfiler: AssembleProfiler
   //

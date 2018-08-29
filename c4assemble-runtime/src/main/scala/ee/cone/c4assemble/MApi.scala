@@ -51,6 +51,7 @@ case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, resul
 
 trait AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit
+  def getOpt(ruleName: String, in: Seq[AssembledKey], out: AssembledKey): Option[String ⇒ Int ⇒ Unit] = None
 }
 
 trait IndexFactory {

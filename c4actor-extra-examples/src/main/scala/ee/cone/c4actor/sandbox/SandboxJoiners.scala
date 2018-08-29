@@ -1,6 +1,6 @@
 package ee.cone.c4actor.sandbox
 
-import ee.cone.c4actor.{AssemblesApp, IdGenUtil, WithPK}
+import ee.cone.c4actor.{AssemblesApp, IdGenUtil, IdGenUtilApp, WithPK}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.sandbox.OtherProtocol.OtherOrig
 import ee.cone.c4actor.sandbox.SandboxProtocol.SandboxOrig
@@ -12,10 +12,11 @@ import ee.cone.c4assemble.{Assemble, assemble, by}
  */
 
 trait SandboxJoinersApp
-  extends AssemblesApp {
-  def idGenUtil: IdGenUtil
+  extends AssemblesApp
+    with IdGenUtilApp {
 
-  override def assembles: List[Assemble] = new SandboxJoiners(idGenUtil) :: super.assembles
+  override def assembles: List[Assemble] =
+    new SandboxJoiners(idGenUtil) :: super.assembles
 }
 
 case class SandboxRich(srcId: String, value: Int)

@@ -232,19 +232,39 @@ my $webpack = sub{
     &$put_text($jnm, $jsc);
 };
 
+my $composes;
+my $get_comp_conf = sub{
+    my($nm)=@_;
+    $composes ||= require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
+    my $conf = $$composes{$nm} || die "composition expected for $nm";
+    $$conf{$_}||die for qw(host port dir);
+    +{%$conf,key=>$nm};
+};
+
 my $composer = sub{
-    my($cmd,$comp,$args)=@_;
-    my $img = "c4-$comp-composer";
-    sy("docker build -t $img $docker_build/composer");
-    sy("docker run --rm --userns=host "
+    my($cmd,$comp_build,$comp_run,$args)=@_;
+    sy("ssh-add $ENV{C4DEPLOY_CONF}/id_rsa");
+    my $ssh = sub{my($conf,$cmd)=@_;"ssh -p $$conf{port} $user\@$$conf{host} $cmd"};
+    my $rsync_to = sub{my($from_path,$conf,$to_path)=@_;"rsync -e 'ssh -p $$conf{port}' -a $from_path/ $user\@$$conf{host}:$to_path/"};
+    #
+    my $build_temp = `hostname`=~/(\w+)/ ? "c4build_temp/$1" : die;
+    sy(&$ssh($comp_build,"mkdir -p $build_temp"));
+    sy(&$rsync_to($docker_build,$comp_build,$build_temp));
+    #
+    my $img = "c4-$$comp_run{key}-composer";
+    sy(&$ssh($comp_build,"docker build -t $img $build_temp/composer"));
+    sy(&$ssh($comp_build,"docker run --rm --userns=host "
         ." -v /var/run/docker.sock:/var/run/docker.sock "
-        ." -v \$(pwd)/$docker_build:/c4deploy "
-        ." $img $cmd $comp $args");
+        ." -v \$(pwd)/$build_temp:/c4deploy "
+        ." $img $cmd $$comp_run{key} $args"));
+    #
+    &$ssh($comp_build,"sh $build_temp/save.sh").' | '.&$ssh($comp_run,"docker load")
 };
 
 my $get_commit = sub{
-    `git status --porcelain`=~/\S/ and return [];
-    my $commit = `git rev-parse --verify HEAD`=~/([0-9a-f]{32})/ ? $1 : die;
+    #`git status --porcelain`=~/\S/ and return [];
+    #my $commit = `git rev-parse --verify HEAD`=~/([0-9a-f]{32})/ ? $1 : die;
+    my $commit = "not_implemented";
     [qq{LABEL c4commit="$commit"}];
 };
 
@@ -272,8 +292,9 @@ push @tasks, ["build_conf_only", sub{
     &$gen_docker_conf([]);
 }];
 push @tasks, ["push",sub{
-    my($comp)=@_;
-    &$composer("push",($comp||die "need target composition"));
+    my($comp_from,$comp_to)=@_;
+    my $save = &$composer("push",&$get_comp_conf($comp_from),&$get_comp_conf($comp_to));
+    sy($save);
 }];
 
 ################################################################################
@@ -294,7 +315,7 @@ my $staged_up = sub{
     #app.yml dev-proj-ports
     my($name)=@_;
     ["test_$name\_up", sub{
-        &$composer("up_local",$developer,"docker-compose.test_$name.yml");
+        &$composer("up_local",$developer,(die),"docker-compose.test_$name.yml");
     }];
 };
 

@@ -58,7 +58,7 @@ object StaticHashSearchImpl {
     idGenUtil: IdGenUtil
   ) extends StaticFactory {
     def index[Model <: Product](cl: Class[Model]): Indexer[Model] =
-      EmptyIndexer[Model]()(cl, modelConditionFactory.of[Model], serializer)
+      EmptyIndexer[Model]()(cl, modelConditionFactory.ofWithCl[Model](cl), serializer)
 
     def request[Model <: Product](condition: Condition[Model]): Request[Model] =
       Request(idGenUtil.srcIdFromStrings(condition.toString), condition)
