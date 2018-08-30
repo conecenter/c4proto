@@ -37,7 +37,10 @@ push @tasks, ["ssh", $composes_txt, sub{
     sy(&$ssh_ctl($_[0],""))
 }];
 
-my $split_app = sub{ my($app)=@_; $app=~/^(\w+)-(\w+)$/ ? ($1,$2) : die $app };
+my $split_app = sub{
+    my($app)=@_;
+    $app=~/^(\w+)-(\w+)$/ ? ($1,$2) : die "<stack>-<service> expected ($app)"
+};
 
 push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     my($proj,$app)=@_;
@@ -188,9 +191,10 @@ push @tasks, ["stop", $composes_txt, sub{
 }];
 
 my $restart = sub{
-    my($app)=@_;
+    my($app,$cmds)=@_;
     my($comp,$service) = &$split_app($app);
-    sy(&$remote($comp,"docker restart $comp\_$service\_1"));
+    my $container = "$comp\_$service\_1";
+    sy(&$remote($comp,sub{"cd $_[0]/$service && git reset --hard $cmds && docker restart $container && docker logs $container -ft --tail 2000"}));
 };
 
 my $remote_single_cmd = sub{
@@ -203,7 +207,7 @@ push @tasks, ["restart","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     &$remote_single_cmd($app,"git reset --hard");
-    &$restart($app);
+    &$restart($app,"");
 }];
 
 push @tasks, ["revert_list","$composes_txt-<service>",sub{
@@ -216,14 +220,12 @@ push @tasks, ["revert_to","$composes_txt-<service> <commit>",sub{
     my($app,$commit)=@_;
     sy(&$ssh_add());
     my $time = time;
-    &$remote_single_cmd($app,"git checkout $commit -b $commit-$time");
-    &$restart($app);
+    &$restart($app," && git checkout $commit -b $commit-$time");
 }];
 push @tasks, ["revert_off","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
-    &$remote_single_cmd($app,"git checkout master");
-    &$restart($app);
+    &$restart($app," && git checkout master");
 }];
 
 #### composer
