@@ -18,16 +18,18 @@ my $composes = require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
 my $ssh_add  = sub{"ssh-add $ENV{C4DEPLOY_CONF}/id_rsa"};
 my $composes_txt = "(".(join '|', sort keys %$composes).")";
 
-my $get_host_port = sub{grep{$_||die}@{($$composes{$_[0]}||die "composition expected")}{qw(host port dir)}};
+my $get_compose = sub{$$composes{$_[0]}||die "composition expected"};
+
+my $get_host_port = sub{grep{$_||die}@{$_[0]}{qw(host port dir)}};
 
 my $ssh_ctl = sub{
     my($comp,$args)=@_;
-    my ($host,$port,$dir) = &$get_host_port($comp);
+    my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
     "ssh c4\@$host -p $port $args";
 };
 my $remote = sub{ 
     my($comp,$stm)=@_;
-    my ($host,$port,$dir) = &$get_host_port($comp);
+    my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
     $stm = &$stm("$dir/$comp") if ref $stm;
     "ssh c4\@$host -p $port '$stm'";
 };
@@ -46,7 +48,7 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     my($proj,$app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    my ($host,$port,$ddir) = &$get_host_port($comp);
+    my ($host,$port,$ddir) = &$get_host_port(&$get_compose($comp));
     my $repo = "$ddir/$comp/$service";
     #
     so(&$remote($comp,"mv $repo ".rand()));
@@ -67,7 +69,7 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     my $tmp = "$bdir/tmp";
     my $cloned = "$tmp/$service";
     #
-    -e $_ or mkdir $_ or die $_ for $adir, $tmp;
+    sy("mkdir -p $adir $tmp");
     !-e $_ or rename $_, "$tmp/".rand() or die $_ for $git_dir, $cloned;
     #
     &$put_text("$adir/vconf.json",'{"git.postCommit" : "push"}');
@@ -230,7 +232,6 @@ push @tasks, ["revert_off","$composes_txt-<service>",sub{
 
 #### composer
 
-use List::Util qw(reduce);
 use YAML::XS qw(LoadFile DumpFile Dump);
 $YAML::XS::QuoteNumericStrings = 1;
 
@@ -270,7 +271,7 @@ my $app_user = sub{
     (user=>$user, working_dir=>"/$user");
 };
 
-my $volumes = sub{(volumes => [map{"$_:/$user/$_"}@_])};
+my $volumes = sub{map{"$_:/$user/$_"}@_};
 
 my $template_yml = sub{+{
     services => {
@@ -278,14 +279,14 @@ my $template_yml = sub{+{
             &$app_user(),
             C4APP_IMAGE => "zoo",
             command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
-            &$volumes("db4"),
+            volumes => [&$volumes("db4")],
         },
         broker => {
             &$app_user(),
             C4APP_IMAGE => "zoo",
             command => ["$bin/kafka-server-start.sh","server.properties"],
             depends_on => ["zookeeper"],
-            &$volumes("db4"),
+            volumes => [&$volumes("db4")],
         },
         inbox_configure => {
             &$app_user(),
@@ -308,12 +309,12 @@ my $template_yml = sub{+{
             C4APP_IMAGE => "zoo",
             command => ["perl",$c_script[1]],
             tty => "true",
-            &$volumes("db4"),
+            volumes => [&$volumes("db4")],
         },
         sshd => {
             C4APP_IMAGE => "sshd",
             command => ["/usr/sbin/sshd", "-D"],
-            &$volumes("db4"),
+            volumes => [&$volumes("db4")],
             expose => [22],
         },
         haproxy => {
@@ -330,7 +331,7 @@ my $remote_build = sub{
     my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
     my $rsync_to = sub{
         my($from_path,$comp,$to_path)=@_;
-        my ($host,$port,$dir) = &$get_host_port($comp);
+        my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
         "rsync -e 'ssh -p $port' -a $from_path $user\@$host:$to_path";
     };
     sy(&$remote($build_comp,"mkdir -p $build_temp"));
@@ -339,19 +340,21 @@ my $remote_build = sub{
 };
 
 
-push @tasks, ["compose_up","<builder> $composes_txt [options]",sub{
-    my($build_comp,$run_comp,@opt)=@_;
+push @tasks, ["compose_up","$composes_txt",sub{
+    my($run_comp)=@_;
     sy(&$ssh_add());
 
-    my $override = reduce{&$merge($a,$b)} &$template_yml(),
-        map{LoadFile($_)} grep{/\.yml$/} @opt;
-    my $override_services = $$override{services} || {};
+    my $conf = &$get_compose($run_comp);
+    my $build_comp = $$conf{builder} || $run_comp;
+    my $template = &$template_yml();
+    my $override = &$merge($template, $conf);
+    my $override_services = $$override{services} || die;
     my %was;
     my $generated_services = {map{
         my $service_name = $_;
         my $service = $$override_services{$service_name} || die;
         my $img = $$service{C4APP_IMAGE} || $service_name;
-        my $build_parent_dir = (grep{-e "$_/$img/Dockerfile"} @opt)[0];
+        my $build_parent_dir = (grep{-e "$_/$img/Dockerfile"} $ENV{C4DOCKERFILE_PATH}=~/[^:]+/g)[0];
         my $tag = "c4-$run_comp-$img";
         $build_parent_dir and !($was{$img}++) and &$remote_build($build_comp,$build_parent_dir,$img,$tag);
         ##todo: !$need_commit or `cat $dockerfile`=~/c4commit/ or die "need commit and rebuild";
@@ -362,13 +365,16 @@ push @tasks, ["compose_up","<builder> $composes_txt [options]",sub{
                 depends_on => ["broker"],
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
                 C4INBOX_TOPIC_PREFIX => $inbox_prefix,
-                &$volumes("db4"),
             ):()),
+            volumes => [
+                $$service{C4STATE_TOPIC_PREFIX} ? &$volumes("db4") : (),
+                $$service{C4DEPLOY_LOCAL} ? "$$conf{dir}/$run_comp/$service_name:/c4deploy" : (),
+            ],
             image => $tag
         };
         ($service_name => &$extract_env(&$merge($generated_service,$service)));
     } keys %$override_services };
-    my $generated = { %$override, services => $generated_services };
+    my $generated = { %$template, services => $generated_services };
 
     #DumpFile("docker-compose.yml",$generated);
     my $yml_str = Dump($generated);
