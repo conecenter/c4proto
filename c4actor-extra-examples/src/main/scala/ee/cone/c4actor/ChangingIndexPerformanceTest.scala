@@ -27,15 +27,15 @@ import scala.util.Random
 
 }
 
-case class Test[Model, Model2](model: Model, model2: Model2)
+case class Test[Model, Model2, Model3](model: Model, model2: Model2, model3: Model3)
 
 case class Test2[Model, Model2](model: Model, model2: Model2)
 
-@assemble class LUL[Model, Model2](modelCl: Class[Model], model2: Class[Model2]) extends Assemble {
+@assemble class LUL[Model, Model2, Model3](modelCl: Class[Model], model2: Class[Model2], model3: Class[Model3]) extends Assemble {
 
   def test(
     modelId: SrcId,
-    model: Each[Test[Model, Model2]]
+    model: Each[Test[Model, Model2, Model3]]
   ): Values[(SrcId, Test2[Model, Model2])] = {
     println(modelCl, model2, model)
     WithPK(Test2(model.model, model.model2)) :: Nil
@@ -62,25 +62,25 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
   def test3(
     modelId: SrcId,
     firstb: Each[PerformanceNode]
-  ): Values[(SrcId, Test[PerformanceNode, NodeInstruction])] =
+  ): Values[(SrcId, Test[PerformanceNode, NodeInstruction, Int])] =
     if (firstb.srcId.toInt < 10)
-      WithPK(Test(firstb, NodeInstruction(firstb.srcId, 1, 1))) :: Nil
+      WithPK(Test(firstb, NodeInstruction(firstb.srcId, 1, 1), 1)) :: Nil
     else Nil
 
   def test4(
     modelId: SrcId,
     firstb: Each[PerformanceNode]
-  ): Values[(SrcId, Test[String, NodeInstruction])] =
+  ): Values[(SrcId, Test[String, NodeInstruction, Int])] =
     if (firstb.srcId.toInt < 10)
-      WithPK(Test(firstb.srcId, NodeInstruction(firstb.srcId, 1, 1))) :: Nil
+      WithPK(Test(firstb.srcId, NodeInstruction(firstb.srcId, 1, 1), 1)) :: Nil
     else Nil
 
   def test5(
     modelId: SrcId,
     firstb: Each[PerformanceNode]
-  ): Values[(SrcId, Test[PerformanceNode, Int])] =
+  ): Values[(SrcId, Test[PerformanceNode, Int, Int])] =
     if (firstb.srcId.toInt < 10)
-      WithPK(Test(firstb, 1)) :: Nil
+      WithPK(Test(firstb, 1, 1)) :: Nil
     else Nil
 
 
@@ -162,7 +162,7 @@ class ChangingIndexPerformanceTestApp extends RichDataApp
 
   override def protocols: List[Protocol] = PerformanceProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = new LUL(classOf[PerformanceNode], classOf[NodeInstruction]) :: new LUL(classOf[String], classOf[NodeInstruction]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
+  override def assembles: List[Assemble] = new LUL(classOf[PerformanceNode], classOf[NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
 
   lazy val assembleProfiler = ValueAssembleProfiler
 }

@@ -69,7 +69,6 @@ class HashSearchExtraTestStart(
     println(ByPK(classOf[IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
     println(ByPK(classOf[IndexByNodesStats]).of(newNGlobal2AA).values)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    println(newNGlobal2AA.assembled.values.toList(5) match {case a:IndexImpl ⇒ a.data.keys.toList})
     execution.complete()
 
   }
@@ -172,7 +171,7 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[StrStartsWith], cla
         (for {
           i ← 1 to 5
         } yield StrStartsWith(value.take(i))
-        ).toList :+ StrStartsWith("")).distinct, {
+          ).toList :+ StrStartsWith("")).distinct, {
       case StrStartsWith(v) ⇒ StrStartsWith(v.take(5)) :: Nil
     })
   }
@@ -241,10 +240,12 @@ trait TestCondition extends SerializationUtilsApp {
 
   def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer, idGenUtil)
 
-  def joiners: List[Assemble] = Nil /*factory.index(classOf[TestObject])
-    .add[IntEq, Int](lensInt, IntEq(0))(IntEqRanger())
-    .add[StrStartsWith, String](lensStr, StrStartsWith(""))(StrStartsWithRanger)
-    .assemble*/
+  def joiners: List[Assemble] = Nil
+
+  /*factory.index(classOf[TestObject])
+     .add[IntEq, Int](lensInt, IntEq(0))(IntEqRanger())
+     .add[StrStartsWith, String](lensStr, StrStartsWith(""))(StrStartsWithRanger)
+     .assemble*/
 
   def lensInt: ProdLens[TestObject, Int] = ProdLens.ofSet[TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt", ClassAttr(classOf[TestObject], classOf[Int]))
 
@@ -308,9 +309,11 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
     val startTime = System.currentTimeMillis
     finalCount ⇒ {
-      val period = System.currentTimeMillis - startTime
-      if (period > 0)
-        println(s"${Console.WHITE_B}${Console.BLACK}rule ${trimStr(ruleName, 20)}|${trimStr(startAction, 10)} $finalCount|$period ms${Console.RESET}")
+      if (true) {
+        val period = System.currentTimeMillis - startTime
+        if (period > 0)
+          println(s"${Console.WHITE_B}${Console.BLACK}rule ${trimStr(ruleName, 50)}|${trimStr(startAction, 10)} $finalCount|$period ms${Console.RESET}")
+      }
     }
   }
 
@@ -320,13 +323,15 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
       str.take(limit)
     else
       str + List.range(0, limit - length).map(_ ⇒ "").mkString(" ")
+    str
   }
 
-  override def getOpt(ruleName: String, in: immutable.Seq[AssembledKey], out: AssembledKey): Option[String => Int => Unit] = Some{
-    if (ruleName != "ModelToHeapIdByIndexByNode")
+  override def getOpt(ruleName: String, in: immutable.Seq[AssembledKey], out: AssembledKey): Option[String => Int => Unit] = Some {
+    if (ruleName != "IndexModelToHeapBy")
       get(ruleName)
     else {
       get(ruleName + in.mkString("|"))
+      //get("")
     }
   }
 }

@@ -1,16 +1,28 @@
 package ee.cone.c4actor;
 
 
-
 public interface Java128HashInterface {
-    public long digest1();
-    public long digest2();
-    public void updateByte(byte a);
-    public void updateBoolean(boolean a);
-    public void updateInt(int a);
-    public void updateLong(long a);
-    public void updateString(String a);
-    public void updateLongs(long[] data, int length);
-    public void updateBytes(byte[] data, int length);
-    public void updateBytes(byte[] data);
+    void reset();
+
+    String getStringHash();
+
+    long digest1();
+
+    long digest2();
+
+    void updateByte(byte a);
+
+    void updateBoolean(boolean a);
+
+    void updateInt(int a);
+
+    void updateLong(long a);
+
+    void updateString(String a);
+
+    void updateLongs(long[] data, int length);
+
+    void updateBytes(byte[] data, int length);
+
+    void updateBytes(byte[] data);
 }
