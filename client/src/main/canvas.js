@@ -1,5 +1,5 @@
 import MultiTouch from "../main/multitouch"
-
+const multiTouch = MultiTouch()
 export function CanvasUtil(){
     function cached(recalculate){
         const data = {}
@@ -188,7 +188,10 @@ export function BaseCanvasSetup(log, util, canvas){
     function visibleElement(){ return canvas.composingElement("preparingCtx") }
     ////
     function calcPos(calc){ return { x:calc("x"), y:calc("y") } }
-    function elementPos(element){ return rectToPos(element.getBoundingClientRect()) }
+    function elementPos(element){ 
+		if(!element) return rectToPos({left:0,right:0,top:0,bottom:0,height:0,width:0})
+		return rectToPos(element.getBoundingClientRect()) 
+	}
     function rectToPos(p){
         return {pos:{x:p.left,y:p.top}, size:{x:p.width,y:p.height}, end:{x:p.right,y:p.bottom}}
     }
@@ -362,7 +365,7 @@ export function TiledCanvasSetup(canvas){
     return ({forTiles})
 }
 
-export function MouseCanvasSetup(canvas){
+export function MouseCanvasSetup(log,canvas){
     let currentDrag = noDrag
     let mousePos = { x:0, y:0, t:0 }
     function mouseMove(ev){ currentDrag(ev,false) }
@@ -392,15 +395,14 @@ export function MouseCanvasSetup(canvas){
         })
         ev.preventDefault()
     }
+	
     function processFrame(frame, prev){
         if(prev) return;
         const win = canvas.document().defaultView
-        canvas.addEventListener(win,"mousemove",mouseMove,false)
-        canvas.addEventListener(win,"touchmove",mouseMove,false)
-        canvas.addEventListener(win,"mouseup",mouseUp,false) // capture (true) causes popup close to be later
-        canvas.addEventListener(win,"touchend",mouseUp,false) // capture (true) causes popup close to be later
-        canvas.addEventListener(canvas.visibleElement(),"mousedown", handleMouseDown)//ie selectstart?
-        canvas.addEventListener(canvas.visibleElement(),"touchstart", handleMouseDown)//ie selectstart?
+        canvas.addEventListener(win,"mousemove",mouseMove,false)        
+        canvas.addEventListener(win,"mouseup",mouseUp,false) // capture (true) causes popup close to be later        
+        canvas.addEventListener(canvas.visibleElement(),"mousedown", handleMouseDown)//ie selectstart?        
+		multiTouch.scroll(log,win,canvas.visibleElement(),handleMouseDown,mouseMove,mouseUp)		
     }
     function dMousePos(p1,p0){ return { x: p1.x-p0.x, y: p1.y-p0.y, t: p1.t-p0.t } }
     function findMousePos(pLast, cond){
@@ -508,8 +510,9 @@ export function DragViewPositionCanvasSetup(log,canvas){
         const time = Date.now()
         const mousePos = { x:ev.clientX, y:ev.clientY, t:time }
         const mouseRelPos = canvas.relPos(canvas.visibleElement(), mousePos)
-        const from = canvas.setupFrame()
-        animation = animateChangingZoom(from, - Math.sign(ev.deltaY)/2, mouseRelPos)
+        const from = canvas.setupFrame()		
+        animation = animateChangingZoom(from, -Math.sign(ev.deltaY)/2, mouseRelPos)
+		
         if(canvas.onZoom) canvas.onZoom() //todo to close popup?
 		ev.preventDefault();
     }
@@ -530,8 +533,8 @@ export function DragViewPositionCanvasSetup(log,canvas){
             const viewPos = limitPos(zoom, viewExternalSize, getPos(time))
             return {...viewPositions,time,limitedTargetZoom:zoom,zoom,tileZoom:zoom,viewPos}
         }
-    }
-    function animateChangingZoom(from,d,mouseRelPos){
+    }	
+    function animateChangingZoom(from,d,mouseRelPos){		
         const zoomSteps = canvas.fromServer().zoomSteps
         const targetZoom = from.limitedTargetZoom + d * zoomSteps
         const tempTileZoom = from.tileZoom > targetZoom ? targetZoom - zoomSteps : from.tileZoom
@@ -550,26 +553,14 @@ export function DragViewPositionCanvasSetup(log,canvas){
             const tileZoom = limitZoom(zoomIsChanging ? tempTileZoom : targetZoom)
             const limitedTargetZoom = limitZoom(targetZoom)
             const scale = canvas.zoomToScale(zoom)
-            const viewPos = limitPos(zoom, viewExternalSize, canvas.calcPos(dir => pointPos[dir]*scale - mouseRelPos[dir]))
-
-            //console.log(d,from.limitedTargetZoom,targetZoom,limitedTargetZoom)
+            const viewPos = limitPos(zoom, viewExternalSize, canvas.calcPos(dir => pointPos[dir]*scale - mouseRelPos[dir]))           
+            //log(d,from.limitedTargetZoom,targetZoom,limitedTargetZoom)
             return {...viewPositions,time,limitedTargetZoom,zoom,tileZoom,zoomIsChanging,viewPos}
         }
-    }
-	let multiTouch
-	function handlePinch(ev){		
-		if(!ev.diff) return
-        const time = Date.now()
-        const pos = { x:ev.clientX, y:ev.clientY, t:time }
-        const relPos = canvas.relPos(canvas.visibleElement(), pos)
-        const from = canvas.setupFrame()
-        animation = animateChangingZoom(from, - Math.sign(ev.diff<0?100:-100)/2, pos)
-        if(canvas.onZoom) canvas.onZoom() //todo to close popup?
-		
-	}
-    function processFrame(frame, prev){
+    }	
+    function processFrame(frame, prev){		
         if(!prev) canvas.addEventListener(canvas.visibleElement(),"wheel", handleWheel)
-		if(!prev) multiTouch = MultiTouch(log,canvas.visibleElement(),handlePinch)	
+		if(!prev) multiTouch.pinch(log,canvas.document().defaultView,canvas.visibleElement(),handleWheel)
     }
     return {drag,setupFrame,processFrame}
 }

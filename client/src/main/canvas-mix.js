@@ -14,7 +14,7 @@ export function CanvasBaseMix(log,util){
              Canvas.ScrollViewPositionCanvasSetup(canvas) :
              Canvas.DragViewPositionCanvasSetup(log,canvas),
          Canvas.ResizeCanvasSetup(canvas),
-         Canvas.MouseCanvasSetup(canvas)
+         Canvas.MouseCanvasSetup(log,canvas)
     ]
 }
 
