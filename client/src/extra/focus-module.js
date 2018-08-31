@@ -250,16 +250,15 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	addEventListener("cEnter",onEnter)
 	addEventListener("mousedown",onMouseDown,true)
 	const isPrintableKeyCode = (ch)	=> ch&&("abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase()))
-	const isVk = (el) => el.classList.contains("vkElement")
+	const isVk = (el) => el.classList.contains("vkElement")	
 	const doCheck = () => {		
 		const root = getReactRoot();
-		if(!root) return
-		const nodes = callbacks.map(o=>o.el)
-		if(nodes.length==0) return
+		if(!root) return		
+		if(callbacks.length==0) return
 		//
-		const newNodesObj = nodes.map(n=>{
-			const r = n.getBoundingClientRect()				
-			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n}
+		const newNodesObj = callbacks.map(n=>{
+			const r = n.el.getBoundingClientRect()				
+			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n:n.el,onFocus:n.onFocus}
 		})	
 		
 		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
@@ -268,11 +267,16 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			stickyNode = st?st.n:null
 				//return stickyNode.focus()			
 			if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
-				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))				
-				inpNodes&&inpNodes.n.focus()
-				//currentFocusNode.focus()
+				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))
+				if(inpNodes){
+					currentFocusNode = null
+					const win = inpNodes.n.ownerDocument.defaultView					
+					let t
+					t = win.setInterval(()=>{if(!currentFocusNode)inpNodes.n.focus(); else win.clearInterval(t)},200)
+				}				
 			}
-		}			
+		}
+		
 	}	
 	const reg = (o) => {
 		callbacks.push(o)
@@ -325,12 +329,9 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const checkActivate = doCheck
 	const focusTo = (data) => setTimeout(()=>{
 		const preferedFocusObj = callbacks.find(o=>o.path&&o.path.includes(data))
-		if(preferedFocusObj) {
-			switchTo(preferedFocusObj)
-			preferedFocusObj.el.focus()
-		}
+		preferedFocusObj && preferedFocusObj.el.focus()		
 	},200)
 	const getFocusNode = () => currentFocusNode
 	const receivers = {focusTo}
-	return {reg,switchTo,checkActivate,receivers,getFocusNode,switchOff}
+	return {reg,switchTo,checkActivate,receivers,getFocusNode,switchOff,callbacks}
 }

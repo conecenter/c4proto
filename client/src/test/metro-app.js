@@ -117,6 +117,7 @@ const miscUtil = (()=>{
 })()
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
+window.focusModule = focusModule
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
 const metroUi = MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image, miscUtil,StatefulComponent});
 //customUi with hacks
