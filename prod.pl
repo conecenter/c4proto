@@ -73,7 +73,7 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     !-e $_ or rename $_, "$tmp/".rand() or die $_ for $git_dir, $cloned;
     #
     &$put_text("$adir/vconf.json",'{"git.postCommit" : "push"}');
-    sy("cd $tmp && git clone ssh://c4\@$host:$port/~/$repo");
+    sy("cd $tmp && git clone ssh://c4\@$host:$port$repo");
     sy("mv $cloned/.git $git_dir");
 }];
 
