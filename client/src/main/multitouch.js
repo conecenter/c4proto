@@ -2,6 +2,7 @@ export default function MultiTouch(){
 	let state = null
 	const pinchZoom = 1
 	const pinchScroll = 2
+	const click = 3
 	function setHandlers(win,node,cb){
 		node.addEventListener("touchstart",cb.onstart,true)
 		node.addEventListener("touchmove",cb.onmove,true)
@@ -64,6 +65,24 @@ export default function MultiTouch(){
 		}
 		setHandlers(win,node,{onstart,onmove,onend})
 	}
+	function touchClick(log,win,node,handleDown,handleUp){
+		function onstart(ev) {				
+			if (ev.targetTouches.length == 1) {				 
+				ev.preventDefault()					
+				handleDown({clientX:ev.targetTouches[0].clientX,clientY:ev.targetTouches[0].clientY,preventDefault:()=>{}})
+				state = click
+			}
+		}
+		function onend(ev) {
+		  ev.preventDefault()	 
+		  if (ev.targetTouches.length == 0 && state == click) {			  
+			  handleUp({clientX:ev.changedTouches[0].clientX, clientY:ev.changedTouches[0].clientY})			  
+		  }		  	 
+		}	
+		function onmove(ev) {		  	 		  
+		}
+		setHandlers(win,node,{onstart,onmove,onend})
+	}
 	function scroll(log,win,node,handleDown,handleMove,handleUp){		
 		function onstart(ev) {				
 			if (ev.targetTouches.length == 2) {				 
@@ -88,7 +107,7 @@ export default function MultiTouch(){
 			const cT = ev.changedTouches				
 			if (cT.length == 2) {	
 			    ev.preventDefault()
-				if(!state) state = pinchScroll				
+				if(!state|| state == click) state = pinchScroll				
 				return {					
 					clientX:cT[0].clientX,
 					clientY:cT[0].clientY						
@@ -97,5 +116,5 @@ export default function MultiTouch(){
 		}
 		setHandlers(win,node,{onstart,onmove,onend})
 	}
-	return {pinch,scroll}
+	return {pinch,scroll,touchClick}
 }

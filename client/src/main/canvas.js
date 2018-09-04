@@ -403,6 +403,7 @@ export function MouseCanvasSetup(log,canvas){
         canvas.addEventListener(win,"mouseup",mouseUp,false) // capture (true) causes popup close to be later        
         canvas.addEventListener(canvas.visibleElement(),"mousedown", handleMouseDown)//ie selectstart?        
 		multiTouch.scroll(log,win,canvas.visibleElement(),handleMouseDown,mouseMove,mouseUp)		
+		multiTouch.touchClick(log,win,canvas.visibleElement(),handleMouseDown,mouseUp)		
     }
     function dMousePos(p1,p0){ return { x: p1.x-p0.x, y: p1.y-p0.y, t: p1.t-p0.t } }
     function findMousePos(pLast, cond){

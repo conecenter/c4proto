@@ -719,7 +719,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				display:'inline-block',				
 				margin:'0 0.1em',
 				verticalAlign:"top",
-				paddingTop:"0.05em",
+				paddingTop:"0.2em",
 				paddingBottom:"0.2em",
 				paddingLeft:"0.4em",
 				paddingRight:children?"0em":"0.4em",		
