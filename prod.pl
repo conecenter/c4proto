@@ -14,7 +14,8 @@ my $put_text = sub{
 
 my @tasks;
 
-my $composes = require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
+my $deploy_conf = require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
+my $composes = $$deploy_conf{stacks} || die;
 my $ssh_add  = sub{"ssh-add $ENV{C4DEPLOY_CONF}/id_rsa"};
 my $composes_txt = "(".(join '|', sort keys %$composes).")";
 
@@ -73,7 +74,7 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     !-e $_ or rename $_, "$tmp/".rand() or die $_ for $git_dir, $cloned;
     #
     &$put_text("$adir/vconf.json",'{"git.postCommit" : "push"}');
-    sy("cd $tmp && git clone ssh://c4\@$host:$port/~/$repo");
+    sy("cd $tmp && git clone ssh://c4\@$host:$port$repo");
     sy("mv $cloned/.git $git_dir");
 }];
 
@@ -230,6 +231,24 @@ push @tasks, ["revert_off","$composes_txt-<service>",sub{
     &$restart($app," && git checkout master");
 }];
 
+my $user = "c4";
+my $rsync_to = sub{
+    my($from_path,$comp,$to_path)=@_;
+    my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
+    "rsync -e 'ssh -p $port' -a $from_path $user\@$host:$to_path";
+};
+my $put_temp = sub{
+    my($fn,$text)=@_;
+    my $path = "/tmp/$$-$fn";
+    &$put_text($path,$text);
+    print "generated $path\n";
+    $path;
+};
+my $docker_compose = sub{
+    my($run_comp,$yml_str,$add)=@_;
+    sy(&$remote($run_comp,"docker-compose -f - -p $run_comp up -d --remove-orphans $add")." < ".&$put_temp("docker-compose.yml",$yml_str));
+};
+
 #### composer
 
 use YAML::XS qw(LoadFile DumpFile Dump);
@@ -240,7 +259,7 @@ my $bin = "kafka/bin";
 
 my $bootstrap_server = "broker:9092";
 my @c_script = ("inbox_configure.pl","purger.pl");
-my $user = "c4";
+
 
 # pass src commit
 # migrate states
@@ -329,11 +348,6 @@ my $template_yml = sub{+{
 my $remote_build = sub{
     my($build_comp,$dir,$nm,$tag)=@_;
     my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
-    my $rsync_to = sub{
-        my($from_path,$comp,$to_path)=@_;
-        my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-        "rsync -e 'ssh -p $port' -a $from_path $user\@$host:$to_path";
-    };
     sy(&$remote($build_comp,"mkdir -p $build_temp"));
     sy(&$rsync_to("$dir/$nm",$build_comp,$build_temp));
     sy(&$remote($build_comp,"docker build -t $tag $build_temp/$nm"));
@@ -381,15 +395,160 @@ push @tasks, ["compose_up","$composes_txt",sub{
     #$text=~s/(\n\s+-\s+)([^\n]*\S:\d\d)/$1"$2"/gs;
     $yml_str=~s/\b(tty:\s)'(true)'/$1$2/;
     ##todo: fix need_commit; ...[some.yml]
-    my $yml_path = "/tmp/$$-docker-compose.yml";
-    &$put_text($yml_path,$yml_str);
-    print "generated $yml_path\n";
     if($build_comp ne $run_comp){
         my %images = map{$_?($_=>1):()} map{$$_{image}} values %$generated_services;
         my $images_str = join " ", sort keys %images;
         sy(&$remote($build_comp,"docker save $images_str").' | '.&$remote($run_comp,"docker load"));
     }
-    sy(&$remote($run_comp,"docker-compose -f - -p $run_comp up -d --remove-orphans")." < $yml_path");
+    &$docker_compose($run_comp,$yml_str,"");
+}];
+
+#### proxy
+
+my $mk_from_cfg = sub{
+my($conf)=@_;
+my($ts,$gate_addr,$sni_postfix) = map{$$conf{$_}||die} qw[items gate sni_prefix];
+qq{
+global
+  tune.ssl.default-dh-param 2048
+defaults
+  timeout connect 5s
+  timeout client  3d
+  timeout server  3d
+  mode tcp
+}.join('',map{qq{listen listen_$$_[1]
+  bind $$_[0]
+  server s_$$_[1] $gate_addr ssl verify none sni str("$$_[1].$sni_postfix")
+}}@$ts);
+};
+
+my $mk_from_yml = sub{
+my($fn)=@_;
+qq{
+services:
+  haproxy:
+    image: "haproxy:1.7"
+    userns_mode: "host"
+    network_mode: "host"
+    restart: unless-stopped
+    volumes:
+    - "$fn:/usr/local/etc/haproxy/haproxy.cfg:ro"
+version: '3.2'
+};
+};
+
+my $mk_to_cfg = sub{
+my($conf)=@_;
+my($to_ssl_host,$ts,$lis) = map{$$conf{$_}||die} qw[external_ip items plain_items];
+qq{
+global
+  tune.ssl.default-dh-param 2048
+  log "logger:514" local0
+defaults
+  timeout connect 5s
+  timeout client  3d
+  timeout server  3d
+  mode tcp
+  option tcplog
+  log global
+frontend fe80
+  mode http
+  bind :80
+  acl a_letsencrypt path_beg /.well-known/acme-challenge/
+  use_backend beh_letsencrypt if a_letsencrypt
+  redirect scheme https if !{ method POST } !a_letsencrypt
+}.join('',map{$$_[1]!~/:80$/?():qq{  use_backend behttp_$$_[0] if { hdr_dom(host) $$_[0] }
+}}@$ts).qq{
+  default_backend beh_letsencrypt
+backend beh_letsencrypt
+  mode http
+  server s_letsencrypt $to_ssl_host:8080
+frontend fe443
+  bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt
+}.join('',map{qq{  use_backend be_$$_[0] if { ssl_fc_sni -m dom $$_[0] }
+}}@$ts).qq{
+}.join('',map{qq{backend be_$$_[0]
+  server s_$$_[0] $$_[1]
+}}@$ts).qq{
+}.join('',map{$$_[1]!~/:80$/?():qq{backend behttp_$$_[0]
+  mode http
+  server s_$$_[0] $$_[1]
+}}@$ts).qq{
+}.join('',map{ my $port=/(\d+)$/?$1:die; qq{listen listen_$port
+  bind :$port
+  server s_simple_$port $_
+}}@$lis).qq{
+};
+};
+
+my $mk_to_yml = sub{
+my($fn,$conf)=@_;
+my($to_ssl_host,$li_host,$lis) = map{$$conf{$_}||die} qw[external_ip internal_ip plain_items];
+qq{
+services:
+  haproxy:
+    image: "haproxy:1.7"
+    restart: unless-stopped
+    volumes:
+    - "$fn:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    - "certs:/etc/letsencrypt:ro"
+    ports:
+    - "$to_ssl_host:443:443"
+    - "$to_ssl_host:80:80"}.join('',map{ my $port=/(\d+)$/?$1:die; qq{
+    - "$li_host:$port:$port"}}@$lis).qq{
+  logger:
+    image: c4logger
+    restart: unless-stopped
+    command: /usr/sbin/syslog-ng -F -f /syslog-ng.conf
+  certbot:
+    image: c4certbot
+    restart: unless-stopped
+    command: sh -c 'certbot renew --preferred-challenges http && sleep 1d'
+    volumes:
+    - "certs:/etc/letsencrypt"
+    ports:
+    - "$to_ssl_host:8080:80"
+version: '3.2'
+volumes:
+  certs: {}
+};
+};
+
+push @tasks, ["proxy_up"," ",sub{
+    sy(&$ssh_add());
+    my $conf = $$deploy_conf{proxy_to} || die;
+    my $comp = $$conf{stack} || die;
+    my $dir = (&$get_compose($comp)->{dir}||die)."/$comp";
+    my $remote_cfg_path = "$dir/haproxy.cfg";
+    sy(&$remote($comp,"mkdir -p $dir"));
+    sy(&$rsync_to(&$put_temp("haproxy.cfg",&$mk_to_cfg($conf)),$comp,$remote_cfg_path));
+    &$docker_compose($comp,&$mk_to_yml($remote_cfg_path,$conf)," --force-recreate");
+}];
+
+push @tasks, ["proxy_from"," ",sub{
+    my $conf = $$deploy_conf{proxy_from} || die;
+    print "##### haproxy.cfg #####\n".&$mk_from_cfg($conf);
+    print "##### docker-compose.yml #####\n".&$mk_from_yml("./haproxy.cfg");
+    print "docker-compose -p proxy up -d --remove-orphans --force-recreate\n"
+}];
+
+push @tasks, ["cert","<hostname>",sub{
+  my($nm)=@_;
+  sy(&$ssh_add());
+  my $conf = $$deploy_conf{proxy_to} || die;
+  my($comp,$cert_mail) = map{$$conf{$_}||die} qw[stack cert_mail];
+  my $exec = sub{&$remote($comp,"docker exec -i proxy_certbot_1 sh").' < '.&$put_temp(@_)};
+  sy(&$exec("cert-only.sh","certbot certonly --standalone -n --email '$cert_mail' --agree-tos -d $nm")) if $nm;
+  my $live = "/etc/letsencrypt/live";
+  my $ha = "/etc/letsencrypt/haproxy";
+  my @hosts = sort{$a cmp $b} syf(&$exec("cert-list.sh","ls $live"))=~/(\S+)/g;
+  sy(&$exec("cert-join.sh",join' && ',
+    "mkdir -p $ha",
+    (map{"cat $live/$_/fullchain.pem $live/$_/privkey.pem > $ha/$_.pem"} @hosts),
+    "> $ha/list.txt",
+    (map{"echo $ha/$_.pem >> $ha/list.txt"} @hosts),
+  ));
+  sy(&$remote($comp,"docker exec proxy_haproxy_1 kill -s HUP 1"));
 }];
 
 ####
