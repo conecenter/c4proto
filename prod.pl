@@ -14,7 +14,8 @@ my $put_text = sub{
 
 my @tasks;
 
-my $composes = require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
+my $conf = require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
+my $composes = $$conf{stacks} || die;
 my $ssh_add  = sub{"ssh-add $ENV{C4DEPLOY_CONF}/id_rsa"};
 my $composes_txt = "(".(join '|', sort keys %$composes).")";
 
