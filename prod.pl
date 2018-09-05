@@ -244,9 +244,10 @@ my $put_temp = sub{
     print "generated $path\n";
     $path;
 };
+my $put_compose = sub{ &$put_temp("docker-compose.yml",$_[0]) };
 my $docker_compose = sub{
-    my($run_comp,$yml_str,$add)=@_;
-    sy(&$remote($run_comp,"docker-compose -f - -p $run_comp up -d --remove-orphans $add")." < ".&$put_temp("docker-compose.yml",$yml_str));
+    my($run_comp,$yml_path,$add)=@_;
+    &$remote($run_comp,"docker-compose -f - -p $run_comp up -d --remove-orphans $add")." < $yml_path";
 };
 
 #### composer
@@ -400,7 +401,7 @@ push @tasks, ["compose_up","$composes_txt",sub{
         my $images_str = join " ", sort keys %images;
         sy(&$remote($build_comp,"docker save $images_str").' | '.&$remote($run_comp,"docker load"));
     }
-    &$docker_compose($run_comp,$yml_str,"");
+    sy(&$docker_compose($run_comp,&$put_compose($yml_str),""));
 }];
 
 #### proxy
@@ -514,21 +515,26 @@ volumes:
 };
 };
 
-push @tasks, ["proxy_up"," ",sub{
-    sy(&$ssh_add());
+push @tasks, ["proxy_to","up|test",sub{
+    my($mode)=@_;
     my $conf = $$deploy_conf{proxy_to} || die;
     my $comp = $$conf{stack} || die;
     my $dir = (&$get_compose($comp)->{dir}||die)."/$comp";
     my $remote_cfg_path = "$dir/haproxy.cfg";
-    sy(&$remote($comp,"mkdir -p $dir"));
-    sy(&$rsync_to(&$put_temp("haproxy.cfg",&$mk_to_cfg($conf)),$comp,$remote_cfg_path));
-    &$docker_compose($comp,&$mk_to_yml($remote_cfg_path,$conf)," --force-recreate");
+    my $tmp_cfg_path = &$put_temp("haproxy.cfg",&$mk_to_cfg($conf));
+    my $tmp_yml_path = &$put_compose(&$mk_to_yml($remote_cfg_path,$conf));
+    if($mode eq "up"){
+        sy(&$ssh_add());
+        sy(&$remote($comp,"mkdir -p $dir"));
+        sy(&$rsync_to($tmp_cfg_path,$comp,$remote_cfg_path));
+        sy(&$docker_compose($comp,$tmp_yml_path," --force-recreate"));
+    }
 }];
 
 push @tasks, ["proxy_from"," ",sub{
     my $conf = $$deploy_conf{proxy_from} || die;
-    print "##### haproxy.cfg #####\n".&$mk_from_cfg($conf);
-    print "##### docker-compose.yml #####\n".&$mk_from_yml("./haproxy.cfg");
+    &$put_temp("from-haproxy.cfg",&$mk_from_cfg($conf));
+    &$put_compose(&$mk_from_yml("./from-haproxy.cfg"));
     print "docker-compose -p proxy up -d --remove-orphans --force-recreate\n"
 }];
 
