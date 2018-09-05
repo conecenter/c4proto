@@ -339,6 +339,7 @@ my $template_yml = sub{+{
         },
         haproxy => {
             C4APP_IMAGE => "haproxy",
+            C4EXPOSE_HTTP_PORT => 80,
             expose => [80],
         }
     },
@@ -385,6 +386,9 @@ push @tasks, ["compose_up","$composes_txt",sub{
                 $$service{C4STATE_TOPIC_PREFIX} ? &$volumes("db4") : (),
                 $$service{C4DEPLOY_LOCAL} ? "$$conf{dir}/$run_comp/$service_name:/c4deploy" : (),
             ],
+            ($$service{C4EXPOSE_HTTP_PORT} && $$conf{http_port} ? (
+                ports => ["$$conf{http_port}:$$service{C4EXPOSE_HTTP_PORT}"],
+            ):()),
             image => $tag
         };
         ($service_name => &$extract_env(&$merge($generated_service,$service)));
@@ -439,8 +443,8 @@ version: '3.2'
 };
 
 my $mk_to_cfg = sub{
-my($conf)=@_;
-my($to_ssl_host,$ts,$lis) = map{$$conf{$_}||die} qw[external_ip items plain_items];
+my($conf,$ts)=@_;
+my($to_ssl_host,$lis) = map{$$conf{$_}||die} qw[external_ip plain_items];
 qq{
 global
   tune.ssl.default-dh-param 2048
@@ -515,13 +519,23 @@ volumes:
 };
 };
 
+my $hmap = sub{ my($h,$f)=@_; map{&$f($_,$$h{$_})} sort keys %$h };
+
+
 push @tasks, ["proxy_to","up|test",sub{
     my($mode)=@_;
     my $conf = $$deploy_conf{proxy_to} || die;
     my $comp = $$conf{stack} || die;
     my $dir = (&$get_compose($comp)->{dir}||die)."/$comp";
     my $remote_cfg_path = "$dir/haproxy.cfg";
-    my $tmp_cfg_path = &$put_temp("haproxy.cfg",&$mk_to_cfg($conf));
+    my @sb_items = &$hmap($composes, sub{ my($comp,$comp_conf)=@_;
+        $$comp_conf{proxy_dom} ? do{
+            my $host = $$comp_conf{host}||die;
+            my $port = $$comp_conf{http_port}||die;
+            [$$comp_conf{proxy_dom},"$host:$port"]
+        } : ()
+    });
+    my $tmp_cfg_path = &$put_temp("haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]},@sb_items]));
     my $tmp_yml_path = &$put_compose(&$mk_to_yml($remote_cfg_path,$conf));
     if($mode eq "up"){
         sy(&$ssh_add());
