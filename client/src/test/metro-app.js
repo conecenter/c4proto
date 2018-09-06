@@ -124,7 +124,7 @@ const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const innerHeight = () => window.innerHeight
 const scrollBy = (x,y) => window.scrollBy(x,y)
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,overlayManager,windowManager,miscReact,miscUtil,StatefulComponent,window});
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,overlayManager,windowManager,miscReact,miscUtil,StatefulComponent});
 const updateManager = UpdateManager(log,window,metroUi, StatefulComponent)
 const activeElement=()=>document.activeElement; //todo: remove
 

@@ -1,6 +1,6 @@
 "use strict";
 import React from 'react'
-export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,windowManager,miscReact,miscUtil,StatefulComponent,window}){
+export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,windowManager,miscReact,miscUtil,StatefulComponent}){
 	const {setTimeout,clearTimeout} = windowManager
 
 	const ChipElement=ui.transforms.tp.ChipElement;
@@ -171,8 +171,10 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
                 this.props.onClickValue("change", value)
 		}
 		onclick(){
-			if(window.scanImage)
-            	window.scanImage(this.props.imgPath, this.props.fromObject,this.callback);
+			if(this.el === null) return;
+            const wind =  this.el.el.ownerDocument.defaultView;
+			if(wind.scanImage)
+                wind.scanImage(this.props.imgPath, this.props.fromObject,this.callback);
 		}
         componentDidMount(){
             this.onclick();
@@ -183,7 +185,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
         }
 
         render(){
-            return React.createElement(ButtonElement, {onClick:this.onclick}, this.props.value);
+            return React.createElement(ButtonElement, {onClick:this.onclick, ref:ref=>this.el=ref}, this.props.value);
         }
     }
 
