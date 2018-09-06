@@ -20,7 +20,9 @@ class ByPriorityBuilder[K,V](uses: K⇒(List[K],List[V]⇒V)) {
           tryGetKey.get
         else
           key match {
-            case a: DataDependencyFrom[_] ⇒ throw new Exception(s"JoinKey not found: ${tryGetKey.failed.get.getMessage}\nin assemble ${a.assembleName} in join ${a.name}")
+            case a: DataDependencyFrom[_] ⇒
+              throw new Exception(s"JoinKey not found: ${tryGetKey.failed.get.getMessage}\n" +
+                s"in assemble ${a.assembleName} in join ${a.name}")
             case _ ⇒ tryGetKey.get
           }
 
