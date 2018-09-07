@@ -251,10 +251,17 @@ class TreeAssemblerImpl(
     val permitWas: ExprByOutput = byOutput.keys.collect{
       case k: JoinKey if !k.was ⇒ k.withWas(was=true) → Nil
     }.toMap
-    val uses = originals ++ permitWas ++ byOutput
+    val uses: Map[AssembledKey, Seq[ExprFrom]] = originals ++ permitWas ++ byOutput
+    val getJoins: ExprFrom ⇒ List[ExprFrom] = join ⇒
+      (for (inKey ← join.inputWorldKeys.toList)
+        yield
+          if (uses.contains(inKey))
+            uses(inKey)
+          else throw new Exception(s"$inKey not found \n" +
+            s"for assemble ${join.assembleName}, join ${join.name}")).flatten
     val expressionsByPriority: List[ExprFrom] =
       byPriority.byPriority[ExprFrom,ExprFrom](
-        item⇒(item.inputWorldKeys.flatMap(uses).toList, _ ⇒ item)
+        item⇒(getJoins(item), _ ⇒ item)
       )(expressions).reverse
 
     expressionsDumpers.foreach(_.dump(expressionsByPriority.map{
