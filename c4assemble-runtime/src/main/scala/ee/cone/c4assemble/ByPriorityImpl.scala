@@ -1,7 +1,6 @@
 package ee.cone.c4assemble
 
 import scala.collection.immutable.Map
-import scala.util.Try
 
 object ByPriorityImpl extends ByPriority {
   def byPriority[K,V](uses: K⇒(List[K],List[V]⇒V)): List[K] ⇒ List[V] =
