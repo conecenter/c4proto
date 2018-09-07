@@ -6,7 +6,8 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
 	const ChipElement=ui.transforms.tp.ChipElement;
 	const TDElement=ui.transforms.tp.TDElement;
 	const ConnectionState=ui.transforms.tp.ConnectionState;
-	
+	const ButtonElement=ui.transforms.tp.ButtonElement;
+
 	class StatusElement extends StatefulComponent{		
 		getInitialState(){return {lit:false}}
 		signal(on){
@@ -163,7 +164,32 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
 			return React.createElement(ConnectionState,{on:this.state.on,style,iconStyle});
 		}
 	}
-	class ScannerProxyElement extends StatefulComponent{		
+
+    class OCRScannerElement extends StatefulComponent{
+		callback(value){
+            if(this.props.onClickValue && !this.unmount)
+                this.props.onClickValue("change", value)
+		}
+		onclick(){
+			if(this.el === null) return;
+            const wind =  this.el.el.ownerDocument.defaultView;
+			if(wind.scanImage)
+                wind.scanImage(this.props.imgPath, this.props.fromObject,this.callback);
+		}
+        componentDidMount(){
+            this.onclick();
+        }
+
+        componentWillUnmount(){
+            this.unmount = true;
+        }
+
+        render(){
+            return React.createElement(ButtonElement, {onClick:this.onclick, ref:ref=>this.el=ref}, this.props.value);
+        }
+    }
+
+    class ScannerProxyElement extends StatefulComponent{
 		callback(type,data){
 			if(this.props.onClickValue)
 				this.props.onClickValue(type,data)
@@ -196,7 +222,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
 	const transforms= {
 		tp:{
 			StatusElement,TerminalElement,MJobCell,IconCheck,CustomMeasurerConnectionState,			
-			ScannerProxyElement			
+			ScannerProxyElement,OCRScannerElement
 		}		
 	}
 	return ({transforms})

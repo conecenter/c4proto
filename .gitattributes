@@ -3,6 +3,7 @@
 
 # Declare files that will always have LF line endings on checkout.
 *.scala text eol=lf
+*.java text eol=lf
 *.pl text eol=lf
 *.js text eol=lf
 *.sbt text eol=lf
