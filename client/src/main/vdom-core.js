@@ -131,7 +131,7 @@ export function VDomCore(log,activeTransforms,getRootElement){
 
     const mortality = ifInputsChanged(log)("lifeFrom", {isActive:1}, changed => state => {
         if(state.isActive) return changed(state)
-        if(Date.now()-state.incomingTime < 2000) return state 
+        if(Date.now()-state.incomingTime < 100) return state 
         if(state.rootNativeElement) {
             ReactDOM.unmountComponentAtNode(state.rootNativeElement)
             //parentNode.removeChild(was)
