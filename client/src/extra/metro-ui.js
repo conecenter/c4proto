@@ -1074,22 +1074,25 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!focus) return
 			this.getInput().focus()			
 		}
-		onKeyDown(e){
-			if(!this.inp) return
-			if(e.key == "Escape"){
-				if(this.prevval != undefined) {
-					const inp = this.getInput()
-					inp.value = this.prevval
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+		onKeyDown(o){
+			if(o) return null
+			return (e)=>{
+				if(!this.inp) return
+				if(e.key == "Escape"){
+					if(this.prevval != undefined) {
+						const inp = this.getInput()
+						inp.value = this.prevval
+						if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+					}
+					this.prevval = undefined				
+					this.getInput().parentElement.focus()
+				}			
+				if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
+				/*if(e.keyCode == 13) {
+					if(this.inp2) this.inp2.blur()
+					else this.inp.blur()
+				}*/
 				}
-				this.prevval = undefined				
-				this.getInput().parentElement.focus()
-			}			
-			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
-			/*if(e.keyCode == 13) {
-				if(this.inp2) this.inp2.blur()
-				else this.inp.blur()
-			}*/
 		}
 		doIfNotFocused(what){
 			const inp = this.getInput()
@@ -1351,7 +1354,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 							name:vkOnly,
 							content,		
 							style:{...inputStyle,...overRideInputStyle},							
-							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",
+							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown(this.props.div),value:!this.props.div?this.props.value:"",
 							onMouseDown:this.onMouseDown,
 							onTouchStart:this.onMouseDown
 							},this.props.div?[this.props.inputChildren,
@@ -1364,7 +1367,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 									onBlur:this.onBlur,
 									readOnly,
 									name:vkOnly,
-									onKeyDown:this.onKeyDown,
+									onKeyDown:this.onKeyDown(),
 									"data-type":dataType,
 									value:this.props.value})
 							]:(content?content:null)),							
@@ -1495,12 +1498,16 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			switch(e.key){				
 				case "ArrowDown":
 					e.stopPropagation();
-					if(e.altKey == true){
+					if(e.altKey == true && !this.props.open){
 						this.onClick()
 						return
 					}						
 				case "ArrowUp":
-					e.stopPropagation();				
+					e.stopPropagation();
+					if(e.altKey == true && this.props.open){
+						this.onClick()
+						return
+					}	
 				case "Enter":
 					call = e.key;
 					e.preventDefault();
@@ -3560,7 +3567,7 @@ ACAAIAAgACAAAA==`
 			
 			return $("div",{style,ref:ref=>this.el=ref},drawChildren)
 		}
-	}
+	}	
 	const sendVal = ctx =>(action,value,opt) =>{
 		const act = action.length>0?action:"change"
 		const optHeader = opt?{"X-r-opt":opt}:{}
