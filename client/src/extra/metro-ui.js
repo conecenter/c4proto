@@ -53,9 +53,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
 	const {setTimeout,clearTimeout,setInterval,clearInterval,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
-	const {Provider, Consumer} = React.createContext("")	
-	const ImageElement = ({src,style}) => {
-		const srcM = (urlPrefix||"")+src
+	const {Provider, Consumer} = React.createContext("");
+	const ImageElement = ({src,style,forceSrcWithoutPrefix}) => {
+		const srcM = !forceSrcWithoutPrefix?(urlPrefix||"")+src: src;
 		return $("img",{src:srcM,style})
 	}
 

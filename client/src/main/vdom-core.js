@@ -12,10 +12,13 @@ const localByKey = dictKeys(f=>({local:f}))
 function ctxToPatch(ctx,res){
     return !ctx ? res : ctxToPatch(ctx.parent, ctx.key ? {[ctx.key]:res} : res)
 }
+const controlRef = ctx => element => {
+    if(element) element.value = element.getAttribute("data-value") //todo m. b. gather, do not update dom in ref
+}
 const setDeferred = (ctx,target) => {
     const rCtx = rootCtx(ctx)
     const path = ctxToPath(ctx)
-    const patch = ctxToPatch(ctx, {value: target.value})
+    const patch = ctxToPatch(ctx, { "data-value": target.value, ref: controlRef(ctx) })
     const change = ({ctx,target,patch})
     rCtx.modify("CHANGE_SET",branchByKey.one(rCtx.branchKey,localByKey.one(path, st => change)))
 }
@@ -205,8 +208,8 @@ export function VDomAttributes(sender){
           checkUpdate({branchKey,element,fontSize})
         )))
     }
-    const root = ctx => parentNode => {}
-    const ref = ({seed,root})
+    const control = controlRef
+    const ref = ({seed,control})
     const ctx = { ctx: ctx => ctx }
     const transforms = {onClick,onChange,onBlur,ref,ctx}
     return ({transforms})

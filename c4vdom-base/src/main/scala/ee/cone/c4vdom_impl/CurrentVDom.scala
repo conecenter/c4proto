@@ -127,12 +127,13 @@ case class RootElement(branchKey: String) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
+    /*
     builder.append("ref");{
       builder.startArray()
       builder.append("root")
       builder.append(branchKey)
       builder.end()
-    }
+    }*/
     builder.end()
   }
 }

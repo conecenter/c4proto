@@ -4,7 +4,7 @@ import React from 'react'
 export function ExampleAuth(pairOfInputAttributes){
     const ChangePassword = prop => {
         const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"change"})
-        const button = attributesA.value && attributesA.value === attributesB.value ?
+        const button = attributesA["data-value"] && attributesA["data-value"] === attributesB["data-value"] ?
             React.createElement("input", {type:"button", onClick: prop.onBlur, value: "change"}, null) :
             null
         return React.createElement("div",{},[
