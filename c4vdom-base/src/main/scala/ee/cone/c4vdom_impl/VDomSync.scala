@@ -4,8 +4,7 @@ import ee.cone.c4vdom.{MutableJsonBuilder, TagJsonUtils, TagStyle}
 
 object TagJsonUtilsImpl extends TagJsonUtils {
   def appendInputAttributes(builder: MutableJsonBuilder, value: String, deferSend: Boolean): Unit = {
-    builder.append("data-value").append(value)
-    builder.append("ref").append("control")
+    builder.append("value").append(value)
     if(deferSend){
       builder.append("onChange").append("local")
       builder.append("onBlur").append("send")

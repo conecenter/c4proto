@@ -5,20 +5,17 @@ import React           from 'react'
 import ReactDOM        from 'react-dom'
 import update          from 'immutability-helper'
 
-import {dictKeys,branchByKey,rootCtx,ctxToPath,chain} from "../main/vdom-util"
+import {dictKeys,branchByKey,rootCtx,ctxToPath,chain,deleted} from "../main/vdom-util"
 
 const localByKey = dictKeys(f=>({local:f}))
 
 function ctxToPatch(ctx,res){
     return !ctx ? res : ctxToPatch(ctx.parent, ctx.key ? {[ctx.key]:res} : res)
 }
-const controlRef = ctx => element => {
-    if(element) element.value = element.getAttribute("data-value") //todo m. b. gather, do not update dom in ref
-}
 const setDeferred = (ctx,target) => {
     const rCtx = rootCtx(ctx)
     const path = ctxToPath(ctx)
-    const patch = ctxToPatch(ctx, { "data-value": target.value, ref: controlRef(ctx) })
+    const patch = ctxToPatch(ctx, {value: target.value})
     const change = ({ctx,target,patch})
     rCtx.modify("CHANGE_SET",branchByKey.one(rCtx.branchKey,localByKey.one(path, st => change)))
 }
@@ -208,9 +205,16 @@ export function VDomAttributes(sender){
           checkUpdate({branchKey,element,fontSize})
         )))
     }
-    const control = controlRef
-    const ref = ({seed,control})
+    const ReControlledInput = prop => React.createElement("input",{
+        ...deleted("value")(prop),
+        ref: el=>{
+            if(el) el.value = prop.value //todo m. b. gather, do not update dom in ref
+            if(prop.ref) prop.ref(el)
+        }
+    },null)
+    const ref = ({seed})
     const ctx = { ctx: ctx => ctx }
-    const transforms = {onClick,onChange,onBlur,ref,ctx}
+    const tp = ({ReControlledInput})
+    const transforms = {onClick,onChange,onBlur,ref,ctx,tp}
     return ({transforms})
 }

@@ -17,7 +17,7 @@ abstract class ElementValue extends VDomValue {
 case class InputTextElement[State](value: String, deferSend: Boolean, placeholder: String)(
   input: TagJsonUtils, val receive: VDomMessage ⇒ State ⇒ State
 ) extends ElementValue with Receiver[State] {
-  def elementType = "input"
+  def elementType = "ReControlledInput"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     builder.append("type").append("text")
     input.appendInputAttributes(builder, value, deferSend)
