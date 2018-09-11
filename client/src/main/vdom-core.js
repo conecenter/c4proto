@@ -209,7 +209,7 @@ export function VDomAttributes(sender){
         ...deleted("value")(prop),
         ref: el=>{
             if(el) el.value = prop.value //todo m. b. gather, do not update dom in ref
-            if(prop.ref) prop.ref(el)
+            if(prop.elRef) prop.elRef(el)
         }
     },null)
     const ref = ({seed})
