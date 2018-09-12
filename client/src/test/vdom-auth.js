@@ -1,17 +1,18 @@
 
 import React from 'react'
 
-export function ExampleAuth(pairOfInputAttributes){
+export function ExampleAuth(pairOfInputAttributes,components){
+    const {ReControlledInput} = components
     const ChangePassword = prop => {
         const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"change"})
-        const button = attributesA["data-value"] && attributesA["data-value"] === attributesB["data-value"] ?
+        const button = attributesA.value && attributesA.value === attributesB.value ?
             React.createElement("input", {type:"button", onClick: prop.onBlur, value: "change"}, null) :
             null
         return React.createElement("div",{},[
             "New password ",
-            React.createElement("input", {...attributesA, type:"password"}, null),
+            React.createElement(ReControlledInput, {...attributesA, type:"password"}, null),
             ", again ",
-            React.createElement("input", {...attributesB, type:"password"}, null),
+            React.createElement(ReControlledInput, {...attributesB, type:"password"}, null),
             " ",
             button
         ])
@@ -20,9 +21,9 @@ export function ExampleAuth(pairOfInputAttributes){
         const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
         return React.createElement("div",{},[
             "Username ",
-            React.createElement("input", {...attributesA, type:"text"}, null),
+            React.createElement(ReControlledInput, {...attributesA, type:"text"}, null),
             ", password ",
-            React.createElement("input", {...attributesB, type:"password"}, null),
+            React.createElement(ReControlledInput, {...attributesB, type:"password"}, null),
             " ",
             React.createElement("input", {type:"button", onClick: prop.onBlur, value: "sign in"}, null)
         ])

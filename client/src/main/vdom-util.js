@@ -34,12 +34,13 @@ export const pairOfInputAttributes = ({value,onChange},headers) => {
 };
 
 export const chain = functions => arg => functions.reduce((res,f)=>f(res), arg)
+export const deleted = k => st => spreadAll(...Object.keys(st).filter(ck=>ck!==k).map(ck=>({[ck]:st[ck]})))
 
 const oneKey = (k,by) => st => {
     const was = st && st[k]
     const will = by(was)
-    return was === will ? st : will ? {...(st||{}), [k]: will} : !st ? st :
-        spreadAll(...Object.keys(st).filter(ck=>ck!==k).map(ck=>({[ck]:st[ck]})))
+    return was === will ? st : will ? {...(st||{}), [k]: will} : !st ? st : deleted(k)(st)
+
 }
 export const someKeys = bys => chain(Object.keys(bys).map(k=>oneKey(k,bys[k])))
 const allKeys = by => state => state ? chain(Object.keys(state).map(k=>oneKey(k,by)))(state) : state

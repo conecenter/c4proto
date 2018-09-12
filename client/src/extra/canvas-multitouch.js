@@ -1,4 +1,5 @@
-export default function MultiTouch(){
+
+export default function MultiTouchSetup(canvas,log){
 	let state = null
 	const pinchZoom = 1
 	const pinchScroll = 2
@@ -13,7 +14,7 @@ export default function MultiTouch(){
 		node.removeEventListener("touchmove",cb.onmove,true)
 		node.removeEventListener("touchend",cb.onend,true)
 	}
-	function pinch(log,win,node,handleZoom){
+	function pinch(win,node,handleZoom){
 		const tpCache = []		
 		function onstart(ev) {				
 			if (ev.targetTouches.length == 2) {
@@ -65,7 +66,7 @@ export default function MultiTouch(){
 		}
 		setHandlers(win,node,{onstart,onmove,onend})
 	}
-	function touchClick(log,win,node,handleDown,handleUp){
+	function touchClick(win,node,handleDown,handleUp){
 		function onstart(ev) {				
 			if (ev.targetTouches.length == 1) {				 
 				ev.preventDefault()					
@@ -83,7 +84,7 @@ export default function MultiTouch(){
 		}
 		setHandlers(win,node,{onstart,onmove,onend})
 	}
-	function scroll(log,win,node,handleDown,handleMove,handleUp){		
+	function scroll(win,node,handleDown,handleMove,handleUp){
 		function onstart(ev) {				
 			if (ev.targetTouches.length == 2) {				 
 				ev.preventDefault()					
@@ -116,5 +117,13 @@ export default function MultiTouch(){
 		}
 		setHandlers(win,node,{onstart,onmove,onend})
 	}
-	return {pinch,scroll,touchClick}
+    function processFrame(frame, prev){
+        if(prev) return;
+        const win = canvas.document().defaultView
+        const el = canvas.visibleElement()
+        scroll(win,el,canvas.mouseDown,canvas.mouseMove,canvas.mouseUp)
+        touchClick(win,canvas.visibleElement(),canvas.mouseDown,canvas.mouseUp)
+        pinch(win,el,canvas.handleWheel)
+    }
+    return ({processFrame})
 }
