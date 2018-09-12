@@ -11,8 +11,9 @@ jsx?
 */
 
 
-export default function MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent}){
+export default function MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent,vDomAttributes}){
 	const $ = React.createElement	
+	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput
 	const Branches = (()=>{
 		let main =""
 		const store = (o)=>{
@@ -1330,7 +1331,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				...this.props.inputStyle				
 			};		
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			const inputType = this.props.inputType;//this.props.inputType?this.props.inputType:"input"
+			const inputType = this.props.inputType == "input"?ReControlledInput:this.props.inputType
 			const type = this.props.type?this.props.type:"text"
 			const auto = this.props.autocomplete?this.props.autocomplete:null
 			const vkOnly = this.props.vkOnly?"vk":null
@@ -1347,7 +1348,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					$("div",{key:"xx",style:inp2ContStyle},[
 						$(inputType,{
 							key:"1",
-							ref:(ref)=>this.inp=ref,
+							elRef:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,auto,
 							"data-type":dataType,
 							className,
@@ -1358,9 +1359,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 							onMouseDown:this.onMouseDown,
 							onTouchStart:this.onMouseDown
 							},this.props.div?[this.props.inputChildren,
-								$("input",{
+								$(ReControlledInput,{
 									style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
-									ref:ref=>this.inp2=ref,
+									elRef:ref=>this.inp2=ref,
 									key:"input",
 									className,
 									onChange:this.onChange,

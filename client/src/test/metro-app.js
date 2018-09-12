@@ -115,10 +115,13 @@ const miscUtil = (()=>{
 	const fileReader = ()=> (new window.FileReader())
 	return {winWifi,getBattery,scannerProxy,audioContext,fileReader}
 })()
+
+const vDomAttributes = VDomAttributes(requestState)
+
 const overlayManager = OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image, miscUtil,StatefulComponent});
+const metroUi = MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image, miscUtil,StatefulComponent,vDomAttributes});
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
@@ -144,7 +147,7 @@ const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.h
 const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComponent})
 
 //transforms
-const vDomAttributes = VDomAttributes(requestState)
+
 const transforms = mergeAll([
         vDomAttributes.transforms,
 	metroUi.transforms,
