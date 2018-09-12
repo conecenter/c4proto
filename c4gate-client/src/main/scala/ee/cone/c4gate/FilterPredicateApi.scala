@@ -11,8 +11,6 @@ trait FilterPredicateBuilder {
 
 trait FilterPredicate[Model<:Product] extends FilterPredicateApi[Model] {
 
-  def filtersPKOpt: Option[SrcId]
-
   def addAccess[By<:Product,Field](filterAccess: Access[By], lens: ProdLens[Model,Field])(implicit c: ConditionCheck[By,Field]): FilterPredicate[Model]
 
   def add[By<:Product,Field](filterKey: SessionAttr[By], lens: ProdLens[Model,Field])(implicit c: ConditionCheck[By,Field]): FilterPredicate[Model]
