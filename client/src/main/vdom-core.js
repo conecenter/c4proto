@@ -205,14 +205,14 @@ export function VDomAttributes(sender){
           checkUpdate({branchKey,element,fontSize})
         )))
     }
-    const noPass = {value:1,elRef:1}
-    const ReControlledInput = prop => React.createElement("input",{
+    const noPass = {value:1}
+    const ReControlledInput = prop => React.forwardRef((prop, ref) => React.createElement("input",{
         ...deleted(noPass)(prop),
         ref: el=>{
             if(el) el.value = prop.value //todo m. b. gather, do not update dom in ref
-            if(prop.elRef) prop.elRef(el)
+            if(ref) ref(el)
         }
-    },null)
+    },null))
     const ref = ({seed})
     const ctx = { ctx: ctx => ctx }
     const tp = ({ReControlledInput})
