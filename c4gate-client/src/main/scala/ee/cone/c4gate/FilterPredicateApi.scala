@@ -6,7 +6,7 @@ import ee.cone.c4actor.{FilterPredicateApi, _}
 trait FilterPredicateBuilder {
   def create[Model<:Product]: Context ⇒ FilterPredicate[Model]
 
-  def withPK[Model <: Product](filterPK: SrcId): Context ⇒ FilterPredicate[Model]
+  def createWithPK[Model <: Product](filterPK: SrcId): Context ⇒ FilterPredicate[Model]
 }
 
 trait FilterPredicate[Model<:Product] extends FilterPredicateApi[Model] {

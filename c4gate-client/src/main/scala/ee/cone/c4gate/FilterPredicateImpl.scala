@@ -13,7 +13,7 @@ class FilterPredicateBuilderImpl(
     FilterPredicateImpl(Nil,condFactory.any)(sessionAttrAccessFactory,condFactory,local)
   }
 
-  def withPK[Model <: Product](filterPK: SrcId): Context => FilterPredicate[Model] = local ⇒ {
+  def createWithPK[Model <: Product](filterPK: SrcId): Context => FilterPredicate[Model] = local ⇒ {
     val condFactory = modelConditionFactory.of[Model]
     FilterPredicateImplWithPK(Nil,condFactory.any, Some(filterPK))(sessionAttrAccessFactory,condFactory,local)
   }
