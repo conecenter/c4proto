@@ -51,6 +51,13 @@ export function ExchangeCanvasSetup(canvas){
 
 //state.changedSizes && index >= parseInt(state.changedSizes.sent["X-r-index"]) ? {...state, changedSizes: null} : state
 export function ResizeCanvasSetup(canvas){
+    function minus(a,b){ return a.map((e,i)=>[e-b[i]]) }
+    function isSimilarSizes(a,b){
+        if(a == b) return true
+        if(!a || !b) return false
+        const d = minus(a.split(","), b.split(","))
+        return d[0] == 0 && d[1] == 0 && d[2] == 0 && Math.absolute(d[3]) < 8
+    }
     function processFrame(frame,prev){
         if(!canvas.getSizesSyncEnabled()) return;
         const {zoom,parentPos,zoomIsChanging,pxPerEMZoom} = frame
@@ -60,7 +67,7 @@ export function ResizeCanvasSetup(canvas){
         const aspectRatio = canvas.calcPos(dir => parentPos.size[dir]|0)
         const pxMapH = ((canvas.fromServer().height||0)*screenScale)|0
         const sizes = [cmdUnitsPerEMZoom,aspectRatio.x,aspectRatio.y,pxMapH].join(",")
-        if(canvas.fromServer().value !== sizes)
+        if(!isSimilarSizes(canvas.fromServer().value, sizes))
             canvas.fromServer().onChange({ target: { value: sizes } })
     }
     return ({processFrame})
@@ -131,19 +138,31 @@ export function BaseCanvasSetup(log, util, canvas){
         }
         const same = canvas.compareFrames(frame,prev)
         const samePos = comparePos(same)
-        if(!samePos(p=>p.viewExternalPos)){
+        if(!samePos(p=>p.viewExternalPos)){ //todo m. b. similarPos
             canvasElement.style.left = frame.viewExternalPos.x+"px"
             canvasElement.style.top = frame.viewExternalPos.y+"px"
         }
     }
+    /*
+	function getWindowScrollOffset(node){
+		const w = node.ownerDocument.defaultView
+		const x = w.scrollX
+		const y = w.scrollY
+		return {x,y}
+	}
+	    const scrollOffset = getWindowScrollOffset(canvasElement)
+        const x = ( vExternalPos.x + scrollOffset.x )|0
+        const y = ( vExternalPos.y + scrollOffset.y )|0
+	*/
     function viewPositions(){
         const parentPos = canvas.elementPos(canvas.parentNode())
         const scrollPos = rectToPos(canvas.getViewPortRect())
         const vExternalPos = canvas.calcPos(dir=>Math.max(parentPos.pos[dir],scrollPos.pos[dir])|0)
         const canvasElement = canvas.visibleElement()
         const canvasPos = canvas.elementPos(canvasElement)
-        const x = (vExternalPos.x + (parseInt(canvasElement.style.left)||0) - (canvasPos.pos.x|0))|0
-        const y = (vExternalPos.y + (parseInt(canvasElement.style.top)||0)  - (canvasPos.pos.y|0))|0
+        const bias = canvas.calcPos(dir=>vExternalPos[dir]-canvasPos.pos[dir])
+        const x = (parseInt(canvasElement.style.left)|0) + (bias.x|0)
+        const y = (parseInt(canvasElement.style.top)|0) + (bias.y|0)
         const viewExternalPos = {x,y}
         //const parentPosEnd = { x: parentPos.end.x|0, y: infinite ? Infinity : parentPos.end.y|0 }
         const vExternalEnd = canvas.calcPos(dir=>Math.min(parentPos.end[dir],scrollPos.end[dir])|0)
@@ -170,6 +189,7 @@ export function BaseCanvasSetup(log, util, canvas){
     ////
     function calcPos(calc){ return { x:calc("x"), y:calc("y") } }
     function elementPos(element){ return rectToPos(element.getBoundingClientRect()) }
+        //if(!element) return rectToPos({left:0,right:0,top:0,bottom:0,height:0,width:0})
     function rectToPos(p){
         return {pos:{x:p.left,y:p.top}, size:{x:p.width,y:p.height}, end:{x:p.right,y:p.bottom}}
     }
@@ -343,7 +363,7 @@ export function TiledCanvasSetup(canvas){
     return ({forTiles})
 }
 
-export function MouseCanvasSetup(canvas){
+export function MouseCanvasSetup(log,canvas){
     let currentDrag = noDrag
     let mousePos = { x:0, y:0, t:0 }
     function mouseMove(ev){ currentDrag(ev,false) }
@@ -356,7 +376,7 @@ export function MouseCanvasSetup(canvas){
         regMousePos(ev, null)
     }
     function setCurrentDrag(f){ currentDrag = f || noDrag }
-    function handleMouseDown(ev){
+    function mouseDown(ev){
         regMousePos(ev, null)
         setCurrentDrag((ev,isLast) => {
             regMousePos(ev, canvas.getMousePos())
@@ -371,7 +391,7 @@ export function MouseCanvasSetup(canvas){
         const win = canvas.document().defaultView
         canvas.addEventListener(win,"mousemove",mouseMove,false)
         canvas.addEventListener(win,"mouseup",mouseUp,false) // capture (true) causes popup close to be later
-        canvas.addEventListener(canvas.visibleElement(),"mousedown", handleMouseDown)//ie selectstart?
+        canvas.addEventListener(canvas.visibleElement(),"mousedown", mouseDown)//ie selectstart?
     }
     function dMousePos(p1,p0){ return { x: p1.x-p0.x, y: p1.y-p0.y, t: p1.t-p0.t } }
     function findMousePos(pLast, cond){
@@ -381,7 +401,7 @@ export function MouseCanvasSetup(canvas){
         const rect = canvas.elementPos(el)
         return canvas.calcPos(dir=>pos[dir] - rect.pos[dir])
     }
-    return {processFrame,dMousePos,findMousePos,getMousePos,relPos}
+    return {processFrame,dMousePos,findMousePos,getMousePos,relPos,mouseDown,mouseMove,mouseUp}
 }
 
 export function NoOverlayCanvasSetup(canvas){
@@ -450,7 +470,7 @@ export function ScrollViewPositionCanvasSetup(canvas){
     return ({setupFrame})
 }
 
-export function DragViewPositionCanvasSetup(canvas){
+export function DragViewPositionCanvasSetup(log,canvas){
     let animation
     function setupFrame(){
         return (animation||animateStableZoom(initialZoom=>initialZoom,time=>canvas.calcPos(dir=>0)))(Date.now())
@@ -474,8 +494,8 @@ export function DragViewPositionCanvasSetup(canvas){
         (dragEvent.isLast?dropPos:dragPos)(from, mousePos)
     }
     function handleWheel(ev){
-        if(ev.ctrlKey) return;
-		if(!ev.altKey) return;
+        if(!ev.ctrlKey) return;
+        //if(!ev.altKey) return;
         const time = Date.now()
         const mousePos = { x:ev.clientX, y:ev.clientY, t:time }
         const mouseRelPos = canvas.relPos(canvas.visibleElement(), mousePos)
@@ -522,15 +542,14 @@ export function DragViewPositionCanvasSetup(canvas){
             const limitedTargetZoom = limitZoom(targetZoom)
             const scale = canvas.zoomToScale(zoom)
             const viewPos = limitPos(zoom, viewExternalSize, canvas.calcPos(dir => pointPos[dir]*scale - mouseRelPos[dir]))
-
-            //console.log(d,from.limitedTargetZoom,targetZoom,limitedTargetZoom)
+            //log(d,from.limitedTargetZoom,targetZoom,limitedTargetZoom)
             return {...viewPositions,time,limitedTargetZoom,zoom,tileZoom,zoomIsChanging,viewPos}
         }
     }
     function processFrame(frame, prev){
         if(!prev) canvas.addEventListener(canvas.visibleElement(),"wheel", handleWheel)
     }
-    return {drag,setupFrame,processFrame}
+    return {drag,setupFrame,processFrame,handleWheel}
 }
 
 
