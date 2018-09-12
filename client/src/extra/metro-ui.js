@@ -719,7 +719,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				display:'inline-block',				
 				margin:'0 0.1em',
 				verticalAlign:"top",
-				paddingTop:"0.05em",
+				paddingTop:"0.2em",
 				paddingBottom:"0.2em",
 				paddingLeft:"0.4em",
 				paddingRight:children?"0em":"0.4em",		
@@ -1231,16 +1231,23 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			inp.removeEventListener('ccopy',this.onCopy)
 			if(this.dragBinding) this.dragBinding.releaseDD()
 		}
-		componentDidUpdate(){			
+		componentDidUpdate(){						
 			if(this.props.cursorPos){
 				const pos = this.props.cursorPos()
 				const inp = this.getInput()
 				if(pos.ss) inp.selectionStart = pos.ss
 				if(pos.se) inp.selectionEnd = pos.se
 			}
+			if(this.k){
+				const inp = this.getInput()
+				inp.selectionStart = this.k
+				inp.selectionEnd = this.k
+				this.k = null
+			}
 		}	
 		onChange(e){
 			const inp = this.getInput()
+			this.k = inp.selectionStart
 			if(this.s!==null&&this.s!==undefined) {inp.selectionEnd =this.s;inp.selectionStart = this.s}
 			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
 				const newVal = e.target.value.toUpperCase();
@@ -2646,6 +2653,11 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			)
 		}
 	}
+	
+	const TimeElement = (props) => {
+		return $(InputElement,{type:"time",value:props.value,onBlur:props.onBlur,onChange:props.onChange})
+	}	
+	
 	const AnchorElement = ({style,href}) =>$("a",{style,href},"get")	
 	class HeightLimitElement extends StatefulComponent{		
 		getInitialState(){ return {max:false}}		
@@ -3568,7 +3580,7 @@ ACAAIAAgACAAAA==`
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
-			DateTimeClockElement,
+			DateTimeClockElement,TimeElement,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,MenuBurger,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
