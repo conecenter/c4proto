@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWindow,StatefulComponent}){
+export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWindow,StatefulComponent}){	
 	const FlexGroup = ui.transforms.tp.FlexGroup
 	const $ = React.createElement
 	const sendError = function(msg){

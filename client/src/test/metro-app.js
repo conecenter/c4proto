@@ -12,35 +12,37 @@ import {VDomSender}  from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
-import ScannerProxy  from "../extra/scanner-proxy"
-
 import {CanvasBaseMix} from "../main/canvas-mix"
 import * as CanvasExtra from "../extra/canvas-extra"
 import CanvasExtraMix from "../extra/canvas-extra-mix"
-import MetroUi       from "../extra/metro-ui"
-import CustomUi      from "../extra/custom-ui"
-import CryptoElements from "../extra/crypto-elements"
+
+import MetroUi       from "../extra/metro/metro-ui"
+import MetroUiFilters   from "../extra/metro/metro-ui-filters"
+
 import FocusModule		from "../extra/focus-module"
 import DragDropModule from "../extra/dragdrop-module"
 import OverlayManager from "../extra/overlay-manager"
-import RequestState from "../extra/request-state"
-import WinWifi from "../extra/win-wifi-status"
-import React from 'react'
-import SwitchHost from "../extra/switchhost-module"
-import UpdateManager from "../extra/update-manager"
+//import RequestState from "../extra/request-state"
 import VirtualKeyboard from "../extra/virtual-keyboard"
-import autoBind from 'react-autobind'
-import MetroUiFilters   from "../extra/metro-ui-filters"
+import WinWifi from "../extra/win-wifi-status"
+import Images from "../extra/images/images"
 
+import CryptoElements from "../extra/crypto-elements"
+
+import CustomUi      from "../extra/custom/custom-ui"
+import ScannerProxy  from "../extra/custom/android-scanner-proxy"
+import ElectronUpdateManager from "../extra/custom/electron-update-manager"
+//import SwitchHost from "../extra/custom/switchhost-module"
+
+import React from 'react'
+import autoBind from 'react-autobind'
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
-const sender = VDomSender(feedback)
+const requestState = VDomSender(feedback)
 const log = v => { if(window.console) console.log("log",v)}
-const requestState = sender//RequestState(sender,log)
-const getRootElement = () => document.body
-const svgSrc = svg => "data:image/svg+xml;base64,"+window.btoa(svg)
+//const requestState = sender//RequestState(sender,log)
 
 class StatefulComponent extends React.Component {
 	constructor(props) {
@@ -107,46 +109,41 @@ const miscReact = (()=>{
 })()
 const miscUtil = (()=>{
 	let _winWifi
-	const winWifi = () => {if(!_winWifi) _winWifi = WinWifi(log,window.require,window.process,setInterval); return _winWifi}
-	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
-	const Scanner = window.Scanner
 	let _scannerProxy
-	const scannerProxy = () => {if(!_scannerProxy) window.ScannerProxy = _scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}); return _scannerProxy}	
+	const winWifi = () => {if(!_winWifi) _winWifi = WinWifi(log,window.require,window.process,setInterval); return _winWifi}
+	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null	
+	const scannerProxy = () => {if(!_scannerProxy) window.ScannerProxy = _scannerProxy = ScannerProxy({Scanner:window.Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}); return _scannerProxy}	
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 	const audio = () => {return new Audio()}
 	const fileReader = ()=> (new window.FileReader())
-	return {winWifi,getBattery,scannerProxy,audioContext,fileReader}
+	const image = () => (new Image())
+	return {winWifi,getBattery,scannerProxy,audioContext,fileReader,image}
 })()
 
 const vDomAttributes = VDomAttributes(requestState)
 
+const images = Images(window.btoa)
+
 const overlayManager = () => OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
 const dragDropModule = () => DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi(log,requestState,svgSrc,documentManager,eventManager,overlayManager,focusModule,dragDropModule,windowManager,miscReact,Image, miscUtil,StatefulComponent,vDomAttributes);
+const metroUi = MetroUi(log,requestState,images,documentManager,eventManager,overlayManager,focusModule,dragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes);
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
-const innerHeight = () => window.innerHeight
-const scrollBy = (x,y) => window.scrollBy(x,y)
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,svgSrc,overlayManager,windowManager,miscReact,miscUtil,StatefulComponent});
-const updateManager = UpdateManager(log,window,metroUi, StatefulComponent)
-const activeElement=()=>document.activeElement; //todo: remove
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,overlayManager,windowManager,miscReact,miscUtil,StatefulComponent});
+const electronUpdateManager = UpdateManager(log,window,metroUi, StatefulComponent)
 
-const virtualKeyboard = VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact,StatefulComponent})
+const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,focusModule,eventManager,windowManager,miscReact,StatefulComponent})
+const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob:window.atob,parentWindow:()=> window.parent,StatefulComponent});
+const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComponent})
 
 //canvas
 const util = Canvas.CanvasUtil()
-
-const exchangeMix = options => canvas => CanvasExtra.ExchangeCanvasSetup(canvas,activeElement)
+const exchangeMix = options => canvas => CanvasExtra.ExchangeCanvasSetup(canvas,documentManager.activeElement)
 const ddMix = options => canvas => CanvasExtra.DragAndDropCanvasSetup(canvas,log,setInterval,clearInterval,addEventListener)
 const canvasMods = [CanvasBaseMix(log,util),exchangeMix,CanvasExtraMix(log),ddMix]
-
-const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, log)
-const parentWindow = ()=> parent
-const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob,parentWindow,StatefulComponent});
-
-const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComponent})
+const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), requestState, log)
 
 //transforms
 
@@ -155,21 +152,21 @@ const transforms = mergeAll([
 	metroUi.transforms,
 	customUi.transforms,
 	cryptoElements.transforms,
-	updateManager.transforms,
+	electronUpdateManager.transforms,
 	canvas.transforms,
 	virtualKeyboard.transforms,
 	metroUiFilters.transforms	
 ])
 
-const vDom = VDomCore(log,transforms,getRootElement)
-const switchHost = SwitchHost(log,window)
+const vDom = VDomCore(log,transforms,() => document.body)
+//const switchHost = SwitchHost(log,window)
 const receiversList = [
     vDom.receivers,
     feedback.receivers,
 	metroUi.receivers,    
 	cryptoElements.receivers,
 	focusModule.receivers,
-	switchHost.receivers	
+	//switchHost.receivers	
 ]
 const composeUrl = () => {
     const port = parseInt(location.port)
@@ -186,7 +183,7 @@ activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), withState(log,
     metroUi.checkActivate,
     focusModule.checkActivate,
     //dragDropModule.checkActivate,
-	updateManager.checkActivate,
+	electronUpdateManager.checkActivate,
 	virtualKeyboard.checkActivate,
 	metroUiFilters.checkActivate
 ]))

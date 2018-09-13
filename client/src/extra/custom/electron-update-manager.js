@@ -1,7 +1,7 @@
 "use strict"
 import React from 'react'
 
-export default function UpdateManager(log,window,metroUi,StatefulComponent){
+export default function ElectronUpdateManager(log,window,metroUi,StatefulComponent){
 	const {process,location,require,setInterval,clearInterval}  = window
 	const getUpdateProgress = () => window.updateProgress
 	const FlexGroup = metroUi.transforms.tp.FlexGroup

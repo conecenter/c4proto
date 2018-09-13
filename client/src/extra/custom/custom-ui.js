@@ -1,6 +1,6 @@
 "use strict";
 import React from 'react'
-export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,windowManager,miscReact,miscUtil,StatefulComponent}){
+export default function CustomUi({log,ui,customMeasurer,customTerminal,windowManager,miscReact,miscUtil,StatefulComponent}){
 	const {setTimeout,clearTimeout} = windowManager
 
 	const ChipElement=ui.transforms.tp.ChipElement;
@@ -139,11 +139,6 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
 			return React.createElement('span',{key:"1"},null);
 		}
 	}
-	const IconCheck = ({style})=>{
-		const imageSvg ='<svg version="1.1"  xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 30 30"><g><path fill="#3C763D" d="M22.553,7.684c-4.756,3.671-8.641,7.934-11.881,12.924c-0.938-1.259-1.843-2.539-2.837-3.756 C6.433,15.13,4.027,17.592,5.419,19.3c1.465,1.795,2.737,3.734,4.202,5.529c0.717,0.88,2.161,0.538,2.685-0.35 c3.175-5.379,7.04-9.999,11.973-13.806C26.007,9.339,24.307,6.33,22.553,7.684z"/></g></svg>';
-		const imageSvgData = svgSrc(imageSvg);
-		return React.createElement("img",{style:style,src:imageSvgData},null);		
-	};	
 	class CustomMeasurerConnectionState extends StatefulComponent{		
 		getInitialState(){return {on:false}}
 		signal(on){
@@ -221,7 +216,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,svgSrc,wi
 	}	
 	const transforms= {
 		tp:{
-			StatusElement,TerminalElement,MJobCell,IconCheck,CustomMeasurerConnectionState,			
+			StatusElement,TerminalElement,MJobCell,CustomMeasurerConnectionState,			
 			ScannerProxyElement,OCRScannerElement
 		}		
 	}
