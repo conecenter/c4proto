@@ -56,6 +56,7 @@ class StatefulPureComponent extends React.PureComponent {
       autoBind(this)
     }
 }
+
 const windowManager = (()=>{
 	const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth})
 	const getPageYOffset = ()=> window.pageYOffset
@@ -105,11 +106,12 @@ const miscReact = (()=>{
 	return {isReactRoot,getReactRoot}
 })()
 const miscUtil = (()=>{
-	const winWifi = WinWifi(log,window.require,window.process,setInterval)
+	let _winWifi
+	const winWifi = () => {if(!_winWifi) _winWifi = WinWifi(log,window.require,window.process,setInterval); return _winWifi}
 	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
 	const Scanner = window.Scanner
-	const scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager})	
-	window.ScannerProxy = scannerProxy
+	let _scannerProxy
+	const scannerProxy = () => {if(!_scannerProxy) window.ScannerProxy = _scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}); return _scannerProxy}	
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 	const audio = () => {return new Audio()}
 	const fileReader = ()=> (new window.FileReader())
@@ -118,10 +120,10 @@ const miscUtil = (()=>{
 
 const vDomAttributes = VDomAttributes(requestState)
 
-const overlayManager = OverlayManager({log,documentManager,windowManager})
+const overlayManager = () => OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
-const dragDropModule = DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image, miscUtil,StatefulComponent,vDomAttributes});
+const dragDropModule = () => DragDropModule({log,documentManager,windowManager})
+const metroUi = MetroUi(log,requestState,svgSrc,documentManager,eventManager,overlayManager,focusModule,dragDropModule,windowManager,miscReact,Image, miscUtil,StatefulComponent,vDomAttributes);
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
@@ -149,7 +151,7 @@ const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComp
 //transforms
 
 const transforms = mergeAll([
-        vDomAttributes.transforms,
+    vDomAttributes.transforms,
 	metroUi.transforms,
 	customUi.transforms,
 	cryptoElements.transforms,
@@ -183,7 +185,7 @@ activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), withState(log,
     canvas.checkActivate,
     metroUi.checkActivate,
     focusModule.checkActivate,
-    dragDropModule.checkActivate,
+    //dragDropModule.checkActivate,
 	updateManager.checkActivate,
 	virtualKeyboard.checkActivate,
 	metroUiFilters.checkActivate

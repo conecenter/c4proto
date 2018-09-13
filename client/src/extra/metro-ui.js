@@ -11,9 +11,12 @@ jsx?
 */
 
 
-export default function MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent,vDomAttributes}){
+export default function MetroUi(log,requestState,svgSrc,documentManager,eventManager,OverlayManager,focusModule,DragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent,vDomAttributes){
 	const $ = React.createElement	
 	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput
+	const dragDropModule = DragDropModule()
+	const overlayManager = OverlayManager()
+	
 	const Branches = (()=>{
 		let main =""
 		const store = (o)=>{
@@ -1089,10 +1092,6 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					this.getInput().parentElement.focus()
 				}			
 				if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
-				/*if(e.keyCode == 13) {
-					if(this.inp2) this.inp2.blur()
-					else this.inp.blur()
-				}*/
 				}
 		}
 		doIfNotFocused(what){
@@ -1158,7 +1157,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 					//const cEvent = eventManager.create("input",{bubbles:true})							
 					//inp.dispatchEvent(cEvent)
-        }
+				}
 			}									
 		}
 		onErase(event){
@@ -1248,7 +1247,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				inp.selectionEnd = this.k
 				this.k = null
 			}
-		}	
+		}
 		onChange(e){
 			const inp = this.getInput()
 			this.k = inp.selectionStart
@@ -1285,7 +1284,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.setState({visibility:""})
 			this.props.onReorder("reorder",newPos.toString())
 		}
-		render(){						
+		render(){				
 			const inpContStyle={
 				display:"flex",
 				height:"auto",
@@ -1348,7 +1347,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					$("div",{key:"xx",style:inp2ContStyle},[
 						$(inputType,{
 							key:"1",
-							elRef:(ref)=>this.inp=ref,
+							ref:(ref)=>this.inp=ref,
 							type,rows,readOnly,placeholder,auto,
 							"data-type":dataType,
 							className,
@@ -1361,7 +1360,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 							},this.props.div?[this.props.inputChildren,
 								$(ReControlledInput,{
 									style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
-									elRef:ref=>this.inp2=ref,
+									ref:ref=>this.inp2=ref,
 									key:"input",
 									className,
 									onChange:this.onChange,
@@ -1375,7 +1374,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 						this.props.popupElement?this.props.popupElement():null
 					]),
 					this.props.buttonElement?this.props.buttonElement():null
-				]);					
+				]);	
 		}
 	}
 	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,inputType:props.div?"div":"input",...actions}))	
@@ -1660,7 +1659,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				this.el.removeEventListener("focus",this.onFocus)
 				this.el.removeEventListener("blur",this.onBlur)
 			}
-			this.binding.unreg()			
+			this.binding&&this.binding.unreg()			
 		}
 		onClick(e){
 			e.stopPropagation()
@@ -1723,8 +1722,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.el) return;
 			this.el.addEventListener("focus",this.onFocus,true);
 			this.el.addEventListener("blur",this.onBlur,true);
-			if(this.props.onChange&&this.props.focus)
-				this.el.focus();			
+			if(this.props.onChange&&this.props.focus) this.el.focus();			
 		}	
 		componentWillUnmount(){
 			if(!this.el) return;
@@ -3383,8 +3381,8 @@ ACAAIAAgACAAAA==`
 //			if(isSibling) return
 			if(PingReceiver) this.pingR = PingReceiver.reg(this.signal)
 			this.toggleOverlay(!this.state.on);			
-			this.wifi = miscUtil.scannerProxy.regWifi(this.wifiCallback)
-			this.wifi2 = miscUtil.winWifi.regWifi(this.wifiCallback)			
+			this.wifi = miscUtil.scannerProxy().regWifi(this.wifiCallback)
+			this.wifi2 = miscUtil.winWifi().regWifi(this.wifiCallback)			
 			/*if(this.props.onContext && requestState.reg){
 				const branchKey = this.props.onContext()
 				this.yellow = requestState.reg({branchKey,callback:this.yellowSignal})

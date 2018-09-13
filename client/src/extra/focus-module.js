@@ -36,7 +36,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const findBestDistance = (axis) => {
 		const aEl = documentManager.activeElement()
 		if((axis==2||axis==0) && aEl.tagName == "INPUT") return
-		const index = nodesObj.findIndex(o => o.n == currentFocusNode&&currentFocusNode.el)
+		const index = nodesObj.findIndex(o => o.n == currentFocusNode)
 		if(index<0) return
 		const cNodeObj = nodesObj[index]
 		const k = [-1,1]
@@ -162,7 +162,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 					break
 				}
 				isPrintable = true
-				break
+				break				
 			case "F1":
 			case "F2":
 			case "F3":
@@ -174,10 +174,12 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "F9":
 			case "F10":
 				break;
+			case " ":
+				event.preventDefault()
 			default:
 				isPrintable = true
 		}		
-		if(best) best.o.n.focus();				
+		if(best) best.o.n.el.focus();				
 		if(isPrintable && isPrintableKeyCode(event.key)) {			
 			sendEvent(()=>eventManager.create("delete",{detail}))
 			const cRNode = callbacks.find(o=>o.el == currentFocusNode&&currentFocusNode.el)			
@@ -193,15 +195,15 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		}
 	}
 	const onTab = (event,vk) =>{		
-		const root = vk?(currentFocusNode&&getReactRoot(currentFocusNode)):getReactRoot(event.target)
+		const root = vk?(currentFocusNode&&getReactRoot(currentFocusNode.el)):getReactRoot(event.target)
 		if(!root) return
 		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
-		const cRNode = callbacks.find(o=>o.el == currentFocusNode&&currentFocusNode.el)
+		const cRNode = callbacks.find(o=>currentFocusNode&&true && o.el == currentFocusNode.el)
 		if(cRNode&&cRNode.props.autoFocus == false){
 			sendToServer(cRNode,"focus","change")
 			return
 		}		
-		const cIndex = nodes.findIndex(n=>n == currentFocusNode&&currentFocusNode.el)
+		const cIndex = nodes.findIndex(n=>currentFocusNode&&true && n == currentFocusNode.el)
 		if(cIndex>=0) {
 			if(cIndex+1<nodes.length) {
 				nodes[cIndex+1].focus()				
@@ -209,7 +211,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			else{
 				setTimeout(()=>{
 					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
-					const cIndex = nodes.findIndex(n=>n == currentFocusNode&&currentFocusNode.el)
+					const cIndex = nodes.findIndex(n=>currentFocusNode&&true && n == currentFocusNode.el)
 					if(cIndex>=0) {
 						if(cIndex+1<nodes.length) {
 							nodes[cIndex+1].focus()							
@@ -260,22 +262,22 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n:n,onFocus:n.onFocus}
 		})	
 		
-		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
-			nodesObj = newNodesObj
+		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {			
+			nodesObj = newNodesObj			
 			//const st = nodesObj.find(_=>_.n.dataset.sticky&&true)
 			//stickyNode = st?st.n:null
 				//return stickyNode.focus()			
-			if(!nodesObj.find(o=>o == currentFocusNode) && nodesObj.length>0) {
+			if(!currentFocusNode || !nodesObj.find(o=>o.n.path === currentFocusNode.path)) {
+				if(nodesObj.length == 0) return				
 				const inpNodes = nodesObj.find(_=>_.n.el.querySelector("input"))
 				if(inpNodes){
 					currentFocusNode = null
 					const win = inpNodes.n.el.ownerDocument.defaultView					
 					let t
 					t = win.setInterval(()=>{if(!currentFocusNode)inpNodes.n.el.focus(); else win.clearInterval(t)},200)
-				}				
+				}
 			}
-		}
-		
+		}		
 	}	
 	const reg = (o) => {
 		callbacks.push(o)

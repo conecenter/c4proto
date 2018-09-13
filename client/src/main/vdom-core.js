@@ -206,7 +206,7 @@ export function VDomAttributes(sender){
         )))
     }
     const noPass = {value:1}
-    const ReControlledInput = prop => React.forwardRef((prop, ref) => React.createElement("input",{
+    const ReControlledInput = React.forwardRef((prop, ref) => React.createElement("input",{
         ...deleted(noPass)(prop),
         ref: el=>{
             if(el) el.value = prop.value //todo m. b. gather, do not update dom in ref
