@@ -114,16 +114,16 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		return bestDistance
 	}
 	const sendEvent = (event) => {
-		if(!currentFocusNode) return;
-		const controlEl = currentFocusNode.querySelector("input,button,.button")		
-		const innerTab = currentFocusNode.querySelector('[tabindex="1"]')
+		if(!currentFocusNode||!currentFocusNode.el) return;
+		const controlEl = currentFocusNode.el.querySelector("input")||currentFocusNode.el.querySelector("button,.button")
+		const innerTab = currentFocusNode.el.querySelector('[tabindex="1"]')
 		const cEvent = event()
 		if(controlEl) 
 			controlEl.dispatchEvent(cEvent)
 		else if(innerTab)				
 			innerTab.dispatchEvent(cEvent)
 		else
-			currentFocusNode.dispatchEvent(cEvent)
+			currentFocusNode.el.dispatchEvent(cEvent)
 	}
 	const onKeyDown = (event) =>{
 		if(nodesObj.length == 0) return
@@ -141,9 +141,9 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "ArrowRight":
 				best = findBestDistance(0);break;
 			case "Escape":
-				currentFocusNode.focus();break;			
+				currentFocusNode&&currentFocusNode.el.focus();break;			
 			case "Tab":				 
-				currentFocusNode.focus();
+				currentFocusNode&&currentFocusNode.el.focus();
 				onTab(event,vk)
 				event.preventDefault();return;
 			case "F2":	
@@ -162,7 +162,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 					break
 				}
 				isPrintable = true
-				break
+				break				
 			case "F1":
 			case "F2":
 			case "F3":
@@ -174,13 +174,15 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "F9":
 			case "F10":
 				break;
+			case " ":
+				event.preventDefault()
 			default:
 				isPrintable = true
 		}		
-		if(best) best.o.n.focus();				
+		if(best) best.o.n.el.focus();				
 		if(isPrintable && isPrintableKeyCode(event.key)) {			
 			sendEvent(()=>eventManager.create("delete",{detail}))
-			const cRNode = callbacks.find(o=>o.el == currentFocusNode)			
+			const cRNode = callbacks.find(o=>o.el == currentFocusNode&&currentFocusNode.el)			
 			if(cRNode && cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)
 		}			
 	}
@@ -193,16 +195,15 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		}
 	}
 	const onTab = (event,vk) =>{		
-		const root = vk?getReactRoot(currentFocusNode):getReactRoot(event.target)
+		const root = vk?(currentFocusNode&&getReactRoot(currentFocusNode.el)):getReactRoot(event.target)
 		if(!root) return
 		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
-		const cRNode = callbacks.find(o=>o.el == currentFocusNode)
-		if(cRNode.props.autoFocus == false){
+		const cRNode = callbacks.find(o=>currentFocusNode&&true && o.el == currentFocusNode.el)
+		if(cRNode&&cRNode.props.autoFocus == false){
 			sendToServer(cRNode,"focus","change")
 			return
-		}
-		
-		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+		}		
+		const cIndex = nodes.findIndex(n=>currentFocusNode&&true && n == currentFocusNode.el)
 		if(cIndex>=0) {
 			if(cIndex+1<nodes.length) {
 				nodes[cIndex+1].focus()				
@@ -210,13 +211,13 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			else{
 				setTimeout(()=>{
 					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
-					const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+					const cIndex = nodes.findIndex(n=>currentFocusNode&&true && n == currentFocusNode.el)
 					if(cIndex>=0) {
 						if(cIndex+1<nodes.length) {
 							nodes[cIndex+1].focus()							
 						}
 						else 
-							currentFocusNode.focus()
+							currentFocusNode&&currentFocusNode.el.focus()
 					}					
 				},200)
 			}				
@@ -258,25 +259,25 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		//
 		const newNodesObj = callbacks.map(n=>{
 			const r = n.el.getBoundingClientRect()				
-			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n:n.el,onFocus:n.onFocus}
+			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n:n,onFocus:n.onFocus}
 		})	
 		
-		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
-			nodesObj = newNodesObj
-			const st = nodesObj.find(_=>_.n.dataset.sticky&&true)
-			stickyNode = st?st.n:null
+		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {			
+			nodesObj = newNodesObj			
+			//const st = nodesObj.find(_=>_.n.dataset.sticky&&true)
+			//stickyNode = st?st.n:null
 				//return stickyNode.focus()			
-			if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
-				const inpNodes = nodesObj.find(_=>_.n.querySelector("input"))
+			if(!currentFocusNode || !nodesObj.find(o=>o.n.path === currentFocusNode.path)) {
+				if(nodesObj.length == 0) return				
+				const inpNodes = nodesObj.find(_=>_.n.el.querySelector("input"))
 				if(inpNodes){
 					currentFocusNode = null
-					const win = inpNodes.n.ownerDocument.defaultView					
+					const win = inpNodes.n.el.ownerDocument.defaultView					
 					let t
-					t = win.setInterval(()=>{if(!currentFocusNode)inpNodes.n.focus(); else win.clearInterval(t)},200)
-				}				
+					t = win.setInterval(()=>{if(!currentFocusNode)inpNodes.n.el.focus(); else win.clearInterval(t)},200)
+				}
 			}
-		}
-		
+		}		
 	}	
 	const reg = (o) => {
 		callbacks.push(o)
@@ -294,36 +295,36 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		}
 		if(currentFocusNode == node.el && relatedTarget) {					
 			if(!nodesObj.find(o=>o.n.contains(relatedTarget))) {
-				if(stickyNode && currentFocusNode == stickyNode) return false				
+				//if(stickyNode && currentFocusNode.el == stickyNode) return false				
 				currentFocusNode = null				
-				if(stickyNode) {
+				/*if(stickyNode) {
 					currentFocusNode = stickyNode
 					stickyNode.focus()
 					return true
-				}
+				}*/
 			}
 		}
 		//if(stickyNode) return stickyNode.focus()			
 		if(!relatedTarget) {
-			if(stickyNode && currentFocusNode == stickyNode) return false
+			//if(stickyNode && currentFocusNode == stickyNode) return false
 			currentFocusNode = null			
-			if(stickyNode) {
+			/*if(stickyNode) {
 				currentFocusNode = stickyNode
 				stickyNode.focus()
 				return true
-			}
+			}*/
 		}
 		lastMousePos = {}
-		if(stickyNode && currentFocusNode == stickyNode) return false
+		//if(stickyNode && currentFocusNode == stickyNode) return false
 		return true
 	}
 	const switchTo = (node) => {
 		//log(rootCtx(node.props.ctx))
 		if(stickyNode && currentFocusNode == stickyNode) return false
-		const roNode = callbacks.find(o=>o.el == currentFocusNode)		
+		const roNode = callbacks.find(o=>o.el == currentFocusNode&&currentFocusNode.el)		
 		if(roNode&&roNode.state.focused) roNode.onBlur()
 			if(!node.el) return	false
-		currentFocusNode = node.el	
+		currentFocusNode = node	
 		return true
 	}
 	const checkActivate = doCheck
@@ -331,7 +332,11 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		const preferedFocusObj = callbacks.find(o=>o.path&&o.path.includes(data))
 		preferedFocusObj && preferedFocusObj.el.focus()		
 	},200)
-	const getFocusNode = () => currentFocusNode
-	const receivers = {focusTo}
+	const toView = (className)=>setTimeout(()=>{
+		const o = documentManager.body().querySelector(`.${className}`)
+		o&&o.scrollIntoView()
+	})
+	const getFocusNode = () => currentFocusNode&&currentFocusNode.el
+	const receivers = {focusTo,toView}
 	return {reg,switchTo,checkActivate,receivers,getFocusNode,switchOff,callbacks}
 }
