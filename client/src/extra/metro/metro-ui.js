@@ -754,7 +754,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.prev!=pdRect.width){
 				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){					
 					const emWidth = pdRect.width/emRect.height;
-					log(emWidth.toString())
+					//log(emWidth.toString())
 					this.props.onClickValue("change",emWidth.toString())					
 				}				
 				//log(`set: ${dRect.width}`)
@@ -1000,10 +1000,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){			
 			//this.el.addEventListener("enter",this.onEnter)
-			this.el.addEventListener("mousedown",this.onClick)
+			this.el.addEventListener("click",this.onClick)
 		}
 		componentWillUnmount(){			
-			this.el.removeEventListener("mousedown",this.onClick)
+			this.el.removeEventListener("click",this.onClick)
 		}
 		onClick(e){		
 			if(this.props.onClick){
@@ -1049,28 +1049,25 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				mouseEnter:this.state.mouseEnter
 			});
 		}
-	}
+	}	
 	class InputElementBase extends StatefulComponent{		
 		getInitialState(){return {visibility:""}}
 		setFocus(focus){
 			if(!focus) return
 			this.getInput().focus()			
 		}
-		onKeyDown(o){
-			if(o) return null
-			return (e)=>{
-				if(!this.inp) return
-				if(e.key == "Escape"){
-					if(this.prevval != undefined) {
-						const inp = this.getInput()
-						inp.value = this.prevval
-						if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-					}
-					this.prevval = undefined				
-					this.getInput().parentElement.focus()
-				}			
-				if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
+		onKeyDown(e){			
+			if(!this.inp) return
+			if(e.key == "Escape"){
+				if(this.prevval != undefined) {
+					const inp = this.getInput()
+					inp.value = this.prevval
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				}
+				this.prevval = undefined				
+				this.getInput().parentElement.focus()
+			}			
+			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return					
 		}
 		doIfNotFocused(what){
 			const inp = this.getInput()
@@ -1103,9 +1100,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					else {}
 				}
 				else{
-					cEvent = eventManager.create("cTab",{bubbles:true})
+					if(!this.props.lockedFocus)
+						cEvent = eventManager.create("cTab",{bubbles:true})
 				}
-				this.cont.dispatchEvent(cEvent)				
+				cEvent && this.cont.dispatchEvent(cEvent)				
 			}
 			event.stopPropagation()
 		}
@@ -1324,55 +1322,75 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				visibility:this.state.visibility,
 				...this.props.inputStyle				
 			};		
-			const placeholder = this.props.placeholder?this.props.placeholder:"";
+			const placeholder = this.props.placeholder
 			const inputType = this.props.inputType == "input"?ReControlledInput:this.props.inputType
-			const type = this.props.type?this.props.type:"text"
-			const auto = this.props.autocomplete?this.props.autocomplete:null
+			const type = this.props.type
+			const auto = this.props.autocomplete
 			const vkOnly = this.props.vkOnly?"vk":null
 			let readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
 			readOnly = !readOnly&&vkOnly?"true":readOnly
-			const rows= this.props.rows?this.props.rows:"2";
-			const content = this.props.content;
-			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
-			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}	
+			const rows= this.props.rows
+			const content = this.props.content
+			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};			
 			const dataType = this.props.dataType
 			const className = this.props.className
+			const drawFunc = this.props.drawFunc
+			
 			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
-					$("div",{key:"xx",style:inp2ContStyle},[
+					$("div",{key:"xx",style:inp2ContStyle}, drawFunc(
 						$(inputType,{
-							key:"1",
+							key:"input",
 							ref:this.onRef1,
 							type,rows,readOnly,placeholder,auto,
 							"data-type":dataType,
 							className,
 							name:vkOnly,
 							content,		
-							style:{...inputStyle,...overRideInputStyle},							
-							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown(this.props.div),value:!this.props.div?this.props.value:"",
+							style:inputStyle,							
+							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:this.props.value,
 							onMouseDown:this.onMouseDown,
 							onTouchStart:this.onMouseDown
-							},this.props.div?[this.props.inputChildren,
-								$(ReControlledInput,{
-									style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
-									ref:this.onRef2,
-									key:"input",
-									className,
-									onChange:this.onChange,
-									onBlur:this.onBlur,
-									readOnly,
-									name:vkOnly,
-									onKeyDown:this.onKeyDown(),
-									"data-type":dataType,
-									value:this.props.value})
-							]:(content?content:null)),							
-						this.props.popupElement?this.props.popupElement():null
-					]),
+							},
+							content?content:null
+						),inputStyle	
+						/*[						
+							$(inputType,{
+								key:"1",
+								ref:this.onRef1,
+								type,rows,readOnly,placeholder,auto,
+								"data-type":dataType,
+								className,
+								name:vkOnly,
+								content,		
+								style:{...inputStyle,...overRideInputStyle},							
+								onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown(this.props.div),value:!this.props.div?this.props.value:"",
+								onMouseDown:this.onMouseDown,
+								onTouchStart:this.onMouseDown
+								},this.props.div?[this.props.inputChildren,
+									$(ReControlledInput,{
+										style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
+										ref:this.onRef2,
+										key:"input",
+										className,
+										onChange:this.onChange,
+										onBlur:this.onBlur,
+										readOnly,
+										name:vkOnly,
+										onKeyDown:this.onKeyDown(),
+										"data-type":dataType,
+										value:this.props.value})
+								]:(content?content:null)),							
+							this.props.popupElement?this.props.popupElement():null
+						]*/
+					)),
 					this.props.buttonElement?this.props.buttonElement():null
 				]);	
 		}
 	}
-	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,inputType:props.div?"div":"input",...actions}))	
+	//InputElementBase.propTypes = { drawFunc: React.PropTypes.func };
+    InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:"",inputType:"input"};
+	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,...actions}))	
 	const TextAreaElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
 		inputStyle:{
 			whiteSpace:"pre-wrap",
@@ -1586,16 +1604,29 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				boxSizing:"border-box",
 				...this.props.buttonImageStyle
 			};
+			const div = this.props.div&&this.props.div!=0
 			const urlData = this.props.url?this.props.url:images.arrowDownSvgData;
 			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""		
 			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
 			const value = this.props.value
-			const inputChildren = this.props.div? this.props.children.slice(0,parseInt(this.props.div)): null
-			const popupElement = () => [this.props.open?$("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},this.props.div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null];
-			
-			return $(InputElement,{...this.props,className,inputChildren,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
+			const inputChildren = div? this.props.children.slice(0,parseInt(this.props.div)): null
+			const popupElement = this.props.open?$("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null			
+			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}	
+			const drawFunc = (input,styles) => ([
+					(this.props.div?$("div",{key:"div",style:{...styles,...overRideInputStyle}},[inputChildren,input]):input),
+					popupElement
+				])
+			const inputStyle = {
+				...this.props.inputStyle,
+				...(this.props.div?{
+					alignSelf:"flex-start",
+					flex:"1 1 20%",
+					padding:"0 0 0 0.1em"
+				}:null)
+			}
+			return $(InputElement,{lockedFocus:this.props.open,drawFunc,inputStyle,className,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
 		}
 	}
 	const ButtonInputElement = (props) => $(Interactive,{},(actions)=>{
@@ -1809,7 +1840,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		componentDidMount(){
 			if(this.el) {
 				this.el.addEventListener("focus",this.onFocus,true)
-				this.el.addEventListener("mousedown",this.onClick)
+				this.el.addEventListener("click",this.onClick)
 				this.el.addEventListener("blur",this.onBlur)
 				this.el.addEventListener("delete",this.onDelete)
 			}
@@ -1818,7 +1849,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		componentWillUnmount(){
 			if(this.el) {				
 				this.el.removeEventListener("focus",this.onFocus)
-				this.el.removeEventListener("mousedown",this.onClick)
+				this.el.removeEventListener("click",this.onClick)
 				this.el.removeEventListener("blur",this.onBlur)
 				this.el.removeEventListener("delete",this.onDelete)
 			}

@@ -194,7 +194,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 		}
 		componentDidMount(){
 			if(this.props.barcodeReader)
-				this.binding = miscUtil.scannerProxy.reg(this)
+				this.binding = miscUtil.scannerProxy().reg(this)
 		}
 		componentDidUpdate(prevProps,_){
 			if(this.props.barcodeReader && this.props.scanMode!=prevProps.scanMode && this.binding){
@@ -202,7 +202,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 				return
 			}
 			if(prevProps.barcodeReader != this.props.barcodeReader){
-				if(this.props.barcodeReader && !this.binding) this.binding = miscUtil.scannerProxy.reg(this)
+				if(this.props.barcodeReader && !this.binding) this.binding = miscUtil.scannerProxy().reg(this)
 				else if(!this.props.barcodeReader && this.binding) this.binding.unreg()
 			}		
 			
