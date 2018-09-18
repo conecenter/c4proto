@@ -226,16 +226,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	
 	class ErrorElement extends StatefulComponent{	
 		getInitialState(){return {show:false,data:null}}
-		callback(data){
-			//log(`hehe ${data}`)
+		callback(data){		
 			this.setState({show:true,data})
 		}
 		componentDidMount(){
-			this.binding = errors.reg(this.callback)
-			//log(this.props.data)
+			this.binding = errors.reg(this.callback)			
 		}
-		onClick(e){
-			//log(`click`)
+		onClick(e){			
 			this.setState({show:false,data:null})
 			if(this.props.onClick) this.props.onClick(e)
 		}
@@ -247,8 +244,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				const closeImg = $("img",{src:images.closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
 				const noteImg = $("img",{src:images.noteSvgData,style:{width:"1.5em",display:"inherit"}})
 				const data = this.props.data?this.props.data:this.state.data
-				const buttonEls = this.props.onClick?[
-					//$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
+				const buttonEls = this.props.onClick?[					
 						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
 					]:null
 				const style = {
@@ -259,10 +255,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					...this.props.style
 				}	
 				const errorEl = $("div",{style},
-					$("div",{style:{display:"flex",/*height:"2em",*/height:"auto",margin:"0.2em"}},[
+					$("div",{style:{display:"flex",height:"auto",margin:"0.2em"}},[
 						$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
 							$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
-							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"/*,whiteSpace:"nowrap"*/}},data)						
+							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"}},data)						
 						]),
 						buttonEls
 					])
@@ -347,8 +343,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.isBurgerOpen && !this.parentEl(e.relatedTarget)) this.openBurger(e)
 		}
 		render(){
-			const style = {
-				//height:this.state.fixedHeight,				
+			const style = {								
 			}
 			const menuStyle = {
 				position:"static",
@@ -489,9 +484,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		render(){
 			const newStyle={
-                minWidth:'7em',
-               // height:'2.5em',
-               // backgroundColor:'#c0ced8',
+                minWidth:'7em',             
                 cursor:'pointer',
 				...this.props.style,
 				...(this.state.mouseEnter?this.props.overStyle:null)
@@ -539,7 +532,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		componentWillUnmount(){
 			this.unmounted = true			
 			if(this.resizeL) {
-				log(`delete listener`)
+				//log(`delete listener`)
 				this.resizeL = this.resizeL.unreg()
 			}
 		}
@@ -547,7 +540,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return
 			if(this.props.onWResize && this.el && this.remRef && !this.resizeL) {
-				log(`init listener`)
+				//log(`init listener`)
 				this.sentData()
 				this.resizeL = resizeListener.reg(this.onResize)
 			}
@@ -676,8 +669,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.onClick)
 				this.props.onClick()
 		}
-		onEnter(event){
-			//log(`Enter ;`)
+		onEnter(event){			
 			event.stopPropagation()
 			if(!this.el) return
 			this.onClick()
@@ -698,11 +690,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				fontSize:'1em',
 				color:'white',
 				textAlign:'center',
-				borderRadius:'0.28em',
-				//border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} transparent`,		
+				borderRadius:'0.28em',					
 				backgroundColor:"#eee",
-				cursor:this.props.onClick?'pointer':'default',
-				//width:'3.8em',
+				cursor:this.props.onClick?'pointer':'default',				
 				display:'inline-block',				
 				margin:'0 0.1em',
 				verticalAlign:"top",
@@ -721,15 +711,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{			
 			const svgData = images.closeSvgData
 			const deleteEl = $("img",{src:svgData,style:{height:"0.6em",verticalAlign:"middle"}},null);
-			return $("div",{style:{
-				//"float":"right",
-				//color:"#666",
+			return $("div",{style:{				
 				width:"0.8em",
-				cursor:"pointer",
-				//height:"100%",
-				display:"inline-block",
-				//borderRadius:"0 0.3em 0.3em 0",
-				//backgroundColor:"transparent",			
+				cursor:"pointer",				
+				display:"inline-block",						
 				...style
 			},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut,onClick},$("span",{style:{
 				fontSize:"0.7em",
@@ -841,8 +826,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return this.state.floating?$("div",{style:expHeaderStyle},$("thead",{style:style},this.props.children)):$("thead",{ref:ref=>this.el=ref,style:style},this.props.children);				
 			
 		}
-	}
-	//let lastFocusTr = null
+	}	
 	const TBodyElement = ({style,children})=>$("tbody",{style:style},children);	
 	class THElement extends StatefulComponent{		
 		getInitialState(){return {last:false,focused:false}}
@@ -859,13 +843,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				if(cl) detail = cl.substring(marker.length)
 			}
 			const cEvent = eventManager.create("cFocus",{bubbles:true,detail})
-			this.el.dispatchEvent(cEvent)
-			/*const pc = e.path.find(el=>Array.from(el.classList).some(cl=>cl.includes("marker")))
-			if(!pc || pc==this.el){
-				const clickEvent = eventManager.create("click",{bubbles:true})
-				this.el.dispatchEvent(clickEvent)
-			}*/
-			//e.stopPropagation()
+			this.el.dispatchEvent(cEvent)			
 		}
 		onBlur(e){
 			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
@@ -879,10 +857,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){
 			this.checkForSibling()
-			if(this.el && this.el.tagName=="TD") {
-				//this.el.addEventListener("focus",this.onFocus,true)
-				//this.el.addEventListener("blur",this.onBlur)
-				//this.el.addEventListener("enter",this.onEnter)
+			if(this.el && this.el.tagName=="TD") {				
 				this.binding = focusModule.reg(this)
 				if(this.props.draggable || this.props.droppable)
 					this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
@@ -898,9 +873,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
 		}			
 		componentWillUnmount(){
-			if(this.dragBinding) this.dragBinding.release();
-			//if(this.el) this.el.removeEventListener("focus",this.onFocus)	
-			//if(this.el) this.el.removeEventListener("enter",this.onEnter)					
+			if(this.dragBinding) this.dragBinding.release();						
 			if(this.binding) this.binding.unreg()			
 		}			
 		onClick(e){
@@ -919,13 +892,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onMouseUp(e){
 			if(!this.props.droppable) return;
 			if(this.dragBinding)
-				this.dragBinding.dragDrop(this.el)
-			//const data = dragDropModule.onDrag()&&dragDropModule.getData()
-			/*if(data && this.props.onDragDrop){
-				dragDropModule.release()
-				e.stopPropagation();
-				this.props.onDragDrop("dragDrop",data)
-			}*/
+				this.dragBinding.dragDrop(this.el)			
 		}
 		render(){
 			const {style,colSpan,children,rowSpan} = this.props
@@ -998,8 +965,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.props.onClickValue("key","enter")
 			}					
 		}
-		componentDidMount(){			
-			//this.el.addEventListener("enter",this.onEnter)
+		componentDidMount(){		
 			this.el.addEventListener("click",this.onClick)
 		}
 		componentWillUnmount(){			
@@ -1120,9 +1086,6 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				else 
 					inp.value = ""
 				this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-				//const cEvent = eventManager.create("input",{bubbles:true})				
-				//inp.dispatchEvent(cEvent)				
-
 			})){				
 				if(this.isVkEvent(event)||this.props.vkOnly){	
 					const inp = this.getInput()
@@ -1130,9 +1093,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					const value2 = inp.value.substring(inp.selectionEnd)
 					this.s = inp.selectionStart+1
 					inp.value = value1+event.detail.key+value2					
-					this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-					//const cEvent = eventManager.create("input",{bubbles:true})							
-					//inp.dispatchEvent(cEvent)
+					this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})					
 				}
 			}									
 		}
@@ -1141,10 +1102,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const inp = this.getInput()	
 			inp.value = ""			
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
-			if(this.props.onBlur) this.props.onBlur()
-			//else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-			//const cEvent = eventManager.create("input",{bubbles:true})							
-			//inp.dispatchEvent(cEvent)	
+			if(this.props.onBlur) this.props.onBlur()			
 		}
 		onBackspace(event){
 			//log(`Backspace`)
@@ -1154,9 +1112,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = inp.value.slice(0,-1)
-            if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-				//const cEvent = eventManager.create("input",{bubbles:true})				
-				//inp.dispatchEvent(cEvent)
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
 			})){
 				if(this.isVkEvent(event)||this.props.vkOnly){		
 					const inp = this.getInput()
@@ -1164,9 +1120,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					const value2 = inp.value.substring(inp.selectionEnd)
 					this.s = inp.selectionStart - 1>=0?inp.selectionStart -1:0
 					inp.value = value1+value2
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-					//const cEvent = eventManager.create("input",{bubbles:true})							
-					//inp.dispatchEvent(cEvent)
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})					
 				}
 			}
 		}
@@ -1175,9 +1129,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = event.detail
-				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-				//const cEvent = eventManager.create("input",{bubbles:true})
-				//inp.dispatchEvent(cEvent)
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
     	  })				
 			event.stopPropagation()
 		}
@@ -1353,42 +1305,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 							onTouchStart:this.onMouseDown
 							},
 							content?content:null
-						),inputStyle	
-						/*[						
-							$(inputType,{
-								key:"1",
-								ref:this.onRef1,
-								type,rows,readOnly,placeholder,auto,
-								"data-type":dataType,
-								className,
-								name:vkOnly,
-								content,		
-								style:{...inputStyle,...overRideInputStyle},							
-								onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown(this.props.div),value:!this.props.div?this.props.value:"",
-								onMouseDown:this.onMouseDown,
-								onTouchStart:this.onMouseDown
-								},this.props.div?[this.props.inputChildren,
-									$(ReControlledInput,{
-										style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
-										ref:this.onRef2,
-										key:"input",
-										className,
-										onChange:this.onChange,
-										onBlur:this.onBlur,
-										readOnly,
-										name:vkOnly,
-										onKeyDown:this.onKeyDown(),
-										"data-type":dataType,
-										value:this.props.value})
-								]:(content?content:null)),							
-							this.props.popupElement?this.props.popupElement():null
-						]*/
+						),inputStyle						
 					)),
 					this.props.buttonElement?this.props.buttonElement():null
 				]);	
 		}
-	}
-	//InputElementBase.propTypes = { drawFunc: React.PropTypes.func };
+	}	
     InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:"",inputType:"input"};
 	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,...actions}))	
 	const TextAreaElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
@@ -1573,8 +1495,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!prevProps.open && this.props.open)
 				checkActivateCalls.add(this.mixState)
 		}	
-		render(){
-			//const topPosStyle = this.state.bottom?{top:'',marginTop:-this.state.bottom+"px"}:{top:this.state.top?this.state.top+getPageYOffset()+"px":''}
+		render(){			
 			const popupStyle={
 				position:"fixed",
 				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,
@@ -1584,13 +1505,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				backgroundColor: "white",
 				zIndex: "10003",
 				boxSizing:"border-box",
-				overflowX:"hidden",
-				//marginLeft:"",
+				overflowX:"hidden",				
 				lineHeight:"normal",
 				left:`calc(${this.state.left?this.state.left+"px":"0px"})`,
-				top:`calc(${this.state.top?this.state.top+"px":"0px"})`,
-				//left:this.state.left?this.state.left+"px":"",
-				//top:this.state.top?this.state.top + getPageYOffset() + "px":"",
+				top:`calc(${this.state.top?this.state.top+"px":"0px"})`,			
 				...this.props.popupStyle
 			};
 			
@@ -1981,13 +1899,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			alignSelf:"center",
 			...style
 		};
-		const newIconStyle={
-			//position:'relative',
-			//top:'-0.05em',
-			//left:'-0.025em',
-			verticalAlign:"top",
-			//width:"0.5em",
-			//lineHeight:"1",			
+		const newIconStyle={		
+			verticalAlign:"top",					
 			...iconStyle
 		};					
 		const src = props.imageSvgData || images.connectionSvgData
@@ -2071,8 +1984,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
 		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
 		const styleA = {
-			...attributesA.style
-			//textTransform:"uppercase"
+			...attributesA.style			
 		}
 		const styleB = {
 			...attributesB.style,
@@ -2626,9 +2538,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 			
 			const style={				
-				display:"inline-block",
-				//verticalAlign:"middle",
-				//alignSelf:"center",
+				display:"inline-block",				
 				margin:"0 0.2em",
 				minWidth:"0",
 				whiteSpace:"nowrap",
@@ -2681,7 +2591,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		recalc(){
 			if(!this.el) return;				
 			const found = this.findUnder(this.el,this.rect)
-			//log("return :"+found)
+			
 			if(this.state.max != !found)
 				this.setState({max:!found})				
 			
@@ -2697,9 +2607,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const style = {
 				maxHeight:this.state.max?"none":this.props.limit,
 				...this.props.style
-			}
-			//log("state"+this.state.max)
-			//log(style)
+			}			
 			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
 		}
 	}	
@@ -2844,13 +2752,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.onBlur)
 				this.props.onBlur(e)
 		}
-		componentDidMount(){			
-			//this.el.addEventListener("input",this.onChange,false)
-			//this.drawCanvasImage();//camvas.imcludeImage(...)
+		componentDidMount(){		
+			
 		}
 		componentWillUnmount(){
-			this.timeout = null
-			//this.el.removeEventListener("input",this.onChange,false)
+			this.timeout = null		
 		}
 		drawCanvasImage(){
 			if(this.canvasEl) {
@@ -2901,8 +2807,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const canvasStyle ={
 				width:'100%',
 				height:'100%',
-			}    			
-			//return React.createElement('input',{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null);
+			}    						
 			return $("input",{type:"color",key:1,style:inputStyle,onChange:this.onChange, onInput:this.onChange,value:this.props.value, ref:ref=>this.el=ref})
 		}
 	}
@@ -2927,8 +2832,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				className:"colorPicker",
 				style: {
 						width:"100%",
-						boxSizing:"border-box",
-						//position:"relative",
+						boxSizing:"border-box"						
 					}},[
 						React.createElement('div', {
 								key:'1',
@@ -2964,125 +2868,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			)
 		}
 	}
-	const beepMidi = `data:audio/mpeg;base64,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
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAP/7ksDVgAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uSwP+AAAAB
-LAAAAAAAACWAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAP/7ksD/gAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uSwP+AAAAB
-LAAAAAAAACWAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAP/7ksD/gAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAgACAAIAAg
-ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
-IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA//uSwP+AAAAB
-LAAAAAAAACWAAAAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
-ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
-IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
-ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
-IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
-ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
-IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
-ACAAIAAgACAAAA==`
+	
 	const ColorItem = ({value,onChange,style}) => React.createElement('div',{
 		style: {
 			width:'6em',
@@ -3107,33 +2893,11 @@ ACAAIAAgACAAAA==`
 			const audio = miscUtil.audio
 			if(!audio) return
 			try{
-				this.audio = audio(beepMidi)
+				this.audio = audio(images.beepMidi)
 				this.audio.play()
 			}
 			catch(e){log(e)}
-		}
-		/*
-		produce(){
-			const audioContext = miscUtil.audioContext
-
-			if(!audioContext) return
-			if(this.audioContext) return
-			this.audioCtx = audioContext()
-			this.oscillator = this.audioCtx.createOscillator()
-			this.oscillator.type = this.props.type||'square'
-			const freq = (this.props.freq?parseInt(this.props.freq):null)||440
-			this.oscillator.frequency.setValueAtTime(freq, this.audioCtx.currentTime)
-			this.oscillator.connect(this.audioCtx.destination)
-			this.oscillator.start()
-			const period = (this.props.period?parseInt(this.props.period):null)||300
-			setTimeout(()=>{
-				this.stop()
-			},period)
-		}
-		stop(){
-			this.oscillator&&this.oscillator.stop()
-			this.audioCtx&&this.audioCtx.close().then(()=>this.audioCtx = null) 
-		}*/
+		}		
 		componentDidUpdate(){
 			this.audio&&this.stop()
 			this.produce()
@@ -3279,8 +3043,7 @@ ACAAIAAgACAAAA==`
 			};
 			const textStyle={
 				fontSize:"0.5em",
-				alignSelf:"center"
-				//verticalAlign:"middle",
+				alignSelf:"center"				
 			};
 			const svgImgStyle = {
 				enableBackground:"new 0 0 60 60",
