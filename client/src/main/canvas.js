@@ -56,7 +56,7 @@ export function ResizeCanvasSetup(canvas){
         if(a == b) return true
         if(!a || !b) return false
         const d = minus(a.split(","), b.split(","))
-        return d[0] == 0 && d[1] == 0 && d[2] == 0 && Math.absolute(d[3]) < 8
+        return d[0] == 0 && d[1] == 0 && d[2] == 0 && Math.abs(d[3]) < 8
     }
     function processFrame(frame,prev){
         if(!canvas.getSizesSyncEnabled()) return;

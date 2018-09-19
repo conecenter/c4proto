@@ -1,8 +1,8 @@
 "use strict";
 import React from 'react'
-import {pairOfInputAttributes}  from "../main/vdom-util"
-import Errors from "../extra/errors"
-import {ctxToPath,rootCtx} from "../main/vdom-util"
+import {pairOfInputAttributes}  from "../../main/vdom-util"
+import Errors from "../../extra/errors"
+import {ctxToPath,rootCtx} from "../../main/vdom-util"
 
 export default function MetroUiFilters({log,ui,windowManager,StatefulComponent}){
 	const MenuBurger = ui.transforms.tp.MenuBurger

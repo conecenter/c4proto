@@ -1,8 +1,8 @@
 "use strict";
 import React from 'react'
-import {pairOfInputAttributes}  from "../main/vdom-util"
-import Errors from "../extra/errors"
-import {ctxToPath,rootCtx} from "../main/vdom-util"
+import {pairOfInputAttributes}  from "../../main/vdom-util"
+import Errors from "../../extra/errors"
+import {ctxToPath,rootCtx} from "../../main/vdom-util"
 
 /*
 todo:
@@ -11,8 +11,12 @@ jsx?
 */
 
 
-export default function MetroUi({log,requestState,svgSrc,documentManager,focusModule,eventManager,overlayManager,dragDropModule,windowManager,miscReact,Image,miscUtil,StatefulComponent}){
+export default function MetroUi(log,requestState,images,documentManager,eventManager,OverlayManager,focusModule,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
 	const $ = React.createElement	
+	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput
+	const dragDropModule = DragDropModule()
+	const overlayManager = OverlayManager()
+	
 	const Branches = (()=>{
 		let main =""
 		const store = (o)=>{
@@ -239,24 +243,9 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(this.binding) this.binding.unreg()
 		}
 		render(){
-			if(this.state.show||this.props.data!=undefined){
-				const fillColor = "black"
-				const closeSvg = `
-				<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 348.333 348.334" style="enable-background:new 0 0 348.333 348.334;" xml:space="preserve" fill="${fillColor}">
-					<path d="M336.559,68.611L231.016,174.165l105.543,105.549c15.699,15.705,15.699,41.145,0,56.85 c-7.844,7.844-18.128,11.769-28.407,11.769c-10.296,0-20.581-3.919-28.419-11.769L174.167,231.003L68.609,336.563 c-7.843,7.844-18.128,11.769-28.416,11.769c-10.285,0-20.563-3.919-28.413-11.769c-15.699-15.698-15.699-41.139,0-56.85   l105.54-105.549L11.774,68.611c-15.699-15.699-15.699-41.145,0-56.844c15.696-15.687,41.127-15.687,56.829,0l105.563,105.554   L279.721,11.767c15.705-15.687,41.139-15.687,56.832,0C352.258,27.466,352.258,52.912,336.559,68.611z"/>
-				</svg>`;
-				const noteSvg = `
-				<svg fill="red" version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 490 490" style="enable-background:new 0 0 490 490;" xml:space="preserve">  
-					<path d="M244.5,0C109.3,0,0,109.3,0,244.5S109.3,489,244.5,489S489,379.7,489,244.5S379.7,0,244.5,0z M244.5,448.4
-							 c-112.4,0-203.9-91.5-203.9-203.9S132.1,40.6,244.5,40.6s203.9,91.5,203.9,203.9S356.9,448.4,244.5,448.4z" />
-					<path d="M354.8,134.2c-8.3-8.3-20.8-8.3-29.1,0l-81.2,81.2l-81.1-81.1c-8.3-8.3-20.8-8.3-29.1,0s-8.3,20.8,0,29.1l81.1,81.1
-							 l-81.1,81.1c-8.3,8.3-8.6,21.1,0,29.1c6.5,6,18.8,10.4,29.1,0l81.1-81.1l81.1,81.1c12.4,11.7,25,4.2,29.1,0
-							 c8.3-8.3,8.3-20.8,0-29.1l-81.1-81.1l81.1-81.1C363.1,155,363.1,142.5,354.8,134.2z" />
-				</svg>`;
-				const closeSvgData = svgSrc(closeSvg)
-				const noteSvgData = svgSrc(noteSvg)
-				const closeImg = $("img",{src:closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
-				const noteImg = $("img",{src:noteSvgData,style:{width:"1.5em",display:"inherit"}})
+			if(this.state.show||this.props.data!=undefined){				
+				const closeImg = $("img",{src:images.closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
+				const noteImg = $("img",{src:images.noteSvgData,style:{width:"1.5em",display:"inherit"}})
 				const data = this.props.data?this.props.data:this.state.data
 				const buttonEls = this.props.onClick?[
 					//$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
@@ -383,9 +372,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				zIndex:"1000",
 				backgroundColor:"inherit"
 			}
-			const left = this.props.children.filter(_=>!_.key.includes("right"))						
-			//const svgData = svgSrc(svg)
-			//const errors = this.props.children[1]
+			const left = this.props.children.filter(_=>!_.key.includes("right"))									
 			const right = this.props.children.filter(_=>_.key.includes("right"))			
 			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[
 				$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:this.props.isBurgerOpen,key:"burger",onClick:this.openBurger}),
@@ -731,13 +718,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
 		}
 	}
-	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{
-			const fillColor = style&&style.color?style.color:"black";
-			const svg = `
-			<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 348.333 348.334" style="enable-background:new 0 0 348.333 348.334;" xml:space="preserve" fill="${fillColor}">
-				<path d="M336.559,68.611L231.016,174.165l105.543,105.549c15.699,15.705,15.699,41.145,0,56.85 c-7.844,7.844-18.128,11.769-28.407,11.769c-10.296,0-20.581-3.919-28.419-11.769L174.167,231.003L68.609,336.563 c-7.843,7.844-18.128,11.769-28.416,11.769c-10.285,0-20.563-3.919-28.413-11.769c-15.699-15.698-15.699-41.139,0-56.85   l105.54-105.549L11.774,68.611c-15.699-15.699-15.699-41.145,0-56.844c15.696-15.687,41.127-15.687,56.829,0l105.563,105.554   L279.721,11.767c15.705-15.687,41.139-15.687,56.832,0C352.258,27.466,352.258,52.912,336.559,68.611z"/>
-			</svg>`;
-			const svgData = svgSrc(svg)
+	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{			
+			const svgData = images.closeSvgData
 			const deleteEl = $("img",{src:svgData,style:{height:"0.6em",verticalAlign:"middle"}},null);
 			return $("div",{style:{
 				//"float":"right",
@@ -1074,22 +1056,21 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!focus) return
 			this.getInput().focus()			
 		}
-		onKeyDown(e){
-			if(!this.inp) return
-			if(e.key == "Escape"){
-				if(this.prevval != undefined) {
-					const inp = this.getInput()
-					inp.value = this.prevval
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+		onKeyDown(o){
+			if(o) return null
+			return (e)=>{
+				if(!this.inp) return
+				if(e.key == "Escape"){
+					if(this.prevval != undefined) {
+						const inp = this.getInput()
+						inp.value = this.prevval
+						if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+					}
+					this.prevval = undefined				
+					this.getInput().parentElement.focus()
+				}			
+				if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
 				}
-				this.prevval = undefined				
-				this.getInput().parentElement.focus()
-			}			
-			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
-			/*if(e.keyCode == 13) {
-				if(this.inp2) this.inp2.blur()
-				else this.inp.blur()
-			}*/
 		}
 		doIfNotFocused(what){
 			const inp = this.getInput()
@@ -1154,7 +1135,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 					//const cEvent = eventManager.create("input",{bubbles:true})							
 					//inp.dispatchEvent(cEvent)
-        }
+				}
 			}									
 		}
 		onErase(event){
@@ -1211,9 +1192,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			})				
 			event.stopPropagation()
 		}
-		componentDidMount(){
-			//this.setFocus(this.props.focus)
-			const inp = this.getInput()			
+		addListeners(inp){
+			if(!inp) return
 			inp.addEventListener('enter',this.onEnter)
 			inp.addEventListener('delete',this.onDelete)
 			inp.addEventListener('erase',this.onErase)
@@ -1221,15 +1201,33 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			inp.addEventListener('cpaste',this.onPaste)
 			inp.addEventListener('ccopy',this.onCopy)
 		}
-		componentWillUnmount(){
-			const inp = this.getInput()			
+		remListeners(inp){
+			if(!inp) return
 			inp.removeEventListener('enter',this.onEnter)
 			inp.removeEventListener('delete',this.onDelete)
 			inp.removeEventListener('erase',this.onErase)
 			inp.removeEventListener('backspace',this.onBackspace)
 			inp.removeEventListener('cpaste',this.onPaste)
 			inp.removeEventListener('ccopy',this.onCopy)
+		}
+		componentDidMount(){
+			//this.setFocus(this.props.focus)
+			//const inp = this.getInput()						
+		}
+		componentWillUnmount(){			
 			if(this.dragBinding) this.dragBinding.releaseDD()
+		}
+		onRef1(ref){			
+			if(this.inp2) this.remListeners(this.inp2)
+			if(!ref) this.remListeners(this.inp)
+			else if(!this.inp) this.addListeners(ref)
+			this.inp = ref
+		}
+		onRef2(ref){
+			if(this.inp) this.remListeners(this.inp)
+			if(!ref) this.remListeners(ref)
+			else if(!this.inp2) this.addListeners(ref)			
+			this.inp2 = ref
 		}
 		componentDidUpdate(){						
 			if(this.props.cursorPos){
@@ -1244,7 +1242,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				inp.selectionEnd = this.k
 				this.k = null
 			}
-		}	
+		}
 		onChange(e){
 			const inp = this.getInput()
 			this.k = inp.selectionStart
@@ -1281,7 +1279,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			this.setState({visibility:""})
 			this.props.onReorder("reorder",newPos.toString())
 		}
-		render(){						
+		render(){				
 			const inpContStyle={
 				display:"flex",
 				height:"auto",
@@ -1327,7 +1325,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				...this.props.inputStyle				
 			};		
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			const inputType = this.props.inputType;//this.props.inputType?this.props.inputType:"input"
+			const inputType = this.props.inputType == "input"?ReControlledInput:this.props.inputType
 			const type = this.props.type?this.props.type:"text"
 			const auto = this.props.autocomplete?this.props.autocomplete:null
 			const vkOnly = this.props.vkOnly?"vk":null
@@ -1344,34 +1342,34 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 					$("div",{key:"xx",style:inp2ContStyle},[
 						$(inputType,{
 							key:"1",
-							ref:(ref)=>this.inp=ref,
+							ref:this.onRef1,
 							type,rows,readOnly,placeholder,auto,
 							"data-type":dataType,
 							className,
 							name:vkOnly,
 							content,		
 							style:{...inputStyle,...overRideInputStyle},							
-							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:!this.props.div?this.props.value:"",
+							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown(this.props.div),value:!this.props.div?this.props.value:"",
 							onMouseDown:this.onMouseDown,
 							onTouchStart:this.onMouseDown
 							},this.props.div?[this.props.inputChildren,
-								$("input",{
+								$(ReControlledInput,{
 									style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
-									ref:ref=>this.inp2=ref,
+									ref:this.onRef2,
 									key:"input",
 									className,
 									onChange:this.onChange,
 									onBlur:this.onBlur,
 									readOnly,
 									name:vkOnly,
-									onKeyDown:this.onKeyDown,
+									onKeyDown:this.onKeyDown(),
 									"data-type":dataType,
 									value:this.props.value})
 							]:(content?content:null)),							
 						this.props.popupElement?this.props.popupElement():null
 					]),
 					this.props.buttonElement?this.props.buttonElement():null
-				]);					
+				]);	
 		}
 	}
 	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,inputType:props.div?"div":"input",...actions}))	
@@ -1495,12 +1493,16 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			switch(e.key){				
 				case "ArrowDown":
 					e.stopPropagation();
-					if(e.altKey == true){
+					if(e.altKey == true && !this.props.open){
 						this.onClick()
 						return
 					}						
 				case "ArrowUp":
-					e.stopPropagation();				
+					e.stopPropagation();
+					if(e.altKey == true && this.props.open){
+						this.onClick()
+						return
+					}	
 				case "Enter":
 					call = e.key;
 					e.preventDefault();
@@ -1584,9 +1586,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				boxSizing:"border-box",
 				...this.props.buttonImageStyle
 			};
-			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 306 306" xml:space="preserve"><polygon points="270.3,58.65 153,175.95 35.7,58.65 0,94.35 153,247.35 306,94.35"/></svg>'
-			const svgData=svgSrc(svg);
-			const urlData = this.props.url?this.props.url:svgData;
+			const urlData = this.props.url?this.props.url:images.arrowDownSvgData;
 			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""		
 			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
@@ -1652,7 +1652,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				this.el.removeEventListener("focus",this.onFocus)
 				this.el.removeEventListener("blur",this.onBlur)
 			}
-			this.binding.unreg()			
+			this.binding&&this.binding.unreg()			
 		}
 		onClick(e){
 			e.stopPropagation()
@@ -1715,8 +1715,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			if(!this.el) return;
 			this.el.addEventListener("focus",this.onFocus,true);
 			this.el.addEventListener("blur",this.onBlur,true);
-			if(this.props.onChange&&this.props.focus)
-				this.el.focus();			
+			if(this.props.onChange&&this.props.focus) this.el.focus();			
 		}	
 		componentWillUnmount(){
 			if(!this.el) return;
@@ -1892,10 +1891,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				height:"90%",
 				width:"100%",
 			};	
-			
-			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411"><polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/></svg>';
-			const svgData=svgSrc(svg);
-			const defaultCheckImage = props.value&&props.value.length>0?$("img",{style:imageStyle,src:svgData,key:"checkImage"},null):null
+			const defaultCheckImage = props.value&&props.value.length>0?$("img",{style:imageStyle,src:images.checkboxSvgData,key:"checkImage"},null):null
 			const labelEl = props.label?$("label",{style:labelStyle,key:"2"},props.label):null;
 			const checkImage = props.checkImage?props.checkImage:defaultCheckImage;
 			const {onMouseOver,onMouseOut} = props		
@@ -1962,11 +1958,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 			//width:"0.5em",
 			//lineHeight:"1",			
 			...iconStyle
-		};			
-			
-		const imageSvg='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 285.269 285.269" style="enable-background:new 0 0 285.269 285.269;" xml:space="preserve"> <path style="fill:'+fillColor+';" d="M272.867,198.634h-38.246c-0.333,0-0.659,0.083-0.986,0.108c-1.298-5.808-6.486-10.108-12.679-10.108 h-68.369c-7.168,0-13.318,5.589-13.318,12.757v19.243H61.553C44.154,220.634,30,206.66,30,189.262 c0-17.398,14.154-31.464,31.545-31.464l130.218,0.112c33.941,0,61.554-27.697,61.554-61.637s-27.613-61.638-61.554-61.638h-44.494 V14.67c0-7.168-5.483-13.035-12.651-13.035h-68.37c-6.193,0-11.381,4.3-12.679,10.108c-0.326-0.025-0.653-0.108-0.985-0.108H14.336 c-7.168,0-13.067,5.982-13.067,13.15v48.978c0,7.168,5.899,12.872,13.067,12.872h38.247c0.333,0,0.659-0.083,0.985-0.107 c1.298,5.808,6.486,10.107,12.679,10.107h68.37c7.168,0,12.651-5.589,12.651-12.757V64.634h44.494 c17.398,0,31.554,14.262,31.554,31.661c0,17.398-14.155,31.606-31.546,31.606l-130.218-0.04C27.612,127.862,0,155.308,0,189.248 s27.612,61.386,61.553,61.386h77.716v19.965c0,7.168,6.15,13.035,13.318,13.035h68.369c6.193,0,11.381-4.3,12.679-10.108 c0.327,0.025,0.653,0.108,0.986,0.108h38.246c7.168,0,12.401-5.982,12.401-13.15v-48.977 C285.269,204.338,280.035,198.634,272.867,198.634z M43.269,71.634h-24v-15h24V71.634z M43.269,41.634h-24v-15h24V41.634z M267.269,258.634h-24v-15h24V258.634z M267.269,228.634h-24v-15h24V228.634z"/></svg>';
-		const imageSvgData = svgSrc(imageSvg);		
-		const src = props.imageSvgData || imageSvgData
+		};					
+		const src = props.imageSvgData || images.connectionSvgData
 		return $("div",{style:contStyle,onClick:props.onClick},
 				$("img",{key:"1",style:newIconStyle,src},null)				
 		);
@@ -2005,9 +1998,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				height:"auto",				
 				boxSizing:"border-box"
 			};
-			const svg ='<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="16px" height="16px" viewBox="0 0 510 510" style="enable-background:new 0 0 510 510;" xml:space="preserve"><path d="M204,51H51C22.95,51,0,73.95,0,102v306c0,28.05,22.95,51,51,51h408c28.05,0,51-22.95,51-51V153c0-28.05-22.95-51-51-51 H255L204,51z"/></svg>';
-			const svgData=svgSrc(svg);
-			const urlData = this.props.url?this.props.url:svgData;
+			const urlData = this.props.url?this.props.url:images.folderSvgData;
 			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const shadowElement = () => [$("input",{key:"0",ref:(ref)=>this.fInp=ref,onChange:this.onChange,type:"file",style:{visibility:"hidden",position:"absolute",height:"1px",width:"1px"}},null)];
@@ -2469,26 +2460,8 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				...props.buttonImageStyle
 			};		
 			
-			const inputStyle = {textAlign:"right"}
-			
-			const svg = '<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">'
-				  +'<path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>'
-				  +'<g><path d="M481.082,138.431H14.713C6.587,138.431,0,131.843,0,123.718V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v50.894C495.795,131.844,489.208,138.431,481.082,138.431z M29.426,109.005h436.942v-36.18   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574V109.005z"/>'
-				  +'<path d="M144.238,282.415H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713c0,8.125-6.587,14.713-14.713,14.713H89.643v32.338   h54.595c8.126,0,14.713,6.589,14.713,14.713S152.364,282.415,144.238,282.415z"/></g>'
-				  +'<g><path d="M282.552,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C297.265,275.826,290.678,282.415,282.552,282.415z M227.957,252.988h39.882V220.65h-39.882V252.988z"/>'
-				  +'<path d="M144.238,406.06H74.93c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713s-6.587,14.713-14.713,14.713H89.643v32.338h54.595   c8.126,0,14.713,6.589,14.713,14.713S152.364,406.06,144.238,406.06z"/></g>'
-				  +'<path d="M282.552,406.06h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765  c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765  C297.265,399.471,290.678,406.06,282.552,406.06z M227.957,376.633h39.882v-32.338h-39.882V376.633z"/>'
-				  +'<g><path d="M420.864,282.415h-69.308c-8.126,0-14.713-6.589-14.713-14.713v-61.765   c0-8.125,6.587-14.713,14.713-14.713h69.308c8.126,0,14.713,6.589,14.713,14.713v61.765   C435.577,275.826,428.99,282.415,420.864,282.415z M366.269,252.988h39.882V220.65h-39.882V252.988L366.269,252.988z"/>'
-				  +'<path d="M99.532,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C114.245,86.291,107.658,92.878,99.532,92.878z"/>'
-				  +'<path d="M247.897,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C262.61,86.291,256.023,92.878,247.897,92.878z"/>'
-				  +'<path d="M396.263,92.878c-8.126,0-14.713-6.589-14.713-14.713V22.06c0-8.125,6.587-14.713,14.713-14.713   s14.713,6.589,14.713,14.713v56.106C410.976,86.291,404.389,92.878,396.263,92.878z"/>'
-				  +'<path d="M389.88,504.653c-67.338,0-122.12-54.782-122.12-122.12s54.782-122.12,122.12-122.12   c36.752,0,71.2,16.321,94.512,44.78c5.15,6.285,4.229,15.556-2.058,20.706c-6.285,5.148-15.556,4.229-20.706-2.058   c-17.7-21.608-43.851-33.999-71.747-33.999c-51.111,0-92.693,41.582-92.693,92.693s41.582,92.693,92.693,92.693   s92.693-41.582,92.693-92.693c0-8.125,6.587-14.713,14.713-14.713c8.126,0,14.713,6.589,14.713,14.713   C512,449.87,457.218,504.653,389.88,504.653z"/>'
-				  +'<path d="M228.475,490.606H36c-19.85,0-36-16.151-36-36V72.825c0-19.85,16.151-36,36-36h423.793   c19.851,0,36,16.151,36,36v164.701c0,8.125-6.587,14.713-14.713,14.713c-8.126,0-14.713-6.589-14.713-14.713V72.825   c0-3.625-2.949-6.574-6.574-6.574H36c-3.625,0-6.574,2.949-6.574,6.574v381.781c0,3.625,2.949,6.574,6.574,6.574h192.474   c8.126,0,14.713,6.589,14.713,14.713C243.187,484.018,236.601,490.606,228.475,490.606z"/></g>'
-				  +'<polyline style="fill:#FFFFFF;" points="429.606,382.533 389.88,382.533 389.88,342.808 "/>'
-				  +'<path d="M429.606,397.247H389.88c-8.126,0-14.713-6.589-14.713-14.713v-39.726  c0-8.125,6.587-14.713,14.713-14.713s14.713,6.589,14.713,14.713v25.012h25.012c8.126,0,14.713,6.589,14.713,14.713  S437.732,397.247,429.606,397.247z"/>'
-				  +'</svg>';
-			const svgData=svgSrc(svg);	  
-			const urlData = props.url?props.url:svgData;
+			const inputStyle = {textAlign:"right"}				  
+			const urlData = props.url?props.url:images.calendarSvgData;
 			const noAutoWidth = true
 			return $(DropDownElement,{...props,cursorPos:this.getCursorPos,noAutoWidth,inputStyle,popupStyle,onKeyDown:this.onKeyDown,buttonImageStyle,url:urlData,children:calWrapper(props.children)});			
 		}
@@ -2854,7 +2827,7 @@ export default function MetroUi({log,requestState,svgSrc,documentManager,focusMo
 				canvas.width = 296;
 				canvas.height = 126;
 				const ctx = canvas.getContext('2d');
-				const image = new Image();
+				const image = miscUtil.image()
 				image.onload = function() {
 					ctx.drawImage(image, 0, 0);
 				};
@@ -3375,8 +3348,8 @@ ACAAIAAgACAAAA==`
 //			if(isSibling) return
 			if(PingReceiver) this.pingR = PingReceiver.reg(this.signal)
 			this.toggleOverlay(!this.state.on);			
-			this.wifi = miscUtil.scannerProxy.regWifi(this.wifiCallback)
-			this.wifi2 = miscUtil.winWifi.regWifi(this.wifiCallback)			
+			this.wifi = miscUtil.scannerProxy().regWifi(this.wifiCallback)
+			this.wifi2 = miscUtil.winWifi().regWifi(this.wifiCallback)			
 			/*if(this.props.onContext && requestState.reg){
 				const branchKey = this.props.onContext()
 				this.yellow = requestState.reg({branchKey,callback:this.yellowSignal})
@@ -3440,15 +3413,8 @@ ACAAIAAgACAAAA==`
 				const l4C = getColor(wL>=4)
 				const l3C = getColor(wL>=3)
 				const l2C = getColor(wL>=2)
-				const l1C = getColor(wL>=1)
-				const wifiSvg = `
-				<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" x="0px" y="0px" viewBox="0 0 147.586 147.586" style="enable-background:new 0 0 147.586 147.586;" xml:space="preserve">
-					<path style="stroke:white;fill: ${l2C};" d="M48.712,94.208c-2.929,2.929-2.929,7.678,0,10.606c2.93,2.929,7.678,2.929,10.607,0   c7.98-7.98,20.967-7.98,28.947,0c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197c2.929-2.929,2.929-7.678,0-10.606   C85.044,80.378,62.542,80.378,48.712,94.208z"></path>
-					<path style="stroke:white;fill: ${l3C};" d="M26.73,72.225c-2.929,2.929-2.929,7.678,0,10.606s7.677,2.93,10.607,0   c20.102-20.102,52.811-20.102,72.912,0c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197   c2.929-2.929,2.929-7.678,0-10.606C94.906,46.275,52.681,46.275,26.73,72.225z"></path>
-					<path style="stroke:white;fill: ${l4C};" d="M145.39,47.692c-39.479-39.479-103.715-39.479-143.193,0c-2.929,2.929-2.929,7.678,0,10.606   c2.93,2.929,7.678,2.929,10.607,0c16.29-16.291,37.95-25.262,60.989-25.262s44.699,8.972,60.989,25.262   c1.465,1.464,3.385,2.197,5.304,2.197s3.839-0.732,5.304-2.197C148.319,55.37,148.319,50.621,145.39,47.692z"></path>
-					<circle style="stroke:white;fill: ${l1C};" cx="73.793" cy="121.272" r="8.231"></circle>
-				</svg>`;
-				imageSvgData = svgSrc(wifiSvg)				
+				const l1C = getColor(wL>=1)				
+				imageSvgData = images.wifiSignalStateSvgData(l1C,l2C,l3C,l4C)				
 			}	
 			const wifiDataEl = this.state.showWifiInfo&&wifiData?React.createElement("pre",{style:{
 				position:"absolute",
@@ -3560,7 +3526,7 @@ ACAAIAAgACAAAA==`
 			
 			return $("div",{style,ref:ref=>this.el=ref},drawChildren)
 		}
-	}
+	}	
 	const sendVal = ctx =>(action,value,opt) =>{
 		const act = action.length>0?action:"change"
 		const optHeader = opt?{"X-r-opt":opt}:{}

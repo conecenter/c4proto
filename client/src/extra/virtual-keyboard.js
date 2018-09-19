@@ -1,7 +1,8 @@
 "use strict";
 import React from 'react'
 
-export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact,StatefulComponent}){
+export default function VirtualKeyboard({log,btoa,focusModule,eventManager,windowManager,miscReact,StatefulComponent}){
+	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const $ = React.createElement	
 	const checkActivateCalls=(()=>{
 		const callbacks=[]
