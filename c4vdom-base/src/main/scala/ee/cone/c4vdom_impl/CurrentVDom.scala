@@ -19,6 +19,16 @@ class VDomHandlerFactoryImpl(
     VDomHandlerImpl(sender,view)(diff,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
 }
 
+object VDomResolverImpl extends VDomResolver {
+  def resolve(pathStr: String): Option[VDomValue] ⇒ Option[VDomValue] = from ⇒ {
+    val path = pathStr.split("/").toList match {
+      case "" :: parts => parts
+      case _ => Never()
+    }
+    from.flatMap(ResolveValue(_, path))
+  }
+}
+
 case class VDomHandlerImpl[State](
   sender: VDomSender[State],
   view: VDomView[State]
@@ -38,12 +48,9 @@ case class VDomHandlerImpl[State](
 
   private def pathHeader: VDomMessage => String = _.header("X-r-vdom-path")
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = exchange ⇒ state ⇒ if(pathHeader(exchange).isEmpty) state else {
-    val path = pathHeader(exchange).split("/").toList match {
-      case "" :: parts => parts
-      case _ => Never()
-    }
-    (ResolveValue(vDomStateKey.of(state).get.value, path) match {
+  private def dispatch: Handler = exchange ⇒ state ⇒ {
+    val path = pathHeader(exchange)
+    if(path.isEmpty) state else (VDomResolverImpl.resolve(path)(vDomStateKey.of(state).map(_.value)) match {
       case Some(v: Receiver[_]) => v.receive(exchange)
       case v =>
         println(s"$path ($v) can not receive")

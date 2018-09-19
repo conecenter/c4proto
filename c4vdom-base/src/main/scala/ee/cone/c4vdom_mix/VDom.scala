@@ -11,4 +11,5 @@ trait VDomApp {
   lazy val tagStyles: TagStyles = new TagStylesImpl
   lazy val vDomHandlerFactory: VDomHandlerFactory =
     new VDomHandlerFactoryImpl(diff,JsonToStringImpl,WasNoValueImpl,childPairFactory)
+  lazy val vDomResolver: VDomResolver = VDomResolverImpl
 }
