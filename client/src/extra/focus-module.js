@@ -130,8 +130,9 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		let best = null	
         let isPrintable = false
 		const vk = event.code == "vk"
-		const detail = {key:event.key,vk}
-		switch(event.key){
+		const eventKey = event.key || String.fromCharCode(event.keyCode)
+		const detail = {key:eventKey,vk}
+		switch(eventKey){
 			case "ArrowUp":
 				best = findBestDistance(3);break;
 			case "ArrowDown":
@@ -182,7 +183,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				isPrintable = true
 		}		
 		if(best) best.o.n.el.focus();				
-		if(isPrintable && isPrintableKeyCode(event.key)) {			
+		if(isPrintable && isPrintableKeyCode(eventKey)) {			
 			sendEvent(()=>eventManager.create("delete",{detail}))
 			const cRNode = callbacks.find(o=>o.el == currentFocusNode&&currentFocusNode.el)			
 			if(cRNode && cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)
@@ -336,7 +337,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	},200)
 	const toView = (className)=>setTimeout(()=>{
 		const o = documentManager.body().querySelector(`.${className}`)
-		o&&o.scrollIntoView()
+		o&&o.scrollIntoViewIfNeeded(false)
 	})
 	const getFocusNode = () => currentFocusNode&&currentFocusNode.el
 	const receivers = {focusTo,toView}
