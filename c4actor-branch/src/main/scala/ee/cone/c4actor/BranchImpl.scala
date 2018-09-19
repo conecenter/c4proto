@@ -65,7 +65,7 @@ case class BranchTxTransform(
   sessionKeys: List[SrcId],
   posts: List[MessageFromAlien],
   handler: BranchHandler
-) extends TxTransform {
+) extends TxTransform with LazyLogging {
   private def saveResult: Context ⇒ Context = local ⇒ {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
     //println(s"BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
@@ -139,18 +139,20 @@ case class BranchTxTransform(
   }
 
   def transform(local: Context): Context = {
+    val started = System.currentTimeMillis
+    logger.debug(s"branch tx begin ${posts.map(r⇒r.header("X-r-alien-date")).mkString("(",", ",")")}")
     val errors = ErrorKey.of(local)
-    if(errors.nonEmpty && posts.nonEmpty)
+    var res = if(errors.nonEmpty && posts.nonEmpty)
       savePostsErrors(errorText(local)).andThen(rmPostsErrors)(local)
     else if(errors.size == 1)
       reportError(errorText(local)).andThen(incrementErrors)(local)
     else chain(getPosts.map(handler.exchange))
       .andThen(saveResult).andThen(reportAliveBranches)
       .andThen(rmPostsErrors)(local)
+    logger.debug(s"branch tx end ${System.currentTimeMillis - started} ms")
+    res
   }
 }
-
-
 
 //class UnconfirmedException() extends Exception
 

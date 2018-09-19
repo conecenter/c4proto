@@ -573,6 +573,34 @@ push @tasks, ["cert","<hostname>",sub{
 
 ####
 
+my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
+
+push @tasks, ["thread_print_local","<package>",sub{
+    my($pkg)=@_;
+    my @pid = map{/^(\d+)\s+(\S+)/ && index($2, $pkg)==0?"$1":()} `jcmd`;
+    my $pid = $pid[0] || return;
+    while(1){
+        select undef, undef, undef, 0.25;
+        print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf("jcmd $pid Thread.print"));
+    }
+}];
+#/RUNNABLE/
+push @tasks, ["thread_grep_cut","<substring>",sub{
+    my($v)=@_;
+    print map{ my $i = index $_,$v; $i<0?():substr($_,0,$i)."\n\n" } &$tp_split(join '',<STDIN>);
+}];
+push @tasks, ["thread_grep_not","<substring>",sub{
+    my($v)=@_;
+    print grep{ 0 > index $_,$v } &$tp_split(join '',<STDIN>);
+}];
+push @tasks, ["thread_count"," ",sub{
+    my @r = grep{/\S/} &$tp_split(join '',<STDIN>);
+    print scalar(@r)."\n";
+}];
+
+
+####
+
 if($ARGV[0]) {
     my($cmd,@args)=@ARGV;
     $cmd eq $$_[0] and $$_[2]->(@args) for @tasks;
