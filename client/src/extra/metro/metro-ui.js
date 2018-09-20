@@ -1082,7 +1082,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.prevval = inp.value
 				let nValue = this.props.value
 				if(this.isVkEvent(event)||this.props.vkOnly){					
-					nValue = this.props.value+event.detail.key
+					nValue = nValue+event.detail.key
 				}
 				else 
 					nValue = ""
@@ -1092,19 +1092,18 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					const inp = this.getInput()
 					let nValue = this.props.value
 					if(this.props.vkOnly)
-						nValue = this.props.value+event.detail.key												
+						nValue = nValue+event.detail.key												
 					else {
-						const value1 = this.props.value.substring(0, inp.selectionStart)
-						const value2 = this.props.value.substring(inp.selectionEnd)					
-						nValue = value1+event.detail.key+value2			
-					}						
-					this.s = inp.selectionStart+1
+						const value1 = nValue.substring(0, inp.selectionStart)
+						const value2 = nValue.substring(inp.selectionEnd)											
+						nValue = value1+event.detail.key+value2										
+						this.s = inp.selectionStart+1						
+					}					
 					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})					
 				}
 			}									
 		}
-		onErase(event){
-			
+		onErase(event){			
 			const inp = this.getInput()	
 			inp.value = ""			
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
@@ -1124,13 +1123,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					const inp = this.getInput()
 					let nValue = this.props.value
 					if(this.props.vkOnly)
-						nValue = this.props.value.slice(0,-1)
+						nValue = nValue.slice(0,-1)
 					else{
-						const value1 = this.props.value.substring(0, inp.selectionStart-1)				
-						const value2 = this.props.value.substring(inp.selectionEnd)
+						const value1 = nValue.substring(0, inp.selectionStart-1)				
+						const value2 = nValue.substring(inp.selectionEnd)
 						nValue = value1+value2
-					}					
-					this.s = inp.selectionStart - 1>=0?inp.selectionStart -1:0					
+						this.k = inp.selectionStart-1
+					}													
 					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})					
 				}
 			}
@@ -1196,23 +1195,24 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				const inp = this.getInput()
 				if(pos.ss) inp.selectionStart = pos.ss
 				if(pos.se) inp.selectionEnd = pos.se
-			}
+			}			
 			if(this.k){
 				const inp = this.getInput()
+				//log(this.k)
 				inp.selectionStart = this.k
 				inp.selectionEnd = this.k
 				this.k = null
 			}
-		}
+		}		
 		onChange(e){
 			const inp = this.getInput()
 			this.k = inp.selectionStart
-			if(this.s!==null&&this.s!==undefined) {inp.selectionEnd =this.s;inp.selectionStart = this.s}
-			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
-				const newVal = e.target.value.toUpperCase();
-				e.target.value = newVal;
+			if(this.s!==null&&this.s!==undefined) {this.k = this.s;this.s = null}						
+			let value = e.target.value
+			if(inp&&getComputedStyle(inp).textTransform=="uppercase"){				
+				value = value.toUpperCase();
 			}
-			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value}})
 		}
 		onBlur(e){						
 			if(e.relatedTarget && (
@@ -1309,7 +1309,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 							"data-type":dataType,
 							className,
 							name:vkOnly,
-							content,		
+							content,							
 							style:inputStyle,							
 							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:this.props.value,
 							onMouseDown:this.onMouseDown,
