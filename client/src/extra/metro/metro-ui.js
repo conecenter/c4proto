@@ -1556,7 +1556,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					height:"auto"
 				}:null)
 			}
-			return $(InputElement,{lockedFocus:this.props.open,drawFunc,inputStyle,className,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
+			return $(InputElement,{...this.props,lockedFocus:this.props.open,drawFunc,inputStyle,className,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
 		}
 	}
 	const ButtonInputElement = (props) => $(Interactive,{},(actions)=>{
@@ -1656,7 +1656,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	class FocusableElement extends StatefulComponent{		
 		onFocus(e){
 			clearTimeout(this.timeout);						
-			if(!this.focus) this.reportChange("focus");			
+			//if(!this.focus) this.reportChange("focus");			
 			this.focus=true;			
 		}
 		reportChange(state){					
