@@ -7,7 +7,7 @@ object SanboxLensTutuorial {
   def main(args: Array[String]): Unit = {
 
     val person = Person("Dmitri", Phone(123, (789, 75, 99)))
-    person.phone.number._3
+    val number = person.phone.number._3
     person.copy(
       phone = person.phone.copy(
         number = person.phone.number.copy(
@@ -16,7 +16,7 @@ object SanboxLensTutuorial {
       )
     )
 
-    val newPerson = PersonToPhoneLens(Phone(1, (1, 2, 3)))(person)
+    val newPerson = PersonToPhoneLens.set(Phone(1, (1, 2, 3)))(person)
 
     val prodPhoneLens: ProdLens[Person, Phone] =
       ProdLens.ofSet[Person, Phone](
