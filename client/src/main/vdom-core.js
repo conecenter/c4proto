@@ -215,7 +215,8 @@ export function VDomAttributes(sender){
     },null))
     const ref = ({seed})
     const ctx = { ctx: ctx => ctx }
+    const path = { "I": ctxToPath }
     const tp = ({ReControlledInput})
-    const transforms = {onClick,onChange,onBlur,ref,ctx,tp}
+    const transforms = {onClick,onChange,onBlur,ref,ctx,tp,path}
     return ({transforms})
 }
