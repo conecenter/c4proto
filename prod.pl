@@ -443,13 +443,16 @@ my $get_frp_common = sub{
     my($token,$sk) = ($$frp_auth_all{$comp}||die $comp)->[0]||die;
     my $conf = &$get_compose($comp);
     my($frps_addr,$frps_port) = &$split_port($$conf{frps}||die);
+    my $proxy = $$conf{frp_http_proxy};
     (
         server_addr => $frps_addr,
         server_port => $frps_port,
         token => $token,
         user => $comp,
+        $proxy ? (http_proxy => $proxy) : (),
     );
 };
+
 
 push @tasks, ["compose_up","fast|full $composes_txt",sub{
     my($mode,$run_comp)=@_;
