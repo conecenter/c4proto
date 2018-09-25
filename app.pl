@@ -101,6 +101,14 @@ my $staged = sub{
     });
 };
 
+my $download_tgz = sub{
+    my($ctx_dir,$url,$rename_from,$rename_to)=@_;
+    my $fn = $url=~m{([^/]+)$} ? $1 : die;
+    &$sy_in_dir("tmp","wget $url") if !-e "tmp/$fn";
+    &$sy_in_dir($ctx_dir,"tar -xzf ../../../tmp/$fn");
+    &$rename($ctx_dir, $rename_from, $rename_to);
+};
+
 my $gen_docker_conf = sub{
     my($commit)=@_;
     &$recycling($docker_build);
@@ -113,10 +121,7 @@ my $gen_docker_conf = sub{
     };
     &$build("zoo"=>sub{
         my($ctx_dir)=@_;
-        my $tgz = "$kafka.tgz";
-        &$sy_in_dir("tmp","wget http://www-eu.apache.org/dist/kafka/$kafka_version/$tgz") if !-e "tmp/$tgz";
-        &$sy_in_dir($ctx_dir,"tar -xzf ../../../tmp/$tgz");
-        &$rename($ctx_dir, $kafka, "kafka");
+        &$download_tgz($ctx_dir, "http://www-eu.apache.org/dist/kafka/$kafka_version/$kafka.tgz", $kafka, "kafka");
         &$put_text("$ctx_dir/zookeeper.properties",join "\n",
             "dataDir=db4/zookeeper",
             "clientPort=$zoo_port"
@@ -131,6 +136,10 @@ my $gen_docker_conf = sub{
             "log.roll.hours=1", #delete-s will be triggered to remove?
             "compression.type=uncompressed", #probably better compaction for .state topics
             "message.max.bytes=25000000" #seems to be compressed
+        );
+        &$download_tgz($ctx_dir,
+            "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            "frp_0.21.0_linux_amd64", "frp"
         );
         &$gcp($_=>$ctx_dir,$_) for @c_script;
         &$mkdirs($ctx_dir,"db4");
