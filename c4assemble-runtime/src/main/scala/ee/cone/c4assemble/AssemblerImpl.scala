@@ -235,7 +235,8 @@ object NoAssembleProfiler extends AssembleProfiler {
 class TreeAssemblerImpl(
   composes: IndexUtil,
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
-  optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
+  optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory,
+  assembleFinalProfiler: AssembleFinalProfiler
 ) extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val expressions/*: Seq[WorldPartExpression]*/ =
@@ -274,8 +275,9 @@ class TreeAssemblerImpl(
       backStageFactory.create(expressionsByPriorityWithLoops.collect{ case e: ExprFrom ⇒ e })
     val transforms = expressionsByPriorityWithLoops ::: backStage ::: Nil
     val transformAllOnce = Function.chain(transforms.map(h⇒h.transform(_)))
-    @tailrec def transformUntilStable(left: Int, transition: WorldTransition): ReadModel =
-      if(transition.diff.isEmpty) transition.result
+    //for(t ← transforms) println("T",t)
+    @tailrec def transformUntilStable(left: Int, transition: WorldTransition): WorldTransition =
+      if(transition.diff.isEmpty) transition
       else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
       else throw new Exception(s"unstable assemble ${transition.diff}")
 
@@ -283,7 +285,7 @@ class TreeAssemblerImpl(
       val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel)
       val currentWorld = Merge[AssembledKey,Index](composes.isEmpty,(a,b)⇒composes.mergeIndex(Seq(a,b)))(prevWorld, diff)
       val transition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel)
-      transformUntilStable(1000, transition)
+      assembleFinalProfiler.transform(transformUntilStable(1000, transition)).result
     }
   }
 }

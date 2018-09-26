@@ -17,8 +17,6 @@ class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
   ).flatten
 }
 
-case object VDomStateKey extends TransientLens[Option[VDomState]](None)
-  with VDomLens[Context, Option[VDomState]]
 //case object RelocateKey extends WorldKey[String]("")
 //  with VDomLens[World, String]
 
