@@ -2,8 +2,8 @@ package ee.cone.c4actor.sandbox
 
 import ee.cone.c4actor.{AssemblesApp, IdGenUtil, IdGenUtilApp, WithPK}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.sandbox.OtherProtocol.OtherOrig
-import ee.cone.c4actor.sandbox.SandboxProtocol.SandboxOrig
+import ee.cone.c4actor.sandbox.OtherProtocol.OrigOther
+import ee.cone.c4actor.sandbox.SandboxProtocol.OrigSandbox
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 
@@ -19,56 +19,56 @@ trait SandboxJoinersApp
     new SandboxJoiners(idGenUtil) :: super.assembles
 }
 
-case class SandboxRich(srcId: String, value: Int)
+case class RichSandbox(srcId: String, value: Int)
 
-case class SandboxValueRich(
+case class RichSandboxValue(
   srcId: String,
-  otherOrig: OtherOrig,
-  origs: List[SandboxOrig]
+  otherOrig: OrigOther,
+  origs: List[OrigSandbox]
 )
 
-case class SandboxPairRich(
+case class RichSandboxPair(
   srcId: String,
-  otherOrig: OtherOrig,
-  sandboxOrig: SandboxOrig
+  otherOrig: OrigOther,
+  sandboxOrig: OrigSandbox
 )
 
 @assemble class SandboxJoiners(idGenUtil: IdGenUtil) extends Assemble {
 
-  def SandboxOrigToSandBoxRich(
+  def OrigSandboxToRichSandbox(
     srcId: SrcId,
-    sandboxOrigs: Values[SandboxOrig]
-  ): Values[(SrcId, SandboxRich)] =
+    sandboxOrigs: Values[OrigSandbox]
+  ): Values[(SrcId, RichSandbox)] =
     sandboxOrigs
-      .map(orig ⇒ SandboxRich(orig.srcId, orig.value))
+      .map(orig ⇒ RichSandbox(orig.srcId, orig.value))
       .map(rich ⇒ (rich.srcId, rich))
 
-  type OtherOrigId = SrcId
+  type OrigOtherSrcId = SrcId
 
-  def SandboxOrigToOtherOrigId(
+  def OrigSandboxToOrigOtherId(
     srcId: SrcId,
-    sandboxOrig: Each[SandboxOrig]
-  ): Values[(OtherOrigId, SandboxOrig)] =
+    sandboxOrig: Each[OrigSandbox]
+  ): Values[(OrigOtherSrcId, OrigSandbox)] =
     sandboxOrig.otherOrig match {
       case Some(otherOrig) ⇒ (otherOrig.srcId → sandboxOrig) :: Nil
       case None ⇒ Nil
     }
 
-  def SandboxValueRichConstruction(
+  def RichSandboxValueConstruction(
     srcId: SrcId,
-    otherOrig: Each[OtherOrig],
-    @by[OtherOrigId] sandboxOrigs: Values[SandboxOrig]
-  ): Values[(SrcId, SandboxValueRich)] =
-    WithPK(SandboxValueRich(otherOrig.srcId, otherOrig, sandboxOrigs.toList)) :: Nil
+    otherOrig: Each[OrigOther],
+    @by[OrigOtherSrcId] sandboxOrigs: Values[OrigSandbox]
+  ): Values[(SrcId, RichSandboxValue)] =
+    WithPK(RichSandboxValue(otherOrig.srcId, otherOrig, sandboxOrigs.toList)) :: Nil
 
-  def SandboxPairRichConstruction(
+  def RichSandboxPairConstruction(
     srcId: SrcId,
-    otherOrig: Each[OtherOrig],
-    @by[OtherOrigId] sandboxOrig: Each[SandboxOrig]
-  ): Values[(SrcId, SandboxPairRich)] = {
+    otherOrig: Each[OrigOther],
+    @by[OrigOtherSrcId] sandboxOrig: Each[OrigSandbox]
+  ): Values[(SrcId, RichSandboxPair)] = {
     val srcId = idGenUtil.srcIdFromSrcIds(
       otherOrig.srcId, sandboxOrig.srcId
     )
-    WithPK(SandboxPairRich(srcId, otherOrig, sandboxOrig)) :: Nil
+    WithPK(RichSandboxPair(srcId, otherOrig, sandboxOrig)) :: Nil
   }
 }

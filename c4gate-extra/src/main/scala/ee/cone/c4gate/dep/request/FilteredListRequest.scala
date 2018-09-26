@@ -53,7 +53,7 @@ case class FilteredListResponse(srcId: String, listName: String, filterPK: Strin
 
 object FilterListRequestCreatorUtils {
   def parseUrl(url: String): String = {
-    val split = url.split("c4.html#").toList
+    val split = url.split("#").toList
     try {
       if (split.size == 1) {
         ""
