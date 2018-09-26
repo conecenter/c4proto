@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, PerformanceNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.sandbox.SandboxProtocol.SandboxOrig
+import ee.cone.c4actor.sandbox.SandboxProtocol.OrigSandbox
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -27,8 +27,8 @@ class ChangingIndexPerformanceTest(
     //val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
     val neededSrcId = "123"
 
-    val sandboxOrigMap: Map[SrcId, SandboxOrig] = ByPK(classOf[SandboxOrig]).of(local)
-    val someOrig: Option[SandboxOrig] = sandboxOrigMap.get(neededSrcId)
+    val sandboxOrigMap: Map[SrcId, OrigSandbox] = ByPK(classOf[OrigSandbox]).of(local)
+    val someOrig: Option[OrigSandbox] = sandboxOrigMap.get(neededSrcId)
 
 
     println(someOrig)

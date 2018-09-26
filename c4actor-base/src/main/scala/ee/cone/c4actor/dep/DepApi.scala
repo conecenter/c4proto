@@ -14,7 +14,7 @@ case class Resolvable[+A](value: Option[A], requests: Seq[DepRequest] = Nil)  //
 trait Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
   def map[B](f: A ⇒ B): Dep[B]
-  def filter(p: A ⇒ Boolean): Dep[A]
+  // def filter(p: A ⇒ Boolean): Dep[A] use result ← Dep; (a, b) = result instead
   def resolve(ctx: DepCtx): Resolvable[A] // low-level
 }
 
