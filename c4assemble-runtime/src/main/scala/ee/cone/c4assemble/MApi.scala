@@ -54,6 +54,8 @@ trait AssembleProfiler {
   def getOpt(ruleName: String, in: Seq[AssembledKey], out: AssembledKey): Option[String ⇒ Int ⇒ Unit] = None
 }
 
+trait AssembleFinalProfiler extends WorldPartExpression
+
 trait IndexFactory {
   def createJoinMapIndex(join: Join):
   WorldPartExpression

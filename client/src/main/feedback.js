@@ -42,7 +42,8 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
         const headers = {
             ...message.options.headers,
             "X-r-session": sessionKey(never),
-            "X-r-index": nextMessageIndex++
+            "X-r-index": nextMessageIndex++,
+            "X-r-alien-date": Date.now()
         }
         //todo: contron message delivery at server
         const options = {method:"post", ...message.options, headers}

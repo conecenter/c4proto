@@ -78,6 +78,10 @@ trait Receiver[State] {
   def receive: Handler
 }
 
+trait VDomResolver {
+  def resolve(pathStr: String): Option[VDomValue] ⇒ Option[VDomValue]
+}
+
 trait VDomHandler[State] extends Receiver[State] {
   def seeds: State ⇒ List[(String,Product)]
 }
