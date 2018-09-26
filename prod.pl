@@ -489,6 +489,12 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     }
 }];
 
+push @tasks, ["agent","<command-with-args>",sub{
+    my(@args)=@_;
+    sy(&$ssh_add());
+    sy(@args);
+}];
+
 #### proxy
 
 my $mk_from_cfg = sub{
