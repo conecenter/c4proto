@@ -24,9 +24,9 @@ my $get_compose = sub{$$composes{$_[0]}||die "composition expected"};
 my $get_host_port = sub{grep{$_||die}@{$_[0]}{qw(host port dir)}};
 
 my $ssh_ctl = sub{
-    my($comp,$args)=@_;
+    my($comp,@args)=@_;
     my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-    "ssh c4\@$host -p $port $args";
+    ("ssh","c4\@$host","-p$port",@args);
 };
 my $remote = sub{ 
     my($comp,$stm)=@_;
@@ -35,14 +35,26 @@ my $remote = sub{
     "ssh c4\@$host -p $port '$stm'";
 };
 
-push @tasks, ["ssh", $composes_txt, sub{
+push @tasks, ["agent","<command-with-args>",sub{
+    my(@args)=@_;
     sy(&$ssh_add());
-    sy(&$ssh_ctl($_[0],""))
+    sy(@args);
+}];
+
+push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
+    my($comp,@args)=@_;
+    sy(&$ssh_add());
+    sy(&$ssh_ctl($comp,@args));
 }];
 
 my $split_app = sub{
     my($app)=@_;
     $app=~/^(\w+)-(\w+)$/ ? ($1,$2) : die "<stack>-<service> expected ($app)"
+};
+
+my $docker_compose_up = sub{
+    my($run_comp,$add)=@_;
+    &$remote($run_comp,sub{"cd $_[0] && docker-compose up -d --remove-orphans $add"});
 };
 
 push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
@@ -133,8 +145,8 @@ my $stop = sub{
 };
 
 
-push @tasks, ["put_snapshot", $composes_txt, sub{
-    my($comp)=@_;
+push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
+    my($comp,$path)=@_;
     sy(&$ssh_add());
     my $acc = "$comp\_frpc_1";
     my $remote_acc  = sub{ &$remote($comp,qq[docker exec -i $acc sh -c "$_[0]"]) };
@@ -148,11 +160,11 @@ push @tasks, ["put_snapshot", $composes_txt, sub{
     sy(&$remote_acc("mv $db/$_ $bak/$_")) for &$ls();
     die $_ for &$ls();
     ## upload snapshot
-    my @snapshots = grep{/^0+-/} <*>;
-    @snapshots == 1 or die "not a single snapshot";
+    my $fn = $path=~m{(0+-[^/]+)$} ? $1 : die "bad snapshot name";
     my $snapdir = "$db/snapshots";
-    sy(&$remote_acc("mkdir $snapdir && cat > $snapdir/$snapshots[0]")." < $snapshots[0]");
+    sy(&$remote_acc("mkdir $snapdir && cat > $snapdir/$fn")." < $path");
     sy(&$remote_acc("chown -R c4:c4 $snapdir"));
+    sy(&$docker_compose_up($comp,""));
 }];
 
 #push @tasks, ["clear_snapshots", $composes_txt, sub{
@@ -235,7 +247,8 @@ my $user = "c4";
 my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
     my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-    "rsync -e 'ssh -p $port' -a $from_path $user\@$host:$to_path";
+    sy(&$remote($comp,"mkdir -p $to_path"));
+    sy("rsync -e 'ssh -p $port' -a $from_path $user\@$host:$to_path");
 };
 my $put_temp = sub{
     my($fn,$text)=@_;
@@ -244,10 +257,21 @@ my $put_temp = sub{
     print "generated $path\n";
     $path;
 };
-my $put_compose = sub{ &$put_temp("docker-compose.yml",$_[0]) };
-my $docker_compose = sub{
-    my($run_comp,$yml_path,$add)=@_;
-    &$remote($run_comp,"docker-compose -f - -p $run_comp up -d --remove-orphans $add")." < $yml_path";
+my $compose_dir_count=0;
+my $docker_compose_start = sub{
+    my($content)=@_;
+    my $path = "/tmp/$$-".($compose_dir_count++);
+    sy("mkdir -p $path");
+    &$put_text("$path/docker-compose.yml",$content);
+    (sub{
+        my($dn,$fn,$cont)=@_;
+        sy("mkdir -p $path/$dn");
+        &$put_text("$path/$dn/$fn",$cont);
+    },sub{
+        my($comp)=@_;
+        my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
+        &$rsync_to("$path/",$comp,"$dir/$comp");
+    })
 };
 
 #### composer
@@ -362,8 +386,7 @@ my $with_local_db_template_yml = sub{+{
 my $remote_build = sub{
     my($build_comp,$dir,$nm,$tag)=@_;
     my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
-    sy(&$remote($build_comp,"mkdir -p $build_temp"));
-    sy(&$rsync_to("$dir/$nm",$build_comp,$build_temp));
+    &$rsync_to("$dir/$nm",$build_comp,$build_temp);
     sy(&$remote($build_comp,"docker build -t $tag $build_temp/$nm"));
 };
 
@@ -387,7 +410,6 @@ my $compose_up = sub{
     my $override = &$merge($template, $conf);
     my $override_services = $$override{services} || die;
     my %was;
-    my $deploy_dir = "$$conf{dir}/$run_comp";
     my $generated_services = {map{
         my $service_name = $_;
         my $service = $$override_services{$service_name} || die;
@@ -407,7 +429,7 @@ my $compose_up = sub{
             ):()),
             volumes => [
                 $$service{C4STATE_TOPIC_PREFIX} ? &$volumes("db4") : (),
-                $$service{C4DEPLOY_LOCAL} ? "$deploy_dir/$service_name:/c4deploy" : (),
+                $$service{C4DEPLOY_LOCAL} ? "./$service_name:/c4deploy" : (),
             ],
             ($$service{C4EXPOSE_HTTP_PORT} && $$conf{http_port} ? (
                 ports => ["$$conf{http_port}:$$service{C4EXPOSE_HTTP_PORT}"],
@@ -428,10 +450,10 @@ my $compose_up = sub{
         my $images_str = join " ", sort keys %images;
         sy(&$remote($build_comp,"docker save $images_str").' | '.&$remote($run_comp,"docker load"));
     }
-    my $tmp_frpc_path = &$put_temp("frpc.ini",&$to_ini_file($frpc_conf));
-    sy(&$remote($run_comp,"mkdir -p $deploy_dir/frpc"));
-    sy(&$rsync_to($tmp_frpc_path,$run_comp,"$deploy_dir/frpc/frpc.ini"));
-    sy(&$docker_compose($run_comp,&$put_compose($yml_str),""));
+    my($put,$sync) = &$docker_compose_start($yml_str);
+    &$put("frpc","frpc.ini",&$to_ini_file($frpc_conf));
+    &$sync($run_comp);
+    sy(&$docker_compose_up($run_comp,""));
 };
 
 my $split_port = sub{ $_[0]=~/^(\S+):(\d+)$/ ? ($1,$2) : die };
@@ -448,7 +470,6 @@ my $get_frp_common = sub{
         server_addr => $frps_addr,
         server_port => $frps_port,
         token => $token,
-        user => $comp,
         $proxy ? (http_proxy => $proxy) : (),
     );
 };
@@ -463,7 +484,7 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     if($main_comp){
         my $ext_conf = &$merge(&$without_local_db_template_yml(),$conf);
         my $frpc_conf = [
-            common => [&$get_frp_common($main_comp)],
+            common => [&$get_frp_common($main_comp), user=>$main_comp],
             broker_visitor => [
                 type => "stcp",
                 role => "visitor",
@@ -477,7 +498,7 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     } else {
         my $ext_conf = &$merge(&$with_local_db_template_yml(),$conf);
         my $frpc_conf = [
-            common => [&$get_frp_common($run_comp)],
+            common => [&$get_frp_common($run_comp), user=>$run_comp],
             broker => [
                 type => "stcp",
                 sk => &$get_frp_sk($run_comp),
@@ -509,7 +530,6 @@ defaults
 };
 
 my $mk_from_yml = sub{
-my($fn)=@_;
 qq{
 services:
   haproxy:
@@ -518,7 +538,7 @@ services:
     network_mode: "host"
     restart: unless-stopped
     volumes:
-    - "$fn:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    - "./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
 version: '3.2'
 };
 };
@@ -568,7 +588,7 @@ frontend fe443
 };
 
 my $mk_to_yml = sub{
-my($fn,$conf)=@_;
+my($conf)=@_;
 my($to_ssl_host,$li_host,$lis) = map{$$conf{$_}||die} qw[external_ip internal_ip plain_items];
 qq{
 services:
@@ -576,7 +596,7 @@ services:
     image: "haproxy:1.7"
     restart: unless-stopped
     volumes:
-    - "$fn/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    - "./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
     - "certs:/etc/letsencrypt:ro"
     ports:
     - "$to_ssl_host:443:443"
@@ -599,7 +619,7 @@ services:
     restart: unless-stopped
     command: ["/frps","-c","/frps.ini"]
     volumes:
-    - "$fn/frps.ini:/frps.ini:ro"
+    - "./frps/frps.ini:/frps.ini:ro"
     ports:
     - "7000:7000"
 version: '3.2'
@@ -615,7 +635,6 @@ push @tasks, ["proxy_to","up|test",sub{
     my($mode)=@_;
     my $conf = $$deploy_conf{proxy_to} || die;
     my $comp = $$conf{stack} || die;
-    my $dir = (&$get_compose($comp)->{dir}||die)."/$comp";
     my @sb_items = &$hmap($composes, sub{ my($comp,$comp_conf)=@_;
         $$comp_conf{proxy_dom} ? do{
             my $host = $$comp_conf{host}||die;
@@ -623,25 +642,25 @@ push @tasks, ["proxy_to","up|test",sub{
             [$$comp_conf{proxy_dom},"$host:$port"]
         } : ()
     });
-    my $tmp_cfg_path = &$put_temp("haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]},@sb_items]));
+    my $yml_str = &$mk_to_yml($conf);
+    my($put,$sync) = &$docker_compose_start($yml_str);
+    &$put("haproxy","haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]},@sb_items]));
     my %common = &$get_frp_common($comp);
-    my $tmp_frps_path = &$put_temp("frps.ini",&$to_ini_file([common=>[
+    my $tmp_frps_path = &$put("frps","frps.ini",&$to_ini_file([common=>[
         token=>$common{token},
     ]]));
-    my $tmp_yml_path = &$put_compose(&$mk_to_yml($dir,$conf));
     if($mode eq "up"){
         sy(&$ssh_add());
-        sy(&$remote($comp,"mkdir -p $dir"));
-        sy(&$rsync_to($tmp_cfg_path,$comp,"$dir/haproxy.cfg"));
-        sy(&$rsync_to($tmp_frps_path,$comp,"$dir/frps.ini"));
-        sy(&$docker_compose($comp,$tmp_yml_path," --force-recreate"));
+        &$sync($comp);
+        sy(&$docker_compose_up($comp," --force-recreate"));
     }
 }];
 
 push @tasks, ["proxy_from"," ",sub{
     my $conf = $$deploy_conf{proxy_from} || die;
-    &$put_temp("from-haproxy.cfg",&$mk_from_cfg($conf));
-    &$put_compose(&$mk_from_yml("./from-haproxy.cfg"));
+    my $yml_str = &$mk_from_yml("./from-haproxy.cfg");
+    my($put,$sync) = &$docker_compose_start($yml_str);
+    &$put("haproxy","haproxy.cfg",&$mk_from_cfg($conf));
     print "docker-compose -p proxy up -d --remove-orphans --force-recreate\n"
 }];
 
@@ -662,6 +681,33 @@ push @tasks, ["cert","<hostname>",sub{
     (map{"echo $ha/$_.pem >> $ha/list.txt"} @hosts),
   ));
   sy(&$remote($comp,"docker exec proxy_haproxy_1 kill -s HUP 1"));
+}];
+
+push @tasks, ["devel_init_frpc","<user>",sub{
+    my ($user) = @_;
+    my $comp = "devel";
+    my $sk = &$get_frp_sk($comp);
+    my @proxy_list = ([22,"sshd"],[80,"haproxy"]);
+    print &$to_ini_file([
+        common => [&$get_frp_common("devel"), user=>$user],
+        map{my($port,$container)=@$_;("p_$port\_visitor" => [
+            type => "stcp",
+            role => "visitor",
+            sk => $sk,
+            server_name => "p_$port",
+            bind_port => $port,
+            bind_addr => "127.0.20.2",
+        ])} @proxy_list
+    ]);
+    &$put_text("$ENV{HOME}/frpc.ini",&$to_ini_file([
+        common => [&$get_frp_common("devel"), user=>$user],
+        map{my($port,$container)=@$_;("p_$port" => [
+            type => "stcp",
+            sk => $sk,
+            local_ip => $container,
+            local_port => $port,
+        ])} @proxy_list
+    ]));
 }];
 
 ####
