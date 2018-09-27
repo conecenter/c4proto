@@ -24,9 +24,9 @@ my $get_compose = sub{$$composes{$_[0]}||die "composition expected"};
 my $get_host_port = sub{grep{$_||die}@{$_[0]}{qw(host port dir)}};
 
 my $ssh_ctl = sub{
-    my($comp,$args)=@_;
+    my($comp,@args)=@_;
     my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-    "ssh c4\@$host -p $port $args";
+    ("ssh","c4\@$host","-p$port",@args);
 };
 my $remote = sub{ 
     my($comp,$stm)=@_;
@@ -35,9 +35,16 @@ my $remote = sub{
     "ssh c4\@$host -p $port '$stm'";
 };
 
-push @tasks, ["ssh", $composes_txt, sub{
+push @tasks, ["agent","<command-with-args>",sub{
+    my(@args)=@_;
     sy(&$ssh_add());
-    sy(&$ssh_ctl($_[0],""))
+    sy(@args);
+}];
+
+push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
+    my($comp,@args)=@_;
+    sy(&$ssh_add());
+    sy(&$ssh_ctl($comp,@args));
 }];
 
 my $split_app = sub{
@@ -463,7 +470,6 @@ my $get_frp_common = sub{
         server_addr => $frps_addr,
         server_port => $frps_port,
         token => $token,
-        user => $comp,
         $proxy ? (http_proxy => $proxy) : (),
     );
 };
@@ -478,7 +484,7 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     if($main_comp){
         my $ext_conf = &$merge(&$without_local_db_template_yml(),$conf);
         my $frpc_conf = [
-            common => [&$get_frp_common($main_comp)],
+            common => [&$get_frp_common($main_comp), user=>$main_comp],
             broker_visitor => [
                 type => "stcp",
                 role => "visitor",
@@ -492,7 +498,7 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     } else {
         my $ext_conf = &$merge(&$with_local_db_template_yml(),$conf);
         my $frpc_conf = [
-            common => [&$get_frp_common($run_comp)],
+            common => [&$get_frp_common($run_comp), user=>$run_comp],
             broker => [
                 type => "stcp",
                 sk => &$get_frp_sk($run_comp),
@@ -502,12 +508,6 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf);
     }
-}];
-
-push @tasks, ["agent","<command-with-args>",sub{
-    my(@args)=@_;
-    sy(&$ssh_add());
-    sy(@args);
 }];
 
 #### proxy
@@ -681,6 +681,33 @@ push @tasks, ["cert","<hostname>",sub{
     (map{"echo $ha/$_.pem >> $ha/list.txt"} @hosts),
   ));
   sy(&$remote($comp,"docker exec proxy_haproxy_1 kill -s HUP 1"));
+}];
+
+push @tasks, ["devel_init_frpc","<user>",sub{
+    my ($user) = @_;
+    my $comp = "devel";
+    my $sk = &$get_frp_sk($comp);
+    my @proxy_list = ([22,"sshd"],[80,"haproxy"]);
+    print &$to_ini_file([
+        common => [&$get_frp_common("devel"), user=>$user],
+        map{my($port,$container)=@$_;("p_$port\_visitor" => [
+            type => "stcp",
+            role => "visitor",
+            sk => $sk,
+            server_name => "p_$port",
+            bind_port => $port,
+            bind_addr => "127.0.20.2",
+        ])} @proxy_list
+    ]);
+    &$put_text("$ENV{HOME}/frpc.ini",&$to_ini_file([
+        common => [&$get_frp_common("devel"), user=>$user],
+        map{my($port,$container)=@$_;("p_$port" => [
+            type => "stcp",
+            sk => $sk,
+            local_ip => $container,
+            local_port => $port,
+        ])} @proxy_list
+    ]));
 }];
 
 ####
