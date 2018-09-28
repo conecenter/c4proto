@@ -54,9 +54,9 @@ class AssemblerInit(
 
   private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {
     val diff = toTree(context.assembled, if(isParallel) out.par else out)
-    val started = System.currentTimeMillis
+    val end = NanoTimer()
     val nAssembled = TreeAssemblerKey.of(context)(diff,isParallel)(context.assembled)
-    val period = System.currentTimeMillis - started
+    val period = end.ms
     if(period > 1000) logger.info(s"long join $period ms")
     new Context(context.injected, nAssembled, context.transient)
   }
