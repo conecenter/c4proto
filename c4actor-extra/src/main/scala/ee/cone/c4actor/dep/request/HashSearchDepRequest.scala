@@ -32,19 +32,21 @@ case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, mod
     key: SrcId,
     rq: Each[DepInnerRequest]
   ): Values[(SrcId, Request[Model])] =
-    if(rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName){
-      val hsRq = rq.request.asInstanceOf[HashSearchDepRequest]
-      List(WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]])))
-    } else Nil
+    rq.request match {
+      case hsRq: HashSearchDepRequest if hsRq.modelName == model.getName =>
+        List(WithPK(HashSearch.Request(rq.srcId, hsDepRequestHandler.handle(hsRq).asInstanceOf[Condition[Model]])))
+      case _ => Nil
+    }
 
   def HSResponseGrab(
     key: SrcId,
     resp: Each[Response[Model]],
     rq: Each[DepInnerRequest]
   ): Values[(SrcId, DepResponse)] =
-    if(rq.request.isInstanceOf[HashSearchDepRequest] && rq.request.asInstanceOf[HashSearchDepRequest].modelName == model.getName)
-      List(WithPK(util.wrap(rq, Option(resp.lines))))
-    else Nil
+    rq.request match {
+      case innRequest: HashSearchDepRequest if innRequest.modelName == model.getName => List(WithPK(util.wrap(rq, Option(resp.lines))))
+      case _ => Nil
+    }
 }
 
 trait LeafRegistryApp {
