@@ -3,7 +3,7 @@ package ee.cone.c4actor.dep_impl
 import scala.collection.immutable.{Map, Seq}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest, GroupId}
+import ee.cone.c4actor.dep.DepTypes._
 import ee.cone.c4actor.dep._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -38,38 +38,67 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
     @by[GroupId] outer: Each[DepOuterRequest]
   ): Values[(GroupId, DepResponse)] = List(outer.parentSrcId → response)
 
+  def addResponsesToInnerRequest(
+    innerId: SrcId,
+    innerRequest: Each[DepInnerRequest]
+  ): Values[(GroupId, DepResponse)] = reg.add(innerRequest)
+
+  def outerToParentId(
+    outerId: SrcId,
+    @by[GroupId] outer: Each[DepOuterRequest]
+  ): Values[(ParentId, DepOuterRequest)] = List(outer.parentSrcId → outer)
+
+  def responsesToChild(
+    groupId: SrcId,
+    inner: Each[DepInnerRequest],
+    @by[ParentId] outer: Each[DepOuterRequest],
+    @by[GroupId] response: Each[DepResponse]
+  ): Values[(AddId, DepResponse)] = reg.filter(inner, outer, response)
+
   def handle(
     innerId: SrcId,
     req: Each[DepInnerRequest],
-    @by[GroupId] responses: Values[DepResponse]
+    @by[GroupId] responses: Values[DepResponse],
+    @by[AddId] addResponses: Values[DepResponse]
   ): Values[(SrcId, DepInnerResolvable)] = for {
     handle ← reg.handle(req).toList
-  } yield WithPK(handle(responses))
+  } yield WithPK(handle(addResponses ++ responses))
 
   def unresolvedRequestProducer(
     requestId: SrcId,
     rq: Each[DepInnerRequest],
+    @by[GroupId] outerRequests: Values[DepOuterRequest],
     responses: Values[DepResponse]
   ): Values[(SrcId, DepUnresolvedRequest)] =
     if (responses.forall(_.value.isEmpty))
-      List(WithPK(DepUnresolvedRequest(rq.srcId, rq.request, responses.size)))
+      List(WithPK(DepUnresolvedRequest(rq.srcId, rq.request, responses.size, outerRequests.map(_.srcId).toList)))
     else Nil
 }
 
 case class DepRequestHandlerRegistry(
   depOuterRequestFactory: DepOuterRequestFactory,
   depResponseFactory: DepResponseFactory,
-  handlerSeq: Seq[DepHandler]
+  handlerSeq: Seq[DepHandler],
+  filtersSeq: Seq[DepResponseForwardFilter]
 )(
   handlers: Map[String,(DepRequest,DepCtx)⇒Resolvable[_]] =
     handlerSeq.collect{ case h: InternalDepHandler ⇒ h }.groupBy(_.className)
       .transform { (k, handlers) ⇒
         val by = Single(handlers.collect { case h: ByDepHandler ⇒ h.handler })
-        val adds = handlers.collect { case h: AddDepHandler ⇒ h.handler }
         (req: DepRequest, ctx: DepCtx) ⇒
-        //by(req).resolve(adds.foldLeft(ctx)((acc:DepCtx,add)⇒acc ++ (add(req):DepCtx)))
-        by(req).resolve(ctx ++ adds.flatMap(_(req)))
-      }
+        by(req).resolve(ctx)
+      },
+  addHandlers: Map[String, DepInnerRequest ⇒ Seq[(DepRequest,_)]] =
+    handlerSeq.collect{ case h: InternalDepHandler ⇒ h }.groupBy(_.className)
+      .transform { (k, handlers) ⇒
+        val adds: Seq[DepRequest => DepCtx] = handlers.collect { case h: AddDepHandler ⇒ h.handler }
+        (req: DepInnerRequest) ⇒ adds.flatMap(_(req.request))
+      },
+  filters: Map[Option[String], Map[String, DepResponse ⇒ Option[DepResponse]]] = {
+    filtersSeq
+      .groupBy(_.parentCl.map(_.getClass.getName))
+      .map { case (k, v) ⇒ k → v.groupBy(_.childCl.getName).transform((_, filters) ⇒ Single(filters).filter) }
+  }
 ) {
   def handle(req: DepInnerRequest): Option[Values[DepResponse]⇒DepInnerResolvable] =
     handlers.get(req.request.getClass.getName).map{ (handle:(DepRequest,DepCtx)⇒Resolvable[_]) ⇒ (responses:Values[DepResponse]) ⇒
@@ -81,6 +110,23 @@ case class DepRequestHandlerRegistry(
       val response = depResponseFactory.wrap(req,resolvable.value)
       DepInnerResolvable(response, resolvable.requests.distinct.map(depOuterRequestFactory.tupled(req.srcId)))
     }
+
+  def add(req: DepInnerRequest): Values[(String, DepResponse)] =
+    addHandlers.get(req.request.getClass.getName)
+      .map { (add: DepInnerRequest ⇒ Seq[(DepRequest, _)]) ⇒
+        add(req)
+          .map { case (rq, rsp) ⇒ (req.srcId, depResponseFactory.wrap(depOuterRequestFactory.innerRequest(rq), Option(rsp))) }
+      }.getOrElse(Nil)
+
+  def filter(parent: DepInnerRequest, child: DepOuterRequest, response: DepResponse): Values[(String, DepResponse)] =
+    (filters.get(Some(parent.request.getClass.getName)) match {
+      case None ⇒
+        filters.getOrElse(None, Map.empty)
+      case Some(childMap) ⇒
+        childMap
+    }).getOrElse(child.innerRequest.request.getClass.getName, (_:DepResponse) ⇒ None)(response).map(resp ⇒ child.innerRequest.srcId → resp).toList
+
+
 }
 
 case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseFactory {
@@ -90,12 +136,16 @@ case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseF
 
 case class DepOuterRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepOuterRequestFactory {
   def tupled(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest) = {
+    val inner = innerRequest(rq)
+    val outerId = idGenUtil.srcIdFromSrcIds(parentId, inner.srcId)
+    inner.srcId → DepOuterRequest(outerId, inner, parentId)
+  }
+
+  def innerRequest(rq: DepRequest): DepInnerRequest = {
     val valueAdapter = qAdapterRegistry.byName(rq.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(rq))
     val innerId = idGenUtil.srcIdFromSerialized(valueAdapter.id, bytes)
-    val inner = DepInnerRequest(innerId, rq)
-    val outerId = idGenUtil.srcIdFromSrcIds(parentId, inner.srcId)
-    inner.srcId → DepOuterRequest(outerId, inner, parentId)
+    DepInnerRequest(innerId, rq)
   }
 }
 

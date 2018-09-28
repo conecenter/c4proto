@@ -3,10 +3,12 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.DepTestProtocol.Spark
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
+import ee.cone.c4actor.TestRequests.ChildDepRequest
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
+import ee.cone.c4actor.dep.reponse.filter.{DepCommonResponseForwardMix, DepForwardUserAttributesMix, DepResponseFilterFactoryMix}
 import ee.cone.c4actor.dep.request._
-import ee.cone.c4actor.dep_impl.{AskByPKsApp, ByPKRequestHandlerApp, DepAssembleApp}
+import ee.cone.c4actor.dep_impl.{AskByPKsApp, ByPKRequestHandlerApp, DepAssembleApp, DepResponseFiltersApp}
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -89,6 +91,7 @@ class DepTestStart(
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(s"Unresolved: \n${ByPK(classOf[UnresolvedDep]).of(nGlobal).toList.mkString("\n")}")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")*/
+    println(ByPK(classOf[DepUnresolvedRequest]).of(newLocal2).values.toList)
     execution.complete()
 
     /*
@@ -120,9 +123,13 @@ class DepTestApp extends RichDataApp
   with ToStartApp
   with ModelAccessFactoryApp
   with DepTestAssemble
-with CommonRequestUtilityMix
-with ByPKRequestHandlerApp
-with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassNameAllRequestHandlerApp with ByClassNameRequestApp{
+  with CommonRequestUtilityMix
+  with ByPKRequestHandlerApp
+  with DepResponseFiltersApp
+  with DepCommonResponseForwardMix
+  with DepResponseFilterFactoryMix
+with DepForwardUserAttributesMix
+  with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassNameAllRequestHandlerApp with ByClassNameRequestApp with ContextIdInjectApp {
 
   def depRequestHandlers: immutable.Seq[DepHandler] = depHandlers
 
@@ -138,10 +145,12 @@ with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassName
 
   override def depHandlers: List[DepHandler] = {
     println(super.depHandlers.mkString("\n"))
-    depDraft.handlerLUL :: depDraft.FooRequestHandler :: super.depHandlers
+    depDraft.handlerLUL :: depDraft.FooRequestHandler :: depDraft.handlerKEK :: super.depHandlers
   }
 
   override def protocols: List[Protocol] = ContextIdRequestProtocol :: TestProtocol :: TestRequests :: super.protocols
+
+  override def childRequests: List[Class[_ <: Product]] = classOf[ChildDepRequest] :: super.childRequests
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 
