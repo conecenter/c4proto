@@ -236,7 +236,6 @@ class TreeAssemblerImpl(
   composes: IndexUtil,
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
-  //assembleFinalProfiler: AssembleFinalProfiler
 ) extends TreeAssembler {
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val expressions/*: Seq[WorldPartExpression]*/ =
@@ -285,10 +284,7 @@ class TreeAssemblerImpl(
       val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel)
       val currentWorld = Merge[AssembledKey,Index](composes.isEmpty,(a,b)⇒composes.mergeIndex(Seq(a,b)))(prevWorld, diff)
       val transition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel)
-      //assembleFinalProfiler.transform(
-          transformUntilStable(1000, transition)
-      //)
-      .result
+      transformUntilStable(1000, transition).result
     }
   }
 }

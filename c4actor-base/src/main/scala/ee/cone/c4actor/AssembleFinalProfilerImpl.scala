@@ -1,3 +1,4 @@
+/*
 package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.SrcId
@@ -68,7 +69,7 @@ case class WorldDiffHandlerStage(
     }
   }
 }
-
+*/
 
 
 /*val nextCounters = (currentCounters ++ newCounters).groupBy(_.joinKey).map{
