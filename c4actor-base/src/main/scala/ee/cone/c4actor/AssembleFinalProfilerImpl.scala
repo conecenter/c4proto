@@ -1,5 +1,5 @@
 package ee.cone.c4actor
-/*
+
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4assemble._
@@ -68,7 +68,7 @@ case class WorldDiffHandlerStage(
     }
   }
 }
-*/
+
 
 
 /*val nextCounters = (currentCounters ++ newCounters).groupBy(_.joinKey).map{

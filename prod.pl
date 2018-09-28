@@ -687,7 +687,7 @@ push @tasks, ["devel_init_frpc","<user>",sub{
     my ($user) = @_;
     my $comp = "devel";
     my $sk = &$get_frp_sk($comp);
-    my @proxy_list = ([22,"sshd"],[80,"haproxy"]);
+    my $proxy_list = ($$deploy_conf{proxy_to}||die)->{visits}||die;
     print &$to_ini_file([
         common => [&$get_frp_common("devel"), user=>$user],
         map{my($port,$container)=@$_;("p_$port\_visitor" => [
@@ -697,8 +697,8 @@ push @tasks, ["devel_init_frpc","<user>",sub{
             server_name => "p_$port",
             bind_port => $port,
             bind_addr => "127.0.20.2",
-        ])} @proxy_list
-    ]);
+        ])} @$proxy_list
+    ]));
     &$put_text("$ENV{HOME}/frpc.ini",&$to_ini_file([
         common => [&$get_frp_common("devel"), user=>$user],
         map{my($port,$container)=@$_;("p_$port" => [
@@ -706,7 +706,7 @@ push @tasks, ["devel_init_frpc","<user>",sub{
             sk => $sk,
             local_ip => $container,
             local_port => $port,
-        ])} @proxy_list
+        ])} @$proxy_list
     ]));
 }];
 
