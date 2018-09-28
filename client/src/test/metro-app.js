@@ -43,7 +43,8 @@ const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
 const feedback = Feedback(localStorage,sessionStorage,document.location,send)
 window.onhashchange = () => feedback.pong()
 const requestState = VDomSender(feedback)
-const log = v => { if(window.console) console.log("log",v)}
+const log = (...v) => { if(!window.console) console.log("log",...v)}
+const log2 = (...v) => { if(window.console) console.log("log",...v)}
 //const requestState = sender//RequestState(sender,log)
 
 class StatefulComponent extends React.Component {
@@ -127,16 +128,17 @@ const vDomAttributes = VDomAttributes(requestState)
 const images = Images(window.btoa)
 
 const overlayManager = () => OverlayManager({log,documentManager,windowManager})
-const focusModule = FocusModule({log,documentManager,eventManager,windowManager,miscReact})
+const focusModule = FocusModule({log,documentManager,eventManager,windowManager})
+window.focusModule = focusModule
 const dragDropModule = () => DragDropModule({log,documentManager,windowManager})
-const metroUi = MetroUi(log,requestState,images,documentManager,eventManager,overlayManager,focusModule,dragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes);
+const metroUi = MetroUi(log2,requestState,images,documentManager,eventManager,overlayManager,dragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes);
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,overlayManager,windowManager,miscReact,miscUtil,StatefulComponent});
 const electronUpdateManager = ElectronUpdateManager(log,window,metroUi, StatefulComponent)
 
-const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,focusModule,eventManager,windowManager,miscReact,StatefulComponent})
+const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,eventManager,windowManager,miscReact,StatefulComponent})
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob:window.atob,parentWindow:()=> window.parent,StatefulComponent});
 const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComponent})
 
@@ -182,8 +184,7 @@ activate(window.requestAnimationFrame || (cb=>setTimeout(cb,16)), withState(log,
     connection.checkActivate,
     vDom.checkActivate,
     canvas.checkActivate,
-    metroUi.checkActivate,
-    focusModule.checkActivate,
+    metroUi.checkActivate,   
     //dragDropModule.checkActivate,
 	electronUpdateManager.checkActivate,
 	virtualKeyboard.checkActivate,

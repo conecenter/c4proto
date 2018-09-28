@@ -11,7 +11,7 @@ jsx?
 */
 
 
-export default function MetroUi(log,requestState,images,documentManager,eventManager,OverlayManager,focusModule,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
+export default function MetroUi(log,requestState,images,documentManager,eventManager,OverlayManager,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
 	const $ = React.createElement	
 	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput
 	const dragDropModule = DragDropModule()
@@ -52,7 +52,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const index = callbacks.indexOf(c)
 			if(index>=0) callbacks.splice(index,1)
 		}
-		const check = () => callbacks.forEach(c=>c())
+		const check = (modify) => callbacks.forEach(c=>c(modify))
 		return {add,remove,check}
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
@@ -122,7 +122,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onClick(e){			
 			if(this.props.onClick){
 				setTimeout(function(){this.props.onClick(e)}.bind(this),(this.props.delay?parseInt(this.props.delay):0));
-			}					
+			}				
+			e.stopPropagation()
 		}	
 		onMouseDown(e){
 			this.onClick(e)
@@ -458,6 +459,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
                 whiteSpace:'nowrap',
                 paddingRight:'0.8em',
 				cursor:"pointer",
+				outline:"none",
 				...this.props.style,
 				...(this.state.mouseEnter?this.props.overStyle:null)
 			};						
@@ -466,7 +468,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			    style:selStyle,
 			    onMouseEnter:this.mouseEnter,
 			    onMouseLeave:this.mouseLeave,
-			    onClick:this.onClick			   
+			    onClick:this.onClick,
+				className:"menu-popup",
+				tabIndex:"1",
 			},this.props.children);
 		}
 	}
@@ -829,27 +833,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	}	
 	const TBodyElement = ({style,children})=>$("tbody",{style:style},children);	
 	class THElement extends StatefulComponent{		
-		getInitialState(){return {last:false,focused:false}}
-		onFocus(e){
-			if(!this.el) return
-			focusModule.switchTo(this)
-			this.setState({focused:true})
-			const focusMarkerInput = this.el.querySelector("input")
-			let detail = null
-			if(focusMarkerInput){
-				const cls = Array.from(focusMarkerInput.classList)
-				const marker = "marker-"
-				const cl = cls.find(_=>_.indexOf(marker)==0)
-				if(cl) detail = cl.substring(marker.length)
-			}
-			const cEvent = eventManager.create("cFocus",{bubbles:true,detail})
-			this.el.dispatchEvent(cEvent)			
-		}
-		onBlur(e){
-			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
-			focusModule.switchOff(this,e&&e.relatedTarget)
-			this.setState({focused:false})
-		}
+		getInitialState(){return {last:false}}		
 		checkForSibling(){
 			if(!this.el) return;
 			if(!this.el.nextElementSibling) if(!this.state.last) this.setState({last:true})
@@ -857,8 +841,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){
 			this.checkForSibling()
-			if(this.el && this.el.tagName=="TD") {				
-				this.binding = focusModule.reg(this)
+			if(this.el && this.el.tagName=="TD") {		
 				if(this.props.draggable || this.props.droppable)
 					this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
 			}			
@@ -873,8 +856,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
 		}			
 		componentWillUnmount(){
-			if(this.dragBinding) this.dragBinding.release();						
-			if(this.binding) this.binding.unreg()			
+			if(this.dragBinding) this.dragBinding.release();					
 		}			
 		onClick(e){
 			if(this.props.onClick) this.props.onClick(e)
@@ -901,39 +883,42 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
 			const focusActions = nodeType=="td"?{onFocus:this.onFocus,onBlur:this.onBlur}:{}
-			const className = "marker"
-			
-			return $(nodeType,{style:{
-				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
-				borderLeft:'none',
-				borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
-				borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
-				fontWeight:'bold',
-				padding:'0.1em 0.2em',
-				verticalAlign:'middle',
-				overflow:"hidden",				
-				textOverflow:"ellipsis",
-				cursor:this.props.draggable?"move":"auto",
-				backgroundColor:"transparent",
-				outlineWidth:"1px",
-				outlineColor:"red",
-				outlineStyle:this.state.focused?"dashed":"none",
-				outlineOffset:"-1px",
-				...style
-			},colSpan,
-			ref:ref=>this.el=ref,
-			onClick:this.onClick,
-			onMouseDown:this.onMouseDown,
-			onTouchStart:this.onMouseDown,			
-			onMouseEnter:this.props.onMouseEnter,
-			onMouseLeave:this.props.onMouseLeave,
-			onMouseUp:this.onMouseUp,
-			onTouchEnd:this.onMouseUp,
-			className:className,
-			...rowSpanObj,
-			...tabIndex,
-			...focusActions,			
-			},children)
+			const className = "marker focusWrapper"			
+			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
+			return $(Consumer,{},path=>
+				$(nodeType,{style:{
+					borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					borderLeft:'none',
+					borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
+					borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					fontWeight:'bold',
+					padding:'0.1em 0.2em',
+					verticalAlign:'middle',
+					overflow:"hidden",				
+					textOverflow:"ellipsis",
+					cursor:this.props.draggable?"move":"auto",
+					backgroundColor:"transparent",
+					outlineWidth:"1px",
+					outlineColor:"red",
+					...propsOnPath(path,this.props.path),
+					outlineOffset:"-1px",
+					...style
+				},colSpan,
+				ref:ref=>this.el=ref,
+				onClick:this.onClick,
+				onMouseDown:this.onMouseDown,
+				onTouchStart:this.onMouseDown,			
+				onMouseEnter:this.props.onMouseEnter,
+				onMouseLeave:this.props.onMouseLeave,
+				onMouseUp:this.onMouseUp,
+				onTouchEnd:this.onMouseUp,
+				className:className,
+				"data-path":this.props.path,
+				...rowSpanObj,
+				...tabIndex,
+				...focusActions,			
+				},children)
+			)
 		}
 	}
 	const TDElement = (props) =>{		
@@ -1078,11 +1063,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			event.stopPropagation()
 			this.s = null
 			if(this.props.noDel) return
+			this.changed = true
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				let nValue = this.props.value
 				if(this.isVkEvent(event)||this.props.vkOnly){					
 					nValue = nValue+event.detail.key
+					this.s = -1
 				}
 				else 
 					nValue = ""
@@ -1105,7 +1092,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		onErase(event){			
 			const inp = this.getInput()	
-			inp.value = ""			
+			inp.value = ""
+			this.changed = true
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
 			if(this.props.onBlur) this.props.onBlur()			
 		}
@@ -1129,7 +1117,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 						const value2 = nValue.substring(inp.selectionEnd)
 						nValue = value1+value2
 						this.k = inp.selectionStart-1
-					}													
+					}	
+					this.changed = true
 					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})					
 				}
 			}
@@ -1139,6 +1128,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = event.detail
+				this.changed = true
 				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
     	  })				
 			event.stopPropagation()
@@ -1196,8 +1186,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				if(pos.ss) inp.selectionStart = pos.ss
 				if(pos.se) inp.selectionEnd = pos.se
 			}			
-			if(this.k){
+			if(this.k!==null &&this.k!==undefined){
 				const inp = this.getInput()
+				//log(this.k)
 				//log(this.k)
 				inp.selectionStart = this.k
 				inp.selectionEnd = this.k
@@ -1205,7 +1196,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 		}		
 		onChange(e){
-			const inp = this.getInput()
+			const inp = this.getInput()			
 			this.k = inp.selectionStart
 			if(this.s!==null&&this.s!==undefined) {this.k = this.s;this.s = null}						
 			let value = e.target.value
@@ -1220,11 +1211,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				e.relatedTarget.classList.contains("vkContainer") ||
 				e.relatedTarget.classList.contains("vkKeyboard")
 			)) return
-			if(this.props.onBlur) {
+			
+			if(this.props.onBlur && this.changed) {
 				const inp = this.getInput()
 				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				this.props.onBlur()
 			}
+			this.changed = undefined
 		}
 	    onMouseDown(e){			
 			if(!this.props.div) return
@@ -1582,50 +1575,22 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		);
 	})
 	class ControlWrapperElement extends StatefulComponent{		
-		getInitialState(){ return {focused:false}}
-		onFocus(e){
-			const res = focusModule.switchTo(this)			
-			if(!res) return
-			if(this.el){
-				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.path})
-				e.preventDefault();
-				this.el.dispatchEvent(cEvent)
-				//e.stopPropagation();
+		isParent(el){			
+			let e=el
+			while(e && this.el){
+				if(e == this.el) return true
+				e = e.parentElement
 			}
-			this.setState({focused:true})
+			return false
 		}
-		onBlur(e){			
-			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
-			const res = focusModule.switchOff(this, e&&e.relatedTarget)
-			if(res) this.setState({focused:false})
-		}
-		componentDidMount(){
-			if(this.el) {				
-				this.el.addEventListener("focus",this.onFocus,true)
-				this.el.addEventListener("blur",this.onBlur,true)
-			}
-			this.binding = focusModule.reg(this)			
-			if(this.props.ctx)
-				this.path = ctxToPath(this.props.ctx)
-		}
-		componentWillUnmount(){
-			if(this.el) {				
-				this.el.removeEventListener("focus",this.onFocus)
-				this.el.removeEventListener("blur",this.onBlur)
-			}
-			this.binding&&this.binding.unreg()			
-		}
-		onClick(e){
-			e.stopPropagation()
-		}
-		onRef(path){			
+		onRef(path){
 			return (ref)=> this.el=ref
 		}		
 		render(){
-			const className = "focusWrapper"//this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
+			const className = "focusWrapper"		
 			const {style,children} = this.props
 			const focusedStyle  = this.state.focused
-			const propsOnPath = (p0,p1) => /*p0 == p1 && p1.length>0 || */this.state.focused?{outlineStyle:"dashed"}:{outlineStyle:"none"}
+			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
 			const sticky = this.props.sticky?"sticky":null
 			return $(Consumer,{},path=>
 				$("div",{style:{
@@ -1634,13 +1599,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					boxSizing:"border-box",
 					outlineWidth:"1px",
 					outlineColor:"red",				
-					...propsOnPath(path,this.path),
+					...propsOnPath(path,this.props.path),
 					outlineOffset:"-1px",
 					...style
 				},tabIndex:"1",
-				className,
+				className,				
 				onClick:this.onClick,
 				"data-sticky":sticky,
+				"data-path":this.props.path,
 				ref:this.onRef(path)},children)
 			)
 		}
@@ -1674,16 +1640,16 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){
 			if(!this.el) return;
-			this.el.addEventListener("focus",this.onFocus,true);
-			this.el.addEventListener("blur",this.onBlur,true);
+			//this.el.addEventListener("focus",this.onFocus,true);
+		//	this.el.addEventListener("blur",this.onBlur,true);
 			if(this.props.onChange&&this.props.focus) this.el.focus();			
 		}	
 		componentWillUnmount(){
 			if(!this.el) return;
 			clearTimeout(this.timeout);
 			this.timeout=null;
-			this.el.removeEventListener("focus",this.onFocus);
-			this.el.removeEventListener("blur",this.onBlur);
+		//	this.el.removeEventListener("focus",this.onFocus);
+		//	this.el.removeEventListener("blur",this.onBlur);
 		}
 		render(){
 			const style={
@@ -1753,34 +1719,21 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}		
 	}
 	const Checkbox = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
-	class CheckboxBase extends StatefulComponent{		
-		getInitialState(){ return {focused:false}}
-		onFocus(){
-			focusModule.switchTo(this)
-			this.setState({focused:true})
-		}
-		onBlur(){
-			this.setState({focused:false})
-		}
+	class CheckboxBase extends StatefulComponent{				
 		onDelete(event){
 			if(!event.detail) return
 			this.onClick()
 			event.stopPropagation()
 		}
 		componentDidMount(){
-			if(this.el) {
-				this.el.addEventListener("focus",this.onFocus,true)
-				this.el.addEventListener("click",this.onClick)
-				this.el.addEventListener("blur",this.onBlur)
+			if(this.el) {		
+				this.el.addEventListener("click",this.onClick)			
 				this.el.addEventListener("delete",this.onDelete)
-			}
-			this.binding = focusModule.reg(this)
+			}		
 		}
 		componentWillUnmount(){
-			if(this.el) {				
-				this.el.removeEventListener("focus",this.onFocus)
-				this.el.removeEventListener("click",this.onClick)
-				this.el.removeEventListener("blur",this.onBlur)
+			if(this.el) {						
+				this.el.removeEventListener("click",this.onClick)		
 				this.el.removeEventListener("delete",this.onDelete)
 			}
 			if(this.binding) this.binding.unreg()
@@ -2623,30 +2576,83 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
 		}
 	}	
-	class FocusAnnouncerElement extends StatefulComponent{		
-		onFocus(e){
-			const focusKey = e.detail?e.detail:""
-			this.report(focusKey)
-			e.stopPropagation()
-		}
-		report(focusKey){
-			if(this.timeout) {clearTimeout(this.timeout);this.timeout = null}
-			this.timeout = setTimeout(()=>{
-				if(!this.timeout) return
-				if(this.props.onClickValue) this.props.onClickValue("focusChange",focusKey)
-			}, 150)			
+	class FocusAnnouncerElement extends StatefulComponent{					
+		report(path){
+			this.props.onChange({target:{headers:{"X-r-action":"change"},value:path}})
 		}		
-		componentWillUnmount(){			
-			this.el.removeEventListener("cFocus",this.onFocus)
-			this.el.removeEventListener("focus",this.onFocus)			
+		getParentPath(el){
+			let e = el
+			while(e){
+				if(e.className.includes("popup")) return null
+				if(e.dataset.path) return e.dataset.path
+				e = e.parentElement
+			}
+			return null
+		}
+		findSticky(el,o){
+			const _ = el.querySelector(`*[data-sticky="sticky"]`)			
+			if(_ != o) return _
+			return null
+		}
+		findAutofocusCandidate(el){
+			if(this.foundAuto) return
+			const a = Array.from(el.ownerDocument.querySelectorAll("input"))
+			const b = a.find(_=>this.getParentPath(_))
+		//	log("atuoCnaditate",b)
+			this.foundAuto = true
+			b&& b.focus()
+		}
+		onFrame(modify){
+			if(!this.active||!this.el) return		
+			const activeElement = this.el.ownerDocument.activeElement
+			const path = this.getParentPath(activeElement)
+			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
+				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)					
+				if(el) el.focus()
+				else if(this.validUntil<Date.now() && !this.foundAuto) this.report("undefined")
+			}
+			else{
+				this.validUntil = Date.now() + this.timeout
+				if(path == this.props.value)
+					this.foundAuto = false
+			}
+			if((this.props.value == "undefined"||this.props.value == "") && this.props.value!=this.props.path)  this.findAutofocusCandidate(this.el)			
+		}
+		onBBlur(e){
+			if(e.relatedTarget ==null) {
+				const sticky = this.findSticky(this.el,null)
+				if(sticky) return sticky.focus() 
+				this.report(this.props.path)
+				this.active = this.w.parent == this.w
+			}
+		}
+		onBFocus(e){			
+		//	log("focus",e.target,this.getParentPath(e.target))
+			this.active = true			
+			const path = this.getParentPath(e.target)
+			if(path != this.props.value) {
+				const sticky = this.findSticky(this.el,e.target)
+				if(sticky) return sticky.focus()
+				if(path) return this.report(path)
+			}
+		}
+		componentWillUnmount(){		
+			this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.removeEventListener("focus",this.onBFocus,true)	
+			checkActivateCalls.remove(this.onFrame)			
 		}
 		componentDidMount(){			
-			this.el.addEventListener("cFocus",this.onFocus)
-			this.el.addEventListener("focus",this.onFocus)			
+			this.timeout = 300
+			this.validUntil = 0
+			this.w  =this.el.ownerDocument.defaultView
+			this.active = this.w.parent == this.w					
+			this.el.ownerDocument.documentElement.addEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.addEventListener("focus",this.onBFocus,true)
+			checkActivateCalls.add(this.onFrame)
 		}
 		render(){
-			return $(Provider,{value:this.props.path},
-				$('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
+			return $(Provider,{value:this.props.value},
+				$('div',{ref:ref=>this.el=ref,style:{outline:"none"},className:"focusAnnouncer"},this.props.children)
 			)
 		}
 	}

@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function VirtualKeyboard({log,btoa,focusModule,eventManager,windowManager,miscReact,StatefulComponent}){
+export default function VirtualKeyboard({log,btoa,eventManager,windowManager,miscReact,StatefulComponent}){
 	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const $ = React.createElement	
 	const checkActivateCalls=(()=>{
@@ -37,7 +37,7 @@ export default function VirtualKeyboard({log,btoa,focusModule,eventManager,windo
 			if(this.props.onClick) this.props.onClick(ev)			
 		}
 		onTouchStart(e){
-			this.setState({mouseDown:true})
+			this.onMouseDown(e)
 		}
 		onMouseDown(e){
 			this.setState({mouseDown:true})
@@ -114,11 +114,19 @@ export default function VirtualKeyboard({log,btoa,focusModule,eventManager,windo
 			let left = 0			
 			top += getPageYOffset()
 			return {top,left}	
-		}		
+		}				
+		getParentWrapper(el){
+			let e = el
+			while(e){
+				if(e.classList.contains("focusWrapper")) return e
+				e = e.parentElement
+			}
+			return null
+		}
 		getInput(){
-			if(!this.root) return null
-			const cNode = focusModule.getFocusNode()
-			if(!cNode || !this.root.contains(cNode)) return null
+			if(!this.root||!this.el) return null			
+			const cNode = this.getParentWrapper(this.el.ownerDocument.activeElement)
+			if(!cNode) return null
 			const input = cNode.querySelector("input:not([readonly])")||cNode.querySelector('input[name="vk"]')
 			return input
 		}	
