@@ -277,7 +277,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 					currentFocusNode = null
 					const win = inpNodes.n.el.ownerDocument.defaultView					
 					let t
-					t = win.setInterval(()=>{if(!currentFocusNode)inpNodes.n.el.focus(); else win.clearInterval(t)},200)
+					t = win.setInterval(()=>{if(!currentFocusNode)inpNodes.n.el&&inpNodes.n.el.focus(); else win.clearInterval(t)},200)
 				}
 			}
 		}		

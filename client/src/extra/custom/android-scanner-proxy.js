@@ -14,13 +14,15 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 			}
 		}		
 	}	
-	const scannerStatus = () => isOn
+	const scannerStatus = () => Scanner() && isOn
 	const setScannerEnable = (value,scanMode) => {
        	if(value && isOn && isOn.scanMode!=scanMode) setScannerEnable(false,isOn.scanMode) 	
 		isOn = value?{value,scanMode}:value;
+		const _scanner = Scanner()
+		if(!_scanner) return
 		switch(scanMode){
-			case "uhf": if(isOn) Scanner&&Scanner.setUHFenable(); else Scanner&&Scanner.setUHFdisable(); break;
-			default: if(isOn) Scanner&&Scanner.setScannerEnable(); else Scanner&&Scanner.setScannerDisable();
+			case "uhf": if(isOn) _scanner.setUHFenable(); else _scanner.setUHFdisable(); break;
+			default: if(isOn) _scanner.setScannerEnable(); else _scanner.setScannerDisable();
 		}		
 		let event = eventManager.create('onScannerChange', { 'detail': value, bubbles:true });	
 		documentManager.body().dispatchEvent(event);
@@ -39,8 +41,8 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 			log("unreg scanner");
 		}
 		const switchTo = scanMode => setScannerEnable(true,scanMode)		
-		
-		return {unreg,switchTo}
+		const status = () => Scanner() && true
+		return {unreg,switchTo,status}
 	}
 	const moveScrollBy = (adj)=>{
 		const maxHeight = document.querySelector("html").getBoundingClientRect().height
