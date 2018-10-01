@@ -32,7 +32,20 @@ my $remote = sub{
     my($comp,$stm)=@_;
     my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
     $stm = &$stm("$dir/$comp") if ref $stm;
-    "ssh c4\@$host -p $port '$stm'";
+    "ssh c4\@$host -p $port '$stm'"; #'' must be here; ssh joins with ' ' args for the remote sh anyway
+};
+
+my $remote_interactive = sub{
+    my($comp,$add,$stm)=@_;
+    &$remote($comp,"docker exec -i $add sh -c \"$stm\"");
+};
+
+my $running_containers_all = sub{
+    my($comp)=@_;
+    my $ps_stm = &$remote($comp,'docker ps --format "table {{.Names}}"');
+    my ($names,@ps) = syf($ps_stm)=~/(\w+)/g;
+    $names eq "NAMES" or die;
+    @ps;
 };
 
 push @tasks, ["agent","<command-with-args>",sub{
@@ -125,10 +138,7 @@ push @tasks, ["get_last_snapshot", $composes_txt, sub{
 
 my $running_containers = sub{
     my($comp)=@_;
-    my $ps_stm = &$remote($comp,'docker ps --format "table {{.Names}}"');
-    my ($names,@ps) = syf($ps_stm)=~/(\w+)/g;
-    $names eq "NAMES" or die;
-    grep{ 0==index $_,"$comp\_" } @ps;
+    grep{ 0==index $_,"$comp\_" } &$running_containers_all($comp);
 };
 
 my $stop = sub{
@@ -144,12 +154,11 @@ my $stop = sub{
     }
 };
 
-
 push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
     my($comp,$path)=@_;
     sy(&$ssh_add());
     my $acc = "$comp\_frpc_1";
-    my $remote_acc  = sub{ &$remote($comp,qq[docker exec -i $acc sh -c "$_[0]"]) };
+    my $remote_acc  = sub{ &$remote_interactive($comp,"$comp\_frpc_1",$_[0]) };
     &$stop($comp);
     ## move db to bak
     my $db = "/c4/db4";
@@ -683,31 +692,38 @@ push @tasks, ["cert","<hostname>",sub{
   sy(&$remote($comp,"docker exec proxy_haproxy_1 kill -s HUP 1"));
 }];
 
-push @tasks, ["devel_init_frpc","<user>",sub{
-    my ($user) = @_;
+push @tasks, ["devel_init_frpc"," ",sub{
     my $comp = "devel";
     my $sk = &$get_frp_sk($comp);
     my $proxy_list = ($$deploy_conf{proxy_to}||die)->{visits}||die;
-    print &$to_ini_file([
-        common => [&$get_frp_common("devel"), user=>$user],
-        map{my($port,$container)=@$_;("p_$port\_visitor" => [
-            type => "stcp",
-            role => "visitor",
-            sk => $sk,
-            server_name => "p_$port",
-            bind_port => $port,
-            bind_addr => "127.0.20.2",
-        ])} @$proxy_list
-    ]);
-    &$put_text("$ENV{HOME}/frpc.ini",&$to_ini_file([
-        common => [&$get_frp_common("devel"), user=>$user],
-        map{my($port,$container)=@$_;("p_$port" => [
-            type => "stcp",
-            sk => $sk,
-            local_ip => $container,
-            local_port => $port,
-        ])} @$proxy_list
-    ]));
+    my $put = sub{
+        my($inner_comp,$fn,$content) = @_;
+        &$remote_interactive($comp, " -uc4 $inner_comp\_sshd_1 ", "cat > /c4/$fn")." < ".&$put_temp($fn,$content)
+    };
+    for my $container(&$running_containers_all($comp)){
+        my $inner_comp = $container=~/^(\w+)_sshd_/ ? $1 : next;
+        sy(&$put($inner_comp,"frpc.ini",&$to_ini_file([
+             common => [&$get_frp_common("devel"), user=>$inner_comp],
+             map{my($port,$container)=@$_;("p_$port" => [
+                 type => "stcp",
+                 sk => $sk,
+                 local_ip => $container,
+                 local_port => $port,
+             ])} @$proxy_list
+        ])));
+        sy(&$put($inner_comp,"frpc_visitor.ini", &$to_ini_file([
+            common => [&$get_frp_common("devel"), user=>$inner_comp],
+            map{my($port,$container)=@$_;("p_$port\_visitor" => [
+                type => "stcp",
+                role => "visitor",
+                sk => $sk,
+                server_name => "p_$port",
+                bind_port => $port,
+                bind_addr => "127.0.20.2",
+            ])} @$proxy_list
+        ])));
+        sy(&$remote($comp,"docker restart $container"));
+    }
 }];
 
 ####
