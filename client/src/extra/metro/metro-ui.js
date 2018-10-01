@@ -1080,17 +1080,17 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.noDel) return
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
-				let nValue = this.props.value
+				let nValue = inp.value
 				if(this.isVkEvent(event)||this.props.vkOnly){					
 					nValue = nValue+event.detail.key
 				}
 				else 
 					nValue = ""
-				this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})
+				this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})
 			})){				
 				if(this.isVkEvent(event)||this.props.vkOnly){	
 					const inp = this.getInput()
-					let nValue = this.props.value
+					let nValue = inp.value
 					if(this.props.vkOnly)
 						nValue = nValue+event.detail.key												
 					else {
@@ -1099,14 +1099,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 						nValue = value1+event.detail.key+value2										
 						this.s = inp.selectionStart+1						
 					}					
-					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})					
+					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})					
 				}
 			}									
 		}
 		onErase(event){			
 			const inp = this.getInput()	
 			inp.value = ""			
-			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value},inp})				
 			if(this.props.onBlur) this.props.onBlur()			
 		}
 		onBackspace(event){
@@ -1117,11 +1117,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				const nValue = inp.value.slice(0,-1)
-				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})				
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})				
 			})){
 				if(this.isVkEvent(event)||this.props.vkOnly){		
 					const inp = this.getInput()
-					let nValue = this.props.value
+					let nValue = inp.value
 					if(this.props.vkOnly)
 						nValue = nValue.slice(0,-1)
 					else{
@@ -1130,7 +1130,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 						nValue = value1+value2
 						this.k = inp.selectionStart-1
 					}													
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})					
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})					
 				}
 			}
 		}
