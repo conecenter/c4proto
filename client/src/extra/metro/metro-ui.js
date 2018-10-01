@@ -1212,7 +1212,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(inp&&getComputedStyle(inp).textTransform=="uppercase"){				
 				value = value.toUpperCase();
 			}
-			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value}})
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value},inp:e.inp})
 		}
 		onBlur(e){						
 			if(e.relatedTarget && (
@@ -1286,7 +1286,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				...this.props.inputStyle				
 			};		
 			const placeholder = this.props.placeholder
-			const inputType = this.props.inputType == "input"?ReControlledInput:this.props.inputType
+			const inputType = !this.props.inputType?ReControlledInput:this.props.inputType
 			const type = this.props.type
 			const auto = this.props.autocomplete
 			const vkOnly = this.props.vkOnly?"vk":null
@@ -1322,7 +1322,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				]);	
 		}
 	}	
-    InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:"",inputType:"input"};
+    InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:""};
 	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,...actions}))	
 	const TextAreaElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
 		inputStyle:{
@@ -1988,35 +1988,57 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			])
 		)
     }
-    const SignIn = prop => {
-        const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
-		const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
-		const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
-		const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
-		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
-		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
-		const styleA = {
-			...attributesA.style			
+    class SignIn extends StatefulComponent{
+		onClick(e){
+			if(!this.el) return
+			const ar = Array.from(this.el.querySelectorAll("input"))
+			if(ar.length!=2) return
+			const body = ar.map(_=>{
+				if(getComputedStyle(_).textTransform == "uppercase") return _.value.toUpperCase()
+				return _.value
+			}).join("\n")
+			this.props.onChange({target:{headers:{"X-r-auth":"check"},value:body}})
+			this.props.onBlur()
 		}
-		const styleB = {
-			...attributesB.style,
-			textTransform:"none"
+		onChange(e){
+			if(this.props.vkOnly && e.inp){
+				e.inp.value = e.target.value
+			}			
 		}
-        const vkOnly = prop.vkOnly
-		const dataType = "extText"
-        return $("div",{style:{margin:"1em 0em",...prop.style}},[
-			$(ControlWrapperElement,{key:"1"},
-				$(LabelElement,{label:usernameCaption},null),
-				$(InputElement,{...attributesA,vkOnly,style:styleA,focus:prop.focus,dataType},null)			
-			),
-			$(ControlWrapperElement,{key:"2"},
-				$(LabelElement,{label:passwordCaption},null),
-				$(InputElement,{...attributesB,vkOnly,style:styleB,onKeyDown:()=>false,focus:false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login"},null)
-       ),
-			$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-				$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
-			)
-		])		
+		render(){
+			const prop = this.props
+			const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"},log)
+			const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
+			const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
+			const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
+			const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
+			const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
+			const styleA = {
+				...attributesA.style			
+			}
+			const styleB = {
+				...attributesB.style,
+				textTransform:"none"
+			}
+			const vkOnly = prop.vkOnly
+			const dataType = "extText"
+			const check = (e) =>{
+				
+			}
+			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},[
+				$(ControlWrapperElement,{key:"1"},
+					$(LabelElement,{label:usernameCaption},null),
+					$(InputElement,{...attributesA,value:undefined,onChange:this.onChange,vkOnly,style:styleA,dataType, inputType:"input"},null)			
+				),
+				$(ControlWrapperElement,{key:"2"},
+					$(LabelElement,{label:passwordCaption},null),
+					$(InputElement,{...attributesB,vkOnly,value:undefined,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
+		   ),
+				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
+					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
+				)
+			])		
+		}
 	}	
 	
 	const CalenderCell = (props) => $(Interactive,{},(actions)=>{		
