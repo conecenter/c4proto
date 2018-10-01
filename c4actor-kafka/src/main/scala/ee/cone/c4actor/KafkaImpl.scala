@@ -9,6 +9,7 @@ import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecor
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.record.TimestampType
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 
 import scala.annotation.tailrec
@@ -67,7 +68,7 @@ class KafkaActor(conf: KafkaConfig)(
 ) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     GCLog("before loadRecent")
-    val initialRawWorld = rawSnapshot.loadRecent()
+    val initialRawWorld: RawWorld = rawSnapshot.loadRecent()
     GCLog("after loadRecent")
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
@@ -95,12 +96,21 @@ class KafkaActor(conf: KafkaConfig)(
     consumer: KafkaConsumer[Array[Byte], Array[Byte]],
     world: RawWorld, observer: RawObserver
   ): Unit = {
-    val events = consumer.poll(200 /*timeout*/).asScala.toList.map{ rec ⇒
+    val kafkaEvents = consumer.poll(200 /*timeout*/).asScala.toList
+    if(kafkaEvents.nonEmpty){
+      val latency = System.currentTimeMillis-kafkaEvents.map(_.timestamp).min //check rec.timestampType == TimestampType.CREATE_TIME ?
+      logger.debug(s"p-c latency $latency ms")
+    }
+    val events = kafkaEvents.map{ rec ⇒
       val data: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
       val offset: Long = rec.offset+1L
       new RawEvent(data,offset)
     }
+    val end = NanoTimer()
     val newWorld = world.reduce(events)
+    val period = end.ms
+    if(events.nonEmpty)
+      logger.debug(s"reduced ${events.size} tx-s in $period ms")
     val newObserver = observer.activate(newWorld)
     //GCLog("iteration done")
     iteration(consumer, newWorld, newObserver)

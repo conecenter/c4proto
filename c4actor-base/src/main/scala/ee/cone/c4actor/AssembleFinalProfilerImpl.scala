@@ -1,5 +1,6 @@
-package ee.cone.c4actor
 /*
+package ee.cone.c4actor
+
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4assemble._

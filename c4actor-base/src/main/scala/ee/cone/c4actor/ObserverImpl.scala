@@ -12,9 +12,15 @@ import scala.util.{Success, Try}
 class TxTransforms(qMessages: QMessages) extends LazyLogging {
   def get(global: Context): Map[SrcId,Option[Context]⇒Context] =
     ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
-  private def handle(global: Context, key: SrcId): Option[Context]⇒Context = prevOpt ⇒ {
+  private def handle(global: Context, key: SrcId): Option[Context]⇒Context = {
+    val enqueueTimer = NanoTimer()
+    prevOpt ⇒
     val local = prevOpt.getOrElse(new Context(global.injected, emptyReadModel, Map.empty))
-    if( //todo implement skip for outdated world
+    val startLatency = enqueueTimer.ms
+    if(startLatency > 200)
+      logger.debug(s"tx $key start latency $startLatency ms")
+    val workTimer = NanoTimer()
+    val res = if( //todo implement skip for outdated world
         OffsetWorldKey.of(global) < OffsetWorldKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
     ) local else try {
@@ -36,6 +42,10 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
           SleepUntilKey.set(Instant.now.plusSeconds(was.size))
         ))(new Context(global.injected, emptyReadModel, Map.empty))
     }
+    val period = workTimer.ms
+    if(period > 500)
+      logger.debug(s"tx $key worked for $period ms")
+    res
   }
 }
 
@@ -56,7 +66,7 @@ class ParallelObserver(
   localStates: Map[SrcId,FatalFuture[Option[Context]]],
   transforms: TxTransforms,
   execution: Execution
-) extends Observer {
+) extends Observer with LazyLogging {
   private def empty: FatalFuture[Option[Context]] = execution.future(None)
   def activate(global: Context): Seq[Observer] = {
     val inProgressMap = localStates.filter{ case(k,v) ⇒
@@ -71,6 +81,7 @@ class ParallelObserver(
       localStates.getOrElse(key,empty).map(opt⇒Option(handle(opt)))
     }
     val nLocalStates = inProgressMap ++ toAdd
+    logger.debug(s"txTr count: ${nLocalStates.size}, uncompleted/inconsistent: ${inProgressMap.size}, just-mapped: ${toAdd.size}")
     List(new ParallelObserver(nLocalStates,transforms,execution))
   }
 }

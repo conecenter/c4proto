@@ -139,8 +139,8 @@ case class BranchTxTransform(
   }
 
   def transform(local: Context): Context = {
-    val started = System.currentTimeMillis
-    logger.debug(s"branch tx begin ${posts.map(r⇒r.header("X-r-alien-date")).mkString("(",", ",")")}")
+    if(posts.nonEmpty)
+      logger.debug(s"branch $branchKey tx begin ${posts.map(r⇒r.header("X-r-alien-date")).mkString("(",", ",")")}")
     val errors = ErrorKey.of(local)
     var res = if(errors.nonEmpty && posts.nonEmpty)
       savePostsErrors(errorText(local)).andThen(rmPostsErrors)(local)
@@ -149,7 +149,6 @@ case class BranchTxTransform(
     else chain(getPosts.map(handler.exchange))
       .andThen(saveResult).andThen(reportAliveBranches)
       .andThen(rmPostsErrors)(local)
-    logger.debug(s"branch tx end ${System.currentTimeMillis - started} ms")
     res
   }
 }

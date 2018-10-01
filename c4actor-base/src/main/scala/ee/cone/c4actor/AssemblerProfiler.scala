@@ -5,9 +5,9 @@ import ee.cone.c4assemble.AssembleProfiler
 
 object SimpleAssembleProfiler extends AssembleProfiler with LazyLogging {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
-    val startTime = System.currentTimeMillis
+    val end = NanoTimer()
     finalCount ⇒ {
-      val period = System.currentTimeMillis - startTime
+      val period = end.ms
       logger.trace(s"assembling by ${Thread.currentThread.getName} rule $ruleName $startAction $finalCount items in $period ms")
     }
   }
