@@ -1066,18 +1066,18 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.changed = true
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
-				let nValue = this.props.value
+				let nValue = inp.value
 				if(this.isVkEvent(event)||this.props.vkOnly){					
 					nValue = nValue+event.detail.key
 					this.s = -1
 				}
 				else 
 					nValue = ""
-				this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})
+				this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})
 			})){				
 				if(this.isVkEvent(event)||this.props.vkOnly){	
 					const inp = this.getInput()
-					let nValue = this.props.value
+					let nValue = inp.value
 					if(this.props.vkOnly)
 						nValue = nValue+event.detail.key												
 					else {
@@ -1086,7 +1086,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 						nValue = value1+event.detail.key+value2										
 						this.s = inp.selectionStart+1						
 					}					
-					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})					
+					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})					
 				}
 			}									
 		}
@@ -1094,7 +1094,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const inp = this.getInput()	
 			inp.value = ""
 			this.changed = true
-			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value},inp})				
 			if(this.props.onBlur) this.props.onBlur()			
 		}
 		onBackspace(event){
@@ -1105,11 +1105,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				const nValue = inp.value.slice(0,-1)
-				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})				
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})				
 			})){
 				if(this.isVkEvent(event)||this.props.vkOnly){		
 					const inp = this.getInput()
-					let nValue = this.props.value
+					let nValue = inp.value
 					if(this.props.vkOnly)
 						nValue = nValue.slice(0,-1)
 					else{
@@ -1119,7 +1119,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 						this.k = inp.selectionStart-1
 					}	
 					this.changed = true
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue}})					
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})					
 				}
 			}
 		}
@@ -1203,7 +1203,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(inp&&getComputedStyle(inp).textTransform=="uppercase"){				
 				value = value.toUpperCase();
 			}
-			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value}})
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value},inp:e.inp})
 		}
 		onBlur(e){						
 			if(e.relatedTarget && (
@@ -1279,7 +1279,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				...this.props.inputStyle				
 			};		
 			const placeholder = this.props.placeholder
-			const inputType = this.props.inputType == "input"?ReControlledInput:this.props.inputType
+			const inputType = !this.props.inputType?ReControlledInput:this.props.inputType
 			const type = this.props.type
 			const auto = this.props.autocomplete
 			const vkOnly = this.props.vkOnly?"vk":null
@@ -1315,7 +1315,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				]);	
 		}
 	}	
-    InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:"",inputType:"input"};
+    InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:""};
 	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,...actions}))	
 	const TextAreaElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
 		inputStyle:{
@@ -1941,35 +1941,57 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			])
 		)
     }
-    const SignIn = prop => {
-        const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
-		const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
-		const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
-		const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
-		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
-		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
-		const styleA = {
-			...attributesA.style			
+    class SignIn extends StatefulComponent{
+		onClick(e){
+			if(!this.el) return
+			const ar = Array.from(this.el.querySelectorAll("input"))
+			if(ar.length!=2) return
+			const body = ar.map(_=>{
+				if(getComputedStyle(_).textTransform == "uppercase") return _.value.toUpperCase()
+				return _.value
+			}).join("\n")
+			this.props.onChange({target:{headers:{"X-r-auth":"check"},value:body}})
+			this.props.onBlur()
 		}
-		const styleB = {
-			...attributesB.style,
-			textTransform:"none"
+		onChange(e){
+			if(this.props.vkOnly && e.inp){
+				e.inp.value = e.target.value
+			}			
 		}
-        const vkOnly = prop.vkOnly
-		const dataType = "extText"
-        return $("div",{style:{margin:"1em 0em",...prop.style}},[
-			$(ControlWrapperElement,{key:"1"},
-				$(LabelElement,{label:usernameCaption},null),
-				$(InputElement,{...attributesA,vkOnly,style:styleA,focus:prop.focus,dataType},null)			
-			),
-			$(ControlWrapperElement,{key:"2"},
-				$(LabelElement,{label:passwordCaption},null),
-				$(InputElement,{...attributesB,vkOnly,style:styleB,onKeyDown:()=>false,focus:false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login"},null)
-       ),
-			$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-				$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
-			)
-		])		
+		render(){
+			const prop = this.props
+			const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"},log)
+			const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
+			const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
+			const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
+			const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
+			const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
+			const styleA = {
+				...attributesA.style			
+			}
+			const styleB = {
+				...attributesB.style,
+				textTransform:"none"
+			}
+			const vkOnly = prop.vkOnly
+			const dataType = "extText"
+			const check = (e) =>{
+				
+			}
+			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},[
+				$(ControlWrapperElement,{key:"1"},
+					$(LabelElement,{label:usernameCaption},null),
+					$(InputElement,{...attributesA,value:undefined,onChange:this.onChange,vkOnly,style:styleA,dataType, inputType:"input"},null)			
+				),
+				$(ControlWrapperElement,{key:"2"},
+					$(LabelElement,{label:passwordCaption},null),
+					$(InputElement,{...attributesB,vkOnly,value:undefined,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
+		   ),
+				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
+					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
+				)
+			])		
+		}
 	}	
 	
 	const CalenderCell = (props) => $(Interactive,{},(actions)=>{		
@@ -2620,6 +2642,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		onBBlur(e){
 			if(e.relatedTarget ==null) {
+				log(e,e.relatedTarget,e.target)
 				const sticky = this.findSticky(this.el,null)
 				if(sticky) return sticky.focus() 
 				this.report(this.props.path)
@@ -2627,7 +2650,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 		}
 		onBFocus(e){			
-		//	log("focus",e.target,this.getParentPath(e.target))
+			log("focus",e.target,this.getParentPath(e.target))
 			this.active = true			
 			const path = this.getParentPath(e.target)
 			if(path != this.props.value) {
@@ -3186,7 +3209,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(isSibling) return	
 			if(PingReceiver && !this.pingR) this.pingR = PingReceiver.reg(this.signal)
 			if(prevState.on != this.state.on){
-				log(`toggle ${this.state.on}`)
+				//log(`toggle ${this.state.on}`)
 				this.toggleOverlay(!this.state.on);
 			}
 		}
