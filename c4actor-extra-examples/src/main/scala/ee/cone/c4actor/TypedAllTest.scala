@@ -21,8 +21,7 @@ class TypedAllTestStart(
     import LEvent.update
     val recs = update(Firstborn("test")) ++ update(Model1("1")) ++ update(Model2("2"))
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
-    val context: Context = contextFactory.create()
-    val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
+    val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
     val nGlobalAA = ActivateContext(nGlobalActive)
     val nGlobalAAA = ActivateContext(nGlobalAA)

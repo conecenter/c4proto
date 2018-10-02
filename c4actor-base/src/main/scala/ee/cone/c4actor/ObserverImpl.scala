@@ -3,16 +3,24 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.{Map, Seq}
 import scala.util.{Success, Try}
 
+class ContextFactory(richRawWorldFactory: RichRawWorldFactory) {
+  def updated(updates: List[Update]): Context = {
+    val world = richRawWorldFactory.create(updates)
+    new Context(world.injected, world.assembled, Map.empty)
+  }
+}
+
 class TxTransforms(qMessages: QMessages) extends LazyLogging {
-  def get(global: Context): Map[SrcId,Option[Context]⇒Context] =
+  def get(global: RichContext): Map[SrcId,Option[Context]⇒Context] =
     ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
-  private def handle(global: Context, key: SrcId): Option[Context]⇒Context = {
+  private def handle(global: RichContext, key: SrcId): Option[Context]⇒Context = {
     val enqueueTimer = NanoTimer()
     prevOpt ⇒
     val local = prevOpt.getOrElse(new Context(global.injected, emptyReadModel, Map.empty))
@@ -21,7 +29,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
       logger.debug(s"tx $key start latency $startLatency ms")
     val workTimer = NanoTimer()
     val res = if( //todo implement skip for outdated world
-        OffsetWorldKey.of(global) < OffsetWorldKey.of(local) ||
+        global.offset < OffsetWorldKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
     ) local else try {
       Trace {
@@ -52,7 +60,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
 class SerialObserver(localStates: Map[SrcId,Context])(
   transforms: TxTransforms
 ) extends Observer {
-  def activate(global: Context): Seq[Observer] = {
+  def activate(global: RichContext): Seq[Observer] = {
     val nLocalStates = transforms.get(global).transform{ case(key,handle) ⇒
       handle(localStates.get(key))
     }
@@ -68,12 +76,12 @@ class ParallelObserver(
   execution: Execution
 ) extends Observer with LazyLogging {
   private def empty: FatalFuture[Option[Context]] = execution.future(None)
-  def activate(global: Context): Seq[Observer] = {
+  def activate(global: RichContext): Seq[Observer] = {
     val inProgressMap = localStates.filter{ case(k,v) ⇒
       v.value match {
         case None ⇒ true // inProgress
         case Some(Success(Some(local))) ⇒
-          OffsetWorldKey.of(global) < OffsetWorldKey.of(local)
+          global.offset < OffsetWorldKey.of(local)
         case a ⇒ throw new Exception(s"$a")
       }
     }

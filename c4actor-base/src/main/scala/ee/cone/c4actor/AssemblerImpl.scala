@@ -52,20 +52,22 @@ class AssemblerInit(
       wKey → indexDiff
     }).seq.toMap
 
-  private def reduce(out: Seq[Update], isParallel: Boolean): Context ⇒ Context = context ⇒ {
+  private def reduce(out: Seq[Update], isParallel: Boolean, context: SharedContext with AssembledContext): ReadModel = {
     val diff = toTree(context.assembled, if(isParallel) out.par else out)
     val end = NanoTimer()
     val nAssembled = TreeAssemblerKey.of(context)(diff,isParallel)(context.assembled)
     val period = end.ms
     if(period > 1000) logger.info(s"long join $period ms")
-    new Context(context.injected, nAssembled, context.transient)
+    nAssembled
   }
 
   private def add(out: Seq[Update]): Context ⇒ Context =
     if(out.isEmpty) identity[Context]
-    else WriteModelKey.modify(_.enqueue(out)).andThen(reduce(out.toList, isParallel = false))
+    else WriteModelKey.modify(_.enqueue(out)).andThen(local⇒
+      new Context(local.injected, reduce(out.toList, isParallel = false, local), local.transient)
+    )
 
-  private def getOrigIndex(context: Context, className: String): Map[SrcId,Product] = {
+  private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
     UniqueIndexMap(origKeyFactory.rawKey(className).of(context.assembled))(composes)
   }
 
@@ -77,7 +79,7 @@ class AssemblerInit(
           .andThen(add(out.map(toUpdate.toUpdate)))
       ) :::
       WriteModelAddKey.set(add) :::
-      ReadModelAddKey.set(reduce(_,isParallel)) :::
+      ReadModelAddKey.set((upd,ctx)⇒reduce(upd,isParallel,ctx)) :::
       GetOrigIndexKey.set(getOrigIndex)
 }
 

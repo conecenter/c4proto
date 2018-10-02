@@ -23,7 +23,7 @@ class ChangingIndexPerformanceTest(
   def run(): Unit = {
     import LEvent.update
     // val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
-    val local: Context = contextFactory.create()
+    val local: Context = contextFactory.updated(Nil)
     //val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
     val neededSrcId = "123"
 
