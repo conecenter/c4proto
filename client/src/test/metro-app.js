@@ -114,8 +114,9 @@ const miscUtil = (()=>{
 	let _winWifi
 	let _scannerProxy
 	const winWifi = () => {if(!_winWifi) _winWifi = WinWifi(log,window.require,window.process,setInterval); return _winWifi}
-	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null	
-	const scannerProxy = () => {if(!_scannerProxy) window.ScannerProxy = _scannerProxy = ScannerProxy({Scanner:window.Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}); return _scannerProxy}	
+	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
+	const Scanner = () => window.Scanner
+	const scannerProxy = () => {if(!_scannerProxy) window.ScannerProxy = _scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}); return _scannerProxy}	
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 	const audio = () => {return new Audio()}
 	const fileReader = ()=> (new window.FileReader())
