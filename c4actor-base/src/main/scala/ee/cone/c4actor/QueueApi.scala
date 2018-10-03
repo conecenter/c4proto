@@ -60,7 +60,6 @@ trait QMessages {
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
-  def toUpdates(offset: NextOffset, data: Array[Byte]): Updates
   def toBytes(updates: List[Update]): Array[Byte]
 }
 
@@ -149,7 +148,7 @@ trait TxTransform extends Product {
 
 case object WriteModelKey extends TransientLens[Queue[Update]](Queue.empty)
 case object WriteModelDebugKey extends TransientLens[Queue[LEvent[Product]]](Queue.empty)
-case object ReadModelAddKey extends SharedComponentKey[(Seq[Update],SharedContext with AssembledContext)⇒ReadModel]
+case object ReadModelAddKey extends SharedComponentKey[SharedContext⇒Seq[RawEvent]⇒ReadModel⇒ReadModel]
 case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]⇒Context⇒Context]
 case object WriteModelAddKey extends SharedComponentKey[Seq[Update]⇒Context⇒Context]
 
@@ -158,17 +157,17 @@ case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
 class QAdapterRegistry(
   val byName: Map[String,ProtoAdapter[Product] with HasId],
   val byId: Map[Long,ProtoAdapter[Product] with HasId],
-  val updatesAdapter: ProtoAdapter[QProtocol.Updates]
+  val updatesAdapter: ProtoAdapter[QProtocol.Updates] with HasId
 )
 
 trait RawWorld {
   def offset: NextOffset
-  def reduce(events: List[Updates]): RawWorld
+  def reduce(events: List[RawEvent]): RawWorld
   def hasErrors: Boolean
 }
 
 trait RawWorldFactory {
-  def create(updates: Updates): RawWorld
+  def create(): RawWorld
 }
 
 trait RawObserver {

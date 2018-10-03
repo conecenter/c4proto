@@ -73,7 +73,7 @@ trait RichDataApp extends ProtocolsApp
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val rawWorldFactory: RawWorldFactory = richRawWorldFactory
-  lazy val contextFactory = new ContextFactory(richRawWorldFactory)
+  lazy val contextFactory = new ContextFactory(richRawWorldFactory,toUpdate)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
@@ -110,7 +110,7 @@ trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
-  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(snapshotConfig)
+  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(snapshotConfig,qAdapterRegistry)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
   override def protocols: List[Protocol] = QProtocol :: super.protocols

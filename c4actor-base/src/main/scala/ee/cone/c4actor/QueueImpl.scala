@@ -42,8 +42,6 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry) extends ToUpdate {
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
     Update(message.srcId, valueAdapter.id, byteString)
   }
-  def toUpdates(offset: NextOffset, data: Array[Byte]): Updates =
-    qAdapterRegistry.updatesAdapter.decode(data).copy(srcId = offset)
   def toBytes(updates: List[Update]): Array[Byte] =
     qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
 }
@@ -53,7 +51,7 @@ object QAdapterRegistryFactory {
     val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
     val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
     val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
-      .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
+      .asInstanceOf[ProtoAdapter[QProtocol.Updates] with HasId]
     val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
     new QAdapterRegistry(byName, byId, updatesAdapter)
   }

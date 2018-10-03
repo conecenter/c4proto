@@ -11,24 +11,28 @@ import okio.ByteString
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq
 
-class SnapshotMakingRawWorldFactory(config: SnapshotConfig) extends RawWorldFactory {
-  def create(updates: Updates): RawWorld =
-    new SnapshotMakingRawWorld(config.ignore, Map.empty, updates.srcId).reduce(List(updates))
+class SnapshotMakingRawWorldFactory(config: SnapshotConfig, registry: QAdapterRegistry) extends RawWorldFactory {
+  def create(): RawWorld = {
+    val srcId = "0" * OffsetHexSize()
+    new SnapshotMakingRawWorld(registry, config.ignore, Map.empty, srcId)
+  }
 }
 
 class SnapshotMakingRawWorld(
+  registry: QAdapterRegistry,
   ignore: Set[Long],
   state: Map[Update,Update],
   val offset: NextOffset
 ) extends RawWorld with LazyLogging {
-  def reduce(events: List[Updates]): RawWorld = if(events.isEmpty) this else {
-    val updates = events.flatMap(_.updates)
+  def reduce(events: List[RawEvent]): RawWorld = if(events.isEmpty) this else {
+    val valueAdapter = registry.updatesAdapter
+    val updates = events.flatMap(ev ⇒ valueAdapter.decode(ev.data).updates)
     val newState = (state /: updates){(state,up)⇒
       if(ignore(up.valueTypeId)) state
       else if(up.value.size > 0) state + (up.copy(value=ByteString.EMPTY)→up)
       else state - up
     }
-    new SnapshotMakingRawWorld(ignore,newState,events.last.srcId)
+    new SnapshotMakingRawWorld(registry,ignore,newState,events.last.srcId)
   }
   def hasErrors: Boolean = false
 

@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4assemble.Single
+import ee.cone.c4proto.ToByteString
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.KafkaConsumer
@@ -70,8 +71,7 @@ case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String){
 class KafkaActor(conf: KafkaConfig)(
   rawSnapshot: RawSnapshot,
   progressObserverFactory: ProgressObserverFactory,
-  execution: Execution,
-  toUpdate: ToUpdate
+  execution: Execution
 ) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     GCLog("before loadRecent")
@@ -111,7 +111,7 @@ class KafkaActor(conf: KafkaConfig)(
     }
     val events = kafkaEvents.map{ rec ⇒
       val data: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
-      toUpdate.toUpdates(OffsetHex(rec.offset+1L), data)
+      RawEvent(OffsetHex(rec.offset+1L), ToByteString(data))
     }
     val end = NanoTimer()
     val newWorld = world.reduce(events)

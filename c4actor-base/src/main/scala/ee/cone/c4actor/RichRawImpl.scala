@@ -5,6 +5,7 @@ import ee.cone.c4actor.QProtocol.{Firstborn, Update, Updates}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble.Single
 import ee.cone.c4assemble.Types._
+import ee.cone.c4proto.ToByteString
 
 import scala.collection.immutable.{Map, Seq}
 
@@ -23,39 +24,27 @@ object Merge {
 class RichRawWorldFactory(
   toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String
 ) extends RawWorldFactory {
-  def create(updates: Updates): RichRawWorld = {
+  def create(): RichRawWorld = {
     val injectedList = for(toInject ← toInjects; injected ← toInject.toInject)
       yield Map(injected.pair)
-    val empty = new RichRawWorld(Merge(Nil,injectedList), emptyReadModel, updates.srcId, Nil)
+    val eWorld = new RichRawWorld(Merge(Nil,injectedList), emptyReadModel, "0" * OffsetHexSize())
     val firstborn = LEvent.update(Firstborn(actorName)).toList.map(toUpdate.toUpdate)
-    val assembled = ReadModelAddKey.of(empty)(firstborn,empty)
-    new RichRawWorld(empty.injected, assembled, empty.offset, Nil).reduce(List(updates))
+    val firstRawEvent = RawEvent(eWorld.offset, ToByteString(toUpdate.toBytes(firstborn)))
+    eWorld.reduce(List(firstRawEvent))
   }
 }
 
 class RichRawWorld(
   val injected: SharedComponentMap,
   val assembled: ReadModel,
-  val offset: NextOffset,
-  errors: List[Exception]
+  val offset: NextOffset
 ) extends RawWorld with RichContext with LazyLogging {
-  def reduce(events: List[Updates]): RichRawWorld = if(events.isEmpty) this else try {
-    val updates: List[Update] = events.flatMap(updates ⇒ updates.updates)
-    val nAssembled = ReadModelAddKey.of(this)(updates,this)
-    new RichRawWorld(injected, nAssembled, events.last.srcId, errors)
-  } catch {
-    case e: Exception ⇒
-      logger.error("reduce", e) // ??? exception to record
-      if(events.size == 1)
-        new RichRawWorld(
-          injected, assembled, Single(events).srcId, errors = e :: errors
-        )
-      else {
-        val(a,b) = events.splitAt(events.size / 2)
-        reduce(a).reduce(b)
-      }
-  }
-  def hasErrors: Boolean = errors.nonEmpty
+  def reduce(events: List[RawEvent]): RichRawWorld =
+    if(events.isEmpty) this else {
+      val nAssembled = ReadModelAddKey.of(this)(this)(events)(assembled)
+      new RichRawWorld(injected, nAssembled, events.last.srcId)
+    }
+  def hasErrors: Boolean = ByPK(classOf[FailedUpdates]).of(this).nonEmpty
 }
 
 object WorldStats {

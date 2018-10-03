@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import ee.cone.c4actor.QProtocol.Updates
 import ee.cone.c4actor.Types.NextOffset
+import ee.cone.c4proto.ToByteString
 
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
 
@@ -55,11 +56,11 @@ class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory, toUp
     (offsetStr, if(hashFromData(data) == uuid) Option(data) else None)
   }
   def loadRecent(): RawWorld = {
-    val initialRawWorld = rawWorldFactory.create(Updates("0" * OffsetHexSize(), Nil))
+    val initialRawWorld = rawWorldFactory.create()
     loadRecentStream.flatMap { case (offset, dataOpt) ⇒
       logger.info(s"Loading snapshot up to $offset")
       dataOpt.map(data ⇒
-        initialRawWorld.reduce(List(toUpdate.toUpdates(offset, data)))
+        initialRawWorld.reduce(List(RawEvent(offset, ToByteString(data))))
       ).filterNot(_.hasErrors)
     }.headOption.map{ res ⇒
       logger.info(s"Snapshot loaded")
