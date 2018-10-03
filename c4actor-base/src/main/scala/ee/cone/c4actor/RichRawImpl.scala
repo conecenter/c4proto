@@ -1,8 +1,8 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{Firstborn, Update}
-import ee.cone.c4actor.Types.SharedComponentMap
+import ee.cone.c4actor.QProtocol.{Firstborn, Update, Updates}
+import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble.Single
 import ee.cone.c4assemble.Types._
 
@@ -23,35 +23,32 @@ object Merge {
 class RichRawWorldFactory(
   toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String
 ) extends RawWorldFactory {
-  def create(): RawWorld = create(Nil)
-  def create(updates: List[Update]): RichRawWorld = {
+  def create(updates: Updates): RichRawWorld = {
     val injectedList = for(toInject ← toInjects; injected ← toInject.toInject)
       yield Map(injected.pair)
-    val empty = new RichRawWorld(Merge(Nil,injectedList), emptyReadModel, 0L, Nil)
+    val empty = new RichRawWorld(Merge(Nil,injectedList), emptyReadModel, updates.srcId, Nil)
     val firstborn = LEvent.update(Firstborn(actorName)).toList.map(toUpdate.toUpdate)
-    val assembled = ReadModelAddKey.of(empty)(firstborn ::: updates,empty)
-    new RichRawWorld(empty.injected, assembled, 0L, Nil)
+    val assembled = ReadModelAddKey.of(empty)(firstborn,empty)
+    new RichRawWorld(empty.injected, assembled, empty.offset, Nil).reduce(List(updates))
   }
 }
 
 class RichRawWorld(
   val injected: SharedComponentMap,
   val assembled: ReadModel,
-  val offset: Long,
+  val offset: NextOffset,
   errors: List[Exception]
 ) extends RawWorld with RichContext with LazyLogging {
-  def reduce(events: List[RawEvent]): RawWorld = if(events.isEmpty) this else try {
-    val registry = QAdapterRegistryKey.of(this)
-    val updatesAdapter = registry.updatesAdapter
-    val updates = events.flatMap(ev ⇒ updatesAdapter.decode(ev.data).updates)
+  def reduce(events: List[Updates]): RichRawWorld = if(events.isEmpty) this else try {
+    val updates: List[Update] = events.flatMap(updates ⇒ updates.updates)
     val nAssembled = ReadModelAddKey.of(this)(updates,this)
-    new RichRawWorld(injected, nAssembled, events.last.offset, errors)
+    new RichRawWorld(injected, nAssembled, events.last.srcId, errors)
   } catch {
     case e: Exception ⇒
       logger.error("reduce", e) // ??? exception to record
       if(events.size == 1)
         new RichRawWorld(
-          injected, assembled, Single(events).offset, errors = e :: errors
+          injected, assembled, Single(events).srcId, errors = e :: errors
         )
       else {
         val(a,b) = events.splitAt(events.size / 2)

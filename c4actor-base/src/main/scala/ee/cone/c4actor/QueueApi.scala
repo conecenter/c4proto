@@ -9,8 +9,8 @@ import scala.collection.immutable.{Map, Queue, Seq}
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.{SharedComponentMap, SrcId, TransientMap}
+import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
 
 @protocol object QProtocol extends Protocol {
   /*@Id(0x0010) case class TopicKey(
@@ -48,10 +48,11 @@ trait QRecord {
 }
 
 trait RawQSender {
-  def send(rec: List[QRecord]): List[Long]
+  def send(rec: List[QRecord]): List[NextOffset]
 }
 
-case object OffsetWorldKey extends TransientLens[java.lang.Long](0L)
+object OffsetHexSize{ def apply() = 16 }
+case object OffsetWorldKey extends TransientLens[NextOffset]("0" * OffsetHexSize())
 
 trait QMessages {
   def send[M<:Product](local: Context): Context
@@ -59,12 +60,15 @@ trait QMessages {
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
+  def toUpdates(offset: NextOffset, data: Array[Byte]): Updates
+  def toBytes(updates: List[Update]): Array[Byte]
 }
 
 object Types {
   type SrcId = String
   type TransientMap = Map[TransientLens[_],Object]
   type SharedComponentMap = Map[SharedComponentKey[_],Object]
+  type NextOffset = String
 }
 
 trait SharedContext {
@@ -76,7 +80,7 @@ trait AssembledContext {
 }
 
 trait RichContext extends SharedContext with AssembledContext {
-  def offset: Long
+  def offset: NextOffset
 }
 
 class Context(
@@ -157,16 +161,14 @@ class QAdapterRegistry(
   val updatesAdapter: ProtoAdapter[QProtocol.Updates]
 )
 
-class RawEvent(val data: Array[Byte], val offset: Long)
-
 trait RawWorld {
-  def offset: Long
-  def reduce(events: List[RawEvent]): RawWorld
+  def offset: NextOffset
+  def reduce(events: List[Updates]): RawWorld
   def hasErrors: Boolean
 }
 
 trait RawWorldFactory {
-  def create(): RawWorld
+  def create(updates: Updates): RawWorld
 }
 
 trait RawObserver {
@@ -174,11 +176,11 @@ trait RawObserver {
 }
 
 trait ProgressObserverFactory {
-  def create(endOffset: Long): RawObserver
+  def create(endOffset: NextOffset): RawObserver
 }
 
 trait RawSnapshot {
-  def save(data: Array[Byte], offset: Long): Unit
+  def save(updates: Updates): Unit
   def loadRecent(): RawWorld
 }
 

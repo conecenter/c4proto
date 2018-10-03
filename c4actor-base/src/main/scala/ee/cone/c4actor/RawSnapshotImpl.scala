@@ -8,6 +8,9 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import java.nio.charset.StandardCharsets.UTF_8
 
+import ee.cone.c4actor.QProtocol.Updates
+import ee.cone.c4actor.Types.NextOffset
+
 //RawSnapshot.save(registry.updatesAdapter.encode(Updates("",updates)))
 
 /*snapshot cleanup:
@@ -26,7 +29,7 @@ class FileSnapshotConfigImpl(dirStr: String)(val ignore: Set[Long] =
   }
 ) extends SnapshotConfig
 
-class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) extends RawSnapshot with LazyLogging {
+class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory, toUpdate: ToUpdate) extends RawSnapshot with LazyLogging {
   private def dir = Files.createDirectories(Paths.get(dirStr))
   private def hashFromName: String⇒Option[(String,String)] = {
     val R = """([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""".r;
@@ -38,26 +41,25 @@ class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) exte
     }
   }
   private def hashFromData: Array[Byte]⇒String = UUID.nameUUIDFromBytes(_).toString
-  def save(data: Array[Byte], offset: Long): Unit = {
-    val offsetHex = (("0" * 16)+java.lang.Long.toHexString(offset)).takeRight(16)
-    val filename = s"$offsetHex-${hashFromData(data)}"
+  def save(updates: Updates): Unit = {
+    val data = toUpdate.toBytes(updates.updates)
+    val filename = s"${updates.srcId}-${hashFromData(data)}"
     if(hashFromName(filename).isEmpty) throw new Exception
     Files.write(dir.resolve(filename),data)
   }
-  private def loadRecentStream: Stream[(Long,Option[Array[Byte]])] = for{
+  private def loadRecentStream: Stream[(NextOffset,Option[Array[Byte]])] = for{
     path ← FinallyClose(Files.newDirectoryStream(dir))(_.asScala.toList).sorted.reverse.toStream
     (offsetStr,uuid) ← hashFromName(path.getFileName.toString)
   } yield {
     val data = Files.readAllBytes(path)
-    val offset = java.lang.Long.parseLong(offsetStr,16)
-    (offset, if(hashFromData(data) == uuid) Option(data) else None)
+    (offsetStr, if(hashFromData(data) == uuid) Option(data) else None)
   }
   def loadRecent(): RawWorld = {
-    val initialRawWorld = rawWorldFactory.create()
+    val initialRawWorld = rawWorldFactory.create(Updates("0" * OffsetHexSize(), Nil))
     loadRecentStream.flatMap { case (offset, dataOpt) ⇒
       logger.info(s"Loading snapshot up to $offset")
       dataOpt.map(data ⇒
-        initialRawWorld.reduce(List(new RawEvent(data,offset)))
+        initialRawWorld.reduce(List(toUpdate.toUpdates(offset, data)))
       ).filterNot(_.hasErrors)
     }.headOption.map{ res ⇒
       logger.info(s"Snapshot loaded")

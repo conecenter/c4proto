@@ -3,19 +3,11 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.{SrcId, TransientMap}
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.{Map, Seq}
 import scala.util.{Success, Try}
-
-class ContextFactory(richRawWorldFactory: RichRawWorldFactory) {
-  def updated(updates: List[Update]): Context = {
-    val world = richRawWorldFactory.create(updates)
-    new Context(world.injected, world.assembled, Map.empty)
-  }
-}
 
 class TxTransforms(qMessages: QMessages) extends LazyLogging {
   def get(global: RichContext): Map[SrcId,Option[Context]⇒Context] =

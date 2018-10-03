@@ -5,30 +5,30 @@ import java.time.{Duration, Instant}
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.Types.NextOffset
 import okio.ByteString
 
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq
 
-class SnapshotMakingRawWorldFactory(adapterRegistry: QAdapterRegistry, config: SnapshotConfig) extends RawWorldFactory {
-  def create(): RawWorld = new SnapshotMakingRawWorld(config.ignore,adapterRegistry)
+class SnapshotMakingRawWorldFactory(config: SnapshotConfig) extends RawWorldFactory {
+  def create(updates: Updates): RawWorld =
+    new SnapshotMakingRawWorld(config.ignore, Map.empty, updates.srcId).reduce(List(updates))
 }
 
 class SnapshotMakingRawWorld(
   ignore: Set[Long],
-  qAdapterRegistry: QAdapterRegistry,
-  state: Map[Update,Update] = Map.empty,
-  val offset: Long = 0
+  state: Map[Update,Update],
+  val offset: NextOffset
 ) extends RawWorld with LazyLogging {
-  def reduce(events: List[RawEvent]): RawWorld = if(events.isEmpty) this else {
-    val updatesAdapter = qAdapterRegistry.updatesAdapter
-    val updates = events.flatMap(ev⇒updatesAdapter.decode(ev.data).updates)
+  def reduce(events: List[Updates]): RawWorld = if(events.isEmpty) this else {
+    val updates = events.flatMap(_.updates)
     val newState = (state /: updates){(state,up)⇒
       if(ignore(up.valueTypeId)) state
       else if(up.value.size > 0) state + (up.copy(value=ByteString.EMPTY)→up)
       else state - up
     }
-    new SnapshotMakingRawWorld(ignore,qAdapterRegistry,newState,events.last.offset)
+    new SnapshotMakingRawWorld(ignore,newState,events.last.srcId)
   }
   def hasErrors: Boolean = false
 
@@ -46,8 +46,7 @@ class SnapshotMakingRawWorld(
     logger.info("Saving...")
     val updates = state.values.toList.sortBy(u⇒(u.valueTypeId,u.srcId))
     makeStats(updates)
-    val updatesAdapter = qAdapterRegistry.updatesAdapter
-    rawSnapshot.save(updatesAdapter.encode(Updates("",updates)), offset)
+    rawSnapshot.save(Updates(offset,updates))
     logger.info("OK")
   }
 }

@@ -49,9 +49,9 @@ trait RichObserverApp extends ExecutableApp with InitialObserversApp {
   def execution: Execution
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
-  def qAdapterRegistry: QAdapterRegistry
+  def toUpdate: ToUpdate
   //
-  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
+  lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
@@ -109,7 +109,8 @@ trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
   def snapshotConfig: SnapshotConfig
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(qAdapterRegistry,snapshotConfig)
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
+  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(snapshotConfig)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
   override def protocols: List[Protocol] = QProtocol :: super.protocols
@@ -122,7 +123,8 @@ trait VMExecutionApp {
 
 trait FileRawSnapshotApp {
   def rawWorldFactory: RawWorldFactory
-  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots", rawWorldFactory)
+  def toUpdate: ToUpdate
+  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots", rawWorldFactory, toUpdate)
   lazy val snapshotConfig: SnapshotConfig = new FileSnapshotConfigImpl("db4/snapshots")()
 }
 
