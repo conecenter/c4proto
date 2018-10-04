@@ -280,7 +280,7 @@ class TreeAssemblerImpl(
     @tailrec def transformUntilStable(left: Int, transition: WorldTransition): WorldTransition =
       if(transition.diff.isEmpty) transition
       else if(left > 0){
-        println(s"join iter [${Thread.currentThread.getName}] $testSZ")
+        //println(s"join iter [${Thread.currentThread.getName}] $testSZ")
         transformUntilStable(left-1, transformAllOnce(transition))
       }
       else throw new Exception(s"unstable assemble ${transition.diff}")

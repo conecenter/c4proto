@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.QProtocol.{Firstborn, Update, Updates}
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.{ToPrimaryKey, _}
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
@@ -137,4 +137,16 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
 }
 
-//@assemble
+@assemble class ClearUpdatesAssemble extends Assemble {
+  def keepNone(
+    key: SrcId,
+    firstborn: Each[Firstborn]
+  ): Values[(SrcId,KeepUpdates)] = Nil
+
+  def clearUpdates(
+    key: SrcId,
+    updates: Each[Updates],
+    keep: Values[KeepUpdates]
+  ): Values[(SrcId,ClearUpdates)] =
+    if(keep.isEmpty) List(WithPK(ClearUpdates(updates))) else Nil
+}

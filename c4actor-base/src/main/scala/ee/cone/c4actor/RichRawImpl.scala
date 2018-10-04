@@ -1,9 +1,9 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{Firstborn, Update, Updates}
+import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
-import ee.cone.c4assemble.Single
+import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.ToByteString
 

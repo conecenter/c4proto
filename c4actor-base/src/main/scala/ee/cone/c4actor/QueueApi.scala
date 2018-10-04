@@ -164,6 +164,7 @@ class QAdapterRegistry(
 
 case class RawEvent(srcId: SrcId, data: ByteString)
 case class ClearUpdates(updates: Updates)
+case class KeepUpdates(srcId: SrcId)
 case class FailedUpdates(srcId: SrcId)
 
 trait RawWorld {

@@ -31,6 +31,7 @@ class TestCoWorkApp extends ServerApp
   with ByLocationHashViewsApp
   with TestCoWorkerViewApp
   with TestCoLeaderViewApp
+  with TestTxLogApp
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =

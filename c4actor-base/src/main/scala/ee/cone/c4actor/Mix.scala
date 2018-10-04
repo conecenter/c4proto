@@ -92,6 +92,7 @@ trait RichDataApp extends ProtocolsApp
     new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory)
   def parallelAssembleOn: Boolean = false
   //
+  override def assembles: List[Assemble] = new ClearUpdatesAssemble :: super.assembles
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
