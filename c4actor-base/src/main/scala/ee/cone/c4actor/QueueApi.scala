@@ -11,6 +11,7 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4actor.QProtocol.{Update, Updates}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
+import okio.ByteString
 
 @protocol object QProtocol extends Protocol {
   /*@Id(0x0010) case class TopicKey(
@@ -61,6 +62,7 @@ trait QMessages {
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toBytes(updates: List[Update]): Array[Byte]
+  def toUpdates(data: ByteString): List[Update]
 }
 
 object Types {
@@ -160,6 +162,10 @@ class QAdapterRegistry(
   val updatesAdapter: ProtoAdapter[QProtocol.Updates] with HasId
 )
 
+case class RawEvent(srcId: SrcId, data: ByteString)
+case class ClearUpdates(updates: Updates)
+case class FailedUpdates(srcId: SrcId)
+
 trait RawWorld {
   def offset: NextOffset
   def reduce(events: List[RawEvent]): RawWorld
@@ -179,7 +185,7 @@ trait ProgressObserverFactory {
 }
 
 trait RawSnapshot {
-  def save(updates: Updates): Unit
+  def save(data: Array[Byte], offset: NextOffset): Unit
   def loadRecent(): RawWorld
 }
 

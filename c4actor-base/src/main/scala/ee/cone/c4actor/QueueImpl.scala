@@ -9,6 +9,7 @@ import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import ee.cone.c4actor.Types.NextOffset
+import okio.ByteString
 
 /*Future[RecordMetadata]*/
 //producer.send(new ProducerRecord(topic, rawKey, rawValue))
@@ -44,6 +45,9 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry) extends ToUpdate {
   }
   def toBytes(updates: List[Update]): Array[Byte] =
     qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
+  def toUpdates(data: ByteString): List[Update] = {
+    qAdapterRegistry.updatesAdapter.decode(data).updates
+  }
 }
 
 object QAdapterRegistryFactory {

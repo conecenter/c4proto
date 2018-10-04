@@ -129,10 +129,6 @@ class AssemblerInit(
       GetOrigIndexKey.set(getOrigIndex)
 }
 
-case class RawEvent(srcId: SrcId, data: ByteString)
-case class ClearUpdates(updates: Updates)
-case class FailedUpdates(srcId: SrcId)
-
 case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
   def +[B1 >: V](kv: (K, B1)): Map[K, B1] = iterator.toMap + kv
   def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"")).asInstanceOf[Option[V]]
@@ -140,3 +136,5 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   def -(key: K): Map[K, V] = iterator.toMap - key
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
 }
+
+//@assemble

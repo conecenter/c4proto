@@ -8,7 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import java.nio.charset.StandardCharsets.UTF_8
 
-import ee.cone.c4actor.QProtocol.Updates
+import ee.cone.c4actor.QProtocol.{Update, Updates}
 import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4proto.ToByteString
 
@@ -30,7 +30,7 @@ class FileSnapshotConfigImpl(dirStr: String)(val ignore: Set[Long] =
   }
 ) extends SnapshotConfig
 
-class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory, toUpdate: ToUpdate) extends RawSnapshot with LazyLogging {
+class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory) extends RawSnapshot with LazyLogging {
   private def dir = Files.createDirectories(Paths.get(dirStr))
   private def hashFromName: String⇒Option[(String,String)] = {
     val R = """([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""".r;
@@ -42,9 +42,8 @@ class FileRawSnapshotImpl(dirStr: String, rawWorldFactory: RawWorldFactory, toUp
     }
   }
   private def hashFromData: Array[Byte]⇒String = UUID.nameUUIDFromBytes(_).toString
-  def save(updates: Updates): Unit = {
-    val data = toUpdate.toBytes(updates.updates)
-    val filename = s"${updates.srcId}-${hashFromData(data)}"
+  def save(data: Array[Byte], offset: NextOffset): Unit = {
+    val filename = s"$offset-${hashFromData(data)}"
     if(hashFromName(filename).isEmpty) throw new Exception
     Files.write(dir.resolve(filename),data)
   }
