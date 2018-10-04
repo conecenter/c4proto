@@ -32,9 +32,7 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   }
   )
 
-  def handlerKEK: DepHandler = depAskFactory.forClasses(classOf[ChildDepRequest], classOf[String]).by(foo ⇒ {
-    new RequestDep[String](ContextIdRequest())
-  })
+  def handlerKEK: DepHandler = depAskFactory.forClasses(classOf[ChildDepRequest], classOf[String]).by(foo ⇒ factory.askRoleId)
 
   case object FooRequestHandler extends DepHandler {
     def requestClassName: String = classOf[FooDepRequest].getName
@@ -74,7 +72,7 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   }
 
   def serialView: Dep[(Int, Int, Int)] = for {
-    b ← depFactory.parallelTuple(askFoo("A"), new RequestDep[String](ContextIdRequest()))
+    b ← depFactory.parallelTuple(askFoo("A"), factory.askRoleId)
     (a, t) = b
     seq ← depFactory.parallelSeq(askFoo("A") :: askFoo("A") :: Nil)
     Seq(i, j) = seq

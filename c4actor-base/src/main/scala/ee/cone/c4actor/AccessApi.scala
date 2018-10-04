@@ -10,6 +10,7 @@ trait Access[C] extends Product{
   def initialValue: C
   def metaList: List[MetaAttr]
   def to[I](inner: ProdLens[C,I]): Access[I]
+  def zoom: Access[C]
 }
 
 trait ModelAccessFactory {
@@ -35,5 +36,7 @@ case class ProdLens[C,I](metaList: List[MetaAttr])(val of: C⇒I, val set: I⇒C
       container => inner.of(of(container)), 
       item => modify(inner.set(item))
     )
+  lazy val metaByName: Map[String, List[MetaAttr]] = metaList.groupBy(_.getClass.getName)
+  lazy val lensName: List[NameMetaAttr] = metaByName.get(classOf[NameMetaAttr].getName).toList.flatten.asInstanceOf[List[NameMetaAttr]]
 }
 

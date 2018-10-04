@@ -71,7 +71,7 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
     responses: Values[DepResponse]
   ): Values[(SrcId, DepUnresolvedRequest)] =
     if (responses.forall(_.value.isEmpty))
-      List(WithPK(DepUnresolvedRequest(rq.srcId, rq.request, responses.size, outerRequests.map(_.srcId).toList)))
+      List(WithPK(DepUnresolvedRequest(rq.srcId, rq.request, responses.size, outerRequests.map(_.innerRequest.srcId).toList)))
     else Nil
 }
 
