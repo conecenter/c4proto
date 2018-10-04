@@ -274,10 +274,15 @@ class TreeAssemblerImpl(
       backStageFactory.create(expressionsByPriorityWithLoops.collect{ case e: ExprFrom ⇒ e })
     val transforms = expressionsByPriorityWithLoops ::: backStage ::: Nil
     val transformAllOnce = Function.chain(transforms.map(h⇒h.transform(_)))
+
+    val testSZ = transforms.size
     //for(t ← transforms) println("T",t)
     @tailrec def transformUntilStable(left: Int, transition: WorldTransition): WorldTransition =
       if(transition.diff.isEmpty) transition
-      else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
+      else if(left > 0){
+        println(s"join iter [${Thread.currentThread.getName}] $testSZ")
+        transformUntilStable(left-1, transformAllOnce(transition))
+      }
       else throw new Exception(s"unstable assemble ${transition.diff}")
 
     (diff,isParallel) ⇒ prevWorld ⇒ {

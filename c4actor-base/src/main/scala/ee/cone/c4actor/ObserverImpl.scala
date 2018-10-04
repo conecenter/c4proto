@@ -81,7 +81,12 @@ class ParallelObserver(
       localStates.getOrElse(key,empty).map(opt⇒Option(handle(opt)))
     }
     val nLocalStates = inProgressMap ++ toAdd
-    logger.debug(s"txTr count: ${nLocalStates.size}, uncompleted/inconsistent: ${inProgressMap.size}, just-mapped: ${toAdd.size}")
+    logger.debug(
+      s"txTr count: ${nLocalStates.size}, " +
+      s"inProgress: ${inProgressMap.size}, " +
+      s"uncompleted: ${inProgressMap.values.count(_.value.isEmpty)}, " +
+      s"just-mapped: ${toAdd.size}"
+    )
     List(new ParallelObserver(nLocalStates,transforms,execution))
   }
 }
