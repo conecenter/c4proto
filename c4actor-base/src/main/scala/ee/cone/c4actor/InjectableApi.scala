@@ -12,8 +12,8 @@ trait InjectableGetter[C,I] extends Getter[C,I] {
   def set: I ⇒ List[Injectable]
 }
 
-abstract class SharedComponentKey[Item<:Object] extends InjectableGetter[Context,Item] {
-  def of: Context ⇒ Item = context ⇒
+abstract class SharedComponentKey[Item<:Object] extends InjectableGetter[SharedContext,Item] {
+  def of: SharedContext ⇒ Item = context ⇒
     context.injected.getOrElse(this, throw new Exception(s"$this was not injected")).asInstanceOf[Item]
   def set: Item ⇒ List[Injectable] = item ⇒ List(new Injectable((this,item)))
 }

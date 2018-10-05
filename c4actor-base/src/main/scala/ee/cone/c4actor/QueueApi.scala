@@ -9,8 +9,9 @@ import scala.collection.immutable.{Map, Queue, Seq}
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.{SrcId, TransientMap}
+import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
+import okio.ByteString
 
 @protocol object QProtocol extends Protocol {
   /*@Id(0x0010) case class TopicKey(
@@ -48,10 +49,11 @@ trait QRecord {
 }
 
 trait RawQSender {
-  def send(rec: List[QRecord]): List[Long]
+  def send(rec: List[QRecord]): List[NextOffset]
 }
 
-case object OffsetWorldKey extends TransientLens[java.lang.Long](0L)
+object OffsetHexSize{ def apply() = 16 }
+case object OffsetWorldKey extends TransientLens[NextOffset]("0" * OffsetHexSize())
 
 trait QMessages {
   def send[M<:Product](local: Context): Context
@@ -59,18 +61,34 @@ trait QMessages {
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
+  def toBytes(updates: List[Update]): Array[Byte]
+  def toUpdates(data: ByteString): List[Update]
 }
 
 object Types {
   type SrcId = String
   type TransientMap = Map[TransientLens[_],Object]
+  type SharedComponentMap = Map[SharedComponentKey[_],Object]
+  type NextOffset = String
+}
+
+trait SharedContext {
+  def injected: SharedComponentMap
+}
+
+trait AssembledContext {
+  def assembled: ReadModel
+}
+
+trait RichContext extends SharedContext with AssembledContext {
+  def offset: NextOffset
 }
 
 class Context(
-  val injected: Map[SharedComponentKey[_],Object],
+  val injected: SharedComponentMap,
   val assembled: ReadModel,
   val transient: TransientMap
-)
+) extends SharedContext with AssembledContext
 
 object ByPK {
   def apply[V<:Product](cl: Class[V]): ByPrimaryKeyGetter[V] =
@@ -79,13 +97,13 @@ object ByPK {
 //todo? def t[T[U],U](clO: Class[T[U]], cl1: Class[U]): Option[T[U]] = None
 
 case class ByPrimaryKeyGetter[V<:Product](className: String)
-  extends Getter[Context,Map[SrcId,V]]
+  extends Getter[SharedContext with AssembledContext,Map[SrcId,V]]
 {
-  def of: Context ⇒ Map[SrcId, V] = context ⇒
+  def of: SharedContext with AssembledContext ⇒ Map[SrcId, V] = context ⇒
     GetOrigIndexKey.of(context)(context,className).asInstanceOf[Map[SrcId,V]]
 }
 
-case object GetOrigIndexKey extends SharedComponentKey[(Context,String)⇒Map[SrcId,Product]]
+case object GetOrigIndexKey extends SharedComponentKey[(AssembledContext,String)⇒Map[SrcId,Product]]
 
 trait Lens[C,I] extends Getter[C,I] {
   def modify: (I⇒I) ⇒ C⇒C
@@ -123,7 +141,7 @@ object TxAdd {
 }
 
 trait Observer {
-  def activate(world: Context): Seq[Observer]
+  def activate(world: RichContext): Seq[Observer]
 }
 
 trait TxTransform extends Product {
@@ -132,7 +150,7 @@ trait TxTransform extends Product {
 
 case object WriteModelKey extends TransientLens[Queue[Update]](Queue.empty)
 case object WriteModelDebugKey extends TransientLens[Queue[LEvent[Product]]](Queue.empty)
-case object ReadModelAddKey extends SharedComponentKey[Seq[Update]⇒Context⇒Context]
+case object ReadModelAddKey extends SharedComponentKey[SharedContext⇒Seq[RawEvent]⇒ReadModel⇒ReadModel]
 case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]⇒Context⇒Context]
 case object WriteModelAddKey extends SharedComponentKey[Seq[Update]⇒Context⇒Context]
 
@@ -141,13 +159,16 @@ case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
 class QAdapterRegistry(
   val byName: Map[String,ProtoAdapter[Product] with HasId],
   val byId: Map[Long,ProtoAdapter[Product] with HasId],
-  val updatesAdapter: ProtoAdapter[QProtocol.Updates]
+  val updatesAdapter: ProtoAdapter[QProtocol.Updates] with HasId
 )
 
-class RawEvent(val data: Array[Byte], val offset: Long)
+case class RawEvent(srcId: SrcId, data: ByteString)
+case class ClearUpdates(updates: Updates)
+case class KeepUpdates(srcId: SrcId)
+case class FailedUpdates(srcId: SrcId)
 
 trait RawWorld {
-  def offset: Long
+  def offset: NextOffset
   def reduce(events: List[RawEvent]): RawWorld
   def hasErrors: Boolean
 }
@@ -161,11 +182,11 @@ trait RawObserver {
 }
 
 trait ProgressObserverFactory {
-  def create(endOffset: Long): RawObserver
+  def create(endOffset: NextOffset): RawObserver
 }
 
 trait RawSnapshot {
-  def save(data: Array[Byte], offset: Long): Unit
+  def save(data: Array[Byte], offset: NextOffset): Unit
   def loadRecent(): RawWorld
 }
 
@@ -179,4 +200,9 @@ object CheckedMap {
 
 trait SnapshotConfig {
   def ignore: Set[Long]
+}
+
+trait AssembleProfiler {
+  def createSerialJoiningProfiling(local: Context): SerialJoiningProfiling
+  def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update]
 }

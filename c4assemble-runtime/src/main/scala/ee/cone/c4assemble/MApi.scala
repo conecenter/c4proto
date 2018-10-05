@@ -47,11 +47,16 @@ trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with Data
   def transform(transition: WorldTransition): WorldTransition
 }
 //object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, isParallel: Boolean)
+case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, isParallel: Boolean, profiling: SerialJoiningProfiling)
 
-trait AssembleProfiler {
-  def get(ruleName: String): String ⇒ Int ⇒ Unit
-  def getOpt(ruleName: String, in: Seq[AssembledKey], out: AssembledKey): Option[String ⇒ Int ⇒ Unit] = None
+trait SerialJoiningProfiling extends Product {
+  def time: Long
+  def handle(
+    join: Join,
+    calcStart: Long, findChangesStart: Long, patchStart: Long,
+    joinRes: DPIterable[Index],
+    transition: WorldTransition
+  ): WorldTransition
 }
 
 trait IndexFactory {

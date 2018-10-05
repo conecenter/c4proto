@@ -62,8 +62,7 @@ object AssemblerTest extends App with LazyLogging {
     List("2","3").flatMap(srcId ⇒ update(RawChildNode(srcId,"1",s"C-$srcId")))
   val updates = recs.map(rec⇒app.toUpdate.toUpdate(rec)).toList
   //println(app.qMessages.toTree(rawRecs))
-  val context = app.contextFactory.create()
-  val nGlobal = ReadModelAddKey.of(context)(updates)(context)
+  val nGlobal = app.contextFactory.updated(updates)
   /*
   val shouldDiff = Map(
     By.srcId(classOf[PCProtocol.RawParentNode]) -> Map(

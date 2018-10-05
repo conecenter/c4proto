@@ -27,7 +27,7 @@ object ToPrimaryKey {
 class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends DataDependencyTo[A]
 
 object TreeAssemblerTypes {
-  type Replace = (ReadModel, Boolean) ⇒ ReadModel ⇒ ReadModel
+  type Replace = (ReadModel, ReadModel, Boolean, SerialJoiningProfiling) ⇒ WorldTransition
 }
 
 trait TreeAssembler {

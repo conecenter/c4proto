@@ -49,8 +49,7 @@ class ConnStart(
       update(Node("12","1")) ++ update(Node("13","1")) ++
       update(Node("124","12")) ++ update(Node("125","12"))
     val updates = recs.map(rec⇒toUpdate.toUpdate(rec)).toList
-    val context = contextFactory.create()
-    val nGlobal = ReadModelAddKey.of(context)(updates)(context)
+    val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
     assert(

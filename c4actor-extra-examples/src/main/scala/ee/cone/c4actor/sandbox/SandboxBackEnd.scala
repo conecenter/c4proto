@@ -23,7 +23,7 @@ class ChangingIndexPerformanceTest(
   def run(): Unit = {
     import LEvent.update
     // val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
-    val local: Context = contextFactory.create()
+    val local: Context = contextFactory.updated(Nil)
     //val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
     val neededSrcId = "123"
 
@@ -45,9 +45,9 @@ class SandboxProject extends RichDataApp
   with SandboxJoinersApp {
   override def toStart: List[Executable] = new ChangingIndexPerformanceTest(execution, toUpdate, contextFactory) :: super.toStart
 
-  lazy val assembleProfiler = ValueAssembleProfiler
+  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
 }
-
+/*
 object ValueAssembleProfiler extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
     val startTime = System.currentTimeMillis
@@ -57,4 +57,4 @@ object ValueAssembleProfiler extends AssembleProfiler {
     }
   }
 }
-
+*/

@@ -49,9 +49,9 @@ trait RichObserverApp extends ExecutableApp with InitialObserversApp {
   def execution: Execution
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
-  def qAdapterRegistry: QAdapterRegistry
+  def toUpdate: ToUpdate
   //
-  lazy val qMessages: QMessages = new QMessagesImpl(qAdapterRegistry, ()⇒rawQSender)
+  lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
@@ -72,8 +72,8 @@ trait RichDataApp extends ProtocolsApp
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val rawWorldFactory: RawWorldFactory = new RichRawWorldFactory(contextFactory,toUpdate,getClass.getName)
-  lazy val contextFactory = new ContextFactory(toInject)
+  lazy val rawWorldFactory: RawWorldFactory = richRawWorldFactory
+  lazy val contextFactory = new ContextFactory(richRawWorldFactory,toUpdate)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
@@ -82,15 +82,17 @@ trait RichDataApp extends ProtocolsApp
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   lazy val indexUtil: IndexUtil = IndexUtilImpl()()
-  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,assembleProfiler,indexUpdater)
+  private lazy val richRawWorldFactory = new RichRawWorldFactory(toInject,toUpdate,getClass.getName)
+  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler)
   def parallelAssembleOn: Boolean = false
   //
+  override def assembles: List[Assemble] = new ClearUpdatesAssemble :: super.assembles
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
@@ -108,7 +110,8 @@ trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
   def snapshotConfig: SnapshotConfig
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(qAdapterRegistry,snapshotConfig)
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
+  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(snapshotConfig,toUpdate)
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
   override def protocols: List[Protocol] = QProtocol :: super.protocols
@@ -147,6 +150,12 @@ trait NoAssembleProfilerApp {
   lazy val assembleProfiler = NoAssembleProfiler
 }
 
-trait SimpleAssembleProfilerApp {
-  lazy val assembleProfiler = SimpleAssembleProfiler
+trait SimpleAssembleProfilerApp extends ProtocolsApp {
+  def toUpdate: ToUpdate
+  //
+  lazy val assembleProfiler = SimpleAssembleProfiler(toUpdate)
+  //
+  override def protocols: List[Protocol] =
+    SimpleAssembleProfilerProtocol ::
+    super.protocols
 }

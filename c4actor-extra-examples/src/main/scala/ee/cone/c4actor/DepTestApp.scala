@@ -68,8 +68,7 @@ class DepTestStart(
           update(Node("12","1")) ++ update(Node("13","1")) ++
           update(Node("124","12")) ++ update(Node("125","12"))*/
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
-    val context: Context = contextFactory.create()
-    val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
+    val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")

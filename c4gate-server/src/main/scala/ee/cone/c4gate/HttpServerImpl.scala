@@ -146,10 +146,13 @@ class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends
 }
 
 class WorldProviderImpl(
-  worldFuture: CompletableFuture[AtomicReference[Context]] = new CompletableFuture()
+  worldFuture: CompletableFuture[AtomicReference[RichContext]] = new CompletableFuture()
 ) extends WorldProvider with Observer {
-  def createTx(): Context = concurrent.blocking{ worldFuture.get.get }
-  def activate(global: Context): Seq[Observer] = {
+  def createTx(): Context = {
+    val global = concurrent.blocking{ worldFuture.get.get }
+    new Context(global.injected, global.assembled, Map.empty)
+  }
+  def activate(global: RichContext): Seq[Observer] = {
     if(worldFuture.isDone) worldFuture.get.set(global)
     else worldFuture.complete(new AtomicReference(global))
     List(this)

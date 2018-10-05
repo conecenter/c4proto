@@ -10,6 +10,6 @@ class IndexUpdaterImpl() extends IndexUpdater {
   ): WorldTransition⇒WorldTransition = transition ⇒ {
     val diff = transition.diff + (worldKey → nextDiff)
     val next = transition.result + (worldKey → nextIndex)
-    WorldTransition(transition.prev, diff, next, transition.isParallel)
+    transition.copy(diff=diff,result=next)
   }
 }

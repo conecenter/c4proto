@@ -21,7 +21,7 @@ class PublishingObserver(
   fromStrings: List[(String,String)],
   mimeTypes: String⇒Option[String]
 ) extends Observer with LazyLogging {
-  def activate(global: Context): Seq[Observer] = {
+  def activate(global: RichContext): Seq[Observer] = {
     //println("AAA")
     logger.debug("publish started")
     val fromPath = Paths.get(fromDir)
@@ -36,18 +36,19 @@ class PublishingObserver(
     //println("BBB")
     Nil
   }
-  def publish(local: Context)(path: String, body: Array[Byte]): Unit = {
+  def publish(global: RichContext)(path: String, body: Array[Byte]): Unit = {
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
     val headers = Header("Content-Encoding", compressor.name) ::
       ext.flatMap(mimeTypes).map(Header("Content-Type",_)).toList
     val byteString = compressor.compress(ToByteString(body))
     val publication = HttpPublication(path,headers,byteString,None)
-    val existingPublications = ByPK(classOf[HttpPublication]).of(local)
+    val existingPublications = ByPK(classOf[HttpPublication]).of(global)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.get(path).contains(publication)) {
       logger.debug(s"$path (${byteString.size}) exists")
     } else {
+      val local = new Context(global.injected, global.assembled, Map.empty)
       TxAdd(LEvent.update(publication)).andThen(qMessages.send)(local)
       logger.debug(s"$path (${byteString.size}) published")
     }

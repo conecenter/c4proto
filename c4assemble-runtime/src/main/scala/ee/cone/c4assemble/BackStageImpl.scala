@@ -5,10 +5,8 @@ import ee.cone.c4assemble.Types._
 import scala.collection.immutable.Map
 
 object PrepareBackStage extends WorldPartExpression {
-  def transform(transition: WorldTransition): WorldTransition = {
-    //println("pbs")
-    WorldTransition(Option(transition), emptyReadModel, transition.result, transition.isParallel)
-  }
+  def transform(transition: WorldTransition): WorldTransition =
+    transition.copy(prev=Option(transition), diff=emptyReadModel)
 }
 
 class ConnectBackStage[MapKey, Value](

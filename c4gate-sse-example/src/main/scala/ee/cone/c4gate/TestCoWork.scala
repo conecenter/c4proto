@@ -19,7 +19,7 @@ class TestCoWorkApp extends ServerApp
   with UIApp
   with PublishingApp
   with TestTagsApp
-  with NoAssembleProfilerApp
+  with SimpleAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
   with PublicViewAssembleApp
@@ -31,6 +31,7 @@ class TestCoWorkApp extends ServerApp
   with ByLocationHashViewsApp
   with TestCoWorkerViewApp
   with TestCoLeaderViewApp
+  with TestTxLogApp
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
