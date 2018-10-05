@@ -203,6 +203,6 @@ trait SnapshotConfig {
 }
 
 trait AssembleProfiler {
-  def createSerialJoiningProfiling(local: Context): SerialJoiningProfiling
+  def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling
   def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update]
 }
