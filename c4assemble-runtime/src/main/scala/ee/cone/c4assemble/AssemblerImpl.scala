@@ -168,28 +168,19 @@ case class IndexUtilImpl()(
 
 class IndexFactoryImpl(
   val util: IndexUtil,
-  profiler: AssembleProfiler,
   updater: IndexUpdater
 ) extends IndexFactory {
   def createJoinMapIndex(join: Join):
     WorldPartExpression
       with DataDependencyFrom[Index]
       with DataDependencyTo[Index]
-  = new JoinMapIndex(join, updater, util,
-    profiler.getOpt(join.name, join.inputWorldKeys, join.outputWorldKey) match {
-      case Some(l) ⇒ l
-      case None ⇒ profiler.get(join.name)
-    }
-    /*, DefIndexOpt(join.outputWorldKey)*/
-  )
+  = new JoinMapIndex(join, updater, util)
 }
 
 class JoinMapIndex(
   join: Join,
   updater: IndexUpdater,
-  composes: IndexUtil,
-  profiler: String ⇒ Int ⇒ Unit
-  //indexOpt: IndexOpt
+  composes: IndexUtil
 ) extends WorldPartExpression
   with DataDependencyFrom[Index]
   with DataDependencyTo[Index]
@@ -205,31 +196,26 @@ class JoinMapIndex(
     //println(s"rule $outputWorldKey <- $inputWorldKeys")
     if (inputWorldKeys.forall(k ⇒ composes.isEmpty(k.of(transition.diff)))) transition
     else { //
-      val end  = profiler(s"calculate    ${transition.isParallel}")
+      val profiler = transition.profiling
+      val calcStart = profiler.time
       val worlds = Seq(
         -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
         +1→inputWorldKeys.map(_.of(transition.result))
       )
       val worldDiffs = inputWorldKeys.map(_.of(transition.diff))
       val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
-      end(joinRes.size)
-      val endR = profiler(s"find-changes ${transition.isParallel}")
+      //joinRes.size  composes.keySet(indexDiff).size
+      val findChangesStart = profiler.time
       val indexDiff = composes.mergeIndex(joinRes)
-      endR(composes.keySet(indexDiff).size)
-      if(composes.isEmpty(indexDiff)) transition else {
-        val end = profiler("patch")
+      val patchStart = profiler.time
+      val patchedTransition = if(composes.isEmpty(indexDiff)) transition else {
         val nextDiff = composes.mergeIndex(Seq(outputWorldKey.of(transition.diff), indexDiff))
         val nextResult = composes.mergeIndex(Seq(outputWorldKey.of(transition.result), indexDiff))
-        end(-1)
         updater.setPart(outputWorldKey)(nextDiff, nextResult)(transition)
       }
+      profiler.handle(join, calcStart, findChangesStart, patchStart, joinRes, patchedTransition)
     }
   }
-}
-
-object NoAssembleProfiler extends AssembleProfiler {
-  def get(ruleName: String): String ⇒ Int ⇒ Unit = dummy
-  private def dummy(startAction: String)(finalCount: Int): Unit = ()
 }
 
 class TreeAssemblerImpl(
@@ -285,11 +271,11 @@ class TreeAssemblerImpl(
       }
       else throw new Exception(s"unstable assemble ${transition.diff}")
 
-    (diff,isParallel) ⇒ prevWorld ⇒ {
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel)
+    (prevWorld,diff,isParallel,profiler) ⇒ {
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler)
       val currentWorld = Merge[AssembledKey,Index](composes.isEmpty,(a,b)⇒composes.mergeIndex(Seq(a,b)))(prevWorld, diff)
-      val transition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel)
-      transformUntilStable(1000, transition).result
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler)
+      transformUntilStable(1000, nextTransition)
     }
   }
 }

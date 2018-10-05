@@ -163,9 +163,9 @@ class ChangingIndexPerformanceTestApp extends RichDataApp
 
   override def assembles: List[Assemble] = new LUL(classOf[PerformanceNode], classOf[NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
 
-  lazy val assembleProfiler = ValueAssembleProfiler
+  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
 }
-
+/*
 object ValueAssembleProfiler extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
     val startTime = System.currentTimeMillis
@@ -184,3 +184,4 @@ object ValueAssembleProfiler extends AssembleProfiler {
       }
     }*/
 }
+*/

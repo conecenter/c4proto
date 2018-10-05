@@ -83,13 +83,13 @@ trait RichDataApp extends ProtocolsApp
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   lazy val indexUtil: IndexUtil = IndexUtilImpl()()
   private lazy val richRawWorldFactory = new RichRawWorldFactory(toInject,toUpdate,getClass.getName)
-  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,assembleProfiler,indexUpdater)
+  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler)
   def parallelAssembleOn: Boolean = false
   //
   override def assembles: List[Assemble] = new ClearUpdatesAssemble :: super.assembles
@@ -150,6 +150,12 @@ trait NoAssembleProfilerApp {
   lazy val assembleProfiler = NoAssembleProfiler
 }
 
-trait SimpleAssembleProfilerApp {
-  lazy val assembleProfiler = SimpleAssembleProfiler
+trait SimpleAssembleProfilerApp extends ProtocolsApp {
+  def toUpdate: ToUpdate
+  //
+  lazy val assembleProfiler = SimpleAssembleProfiler(toUpdate)
+  //
+  override def protocols: List[Protocol] =
+    SimpleAssembleProfilerProtocol ::
+    super.protocols
 }

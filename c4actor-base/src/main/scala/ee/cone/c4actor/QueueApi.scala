@@ -201,3 +201,8 @@ object CheckedMap {
 trait SnapshotConfig {
   def ignore: Set[Long]
 }
+
+trait AssembleProfiler {
+  def createSerialJoiningProfiling(local: Context): SerialJoiningProfiling
+  def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update]
+}

@@ -2,15 +2,12 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update, Updates}
-import ee.cone.c4actor.Types.{NextOffset, SrcId}
-import ee.cone.c4assemble.{ToPrimaryKey, _}
+import ee.cone.c4actor.Types._
+import ee.cone.c4assemble._
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.Protocol
-import okio.ByteString
 
-import scala.annotation.tailrec
-import scala.collection.GenMap
 import scala.collection.immutable.{Map, Seq}
 
 case class OrigKeyFactory(composes: IndexUtil) {
@@ -34,7 +31,8 @@ class AssemblerInit(
   getDependencies: ()⇒List[DataDependencyTo[_]],
   isParallel: Boolean,
   composes: IndexUtil,
-  origKeyFactory: OrigKeyFactory
+  origKeyFactory: OrigKeyFactory,
+  assembleProfiler: AssembleProfiler
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update], fix: (SrcId,Product)⇒Product = (_,i)⇒i): ReadModel =
@@ -74,7 +72,7 @@ class AssemblerInit(
     r
   }
   private def reduceAndClearMeta(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel = {
-    val assembled = replace(diff,isParallel)(wasAssembled)
+    val assembled = replace(wasAssembled,diff,isParallel,NoSerialJoiningProfiling).result
     val mUpdates = getValues(classOf[ClearUpdates],assembled).map(_.updates)
       .flatMap(LEvent.delete).map(toUpdate.toUpdate)
     if(mUpdates.isEmpty) assembled
@@ -106,11 +104,16 @@ class AssemblerInit(
   // other parts:
   private def add(out: Seq[Update]): Context ⇒ Context =
     if(out.isEmpty) identity[Context]
-    else WriteModelKey.modify(_.enqueue(out)).andThen { local ⇒
+    else { local ⇒
       val diff = toTree(local.assembled, out)
+      val profiling = assembleProfiler.createSerialJoiningProfiling(local)
       val replace = TreeAssemblerKey.of(local)
-      val assembled = replace(diff,false)(local.assembled)
-      new Context(local.injected, assembled, local.transient) //call add here for new mortal?
+      val transition = replace(local.assembled,diff,false,profiling)
+      val assembled = transition.result
+      val updates = assembleProfiler.addMeta(transition.profiling, out)
+      val nLocal = new Context(local.injected, assembled, local.transient)
+      WriteModelKey.modify(_.enqueue(updates))(nLocal)
+      //call add here for new mortal?
     }
 
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
@@ -149,4 +152,21 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
     keep: Values[KeepUpdates]
   ): Values[(SrcId,ClearUpdates)] =
     if(keep.isEmpty) List(WithPK(ClearUpdates(updates))) else Nil
+}
+
+case object NoAssembleProfiler extends AssembleProfiler {
+  def createSerialJoiningProfiling(local: Context): SerialJoiningProfiling =
+    NoSerialJoiningProfiling
+  def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update] =
+    updates
+}
+
+case object NoSerialJoiningProfiling extends SerialJoiningProfiling {
+  def time: Long = 0L
+  def handle(
+    join: Join,
+    calcStart: Long, findChangesStart: Long, patchStart: Long,
+    joinRes: DPIterable[Index],
+    transition: WorldTransition
+  ): WorldTransition = transition
 }

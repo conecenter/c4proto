@@ -295,7 +295,7 @@ class HashSearchExtraTestApp extends RichDataApp
       super.assembles
   }
 
-  lazy val assembleProfiler: AssembleProfiler = ValueAssembleProfiler2
+  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler2
 
   override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: super.dynIndexModels
 
@@ -303,7 +303,7 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def dynamicIndexNodeDefaultSetting: IndexNodeSettings = IndexNodeSettings("", false, Some(100L))
 }
-
+/*
 object ValueAssembleProfiler2 extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
     val startTime = System.currentTimeMillis
@@ -334,3 +334,4 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
     }
   }
 }
+*/
