@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{LogEntry, TxAddMeta}
 import ee.cone.c4actor.Types.SrcId
@@ -9,6 +10,25 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 import scala.collection.immutable.Seq
+
+case object NoAssembleProfiler extends AssembleProfiler {
+  def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling =
+    NoSerialJoiningProfiling
+  def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update] =
+    updates
+}
+
+case object NoSerialJoiningProfiling extends SerialJoiningProfiling {
+  def time: Long = 0L
+  def handle(
+    join: Join,
+    calcStart: Long, findChangesStart: Long, patchStart: Long,
+    joinRes: DPIterable[Index],
+    transition: WorldTransition
+  ): WorldTransition = transition
+}
+
+////
 
 @protocol object SimpleAssembleProfilerProtocol extends Protocol {
   @Id(0x0073) case class TxAddMeta(
@@ -24,7 +44,9 @@ import scala.collection.immutable.Seq
 }
 
 case class SimpleAssembleProfiler(toUpdate: ToUpdate) extends AssembleProfiler {
-  def createSerialJoiningProfiling(local: Context) = SimpleSerialJoiningProfiling(System.nanoTime, Nil)
+  def createSerialJoiningProfiling(localOpt: Option[Context]) =
+    if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
+    else SimpleSerialJoiningProfiling(System.nanoTime, Nil)
   def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update] = profiling match {
     case SimpleSerialJoiningProfiling(startedAt,log) ⇒
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
@@ -46,7 +68,24 @@ case class SimpleSerialJoiningProfiling(startedAt: Long, log: List[LogEntry])
     joinRes: DPIterable[Index],
     transition: WorldTransition
   ): WorldTransition = {
-    val period = System.nanoTime - calcStart
+    val period = (System.nanoTime - calcStart) / 1000
     transition.copy(profiling = copy(log=LogEntry(join.name,period)::log))
+  }
+}
+
+case object SimpleConsoleSerialJoiningProfiling extends SerialJoiningProfiling with LazyLogging {
+  def time: Long = System.nanoTime
+  def handle(
+    join: Join,
+    calcStart: Long,
+    findChangesStart: Long,
+    patchStart: Long,
+    joinRes: DPIterable[Index],
+    transition: WorldTransition
+  ): WorldTransition = {
+    val period = (System.nanoTime - calcStart) / 1000000
+    if(period > 50)
+      logger.debug(s"$period ms ${joinRes.size} items for ${join.name}")
+    transition
   }
 }

@@ -72,7 +72,7 @@ class AssemblerInit(
     r
   }
   private def reduceAndClearMeta(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel = {
-    val assembled = replace(wasAssembled,diff,isParallel,NoSerialJoiningProfiling).result
+    val assembled = replace(wasAssembled,diff,isParallel,assembleProfiler.createSerialJoiningProfiling(None)).result
     val mUpdates = getValues(classOf[ClearUpdates],assembled).map(_.updates)
       .flatMap(LEvent.delete).map(toUpdate.toUpdate)
     if(mUpdates.isEmpty) assembled
@@ -106,7 +106,7 @@ class AssemblerInit(
     if(out.isEmpty) identity[Context]
     else { local ⇒
       val diff = toTree(local.assembled, out)
-      val profiling = assembleProfiler.createSerialJoiningProfiling(local)
+      val profiling = assembleProfiler.createSerialJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val transition = replace(local.assembled,diff,false,profiling)
       val assembled = transition.result
@@ -152,21 +152,4 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
     keep: Values[KeepUpdates]
   ): Values[(SrcId,ClearUpdates)] =
     if(keep.isEmpty) List(WithPK(ClearUpdates(updates))) else Nil
-}
-
-case object NoAssembleProfiler extends AssembleProfiler {
-  def createSerialJoiningProfiling(local: Context): SerialJoiningProfiling =
-    NoSerialJoiningProfiling
-  def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update] =
-    updates
-}
-
-case object NoSerialJoiningProfiling extends SerialJoiningProfiling {
-  def time: Long = 0L
-  def handle(
-    join: Join,
-    calcStart: Long, findChangesStart: Long, patchStart: Long,
-    joinRes: DPIterable[Index],
-    transition: WorldTransition
-  ): WorldTransition = transition
 }
