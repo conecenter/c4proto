@@ -14,23 +14,32 @@ import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMa
 import okio.ByteString
 
 @protocol object QProtocol extends Protocol {
+
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
       @Id(0x0012) valueTypeId: Long
   )*/
+
+  @Id(0x0017) case class FailedUpdates(
+    @Id(0x0018) srcId: String
+  )
+
   case class Update(
     @Id(0x0011) srcId: String,
     @Id(0x0012) valueTypeId: Long,
     @Id(0x0013) value: okio.ByteString
   )
+
   @Id(0x0014) case class Updates(
-      @Id(0x0011) srcId: String, //dummy
-      @Id(0x0015) updates: List[Update]
+    @Id(0x0011) srcId: String, //dummy
+    @Id(0x0015) updates: List[Update]
   )
+
   @Id(0x0016) case class Firstborn(
     @Id(0x0011) srcId: String //dummy
     //@Id(0x0017) value: Long
   )
+
   /*@Id(0x0018) case class Leader(
     @Id(0x0019) actorName: String,
     @Id(0x001A) incarnationId: String
@@ -165,7 +174,6 @@ class QAdapterRegistry(
 case class RawEvent(srcId: SrcId, data: ByteString)
 case class ClearUpdates(updates: Updates)
 case class KeepUpdates(srcId: SrcId)
-case class FailedUpdates(srcId: SrcId)
 
 trait RawWorld {
   def offset: NextOffset

@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{Firstborn, Update, Updates}
+import ee.cone.c4actor.QProtocol.{FailedUpdates, Firstborn, Update, Updates}
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
