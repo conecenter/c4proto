@@ -21,7 +21,8 @@ import okio.ByteString
   )*/
 
   @Id(0x0017) case class FailedUpdates(
-    @Id(0x0018) srcId: String
+    @Id(0x0018) srcId: String,
+    @Id(0x0019) reason: String
   )
 
   case class Update(

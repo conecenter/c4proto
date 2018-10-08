@@ -92,7 +92,7 @@ class AssemblerInit(
       logger.error("reduce", e) // ??? exception to record
       if(events.size == 1){
         val metaDiff = toTree(assembled, events)
-        val updates = events.map(ev⇒FailedUpdates(ev.srcId))
+        val updates = events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))
           .flatMap(LEvent.update).map(toUpdate.toUpdate)
         val failDiff = toTree(assembled, updates)
         reduceAndClearMeta(replace, assembled, joinDiffs(failDiff,metaDiff))
