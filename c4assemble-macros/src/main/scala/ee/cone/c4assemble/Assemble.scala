@@ -84,6 +84,11 @@ class assemble extends StaticAnnotation {
          |"${specType.key.str}",${classOfT(specType.key)},${classOfT(specType.value)}
          |)""".stripMargin
     }
+    val toString =
+      if (tparams.isEmpty)
+        s""""$className""""
+      else
+        s""""$className" + '['+ ${tparams.map(i ⇒ simpleClassOfExpr(i.name.toString())).mkString("+','+")} +']'"""
     val joinImpl = rules.collect{
       case JoinDef(params,inKeyType,out) ⇒
         val (seqParams,eachParams) = params.partition(_.many)
@@ -117,7 +122,7 @@ class assemble extends StaticAnnotation {
         s"""
            |indexFactory.createJoinMapIndex(new ee.cone.c4assemble.Join(
            |  getClass.getName,
-           |  "${out.name}",
+           |  $toString,
            |  collection.immutable.Seq(${params.map(expr).mkString(",")}),
            |  ${expr(out)},
            |  $fun
@@ -125,18 +130,10 @@ class assemble extends StaticAnnotation {
          """.stripMargin
     }.mkString(s"override def dataDependencies = indexFactory ⇒ List(",",",")")
 
-    val toString =
-      if (tparams.isEmpty)
-        s"""override val toString: String = "$className" + '@' + Integer.toHexString(hashCode())"""
-      else
-        s"""override val toString: String = "$className" + '@' + Integer.toHexString(hashCode()) + '['+ ${tparams.map(i ⇒ simpleClassOfExpr(i.name.toString())).mkString("+','+")} +']'"""
-
     val res = q"""
       class $className [..$tparams] (...$paramss) extends ..$ext {
         ..$stats;
         ${joinImpl.parse[Stat].get};
-
-        ${toString.parse[Stat].get}
       }"""
     //println(res)
     res
