@@ -121,8 +121,8 @@ class assemble extends StaticAnnotation {
          """.stripMargin
         s"""
            |indexFactory.createJoinMapIndex(new ee.cone.c4assemble.Join(
-           |  getClass.getName,
            |  $toString,
+           |  "${out.name}",
            |  collection.immutable.Seq(${params.map(expr).mkString(",")}),
            |  ${expr(out)},
            |  $fun
