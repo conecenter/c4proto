@@ -65,6 +65,8 @@ class assemble extends StaticAnnotation {
     }.toMap
     def classOfExpr(className: String) =
       classArgs.getOrElse(className,s"classOf[$className]") + ".getName"
+    def simpleClassOfExpr(className: String) =
+      classArgs.getOrElse(className,s"classOf[$className]") + ".getSimpleName"
     def classOfT(kvType: KVType) = kvType match {
       case SimpleKVType(n,_) ⇒ classOfExpr(n)
       case GenericKVType(n,of,_) ⇒ s"classOf[$n[_]].getName+'['+${classOfExpr(of)}+']'"
@@ -123,10 +125,18 @@ class assemble extends StaticAnnotation {
          """.stripMargin
     }.mkString(s"override def dataDependencies = indexFactory ⇒ List(",",",")")
 
+    val toString =
+      if (tparams.isEmpty)
+        s"""override val toString: String = "$className" + '@' + Integer.toHexString(hashCode())"""
+      else
+        s"""override val toString: String = "$className" + '@' + Integer.toHexString(hashCode()) + '['+ ${tparams.map(i ⇒ simpleClassOfExpr(i.name.toString())).mkString("+','+")} +']'"""
+
     val res = q"""
       class $className [..$tparams] (...$paramss) extends ..$ext {
         ..$stats;
         ${joinImpl.parse[Stat].get};
+
+        ${toString.parse[Stat].get}
       }"""
     //println(res)
     res

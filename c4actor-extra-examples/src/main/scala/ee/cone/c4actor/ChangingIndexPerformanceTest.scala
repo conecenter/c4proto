@@ -161,6 +161,8 @@ class ChangingIndexPerformanceTestApp extends RichDataApp
 
   override def protocols: List[Protocol] = PerformanceProtocol :: super.protocols
 
+  println(assembles.toString)
+
   override def assembles: List[Assemble] = new LUL(classOf[PerformanceNode], classOf[NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
 
   lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
