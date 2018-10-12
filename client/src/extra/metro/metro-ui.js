@@ -2628,6 +2628,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.active||!this.el) return		
 			const activeElement = this.el.ownerDocument.activeElement
 			const path = this.getParentPath(activeElement)
+			if(path===null && activeElement.tagName!="BODY") return
 			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
 				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)					
 				if(el) el.focus()

@@ -37,7 +37,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 			if(this.props.onClick) this.props.onClick(ev)			
 		}
 		onTouchStart(e){
-			this.onMouseDown(e)
+			//this.onMouseDown(e)
 		}
 		onMouseDown(e){
 			this.setState({mouseDown:true})
