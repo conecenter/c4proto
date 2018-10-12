@@ -4,7 +4,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, PerformanceNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.sandbox.SandboxProtocol.SandboxOrig
+import ee.cone.c4actor.sandbox.SandboxProtocol.OrigSandbox
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -23,12 +23,12 @@ class ChangingIndexPerformanceTest(
   def run(): Unit = {
     import LEvent.update
     // val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
-    val local: Context = contextFactory.create()
+    val local: Context = contextFactory.updated(Nil)
     //val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
     val neededSrcId = "123"
 
-    val sandboxOrigMap: Map[SrcId, SandboxOrig] = ByPK(classOf[SandboxOrig]).of(local)
-    val someOrig: Option[SandboxOrig] = sandboxOrigMap.get(neededSrcId)
+    val sandboxOrigMap: Map[SrcId, OrigSandbox] = ByPK(classOf[OrigSandbox]).of(local)
+    val someOrig: Option[OrigSandbox] = sandboxOrigMap.get(neededSrcId)
 
 
     println(someOrig)
@@ -45,9 +45,9 @@ class SandboxProject extends RichDataApp
   with SandboxJoinersApp {
   override def toStart: List[Executable] = new ChangingIndexPerformanceTest(execution, toUpdate, contextFactory) :: super.toStart
 
-  lazy val assembleProfiler = ValueAssembleProfiler
+  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
 }
-
+/*
 object ValueAssembleProfiler extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
     val startTime = System.currentTimeMillis
@@ -57,4 +57,4 @@ object ValueAssembleProfiler extends AssembleProfiler {
     }
   }
 }
-
+*/

@@ -39,3 +39,7 @@ object FinallyClose {
   def apply[A<:AutoCloseable,R](o: A)(f: A⇒R): R = try f(o) finally o.close()
   def apply[A,R](close: A⇒Unit)(o: A)(f: A⇒R): R = try f(o) finally close(o)
 }
+
+case class NanoTimer(startedAt: Long = System.nanoTime){
+  def ms: Long = (System.nanoTime - startedAt) / 1000000
+}

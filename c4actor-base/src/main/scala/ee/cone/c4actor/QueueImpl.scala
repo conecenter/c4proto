@@ -8,6 +8,9 @@ import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
 
+import ee.cone.c4actor.Types.NextOffset
+import okio.ByteString
+
 /*Future[RecordMetadata]*/
 //producer.send(new ProducerRecord(topic, rawKey, rawValue))
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
@@ -15,15 +18,14 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte]) extends QRecord
 
-class QMessagesImpl(qAdapterRegistry: QAdapterRegistry, getRawQSender: ()⇒RawQSender) extends QMessages {
+class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends QMessages {
   //import qAdapterRegistry._
   // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
     val updates: List[Update] = WriteModelKey.of(local).toList
     if(updates.isEmpty) return local
     //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val rawValue = qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
-    val rec = new QRecordImpl(InboxTopicName(),rawValue)
+    val rec = new QRecordImpl(InboxTopicName(),toUpdate.toBytes(updates))
     val debugStr = WriteModelDebugKey.of(local).map(_.toString).mkString("\n---\n")
     val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8))
     val List(offset,_)= getRawQSender().send(List(rec,debugRec))
@@ -41,6 +43,11 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry) extends ToUpdate {
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
     Update(message.srcId, valueAdapter.id, byteString)
   }
+  def toBytes(updates: List[Update]): Array[Byte] =
+    qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
+  def toUpdates(data: ByteString): List[Update] = {
+    qAdapterRegistry.updatesAdapter.decode(data).updates
+  }
 }
 
 object QAdapterRegistryFactory {
@@ -48,7 +55,7 @@ object QAdapterRegistryFactory {
     val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
     val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
     val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
-      .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
+      .asInstanceOf[ProtoAdapter[QProtocol.Updates] with HasId]
     val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
     new QAdapterRegistry(byName, byId, updatesAdapter)
   }
@@ -59,5 +66,5 @@ class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToIn
 }
 
 object NoRawQSender extends RawQSender {
-  def send(recs: List[QRecord]): List[Long] = Nil
+  def send(recs: List[QRecord]): List[NextOffset] = Nil
 }

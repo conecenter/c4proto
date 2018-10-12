@@ -4,11 +4,14 @@ package ee.cone.c4actor
 import java.util.concurrent.CompletableFuture
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4assemble.Single
+import ee.cone.c4proto.ToByteString
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.record.TimestampType
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 
 import scala.annotation.tailrec
@@ -47,10 +50,15 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
     val topic = conf.topicNameToString(rec.topic)
     producer.get.send(new ProducerRecord(topic, 0, Array.empty, value))
   }
-  def send(recs: List[QRecord]): List[Long] = concurrent.blocking{
+  def send(recs: List[QRecord]): List[NextOffset] = concurrent.blocking{
     val futures: List[java.util.concurrent.Future[RecordMetadata]] = recs.map(sendStart)
-    futures.map(_.get().offset()+1)
+    futures.map(res⇒OffsetHex(res.get().offset()+1))
   }
+}
+
+object OffsetHex {
+  def apply(offset: Long): NextOffset =
+    (("0" * OffsetHexSize())+java.lang.Long.toHexString(offset)).takeRight(OffsetHexSize())
 }
 
 case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String){
@@ -67,7 +75,7 @@ class KafkaActor(conf: KafkaConfig)(
 ) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     GCLog("before loadRecent")
-    val initialRawWorld = rawSnapshot.loadRecent()
+    val initialRawWorld: RawWorld = rawSnapshot.loadRecent()
     GCLog("after loadRecent")
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
@@ -86,8 +94,9 @@ class KafkaActor(conf: KafkaConfig)(
       logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}]")
       consumer.assign(inboxTopicPartition.asJava)
       val endOffset: Long = Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long
-      val initialRawObserver = progressObserverFactory.create(endOffset)
-      consumer.seek(Single(inboxTopicPartition), initialRawWorld.offset)
+      val initialRawObserver = progressObserverFactory.create(OffsetHex(endOffset))
+      val initialOffset = java.lang.Long.parseLong(initialRawWorld.offset,16)
+      consumer.seek(Single(inboxTopicPartition), initialOffset)
       iteration(consumer, initialRawWorld, initialRawObserver)
     }
   }
@@ -95,12 +104,20 @@ class KafkaActor(conf: KafkaConfig)(
     consumer: KafkaConsumer[Array[Byte], Array[Byte]],
     world: RawWorld, observer: RawObserver
   ): Unit = {
-    val events = consumer.poll(200 /*timeout*/).asScala.toList.map{ rec ⇒
-      val data: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
-      val offset: Long = rec.offset+1L
-      new RawEvent(data,offset)
+    val kafkaEvents = consumer.poll(200 /*timeout*/).asScala.toList
+    if(kafkaEvents.nonEmpty){
+      val latency = System.currentTimeMillis-kafkaEvents.map(_.timestamp).min //check rec.timestampType == TimestampType.CREATE_TIME ?
+      logger.debug(s"p-c latency $latency ms")
     }
+    val events = kafkaEvents.map{ rec ⇒
+      val data: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
+      RawEvent(OffsetHex(rec.offset+1L), ToByteString(data))
+    }
+    val end = NanoTimer()
     val newWorld = world.reduce(events)
+    val period = end.ms
+    if(events.nonEmpty)
+      logger.debug(s"reduced ${events.size} tx-s in $period ms")
     val newObserver = observer.activate(newWorld)
     //GCLog("iteration done")
     iteration(consumer, newWorld, newObserver)

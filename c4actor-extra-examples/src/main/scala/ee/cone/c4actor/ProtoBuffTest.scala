@@ -85,7 +85,7 @@ object TestQAdapterRegistryFactory {
     val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
     val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
     val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
-      .asInstanceOf[ProtoAdapter[QProtocol.Updates]]
+      .asInstanceOf[ProtoAdapter[QProtocol.Updates] with HasId]
     val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
     new QAdapterRegistry(byName, byId, updatesAdapter)
   }

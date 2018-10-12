@@ -36,8 +36,7 @@ class HashSearchExtraTestStart(
     } yield TestObject(i.toString, 239, i.toString.take(5))
     val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test")) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
-    val context: Context = contextFactory.create()
-    val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
+    val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
     val nGlobalAA = ActivateContext(nGlobalActive)
 
@@ -296,7 +295,7 @@ class HashSearchExtraTestApp extends RichDataApp
       super.assembles
   }
 
-  lazy val assembleProfiler: AssembleProfiler = ValueAssembleProfiler2
+  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler2
 
   override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: super.dynIndexModels
 
@@ -304,7 +303,7 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def dynamicIndexNodeDefaultSetting: IndexNodeSettings = IndexNodeSettings("", false, Some(100L))
 }
-
+/*
 object ValueAssembleProfiler2 extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
     val startTime = System.currentTimeMillis
@@ -335,3 +334,4 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
     }
   }
 }
+*/

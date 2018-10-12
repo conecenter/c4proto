@@ -13,7 +13,7 @@ class JoinAllTestApp extends RichDataApp
 {
   override def assembles: List[Assemble] = new JoinAllTestAssemble :: super.assembles
   override def protocols: List[Protocol] = JoinAllTestProtocol :: super.protocols
-  override def toStart: List[Executable] = new JoinAllTestExecutable(rawWorldFactory) :: super.toStart
+  override def toStart: List[Executable] = new JoinAllTestExecutable(contextFactory) :: super.toStart
 }
 
 @protocol object JoinAllTestProtocol extends Protocol {
@@ -39,10 +39,9 @@ case class JoinAllTestItem(srcId: String)
   }
 }
 
-class JoinAllTestExecutable(rawWorldFactory: RawWorldFactory) extends Executable {
+class JoinAllTestExecutable(contextFactory: ContextFactory) extends Executable {
   def run(): Unit = {
-    val rawWorld = rawWorldFactory.create()
-    val voidContext = rawWorld match { case w: RichRawWorld ⇒ w.context }
+    val voidContext = contextFactory.updated(Nil)
 
     Function.chain[Context](Seq(
       l => {

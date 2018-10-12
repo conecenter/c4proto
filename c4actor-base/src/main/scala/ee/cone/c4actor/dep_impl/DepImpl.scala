@@ -8,7 +8,7 @@ import ee.cone.c4actor.dep._
 abstract class DepImpl[A] extends Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B] = new ComposedDep[A, B](this, f)
   def map[B](f: A ⇒ B): Dep[B] = new ComposedDep[A, B](this, v ⇒ new ResolvedDep(f(v)))
-  def filter(p: A ⇒ Boolean): Dep[A] = new FilterDep[A](this, p)
+  // def filter(p: A ⇒ Boolean): Dep[A] = new FilterDep[A](this, p)
 }
 
 class FilterDep[A](innerDep: Dep[A], filter: A ⇒ Boolean) extends DepImpl[A] {

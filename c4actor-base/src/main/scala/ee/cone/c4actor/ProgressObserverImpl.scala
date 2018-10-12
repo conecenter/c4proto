@@ -1,12 +1,13 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.Types.NextOffset
 
 class ProgressObserverFactoryImpl(inner: RawObserver) extends ProgressObserverFactory {
-  def create(endOffset: Long): RawObserver = new ProgressObserverImpl(inner,endOffset)
+  def create(endOffset: NextOffset): RawObserver = new ProgressObserverImpl(inner,endOffset)
 }
 
-class ProgressObserverImpl(inner: RawObserver, endOffset: Long, until: Long=0) extends RawObserver with LazyLogging {
+class ProgressObserverImpl(inner: RawObserver, endOffset: NextOffset, until: Long=0) extends RawObserver with LazyLogging {
   def activate(rawWorld: RawWorld): RawObserver =
     if (rawWorld.offset < endOffset) {
       val now = System.currentTimeMillis

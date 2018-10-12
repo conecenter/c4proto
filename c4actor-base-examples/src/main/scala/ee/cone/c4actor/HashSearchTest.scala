@@ -152,8 +152,7 @@ object HashSearchTestMain extends LazyLogging {
 
   def test(): Unit = {
     val app = new HashSearchTestApp
-    val rawWorld = app.rawWorldFactory.create()
-    val voidContext = rawWorld match { case w: RichRawWorld ⇒ w.context }
+    val voidContext = app.contextFactory.updated(Nil)
     val contexts = List(
       fillWorld(10000)(voidContext),
       fillWorld(100000)(voidContext),

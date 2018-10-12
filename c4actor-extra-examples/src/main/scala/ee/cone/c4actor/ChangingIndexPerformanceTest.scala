@@ -127,8 +127,7 @@ class ChangingIndexPerformanceTest(
       } yield PerformanceNode(i.toString, Random.nextDouble().toString)
     val worldUpdate: immutable.Seq[LEvent[PerformanceNode]] = world.flatMap(update)
     val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
-    val context: Context = contextFactory.create()
-    val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
+    val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
 
@@ -164,9 +163,9 @@ class ChangingIndexPerformanceTestApp extends RichDataApp
 
   override def assembles: List[Assemble] = new LUL(classOf[PerformanceNode], classOf[NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
 
-  lazy val assembleProfiler = ValueAssembleProfiler
+  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
 }
-
+/*
 object ValueAssembleProfiler extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
     val startTime = System.currentTimeMillis
@@ -185,3 +184,4 @@ object ValueAssembleProfiler extends AssembleProfiler {
       }
     }*/
 }
+*/

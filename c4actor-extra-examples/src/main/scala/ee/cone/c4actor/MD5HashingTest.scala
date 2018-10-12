@@ -98,8 +98,7 @@ class MD5HashingTest(
       } yield generateRandomEasy(i.toString) :: generateHard(i.toString) :: Nil).flatten
     val worldUpdate: immutable.Seq[LEvent[Product]] = world.flatMap(update)
     val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
-    val context: Context = contextFactory.create()
-    val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
+    val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
 
@@ -146,6 +145,6 @@ class MD5HashingTestApp extends RichDataApp
 
   override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMurMur3()) :: super.assembles
 
-  lazy val assembleProfiler = ValueAssembleProfiler
+  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
 }
 
