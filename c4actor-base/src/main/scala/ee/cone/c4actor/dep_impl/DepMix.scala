@@ -25,9 +25,9 @@ trait DepAssembleApp extends AssemblesApp {
   lazy val depFactory: DepFactory = DepFactoryImpl()
   lazy val depAskFactory: DepAskFactory = DepAskFactoryImpl(depFactory)
   lazy val depResponseFactory: DepResponseFactory = DepResponseFactoryImpl()(preHashing)
-  lazy val depOuterRequestFactory: DepOuterRequestFactory = DepOuterRequestFactoryImpl(idGenUtil)(qAdapterRegistry)
+  lazy val depRequestFactory: DepRequestFactory = DepRequestFactoryImpl(idGenUtil)(qAdapterRegistry)
   private lazy val requestHandlerRegistry =
-    DepRequestHandlerRegistry(depOuterRequestFactory,depResponseFactory,depHandlers, depFilters)()
+    DepRequestHandlerRegistry(depRequestFactory,depResponseFactory,depHandlers, depFilters)()
   override def assembles: List[Assemble] =
     new DepAssemble(requestHandlerRegistry) :: super.assembles
 }

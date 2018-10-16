@@ -68,8 +68,8 @@ case class DepInnerRequest(srcId: SrcId, request: DepRequest) //TODO Store seria
 case class DepUnresolvedRequest(srcId: SrcId, request: DepRequest, responses: Int, parents: List[SrcId])
 
 case class DepOuterRequest(srcId: SrcId, innerRequest: DepInnerRequest, parentSrcId: SrcId)
-trait DepOuterRequestFactory extends Product {
-  def tupled(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest)
+trait DepRequestFactory extends Product {
+  def tupledOuterRequest(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest)
   def innerRequest(rq: DepRequest): DepInnerRequest
 }
 

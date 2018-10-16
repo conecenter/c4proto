@@ -76,7 +76,7 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
 }
 
 case class DepRequestHandlerRegistry(
-  depOuterRequestFactory: DepOuterRequestFactory,
+  deзRequestFactory: DepRequestFactory,
   depResponseFactory: DepResponseFactory,
   handlerSeq: Seq[DepHandler],
   filtersSeq: Seq[DepResponseForwardFilter]
@@ -108,14 +108,14 @@ case class DepRequestHandlerRegistry(
       } yield response.innerRequest.request → value).toMap
       val resolvable: Resolvable[_] = handle(req.request,ctx)
       val response = depResponseFactory.wrap(req,resolvable.value)
-      DepInnerResolvable(response, resolvable.requests.distinct.map(depOuterRequestFactory.tupled(req.srcId)))
+      DepInnerResolvable(response, resolvable.requests.distinct.map(deзRequestFactory.tupledOuterRequest(req.srcId)))
     }
 
   def add(req: DepInnerRequest): Values[(String, DepResponse)] =
     addHandlers.get(req.request.getClass.getName)
       .map { (add: DepInnerRequest ⇒ Seq[(DepRequest, _)]) ⇒
         add(req)
-          .map { case (rq, rsp) ⇒ (req.srcId, depResponseFactory.wrap(depOuterRequestFactory.innerRequest(rq), Option(rsp))) }
+          .map { case (rq, rsp) ⇒ (req.srcId, depResponseFactory.wrap(deзRequestFactory.innerRequest(rq), Option(rsp))) }
       }.getOrElse(Nil)
 
   def filter(parent: DepInnerRequest, child: DepOuterRequest, response: DepResponse): Values[(String, DepResponse)] =
@@ -134,8 +134,8 @@ case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseF
     DepResponseImpl(req,preHashing.wrap(value))
 }
 
-case class DepOuterRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepOuterRequestFactory {
-  def tupled(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest) = {
+case class DepRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepRequestFactory {
+  def tupledOuterRequest(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest) = {
     val inner = innerRequest(rq)
     val outerId = idGenUtil.srcIdFromSrcIds(parentId, inner.srcId)
     inner.srcId → DepOuterRequest(outerId, inner, parentId)

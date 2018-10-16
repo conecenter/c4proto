@@ -14,7 +14,7 @@ trait DepTestAssemble
   extends AssemblesApp
     with DepHandlersApp
     with ProtocolsApp
-    with DepOuterRequestFactoryApp
+    with DepRequestFactoryApp
     with DepAskFactoryApp
     with CommonIdInjectApps {
   def testDep: Dep[Any]
@@ -30,7 +30,7 @@ trait DepTestAssemble
 
   override def depHandlers: List[DepHandler] = testRequestAsk.by(_ ⇒ testDep) :: injectRole[DepTestRequest](testRequestAsk, _ ⇒ testContextId) :: super.depHandlers
 
-  override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depOuterRequestFactory) :: super.assembles
+  override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depRequestFactory) :: super.assembles
 }
 
 @protocol object DepTestProtocol extends Protocol {
@@ -51,12 +51,12 @@ case class DepTestHandler(dep: Dep[_], contextId: String) extends DepHandler {
 
 case class DepTestResponse(srcId: String, response: Option[_])
 
-@assemble class DepTestAssembles(val qAdapterRegistry: QAdapterRegistry, f: DepOuterRequestFactory) extends Assemble {
+@assemble class DepTestAssembles(val qAdapterRegistry: QAdapterRegistry, f: DepRequestFactory) extends Assemble {
   def GiveBirth(
     firstBornId: SrcId,
     spark: Each[Spark]
   ): Values[(GroupId, DepOuterRequest)] =
-    List(f.tupled("test")(DepTestRequest()))
+    List(f.tupledOuterRequest("test")(DepTestRequest()))
 
   def HarvestBirth(
     responseId: SrcId,
