@@ -1,7 +1,7 @@
 package ee.cone.c4actor.dep
 
-import ee.cone.c4actor.dep.ContextTypes.{ContextId, RoleId, UserId}
-import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.{ContextIdRequest, RoleIdRequest, UserIdRequest}
+import ee.cone.c4actor.dep.ContextTypes.{ContextId, MockRoleOpt, RoleId, UserId}
+import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.{ContextIdRequest, MockRoleRequest, RoleIdRequest, UserIdRequest}
 
 import scala.collection.immutable.Map
 
@@ -9,6 +9,7 @@ trait CommonIdInjectApps
   extends ContextIdInjectApp
     with UserIdInjectApp
     with RoleIdInjectApp
+with MockRoleIdInjectApp
 
 trait ContextIdInjectApp extends DepAskFactoryApp {
   private lazy val sessionIdAsk: DepAsk[ContextIdRequest, ContextId] = depAskFactory.forClasses(classOf[ContextIdRequest], classOf[ContextId])
@@ -29,4 +30,11 @@ trait RoleIdInjectApp extends DepAskFactoryApp {
 
   def injectRole[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ RoleId): DepHandler =
     roleIdAsk.byParent(reason, (rq: ReasonIn) ⇒ Map(RoleIdRequest() → handler(rq)))
+}
+
+trait MockRoleIdInjectApp extends DepAskFactoryApp {
+  private lazy val mockRoleIdAsk: DepAsk[MockRoleRequest, MockRoleOpt] = depAskFactory.forClasses(classOf[MockRoleRequest], classOf[MockRoleOpt])
+
+  def injectMockRole[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ MockRoleOpt): DepHandler =
+    mockRoleIdAsk.byParent(reason, (rq: ReasonIn) ⇒ Map(MockRoleRequest() → handler(rq)))
 }

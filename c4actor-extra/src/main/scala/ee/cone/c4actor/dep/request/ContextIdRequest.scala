@@ -8,5 +8,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   @Id(0x0f3a) case class UserIdRequest()
 
   @Id(0x0f5b) case class RoleIdRequest()
+
+  @Id(0x0f5d) case class MockRoleRequest()
 }
 

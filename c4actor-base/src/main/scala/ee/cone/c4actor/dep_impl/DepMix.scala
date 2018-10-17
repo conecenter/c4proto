@@ -11,18 +11,23 @@ trait DepHandlersApp {
   def depHandlers: List[DepHandler] = Nil
 }
 
+trait DepResponseFiltersApp {
+  def depFilters: List[DepResponseForwardFilter] = Nil
+}
+
 trait DepAssembleApp extends AssemblesApp {
   def preHashing: PreHashing
   def idGenUtil: IdGenUtil
   def qAdapterRegistry: QAdapterRegistry
   def depHandlers: Seq[DepHandler]
+  def depFilters: Seq[DepResponseForwardFilter]
   //
   lazy val depFactory: DepFactory = DepFactoryImpl()
   lazy val depAskFactory: DepAskFactory = DepAskFactoryImpl(depFactory)
   lazy val depResponseFactory: DepResponseFactory = DepResponseFactoryImpl()(preHashing)
-  lazy val depOuterRequestFactory: DepOuterRequestFactory = DepOuterRequestFactoryImpl(idGenUtil)(qAdapterRegistry)
+  lazy val depRequestFactory: DepRequestFactory = DepRequestFactoryImpl(idGenUtil)(qAdapterRegistry)
   private lazy val requestHandlerRegistry =
-    DepRequestHandlerRegistry(depOuterRequestFactory,depResponseFactory,depHandlers)()
+    DepRequestHandlerRegistry(depRequestFactory,depResponseFactory,depHandlers, depFilters)()
   override def assembles: List[Assemble] =
     new DepAssemble(requestHandlerRegistry) :: super.assembles
 }

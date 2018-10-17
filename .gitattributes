@@ -8,3 +8,4 @@
 *.js text eol=lf
 *.sbt text eol=lf
 *.git* text eol=lf
+*.json text eol=lf

@@ -66,7 +66,7 @@ class DeepSessionAttrAccessFactoryImpl(
     val rawRoleDataPK = genPK(stubRawRoleData, rawRoleAdapter)
     val rawRoleDataOpt: Option[RawRoleData] = roleByPK.of(local).get(rawRoleDataPK)
     // Rest
-    val lensRaw = ProdLens[RawSessionData, P](attr.metaList)(
+    val lensRaw = ProdLensImpl[RawSessionData, P](attr.metaList)(
       rawSessionData ⇒ registry.byId(rawSessionData.dataNode.get.valueTypeId).decode(rawSessionData.dataNode.get.value).asInstanceOf[P],
       value ⇒ rawRoleData ⇒ {
         val valueAdapter = registry.byName(attr.className)
@@ -76,7 +76,7 @@ class DeepSessionAttrAccessFactoryImpl(
       }
     )
 
-    val lensRawUser = ProdLens[RawUserData, P](attr.metaList)(
+    val lensRawUser = ProdLensImpl[RawUserData, P](attr.metaList)(
       rawRoleData ⇒ registry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
       value ⇒ rawRoleData ⇒ {
         val valueAdapter = registry.byName(attr.className)
@@ -92,7 +92,7 @@ class DeepSessionAttrAccessFactoryImpl(
 
     val data = DeepRawSessionData[P](rawDataOpt, rawUserDataOpt, rawRoleDataOpt, (defaultRawData, defaultRawUserData), (rawDataPK, rawUserDataPK, rawRoleDataPK))
 
-    val lens = ProdLens[DeepRawSessionData[P], P](attr.metaList)(
+    val lens = ProdLensImpl[DeepRawSessionData[P], P](attr.metaList)(
       _.of(registry),
       value ⇒ deepData ⇒ deepData.set(registry)(value)(deepData)
     )
@@ -109,7 +109,7 @@ class DeepSessionAttrAccessFactoryImpl(
       value = ByteString.EMPTY
     )
 
-    val lens = ProdLens[RawRoleData, P](attr.metaList)(
+    val lens = ProdLensImpl[RawRoleData, P](attr.metaList)(
       rawRoleData ⇒ registry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
       value ⇒ rawRoleData ⇒ {
         val valueAdapter = registry.byName(attr.className)

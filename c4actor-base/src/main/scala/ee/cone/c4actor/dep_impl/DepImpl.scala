@@ -42,7 +42,12 @@ class RequestDep[A](val request: DepRequest) extends DepImpl[A] {
     Resolvable(ctx.get(request).asInstanceOf[Option[A]], Seq(request))
 }
 
-
+class OptionalDep[A](dep: Dep[A]) extends DepImpl[Option[A]] {
+  def resolve(ctx: DepCtx): Resolvable[Option[A]] = {
+    val resolvable = dep.resolve(ctx)
+    Resolvable[Option[A]](Some(resolvable.value), resolvable.requests)
+  }
+}
 
 class ParallelDep[A, B](aDep: Dep[A], bDep: Dep[B]) extends DepImpl[(A, B)] {
   def resolve(ctx: DepCtx): Resolvable[(A, B)] = {
@@ -109,4 +114,7 @@ case class DepFactoryImpl() extends DepFactory {
 
   def parUnsafeSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]] =
     new SeqUncheckedParallelDep[A](value)
+
+  def optDep[A](value: Dep[A]): Dep[Option[A]] =
+    new OptionalDep[A](value)
 }

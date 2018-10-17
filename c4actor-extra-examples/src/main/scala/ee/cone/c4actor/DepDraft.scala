@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
-import ee.cone.c4actor.TestRequests.FooDepRequest
+import ee.cone.c4actor.TestRequests.{ChildDepRequest, FooDepRequest}
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByClassNameAllAsk
@@ -32,6 +32,8 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   }
   )
 
+  def handlerKEK: DepHandler = depAskFactory.forClasses(classOf[ChildDepRequest], classOf[String]).by(foo ⇒ factory.askRoleId)
+
   case object FooRequestHandler extends DepHandler {
     def requestClassName: String = classOf[FooDepRequest].getName
 
@@ -61,19 +63,26 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   } yield a.map(_.value).headOption.getOrElse(0)
 
   def subView(a: Int): Dep[Int] = for {
+    contextIdOpt ← depFactory.optDep(new RequestDep[String](ChildDepRequest("test")))
     c ← valueNode.list("123")
     b ← askFoo("B")
-  } yield a + b + c.map(_.value).headOption.getOrElse(0)
+  } yield {
+    PrintColored("b")(contextIdOpt)
+    a + b + c.map(_.value).headOption.getOrElse(0)
+  }
 
   def serialView: Dep[(Int, Int, Int)] = for {
-    b ← depFactory.parallelTuple(askFoo("A"), new RequestDep[String](ContextIdRequest()))
-    (a,t) = b
+    b ← depFactory.parallelTuple(askFoo("A"), factory.askRoleId)
+    (a, t) = b
     seq ← depFactory.parallelSeq(askFoo("A") :: askFoo("A") :: Nil)
     Seq(i, j) = seq
     s ← subView(a)
     b ← valueNode.list("124")
     test ← kek.askByClAll(classOf[ValueNode])
-  } yield TimeColored("g", (t, test, i, j))((a, s, b.map(_.value).headOption.getOrElse(0)))
+  } yield {
+    println(t, test, i, j)
+    TimeColored("g", (t, test, i, j))((a, s, b.map(_.value).headOption.getOrElse(0)))
+  }
 
   /*
     def parallelView: Dep[(Int,Int)] = for {
@@ -98,6 +107,8 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
 @protocol object TestRequests extends Protocol {
 
   @Id(0x3031) case class FooDepRequest(@Id(0x3036) v: String)
+
+  @Id(0x3333) case class ChildDepRequest(@Id(0x3334) v: String)
 
 }
 

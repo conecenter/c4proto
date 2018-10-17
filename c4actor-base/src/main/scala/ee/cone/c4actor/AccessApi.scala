@@ -10,6 +10,7 @@ trait Access[C] extends Product{
   def initialValue: C
   def metaList: List[MetaAttr]
   def to[I](inner: ProdLens[C,I]): Access[I]
+  def zoom: Access[C]
 }
 
 trait ModelAccessFactory {
@@ -19,21 +20,11 @@ trait ModelAccessFactory {
 
 case class NameMetaAttr(value: String) extends MetaAttr
 
-object ProdLens {
-  def of[C,I](of: C⇒I, meta: MetaAttr*): ProdLens[C,I] =
-    throw new Exception("not expanded")
-  def ofSet[C,I](of: C⇒I, set: I⇒C⇒C, name: String, meta: MetaAttr*): ProdLens[C,I] =
-    ProdLens[C,I](NameMetaAttr(name) :: meta.toList)(of,set)
-}
-
-case class ProdLens[C,I](metaList: List[MetaAttr])(val of: C⇒I, val set: I⇒C⇒C)
-  extends AbstractLens[C,I]
-{
-  def meta(values: MetaAttr*): ProdLens[C,I] = ProdLens[C,I](metaList ++ values)(of,set)
-  def to[V](inner: ProdLens[I,V]): ProdLens[C,V] = 
-    ProdLens[C,V](metaList ::: inner.metaList)(
-      container => inner.of(of(container)), 
-      item => modify(inner.set(item))
-    )
+trait ProdLens[C,I] extends AbstractLens[C,I] with Product{
+  def meta(values: MetaAttr*): ProdLens[C,I]
+  def to[V](inner: ProdLens[I,V]): ProdLens[C,V]
+  def metaList: List[MetaAttr]
+  def lensName: List[NameMetaAttr]
+  def metaByName: Map[String, List[MetaAttr]]
 }
 
