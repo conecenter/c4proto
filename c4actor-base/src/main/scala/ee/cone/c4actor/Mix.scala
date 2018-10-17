@@ -159,3 +159,8 @@ trait SimpleAssembleProfilerApp extends ProtocolsApp {
     SimpleAssembleProfilerProtocol ::
     super.protocols
 }
+
+
+trait AssemblerProfilerApp {
+  def assembleProfiler: AssembleProfiler
+}

@@ -11,10 +11,6 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 import scala.collection.immutable.Seq
 
-trait AssemblerProfilerApp {
-  def assembleProfiler: AssembleProfiler
-}
-
 case object NoAssembleProfiler extends AssembleProfiler {
   def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling =
     NoSerialJoiningProfiling
