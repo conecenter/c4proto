@@ -18,13 +18,3 @@ trait ModelAccessFactory {
   //def to[P<:Product](cl: Class[P], srcId: SrcId): Option[ModelAccess[P]]
 }
 
-case class NameMetaAttr(value: String) extends MetaAttr
-
-trait ProdLens[C,I] extends AbstractLens[C,I] with Product{
-  def meta(values: MetaAttr*): ProdLens[C,I]
-  def to[V](inner: ProdLens[I,V]): ProdLens[C,V]
-  def metaList: List[MetaAttr]
-  def lensName: List[NameMetaAttr]
-  def metaByName: Map[String, List[MetaAttr]]
-}
-

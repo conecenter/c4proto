@@ -27,3 +27,13 @@ trait ProdLensFactory {
 case object ProdLensFactoryImpl extends ProdLensFactory {
   def create[C, I](of: C => I, set: I => C => C, name: String, meta: MetaAttr*): ProdLens[C, I] = ProdLensImpl[C,I](NameMetaAttr(name) :: meta.toList)(of,set)
 }
+
+case class NameMetaAttr(value: String) extends MetaAttr
+
+trait ProdLens[C,I] extends AbstractLens[C,I] with Product{
+  def meta(values: MetaAttr*): ProdLens[C,I]
+  def to[V](inner: ProdLens[I,V]): ProdLens[C,V]
+  def metaList: List[MetaAttr]
+  def lensName: List[NameMetaAttr]
+  def metaByName: Map[String, List[MetaAttr]]
+}
