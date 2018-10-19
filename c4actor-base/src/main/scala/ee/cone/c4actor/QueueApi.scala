@@ -20,11 +20,6 @@ import okio.ByteString
       @Id(0x0012) valueTypeId: Long
   )*/
 
-  @Id(0x0017) case class FailedUpdates(
-    @Id(0x0018) srcId: String,
-    @Id(0x0019) reason: String
-  )
-
   case class Update(
     @Id(0x0011) srcId: String,
     @Id(0x0012) valueTypeId: Long,
@@ -38,7 +33,16 @@ import okio.ByteString
 
   @Id(0x0016) case class Firstborn(
     @Id(0x0011) srcId: String //dummy
-    //@Id(0x0017) value: Long
+  )
+
+  @Id(0x0017) case class FailedUpdates(
+    @Id(0x0011) srcId: String,
+    @Id(0x0018) reason: String
+  )
+
+  @Id(0x0019) case class DebugTx(
+    @Id(0x0011) srcId: String,
+    @Id(0x0015) updates: List[Update]
   )
 
   /*@Id(0x0018) case class Leader(
@@ -194,10 +198,34 @@ trait ProgressObserverFactory {
   def create(endOffset: NextOffset): RawObserver
 }
 
-trait RawSnapshot {
-  def save(data: Array[Byte], offset: NextOffset): Unit
-  def loadRecent(): RawWorld
+trait SnapshotSaver {
+  def save(offset: NextOffset, data: Array[Byte]): Unit
 }
+class Snapshot(val offset: NextOffset, val uuid: String, val raw: RawSnapshot)
+trait SnapshotLoader {
+  def list: List[Snapshot]
+}
+trait RawSnapshotSaver {
+  def save(name: String, data: Array[Byte]): Unit
+}
+trait RawSnapshotLoader {
+  def list: List[RawSnapshot]
+}
+trait RawSnapshot {
+  def name: String
+  def load(): ByteString
+}
+trait Removable {
+  def remove(): Unit
+}
+trait SnapshotTime {
+  def mTime: Long
+}
+
+//trait RawDebugOptions {
+//  def load(key: String): Array[Byte]
+//  def save(key: String, value: Array[Byte]): Unit
+//}
 
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
@@ -215,3 +243,5 @@ trait AssembleProfiler {
   def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling
   def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update]
 }
+
+case object DebugKey extends SharedComponentKey[Option[ReadModel]]

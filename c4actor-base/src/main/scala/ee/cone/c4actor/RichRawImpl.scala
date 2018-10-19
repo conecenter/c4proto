@@ -57,8 +57,8 @@ object WorldStats {
 
 class StatsObserver(inner: RawObserver) extends RawObserver with LazyLogging {
   def activate(rawWorld: RawWorld): RawObserver = rawWorld match {
-    case richRawWorld: RichRawWorld ⇒
-      logger.debug(WorldStats.make(richRawWorld))
+    case ctx: AssembledContext ⇒
+      logger.debug(WorldStats.make(ctx))
       logger.info("Stats OK")
       inner
   }
@@ -69,8 +69,8 @@ class RichRawObserver(
   completing: RawObserver
 ) extends RawObserver {
   def activate(rawWorld: RawWorld): RawObserver = rawWorld match {
-    case richRawWorld: RichRawWorld ⇒
-      val newObservers = observers.flatMap(_.activate(richRawWorld))
+    case richContext: RichContext ⇒
+      val newObservers = observers.flatMap(_.activate(richContext))
       if(newObservers.isEmpty) completing.activate(rawWorld)
       else new RichRawObserver(newObservers, completing)
   }

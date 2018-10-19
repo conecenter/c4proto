@@ -31,9 +31,9 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
       "retries" → "0",
       "batch.size" → "16384",
       "linger.ms" → "1",
-      "buffer.memory" → "33554432",
+      "buffer.memory" → conf.maxRequestSize,
       "compression.type" → "lz4",
-      "max.request.size" → "25000000"
+      "max.request.size" → conf.maxRequestSize
       // max.request.size -- seems to be uncompressed
       // + in broker config: message.max.bytes
     )
@@ -61,7 +61,9 @@ object OffsetHex {
     (("0" * OffsetHexSize())+java.lang.Long.toHexString(offset)).takeRight(OffsetHexSize())
 }
 
-case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String){
+case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String, maxRequestSize: String)(
+  ok: Unit = assert(bootstrapServers.nonEmpty && inboxTopicPrefix.nonEmpty && maxRequestSize.nonEmpty)
+){
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
     case LogTopicName() ⇒ s"$inboxTopicPrefix.inbox.log"
@@ -69,13 +71,13 @@ case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String){
 }
 
 class KafkaActor(conf: KafkaConfig)(
-  rawSnapshot: RawSnapshot,
+  rawWorldFactory: RawWorldFactory,
   progressObserverFactory: ProgressObserverFactory,
   execution: Execution
 ) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     GCLog("before loadRecent")
-    val initialRawWorld: RawWorld = rawSnapshot.loadRecent()
+    val initialRawWorld: RawWorld = rawWorldFactory.create()
     GCLog("after loadRecent")
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(

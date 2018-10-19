@@ -25,7 +25,7 @@ class HashSearchExtraTestStart(
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
   rawWorldFactory: RawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
-  observer: Option[Observer],
+  //observer: Option[Observer],
   qAdapterRegistry: QAdapterRegistry
 ) extends Executable with LazyLogging {
   def run(): Unit = {
@@ -251,11 +251,11 @@ trait TestCondition extends SerializationUtilsApp {
   def lensStr: ProdLens[TestObject, String] = ProdLens.ofSet[TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[TestObject], classOf[String]))
 }
 
-class HashSearchExtraTestApp extends RichDataApp
-  with ServerApp
+class HashSearchExtraTestApp extends TestRichDataApp
+  //with ServerApp
   with EnvConfigApp with VMExecutionApp
-  with ParallelObserversApp
-  with FileRawSnapshotApp
+  //with ParallelObserversApp
+  //with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp
   with ExecutableApp
   with ToStartApp
@@ -277,13 +277,13 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def hashSearchRangers: List[RangerWithCl[_ <: Product, _]] = StrStartsWithRanger :: IntEqRanger() :: super.hashSearchRangers
 
-  override def rawQSender: RawQSender = NoRawQSender
+  //override def rawQSender: RawQSender = NoRawQSender
 
   override def parallelAssembleOn: Boolean = false
 
   override def dynamicIndexAssembleDebugMode: Boolean = false
 
-  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver, qAdapterRegistry) :: super.toStart
+  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
 
   override def protocols: List[Protocol] = AnyOrigProtocol :: EqProtocol :: TestProtocol :: super.protocols
 

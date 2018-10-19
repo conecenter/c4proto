@@ -14,7 +14,7 @@ class TypedAllTestStart(
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
   rawWorldFactory: RawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
-  observer: Option[Observer],
+  //observer: Option[Observer],
   qAdapterRegistry: QAdapterRegistry
 ) extends Executable with LazyLogging {
   def run(): Unit = {
@@ -159,21 +159,21 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 
 }
 
-class TypedAllTestApp extends RichDataApp
-  with ServerApp
+class TypedAllTestApp extends TestRichDataApp
+  //with ServerApp
   with EnvConfigApp with VMExecutionApp
-  with ParallelObserversApp
-  with FileRawSnapshotApp
+  //with ParallelObserversApp
+  //with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp
   with ExecutableApp
   with ToStartApp {
 
 
-  override def rawQSender: RawQSender = NoRawQSender
+  //override def rawQSender: RawQSender = NoRawQSender
 
   override def parallelAssembleOn: Boolean = true
 
-  override def toStart: List[Executable] = new TypedAllTestStart(execution, toUpdate, contextFactory, rawWorldFactory, txObserver, qAdapterRegistry) :: super.toStart
+  override def toStart: List[Executable] = new TypedAllTestStart(execution, toUpdate, contextFactory, rawWorldFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
 
 
   override def protocols: List[Protocol] = TypedAllTestProtocol :: super.protocols

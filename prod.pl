@@ -48,6 +48,40 @@ my $running_containers_all = sub{
     @ps;
 };
 
+my $user = "c4";
+my $rsync_to = sub{
+    my($from_path,$comp,$to_path)=@_;
+    my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
+    sy(&$remote($comp,"mkdir -p $to_path"));
+    sy("rsync -e 'ssh -p $port' -a $from_path $user\@$host:$to_path");
+};
+my $put_temp = sub{
+    my($fn,$text)=@_;
+    my $path = "/tmp/$$-$fn";
+    &$put_text($path,$text);
+    print "generated $path\n";
+    $path;
+};
+my $need_path = sub{
+    my($dn)=@_;
+    $dn=~s{/[^/]*$}{} and sy("mkdir -p $dn");
+    $_[0];
+};
+my $tmp_dir_count=0;
+my $rsync_start = sub{
+    my $path = "/tmp/$$-".($tmp_dir_count++);
+    (sub{
+        my($fn)=@_;
+        &$need_path("$path/$fn")
+    },sub{
+        my($comp)=@_;
+        my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
+        &$rsync_to(&$need_path("$path/"),$comp,"$dir/$comp");
+    })
+};
+
+####
+
 push @tasks, ["agent","<command-with-args>",sub{
     my(@args)=@_;
     sy(&$ssh_add());
@@ -103,18 +137,34 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     sy("mv $cloned/.git $git_dir");
 }];
 
+my $remote_acc  = sub{
+    my($comp,$stm)=@_;
+    &$remote($comp,"docker exec -uc4 $comp\_frpc_1 $stm");
+};
+
 my $list_snapshots = sub{
     my($comp,$opt)=@_;
-    my $ls = &$remote($comp,"docker exec -u0 $comp\_snapshot_maker_1 ls $opt db4/snapshots");
+    my $ls = &$remote_acc($comp,"ls $opt /c4/db4/snapshots");
     print "$ls\n";
     `$ls`;
 };
 
-my $get_snapshot = sub{
-    my($comp,$snnm)=@_;
+my $get_sm_binary = sub{
+    my($comp,$from,$to)=@_;
+    &$remote_acc($comp,"cat $from")." > $to";
+};
+
+my $snapshot_name = sub{
+    my($snnm)=@_;
     my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12})\s*$/ ? ($1,$2) : die;
     my $zero = '0' x length $fn[0];
-    sy(&$remote($comp,"docker exec -u0 $comp\_snapshot_maker_1 cat db4/snapshots/$fn[0]$fn[1]")." > $zero$fn[1]");
+    ("$fn[0]$fn[1]","$zero$fn[1]")
+};
+
+my $get_snapshot = sub{
+    my($comp,$snnm,$mk_path)=@_;
+    my($fn,$zfn) = &$snapshot_name($snnm);
+    &$get_sm_binary($comp,"/c4/db4/snapshots/$fn",&$mk_path($zfn));
 };
 
 push @tasks, ["list_snapshots", $composes_txt, sub{
@@ -126,14 +176,14 @@ push @tasks, ["list_snapshots", $composes_txt, sub{
 push @tasks, ["get_snapshot", "$composes_txt <snapshot>", sub{
     my($comp,$snnm)=@_;
     sy(&$ssh_add());
-    &$get_snapshot($comp,$snnm);
+    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
 }];
 
 push @tasks, ["get_last_snapshot", $composes_txt, sub{
     my($comp)=@_;
     sy(&$ssh_add());
     my $snnm = (reverse sort &$list_snapshots($comp,""))[0];
-    &$get_snapshot($comp,$snnm);
+    sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
 }];
 
 my $running_containers = sub{
@@ -154,27 +204,82 @@ my $stop = sub{
     }
 };
 
-push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
-    my($comp,$path)=@_;
-    sy(&$ssh_add());
-    my $acc = "$comp\_frpc_1";
-    my $remote_acc  = sub{ &$remote_interactive($comp,"$comp\_frpc_1",$_[0]) };
+my $move_db_to_bak = sub{
+    my($comp)=@_;
     &$stop($comp);
     ## move db to bak
     my $db = "/c4/db4";
     my $bak = "$db/bak.".time;
-    my $ls_stm = &$remote_acc("ls $db");
+    my $ls_stm = &$remote_acc($comp,"ls $db");
     my $ls = sub{ grep{!/^bak\./} syf($ls_stm)=~/(\S+)/g };
-    sy(&$remote_acc("mkdir $bak"));
-    sy(&$remote_acc("mv $db/$_ $bak/$_")) for &$ls();
+    sy(&$remote_acc($comp,"mkdir $bak"));
+    sy(&$remote_acc($comp,"mv $db/$_ $bak/$_")) for &$ls();
     die $_ for &$ls();
-    ## upload snapshot
-    my $fn = $path=~m{(0+-[^/]+)$} ? $1 : die "bad snapshot name";
-    my $snapdir = "$db/snapshots";
-    sy(&$remote_acc("mkdir $snapdir && cat > $snapdir/$fn")." < $path");
-    sy(&$remote_acc("chown -R c4:c4 $snapdir"));
+};
+
+my $db4put_start = sub{
+    my($mk_path,$sync) = &$rsync_start();
+    (sub{
+        &$mk_path("frpc/db4ini/$_[0]");
+    },sub{
+        my($comp)=@_;
+        so(&$remote($comp,sub{"rm -r $_[0]/frpc/db4ini"}));
+        &$sync($comp);
+        sy(&$remote_acc($comp,"rsync -a /c4deploy/db4ini/ /c4/db4"));
+    })
+};
+
+push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
+    my($comp,$path)=@_;
+    sy(&$ssh_add());
+    my($mk_path,$sync) = &$db4put_start();
+    my($fn,$zfn) = &$snapshot_name($path=~m{([^/]+)$} ? $1 : die "bad snapshot name");
+    sy("cp $path ".&$mk_path("snapshots/$zfn"));
+    &$move_db_to_bak($comp);
+    &$sync($comp);
     sy(&$docker_compose_up($comp,""));
 }];
+
+push @tasks, ["snapshot_debug", "$composes_txt <tx>", sub{
+    my($comp,$offset)=@_;
+    sy(&$ssh_add());
+    my $conf = &$get_compose($comp);
+    my $main = $$conf{main} || die;
+    my $env = join(" ",
+        "C4INBOX_TOPIC_PREFIX=$main",
+        "C4STATE_TOPIC_PREFIX=ee.cone.c4gate.DebugSnapshotMakerApp",
+        "C4SNAPSHOTS_URL=http://frpc:7980/snapshots",
+        "C4MAX_REQUEST_SIZE=25000000",
+        "C4DEBUG_OFFSET=$offset",
+    );
+    sy(&$remote($comp,qq{docker exec $comp\_snapshot_maker_1 sh -c "$env app/bin/c4gate-server"}));
+}];
+
+#sy(&$remote_acc($comp,"chown -R c4:c4 $dir"));
+#push @tasks, ["debug_snapshot", "<from-stack> <to-stack> <tx>", sub{
+#    my($from_comp,$to_comp,$offset)=@_;
+#    sy(&$ssh_add());
+#    my($from_mk_path,$from_sync) = &$db4put_start();
+#    &$put_text(&$from_mk_path("debug_options/request"),$offset);
+#    &$from_sync($from_comp);
+#    sy(&$remote($from_comp,"docker restart $from_comp\_snapshot_maker_1"));
+#    my $dir = "/c4/db4/debug_options";
+#    sleep 3 while syf(&$remote_acc($from_comp,"ls $dir/request"))=~/\S/;
+#    my $snap_fn = syf(&$remote_acc($from_comp,"cat $dir/response"))=~/(\S+)/ ? $1 : die;
+#    my($mk_path,$sync) = &$db4put_start();
+#    sy(&$get_snapshot($from_comp,$snap_fn,sub{&$mk_path("snapshots/$_[0]")}));
+#    sy(&$get_sm_binary($from_comp,"$dir/response-event",&$mk_path("debug_options/request-event")));
+#    &$move_db_to_bak($to_comp);
+#    &$sync($to_comp);
+#    sy(&$docker_compose_up($to_comp,""));
+#}];
+#put req
+#restart
+#poll resp path
+#get snapshot, event
+#stop, clear
+#put snapshot, event
+#up
 
 #push @tasks, ["clear_snapshots", $composes_txt, sub{
 #    my($comp)=@_;
@@ -252,35 +357,15 @@ push @tasks, ["revert_off","$composes_txt-<service>",sub{
     &$restart($app," && git checkout master");
 }];
 
-my $user = "c4";
-my $rsync_to = sub{
-    my($from_path,$comp,$to_path)=@_;
-    my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-    sy(&$remote($comp,"mkdir -p $to_path"));
-    sy("rsync -e 'ssh -p $port' -a $from_path $user\@$host:$to_path");
-};
-my $put_temp = sub{
-    my($fn,$text)=@_;
-    my $path = "/tmp/$$-$fn";
-    &$put_text($path,$text);
-    print "generated $path\n";
-    $path;
-};
-my $compose_dir_count=0;
 my $docker_compose_start = sub{
     my($content)=@_;
-    my $path = "/tmp/$$-".($compose_dir_count++);
-    sy("mkdir -p $path");
-    &$put_text("$path/docker-compose.yml",$content);
-    (sub{
-        my($dn,$fn,$cont)=@_;
-        sy("mkdir -p $path/$dn");
-        &$put_text("$path/$dn/$fn",$cont);
-    },sub{
-        my($comp)=@_;
-        my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-        &$rsync_to("$path/",$comp,"$dir/$comp");
-    })
+    my($mk_path,$sync) = &$rsync_start();
+    my $put = sub{
+        my($path,$cont)=@_;
+        &$put_text(&$mk_path($path),$cont);
+    };
+    &$put("docker-compose.yml",$content);
+    ($put,$sync);
 };
 
 #### composer
@@ -288,11 +373,10 @@ my $docker_compose_start = sub{
 use YAML::XS qw(LoadFile DumpFile Dump);
 $YAML::XS::QuoteNumericStrings = 1;
 
-my $inbox_prefix = '';
+#my $inbox_prefix = '';
 my $bin = "kafka/bin";
 
 my $bootstrap_server = "broker:9092";
-my @c_script = ("inbox_configure.pl","purger.pl");
 
 
 # pass src commit
@@ -326,8 +410,35 @@ my $app_user = sub{
 
 my $volumes = sub{map{"$_:/$user/$_"}@_};
 
+my $common_services = sub{+{
+    gate => {
+        C4APP_IMAGE => "gate-server",
+        C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
+        C4STATE_REFRESH_SECONDS => 100,
+    },
+    snapshot_maker => {
+        C4APP_IMAGE => "gate-server",
+        C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.SnapshotMakerApp",
+        C4MAX_REQUEST_SIZE => "250000000"
+        #restart => "on-failure",
+    },
+    purger => {
+        &$app_user(),
+        C4APP_IMAGE => "zoo",
+        C4STATE_TOPIC_PREFIX => "purger",
+        command => ["perl","purger.pl"],
+        tty => "true",
+    },
+    haproxy => {
+        C4APP_IMAGE => "haproxy",
+        C4EXPOSE_HTTP_PORT => 80,
+        expose => [80],
+    },
+}};
+
 my $without_local_db_template_yml = sub{+{
     services => {
+        %$common_services,
         frpc => {
             &$app_user(),
             C4APP_IMAGE => "zoo",
@@ -341,6 +452,7 @@ my $without_local_db_template_yml = sub{+{
 
 my $with_local_db_template_yml = sub{+{
     services => {
+        %$common_services,
         zookeeper => {
             &$app_user(),
             C4APP_IMAGE => "zoo",
@@ -353,34 +465,6 @@ my $with_local_db_template_yml = sub{+{
             command => ["$bin/kafka-server-start.sh","server.properties"],
             depends_on => ["zookeeper"],
             volumes => [&$volumes("db4")],
-        },
-        inbox_configure => {
-            &$app_user(),
-            C4APP_IMAGE => "zoo",
-            command => ["perl",$c_script[0]],
-            depends_on => ["broker"],
-        },
-        gate => {
-            C4APP_IMAGE => "gate-server",
-            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
-            C4STATE_REFRESH_SECONDS => 100,
-        },
-        snapshot_maker => {
-            C4APP_IMAGE => "gate-server",
-            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.SnapshotMakerApp",
-            #restart => "on-failure",
-        },
-        purger => {
-            &$app_user(),
-            C4APP_IMAGE => "zoo",
-            command => ["perl",$c_script[1]],
-            tty => "true",
-            volumes => [&$volumes("db4")],
-        },
-        haproxy => {
-            C4APP_IMAGE => "haproxy",
-            C4EXPOSE_HTTP_PORT => 80,
-            expose => [80],
         },
         frpc => {
             &$app_user(),
@@ -434,7 +518,8 @@ my $compose_up = sub{
                 &$app_user(),
                 $$conf{main} ? () : (depends_on => ["broker"]),
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
-                C4INBOX_TOPIC_PREFIX => $inbox_prefix,
+                C4MAX_REQUEST_SIZE => "25000000",
+                C4INBOX_TOPIC_PREFIX => $run_comp,
             ):()),
             volumes => [
                 $$service{C4STATE_TOPIC_PREFIX} ? &$volumes("db4") : (),
@@ -460,7 +545,7 @@ my $compose_up = sub{
         sy(&$remote($build_comp,"docker save $images_str").' | '.&$remote($run_comp,"docker load"));
     }
     my($put,$sync) = &$docker_compose_start($yml_str);
-    &$put("frpc","frpc.ini",&$to_ini_file($frpc_conf));
+    &$put("frpc/frpc.ini",&$to_ini_file($frpc_conf));
     &$sync($run_comp);
     sy(&$docker_compose_up($run_comp,""));
 };
@@ -471,7 +556,7 @@ my $frp_auth_all = require "$ENV{C4DEPLOY_CONF}/frp_auth.pl";
 my $get_frp_sk = sub{($$frp_auth_all{$_[0]}||die)->[1]||die};
 my $get_frp_common = sub{
     my($comp)=@_;
-    my($token,$sk) = ($$frp_auth_all{$comp}||die $comp)->[0]||die;
+    my($token,$sk) = ($$frp_auth_all{$comp}||die $comp)->[0]||die "frp auth not found";
     my $conf = &$get_compose($comp);
     my($frps_addr,$frps_port) = &$split_port($$conf{frps}||die);
     my $proxy = $$conf{frp_http_proxy};
@@ -493,13 +578,21 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     if($main_comp){
         my $ext_conf = &$merge(&$without_local_db_template_yml(),$conf);
         my $frpc_conf = [
-            common => [&$get_frp_common($main_comp), user=>$main_comp],
+            common => [&$get_frp_common($run_comp), user=>$main_comp],
             broker_visitor => [
                 type => "stcp",
                 role => "visitor",
                 sk => &$get_frp_sk($main_comp),
                 server_name => "broker", #$main_comp.broker?
                 bind_port => $broker_port,
+                bind_addr => "0.0.0.0",
+            ],
+            snapshots_visitor => [
+                type => "stcp",
+                role => "visitor",
+                sk => &$get_frp_sk($main_comp),
+                server_name => "snapshots",
+                bind_port => 7980,
                 bind_addr => "0.0.0.0",
             ],
         ];
@@ -514,6 +607,13 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
                 local_ip => $broker_ip,
                 local_port => $broker_port,
             ],
+            snapshots => [
+                type => "stcp",
+                sk => &$get_frp_sk($run_comp),
+                plugin => "static_file",
+                plugin_local_path => "/c4/db4/snapshots",
+                plugin_strip_prefix => "snapshots",
+            ],
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf);
     }
@@ -521,36 +621,36 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
 
 #### proxy
 
-my $mk_from_cfg = sub{
-my($conf)=@_;
-my($ts,$gate_addr,$sni_postfix) = map{$$conf{$_}||die} qw[items gate sni_prefix];
-qq{
-global
-  tune.ssl.default-dh-param 2048
-defaults
-  timeout connect 5s
-  timeout client  3d
-  timeout server  3d
-  mode tcp
-}.join('',map{qq{listen listen_$$_[1]
-  bind $$_[0]
-  server s_$$_[1] $gate_addr ssl verify none sni str("$$_[1].$sni_postfix")
-}}@$ts);
-};
-
-my $mk_from_yml = sub{
-qq{
-services:
-  haproxy:
-    image: "haproxy:1.7"
-    userns_mode: "host"
-    network_mode: "host"
-    restart: unless-stopped
-    volumes:
-    - "./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
-version: '3.2'
-};
-};
+#my $mk_from_cfg = sub{
+#my($conf)=@_;
+#my($ts,$gate_addr,$sni_postfix) = map{$$conf{$_}||die} qw[items gate sni_prefix];
+#qq{
+#global
+#  tune.ssl.default-dh-param 2048
+#defaults
+#  timeout connect 5s
+#  timeout client  3d
+#  timeout server  3d
+#  mode tcp
+#}.join('',map{qq{listen listen_$$_[1]
+#  bind $$_[0]
+#  server s_$$_[1] $gate_addr ssl verify none sni str("$$_[1].$sni_postfix")
+#}}@$ts);
+#};
+#
+#my $mk_from_yml = sub{
+#qq{
+#services:
+#  haproxy:
+#    image: "haproxy:1.7"
+#    userns_mode: "host"
+#    network_mode: "host"
+#    restart: unless-stopped
+#    volumes:
+#    - "./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+#version: '3.2'
+#};
+#};
 
 my $mk_to_cfg = sub{
 my($conf,$ts)=@_;
@@ -631,6 +731,7 @@ services:
     - "./frps/frps.ini:/frps.ini:ro"
     ports:
     - "7000:7000"
+    - "7500:7500"
 version: '3.2'
 volumes:
   certs: {}
@@ -653,10 +754,14 @@ push @tasks, ["proxy_to","up|test",sub{
     });
     my $yml_str = &$mk_to_yml($conf);
     my($put,$sync) = &$docker_compose_start($yml_str);
-    &$put("haproxy","haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]},@sb_items]));
+    &$put("haproxy/haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]},@sb_items]));
     my %common = &$get_frp_common($comp);
-    my $tmp_frps_path = &$put("frps","frps.ini",&$to_ini_file([common=>[
+    my $tmp_frps_path = &$put("frps/frps.ini",&$to_ini_file([common=>[
         token=>$common{token},
+        dashboard_addr => "0.0.0.0",
+        dashboard_port => "7500",
+        dashboard_user => "cone",
+        dashboard_pwd => ($common{token}||die),
     ]]));
     if($mode eq "up"){
         sy(&$ssh_add());
@@ -665,13 +770,13 @@ push @tasks, ["proxy_to","up|test",sub{
     }
 }];
 
-push @tasks, ["proxy_from"," ",sub{
-    my $conf = $$deploy_conf{proxy_from} || die;
-    my $yml_str = &$mk_from_yml("./from-haproxy.cfg");
-    my($put,$sync) = &$docker_compose_start($yml_str);
-    &$put("haproxy","haproxy.cfg",&$mk_from_cfg($conf));
-    print "docker-compose -p proxy up -d --remove-orphans --force-recreate\n"
-}];
+#push @tasks, ["proxy_from"," ",sub{
+#    my $conf = $$deploy_conf{proxy_from} || die;
+#    my $yml_str = &$mk_from_yml("./from-haproxy.cfg");
+#    my($put,$sync) = &$docker_compose_start($yml_str);
+#    &$put("haproxy/haproxy.cfg",&$mk_from_cfg($conf));
+#    print "docker-compose -p proxy up -d --remove-orphans --force-recreate\n"
+#}];
 
 push @tasks, ["cert","<hostname>",sub{
   my($nm)=@_;

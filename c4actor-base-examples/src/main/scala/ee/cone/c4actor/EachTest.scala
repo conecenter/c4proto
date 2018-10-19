@@ -7,7 +7,7 @@ import ee.cone.c4assemble.{Assemble, IndexUtil, assemble, by}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-class EachTestApp extends RichDataApp
+class EachTestApp extends TestRichDataApp
   with SimpleAssembleProfilerApp
   with VMExecutionApp with ToStartApp with ExecutableApp with AssemblesApp
 {

@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4proto.ToByteString
 
 import scala.collection.immutable.Map
@@ -14,3 +14,6 @@ class ContextFactory(richRawWorldFactory: RichRawWorldFactory, toUpdate: ToUpdat
   }
 }
 
+object NoRawSnapshotLoader extends RawSnapshotLoader {
+  def list: List[RawSnapshot] = Nil
+}

@@ -65,6 +65,6 @@ class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToIn
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
 }
 
-object NoRawQSender extends RawQSender {
+/*object NoRawQSender extends RawQSender {
   def send(recs: List[QRecord]): List[NextOffset] = Nil
-}
+}*/

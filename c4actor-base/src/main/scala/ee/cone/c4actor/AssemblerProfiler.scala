@@ -8,6 +8,7 @@ import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble.{Join, SerialJoiningProfiling, WorldTransition}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.{Id, Protocol, protocol}
+import okio.ByteString
 
 import scala.collection.immutable.Seq
 

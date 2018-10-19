@@ -15,7 +15,6 @@ my $temp = "target";
 my $docker_build = "$temp/docker_build";
 my $user = "c4";
 my $uid = 1979;
-my @c_script = ("inbox_configure.pl","purger.pl");
 my $developer = $ENV{USER} || die;
 
 ################################################################################
@@ -130,20 +129,21 @@ my $gen_docker_conf = sub{
             "listeners=PLAINTEXT://$bootstrap_server",
             "log.dirs=db4/kafka-logs",
             "zookeeper.connect=$zoo_host:$zoo_port",
-            "log.cleanup.policy=compact",
-            "log.segment.bytes=104857600", #active segment is not compacting, so we reduce it
-            "log.cleaner.delete.retention.ms=3600000", #1h
-            "log.roll.hours=1", #delete-s will be triggered to remove?
-            "compression.type=uncompressed", #probably better compaction for .state topics
-            "message.max.bytes=25000000" #seems to be compressed
+            #"log.cleanup.policy=compact",
+            #"log.segment.bytes=250000000", #active segment is not compacting, so we reduce it
+            #"log.cleaner.delete.retention.ms=3600000", #1h
+            #"log.roll.hours=1", #delete-s will be triggered to remove?
+            #"compression.type=uncompressed", #probably better compaction for .state topics
+            "message.max.bytes=250000000" #seems to be compressed
+            #see log.retention.*
         );
         &$download_tgz($ctx_dir,
             "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "frp_0.21.0_linux_amd64", "frp"
         );
-        &$gcp($_=>$ctx_dir,$_) for @c_script;
+        &$gcp($_=>$ctx_dir,$_) for "purger.pl";
         &$mkdirs($ctx_dir,"db4");
-        (&$from("telnet"))
+        (&$from("rsync telnet mc"))
     });
     &$build("synced"=>sub{
         my($ctx_dir)=@_;

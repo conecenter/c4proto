@@ -134,7 +134,7 @@ class MD5HashingTest(
     )
 }
 
-class MD5HashingTestApp extends RichDataApp
+class MD5HashingTestApp extends TestRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp

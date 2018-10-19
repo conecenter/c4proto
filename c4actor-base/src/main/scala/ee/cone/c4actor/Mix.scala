@@ -58,6 +58,11 @@ trait RichObserverApp extends ExecutableApp with InitialObserversApp {
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
 }
 
+trait TestRichDataApp extends RichDataApp {
+  lazy val contextFactory = new ContextFactory(new RichRawWorldFactory(toInject,toUpdate,getClass.getName),toUpdate)
+  lazy val rawSnapshotLoader: RawSnapshotLoader = NoRawSnapshotLoader
+}
+
 trait RichDataApp extends ProtocolsApp
   with AssemblesApp
   with DataDependenciesApp
@@ -67,13 +72,15 @@ trait RichDataApp extends ProtocolsApp
   with PreHashingApp
 {
   def assembleProfiler: AssembleProfiler
+  def rawSnapshotLoader: RawSnapshotLoader
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val rawWorldFactory: RawWorldFactory = richRawWorldFactory
-  lazy val contextFactory = new ContextFactory(richRawWorldFactory,toUpdate)
+  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
+  lazy val rawWorldFactory: RawWorldFactory =
+    new SnapshotLoadingRawWorldFactory(None, snapshotLoader, new RichRawWorldFactory(toInject,toUpdate,getClass.getName))
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
@@ -82,7 +89,6 @@ trait RichDataApp extends ProtocolsApp
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   lazy val indexUtil: IndexUtil = IndexUtilImpl()()
-  private lazy val richRawWorldFactory = new RichRawWorldFactory(toInject,toUpdate,getClass.getName)
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
@@ -100,21 +106,8 @@ trait RichDataApp extends ProtocolsApp
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::
+    DebugInit ::
     super.toInject
-}
-
-trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
-  def execution: Execution
-  def rawSnapshot: RawSnapshot
-  def snapshotMakingRawObserver: RawObserver //new SnapshotMakingRawObserver(rawSnapshot, new CompletingRawObserver(execution))
-  def snapshotConfig: SnapshotConfig
-  //
-  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
-  lazy val rawWorldFactory: RawWorldFactory = new SnapshotMakingRawWorldFactory(snapshotConfig,toUpdate)
-  lazy val progressObserverFactory: ProgressObserverFactory =
-    new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
-  override def protocols: List[Protocol] = QProtocol :: super.protocols
 }
 
 trait VMExecutionApp {
@@ -123,9 +116,9 @@ trait VMExecutionApp {
 }
 
 trait FileRawSnapshotApp {
-  def rawWorldFactory: RawWorldFactory
-  lazy val rawSnapshot: RawSnapshot = new FileRawSnapshotImpl("db4/snapshots", rawWorldFactory)
-  lazy val snapshotConfig: SnapshotConfig = new FileSnapshotConfigImpl("db4/snapshots")()
+  lazy val snapshotsDir = "db4/snapshots"
+  lazy val rawSnapshotLoader: RawSnapshotLoader = new FileRawSnapshotLoader(snapshotsDir)
+  lazy val snapshotConfig: SnapshotConfig = new FileSnapshotConfigImpl(snapshotsDir)()
 }
 
 trait SerialObserversApp {
