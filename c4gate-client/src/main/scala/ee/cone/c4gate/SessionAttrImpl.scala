@@ -55,7 +55,7 @@ class SessionAttrAccessFactoryImpl(
 ) extends SessionAttrAccessFactory with OrigKeyGenerator{
   def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
     val adapter = registry.byName(classOf[RawSessionData].getName)
-    val lens = ProdLensImpl[RawSessionData,P](attr.metaList)(
+    val lens = ProdLens[RawSessionData,P](attr.metaList)(
       rawData ⇒ registry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
       value ⇒ rawData ⇒ {
         val valueAdapter = registry.byName(attr.className)
