@@ -1,16 +1,9 @@
 package ee.cone.c4actor.sandbox
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, PerformanceNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.sandbox.SandboxProtocol.OrigSandbox
-import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
-
-import scala.collection.immutable
-import scala.util.Random
 
 /*
   To start this app type the following into console:
@@ -21,7 +14,6 @@ class ChangingIndexPerformanceTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run(): Unit = {
-    import LEvent.update
     // val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val local: Context = contextFactory.updated(Nil)
     //val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
@@ -45,7 +37,7 @@ class SandboxProject extends RichDataApp
   with SandboxJoinersApp {
   override def toStart: List[Executable] = new ChangingIndexPerformanceTest(execution, toUpdate, contextFactory) :: super.toStart
 
-  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
+  lazy val assembleProfiler: AssembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
 }
 /*
 object ValueAssembleProfiler extends AssembleProfiler {

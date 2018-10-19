@@ -15,6 +15,8 @@ case class DepResponseImpl(innerRequest: DepInnerRequest, valueHashed: PreHashed
 case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOuterRequest)])
 
 @assemble class DepAssemble(reg: DepRequestHandlerRegistry) extends Assemble {
+  type ParentId = SrcId
+  type AddId = SrcId
 
   def resolvableToSubRequests(
     innerId: SrcId,
@@ -76,7 +78,7 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
 }
 
 case class DepRequestHandlerRegistry(
-  deзRequestFactory: DepRequestFactory,
+  depRequestFactory: DepRequestFactory,
   depResponseFactory: DepResponseFactory,
   handlerSeq: Seq[DepHandler],
   filtersSeq: Seq[DepResponseForwardFilter]
@@ -108,14 +110,14 @@ case class DepRequestHandlerRegistry(
       } yield response.innerRequest.request → value).toMap
       val resolvable: Resolvable[_] = handle(req.request,ctx)
       val response = depResponseFactory.wrap(req,resolvable.value)
-      DepInnerResolvable(response, resolvable.requests.distinct.map(deзRequestFactory.tupledOuterRequest(req.srcId)))
+      DepInnerResolvable(response, resolvable.requests.distinct.map(depRequestFactory.tupledOuterRequest(req.srcId)))
     }
 
   def add(req: DepInnerRequest): Values[(String, DepResponse)] =
     addHandlers.get(req.request.getClass.getName)
       .map { (add: DepInnerRequest ⇒ Seq[(DepRequest, _)]) ⇒
         add(req)
-          .map { case (rq, rsp) ⇒ (req.srcId, depResponseFactory.wrap(deзRequestFactory.innerRequest(rq), Option(rsp))) }
+          .map { case (rq, rsp) ⇒ (req.srcId, depResponseFactory.wrap(depRequestFactory.innerRequest(rq), Option(rsp))) }
       }.getOrElse(Nil)
 
   def filter(parent: DepInnerRequest, child: DepOuterRequest, response: DepResponse): Values[(String, DepResponse)] =

@@ -22,8 +22,6 @@ object DepTypes {
   type DepRequest = Product
   type DepCtx = Map[DepRequest, _] // low-level
   type GroupId = SrcId
-  type ParentId = SrcId
-  type AddId = SrcId
 }
 
 trait DepFactory extends Product {
