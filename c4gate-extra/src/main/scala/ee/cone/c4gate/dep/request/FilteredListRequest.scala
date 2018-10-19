@@ -24,7 +24,7 @@ trait FilterListRequestHandlerApp
     with FilterListRequestApp
     with DepAskFactoryApp
     with CommonIdInjectApps
-    with DepOuterRequestFactoryApp
+    with DepRequestFactoryApp
     with PreHashingApp {
 
   private lazy val depMap: Map[(String, String), Dep[List[_]]] = filterDepList.map(elem ⇒ (elem.listName, elem.filterPK) → elem.requestDep).toMap
@@ -39,7 +39,7 @@ trait FilterListRequestHandlerApp
     injectRole[FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
   override def assembles: List[Assemble] = filterDepList.map(
-    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depOuterRequestFactory, preHashing)
+    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory, preHashing)
   ) ::: super.assembles
 
   override def protocols: List[Protocol] = DepFilteredListRequestProtocol :: super.protocols
@@ -77,7 +77,7 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
   listName: String,
   filterPK: String,
   matches: List[String],
-  u: DepOuterRequestFactory,
+  u: DepRequestFactory,
   preHashing: PreHashing
 ) extends Assemble {
 
@@ -95,7 +95,7 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
         else
           ("", "")
       val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, listName, filterPK)
-      List(u.tupled(alienTask.sessionKey)(filterRequest))
+      List(u.tupledOuterRequest(alienTask.sessionKey)(filterRequest))
     } else Nil
 
   def FilterListResponseGrabber(

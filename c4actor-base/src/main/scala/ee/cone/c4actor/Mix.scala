@@ -65,8 +65,8 @@ trait RichDataApp extends ProtocolsApp
   with DefaultModelFactoriesApp
   with ExpressionsDumpersApp
   with PreHashingApp
+  with AssemblerProfilerApp
 {
-  def assembleProfiler: AssembleProfiler
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
@@ -158,4 +158,9 @@ trait SimpleAssembleProfilerApp extends ProtocolsApp {
   override def protocols: List[Protocol] =
     SimpleAssembleProfilerProtocol ::
     super.protocols
+}
+
+
+trait AssemblerProfilerApp {
+  def assembleProfiler: AssembleProfiler
 }

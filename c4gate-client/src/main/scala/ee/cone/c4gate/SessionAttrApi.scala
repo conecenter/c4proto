@@ -14,10 +14,12 @@ object SessionAttr {
     )
 }
 
+case class WithPKMetaAttr(pk: String) extends MetaAttr
+
 case class SessionAttr[+By](
   className: String, id: Long, pk: SrcId, metaList: List[MetaAttr]
 ){
-  def withPK(nPK: SrcId): SessionAttr[By] = copy(pk=nPK)
+  def withPK(nPK: SrcId): SessionAttr[By] = copy(pk=nPK, metaList= WithPKMetaAttr(nPK) :: metaList)
 }
 
 trait SessionAttrAccessFactory {

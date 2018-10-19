@@ -25,6 +25,10 @@ case class AccessImpl[P](
     val rMeta = metaList ::: inner.metaList
     AccessImpl[V](rValue,rLens,rMeta)
   }
+
+  def zoom: Access[P] = AccessImpl[P](initialValue,
+    MakeTxProtoLens(initialValue),
+    metaList)
 }
 
 case class ComposedLens[C,T,I](
@@ -32,6 +36,14 @@ case class ComposedLens[C,T,I](
 ) extends AbstractLens[C,I] {
   def set: I ⇒ C ⇒ C = item ⇒ outer.modify(inner.set(item))
   def of: C ⇒ I = container ⇒ inner.of(outer.of(container))
+}
+
+case object MakeTxProtoLens {
+  def apply[P](initialValue: P): Option[Lens[Context, P] with Product] =
+    initialValue match {
+      case a:Product ⇒ Option(TxProtoLens(a)).asInstanceOf[Option[Lens[Context, P] with Product]]
+      case _ ⇒ None
+    }
 }
 
 case class TxProtoLens[V<:Product](initialValue: V) extends AbstractLens[Context,V] {
