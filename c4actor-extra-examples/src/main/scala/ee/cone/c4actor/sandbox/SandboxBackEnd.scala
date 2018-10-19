@@ -45,7 +45,7 @@ class SandboxProject extends RichDataApp
   with SandboxJoinersApp {
   override def toStart: List[Executable] = new ChangingIndexPerformanceTest(execution, toUpdate, contextFactory) :: super.toStart
 
-  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
+  lazy val assembleProfiler: AssembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
 }
 /*
 object ValueAssembleProfiler extends AssembleProfiler {
