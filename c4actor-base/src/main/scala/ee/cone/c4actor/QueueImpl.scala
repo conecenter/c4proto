@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.QProtocol.{TxRef, Update, Updates}
 import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 
 import scala.collection.immutable.{Queue, Seq}
@@ -37,27 +37,39 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
   }
 }
 
-class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry) extends ToUpdate {
+class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry)(
+  updatesAdapter: ProtoAdapter[Updates] with HasId =
+    qAdapterRegistry.byName(classOf[QProtocol.Updates].getName)
+    .asInstanceOf[ProtoAdapter[Updates] with HasId],
+  refAdapter: ProtoAdapter[TxRef] with HasId =
+    qAdapterRegistry.byName(classOf[TxRef].getName)
+    .asInstanceOf[ProtoAdapter[TxRef] with HasId]
+) extends ToUpdate {
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
     Update(message.srcId, valueAdapter.id, byteString)
   }
   def toBytes(updates: List[Update]): Array[Byte] =
-    qAdapterRegistry.updatesAdapter.encode(Updates("",updates))
-  def toUpdates(data: ByteString): List[Update] = {
-    qAdapterRegistry.updatesAdapter.decode(data).updates
-  }
+    updatesAdapter.encode(Updates("",updates))
+  def toUpdates(events: List[RawEvent]): List[Update] = for {
+    event ← events
+    update ← updatesAdapter.decode(event.data).updates
+  } yield
+    if(update.valueTypeId != refAdapter.id) update
+    else {
+      val ref: TxRef = refAdapter.decode(update.value)
+      if(ref.txId.nonEmpty) update
+      else update.copy(value=ToByteString(refAdapter.encode(ref.copy(txId = event.srcId))))
+    }
 }
 
 object QAdapterRegistryFactory {
   def apply(protocols: List[Protocol]): QAdapterRegistry = {
     val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
     val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
-    val updatesAdapter = byName(classOf[QProtocol.Updates].getName)
-      .asInstanceOf[ProtoAdapter[QProtocol.Updates] with HasId]
     val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
-    new QAdapterRegistry(byName, byId, updatesAdapter)
+    new QAdapterRegistry(byName, byId)
   }
 }
 

@@ -38,7 +38,7 @@ class SnapshotMakingRawWorld(
   val offset: NextOffset
 ) extends RawWorld with LazyLogging {
   def reduce(events: List[RawEvent]): RawWorld = if(events.isEmpty) this else {
-    val updates = events.map(_.data).flatMap(toUpdate.toUpdates)
+    val updates = toUpdate.toUpdates(events)
     val newState = (state /: updates){(state,up)⇒
       if(ignore(up.valueTypeId)) state
       else if(up.value.size > 0) state + (updKey(up)→up)
@@ -69,8 +69,8 @@ class SnapshotMakingRawWorld(
     logger.info("OK")
   }
 
-  def diff(target: ByteString): Array[Byte] = {
-    val targetUpdates = toUpdate.toUpdates(target)
+  def diff(target: RawEvent): Array[Byte] = {
+    val targetUpdates = toUpdate.toUpdates(List(target)) //todo: reset txRefs? do also on remote snapshot load; in debugTx?
     val updates = targetUpdates.filterNot{ up ⇒ state.get(updKey(up)).contains(up) }
     val deletes = (state.keySet -- targetUpdates.map(updKey)).toList.sortBy(updBy)
     toUpdate.toBytes(deletes ::: updates)
@@ -114,7 +114,7 @@ class SnapshotMakingRawObserver() extends RawObserver {
 }
 
 class SnapshotMergingRawObserver(
-  rawQSender: RawQSender, loader: RawSnapshotLoader
+  rawQSender: RawQSender, loader: SnapshotLoader
 ) extends RawObserver with LazyLogging {
   def activate(rawWorld: RawWorld): RawObserver = loader.list match {
     case Seq() ⇒ this
@@ -184,11 +184,13 @@ class DebugSavingRawWorld(
     if(geEvents.isEmpty) new DebugSavingRawWorld(ltInner,parent)
     else {
       val event = geEvents.head
-      assert(event.srcId == debugOffset)
+      assert(event.srcId == debugOffset,
+        s"$debugOffset : ${ltEvents.map(_.srcId)} : ${geEvents.map(_.srcId)}"
+      )
       val nInner = ltInner.reduce(List(RawEvent(ltInner.offset,ToByteString(
         toUpdate.toBytes(
           LEvent.update(
-            DebugTx(event.srcId, toUpdate.toUpdates(event.data))
+            DebugTx(event.srcId, toUpdate.toUpdates(List(event)))
           ).map(toUpdate.toUpdate).toList
         )
       ))))

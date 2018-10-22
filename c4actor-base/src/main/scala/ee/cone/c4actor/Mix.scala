@@ -1,6 +1,7 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4actor.QProtocol.TxRef
 import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
@@ -75,7 +76,7 @@ trait RichDataApp extends ProtocolsApp
   def rawSnapshotLoader: RawSnapshotLoader
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
@@ -98,7 +99,6 @@ trait RichDataApp extends ProtocolsApp
     new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler)
   def parallelAssembleOn: Boolean = false
   //
-  override def assembles: List[Assemble] = new ClearUpdatesAssemble :: super.assembles
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
@@ -136,7 +136,8 @@ trait MortalFactoryApp extends AssemblesApp {
   def idGenUtil: IdGenUtil
   //
   def mortal: MortalFactory = MortalFactoryImpl(idGenUtil)
-  override def assembles: List[Assemble] = new MortalFatalityAssemble() :: super.assembles
+  override def assembles: List[Assemble] =
+    new MortalFatalityAssemble() :: super.assembles
 }
 
 trait NoAssembleProfilerApp {
@@ -144,9 +145,10 @@ trait NoAssembleProfilerApp {
 }
 
 trait SimpleAssembleProfilerApp extends ProtocolsApp {
+  def idGenUtil: IdGenUtil
   def toUpdate: ToUpdate
   //
-  lazy val assembleProfiler = SimpleAssembleProfiler(toUpdate)
+  lazy val assembleProfiler = SimpleAssembleProfiler(idGenUtil)(toUpdate)
   //
   override def protocols: List[Protocol] =
     SimpleAssembleProfilerProtocol ::

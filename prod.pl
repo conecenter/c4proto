@@ -240,8 +240,18 @@ push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
     sy(&$docker_compose_up($comp,""));
 }];
 
+push @tasks, ["snapshot_put", "$composes_txt <file_path>", sub{
+    my($comp,$path)=@_;
+    sy(&$ssh_add());
+    my($mk_path,$sync) = &$db4put_start();
+    my($fn,$zfn) = &$snapshot_name($path=~m{([^/]+)$} ? $1 : die "bad snapshot name");
+    sy("cp $path ".&$mk_path("snapshot_targets/$zfn"));
+    &$sync($comp);
+}];
+
 push @tasks, ["snapshot_debug", "$composes_txt <tx>", sub{
     my($comp,$offset)=@_;
+    $offset || die 'missing tx';
     sy(&$ssh_add());
     my $conf = &$get_compose($comp);
     my $main = $$conf{main} || die;
@@ -377,7 +387,7 @@ $YAML::XS::QuoteNumericStrings = 1;
 my $bin = "kafka/bin";
 
 my $bootstrap_server = "broker:9092";
-
+my $zookeeper_server = "zookeeper:2181";
 
 # pass src commit
 # migrate states
@@ -410,7 +420,7 @@ my $app_user = sub{
 
 my $volumes = sub{map{"$_:/$user/$_"}@_};
 
-my $common_services = sub{+{
+my $common_services = sub{(
     gate => {
         C4APP_IMAGE => "gate-server",
         C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
@@ -434,25 +444,25 @@ my $common_services = sub{+{
         C4EXPOSE_HTTP_PORT => 80,
         expose => [80],
     },
-}};
+)};
 
 my $without_local_db_template_yml = sub{+{
     services => {
-        %$common_services,
+        &$common_services(),
         frpc => {
             &$app_user(),
             C4APP_IMAGE => "zoo",
             command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
             volumes => [&$volumes("db4")],
             C4DEPLOY_LOCAL => 1,
-            networks => { default => { aliases => ["broker"] } },
+            networks => { default => { aliases => ["broker","zookeeper"] } },
         },
     },
 }};
 
 my $with_local_db_template_yml = sub{+{
     services => {
-        %$common_services,
+        &$common_services(),
         zookeeper => {
             &$app_user(),
             C4APP_IMAGE => "zoo",
@@ -568,45 +578,49 @@ my $get_frp_common = sub{
     );
 };
 
+my $frp_visitor = sub{
+    my($comp,$server)=@_;
+    my($name,$port) = &$split_port($server);
+    ("$name\_visitor" => [
+        type => "stcp",
+        role => "visitor",
+        sk => &$get_frp_sk($comp),
+        server_name => $name,
+        bind_port => $port,
+        bind_addr => "0.0.0.0",
+    ]);
+};
+my $frp_client = sub{
+    my($comp,$server)=@_;
+    my($name,$port) = &$split_port($server);
+    ($name => [
+        type => "stcp",
+        sk => &$get_frp_sk($comp),
+        local_ip => $name,
+        local_port => $port,
+    ]);
+};
 
 push @tasks, ["compose_up","fast|full $composes_txt",sub{
     my($mode,$run_comp)=@_;
     sy(&$ssh_add());
     my $conf = &$get_compose($run_comp);
     my $main_comp = $$conf{main};
-    my($broker_ip,$broker_port) = &$split_port($bootstrap_server);
     if($main_comp){
         my $ext_conf = &$merge(&$without_local_db_template_yml(),$conf);
         my $frpc_conf = [
             common => [&$get_frp_common($run_comp), user=>$main_comp],
-            broker_visitor => [
-                type => "stcp",
-                role => "visitor",
-                sk => &$get_frp_sk($main_comp),
-                server_name => "broker", #$main_comp.broker?
-                bind_port => $broker_port,
-                bind_addr => "0.0.0.0",
-            ],
-            snapshots_visitor => [
-                type => "stcp",
-                role => "visitor",
-                sk => &$get_frp_sk($main_comp),
-                server_name => "snapshots",
-                bind_port => 7980,
-                bind_addr => "0.0.0.0",
-            ],
+            &$frp_visitor($main_comp,$zookeeper_server),
+            &$frp_visitor($main_comp,$bootstrap_server),
+            &$frp_visitor($main_comp,"snapshots:7980"),
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf);
     } else {
         my $ext_conf = &$merge(&$with_local_db_template_yml(),$conf);
         my $frpc_conf = [
             common => [&$get_frp_common($run_comp), user=>$run_comp],
-            broker => [
-                type => "stcp",
-                sk => &$get_frp_sk($run_comp),
-                local_ip => $broker_ip,
-                local_port => $broker_port,
-            ],
+            &$frp_client($run_comp,$zookeeper_server),
+            &$frp_client($run_comp,$bootstrap_server),
             snapshots => [
                 type => "stcp",
                 sk => &$get_frp_sk($run_comp),

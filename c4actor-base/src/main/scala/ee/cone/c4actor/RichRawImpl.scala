@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{FailedUpdates, Firstborn}
+import ee.cone.c4actor.QProtocol.{DebugTx, FailedUpdates, Firstborn}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
@@ -27,7 +27,7 @@ class RichRawWorldFactory(
   def create(): RichRawWorld = {
     val injectedList = for(toInject ← toInjects; injected ← toInject.toInject)
       yield Map(injected.pair)
-    val eWorld = new RichRawWorld(Merge(Nil,injectedList), emptyReadModel, "0" * OffsetHexSize())
+    val eWorld = new RichRawWorld(Merge(Nil,injectedList), emptyReadModel, "0" * OffsetHexSize(), None)
     val firstborn = LEvent.update(Firstborn(actorName)).toList.map(toUpdate.toUpdate)
     val firstRawEvent = RawEvent(eWorld.offset, ToByteString(toUpdate.toBytes(firstborn)))
     eWorld.reduce(List(firstRawEvent))
@@ -37,13 +37,17 @@ class RichRawWorldFactory(
 class RichRawWorld(
   val injected: SharedComponentMap,
   val assembled: ReadModel,
-  val offset: NextOffset
+  val offset: NextOffset,
+  val debugAssembled: Option[ReadModel]
 ) extends RawWorld with RichContext with LazyLogging {
   def reduce(events: List[RawEvent]): RichRawWorld =
     if(events.isEmpty) this else {
       val nAssembled = ReadModelAddKey.of(this)(this)(events)(assembled)
-      new RichRawWorld(injected, nAssembled, events.last.srcId)
+      new RichRawWorld(injected, nAssembled, events.last.srcId, debugAssembled).withDebug
     }
+  private def withDebug: RichRawWorld =
+    if(debugAssembled.nonEmpty || ByPK(classOf[DebugTx]).of(this).isEmpty) this
+    else new RichRawWorld(injected, assembled, offset, Option(assembled))
   def hasErrors: Boolean = ByPK(classOf[FailedUpdates]).of(this).nonEmpty
 }
 

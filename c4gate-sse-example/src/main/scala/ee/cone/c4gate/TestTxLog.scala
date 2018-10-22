@@ -1,12 +1,13 @@
 package ee.cone.c4gate
 
 import com.squareup.wire.ProtoAdapter
+import ee.cone.c4actor.LifeTypes.Alive
+import ee.cone.c4actor.QProtocol.TxRef
 import ee.cone.c4actor._
-import ee.cone.c4actor.QProtocol.Updates
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.TxAddMeta
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{All, Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.ToAlienWrite
 import ee.cone.c4gate.HttpProtocol.HttpPublication
 import ee.cone.c4proto.HasId
@@ -16,7 +17,7 @@ import ee.cone.c4vdom.Types.ViewRes
 
 import scala.annotation.tailrec
 
-trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp {
+trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalFactoryApp {
   def tags: Tags
   def untilPolicy: UntilPolicy
   def qAdapterRegistry: QAdapterRegistry
@@ -25,6 +26,7 @@ trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp {
   private lazy val actorName = getClass.getName
 
   override def assembles: List[Assemble] =
+    mortal(classOf[TxRef]) :: mortal(classOf[TxAddMeta]) ::
     new TestTxLogAssemble(actorName)(qAdapterRegistry)() ::
     super.assembles
   override def byLocationHashViews: List[ByLocationHashView] =
@@ -41,30 +43,27 @@ case class TestTxLogView(locationHash: String = "txlog")(
     for{
       updatesListSummary ← ByPK(classOf[UpdatesListSummary]).of(local).get(actorName).toList
       updatesSummary ← updatesListSummary.items
-    } yield div(s"tx${updatesSummary.srcId}",List())(
+      add = updatesSummary.add
+    } yield div(s"tx${add.srcId}",List())(
       text("text",
-        s"tx: ${updatesSummary.srcId}," +
-          s" objects: ${updatesSummary.objCount}," +
-          s" bytes: ${updatesSummary.byteCount}," +
-          s" types: ${updatesSummary.valueTypeIds.map(java.lang.Long.toHexString).mkString(", ")}"
-      ) :: (for {
-        (txAddMeta,idx) ← updatesSummary.txAddMetaList.zipWithIndex
+        s"tx: ${add.srcId}," +
+          s" objects: ${add.updObjCount}," +
+          s" bytes: ${add.updByteCount}," +
+          s" types: ${add.updValueTypeIds.map(java.lang.Long.toHexString).mkString(", ")}" +
+          s" period: ${add.finishedAt-add.startedAt}"
+      ) ::
+      (for {
+        (logEntry,idx) ← add.log.zipWithIndex
       } yield div(s"$idx",Nil)(
         text("text",
-          s" * $idx ${txAddMeta.finishedAt-txAddMeta.startedAt}"
-        ) :: (for {
-          (logEntry,idx) ← txAddMeta.log.zipWithIndex
-        } yield div(s"$idx",Nil)(
-          text("text",
-            s" ** ${logEntry.value} ${logEntry.name}"
-          ) :: Nil
-        ))
+          s" ** ${logEntry.value} ${logEntry.name}"
+        ) :: Nil
       ))
     )
   }
 }
 
-case class UpdatesSummary(srcId: SrcId, objCount: Long, byteCount: Long, valueTypeIds: List[Long], txAddMetaList: List[TxAddMeta])
+case class UpdatesSummary(add: TxAddMeta, ref: TxRef)
 case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount: Long, objCount: Long, byteCount: Long)
 
 @assemble class TestTxLogAssemble(actorName: String)(
@@ -78,15 +77,10 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
 
   def mapMeta(
     key: SrcId,
-    updates: Each[Updates]
+    txRef: Each[TxRef],
+    txAdd: Each[TxAddMeta]
   ): Values[(SummaryId,UpdatesSummary)] =
-    List(actorName → UpdatesSummary(
-      updates.srcId,
-      updates.updates.size,
-      updates.updates.map(_.value.size).sum,
-      updates.updates.map(_.valueTypeId).distinct,
-      updates.updates.filter(u⇒u.valueTypeId==metaAdapter.id).map(u⇒metaAdapter.decode(u.value))
-    ))
+    List(actorName → UpdatesSummary(txAdd, txRef))
 
   def sumMeta(
     key: SrcId,
@@ -98,8 +92,8 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
           res.srcId,
           in.head :: res.items,
           res.txCount + 1,
-          res.objCount + in.head.objCount,
-          res.byteCount + in.head.byteCount
+          res.objCount + in.head.add.updObjCount,
+          res.byteCount + in.head.add.updByteCount
         )
         if(will.txCount > 20 ||
           will.objCount > 10000 ||
@@ -108,21 +102,28 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
         else headToKeep(will, in.tail)
       }
 
-    val skipIds = Seq(classOf[ToAlienWrite],classOf[HttpPublication],classOf[TxAddMeta])
+    val skipIds = Seq(classOf[ToAlienWrite],classOf[HttpPublication],classOf[TxAddMeta],classOf[TxRef])
       .map(cl⇒qAdapterRegistry.byName(cl.getName).id).toSet
-
 
     List(WithPK(headToKeep(
       UpdatesListSummary(key,Nil,0L,0L,0L),
-      updatesSummary.filterNot(_.valueTypeIds.forall(skipIds))
-        .sortBy(_.srcId).toList.reverse
+      updatesSummary.filterNot(_.add.updValueTypeIds.forall(skipIds))
+        .sortBy(_.ref.txId).toList.reverse
     )))
   }
 
-  def keep(
+  def keepAdds(
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
-  ): Values[(SrcId,KeepUpdates)] = for {
+  ): Values[(Alive,TxAddMeta)] = for {
     item ← updatesListSummary.items
-  } yield WithPK(KeepUpdates(item.srcId))
+  } yield WithPK(item.add)
+
+  def keepRefs(
+    key: SrcId,
+    updatesListSummary: Each[UpdatesListSummary]
+  ): Values[(Alive,TxRef)] = for {
+    item ← updatesListSummary.items
+  } yield WithPK(item.ref)
+
 }

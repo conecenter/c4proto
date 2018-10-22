@@ -75,7 +75,7 @@ class SnapshotLoaderImpl(inner: RawSnapshotLoader) extends SnapshotLoader {
     for {
       rawSnapshot ← inner.list
       (offsetStr,uuid) ← parseName(rawSnapshot.name)
-    } yield new Snapshot(offsetStr,uuid,rawSnapshot)
+    } yield new Snapshot(offsetStr,uuid,rawSnapshot,()⇒RawEvent(offsetStr,rawSnapshot.load()))
   }
 }
 
@@ -87,11 +87,10 @@ class SnapshotLoadingRawWorldFactory(
     (for{
       snapshot ← loader.list.sortBy(_.offset).reverse.toStream
         if ignoreFrom.forall(snapshot.offset < _)
-      data ← {
+      event ← {
         logger.info(s"Loading snapshot ${snapshot.raw.name}")
-        Option(snapshot.raw.load())
-      } if hashFromData(data.toByteArray) == snapshot.uuid
-      event = RawEvent(snapshot.offset,data)
+        Option(snapshot.load())
+      } if hashFromData(event.data.toByteArray) == snapshot.uuid
       world ← Option(initialRawWorld.reduce(List(event))) if !world.hasErrors
     } yield {
       logger.info(s"Snapshot loaded")

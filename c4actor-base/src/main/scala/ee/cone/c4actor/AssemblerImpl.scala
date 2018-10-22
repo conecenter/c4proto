@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{FailedUpdates, Firstborn, Update, Updates}
+import ee.cone.c4actor.QProtocol._
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
@@ -35,7 +35,7 @@ class AssemblerInit(
   assembleProfiler: AssembleProfiler
 ) extends ToInject with LazyLogging {
 
-  private def toTree(assembled: ReadModel, updates: DPIterable[Update], fix: (SrcId,Product)⇒Product = (_,i)⇒i): ReadModel =
+  private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
     (for {
       tpPair ← updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair
@@ -47,7 +47,7 @@ class AssemblerInit(
         (srcId, iUpdates) = iPair
         rawValue = iUpdates.last.value
         remove = composes.removingDiff(wasIndex,srcId)
-        add = if(rawValue.size > 0) composes.result(srcId,fix(srcId,valueAdapter.decode(rawValue)),+1) :: Nil else Nil
+        add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
         res ← remove :: add
       } yield res)) if !composes.isEmpty(indexDiff)
     } yield {
@@ -55,35 +55,13 @@ class AssemblerInit(
     }).seq.toMap
 
   // read model part:
-  private def toTree(assembled: ReadModel, events: DPIterable[RawEvent]): ReadModel = {
-    val updates = events.map(ev⇒Update(ev.srcId, qAdapterRegistry.updatesAdapter.id, ev.data))
-    toTree(assembled, updates, (id,item)⇒item.asInstanceOf[Updates].copy(srcId=id))
-  }
-  private def getValues[T](cl: Class[T], readModel: ReadModel): List[T] = {
-    val index = origKeyFactory.rawKey(cl.getName).of(readModel)
-    for{
-      o ← composes.keySet(index).map{ case o: String ⇒ o }.toList.sorted
-      item ← composes.getValues(index,o,"")
-    } yield item.asInstanceOf[T]
-  }
-  private def joinDiffs(a: ReadModel, b: ReadModel): ReadModel = {
-    val r = a ++ b
-    assert(a.size + b.size == r.size)
-    r
-  }
-  private def reduceAndClearMeta(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel = {
-    val assembled = replace(wasAssembled,diff,isParallel,assembleProfiler.createSerialJoiningProfiling(None)).result
-    val mUpdates = getValues(classOf[ClearUpdates],assembled).map(_.updates)
-      .flatMap(LEvent.delete).map(toUpdate.toUpdate)
-    if(mUpdates.isEmpty) assembled
-    else reduceAndClearMeta(replace, assembled, toTree(assembled, mUpdates))
-  }
+  private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel =
+    replace(wasAssembled,diff,isParallel,assembleProfiler.createSerialJoiningProfiling(None)).result
   private def readModelAdd(replace: Replace): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ try {
-    val metaDiff = toTree(assembled, events)
-    val updates = getValues(classOf[Updates],metaDiff).flatMap(_.updates)
+    val updates = toUpdate.toUpdates(events.toList)
     val realDiff = toTree(assembled, if(isParallel) updates.par else updates)
     val end = NanoTimer()
-    val nAssembled = reduceAndClearMeta(replace, assembled, joinDiffs(realDiff,metaDiff))
+    val nAssembled = reduce(replace, assembled, realDiff)
     val period = end.ms
     if(period > 1000) logger.info(s"long join $period ms")
     nAssembled
@@ -91,11 +69,10 @@ class AssemblerInit(
     case e: Exception ⇒
       logger.error("reduce", e) // ??? exception to record
       if(events.size == 1){
-        val metaDiff = toTree(assembled, events)
         val updates = events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))
           .flatMap(LEvent.update).map(toUpdate.toUpdate)
         val failDiff = toTree(assembled, updates)
-        reduceAndClearMeta(replace, assembled, joinDiffs(failDiff,metaDiff))
+        reduce(replace, assembled, failDiff)
       } else {
         val(a,b) = events.splitAt(events.size / 2)
         Function.chain(Seq(readModelAdd(replace)(a), readModelAdd(replace)(b)))(assembled)
@@ -138,18 +115,4 @@ case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K
   def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
   def -(key: K): Map[K, V] = iterator.toMap - key
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
-}
-
-@assemble class ClearUpdatesAssemble extends Assemble {
-  def keepNone(
-    key: SrcId,
-    firstborn: Each[Firstborn]
-  ): Values[(SrcId,KeepUpdates)] = Nil
-
-  def clearUpdates(
-    key: SrcId,
-    updates: Each[Updates],
-    keep: Values[KeepUpdates]
-  ): Values[(SrcId,ClearUpdates)] =
-    if(keep.isEmpty) List(WithPK(ClearUpdates(updates))) else Nil
 }

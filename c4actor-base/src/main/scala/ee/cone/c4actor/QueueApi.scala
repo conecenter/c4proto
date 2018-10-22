@@ -9,7 +9,7 @@ import scala.collection.immutable.{Map, Queue, Seq}
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
 import okio.ByteString
 
@@ -45,6 +45,12 @@ import okio.ByteString
     @Id(0x0015) updates: List[Update]
   )
 
+  @Id(0x001A) case class TxRef( //add actorName if need cross ms mortality?
+    @Id(0x0011) srcId: String,
+    @Id(0x001B) txId: String
+  )
+
+
   /*@Id(0x0018) case class Leader(
     @Id(0x0019) actorName: String,
     @Id(0x001A) incarnationId: String
@@ -76,7 +82,7 @@ trait QMessages {
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toBytes(updates: List[Update]): Array[Byte]
-  def toUpdates(data: ByteString): List[Update]
+  def toUpdates(events: List[RawEvent]): List[Update]
 }
 
 object Types {
@@ -172,13 +178,10 @@ case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
 
 class QAdapterRegistry(
   val byName: Map[String,ProtoAdapter[Product] with HasId],
-  val byId: Map[Long,ProtoAdapter[Product] with HasId],
-  val updatesAdapter: ProtoAdapter[QProtocol.Updates] with HasId
+  val byId: Map[Long,ProtoAdapter[Product] with HasId]
 )
 
 case class RawEvent(srcId: SrcId, data: ByteString)
-case class ClearUpdates(updates: Updates)
-case class KeepUpdates(srcId: SrcId)
 
 trait RawWorld {
   def offset: NextOffset
@@ -201,7 +204,7 @@ trait ProgressObserverFactory {
 trait SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte]): Unit
 }
-class Snapshot(val offset: NextOffset, val uuid: String, val raw: RawSnapshot)
+class Snapshot(val offset: NextOffset, val uuid: String, val raw: RawSnapshot, val load: ()⇒RawEvent)
 trait SnapshotLoader {
   def list: List[Snapshot]
 }

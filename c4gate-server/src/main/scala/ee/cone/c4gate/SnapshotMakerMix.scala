@@ -10,7 +10,7 @@ trait SnapshotMakingApp extends ExecutableApp with ProtocolsApp {
   //
   lazy val snapshotTargetsDir = "db4/snapshot_targets"
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)()
   lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(snapshotMakingRawObserver)
   override def protocols: List[Protocol] = QProtocol :: super.protocols
@@ -28,7 +28,7 @@ class SnapshotMakerApp extends SnapshotMakingApp
     ),
     new PeriodicRawObserver(Duration.ofSeconds(2),
       new SnapshotMergingRawObserver(rawQSender,
-        new FileRawSnapshotLoader(snapshotTargetsDir)
+        new SnapshotLoaderImpl(new FileRawSnapshotLoader(snapshotTargetsDir))
       )
     )
   )
