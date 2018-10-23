@@ -12,11 +12,11 @@ trait LensRegistryApp {
 trait LensRegistryMix extends ProdLensesApp {
   def lensRegistry = {
     lensIntegrityCheck
-    LensRegistryImpl(lensList)
+    LensRegistryImpl(lensList.distinct)
   }
 
   private def lensIntegrityCheck = {
-    val errors = lensList.groupBy(prodLens ⇒ prodLens.metaList.collect { case a: NameMetaAttr ⇒ a }
+    val errors = lensList.distinct.groupBy(prodLens ⇒ prodLens.metaList.collect { case a: NameMetaAttr ⇒ a }
       .map(_.value) match {
       case Nil ⇒ FailWith.apply(s"Lens without name in LensRegistryImpl: $prodLens")
       case a ⇒ a
