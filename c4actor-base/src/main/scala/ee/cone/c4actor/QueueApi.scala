@@ -39,15 +39,10 @@ import okio.ByteString
     @Id(0x0011) srcId: String,
     @Id(0x0018) reason: String
   )
-
-  @Id(0x0019) case class DebugTx(
+  
+  @Id(0x0019) case class TxRef( //add actorName if need cross ms mortality?
     @Id(0x0011) srcId: String,
-    @Id(0x0015) updates: List[Update]
-  )
-
-  @Id(0x001A) case class TxRef( //add actorName if need cross ms mortality?
-    @Id(0x0011) srcId: String,
-    @Id(0x001B) txId: String
+    @Id(0x001A) txId: String
   )
 
 
