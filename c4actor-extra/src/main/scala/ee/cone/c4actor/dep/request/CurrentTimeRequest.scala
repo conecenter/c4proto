@@ -34,6 +34,8 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
       local
     }
   }
+
+  override lazy val transformMeta: String = s"CurrentTimeTransform: $srcId, $refreshRateSeconds"
 }
 
 @protocol object CurrentTimeProtocol extends Protocol {
