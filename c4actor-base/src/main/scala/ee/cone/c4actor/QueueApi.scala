@@ -154,17 +154,12 @@ trait Observer {
   def activate(world: RichContext): Seq[Observer]
 }
 
-case object TxTransformMeta extends TransientLens[String]("")
+case object TxTransformDescription extends TransientLens[String]("")
 
 trait TxTransform extends Product {
-  def transformMeta: String = this.getClass.getName
+  def description: String = this.getClass.getName
 
   def transform(local: Context): Context
-}
-
-object ApplyTransformWithMeta {
-  def apply(transform: TxTransform)(local: Context):Context =
-    transform.transform(TxTransformMeta.set(transform.transformMeta)(local))
 }
 
 case object WriteModelKey extends TransientLens[Queue[Update]](Queue.empty)
