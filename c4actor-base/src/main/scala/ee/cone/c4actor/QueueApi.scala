@@ -154,11 +154,20 @@ trait Observer {
   def activate(world: RichContext): Seq[Observer]
 }
 
+case object TxTransformMeta extends TransientLens[String]("")
+
 trait TxTransform extends Product {
+  def transformMeta: String = this.getClass.getName
+
   def transform(local: Context): Context
 }
 
-case object WriteModelKey extends TransientLens[Queue[Update]](Queue.empty)
+object ApplyTransformWithMeta {
+  def apply(transform: TxTransform)(local: Context):Context =
+    transform.transform(TxTransformMeta.set(transform.transformMeta)(local))
+}
+
+case object WriteModelKey extends TransientLens[Queue[Update]](Queue.empty) // todo grab TxAdd count from here
 case object WriteModelDebugKey extends TransientLens[Queue[LEvent[Product]]](Queue.empty)
 case object ReadModelAddKey extends SharedComponentKey[SharedContext⇒Seq[RawEvent]⇒ReadModel⇒ReadModel]
 case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]⇒Context⇒Context]

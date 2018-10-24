@@ -29,7 +29,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
           case None ⇒ local
           case Some(tr) ⇒
             val prepLocal = new Context(global.injected, global.assembled, local.transient)
-            val nextLocal = (tr.transform _).andThen(qMessages.send)(prepLocal)
+            val nextLocal = (ApplyTransformWithMeta(tr) _).andThen(qMessages.send)(prepLocal)
             new Context(global.injected, emptyReadModel, nextLocal.transient)
         }
       }
