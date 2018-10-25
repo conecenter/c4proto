@@ -14,5 +14,5 @@ case class CollectiveTransform(srcId: String, events: Values[LEventTransform]) e
   def transform(local: Context): Context =
     TxAdd(events.flatMap(_.lEvents(local)))(local)
 
-  override lazy val description: String = s"CollectiveTransform for ${events.size}: ${events.map(_.transformMeta).mkString(",")}"
+  override lazy val description: String = s"CollectiveTransform for ${events.size}: ${events.map(_.transformMeta).mkString(", ")}"
 }
