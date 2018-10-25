@@ -57,7 +57,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
 	const {setTimeout,clearTimeout,setInterval,clearInterval,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
-	const {Provider, Consumer} = React.createContext("");
+	const {Provider, Consumer} = React.createContext("path");
 	const ImageElement = ({src,style,forceSrcWithoutPrefix,title}) => {
 		const srcM = !forceSrcWithoutPrefix?(urlPrefix||"")+src: src;
 		return $("img",{src:srcM,style,title})
@@ -1068,12 +1068,15 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.prevval = inp.value
 				let nValue = inp.value
 				if(this.isVkEvent(event)||this.props.vkOnly){					
-					nValue = nValue+event.detail.key
+					nValue = nValue+event.detail.key					
 					this.s = -1
+					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})
 				}
-				else 
-					nValue = ""
-				this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})
+				else {
+					//nValue = ""
+					inp.value = ""
+					//this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}},inp)
+				}				
 			})){				
 				if(this.isVkEvent(event)||this.props.vkOnly){	
 					const inp = this.getInput()
@@ -1629,19 +1632,25 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.onChange)
 				this.props.onClickValue("focusChange",state)			
 		}
-		delaySend(){
-			if(!this.focus)
-				this.reportChange("blur");			
+		delaySend(){			
+			this.reportChange("blur");			
+		}
+		isChild(e){
+			if(!e || !this.el) return false
+			if (this.el == e) return true
+			return this.isChild(e.parentElement)
 		}
 		onBlur(e){					
 			clearTimeout(this.timeout);
-			this.timeout=setTimeout(this.delaySend,400);
+			if(!this.isChild(e.relatedTarget)){
+				return this.reportChange("blur");	
+			}
 			this.focus=false;
 		}
 		componentDidMount(){
 			if(!this.el) return;
 			//this.el.addEventListener("focus",this.onFocus,true);
-		//	this.el.addEventListener("blur",this.onBlur,true);
+			this.el.addEventListener("blur",this.onBlur,true);
 			if(this.props.onChange&&this.props.focus) this.el.focus();			
 		}	
 		componentWillUnmount(){
@@ -1649,7 +1658,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			clearTimeout(this.timeout);
 			this.timeout=null;
 		//	this.el.removeEventListener("focus",this.onFocus);
-		//	this.el.removeEventListener("blur",this.onBlur);
+			this.el.removeEventListener("blur",this.onBlur,true);
 		}
 		render(){
 			const style={
@@ -2611,11 +2620,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 			return null
 		}
+		/*
 		findSticky(el,o){
 			const _ = el.querySelector(`*[data-sticky="sticky"]`)			
 			if(_ != o) return _
 			return null
-		}
+		}*/
 		findAutofocusCandidate(el){
 			if(this.foundAuto) return
 			const a = Array.from(el.ownerDocument.querySelectorAll("input"))
@@ -2643,20 +2653,20 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		onBBlur(e){
 			if(e.relatedTarget ==null) {
-				log(e,e.relatedTarget,e.target)
-				const sticky = this.findSticky(this.el,null)
-				if(sticky) return sticky.focus() 
+				//log(e,e.relatedTarget,e.target)
+				//const sticky = this.findSticky(this.el,null)
+				//if(sticky) return setTimeout(()=>sticky.focus(),400)
 				this.report(this.props.path)
 				this.active = this.w.parent == this.w
 			}
 		}
 		onBFocus(e){			
-			log("focus",e.target,this.getParentPath(e.target))
+			//log("focus",e.target,this.getParentPath(e.target))
 			this.active = true			
 			const path = this.getParentPath(e.target)
 			if(path != this.props.value) {
-				const sticky = this.findSticky(this.el,e.target)
-				if(sticky) return sticky.focus()
+				//const sticky = this.findSticky(this.el,e.target)
+				//if(sticky) return setTimeout(()=>sticky.focus(),400)
 				if(path) return this.report(path)
 			}
 		}
@@ -3413,5 +3423,5 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		...errors.receivers
 	}	
 	const checkActivate = checkActivateCalls.check	
-	return ({transforms,receivers,checkActivate});
+	return ({transforms,receivers,checkActivate,reactPathConsumer:Consumer});
 }

@@ -140,7 +140,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		}
 		onClick(e){
 			if(!this.state.show) return
-			const k = e.nativeEvent.path.find(_=>_.className.includes("msOpt")||_.className.includes("msBOpt"))
+			const k = e.nativeEvent.path.find(_=>(typeof _.className == "string") && (_.className.includes("msOpt")||_.className.includes("msBOpt")))
 			this.onBurgerBlur(e)
 		}
 		render(){

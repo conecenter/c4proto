@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function VirtualKeyboard({log,btoa,eventManager,windowManager,miscReact,StatefulComponent}){
+export default function VirtualKeyboard({log,btoa,eventManager,windowManager,miscReact,StatefulComponent,reactPathConsumer}){
 	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const $ = React.createElement	
 	const checkActivateCalls=(()=>{
@@ -65,7 +65,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 			const className = "vkElement"
 			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
 		}
-	}
+	}	
 	class VirtualKeyboard extends StatefulComponent{
 		getInputVKType(){						
 			const layoutAlpha = "layoutAlpha"
@@ -123,9 +123,17 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 			}
 			return null
 		}
+		getFocusedElement(){
+			const a = this.el.ownerDocument.querySelector(`*[data-path="${this.path}"]`)
+			const b = this.el.ownerDocument.activeElement
+			return a||b
+		}
+		getStickyElement(){
+			return this.el.ownerDocument.querySelector(`*[data-sticky="sticky"]`)
+		}
 		getInput(){
 			if(!this.root||!this.el) return null			
-			const cNode = this.getParentWrapper(this.el.ownerDocument.activeElement)
+			const cNode = this.getParentWrapper(this.getStickyElement() || this.getFocusedElement())
 			if(!cNode) return null
 			const input = cNode.querySelector("input:not([readonly])")||cNode.querySelector('input[name="vk"]')
 			return input
@@ -255,7 +263,14 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 		}
 		getDefaultFontSize(){
 			return this.props.style.fontSize?parseFloat(this.props.style.fontSize):1
-		}		
+		}
+		onRef(path){			
+			return (ref)=>{
+				this.path = path
+				log(`path`,this.path)
+				this.el = ref
+			}
+		}
 		render(){					    
 			const genKey = (char,i) => `${char}_${i}`			
 			const vkLayout = this.getCurrentLayout()		
@@ -289,8 +304,8 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 			
 			const buttons = vkLayout?vkLayout.buttons:[]
 			const className = "vkKeyboard"	
-			return $("div",{},[
-				$("div",{key:"vk",ref:ref=>this.el=ref,style:positionStyle,className},
+			return $(reactPathConsumer,{},path=>([
+				$("div",{key:"vk",ref:this.onRef(path),style:positionStyle,className},
 					vkLayout?
 					$("div",{style:wrapperStyle},[				
 						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle}, key:genKey(btn.char,j), fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
@@ -299,7 +314,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 				),
 				$("div",{key:"emRef",className:"vkRemRef",style:{position:"absolute",zIndex:"-1",height:"1em"}, ref:ref=>this.remRef=ref},null)
 			])	
-			
+			)
 		}
 	}	
 	
@@ -388,7 +403,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 		}
 		componentWillUnmount(){	
 			this.unmounted = true
-			if(this.root) this.root.parentElement.style.maxHeight=this.prevRootHeight
+			if(this.root && this.root.parentElement) this.root.parentElement.style.maxHeight=this.prevRootHeight
 			this.vkReg.unreg()			
 		}
 		render(){								

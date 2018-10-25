@@ -139,7 +139,7 @@ const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,overlayManager,windowManager,miscReact,miscUtil,StatefulComponent});
 const electronUpdateManager = ElectronUpdateManager(log,window,metroUi, StatefulComponent)
 
-const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,eventManager,windowManager,miscReact,StatefulComponent})
+const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,eventManager,windowManager,miscReact,StatefulComponent,reactPathConsumer:metroUi.reactPathConsumer})
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob:window.atob,parentWindow:()=> window.parent,StatefulComponent});
 const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComponent})
 
