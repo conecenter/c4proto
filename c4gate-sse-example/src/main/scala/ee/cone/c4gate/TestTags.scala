@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{Access, MetaAttr, NameMetaAttr, ProdLens}
+import ee.cone.c4actor._
 import ee.cone.c4vdom._
 
 abstract class ElementValue extends VDomValue {

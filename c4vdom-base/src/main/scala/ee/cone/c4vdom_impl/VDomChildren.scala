@@ -11,10 +11,10 @@ case class ChildOrderPair(value: VDomValue) extends VPair { //priv
   }
   def withValue(value: VDomValue) = copy(value=value)
 }
-case class ChildOrderValue(value: List[VDomKey]) extends VDomValue { //priv
+case class ChildOrderValue(value: List[VDomKey], parent: VDomKey) extends VDomValue { //priv
   def appendJson(builder: MutableJsonBuilder) = {
     if(value.size != value.distinct.size)
-      throw new Exception(s"duplicate keys: $value")
+      throw new Exception(s"duplicate keys: $value under $parent")
 
     builder.startArray()
     value.foreach(key => builder.append(LongJsonKey(key)))
@@ -30,7 +30,7 @@ class ChildPairFactoryImpl(createMapValue: List[VPair]=>MapVDomValue) extends Ch
   ): ChildPair[C] = ChildPairImpl[C](key, createMapValue(
     TheElementPair(theElement) :: (
       if(elements.isEmpty) Nil
-      else (ChildOrderPair(ChildOrderValue(elements.map(_.key))) :: elements).asInstanceOf[List[VPair]]
+      else (ChildOrderPair(ChildOrderValue(elements.map(_.key), key)) :: elements).asInstanceOf[List[VPair]]
     )
   ))
 }

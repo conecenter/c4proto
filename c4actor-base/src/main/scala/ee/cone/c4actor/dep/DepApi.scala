@@ -31,6 +31,7 @@ trait DepFactory extends Product {
   def resolvedRequestDep[Out](response: Out): Dep[Out]
   def parOptSeq[A](value: Seq[Dep[A]]): Dep[Seq[Option[A]]]
   def parUnsafeSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]]
+  def optDep[A](value: Dep[A]): Dep[Option[A]]
 }
 
 /******************************************************************************/
@@ -62,11 +63,23 @@ trait DepAskFactory extends Product {
 
 case class DepInnerRequest(srcId: SrcId, request: DepRequest) //TODO Store serialized version
 
-case class DepUnresolvedRequest(srcId: SrcId, request: DepRequest, responses: Int)
+case class DepUnresolvedRequest(srcId: SrcId, request: DepRequest, responses: Int, parents: List[SrcId])
 
 case class DepOuterRequest(srcId: SrcId, innerRequest: DepInnerRequest, parentSrcId: SrcId)
-trait DepOuterRequestFactory extends Product {
-  def tupled(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest)
+trait DepRequestFactory extends Product {
+  def tupledOuterRequest(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest)
+  def innerRequest(rq: DepRequest): DepInnerRequest
+}
+
+trait DepResponseForwardFilter {
+  def parentCl: Option[Class[_ <: Product]]
+  def childCl: Class[_ <: Product]
+  def filter: DepResponse ⇒ Option[DepResponse]
+}
+
+trait DepResponseFilterFactory {
+  def withParent(parentCl: Class[_ <: Product], childCl: Class[_ <: Product]): (DepResponse ⇒ Option[DepResponse]) ⇒ DepResponseForwardFilter
+  def withChild(childCl: Class[_ <: Product]): (DepResponse ⇒ Option[DepResponse]) ⇒ DepResponseForwardFilter
 }
 
 trait DepResponse extends Product {

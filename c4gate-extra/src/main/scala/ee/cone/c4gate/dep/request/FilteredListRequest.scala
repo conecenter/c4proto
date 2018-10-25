@@ -2,6 +2,7 @@ package ee.cone.c4gate.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor.dep.ContextTypes.MockRoleOpt
 import ee.cone.c4actor.dep.DepTypes.GroupId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.DepHandlersApp
@@ -24,7 +25,7 @@ trait FilterListRequestHandlerApp
     with FilterListRequestApp
     with DepAskFactoryApp
     with CommonIdInjectApps
-    with DepOuterRequestFactoryApp
+    with DepRequestFactoryApp
     with PreHashingApp {
 
   private lazy val depMap: Map[(String, String), Dep[List[_]]] = filterDepList.map(elem ⇒ (elem.listName, elem.filterPK) → elem.requestDep).toMap
@@ -36,10 +37,11 @@ trait FilterListRequestHandlerApp
   }
   ) :: injectContext[FilteredListRequest](fltAsk, _.contextId) ::
     injectUser[FilteredListRequest](fltAsk, _.userId) ::
+    injectMockRole[FilteredListRequest](fltAsk, rq ⇒ rq.mockRoleId.flatMap(id ⇒ rq.mockRoleEditable.map(ed ⇒ id → ed))) ::
     injectRole[FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
   override def assembles: List[Assemble] = filterDepList.map(
-    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depOuterRequestFactory, preHashing)
+    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory, preHashing)
   ) ::: super.assembles
 
   override def protocols: List[Protocol] = DepFilteredListRequestProtocol :: super.protocols
@@ -70,14 +72,14 @@ import ee.cone.c4gate.dep.request.FilterListRequestCreatorUtils._
 
 
 // TODO need to throw this into world
-case class SessionWithUserId(contextId: String, userId: String, roleId: String)
+case class SessionWithUserId(contextId: String, userId: String, roleId: String, mockRole: MockRoleOpt)
 
 @assemble class FilterListRequestCreator(
   val qAdapterRegistry: QAdapterRegistry,
   listName: String,
   filterPK: String,
   matches: List[String],
-  u: DepOuterRequestFactory,
+  u: DepRequestFactory,
   preHashing: PreHashing
 ) extends Assemble {
 
@@ -87,15 +89,15 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     sessionWithUser: Values[SessionWithUserId]
   ): Values[(GroupId, DepOuterRequest)] =
     if (matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))) {
-      val (userId, roleId) =
+      val (userId, roleId, mockRole) =
         if (sessionWithUser.nonEmpty)
           sessionWithUser.head match {
-            case p ⇒ (p.userId, p.roleId)
+            case p ⇒ (p.userId, p.roleId, p.mockRole)
           }
         else
-          ("", "")
-      val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, listName, filterPK)
-      List(u.tupled(alienTask.sessionKey)(filterRequest))
+          ("", "", None)
+      val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, mockRole.map(_._1), mockRole.map(_._2), listName, filterPK)
+      List(u.tupledOuterRequest(alienTask.sessionKey)(filterRequest))
     } else Nil
 
   def FilterListResponseGrabber(
@@ -115,6 +117,8 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     @Id(0x0a02) contextId: String,
     @Id(0x0a05) userId: String,
     @Id(0x0a06) roleId: String,
+    @Id(0x0a08) mockRoleId: Option[String],
+    @Id(0x0a09) mockRoleEditable: Option[Boolean],
     @Id(0x0a03) listName: String,
     @Id(0x0a07) filterPK: String
   )
