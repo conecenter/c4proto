@@ -7,9 +7,10 @@ import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4proto.ToByteString
 
+/*
 object DebugInit extends ToInject {
   def toInject: List[Injectable] = DebugKey.set(None)
-}
+}*/
 
 /*
 class DebugRichRawWorldFactory(rawSnapshot: RawSnapshot, options: RawDebugOptions, inner: RawWorldFactory) extends RawWorldFactory{

@@ -21,7 +21,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
       logger.debug(s"tx $key start latency $startLatency ms")
     val workTimer = NanoTimer()
     val res = if( //todo implement skip for outdated world
-        global.offset < OffsetWorldKey.of(local) ||
+        global.offset < ReadAfterWriteOffsetKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
     ) local else try {
       Trace {
@@ -73,7 +73,7 @@ class ParallelObserver(
       v.value match {
         case None ⇒ true // inProgress
         case Some(Success(Some(local))) ⇒
-          global.offset < OffsetWorldKey.of(local)
+          global.offset < ReadAfterWriteOffsetKey.of(local)
         case a ⇒ throw new Exception(s"$a")
       }
     }

@@ -13,7 +13,7 @@ class TypedAllTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
-  rawWorldFactory: RawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
+  rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
   //observer: Option[Observer],
   qAdapterRegistry: QAdapterRegistry
 ) extends Executable with LazyLogging {
@@ -173,7 +173,7 @@ class TypedAllTestApp extends TestRichDataApp
 
   override def parallelAssembleOn: Boolean = true
 
-  override def toStart: List[Executable] = new TypedAllTestStart(execution, toUpdate, contextFactory, rawWorldFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
+  override def toStart: List[Executable] = new TypedAllTestStart(execution, toUpdate, contextFactory, richRawWorldFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
 
 
   override def protocols: List[Protocol] = TypedAllTestProtocol :: super.protocols

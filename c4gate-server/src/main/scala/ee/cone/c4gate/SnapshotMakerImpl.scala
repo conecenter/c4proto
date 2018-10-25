@@ -1,55 +1,122 @@
 package ee.cone.c4gate
 
 import java.io.BufferedInputStream
-import java.net.{HttpURLConnection, URL, URLConnection}
-import java.nio.file.{Files, Paths}
-import java.time.Instant
-import java.time.temporal.TemporalAmount
+import java.net.{HttpURLConnection, URL}
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Files, Path, Paths}
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{DebugTx, Update, Updates}
-import ee.cone.c4actor.Types.NextOffset
+import ee.cone.c4actor.QProtocol.{Firstborn, Update}
+import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Single
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble._
+import ee.cone.c4gate.HttpProtocol.{Header, HttpPost, HttpPublication}
+import ee.cone.c4proto.{Protocol, ToByteString, protocol}
 import okio.ByteString
 
 import scala.annotation.tailrec
 
-class FileRawSnapshotSaver(dirStr: String) extends RawSnapshotSaver {
-  def save(filename: String, data: Array[Byte]): Unit =
-    Files.write(Files.createDirectories(Paths.get(dirStr)).resolve(filename),data)
+import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+
+
+@assemble class SnapshotMakingAssemble(actorName: String, snapshotMaking: SnapshotMakerImpl) extends Assemble {
+  type NeedSnapshot = SrcId
+
+  def needConsumer(
+    key: SrcId,
+    first: Each[Firstborn]
+  ): Values[(SrcId,LocalPostConsumer)] =
+    List(WithPK(LocalPostConsumer(snapshotMaking.url)))
+
+  def mapAll(
+    key: SrcId,
+    post: Each[HttpPost]
+  ): Values[(NeedSnapshot,HttpPost)] =
+    if(post.path == snapshotMaking.url) List(actorName→post) else Nil
+
+  def mapFirstborn(
+    key: SrcId,
+    firstborn: Each[Firstborn],
+    @by[NeedSnapshot] posts: Values[HttpPost]
+  ): Values[(SrcId,TxTransform)] =
+    List(WithPK(SnapshotMakingTx("snapshotMaker", posts.sortBy(_.srcId).headOption)(snapshotMaking)))
 }
 
-class SnapshotMakingRawWorldFactory(
-  config: SnapshotConfig, toUpdate: ToUpdate, rawSnapshot: SnapshotSaver
-) extends RawWorldFactory {
-  def create(): RawWorld = {
-    val srcId = "0" * OffsetHexSize()
-    new SnapshotMakingRawWorld(rawSnapshot, toUpdate, config.ignore, Map.empty, srcId)
+
+object Time {
+  def hour: Long = 60L*minute
+  def minute: Long = 60L*1000L
+  def now: Long = System.currentTimeMillis
+}
+import Time._
+
+case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
+case class SnapshotMakingTx(srcId: SrcId, postOpt: Option[HttpPost])(snapshotMaking: SnapshotMakerImpl) extends TxTransform {
+  private def header(post: HttpPost, key: String): Option[String] =
+    post.headers.find(_.key == key).map(_.value)
+  def transform(local: Context): Context = {
+    if(DeferPeriodicSnapshotUntilKey.of(local) < now){
+      if(snapshotMaking.maxTime + hour < now) snapshotMaking.make(NextSnapshotTask(None))()
+      DeferPeriodicSnapshotUntilKey.set(now+minute)(local)
+    } else if(postOpt.nonEmpty) {
+      val Some(post) = postOpt
+      val responseKey = header(post,"X-r-response-key")
+      val response = responseKey.toList.map{ k ⇒
+        val res = ErrorKey.of(local) match {
+          case errors if errors.nonEmpty ⇒
+            errors.map(e⇒Header("X-r-error-message",e.getMessage))
+          case _ ⇒
+            val modeStr = header(post,"X-r-snapshot-mode").get
+            val offsetOpt = header(post,"X-r-offset")
+            val task = snapshotMaking.task(modeStr,offsetOpt)
+            val res = snapshotMaking.make(task)()
+            List(Header("X-r-snapshot-keys",res.map(_.key).mkString(",")))
+        }
+        HttpPublication(s"/response/$k",res,ByteString.EMPTY,Option(now+hour))
+      }
+      TxAdd(response.flatMap(LEvent.update) ++ LEvent.delete[Product](post))(local)
+    } else local
   }
 }
 
-class SnapshotMakingRawWorld(
-  rawSnapshot: SnapshotSaver,
-  toUpdate: ToUpdate,
-  ignore: Set[Long],
-  state: Map[Update,Update],
-  val offset: NextOffset
-) extends RawWorld with LazyLogging {
-  def reduce(events: List[RawEvent]): RawWorld = if(events.isEmpty) this else {
+//todo new
+class SnapshotMakerImpl(
+  snapshotConfig: SnapshotConfig,
+  snapshotLoader: SnapshotLoader,
+  rawSnapshotLoader: FileRawSnapshotLoader,
+  fullSnapshotSaver: SnapshotSaver,
+  txSnapshotSaver: SnapshotSaver,
+  consuming: Consuming,
+  toUpdate: ToUpdate
+) extends SnapshotMaker with LazyLogging {
+  def url = "/need-snapshot"
+
+  def task(name: String, offsetOpt: Option[NextOffset]): SnapshotTask = name match {
+    case "next" ⇒ NextSnapshotTask(offsetOpt)
+    case "debug" ⇒ DebugSnapshotTask(offsetOpt.get)
+  }
+
+  private def reduce(events: List[RawEvent]): SnapshotWorld⇒SnapshotWorld = if(events.isEmpty) w⇒w else world⇒{
     val updates = toUpdate.toUpdates(events)
-    val newState = (state /: updates){(state,up)⇒
-      if(ignore(up.valueTypeId)) state
-      else if(up.value.size > 0) state + (updKey(up)→up)
+    val newState = (world.state /: updates){(state,up)⇒
+      if(snapshotConfig.ignore(up.valueTypeId)) state
+      else if(up.value.size > 0) state + (toUpdate.toKey(up)→up)
       else state - up
     }
-    new SnapshotMakingRawWorld(rawSnapshot,toUpdate,ignore,newState,events.last.srcId)
+    new SnapshotWorld(newState,events.last.srcId)
   }
-  def hasErrors: Boolean = false
 
-  private def updKey(up: Update): Update = up.copy(value=ByteString.EMPTY)
-  private def updBy(up: Update) = (up.valueTypeId,up.srcId)
+  private def load(snapshotFilter: Option[NextOffset⇒Boolean]): SnapshotWorld = {
+    val srcId = "0" * OffsetHexSize()
+    val emptyRawWorld = new SnapshotWorld(Map.empty, srcId)
+    (for{
+      snapshot ← snapshotLoader.list.toStream if snapshotFilter.forall(_(snapshot.offset))
+      event ← snapshotLoader.load(snapshot.raw)
+    } yield {
+      reduce(List(event))(emptyRawWorld)
+    }).headOption.getOrElse(emptyRawWorld)
+  }
 
   @tailrec private def makeStatLine(
     currType: Long, currCount: Long, currSize: Long, updates: List[Update]
@@ -61,156 +128,126 @@ class SnapshotMakingRawWorld(
   @tailrec private def makeStats(updates: List[Update]): Unit =
     if(updates.nonEmpty) makeStats(makeStatLine(updates.head.valueTypeId,0,0,updates))
 
-  def save(): Unit = {
+  private def save(world: SnapshotWorld): RawSnapshot = {
     logger.info("Saving...")
-    val updates = state.values.toList.sortBy(updBy)
+    val updates = world.state.values.toList.sortBy(toUpdate.by)
     makeStats(updates)
-    rawSnapshot.save(offset, toUpdate.toBytes(updates))
+    val res = fullSnapshotSaver.save(world.offset, toUpdate.toBytes(updates))
     logger.info("OK")
-  }
-
-  def diff(target: RawEvent): Array[Byte] = {
-    val targetUpdates = toUpdate.toUpdates(List(target)) //todo: reset txRefs? do also on remote snapshot load; in debugTx?
-    val updates = targetUpdates.filterNot{ up ⇒ state.get(updKey(up)).contains(up) }
-    val deletes = (state.keySet -- targetUpdates.map(updKey)).toList.sortBy(updBy)
-    toUpdate.toBytes(deletes ::: updates)
-  }
-}
-
-/*
-class OnceSnapshotMakingRawObserver(completing: RawObserver) extends RawObserver {
-  def activate(rawWorld: RawWorld): RawObserver = {
-    rawWorld.save()
-    completing.activate(rawWorld)
-  }
-}
-*/
-
-////////
-
-class DoubleRawObserver(a: RawObserver, b: RawObserver) extends RawObserver {
-  def activate(rawWorld: RawWorld): RawObserver = {
-    val nA = a.activate(rawWorld)
-    val nB = b.activate(rawWorld)
-    if((a eq nA) && (b eq nB)) this else new DoubleRawObserver(nA,nB)
-  }
-}
-
-class PeriodicRawObserver(
-  period: TemporalAmount, inner: RawObserver, until: Instant=Instant.MIN
-) extends RawObserver {
-  def activate(rawWorld: RawWorld): RawObserver =
-    if(Instant.now.isBefore(until)) this else {
-      val nInner = inner.activate(rawWorld)
-      new PeriodicRawObserver(period, nInner, Instant.now.plus(period))
-    }
-}
-
-class SnapshotMakingRawObserver() extends RawObserver {
-  def activate(rawWorld: RawWorld): RawObserver = {
-    rawWorld.asInstanceOf[SnapshotMakingRawWorld].save()
-    this
-  }
-}
-
-class SnapshotMergingRawObserver(
-  rawQSender: RawQSender, loader: SnapshotLoader
-) extends RawObserver with LazyLogging {
-  def activate(rawWorld: RawWorld): RawObserver = loader.list match {
-    case Seq() ⇒ this
-    case Seq(targetSnapshot: RawSnapshot with Removable) ⇒
-      val bytes = rawWorld.asInstanceOf[SnapshotMakingRawWorld].diff(targetSnapshot.load())
-      rawQSender.send(List(new QRecordImpl(InboxTopicName(),bytes)))
-      targetSnapshot.remove()
-      this
-    case t ⇒
-      logger.error(s"conflicting targets: $t")
-      this
-  }
-}
-
-////////
-
-object HttpUtil {
-  def get(url: String): ByteString = {
-    FinallyClose[HttpURLConnection,ByteString](_.disconnect())(
-      new URL(url).openConnection().asInstanceOf[HttpURLConnection]
-    ){ conn ⇒
-      val res = FinallyClose(new BufferedInputStream(conn.getInputStream)){ is ⇒
-        FinallyClose(new okio.Buffer){ buffer ⇒
-          buffer.readFrom(is)
-          buffer.readByteString()
-        }
-      }
-      assert(conn.getResponseCode == 200)
-      res
-    }
-  }
-}
-
-class RemoteRawSnapshotLoader(url: String) extends RawSnapshotLoader {
-  def list: List[RawSnapshot] =
-    """([0-9a-f\-]+)""".r.findAllIn(HttpUtil.get(s"$url/").utf8())
-      .toList.distinct.map(new RemoteRawSnapshot(url,_))
-}
-
-class RemoteRawSnapshot(url: String, val name: String) extends RawSnapshot with LazyLogging {
-  def load(): ByteString = {
-    val tm = NanoTimer()
-    val res = HttpUtil.get(s"$url/$name")
-    logger.info(s"downloaded ${res.size} in ${tm.ms} ms")
     res
   }
-}
 
-object NoSnapshotConfig extends SnapshotConfig {
-  def ignore: Set[Long] = Set.empty
-}
-
-class DebugSavingRawWorldFactory(
-  val debugOffset: String, val toUpdate: ToUpdate, val execution: Execution,
-  inner: RawWorldFactory
-) extends RawWorldFactory {
-  def create(): RawWorld = new DebugSavingRawWorld(inner.create(), this)
-}
-class DebugSavingRawWorld(
-  inner: RawWorld, parent: DebugSavingRawWorldFactory
-) extends RawWorld {
-  import parent._
-  def offset: NextOffset = inner.offset
-  def reduce(events: List[RawEvent]): RawWorld = {
-    val (ltEvents,geEvents) = events.span(ev ⇒ ev.srcId < debugOffset)
-    val ltInner = inner.reduce(ltEvents)
-    if(geEvents.isEmpty) new DebugSavingRawWorld(ltInner,parent)
-    else {
-      val event = geEvents.head
-      assert(event.srcId == debugOffset,
-        s"$debugOffset : ${ltEvents.map(_.srcId)} : ${geEvents.map(_.srcId)}"
-      )
-      val nInner = ltInner.reduce(List(RawEvent(ltInner.offset,ToByteString(
-        toUpdate.toBytes(
-          LEvent.update(
-            DebugTx(event.srcId, toUpdate.toUpdates(List(event)))
-          ).map(toUpdate.toUpdate).toList
-        )
-      ))))
-      nInner.asInstanceOf[SnapshotMakingRawWorld].save()
-      execution.complete()
-      new DebugSavingRawWorld(nInner,parent)
+  def make(task: SnapshotTask): ()⇒List[RawSnapshot] = ()⇒concurrent.blocking {
+    val offsetOpt = task.offsetOpt
+    val offsetFilter: NextOffset⇒NextOffset⇒Boolean = task match {
+      case t: NextSnapshotTask ⇒ end⇒curr⇒curr<=end
+      case t: DebugSnapshotTask ⇒ end⇒curr⇒curr<end
     }
+    val initialRawWorld = load(offsetOpt.map(offsetFilter))
+    consuming.process(initialRawWorld.offset, consumer ⇒ {
+      @tailrec def iteration(world: SnapshotWorld, endOffset: NextOffset): List[RawSnapshot] = {
+        val events = consumer.poll()
+        val (lEvents, gEvents) = events.span(ev ⇒ offsetFilter(endOffset)(ev.srcId))
+        val nWorld = reduce(lEvents)(world)
+        if(gEvents.isEmpty) iteration(nWorld, endOffset) else {
+          val endEvent = task match {
+            case t: NextSnapshotTask ⇒ lEvents.last
+            case t: DebugSnapshotTask ⇒ gEvents.head
+          }
+          assert(endOffset == endEvent.srcId)
+          task match {
+            case t: NextSnapshotTask ⇒
+              List(save(nWorld))
+            case t: DebugSnapshotTask ⇒
+              List(save(nWorld), txSnapshotSaver.save(endEvent.srcId, endEvent.data.toByteArray))
+          }
+        }
+      }
+      iteration(initialRawWorld, offsetOpt.getOrElse(consumer.endOffset))
+    })
   }
-  def hasErrors: Boolean = inner.hasErrors
+
+  def maxTime: Long =
+    snapshotLoader.list.headOption.fold(0L)(s⇒rawSnapshotLoader.mTime(s.raw))
 }
 
-////
-
-class SafeToRun(snapshotLoader: SnapshotLoader) extends Executable {
-  def run() = concurrent.blocking{
-    val now = System.currentTimeMillis
-    val hour = 3600*1000
+class SafeToRun(snapshotMaker: SnapshotMakerImpl) extends Executable {
+  def run(): Unit = concurrent.blocking{
+    Thread.sleep(5*minute)
     while(true){
-      assert(snapshotLoader.list.map(_.raw).exists{ case s: SnapshotTime ⇒ now < s.mTime + 3*hour })
+      assert(now < snapshotMaker.maxTime + 3*hour)
       Thread.sleep(hour)
     }
   }
 }
+
+class SnapshotWorld(val state: Map[Update,Update],val offset: NextOffset)
+
+trait SnapshotConfig {
+  def ignore: Set[Long]
+}
+
+////
+
+class FileSnapshotConfigImpl(dirStr: String)(
+  val ignore: Set[Long] =
+    Option(Paths.get(dirStr).resolve(".ignore")).filter(Files.exists(_)).toSet.flatMap{
+      (path:Path) ⇒
+        val content = new String(Files.readAllBytes(path), UTF_8)
+        val R = """([0-9a-f]+)""".r
+        R.findAllIn(content).map(java.lang.Long.parseLong(_, 16))
+    }
+) extends SnapshotConfig
+
+class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader {
+  private def baseDir = Paths.get(baseDirStr)
+  def load(snapshot: RawSnapshot): ByteString =
+    ToByteString(Files.readAllBytes(baseDir.resolve(snapshot.key)))
+  def list(subDirStr: String): List[RawSnapshot] = {
+    val subDir = baseDir.resolve(subDirStr)
+    if(!Files.exists(subDir)) Nil
+    else FinallyClose(Files.newDirectoryStream(subDir))(_.asScala.toList)
+      .map(path⇒RawSnapshot(baseDir.relativize(path).toString))
+  }
+  def mTime(snapshot: RawSnapshot): Long =
+    Files.getLastModifiedTime(baseDir.resolve(snapshot.key)).toMillis
+  //remove Files.delete(path)
+}
+
+class FileRawSnapshotSaver(baseDirStr: String/*db4*/) extends RawSnapshotSaver {
+  def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
+    val path = Paths.get(baseDirStr).resolve(snapshot.key)
+    Files.createDirectories(path.getParent)
+    Files.write(path,data)
+  }
+}
+
+/*
+req snap:
+  gen resp id
+  post
+  get resp, if(!200) sleep, repeat
+
+start:
+  req snap
+  loader load le ref
+
+merge:
+  2
+    req snap
+
+start gate:
+  gate: ls-stream ld local
+start app:
+  app: order state, ls-stream ld remote
+  gate: ls-head ld local, save local
+periodic:
+  gate: ls-head ld local, save local
+merge:
+  app: order state, ld remote , diff
+  gate-s: ls-head ld local, save local
+debug:
+  app: order state +tx, ld remote +tx, diff
+  gate-s: ls-head ld local, save local +tx
+
+ */

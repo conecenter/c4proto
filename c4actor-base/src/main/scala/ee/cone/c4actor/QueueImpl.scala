@@ -32,7 +32,7 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
     Function.chain(Seq(
       WriteModelKey.set(Queue.empty),
       WriteModelDebugKey.set(Queue.empty),
-      OffsetWorldKey.set(offset)
+      ReadAfterWriteOffsetKey.set(offset)
     ))(local)
   }
 }
@@ -62,6 +62,8 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry)(
       if(ref.txId.nonEmpty) update
       else update.copy(value=ToByteString(refAdapter.encode(ref.copy(txId = event.srcId))))
     }
+  def toKey(up: Update): Update = up.copy(value=ByteString.EMPTY)
+  def by(up: Update): (Long, String) = (up.valueTypeId,up.srcId)
 }
 
 object QAdapterRegistryFactory {

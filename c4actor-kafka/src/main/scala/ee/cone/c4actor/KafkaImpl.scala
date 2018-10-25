@@ -4,17 +4,16 @@ package ee.cone.c4actor
 import java.util.concurrent.CompletableFuture
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.NextOffset
+import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Single
 import ee.cone.c4proto.ToByteString
+import okio.ByteString
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.record.TimestampType
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
 
-import scala.annotation.tailrec
 import scala.collection.JavaConverters.seqAsJavaListConverter
 import scala.collection.JavaConverters.mapAsJavaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
@@ -70,15 +69,8 @@ case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String, maxRe
   }
 }
 
-class KafkaActor(conf: KafkaConfig)(
-  rawWorldFactory: RawWorldFactory,
-  progressObserverFactory: ProgressObserverFactory,
-  execution: Execution
-) extends Executable with LazyLogging {
-  def run(): Unit = concurrent.blocking { //ck mg
-    GCLog("before loadRecent")
-    val initialRawWorld: RawWorld = rawWorldFactory.create()
-    GCLog("after loadRecent")
+case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consuming with LazyLogging {
+  def process[R](from: NextOffset, body: Consumer⇒R): R = {
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
       "bootstrap.servers" → conf.bootstrapServers,
@@ -89,48 +81,31 @@ class KafkaActor(conf: KafkaConfig)(
     )
     FinallyClose(new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
-    )){ consumer ⇒
+    )) { consumer ⇒
       execution.onShutdown("Consumer",() ⇒ consumer.wakeup())
       val inboxTopicName = InboxTopicName()
       val inboxTopicPartition = List(new TopicPartition(conf.topicNameToString(inboxTopicName), 0))
       logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}]")
       consumer.assign(inboxTopicPartition.asJava)
-      val endOffset: Long = Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long
-      val initialRawObserver = progressObserverFactory.create(OffsetHex(endOffset))
-      val initialOffset = java.lang.Long.parseLong(initialRawWorld.offset,16)
+      val initialOffset = java.lang.Long.parseLong(from,16)
       consumer.seek(Single(inboxTopicPartition), initialOffset)
-      iteration(consumer, initialRawWorld, initialRawObserver)
+      body(new RKafkaConsumer(consumer, inboxTopicPartition))
     }
   }
-  @tailrec private def iteration(
-    consumer: KafkaConsumer[Array[Byte], Array[Byte]],
-    world: RawWorld, observer: RawObserver
-  ): Unit = {
-    val kafkaEvents = consumer.poll(200 /*timeout*/).asScala.toList
-    if(kafkaEvents.nonEmpty){
-      val latency = System.currentTimeMillis-kafkaEvents.map(_.timestamp).min //check rec.timestampType == TimestampType.CREATE_TIME ?
-      logger.debug(s"p-c latency $latency ms")
-    }
-    val events = kafkaEvents.map{ rec ⇒
+}
+//todo: remove hook
+
+class RKafkaConsumer(
+  consumer: KafkaConsumer[Array[Byte], Array[Byte]],
+  inboxTopicPartition: List[TopicPartition]
+) extends Consumer {
+  def poll(): List[RawEvent] =
+    consumer.poll(200 /*timeout*/).asScala.toList.map{ rec ⇒
       val data: Array[Byte] = if(rec.value ne null) rec.value else Array.empty
-      RawEvent(OffsetHex(rec.offset+1L), ToByteString(data))
+      KafkaRawEvent(OffsetHex(rec.offset+1L), ToByteString(data), rec.timestamp)
     }
-    val end = NanoTimer()
-    val newWorld = world.reduce(events)
-    val period = end.ms
-    if(events.nonEmpty)
-      logger.debug(s"reduced ${events.size} tx-s in $period ms")
-    val newObserver = observer.activate(newWorld)
-    //GCLog("iteration done")
-    iteration(consumer, newWorld, newObserver)
-  }
+  def endOffset: NextOffset =
+    OffsetHex(Single(consumer.endOffsets(inboxTopicPartition.asJava).asScala.values.toList): java.lang.Long)
 }
 
-object GCLog extends LazyLogging {
-  def apply(hint: String): Unit = {
-    System.gc()
-    val runtime = Runtime.getRuntime
-    val used = runtime.totalMemory - runtime.freeMemory
-    logger.info(s"$hint: then $used bytes used")
-  }
-}
+case class KafkaRawEvent(srcId: SrcId, data: ByteString, mTime: Long) extends RawEvent with MTime

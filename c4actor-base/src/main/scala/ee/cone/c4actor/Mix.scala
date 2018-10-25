@@ -46,22 +46,32 @@ trait TreeIndexValueMergerFactoryApp //compat
 
 trait ServerApp extends RichDataApp with RichObserverApp
 
-trait RichObserverApp extends ExecutableApp with InitialObserversApp {
+trait RichObserverApp extends ExecutableApp with InitialObserversApp with ToStartApp {
   def execution: Execution
   def rawQSender: RawQSender
   def txObserver: Option[Observer]
   def toUpdate: ToUpdate
+  def consuming: Consuming
+  def richRawWorldFactory: RichRawWorldFactory
+  def richRawWorldReducer: RichRawWorldReducer
+  def snapshotMaker: SnapshotMaker
+  def rawSnapshotLoader: RawSnapshotLoader
   //
+  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
-  lazy val progressObserverFactory: ProgressObserverFactory =
+  private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
+  private lazy val rootConsumer =
+    new RootConsumer(richRawWorldFactory, richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
+  override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
 }
 
 trait TestRichDataApp extends RichDataApp {
-  lazy val contextFactory = new ContextFactory(new RichRawWorldFactory(toInject,toUpdate,getClass.getName),toUpdate)
-  lazy val rawSnapshotLoader: RawSnapshotLoader = NoRawSnapshotLoader
+  lazy val contextFactory = new ContextFactory(richRawWorldFactory,richRawWorldReducer,toUpdate)
+  //lazy val snapshotMaker: SnapshotMaker = NoSnapshotMaker
+  //lazy val rawSnapshotLoader: RawSnapshotLoader = NoRawSnapshotLoader
 }
 
 trait RichDataApp extends ProtocolsApp
@@ -73,15 +83,15 @@ trait RichDataApp extends ProtocolsApp
   with PreHashingApp
 {
   def assembleProfiler: AssembleProfiler
-  def rawSnapshotLoader: RawSnapshotLoader
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
-  lazy val rawWorldFactory: RawWorldFactory =
-    new SnapshotLoadingRawWorldFactory(None, snapshotLoader, new RichRawWorldFactory(toInject,toUpdate,getClass.getName))
+  lazy val richRawWorldReducer: RichRawWorldReducer =
+    new RichRawWorldReducerImpl
+  lazy val richRawWorldFactory: RichRawWorldFactory =
+    new RichRawWorldFactoryImpl(toInject,toUpdate,getClass.getName,richRawWorldReducer)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
@@ -106,7 +116,7 @@ trait RichDataApp extends ProtocolsApp
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::
-    DebugInit ::
+    NextOffsetInit ::
     super.toInject
 }
 
@@ -115,10 +125,30 @@ trait VMExecutionApp {
   lazy val execution: Execution = new VMExecution(()⇒toStart)
 }
 
-trait FileRawSnapshotApp {
-  lazy val snapshotsDir = "db4/snapshots"
-  lazy val rawSnapshotLoader: RawSnapshotLoader = new FileRawSnapshotLoader(snapshotsDir)
-  lazy val snapshotConfig: SnapshotConfig = new FileSnapshotConfigImpl(snapshotsDir)()
+trait FileRawSnapshotApp { // Remote!
+  def config: Config
+  //
+  private lazy val dbURL: String = config.get("C4SNAPSHOT_LOAD_SERVER")
+  private lazy val appURL: String = config.get("C4SNAPSHOT_ORDER_SERVER")
+  lazy val rawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(dbURL)
+  lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL)
+}
+
+trait MergingSnapshotApp {
+  def config: Config
+  def toUpdate: ToUpdate
+  def richRawWorldFactory: RichRawWorldFactory
+  def richRawWorldReducer: RichRawWorldReducer
+  def snapshotLoader: SnapshotLoader
+  def snapshotMaker: SnapshotMaker
+  //
+  private lazy val dbURL: String = config.get("C4SNAPSHOT_PARENT_LOAD_SERVER")
+  private lazy val appURL: String = config.get("C4SNAPSHOT_PARENT_ORDER_SERVER")
+  private lazy val parentRawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(dbURL)
+  private lazy val parentSnapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(parentRawSnapshotLoader)
+  private lazy val parentSnapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL)
+  lazy val snapshotMerger: SnapshotMerger =
+    new SnapshotMergerImpl(toUpdate, snapshotMaker,snapshotLoader,parentSnapshotMaker,parentSnapshotLoader,richRawWorldFactory,richRawWorldReducer)
 }
 
 trait SerialObserversApp {
@@ -141,14 +171,14 @@ trait MortalFactoryApp extends AssemblesApp {
 }
 
 trait NoAssembleProfilerApp {
-  lazy val assembleProfiler = NoAssembleProfiler
+  lazy val assembleProfiler: AssembleProfiler = NoAssembleProfiler
 }
 
 trait SimpleAssembleProfilerApp extends ProtocolsApp {
   def idGenUtil: IdGenUtil
   def toUpdate: ToUpdate
   //
-  lazy val assembleProfiler = SimpleAssembleProfiler(idGenUtil)(toUpdate)
+  lazy val assembleProfiler: AssembleProfiler = SimpleAssembleProfiler(idGenUtil)(toUpdate)
   //
   override def protocols: List[Protocol] =
     SimpleAssembleProfilerProtocol ::

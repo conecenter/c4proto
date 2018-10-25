@@ -18,12 +18,8 @@ trait KafkaProducerApp extends KafkaConfigApp with ToStartApp {
   override def toStart: List[Executable] = rawQSender :: super.toStart
 }
 
-trait KafkaConsumerApp extends KafkaConfigApp with ToStartApp {
+trait KafkaConsumerApp extends KafkaConfigApp {
   def execution: Execution
-  def rawWorldFactory: RawWorldFactory
-  def progressObserverFactory: ProgressObserverFactory
   //
-  private lazy val kafkaConsumer =
-    new KafkaActor(kafkaConfig)(rawWorldFactory,progressObserverFactory,execution)
-  override def toStart: List[Executable] = kafkaConsumer :: super.toStart
+  lazy val consuming: Consuming = KafkaConsuming(kafkaConfig)(execution)
 }

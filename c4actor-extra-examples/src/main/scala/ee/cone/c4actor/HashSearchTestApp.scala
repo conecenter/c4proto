@@ -24,7 +24,7 @@ class HashSearchExtraTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
-  rawWorldFactory: RawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
+  rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
   //observer: Option[Observer],
   qAdapterRegistry: QAdapterRegistry
 ) extends Executable with LazyLogging {
@@ -283,7 +283,7 @@ class HashSearchExtraTestApp extends TestRichDataApp
 
   override def dynamicIndexAssembleDebugMode: Boolean = false
 
-  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, rawWorldFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
+  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, richRawWorldFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
 
   override def protocols: List[Protocol] = AnyOrigProtocol :: EqProtocol :: TestProtocol :: super.protocols
 

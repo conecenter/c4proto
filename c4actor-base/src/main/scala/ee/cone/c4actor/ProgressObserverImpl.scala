@@ -8,7 +8,7 @@ class ProgressObserverFactoryImpl(inner: RawObserver) extends ProgressObserverFa
 }
 
 class ProgressObserverImpl(inner: RawObserver, endOffset: NextOffset, until: Long=0) extends RawObserver with LazyLogging {
-  def activate(rawWorld: RawWorld): RawObserver =
+  def activate(rawWorld: RichContext): RawObserver =
     if (rawWorld.offset < endOffset) {
       val now = System.currentTimeMillis
       if(now < until) this else {
@@ -19,12 +19,12 @@ class ProgressObserverImpl(inner: RawObserver, endOffset: NextOffset, until: Lon
 }
 
 class CompletingRawObserver(execution: Execution) extends RawObserver {
-  def activate(rawWorld: RawWorld): RawObserver = {
+  def activate(rawWorld: RichContext): RawObserver = {
     execution.complete()
     CompletedRawObserver
   }
 }
 
-object CompletedRawObserver extends RawObserver {
-  def activate(rawWorld: RawWorld): RawObserver = this
+object CompletedRawObserver extends FinishedRawObserver {
+  def activate(rawWorld: RichContext): RawObserver = this
 }
