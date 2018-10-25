@@ -9,7 +9,7 @@ import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
 
 object TimeColored {
-  def apply[R, F](color: String, tag: F, doNotPrint: Boolean = false, lowerBound: Long = 0L)(f: ⇒ R): R = {
+  def apply[R, F](color: ⇒ String, tag: ⇒ F, doNotPrint: Boolean = false, lowerBound: ⇒ Long = 0L)(f: ⇒ R): R = {
     if (!doNotPrint) {
       val tagColored = PrintColored.makeColored(color)(tag)
       val timeStart = System.nanoTime()

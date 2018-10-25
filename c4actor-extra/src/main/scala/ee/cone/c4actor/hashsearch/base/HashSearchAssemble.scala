@@ -43,8 +43,9 @@ trait HashSearchModelsApp extends DynamicIndexModelsApp {
   def hashSearchModels: List[Class[_ <: Product]] = dynIndexModels.map(_.modelCl)
 }
 
-trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp{
+trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp {
   def qAdapterRegistry: QAdapterRegistry
+
   def idGenUtil: IdGenUtil
 
   def debugModeHashSearchAssemble: Boolean = false
@@ -275,7 +276,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   ): Values[(SrcId, Response[Model])] =
     TimeColored("y", ("ResponseByRequest", responses.size, responses.map(_.modelList.size).size), doNotPrint = !debugMode) {
       val pk = ToPrimaryKey(request)
-      List(WithPK(Response(pk, request, preHashing.wrap(Single.option(responses).map(_.modelList).toList.flatten))))
+      List(WithPK(Response(pk, request, preHashing.wrap(Option(Single.option(responses).map(_.modelList).toList.flatten)))))
     }
 
 }

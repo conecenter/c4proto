@@ -141,6 +141,9 @@ case class DepRequestHandlerRegistry(
 case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseFactory {
   def wrap(req: DepInnerRequest, value: Option[_]): DepResponse =
     DepResponseImpl(req,preHashing.wrap(value))
+
+  def wrapRaw(req: DepInnerRequest, valueRaw: PreHashed[Option[_]]): DepResponse =
+    DepResponseImpl(req,valueRaw)
 }
 
 case class DepRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepRequestFactory {
