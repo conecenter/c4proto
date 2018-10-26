@@ -6,6 +6,7 @@ import ee.cone.c4actor._
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
   def close()
+  def compressor:Compressor
 }
 
 trait WorldProvider {

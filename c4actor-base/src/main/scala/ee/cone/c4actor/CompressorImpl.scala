@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import okio.{Buffer, ByteString, GzipSink}
+import okio._
 
 case class GzipCompressor() extends Compressor {
   def name: String = "gzip"
@@ -12,4 +12,16 @@ case class GzipCompressor() extends Compressor {
       )
       sink.readByteString()
     }
+}
+
+class GzipCompressorStream extends Compressor {
+  def name: String = "gzip"
+  private val sink = new Buffer()
+  private val gzipSink = new GzipSink(sink)
+  def compress: ByteString ⇒ ByteString = body ⇒ {    
+    gzipSink.write(new Buffer().write(body), body.size)   
+    gzipSink.flush()    
+    sink.readByteString()
+  }
+  def close():Unit = gzipSink.close()  
 }
