@@ -15,12 +15,11 @@ import scala.collection.immutable.Queue
 
 class ChannelHandler(
   channel: AsynchronousSocketChannel, unregister: ()⇒Unit, fail: Throwable⇒Unit,
-  executor: ScheduledExecutorService, timeout: Long
+  executor: ScheduledExecutorService, timeout: Long, val compressor: Option[Compressor]
 ) extends CompletionHandler[Integer,Unit] with SenderToAgent {
   private var queue: Queue[Array[Byte]] = Queue.empty
   private var activeElement: Option[ByteBuffer] = None
   private var purge: Option[ScheduledFuture[_]] = None
-  val compressor = new GzipCompressorStream()
   private def startWrite(): Unit =
     queue.dequeueOption.foreach{ case (element,nextQueue) ⇒
       queue = nextQueue
@@ -55,7 +54,7 @@ class ChannelHandler(
 }
 
 class TcpServerImpl(
-  port: Int, tcpHandler: TcpHandler, timeout: Long,
+  port: Int, tcpHandler: TcpHandler, timeout: Long, compressorFactory: CompressorFactory,
   channels: TrieMap[String,ChannelHandler] = TrieMap()
 ) extends ToInject with Executable with LazyLogging {
   def toInject: List[Injectable] = GetSenderKey.set(channels.get)
@@ -74,7 +73,7 @@ class TcpServerImpl(
           tcpHandler.afterDisconnect(key)
         }, { error ⇒
           logger.error("channel",error)
-        }, executor, timeout)
+        }, executor, timeout, compressorFactory.create())
         channels += key → sender
         tcpHandler.afterConnect(key, sender)
       }
