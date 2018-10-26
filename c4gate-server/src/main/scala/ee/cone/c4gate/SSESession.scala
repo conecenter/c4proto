@@ -98,7 +98,7 @@ object SSEMessage {
     val unzippedStr = ByteString.encodeUtf8(s"event: $event\ndata: $escapedData\n\n")  
     val zippedStr = sender.compressor.compress(unzippedStr)
     val toS = header.getBytes(UTF_8) ++ zippedStr.toByteArray
-    println(s"event: $event, unzipped: ${str.getBytes(UTF_8).length}, zipped: ${toS.length}")    
+    //println(s"event: $event, unzipped: ${str.getBytes(UTF_8).length}, zipped: ${toS.length}")    
     sender.add(toS)
   }
 }
