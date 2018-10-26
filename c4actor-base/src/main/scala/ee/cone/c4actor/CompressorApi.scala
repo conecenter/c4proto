@@ -6,3 +6,7 @@ trait Compressor {
   def name: String
   def compress: ByteString ⇒ ByteString
 }
+
+trait CompressorFactory {
+  def create(): Option[Compressor]
+}
