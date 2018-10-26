@@ -20,6 +20,7 @@ class ChannelHandler(
   private var queue: Queue[Array[Byte]] = Queue.empty
   private var activeElement: Option[ByteBuffer] = None
   private var purge: Option[ScheduledFuture[_]] = None
+  val compressor = new GzipCompressorStream()
   private def startWrite(): Unit =
     queue.dequeueOption.foreach{ case (element,nextQueue) ⇒
       queue = nextQueue

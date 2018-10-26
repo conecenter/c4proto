@@ -185,6 +185,9 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
     }
 
     class ScannerProxyElement extends StatefulComponent{
+		getInitialState(){
+			return {status:false}
+		}
 		callback(type,data){
 			if(this.props.onClickValue)
 				this.props.onClickValue(type,data)
@@ -193,16 +196,22 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 			return this.props.scanMode
 		}
 		componentDidMount(){
-			if(this.props.barcodeReader)
-				this.binding = miscUtil.scannerProxy.reg(this)
+			if(this.props.barcodeReader){
+				this.binding = miscUtil.scannerProxy().reg(this)
+				const status =  this.binding.status()
+				if(status!=this.state.status) this.setState({status})
+			}
 		}
 		componentDidUpdate(prevProps,_){
+			if(this.binding && this.state.status != this.binding.status()){
+				return this.setState({status:!this.state.status})
+			}			
 			if(this.props.barcodeReader && this.props.scanMode!=prevProps.scanMode && this.binding){
 				this.binding.switchTo(this.props.scanMode)
 				return
 			}
 			if(prevProps.barcodeReader != this.props.barcodeReader){
-				if(this.props.barcodeReader && !this.binding) this.binding = miscUtil.scannerProxy.reg(this)
+				if(this.props.barcodeReader && !this.binding) this.binding = miscUtil.scannerProxy().reg(this)
 				else if(!this.props.barcodeReader && this.binding) this.binding.unreg()
 			}		
 			
@@ -211,7 +220,8 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 			this.binding&&this.binding.unreg()
 		}
 		render(){
-			return React.createElement("span");
+			const children = this.state.status?this.props.children:null
+			return React.createElement("span",{style:{alignSelf:"center"}}, children);
 		}
 	}	
 	const transforms= {

@@ -11,7 +11,7 @@ jsx?
 */
 
 
-export default function MetroUi(log,requestState,images,documentManager,eventManager,OverlayManager,focusModule,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
+export default function MetroUi(log,requestState,images,documentManager,eventManager,OverlayManager,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
 	const $ = React.createElement	
 	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput
 	const dragDropModule = DragDropModule()
@@ -52,15 +52,15 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const index = callbacks.indexOf(c)
 			if(index>=0) callbacks.splice(index,1)
 		}
-		const check = () => callbacks.forEach(c=>c())
+		const check = (modify) => callbacks.forEach(c=>c(modify))
 		return {add,remove,check}
 	})();
 	const {isReactRoot,getReactRoot} = miscReact
 	const {setTimeout,clearTimeout,setInterval,clearInterval,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
-	const {Provider, Consumer} = React.createContext("");
-	const ImageElement = ({src,style,forceSrcWithoutPrefix}) => {
+	const {Provider, Consumer} = React.createContext("path");
+	const ImageElement = ({src,style,forceSrcWithoutPrefix,title}) => {
 		const srcM = !forceSrcWithoutPrefix?(urlPrefix||"")+src: src;
-		return $("img",{src:srcM,style})
+		return $("img",{src:srcM,style,title})
 	}
 
 	const resizeListener = (() =>{
@@ -122,7 +122,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onClick(e){			
 			if(this.props.onClick){
 				setTimeout(function(){this.props.onClick(e)}.bind(this),(this.props.delay?parseInt(this.props.delay):0));
-			}					
+			}				
+			e.stopPropagation()
 		}	
 		onMouseDown(e){
 			this.onClick(e)
@@ -226,16 +227,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	
 	class ErrorElement extends StatefulComponent{	
 		getInitialState(){return {show:false,data:null}}
-		callback(data){
-			//log(`hehe ${data}`)
+		callback(data){		
 			this.setState({show:true,data})
 		}
 		componentDidMount(){
-			this.binding = errors.reg(this.callback)
-			//log(this.props.data)
+			this.binding = errors.reg(this.callback)			
 		}
-		onClick(e){
-			//log(`click`)
+		onClick(e){			
 			this.setState({show:false,data:null})
 			if(this.props.onClick) this.props.onClick(e)
 		}
@@ -247,8 +245,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				const closeImg = $("img",{src:images.closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
 				const noteImg = $("img",{src:images.noteSvgData,style:{width:"1.5em",display:"inherit"}})
 				const data = this.props.data?this.props.data:this.state.data
-				const buttonEls = this.props.onClick?[
-					//$(ButtonElement,{key:"but1",onClick:this.onClick,style:{margin:"5mm",flex:"0 0 auto"}},"OK"),
+				const buttonEls = this.props.onClick?[					
 						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
 					]:null
 				const style = {
@@ -259,10 +256,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					...this.props.style
 				}	
 				const errorEl = $("div",{style},
-					$("div",{style:{display:"flex",/*height:"2em",*/height:"auto",margin:"0.2em"}},[
+					$("div",{style:{display:"flex",height:"auto",margin:"0.2em"}},[
 						$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
 							$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
-							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"/*,whiteSpace:"nowrap"*/}},data)						
+							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"}},data)						
 						]),
 						buttonEls
 					])
@@ -347,8 +344,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.isBurgerOpen && !this.parentEl(e.relatedTarget)) this.openBurger(e)
 		}
 		render(){
-			const style = {
-				//height:this.state.fixedHeight,				
+			const style = {								
 			}
 			const menuStyle = {
 				position:"static",
@@ -463,6 +459,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
                 whiteSpace:'nowrap',
                 paddingRight:'0.8em',
 				cursor:"pointer",
+				outline:"none",
 				...this.props.style,
 				...(this.state.mouseEnter?this.props.overStyle:null)
 			};						
@@ -471,7 +468,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			    style:selStyle,
 			    onMouseEnter:this.mouseEnter,
 			    onMouseLeave:this.mouseLeave,
-			    onClick:this.onClick			   
+			    onClick:this.onClick,
+				className:"menu-popup",
+				tabIndex:"1",
 			},this.props.children);
 		}
 	}
@@ -489,9 +488,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		render(){
 			const newStyle={
-                minWidth:'7em',
-               // height:'2.5em',
-               // backgroundColor:'#c0ced8',
+                minWidth:'7em',             
                 cursor:'pointer',
 				...this.props.style,
 				...(this.state.mouseEnter?this.props.overStyle:null)
@@ -539,7 +536,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		componentWillUnmount(){
 			this.unmounted = true			
 			if(this.resizeL) {
-				log(`delete listener`)
+				//log(`delete listener`)
 				this.resizeL = this.resizeL.unreg()
 			}
 		}
@@ -547,7 +544,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return
 			if(this.props.onWResize && this.el && this.remRef && !this.resizeL) {
-				log(`init listener`)
+				//log(`init listener`)
 				this.sentData()
 				this.resizeL = resizeListener.reg(this.onResize)
 			}
@@ -676,8 +673,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.onClick)
 				this.props.onClick()
 		}
-		onEnter(event){
-			//log(`Enter ;`)
+		onEnter(event){			
 			event.stopPropagation()
 			if(!this.el) return
 			this.onClick()
@@ -698,11 +694,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				fontSize:'1em',
 				color:'white',
 				textAlign:'center',
-				borderRadius:'0.28em',
-				//border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} transparent`,		
+				borderRadius:'0.28em',					
 				backgroundColor:"#eee",
-				cursor:this.props.onClick?'pointer':'default',
-				//width:'3.8em',
+				cursor:this.props.onClick?'pointer':'default',				
 				display:'inline-block',				
 				margin:'0 0.1em',
 				verticalAlign:"top",
@@ -721,15 +715,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{			
 			const svgData = images.closeSvgData
 			const deleteEl = $("img",{src:svgData,style:{height:"0.6em",verticalAlign:"middle"}},null);
-			return $("div",{style:{
-				//"float":"right",
-				//color:"#666",
+			return $("div",{style:{				
 				width:"0.8em",
-				cursor:"pointer",
-				//height:"100%",
-				display:"inline-block",
-				//borderRadius:"0 0.3em 0.3em 0",
-				//backgroundColor:"transparent",			
+				cursor:"pointer",				
+				display:"inline-block",						
 				...style
 			},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut,onClick},$("span",{style:{
 				fontSize:"0.7em",
@@ -754,7 +743,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.prev!=pdRect.width){
 				if(dRect.width>pdRect.width || Math.round(this.props.clientWidth) != parseInt(dRect.width)){					
 					const emWidth = pdRect.width/emRect.height;
-					log(emWidth.toString())
+					//log(emWidth.toString())
 					this.props.onClickValue("change",emWidth.toString())					
 				}				
 				//log(`set: ${dRect.width}`)
@@ -841,37 +830,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return this.state.floating?$("div",{style:expHeaderStyle},$("thead",{style:style},this.props.children)):$("thead",{ref:ref=>this.el=ref,style:style},this.props.children);				
 			
 		}
-	}
-	//let lastFocusTr = null
+	}	
 	const TBodyElement = ({style,children})=>$("tbody",{style:style},children);	
 	class THElement extends StatefulComponent{		
-		getInitialState(){return {last:false,focused:false}}
-		onFocus(e){
-			if(!this.el) return
-			focusModule.switchTo(this)
-			this.setState({focused:true})
-			const focusMarkerInput = this.el.querySelector("input")
-			let detail = null
-			if(focusMarkerInput){
-				const cls = Array.from(focusMarkerInput.classList)
-				const marker = "marker-"
-				const cl = cls.find(_=>_.indexOf(marker)==0)
-				if(cl) detail = cl.substring(marker.length)
-			}
-			const cEvent = eventManager.create("cFocus",{bubbles:true,detail})
-			this.el.dispatchEvent(cEvent)
-			/*const pc = e.path.find(el=>Array.from(el.classList).some(cl=>cl.includes("marker")))
-			if(!pc || pc==this.el){
-				const clickEvent = eventManager.create("click",{bubbles:true})
-				this.el.dispatchEvent(clickEvent)
-			}*/
-			//e.stopPropagation()
-		}
-		onBlur(e){
-			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
-			focusModule.switchOff(this,e&&e.relatedTarget)
-			this.setState({focused:false})
-		}
+		getInitialState(){return {last:false}}		
 		checkForSibling(){
 			if(!this.el) return;
 			if(!this.el.nextElementSibling) if(!this.state.last) this.setState({last:true})
@@ -879,11 +841,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){
 			this.checkForSibling()
-			if(this.el && this.el.tagName=="TD") {
-				//this.el.addEventListener("focus",this.onFocus,true)
-				//this.el.addEventListener("blur",this.onBlur)
-				//this.el.addEventListener("enter",this.onEnter)
-				this.binding = focusModule.reg(this)
+			if(this.el && this.el.tagName=="TD") {		
 				if(this.props.draggable || this.props.droppable)
 					this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
 			}			
@@ -898,10 +856,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
 		}			
 		componentWillUnmount(){
-			if(this.dragBinding) this.dragBinding.release();
-			//if(this.el) this.el.removeEventListener("focus",this.onFocus)	
-			//if(this.el) this.el.removeEventListener("enter",this.onEnter)					
-			if(this.binding) this.binding.unreg()			
+			if(this.dragBinding) this.dragBinding.release();					
 		}			
 		onClick(e){
 			if(this.props.onClick) this.props.onClick(e)
@@ -919,13 +874,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onMouseUp(e){
 			if(!this.props.droppable) return;
 			if(this.dragBinding)
-				this.dragBinding.dragDrop(this.el)
-			//const data = dragDropModule.onDrag()&&dragDropModule.getData()
-			/*if(data && this.props.onDragDrop){
-				dragDropModule.release()
-				e.stopPropagation();
-				this.props.onDragDrop("dragDrop",data)
-			}*/
+				this.dragBinding.dragDrop(this.el)			
 		}
 		render(){
 			const {style,colSpan,children,rowSpan} = this.props
@@ -934,39 +883,42 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
 			const focusActions = nodeType=="td"?{onFocus:this.onFocus,onBlur:this.onBlur}:{}
-			const className = "marker"
-			
-			return $(nodeType,{style:{
-				borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
-				borderLeft:'none',
-				borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
-				borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
-				fontWeight:'bold',
-				padding:'0.1em 0.2em',
-				verticalAlign:'middle',
-				overflow:"hidden",				
-				textOverflow:"ellipsis",
-				cursor:this.props.draggable?"move":"auto",
-				backgroundColor:"transparent",
-				outlineWidth:"1px",
-				outlineColor:"red",
-				outlineStyle:this.state.focused?"dashed":"none",
-				outlineOffset:"-1px",
-				...style
-			},colSpan,
-			ref:ref=>this.el=ref,
-			onClick:this.onClick,
-			onMouseDown:this.onMouseDown,
-			onTouchStart:this.onMouseDown,			
-			onMouseEnter:this.props.onMouseEnter,
-			onMouseLeave:this.props.onMouseLeave,
-			onMouseUp:this.onMouseUp,
-			onTouchEnd:this.onMouseUp,
-			className:className,
-			...rowSpanObj,
-			...tabIndex,
-			...focusActions,			
-			},children)
+			const className = "marker focusWrapper"			
+			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
+			return $(Consumer,{},path=>
+				$(nodeType,{style:{
+					borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					borderLeft:'none',
+					borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
+					borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					fontWeight:'bold',
+					padding:'0.1em 0.2em',
+					verticalAlign:'middle',
+					overflow:"hidden",				
+					textOverflow:"ellipsis",
+					cursor:this.props.draggable?"move":"auto",
+					backgroundColor:"transparent",
+					outlineWidth:"1px",
+					outlineColor:"red",
+					...propsOnPath(path,this.props.path),
+					outlineOffset:"-1px",
+					...style
+				},colSpan,
+				ref:ref=>this.el=ref,
+				onClick:this.onClick,
+				onMouseDown:this.onMouseDown,
+				onTouchStart:this.onMouseDown,			
+				onMouseEnter:this.props.onMouseEnter,
+				onMouseLeave:this.props.onMouseLeave,
+				onMouseUp:this.onMouseUp,
+				onTouchEnd:this.onMouseUp,
+				className:className,
+				"data-path":this.props.path,
+				...rowSpanObj,
+				...tabIndex,
+				...focusActions,			
+				},children)
+			)
 		}
 	}
 	const TDElement = (props) =>{		
@@ -998,12 +950,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.props.onClickValue("key","enter")
 			}					
 		}
-		componentDidMount(){			
-			//this.el.addEventListener("enter",this.onEnter)
-			this.el.addEventListener("mousedown",this.onClick)
+		componentDidMount(){		
+			this.el.addEventListener("click",this.onClick)
 		}
 		componentWillUnmount(){			
-			this.el.removeEventListener("mousedown",this.onClick)
+			this.el.removeEventListener("click",this.onClick)
 		}
 		onClick(e){		
 			if(this.props.onClick){
@@ -1049,28 +1000,25 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				mouseEnter:this.state.mouseEnter
 			});
 		}
-	}
+	}	
 	class InputElementBase extends StatefulComponent{		
 		getInitialState(){return {visibility:""}}
 		setFocus(focus){
 			if(!focus) return
 			this.getInput().focus()			
 		}
-		onKeyDown(o){
-			if(o) return null
-			return (e)=>{
-				if(!this.inp) return
-				if(e.key == "Escape"){
-					if(this.prevval != undefined) {
-						const inp = this.getInput()
-						inp.value = this.prevval
-						if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-					}
-					this.prevval = undefined				
-					this.getInput().parentElement.focus()
-				}			
-				if(this.props.onKeyDown && !this.props.onKeyDown(e)) return			
+		onKeyDown(e){			
+			if(!this.inp) return
+			if(e.key == "Escape"){
+				if(this.prevval != undefined) {
+					const inp = this.getInput()
+					inp.value = this.prevval
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				}
+				this.prevval = undefined				
+				this.getInput().parentElement.focus()
+			}			
+			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return					
 		}
 		doIfNotFocused(what){
 			const inp = this.getInput()
@@ -1103,9 +1051,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					else {}
 				}
 				else{
-					cEvent = eventManager.create("cTab",{bubbles:true})
+					if(!this.props.lockedFocus)
+						cEvent = eventManager.create("cTab",{bubbles:true})
 				}
-				this.cont.dispatchEvent(cEvent)				
+				cEvent && this.cont.dispatchEvent(cEvent)				
 			}
 			event.stopPropagation()
 		}
@@ -1114,39 +1063,42 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			event.stopPropagation()
 			this.s = null
 			if(this.props.noDel) return
+			this.changed = true
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
+				let nValue = inp.value
 				if(this.isVkEvent(event)||this.props.vkOnly){					
-					inp.value = inp.value+event.detail.key
+					nValue = nValue+event.detail.key					
+					this.s = -1
+					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})
 				}
-				else 
+				else {
+					//nValue = ""
 					inp.value = ""
-				this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-				//const cEvent = eventManager.create("input",{bubbles:true})				
-				//inp.dispatchEvent(cEvent)				
-
+					//this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}},inp)
+				}				
 			})){				
 				if(this.isVkEvent(event)||this.props.vkOnly){	
 					const inp = this.getInput()
-					const value1 = inp.value.substring(0, inp.selectionStart)
-					const value2 = inp.value.substring(inp.selectionEnd)
-					this.s = inp.selectionStart+1
-					inp.value = value1+event.detail.key+value2					
-					this.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-					//const cEvent = eventManager.create("input",{bubbles:true})							
-					//inp.dispatchEvent(cEvent)
+					let nValue = inp.value
+					if(this.props.vkOnly)
+						nValue = nValue+event.detail.key												
+					else {
+						const value1 = nValue.substring(0, inp.selectionStart)
+						const value2 = nValue.substring(inp.selectionEnd)											
+						nValue = value1+event.detail.key+value2										
+						this.s = inp.selectionStart+1						
+					}					
+					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})					
 				}
 			}									
 		}
-		onErase(event){
-			
+		onErase(event){			
 			const inp = this.getInput()	
-			inp.value = ""			
-			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
-			if(this.props.onBlur) this.props.onBlur()
-			//else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-			//const cEvent = eventManager.create("input",{bubbles:true})							
-			//inp.dispatchEvent(cEvent)	
+			inp.value = ""
+			this.changed = true
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value},inp})				
+			if(this.props.onBlur) this.props.onBlur()			
 		}
 		onBackspace(event){
 			//log(`Backspace`)
@@ -1155,20 +1107,22 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.noDel) return
 			if(!this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
-				inp.value = inp.value.slice(0,-1)
-            if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-				//const cEvent = eventManager.create("input",{bubbles:true})				
-				//inp.dispatchEvent(cEvent)
+				const nValue = inp.value.slice(0,-1)
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})				
 			})){
 				if(this.isVkEvent(event)||this.props.vkOnly){		
 					const inp = this.getInput()
-					const value1 = inp.value.substring(0, inp.selectionStart-1)				
-					const value2 = inp.value.substring(inp.selectionEnd)
-					this.s = inp.selectionStart - 1>=0?inp.selectionStart -1:0
-					inp.value = value1+value2
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-					//const cEvent = eventManager.create("input",{bubbles:true})							
-					//inp.dispatchEvent(cEvent)
+					let nValue = inp.value
+					if(this.props.vkOnly)
+						nValue = nValue.slice(0,-1)
+					else{
+						const value1 = nValue.substring(0, inp.selectionStart-1)				
+						const value2 = nValue.substring(inp.selectionEnd)
+						nValue = value1+value2
+						this.k = inp.selectionStart-1
+					}	
+					this.changed = true
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})					
 				}
 			}
 		}
@@ -1177,9 +1131,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.doIfNotFocused((inp)=>{				
 				this.prevval = inp.value
 				inp.value = event.detail
-				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-				//const cEvent = eventManager.create("input",{bubbles:true})
-				//inp.dispatchEvent(cEvent)
+				this.changed = true
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})				
     	  })				
 			event.stopPropagation()
 		}
@@ -1235,23 +1188,25 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				const inp = this.getInput()
 				if(pos.ss) inp.selectionStart = pos.ss
 				if(pos.se) inp.selectionEnd = pos.se
-			}
-			if(this.k){
+			}			
+			if(this.k!==null &&this.k!==undefined){
 				const inp = this.getInput()
+				//log(this.k)
+				//log(this.k)
 				inp.selectionStart = this.k
 				inp.selectionEnd = this.k
 				this.k = null
 			}
-		}
+		}		
 		onChange(e){
-			const inp = this.getInput()
+			const inp = this.getInput()			
 			this.k = inp.selectionStart
-			if(this.s!==null&&this.s!==undefined) {inp.selectionEnd =this.s;inp.selectionStart = this.s}
-			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){
-				const newVal = e.target.value.toUpperCase();
-				e.target.value = newVal;
+			if(this.s!==null&&this.s!==undefined) {this.k = this.s;this.s = null}						
+			let value = e.target.value
+			if(inp&&getComputedStyle(inp).textTransform=="uppercase"){				
+				value = value.toUpperCase();
 			}
-			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value},inp:e.inp})
 		}
 		onBlur(e){						
 			if(e.relatedTarget && (
@@ -1259,11 +1214,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				e.relatedTarget.classList.contains("vkContainer") ||
 				e.relatedTarget.classList.contains("vkKeyboard")
 			)) return
-			if(this.props.onBlur) {
+			
+			if(this.props.onBlur && this.changed) {
 				const inp = this.getInput()
 				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
 				this.props.onBlur()
 			}
+			this.changed = undefined
 		}
 	    onMouseDown(e){			
 			if(!this.props.div) return
@@ -1324,55 +1281,45 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				visibility:this.state.visibility,
 				...this.props.inputStyle				
 			};		
-			const placeholder = this.props.placeholder?this.props.placeholder:"";
-			const inputType = this.props.inputType == "input"?ReControlledInput:this.props.inputType
-			const type = this.props.type?this.props.type:"text"
-			const auto = this.props.autocomplete?this.props.autocomplete:null
+			const placeholder = this.props.placeholder
+			const inputType = !this.props.inputType?ReControlledInput:this.props.inputType
+			const type = this.props.type
+			const auto = this.props.autocomplete
 			const vkOnly = this.props.vkOnly?"vk":null
 			let readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
 			readOnly = !readOnly&&vkOnly?"true":readOnly
-			const rows= this.props.rows?this.props.rows:"2";
-			const content = this.props.content;
-			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};
-			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}	
+			const rows= this.props.rows
+			const content = this.props.content
+			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};			
 			const dataType = this.props.dataType
 			const className = this.props.className
+			const drawFunc = this.props.drawFunc
+			
 			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
-					$("div",{key:"xx",style:inp2ContStyle},[
+					$("div",{key:"xx",style:inp2ContStyle}, drawFunc(
 						$(inputType,{
-							key:"1",
+							key:"input",
 							ref:this.onRef1,
 							type,rows,readOnly,placeholder,auto,
 							"data-type":dataType,
 							className,
 							name:vkOnly,
-							content,		
-							style:{...inputStyle,...overRideInputStyle},							
-							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown(this.props.div),value:!this.props.div?this.props.value:"",
+							content,							
+							style:inputStyle,							
+							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:this.props.value,
 							onMouseDown:this.onMouseDown,
 							onTouchStart:this.onMouseDown
-							},this.props.div?[this.props.inputChildren,
-								$(ReControlledInput,{
-									style:{...inputStyle,alignSelf:"flex-start",flex:"1 1 20%",padding:"0px"},
-									ref:this.onRef2,
-									key:"input",
-									className,
-									onChange:this.onChange,
-									onBlur:this.onBlur,
-									readOnly,
-									name:vkOnly,
-									onKeyDown:this.onKeyDown(),
-									"data-type":dataType,
-									value:this.props.value})
-							]:(content?content:null)),							
-						this.props.popupElement?this.props.popupElement():null
-					]),
+							},
+							content?content:null
+						),inputStyle						
+					)),
 					this.props.buttonElement?this.props.buttonElement():null
 				]);	
 		}
-	}
-	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,inputType:props.div?"div":"input",...actions}))	
+	}	
+    InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:""};
+	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,...actions}))	
 	const TextAreaElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
 		inputStyle:{
 			whiteSpace:"pre-wrap",
@@ -1555,8 +1502,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!prevProps.open && this.props.open)
 				checkActivateCalls.add(this.mixState)
 		}	
-		render(){
-			//const topPosStyle = this.state.bottom?{top:'',marginTop:-this.state.bottom+"px"}:{top:this.state.top?this.state.top+getPageYOffset()+"px":''}
+		render(){			
 			const popupStyle={
 				position:"fixed",
 				border: `${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} black`,
@@ -1566,13 +1512,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				backgroundColor: "white",
 				zIndex: "10003",
 				boxSizing:"border-box",
-				overflowX:"hidden",
-				//marginLeft:"",
+				overflowX:"hidden",				
 				lineHeight:"normal",
 				left:`calc(${this.state.left?this.state.left+"px":"0px"})`,
-				top:`calc(${this.state.top?this.state.top+"px":"0px"})`,
-				//left:this.state.left?this.state.left+"px":"",
-				//top:this.state.top?this.state.top + getPageYOffset() + "px":"",
+				top:`calc(${this.state.top?this.state.top+"px":"0px"})`,			
 				...this.props.popupStyle
 			};
 			
@@ -1586,16 +1529,30 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				boxSizing:"border-box",
 				...this.props.buttonImageStyle
 			};
+			const div = this.props.div&&this.props.div!=0
 			const urlData = this.props.url?this.props.url:images.arrowDownSvgData;
 			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""		
 			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
 			const value = this.props.value
-			const inputChildren = this.props.div? this.props.children.slice(0,parseInt(this.props.div)): null
-			const popupElement = () => [this.props.open?$("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},this.props.div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null];
-			
-			return $(InputElement,{...this.props,className,inputChildren,value,_ref:(ref)=>this.inp=ref,buttonElement,popupElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
+			const inputChildren = div? this.props.children.slice(0,parseInt(this.props.div)): null
+			const popupElement = this.props.open?$("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null			
+			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}	
+			const drawFunc = (input,styles) => ([
+					(this.props.div?$("div",{key:"div",style:{...styles,...overRideInputStyle}},[inputChildren,input]):input),
+					popupElement
+				])
+			const inputStyle = {
+				...this.props.inputStyle,
+				...(this.props.div?{
+					alignSelf:"flex-start",
+					flex:"1 1 20%",
+					padding:"0 0 0 0.1em",
+					height:"auto"
+				}:null)
+			}
+			return $(InputElement,{...this.props,lockedFocus:this.props.open,drawFunc,inputStyle,className,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
 		}
 	}
 	const ButtonInputElement = (props) => $(Interactive,{},(actions)=>{
@@ -1621,50 +1578,22 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		);
 	})
 	class ControlWrapperElement extends StatefulComponent{		
-		getInitialState(){ return {focused:false}}
-		onFocus(e){
-			const res = focusModule.switchTo(this)			
-			if(!res) return
-			if(this.el){
-				const cEvent = eventManager.create("cFocus",{bubbles:true,detail:this.path})
-				e.preventDefault();
-				this.el.dispatchEvent(cEvent)
-				//e.stopPropagation();
+		isParent(el){			
+			let e=el
+			while(e && this.el){
+				if(e == this.el) return true
+				e = e.parentElement
 			}
-			this.setState({focused:true})
+			return false
 		}
-		onBlur(e){			
-			if(e&&e.relatedTarget && e.relatedTarget.classList.contains("vkElement")) return
-			const res = focusModule.switchOff(this, e&&e.relatedTarget)
-			if(res) this.setState({focused:false})
-		}
-		componentDidMount(){
-			if(this.el) {				
-				this.el.addEventListener("focus",this.onFocus,true)
-				this.el.addEventListener("blur",this.onBlur,true)
-			}
-			this.binding = focusModule.reg(this)			
-			if(this.props.ctx)
-				this.path = ctxToPath(this.props.ctx)
-		}
-		componentWillUnmount(){
-			if(this.el) {				
-				this.el.removeEventListener("focus",this.onFocus)
-				this.el.removeEventListener("blur",this.onBlur)
-			}
-			this.binding&&this.binding.unreg()			
-		}
-		onClick(e){
-			e.stopPropagation()
-		}
-		onRef(path){			
+		onRef(path){
 			return (ref)=> this.el=ref
 		}		
 		render(){
-			const className = "focusWrapper"//this.props.focusMarker?`marker-${this.props.focusMarker}`:""			
+			const className = "focusWrapper"		
 			const {style,children} = this.props
 			const focusedStyle  = this.state.focused
-			const propsOnPath = (p0,p1) => /*p0 == p1 && p1.length>0 || */this.state.focused?{outlineStyle:"dashed"}:{outlineStyle:"none"}
+			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
 			const sticky = this.props.sticky?"sticky":null
 			return $(Consumer,{},path=>
 				$("div",{style:{
@@ -1673,13 +1602,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					boxSizing:"border-box",
 					outlineWidth:"1px",
 					outlineColor:"red",				
-					...propsOnPath(path,this.path),
+					...propsOnPath(path,this.props.path),
 					outlineOffset:"-1px",
 					...style
 				},tabIndex:"1",
-				className,
+				className,				
 				onClick:this.onClick,
 				"data-sticky":sticky,
+				"data-path":this.props.path,
 				ref:this.onRef(path)},children)
 			)
 		}
@@ -1695,25 +1625,31 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	class FocusableElement extends StatefulComponent{		
 		onFocus(e){
 			clearTimeout(this.timeout);						
-			if(!this.focus) this.reportChange("focus");			
+			//if(!this.focus) this.reportChange("focus");			
 			this.focus=true;			
 		}
 		reportChange(state){					
 			if(this.props.onChange)
 				this.props.onClickValue("focusChange",state)			
 		}
-		delaySend(){
-			if(!this.focus)
-				this.reportChange("blur");			
+		delaySend(){			
+			this.reportChange("blur");			
+		}
+		isChild(e){
+			if(!e || !this.el) return false
+			if (this.el == e) return true
+			return this.isChild(e.parentElement)
 		}
 		onBlur(e){					
 			clearTimeout(this.timeout);
-			this.timeout=setTimeout(this.delaySend,400);
+			if(!this.isChild(e.relatedTarget)){
+				return this.reportChange("blur");	
+			}
 			this.focus=false;
 		}
 		componentDidMount(){
 			if(!this.el) return;
-			this.el.addEventListener("focus",this.onFocus,true);
+			//this.el.addEventListener("focus",this.onFocus,true);
 			this.el.addEventListener("blur",this.onBlur,true);
 			if(this.props.onChange&&this.props.focus) this.el.focus();			
 		}	
@@ -1721,8 +1657,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.el) return;
 			clearTimeout(this.timeout);
 			this.timeout=null;
-			this.el.removeEventListener("focus",this.onFocus);
-			this.el.removeEventListener("blur",this.onBlur);
+		//	this.el.removeEventListener("focus",this.onFocus);
+			this.el.removeEventListener("blur",this.onBlur,true);
 		}
 		render(){
 			const style={
@@ -1792,34 +1728,21 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}		
 	}
 	const Checkbox = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
-	class CheckboxBase extends StatefulComponent{		
-		getInitialState(){ return {focused:false}}
-		onFocus(){
-			focusModule.switchTo(this)
-			this.setState({focused:true})
-		}
-		onBlur(){
-			this.setState({focused:false})
-		}
+	class CheckboxBase extends StatefulComponent{				
 		onDelete(event){
 			if(!event.detail) return
 			this.onClick()
 			event.stopPropagation()
 		}
 		componentDidMount(){
-			if(this.el) {
-				this.el.addEventListener("focus",this.onFocus,true)
-				this.el.addEventListener("mousedown",this.onClick)
-				this.el.addEventListener("blur",this.onBlur)
+			if(this.el) {		
+				this.el.addEventListener("click",this.onClick)			
 				this.el.addEventListener("delete",this.onDelete)
-			}
-			this.binding = focusModule.reg(this)
+			}		
 		}
 		componentWillUnmount(){
-			if(this.el) {				
-				this.el.removeEventListener("focus",this.onFocus)
-				this.el.removeEventListener("mousedown",this.onClick)
-				this.el.removeEventListener("blur",this.onBlur)
+			if(this.el) {						
+				this.el.removeEventListener("click",this.onClick)		
 				this.el.removeEventListener("delete",this.onDelete)
 			}
 			if(this.binding) this.binding.unreg()
@@ -1950,13 +1873,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			alignSelf:"center",
 			...style
 		};
-		const newIconStyle={
-			//position:'relative',
-			//top:'-0.05em',
-			//left:'-0.025em',
-			verticalAlign:"top",
-			//width:"0.5em",
-			//lineHeight:"1",			
+		const newIconStyle={		
+			verticalAlign:"top",					
 			...iconStyle
 		};					
 		const src = props.imageSvgData || images.connectionSvgData
@@ -2032,36 +1950,57 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			])
 		)
     }
-    const SignIn = prop => {
-        const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"})
-		const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
-		const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
-		const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
-		const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
-		const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
-		const styleA = {
-			...attributesA.style
-			//textTransform:"uppercase"
+    class SignIn extends StatefulComponent{
+		onClick(e){
+			if(!this.el) return
+			const ar = Array.from(this.el.querySelectorAll("input"))
+			if(ar.length!=2) return
+			const body = ar.map(_=>{
+				if(getComputedStyle(_).textTransform == "uppercase") return _.value.toUpperCase()
+				return _.value
+			}).join("\n")
+			this.props.onChange({target:{headers:{"X-r-auth":"check"},value:body}})
+			this.props.onBlur()
 		}
-		const styleB = {
-			...attributesB.style,
-			textTransform:"none"
+		onChange(e){
+			if(this.props.vkOnly && e.inp){
+				e.inp.value = e.target.value
+			}			
 		}
-        const vkOnly = prop.vkOnly
-		const dataType = "extText"
-        return $("div",{style:{margin:"1em 0em",...prop.style}},[
-			$(ControlWrapperElement,{key:"1"},
-				$(LabelElement,{label:usernameCaption},null),
-				$(InputElement,{...attributesA,vkOnly,style:styleA,focus:prop.focus,dataType},null)			
-			),
-			$(ControlWrapperElement,{key:"2"},
-				$(LabelElement,{label:passwordCaption},null),
-				$(InputElement,{...attributesB,vkOnly,style:styleB,onKeyDown:()=>false,focus:false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login"},null)
-       ),
-			$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-				$(ButtonElement,{onClick:prop.onBlur,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
-			)
-		])		
+		render(){
+			const prop = this.props
+			const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"},log)
+			const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
+			const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
+			const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
+			const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
+			const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
+			const styleA = {
+				...attributesA.style			
+			}
+			const styleB = {
+				...attributesB.style,
+				textTransform:"none"
+			}
+			const vkOnly = prop.vkOnly
+			const dataType = "extText"
+			const check = (e) =>{
+				
+			}
+			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},[
+				$(ControlWrapperElement,{key:"1"},
+					$(LabelElement,{label:usernameCaption},null),
+					$(InputElement,{...attributesA,value:undefined,onChange:this.onChange,vkOnly,style:styleA,dataType, inputType:"input"},null)			
+				),
+				$(ControlWrapperElement,{key:"2"},
+					$(LabelElement,{label:passwordCaption},null),
+					$(InputElement,{...attributesB,vkOnly,value:undefined,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
+		   ),
+				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
+					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
+				)
+			])		
+		}
 	}	
 	
 	const CalenderCell = (props) => $(Interactive,{},(actions)=>{		
@@ -2595,9 +2534,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 			
 			const style={				
-				display:"inline-block",
-				//verticalAlign:"middle",
-				//alignSelf:"center",
+				display:"inline-block",				
 				margin:"0 0.2em",
 				minWidth:"0",
 				whiteSpace:"nowrap",
@@ -2650,7 +2587,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		recalc(){
 			if(!this.el) return;				
 			const found = this.findUnder(this.el,this.rect)
-			//log("return :"+found)
+			
 			if(this.state.max != !found)
 				this.setState({max:!found})				
 			
@@ -2666,36 +2603,90 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const style = {
 				maxHeight:this.state.max?"none":this.props.limit,
 				...this.props.style
-			}
-			//log("state"+this.state.max)
-			//log(style)
+			}			
 			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
 		}
 	}	
-	class FocusAnnouncerElement extends StatefulComponent{		
-		onFocus(e){
-			const focusKey = e.detail?e.detail:""
-			this.report(focusKey)
-			e.stopPropagation()
-		}
-		report(focusKey){
-			if(this.timeout) {clearTimeout(this.timeout);this.timeout = null}
-			this.timeout = setTimeout(()=>{
-				if(!this.timeout) return
-				if(this.props.onClickValue) this.props.onClickValue("focusChange",focusKey)
-			}, 150)			
+	class FocusAnnouncerElement extends StatefulComponent{					
+		report(path){
+			this.props.onChange({target:{headers:{"X-r-action":"change"},value:path}})
 		}		
-		componentWillUnmount(){			
-			this.el.removeEventListener("cFocus",this.onFocus)
-			this.el.removeEventListener("focus",this.onFocus)			
+		getParentPath(el){
+			let e = el
+			while(e){
+				if(e.className.includes("popup")) return null
+				if(e.dataset.path) return e.dataset.path
+				e = e.parentElement
+			}
+			return null
+		}
+		/*
+		findSticky(el,o){
+			const _ = el.querySelector(`*[data-sticky="sticky"]`)			
+			if(_ != o) return _
+			return null
+		}*/
+		findAutofocusCandidate(el){
+			if(this.foundAuto) return
+			const a = Array.from(el.ownerDocument.querySelectorAll("input"))
+			const b = a.find(_=>this.getParentPath(_))
+		//	log("atuoCnaditate",b)
+			this.foundAuto = true
+			b&& b.focus()
+		}
+		onFrame(modify){
+			if(!this.active||!this.el) return		
+			const activeElement = this.el.ownerDocument.activeElement
+			const path = this.getParentPath(activeElement)
+			if(path===null && activeElement.tagName!="BODY") return
+			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
+				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)					
+				if(el) el.focus()
+				else if(this.validUntil<Date.now() && !this.foundAuto) this.report("undefined")
+			}
+			else{
+				this.validUntil = Date.now() + this.timeout
+				if(path == this.props.value)
+					this.foundAuto = false
+			}
+			if((this.props.value == "undefined"||this.props.value == "") && this.props.value!=this.props.path)  this.findAutofocusCandidate(this.el)			
+		}
+		onBBlur(e){
+			if(e.relatedTarget ==null) {
+				//log(e,e.relatedTarget,e.target)
+				//const sticky = this.findSticky(this.el,null)
+				//if(sticky) return setTimeout(()=>sticky.focus(),400)
+				this.report(this.props.path)
+				this.active = this.w.parent == this.w
+			}
+		}
+		onBFocus(e){			
+			//log("focus",e.target,this.getParentPath(e.target))
+			this.active = true			
+			const path = this.getParentPath(e.target)
+			if(path != this.props.value) {
+				//const sticky = this.findSticky(this.el,e.target)
+				//if(sticky) return setTimeout(()=>sticky.focus(),400)
+				if(path) return this.report(path)
+			}
+		}
+		componentWillUnmount(){		
+			this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.removeEventListener("focus",this.onBFocus,true)	
+			checkActivateCalls.remove(this.onFrame)			
 		}
 		componentDidMount(){			
-			this.el.addEventListener("cFocus",this.onFocus)
-			this.el.addEventListener("focus",this.onFocus)			
+			this.timeout = 300
+			this.validUntil = 0
+			this.w  =this.el.ownerDocument.defaultView
+			this.active = this.w.parent == this.w					
+			this.el.ownerDocument.documentElement.addEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.addEventListener("focus",this.onBFocus,true)
+			checkActivateCalls.add(this.onFrame)
 		}
 		render(){
-			return $(Provider,{value:this.props.path},
-				$('div',{ref:ref=>this.el=ref,style:{outline:"none"},tabIndex:"1",className:"focusAnnouncer"},this.props.children)
+			return $(Provider,{value:this.props.value},
+				$('div',{ref:ref=>this.el=ref,style:{outline:"none"},className:"focusAnnouncer"},this.props.children)
 			)
 		}
 	}
@@ -2813,13 +2804,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.props.onBlur)
 				this.props.onBlur(e)
 		}
-		componentDidMount(){			
-			//this.el.addEventListener("input",this.onChange,false)
-			//this.drawCanvasImage();//camvas.imcludeImage(...)
+		componentDidMount(){		
+			
 		}
 		componentWillUnmount(){
-			this.timeout = null
-			//this.el.removeEventListener("input",this.onChange,false)
+			this.timeout = null		
 		}
 		drawCanvasImage(){
 			if(this.canvasEl) {
@@ -2870,8 +2859,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const canvasStyle ={
 				width:'100%',
 				height:'100%',
-			}    			
-			//return React.createElement('input',{key:"1",style:inputStyle,onChange:this.onChange,onBlur:this.onBlur,value:this.props.value},null);
+			}    						
 			return $("input",{type:"color",key:1,style:inputStyle,onChange:this.onChange, onInput:this.onChange,value:this.props.value, ref:ref=>this.el=ref})
 		}
 	}
@@ -2896,8 +2884,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				className:"colorPicker",
 				style: {
 						width:"100%",
-						boxSizing:"border-box",
-						//position:"relative",
+						boxSizing:"border-box"						
 					}},[
 						React.createElement('div', {
 								key:'1',
@@ -2933,125 +2920,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			)
 		}
 	}
-	const beepMidi = `data:audio/mpeg;base64,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
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAP/7ksDVgAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uSwP+AAAAB
-LAAAAAAAACWAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAP/7ksD/gAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//uSwP+AAAAB
-LAAAAAAAACWAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAP/7ksD/gAAAASwAAAAAAAAlgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+5LA/4AAAAEsAAAAAAAAJYAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAgACAAIAAg
-ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
-IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA//uSwP+AAAAB
-LAAAAAAAACWAAAAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
-ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
-IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
-ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
-IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
-ACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAA
-IAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAgACAAIAAg
-ACAAIAAgACAAAA==`
+	
 	const ColorItem = ({value,onChange,style}) => React.createElement('div',{
 		style: {
 			width:'6em',
@@ -3076,33 +2945,11 @@ ACAAIAAgACAAAA==`
 			const audio = miscUtil.audio
 			if(!audio) return
 			try{
-				this.audio = audio(beepMidi)
+				this.audio = audio(images.beepMidi)
 				this.audio.play()
 			}
 			catch(e){log(e)}
-		}
-		/*
-		produce(){
-			const audioContext = miscUtil.audioContext
-
-			if(!audioContext) return
-			if(this.audioContext) return
-			this.audioCtx = audioContext()
-			this.oscillator = this.audioCtx.createOscillator()
-			this.oscillator.type = this.props.type||'square'
-			const freq = (this.props.freq?parseInt(this.props.freq):null)||440
-			this.oscillator.frequency.setValueAtTime(freq, this.audioCtx.currentTime)
-			this.oscillator.connect(this.audioCtx.destination)
-			this.oscillator.start()
-			const period = (this.props.period?parseInt(this.props.period):null)||300
-			setTimeout(()=>{
-				this.stop()
-			},period)
-		}
-		stop(){
-			this.oscillator&&this.oscillator.stop()
-			this.audioCtx&&this.audioCtx.close().then(()=>this.audioCtx = null) 
-		}*/
+		}		
 		componentDidUpdate(){
 			this.audio&&this.stop()
 			this.produce()
@@ -3248,8 +3095,7 @@ ACAAIAAgACAAAA==`
 			};
 			const textStyle={
 				fontSize:"0.5em",
-				alignSelf:"center"
-				//verticalAlign:"middle",
+				alignSelf:"center"				
 			};
 			const svgImgStyle = {
 				enableBackground:"new 0 0 60 60",
@@ -3374,7 +3220,7 @@ ACAAIAAgACAAAA==`
 			if(isSibling) return	
 			if(PingReceiver && !this.pingR) this.pingR = PingReceiver.reg(this.signal)
 			if(prevState.on != this.state.on){
-				log(`toggle ${this.state.on}`)
+				//log(`toggle ${this.state.on}`)
 				this.toggleOverlay(!this.state.on);
 			}
 		}
@@ -3577,5 +3423,5 @@ ACAAIAAgACAAAA==`
 		...errors.receivers
 	}	
 	const checkActivate = checkActivateCalls.check	
-	return ({transforms,receivers,checkActivate});
+	return ({transforms,receivers,checkActivate,reactPathConsumer:Consumer});
 }

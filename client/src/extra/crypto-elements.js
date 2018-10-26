@@ -68,7 +68,7 @@ export default function CryptoElements({log,feedback,ui,hwcrypto,atob,parentWind
 		})
 	}
 	let sentQuery = false
-	const UserQueryStringElement = ({props}) => {		
+	const UserQueryStringElement = (props) => {		
 		const ref = (ref) =>{
 			if(sentQuery) return
 			sendToServer(props.branchKey,"queryString","needScenario")

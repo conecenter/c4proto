@@ -5,7 +5,7 @@ export default function OverlayManager({log,documentManager,windowManager}){
 	let circularTimer = null
 	let delayTimer = null
 	const className = "overlayMain"
-	const getEls = () => body().querySelectorAll(`.${className}`)
+	const getEls = () => Array.from(body().querySelectorAll(`.${className}`))
 	const killTimers = () =>{
 		clearTimeout(circularTimer);
 		circularTimer = null
