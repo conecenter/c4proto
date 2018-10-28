@@ -1,7 +1,6 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.TxRef
 import ee.cone.c4assemble._
 import ee.cone.c4proto.Protocol
 
@@ -44,18 +43,13 @@ trait ExpressionsDumpersApp {
 trait SimpleIndexValueMergerFactoryApp //compat
 trait TreeIndexValueMergerFactoryApp //compat
 
-trait ServerApp extends RichDataApp with RichObserverApp
-
-trait RichObserverApp extends ExecutableApp with InitialObserversApp with ToStartApp {
+trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp {
   def execution: Execution
-  def rawQSender: RawQSender
-  def txObserver: Option[Observer]
-  def toUpdate: ToUpdate
-  def consuming: Consuming
-  def richRawWorldFactory: RichRawWorldFactory
-  def richRawWorldReducer: RichRawWorldReducer
   def snapshotMaker: SnapshotMaker
   def rawSnapshotLoader: RawSnapshotLoader
+  def consuming: Consuming
+  def txObserver: Option[Observer]
+  def rawQSender: RawQSender
   //
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
@@ -70,8 +64,6 @@ trait RichObserverApp extends ExecutableApp with InitialObserversApp with ToStar
 
 trait TestRichDataApp extends RichDataApp {
   lazy val contextFactory = new ContextFactory(richRawWorldFactory,richRawWorldReducer,toUpdate)
-  //lazy val snapshotMaker: SnapshotMaker = NoSnapshotMaker
-  //lazy val rawSnapshotLoader: RawSnapshotLoader = NoRawSnapshotLoader
 }
 
 trait RichDataApp extends ProtocolsApp

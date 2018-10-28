@@ -139,7 +139,7 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
 
 my $remote_acc  = sub{
     my($comp,$stm)=@_;
-    &$remote($comp,"docker exec -uc4 $comp\_frpc_1 $stm");
+    &$remote($comp,"docker exec -uc4 $comp\_frpc_current_1 $stm");
 };
 
 my $list_snapshots = sub{
@@ -193,7 +193,7 @@ my $running_containers = sub{
 
 my $stop = sub{
     my($comp)=@_;
-    my $acc = "$comp\_frpc_1";
+    my $acc = "$comp\_frpc_current_1";
     ## stop all but 1
     for(0){
         my @ps = grep{$_ ne $acc} &$running_containers($comp);
@@ -220,10 +220,10 @@ my $move_db_to_bak = sub{
 my $db4put_start = sub{
     my($mk_path,$sync) = &$rsync_start();
     (sub{
-        &$mk_path("frpc/db4ini/$_[0]");
+        &$mk_path("frpc_current/db4ini/$_[0]");
     },sub{
         my($comp)=@_;
-        so(&$remote($comp,sub{"rm -r $_[0]/frpc/db4ini"}));
+        so(&$remote($comp,sub{"rm -r $_[0]/frpc_current/db4ini"}));
         &$sync($comp);
         sy(&$remote_acc($comp,"rsync -a /c4deploy/db4ini/ /c4/db4"));
     })
@@ -249,21 +249,21 @@ push @tasks, ["snapshot_put", "$composes_txt <file_path>", sub{
     &$sync($comp);
 }];
 
-push @tasks, ["snapshot_debug", "$composes_txt <tx>", sub{
-    my($comp,$offset)=@_;
-    $offset || die 'missing tx';
-    sy(&$ssh_add());
-    my $conf = &$get_compose($comp);
-    my $main = $$conf{main} || die;
-    my $env = join(" ",
-        "C4INBOX_TOPIC_PREFIX=$main",
-        "C4STATE_TOPIC_PREFIX=ee.cone.c4gate.DebugSnapshotMakerApp",
-        "C4SNAPSHOTS_URL=http://frpc:7980/snapshots",
-        "C4MAX_REQUEST_SIZE=25000000",
-        "C4DEBUG_OFFSET=$offset",
-    );
-    sy(&$remote($comp,qq{docker exec $comp\_snapshot_maker_1 sh -c "$env app/bin/c4gate-server"}));
-}];
+#push @tasks, ["snapshot_debug", "$composes_txt <tx>", sub{
+#    my($comp,$offset)=@_;
+#    $offset || die 'missing tx';
+#    sy(&$ssh_add());
+#    my $conf = &$get_compose($comp);
+#    my $main = $$conf{main} || die;
+#    my $env = join(" ",
+#        "C4INBOX_TOPIC_PREFIX=$main",
+#        "C4STATE_TOPIC_PREFIX=ee.cone.c4gate.DebugSnapshotMakerApp",
+#        "C4SNAPSHOTS_URL=http://frpc:7980/snapshots",
+#        "C4MAX_REQUEST_SIZE=25000000",
+#        "C4DEBUG_OFFSET=$offset",
+#    );
+#    sy(&$remote($comp,qq{docker exec $comp\_snapshot_maker_1 sh -c "$env app/bin/c4gate-server"}));
+#}];
 
 #sy(&$remote_acc($comp,"chown -R c4:c4 $dir"));
 #push @tasks, ["debug_snapshot", "<from-stack> <to-stack> <tx>", sub{
@@ -420,17 +420,20 @@ my $app_user = sub{
 
 my $volumes = sub{map{"$_:/$user/$_"}@_};
 
+my $frpc_service = sub{(
+    &$app_user(),
+    C4APP_IMAGE => "zoo",
+    command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
+    volumes => [&$volumes("db4")],
+    C4DEPLOY_LOCAL => 1,
+)};
+
 my $common_services = sub{(
     gate => {
         C4APP_IMAGE => "gate-server",
         C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
+        C4MAX_REQUEST_SIZE => "250000000",
         C4STATE_REFRESH_SECONDS => 100,
-    },
-    snapshot_maker => {
-        C4APP_IMAGE => "gate-server",
-        C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.SnapshotMakerApp",
-        C4MAX_REQUEST_SIZE => "250000000"
-        #restart => "on-failure",
     },
     purger => {
         &$app_user(),
@@ -444,47 +447,35 @@ my $common_services = sub{(
         C4EXPOSE_HTTP_PORT => 80,
         expose => [80],
     },
+    zookeeper => {
+        &$app_user(),
+        C4APP_IMAGE => "zoo",
+        command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
+        volumes => [&$volumes("db4")],
+    },
+    broker => {
+        &$app_user(),
+        C4APP_IMAGE => "zoo",
+        command => ["$bin/kafka-server-start.sh","server.properties"],
+        depends_on => ["zookeeper"],
+        volumes => [&$volumes("db4")],
+    },
+    frpc_current => {&$frpc_service()},
 )};
 
-my $without_local_db_template_yml = sub{+{
+my $with_parent_template_yml = sub{+{
     services => {
         &$common_services(),
-        frpc => {
-            &$app_user(),
-            C4APP_IMAGE => "zoo",
-            command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
-            volumes => [&$volumes("db4")],
-            C4DEPLOY_LOCAL => 1,
-            networks => { default => { aliases => ["broker","zookeeper"] } },
-        },
+        frpc_parent => {&$frpc_service()},
+    },
+}};
+my $without_parent_template_yml = sub{+{
+    services => {
+        &$common_services(),
     },
 }};
 
-my $with_local_db_template_yml = sub{+{
-    services => {
-        &$common_services(),
-        zookeeper => {
-            &$app_user(),
-            C4APP_IMAGE => "zoo",
-            command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
-            volumes => [&$volumes("db4")],
-        },
-        broker => {
-            &$app_user(),
-            C4APP_IMAGE => "zoo",
-            command => ["$bin/kafka-server-start.sh","server.properties"],
-            depends_on => ["zookeeper"],
-            volumes => [&$volumes("db4")],
-        },
-        frpc => {
-            &$app_user(),
-            C4APP_IMAGE => "zoo",
-            command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
-            volumes => [&$volumes("db4")],
-            C4DEPLOY_LOCAL => 1,
-        },
-    },
-}};
+#networks => { default => { aliases => ["broker","zookeeper"] } },
 
 my $remote_build = sub{
     my($build_comp,$dir,$nm,$tag)=@_;
@@ -529,7 +520,14 @@ my $compose_up = sub{
                 $$conf{main} ? () : (depends_on => ["broker"]),
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
                 C4MAX_REQUEST_SIZE => "25000000",
-                C4INBOX_TOPIC_PREFIX => $run_comp,
+                C4INBOX_TOPIC_PREFIX => "",
+                logging => {
+                    driver => "json-file",
+                    options => {
+                        max-size: "1m",
+                        max-file: "10",
+                    },
+                },
             ):()),
             volumes => [
                 $$service{C4STATE_TOPIC_PREFIX} ? &$volumes("db4") : (),
@@ -555,7 +553,7 @@ my $compose_up = sub{
         sy(&$remote($build_comp,"docker save $images_str").' | '.&$remote($run_comp,"docker load"));
     }
     my($put,$sync) = &$docker_compose_start($yml_str);
-    &$put("frpc/frpc.ini",&$to_ini_file($frpc_conf));
+    &$put("$$_[0]/frpc.ini",&$to_ini_file($$_[1])) for @$frpc_conf;
     &$sync($run_comp);
     sy(&$docker_compose_up($run_comp,""));
 };
@@ -609,9 +607,14 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     if($main_comp){
         my $ext_conf = &$merge(&$without_local_db_template_yml(),$conf);
         my $frpc_conf = [
-            common => [&$get_frp_common($run_comp), user=>$main_comp],
-            &$frp_visitor($main_comp,$zookeeper_server),
-            &$frp_visitor($main_comp,$bootstrap_server),
+            [frpc_parent => [
+                common => [&$get_frp_common($run_comp), user=>$main_comp],
+
+            ]],
+
+???
+???
+
             &$frp_visitor($main_comp,"snapshots:7980"),
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf);

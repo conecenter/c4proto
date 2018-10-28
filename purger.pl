@@ -22,7 +22,7 @@ sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ print "$_[0]\n"; my $res = scalar `$_[0]`; print "=result=\n$res"; $res }
 
 print "HI inbox 3\n";
-my $prefix = $ENV{C4INBOX_TOPIC_PREFIX} || die 'no C4INBOX_TOPIC_PREFIX';
+my $prefix = $ENV{C4INBOX_TOPIC_PREFIX}; # || die 'no C4INBOX_TOPIC_PREFIX';
 my $zoo_port = 2181;
 my $bin = "kafka/bin";
 my $zoo_host = "zookeeper";

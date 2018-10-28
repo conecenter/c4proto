@@ -15,6 +15,7 @@ class ContextFactory(richRawWorldFactory: RichRawWorldFactory, reducer: RichRawW
   }
 }
 
+/*
 object NoSnapshotMaker extends SnapshotMaker {
   def make(task: SnapshotTask): () ⇒ List[RawSnapshot] = throw new Exception
 }
@@ -22,4 +23,4 @@ object NoSnapshotMaker extends SnapshotMaker {
 object NoRawSnapshotLoader extends RawSnapshotLoader {
   def list(subDirStr: String): List[RawSnapshot] = Nil
   def load(snapshot: RawSnapshot): ByteString = throw new Exception
-}
+}*/
