@@ -28,9 +28,15 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
         ByPK(classOf[TxTransform]).of(global).get(key) match {
           case None ⇒ local
           case Some(tr) ⇒
-            val prepLocal = new Context(global.injected, global.assembled, local.transient)
-            val nextLocal = (tr.transform _).andThen(qMessages.send)(prepLocal)
-            new Context(global.injected, emptyReadModel, nextLocal.transient)
+            try {
+              val prepLocal = new Context(global.injected, global.assembled, local.transient)
+              val nextLocal = (tr.transform _).andThen(qMessages.send)(prepLocal)
+              new Context(global.injected, emptyReadModel, nextLocal.transient)
+            } catch {
+              case e: StackOverflowError ⇒
+                logger.error(s"StackOverflow in $key ${tr.getClass.getName}")
+                throw new Exception(e)
+            }
         }
       }
     } catch {
