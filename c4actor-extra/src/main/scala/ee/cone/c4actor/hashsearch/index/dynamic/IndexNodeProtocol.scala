@@ -1,13 +1,12 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
-import ee.cone.c4actor.AnyOrigProtocol.AnyOrig
 import ee.cone.c4actor.ProtocolsApp
-import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object IndexNodeProtocol extends Protocol{
-
-  import ee.cone.c4actor.AnyOrigProtocol._
+  @Id(0x205) case class IndexNodesVersion(
+    @Id(0x206) version: String
+  )
 
   // A
   @Id(0x0169) case class IndexNode(

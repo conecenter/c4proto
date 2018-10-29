@@ -10,7 +10,7 @@ object Single {
   def apply[C](l: Seq[C]): C = if(l.isEmpty) {
     throw new Exception("empty")
   } else if(l.tail.isEmpty) l.head else {
-    throw new Exception(s"non-single: ${l.head}, ${l.tail.head} ...")
+    throw new Exception(s"non-single: \n${l.head}, \n${l.tail.head} ...")
   }
   def option[C](l: Seq[C]): Option[C] = if(l.isEmpty) None else Option(apply(l))
 }

@@ -6,4 +6,9 @@ object ActivateContext {
     txTransforms.foldLeft(local)((oldLocal, transform) ⇒
       transform.transform(TxTransformDescription.set(transform.description)(oldLocal)))
   }
+
+  def main(args: Array[String]): Unit = {
+    val list = List(1)
+    println(list.nonEmpty, list.tail.isEmpty)
+  }
 }

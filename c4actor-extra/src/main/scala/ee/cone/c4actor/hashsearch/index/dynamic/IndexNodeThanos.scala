@@ -42,7 +42,7 @@ trait DynamicIndexAssemble
 
   override def assembles: List[Assemble] = {
     modelListIntegrityCheck(dynIndexModels.distinct)
-    new ThanosTimeFilters(maxTransforms = dynamicIndexMaxEvents) ::
+    new ThanosTimeFilters(hashSearchVersion, maxTransforms = dynamicIndexMaxEvents) ::
       dynIndexModels.distinct.map(p ⇒
         new IndexNodeThanos(
           p.modelCl, p.modelId,
@@ -73,6 +73,8 @@ trait DynamicIndexAssemble
       FailWith.apply(s"Dyn model List contains models with same Id: ${map.filter(_._2.size > 1)}")
     }
   }
+
+  val hashSearchVersion: String = "MC5FLjA=" // note equals to base64 http://base64decode.toolur.com/
 }
 
 case class IndexNodeRich[Model <: Product](
@@ -108,7 +110,18 @@ sealed trait ThanosTimeTypes {
   type ThanosLEventsTransforms = All
 }
 
-@assemble class ThanosTimeFilters(maxTransforms: Int) extends Assemble with ThanosTimeTypes {
+@assemble class ThanosTimeFilters(version: String, maxTransforms: Int) extends Assemble with ThanosTimeTypes {
+
+  def SnapTransformWatcher(
+    version: SrcId,
+    firstBorn: Each[Firstborn],
+    versions: Values[IndexNodesVersion]
+  ): Values[(SrcId, TxTransform)] =
+    if (versions.headOption.map(_.version).getOrElse("") == version) {
+      Nil
+    } else {
+      WithPK(SnapTransform(version)) :: Nil
+    }
 
   def PowerFilterCurrentTimeNode(
     timeNode: SrcId,
@@ -131,14 +144,6 @@ sealed trait ThanosTimeTypes {
 
 import ee.cone.c4actor.hashsearch.rangers.IndexType._
 
-/*case class PreparedLeaf[Model <: Product](
-  srcId: SrcId,
-  byId: Long,
-  by: AnyOrig,
-  lensName: List[String],
-  byOrig: Product
-)*/
-
 case class RangerDirective[Model <: Product](
   nodeId: SrcId,
   directive: Any
@@ -146,7 +151,7 @@ case class RangerDirective[Model <: Product](
 
 case class PreProcessedLeaf[Model <: Product](
   leafId: SrcId,
-  originalLeafId: SrcId,
+  originalLeafIds: List[SrcId],
   indexNodeId: SrcId,
   commonPrefix: String,
   by: Product,
@@ -156,7 +161,7 @@ case class PreProcessedLeaf[Model <: Product](
 
 case class ProcessedLeaf[Model <: Product](
   leafId: SrcId,
-  originalLeafId: SrcId,
+  originalLeafIds: List[SrcId],
   preProcessed: PreProcessedLeaf[Model],
   heapIds: List[SrcId]
 ) {
@@ -185,24 +190,6 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   lazy val nameToIdMap: Map[String, Long] = qAdapterRegistry.byName.transform((_, v) ⇒ if (v.hasId) v.id else -1)
   lazy val longToName: Map[Long, String] = qAdapterRegistry.byId.transform((_, v) ⇒ v.className)
 
-  /* def prepareLeaf(
-     prodCondition: ProdCondition[_ <: Product, Model]
-   ): List[(String, PreparedLeaf[Model])] = {
-     qAdapterRegistry.byName.get(prodCondition.by.getClass.getName).map(_.id) match {
-       case Some(byId) ⇒
-         rangerRegistryApi.getByByIdUntyped(byId) match {
-           case Some(ranger) ⇒
-             val preparedBy = innerPrepareLeaf(ranger, prodCondition.by)
-             val lensName: List[String] = prodCondition.metaList.collect { case a: NameMetaAttr ⇒ a.value }
-             val serialized: AnyOrig = AnyAdapter.encode(qAdapterRegistry)(preparedBy)
-             val newId: SrcId = idGenUtil.srcIdFromStrings("IndexByNode" :: idGenUtil.srcIdFromSerialized(byId, serialized.value) :: lensName: _*)
-             WithPK(PreparedLeaf[Model](newId, byId, serialized, lensName, preparedBy)) :: Nil
-           case None ⇒ Nil
-         }
-       case None ⇒ Nil
-     }
-   }*/
-
   def modelId: Int
 
   def preProcessLeaf(
@@ -216,9 +203,9 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
               case Some(ranger) ⇒
                 val preparedBy = innerPrepareLeaf(ranger, prod.by)
                 val commonPrefixEv = commonPrefix(modelId, leaf.lensNameList)
-                val srcId = leafId(commonPrefixEv, preparedBy)
-                val parentId = indexNodeId(commonPrefixEv, byId)
-                PreProcessedLeaf[Model](srcId, leaf.srcId, parentId, commonPrefixEv, preparedBy, byId, ranger) :: Nil
+                val leafIdEv = leafId(commonPrefixEv, preparedBy)
+                val indexNodeIdEv = indexNodeId(commonPrefixEv, byId)
+                PreProcessedLeaf[Model](leafIdEv, leaf.srcId :: Nil, indexNodeIdEv, commonPrefixEv, preparedBy, byId, ranger) :: Nil
               case None ⇒ Nil
             }
           case None ⇒ Nil
@@ -238,9 +225,8 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     directive: By
   ): ProcessedLeaf[Model] = {
     val ids = applyRangerInner(leaf.ranger, leaf.by, directive, leaf.commonPrefix)
-    ProcessedLeaf(leaf.leafId, leaf.originalLeafId, leaf, ids)
+    ProcessedLeaf(leaf.leafId, leaf.originalLeafIds, leaf, ids)
   }
-
 
   lazy val indexTypeMap: Map[Long, IndexType] = rangerRegistryApi.getAll.map(r ⇒ nameToIdMap(r.byCl.getName) → r.indexType).toMap
 
@@ -255,14 +241,10 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     ranger.ranges(directive.asInstanceOf[By])._2.apply(by).map(heapId(commonPrefix, _))
   }
 
-
   def innerPrepareLeaf[By <: Product](
     ranger: RangerWithCl[By, _],
     by: Product
   ): Product = ranger.prepareRequest(by.asInstanceOf[By])
-
-  def getIndexNodeSrcId(modelId: Int, byId: Long, lensName: List[String]): SrcId =
-    Murmur3Hash(List("IndexNode", modelId, byId, lensName))
 
   def prepareDirective(directives: Values[RangerDirective[Model]]): Option[Product] =
     Single.option(directives)
@@ -307,7 +289,11 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     leafId: SrcId,
     @by[FilterPreProcessedLeafs] @distinct leafs: Values[PreProcessedLeaf[Model]]
   ): Values[(SrcId, PreProcessedLeaf[Model])] =
-    WithPK(Single(leafs)) :: Nil
+    if (leafs.nonEmpty) {
+      WithPK(leafs.head.copy(originalLeafIds = leafs.flatMap(_.originalLeafIds).distinct.toList)) :: Nil
+    } else {
+      Nil
+    }
 
   def PreProcessedLeafToNode(
     leafId: SrcId,
@@ -340,23 +326,26 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     indexNodes: Values[IndexNodeTyped[Model]],
     @by[IndexNodeId] leafs: Values[PreProcessedLeaf[Model]]
   ): Values[(ThanosLEventsTransforms, LEventTransform)] =
-    if (indexNodes.isEmpty && leafs.nonEmpty) {
-      val leaf = leafs.head
-      if (debugMode)
-        PrintColored("y")(s"[Thanos.Soul, $modelId] Created IndexNode for ${(leaf.by.getClass.getName, leaf.commonPrefix)},${(modelCl.getName, modelId)}")
-      val indexType: IndexType = getIndexType(leaf.byId)
-      WithAll(SoulTransform(leaf.indexNodeId, modelId, leaf.byId, leaf.commonPrefix, dynamicIndexNodeDefaultSetting, indexType)) :: Nil
-    } else if (indexNodes.nonEmpty && leafs.nonEmpty && indexNodes.tail.isEmpty) {
-      if (debugMode) {
-        val x = indexNodes.head
-        val y = leafs.head
-        PrintColored("y")(s"[Thanos.Soul, $modelId] Both alive $x ${y.by}")
-      }
-      Nil
-    } else if (indexNodes.isEmpty && leafs.isEmpty) {
-      Nil
-    } else {
-      FailWith("Multiple indexNodes in [Thanos.Soul, $modelId] - SoulIndexNodeCreation")
+    (indexNodes.toList, leafs.toList) match {
+      case (Nil, leaf :: _) ⇒
+        if (debugMode)
+          PrintColored("y")(s"[Thanos.Soul, $modelId] Created IndexNode for ${(leaf.by.getClass.getName, leaf.commonPrefix)},${(modelCl.getName, modelId)}")
+        val indexType: IndexType = getIndexType(leaf.byId)
+        WithAll(SoulTransform(leaf.indexNodeId, modelId, leaf.byId, leaf.commonPrefix, dynamicIndexNodeDefaultSetting, indexType)) :: Nil
+      case (indexNode :: Nil, leaf :: _) ⇒
+        if (debugMode) {
+          val x = indexNode
+          val y = leaf
+          PrintColored("y")(s"[Thanos.Soul, $modelId] Both alive $x ${y.by}")
+        }
+        Nil
+      case (_ :: Nil, Nil) ⇒
+        Nil
+      case (Nil, Nil) ⇒
+        Nil
+      case _ ⇒
+        println(s"Multiple indexNodes in [Thanos.Soul, ${modelCl.toString}] - SoulIndexNodeCreation ${indexNodes.toList},${leafs.toList}")
+        Nil // WithAll(SoulCorrectionTransform(indexNodeId, indexNodes.map(_.indexNode).toList)) :: Nil
     }
 
   // ByNode creation
@@ -505,51 +494,6 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     } else {
       Nil
     }
-
-
-  /*// Condition to Node
-  def SoulLeafToIndexNodeId(
-    leafId: SrcId,
-    leaf: Each[InnerLeaf[Model]]
-  ): Values[(IndexNodeId, InnerLeaf[Model])] =
-    if (leaf.isProdCondition) {
-      val byIdOpt = nameToIdMap.get(leaf.byClName)
-      if (byIdOpt.isDefined) {
-        (getIndexNodeSrcId(modelId, byIdOpt.get, leaf.lensNameList) → leaf) :: Nil
-      } else {
-        Nil
-      }
-    }
-    else Nil*/
-
-
-  /* type IndexNodeId = SrcId
-   type IndexByNodeId = SrcId
-   type FilterPreProcessedLeafs = SrcId*/
-
-  /*def SpaceLeafToFilterEmAll(
-    leafId: SrcId,
-    leaf: Each[InnerLeaf[Model]]
-  ): Values[(FilterPreProcessedLeafs, PreparedLeaf[Model])] =
-    leaf.condition match {
-      case prod: ProdCondition[_, Model] ⇒
-        prepareLeaf(prod)
-      case _ ⇒ Nil
-    }*/
-
-  /*def SpaceLeafToPreparedNodeId(
-    leafId: SrcId,
-    @by[FilterPreProcessedLeafs] @distinct leafs: Values[PreparedLeaf[Model]]
-  ): Values[(IndexByNodeId, PreparedLeaf[Model])] =
-    WithPK(Single(leafs)) :: Nil*/
-
-
-  /*  // ByNodeRich to Node
-    def SpaceIndexByNodeRichToIndexNodeId(
-      indexByNodeRichId: SrcId,
-      indexByNode: Each[IndexByNodeRich[Model]]
-    ): Values[(IndexNodeId, IndexByNodeRich[Model])] =
-      List(indexByNode.indexByNode.indexNodeId → indexByNode)*/
 }
 
 case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, heapIds: List[String], byStr: String, modelId: Int, defaultLive: Long) extends LEventTransform {
@@ -599,5 +543,32 @@ case class MindTransform(srcId: SrcId) extends LEventTransform {
 case class RevertedMindTransform(srcId: SrcId) extends LEventTransform {
   def lEvents(local: Context): Seq[LEvent[Product]] = {
     LEvent.delete(IndexByNodeLastSeen(srcId, 0L))
+  }
+}
+
+case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[IndexNode]) extends LEventTransform {
+  def lEvents(local: Context): Seq[LEvent[Product]] =
+    indexNodeList.flatMap(node ⇒ node :: IndexNodeSettings(node.indexNodeId, false, None) :: Nil)
+      .flatMap(LEvent.delete)
+}
+
+case class SnapTransform(version: String) extends TxTransform {
+  def transform(local: Context): Context = {
+    val versionW = ByPK(classOf[IndexNodesVersion]).of(local).values.headOption.map(_.version).getOrElse("")
+    if (version != versionW) {
+      val delete =
+        (ByPK(classOf[IndexNodesVersion]).of(local).values ++
+          ByPK(classOf[IndexNode]).of(local).values ++
+          ByPK(classOf[IndexNodeSettings]).of(local).values ++
+          ByPK(classOf[IndexByNodesStats]).of(local).values ++
+          ByPK(classOf[IndexByNode]).of(local).values ++
+          ByPK(classOf[IndexByNodeLastSeen]).of(local).values ++
+          ByPK(classOf[IndexByNodeSettings]).of(local).values ++
+          ByPK(classOf[TimeMeasurement]).of(local).values).flatMap(LEvent.delete).toList
+      val add = LEvent.update(IndexNodesVersion(version))
+      TxAdd(delete ++ add)(local)
+    }
+    else
+      local
   }
 }
