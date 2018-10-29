@@ -290,7 +290,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     @by[FilterPreProcessedLeafs] @distinct leafs: Values[PreProcessedLeaf[Model]]
   ): Values[(SrcId, PreProcessedLeaf[Model])] =
     if (leafs.nonEmpty) {
-      WithPK(leafs.head.copy(originalLeafIds = leafs.flatMap(_.originalLeafIds).distinct.toList)) :: Nil
+      WithPK(leafs.head.copy[Model](originalLeafIds = leafs.flatMap(_.originalLeafIds).distinct.toList)) :: Nil
     } else {
       Nil
     }
