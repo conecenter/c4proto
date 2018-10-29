@@ -11,10 +11,10 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
   // A
   @Id(0x0169) case class IndexNode(
-    @Id(0x016a) srcId: String,
+    @Id(0x016a) indexNodeId: String,
     @Id(0x016b) modelId: Int,
     @Id(0x016c) byAdapterId: Long,
-    @Id(0x0187) lensName: List[String]
+    @Id(0x0187) commonPrefix: String
   )
 
   // B
@@ -33,10 +33,11 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
   // C
   @Id(0x0170) case class IndexByNode(
-    @Id(0x0175) srcId: String,
+    @Id(0x0175) leafId: String,
     @Id(0x0177) indexNodeId: String,
     @Id(0x0194) modelId: Int,
-    @Id(0x0173) byInstance: Option[AnyOrig]
+    @Id(0x0173) heapIds: List[String],
+    @Id(0x0204) byStr: String
   )
 
   @Id(0x0201) case class IndexByNodeLastSeen(
@@ -55,17 +56,6 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0197) srcId: String,
     @Id(0x0198) measurement: Option[Long]
   )
-
-
-
-  // Data - C orig (TODO in rich isAlive: Boolean) form D, D - stats (usage) updateBytes every pong , E - custom setting (Always lives)
-  // TODO C,D clean up after week or so if no D.rich.notActive, E
-  // B,E creation only by hand
-  // A, C creation on demand
-  // if not B, E, default keepAlive 60*5 seconds
-
-  // C,D one object
-  // Refresh rate: 60 s, test rate 1 s
 }
 
 trait WithIndexNodeProtocol extends ProtocolsApp {
