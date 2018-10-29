@@ -20,8 +20,12 @@ object HttpUtil {
     FinallyClose[HttpURLConnection,T](_.disconnect())(
       new URL(url).openConnection().asInstanceOf[HttpURLConnection]
     )
+  private def setHeaders(connection: HttpURLConnection, headers: List[(String,String)]): Unit = {
+    headers.foreach{ case (k,v) ⇒ connection.setRequestProperty(k, v) }
+  }
 
-  def get(url: String): HttpResponse = withConnection(url){ conn ⇒
+  def get(url: String, headers: List[(String,String)]): HttpResponse = withConnection(url){ conn ⇒
+    setHeaders(conn,headers)
     FinallyClose(new BufferedInputStream(conn.getInputStream)){ is ⇒
       FinallyClose(new okio.Buffer){ buffer ⇒
         buffer.readFrom(is)
@@ -33,24 +37,19 @@ object HttpUtil {
   def post(url: String, headers: List[(String,String)]): Unit =
     withConnection(url){ conn ⇒
       conn.setRequestMethod("POST")
-      val allHeaders = ("Content-Length", "0") :: headers
-      allHeaders.foreach{ case (k,v) ⇒ conn.setRequestProperty(k, v) }
+      setHeaders(conn, ("Content-Length", "0") :: headers)
       conn.connect()
       assert(conn.getResponseCode==200)
     }
 }
 
-class RemoteRawSnapshotLoader(baseURL: String) extends RawSnapshotLoader with LazyLogging {
-  def list(subDirStr: String): List[RawSnapshot] = {
-    val url = s"$baseURL/$subDirStr/"
-    val res = HttpUtil.get(url)
-    assert(res.status==200)
-    """([0-9a-f\-]+)""".r.findAllIn(res.body.utf8())
-      .toList.distinct.map(name⇒RawSnapshot(s"$url$name"))
-  }
+class RemoteRawSnapshotLoader(baseURL: String, authKey: AuthKey) extends RawSnapshotLoader with LazyLogging {
+  def list(subDirStr: String): List[RawSnapshot] =
+    """([0-9a-f\-]+)""".r.findAllIn(load(RawSnapshot(s"$subDirStr/")).utf8())
+      .toList.distinct.map(k⇒RawSnapshot(k))
   def load(snapshot: RawSnapshot): ByteString = {
     val tm = NanoTimer()
-    val res = HttpUtil.get(snapshot.key)
+    val res = HttpUtil.get(s"$baseURL/${snapshot.key}",List(("X-r-auth-key",authKey.value)))
     assert(res.status==200)
     logger.info(s"downloaded ${res.body.size} in ${tm.ms} ms")
     res.body
@@ -59,26 +58,27 @@ class RemoteRawSnapshotLoader(baseURL: String) extends RawSnapshotLoader with La
 
 class RemoteSnapshotMaker(appURL: String) extends SnapshotMaker {
   @tailrec private def retry(uuid: String): HttpResponse = {
-    val res = HttpUtil.get(s"$appURL/response/$uuid")
+    val res = HttpUtil.get(s"$appURL/response/$uuid",Nil)
     if(res.status==200) res else {
       Thread.sleep(1000)
       retry(uuid)
     }
   }
-  private def asyncPost(args: List[(String,String)], resultKey: String): ()⇒String = {
+  private def asyncPost(args: List[(String,String)]): ()⇒HttpResponse = {
     val uuid = UUID.randomUUID().toString
     HttpUtil.post(s"$appURL/need-snapshot", ("X-r-response-key",uuid) :: args)
-    () ⇒
-      val resp = retry(uuid)
-      resp.headers.getOrElse("X-r-error-message",Nil).foreach(m⇒throw new Exception(m))
-      Single(resp.headers.getOrElse(resultKey,Nil))
+    () ⇒ retry(uuid)
   }
   def make(task: SnapshotTask): ()⇒List[RawSnapshot] = {
     val f = asyncPost(
-      ("X-r-snapshot-mode",task.name) :: task.offsetOpt.toList.map(("X-r-offset",_)),
-      "X-r-snapshot-keys"
+      ("X-r-snapshot-mode",task.name) :: task.offsetOpt.toList.map(("X-r-offset",_))
     )
-    () ⇒ f().split(",").map(RawSnapshot).toList
+    () ⇒
+      val headers = f().headers
+      headers.getOrElse("X-r-snapshot-keys",Nil) match {
+        case Seq(res) ⇒ res.split(",").map(RawSnapshot).toList
+        case _ ⇒ throw new Exception(headers.getOrElse("X-r-error-message",Nil).mkString(";"))
+      }
   }
 }
 

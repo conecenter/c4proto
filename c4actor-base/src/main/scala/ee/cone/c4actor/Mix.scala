@@ -30,6 +30,7 @@ trait ToInjectApp {
 
 trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
+  lazy val authKey: AuthKey = new FileAuthKey(config.get("C4AUTH_KEY_FILE"))()
 }
 
 trait UMLClientsApp {
@@ -119,26 +120,26 @@ trait VMExecutionApp {
 
 trait FileRawSnapshotApp { // Remote!
   def config: Config
+  def authKey: AuthKey
   //
-  private lazy val dbURL: String = config.get("C4SNAPSHOT_LOAD_SERVER")
-  private lazy val appURL: String = config.get("C4SNAPSHOT_ORDER_SERVER")
-  lazy val rawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(dbURL)
+  private lazy val appURL: String = config.get("C4HTTP_SERVER")
+  lazy val rawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(appURL,authKey)
   lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL)
 }
 
 trait MergingSnapshotApp {
   def config: Config
+  def authKey: AuthKey
   def toUpdate: ToUpdate
   def richRawWorldFactory: RichRawWorldFactory
   def richRawWorldReducer: RichRawWorldReducer
   def snapshotLoader: SnapshotLoader
   def snapshotMaker: SnapshotMaker
   //
-  private lazy val dbURL: String = config.get("C4SNAPSHOT_PARENT_LOAD_SERVER")
-  private lazy val appURL: String = config.get("C4SNAPSHOT_PARENT_ORDER_SERVER")
-  private lazy val parentRawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(dbURL)
+  private lazy val parentAppURL: String = config.get("C4PARENT_HTTP_SERVER")
+  private lazy val parentRawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(parentAppURL,authKey)
   private lazy val parentSnapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(parentRawSnapshotLoader)
-  private lazy val parentSnapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL)
+  private lazy val parentSnapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(parentAppURL)
   lazy val snapshotMerger: SnapshotMerger =
     new SnapshotMergerImpl(toUpdate, snapshotMaker,snapshotLoader,parentSnapshotMaker,parentSnapshotLoader,richRawWorldFactory,richRawWorldReducer)
 }

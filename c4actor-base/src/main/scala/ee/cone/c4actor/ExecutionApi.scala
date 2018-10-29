@@ -25,6 +25,10 @@ trait Config {
   def get(key: String): String
 }
 
+trait AuthKey {
+  def value: String
+}
+
 ////
 
 object Trace extends LazyLogging { //m. b. to util

@@ -7,6 +7,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.{Map, Seq}
+import scala.util.control.NonFatal
 import scala.util.{Success, Try}
 
 class TxTransforms(qMessages: QMessages) extends LazyLogging {
@@ -34,9 +35,13 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
         }
       }
     } catch {
-      case exception: Exception ⇒
-        logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",exception)
+      case NonFatal(e) ⇒
+        logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",e)
         val was = ErrorKey.of(local)
+        val exception = e match {
+          case e: Exception ⇒ e
+          case err ⇒ new Exception(err)
+        }
         Function.chain(List(
           ErrorKey.set(exception :: was),
           SleepUntilKey.set(Instant.now.plusSeconds(was.size))

@@ -16,8 +16,12 @@ class HttpGatewayApp extends ServerApp
   with ManagementApp
   with SnapshotMakingApp
 {
-  def httpHandlers: List[RHttpHandler] =
-    pongHandler :: new HttpPostHandler(qMessages,worldProvider) :: Nil
+  def httpHandlers: List[RHttpHandler] = //todo secure
+    new HttpGetSnapshotHandler(snapshotLoader,authKey) ::
+    new HttpGetPublicationHandler(worldProvider) ::
+    pongHandler ::
+    new HttpPostHandler(qMessages,worldProvider) ::
+    Nil
   def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
 }
 
@@ -51,5 +55,3 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   override def assembles: List[Assemble] =
     new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker) :: super.assembles
 }
-
-// C4SNAPSHOTS_URL => "http://frpc:7980/snapshots"

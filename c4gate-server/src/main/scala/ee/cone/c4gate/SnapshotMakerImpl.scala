@@ -5,6 +5,7 @@ import java.net.{HttpURLConnection, URL}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 
+import com.sun.net.httpserver.HttpExchange
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
@@ -16,9 +17,24 @@ import ee.cone.c4proto.{Protocol, ToByteString, protocol}
 import okio.ByteString
 
 import scala.annotation.tailrec
-
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
+class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) extends RHttpHandler {
+  def handle(httpExchange: HttpExchange): Boolean =
+    if(httpExchange.getRequestMethod == "GET"){
+      val path = httpExchange.getRequestURI.getPath
+      if(path.startsWith("/snapshot")){
+        assert(authKey.value == Option(httpExchange.getRequestHeaders.getFirst("X-r-auth-key")).get)
+        val bytes =
+          if(path == "/snapshots/")
+            snapshotLoader.list.map(_.raw.key).mkString("\n").getBytes(UTF_8)
+          else snapshotLoader.load(RawSnapshot(path.tail)).get.data.toByteArray
+        httpExchange.sendResponseHeaders(200, bytes.length)
+        if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
+        true
+      } else false
+    } else false
+}
 
 @assemble class SnapshotMakingAssemble(actorName: String, snapshotMaking: SnapshotMakerImpl) extends Assemble {
   type NeedSnapshot = SrcId
@@ -39,10 +55,28 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
     key: SrcId,
     firstborn: Each[Firstborn],
     @by[NeedSnapshot] posts: Values[HttpPost]
-  ): Values[(SrcId,TxTransform)] =
-    List(WithPK(SnapshotMakingTx("snapshotMaker", posts.sortBy(_.srcId).headOption)(snapshotMaking)))
+  ): Values[(SrcId,TxTransform)] = {
+    val srcId = "snapshotMaker"
+    if(posts.isEmpty) List(WithPK(PeriodicSnapshotMakingTx(srcId)(snapshotMaking)))
+    else {
+      val taskOpt = SnapshotMakingUtil.task(posts.minBy(_.srcId))
+      val similarPosts = posts.toList.filter(post⇒SnapshotMakingUtil.task(post)==taskOpt).sortBy(_.srcId)
+      List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking)))
+    }
+  }
 }
 
+object SnapshotMakingUtil {
+  def header(post: HttpPost, key: String): Option[String] =
+    post.headers.find(_.key == key).map(_.value)
+  private def task(name: Option[String], offsetOpt: Option[NextOffset]): Option[SnapshotTask] = name match {
+    case Some("next") ⇒ Option(NextSnapshotTask(offsetOpt))
+    case Some("debug") ⇒ Option(DebugSnapshotTask(offsetOpt.get))
+    case _ ⇒ None
+  }
+  def task(post: HttpPost): Option[SnapshotTask] =
+    task(header(post,"X-r-snapshot-mode"), header(post,"X-r-offset"))
+}
 
 object Time {
   def hour: Long = 60L*minute
@@ -52,31 +86,34 @@ object Time {
 import Time._
 
 case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
-case class SnapshotMakingTx(srcId: SrcId, postOpt: Option[HttpPost])(snapshotMaking: SnapshotMakerImpl) extends TxTransform {
-  private def header(post: HttpPost, key: String): Option[String] =
-    post.headers.find(_.key == key).map(_.value)
+
+case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMakerImpl) extends TxTransform {
+  def transform(local: Context): Context = if(DeferPeriodicSnapshotUntilKey.of(local) < now){
+    if(snapshotMaking.maxTime + hour < now) snapshotMaking.make(NextSnapshotTask(None))()
+    DeferPeriodicSnapshotUntilKey.set(now+minute)(local)
+  } else local
+}
+
+case class RequestedSnapshotMakingTx(
+  srcId: SrcId, taskOpt: Option[SnapshotTask], posts: List[HttpPost]
+)(snapshotMaking: SnapshotMakerImpl) extends TxTransform {
   def transform(local: Context): Context = {
-    if(DeferPeriodicSnapshotUntilKey.of(local) < now){
-      if(snapshotMaking.maxTime + hour < now) snapshotMaking.make(NextSnapshotTask(None))()
-      DeferPeriodicSnapshotUntilKey.set(now+minute)(local)
-    } else if(postOpt.nonEmpty) {
-      val Some(post) = postOpt
-      val responseKey = header(post,"X-r-response-key")
-      val response = responseKey.toList.map{ k ⇒
-        val res = ErrorKey.of(local) match {
-          case errors if errors.nonEmpty ⇒
-            errors.map(e⇒Header("X-r-error-message",e.getMessage))
-          case _ ⇒
-            val modeStr = header(post,"X-r-snapshot-mode").get
-            val offsetOpt = header(post,"X-r-offset")
-            val task = snapshotMaking.task(modeStr,offsetOpt)
-            val res = snapshotMaking.make(task)()
-            List(Header("X-r-snapshot-keys",res.map(_.key).mkString(",")))
-        }
-        HttpPublication(s"/response/$k",res,ByteString.EMPTY,Option(now+hour))
-      }
-      TxAdd(response.flatMap(LEvent.update) ++ LEvent.delete[Product](post))(local)
-    } else local
+    val res = (ErrorKey.of(local), taskOpt) match {
+      case (Seq(), Some(task)) ⇒
+        val res = snapshotMaking.make(task)()
+        List(Header("X-r-snapshot-keys", res.map(_.key).mkString(",")))
+      case (errors, _) if errors.nonEmpty ⇒
+        errors.map(e ⇒ Header("X-r-error-message", e.getMessage))
+    }
+    val updates = for {
+      post ← posts
+      key ← SnapshotMakingUtil.header(post,"X-r-response-key").toList
+      update ← LEvent.update(HttpPublication(s"/response/$key", res, ByteString.EMPTY, Option(now + hour)))
+    } yield update
+    Function.chain(Seq(
+      TxAdd(updates ++ posts.flatMap(LEvent.delete)),
+      ErrorKey.set(Nil)
+    ))(local)
   }
 }
 
@@ -91,11 +128,6 @@ class SnapshotMakerImpl(
   toUpdate: ToUpdate
 ) extends SnapshotMaker with LazyLogging {
   def url = "/need-snapshot"
-
-  def task(name: String, offsetOpt: Option[NextOffset]): SnapshotTask = name match {
-    case "next" ⇒ NextSnapshotTask(offsetOpt)
-    case "debug" ⇒ DebugSnapshotTask(offsetOpt.get)
-  }
 
   private def reduce(events: List[RawEvent]): SnapshotWorld⇒SnapshotWorld = if(events.isEmpty) w⇒w else world⇒{
     val updates = toUpdate.toUpdates(events)

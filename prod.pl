@@ -139,7 +139,7 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
 
 my $remote_acc  = sub{
     my($comp,$stm)=@_;
-    &$remote($comp,"docker exec -uc4 $comp\_frpc_current_1 $stm");
+    &$remote($comp,"docker exec -uc4 $comp\_frpc_1 $stm");
 };
 
 my $list_snapshots = sub{
@@ -193,7 +193,7 @@ my $running_containers = sub{
 
 my $stop = sub{
     my($comp)=@_;
-    my $acc = "$comp\_frpc_current_1";
+    my $acc = "$comp\_frpc_1";
     ## stop all but 1
     for(0){
         my @ps = grep{$_ ne $acc} &$running_containers($comp);
@@ -220,10 +220,10 @@ my $move_db_to_bak = sub{
 my $db4put_start = sub{
     my($mk_path,$sync) = &$rsync_start();
     (sub{
-        &$mk_path("frpc_current/db4ini/$_[0]");
+        &$mk_path("frpc/db4ini/$_[0]");
     },sub{
         my($comp)=@_;
-        so(&$remote($comp,sub{"rm -r $_[0]/frpc_current/db4ini"}));
+        so(&$remote($comp,sub{"rm -r $_[0]/frpc/db4ini"}));
         &$sync($comp);
         sy(&$remote_acc($comp,"rsync -a /c4deploy/db4ini/ /c4/db4"));
     })
@@ -388,6 +388,7 @@ my $bin = "kafka/bin";
 
 my $bootstrap_server = "broker:9092";
 my $zookeeper_server = "zookeeper:2181";
+my $http_server = "gate:8067";
 
 # pass src commit
 # migrate states
@@ -420,27 +421,21 @@ my $app_user = sub{
 
 my $volumes = sub{map{"$_:/$user/$_"}@_};
 
-my $frpc_service = sub{(
-    &$app_user(),
-    C4APP_IMAGE => "zoo",
-    command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
-    volumes => [&$volumes("db4")],
-    C4DEPLOY_LOCAL => 1,
-)};
-
 my $common_services = sub{(
     gate => {
         C4APP_IMAGE => "gate-server",
         C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
         C4MAX_REQUEST_SIZE => "250000000",
         C4STATE_REFRESH_SECONDS => 100,
+        volumes => [&$volumes("db4")],
+        C4DEPLOY_LOCAL => 1,
     },
     purger => {
         &$app_user(),
         C4APP_IMAGE => "zoo",
-        C4STATE_TOPIC_PREFIX => "purger",
         command => ["perl","purger.pl"],
         tty => "true",
+        volumes => [&$volumes("db4")],
     },
     haproxy => {
         C4APP_IMAGE => "haproxy",
@@ -460,16 +455,16 @@ my $common_services = sub{(
         depends_on => ["zookeeper"],
         volumes => [&$volumes("db4")],
     },
-    frpc_current => {&$frpc_service()},
+    frpc => {
+        &$app_user(),
+        C4APP_IMAGE => "zoo",
+        command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
+        volumes => [&$volumes("db4")],
+        C4DEPLOY_LOCAL => 1,
+    },
 )};
 
-my $with_parent_template_yml = sub{+{
-    services => {
-        &$common_services(),
-        frpc_parent => {&$frpc_service()},
-    },
-}};
-my $without_parent_template_yml = sub{+{
+my $template_yml = sub{+{
     services => {
         &$common_services(),
     },
@@ -497,7 +492,7 @@ my $to_ini_file = sub{
 };
 
 my $compose_up = sub{
-    my($mode,$run_comp,$conf,$frpc_conf)=@_;
+    my($mode,$run_comp,$conf,$frpc_conf,$simple_auth)=@_;
     my $build_comp = $$conf{builder} || $run_comp;
     my $is_full = $mode eq 'fast' ? 0 : $mode eq 'full' ? 1 : die "fast|full?";
     my $template = { volumes => { db4 => {} }, version => "3.2" };
@@ -521,6 +516,8 @@ my $compose_up = sub{
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
                 C4MAX_REQUEST_SIZE => "25000000",
                 C4INBOX_TOPIC_PREFIX => "",
+                C4HTTP_SERVER => $http_server,
+                C4AUTH_KEY_FILE => "simple.auth",
                 logging => {
                     driver => "json-file",
                     options => {
@@ -530,7 +527,6 @@ my $compose_up = sub{
                 },
             ):()),
             volumes => [
-                $$service{C4STATE_TOPIC_PREFIX} ? &$volumes("db4") : (),
                 $$service{C4DEPLOY_LOCAL} ? "./$service_name:/c4deploy" : (),
             ],
             ($$service{C4EXPOSE_HTTP_PORT} && $$conf{http_port} ? (
@@ -553,7 +549,13 @@ my $compose_up = sub{
         sy(&$remote($build_comp,"docker save $images_str").' | '.&$remote($run_comp,"docker load"));
     }
     my($put,$sync) = &$docker_compose_start($yml_str);
-    &$put("$$_[0]/frpc.ini",&$to_ini_file($$_[1])) for @$frpc_conf;
+    for my $k(keys %$generated_services){
+        my $service = $$generated_services{$k} || die;
+        my $fn = $$service{C4AUTH_KEY_FILE} || next;
+        $$service{C4DEPLOY_LOCAL} or next;
+        &$put("$k/$fn",$simple_auth);
+    }
+    &$put("frpc/frpc.ini",&$to_ini_file($frpc_conf));
     &$sync($run_comp);
     sy(&$docker_compose_up($run_comp,""));
 };
@@ -604,37 +606,29 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     sy(&$ssh_add());
     my $conf = &$get_compose($run_comp);
     my $main_comp = $$conf{main};
+    my $ext_conf = &$merge(&$template_yml(),$conf);
     if($main_comp){
-        my $ext_conf = &$merge(&$without_local_db_template_yml(),$conf);
         my $frpc_conf = [
-            [frpc_parent => [
-                common => [&$get_frp_common($run_comp), user=>$main_comp],
-
-            ]],
-
-???
-???
-
-            &$frp_visitor($main_comp,"snapshots:7980"),
+            common => [&$get_frp_common($run_comp), user=>$main_comp],
+            &$frp_visitor($main_comp,$http_server),
         ];
-        &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf);
+        &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($main_comp));
     } else {
-        my $ext_conf = &$merge(&$with_local_db_template_yml(),$conf);
         my $frpc_conf = [
             common => [&$get_frp_common($run_comp), user=>$run_comp],
-            &$frp_client($run_comp,$zookeeper_server),
-            &$frp_client($run_comp,$bootstrap_server),
-            snapshots => [
-                type => "stcp",
-                sk => &$get_frp_sk($run_comp),
-                plugin => "static_file",
-                plugin_local_path => "/c4/db4/snapshots",
-                plugin_strip_prefix => "snapshots",
-            ],
+            &$frp_client($run_comp,$http_server),
         ];
-        &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf);
+        &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));
     }
 }];
+
+#snapshots => [
+#                type => "stcp",
+#                sk => &$get_frp_sk($run_comp),
+#                plugin => "static_file",
+#                plugin_local_path => "/c4/db4/snapshots",
+#                plugin_strip_prefix => "snapshots",
+#            ],
 
 #### proxy
 

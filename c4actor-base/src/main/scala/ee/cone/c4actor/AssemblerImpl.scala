@@ -9,6 +9,7 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Seq}
+import scala.util.control.NonFatal
 
 case class OrigKeyFactory(composes: IndexUtil) {
   def rawKey(className: String): AssembledKey =
@@ -66,7 +67,7 @@ class AssemblerInit(
     if(period > 1000) logger.info(s"long join $period ms")
     nAssembled
   } catch {
-    case e: Exception ⇒
+    case NonFatal(e) ⇒
       logger.error("reduce", e) // ??? exception to record
       if(events.size == 1){
         val updates = events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))

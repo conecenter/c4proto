@@ -1,6 +1,9 @@
 
 package ee.cone.c4actor
 
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Files, Paths}
+
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.{Await, Future}
@@ -61,3 +64,6 @@ class EnvConfigImpl extends Config {
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
 
+class FileAuthKey(fileName: String)(
+  val value: String = new String(Files.readAllBytes(Paths.get(fileName)),UTF_8)
+) extends AuthKey

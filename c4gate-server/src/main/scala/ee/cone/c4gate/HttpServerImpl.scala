@@ -30,7 +30,7 @@ trait RHttpHandler {
   def handle(httpExchange: HttpExchange): Boolean
 }
 
-class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
+class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandler {
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "GET") return false
     val path = httpExchange.getRequestURI.getPath
@@ -172,7 +172,7 @@ trait HttpServerApp extends ToStartApp {
   def httpHandlers: List[RHttpHandler]
   private lazy val httpPort = config.get("C4HTTP_PORT").toInt
   lazy val httpServer: Executable =
-    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers), execution)
+    new RHttpServer(httpPort, new ReqHandler(httpHandlers), execution)
 
   override def toStart: List[Executable] = httpServer :: super.toStart
 }
