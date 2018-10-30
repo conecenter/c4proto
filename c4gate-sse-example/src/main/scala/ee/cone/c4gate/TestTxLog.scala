@@ -21,8 +21,9 @@ trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalF
   def tags: Tags
   def untilPolicy: UntilPolicy
   def qAdapterRegistry: QAdapterRegistry
+  def snapshotMerger: SnapshotMerger
 
-  private lazy val testTxLogView = TestTxLogView()(actorName, untilPolicy, tags)
+  private lazy val testTxLogView = TestTxLogView()(actorName, untilPolicy, tags, snapshotMerger)
   private lazy val actorName = getClass.getName
 
   override def assembles: List[Assemble] =
@@ -36,11 +37,12 @@ trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalF
 case class TestTxLogView(locationHash: String = "txlog")(
   actorName: String,
   untilPolicy: UntilPolicy,
-  mTags: Tags
+  mTags: Tags,
+  snapshotMerger: SnapshotMerger
 ) extends ByLocationHashView {
   def view: Context ⇒ ViewRes = untilPolicy.wrap { local ⇒
     import mTags._
-    for{
+    val logs = for{
       updatesListSummary ← ByPK(classOf[UpdatesListSummary]).of(local).get(actorName).toList
       updatesSummary ← updatesListSummary.items
       add = updatesSummary.add
@@ -60,6 +62,10 @@ case class TestTxLogView(locationHash: String = "txlog")(
         ) :: Nil
       ))
     )
+    divButton[Context]("mergeLast")(
+      snapshotMerger.merge(NextSnapshotTask(None))
+    )(List(text("text","merge last")))
+    logs
   }
 }
 
