@@ -13,190 +13,38 @@ import ee.cone.c4actor.QProtocol.{Update, Updates}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
 import okio.ByteString
 
-object QProtocol extends Protocol {
+@protocol object QProtocol extends Protocol {
 
-  @Id(23) case class FailedUpdates(@Id(24) srcId: String, @Id(25) reason: String)
+  /*@Id(0x0010) case class TopicKey(
+      @Id(0x0011) srcId: String,
+      @Id(0x0012) valueTypeId: Long
+  )*/
 
-  case class Update(@Id(17) srcId: String, @Id(18) valueTypeId: Long, @Id(19) value: okio.ByteString)
+  @Id(0x0017) case class FailedUpdates(
+    @Id(0x0018) srcId: String,
+    @Id(0x0019) reason: String
+  )
 
-  @Id(20) case class Updates(@Id(17) srcId: String, @Id(21) updates: List[Update])
+  case class Update(
+    @Id(0x0011) srcId: String,
+    @Id(0x0012) valueTypeId: Long,
+    @Id(0x0013) value: okio.ByteString
+  )
 
-  @Id(22) case class Firstborn(@Id(17) srcId: String)
+  @Id(0x0014) case class Updates(
+    @Id(0x0011) srcId: String, //dummy
+    @Id(0x0015) updates: List[Update]
+  )
 
-  object FailedUpdatesProtoAdapter extends com.squareup.wire.ProtoAdapter[FailedUpdates](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[FailedUpdates]) with ee.cone.c4proto.HasId {
-    def id = 23
+  @Id(0x0016) case class Firstborn(
+    @Id(0x0011) srcId: String //dummy
+    //@Id(0x0017) value: Long
+  )
 
-    def hasId = true
-
-    def className = classOf[FailedUpdates].getName
-
-    def encodedSize(value: FailedUpdates): Int = {
-      val FailedUpdates(prep_srcId, prep_reason) = value
-      var res = 0
-      if (prep_srcId.nonEmpty) res += com.squareup.wire.ProtoAdapter.STRING.encodedSizeWithTag(24, prep_srcId)
-      if (prep_reason.nonEmpty) res += com.squareup.wire.ProtoAdapter.STRING.encodedSizeWithTag(25, prep_reason)
-      res
-    }
-
-    def encode(writer: com.squareup.wire.ProtoWriter, value: FailedUpdates) = {
-      val FailedUpdates(prep_srcId, prep_reason) = value
-      if (prep_srcId.nonEmpty) com.squareup.wire.ProtoAdapter.STRING.encodeWithTag(writer, 24, prep_srcId)
-      if (prep_reason.nonEmpty) com.squareup.wire.ProtoAdapter.STRING.encodeWithTag(writer, 25, prep_reason)
-    }
-
-    def decode(reader: com.squareup.wire.ProtoReader) = {
-      var prep_srcId: String = ""
-      var prep_reason: String = ""
-      val token = reader.beginMessage()
-      var done = false
-      while (!done) reader.nextTag() match {
-        case -1 =>
-          done = true
-        case 24 =>
-          prep_srcId = com.squareup.wire.ProtoAdapter.STRING.decode(reader)
-        case 25 =>
-          prep_reason = com.squareup.wire.ProtoAdapter.STRING.decode(reader)
-        case _ =>
-          reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
-      }
-      reader.endMessage(token)
-      FailedUpdates(prep_srcId, prep_reason)
-    }
-
-    def props = List(ee.cone.c4proto.MetaProp(24, "srcId", "String"), ee.cone.c4proto.MetaProp(25, "reason", "String"))
-  }
-
-  object UpdateProtoAdapter extends com.squareup.wire.ProtoAdapter[Update](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[Update]) with ee.cone.c4proto.HasId {
-    def id = throw new Exception
-
-    def hasId = false
-
-    def className = classOf[Update].getName
-
-    def encodedSize(value: Update): Int = {
-      val Update(prep_srcId, prep_valueTypeId, prep_value) = value
-      var res = 0
-      if (prep_srcId.nonEmpty) res += com.squareup.wire.ProtoAdapter.STRING.encodedSizeWithTag(17, prep_srcId)
-      if (prep_valueTypeId != 0L) res += com.squareup.wire.ProtoAdapter.SINT64.encodedSizeWithTag(18, prep_valueTypeId)
-      if (prep_value.size > 0) res += com.squareup.wire.ProtoAdapter.BYTES.encodedSizeWithTag(19, prep_value)
-      res
-    }
-
-    def encode(writer: com.squareup.wire.ProtoWriter, value: Update) = {
-      val Update(prep_srcId, prep_valueTypeId, prep_value) = value
-      if (prep_srcId.nonEmpty) com.squareup.wire.ProtoAdapter.STRING.encodeWithTag(writer, 17, prep_srcId)
-      if (prep_valueTypeId != 0L) com.squareup.wire.ProtoAdapter.SINT64.encodeWithTag(writer, 18, prep_valueTypeId)
-      if (prep_value.size > 0) com.squareup.wire.ProtoAdapter.BYTES.encodeWithTag(writer, 19, prep_value)
-    }
-
-    def decode(reader: com.squareup.wire.ProtoReader) = {
-      var prep_srcId: String = ""
-      var prep_valueTypeId: Long = 0
-      var prep_value: okio.ByteString = okio.ByteString.EMPTY
-      val token = reader.beginMessage()
-      var done = false
-      while (!done) reader.nextTag() match {
-        case -1 =>
-          done = true
-        case 17 =>
-          prep_srcId = com.squareup.wire.ProtoAdapter.STRING.decode(reader)
-        case 18 =>
-          prep_valueTypeId = com.squareup.wire.ProtoAdapter.SINT64.decode(reader)
-        case 19 =>
-          prep_value = com.squareup.wire.ProtoAdapter.BYTES.decode(reader)
-        case _ =>
-          reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
-      }
-      reader.endMessage(token)
-      Update(prep_srcId, prep_valueTypeId, prep_value)
-    }
-
-    def props = List(ee.cone.c4proto.MetaProp(17, "srcId", "String"), ee.cone.c4proto.MetaProp(18, "valueTypeId", "Long"), ee.cone.c4proto.MetaProp(19, "value", "okio.ByteString"))
-  }
-
-  object UpdatesProtoAdapter extends com.squareup.wire.ProtoAdapter[Updates](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[Updates]) with ee.cone.c4proto.HasId {
-    def id = 20
-
-    def hasId = true
-
-    def className = classOf[Updates].getName
-
-    def encodedSize(value: Updates): Int = {
-      val Updates(prep_srcId, prep_updates) = value
-      var res = 0
-      if (prep_srcId.nonEmpty) res += com.squareup.wire.ProtoAdapter.STRING.encodedSizeWithTag(17, prep_srcId)
-      prep_updates.foreach(item => res += UpdateProtoAdapter.encodedSizeWithTag(21, item))
-      res
-    }
-
-    def encode(writer: com.squareup.wire.ProtoWriter, value: Updates) = {
-      val Updates(prep_srcId, prep_updates) = value
-      if (prep_srcId.nonEmpty) com.squareup.wire.ProtoAdapter.STRING.encodeWithTag(writer, 17, prep_srcId)
-      prep_updates.foreach(item => UpdateProtoAdapter.encodeWithTag(writer, 21, item))
-    }
-
-    def decode(reader: com.squareup.wire.ProtoReader) = {
-      var prep_srcId: String = ""
-      var prep_updates: List[Update] = Nil
-      val token = reader.beginMessage()
-      var done = false
-      while (!done) reader.nextTag() match {
-        case -1 =>
-          done = true
-        case 17 =>
-          prep_srcId = com.squareup.wire.ProtoAdapter.STRING.decode(reader)
-        case 21 =>
-          prep_updates = UpdateProtoAdapter.decode(reader) :: prep_updates
-        case _ =>
-          reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
-      }
-      reader.endMessage(token)
-      prep_updates = prep_updates.reverse
-      Updates(prep_srcId, prep_updates)
-    }
-
-    def props = List(ee.cone.c4proto.MetaProp(17, "srcId", "String"), ee.cone.c4proto.MetaProp(21, "updates", "List[Update]"))
-  }
-
-  object FirstbornProtoAdapter extends com.squareup.wire.ProtoAdapter[Firstborn](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[Firstborn]) with ee.cone.c4proto.HasId {
-    def id = 22
-
-    def hasId = true
-
-    def className = classOf[Firstborn].getName
-
-    def encodedSize(value: Firstborn): Int = {
-      val Firstborn(prep_srcId) = value
-      var res = 0
-      if (prep_srcId.nonEmpty) res += com.squareup.wire.ProtoAdapter.STRING.encodedSizeWithTag(17, prep_srcId)
-      res
-    }
-
-    def encode(writer: com.squareup.wire.ProtoWriter, value: Firstborn) = {
-      val Firstborn(prep_srcId) = value
-      if (prep_srcId.nonEmpty) com.squareup.wire.ProtoAdapter.STRING.encodeWithTag(writer, 17, prep_srcId)
-    }
-
-    def decode(reader: com.squareup.wire.ProtoReader) = {
-      var prep_srcId: String = ""
-      val token = reader.beginMessage()
-      var done = false
-      while (!done) reader.nextTag() match {
-        case -1 =>
-          done = true
-        case 17 =>
-          prep_srcId = com.squareup.wire.ProtoAdapter.STRING.decode(reader)
-        case _ =>
-          reader.peekFieldEncoding.rawProtoAdapter.decode(reader)
-      }
-      reader.endMessage(token)
-      Firstborn(prep_srcId)
-    }
-
-    def props = List(ee.cone.c4proto.MetaProp(17, "srcId", "String"))
-  }
-
-  override def adapters = List(FailedUpdatesProtoAdapter, UpdateProtoAdapter, UpdatesProtoAdapter, FirstbornProtoAdapter)
+  /*@Id(0x0018) case class Leader(
+    @Id(0x0019) actorName: String,
+    @Id(0x001A) incarnationId: String
+  )*/
 }
 
 //case class Task(srcId: SrcId, value: Product, offset: Long)
