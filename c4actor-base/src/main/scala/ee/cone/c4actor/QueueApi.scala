@@ -289,8 +289,13 @@ case class LEvent[+M<:Product](srcId: SrcId, className: String, value: Option[M]
 object LEvent {
   def update[M<:Product](value: M): Seq[LEvent[M]] =
     List(LEvent(ToPrimaryKey(value), value.getClass.getName, Option(value)))
+  def update(seq: Seq[Product]): Seq[LEvent[_]] =
+    seq.flatMap(update)
+
   def delete[M<:Product](value: M): Seq[LEvent[M]] =
     List(LEvent(ToPrimaryKey(value), value.getClass.getName, None))
+  def delete(seq: Seq[Product]): Seq[LEvent[_]] =
+    seq.flatMap(delete)
 }
 
 object WithPK {
