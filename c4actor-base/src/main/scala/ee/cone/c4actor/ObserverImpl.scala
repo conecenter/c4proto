@@ -34,7 +34,11 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
         }
       }
     } catch {
-      case exception: Exception ⇒
+      case NonFatal(error) ⇒
+        val exception = error match {
+          case e: Exception ⇒ e
+          case e ⇒ new Exception(e)
+        }
         logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",exception)
         val was = ErrorKey.of(local)
         Function.chain(List(
