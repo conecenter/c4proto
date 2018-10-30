@@ -499,7 +499,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
 case class RealityTransform[Model <: Product, By <: Product](srcId: SrcId, parentNodeId: String, heapIds: List[String], byStr: String, modelId: Int, defaultLive: Long) extends LEventTransform {
   def lEvents(local: Context): Seq[LEvent[Product]] = {
     val parentOpt: Option[IndexNodeSettings] = ByPK(classOf[IndexNodeSettings]).of(local).get(parentNodeId)
-    val settings: immutable.Seq[LEvent[IndexByNodeSettings]] = if (parentOpt.isDefined) {
+    val settings: immutable.Seq[LEvent[Product]] = if (parentOpt.isDefined) {
       val IndexNodeSettings(_, keepAlive, aliveSeconds) = parentOpt.get
       val liveFor = aliveSeconds.getOrElse(defaultLive)
       LEvent.update(IndexByNodeSettings(srcId, keepAlive, Some(liveFor)))

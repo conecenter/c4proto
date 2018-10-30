@@ -4,6 +4,7 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.squareup.wire.ProtoAdapter
+import ee.cone.c4actor.OrigMetaAttrProtocol.TxTransformNameMeta
 
 import scala.collection.immutable.{Map, Queue, Seq}
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
@@ -160,11 +161,12 @@ trait Observer {
   def activate(world: RichContext): Seq[Observer]
 }
 
-case object TxTransformDescription extends TransientLens[String]("")
+case object TxTransformOrigMeta{
+  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(OrigMetaAttr(TxTransformNameMeta(name)) :: Nil)
+}
+case object TxTransformOrigMetaKey extends TransientLens[List[OrigMetaAttr]](Nil)
 
 trait TxTransform extends Product {
-  def description: String = this.getClass.getName
-
   def transform(local: Context): Context
 }
 

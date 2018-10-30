@@ -7,7 +7,7 @@ case class SyncTxTask[Item<:Product](
   srcId: SrcId,
   from: Option[Item],
   to: Option[Item],
-  events: List[LEvent[Item]]
+  events: List[LEvent[Product]]
 )
 
 object SyncTx {
