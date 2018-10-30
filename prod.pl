@@ -389,6 +389,7 @@ my $bin = "kafka/bin";
 my $bootstrap_server = "broker:9092";
 my $zookeeper_server = "zookeeper:2181";
 my $http_server = "gate:8067";
+my $parent_http_server = "frpc:8067";
 
 # pass src commit
 # migrate states
@@ -517,12 +518,13 @@ my $compose_up = sub{
                 C4MAX_REQUEST_SIZE => "25000000",
                 C4INBOX_TOPIC_PREFIX => "",
                 C4HTTP_SERVER => $http_server,
+                C4PARENT_HTTP_SERVER => $parent_http_server,
                 C4AUTH_KEY_FILE => "simple.auth",
                 logging => {
                     driver => "json-file",
                     options => {
-                        max-size: "1m",
-                        max-file: "10",
+                        "max-size" => "1m",
+                        "max-file" => "10",
                     },
                 },
             ):()),
