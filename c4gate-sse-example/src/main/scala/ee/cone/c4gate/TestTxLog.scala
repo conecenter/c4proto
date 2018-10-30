@@ -7,10 +7,11 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.TxAddMeta
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble, by, fieldAccess}
 import ee.cone.c4gate.AlienProtocol.ToAlienWrite
 import ee.cone.c4gate.HttpProtocol.HttpPublication
-import ee.cone.c4proto.HasId
+import ee.cone.c4gate.TestFilterProtocol.Content
+import ee.cone.c4proto.{HasId, Id}
 import ee.cone.c4ui.{ByLocationHashView, ByLocationHashViewsApp, UntilPolicy}
 import ee.cone.c4vdom.Tags
 import ee.cone.c4vdom.Types.ViewRes
@@ -22,8 +23,12 @@ trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalF
   def untilPolicy: UntilPolicy
   def qAdapterRegistry: QAdapterRegistry
   def snapshotMerger: SnapshotMerger
+  def sessionAttrAccessFactory: SessionAttrAccessFactory
+  def testTags: TestTags[Context]
 
-  private lazy val testTxLogView = TestTxLogView()(actorName, untilPolicy, tags, snapshotMerger)
+  private lazy val testTxLogView = TestTxLogView()(
+    actorName, untilPolicy, tags, snapshotMerger, sessionAttrAccessFactory, testTags
+  )
   private lazy val actorName = getClass.getName
 
   override def assembles: List[Assemble] =
@@ -38,10 +43,13 @@ case class TestTxLogView(locationHash: String = "txlog")(
   actorName: String,
   untilPolicy: UntilPolicy,
   mTags: Tags,
-  snapshotMerger: SnapshotMerger
+  snapshotMerger: SnapshotMerger,
+  sessionAttrAccess: SessionAttrAccessFactory,
+  tags: TestTags[Context]
 ) extends ByLocationHashView {
   def view: Context ⇒ ViewRes = untilPolicy.wrap { local ⇒
     import mTags._
+
     val logs = for{
       updatesListSummary ← ByPK(classOf[UpdatesListSummary]).of(local).get(actorName).toList
       updatesSummary ← updatesListSummary.items
@@ -62,11 +70,27 @@ case class TestTxLogView(locationHash: String = "txlog")(
         ) :: Nil
       ))
     )
-    divButton[Context]("mergeLast")(
-      snapshotMerger.merge(NextSnapshotTask(None))
-    )(List(text("text","merge last")))
-    logs
+
+    val txKeyAccess: Option[Access[String]] = for {
+      contentAccess ← sessionAttrAccess.to(TestTxLogAttrs.txKey)(local)
+    } yield contentAccess.to(TestTxLogLenses.value)
+
+    val input = txKeyAccess.map(tags.input)
+    val merge = txKeyAccess.map(_.initialValue).filter(_.nonEmpty).map(value ⇒
+      divButton[Context]("merge")(snapshotMerger.merge(NextSnapshotTask(Option(value))))(List(text("text",s"merge $value")))
+    )
+    
+    val mergeLast = divButton[Context]("mergeLast")(snapshotMerger.merge(NextSnapshotTask(None)))(List(text("text","merge last")))
+
+    input.toList ::: merge.toList ::: mergeLast :: logs
   }
+}
+
+@fieldAccess object TestTxLogLenses {
+  lazy val value: ProdLens[Content,String] = ProdLens.of(_.value)
+}
+object TestTxLogAttrs {
+  lazy val txKey = SessionAttr(Id(0x000A), classOf[Content], UserLabel en "(tx)")
 }
 
 case class UpdatesSummary(add: TxAddMeta, ref: TxRef)

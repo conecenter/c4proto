@@ -61,7 +61,7 @@ object OffsetHex {
 }
 
 case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String, maxRequestSize: String)(
-  ok: Unit = assert(bootstrapServers.nonEmpty && inboxTopicPrefix.nonEmpty && maxRequestSize.nonEmpty)
+  ok: Unit = assert(bootstrapServers.nonEmpty && maxRequestSize.nonEmpty)
 ){
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
@@ -82,7 +82,7 @@ case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consu
     FinallyClose(new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
     )) { consumer ⇒
-      execution.onShutdown("Consumer",() ⇒ consumer.wakeup())
+      execution.onShutdown("Consumer",() ⇒ consumer.wakeup()) //todo unregister
       val inboxTopicName = InboxTopicName()
       val inboxTopicPartition = List(new TopicPartition(conf.topicNameToString(inboxTopicName), 0))
       logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}]")

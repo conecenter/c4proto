@@ -568,7 +568,7 @@ my $frp_auth_all = require "$ENV{C4DEPLOY_CONF}/frp_auth.pl";
 my $get_frp_sk = sub{($$frp_auth_all{$_[0]}||die)->[1]||die};
 my $get_frp_common = sub{
     my($comp)=@_;
-    my($token,$sk) = ($$frp_auth_all{$comp}||die $comp)->[0]||die "frp auth not found";
+    my($token,$sk) = ($$frp_auth_all{$comp}||die "$comp frp auth not found")->[0]||die "frp auth not found";
     my $conf = &$get_compose($comp);
     my($frps_addr,$frps_port) = &$split_port($$conf{frps}||die);
     my $proxy = $$conf{frp_http_proxy};
@@ -583,11 +583,11 @@ my $get_frp_common = sub{
 my $frp_visitor = sub{
     my($comp,$server)=@_;
     my($name,$port) = &$split_port($server);
-    ("$name\_visitor" => [
+    ("$comp.$name\_visitor" => [
         type => "stcp",
         role => "visitor",
         sk => &$get_frp_sk($comp),
-        server_name => $name,
+        server_name => "$comp.$name",
         bind_port => $port,
         bind_addr => "0.0.0.0",
     ]);
@@ -595,7 +595,7 @@ my $frp_visitor = sub{
 my $frp_client = sub{
     my($comp,$server)=@_;
     my($name,$port) = &$split_port($server);
-    ($name => [
+    ("$comp.$name" => [
         type => "stcp",
         sk => &$get_frp_sk($comp),
         local_ip => $name,
@@ -609,16 +609,24 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     my $conf = &$get_compose($run_comp);
     my $main_comp = $$conf{main};
     my $ext_conf = &$merge(&$template_yml(),$conf);
+    my @frpc_web = ("$run_comp.web" => [
+        type => "http",
+        local_ip => "haproxy",
+        local_port => 80,
+        subdomain => $run_comp,
+    ]);
     if($main_comp){
         my $frpc_conf = [
-            common => [&$get_frp_common($run_comp), user=>$main_comp],
+            common => [&$get_frp_common($run_comp)],
             &$frp_visitor($main_comp,$http_server),
+            @frpc_web,
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($main_comp));
     } else {
         my $frpc_conf = [
-            common => [&$get_frp_common($run_comp), user=>$run_comp],
+            common => [&$get_frp_common($run_comp)],
             &$frp_client($run_comp,$http_server),
+            @frpc_web,
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));
     }
@@ -775,6 +783,8 @@ push @tasks, ["proxy_to","up|test",sub{
         dashboard_port => "7500",
         dashboard_user => "cone",
         dashboard_pwd => ($common{token}||die),
+        vhost_http_port => "7080",
+        subdomain_host => ($$conf{subdomain_host}||die)
     ]]));
     if($mode eq "up"){
         sy(&$ssh_add());

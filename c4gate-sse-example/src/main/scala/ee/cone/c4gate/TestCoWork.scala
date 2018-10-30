@@ -29,6 +29,7 @@ class TestCoWorkApp extends ServerApp
   with MortalFactoryApp
   with DefaultModelFactoriesApp
   with ByLocationHashViewsApp
+  with MergingSnapshotApp
   with TestCoWorkerViewApp
   with TestCoLeaderViewApp
   with TestTxLogApp

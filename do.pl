@@ -15,6 +15,7 @@ my $kafka_version = "0.10.2.1";
 my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "127.0.0.1:$kafka_port";
+my $http_server = "127.0.0.1:$http_port";
 
 sub syn{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -153,7 +154,7 @@ push @tasks, ["stage", sub{
     &$client(1);
 }];
 
-my $env = "C4BOOTSTRAP_SERVERS=$bootstrap_server C4INBOX_TOPIC_PREFIX='$inbox_prefix' C4MAX_REQUEST_SIZE=25000000 C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
+my $env = "C4BOOTSTRAP_SERVERS=$bootstrap_server C4INBOX_TOPIC_PREFIX='$inbox_prefix' C4MAX_REQUEST_SIZE=25000000 C4HTTP_SERVER=$http_server C4AUTH_KEY_FILE=db4/simple.auth C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
 sub staged{
     $ENV{C4NOSTAGE}?
         "C4STATE_TOPIC_PREFIX=$_[1] sbt '$_[0]/run $_[1]'":

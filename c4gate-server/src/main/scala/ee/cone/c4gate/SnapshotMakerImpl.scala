@@ -168,7 +168,11 @@ class SnapshotMakerImpl(
     logger.info("OK")
     res
   }
-
+  private def progress(skipReportUntil: Long, offset: NextOffset, endOffset: NextOffset): Long =
+    if(now<skipReportUntil) skipReportUntil else {
+      logger.info(s"$offset/$endOffset")
+      now + 2000
+    }
   def make(task: SnapshotTask): ()⇒List[RawSnapshot] = ()⇒concurrent.blocking {
     val offsetOpt = task.offsetOpt
     val offsetFilter: NextOffset⇒NextOffset⇒Boolean = task match {
@@ -177,25 +181,25 @@ class SnapshotMakerImpl(
     }
     val initialRawWorld = load(offsetOpt.map(offsetFilter))
     consuming.process(initialRawWorld.offset, consumer ⇒ {
-      @tailrec def iteration(world: SnapshotWorld, endOffset: NextOffset): List[RawSnapshot] = {
+      @tailrec def iteration(world: SnapshotWorld, endOffset: NextOffset, skipReportUntil: Long): List[RawSnapshot] = {
         val events = consumer.poll()
         val (lEvents, gEvents) = events.span(ev ⇒ offsetFilter(endOffset)(ev.srcId))
         val nWorld = reduce(lEvents)(world)
-        if(gEvents.isEmpty) iteration(nWorld, endOffset) else {
-          val endEvent = task match {
-            case t: NextSnapshotTask ⇒ lEvents.last
-            case t: DebugSnapshotTask ⇒ gEvents.head
-          }
-          assert(endOffset == endEvent.srcId)
-          task match {
-            case t: NextSnapshotTask ⇒
-              List(save(nWorld))
-            case t: DebugSnapshotTask ⇒
-              List(save(nWorld), txSnapshotSaver.save(endEvent.srcId, endEvent.data.toByteArray))
-          }
+        val nSkip = progress(skipReportUntil,nWorld.offset,endOffset)
+        task match {
+          case t: NextSnapshotTask ⇒
+            if(nWorld.offset == endOffset) List(save(nWorld)) else {
+              assert(gEvents.isEmpty)
+              iteration(nWorld, endOffset, nSkip)
+            }
+          case t: DebugSnapshotTask ⇒
+            if(gEvents.nonEmpty){
+              assert(endOffset == gEvents.head.srcId)
+              List(save(nWorld), txSnapshotSaver.save(endOffset, gEvents.head.data.toByteArray))
+            } else iteration(nWorld, endOffset, nSkip)
         }
       }
-      iteration(initialRawWorld, offsetOpt.getOrElse(consumer.endOffset))
+      iteration(initialRawWorld, offsetOpt.getOrElse(consumer.endOffset),0L)
     })
   }
 
@@ -205,7 +209,7 @@ class SnapshotMakerImpl(
 
 class SafeToRun(snapshotMaker: SnapshotMakerImpl) extends Executable {
   def run(): Unit = concurrent.blocking{
-    Thread.sleep(5*minute)
+    Thread.sleep(10*minute)
     while(true){
       assert(now < snapshotMaker.maxTime + 3*hour)
       Thread.sleep(hour)
