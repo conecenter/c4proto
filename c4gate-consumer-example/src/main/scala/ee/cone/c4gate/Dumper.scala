@@ -21,8 +21,7 @@ class Dumper(
   execution: Execution
 ) extends Executable {
   def run(): Unit = {
-    val rawWorld: RawWorld = rawSnapshot.loadRecent()
-    val context = rawWorld match { case w: RichRawWorld ⇒ w.context }
+    val context = rawSnapshot.loadRecent() match { case world: RichContext ⇒ world }
     ByPK(classOf[HttpPost]).of(context).values.toList.sortBy(_.srcId).foreach(println)
     ByPK(classOf[FromAlienState]).of(context).values.toList.sortBy(_.sessionKey).foreach(println)
     execution.complete()

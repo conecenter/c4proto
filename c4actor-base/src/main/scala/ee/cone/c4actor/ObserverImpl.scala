@@ -7,6 +7,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.{Map, Seq}
+import scala.util.control.NonFatal
 import scala.util.{Success, Try}
 
 class TxTransforms(qMessages: QMessages) extends LazyLogging {
