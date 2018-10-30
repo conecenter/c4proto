@@ -7,7 +7,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.CurrentTimeNode
-import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.CurrentTimeRequest
+import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.{CurrentTimeMetaAttr, CurrentTimeRequest}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -23,19 +23,18 @@ trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentT
 }
 
 case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends TxTransform {
-  def transform(local: Context): Context = {
+  def transform(l: Context): Context = {
+    val newLocal = InsertOrigMeta(CurrentTimeMetaAttr(srcId, refreshRateSeconds) :: Nil)(l)
     val now = Instant.now
     val nowTimeSecondsTruncated = now.getEpochSecond / refreshRateSeconds * refreshRateSeconds
     val currentTimeNode = CurrentTimeNode(srcId, nowTimeSecondsTruncated)
-    val prev = ByPK(classOf[CurrentTimeNode]).of(local).get(srcId)
+    val prev = ByPK(classOf[CurrentTimeNode]).of(newLocal).get(srcId)
     if (prev.isEmpty || prev.get != currentTimeNode) {
-      TxAdd(LEvent.update(currentTimeNode))(local)
+      TxAdd(LEvent.update(currentTimeNode))(newLocal)
     } else {
-      local
+      newLocal
     }
   }
-
-  override lazy val description: String = s"CurrentTimeTransform: $srcId, $refreshRateSeconds"
 }
 
 @protocol object CurrentTimeProtocol extends Protocol {
@@ -119,6 +118,11 @@ object CurrentTimeRequestAssembleTimeId {
 
   @Id(0x0f83) case class CurrentTimeRequest(
     @Id(0x0f86) everyPeriod: Long
+  )
+
+  @Id(0x0f87) case class CurrentTimeMetaAttr(
+    @Id(0x0f88) srcId: String,
+    @Id(0x0f89) everyPeriod: Long
   )
 
 }

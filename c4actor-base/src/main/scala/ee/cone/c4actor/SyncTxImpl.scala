@@ -32,7 +32,7 @@ class SyncTxFactoryImpl extends SyncTxFactory {
       case (has,need) if has == need ⇒ Nil
       case (has,need) ⇒
         val executorId = Single((has ::: need).map(group).distinct)
-        val events = has.flatMap(LEvent.delete) ::: need.flatMap(LEvent.update)
+        val events = (has.flatMap(LEvent.delete) ::: need.flatMap(LEvent.update)).asInstanceOf[List[LEvent[Item]]]
         val task = SyncTxTask(key, Single.option(has), Single.option(need), events)
         List(executorId -> task)
     }

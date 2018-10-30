@@ -4,6 +4,7 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.squareup.wire.ProtoAdapter
+import ee.cone.c4actor.OrigMetaAttrProtocol.TxTransformNameMeta
 
 import scala.collection.immutable.{Map, Queue, Seq}
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
@@ -135,10 +136,16 @@ abstract class TransientLens[Item](default: Item) extends AbstractLens[Context,I
 
 case class LEvent[+M<:Product](srcId: SrcId, className: String, value: Option[M])
 object LEvent {
-  def update[M<:Product](value: M): Seq[LEvent[M]] =
-    List(LEvent(ToPrimaryKey(value), value.getClass.getName, Option(value)))
-  def delete[M<:Product](value: M): Seq[LEvent[M]] =
-    List(LEvent(ToPrimaryKey(value), value.getClass.getName, None))
+  def update(model: Product): Seq[LEvent[Product]] =
+    model match {
+      case list: List[_] ⇒ list.flatMap{case element: Product ⇒ update(element)}
+      case value ⇒ List(LEvent(ToPrimaryKey(value), value.getClass.getName, Option(value)))
+    }
+  def delete(model: Product): Seq[LEvent[Product]] =
+    model match {
+      case list: List[_] ⇒ list.flatMap{case element: Product ⇒ delete(element)}
+      case value ⇒ List(LEvent(ToPrimaryKey(value), value.getClass.getName, None))
+    }
 }
 
 object WithPK {
@@ -154,11 +161,12 @@ trait Observer {
   def activate(world: RichContext): Seq[Observer]
 }
 
-case object TxTransformDescription extends TransientLens[String]("")
+case object TxTransformOrigMeta{
+  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(OrigMetaAttr(TxTransformNameMeta(name)) :: Nil)
+}
+case object TxTransformOrigMetaKey extends TransientLens[List[OrigMetaAttr]](Nil)
 
 trait TxTransform extends Product {
-  def description: String = this.getClass.getName
-
   def transform(local: Context): Context
 }
 

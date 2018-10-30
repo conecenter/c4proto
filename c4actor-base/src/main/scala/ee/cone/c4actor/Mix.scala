@@ -93,7 +93,7 @@ trait RichDataApp extends ProtocolsApp
   def parallelAssembleOn: Boolean = false
   //
   override def assembles: List[Assemble] = new ClearUpdatesAssemble :: super.assembles
-  override def protocols: List[Protocol] = QProtocol :: super.protocols
+  override def protocols: List[Protocol] = QProtocol :: OrigMetaAttrProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
     ProtocolDataDependencies(protocols.distinct,origKeyFactory)() ::: super.dataDependencies

@@ -1,6 +1,6 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
-import ee.cone.c4actor.ProtocolsApp
+import ee.cone.c4actor.{CollectiveTransformProtocol, ProtocolsApp}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object IndexNodeProtocol extends Protocol{
@@ -58,5 +58,5 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 }
 
 trait WithIndexNodeProtocol extends ProtocolsApp {
-  override def protocols: List[Protocol] = IndexNodeProtocol :: super.protocols
+  override def protocols: List[Protocol] = CollectiveTransformProtocol :: IndexNodeProtocol :: super.protocols
 }
