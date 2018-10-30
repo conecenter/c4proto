@@ -435,6 +435,13 @@ my $compose_up = sub{
                 $$conf{main} ? () : (depends_on => ["broker"]),
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
                 C4INBOX_TOPIC_PREFIX => $inbox_prefix,
+                logging => {
+                    driver => "json-file",
+                    options => {
+                        "max-size" => "20m",
+                        "max-file" => "20",
+                    },
+                },
             ):()),
             volumes => [
                 $$service{C4STATE_TOPIC_PREFIX} ? &$volumes("db4") : (),
