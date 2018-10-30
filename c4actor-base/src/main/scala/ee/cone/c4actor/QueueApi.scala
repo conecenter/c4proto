@@ -136,14 +136,14 @@ abstract class TransientLens[Item](default: Item) extends AbstractLens[Context,I
 
 case class LEvent[+M<:Product](srcId: SrcId, className: String, value: Option[M])
 object LEvent {
-  def update(b: Product): Seq[LEvent[Product]] =
-    b match {
-      case a: List[Product] ⇒ a.flatMap(update)
+  def update(model: Product): Seq[LEvent[Product]] =
+    model match {
+      case list: List[_] ⇒ list.flatMap{case element: Product ⇒ update(element)}
       case value ⇒ List(LEvent(ToPrimaryKey(value), value.getClass.getName, Option(value)))
     }
-  def delete(b: Product): Seq[LEvent[Product]] =
-    b match {
-      case a: List[Product] ⇒ a.flatMap(delete)
+  def delete(model: Product): Seq[LEvent[Product]] =
+    model match {
+      case list: List[_] ⇒ list.flatMap{case element: Product ⇒ delete(element)}
       case value ⇒ List(LEvent(ToPrimaryKey(value), value.getClass.getName, None))
     }
 }

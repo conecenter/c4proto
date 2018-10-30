@@ -19,7 +19,7 @@ object KVType {
     case Type.Name(n) ⇒ Option(SimpleKVType(n,n))
     case Type.Apply(Type.Name(n),Seq(Type.Name(of))) ⇒ Option(GenericKVType(n,of,s"$t"))
     case Type.Apply(Type.Name(n), Seq(Type.Name(of1), Type.Name(of2))) ⇒ Option(DoubleGenericKVType(n, of1, of2, s"$t"))
-    case Type.Apply(Type.Name(n), types:Seq[Type.Name]) ⇒ Option(NGenericKVType(n, types.map(_.value), s"$t"))
+    case Type.Apply(Type.Name(n), types:Seq[_]) ⇒ Option(NGenericKVType(n, types.map{case element:Type.Name ⇒ element.value}, s"$t"))
   }
 }
 
