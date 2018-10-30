@@ -1,10 +1,11 @@
 package ee.cone.c4actor.dep
 
+import ee.cone.c4actor.PreHashed
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4assemble.Types.Values
 
-import scala.collection.immutable.{Seq,Map}
+import scala.collection.immutable.{Map, Seq}
 
 /******************************************************************************/
 // general api for code that uses and returns Dep-s
@@ -88,6 +89,7 @@ trait DepResponse extends Product {
 }
 trait DepResponseFactory extends Product {
   def wrap(req: DepInnerRequest, value: Option[_]): DepResponse
+  def wrapRaw(req: DepInnerRequest, valueRaw: PreHashed[Option[_]]): DepResponse
 }
 
 /******************************************************************************/

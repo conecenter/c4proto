@@ -154,7 +154,11 @@ trait Observer {
   def activate(world: RichContext): Seq[Observer]
 }
 
+case object TxTransformDescription extends TransientLens[String]("")
+
 trait TxTransform extends Product {
+  def description: String = this.getClass.getName
+
   def transform(local: Context): Context
 }
 

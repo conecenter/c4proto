@@ -1,11 +1,12 @@
 package ee.cone.c4actor;
 
-public class MurmurHash3 implements MurmurConstants, Java128HashInterface {
+import java.util.Base64;
 
-    private static final long X64_128_C1 = 0x87c37b91114253d5L;
+import static ee.cone.c4actor.MurmurConstants.UNSIGNED_MASK;
+import static ee.cone.c4actor.MurmurConstants.X64_128_C1;
+import static ee.cone.c4actor.MurmurConstants.X64_128_C2;
 
-    private static final long X64_128_C2 = 0x4cf5ad432745937fL;
-
+public class MurmurHash3 implements Java128HashInterface {
     private long murmur1 = 0;
     private long murmur2 = 0;
 
@@ -153,26 +154,28 @@ public class MurmurHash3 implements MurmurConstants, Java128HashInterface {
         long k1 = 0;
         long k2 = 0;
 
+        final int tail = nblocks * 8;
+
         switch (len & 7) {
             case 7:
-                k2 ^= (long) a.charAt(6) << 32;
+                k2 ^= (long) a.charAt(tail + 6) << 32;
             case 6:
-                k2 ^= (long) a.charAt(5) << 16;
+                k2 ^= (long) a.charAt(tail + 5) << 16;
             case 5:
-                k2 ^= (long) a.charAt(4);
+                k2 ^= (long) a.charAt(tail + 4);
                 k2 *= X64_128_C1;
                 k2 = k2 << 33 | k2 >>> (64 - 33);
                 k2 *= X64_128_C1;
                 h2 ^= k2;
 
             case 4:
-                k1 ^= (long) a.charAt(3) << 48;
+                k1 ^= (long) a.charAt(tail + 3) << 48;
             case 3:
-                k1 ^= (long) a.charAt(2) << 32;
+                k1 ^= (long) a.charAt(tail + 2) << 32;
             case 2:
-                k1 ^= (long) a.charAt(1) << 16;
+                k1 ^= (long) a.charAt(tail + 1) << 16;
             case 1:
-                k1 ^= (long) a.charAt(0);
+                k1 ^= (long) a.charAt(tail);
                 k1 *= X64_128_C1;
                 k1 = k1 << 31 | k1 >>> (64 - 31);
                 k1 *= X64_128_C2;
@@ -361,9 +364,23 @@ public class MurmurHash3 implements MurmurConstants, Java128HashInterface {
         murmur2 = 0;
     }
 
+    private byte[] doubleLongToBytes(long a, long b) {
+        byte[] result = new byte[16];
+        for (int i = 7; i >= 0; i--) {
+            result[i] = (byte) (a & 0xFF);
+            a >>= 8;
+        }
+        for (int i = 15; i >= 8; i--) {
+            result[i] = (byte) (b & 0xFF);
+            b >>= 8;
+        }
+        return result;
+    }
+
     @Override
     public String getStringHash() {
-        return Long.toHexString(murmur1) + Long.toHexString(murmur2);
+        return Base64.getEncoder().encodeToString(doubleLongToBytes(murmur1, murmur2));
+        //return Long.toHexString(murmur1) + Long.toHexString(murmur2);
     }
 
     private long mixK1(long k1) {

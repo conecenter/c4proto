@@ -6,9 +6,13 @@ import scala.collection.immutable.Seq
 
 trait LEventTransform extends Product{
   def lEvents(local: Context): Seq[LEvent[Product]]
+
+  def transformMeta: String = this.getClass.getName
 }
 
 case class CollectiveTransform(srcId: String, events: Values[LEventTransform]) extends TxTransform {
   def transform(local: Context): Context =
     TxAdd(events.flatMap(_.lEvents(local)))(local)
+
+  override lazy val description: String = s"CollectiveTransform for ${events.size}: ${events.map(_.transformMeta).mkString(", ")}"
 }

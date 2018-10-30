@@ -20,11 +20,9 @@ trait HashSearchDynamicIndexApp
     with DefaultModelRegistryApp {
   override def assembles: List[Assemble] = {
     val models: List[ProductWithId[_ <: Product]] = dynIndexModels.distinct
-
-
     val rangerWiseAssemble: List[HashSearchDynamicIndexNew[_ <: Product, Product, Any]] = models.flatMap(model ⇒ getAssembles(model))
-    val avalibeModels = rangerWiseAssemble.map(_.modelId)
-    val modelOnlyAssembles: List[Assemble] = models.map { model ⇒ new HashSearchDynamicIndexCommon(model.modelCl, model.modelCl, model.modelId, idGenUtil) }.filter(id ⇒ avalibeModels.contains(id.modelId))
+    val availableModels = rangerWiseAssemble.map(_.modelId)
+    val modelOnlyAssembles: List[Assemble] = models.map { model ⇒ new HashSearchDynamicIndexCommon(model.modelCl, model.modelCl, model.modelId, idGenUtil) }.filter(id ⇒ availableModels.contains(id.modelId))
     rangerWiseAssemble ::: modelOnlyAssembles ::: super.assembles
   }
 
@@ -57,7 +55,7 @@ trait HashSearchDynamicIndexApp
   }
 }
 
-sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Field] {
+sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Field] extends HashSearchIdGeneration {
 
   val murMurHash: MurmurHash3 = new MurmurHash3()
 
@@ -79,6 +77,8 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
 
   lazy val byClass: Class[By] = ranger.byCl
 
+  def byAdapterId: Long
+
   lazy val byClassName: String = byClass.getName
 
   def fieldClass: Class[Field]
@@ -89,23 +89,19 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
 
   def createIndexDirective(
     node: IndexNodeRich[Model],
-    indexNodeDirectives: Values[RangerDirective[Model, By, Field]],
     build: Boolean
   ): Values[(All, IndexDirective[Model, By, Field])] =
-    lensRegistry.getOpt[Model, Field](node.indexNode.lensName) match {
+    lensRegistry.getByCommonPrefix[Model, Field](node.indexNode.commonPrefix) match {
       case Some(lens) ⇒
-        val directiveOpt = indexNodeDirectives.collectFirst {
-          case a if a.lensName == node.indexNode.lensName ⇒ a.directive
-        }
-        val ranges = ranger.ranges(directiveOpt.getOrElse(defaultBy))
+        /*println(lens.metaList, byClassName, node.indexNode)*/
+        val dir = if (node.directive.isDefined) node.directive.get.asInstanceOf[By] else defaultBy
+        val ranges = ranger.ranges(dir)
         WithAll(
           IndexDirective[Model, By, Field](
             node.srcId,
-            node.indexNode.byAdapterId,
-            node.indexNode.lensName,
-            directiveOpt,
-            needBuild = build
-          )(lens, ranges._1)
+            node.indexNode.commonPrefix,
+            build
+          )(lens.of, ranges._1)
         ) :: Nil
       case None ⇒ Nil
     }
@@ -114,8 +110,8 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
     model: Model, node: IndexDirective[Model, By, Field]
   ): Values[(String, IndexModel[Model, By, Field])] = {
     val modelSrcIdId = ToPrimaryKey(model)
-    val srcId = generateId(modelSrcIdId :: byClassName :: node.lensName)
-    (srcId → IndexModel[Model, By, Field](srcId, modelSrcIdId, node.lens.of(model), node.lensName)) :: Nil
+    val srcId = indexModelId(node.commonPrefix, modelSrcIdId)
+    (srcId → IndexModel[Model, By, Field](srcId, modelSrcIdId, node.of(model))) :: Nil
   }
 
   def indexModelToHeaps(
@@ -124,7 +120,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
   ): Values[(String, IndexModel[Model, By, Field])] =
     if (node.needBuild) {
       val ranges = node.modelToHeaps(model.field)
-      heapToSrcIds(node.lensName, ranges).map(srcId ⇒ srcId → model)
+      ranges.map(heapId(node.commonPrefix, _)).map(srcId ⇒ srcId → model)
     }
     else Nil
 
@@ -132,36 +128,9 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
     model: IndexModel[Model, By, Field],
     node: IndexByDirective[Model, By, Field]
   ): Values[(String, IndexModel[Model, By, Field])] = {
-    val ranges: List[By] = node.modelToHeaps(model.field)
-    heapToSrcIds(node.lensName, ranges.filter(node.bySet.contains)).map(srcId ⇒ srcId → model)
+    val ranges = node.modelToHeaps(model.field)
+    ranges.map(heapId(node.commonPrefix, _)).filter(node.heapIdsSet).map(srcId ⇒ srcId → model)
   }
-
-  def heapToSrcIds(
-    lensName: List[String],
-    ranges: List[By]
-  ): List[SrcId] = {
-    ranges.map(heap ⇒ {
-      generateId(modelClassName :: heap :: lensName)
-    }
-    )
-  }
-
-  def generateId(
-    in: List[Any]
-  ): String = {
-    val instance = new MurmurHash3()
-    preHashing.calculateModelHash(in, instance)
-    instance.getStringHash
-  }
-
-  def leafToHeapIds(
-    lensName: List[String], prodCondition: ProdCondition[By, Model], directive: Option[By]
-  ): List[SrcId] = {
-    val (_, rqHandler) = ranger.ranges(directive.getOrElse(defaultBy))
-    val heaps = rqHandler(prodCondition.by).distinct
-    heapToSrcIds(lensName, heaps)
-  }
-
 
   type InnerIndexModel[ModelType, ByType, FieldType] = SrcId
 
@@ -179,40 +148,32 @@ trait DynamicIndexSharedTypes {
 }
 
 case class IndexModel[Model <: Product, By <: Product, Field](
-  srcId: SrcId,
+  indexModelId: SrcId,
   modelSrcId: SrcId,
-  field: Field,
-  lensName: List[String]
-)
-
-case class RangerDirective[Model <: Product, By <: Product, Field](
-  srcId: SrcId,
-  lensName: List[String],
-  directive: By
-)
+  field: Field
+) {
+  override def toString: SrcId = s"IndexModel(imId=$indexModelId, mId=$modelSrcId, f=$field)"
+}
 
 case class IndexDirective[Model <: Product, By <: Product, Field](
-  srcId: SrcId,
-  byAdapterId: Long,
-  lensName: List[String],
-  directive: Option[By],
+  indexNodeId: SrcId,
+  commonPrefix: String,
   needBuild: Boolean
 )(
-  val lens: ProdLens[Model, Field],
+  val of: Model ⇒ Field,
   val modelToHeaps: Field ⇒ List[By]
 )
 
 case class IndexByDirective[Model <: Product, By <: Product, Field](
-  srcId: SrcId,
-  byAdapterId: Long,
-  lensName: List[String],
-  nodes: List[By],
-  directive: By
+  leafId: SrcId,
+  commonPrefix: String
 )(
-  val modelToHeaps: Field ⇒ List[By]
-) {
-  lazy val bySet: Set[By] = nodes.toSet
-}
+  val modelToHeaps: Field ⇒ List[By], val heapIdsSet: Set[String]
+)
+
+/*{
+ lazy val bySet: Set[By] = nodes.toSet
+}*/
 
 case class ModelNeed[Model <: Product, By <: Product, Field](
   modelSrcId: SrcId,
@@ -241,51 +202,36 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   with HashSearchAssembleSharedKeys
   with HashSearchDynamicIndexNewUtils[Model, By, Field] {
 
-
-  // Mock DynamicIndexDirectiveAll if none defined
-  def DynamicIndexDirectiveMock(
-    directiveId: SrcId,
-    firstborn: Each[Firstborn]
-  ): Values[(DynamicIndexDirectiveAll, RangerDirective[Model, By, Field])] =
-    Nil
-
   // Create IndexDirectives for static and indexModel build for dynamic
   def IndexNodeRichToIndexNode(
     indexNodeId: SrcId,
-    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model, By, Field]],
     node: Each[IndexNodeRich[Model]]
   ): Values[(IndexNodeDirectiveAll, IndexDirective[Model, By, Field])] =
     if (byAdapterId == node.indexNode.byAdapterId)
-      if (node.keepAllAlive)
-        createIndexDirective(node, indexNodeDirectives, build = true)
+      if (node.isStatic)
+        createIndexDirective(node, build = true)
       else if (node.indexByNodes.nonEmpty)
-        createIndexDirective(node, indexNodeDirectives, build = false)
+        createIndexDirective(node, build = false)
       else Nil
     else Nil
 
   // Create index directive for dynamics
   def IndexNodeRichToIndexByNode(
     indexNodeId: SrcId,
-    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model, By, Field]],
     node: Each[IndexNodeRich[Model]]
   ): Values[(IndexNodeDirectiveAll, IndexByDirective[Model, By, Field])] =
-    if (byAdapterId == node.indexNode.byAdapterId && !node.keepAllAlive) {
-      val directiveOpt = indexNodeDirectives.collectFirst { case a if a.lensName == node.indexNode.lensName ⇒ a.directive }
+    if (byAdapterId == node.indexNode.byAdapterId && !node.isStatic) {
+      val directive = if (node.directive.isDefined) node.directive.get.asInstanceOf[By] else defaultBy
+      val toHeaps = ranger.ranges(directive)._1
       for {
         nodeBy ← node.indexByNodes
         if nodeBy.isAlive
       } yield {
-        val directive = directiveOpt.getOrElse(defaultBy)
-        val funTuple = ranger.ranges(directive)
-        val bys = funTuple._2(nodeBy.indexByNode.byInstance.map(AnyAdapter.decode[By](qAdapterRegistry)).get)
         WithAll(
           IndexByDirective[Model, By, Field](
             nodeBy.srcId,
-            node.indexNode.byAdapterId,
-            node.indexNode.lensName,
-            bys,
-            directive
-          )(funTuple._1)
+            node.indexNode.commonPrefix
+          )(toHeaps, nodeBy.heapIdsSet)
         )
       }
     }
@@ -319,17 +265,17 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   // Handle Requests
   def RequestToDynNeedToHeap(
     leafCondId: SrcId,
-    leaf: Each[InnerLeaf[Model]],
-    @by[DynamicIndexDirectiveAll] indexNodeDirectives: Values[RangerDirective[Model, By, Field]]
+    leaf: Each[ProcessedLeaf[Model]]
   ): Values[(InnerDynamicHeapId[Model, By, Field], DynamicNeed[Model])] =
-    leaf.condition match {
-      case prodCond: ProdCondition[By, Model] if prodCond.by.getClass.getName == byClassName ⇒
-        val lensName = prodCond.metaList.collect { case a: NameMetaAttr ⇒ a.value }
-        for {
-          heapId ← leafToHeapIds(lensName, prodCond, indexNodeDirectives.collectFirst { case a if a.lensName == lensName ⇒ a.directive }).distinct
-        } yield heapId → DynamicNeed[Model](leaf.srcId)
-      case _ ⇒ Nil
+    if (leaf.preProcessed.byId == byAdapterId)
+      for {
+        heapId ← leaf.heapIds
+        leafId ← leaf.originalLeafIds
+      } yield heapId → DynamicNeed[Model](leafId)
+    else {
+      Nil
     }
+
 
   def DynNeedToDynCountToRequest(
     heapId: SrcId,
@@ -427,12 +373,13 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
     leafCondId: SrcId,
     leaf: Each[InnerLeaf[Model]],
     @by[LeafConditionId] counts: Values[DynamicCount[Model]]
-  ): Values[(SrcId, InnerConditionEstimate[Model])] =
+  ): Values[(SrcId, InnerConditionEstimate[Model])] = {
     for {
       condEstimate ← cDynEstimate(leaf, counts)
     } yield {
       WithPK(condEstimate)
     }
+  }
 
   def DynHandleRequest(
     heapId: SrcId,

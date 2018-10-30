@@ -41,13 +41,13 @@ case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry) 
             val bytesHash = u.srcIdFromSerialized(0,ToByteString(valueAdapter.encode(rq)))
             val byHash = byClassName :: bytesHash :: Nil
             val names = c.metaList.collect { case NameMetaAttr(name) ⇒ name }
-            u.srcIdFromStrings(modelCl.getName :: byHash ::: names:_*)
+            Murmur3Hash(modelCl.getName :: byHash ::: names)
           case None ⇒
             PrintColored("r")(s"[Warning] NonSerializable condition by: ${rq.getClass}")
-            u.srcIdFromStrings(c.toString)
+            Murmur3Hash(c.toString)
         }
       case c: Condition[_] ⇒
-        u.srcIdFromStrings(c.getClass.getName :: c.productIterator.map(get).toList:_*)
+        Murmur3Hash(c.getClass.getName :: c.productIterator.map(get).toList)
     }
 
     get(condition)
