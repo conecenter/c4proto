@@ -138,6 +138,11 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		onBurgerBlur(e){
 			if(this.state.show) this.openBurger(e)
 		}
+		onClick(e){
+			if(!this.state.show) return
+			const k = e.nativeEvent.path.find(_=>(typeof _.className == "string") && (_.className.includes("msOpt")||_.className.includes("msBOpt")))
+			this.onBurgerBlur(e)
+		}
 		render(){
 			const {className,style,children} = this.props
 			const buttons = children.filter(_=>_.props.at.className.includes("cButton") && !_.props.at.className.includes("rightMost"))
@@ -145,7 +150,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 			const msOpts = children.filter(_=>_.props.at.className.includes("msOpt"))
 			const msBOpts = children.filter(_=>_.props.at.className.includes("msBOpt"))
 			const popupPostSt = className.includes("w1")?{left:"0px"}:{right:"0px"}
-			const burger = this.state.shouldBurger?$("div",{onBlur:this.onBurgerBlur,tabIndex:"0",key:"burger",className:"burger",style:{position:"relative",outline:"none",padding:"0.3em"}},[
+			const burger = this.state.shouldBurger?$("div",{onBlur:this.onBurgerBlur,onClick:this.onClick,tabIndex:"0",key:"burger",className:"burger",style:{position:"relative",outline:"none",padding:"0.3em"}},[
 				$(MenuBurger,{key:"burgerButton",style:{color:"black"},className:"cButton",isBurgerOpen:this.state.show,onClick:this.openBurger}),
 				$("div",{key:"burgerWrapper",style:{border:"1px solid #2196f3",position:"absolute",zIndex:"600",backgroundColor:"white",...popupPostSt,display:!this.state.show?"none":""}},msBOpts)				
 			]):null

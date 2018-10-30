@@ -523,8 +523,8 @@ my $compose_up = sub{
                 logging => {
                     driver => "json-file",
                     options => {
-                        "max-size" => "1m",
-                        "max-file" => "10",
+                        "max-size" => "20m",
+                        "max-file" => "20",
                     },
                 },
             ):()),

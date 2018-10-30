@@ -74,7 +74,7 @@ case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform
       List(HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
     }
     logger.info(s"$resp")
-    TxAdd(delete[Product](post) ++ resp.flatMap(update[Product]))(local)
+    TxAdd(delete(post) ++ resp.flatMap(update))(local)
   }
 }
 

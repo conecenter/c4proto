@@ -44,7 +44,7 @@ trait ExpressionsDumpersApp {
 trait SimpleIndexValueMergerFactoryApp //compat
 trait TreeIndexValueMergerFactoryApp //compat
 
-trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp {
+trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp {
   def execution: Execution
   def snapshotMaker: SnapshotMaker
   def rawSnapshotLoader: RawSnapshotLoader
@@ -61,6 +61,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
     new RootConsumer(richRawWorldFactory, richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
+  override def protocols: List[Protocol] = OrigMetaAttrProtocol :: super.protocols
 }
 
 trait TestRichDataApp extends RichDataApp {

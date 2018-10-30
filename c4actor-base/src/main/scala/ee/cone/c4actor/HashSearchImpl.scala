@@ -177,7 +177,7 @@ object HashSearchImpl {
     @by[ResponseId] @distinct respLines: Values[RespLine]
   ): Values[(SrcId,Response[RespLine])] = {
     val pk = ToPrimaryKey(request)
-    List(WithPK(Response(pk, request, preHashing.wrap(respLines.toList))))
+    List(WithPK(Response(pk, request, preHashing.wrap(Option(respLines.toList)))))
   }
   //.foldRight(List.empty[RespLine])((line,res)⇒)
 }

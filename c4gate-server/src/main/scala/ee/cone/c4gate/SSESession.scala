@@ -20,6 +20,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPost}
+import okio.ByteString
 
 trait SSEServerApp
   extends ToStartApp
@@ -34,8 +35,9 @@ trait SSEServerApp
   def mortal: MortalFactory
   lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig)
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
+  private lazy val compressorFactory: CompressorFactory = new GzipGzipCompressorStreamFactory
   private lazy val sseServer =
-    new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10)
+    new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10, compressorFactory)
   override def toStart: List[Executable] = sseServer :: super.toStart
   override def assembles: List[Assemble] =
     SSEAssembles(mortal) ::: PostAssembles(mortal,sseConfig) :::
@@ -91,9 +93,13 @@ class PongHandler(
 
 object SSEMessage {
   def message(sender: SenderToAgent, event: String, data: String, header: String=""): Unit = {
-    val escapedData = data.replaceAllLiterally("\n","\ndata: ")
-    val str = s"${header}event: $event\ndata: $escapedData\n\n"
-    sender.add(str.getBytes(UTF_8))
+    val escapedData = data.replaceAllLiterally("\n","\ndata: ")    
+    val str = s"${header}event: $event\ndata: $escapedData\n\n"     
+    val unzippedStr = ByteString.encodeUtf8(s"event: $event\ndata: $escapedData\n\n")  
+    val zippedStr =  sender.compressor.fold(unzippedStr)(compressor=>compressor.compress(unzippedStr))
+    val toS = header.getBytes(UTF_8) ++ zippedStr.toByteArray
+    //println(s"event: $event, unzipped: ${str.getBytes(UTF_8).length}, zipped: ${toS.length}")    
+    sender.add(toS)
   }
 }
 
@@ -102,7 +108,10 @@ class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHan
   override def afterConnect(connectionKey: String, sender: SenderToAgent): Unit = {
     val allowOrigin =
       config.allowOrigin.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
-    val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$allowOrigin\n"
+    val zipHeader = sender.compressor.fold("")(compressor =>
+      s"Content-Encoding: ${compressor.name}\n"
+    )
+    val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$zipHeader$allowOrigin\n"
     val data = s"$connectionKey ${config.pongURL}"
     //logger.debug(s"connection $connectionKey")
     SSEMessage.message(sender, "connect", data, header)

@@ -2,9 +2,10 @@ package ee.cone.c4gate.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor.dep.ContextTypes.MockRoleOpt
 import ee.cone.c4actor.dep.DepTypes.GroupId
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep_impl.DepHandlersApp
+import ee.cone.c4actor.dep_impl.{DepHandlersApp, DepResponseImpl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
@@ -36,10 +37,11 @@ trait FilterListRequestHandlerApp
   }
   ) :: injectContext[FilteredListRequest](fltAsk, _.contextId) ::
     injectUser[FilteredListRequest](fltAsk, _.userId) ::
+    injectMockRole[FilteredListRequest](fltAsk, rq ⇒ rq.mockRoleId.flatMap(id ⇒ rq.mockRoleEditable.map(ed ⇒ id → ed))) ::
     injectRole[FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
-  override def assembles: List[Assemble] = filterDepList.map(
-    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory, preHashing)
+  override def assembles: List[Assemble] = new FilteredListResponseReceiver(preHashing) :: filterDepList.map(
+    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory)
   ) ::: super.assembles
 
   override def protocols: List[Protocol] = DepFilteredListRequestProtocol :: super.protocols
@@ -70,15 +72,31 @@ import ee.cone.c4gate.dep.request.FilterListRequestCreatorUtils._
 
 
 // TODO need to throw this into world
-case class SessionWithUserId(contextId: String, userId: String, roleId: String)
+case class SessionWithUserId(contextId: String, userId: String, roleId: String, mockRole: MockRoleOpt)
+
+@assemble class FilteredListResponseReceiver(
+  preHashing: PreHashing
+) extends Assemble {
+  def FilterListResponseGrabber(
+    key: SrcId,
+    resp: Each[DepResponse]
+  ): Values[(SrcId, FilteredListResponse)] =
+    resp.innerRequest.request match {
+      case request: FilteredListRequest ⇒
+        resp match {
+          case a: DepResponseImpl ⇒ List(WithPK(FilteredListResponse(resp.innerRequest.srcId, request.listName, request.filterPK, request.contextId, a.valueHashed)))
+          case _ ⇒ List(WithPK(FilteredListResponse(resp.innerRequest.srcId, request.listName, request.filterPK, request.contextId, preHashing.wrap(resp.value))))
+        }
+      case _ ⇒ Nil
+    }
+}
 
 @assemble class FilterListRequestCreator(
   val qAdapterRegistry: QAdapterRegistry,
   listName: String,
   filterPK: String,
   matches: List[String],
-  u: DepRequestFactory,
-  preHashing: PreHashing
+  u: DepRequestFactory
 ) extends Assemble {
 
   def SparkFilterListRequest(
@@ -87,26 +105,16 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     sessionWithUser: Values[SessionWithUserId]
   ): Values[(GroupId, DepOuterRequest)] =
     if (matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))) {
-      val (userId, roleId) =
+      val (userId, roleId, mockRole) =
         if (sessionWithUser.nonEmpty)
           sessionWithUser.head match {
-            case p ⇒ (p.userId, p.roleId)
+            case p ⇒ (p.userId, p.roleId, p.mockRole)
           }
         else
-          ("", "")
-      val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, listName, filterPK)
+          ("", "", None)
+      val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, mockRole.map(_._1), mockRole.map(_._2), listName, filterPK)
       List(u.tupledOuterRequest(alienTask.sessionKey)(filterRequest))
     } else Nil
-
-  def FilterListResponseGrabber(
-    key: SrcId,
-    resp: Each[DepResponse]
-  ): Values[(SrcId, FilteredListResponse)] =
-    resp.innerRequest.request match {
-      case request: FilteredListRequest if request.listName == listName && request.filterPK == filterPK ⇒
-        List(WithPK(FilteredListResponse(resp.innerRequest.srcId, listName, filterPK, request.contextId, preHashing.wrap(resp.value))))
-      case _ ⇒ Nil
-    }
 }
 
 @protocol object DepFilteredListRequestProtocol extends Protocol {
@@ -115,6 +123,8 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String)
     @Id(0x0a02) contextId: String,
     @Id(0x0a05) userId: String,
     @Id(0x0a06) roleId: String,
+    @Id(0x0a08) mockRoleId: Option[String],
+    @Id(0x0a09) mockRoleEditable: Option[Boolean],
     @Id(0x0a03) listName: String,
     @Id(0x0a07) filterPK: String
   )

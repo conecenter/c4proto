@@ -75,8 +75,8 @@ export function VDomCore(log,activeTransforms,getRootElement){
     
     const joinBranches = ifInputsChanged(log)("branchesFrom", {branchByKey:1,activeBranchesStr:1}, changed => state => {
         return branchByKey.all(brSt=>{
-            const isRoot  = brSt.branchKey && state.activeBranchesStr.startsWith(brSt.branchKey)
-            const isActive = brSt.branchKey && state.activeBranchesStr.includes(brSt.branchKey) 
+            const isRoot  = brSt.branchKey && (state.activeBranchesStr||"").startsWith(brSt.branchKey)
+            const isActive = brSt.branchKey && (state.activeBranchesStr||"").includes(brSt.branchKey) 
             return checkUpdate({ isActive, isRoot })(brSt)
         })(changed(state))
     })
