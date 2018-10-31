@@ -85,7 +85,7 @@ case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consu
       execution.onShutdown("Consumer",() ⇒ consumer.wakeup()) //todo unregister
       val inboxTopicName = InboxTopicName()
       val inboxTopicPartition = List(new TopicPartition(conf.topicNameToString(inboxTopicName), 0))
-      logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}]")
+      logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}] from [$from]")
       consumer.assign(inboxTopicPartition.asJava)
       val initialOffset = java.lang.Long.parseLong(from,16)
       consumer.seek(Single(inboxTopicPartition), initialOffset)

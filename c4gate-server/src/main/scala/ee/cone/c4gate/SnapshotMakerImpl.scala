@@ -24,7 +24,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) e
     if(httpExchange.getRequestMethod == "GET"){
       val path = httpExchange.getRequestURI.getPath
       if(path.startsWith("/snapshot")){
-        assert(authKey.value == Option(httpExchange.getRequestHeaders.getFirst("X-r-auth-key")).get)
+        assert(authKey.value == Option(httpExchange.getRequestHeaders.getFirst("X-r-auth-key")).get,"no auth key")
         val bytes =
           if(path == "/snapshots/")
             snapshotLoader.list.map(_.raw.key).mkString("\n").getBytes(UTF_8)
@@ -154,32 +154,34 @@ class SnapshotMakerImpl(
     currType: Long, currCount: Long, currSize: Long, updates: List[Update]
   ): List[Update] =
     if(updates.isEmpty || currType != updates.head.valueTypeId) {
-      logger.info(s"t:${java.lang.Long.toHexString(currType)} c:$currCount s:$currSize")
+      logger.debug(s"t:${java.lang.Long.toHexString(currType)} c:$currCount s:$currSize")
       updates
     } else makeStatLine(currType,currCount+1,currSize+updates.head.value.size(),updates.tail)
   @tailrec private def makeStats(updates: List[Update]): Unit =
     if(updates.nonEmpty) makeStats(makeStatLine(updates.head.valueTypeId,0,0,updates))
 
   private def save(world: SnapshotWorld): RawSnapshot = {
-    logger.info("Saving...")
+    logger.debug("Saving...")
     val updates = world.state.values.toList.sortBy(toUpdate.by)
     makeStats(updates)
     val res = fullSnapshotSaver.save(world.offset, toUpdate.toBytes(updates))
-    logger.info("OK")
+    logger.debug("Saved")
     res
   }
   private def progress(skipReportUntil: Long, offset: NextOffset, endOffset: NextOffset): Long =
     if(now<skipReportUntil) skipReportUntil else {
-      logger.info(s"$offset/$endOffset")
+      logger.debug(s"$offset/$endOffset")
       now + 2000
     }
   def make(task: SnapshotTask): ()⇒List[RawSnapshot] = ()⇒concurrent.blocking {
+    logger.debug("Loading snapshot...")
     val offsetOpt = task.offsetOpt
     val offsetFilter: NextOffset⇒NextOffset⇒Boolean = task match {
       case t: NextSnapshotTask ⇒ end⇒curr⇒curr<=end
       case t: DebugSnapshotTask ⇒ end⇒curr⇒curr<end
     }
     val initialRawWorld = load(offsetOpt.map(offsetFilter))
+    logger.debug("Consuming...")
     consuming.process(initialRawWorld.offset, consumer ⇒ {
       @tailrec def iteration(world: SnapshotWorld, endOffset: NextOffset, skipReportUntil: Long): List[RawSnapshot] = {
         val events = consumer.poll()

@@ -26,7 +26,7 @@ case object ConsoleProfiling extends SerialJoiningProfiling with LazyLogging {
     val timeNano: Long = (System.nanoTime - calcStart) / 10000
     val timeFront: Double = timeNano / 100.0
     val countT = joinRes.size
-    logger.info(s"rule ${join.assembleName}-${join.name} ${getColoredCount(countT)} items for ${getColoredPeriod(timeFront)} ms")
+    logger.debug(s"rule ${join.assembleName}-${join.name} ${getColoredCount(countT)} items for ${getColoredPeriod(timeFront)} ms")
     transition
   }
 

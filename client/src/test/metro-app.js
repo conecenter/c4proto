@@ -33,7 +33,7 @@ import CustomUi      from "../extra/custom/custom-ui"
 import ScannerProxy  from "../extra/custom/android-scanner-proxy"
 import ElectronUpdateManager from "../extra/custom/electron-update-manager"
 //import SwitchHost from "../extra/custom/switchhost-module"
-import "../extra/scrollIntoViewIfNeeded"
+import "../test/scrollIntoViewIfNeeded"
 
 
 import React from 'react'

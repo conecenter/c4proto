@@ -33,13 +33,17 @@ class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends Snap
 class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with LazyLogging {
   def list: List[SnapshotInfo] = {
     val parseName = hashFromName
-    raw.list("snapshots").flatMap(parseName(_)).sortBy(_.offset).reverse
+    val rawList = raw.list("snapshots")
+    val res = rawList.flatMap(parseName(_)).sortBy(_.offset).reverse
+    res
   }
   def load(snapshot: RawSnapshot): Option[RawEvent] = {
-    logger.info(s"Loading snapshot $snapshot")
-    for {
+    logger.debug(s"Loading raw snapshot [${snapshot.key}]")
+    val res = for {
       snapshotInfo ← hashFromName(snapshot) //goes first, secures fs
       data ← Option(raw.load(snapshot)) if hashFromData(data.toByteArray) == snapshotInfo.uuid
     } yield SimpleRawEvent(snapshotInfo.offset,data)
+    logger.debug(s"Loaded raw snapshot ${res.nonEmpty}")
+    res
   }
 }

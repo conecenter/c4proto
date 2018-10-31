@@ -240,14 +240,14 @@ push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
     sy(&$docker_compose_up($comp,""));
 }];
 
-push @tasks, ["snapshot_put", "$composes_txt <file_path>", sub{
-    my($comp,$path)=@_;
-    sy(&$ssh_add());
-    my($mk_path,$sync) = &$db4put_start();
-    my($fn,$zfn) = &$snapshot_name($path=~m{([^/]+)$} ? $1 : die "bad snapshot name");
-    sy("cp $path ".&$mk_path("snapshot_targets/$zfn"));
-    &$sync($comp);
-}];
+#push @tasks, ["snapshot_put", "$composes_txt <file_path>", sub{
+#    my($comp,$path)=@_;
+#    sy(&$ssh_add());
+#    my($mk_path,$sync) = &$db4put_start();
+#    my($fn,$zfn) = &$snapshot_name($path=~m{([^/]+)$} ? $1 : die "bad snapshot name");
+#    sy("cp $path ".&$mk_path("snapshot_targets/$zfn"));
+#    &$sync($comp);
+#}];
 
 #push @tasks, ["snapshot_debug", "$composes_txt <tx>", sub{
 #    my($comp,$offset)=@_;
@@ -517,8 +517,8 @@ my $compose_up = sub{
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
                 C4MAX_REQUEST_SIZE => "25000000",
                 C4INBOX_TOPIC_PREFIX => "",
-                C4HTTP_SERVER => $http_server,
-                C4PARENT_HTTP_SERVER => $parent_http_server,
+                C4HTTP_SERVER => "http://$http_server",
+                C4PARENT_HTTP_SERVER => "http://$parent_http_server",
                 C4AUTH_KEY_FILE => "simple.auth",
                 logging => {
                     driver => "json-file",

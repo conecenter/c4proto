@@ -23,7 +23,7 @@ class RootConsumer(
         event ← loader.load(snapshot.raw)
         world ← Option(reducer.reduce(List(event))(emptyRawWorld)) if ByPK(classOf[FailedUpdates]).of(world).isEmpty
       } yield {
-        logger.info(s"Snapshot loaded")
+        logger.info(s"Snapshot reduced without failures [${snapshot.raw.key}]")
         world
       }).headOption.getOrElse(emptyRawWorld)
     GCLog("after loadRecent")
@@ -56,6 +56,6 @@ object GCLog extends LazyLogging {
     System.gc()
     val runtime = Runtime.getRuntime
     val used = runtime.totalMemory - runtime.freeMemory
-    logger.info(s"$hint: then $used bytes used")
+    logger.debug(s"$hint: then $used bytes used")
   }
 }

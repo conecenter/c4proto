@@ -153,7 +153,7 @@ my $gen_docker_conf = sub{
             'exec "sh serve.sh";'
         );
         #rsync -r /c4deploy/ /c4
-        (&$from("rsync"), q{CMD ["perl","run.pl"]});
+        (&$from("rsync mc"), q{CMD ["perl","run.pl"]});
     });
     &$build(&$staged("gate-server"=>sub{
         my($ctx_dir)=@_;
