@@ -67,6 +67,15 @@ class RemoteRawSnapshotLoader(baseURL: String, authKey: AuthKey) extends RawSnap
   }
 }
 
+class SimpleAuthKey(val value: String) extends AuthKey
+
+object RemoteRawSnapshotLoaderFactory extends RawSnapshotLoaderFactory {
+  def create(source: String): RawSnapshotLoader = {
+    val Array(baseURL,authKey) = source.split("#")
+    new RemoteRawSnapshotLoader(baseURL, new SimpleAuthKey(authKey))
+  }
+}
+
 class RemoteSnapshotMaker(appURL: String) extends SnapshotMaker {
   @tailrec private def retry(uuid: String): HttpResponse =
     try {
@@ -96,3 +105,9 @@ class RemoteSnapshotMaker(appURL: String) extends SnapshotMaker {
   }
 }
 
+object RemoteSnapshotMakerFactory extends SnapshotMakerFactory {
+  def create(source: String): SnapshotMaker = {
+    val Array(baseURL,_) = source.split("#")
+    new RemoteSnapshotMaker(baseURL)
+  }
+}

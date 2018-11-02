@@ -7,13 +7,13 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.TxAddMeta
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by, fieldAccess}
+import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.ToAlienWrite
 import ee.cone.c4gate.HttpProtocol.HttpPublication
 import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{HasId, Id}
 import ee.cone.c4ui.{ByLocationHashView, ByLocationHashViewsApp, UntilPolicy}
-import ee.cone.c4vdom.Tags
+import ee.cone.c4vdom.{ChildPair, OfDiv, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 import scala.annotation.tailrec
@@ -50,13 +50,13 @@ case class TestTxLogView(locationHash: String = "txlog")(
   def view: Context ⇒ ViewRes = untilPolicy.wrap { local ⇒
     import mTags._
 
-    val logs = for{
+    val logs: List[ChildPair[OfDiv]] = for{
       updatesListSummary ← ByPK(classOf[UpdatesListSummary]).of(local).get(actorName).toList
       updatesSummary ← updatesListSummary.items
       add = updatesSummary.add
     } yield div(s"tx${add.srcId}",List())(
       text("text",
-        s"tx: ${add.srcId}," +
+        s"tx: ${updatesSummary.ref.txId}," +
           s" objects: ${add.updObjCount}," +
           s" bytes: ${add.updByteCount}," +
           s" types: ${add.updValueTypeIds.map(java.lang.Long.toHexString).mkString(", ")}" +
@@ -71,26 +71,44 @@ case class TestTxLogView(locationHash: String = "txlog")(
       ))
     )
 
-    val txKeyAccess: Option[Access[String]] = for {
-      contentAccess ← sessionAttrAccess.to(TestTxLogAttrs.txKey)(local)
-    } yield contentAccess.to(TestTxLogLenses.value)
+    def getAccess(attr: SessionAttr[Content]): Option[Access[String]] =
+      sessionAttrAccess.to(attr)(local).map(_.to(TestContentAccess.value))
 
-    val input = txKeyAccess.map(tags.input)
-    val merge = txKeyAccess.map(_.initialValue).filter(_.nonEmpty).map(value ⇒
-      divButton[Context]("merge")(snapshotMerger.merge(NextSnapshotTask(Option(value))))(List(text("text",s"merge $value")))
-    )
-    
-    val mergeLast = divButton[Context]("mergeLast")(snapshotMerger.merge(NextSnapshotTask(None)))(List(text("text","merge last")))
+    val baseURLAccessOpt = getAccess(TestTxLogAttrs.baseURL)
+    val authKeyAccessOpt = getAccess(TestTxLogAttrs.authKey)
+    val txKeyAccessOpt = getAccess(TestTxLogAttrs.txKey)
+    val sourceOpt = for {
+      baseURLAccess ← baseURLAccessOpt if baseURLAccess.initialValue.nonEmpty
+      authKeyAccess ← authKeyAccessOpt if authKeyAccess.initialValue.nonEmpty
+    } yield s"${baseURLAccess.initialValue}#${authKeyAccess.initialValue}"
 
-    input.toList ::: merge.toList ::: mergeLast :: logs
+    val inputs: List[ChildPair[OfDiv]] =
+      List(baseURLAccessOpt,authKeyAccessOpt,txKeyAccessOpt).flatten.map(tags.input)
+
+    val merge: Option[ChildPair[OfDiv]] = for {
+      source ← sourceOpt
+      txKeyAccess ← txKeyAccessOpt if txKeyAccess.initialValue.nonEmpty
+    } yield {
+      val value = txKeyAccess.initialValue
+      divButton[Context]("merge")(snapshotMerger.merge(source,NextSnapshotTask(Option(value))))(List(text("text",s"merge $value")))
+    }
+
+    val mergeLast: Option[ChildPair[OfDiv]] = for {
+      source ← sourceOpt
+    } yield {
+      divButton[Context]("mergeLast")(snapshotMerger.merge(source,NextSnapshotTask(None)))(List(text("text","merge last")))
+    }
+
+    inputs ::: merge.toList ::: mergeLast.toList ::: logs
   }
 }
 
-@fieldAccess object TestTxLogLenses {
-  lazy val value: ProdLens[Content,String] = ProdLens.of(_.value)
-}
+//TestContentAccess
+
 object TestTxLogAttrs {
-  lazy val txKey = SessionAttr(Id(0x000A), classOf[Content], UserLabel en "(tx)")
+  lazy val baseURL = SessionAttr(Id(0x000A), classOf[Content], UserLabel en "(baseURL)")
+  lazy val authKey = SessionAttr(Id(0x000B), classOf[Content], UserLabel en "(authKey)")
+  lazy val txKey = SessionAttr(Id(0x000C), classOf[Content], UserLabel en "(txKey)")
 }
 
 case class UpdatesSummary(add: TxAddMeta, ref: TxRef)

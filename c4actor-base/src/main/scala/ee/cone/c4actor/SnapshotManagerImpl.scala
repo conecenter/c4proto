@@ -47,3 +47,8 @@ class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with Laz
     res
   }
 }
+
+object SnapshotLoaderFactoryImpl extends SnapshotLoaderFactory {
+  def create(raw: RawSnapshotLoader): SnapshotLoader =
+    new SnapshotLoaderImpl(raw)
+}

@@ -129,20 +129,17 @@ trait FileRawSnapshotApp { // Remote!
 }
 
 trait MergingSnapshotApp {
-  def config: Config
-  def authKey: AuthKey
   def toUpdate: ToUpdate
   def richRawWorldFactory: RichRawWorldFactory
   def richRawWorldReducer: RichRawWorldReducer
   def snapshotLoader: SnapshotLoader
   def snapshotMaker: SnapshotMaker
   //
-  private lazy val parentAppURL: String = config.get("C4PARENT_HTTP_SERVER")
-  private lazy val parentRawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(parentAppURL,authKey)
-  private lazy val parentSnapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(parentRawSnapshotLoader)
-  private lazy val parentSnapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(parentAppURL)
-  lazy val snapshotMerger: SnapshotMerger =
-    new SnapshotMergerImpl(toUpdate, snapshotMaker,snapshotLoader,parentSnapshotMaker,parentSnapshotLoader,richRawWorldFactory,richRawWorldReducer)
+  lazy val snapshotMerger: SnapshotMerger = new SnapshotMergerImpl(
+    toUpdate, snapshotMaker,snapshotLoader,
+    RemoteSnapshotMakerFactory,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl,
+    richRawWorldFactory,richRawWorldReducer
+  )
 }
 
 trait SerialObserversApp {

@@ -11,6 +11,9 @@ trait RawSnapshotLoader {
   def list(subDirStr: String): List[RawSnapshot]
   def load(snapshot: RawSnapshot): ByteString
 }
+trait RawSnapshotLoaderFactory {
+  def create(source: String): RawSnapshotLoader
+}
 
 trait SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte]): RawSnapshot
@@ -20,6 +23,9 @@ trait SnapshotLoader {
   def load(snapshot: RawSnapshot): Option[RawEvent]
   def list: List[SnapshotInfo]
 }
+trait SnapshotLoaderFactory {
+  def create(raw: RawSnapshotLoader): SnapshotLoader
+}
 
 sealed abstract class SnapshotTask(val name: String, val offsetOpt: Option[NextOffset]) extends Product
 case class NextSnapshotTask(offsetOptArg: Option[NextOffset]) extends SnapshotTask("next",offsetOptArg)
@@ -28,6 +34,9 @@ case class DebugSnapshotTask(offsetArg: NextOffset) extends SnapshotTask("debug"
 trait SnapshotMaker {
   def make(task: SnapshotTask): ()⇒List[RawSnapshot]
 }
+trait SnapshotMakerFactory {
+  def create(source: String): SnapshotMaker
+}
 trait SnapshotMerger {
-  def merge(task: SnapshotTask): Context⇒Context
+  def merge(source: String, task: SnapshotTask): Context⇒Context
 }

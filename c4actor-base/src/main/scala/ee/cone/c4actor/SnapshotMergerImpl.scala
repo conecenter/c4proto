@@ -14,8 +14,9 @@ class SnapshotMergerImpl(
   toUpdate: ToUpdate,
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader,
-  parentSnapshotMaker: SnapshotMaker,
-  parentSnapshotLoader: SnapshotLoader,
+  snapshotMakerFactory: SnapshotMakerFactory,
+  rawSnapshotLoaderFactory: RawSnapshotLoaderFactory,
+  snapshotLoaderFactory: SnapshotLoaderFactory,
   rawWorldFactory: RichRawWorldFactory,
   reducer: RichRawWorldReducer
 ) extends SnapshotMerger {
@@ -27,8 +28,10 @@ class SnapshotMergerImpl(
     val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
     (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
-  def merge(task: SnapshotTask): Context⇒Context = local ⇒ {
+  def merge(source: String, task: SnapshotTask): Context⇒Context = local ⇒ {
     val process = snapshotMaker.make(NextSnapshotTask(Option(ReadModelOffsetKey.of(local))))
+    val parentSnapshotMaker = snapshotMakerFactory.create(source)
+    val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(source))
     val parentProcess = parentSnapshotMaker.make(task)
     val Seq(Some(currentFullSnapshot)) = process().map(snapshotLoader.load)
     val Some(targetFullSnapshot) :: txs = parentProcess().map(parentSnapshotLoader.load)

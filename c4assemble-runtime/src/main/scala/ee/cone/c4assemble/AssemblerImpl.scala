@@ -40,9 +40,11 @@ object IndexUtilImpl {
   def single(items: Products, warning: String): Product =
     if(items.tail.isEmpty && items.head.count==1) items.head.item else {
       val distinct = items.distinct
-      def text = s"non-single $warning"
-      if(distinct.tail.nonEmpty) throw new Exception(text)
-      if(warning.nonEmpty) println(text)
+      if(distinct.tail.nonEmpty) throw new Exception(s"non-single $warning")
+      if(warning.nonEmpty) {
+        val str = distinct.head.item.toString.substring(0,64)
+        println(s"non-single $warning $str")
+      }
       distinct.head.item
     }
 
