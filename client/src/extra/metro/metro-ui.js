@@ -452,6 +452,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		        this.props.onClick(e);
 			e.stopPropagation();			
 		}
+		componentDidMount(){
+			if(!this.el) return
+			this.el.addEventListener("click",this.onClick)
+		}
+		componentWillUnmount(){
+			if(!this.el) return
+			this.el.removeEventListener("click",this.onClick)
+		}
 		render(){		
 			const selStyle={
 				position:'relative',
@@ -464,11 +472,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				...(this.state.mouseEnter?this.props.overStyle:null)
 			};						
 				
-			return $("div",{				
+			return $("div",{
+				ref:ref=>this.el=ref,
 			    style:selStyle,
 			    onMouseEnter:this.mouseEnter,
-			    onMouseLeave:this.mouseLeave,
-			    onClick:this.onClick,
+			    onMouseLeave:this.mouseLeave,			    
 				className:"menu-popup",
 				tabIndex:"1",
 			},this.props.children);
@@ -485,6 +493,15 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onClick(e){
 			if(this.props.onClick)
 				this.props.onClick(e);
+			e.stopPropagation();
+		}
+		componentDidMount(){
+			if(!this.el) return
+			this.el.addEventListener("click",this.onClick)
+		}
+		componentWillUnmount(){
+			if(!this.el) return
+			this.el.removeEventListener("click",this.onClick)
 		}
 		render(){
 			const newStyle={
@@ -494,11 +511,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				...(this.state.mouseEnter?this.props.overStyle:null)
 			};       
 		return $("div",{
+			ref:ref=>this.el=ref,
             style:newStyle,    
             onMouseEnter:this.mouseEnter,
             onMouseLeave:this.mouseLeave,
             onClick:this.onClick
-		},this.props.children);
+			},this.props.children);
 		}
 	}
 	const TabSet=({style,children})=>$("div",{style:{
