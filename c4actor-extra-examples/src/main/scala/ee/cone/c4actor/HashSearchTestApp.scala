@@ -33,7 +33,7 @@ class HashSearchExtraTestStart(
 
     val world = for {
       i ← 1 to 10000
-    } yield TestObject(i.toString, 239, i.toString.take(5))
+    } yield TestObject(i.toString, 239, i.toHexString)
     val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test")) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
@@ -43,9 +43,10 @@ class HashSearchExtraTestStart(
     //logger.info(s"${nGlobal.assembled}")
     println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
+    println("Should", List(17, 273))
     println("Answer", ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
     println(ByPK(classOf[IndexNode]).of(nGlobalAA).values)
-    println(ByPK(classOf[IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
+    println(ByPK(classOf[IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.leafId → meh.byStr))
     println(ByPK(classOf[IndexByNodesStats]).of(nGlobalAA).values)
     //Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
@@ -54,18 +55,20 @@ class HashSearchExtraTestStart(
     val newNGlobalAA = ActivateContext(newNGlobalA)
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
+    println("Should", List(17, 4369))
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
-    println(ByPK(classOf[IndexByNode]).of(newNGlobalAA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
+    println(ByPK(classOf[IndexByNode]).of(newNGlobalAA).values.map(meh ⇒ meh.leafId → meh.byStr))
     println(ByPK(classOf[IndexByNodesStats]).of(newNGlobalAA).values)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(newNGlobalAA)
-    //Thread.sleep(10000)
+    Thread.sleep(10000)
     val newNGlobal2A = ActivateContext(newNGlobal2)
     val newNGlobal2AA = ActivateContext(newNGlobal2A)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
+    println("Should", List(17, 10000))
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
-    println(ByPK(classOf[IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.srcId → meh.byInstance.get).map(meh ⇒ meh._1 → AnyAdapter.decode(qAdapterRegistry)(meh._2)))
+    println(ByPK(classOf[IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.leafId → meh.byStr))
     println(ByPK(classOf[IndexByNodesStats]).of(newNGlobal2AA).values)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     execution.complete()
@@ -295,7 +298,7 @@ class HashSearchExtraTestApp extends RichDataApp
       super.assembles
   }
 
-  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler2
+  lazy val assembleProfiler = NoAssembleProfiler //ConsoleAssembleProfiler //ValueAssembleProfiler2
 
   override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: super.dynIndexModels
 
@@ -303,6 +306,7 @@ class HashSearchExtraTestApp extends RichDataApp
 
   override def dynamicIndexNodeDefaultSetting: IndexNodeSettings = IndexNodeSettings("", false, Some(100L))
 }
+
 /*
 object ValueAssembleProfiler2 extends AssembleProfiler {
   def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {

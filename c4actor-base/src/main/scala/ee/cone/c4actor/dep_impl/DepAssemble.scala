@@ -73,7 +73,14 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
     responses: Values[DepResponse]
   ): Values[(SrcId, DepUnresolvedRequest)] =
     if (responses.forall(_.value.isEmpty))
-      List(WithPK(DepUnresolvedRequest(rq.srcId, rq.request, responses.size, outerRequests.map(_.innerRequest.srcId).toList)))
+      List(WithPK(DepUnresolvedRequest(
+        rq.srcId,
+        rq.request,
+        responses.size,
+        outerRequests.map(k ⇒ s"${k.innerRequest.srcId}:${k.innerRequest.request.getClass.getSimpleName}").toList
+      )
+      )
+      )
     else Nil
 }
 
@@ -134,6 +141,9 @@ case class DepRequestHandlerRegistry(
 case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseFactory {
   def wrap(req: DepInnerRequest, value: Option[_]): DepResponse =
     DepResponseImpl(req,preHashing.wrap(value))
+
+  def wrapRaw(req: DepInnerRequest, valueRaw: PreHashed[Option[_]]): DepResponse =
+    DepResponseImpl(req,valueRaw)
 }
 
 case class DepRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepRequestFactory {

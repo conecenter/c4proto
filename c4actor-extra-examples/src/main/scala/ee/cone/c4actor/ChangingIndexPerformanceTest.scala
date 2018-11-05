@@ -125,7 +125,7 @@ class ChangingIndexPerformanceTest(
       for {
         i ← 1 to worldSize
       } yield PerformanceNode(i.toString, Random.nextDouble().toString)
-    val worldUpdate: immutable.Seq[LEvent[PerformanceNode]] = world.flatMap(update)
+    val worldUpdate: immutable.Seq[LEvent[Product]] = world.flatMap(update)
     val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 

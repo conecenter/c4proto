@@ -38,6 +38,6 @@ case class TestDelayHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTran
       Thread.sleep(1000)
     }
     logger.info(s"finish handling $srcId")
-    TxAdd(delete[Product](post))(local)
+    TxAdd(delete(post))(local)
   }
 }

@@ -2,8 +2,6 @@ package ee.cone.c4actor
 
 //import ee.cone.c4actor.Types.SrcId
 
-trait MetaAttr extends Product
-
 
 trait Access[C] extends Product{
   def updatingLens: Option[Lens[Context,C]]

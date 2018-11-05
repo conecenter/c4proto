@@ -17,16 +17,35 @@ case class OuterIntersectList[Model <: Product](srcId: SrcId, innerLeaf: InnerLe
 
 case class InnerIntersectList[Model <: Product](srcId: SrcId, innerLeafs: List[InnerLeaf[Model]]) extends InnerCondition[Model] {
   def check(model: Model): Boolean = innerLeafs.forall(_.check(model))
+
+  override def toString: SrcId = innerLeafs.mkString(" /\\ ")
 }
 
 case class OuterUnionList[Model <: Product](srcId: SrcId, innerIntersect: InnerIntersectList[Model]) extends LazyHashCodeProduct
 
 case class InnerUnionList[Model <: Product](srcId: SrcId, innerIntersects: List[InnerIntersectList[Model]]) extends InnerCondition[Model] {
   def check(model: Model): Boolean = innerIntersects.foldLeft(false)((z, inter) ⇒ z || inter.check(model))
+
+  override def toString: SrcId = s"Condition: ${innerIntersects.mkString(" \\/ ")}"
 }
 
 case class InnerLeaf[Model <: Product](srcId: SrcId, condition: Condition[Model]) extends InnerCondition[Model] {
   def check(model: Model): Boolean = condition.check(model)
+
+  lazy val isProdCondition: Boolean = condition.isInstanceOf[ProdCondition[_, Model]]
+
+  lazy val prodCondition: Option[ProdCondition[_ <: Product, Model]] = if (isProdCondition) Option(condition.asInstanceOf[ProdCondition[_ <: Product, Model]]) else None
+
+  lazy val lensNameList: List[String] = prodCondition.map(_.metaList).getOrElse(Nil).collect{ case a:NameMetaAttr ⇒ a.value}
+
+  lazy val byClName: String = prodCondition.map(_.by.getClass.getName).getOrElse("")
+
+  override def toString: SrcId = if (isProdCondition) {
+    val prod = prodCondition.get
+    s"Prod(${prod.by}, ${prod.metaList})"
+  } else {
+    "Any"
+  }
 }
 
 sealed trait InnerCondition[Model <: Product] extends LazyHashCodeProduct {
@@ -40,16 +59,17 @@ trait HashSearchAssembleSharedKeys {
 }
 
 trait HashSearchModelsApp extends DynamicIndexModelsApp {
-  def hashSearchModels: List[Class[_ <: Product]] = dynIndexModels.map(_.modelCl)
+  def hashSearchModels: List[Class[_ <: Product]] = dynIndexModels.distinct.map(_.modelCl)
 }
 
-trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp{
+trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp {
   def qAdapterRegistry: QAdapterRegistry
+
   def idGenUtil: IdGenUtil
 
   def debugModeHashSearchAssemble: Boolean = false
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, idGenUtil, preHashing, debugModeHashSearchAssemble)) ::: super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, preHashing, debugModeHashSearchAssemble)) ::: super.assembles
 }
 
 object HashSearchAssembleUtils {
@@ -142,7 +162,6 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   modelCl: Class[Model],
   val qAdapterRegistry: QAdapterRegistry,
   condSer: SerializationUtils,
-  idGenUtil: IdGenUtil,
   preHashing: PreHashing,
   debugMode: Boolean = false
 ) extends Assemble with HashSearchAssembleSharedKeys {
@@ -157,7 +176,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   ): Values[(SrcId, RootCondition[Model])] = {
     val condition: Condition[Model] = request.condition
     val condUnion: InnerUnionList[Model] = conditionToUnionList(modelCl)(condSer)(condition)
-    List(WithPK(RootCondition(idGenUtil.srcIdFromSrcIds(request.requestId, condUnion.srcId), condUnion, request.requestId)))
+    List(WithPK(RootCondition(Murmur3Hash(request.requestId, condUnion.srcId), condUnion, request.requestId)))
   }
 
   def RootCondToInnerConditionId(
@@ -275,7 +294,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   ): Values[(SrcId, Response[Model])] =
     TimeColored("y", ("ResponseByRequest", responses.size, responses.map(_.modelList.size).size), doNotPrint = !debugMode) {
       val pk = ToPrimaryKey(request)
-      List(WithPK(Response(pk, request, preHashing.wrap(Single.option(responses).map(_.modelList).toList.flatten))))
+      List(WithPK(Response(pk, request, preHashing.wrap(Option(Single.option(responses).map(_.modelList).toList.flatten)))))
     }
 
 }

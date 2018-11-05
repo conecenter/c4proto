@@ -61,13 +61,13 @@ case class PreHashingMurMur3() extends PreHashing {
       case h: Array[Byte] ⇒
         messengerInner.updateLong(9)
         messengerInner.updateBytes(h)
-      case h ⇒ FailWith.apply(s"Unsupported type ${h.getClass} by PreHashingMD5")
+      case h ⇒ FailWith.apply(s"Unsupported type ${h.getClass} by PreHashedMurMur3")
     }
   }
 }
 
 final class PreHashedMurMur3[T](val MD5Hash1: Long, val MD5Hash2: Long, val value: T, override val hashCode: Int) extends PreHashed[T] {
-  override def toString: String = s"PreHashedMD5(${value.toString})"
+  override def toString: String = s"PreHashedMurMur3(${value.toString})"
 
   override def equals(obj: scala.Any): Boolean = {
     obj match {

@@ -8,8 +8,18 @@ import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
 
+object Murmur3Hash{
+  val parser: PreHashingMurMur3 = PreHashingMurMur3()
+
+  def apply[Model](m: Model): String = {
+    val instance = new MurmurHash3()
+    parser.calculateModelHash(m, instance)
+    instance.getStringHash
+  }
+}
+
 object TimeColored {
-  def apply[R, F](color: String, tag: F, doNotPrint: Boolean = false, lowerBound: Long = 0L)(f: ⇒ R): R = {
+  def apply[R, F](color: ⇒ String, tag: ⇒ F, doNotPrint: Boolean = false, lowerBound: ⇒ Long = 0L)(f: ⇒ R): R = {
     if (!doNotPrint) {
       val tagColored = PrintColored.makeColored(color)(tag)
       val timeStart = System.nanoTime()
@@ -75,7 +85,7 @@ object Utility {
 }
 
 object FailWith {
-  def apply: String ⇒ Nothing = str ⇒ throw new Exception(str)
+  def apply(message: String): Nothing = throw new Exception(message)
 }
 
 object Log2Pow2 {

@@ -28,33 +28,26 @@ case class SessionAttrAskFactoryImpl(
 
   def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String ⇒ Dep[Option[Access[P]]] = pk ⇒ askSessionAttr(attr.withPK(pk))
 
-  def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
-    for {
-      mockRoleOpt ← commonRequestFactory.askMockRole
-      result ← {
-        mockRoleOpt match {
-          case Some((mockRoleId, editable)) ⇒
-            if (editable)
-              roleAsk(attr, mockRoleId)
-            else if (attr.metaList.collectFirst {
-              case UserLevelAttr ⇒ ""
-            }.isEmpty)
-              sessionAsk(attr)
-            else
-              deepAsk(attr, Some(""), Some(mockRoleId))
-          case None ⇒
-            if (attr.metaList.collectFirst {
-              case UserLevelAttr ⇒ ""
-            }.isEmpty)
-              sessionAsk(attr)
-            else
+  def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] =
+    if (attr.metaList.contains(UserLevelAttr))
+      for {
+        mockRoleOpt ← commonRequestFactory.askMockRole
+        result ← {
+          mockRoleOpt match {
+            case Some((mockRoleId, editable)) ⇒
+              if (editable)
+                roleAsk(attr, mockRoleId)
+              else
+                deepAsk(attr, Some(""), Some(mockRoleId))
+            case None ⇒
               deepAsk(attr)
+          }
         }
+      } yield {
+        result
       }
-    } yield {
-      result
-    }
-  }
+    else
+      sessionAsk(attr)
 
   def sessionAsk[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] = {
 

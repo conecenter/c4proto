@@ -25,6 +25,8 @@ trait DepResponseFilterFactoryMix extends DepResponseFilterFactoryApp {
 
 trait DepCommonResponseForward {
   def forwardSessionIds(request: Class[_ <: DepRequest]): DepResponseForwardFilter
+
+  def massForwardSessionIds(requests: List[Class[_ <: DepRequest]]): List[DepResponseForwardFilter]
 }
 
 case class DepCommonResponseForwardImpl(factory: DepResponseFilterFactory) extends DepCommonResponseForward {
@@ -35,6 +37,8 @@ case class DepCommonResponseForwardImpl(factory: DepResponseFilterFactory) exten
     }
     )
   }
+
+  def massForwardSessionIds(requests: List[Class[_ <: DepRequest]]): List[DepResponseForwardFilter] = requests.map(rq ⇒ forwardSessionIds(rq))
 }
 
 trait DepCommonResponseForwardApp {
@@ -46,9 +50,9 @@ trait DepCommonResponseForwardMix extends DepCommonResponseForwardApp with DepRe
 }
 
 trait DepForwardUserAttributesApp {
-  def childRequests: List[Class[_ <: Product ]] = Nil
+  def childRequests: List[Class[_ <: Product]] = Nil
 }
 
-trait DepForwardUserAttributesMix extends DepForwardUserAttributesApp with  DepCommonResponseForwardApp with DepResponseFiltersApp{
-  override def depFilters: List[DepResponseForwardFilter] =  childRequests.map(depCommonResponseForward.forwardSessionIds) ::: super.depFilters
+trait DepForwardUserAttributesMix extends DepForwardUserAttributesApp with DepCommonResponseForwardApp with DepResponseFiltersApp {
+  override def depFilters: List[DepResponseForwardFilter] = childRequests.map(depCommonResponseForward.forwardSessionIds) ::: super.depFilters
 }

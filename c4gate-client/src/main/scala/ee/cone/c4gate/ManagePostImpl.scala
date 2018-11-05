@@ -50,6 +50,6 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil) 
   }
   def transform(local: Context): Context = {
     if(ErrorKey.of(local).isEmpty) logger.info(report(local))
-    TxAdd(LEvent.delete[Product](post))(local)
+    TxAdd(LEvent.delete(post))(local)
   }
 }
