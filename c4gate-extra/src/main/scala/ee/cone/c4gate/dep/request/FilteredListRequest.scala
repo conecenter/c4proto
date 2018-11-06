@@ -49,7 +49,7 @@ trait FilterListRequestHandlerApp
   def qAdapterRegistry: QAdapterRegistry
 }
 
-case class FilteredListResponse(srcId: String, listName: String, filterPK: String, sessionKey: String, responseHashed: PreHashed[Option[_]]) extends LazyHashCodeProduct {
+case class FilteredListResponse(srcId: String, listName: String, filterPK: String, responseHashed: PreHashed[Option[_]]) extends LazyHashCodeProduct {
   lazy val response: Option[_] = responseHashed.value
 }
 
@@ -83,9 +83,10 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
   ): Values[(SrcId, FilteredListResponse)] =
     resp.innerRequest.request match {
       case request: FilteredListRequest ⇒
+        val srcId = Murmur3Hash((request.branchId, request.listName, request.filterPK))
         resp match {
-          case a: DepResponseImpl ⇒ List(WithPK(FilteredListResponse(resp.innerRequest.srcId, request.listName, request.filterPK, request.contextId, a.valueHashed)))
-          case _ ⇒ List(WithPK(FilteredListResponse(resp.innerRequest.srcId, request.listName, request.filterPK, request.contextId, preHashing.wrap(resp.value))))
+          case a: DepResponseImpl ⇒ List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, a.valueHashed)))
+          case _ ⇒ List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, preHashing.wrap(resp.value))))
         }
       case _ ⇒ Nil
     }
