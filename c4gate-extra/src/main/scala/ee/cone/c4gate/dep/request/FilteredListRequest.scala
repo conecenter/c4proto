@@ -8,9 +8,9 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.{DepHandlersApp, DepResponseImpl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4ui.FromAlienTask
 
 case class FLRequestDef(listName: String, filterPK: String, matches: List[String] = List(".*"))(val requestDep: Dep[List[_]])
 
@@ -72,7 +72,7 @@ import ee.cone.c4gate.dep.request.FilterListRequestCreatorUtils._
 
 
 // TODO need to throw this into world
-case class SessionWithUserId(contextId: String, userId: String, roleId: String, mockRole: MockRoleOpt)
+case class BranchWithUserId(branchId: String, contextId: String, userId: String, roleId: String, mockRole: MockRoleOpt)
 
 @assemble class FilteredListResponseReceiver(
   preHashing: PreHashing
@@ -101,10 +101,10 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String, 
 
   def SparkFilterListRequest(
     key: SrcId,
-    alienTask: Each[FromAlienState],
-    sessionWithUser: Values[SessionWithUserId]
+    alienTask: Each[FromAlienTask],
+    sessionWithUser: Values[BranchWithUserId]
   ): Values[(GroupId, DepOuterRequest)] =
-    if (matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.location).matches(regex))) {
+    if (matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.fromAlienState.location).matches(regex))) {
       val (userId, roleId, mockRole) =
         if (sessionWithUser.nonEmpty)
           sessionWithUser.head match {
@@ -112,14 +112,15 @@ case class SessionWithUserId(contextId: String, userId: String, roleId: String, 
           }
         else
           ("", "", None)
-      val filterRequest = FilteredListRequest(alienTask.sessionKey, userId, roleId, mockRole.map(_._1), mockRole.map(_._2), listName, filterPK)
-      List(u.tupledOuterRequest(alienTask.sessionKey)(filterRequest))
+      val filterRequest = FilteredListRequest(alienTask.branchKey, alienTask.fromAlienState.sessionKey, userId, roleId, mockRole.map(_._1), mockRole.map(_._2), listName, filterPK)
+      List(u.tupledOuterRequest(alienTask.branchKey)(filterRequest))
     } else Nil
 }
 
 @protocol object DepFilteredListRequestProtocol extends Protocol {
 
   @Id(0x0a01) case class FilteredListRequest(
+    @Id(0x0a0a) branchId: String,
     @Id(0x0a02) contextId: String,
     @Id(0x0a05) userId: String,
     @Id(0x0a06) roleId: String,
