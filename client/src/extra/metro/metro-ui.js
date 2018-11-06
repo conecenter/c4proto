@@ -514,8 +514,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			ref:ref=>this.el=ref,
             style:newStyle,    
             onMouseEnter:this.mouseEnter,
-            onMouseLeave:this.mouseLeave,
-            onClick:this.onClick
+            onMouseLeave:this.mouseLeave           
 			},this.props.children);
 		}
 	}
@@ -1091,9 +1090,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})
 				}
 				else {
-					//nValue = ""
 					inp.value = ""
-					//this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}},inp)
+					if(event.detail == null){
+						nValue = ""					
+						this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}},inp)
+					}
 				}				
 			})){				
 				if(this.isVkEvent(event)||this.props.vkOnly){	
