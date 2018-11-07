@@ -1,4 +1,4 @@
-package ee.cone.c4gate.dep.request
+package ee.cone.c4ui.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -8,7 +8,7 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.{DepHandlersApp, DepResponseImpl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
+import ee.cone.c4ui.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui.FromAlienTask
 
@@ -68,7 +68,7 @@ object FilterListRequestCreatorUtils {
   }
 }
 
-import ee.cone.c4gate.dep.request.FilterListRequestCreatorUtils._
+import ee.cone.c4ui.dep.request.FilterListRequestCreatorUtils._
 
 
 // TODO need to throw this into world
