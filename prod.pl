@@ -389,7 +389,7 @@ my $bin = "kafka/bin";
 my $bootstrap_server = "broker:9092";
 my $zookeeper_server = "zookeeper:2181";
 my $http_server = "gate:8067";
-my $parent_http_server = "frpc:8067";
+#my $parent_http_server = "frpc:8067";
 
 # pass src commit
 # migrate states
@@ -420,15 +420,13 @@ my $app_user = sub{
     (user=>$user, working_dir=>"/$user");
 };
 
-my $volumes = sub{map{"$_:/$user/$_"}@_};
-
 my $common_services = sub{(
     gate => {
         C4APP_IMAGE => "gate-server",
         C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
         C4MAX_REQUEST_SIZE => "250000000",
         C4STATE_REFRESH_SECONDS => 100,
-        volumes => [&$volumes("db4")],
+        C4NEED_LOCAL_DB => 1,
         C4DEPLOY_LOCAL => 1,
     },
     purger => {
@@ -436,7 +434,7 @@ my $common_services = sub{(
         C4APP_IMAGE => "zoo",
         command => ["perl","purger.pl"],
         tty => "true",
-        volumes => [&$volumes("db4")],
+        C4NEED_LOCAL_DB => 1,
     },
     haproxy => {
         C4APP_IMAGE => "haproxy",
@@ -447,20 +445,20 @@ my $common_services = sub{(
         &$app_user(),
         C4APP_IMAGE => "zoo",
         command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
-        volumes => [&$volumes("db4")],
+        C4NEED_LOCAL_DB => 1,
     },
     broker => {
         &$app_user(),
         C4APP_IMAGE => "zoo",
         command => ["$bin/kafka-server-start.sh","server.properties"],
         depends_on => ["zookeeper"],
-        volumes => [&$volumes("db4")],
+        C4NEED_LOCAL_DB => 1,
     },
     frpc => {
         &$app_user(),
         C4APP_IMAGE => "zoo",
         command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
-        volumes => [&$volumes("db4")],
+        C4NEED_LOCAL_DB => 1,
         C4DEPLOY_LOCAL => 1,
     },
 )};
@@ -530,6 +528,7 @@ my $compose_up = sub{
             ):()),
             volumes => [
                 $$service{C4DEPLOY_LOCAL} ? "./$service_name:/c4deploy" : (),
+                $$service{C4NEED_LOCAL_DB} ? "db4:/$user/db4" : (),
             ],
             ($$service{C4EXPOSE_HTTP_PORT} && $$conf{http_port} ? (
                 ports => ["$$conf{http_port}:$$service{C4EXPOSE_HTTP_PORT}"],
