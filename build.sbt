@@ -158,6 +158,11 @@ lazy val `c4ui-main` = project.settings(publishSettings)
   .settings(metaMacroSettings)
   .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-client`)
 
+lazy val `c4ui-extra` = project.settings(publishSettings)
+  .settings(description := s"$descr / c4ui extra")
+  .settings(metaMacroSettings)
+  .dependsOn(`c4ui-main`, `c4actor-extra`, `c4gate-extra`)
+
 lazy val `c4gate-client` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
@@ -192,5 +197,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4actor-extra`,
   `c4gate-extra`,
   `c4actor-extra-examples`,
-  `c4ui-main`
+  `c4ui-main`,
+  `c4ui-extra`
 )

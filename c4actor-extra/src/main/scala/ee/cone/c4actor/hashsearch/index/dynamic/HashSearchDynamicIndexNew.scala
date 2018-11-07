@@ -59,8 +59,6 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
 
   val murMurHash: MurmurHash3 = new MurmurHash3()
 
-  lazy val preHashing: PreHashingMurMur3 = PreHashingMurMur3()
-
   def qAdapterRegistry: QAdapterRegistry
 
   def lensRegistry: LensRegistryApi
