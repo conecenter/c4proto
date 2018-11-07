@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function VirtualKeyboard({log,btoa,eventManager,windowManager,miscReact,StatefulComponent,reactPathConsumer}){
+export default function VirtualKeyboard({log,btoa,eventManager,windowManager,StatefulComponent,reactPathConsumer}){
 	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const $ = React.createElement	
 	const checkActivateCalls=(()=>{
@@ -14,7 +14,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 		const check = () => callbacks.forEach(c=>c())
 		return {add,remove,check}
 	})();
-	const {getReactRoot} = miscReact
+	const getReactRoot = (el) => el.ownerDocument.documentElement
 	const {setTimeout,getPageYOffset,getWindowRect} = windowManager
 	const GlobalStyles = (()=>{
 		let styles = {

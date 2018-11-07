@@ -3351,6 +3351,21 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			]
 		}
 	}
+	class ClickableDivElement extends StatefulComponent{
+		onClick(e){
+			this.props.onClick&& this.props.onClick(e)
+			e.stopPropagation()
+		}
+		componentDidMount(){
+			if(this.el) this.el.addEventListener("click",this.onClick)
+		}
+		componentWillUnmount(){
+			if(this.el) this.el.removeEventListener("click",this.onClick)
+		}
+		render(){
+			return $("div",{...this.props,ref:ref=>this.el=ref})
+		}
+	}		
 	class CanvasMaxHeightElement extends StatefulComponent{
 		getInitialState(){
 			return {height:null}			
@@ -3417,6 +3432,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
             ConnectionState,
 			SignIn,ChangePassword,
 			ErrorElement,
+			ClickableDivElement,
 			FocusAnnouncerElement,
 			ConfirmationOverlayElement,
 			DragDropHandlerElement,
