@@ -17,7 +17,7 @@ import Function.chain
 
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
-case class BranchTaskImpl(branchKey: String, seeds: Values[BranchRel], product: Product) extends BranchTask with LazyLogging {
+case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product) extends BranchTask with LazyLogging {
   def sending: Context ⇒ (Send,Send) = local ⇒ {
     val newSessionKeys = sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
@@ -181,7 +181,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
   ): Values[(SrcId,BranchTask)] = {
     val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
     registry.byId.get(seed.valueTypeId).map(_.decode(seed.value.toByteArray))
-      .map(product => key → BranchTaskImpl(key, seeds, product)).toList
+      .map(product => key → BranchTaskImpl(key, seeds.toList, product)).toList
     // may result in some garbage branches in the world?
 
     //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
