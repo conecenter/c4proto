@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import ee.cone.c4actor.Types.NextOffset
 import okio.ByteString
 
-case class RawSnapshot(key: String)
+case class RawSnapshot(relativePath: String)
 trait RawSnapshotSaver {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit
 }

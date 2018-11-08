@@ -60,7 +60,7 @@ class RemoteRawSnapshotLoader(baseURL: String, authKey: AuthKey) extends RawSnap
       .toList.distinct.map(k⇒RawSnapshot(k))
   def load(snapshot: RawSnapshot): ByteString = {
     val tm = NanoTimer()
-    val res = HttpUtil.get(s"$baseURL/${snapshot.key}",List(("X-r-auth-key",authKey.value)))
+    val res = HttpUtil.get(s"$baseURL/${snapshot.relativePath}",List(("X-r-auth-key",authKey.value)))
     assert(res.status==200)
     logger.debug(s"downloaded ${res.body.size} in ${tm.ms} ms")
     res.body

@@ -23,7 +23,7 @@ class RootConsumer(
         event ← loader.load(snapshot.raw)
         world ← Option(reducer.reduce(List(event))(emptyRawWorld)) if ByPK(classOf[FailedUpdates]).of(world).isEmpty
       } yield {
-        logger.info(s"Snapshot reduced without failures [${snapshot.raw.key}]")
+        logger.info(s"Snapshot reduced without failures [${snapshot.raw.relativePath}]")
         world
       }).headOption.getOrElse(emptyRawWorld)
     GCLog("after loadRecent")
