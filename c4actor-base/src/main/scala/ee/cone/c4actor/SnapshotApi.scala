@@ -10,6 +10,7 @@ trait RawSnapshotSaver {
 trait RawSnapshotLoader {
   def list(subDirStr: String): List[RawSnapshot]
   def load(snapshot: RawSnapshot): ByteString
+  def delete(snapshots: List[RawSnapshot]): List[RawSnapshot]
 }
 trait RawSnapshotLoaderFactory {
   def create(source: String): RawSnapshotLoader
