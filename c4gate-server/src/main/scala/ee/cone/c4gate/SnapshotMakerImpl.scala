@@ -252,8 +252,8 @@ class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader {
       relativePath ← snapshots.map(_.relativePath)
       file = baseDir.resolve(relativePath)
       if Files.exists(file)
-      Files.delete(file)
     } yield {
+      Files.delete(file)
       RawSnapshot(relativePath)
     }
   }
