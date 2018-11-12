@@ -52,7 +52,6 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
-
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)

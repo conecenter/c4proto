@@ -23,9 +23,9 @@ class SnapshotMergerImpl(
   private def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update] = {
     val currentUpdates = toUpdate.toUpdates(List(snapshot))
     val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
-    val state: Map[Update, Update] = currentUpdates.map(up⇒toUpdate.toKey(up)→up).toMap
-    val updates: List[Update] = targetUpdates.filterNot{ up ⇒ state.get(toUpdate.toKey(up)).contains(up) }
-    val deletes: Set[Update] = state.keySet -- targetUpdates.map(toUpdate.toKey)
+    val state = currentUpdates.map(up⇒toUpdate.toKey(up)→up).toMap
+    val updates = targetUpdates.filterNot{ up ⇒ state.get(toUpdate.toKey(up)).contains(up) }
+    val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
     (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
   def merge(source: String, task: SnapshotTask): Context⇒Context = local ⇒ {
