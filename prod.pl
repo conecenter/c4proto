@@ -68,8 +68,13 @@ my $need_path = sub{
     $_[0];
 };
 my $tmp_dir_count=0;
+my $get_tmp_path; $get_tmp_path = sub{
+    my($c)=@_;
+    my $path = "/tmp/$$-$c";
+    (-e $path) ? &$get_tmp_path($c+1) : $path;
+};
 my $rsync_start = sub{
-    my $path = "/tmp/$$-".($tmp_dir_count++);
+    my $path = &$get_tmp_path(0);
     (sub{
         my($fn)=@_;
         &$need_path("$path/$fn")
@@ -389,6 +394,8 @@ my $bin = "kafka/bin";
 my $bootstrap_server = "broker:9092";
 my $zookeeper_server = "zookeeper:2181";
 my $http_server = "gate:8067";
+my $vhost_http_port = "80";
+my $vhost_https_port = "443";
 #my $parent_http_server = "frpc:8067";
 
 # pass src commit
@@ -440,6 +447,7 @@ my $common_services = sub{(
         C4APP_IMAGE => "haproxy",
         C4EXPOSE_HTTP_PORT => 80,
         expose => [80],
+        C4DEPLOY_LOCAL => 1,
     },
     zookeeper => {
         &$app_user(),
@@ -517,7 +525,7 @@ my $compose_up = sub{
                 C4INBOX_TOPIC_PREFIX => "",
                 C4HTTP_SERVER => "http://$http_server",
                 #C4PARENT_HTTP_SERVER => "http://$parent_http_server",
-                C4AUTH_KEY_FILE => "simple.auth",
+                C4AUTH_KEY_FILE => "/c4deploy/simple.auth", #gate does no symlinks
                 logging => {
                     driver => "json-file",
                     options => {
@@ -551,12 +559,17 @@ my $compose_up = sub{
     }
     my($put,$sync) = &$docker_compose_start($yml_str);
     for my $k(keys %$generated_services){
-        my $service = $$generated_services{$k} || die;
-        my $fn = $$service{C4AUTH_KEY_FILE} || next;
-        $$service{C4DEPLOY_LOCAL} or next;
+        my $env = ($$generated_services{$k} || die)->{environment}||next;
+        my $fn = $$env{C4AUTH_KEY_FILE} || next;
+        $$env{C4DEPLOY_LOCAL} or next;
         &$put("$k/$fn",$simple_auth);
     }
     &$put("frpc/frpc.ini",&$to_ini_file($frpc_conf));
+    #
+    my $cert_path = &$get_tmp_path(0);
+    sy(qq[openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $cert_path.key -out $cert_path.crt -subj "/C=EE"]);
+    &$put("haproxy/dummy.pem",syf("cat $cert_path.crt $cert_path.key"));
+    #
     &$sync($run_comp);
     sy(&$docker_compose_up($run_comp,""));
 };
@@ -601,6 +614,23 @@ my $frp_client = sub{
         local_port => $port,
     ]);
 };
+my $frp_web = sub{
+    my($comp)=@_;
+    (
+    "$comp.http" => [
+        type => "http",
+        local_ip => "haproxy",
+        local_port => 80,
+        subdomain => $comp,
+    ],
+    "$comp.https" => [
+        type => "https",
+        local_ip => "haproxy",
+        local_port => 443,
+        subdomain => $comp,
+    ],
+    );
+};
 
 push @tasks, ["compose_up","fast|full $composes_txt",sub{
     my($mode,$run_comp)=@_;
@@ -608,24 +638,18 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     my $conf = &$get_compose($run_comp);
     my $main_comp = $$conf{main};
     my $ext_conf = &$merge(&$template_yml(),$conf);
-    my @frpc_web = ("$run_comp.web" => [
-        type => "http",
-        local_ip => "haproxy",
-        local_port => 80,
-        subdomain => $run_comp,
-    ]);
     if($main_comp){
         my $frpc_conf = [
             common => [&$get_frp_common($run_comp)],
-            &$frp_visitor($main_comp,$http_server),
-            @frpc_web,
+            #&$frp_visitor($main_comp,$http_server),
+            &$frp_web($$conf{proxy_dom}||$run_comp),
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($main_comp));
     } else {
         my $frpc_conf = [
             common => [&$get_frp_common($run_comp)],
-            &$frp_client($run_comp,$http_server),
-            @frpc_web,
+            #&$frp_client($run_comp,$http_server),
+            &$frp_web($$conf{proxy_dom}||$run_comp),
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));
     }
@@ -692,24 +716,22 @@ frontend fe80
   acl a_letsencrypt path_beg /.well-known/acme-challenge/
   use_backend beh_letsencrypt if a_letsencrypt
   redirect scheme https if !{ method POST } !a_letsencrypt
-}.join('',map{$$_[1]!~/:80$/?():qq{  use_backend behttp_$$_[0] if { hdr_dom(host) $$_[0] }
-}}@$ts).qq{
-  default_backend beh_letsencrypt
+  default_backend beh_frps
 backend beh_letsencrypt
   mode http
   server s_letsencrypt $to_ssl_host:8080
+backend beh_frps
+  mode http
+  server s_frps frps:$vhost_http_port
 frontend fe443
-  bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt
-}.join('',map{qq{  use_backend be_$$_[0] if { ssl_fc_sni -m dom $$_[0] }
-}}@$ts).qq{
+  bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt}.join('',map{qq{
+  use_backend be_$$_[0] if { ssl_fc_sni -m dom $$_[0] }}}@$ts).qq{
+  default_backend be_frps
+backend be_frps
+  server s_frps frps:$vhost_https_port ssl verify none
 }.join('',map{qq{backend be_$$_[0]
   server s_$$_[0] $$_[1]
-}}@$ts).qq{
-}.join('',map{$$_[1]!~/:80$/?():qq{backend behttp_$$_[0]
-  mode http
-  server s_$$_[0] $$_[1]
-}}@$ts).qq{
-}.join('',map{ my $port=/(\d+)$/?$1:die; qq{listen listen_$port
+}}@$ts).join('',map{ my $port=/(\d+)$/?$1:die; qq{listen listen_$port
   bind :$port
   server s_simple_$port $_
 }}@$lis).qq{
@@ -765,16 +787,16 @@ push @tasks, ["proxy_to","up|test",sub{
     my($mode)=@_;
     my $conf = $$deploy_conf{proxy_to} || die;
     my $comp = $$conf{stack} || die;
-    my @sb_items = &$hmap($composes, sub{ my($comp,$comp_conf)=@_;
-        $$comp_conf{proxy_dom} ? do{
-            my $host = $$comp_conf{host}||die;
-            my $port = $$comp_conf{http_port}||die;
-            [$$comp_conf{proxy_dom},"$host:$port"]
-        } : ()
-    });
+#    my @sb_items = &$hmap($composes, sub{ my($comp,$comp_conf)=@_;
+#        $$comp_conf{proxy_dom} ? do{
+#            my $host = $$comp_conf{host}||die;
+#            my $port = $$comp_conf{http_port}||die;
+#            [$$comp_conf{proxy_dom},"$host:$port"]
+#        } : ()
+#    });
     my $yml_str = &$mk_to_yml($conf);
     my($put,$sync) = &$docker_compose_start($yml_str);
-    &$put("haproxy/haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]},@sb_items]));
+    &$put("haproxy/haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]}])); #@sb_items
     my %common = &$get_frp_common($comp);
     my $tmp_frps_path = &$put("frps/frps.ini",&$to_ini_file([common=>[
         token=>$common{token},
@@ -782,7 +804,8 @@ push @tasks, ["proxy_to","up|test",sub{
         dashboard_port => "7500",
         dashboard_user => "cone",
         dashboard_pwd => ($common{token}||die),
-        vhost_http_port => "7080",
+        vhost_http_port => $vhost_http_port,
+        vhost_https_port => $vhost_https_port,
         subdomain_host => ($$conf{subdomain_host}||die)
     ]]));
     if($mode eq "up"){
@@ -831,6 +854,7 @@ push @tasks, ["devel_init_frpc"," ",sub{
         my $inner_comp = $container=~/^(\w+)_sshd_/ ? $1 : next;
         sy(&$put($inner_comp,"frpc.ini",&$to_ini_file([
              common => [&$get_frp_common("devel"), user=>$inner_comp],
+             &$frp_web($inner_comp),
              map{my($port,$container)=@$_;("p_$port" => [
                  type => "stcp",
                  sk => $sk,
@@ -849,7 +873,7 @@ push @tasks, ["devel_init_frpc"," ",sub{
                 bind_addr => "127.0.20.2",
             ])} @$proxy_list
         ])));
-        sy(&$remote($comp,"docker restart $container"));
+        sy(&$remote($comp,"docker restart $inner_comp\_frpc_1"));
     }
 }];
 
