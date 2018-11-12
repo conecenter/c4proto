@@ -65,7 +65,6 @@ class RemoteRawSnapshotLoader(baseURL: String, authKey: AuthKey) extends RawSnap
     logger.debug(s"downloaded ${res.body.size} in ${tm.ms} ms")
     res.body
   }
-  def delete(snapshots: List[RawSnapshot]): List[RawSnapshot] = Nil
 }
 
 class SimpleAuthKey(val value: String) extends AuthKey

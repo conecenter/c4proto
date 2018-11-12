@@ -247,16 +247,6 @@ class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader {
     else FinallyClose(Files.newDirectoryStream(subDir))(_.asScala.toList)
       .map(path⇒RawSnapshot(baseDir.relativize(path).toString))
   }
-  def delete(snapshots: List[RawSnapshot]): List[RawSnapshot] = {
-    for {
-      relativePath ← snapshots.map(_.relativePath)
-      file = baseDir.resolve(relativePath)
-      if Files.exists(file)
-    } yield {
-      Files.delete(file)
-      RawSnapshot(relativePath)
-    }
-  }
 
   def mTime(snapshot: RawSnapshot): Long =
     Files.getLastModifiedTime(baseDir.resolve(snapshot.relativePath)).toMillis
