@@ -30,7 +30,7 @@ trait RHttpHandler {
   def handle(httpExchange: HttpExchange): Boolean
 }
 
-class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
+class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "GET") return false
     val path = httpExchange.getRequestURI.getPath
@@ -39,16 +39,32 @@ class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
     val publicationsByPath = ByPK(classOf[HttpPublication]).of(local)
     publicationsByPath.get(path).filter(_.until.forall(now<_)) match {
       case Some(publication) ⇒
-        val headers = httpExchange.getResponseHeaders
-        publication.headers.foreach(header⇒headers.add(header.key,header.value))
-        val bytes = publication.body.toByteArray
-        httpExchange.sendResponseHeaders(200, bytes.length)
-        if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
+        val reqHeaders = Headers.from(httpExchange)
+        val cTag = reqHeaders.find(_.key=="If-none-match").map(_.value)
+        val sTag = publication.headers.find(_.key=="ETag").map(_.value)
+        logger.debug(s"$reqHeaders")
+        logger.debug(s"$cTag $sTag")
+        (cTag,sTag) match {
+          case (Some(a),Some(b)) if a == b ⇒
+            httpExchange.sendResponseHeaders(304, 0)
+          case _ ⇒
+            val headers = httpExchange.getResponseHeaders
+            publication.headers.foreach(header⇒headers.add(header.key,header.value))
+            val bytes = publication.body.toByteArray
+            httpExchange.sendResponseHeaders(200, bytes.length)
+            if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
+        }
       case _ ⇒
         httpExchange.sendResponseHeaders(404, 0)
     }
     true
   }
+}
+
+object Headers {
+  def from(httpExchange: HttpExchange): List[Header] =
+    httpExchange.getRequestHeaders.asScala
+      .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
 }
 
 object AuthOperations {
@@ -72,8 +88,7 @@ object AuthOperations {
 class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
   def handle(httpExchange: HttpExchange): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
-    val headers = httpExchange.getRequestHeaders.asScala
-      .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
+    val headers = Headers.from(httpExchange)
     val headerMap = headers.map(h⇒h.key→h.value).toMap
     val local = worldProvider.createTx()
     val requestId = UUID.randomUUID.toString
@@ -172,7 +187,7 @@ trait HttpServerApp extends ToStartApp {
   def httpHandlers: List[RHttpHandler]
   private lazy val httpPort = config.get("C4HTTP_PORT").toInt
   lazy val httpServer: Executable =
-    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers), execution)
+    new RHttpServer(httpPort, new ReqHandler(httpHandlers), execution)
 
   override def toStart: List[Executable] = httpServer :: super.toStart
 }

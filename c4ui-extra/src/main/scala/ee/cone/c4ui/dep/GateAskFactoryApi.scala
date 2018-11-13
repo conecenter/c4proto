@@ -1,4 +1,4 @@
-package ee.cone.c4gate.dep
+package ee.cone.c4ui.dep
 
 import ee.cone.c4actor.Access
 import ee.cone.c4actor.dep.Dep

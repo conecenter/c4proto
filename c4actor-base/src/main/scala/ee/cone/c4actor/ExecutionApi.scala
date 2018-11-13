@@ -5,7 +5,7 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.util.Try
 
 trait Execution extends Runnable {
-  def onShutdown(hint: String, f:()⇒Unit): Unit
+  def onShutdown(hint: String, f:()⇒Unit): ()⇒Unit
   def complete(): Unit
   def future[T](value: T): FatalFuture[T]
 }
@@ -23,6 +23,10 @@ trait Executable extends Runnable
 
 trait Config {
   def get(key: String): String
+}
+
+trait AuthKey {
+  def value: String
 }
 
 ////

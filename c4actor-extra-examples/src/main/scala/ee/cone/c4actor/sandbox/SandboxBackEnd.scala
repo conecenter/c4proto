@@ -28,7 +28,7 @@ class ChangingIndexPerformanceTest(
   }
 }
 
-class SandboxProject extends RichDataApp
+class SandboxProject extends TestRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp

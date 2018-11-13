@@ -6,7 +6,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-class JoinAllTestApp extends RichDataApp
+class JoinAllTestApp extends TestRichDataApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
   with VMExecutionApp with ToStartApp with ExecutableApp

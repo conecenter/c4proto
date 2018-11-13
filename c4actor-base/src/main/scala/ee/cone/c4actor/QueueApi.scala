@@ -10,7 +10,7 @@ import scala.collection.immutable.{Map, Queue, Seq}
 import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4actor.QProtocol.{Update, Updates}
+import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
 import okio.ByteString
 
@@ -20,11 +20,6 @@ import okio.ByteString
       @Id(0x0011) srcId: String,
       @Id(0x0012) valueTypeId: Long
   )*/
-
-  @Id(0x0017) case class FailedUpdates(
-    @Id(0x0018) srcId: String,
-    @Id(0x0019) reason: String
-  )
 
   case class Update(
     @Id(0x0011) srcId: String,
@@ -39,8 +34,18 @@ import okio.ByteString
 
   @Id(0x0016) case class Firstborn(
     @Id(0x0011) srcId: String //dummy
-    //@Id(0x0017) value: Long
   )
+
+  @Id(0x0017) case class FailedUpdates(
+    @Id(0x0011) srcId: String,
+    @Id(0x0018) reason: String
+  )
+
+  @Id(0x0019) case class TxRef( //add actorName if need cross ms mortality?
+    @Id(0x0011) srcId: String,
+    @Id(0x001A) txId: String
+  )
+
 
   /*@Id(0x0018) case class Leader(
     @Id(0x0019) actorName: String,
@@ -64,7 +69,7 @@ trait RawQSender {
 }
 
 object OffsetHexSize{ def apply() = 16 }
-case object OffsetWorldKey extends TransientLens[NextOffset]("0" * OffsetHexSize())
+case object ReadAfterWriteOffsetKey extends TransientLens[NextOffset]("0" * OffsetHexSize())
 
 trait QMessages {
   def send[M<:Product](local: Context): Context
@@ -73,7 +78,9 @@ trait QMessages {
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toBytes(updates: List[Update]): Array[Byte]
-  def toUpdates(data: ByteString): List[Update]
+  def toUpdates(events: List[RawEvent]): List[Update]
+  def toKey(up: Update): Update
+  def by(up: Update): (Long, String)
 }
 
 object Types {
@@ -91,9 +98,11 @@ trait AssembledContext {
   def assembled: ReadModel
 }
 
-trait RichContext extends SharedContext with AssembledContext {
+trait OffsetContext {
   def offset: NextOffset
 }
+
+trait RichContext extends OffsetContext with SharedContext with AssembledContext
 
 class Context(
   val injected: SharedComponentMap,
@@ -180,36 +189,42 @@ case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
 
 class QAdapterRegistry(
   val byName: Map[String,ProtoAdapter[Product] with HasId],
-  val byId: Map[Long,ProtoAdapter[Product] with HasId],
-  val updatesAdapter: ProtoAdapter[QProtocol.Updates] with HasId
+  val byId: Map[Long,ProtoAdapter[Product] with HasId]
 )
 
-case class RawEvent(srcId: SrcId, data: ByteString)
-case class ClearUpdates(updates: Updates)
-case class KeepUpdates(srcId: SrcId)
+trait RawEvent extends Product {
+  def srcId: SrcId
+  def data: ByteString
+}
+case class SimpleRawEvent(srcId: SrcId, data: ByteString) extends RawEvent
 
-trait RawWorld {
-  def offset: NextOffset
-  def reduce(events: List[RawEvent]): RawWorld
-  def hasErrors: Boolean
+trait RichRawWorldFactory {
+  def create(): RichContext
 }
 
-trait RawWorldFactory {
-  def create(): RawWorld
+trait RichRawWorldReducer {
+  def reduce(events: List[RawEvent]): SharedContext with AssembledContext ⇒ RichContext
 }
 
+trait FinishedRawObserver extends RawObserver
 trait RawObserver {
-  def activate(rawWorld: RawWorld): RawObserver
+  def activate(rawWorld: RichContext): RawObserver
 }
 
 trait ProgressObserverFactory {
   def create(endOffset: NextOffset): RawObserver
 }
 
-trait RawSnapshot {
-  def save(data: Array[Byte], offset: NextOffset): Unit
-  def loadRecent(): RawWorld
+
+
+trait MTime {
+  def mTime: Long
 }
+
+//trait RawDebugOptions {
+//  def load(key: String): Array[Byte]
+//  def save(key: String, value: Array[Byte]): Unit
+//}
 
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
@@ -219,11 +234,11 @@ object CheckedMap {
     pairs.groupBy(_._1).transform((k,l)⇒Single(l)._2)
 }
 
-trait SnapshotConfig {
-  def ignore: Set[Long]
-}
-
 trait AssembleProfiler {
   def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling
   def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update]
 }
+
+case object ReadModelOffsetKey extends SharedComponentKey[NextOffset]
+
+case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)

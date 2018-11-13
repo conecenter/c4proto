@@ -1,13 +1,16 @@
 package ee.cone.c4actor
 
+import java.util.UUID
+
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.{TxRef, Update}
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{LogEntry, TxAddMeta}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble.{Join, SerialJoiningProfiling, WorldTransition}
 import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.{Id, Protocol, protocol}
+import okio.ByteString
 
 import scala.collection.immutable.Seq
 
@@ -35,7 +38,10 @@ case object NoSerialJoiningProfiling extends SerialJoiningProfiling {
     @Id(0x0074) srcId: String,
     @Id(0x0075) startedAt: Long,
     @Id(0x0076) finishedAt: Long,
-    @Id(0x0077) log: List[LogEntry]
+    @Id(0x0077) log: List[LogEntry],
+    @Id(0x007B) updObjCount: Long,
+    @Id(0x007C) updByteCount: Long,
+    @Id(0x007D) updValueTypeIds: List[Long]
   )
   @Id(0x0078) case class LogEntry(
     @Id(0x0079) name: String,
@@ -43,7 +49,7 @@ case object NoSerialJoiningProfiling extends SerialJoiningProfiling {
   )
 }
 
-case class SimpleAssembleProfiler(toUpdate: ToUpdate) extends AssembleProfiler {
+case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) extends AssembleProfiler {
   def createSerialJoiningProfiling(localOpt: Option[Context]) =
     if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime, Nil)
@@ -51,8 +57,14 @@ case class SimpleAssembleProfiler(toUpdate: ToUpdate) extends AssembleProfiler {
     case SimpleSerialJoiningProfiling(startedAt,log) ⇒
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
-    val meta = TxAddMeta("-",startedAt,finishedAt,log)
-    LEvent.update(meta).map(toUpdate.toUpdate) ++ updates
+    val size = updates.map(_.value.size).sum
+    val types = updates.map(_.valueTypeId).distinct.toList
+    val id = idGenUtil.srcIdFromStrings(UUID.randomUUID.toString)
+    val meta = List(
+      TxRef(id,""),
+      TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
+    )
+    meta.flatMap(LEvent.update).map(toUpdate.toUpdate) ++ updates
   }
 }
 

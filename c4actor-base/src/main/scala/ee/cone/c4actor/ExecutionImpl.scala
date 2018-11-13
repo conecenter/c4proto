@@ -1,6 +1,9 @@
 
 package ee.cone.c4actor
 
+import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Files, Paths}
+
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.{Await, Future}
@@ -14,14 +17,22 @@ class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with Lazy
     logger.debug(s"tracking ${toStart.size} services")
     toStart.foreach(f ⇒ future(()).map(_⇒f.run()))
   }
-  def onShutdown(hint: String, f: () ⇒ Unit): Unit =
-    Runtime.getRuntime.addShutdownHook(new Thread(){
+  def onShutdown(hint: String, f: () ⇒ Unit): ()⇒Unit = {
+    val thread = new Thread(){
       override def run(): Unit = {
         //println(s"hook-in $hint")
         f()
         //println(s"hook-out $hint")
       }
-    })
+    }
+    Runtime.getRuntime.addShutdownHook(thread)
+    () ⇒ try {
+      Runtime.getRuntime.removeShutdownHook(thread)
+    } catch {
+      case e: IllegalStateException ⇒ ()
+    }
+  }
+
   def complete(): Unit = { // exit from pooled thread will block itself
     logger.info("exiting")
     System.exit(0)
@@ -61,3 +72,6 @@ class EnvConfigImpl extends Config {
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
 
+class FileAuthKey(fileName: String)(
+  val value: String = new String(Files.readAllBytes(Paths.get(fileName)),UTF_8)
+) extends AuthKey

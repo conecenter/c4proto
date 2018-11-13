@@ -16,7 +16,7 @@ object ProtoAdapterTest extends App with LazyLogging {
   //
   val protocols: List[Protocol] = MyProtocol :: QProtocol :: Nil
   val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols)
-  val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)
+  val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)()
   //
   val lEvents = LEvent.update(group0)
   val updates = lEvents.map(toUpdate.toUpdate)

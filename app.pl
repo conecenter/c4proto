@@ -15,7 +15,6 @@ my $temp = "target";
 my $docker_build = "$temp/docker_build";
 my $user = "c4";
 my $uid = 1979;
-my @c_script = ("inbox_configure.pl","purger.pl");
 my $developer = $ENV{USER} || die;
 
 ################################################################################
@@ -130,20 +129,21 @@ my $gen_docker_conf = sub{
             "listeners=PLAINTEXT://$bootstrap_server",
             "log.dirs=db4/kafka-logs",
             "zookeeper.connect=$zoo_host:$zoo_port",
-            "log.cleanup.policy=compact",
-            "log.segment.bytes=104857600", #active segment is not compacting, so we reduce it
-            "log.cleaner.delete.retention.ms=3600000", #1h
-            "log.roll.hours=1", #delete-s will be triggered to remove?
-            "compression.type=uncompressed", #probably better compaction for .state topics
-            "message.max.bytes=25000000" #seems to be compressed
+            #"log.cleanup.policy=compact",
+            #"log.segment.bytes=250000000", #active segment is not compacting, so we reduce it
+            #"log.cleaner.delete.retention.ms=3600000", #1h
+            #"log.roll.hours=1", #delete-s will be triggered to remove?
+            #"compression.type=uncompressed", #probably better compaction for .state topics
+            "message.max.bytes=250000000" #seems to be compressed
+            #see log.retention.*
         );
         &$download_tgz($ctx_dir,
             "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "frp_0.21.0_linux_amd64", "frp"
         );
-        &$gcp($_=>$ctx_dir,$_) for @c_script;
+        &$gcp($_=>$ctx_dir,$_) for "purger.pl";
         &$mkdirs($ctx_dir,"db4");
-        (&$from("telnet"))
+        (&$from("rsync telnet mc"))
     });
     &$build("synced"=>sub{
         my($ctx_dir)=@_;
@@ -153,7 +153,7 @@ my $gen_docker_conf = sub{
             'exec "sh serve.sh";'
         );
         #rsync -r /c4deploy/ /c4
-        (&$from("rsync"), q{CMD ["perl","run.pl"]});
+        (&$from("rsync mc"), q{CMD ["perl","run.pl"]});
     });
     &$build(&$staged("gate-server"=>sub{
         my($ctx_dir)=@_;
@@ -174,12 +174,16 @@ my $gen_docker_conf = sub{
               timeout server  900s
             resolvers docker_resolver
               nameserver dns "127.0.0.11:53"
-            frontend fe
+            frontend fe80
               mode http
               bind :80
               acl acl_sse hdr(accept) -i text/event-stream
               use_backend be_sse if acl_sse
               default_backend be_http
+            listen listen_443
+              mode http
+              bind :443 ssl crt /c4deploy/dummy.pem
+              server s_http :80
             backend be_http
               mode http
               server se_http gate:$http_port check resolvers docker_resolver resolve-prefer ipv4
