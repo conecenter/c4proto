@@ -622,10 +622,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.captionEl) return;
 			const block=this.captionEl.getBoundingClientRect();
 			const cs=getComputedStyle(this.groupEl);			
-			const containerMinHeight=(Math.max(block.height,block.width) + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';			
+			//const containerMinHeight=(Math.max(block.height,block.width) + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';			
 			const captionOffset=(-Math.max(block.height,block.width))+'px';
-			if(this.state.captionOffset!=captionOffset || this.state.containerMinHeight!=containerMinHeight)
-				this.setState({captionOffset,containerMinHeight});
+			if(this.state.captionOffset!=captionOffset /*|| this.state.containerMinHeight!=containerMinHeight*/)
+				this.setState({captionOffset/*,containerMinHeight*/});
 			this.shouldRotate();
 		}
 		componentDidMount(){

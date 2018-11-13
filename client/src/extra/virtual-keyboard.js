@@ -14,7 +14,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 		const check = () => callbacks.forEach(c=>c())
 		return {add,remove,check}
 	})();
-	const getReactRoot = (el) => el.ownerDocument.documentElement
+	const getReactRoot = (el) => el.ownerDocument.body
 	const {setTimeout,getPageYOffset,getWindowRect} = windowManager
 	const GlobalStyles = (()=>{
 		let styles = {
