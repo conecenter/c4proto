@@ -560,9 +560,8 @@ my $compose_up = sub{
     my($put,$sync) = &$docker_compose_start($yml_str);
     for my $k(keys %$generated_services){
         my $env = ($$generated_services{$k} || die)->{environment}||next;
-        my $fn = $$env{C4AUTH_KEY_FILE} || next;
-        $$env{C4DEPLOY_LOCAL} or next;
-        &$put("$k/$fn",$simple_auth);
+        $$env{C4STATE_TOPIC_PREFIX} && $$env{C4DEPLOY_LOCAL} or next;
+        &$put("$k/simple.auth",$simple_auth);
     }
     &$put("frpc/frpc.ini",&$to_ini_file($frpc_conf));
     #
