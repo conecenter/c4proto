@@ -15,3 +15,9 @@ trait PrometheusApp extends AssemblesApp with ProtocolsApp with GzipCompressorAp
   override def assembles: List[Assemble] =
     new PrometheusAssemble(compressor) :: super.assembles
 }
+
+trait AvailabilityApp extends AssemblesApp {
+  override def assembles: List[Assemble] =
+    new AvailabilityAssemble :: super.assembles
+}
+
