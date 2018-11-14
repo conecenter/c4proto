@@ -120,6 +120,9 @@ lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging)
 
+lazy val `c4gate-server-example` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .dependsOn(`c4gate-server`)
 
 lazy val `c4actor-branch` = project.settings(publishSettings)
   .settings(description := s"$descr")
@@ -183,6 +186,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4assemble-macros`,
   `c4assemble-runtime`,
   `c4gate-consumer-example`,
+  `c4gate-server-example`,
   `c4gate-client`,
   `c4gate-logback`,
   `c4gate-proto`,

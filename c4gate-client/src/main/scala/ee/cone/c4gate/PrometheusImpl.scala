@@ -11,6 +11,7 @@ import ee.cone.c4assemble.{Assemble, JoinKey, assemble}
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.{Id, Protocol, protocol}
+import okio.ByteString
 
 @protocol object ActorAccessProtocol extends Protocol {
   @Id(0x006A) case class ActorAccessKey(
@@ -64,10 +65,34 @@ case class PrometheusTx(path: String, compressor: Compressor) extends TxTransfor
     val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
     val body = compressor.compress(okio.ByteString.encodeUtf8(bodyStr))
     val headers = List(Header("Content-Encoding", compressor.name))
-    val nextTime = time + 15000
-    val invalidateTime = nextTime + 5000
-    val publication = HttpPublication(path, headers, body, Option(invalidateTime))
-    TxAdd(LEvent.update(publication)).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))(local)
+    Monitoring.publish(time, 15000, 5000, path, headers, body)(local)
   }
 }
 
+object Monitoring {
+  def publish(
+    time: Long, updatePeriod: Long, timeout: Long,
+    path: String, headers: List[Header], body: okio.ByteString
+  ): Context⇒Context = {
+    val nextTime = time + updatePeriod
+    val invalidateTime = nextTime + timeout
+    val publication = HttpPublication(path, headers, body, Option(invalidateTime))
+    TxAdd(LEvent.update(publication)).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
+  }
+}
+
+@assemble class AvailabilityAssemble extends Assemble {
+  def join(
+    key: SrcId,
+    first: Each[Firstborn]
+  ): Values[(SrcId,TxTransform)] =
+    List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}")))
+}
+
+case class AvailabilityTx(srcId: SrcId) extends TxTransform {
+  def transform(local: Context): Context =
+    Monitoring.publish(
+      System.currentTimeMillis, 3000, 3000,
+      "/availability", Nil, ByteString.EMPTY
+    )(local)
+}

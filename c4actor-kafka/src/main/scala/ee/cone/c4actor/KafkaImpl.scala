@@ -82,14 +82,18 @@ case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consu
     FinallyClose(new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
     )) { consumer ⇒
-      execution.onShutdown("Consumer",() ⇒ consumer.wakeup()) //todo unregister
-      val inboxTopicName = InboxTopicName()
-      val inboxTopicPartition = List(new TopicPartition(conf.topicNameToString(inboxTopicName), 0))
-      logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}] from [$from]")
-      consumer.assign(inboxTopicPartition.asJava)
-      val initialOffset = java.lang.Long.parseLong(from,16)
-      consumer.seek(Single(inboxTopicPartition), initialOffset)
-      body(new RKafkaConsumer(consumer, inboxTopicPartition))
+      val remove = execution.onShutdown("Consumer",() ⇒ consumer.wakeup()) //todo unregister
+      try {
+        val inboxTopicName = InboxTopicName()
+        val inboxTopicPartition = List(new TopicPartition(conf.topicNameToString(inboxTopicName), 0))
+        logger.info(s"server [${conf.bootstrapServers}] inbox [${conf.topicNameToString(inboxTopicName)}] from [$from]")
+        consumer.assign(inboxTopicPartition.asJava)
+        val initialOffset = java.lang.Long.parseLong(from,16)
+        consumer.seek(Single(inboxTopicPartition), initialOffset)
+        body(new RKafkaConsumer(consumer, inboxTopicPartition))
+      } finally {
+        remove()
+      }
     }
   }
 }

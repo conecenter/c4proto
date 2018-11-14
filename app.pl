@@ -174,12 +174,16 @@ my $gen_docker_conf = sub{
               timeout server  900s
             resolvers docker_resolver
               nameserver dns "127.0.0.11:53"
-            frontend fe
+            frontend fe80
               mode http
               bind :80
               acl acl_sse hdr(accept) -i text/event-stream
               use_backend be_sse if acl_sse
               default_backend be_http
+            listen listen_443
+              mode http
+              bind :443 ssl crt /c4deploy/dummy.pem
+              server s_http :80
             backend be_http
               mode http
               server se_http gate:$http_port check resolvers docker_resolver resolve-prefer ipv4

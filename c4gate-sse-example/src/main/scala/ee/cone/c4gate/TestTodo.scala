@@ -30,6 +30,7 @@ class TestTodoApp extends ServerApp
   with ContainsAccessViewApp
   with SessionAttrApp
   with MortalFactoryApp
+  with AvailabilityApp
   with TestTodoRootViewApp
 {
   override def protocols: List[Protocol] =
