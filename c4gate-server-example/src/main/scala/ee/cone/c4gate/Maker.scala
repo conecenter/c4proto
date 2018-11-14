@@ -2,7 +2,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 
-class SimpleMakerApp extends RichDataApp
+class SimpleMakerApp extends RichDataApp with ExecutableApp
   with EnvConfigApp with VMExecutionApp
   with SnapshotMakingApp with NoAssembleProfilerApp with KafkaConsumerApp
 {
