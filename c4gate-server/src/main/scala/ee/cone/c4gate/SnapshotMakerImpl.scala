@@ -170,7 +170,7 @@ class SnapshotMakerImpl(
   }
   private def progress(skipReportUntil: Long, offset: NextOffset, endOffset: NextOffset): Long =
     if(now<skipReportUntil) skipReportUntil else {
-      logger.debug(s"$offset/$endOffset")
+      logger.info(s"$offset/$endOffset")
       now + 2000
     }
   def make(task: SnapshotTask): ()⇒List[RawSnapshot] = ()⇒concurrent.blocking {
