@@ -23,6 +23,7 @@ class HttpGatewayApp extends ServerApp
     new HttpPostHandler(qMessages,worldProvider) ::
     Nil
   def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
+  override def toStart: List[Executable] = safeToRun :: super.toStart
 }
 
 // I>P -- to agent, cmd>evl
@@ -37,6 +38,7 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   //
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
+  lazy val safeToRun: SafeToRun = new SafeToRun(fileSnapshotMaker)
   //
   private lazy val fileSnapshotMaker: SnapshotMakerImpl =
     new SnapshotMakerImpl(snapshotConfig, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate)
@@ -50,8 +52,6 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   private lazy val fileRawSnapshotLoader: FileRawSnapshotLoader =
     new FileRawSnapshotLoader(dbDir)
   //
-  override def toStart: List[Executable] =
-    new SafeToRun(fileSnapshotMaker) :: super.toStart
   override def assembles: List[Assemble] =
     new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker) :: super.assembles
 }
