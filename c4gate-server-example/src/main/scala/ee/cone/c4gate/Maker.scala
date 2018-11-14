@@ -13,7 +13,7 @@ class SimpleMakerApp extends RichDataApp with ExecutableApp
 
 class SimpleMakerExecutable(execution: Execution, snapshotMaker: SnapshotMaker) extends Executable {
   def run(): Unit = {
-    val Seq(rawSnapshot) = snapshotMaker.make(NextSnapshotTask(None))
+    val Seq(rawSnapshot) = snapshotMaker.make(NextSnapshotTask(None))()
     execution.complete()
   }
 }
