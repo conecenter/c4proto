@@ -77,7 +77,7 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
         rq.srcId,
         rq.request,
         responses.size,
-        outerRequests.map(k ⇒ s"${k.innerRequest.srcId}:${k.innerRequest.request.getClass.getSimpleName}").toList
+        outerRequests.map(k ⇒ k.parentSrcId).toList
       )
       )
       )
