@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
-import ee.cone.c4gate.HttpProtocol.{Header, HttpPost}
+import ee.cone.c4gate.HttpProtocol.{Header, HttpPost, HttpPublication}
 import okio.ByteString
 
 trait SSEServerApp
@@ -125,7 +125,8 @@ case class SessionTxTransform( //?todo session/pongs purge
     sessionKey: SrcId,
     fromAlien: FromAlienState,
     status: FromAlienStatus,
-    writes: Values[ToAlienWrite]
+    writes: Values[ToAlienWrite],
+    availability: Option[Availability]
 ) extends TxTransform {
   def transform(local: Context): Context = {
     val now = Instant.now
@@ -143,6 +144,8 @@ case class SessionTxTransform( //?todo session/pongs purge
         if(SECONDS.between(SSEPingTimeKey.of(local), now) < 1) local
         else {
           SSEMessage.message(sender, "ping", fromAlien.connectionKey)
+          val availabilityAge = availability.map(a ⇒ a.until - now.toEpochMilli).mkString
+          SSEMessage.message(sender, "availability", availabilityAge)
           SSEPingTimeKey.set(now)(local)
         }
       ).andThen{ local ⇒
@@ -172,9 +175,10 @@ object SSEAssembles {
     key: SrcId,
     session: Each[FromAlienState],
     status: Each[FromAlienStatus],
-    @by[SessionKey] writes: Values[ToAlienWrite]
+    @by[SessionKey] writes: Values[ToAlienWrite],
+    @by[All] availabilities: Values[Availability]
   ): Values[(SrcId,TxTransform)] = List(WithPK(SessionTxTransform(
-    session.sessionKey, session, status, writes.sortBy(_.priority)
+    session.sessionKey, session, status, writes.sortBy(_.priority), Single.option(availabilities)
   )))
 
   def lifeOfSessionToWrite(
@@ -199,7 +203,16 @@ object SSEAssembles {
     if(fromAliens.isEmpty)
       List(WithPK(CheckAuthenticatedSessionTxTransform(authenticatedSession)))
     else Nil
+
+  def allAvailability(
+    key: SrcId,
+    doc: Each[HttpPublication]
+  ): Values[(All,Availability)] = for {
+    until ← doc.until.toList if doc.path == "/availability"
+  } yield All → Availability(doc.path,until)
 }
+
+case class Availability(path: String, until: Long)
 
 case class CheckAuthenticatedSessionTxTransform(
   authenticatedSession: AuthenticatedSession
