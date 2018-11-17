@@ -27,7 +27,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) e
         assert(authKey.value == Option(httpExchange.getRequestHeaders.getFirst("X-r-auth-key")).get,"no auth key")
         val bytes =
           if(path == "/snapshots/")
-            snapshotLoader.list.map(_.raw.key).mkString("\n").getBytes(UTF_8)
+            snapshotLoader.list.map(_.raw.relativePath).mkString("\n").getBytes(UTF_8)
           else snapshotLoader.load(RawSnapshot(path.tail)).get.data.toByteArray
         httpExchange.sendResponseHeaders(200, bytes.length)
         if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
@@ -101,7 +101,7 @@ case class RequestedSnapshotMakingTx(
     val res = (ErrorKey.of(local), taskOpt) match {
       case (Seq(), Some(task)) ⇒
         val res = snapshotMaking.make(task)()
-        List(Header("X-r-snapshot-keys", res.map(_.key).mkString(",")))
+        List(Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
       case (errors, _) if errors.nonEmpty ⇒
         errors.map(e ⇒ Header("X-r-error-message", e.getMessage))
     }
@@ -240,21 +240,22 @@ class FileSnapshotConfigImpl(dirStr: String)(
 class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader {
   private def baseDir = Paths.get(baseDirStr)
   def load(snapshot: RawSnapshot): ByteString =
-    ToByteString(Files.readAllBytes(baseDir.resolve(snapshot.key)))
+    ToByteString(Files.readAllBytes(baseDir.resolve(snapshot.relativePath)))
   def list(subDirStr: String): List[RawSnapshot] = {
     val subDir = baseDir.resolve(subDirStr)
     if(!Files.exists(subDir)) Nil
     else FinallyClose(Files.newDirectoryStream(subDir))(_.asScala.toList)
       .map(path⇒RawSnapshot(baseDir.relativize(path).toString))
   }
+
   def mTime(snapshot: RawSnapshot): Long =
-    Files.getLastModifiedTime(baseDir.resolve(snapshot.key)).toMillis
+    Files.getLastModifiedTime(baseDir.resolve(snapshot.relativePath)).toMillis
   //remove Files.delete(path)
 }
 
 class FileRawSnapshotSaver(baseDirStr: String/*db4*/) extends RawSnapshotSaver {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
-    val path = Paths.get(baseDirStr).resolve(snapshot.key)
+    val path = Paths.get(baseDirStr).resolve(snapshot.relativePath)
     Files.createDirectories(path.getParent)
     Files.write(path,data)
   }
