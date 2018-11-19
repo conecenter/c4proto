@@ -29,8 +29,10 @@ trait ToInjectApp {
 }
 
 trait EnvConfigApp {
+  def idGenUtil: IdGenUtil
+
   lazy val config: Config = new EnvConfigImpl
-  lazy val authKey: AuthKey = new FileAuthKey(config.get("C4AUTH_KEY_FILE"))()
+  lazy val authKey: AuthKey = new FileAuthKey(config.get("C4AUTH_KEY_FILE"), idGenUtil)()
 }
 
 trait UMLClientsApp {
@@ -125,7 +127,7 @@ trait FileRawSnapshotApp { // Remote!
   //
   private lazy val appURL: String = config.get("C4HTTP_SERVER")
   lazy val rawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(appURL,authKey)
-  lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL)
+  lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL, authKey)
 }
 
 trait MergingSnapshotApp {

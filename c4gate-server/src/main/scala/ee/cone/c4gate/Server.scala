@@ -35,6 +35,7 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   def snapshotLoader: SnapshotLoader
   def consuming: Consuming
   def toUpdate: ToUpdate
+  def authKey: AuthKey
   //
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
@@ -53,5 +54,5 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
     new FileRawSnapshotLoader(dbDir)
   //
   override def assembles: List[Assemble] =
-    new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker) :: super.assembles
+    new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker, authKey) :: super.assembles
 }

@@ -72,6 +72,11 @@ class EnvConfigImpl extends Config {
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
 
-class FileAuthKey(fileName: String)(
+class FileAuthKey(fileName: String, idGenUtil : IdGenUtil)(
   val value: String = new String(Files.readAllBytes(Paths.get(fileName)),UTF_8)
-) extends AuthKey
+) extends AuthKey {
+  /**
+    * Creates hash from input string using value
+    */
+  def createHash(addInfo: String): String = idGenUtil.srcIdFromStrings(addInfo, value)
+}

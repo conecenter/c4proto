@@ -1,7 +1,5 @@
 package ee.cone.c4gate
 
-import java.io.BufferedInputStream
-import java.net.{HttpURLConnection, URL}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 
@@ -13,7 +11,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPost, HttpPublication}
-import ee.cone.c4proto.{Protocol, ToByteString, protocol}
+import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 import scala.annotation.tailrec
@@ -24,11 +22,18 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) e
     if(httpExchange.getRequestMethod == "GET"){
       val path = httpExchange.getRequestURI.getPath
       if(path.startsWith("/snapshot")){
-        assert(authKey.value == Option(httpExchange.getRequestHeaders.getFirst("X-r-auth-key")).get,"no auth key")
-        val bytes =
-          if(path == "/snapshots/")
+        val rqAuthHash = Option(httpExchange.getRequestHeaders.getFirst("X-r-auth-key"))
+        assert(rqAuthHash.nonEmpty, "no auth key")
+        val command = Option(httpExchange.getRequestHeaders.getFirst("X-r-command"))
+        val bytes = command match {
+          case Some("load") ⇒
+            snapshotLoader.load(RawSnapshot(path.tail)).get.data.toByteArray
+          case Some("list") ⇒
+            assert(authKey.checkHash("snapshots")(rqAuthHash.get), "Wrong hash for list command")
             snapshotLoader.list.map(_.raw.relativePath).mkString("\n").getBytes(UTF_8)
-          else snapshotLoader.load(RawSnapshot(path.tail)).get.data.toByteArray
+          case _ ⇒
+            throw new Exception("Unsupported command")
+        }
         httpExchange.sendResponseHeaders(200, bytes.length)
         if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
         true
@@ -36,7 +41,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) e
     } else false
 }
 
-@assemble class SnapshotMakingAssemble(actorName: String, snapshotMaking: SnapshotMakerImpl) extends Assemble {
+@assemble class SnapshotMakingAssemble(actorName: String, snapshotMaking: SnapshotMakerImpl, authKey: AuthKey) extends Assemble {
   type NeedSnapshot = SrcId
 
   def needConsumer(
@@ -61,7 +66,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) e
     else {
       val taskOpt = SnapshotMakingUtil.task(posts.minBy(_.srcId))
       val similarPosts = posts.toList.filter(post⇒SnapshotMakingUtil.task(post)==taskOpt).sortBy(_.srcId)
-      List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking)))
+      List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking, authKey)))
     }
   }
 }
@@ -76,6 +81,8 @@ object SnapshotMakingUtil {
   }
   def task(post: HttpPost): Option[SnapshotTask] =
     task(header(post,"X-r-snapshot-mode"), header(post,"X-r-offset"))
+  def key(post: HttpPost): Option[String] =
+    header(post, "X-r-auth-key")
 }
 
 object Time {
@@ -83,7 +90,7 @@ object Time {
   def minute: Long = 60L*1000L
   def now: Long = System.currentTimeMillis
 }
-import Time._
+import ee.cone.c4gate.Time._
 
 case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
 
@@ -96,25 +103,36 @@ case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMakerI
 
 case class RequestedSnapshotMakingTx(
   srcId: SrcId, taskOpt: Option[SnapshotTask], posts: List[HttpPost]
-)(snapshotMaking: SnapshotMakerImpl) extends TxTransform {
+)(snapshotMaking: SnapshotMakerImpl, authKey: AuthKey) extends TxTransform {
   def transform(local: Context): Context = {
-    val res = (ErrorKey.of(local), taskOpt) match {
+    val res: List[(HttpPost, List[Header])] = (ErrorKey.of(local), taskOpt) match {
       case (Seq(), Some(task)) ⇒
-        val res = snapshotMaking.make(task)()
-        List(Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
+        val taskHashCheck: String ⇒ Boolean = authKey.checkHash(task.offsetOpt.getOrElse("last"))
+        val (authorized, nonAuthorized) = splitPostsByAuth(taskHashCheck)
+        val res = if (authorized.nonEmpty) snapshotMaking.make(task)() else Nil
+        val goodResp = List(Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
+        val authorizedResponses = authorized.map(au ⇒ au → goodResp)
+        val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → List(Header("X-r-error-message", "Non auothorized request")))
+        authorizedResponses ::: nonAuthorizedResponses
       case (errors, _) if errors.nonEmpty ⇒
-        errors.map(e ⇒ Header("X-r-error-message", e.getMessage))
+        val errorHeaders = errors.map(e ⇒ Header("X-r-error-message", e.getMessage))
+        posts.map(post ⇒ post → errorHeaders)
     }
     val updates = for {
-      post ← posts
+      (post, headers) ← res
       key ← SnapshotMakingUtil.header(post,"X-r-response-key").toList
-      update ← LEvent.update(HttpPublication(s"/response/$key", res, ByteString.EMPTY, Option(now + hour)))
+      update ← LEvent.update(HttpPublication(s"/response/$key", headers, ByteString.EMPTY, Option(now + hour)))
     } yield update
     Function.chain(Seq(
       TxAdd(updates ++ posts.flatMap(LEvent.delete)),
       ErrorKey.set(Nil)
     ))(local)
   }
+
+  def splitPostsByAuth(check: String ⇒ Boolean): (List[HttpPost], List[HttpPost]) =
+    posts.partition(post ⇒ {
+      check(SnapshotMakingUtil.header(post, "X-r-auth-key").getOrElse(""))
+    })
 }
 
 //todo new

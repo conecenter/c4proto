@@ -55,28 +55,40 @@ object HttpUtil extends LazyLogging {
 }
 
 class RemoteRawSnapshotLoader(baseURL: String, authKey: AuthKey) extends RawSnapshotLoader with LazyLogging {
-  def list(subDirStr: String): List[RawSnapshot] =
-    """(\S+)""".r.findAllIn(load(RawSnapshot(s"$subDirStr/")).utf8())
-      .toList.distinct.map(k⇒RawSnapshot(k))
+  def list(subDirStr: String): List[RawSnapshot] = {
+    val response = sendRequest(s"$baseURL/$subDirStr/", List(("X-r-auth-key",authKey.createHash(subDirStr)), ("X-r-command", "list")))
+    """(\S+)""".r.findAllIn(response.utf8())
+      .toList.distinct.map(k ⇒ RawSnapshot(k))
+  }
   def load(snapshot: RawSnapshot): ByteString = {
+    val offset = SnapshotUtil.hashFromName(snapshot).map(_.offset).getOrElse("last")
+    sendRequest(s"$baseURL/${snapshot.relativePath}", List(("X-r-auth-key",authKey.createHash(offset)), ("X-r-offset", offset), ("X-r-command", "load")))
+  }
+
+  private def sendRequest(url: String, headers: List[(String, String)]): ByteString = {
     val tm = NanoTimer()
-    val res = HttpUtil.get(s"$baseURL/${snapshot.relativePath}",List(("X-r-auth-key",authKey.value)))
+    val res = HttpUtil.get(url,headers)
     assert(res.status==200)
     logger.debug(s"downloaded ${res.body.size} in ${tm.ms} ms")
     res.body
   }
 }
 
-class SimpleAuthKey(val value: String) extends AuthKey
+class OneTimeAuthKey(hash: String) extends AuthKey {
+  /**
+    * Creates hash from input string using value
+    */
+  def createHash(addInfo: String): String = hash
+}
 
 object RemoteRawSnapshotLoaderFactory extends RawSnapshotLoaderFactory {
   def create(source: String): RawSnapshotLoader = {
-    val Array(baseURL,authKey) = source.split("#")
-    new RemoteRawSnapshotLoader(baseURL, new SimpleAuthKey(authKey))
+    val Array(baseURL,hash) = source.split("#")
+    new RemoteRawSnapshotLoader(baseURL, new OneTimeAuthKey(hash))
   }
 }
 
-class RemoteSnapshotMaker(appURL: String) extends SnapshotMaker {
+class RemoteSnapshotMaker(appURL: String, authKey: AuthKey) extends SnapshotMaker {
   @tailrec private def retry(uuid: String): HttpResponse =
     try {
       val res = HttpUtil.get(s"$appURL/response/$uuid",Nil)
@@ -94,7 +106,7 @@ class RemoteSnapshotMaker(appURL: String) extends SnapshotMaker {
   }
   def make(task: SnapshotTask): ()⇒List[RawSnapshot] = {
     val f = asyncPost(
-      ("X-r-snapshot-mode",task.name) :: task.offsetOpt.toList.map(("X-r-offset",_))
+      ("X-r-auth-key", authKey.createHash(task.offsetOpt.getOrElse("last"))) :: ("X-r-command", "make") :: ("X-r-snapshot-mode",task.name) :: task.offsetOpt.toList.map(("X-r-offset",_))
     )
     () ⇒
       val headers = f().headers
@@ -107,7 +119,7 @@ class RemoteSnapshotMaker(appURL: String) extends SnapshotMaker {
 
 object RemoteSnapshotMakerFactory extends SnapshotMakerFactory {
   def create(source: String): SnapshotMaker = {
-    val Array(baseURL,_) = source.split("#")
-    new RemoteSnapshotMaker(baseURL)
+    val Array(baseURL, hash) = source.split("#")
+    new RemoteSnapshotMaker(baseURL, new OneTimeAuthKey(hash))
   }
 }
