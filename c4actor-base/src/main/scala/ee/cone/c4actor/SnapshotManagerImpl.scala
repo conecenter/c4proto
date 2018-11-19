@@ -23,9 +23,9 @@ object SnapshotUtil {
 }
 
 //case class Snapshot(offset: NextOffset, uuid: String, raw: RawSnapshot)
-class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends SnapshotSaver {
+class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver, compressed: Boolean) extends SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte]): RawSnapshot = {
-    val snapshot = RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}-gz")
+    val snapshot = if (compressed) RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}-gz") else RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}")
     assert(hashFromName(snapshot).nonEmpty)
     inner.save(snapshot, data)
     snapshot

@@ -36,6 +36,7 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   def consuming: Consuming
   def toUpdate: ToUpdate
   def authKey: AuthKey
+  def compressedSnapshots: Boolean = true
   //
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
@@ -47,9 +48,9 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   private lazy val snapshotConfig: SnapshotConfig =
     new FileSnapshotConfigImpl(dbDir)()
   private lazy val fullSnapshotSaver: SnapshotSaver =
-    new SnapshotSaverImpl("snapshots",new FileRawSnapshotSaver(dbDir))
+    new SnapshotSaverImpl("snapshots",new FileRawSnapshotSaver(dbDir), compressedSnapshots)
   private lazy val txSnapshotSaver: SnapshotSaver =
-    new SnapshotSaverImpl("snapshot_txs",new FileRawSnapshotSaver(dbDir))
+    new SnapshotSaverImpl("snapshot_txs",new FileRawSnapshotSaver(dbDir), compressedSnapshots)
   private lazy val fileRawSnapshotLoader: FileRawSnapshotLoader =
     new FileRawSnapshotLoader(dbDir)
   //
