@@ -1,7 +1,9 @@
 package ee.cone.c4gate
 
+import java.io.{FileInputStream, FileOutputStream}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
+import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
 import com.sun.net.httpserver.HttpExchange
 import com.typesafe.scalalogging.LazyLogging
@@ -13,6 +15,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPost, HttpPublication}
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
+import org.apache.commons.io.IOUtils
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
@@ -257,8 +260,18 @@ class FileSnapshotConfigImpl(dirStr: String)(
 
 class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader {
   private def baseDir = Paths.get(baseDirStr)
-  def load(snapshot: RawSnapshot): ByteString =
-    ToByteString(Files.readAllBytes(baseDir.resolve(snapshot.relativePath)))
+  def load(snapshot: RawSnapshot): ByteString = {
+    val path = baseDir.resolve(snapshot.relativePath)
+    if (SnapshotUtil.compressedRaw(snapshot)) {
+      val gzipInput = new GZIPInputStream(new FileInputStream(path.toFile))
+      val bytes = IOUtils.toByteArray(gzipInput)
+      gzipInput.close()
+      ToByteString(bytes)
+    }
+    else {
+      ToByteString(Files.readAllBytes(path))
+    }
+  }
   def list(subDirStr: String): List[RawSnapshot] = {
     val subDir = baseDir.resolve(subDirStr)
     if(!Files.exists(subDir)) Nil
@@ -271,11 +284,17 @@ class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader {
   //remove Files.delete(path)
 }
 
-class FileRawSnapshotSaver(baseDirStr: String/*db4*/) extends RawSnapshotSaver {
+class FileRawSnapshotSaver(baseDirStr: String /*db4*/) extends RawSnapshotSaver {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
-    val path = Paths.get(baseDirStr).resolve(snapshot.relativePath)
+    val path: Path = Paths.get(baseDirStr).resolve(snapshot.relativePath)
     Files.createDirectories(path.getParent)
-    Files.write(path,data)
+    if (SnapshotUtil.compressedRaw(snapshot)) {
+      val gzipStream = new GZIPOutputStream(new FileOutputStream(path.toFile))
+      gzipStream.write(data)
+      gzipStream.close()
+    } else {
+      Files.write(path, data)
+    }
   }
 }
 

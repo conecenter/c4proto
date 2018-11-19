@@ -9,21 +9,23 @@ import SnapshotUtil._
 
 object SnapshotUtil {
   def hashFromName: RawSnapshot⇒Option[SnapshotInfo] = {
-    val R = """(snapshot[a-z_]+)/([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})""".r;
+    val R = """(snapshot[a-z_]+)/([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(-gz)?""".r;
     {
-      case raw@RawSnapshot(R(subDirStr,offsetHex,uuid)) ⇒ Option(SnapshotInfo(subDirStr,offsetHex,uuid,raw))
+      case raw@RawSnapshot(R(subDirStr,offsetHex,uuid,compressed)) ⇒ Option(SnapshotInfo(subDirStr,offsetHex,uuid,Option(compressed).isDefined,raw))
       case a ⇒
         //logger.warn(s"not a snapshot: $a")
         None
     }
   }
   def hashFromData: Array[Byte]⇒String = UUID.nameUUIDFromBytes(_).toString
+
+  def compressedRaw: RawSnapshot ⇒ Boolean = _.relativePath.endsWith("-gz")
 }
 
 //case class Snapshot(offset: NextOffset, uuid: String, raw: RawSnapshot)
 class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte]): RawSnapshot = {
-    val snapshot = RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}")
+    val snapshot = RawSnapshot(s"$subDirStr/$offset-${hashFromData(data)}-gz")
     assert(hashFromName(snapshot).nonEmpty)
     inner.save(snapshot, data)
     snapshot
