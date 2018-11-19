@@ -19,8 +19,8 @@ class ConnectBackStage[MapKey, Value](
     val diffPart = nextKey.of(transition.prev.get.diff)
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")
-    if(composes.isEmpty(diffPart)) transition
-    else updater.setPart(outputWorldKey)(diffPart, nextKey.of(transition.result))(transition)
+    //if(composes.isEmpty(diffPart)) transition else
+    updater.setPart(outputWorldKey)(diffPart, nextKey.of(transition.result))(transition)
   }
 }
 

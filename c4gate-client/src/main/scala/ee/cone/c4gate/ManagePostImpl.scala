@@ -9,6 +9,9 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.HttpPost
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+
 @assemble class ManagementPostAssemble(actorName: String, indexUtil: IndexUtil) extends Assemble {
   def joinHttpPostHandler(
     key: SrcId,
@@ -37,7 +40,7 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil) 
     val (indexStr,index): (String,Index) = Single.option(world.keys.toList.collect{
       case worldKey: JoinKey if !worldKey.was && worldKey.keyAlias == alias &&
         worldKey.valueClassName.split("\\W").last == keyClassAlias ⇒
-        (s"$worldKey",worldKey.of(world))
+        (s"$worldKey",Await.result(worldKey.of(world),Duration.Inf))
     }).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("X-r-selection") match {
       case k if k.startsWith(":") ⇒ k.tail :: valueLines(index)(k.tail)

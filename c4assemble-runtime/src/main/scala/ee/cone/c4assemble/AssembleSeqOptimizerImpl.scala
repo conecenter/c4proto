@@ -4,6 +4,9 @@ import ee.cone.c4assemble.Types._
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
+
 
 class LoopExpression[MapKey, Value](
   outputWorldKey: AssembledKey,
@@ -15,22 +18,34 @@ class LoopExpression[MapKey, Value](
   //val outputWorldKey: AssembledKey[Index[MapKey, Value]] = main.outputWorldKey,
   continueF: WorldTransition⇒WorldTransition = Function.chain(continue.map(h⇒h.transform(_)))
 ) extends WorldPartExpression {
-  @tailrec private def inner(
+  private def inner(
     left: Int, transition: WorldTransition, resDiff: Index
-  ): (Index, Index) = {
+  ): Future[(Index, Index)] = {
     val transitionA = main.transform(transition)
-    val diffPart = outputWorldKey.of(transitionA.diff)
-    if(composes.isEmpty(diffPart)) (resDiff, outputWorldKey.of(transitionA.result))
-    else if(left>0) inner(left - 1, continueF(transitionA), composes.mergeIndex(Seq(resDiff,diffPart)))
-    else throw new Exception(s"unstable local assemble ${transitionA.diff}")
+    for {
+      diffPart ← outputWorldKey.of(transitionA.diff)
+      res ← {
+        if(composes.isEmpty(diffPart)) for {
+          resVal ← outputWorldKey.of(transitionA.result)
+        } yield (resDiff, resVal)
+        else if(left > 0) inner(
+          left - 1,
+          continueF(transitionA),
+          composes.mergeIndex(Seq(resDiff, diffPart))
+        )
+        else throw new Exception(s"unstable local assemble ${transitionA.diff}")
+      }
+    } yield res
   }
   def transform(transition: WorldTransition): WorldTransition = {
     //println("B")
-    val(nextDiff,nextIndex) = inner(1000, transition, emptyIndex)
+    val next = inner(1000, transition, emptyIndex)
+    val nextDiff = next.map(_._1)
+    val nextIndex = next.map(_._2)
     //println("E")
     Function.chain(Seq(
       updater.setPart(outputWorldKey)(nextDiff,nextIndex),
-      updater.setPart(wasOutputWorldKey)(emptyIndex,nextIndex)
+      updater.setPart(wasOutputWorldKey)(Future.successful(emptyIndex),nextIndex)
     ))(transition)
   }
 }

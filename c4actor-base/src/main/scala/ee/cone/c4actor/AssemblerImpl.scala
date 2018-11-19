@@ -9,7 +9,10 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Seq}
+import scala.concurrent.Await
 import scala.util.control.NonFatal
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 
 case class OrigKeyFactory(composes: IndexUtil) {
   def rawKey(className: String): AssembledKey =
@@ -42,17 +45,17 @@ class AssemblerInit(
       (valueTypeId, tpUpdates) = tpPair
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = origKeyFactory.rawKey(valueAdapter.className)
-      wasIndex = wKey.of(assembled)
-      indexDiff ← Option(composes.mergeIndex(for {
+    } yield {
+      wKey → (for {
+        wasIndex ← wKey.of(assembled)
+      } yield composes.mergeIndex(for {
         iPair ← tpUpdates.groupBy(_.srcId)
         (srcId, iUpdates) = iPair
         rawValue = iUpdates.last.value
         remove = composes.removingDiff(wasIndex,srcId)
         add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
         res ← remove :: add
-      } yield res)) if !composes.isEmpty(indexDiff)
-    } yield {
-      wKey → indexDiff
+      } yield res))
     }).seq.toMap
 
   // read model part:
@@ -95,7 +98,7 @@ class AssemblerInit(
     }
 
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
-    UniqueIndexMap(origKeyFactory.rawKey(className).of(context.assembled))(composes)
+    UniqueIndexMap(concurrent.blocking{Await.result(origKeyFactory.rawKey(className).of(context.assembled),Duration.Inf)})(composes)
   }
 
   def toInject: List[Injectable] =

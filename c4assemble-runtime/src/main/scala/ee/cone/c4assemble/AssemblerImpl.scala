@@ -12,6 +12,9 @@ import scala.annotation.tailrec
 import scala.collection.GenIterable
 import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
 import scala.collection.parallel.immutable.ParVector
+import scala.concurrent.Future
+
+import scala.concurrent.ExecutionContext.Implicits.global
 
 case class Count(item: Product, count: Int)
 
@@ -195,28 +198,29 @@ class JoinMapIndex(
   override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
 
   def transform(transition: WorldTransition): WorldTransition = {
-    //println(s"rule $outputWorldKey <- $inputWorldKeys")
-    if (inputWorldKeys.forall(k ⇒ composes.isEmpty(k.of(transition.diff)))) transition
-    else { //
-      val profiler = transition.profiling
-      val calcStart = profiler.time
-      val worlds = Seq(
-        -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
-        +1→inputWorldKeys.map(_.of(transition.result))
-      )
-      val worldDiffs = inputWorldKeys.map(_.of(transition.diff))
-      val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
-      //joinRes.size  composes.keySet(indexDiff).size
-      val findChangesStart = profiler.time
-      val indexDiff = composes.mergeIndex(joinRes)
-      val patchStart = profiler.time
-      val patchedTransition = if(composes.isEmpty(indexDiff)) transition else {
-        val nextDiff = composes.mergeIndex(Seq(outputWorldKey.of(transition.diff), indexDiff))
-        val nextResult = composes.mergeIndex(Seq(outputWorldKey.of(transition.result), indexDiff))
-        updater.setPart(outputWorldKey)(nextDiff, nextResult)(transition)
+
+    val next: Future[(Index,Index)] = for {
+      worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
+      outputDiff ← outputWorldKey.of(transition.diff)
+      outputData ← outputWorldKey.of(transition.result)
+      res ← {
+        if (worldDiffs.forall(composes.isEmpty)) Future.successful((outputDiff,outputData))
+        else for {
+          prevInputs ← Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
+          inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
+        } yield { //
+          val worlds: Seq[(Int, Seq[Index])] = Seq(-1→prevInputs, +1→inputs)
+          val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
+          val indexDiff = composes.mergeIndex(joinRes)
+          if(composes.isEmpty(indexDiff)) (outputDiff,outputData) else {
+            val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
+            val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
+            (nextDiff,nextResult)
+          }
+        }
       }
-      profiler.handle(join, calcStart, findChangesStart, patchStart, joinRes, patchedTransition)
-    }
+    } yield res
+    updater.setPart(outputWorldKey)(next.map(_._1), next.map(_._2))(transition)
   }
 }
 
@@ -225,6 +229,7 @@ class TreeAssemblerImpl(
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
 ) extends TreeAssembler {
+
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val expressions/*: Seq[WorldPartExpression]*/ =
       rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
@@ -275,7 +280,9 @@ class TreeAssemblerImpl(
 
     (prevWorld,diff,isParallel,profiler) ⇒ {
       val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler)
-      val currentWorld = Merge[AssembledKey,Index](composes.isEmpty,(a,b)⇒composes.mergeIndex(Seq(a,b)))(prevWorld, diff)
+      val currentWorld = Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
+        seq ← Future.sequence(Seq(a,b))
+      } yield composes.mergeIndex(seq) )(prevWorld, diff)
       val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler)
       transformUntilStable(1000, nextTransition)
     }

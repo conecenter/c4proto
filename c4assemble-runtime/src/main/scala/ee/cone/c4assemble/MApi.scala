@@ -6,6 +6,7 @@ import Types._
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.{GenIterable, GenMap, GenSeq}
+import scala.concurrent.Future
 
 trait IndexUtil extends Product {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
@@ -29,7 +30,7 @@ object Types {
   type DPIterable[V] = GenIterable[V]
   trait Index //DMap[Any,DMultiSet]
   private object EmptyIndex extends Index
-  type ReadModel = DMap[AssembledKey,Index]
+  type ReadModel = DMap[AssembledKey,Future[Index]]
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
   def emptyReadModel: ReadModel = emptyDMap
   def emptyIndex: Index = EmptyIndex//emptyDMap
@@ -39,8 +40,8 @@ trait Getter[C,+I] {
   def of: C ⇒ I
 }
 
-abstract class AssembledKey extends Getter[ReadModel,Index] with Product {
-  def of: ReadModel ⇒ Index = world ⇒ world.getOrElse(this, emptyIndex)
+abstract class AssembledKey extends Getter[ReadModel,Future[Index]] with Product {
+  def of: ReadModel ⇒ Future[Index] = world ⇒ world.getOrElse(this, Future.successful(emptyIndex))
 }
 
 trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {

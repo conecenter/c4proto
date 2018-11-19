@@ -5,6 +5,7 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.Seq
+import scala.concurrent.Future
 
 object Single {
   def apply[C](l: Seq[C]): C = if(l.isEmpty) {
@@ -43,7 +44,7 @@ trait ByPriority {
 
 trait IndexUpdater {
   def setPart[K,V](worldKey: AssembledKey)(
-    nextDiff: Index, nextIndex: Index
+    nextDiff: Future[Index], nextIndex: Future[Index]
   ): WorldTransition⇒WorldTransition
 }
 
