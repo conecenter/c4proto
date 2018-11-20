@@ -30,15 +30,24 @@ object Types {
   type DPIterable[V] = GenIterable[V]
   trait Index //DMap[Any,DMultiSet]
   private object EmptyIndex extends Index
-  private object EmptyReadModel extends ReadModel(emptyDMap)
+  private object EmptyReadModel extends ReadModelImpl(emptyDMap)
   //
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
   def emptyReadModel: ReadModel = EmptyReadModel
   def emptyIndex: Index = EmptyIndex//emptyDMap
 }
 
-class ReadModel(inner: DMap[AssembledKey,Future[Index]]) {
-  def apply(key: AssembledKey): Future[Index] = inner.getOrElse(key, Future.successful(emptyIndex))
+trait ReadModelUtil {
+  type MMap = DMap[AssembledKey, Future[Index]]
+  def create(inner: MMap): ReadModel
+  def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel⇒ReadModel
+  def isEmpty: ReadModel⇒Future[Boolean]
+  def op(op: (MMap,MMap)⇒MMap): (ReadModel,ReadModel)⇒ReadModel
+  def toMap: ReadModel⇒Future[Map[AssembledKey,Index]]
+}
+
+trait ReadModel {
+  def apply(key: AssembledKey): Future[Index]
 }
 
 trait Getter[C,+I] {

@@ -12,13 +12,13 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-@assemble class ManagementPostAssemble(actorName: String, indexUtil: IndexUtil) extends Assemble {
+@assemble class ManagementPostAssemble(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends Assemble {
   def joinHttpPostHandler(
     key: SrcId,
     post: Each[HttpPost]
   ): Values[(SrcId, TxTransform)] =
     if(post.path == s"/manage/$actorName")
-      List(WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil))) else Nil
+      List(WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil,readModelUtil))) else Nil
 
   def joinConsumers(
     key: SrcId,
@@ -27,21 +27,21 @@ import scala.concurrent.{Await, Future}
     List(WithPK(LocalPostConsumer(s"/manage/$actorName")))
 }
 
-case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil) extends TxTransform with LazyLogging {
+case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index)(k: Any): List[String] =
     indexUtil.getValues(index,k,"").flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
-    val world = local.assembled
+    val world = Await.result(readModelUtil.toMap(local.assembled),Duration.Inf)
     val WorldKeyAlias = """(\w+),(\w+)""".r
     val worldKeyAlias = headers("X-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
-    val (indexStr,index): (String,Index) = Single.option(world.inner.keys.toList.collect{
-      case worldKey: JoinKey if !worldKey.was && worldKey.keyAlias == alias &&
+    val (indexStr,index): (String,Index) = Single.option(world.collect{
+      case (worldKey: JoinKey, index) if !worldKey.was && worldKey.keyAlias == alias &&
         worldKey.valueClassName.split("\\W").last == keyClassAlias ⇒
-        (s"$worldKey",Await.result(worldKey.of(world),Duration.Inf))
-    }).getOrElse(("[index not found]",emptyIndex))
+        (s"$worldKey",index)
+    }.toList).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("X-r-selection") match {
       case k if k.startsWith(":") ⇒ k.tail :: valueLines(index)(k.tail)
       case "keys" ⇒ indexUtil.keySet(index).map(_.toString).toList.sorted

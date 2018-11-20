@@ -7,11 +7,14 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Index, Values}
-import ee.cone.c4assemble.{Assemble, IndexUtil, JoinKey, assemble}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import okio.ByteString
+
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
 @protocol object ActorAccessProtocol extends Protocol {
   @Id(0x006A) case class ActorAccessKey(
@@ -35,7 +38,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
     TxAdd(LEvent.update(ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssemble(compressor: Compressor, indexUtil: IndexUtil) extends Assemble {
+@assemble class PrometheusAssemble(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends Assemble {
   def join(
     key: SrcId,
     first: Each[Firstborn],
@@ -43,11 +46,11 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
   ): Values[(SrcId,TxTransform)] = {
     val path = s"/${accessKey.value}-metrics"
     println(s"Prometheus metrics at $path")
-    List(WithPK(PrometheusTx(path, compressor, indexUtil)))
+    List(WithPK(PrometheusTx(path, compressor, indexUtil, readModelUtil)))
   }
 }
 
-case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUtil) extends TxTransform {
+case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends TxTransform {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
     val runtime = Runtime.getRuntime
@@ -56,7 +59,7 @@ case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUt
       "runtime_mem_total" → runtime.totalMemory,
       "runtime_mem_free" → runtime.freeMemory
     )
-    val keyCounts: List[(String, Long)] = local.assembled.inner.map {
+    val keyCounts: List[(String, Long)] = Await.result(readModelUtil.toMap(local.assembled),Duration.Inf).map {
       case (worldKey:JoinKey, index: Index)
         if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
         s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → indexUtil.keySet(index).size.toLong

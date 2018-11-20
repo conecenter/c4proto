@@ -225,7 +225,7 @@ class JoinMapIndex(
 }
 
 class TreeAssemblerImpl(
-  composes: IndexUtil,
+  composes: IndexUtil, readModelUtil: ReadModelUtil,
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
 ) extends TreeAssembler {
@@ -271,8 +271,7 @@ class TreeAssemblerImpl(
     val testSZ = transforms.size
     //for(t ← transforms) println("T",t)
     @tailrec def transformUntilStable(left: Int, transition: WorldTransition): WorldTransition = {
-      val diffs = Future.sequence(transition.diff.inner.values)
-      val stable = diffs.map(_.forall(composes.isEmpty))
+      val stable = readModelUtil.isEmpty(transition.diff)
       if(Await.result(stable,Duration.Inf)) transition
       else if(left > 0){
         //println(s"join iter [${Thread.currentThread.getName}] $testSZ")
@@ -281,12 +280,11 @@ class TreeAssemblerImpl(
       else throw new Exception(s"unstable assemble ${transition.diff}")
     }
 
-
     (prevWorld,diff,isParallel,profiler) ⇒ {
       val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler)
-      val currentWorld = new ReadModel(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
+      val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
         seq ← Future.sequence(Seq(a,b))
-      } yield composes.mergeIndex(seq) )(prevWorld.inner, diff.inner))
+      } yield composes.mergeIndex(seq) ))(prevWorld,diff)
       val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler)
       transformUntilStable(1000, nextTransition)
     }
