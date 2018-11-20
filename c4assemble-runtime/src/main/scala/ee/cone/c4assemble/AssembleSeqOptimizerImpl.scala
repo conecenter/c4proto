@@ -20,14 +20,14 @@ class LoopExpression[MapKey, Value](
 ) extends WorldPartExpression {
   private def inner(
     left: Int, transition: WorldTransition, resDiff: Index
-  ): Future[(Index, Index)] = {
+  ): Future[IndexUpdate] = {
     val transitionA = main.transform(transition)
     for {
       diffPart ← outputWorldKey.of(transitionA.diff)
       res ← {
         if(composes.isEmpty(diffPart)) for {
           resVal ← outputWorldKey.of(transitionA.result)
-        } yield (resDiff, resVal)
+        } yield new IndexUpdate(resDiff, resVal)
         else if(left > 0) inner(
           left - 1,
           continueF(transitionA),
@@ -40,12 +40,10 @@ class LoopExpression[MapKey, Value](
   def transform(transition: WorldTransition): WorldTransition = {
     //println("B")
     val next = inner(1000, transition, emptyIndex)
-    val nextDiff = next.map(_._1)
-    val nextIndex = next.map(_._2)
     //println("E")
     Function.chain(Seq(
-      updater.setPart(outputWorldKey)(nextDiff,nextIndex),
-      updater.setPart(wasOutputWorldKey)(Future.successful(emptyIndex),nextIndex)
+      updater.setPart(outputWorldKey)(next),
+      updater.setPart(wasOutputWorldKey)(next.map(update⇒new IndexUpdate(emptyIndex,update.result)))
     ))(transition)
   }
 }

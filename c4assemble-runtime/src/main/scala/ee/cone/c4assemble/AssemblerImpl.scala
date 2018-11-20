@@ -12,9 +12,9 @@ import scala.annotation.tailrec
 import scala.collection.GenIterable
 import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
 import scala.collection.parallel.immutable.ParVector
-import scala.concurrent.Future
-
+import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 
 case class Count(item: Product, count: Int)
 
@@ -199,12 +199,12 @@ class JoinMapIndex(
 
   def transform(transition: WorldTransition): WorldTransition = {
 
-    val next: Future[(Index,Index)] = for {
+    val next: Future[IndexUpdate] = for {
       worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
       outputDiff ← outputWorldKey.of(transition.diff)
       outputData ← outputWorldKey.of(transition.result)
       res ← {
-        if (worldDiffs.forall(composes.isEmpty)) Future.successful((outputDiff,outputData))
+        if (worldDiffs.forall(composes.isEmpty)) Future.successful(new IndexUpdate(outputDiff,outputData))
         else for {
           prevInputs ← Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
           inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
@@ -212,15 +212,15 @@ class JoinMapIndex(
           val worlds: Seq[(Int, Seq[Index])] = Seq(-1→prevInputs, +1→inputs)
           val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
           val indexDiff = composes.mergeIndex(joinRes)
-          if(composes.isEmpty(indexDiff)) (outputDiff,outputData) else {
+          if(composes.isEmpty(indexDiff)) new IndexUpdate(outputDiff,outputData) else {
             val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
             val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
-            (nextDiff,nextResult)
+            new IndexUpdate(nextDiff,nextResult)
           }
         }
       }
     } yield res
-    updater.setPart(outputWorldKey)(next.map(_._1), next.map(_._2))(transition)
+    updater.setPart(outputWorldKey)(next)(transition)
   }
 }
 
@@ -270,19 +270,23 @@ class TreeAssemblerImpl(
 
     val testSZ = transforms.size
     //for(t ← transforms) println("T",t)
-    @tailrec def transformUntilStable(left: Int, transition: WorldTransition): WorldTransition =
-      if(transition.diff.isEmpty) transition
+    @tailrec def transformUntilStable(left: Int, transition: WorldTransition): WorldTransition = {
+      val diffs = Future.sequence(transition.diff.inner.values)
+      val stable = diffs.map(_.forall(composes.isEmpty))
+      if(Await.result(stable,Duration.Inf)) transition
       else if(left > 0){
         //println(s"join iter [${Thread.currentThread.getName}] $testSZ")
         transformUntilStable(left-1, transformAllOnce(transition))
       }
       else throw new Exception(s"unstable assemble ${transition.diff}")
+    }
+
 
     (prevWorld,diff,isParallel,profiler) ⇒ {
       val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler)
-      val currentWorld = Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
+      val currentWorld = new ReadModel(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
         seq ← Future.sequence(Seq(a,b))
-      } yield composes.mergeIndex(seq) )(prevWorld, diff)
+      } yield composes.mergeIndex(seq) )(prevWorld.inner, diff.inner))
       val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler)
       transformUntilStable(1000, nextTransition)
     }

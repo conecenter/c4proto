@@ -40,7 +40,7 @@ class AssemblerInit(
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
-    (for {
+    new ReadModel((for {
       tpPair ← updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
@@ -56,7 +56,7 @@ class AssemblerInit(
         add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
         res ← remove :: add
       } yield res))
-    }).seq.toMap
+    }).seq.toMap)
 
   // read model part:
   private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel =

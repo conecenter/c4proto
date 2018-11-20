@@ -30,10 +30,15 @@ object Types {
   type DPIterable[V] = GenIterable[V]
   trait Index //DMap[Any,DMultiSet]
   private object EmptyIndex extends Index
-  type ReadModel = DMap[AssembledKey,Future[Index]]
+  private object EmptyReadModel extends ReadModel(emptyDMap)
+  //
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
-  def emptyReadModel: ReadModel = emptyDMap
+  def emptyReadModel: ReadModel = EmptyReadModel
   def emptyIndex: Index = EmptyIndex//emptyDMap
+}
+
+class ReadModel(inner: DMap[AssembledKey,Future[Index]]) {
+  def apply(key: AssembledKey): Future[Index] = inner.getOrElse(key, Future.successful(emptyIndex))
 }
 
 trait Getter[C,+I] {
@@ -41,7 +46,7 @@ trait Getter[C,+I] {
 }
 
 abstract class AssembledKey extends Getter[ReadModel,Future[Index]] with Product {
-  def of: ReadModel ⇒ Future[Index] = world ⇒ world.getOrElse(this, Future.successful(emptyIndex))
+  def of: ReadModel ⇒ Future[Index] = world ⇒ world(this)
 }
 
 trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {

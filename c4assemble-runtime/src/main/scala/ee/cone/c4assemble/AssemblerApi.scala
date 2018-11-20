@@ -42,9 +42,11 @@ trait ByPriority {
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
+class IndexUpdate(val diff: Index, val result: Index)
+
 trait IndexUpdater {
   def setPart[K,V](worldKey: AssembledKey)(
-    nextDiff: Future[Index], nextIndex: Future[Index]
+    next: Future[IndexUpdate]
   ): WorldTransition⇒WorldTransition
 }
 
