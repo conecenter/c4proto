@@ -56,13 +56,28 @@ object HttpUtil extends LazyLogging {
 
 class RemoteRawSnapshotLoader(baseURL: String, authKey: AuthKey) extends RawSnapshotLoader with LazyLogging {
   def list(subDirStr: String): List[RawSnapshot] = {
-    val response = sendRequest(s"$baseURL/$subDirStr/", List(("X-r-auth-key",authKey.createHash(subDirStr)), ("X-r-command", "list")))
+    val currentTime = System.currentTimeMillis().toHexString
+    val response = sendRequest(s"$baseURL/$subDirStr/",
+      List(
+        ("X-r-auth-key", authKey.createHash(subDirStr + currentTime)),
+        ("X-r-command", "list"),
+        ("X-r-current-time", currentTime)
+      )
+    )
     """(\S+)""".r.findAllIn(response.utf8())
       .toList.distinct.map(k ⇒ RawSnapshot(k))
   }
   def load(snapshot: RawSnapshot): ByteString = {
-    val offset = SnapshotUtil.hashFromName(snapshot).map(_.offset).getOrElse("last")
-    sendRequest(s"$baseURL/${snapshot.relativePath}", List(("X-r-auth-key",authKey.createHash(offset)), ("X-r-offset", offset), ("X-r-command", "load")))
+    val offsetOpt = SnapshotUtil.hashFromName(snapshot).map(_.offset)
+    assert(offsetOpt.nonEmpty, s"Wrong RawSnapshot for load: ${snapshot.relativePath}")
+    val offset = offsetOpt.get
+    sendRequest(s"$baseURL/${snapshot.relativePath}",
+      List(
+        ("X-r-auth-key", authKey.createHash(offset)),
+        ("X-r-offset", offset),
+        ("X-r-command", "load")
+      )
+    )
   }
 
   private def sendRequest(url: String, headers: List[(String, String)]): ByteString = {
@@ -79,6 +94,11 @@ class OneTimeAuthKey(hash: String) extends AuthKey {
     * Creates hash from input string using value
     */
   def createHash(addInfo: String): String = hash
+
+  /**
+    * Checks if given hash is correct for shouldAddInfo
+    */
+  def checkHash(shouldAddInfo: String): String ⇒ Boolean = _ == hash
 }
 
 object RemoteRawSnapshotLoaderFactory extends RawSnapshotLoaderFactory {

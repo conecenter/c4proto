@@ -46,7 +46,7 @@ trait ExpressionsDumpersApp {
 trait SimpleIndexValueMergerFactoryApp //compat
 trait TreeIndexValueMergerFactoryApp //compat
 
-trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp {
+trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp with NoMessageCompressionApp{
   def execution: Execution
   def snapshotMaker: SnapshotMaker
   def rawSnapshotLoader: RawSnapshotLoader
@@ -54,8 +54,8 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
-  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
-  lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
+  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader, compressorRegistry)
+  lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender, messageCompressor)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
@@ -66,8 +66,8 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   override def protocols: List[Protocol] = OrigMetaAttrProtocol :: super.protocols
 }
 
-trait TestRichDataApp extends RichDataApp {
-  lazy val contextFactory = new ContextFactory(richRawWorldFactory,richRawWorldReducer,toUpdate)
+trait TestRichDataApp extends RichDataApp with NoMessageCompressionApp{
+  lazy val contextFactory = new ContextFactory(richRawWorldFactory,richRawWorldReducer,toUpdate, messageCompressor)
 }
 
 trait RichDataApp extends ProtocolsApp
@@ -77,17 +77,20 @@ trait RichDataApp extends ProtocolsApp
   with DefaultModelFactoriesApp
   with ExpressionsDumpersApp
   with PreHashingApp
+  with CompressorRegistryMix
+  with WithGZipCompressorApp
 {
   def assembleProfiler: AssembleProfiler
+  def messageCompressor: Compressor
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)()
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, compressorRegistry)()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
     new RichRawWorldReducerImpl
   lazy val richRawWorldFactory: RichRawWorldFactory =
-    new RichRawWorldFactoryImpl(toInject,toUpdate,getClass.getName,richRawWorldReducer)
+    new RichRawWorldFactoryImpl(toInject,toUpdate,getClass.getName,richRawWorldReducer, messageCompressor)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
@@ -136,11 +139,12 @@ trait MergingSnapshotApp {
   def richRawWorldReducer: RichRawWorldReducer
   def snapshotLoader: SnapshotLoader
   def snapshotMaker: SnapshotMaker
+  def compressorRegistry: CompressorRegistry
   //
   lazy val snapshotMerger: SnapshotMerger = new SnapshotMergerImpl(
     toUpdate, snapshotMaker,snapshotLoader,
-    RemoteSnapshotMakerFactory,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl,
-    richRawWorldFactory,richRawWorldReducer
+    RemoteSnapshotMakerFactory,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl(compressorRegistry),
+    richRawWorldFactory,richRawWorldReducer, GzipCompressor()
   )
 }
 

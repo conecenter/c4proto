@@ -18,7 +18,8 @@ class SnapshotMergerImpl(
   rawSnapshotLoaderFactory: RawSnapshotLoaderFactory,
   snapshotLoaderFactory: SnapshotLoaderFactory,
   rawWorldFactory: RichRawWorldFactory,
-  reducer: RichRawWorldReducer
+  reducer: RichRawWorldReducer,
+  compressor: Compressor
 ) extends SnapshotMerger {
   private def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update] = {
     val currentUpdates = toUpdate.toUpdates(List(snapshot))
@@ -38,9 +39,10 @@ class SnapshotMergerImpl(
     val diffUpdates = diff(currentFullSnapshot,targetFullSnapshot)
     (task,txs) match {
       case (t:NextSnapshotTask,Seq()) ⇒
-        WriteModelKey.modify(_.enqueue(diffUpdates))(local)
+        (CurrentCompressorKey.set(Option(compressor)) andThen
+        WriteModelKey.modify(_.enqueue(diffUpdates)))(local)
       case (t:DebugSnapshotTask,Seq(Some(targetTxSnapshot))) ⇒
-        val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(toUpdate.toBytes(diffUpdates)))
+        val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(toUpdate.toBytes(diffUpdates, compressor)), Nil)
         val preTargetWorld = reducer.reduce(List(diffRawEvent))(local)
         DebugStateKey.set(Option((preTargetWorld,targetTxSnapshot)))(local)
     }

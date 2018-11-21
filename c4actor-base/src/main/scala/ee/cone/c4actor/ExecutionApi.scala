@@ -35,8 +35,7 @@ trait AuthKey {
   /**
     * Checks if given hash is correct for shouldAddInfo
     */
-  def checkHash(shouldAddInfo: String): String ⇒ Boolean =
-    createHash(shouldAddInfo) == _
+  def checkHash(shouldAddInfo: String): String ⇒ Boolean
 }
 
 ////

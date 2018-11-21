@@ -33,6 +33,8 @@ class TestTodoApp extends ServerApp
   with AvailabilityApp
   with TestTodoRootViewApp
 {
+  override lazy val messageCompressor: Compressor = GzipCompressor()
+
   override def protocols: List[Protocol] =
     CommonFilterProtocol :: TestTodoProtocol :: super.protocols
   override def assembles: List[Assemble] =

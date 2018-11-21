@@ -15,6 +15,7 @@ class HttpGatewayApp extends ServerApp
   with MortalFactoryApp
   with ManagementApp
   with SnapshotMakingApp
+  with WithGZipCompressorApp
 {
   def httpHandlers: List[RHttpHandler] = //todo secure
     new HttpGetSnapshotHandler(snapshotLoader,authKey) ::
@@ -24,6 +25,8 @@ class HttpGatewayApp extends ServerApp
     Nil
   def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
   override def toStart: List[Executable] = safeToRun :: super.toStart
+
+  lazy val saverCompressor: Compressor = GzipCompressor()
 }
 
 // I>P -- to agent, cmd>evl
@@ -36,21 +39,22 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   def consuming: Consuming
   def toUpdate: ToUpdate
   def authKey: AuthKey
-  def compressedSnapshots: Boolean = true
+  def compressorRegistry: CompressorRegistry
+  def saverCompressor: Compressor
   //
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
   lazy val safeToRun: SafeToRun = new SafeToRun(fileSnapshotMaker)
   //
   private lazy val fileSnapshotMaker: SnapshotMakerImpl =
-    new SnapshotMakerImpl(snapshotConfig, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate)
+    new SnapshotMakerImpl(snapshotConfig, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate, saverCompressor, compressorRegistry)
   private lazy val dbDir = "db4"
   private lazy val snapshotConfig: SnapshotConfig =
     new FileSnapshotConfigImpl(dbDir)()
   private lazy val fullSnapshotSaver: SnapshotSaver =
-    new SnapshotSaverImpl("snapshots",new FileRawSnapshotSaver(dbDir), compressedSnapshots)
+    new SnapshotSaverImpl("snapshots",new FileRawSnapshotSaver(dbDir))
   private lazy val txSnapshotSaver: SnapshotSaver =
-    new SnapshotSaverImpl("snapshot_txs",new FileRawSnapshotSaver(dbDir), compressedSnapshots)
+    new SnapshotSaverImpl("snapshot_txs",new FileRawSnapshotSaver(dbDir))
   private lazy val fileRawSnapshotLoader: FileRawSnapshotLoader =
     new FileRawSnapshotLoader(dbDir)
   //

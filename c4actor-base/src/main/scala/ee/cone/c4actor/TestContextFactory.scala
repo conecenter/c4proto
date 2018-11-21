@@ -6,10 +6,10 @@ import okio.ByteString
 
 import scala.collection.immutable.Map
 
-class ContextFactory(richRawWorldFactory: RichRawWorldFactory, reducer: RichRawWorldReducer, toUpdate: ToUpdate) {
+class ContextFactory(richRawWorldFactory: RichRawWorldFactory, reducer: RichRawWorldReducer, toUpdate: ToUpdate, compressor: Compressor) {
   def updated(updates: List[Update]): Context = {
     val eWorld = richRawWorldFactory.create()
-    val firstUpdate = SimpleRawEvent(eWorld.offset, ToByteString(toUpdate.toBytes(updates)))
+    val firstUpdate = SimpleRawEvent(eWorld.offset, ToByteString(toUpdate.toBytes(updates, compressor)), Nil)
     val world = reducer.reduce(List(firstUpdate))(eWorld)
     new Context(world.injected, world.assembled, Map.empty)
   }

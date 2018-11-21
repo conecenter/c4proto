@@ -32,7 +32,9 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) e
           case Some("load") ⇒
             snapshotLoader.load(RawSnapshot(path.tail)).get.data.toByteArray
           case Some("list") ⇒
-            assert(authKey.checkHash("snapshots")(rqAuthHash.get), "Wrong hash for list command")
+            val requestTime = Option(httpExchange.getRequestHeaders.getFirst("X-r-current-time"))
+            assert(requestTime.nonEmpty, "List request with no request time")
+            assert(authKey.checkHash("snapshots" + requestTime.get)(rqAuthHash.get), "Wrong hash for list command")
             snapshotLoader.list.map(_.raw.relativePath).mkString("\n").getBytes(UTF_8)
           case _ ⇒
             throw new Exception("Unsupported command")
@@ -146,7 +148,9 @@ class SnapshotMakerImpl(
   fullSnapshotSaver: SnapshotSaver,
   txSnapshotSaver: SnapshotSaver,
   consuming: Consuming,
-  toUpdate: ToUpdate
+  toUpdate: ToUpdate,
+  compressor: Compressor,
+  compressorRegistry: CompressorRegistry
 ) extends SnapshotMaker with LazyLogging {
   def url = "/need-snapshot"
 
@@ -185,7 +189,7 @@ class SnapshotMakerImpl(
     logger.debug("Saving...")
     val updates = world.state.values.toList.sortBy(toUpdate.by)
     makeStats(updates)
-    val res = fullSnapshotSaver.save(world.offset, toUpdate.toBytes(updates))
+    val res = fullSnapshotSaver.save(world.offset, toUpdate.toBytes(updates, compressor), compressor.name)
     logger.debug("Saved")
     res
   }
@@ -218,7 +222,8 @@ class SnapshotMakerImpl(
           case t: DebugSnapshotTask ⇒
             if(gEvents.nonEmpty){
               assert(endOffset == gEvents.head.srcId)
-              List(save(nWorld), txSnapshotSaver.save(endOffset, gEvents.head.data.toByteArray))
+              val compressorName = gEvents.head.headers.collectFirst{case h if h.key=="compressor" ⇒ new String(h.data.toByteArray, UTF_8)}.getOrElse("")
+              List(save(nWorld), txSnapshotSaver.save(endOffset, gEvents.head.data.toByteArray, compressorName))
             } else iteration(nWorld, endOffset, nSkip)
         }
       }
@@ -262,15 +267,7 @@ class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader {
   private def baseDir = Paths.get(baseDirStr)
   def load(snapshot: RawSnapshot): ByteString = {
     val path = baseDir.resolve(snapshot.relativePath)
-    if (SnapshotUtil.compressedRaw(snapshot)) {
-      val gzipInput = new GZIPInputStream(new FileInputStream(path.toFile))
-      val bytes = IOUtils.toByteArray(gzipInput)
-      gzipInput.close()
-      ToByteString(bytes)
-    }
-    else {
-      ToByteString(Files.readAllBytes(path))
-    }
+    ToByteString(Files.readAllBytes(path))
   }
   def list(subDirStr: String): List[RawSnapshot] = {
     val subDir = baseDir.resolve(subDirStr)
@@ -288,13 +285,7 @@ class FileRawSnapshotSaver(baseDirStr: String /*db4*/) extends RawSnapshotSaver 
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
     val path: Path = Paths.get(baseDirStr).resolve(snapshot.relativePath)
     Files.createDirectories(path.getParent)
-    if (SnapshotUtil.compressedRaw(snapshot)) {
-      val gzipStream = new GZIPOutputStream(new FileOutputStream(path.toFile))
-      gzipStream.write(data)
-      gzipStream.close()
-    } else {
-      Files.write(path, data)
-    }
+    Files.write(path, data)
   }
 }
 
