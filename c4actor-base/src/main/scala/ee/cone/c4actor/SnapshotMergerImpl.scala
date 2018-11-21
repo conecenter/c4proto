@@ -42,7 +42,7 @@ class SnapshotMergerImpl(
         (CurrentCompressorKey.set(Option(compressor)) andThen
         WriteModelKey.modify(_.enqueue(diffUpdates)))(local)
       case (t:DebugSnapshotTask,Seq(Some(targetTxSnapshot))) ⇒
-        val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(toUpdate.toBytes(diffUpdates, compressor)), Nil)
+        val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(toUpdate.toBytes(diffUpdates, compressor)), compressor.getRawHeaders)
         val preTargetWorld = reducer.reduce(List(diffRawEvent))(local)
         DebugStateKey.set(Option((preTargetWorld,targetTxSnapshot)))(local)
     }

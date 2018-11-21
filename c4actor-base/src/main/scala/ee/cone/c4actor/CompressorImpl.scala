@@ -49,7 +49,7 @@ case class GzipCompressor() extends Compressor {
 
   @tailrec
   private def readAgain(source: Source, sink: Buffer): Unit =
-    if (source.read(sink, 1) >= 0)
+    if (source.read(sink, 1000000) >= 0)
       readAgain(source, sink)
 
   def deCompress: ByteString ⇒ ByteString = body ⇒

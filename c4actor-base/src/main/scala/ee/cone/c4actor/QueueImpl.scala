@@ -66,7 +66,7 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry, compressorRegistry: Compr
   def toUpdates(events: List[RawEvent]): List[Update] =
     for {
       event ← events
-      a ← {println(event.srcId, event.headers, findCompressor(event.headers)); 1 :: Nil}
+      a ← {println(event.srcId, event.headers, event.data.size , findCompressor(event.headers)); 1 :: Nil}
       compressor = findCompressor(event.headers)
       update ← updatesAdapter.decode(compressor.deCompress(event.data)).updates
     } yield

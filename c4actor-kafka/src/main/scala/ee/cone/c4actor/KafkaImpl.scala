@@ -52,7 +52,7 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
     val value: Array[Byte] = if(rec.value.nonEmpty) rec.value else null
     val topic: String = conf.topicNameToString(rec.topic)
-    println("Send", rec.headers)
+    println("Send", rec.headers, rec.value.length)
     val headers = rec.headers.map(h ⇒ new RecordHeader(h.key, h.value).asInstanceOf[Header]).asJava
     /*val record = new ProducerRecord[Array[Byte], Array[Byte]](topic, 0, null, Array.emptyByteArray, value, headers)
     producer.get.send(record)*/
@@ -117,7 +117,7 @@ class RKafkaConsumer(
   def poll(): List[RawEvent] =
     consumer.poll(Duration.ofMillis(200) /*timeout*/).asScala.toList.map { rec: ConsumerRecord[Array[Byte], Array[Byte]] ⇒
       val compHeader = rec.headers().toArray.toList.map(h ⇒ RawHeaderImpl(h.key(), ToByteString(h.value())))
-      println("Get", compHeader) // todo remove debug
+      println("Get", compHeader, rec.offset()) // todo remove debug
       val data: Array[Byte] = if (rec.value ne null) rec.value else Array.empty
       KafkaRawEvent(OffsetHex(rec.offset + 1L), ToByteString(data), compHeader, rec.timestamp)
     }
