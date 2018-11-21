@@ -38,7 +38,7 @@ class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with Laz
     res
   }
   def load(snapshot: RawSnapshot): Option[RawEvent] = {
-    logger.debug(s"Loading raw snapshot [${snapshot.key}]")
+    logger.debug(s"Loading raw snapshot [${snapshot.relativePath}]")
     val res = for {
       snapshotInfo ← hashFromName(snapshot) //goes first, secures fs
       data ← Option(raw.load(snapshot)) if hashFromData(data.toByteArray) == snapshotInfo.uuid
