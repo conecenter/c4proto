@@ -13,9 +13,7 @@ class SimpleMakerApp extends RichDataApp with ExecutableApp
 
   override def toStart: List[Executable] = new SimpleMakerExecutable(execution,snapshotMaker) :: super.toStart
 
-  lazy val messageCompressor: Compressor = NoCompression
-
-  lazy val saverCompressor: Compressor = GzipCompressor()
+  lazy val saverCompressor: JustCompressor = GzipCompressor()
 }
 
 class SimpleMakerExecutable(execution: Execution, snapshotMaker: SnapshotMaker) extends Executable {
@@ -42,7 +40,7 @@ class SimplePusherExecutable(execution: Execution, snapshotLoader: SnapshotLoade
     rawQSender.send(List(new QRecord {
       def topic: TopicName = InboxTopicName()
       def value: Array[Byte] = event.data.toByteArray
-      def headers: scala.collection.immutable.Seq[KafkaHeader] = Nil
+      def headers: scala.collection.immutable.Seq[RawHeader] = Nil
     }))
     execution.complete()
   }

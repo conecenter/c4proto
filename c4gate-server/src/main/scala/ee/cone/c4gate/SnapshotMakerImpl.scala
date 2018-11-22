@@ -1,9 +1,7 @@
 package ee.cone.c4gate
 
-import java.io.{FileInputStream, FileOutputStream}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
-import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
 import com.sun.net.httpserver.HttpExchange
 import com.typesafe.scalalogging.LazyLogging
@@ -15,12 +13,11 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPost, HttpPublication}
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
-import org.apache.commons.io.IOUtils
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
-class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) extends RHttpHandler {
+class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) extends RHttpHandler with LazyLogging {
   def handle(httpExchange: HttpExchange): Boolean =
     if(httpExchange.getRequestMethod == "GET"){
       val path = httpExchange.getRequestURI.getPath
@@ -39,6 +36,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) e
           case _ ⇒
             throw new Exception("Unsupported command")
         }
+        logger.debug(s"Sending ${bytes.length} bytes")
         httpExchange.sendResponseHeaders(200, bytes.length)
         if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
         true
@@ -153,9 +151,7 @@ class SnapshotMakerImpl(
   fullSnapshotSaver: SnapshotSaver,
   txSnapshotSaver: SnapshotSaver,
   consuming: Consuming,
-  toUpdate: ToUpdate,
-  compressor: Compressor,
-  compressorRegistry: CompressorRegistry
+  toUpdate: ToUpdate
 ) extends SnapshotMaker with LazyLogging {
   def url = "/need-snapshot"
 
@@ -194,7 +190,8 @@ class SnapshotMakerImpl(
     logger.debug("Saving...")
     val updates = world.state.values.toList.sortBy(toUpdate.by)
     makeStats(updates)
-    val res = fullSnapshotSaver.save(world.offset, toUpdate.toBytes(updates, compressor), compressor.name)
+    val (bytes, headers) = toUpdate.toBytes(updates)
+    val res = fullSnapshotSaver.save(world.offset, bytes, headers)
     logger.debug("Saved")
     res
   }
@@ -227,8 +224,7 @@ class SnapshotMakerImpl(
           case t: DebugSnapshotTask ⇒
             if(gEvents.nonEmpty){
               assert(endOffset == gEvents.head.srcId)
-              val compressorName = gEvents.head.headers.collectFirst{case h if h.key=="compressor" ⇒ new String(h.data.toByteArray, UTF_8)}.getOrElse("")
-              List(save(nWorld), txSnapshotSaver.save(endOffset, gEvents.head.data.toByteArray, compressorName))
+              List(save(nWorld), txSnapshotSaver.save(endOffset, gEvents.head.data.toByteArray, gEvents.head.headers))
             } else iteration(nWorld, endOffset, nSkip)
         }
       }

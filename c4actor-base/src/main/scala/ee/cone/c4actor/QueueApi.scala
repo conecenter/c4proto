@@ -61,15 +61,10 @@ sealed trait TopicName
 case class InboxTopicName() extends TopicName
 case class LogTopicName() extends TopicName
 
-trait KafkaHeader {
-  def key: String
-  def value: Array[Byte]
-}
-
 trait QRecord {
   def topic: TopicName
   def value: Array[Byte]
-  def headers: Seq[KafkaHeader]
+  def headers: Seq[RawHeader]
 }
 
 trait RawQSender {
@@ -85,7 +80,7 @@ trait QMessages {
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
-  def toBytes(updates: List[Update], compressor: Compressor): Array[Byte]
+  def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
   def toUpdates(events: List[RawEvent]): List[Update]
   def toKey(up: Update): Update
   def by(up: Update): (Long, String)
@@ -202,7 +197,7 @@ class QAdapterRegistry(
 
 trait RawHeader extends Product {
   def key: String
-  def data: ByteString
+  def value: String
 }
 
 trait RawEvent extends Product {

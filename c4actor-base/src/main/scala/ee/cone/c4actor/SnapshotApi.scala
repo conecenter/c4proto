@@ -16,9 +16,9 @@ trait RawSnapshotLoaderFactory {
 }
 
 trait SnapshotSaver {
-  def save(offset: NextOffset, data: Array[Byte], compressor: String): RawSnapshot
+  def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot
 }
-case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, compressor: Option[String], raw: RawSnapshot)
+case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, headers: List[RawHeader], raw: RawSnapshot)
 trait SnapshotLoader {
   def load(snapshot: RawSnapshot): Option[RawEvent]
   def list: List[SnapshotInfo]

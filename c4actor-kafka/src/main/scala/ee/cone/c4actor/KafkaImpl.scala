@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Single
 import ee.cone.c4proto.ToByteString
+import java.nio.charset.StandardCharsets.UTF_8
 import okio.ByteString
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, RecordMetadata}
@@ -46,7 +47,7 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
     val value: Array[Byte] = if(rec.value.nonEmpty) rec.value else null
     val topic: String = conf.topicNameToString(rec.topic)
-    val headers = rec.headers.map(h ⇒ new RecordHeader(h.key, h.value).asInstanceOf[Header]).asJava
+    val headers = rec.headers.map(h ⇒ new RecordHeader(h.key, h.value.getBytes(UTF_8)).asInstanceOf[Header]).asJava
     /*val record = new ProducerRecord[Array[Byte], Array[Byte]](topic, 0, null, Array.emptyByteArray, value, headers)
     producer.get.send(record)*/
     KafkaMessageSender.send(topic, value, headers, producer)
@@ -56,8 +57,6 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
     futures.map(res⇒OffsetHex(res.get().offset()+1))
   }
 }
-
-case class RawHeaderImpl(key: String, data: ByteString) extends RawHeader
 
 object OffsetHex {
   def apply(offset: Long): NextOffset =
@@ -109,7 +108,7 @@ class RKafkaConsumer(
 ) extends Consumer {
   def poll(): List[RawEvent] =
     consumer.poll(Duration.ofMillis(200) /*timeout*/).asScala.toList.map { rec: ConsumerRecord[Array[Byte], Array[Byte]] ⇒
-      val compHeader = rec.headers().toArray.toList.map(h ⇒ RawHeaderImpl(h.key(), ToByteString(h.value())))
+      val compHeader = rec.headers().toArray.toList.map(h ⇒ RawHeaderImpl(h.key(), new String(h.value(), UTF_8)))
       val data: Array[Byte] = if (rec.value ne null) rec.value else Array.empty
       KafkaRawEvent(OffsetHex(rec.offset + 1L), ToByteString(data), compHeader, rec.timestamp)
     }

@@ -26,7 +26,7 @@ class HttpGatewayApp extends ServerApp
   def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
   override def toStart: List[Executable] = safeToRun :: super.toStart
 
-  lazy val saverCompressor: Compressor = GzipCompressor()
+  lazy val saverCompressor: JustCompressor = GzipCompressor()
 }
 
 // I>P -- to agent, cmd>evl
@@ -40,14 +40,14 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   def toUpdate: ToUpdate
   def authKey: AuthKey
   def compressorRegistry: CompressorRegistry
-  def saverCompressor: Compressor
+  def saverCompressor: JustCompressor
   //
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
   lazy val safeToRun: SafeToRun = new SafeToRun(fileSnapshotMaker)
   //
   private lazy val fileSnapshotMaker: SnapshotMakerImpl =
-    new SnapshotMakerImpl(snapshotConfig, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate, saverCompressor, compressorRegistry)
+    new SnapshotMakerImpl(snapshotConfig, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate)
   private lazy val dbDir = "db4"
   private lazy val snapshotConfig: SnapshotConfig =
     new FileSnapshotConfigImpl(dbDir)()

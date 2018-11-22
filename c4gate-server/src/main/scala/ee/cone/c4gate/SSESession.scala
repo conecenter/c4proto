@@ -35,7 +35,7 @@ trait SSEServerApp
   def mortal: MortalFactory
   lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig)
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
-  private lazy val compressorFactory: CompressorFactory = new GzipGzipCompressorStreamFactory
+  private lazy val compressorFactory: JustCompressorFactory = new GzipGzipJustCompressorStreamFactory
   private lazy val sseServer =
     new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10, compressorFactory)
   override def toStart: List[Executable] = sseServer :: super.toStart

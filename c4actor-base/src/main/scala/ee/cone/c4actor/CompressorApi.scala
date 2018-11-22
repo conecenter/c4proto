@@ -2,23 +2,23 @@ package ee.cone.c4actor
 
 import okio.ByteString
 
-case object CurrentCompressorKey extends TransientLens[Option[Compressor]](None)
-
-trait Compressor {
+trait JustCompressor {
   def name: String
 
-  def compressRaw: Array[Byte] ⇒ Array[Byte]
-
   def compress: ByteString ⇒ ByteString
-
-  def deCompress: ByteString ⇒ ByteString
-
-  def getKafkaHeaders: List[KafkaHeader]
-
-  def getRawHeaders: List[RawHeader]
 }
 
-trait CompressorsApp {
+trait JustDeCompressor {
+  def name: String
+
+  def deCompress: ByteString ⇒ ByteString
+}
+
+trait Compressor extends JustCompressor with JustDeCompressor {
+  def compressRaw: Array[Byte] ⇒ Array[Byte]
+}
+
+trait CompressionApp {
   def compressors: List[Compressor] = Nil
 }
 
@@ -27,9 +27,9 @@ trait CompressorsRegistryApp {
 }
 
 trait CompressorRegistry {
-  def byName: String ⇒ Option[Compressor]
+  def byName: String ⇒ Compressor
 }
 
-trait CompressorFactory {
-  def create(): Option[Compressor]
+trait JustCompressorFactory {
+  def create(): Option[JustCompressor]
 }

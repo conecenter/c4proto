@@ -16,19 +16,19 @@ import okio.ByteString
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-class KafkaHeaderImpl(val key: String,val value: Array[Byte]) extends KafkaHeader
+case class RawHeaderImpl(key: String, value: String) extends RawHeader
 
-class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[KafkaHeader]) extends QRecord
+class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender, defaultCompressor: Compressor) extends QMessages {
+class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends QMessages {
   //import qAdapterRegistry._
   // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
-    val currentCompressor = CurrentCompressorKey.of(local).getOrElse(defaultCompressor)
     val updates: List[Update] = WriteModelKey.of(local).toList
     if(updates.isEmpty) return local
     //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val rec = new QRecordImpl(InboxTopicName(),toUpdate.toBytes(updates, currentCompressor), currentCompressor.getKafkaHeaders)
+    val (bytes, headers) = toUpdate.toBytes(updates)
+    val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
     val debugStr = WriteModelDebugKey.of(local).map(_.toString).mkString("\n---\n")
     val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8), Nil)
     val List(offset,_)= getRawQSender().send(List(rec,debugRec))
@@ -40,12 +40,17 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender, defaultC
   }
 }
 
-class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry, compressorRegistry: CompressorRegistry)(
+class ToUpdateImpl(
+  qAdapterRegistry: QAdapterRegistry,
+  compressorRegistry: CompressorRegistry,
+  compressor: Compressor,
+  compressionMinSize: Long = 50000000L
+)(
   updatesAdapter: ProtoAdapter[Updates] with HasId =
-    qAdapterRegistry.byName(classOf[QProtocol.Updates].getName)
+  qAdapterRegistry.byName(classOf[QProtocol.Updates].getName)
     .asInstanceOf[ProtoAdapter[Updates] with HasId],
   refAdapter: ProtoAdapter[TxRef] with HasId =
-    qAdapterRegistry.byName(classOf[TxRef].getName)
+  qAdapterRegistry.byName(classOf[TxRef].getName)
     .asInstanceOf[ProtoAdapter[TxRef] with HasId]
 ) extends ToUpdate {
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
@@ -54,20 +59,33 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry, compressorRegistry: Compr
     Update(message.srcId, valueAdapter.id, byteString)
   }
 
-  private def findCompressor: List[RawHeader] ⇒ Compressor = list ⇒
-    compressorRegistry.byName(
-      list.collectFirst { case header if header.key == "compressor" ⇒ new String(header.data.toByteArray,UTF_8) }.getOrElse("")
-    ).get
+  private val compressionKey = "c"
+
+  private def findCompressor: List[RawHeader] ⇒ Option[Compressor] = list ⇒
+    list.collectFirst { case header if header.key == compressionKey ⇒ header.value } match {
+      case Some(name) ⇒ Option(compressorRegistry.byName(name))
+      case None ⇒ None
+    }
+
+  private def makeHeaderFromName: Compressor ⇒ List[RawHeader] = jc ⇒
+    RawHeaderImpl(compressionKey, jc.name) :: Nil
 
 
-  def toBytes(updates: List[Update], compressor: Compressor): Array[Byte] =
-    compressor.compressRaw(updatesAdapter.encode(Updates("", updates)))
+  def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader]) = {
+    val updatesBytes = updatesAdapter.encode(Updates("", updates))
+      if (updatesBytes.size < compressionMinSize)
+        (updatesBytes, Nil)
+      else
+        (compressor.compressRaw(updatesBytes), makeHeaderFromName(compressor))
+  }
 
   def toUpdates(events: List[RawEvent]): List[Update] =
     for {
       event ← events
-      compressor = findCompressor(event.headers)
-      update ← updatesAdapter.decode(compressor.deCompress(event.data)).updates
+      compressorOpt = findCompressor(event.headers)
+      update ← updatesAdapter.decode(
+        compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)
+      ).updates
     } yield
       if (update.valueTypeId != refAdapter.id) update
       else {
