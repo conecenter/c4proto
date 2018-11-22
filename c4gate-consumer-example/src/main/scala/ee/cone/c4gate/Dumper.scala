@@ -12,8 +12,9 @@ class DumperApp extends RichDataApp
   with FileRawSnapshotApp
   with ToStartApp
   with EnvConfigApp
+  with NoMessageCompressionApp
 {
-  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
+  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader, compressorRegistry)
   override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
   override def toStart: List[Executable] = new Dumper(snapshotLoader,richRawWorldFactory,richRawWorldReducer,execution) :: super.toStart
 }

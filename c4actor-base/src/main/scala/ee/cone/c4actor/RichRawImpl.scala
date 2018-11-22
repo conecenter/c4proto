@@ -26,7 +26,7 @@ object NextOffsetInit extends ToInject {
 }
 
 class RichRawWorldFactoryImpl(
-  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String, reducer: RichRawWorldReducer
+  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String, reducer: RichRawWorldReducer, compressor: Compressor
 ) extends RichRawWorldFactory {
   def create(): RichContext = {
     val injectedList = for{
@@ -35,7 +35,7 @@ class RichRawWorldFactoryImpl(
     } yield Map(injected.pair)
     val eWorld = new RichRawWorldImpl(Merge(Nil,injectedList), emptyReadModel)
     val firstborn = LEvent.update(Firstborn(actorName)).toList.map(toUpdate.toUpdate)
-    val firstRawEvent = SimpleRawEvent(eWorld.offset, ToByteString(toUpdate.toBytes(firstborn)))
+    val firstRawEvent = SimpleRawEvent(eWorld.offset, ToByteString(toUpdate.toBytes(firstborn, compressor)), compressor.getRawHeaders)
     reducer.reduce(List(firstRawEvent))(eWorld)
   }
 }

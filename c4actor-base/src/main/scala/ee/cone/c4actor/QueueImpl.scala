@@ -16,18 +16,21 @@ import okio.ByteString
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-class QRecordImpl(val topic: TopicName, val value: Array[Byte]) extends QRecord
+class KafkaHeaderImpl(val key: String,val value: Array[Byte]) extends KafkaHeader
 
-class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends QMessages {
+class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[KafkaHeader]) extends QRecord
+
+class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender, defaultCompressor: Compressor) extends QMessages {
   //import qAdapterRegistry._
   // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
+    val currentCompressor = CurrentCompressorKey.of(local).getOrElse(defaultCompressor)
     val updates: List[Update] = WriteModelKey.of(local).toList
     if(updates.isEmpty) return local
     //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
-    val rec = new QRecordImpl(InboxTopicName(),toUpdate.toBytes(updates))
+    val rec = new QRecordImpl(InboxTopicName(),toUpdate.toBytes(updates, currentCompressor), currentCompressor.getKafkaHeaders)
     val debugStr = WriteModelDebugKey.of(local).map(_.toString).mkString("\n---\n")
-    val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8))
+    val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8), Nil)
     val List(offset,_)= getRawQSender().send(List(rec,debugRec))
     Function.chain(Seq(
       WriteModelKey.set(Queue.empty),
@@ -37,7 +40,7 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
   }
 }
 
-class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry)(
+class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry, compressorRegistry: CompressorRegistry)(
   updatesAdapter: ProtoAdapter[Updates] with HasId =
     qAdapterRegistry.byName(classOf[QProtocol.Updates].getName)
     .asInstanceOf[ProtoAdapter[Updates] with HasId],
@@ -50,18 +53,30 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry)(
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
     Update(message.srcId, valueAdapter.id, byteString)
   }
-  def toBytes(updates: List[Update]): Array[Byte] =
-    updatesAdapter.encode(Updates("",updates))
-  def toUpdates(events: List[RawEvent]): List[Update] = for {
-    event ← events
-    update ← updatesAdapter.decode(event.data).updates
-  } yield
-    if(update.valueTypeId != refAdapter.id) update
-    else {
-      val ref: TxRef = refAdapter.decode(update.value)
-      if(ref.txId.nonEmpty) update
-      else update.copy(value=ToByteString(refAdapter.encode(ref.copy(txId = event.srcId))))
-    }
+
+  private def findCompressor: List[RawHeader] ⇒ Compressor = list ⇒
+    compressorRegistry.byName(
+      list.collectFirst { case header if header.key == "compressor" ⇒ new String(header.data.toByteArray,UTF_8) }.getOrElse("")
+    ).get
+
+
+  def toBytes(updates: List[Update], compressor: Compressor): Array[Byte] =
+    compressor.compressRaw(updatesAdapter.encode(Updates("", updates)))
+
+  def toUpdates(events: List[RawEvent]): List[Update] =
+    for {
+      event ← events
+      compressor = findCompressor(event.headers)
+      update ← updatesAdapter.decode(compressor.deCompress(event.data)).updates
+    } yield
+      if (update.valueTypeId != refAdapter.id) update
+      else {
+        val ref: TxRef = refAdapter.decode(update.value)
+        if (ref.txId.nonEmpty) update
+        else update.copy(value = ToByteString(refAdapter.encode(ref.copy(txId = event.srcId))))
+      }
+
+
   def toKey(up: Update): Update = up.copy(value=ByteString.EMPTY)
   def by(up: Update): (Long, String) = (up.valueTypeId,up.srcId)
 }

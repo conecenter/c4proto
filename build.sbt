@@ -92,7 +92,7 @@ lazy val `c4actor-extra` = project.settings(publishSettings)
 lazy val `c4gate-extra` = project.settings(publishSettings)
   .settings(description := s"$descr / dep gate impls")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`, `c4proto-types`)
+  .dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`, `c4proto-types`, `c4gate-logback`)
 
 lazy val `c4actor-extra-examples` = project.settings(publishSettings)
   .settings(description := s"$descr / dep test")
@@ -101,7 +101,7 @@ lazy val `c4actor-extra-examples` = project.settings(publishSettings)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "0.10.2.1")
+  .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "2.0.0")
   .dependsOn(`c4actor-base`)
 
 lazy val `c4gate-server` = project.settings(publishSettings)

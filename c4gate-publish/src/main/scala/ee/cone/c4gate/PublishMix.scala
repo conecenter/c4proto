@@ -10,6 +10,7 @@ class PublishApp extends ServerApp
   with PublishingApp
   with NoAssembleProfilerApp
   with FileRawSnapshotApp
+  with NoMessageCompressionApp
 {
   def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
     "html" → "text/html; charset=UTF-8",

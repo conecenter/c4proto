@@ -79,4 +79,10 @@ class FileAuthKey(fileName: String, idGenUtil : IdGenUtil)(
     * Creates hash from input string using value
     */
   def createHash(addInfo: String): String = idGenUtil.srcIdFromStrings(addInfo, value)
+
+  /**
+    * Checks if given hash is correct for shouldAddInfo
+    */
+  def checkHash(shouldAddInfo: String): String => Boolean =
+    createHash(shouldAddInfo) == _
 }
