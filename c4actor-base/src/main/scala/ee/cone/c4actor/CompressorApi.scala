@@ -27,8 +27,7 @@ trait CompressorsRegistryApp {
 }
 
 trait CompressorRegistry {
-  def byName: String ⇒ Compressor
-  def byByte: ByteString ⇒ Compressor
+  def byName: String ⇒ Option[Compressor]
 }
 
 trait CompressorFactory {

@@ -2,7 +2,6 @@
 package ee.cone.c4actor
 
 import java.time.Duration
-import java.{lang, util}
 import java.util.concurrent.CompletableFuture
 
 import com.typesafe.scalalogging.LazyLogging
@@ -10,19 +9,14 @@ import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Single
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
-import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord, RecordMetadata}
-import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
+import org.apache.kafka.clients.producer.{KafkaProducer, Producer, RecordMetadata}
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.header.Header
 import org.apache.kafka.common.header.internals.RecordHeader
-import org.apache.kafka.common.serialization.ByteArrayDeserializer
+import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySerializer}
 
-import scala.collection.JavaConverters.seqAsJavaListConverter
-import scala.collection.JavaConverters.mapAsJavaMapConverter
-import scala.collection.JavaConverters.iterableAsScalaIterableConverter
-import scala.collection.JavaConverters.mapAsScalaMapConverter
-import scala.collection.JavaConverters.asJavaIterableConverter
+import scala.collection.JavaConverters.{iterableAsScalaIterableConverter, mapAsJavaMapConverter, mapAsScalaMapConverter, seqAsJavaListConverter}
 import scala.collection.immutable.Map
 
 class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
@@ -52,7 +46,6 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
     //println(s"sending to server [$bootstrapServers] topic [${topicNameToString(rec.topic)}]")
     val value: Array[Byte] = if(rec.value.nonEmpty) rec.value else null
     val topic: String = conf.topicNameToString(rec.topic)
-    println("Send", rec.headers, rec.value.length)
     val headers = rec.headers.map(h ⇒ new RecordHeader(h.key, h.value).asInstanceOf[Header]).asJava
     /*val record = new ProducerRecord[Array[Byte], Array[Byte]](topic, 0, null, Array.emptyByteArray, value, headers)
     producer.get.send(record)*/
@@ -117,7 +110,6 @@ class RKafkaConsumer(
   def poll(): List[RawEvent] =
     consumer.poll(Duration.ofMillis(200) /*timeout*/).asScala.toList.map { rec: ConsumerRecord[Array[Byte], Array[Byte]] ⇒
       val compHeader = rec.headers().toArray.toList.map(h ⇒ RawHeaderImpl(h.key(), ToByteString(h.value())))
-      println("Get", compHeader, rec.offset()) // todo remove debug
       val data: Array[Byte] = if (rec.value ne null) rec.value else Array.empty
       KafkaRawEvent(OffsetHex(rec.offset + 1L), ToByteString(data), compHeader, rec.timestamp)
     }

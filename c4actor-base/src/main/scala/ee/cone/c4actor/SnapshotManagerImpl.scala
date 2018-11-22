@@ -41,7 +41,10 @@ class SnapshotLoaderImpl(raw: RawSnapshotLoader, compressorRegistry: CompressorR
     logger.debug(s"Loading raw snapshot [${snapshot.relativePath}]")
     val res = for {
       snapshotInfo ← hashFromName(snapshot) //goes first, secures fs
-      headers = snapshotInfo.compressor.map(compressorRegistry.byName).map(_.getRawHeaders).getOrElse(Nil)
+      headers = snapshotInfo.compressor match {
+        case None ⇒ Nil
+        case Some(name) ⇒ compressorRegistry.byName(name).get.getRawHeaders
+      }
       data ← Option(raw.load(snapshot)) if hashFromData(data.toByteArray) == snapshotInfo.uuid
     } yield SimpleRawEvent(snapshotInfo.offset, data, headers)
     logger.debug(s"Loaded raw snapshot ${res.nonEmpty}")

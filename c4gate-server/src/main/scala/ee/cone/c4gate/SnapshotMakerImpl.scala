@@ -27,14 +27,14 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, authKey: AuthKey) e
       if(path.startsWith("/snapshot")){
         val rqAuthHash = Option(httpExchange.getRequestHeaders.getFirst("X-r-auth-key"))
         assert(rqAuthHash.nonEmpty, "no auth key")
-        val command = Option(httpExchange.getRequestHeaders.getFirst("X-r-command"))
-        val bytes = command match {
-          case Some("load") ⇒
-            snapshotLoader.load(RawSnapshot(path.tail)).get.data.toByteArray
-          case Some("list") ⇒
-            val requestTime = Option(httpExchange.getRequestHeaders.getFirst("X-r-current-time"))
-            assert(requestTime.nonEmpty, "List request with no request time")
-            assert(authKey.checkHash("snapshots" + requestTime.get)(rqAuthHash.get), "Wrong hash for list command")
+        val snapshotInfoOpt = SnapshotUtil.hashFromName(RawSnapshot(path.tail))
+        val bytes = snapshotInfoOpt match {
+          case Some(info) ⇒
+            snapshotLoader.load(info.raw).get.data.toByteArray
+          case None ⇒
+            val Array(_, time) = path.tail.split("/")
+            assert(time.nonEmpty, "List request with no request time")
+            assert(authKey.checkHash("snapshots" + time)(rqAuthHash.get), "Wrong hash for list command")
             snapshotLoader.list.map(_.raw.relativePath).mkString("\n").getBytes(UTF_8)
           case _ ⇒
             throw new Exception("Unsupported command")
@@ -101,7 +101,7 @@ case object DeferPeriodicSnapshotUntilKey extends TransientLens[Long](0L)
 
 case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMakerImpl) extends TxTransform {
   def transform(local: Context): Context = if(DeferPeriodicSnapshotUntilKey.of(local) < now){
-    if(snapshotMaking.maxTime + hour < now) snapshotMaking.make(NextSnapshotTask(None))()
+    if(snapshotMaking.maxTime + hour < now) snapshotMaking.make(NextSnapshotTask(None), now.toHexString)()
     DeferPeriodicSnapshotUntilKey.set(now+minute)(local)
   } else local
 }
@@ -112,12 +112,12 @@ case class RequestedSnapshotMakingTx(
   def transform(local: Context): Context = {
     val res: List[(HttpPost, List[Header])] = (ErrorKey.of(local), taskOpt) match {
       case (Seq(), Some(task)) ⇒
-        val taskHashCheck: String ⇒ Boolean = authKey.checkHash(task.offsetOpt.getOrElse("last"))
+        val taskHashCheck: String ⇒ String ⇒ Boolean = time ⇒ authKey.checkHash(time + task.offsetOpt.getOrElse("last"))
         val (authorized, nonAuthorized) = splitPostsByAuth(taskHashCheck)
-        val res = if (authorized.nonEmpty) snapshotMaking.make(task)() else Nil
+        val res = if (authorized.nonEmpty) snapshotMaking.make(task, now.toHexString)() else Nil
         val goodResp = List(Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
         val authorizedResponses = authorized.map(au ⇒ au → goodResp)
-        val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → List(Header("X-r-error-message", "Non auothorized request")))
+        val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → List(Header("X-r-error-message", "Non authorized request")))
         authorizedResponses ::: nonAuthorizedResponses
       case (errors, _) if errors.nonEmpty ⇒
         val errorHeaders = errors.map(e ⇒ Header("X-r-error-message", e.getMessage))
@@ -134,10 +134,15 @@ case class RequestedSnapshotMakingTx(
     ))(local)
   }
 
-  def splitPostsByAuth(check: String ⇒ Boolean): (List[HttpPost], List[HttpPost]) =
+  def splitPostsByAuth(check: String ⇒ String ⇒ Boolean): (List[HttpPost], List[HttpPost]) =
     posts.partition(post ⇒ {
-      check(SnapshotMakingUtil.header(post, "X-r-auth-key").getOrElse(""))
-    })
+      check(
+        SnapshotMakingUtil.header(post, "X-r-request-time").getOrElse("")
+      )(
+        SnapshotMakingUtil.header(post, "X-r-auth-key").getOrElse("")
+      )
+    }
+    )
 }
 
 //todo new
@@ -198,8 +203,8 @@ class SnapshotMakerImpl(
       logger.info(s"$offset/$endOffset")
       now + 2000
     }
-  def make(task: SnapshotTask): ()⇒List[RawSnapshot] = ()⇒concurrent.blocking {
-    logger.debug("Loading snapshot...")
+  def make(task: SnapshotTask, timeHex: String): ()⇒List[RawSnapshot] = ()⇒concurrent.blocking {
+    logger.debug(s"Loading snapshot for $task...")
     val offsetOpt = task.offsetOpt
     val offsetFilter: NextOffset⇒NextOffset⇒Boolean = task match {
       case t: NextSnapshotTask ⇒ end⇒curr⇒curr<=end

@@ -11,17 +11,13 @@ object NoCompressorFactory extends CompressorFactory {
   def create(): Option[Compressor] = None
 }
 
-case class CompressorRegistryImpl(compressors: List[Compressor]) extends CompressorRegistry {
-  lazy val byNameMap: Map[String, Compressor] = compressors.map(c ⇒ c.name → c).toMap
+case class CompressorRegistryImpl(compressors: List[Compressor], default: Compressor) extends CompressorRegistry {
+  lazy val byNameMap: Map[String, Compressor] = compressors.map(c ⇒ c.name → c).toMap + (default.name → default)
 
-  def byName: String => Compressor = byNameMap.getOrElse(_, CopyCompressor)
-
-  lazy val byByteMap: Map[ByteString, Compressor] = compressors.map(c ⇒ ToByteString(c.name.getBytes(UTF_8)) → c).toMap
-
-  def byByte: ByteString ⇒ Compressor = byByteMap.getOrElse(_, CopyCompressor)
+  def byName: String ⇒ Option[Compressor] = byNameMap.get
 }
 
-case object CopyCompressor extends Compressor {
+case object NoCompression extends Compressor {
   def name: String = ""
 
   def compress: ByteString ⇒ ByteString = identity

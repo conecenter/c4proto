@@ -57,7 +57,7 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry, compressorRegistry: Compr
   private def findCompressor: List[RawHeader] ⇒ Compressor = list ⇒
     compressorRegistry.byName(
       list.collectFirst { case header if header.key == "compressor" ⇒ new String(header.data.toByteArray,UTF_8) }.getOrElse("")
-    )
+    ).get
 
 
   def toBytes(updates: List[Update], compressor: Compressor): Array[Byte] =
@@ -66,7 +66,6 @@ class ToUpdateImpl(qAdapterRegistry: QAdapterRegistry, compressorRegistry: Compr
   def toUpdates(events: List[RawEvent]): List[Update] =
     for {
       event ← events
-      a ← {println(event.srcId, event.headers, event.data.size , findCompressor(event.headers)); 1 :: Nil}
       compressor = findCompressor(event.headers)
       update ← updatesAdapter.decode(compressor.deCompress(event.data)).updates
     } yield

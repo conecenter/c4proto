@@ -16,7 +16,7 @@ class RootConsumer(
   def run(): Unit = concurrent.blocking { //ck mg
     val emptyRawWorld = rawWorldFactory.create()
     GCLog("before loadRecent")
-    snapshotMaker.make(NextSnapshotTask(None))()
+    snapshotMaker.make(NextSnapshotTask(None), System.currentTimeMillis.toHexString)()
     val initialRawWorld: RichContext =
       (for{
         snapshot ← loader.list.toStream

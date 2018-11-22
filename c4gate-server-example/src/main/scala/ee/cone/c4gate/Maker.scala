@@ -13,14 +13,14 @@ class SimpleMakerApp extends RichDataApp with ExecutableApp
 
   override def toStart: List[Executable] = new SimpleMakerExecutable(execution,snapshotMaker) :: super.toStart
 
-  lazy val messageCompressor: Compressor = CopyCompressor
+  lazy val messageCompressor: Compressor = NoCompression
 
   lazy val saverCompressor: Compressor = GzipCompressor()
 }
 
 class SimpleMakerExecutable(execution: Execution, snapshotMaker: SnapshotMaker) extends Executable {
   def run(): Unit = {
-    val Seq(rawSnapshot) = snapshotMaker.make(NextSnapshotTask(None))()
+    val Seq(rawSnapshot) = snapshotMaker.make(NextSnapshotTask(None), System.currentTimeMillis.toHexString)()
     execution.complete()
   }
 }

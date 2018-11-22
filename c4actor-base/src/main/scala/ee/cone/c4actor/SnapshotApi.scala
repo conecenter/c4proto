@@ -32,7 +32,7 @@ case class NextSnapshotTask(offsetOptArg: Option[NextOffset]) extends SnapshotTa
 case class DebugSnapshotTask(offsetArg: NextOffset) extends SnapshotTask("debug",Option(offsetArg))
 
 trait SnapshotMaker {
-  def make(task: SnapshotTask): ()⇒List[RawSnapshot]
+  def make(task: SnapshotTask, timeHex: String): ()⇒List[RawSnapshot]
 }
 trait SnapshotMakerFactory {
   def create(source: String): SnapshotMaker

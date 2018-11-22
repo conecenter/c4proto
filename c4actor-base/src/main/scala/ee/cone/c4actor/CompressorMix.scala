@@ -5,7 +5,7 @@ trait GzipCompressorApp {
 }
 
 trait NoMessageCompressionApp {
-  lazy val messageCompressor: Compressor = CopyCompressor
+  lazy val messageCompressor: Compressor = NoCompression
 }
 
 trait GZipMessageCompressionApp {
@@ -17,9 +17,9 @@ trait WithGZipCompressorApp extends CompressorsApp {
 }
 
 trait WithCopyCompressorApp extends CompressorsApp {
-  override def compressors: List[Compressor] = CopyCompressor :: super.compressors
+  override def compressors: List[Compressor] = NoCompression :: super.compressors
 }
 
 trait CompressorRegistryMix extends CompressorsApp {
-  lazy val compressorRegistry: CompressorRegistry = CompressorRegistryImpl(compressors)
+  lazy val compressorRegistry: CompressorRegistry = CompressorRegistryImpl(compressors, NoCompression)
 }

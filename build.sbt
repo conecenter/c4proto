@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.E.5",
+  version := "0.E.3",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -92,7 +92,7 @@ lazy val `c4actor-extra` = project.settings(publishSettings)
 lazy val `c4gate-extra` = project.settings(publishSettings)
   .settings(description := s"$descr / dep gate impls")
   .settings(metaMacroSettings)
-  .dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`, `c4proto-types`)
+  .dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`, `c4proto-types`, `c4gate-logback`)
 
 lazy val `c4actor-extra-examples` = project.settings(publishSettings)
   .settings(description := s"$descr / dep test")
