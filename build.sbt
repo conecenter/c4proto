@@ -106,7 +106,6 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
-  .settings(libraryDependencies += "commons-io" % "commons-io" % "2.6")
   //.settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
   .settings(metaMacroSettings,javaOptions in Universal ++= Seq(
     "-J-XX:+UseG1GC","-J-XX:MaxGCPauseMillis=200","-J-XX:+ExitOnOutOfMemoryError",
