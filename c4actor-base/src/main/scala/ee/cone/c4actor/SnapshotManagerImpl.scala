@@ -15,8 +15,13 @@ object SnapshotUtil {
         Option(flags) match {
           case None ⇒ Option(SnapshotInfo(subDirStr,offsetHex,uuid,Nil,raw))
           case Some(kvs) ⇒
-            val headers = kvs.split("-").toList.tail.grouped(2).toList.collect{case key :: value :: Nil ⇒ RawHeaderImpl(key, value)}
-            Option(SnapshotInfo(subDirStr,offsetHex,uuid,headers,raw))
+            val postParse = kvs.split("-").toList.tail
+            if (postParse.size % 2 == 0) {
+              val headers = postParse.grouped(2).toList.collect { case key :: value :: Nil ⇒ RawHeaderImpl(key, value) }
+              Option(SnapshotInfo(subDirStr, offsetHex, uuid, headers, raw))
+            } else {
+              None
+            }
         }
       case a ⇒
         //logger.warn(s"not a snapshot: $a")
