@@ -8,6 +8,7 @@ import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
 import okio.ByteString
 
@@ -50,7 +51,7 @@ class ToUpdateImpl(
   refAdapter: ProtoAdapter[TxRef] with HasId =
   qAdapterRegistry.byName(classOf[TxRef].getName)
     .asInstanceOf[ProtoAdapter[TxRef] with HasId]
-) extends ToUpdate {
+) extends ToUpdate with LazyLogging {
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
@@ -70,19 +71,26 @@ class ToUpdateImpl(
 
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader]) = {
     val updatesBytes = updatesAdapter.encode(Updates("", updates))
-    compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)
+    logger.debug("ToUpdate: Compressing...")
+    val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)
       .fold((updatesBytes, List.empty[RawHeader]))(compressor⇒
         (compressor.compress(updatesBytes), makeHeaderFromName(compressor))
       )
+    logger.debug("ToUpdate: Finished compressing...")
+    result
   }
 
   def toUpdates(events: List[RawEvent]): List[Update] =
     for {
       event ← events
       compressorOpt = findCompressor(event.headers)
-      update ← updatesAdapter.decode(
-        compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)
-      ).updates
+      data = {
+        logger.debug("ToUpdate: Decompressing...")
+        compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)}
+      update ← {
+        logger.debug("ToUpdate: DeProtoBuffering...")
+        updatesAdapter.decode(data).updates
+      }
     } yield
       if (update.valueTypeId != refAdapter.id) update
       else {

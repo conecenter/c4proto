@@ -92,7 +92,7 @@ push @tasks, ["restart_kafka", sub{
         "log.cleaner.delete.retention.ms=3600000", #1h
         "log.roll.hours=1", #delete-s will be triggered to remove?
         "compression.type=uncompressed", #probably better compaction for .state topics
-        "message.max.bytes=70000000" #seems to be compressed
+        "message.max.bytes=110000000" #seems to be compressed
     );
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
     sleep 5;

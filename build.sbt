@@ -102,6 +102,7 @@ lazy val `c4actor-extra-examples` = project.settings(publishSettings)
 lazy val `c4actor-kafka` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(libraryDependencies += "org.apache.kafka" % "kafka-clients" % "2.0.0")
+  .settings(libraryDependencies += "org.lz4" % "lz4-java" % "1.4.0")
   .dependsOn(`c4actor-base`)
 
 lazy val `c4gate-server` = project.settings(publishSettings)

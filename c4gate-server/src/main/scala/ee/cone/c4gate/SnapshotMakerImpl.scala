@@ -28,10 +28,12 @@ class HttpGetSnapshotHandler(snapshotLister: SnapshotLister, snapshotLoader: Sna
     if(httpExchange.getRequestMethod == "GET"){
       val path = httpExchange.getRequestURI.getPath
       if(path == "/snapshots/"){
-        val Some(Seq(`path`)) =
-          signatureChecker.retrieve(check = true)(SnapshotMakingUtil.signed(reqHeaders))
+        val retrieved = signatureChecker.retrieve(check = true)(SnapshotMakingUtil.signed(reqHeaders))
+        logger.debug(s"Got list request with $retrieved sign")
+        val Some(Seq(`path`)) = retrieved
         ok(httpExchange, snapshotLister.list.map(_.raw.relativePath).mkString("\n").getBytes(UTF_8))
       } else if(path.startsWith("/snapshot")){
+        logger.debug(s"Started loading snapshot ${path.tail}")
         snapshotLoader.load(RawSnapshot(path.tail)) // path will be checked inside loader
           .fold(false)(ev⇒ok(httpExchange, ev.data.toByteArray))
       } else false
@@ -136,6 +138,7 @@ class SnapshotMakerImpl(
 
   private def reduce(events: List[RawEvent]): SnapshotWorld⇒SnapshotWorld = if(events.isEmpty) w⇒w else world⇒{
     val updates = toUpdate.toUpdates(events)
+    logger.debug(s"Reduce: got updates ${updates.size}")
     val newState = (world.state /: updates){(state,up)⇒
       if(snapshotConfig.ignore(up.valueTypeId)) state
       else if(up.value.size > 0) state + (toUpdate.toKey(up)→up)
