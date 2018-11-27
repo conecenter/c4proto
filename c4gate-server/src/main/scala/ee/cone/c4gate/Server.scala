@@ -16,7 +16,7 @@ class HttpGatewayApp extends ServerApp
   with MortalFactoryApp
   with ManagementApp
   with SnapshotMakingApp
-  with GzipRawCompressorApp
+  with LZ4CompressorApp
   with PurgerApp
 {
   def httpHandlers: List[RHttpHandler] = //todo secure

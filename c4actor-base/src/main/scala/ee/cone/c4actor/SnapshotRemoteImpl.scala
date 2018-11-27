@@ -83,9 +83,9 @@ class SimpleSigner(fileName: String, idGenUtil : IdGenUtil)(
 
 class RemoteRawSnapshotLister(baseURL: String, signer: Signer[List[String]]) extends RawSnapshotLister {
   def list(subDirStr: String): List[RawSnapshot] = {
-    val addURL = s"$subDirStr/"
+    val addURL = s"/$subDirStr/"
     val headers = HttpUtil.authHeaders(signer.sign(List(addURL)))
-    val response = HttpUtil.ok(HttpUtil.get(s"$baseURL/$addURL", headers))
+    val response = HttpUtil.ok(HttpUtil.get(s"$baseURL$addURL", headers))
     """(\S+)""".r.findAllIn(response.utf8())
       .toList.distinct.map(k ⇒ RawSnapshot(k))
   }
