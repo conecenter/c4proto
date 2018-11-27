@@ -9,6 +9,7 @@ class RootConsumer(
   rawWorldFactory: RichRawWorldFactory,
   reducer: RichRawWorldReducer,
   snapshotMaker: SnapshotMaker,
+  lister: SnapshotLister,
   loader: SnapshotLoader,
   progressObserverFactory: ProgressObserverFactory,
   consuming: Consuming
@@ -16,10 +17,10 @@ class RootConsumer(
   def run(): Unit = concurrent.blocking { //ck mg
     val emptyRawWorld = rawWorldFactory.create()
     GCLog("before loadRecent")
-    snapshotMaker.make(NextSnapshotTask(None), System.currentTimeMillis.toHexString)()
+    snapshotMaker.make(NextSnapshotTask(None))
     val initialRawWorld: RichContext =
       (for{
-        snapshot ← loader.list.toStream
+        snapshot ← lister.list.toStream
         event ← loader.load(snapshot.raw)
         world ← Option(reducer.reduce(List(event))(emptyRawWorld)) if ByPK(classOf[FailedUpdates]).of(world).isEmpty
       } yield {

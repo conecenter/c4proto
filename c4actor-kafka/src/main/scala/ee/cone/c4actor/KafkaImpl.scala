@@ -108,7 +108,7 @@ class RKafkaConsumer(
 ) extends Consumer {
   def poll(): List[RawEvent] =
     consumer.poll(Duration.ofMillis(200) /*timeout*/).asScala.toList.map { rec: ConsumerRecord[Array[Byte], Array[Byte]] ⇒
-      val compHeader = rec.headers().toArray.toList.map(h ⇒ RawHeaderImpl(h.key(), new String(h.value(), UTF_8)))
+      val compHeader = rec.headers().toArray.toList.map(h ⇒ RawHeader(h.key(), new String(h.value(), UTF_8)))
       val data: Array[Byte] = if (rec.value ne null) rec.value else Array.empty
       KafkaRawEvent(OffsetHex(rec.offset + 1L), ToByteString(data), compHeader, rec.timestamp)
     }

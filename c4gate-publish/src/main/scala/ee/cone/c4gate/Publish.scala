@@ -15,7 +15,7 @@ import ee.cone.c4proto.ToByteString
 //todo un-publish
 
 class PublishingObserver(
-  compressor: JustCompressor,
+  compressor: Compressor,
   qMessages: QMessages,
   idGenUtil: IdGenUtil,
   fromDir: String,

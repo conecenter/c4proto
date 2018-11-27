@@ -1,13 +1,14 @@
 package ee.cone.c4actor
 
-trait GzipCompressorApp {
-  lazy val compressor: JustCompressor = GzipCompressor()
+trait DeCompressorsApp {
+  def deCompressors: List[DeCompressor] = Nil
 }
 
-trait WithGZipCompressorApp extends CompressionApp {
-  override def compressors: List[Compressor] = GzipCompressor() :: super.compressors
+trait RawCompressorsApp {
+  def rawCompressors: List[RawCompressor] = Nil
 }
 
-trait CompressorRegistryMix extends CompressionApp {
-  lazy val compressorRegistry: CompressorRegistry = CompressorRegistryImpl(compressors)
+trait GzipRawCompressorApp extends RawCompressorsApp {
+  override def rawCompressors: List[RawCompressor] =
+    GzipFullCompressor() :: super.rawCompressors
 }

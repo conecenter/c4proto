@@ -25,18 +25,11 @@ trait Config {
   def get(key: String): String
 }
 
-trait AuthKey {
-  //private def value: String
-  /**
-    * Creates hash from input string using value
-    */
-  def createHash(addInfo: String): String
-
-  /**
-    * Checks if given hash is correct for shouldAddInfo
-    */
-  def checkHash(shouldAddInfo: String): String ⇒ Boolean
+trait Signer[T] {
+  def sign(data: T): String
+  def retrieve(check: Boolean): Option[String]⇒Option[T]
 }
+
 
 ////
 

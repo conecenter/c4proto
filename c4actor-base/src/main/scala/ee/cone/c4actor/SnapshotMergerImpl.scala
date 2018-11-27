@@ -14,11 +14,12 @@ class SnapshotMergerImpl(
   toUpdate: ToUpdate,
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader,
-  snapshotMakerFactory: SnapshotMakerFactory,
+  remoteSnapshotUtil: RemoteSnapshotUtil,
   rawSnapshotLoaderFactory: RawSnapshotLoaderFactory,
   snapshotLoaderFactory: SnapshotLoaderFactory,
   rawWorldFactory: RichRawWorldFactory,
-  reducer: RichRawWorldReducer
+  reducer: RichRawWorldReducer,
+  signer: Signer[SnapshotTask]
 ) extends SnapshotMerger {
   private def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update] = {
     val currentUpdates = toUpdate.toUpdates(List(snapshot))
@@ -28,13 +29,12 @@ class SnapshotMergerImpl(
     val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
     (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
-  def merge(source: String, task: SnapshotTask): Context⇒Context = local ⇒ {
-    val Array(_, _, timeHex) = source.split("#")
-    val process = snapshotMaker.make(NextSnapshotTask(Option(ReadModelOffsetKey.of(local))), timeHex)
-    val parentSnapshotMaker = snapshotMakerFactory.create(source)
-    val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(source))
-    val parentProcess = parentSnapshotMaker.make(task, timeHex)
-    val Seq(Some(currentFullSnapshot)) = process().map(snapshotLoader.load)
+  def merge(baseURL: String, signed: String): Context⇒Context = local ⇒ {
+    val task = signer.retrieve(check = false)(Option(signed)).get
+    val parentProcess = remoteSnapshotUtil.request(baseURL,signed)
+    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(ReadModelOffsetKey.of(local))))
+    val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(baseURL))
+    val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
     val Some(targetFullSnapshot) :: txs = parentProcess().map(parentSnapshotLoader.load)
     val diffUpdates = diff(currentFullSnapshot,targetFullSnapshot)
     (task,txs) match {

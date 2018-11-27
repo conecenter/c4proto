@@ -1,12 +1,14 @@
 
 package ee.cone.c4gate
 
+import com.sun.net.httpserver.HttpExchange
 import ee.cone.c4actor._
+import ee.cone.c4gate.HttpProtocol.Header
 
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
   def close()
-  def compressor: Option[JustCompressor]
+  def compressor: Option[Compressor]
 }
 
 trait WorldProvider {
@@ -27,4 +29,8 @@ trait SSEConfig {
   def stateRefreshPeriodSeconds: Int
   def tolerateOfflineSeconds: Int
   def sessionWaitingPosts: Int
+}
+
+trait RHttpHandler {
+  def handle(httpExchange: HttpExchange, headers: List[Header]): Boolean
 }
