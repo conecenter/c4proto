@@ -17,7 +17,7 @@ object SnapshotUtil {
           case Some(kvs) ⇒
             val postParse = kvs.split("-").toList.tail
             if (postParse.size % 2 == 0) {
-              val headers = postParse.grouped(2).toList.collect { case key :: value :: Nil ⇒ RawHeaderImpl(key, value) }
+              val headers = postParse.grouped(2).toList.collect { case key :: value :: Nil ⇒ RawHeader(key, value) }
               Option(SnapshotInfo(subDirStr, offsetHex, uuid, headers, raw))
             } else {
               None
@@ -41,13 +41,16 @@ class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends Snap
   }
 }
 
-class SnapshotLoaderImpl(raw: RawSnapshotLoader, compressorRegistry: CompressorRegistry) extends SnapshotLoader with LazyLogging {
+class SnapshotListerImpl(raw: RawSnapshotLister) extends SnapshotLister {
   def list: List[SnapshotInfo] = {
     val parseName = hashFromName
     val rawList = raw.list("snapshots")
     val res = rawList.flatMap(parseName(_)).sortBy(_.offset).reverse
     res
   }
+}
+
+class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with LazyLogging {
   def load(snapshot: RawSnapshot): Option[RawEvent] = {
     logger.debug(s"Loading raw snapshot [${snapshot.relativePath}]")
     val res = for {
@@ -59,7 +62,7 @@ class SnapshotLoaderImpl(raw: RawSnapshotLoader, compressorRegistry: CompressorR
   }
 }
 
-case class SnapshotLoaderFactoryImpl(compressorRegistry: CompressorRegistry) extends SnapshotLoaderFactory {
+object SnapshotLoaderFactoryImpl extends SnapshotLoaderFactory {
   def create(raw: RawSnapshotLoader): SnapshotLoader =
-    new SnapshotLoaderImpl(raw, compressorRegistry)
+    new SnapshotLoaderImpl(raw)
 }

@@ -26,12 +26,8 @@ import scala.collection.immutable.Seq
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
-trait RHttpHandler {
-  def handle(httpExchange: HttpExchange): Boolean
-}
-
 class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
-  def handle(httpExchange: HttpExchange): Boolean = {
+  def handle(httpExchange: HttpExchange, reqHeaders: List[Header]): Boolean = {
     if(httpExchange.getRequestMethod != "GET") return false
     val path = httpExchange.getRequestURI.getPath
     val now = System.currentTimeMillis
@@ -39,7 +35,6 @@ class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandl
     val publicationsByPath = ByPK(classOf[HttpPublication]).of(local)
     publicationsByPath.get(path).filter(_.until.forall(now<_)) match {
       case Some(publication) ⇒
-        val reqHeaders = Headers.from(httpExchange)
         val cTag = reqHeaders.find(_.key=="If-none-match").map(_.value)
         val sTag = publication.headers.find(_.key=="ETag").map(_.value)
         logger.debug(s"$reqHeaders")
@@ -61,12 +56,6 @@ class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandl
   }
 }
 
-object Headers {
-  def from(httpExchange: HttpExchange): List[Header] =
-    httpExchange.getRequestHeaders.asScala
-      .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
-}
-
 object AuthOperations {
   private def generateSalt(size: Int): okio.ByteString = {
     val random = new SecureRandom()
@@ -86,9 +75,8 @@ object AuthOperations {
 }
 
 class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
-  def handle(httpExchange: HttpExchange): Boolean = {
+  def handle(httpExchange: HttpExchange, headers: List[Header]): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
-    val headers = Headers.from(httpExchange)
     val headerMap = headers.map(h⇒h.key→h.value).toMap
     val local = worldProvider.createTx()
     val requestId = UUID.randomUUID.toString
@@ -142,7 +130,11 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
 
 class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
   def handle(httpExchange: HttpExchange) =
-    Trace{ FinallyClose[HttpExchange,Unit](_.close())(httpExchange) { ex ⇒ handlers.find(_.handle(ex)) } }
+    Trace{ FinallyClose[HttpExchange,Unit](_.close())(httpExchange) { ex ⇒
+      val headers: List[Header] = httpExchange.getRequestHeaders.asScala
+          .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
+      handlers.find(_.handle(ex,headers))
+    } }
 }
 
 class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends Executable {

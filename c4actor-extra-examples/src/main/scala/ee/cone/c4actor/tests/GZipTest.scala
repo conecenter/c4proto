@@ -8,7 +8,7 @@ import java.nio.file.{Files, Paths}
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 object GZipTest {
- val compressor = GzipCompressor()
+ val compressor = GzipFullCompressor()
 
   def main(args: Array[String]): Unit = {
     /*val preTest = "test ololololasdasdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaadgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggssssssssssssssssssssssssssssssssssssssssssssssssssssssss4444444444444444444444444444444444444444444444444sdfsdfsdfdsaaaas"

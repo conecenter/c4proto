@@ -15,7 +15,7 @@ import scala.collection.immutable.Queue
 
 class ChannelHandler(
   channel: AsynchronousSocketChannel, unregister: ()⇒Unit, fail: Throwable⇒Unit,
-  executor: ScheduledExecutorService, timeout: Long, val compressor: Option[JustCompressor]
+  executor: ScheduledExecutorService, timeout: Long, val compressor: Option[Compressor]
 ) extends CompletionHandler[Integer,Unit] with SenderToAgent {
   private var queue: Queue[Array[Byte]] = Queue.empty
   private var activeElement: Option[ByteBuffer] = None
@@ -54,7 +54,7 @@ class ChannelHandler(
 }
 
 class TcpServerImpl(
-  port: Int, tcpHandler: TcpHandler, timeout: Long, compressorFactory: JustCompressorFactory,
+  port: Int, tcpHandler: TcpHandler, timeout: Long, compressorFactory: StreamCompressorFactory,
   channels: TrieMap[String,ChannelHandler] = TrieMap()
 ) extends ToInject with Executable with LazyLogging {
   def toInject: List[Injectable] = GetSenderKey.set(channels.get)

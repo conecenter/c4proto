@@ -195,10 +195,7 @@ class QAdapterRegistry(
   val byId: Map[Long,ProtoAdapter[Product] with HasId]
 )
 
-trait RawHeader extends Product {
-  def key: String
-  def value: String
-}
+case class RawHeader(key: String, value: String)
 
 trait RawEvent extends Product {
   def srcId: SrcId

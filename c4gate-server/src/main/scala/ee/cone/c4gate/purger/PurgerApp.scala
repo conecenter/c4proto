@@ -20,11 +20,11 @@ case class KeepPolicy(period: Long, count: Int)
 case class TimedPath(path: Path, mTime: Long)
 
 class PurgerExecutable(
-  loader: RawSnapshotLoader, baseDir: String, keepPolicyList: List[KeepPolicy]
+  lister: RawSnapshotLister, baseDir: String, keepPolicyList: List[KeepPolicy]
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     while (true) {
-      val files: List[TimedPath] = loader.list("snapshots").map { rawSnapshot ⇒
+      val files: List[TimedPath] = lister.list("snapshots").map { rawSnapshot ⇒
         val path = Paths.get(baseDir).resolve(rawSnapshot.relativePath)
         TimedPath(path, Files.getLastModifiedTime(path).toMillis)
       }
@@ -49,9 +49,9 @@ class PurgerExecutable(
 trait PurgerApp extends ExecutableApp
   with VMExecutionApp
   with ToStartApp {
-  def rawSnapshotLoader: RawSnapshotLoader
+  def rawSnapshotLister: RawSnapshotLister
 
-  def baseDir: String
+  def dbDir: String
 
-  override def toStart: List[Executable] = new PurgerExecutable(rawSnapshotLoader, baseDir, PurgerDefaultPolicy.apply()) :: super.toStart
+  override def toStart: List[Executable] = new PurgerExecutable(rawSnapshotLister, dbDir, PurgerDefaultPolicy()) :: super.toStart
 }

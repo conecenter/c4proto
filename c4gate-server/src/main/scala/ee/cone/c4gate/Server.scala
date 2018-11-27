@@ -16,19 +16,17 @@ class HttpGatewayApp extends ServerApp
   with MortalFactoryApp
   with ManagementApp
   with SnapshotMakingApp
-  with WithGZipCompressorApp
+  with GzipRawCompressorApp
   with PurgerApp
 {
   def httpHandlers: List[RHttpHandler] = //todo secure
-    new HttpGetSnapshotHandler(snapshotLoader,authKey) ::
+    new HttpGetSnapshotHandler(snapshotLister, snapshotLoader, signer) ::
     new HttpGetPublicationHandler(worldProvider) ::
     pongHandler ::
     new HttpPostHandler(qMessages,worldProvider) ::
     Nil
   def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
   override def toStart: List[Executable] = safeToRun :: super.toStart
-
-  lazy val saverCompressor: JustCompressor = GzipCompressor()
 }
 
 // I>P -- to agent, cmd>evl
@@ -37,21 +35,23 @@ class HttpGatewayApp extends ServerApp
 // S0>W -- static content
 
 trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
+  def snapshotLister: SnapshotLister
   def snapshotLoader: SnapshotLoader
   def consuming: Consuming
   def toUpdate: ToUpdate
-  def authKey: AuthKey
-  def compressorRegistry: CompressorRegistry
-  def saverCompressor: JustCompressor
+  def config: Config
+  def idGenUtil: IdGenUtil
   //
+  lazy val rawSnapshotLister: RawSnapshotLister = fileRawSnapshotLoader
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
   lazy val safeToRun: SafeToRun = new SafeToRun(fileSnapshotMaker)
-  lazy val baseDir: String = dbDir
+  lazy val dbDir = "db4"
+  lazy val signer: Signer[List[String]] =
+    new SimpleSigner(config.get("C4AUTH_KEY_FILE"), idGenUtil)()
   //
   private lazy val fileSnapshotMaker: SnapshotMakerImpl =
-    new SnapshotMakerImpl(snapshotConfig, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate)
-  private lazy val dbDir = "db4"
+    new SnapshotMakerImpl(snapshotConfig, snapshotLister, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate)
   private lazy val snapshotConfig: SnapshotConfig =
     new FileSnapshotConfigImpl(dbDir)()
   private lazy val fullSnapshotSaver: SnapshotSaver =
@@ -60,7 +60,9 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
     new SnapshotSaverImpl("snapshot_txs",new FileRawSnapshotSaver(dbDir))
   private lazy val fileRawSnapshotLoader: FileRawSnapshotLoader =
     new FileRawSnapshotLoader(dbDir)
+  private lazy val snapshotTaskSigner: Signer[SnapshotTask] =
+    new SnapshotTaskSigner(signer)()
   //
   override def assembles: List[Assemble] =
-    new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker, authKey) :: super.assembles
+    new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker, snapshotTaskSigner) :: super.assembles
 }

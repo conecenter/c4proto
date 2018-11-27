@@ -16,8 +16,6 @@ import okio.ByteString
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
-case class RawHeaderImpl(key: String, value: String) extends RawHeader
-
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
 class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends QMessages {
@@ -42,9 +40,9 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
 
 class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
-  compressorRegistry: CompressorRegistry,
-  compressor: Compressor,
-  compressionMinSize: Long = 50000000L
+  deCompressorRegistry: DeCompressorRegistry,
+  compressorOpt: Option[RawCompressor],
+  compressionMinSize: Long
 )(
   updatesAdapter: ProtoAdapter[Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.Updates].getName)
@@ -61,22 +59,21 @@ class ToUpdateImpl(
 
   private val compressionKey = "c"
 
-  private def findCompressor: List[RawHeader] ⇒ Option[Compressor] = list ⇒
+  private def findCompressor: List[RawHeader] ⇒ Option[DeCompressor] = list ⇒
     list.collectFirst { case header if header.key == compressionKey ⇒ header.value } match {
-      case Some(name) ⇒ Option(compressorRegistry.byName(name))
+      case Some(name) ⇒ Option(deCompressorRegistry.byName(name))
       case None ⇒ None
     }
 
-  private def makeHeaderFromName: Compressor ⇒ List[RawHeader] = jc ⇒
-    RawHeaderImpl(compressionKey, jc.name) :: Nil
-
+  private def makeHeaderFromName: RawCompressor ⇒ List[RawHeader] = jc ⇒
+    RawHeader(compressionKey, jc.name) :: Nil
 
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader]) = {
     val updatesBytes = updatesAdapter.encode(Updates("", updates))
-      if (updatesBytes.size < compressionMinSize)
-        (updatesBytes, Nil)
-      else
-        (compressor.compressRaw(updatesBytes), makeHeaderFromName(compressor))
+    compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)
+      .fold((updatesBytes, List.empty[RawHeader]))(compressor⇒
+        (compressor.compress(updatesBytes), makeHeaderFromName(compressor))
+      )
   }
 
   def toUpdates(events: List[RawEvent]): List[Update] =
