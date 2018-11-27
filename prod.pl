@@ -17,7 +17,7 @@ my @tasks;
 my $deploy_conf = require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
 my $composes = $$deploy_conf{stacks} || die;
 my $ssh_add  = sub{"ssh-add $ENV{C4DEPLOY_CONF}/id_rsa"};
-my $composes_txt = "(".(join '|', sort keys %$composes).")";
+my $composes_txt = "<stack>";
 
 my $get_compose = sub{$$composes{$_[0]}||die "composition expected"};
 
@@ -560,9 +560,8 @@ my $compose_up = sub{
     my($put,$sync) = &$docker_compose_start($yml_str);
     for my $k(keys %$generated_services){
         my $env = ($$generated_services{$k} || die)->{environment}||next;
-        my $fn = $$env{C4AUTH_KEY_FILE} || next;
-        $$env{C4DEPLOY_LOCAL} or next;
-        &$put("$k/$fn",$simple_auth);
+        $$env{C4STATE_TOPIC_PREFIX} && $$env{C4DEPLOY_LOCAL} or next;
+        &$put("$k/simple.auth",$simple_auth);
     }
     &$put("frpc/frpc.ini",&$to_ini_file($frpc_conf));
     #
@@ -921,8 +920,12 @@ if($ARGV[0]) {
     my($cmd,@args)=@ARGV;
     $cmd eq $$_[0] and $$_[2]->(@args) for @tasks;
 } else {
-    print join '', map{"$_\n"} "usage:",
-        map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks;
+    my $width = 6;
+    print join '', map{"$_\n"}
+        "stacks:",
+        (map{"  $_".(" "x($width-length))." -- ".(($$composes{$_}||die)->{description}||'?')} sort keys %$composes),
+        "usage:",
+        (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
 }
 
 #userns_mode: "host"

@@ -16,7 +16,7 @@ trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with Pr
   def mortal: MortalFactory
 
   private lazy val tcpPort = config.get("C4TCP_PORT").toInt
-  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(qMessages, worldProvider), Long.MaxValue, NoCompressorFactory)
+  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(qMessages, worldProvider), Long.MaxValue, NoStreamCompressorFactory)
   override def toStart: List[Executable] = tcpServer :: super.toStart
   override def assembles: List[Assemble] =
     mortal(classOf[TcpDisconnect]) :: mortal(classOf[TcpWrite]) ::

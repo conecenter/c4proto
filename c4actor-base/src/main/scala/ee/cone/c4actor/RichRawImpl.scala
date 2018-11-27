@@ -35,7 +35,8 @@ class RichRawWorldFactoryImpl(
     } yield Map(injected.pair)
     val eWorld = new RichRawWorldImpl(Merge(Nil,injectedList), emptyReadModel)
     val firstborn = LEvent.update(Firstborn(actorName)).toList.map(toUpdate.toUpdate)
-    val firstRawEvent = SimpleRawEvent(eWorld.offset, ToByteString(toUpdate.toBytes(firstborn)))
+    val (bytes, headers) = toUpdate.toBytes(firstborn)
+    val firstRawEvent = SimpleRawEvent(eWorld.offset, ToByteString(bytes), headers)
     reducer.reduce(List(firstRawEvent))(eWorld)
   }
 }

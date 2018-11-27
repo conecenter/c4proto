@@ -25,9 +25,10 @@ trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalF
   def snapshotMerger: SnapshotMerger
   def sessionAttrAccessFactory: SessionAttrAccessFactory
   def testTags: TestTags[Context]
+  def snapshotTaskSigner: Signer[SnapshotTask]
 
   private lazy val testTxLogView = TestTxLogView()(
-    actorName, untilPolicy, tags, snapshotMerger, sessionAttrAccessFactory, testTags
+    actorName, untilPolicy, tags, snapshotMerger, snapshotTaskSigner, sessionAttrAccessFactory, testTags
   )
   private lazy val actorName = getClass.getName
 
@@ -44,6 +45,7 @@ case class TestTxLogView(locationHash: String = "txlog")(
   untilPolicy: UntilPolicy,
   mTags: Tags,
   snapshotMerger: SnapshotMerger,
+  signer: Signer[SnapshotTask],
   sessionAttrAccess: SessionAttrAccessFactory,
   tags: TestTags[Context]
 ) extends ByLocationHashView {
@@ -76,30 +78,20 @@ case class TestTxLogView(locationHash: String = "txlog")(
 
     val baseURLAccessOpt = getAccess(TestTxLogAttrs.baseURL)
     val authKeyAccessOpt = getAccess(TestTxLogAttrs.authKey)
-    val txKeyAccessOpt = getAccess(TestTxLogAttrs.txKey)
-    val sourceOpt = for {
-      baseURLAccess ← baseURLAccessOpt if baseURLAccess.initialValue.nonEmpty
-      authKeyAccess ← authKeyAccessOpt if authKeyAccess.initialValue.nonEmpty
-    } yield s"${baseURLAccess.initialValue}#${authKeyAccess.initialValue}"
-
+//signer.sign()
     val inputs: List[ChildPair[OfDiv]] =
-      List(baseURLAccessOpt,authKeyAccessOpt,txKeyAccessOpt).flatten.map(tags.input)
+      List(baseURLAccessOpt,authKeyAccessOpt).flatten.map(tags.input)
 
     val merge: Option[ChildPair[OfDiv]] = for {
-      source ← sourceOpt
-      txKeyAccess ← txKeyAccessOpt if txKeyAccess.initialValue.nonEmpty
+      baseURLAccess ← baseURLAccessOpt if baseURLAccess.initialValue.nonEmpty
+      authKeyAccess ← authKeyAccessOpt if authKeyAccess.initialValue.nonEmpty
     } yield {
-      val value = txKeyAccess.initialValue
-      divButton[Context]("merge")(snapshotMerger.merge(source,NextSnapshotTask(Option(value))))(List(text("text",s"merge $value")))
+      divButton[Context]("merge")(
+        snapshotMerger.merge(baseURLAccess.initialValue,authKeyAccess.initialValue)
+      )(List(text("text",s"merge ${baseURLAccess.initialValue} ${authKeyAccess.initialValue}")))
     }
 
-    val mergeLast: Option[ChildPair[OfDiv]] = for {
-      source ← sourceOpt
-    } yield {
-      divButton[Context]("mergeLast")(snapshotMerger.merge(source,NextSnapshotTask(None)))(List(text("text","merge last")))
-    }
-
-    inputs ::: merge.toList ::: mergeLast.toList ::: logs
+    inputs ::: merge.toList ::: logs
   }
 }
 
@@ -108,7 +100,6 @@ case class TestTxLogView(locationHash: String = "txlog")(
 object TestTxLogAttrs {
   lazy val baseURL = SessionAttr(Id(0x000A), classOf[Content], UserLabel en "(baseURL)")
   lazy val authKey = SessionAttr(Id(0x000B), classOf[Content], UserLabel en "(authKey)")
-  lazy val txKey = SessionAttr(Id(0x000C), classOf[Content], UserLabel en "(txKey)")
 }
 
 case class UpdatesSummary(add: TxAddMeta, ref: TxRef)

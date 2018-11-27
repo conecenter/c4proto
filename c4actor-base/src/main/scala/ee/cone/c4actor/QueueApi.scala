@@ -14,6 +14,8 @@ import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
 import okio.ByteString
 
+import java.nio.charset.StandardCharsets.UTF_8
+
 @protocol object QProtocol extends Protocol {
 
   /*@Id(0x0010) case class TopicKey(
@@ -62,6 +64,7 @@ case class LogTopicName() extends TopicName
 trait QRecord {
   def topic: TopicName
   def value: Array[Byte]
+  def headers: Seq[RawHeader]
 }
 
 trait RawQSender {
@@ -77,7 +80,7 @@ trait QMessages {
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
-  def toBytes(updates: List[Update]): Array[Byte]
+  def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
   def toUpdates(events: List[RawEvent]): List[Update]
   def toKey(up: Update): Update
   def by(up: Update): (Long, String)
@@ -192,11 +195,14 @@ class QAdapterRegistry(
   val byId: Map[Long,ProtoAdapter[Product] with HasId]
 )
 
+case class RawHeader(key: String, value: String)
+
 trait RawEvent extends Product {
   def srcId: SrcId
   def data: ByteString
+  def headers: List[RawHeader]
 }
-case class SimpleRawEvent(srcId: SrcId, data: ByteString) extends RawEvent
+case class SimpleRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader]) extends RawEvent
 
 trait RichRawWorldFactory {
   def create(): RichContext

@@ -30,7 +30,6 @@ trait ToInjectApp {
 
 trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
-  lazy val authKey: AuthKey = new FileAuthKey(config.get("C4AUTH_KEY_FILE"))()
 }
 
 trait UMLClientsApp {
@@ -44,24 +43,27 @@ trait ExpressionsDumpersApp {
 trait SimpleIndexValueMergerFactoryApp //compat
 trait TreeIndexValueMergerFactoryApp //compat
 
-trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp {
+trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp with DeCompressorsApp {
   def execution: Execution
   def snapshotMaker: SnapshotMaker
+  def rawSnapshotLister: RawSnapshotLister
   def rawSnapshotLoader: RawSnapshotLoader
   def consuming: Consuming
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
+  lazy val snapshotLister: SnapshotLister = new SnapshotListerImpl(rawSnapshotLister)
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =
-    new RootConsumer(richRawWorldFactory, richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
+    new RootConsumer(richRawWorldFactory, richRawWorldReducer, snapshotMaker, snapshotLister, snapshotLoader, progressObserverFactory, consuming)
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
   override def protocols: List[Protocol] = OrigMetaAttrProtocol :: super.protocols
+  override def deCompressors: List[DeCompressor] = GzipFullCompressor() :: super.deCompressors
 }
 
 trait TestRichDataApp extends RichDataApp {
@@ -75,11 +77,13 @@ trait RichDataApp extends ProtocolsApp
   with DefaultModelFactoriesApp
   with ExpressionsDumpersApp
   with PreHashingApp
+  with DeCompressorsApp
+  with RawCompressorsApp
 {
   def assembleProfiler: AssembleProfiler
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)()
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
@@ -94,6 +98,7 @@ trait RichDataApp extends ProtocolsApp
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   lazy val indexUtil: IndexUtil = IndexUtilImpl()()
+  private lazy val deCompressorRegistry: DeCompressorRegistry = DeCompressorRegistryImpl(deCompressors)()
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
@@ -121,11 +126,15 @@ trait VMExecutionApp {
 
 trait FileRawSnapshotApp { // Remote!
   def config: Config
-  def authKey: AuthKey
+  def idGenUtil: IdGenUtil
   //
   private lazy val appURL: String = config.get("C4HTTP_SERVER")
-  lazy val rawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(appURL,authKey)
-  lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL)
+  lazy val signer: Signer[List[String]] = new SimpleSigner(config.get("C4AUTH_KEY_FILE"), idGenUtil)()
+  lazy val rawSnapshotLister: RawSnapshotLister = new RemoteRawSnapshotLister(appURL,signer)
+  lazy val rawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(appURL)
+  lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL, remoteSnapshotUtil, snapshotTaskSigner)
+  lazy val remoteSnapshotUtil: RemoteSnapshotUtil = new RemoteSnapshotUtilImpl
+  lazy val snapshotTaskSigner: Signer[SnapshotTask] = new SnapshotTaskSigner(signer)()
 }
 
 trait MergingSnapshotApp {
@@ -134,11 +143,13 @@ trait MergingSnapshotApp {
   def richRawWorldReducer: RichRawWorldReducer
   def snapshotLoader: SnapshotLoader
   def snapshotMaker: SnapshotMaker
+  def remoteSnapshotUtil: RemoteSnapshotUtil
+  def snapshotTaskSigner: Signer[SnapshotTask]
   //
   lazy val snapshotMerger: SnapshotMerger = new SnapshotMergerImpl(
     toUpdate, snapshotMaker,snapshotLoader,
-    RemoteSnapshotMakerFactory,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl,
-    richRawWorldFactory,richRawWorldReducer
+    remoteSnapshotUtil,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl,
+    richRawWorldFactory,richRawWorldReducer, snapshotTaskSigner
   )
 }
 
