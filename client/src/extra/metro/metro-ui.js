@@ -655,6 +655,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				padding:this.props.caption&&this.state.rotated?'0.5em 1em 1em 1.6em':'0.5em 0.5em 1em 0.5em',
 				minHeight:this.state.rotated?this.state.containerMinHeight:"",
 				position:"relative",
+				overflow:"hidden",
 				...this.props.style
 			};
 			const captionStyle={
@@ -2006,7 +2007,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const check = (e) =>{
 				
 			}
-			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},[
+			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},$("form",{onSubmit:(e)=>{e.preventDefault()}},[
 				$(ControlWrapperElement,{key:"1"},
 					$(LabelElement,{label:usernameCaption},null),
 					$(InputElement,{...attributesA,value:undefined,onChange:this.onChange,vkOnly,style:styleA,dataType, inputType:"input"},null)			
@@ -2014,11 +2015,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				$(ControlWrapperElement,{key:"2"},
 					$(LabelElement,{label:passwordCaption},null),
 					$(InputElement,{...attributesB,vkOnly,value:undefined,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
-		   ),
+				),
 				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
 					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
 				)
-			])		
+			]))		
 		}
 	}	
 	
@@ -3363,7 +3364,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.el) this.el.removeEventListener("click",this.onClick)
 		}
 		render(){
-			return $("div",{...this.props,ref:ref=>this.el=ref})
+			const style = this.props.style
+			return $("div",{style,ref:ref=>this.el=ref},this.props.children)
 		}
 	}		
 	class CanvasMaxHeightElement extends StatefulComponent{
