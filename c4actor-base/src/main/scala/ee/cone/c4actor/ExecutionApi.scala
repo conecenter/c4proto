@@ -26,7 +26,16 @@ trait Config {
 }
 
 trait AuthKey {
-  def value: String
+  //private def value: String
+  /**
+    * Creates hash from input string using value
+    */
+  def createHash(addInfo: String): String
+
+  /**
+    * Checks if given hash is correct for shouldAddInfo
+    */
+  def checkHash(shouldAddInfo: String): String ⇒ Boolean
 }
 
 ////

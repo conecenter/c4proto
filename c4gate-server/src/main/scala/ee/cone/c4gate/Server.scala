@@ -3,6 +3,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
+import ee.cone.c4gate.purger.PurgerApp
 
 class HttpGatewayApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -15,6 +16,8 @@ class HttpGatewayApp extends ServerApp
   with MortalFactoryApp
   with ManagementApp
   with SnapshotMakingApp
+  with WithGZipCompressorApp
+  with PurgerApp
 {
   def httpHandlers: List[RHttpHandler] = //todo secure
     new HttpGetSnapshotHandler(snapshotLoader,authKey) ::
@@ -24,6 +27,8 @@ class HttpGatewayApp extends ServerApp
     Nil
   def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
   override def toStart: List[Executable] = safeToRun :: super.toStart
+
+  lazy val saverCompressor: JustCompressor = GzipCompressor()
 }
 
 // I>P -- to agent, cmd>evl
@@ -35,10 +40,14 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   def snapshotLoader: SnapshotLoader
   def consuming: Consuming
   def toUpdate: ToUpdate
+  def authKey: AuthKey
+  def compressorRegistry: CompressorRegistry
+  def saverCompressor: JustCompressor
   //
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
   lazy val safeToRun: SafeToRun = new SafeToRun(fileSnapshotMaker)
+  lazy val baseDir: String = dbDir
   //
   private lazy val fileSnapshotMaker: SnapshotMakerImpl =
     new SnapshotMakerImpl(snapshotConfig, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate)
@@ -53,5 +62,5 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
     new FileRawSnapshotLoader(dbDir)
   //
   override def assembles: List[Assemble] =
-    new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker) :: super.assembles
+    new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker, authKey) :: super.assembles
 }

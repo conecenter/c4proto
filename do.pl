@@ -11,7 +11,7 @@ my $zoo_port = $port_prefix+81;
 my $kafka_port = $port_prefix+92;
 my $build_dir = "./client/build/test";
 my $inbox_prefix = '';
-my $kafka_version = "0.10.2.1";
+my $kafka_version = "2.0.0";
 my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "127.0.0.1:$kafka_port";
@@ -92,7 +92,7 @@ push @tasks, ["restart_kafka", sub{
         "log.cleaner.delete.retention.ms=3600000", #1h
         "log.roll.hours=1", #delete-s will be triggered to remove?
         "compression.type=uncompressed", #probably better compaction for .state topics
-        "message.max.bytes=35000000" #seems to be compressed
+        "message.max.bytes=70000000" #seems to be compressed
     );
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
     sleep 5;

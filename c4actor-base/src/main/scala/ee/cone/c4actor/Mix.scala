@@ -29,8 +29,10 @@ trait ToInjectApp {
 }
 
 trait EnvConfigApp {
+  def idGenUtil: IdGenUtil
+
   lazy val config: Config = new EnvConfigImpl
-  lazy val authKey: AuthKey = new FileAuthKey(config.get("C4AUTH_KEY_FILE"))()
+  lazy val authKey: AuthKey = new FileAuthKey(config.get("C4AUTH_KEY_FILE"), idGenUtil)()
 }
 
 trait UMLClientsApp {
@@ -52,7 +54,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
-  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
+  lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader, compressorRegistry)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
   private lazy val progressObserverFactory: ProgressObserverFactory =
@@ -75,11 +77,13 @@ trait RichDataApp extends ProtocolsApp
   with DefaultModelFactoriesApp
   with ExpressionsDumpersApp
   with PreHashingApp
+  with CompressorRegistryMix
+  with WithGZipCompressorApp
 {
   def assembleProfiler: AssembleProfiler
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry)()
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, compressorRegistry, GzipCompressor())()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
@@ -125,7 +129,7 @@ trait FileRawSnapshotApp { // Remote!
   //
   private lazy val appURL: String = config.get("C4HTTP_SERVER")
   lazy val rawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(appURL,authKey)
-  lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL)
+  lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL, authKey)
 }
 
 trait MergingSnapshotApp {
@@ -134,10 +138,11 @@ trait MergingSnapshotApp {
   def richRawWorldReducer: RichRawWorldReducer
   def snapshotLoader: SnapshotLoader
   def snapshotMaker: SnapshotMaker
+  def compressorRegistry: CompressorRegistry
   //
   lazy val snapshotMerger: SnapshotMerger = new SnapshotMergerImpl(
     toUpdate, snapshotMaker,snapshotLoader,
-    RemoteSnapshotMakerFactory,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl,
+    RemoteSnapshotMakerFactory,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl(compressorRegistry),
     richRawWorldFactory,richRawWorldReducer
   )
 }

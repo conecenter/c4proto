@@ -35,7 +35,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
     TxAdd(LEvent.update(ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssemble(compressor: Compressor) extends Assemble {
+@assemble class PrometheusAssemble(compressor: JustCompressor) extends Assemble {
   def join(
     key: SrcId,
     first: Each[Firstborn],
@@ -47,7 +47,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
   }
 }
 
-case class PrometheusTx(path: String, compressor: Compressor) extends TxTransform {
+case class PrometheusTx(path: String, compressor: JustCompressor) extends TxTransform {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
     val runtime = Runtime.getRuntime

@@ -4,6 +4,7 @@ import ee.cone.c4actor.Types.SrcId
 
 object Laboratory {
   def main(args: Array[String]): Unit = {
+    assert(0 == 1, "LUL")
     val world = for{
       i ← 1 to 50000
     } yield A(i.toString, i)

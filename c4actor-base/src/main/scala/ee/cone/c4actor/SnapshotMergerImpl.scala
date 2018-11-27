@@ -29,10 +29,11 @@ class SnapshotMergerImpl(
     (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
   def merge(source: String, task: SnapshotTask): Context⇒Context = local ⇒ {
-    val process = snapshotMaker.make(NextSnapshotTask(Option(ReadModelOffsetKey.of(local))))
+    val Array(_, _, timeHex) = source.split("#")
+    val process = snapshotMaker.make(NextSnapshotTask(Option(ReadModelOffsetKey.of(local))), timeHex)
     val parentSnapshotMaker = snapshotMakerFactory.create(source)
     val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(source))
-    val parentProcess = parentSnapshotMaker.make(task)
+    val parentProcess = parentSnapshotMaker.make(task, timeHex)
     val Seq(Some(currentFullSnapshot)) = process().map(snapshotLoader.load)
     val Some(targetFullSnapshot) :: txs = parentProcess().map(parentSnapshotLoader.load)
     val diffUpdates = diff(currentFullSnapshot,targetFullSnapshot)
@@ -40,7 +41,8 @@ class SnapshotMergerImpl(
       case (t:NextSnapshotTask,Seq()) ⇒
         WriteModelKey.modify(_.enqueue(diffUpdates))(local)
       case (t:DebugSnapshotTask,Seq(Some(targetTxSnapshot))) ⇒
-        val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(toUpdate.toBytes(diffUpdates)))
+        val (bytes, headers) = toUpdate.toBytes(diffUpdates)
+        val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(bytes), headers)
         val preTargetWorld = reducer.reduce(List(diffRawEvent))(local)
         DebugStateKey.set(Option((preTargetWorld,targetTxSnapshot)))(local)
     }
