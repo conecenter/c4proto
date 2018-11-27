@@ -84,11 +84,13 @@ class assemble extends StaticAnnotation {
          |"${specType.key.str}",${classOfT(specType.key)},${classOfT(specType.value)}
          |)""".stripMargin
     }
-    val toString =
+    val toString = {
+      val packageName = s"""getClass.getPackage.getName + '.' +"""
       if (tparams.isEmpty)
-        s""""$className""""
+        s"""$packageName"$className""""
       else
-        s""""$className" + '['+ ${tparams.map(i ⇒ simpleClassOfExpr(i.name.toString())).mkString("+','+")} +']'"""
+        s"""$packageName"$className" + '['+ ${tparams.map(i ⇒ simpleClassOfExpr(i.name.toString())).mkString("+','+")} +']'"""
+    }
     val joinImpl = rules.collect{
       case JoinDef(params,inKeyType,out) ⇒
         val (seqParams,eachParams) = params.partition(_.many)
