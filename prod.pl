@@ -17,7 +17,7 @@ my @tasks;
 my $deploy_conf = require "$ENV{C4DEPLOY_CONF}/deploy_conf.pl";
 my $composes = $$deploy_conf{stacks} || die;
 my $ssh_add  = sub{"ssh-add $ENV{C4DEPLOY_CONF}/id_rsa"};
-my $composes_txt = "(".(join '|', sort keys %$composes).")";
+my $composes_txt = "<stack>";
 
 my $get_compose = sub{$$composes{$_[0]}||die "composition expected"};
 
@@ -920,8 +920,12 @@ if($ARGV[0]) {
     my($cmd,@args)=@ARGV;
     $cmd eq $$_[0] and $$_[2]->(@args) for @tasks;
 } else {
-    print join '', map{"$_\n"} "usage:",
-        map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks;
+    my $width = 6;
+    print join '', map{"$_\n"}
+        "stacks:",
+        (map{"  $_".(" "x($width-length))." -- ".(($$composes{$_}||die)->{description}||'?')} sort keys %$composes),
+        "usage:",
+        (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
 }
 
 #userns_mode: "host"
