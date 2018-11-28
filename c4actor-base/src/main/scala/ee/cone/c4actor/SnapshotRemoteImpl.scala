@@ -63,8 +63,6 @@ object HttpUtil extends LazyLogging {
 class SimpleSigner(fileName: String, idGenUtil : IdGenUtil)(
   val salt: String = new String(Files.readAllBytes(Paths.get(fileName)),UTF_8)
 ) extends Signer[List[String]] {
-  def sign(data: List[String]): String =
-    sign(data, System.currentTimeMillis() + 3600*1000)
   def sign(data: List[String], until: Long): String = {
     val uData = until.toString :: data
     val hash = idGenUtil.srcIdFromStrings(salt :: uData:_*)
@@ -78,16 +76,6 @@ class SimpleSigner(fileName: String, idGenUtil : IdGenUtil)(
     else if(until < System.currentTimeMillis) None
     else if(sign(data,until) == signed) Option(data)
     else None
-  }
-}
-
-class RemoteRawSnapshotLister(baseURL: String, signer: Signer[List[String]]) extends RawSnapshotLister {
-  def list(subDirStr: String): List[RawSnapshot] = {
-    val addURL = s"/$subDirStr/"
-    val headers = HttpUtil.authHeaders(signer.sign(List(addURL)))
-    val response = HttpUtil.ok(HttpUtil.get(s"$baseURL$addURL", headers))
-    """(\S+)""".r.findAllIn(response.utf8())
-      .toList.distinct.map(k ⇒ RawSnapshot(k))
   }
 }
 
@@ -108,7 +96,7 @@ object RemoteRawSnapshotLoaderFactory extends RawSnapshotLoaderFactory {
 class SnapshotTaskSigner(inner: Signer[List[String]])(
   val url: String = "/need-snapshot"
 ) extends Signer[SnapshotTask] {
-  def sign(task: SnapshotTask): String = inner.sign(List(url,task.name) ++ task.offsetOpt)
+  def sign(task: SnapshotTask, until: Long): String = inner.sign(List(url,task.name) ++ task.offsetOpt, until)
   def retrieve(check: Boolean): Option[String]⇒Option[SnapshotTask] =
     signed ⇒ inner.retrieve(check)(signed) match {
       case Some(Seq(`url`,"next")) ⇒ Option(NextSnapshotTask(None))
@@ -146,5 +134,5 @@ class RemoteSnapshotMaker(
   appURL: String, util: RemoteSnapshotUtil, signer: Signer[SnapshotTask]
 ) extends SnapshotMaker {
   def make(task: SnapshotTask): List[RawSnapshot] =
-    util.request(appURL, signer.sign(task))()
+    util.request(appURL, signer.sign(task, System.currentTimeMillis() + 3600*1000))()
 }

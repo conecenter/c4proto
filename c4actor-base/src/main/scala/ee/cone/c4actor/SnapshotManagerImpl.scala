@@ -5,9 +5,9 @@ import java.util.UUID
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
 
-import SnapshotUtil._
+import SnapshotUtilImpl._
 
-object SnapshotUtil {
+object SnapshotUtilImpl extends SnapshotUtil {
   def hashFromName: RawSnapshot⇒Option[SnapshotInfo] = {
     val R = """(snapshot[a-z_]+)/([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})([-0-9a-z]+)?""".r;
     {
@@ -38,15 +38,6 @@ class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends Snap
     assert(hashFromName(snapshot).nonEmpty, s"Not a valid name ${snapshot.relativePath}")
     inner.save(snapshot, data)
     snapshot
-  }
-}
-
-class SnapshotListerImpl(raw: RawSnapshotLister) extends SnapshotLister {
-  def list: List[SnapshotInfo] = {
-    val parseName = hashFromName
-    val rawList = raw.list("snapshots")
-    val res = rawList.flatMap(parseName(_)).sortBy(_.offset).reverse
-    res
   }
 }
 
