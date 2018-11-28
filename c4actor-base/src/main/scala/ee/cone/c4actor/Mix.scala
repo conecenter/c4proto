@@ -46,20 +46,18 @@ trait TreeIndexValueMergerFactoryApp //compat
 trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp with DeCompressorsApp {
   def execution: Execution
   def snapshotMaker: SnapshotMaker
-  def rawSnapshotLister: RawSnapshotLister
   def rawSnapshotLoader: RawSnapshotLoader
   def consuming: Consuming
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
-  lazy val snapshotLister: SnapshotLister = new SnapshotListerImpl(rawSnapshotLister)
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =
-    new RootConsumer(richRawWorldFactory, richRawWorldReducer, snapshotMaker, snapshotLister, snapshotLoader, progressObserverFactory, consuming)
+    new RootConsumer(richRawWorldFactory, richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
   override def protocols: List[Protocol] = OrigMetaAttrProtocol :: super.protocols
@@ -130,7 +128,6 @@ trait FileRawSnapshotApp { // Remote!
   //
   private lazy val appURL: String = config.get("C4HTTP_SERVER")
   lazy val signer: Signer[List[String]] = new SimpleSigner(config.get("C4AUTH_KEY_FILE"), idGenUtil)()
-  lazy val rawSnapshotLister: RawSnapshotLister = new RemoteRawSnapshotLister(appURL,signer)
   lazy val rawSnapshotLoader: RawSnapshotLoader = new RemoteRawSnapshotLoader(appURL)
   lazy val snapshotMaker: SnapshotMaker = new RemoteSnapshotMaker(appURL, remoteSnapshotUtil, snapshotTaskSigner)
   lazy val remoteSnapshotUtil: RemoteSnapshotUtil = new RemoteSnapshotUtilImpl
