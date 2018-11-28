@@ -85,7 +85,7 @@ trait RichDataApp extends ProtocolsApp
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
-    new RichRawWorldReducerImpl
+    new RichRawWorldReducerImpl(getClass.getName)
   lazy val richRawWorldFactory: RichRawWorldFactory =
     new RichRawWorldFactoryImpl(toInject,toUpdate,getClass.getName,richRawWorldReducer)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
@@ -103,7 +103,7 @@ trait RichDataApp extends ProtocolsApp
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler, getClass.getName)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
@@ -113,7 +113,6 @@ trait RichDataApp extends ProtocolsApp
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::
-    NextOffsetInit ::
     super.toInject
 }
 

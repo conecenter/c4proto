@@ -32,7 +32,7 @@ class SnapshotMergerImpl(
   def merge(baseURL: String, signed: String): Context⇒Context = local ⇒ {
     val task = signer.retrieve(check = false)(Option(signed)).get
     val parentProcess = remoteSnapshotUtil.request(baseURL,signed)
-    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(ReadModelOffsetKey.of(local))))
+    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Nil)(local).offset)))
     val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(baseURL))
     val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
     val Some(targetFullSnapshot) :: txs = parentProcess().map(parentSnapshotLoader.load)

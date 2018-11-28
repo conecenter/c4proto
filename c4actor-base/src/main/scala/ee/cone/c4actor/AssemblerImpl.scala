@@ -33,7 +33,8 @@ class AssemblerInit(
   isParallel: Boolean,
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactory,
-  assembleProfiler: AssembleProfiler
+  assembleProfiler: AssembleProfiler,
+  actorName: String
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
@@ -58,8 +59,12 @@ class AssemblerInit(
   // read model part:
   private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel =
     replace(wasAssembled,diff,isParallel,assembleProfiler.createSerialJoiningProfiling(None)).result
+  private def offset(events: Seq[RawEvent]): List[Update] = for{
+    ev ← events.lastOption.toList
+    lEvent ← LEvent.update(Offset(actorName,ev.srcId))
+  } yield toUpdate.toUpdate(lEvent)
   private def readModelAdd(replace: Replace): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ try {
-    val updates = toUpdate.toUpdates(events.toList)
+    val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
     val realDiff = toTree(assembled, if(isParallel) updates.par else updates)
     val end = NanoTimer()
     val nAssembled = reduce(replace, assembled, realDiff)
@@ -70,7 +75,8 @@ class AssemblerInit(
     case NonFatal(e) ⇒
       logger.error("reduce", e) // ??? exception to record
       if(events.size == 1){
-        val updates = events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))
+        val updates = offset(events) ++
+          events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))
           .flatMap(LEvent.update).map(toUpdate.toUpdate)
         val failDiff = toTree(assembled, updates)
         reduce(replace, assembled, failDiff)

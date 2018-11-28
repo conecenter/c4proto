@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{FailedUpdates, Firstborn}
+import ee.cone.c4actor.QProtocol.{FailedUpdates, Firstborn, Offset}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
@@ -21,10 +21,6 @@ object Merge {
     }
 }
 
-object NextOffsetInit extends ToInject {
-  def toInject: List[Injectable] = ReadModelOffsetKey.set("0" * OffsetHexSize())
-}
-
 class RichRawWorldFactoryImpl(
   toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String, reducer: RichRawWorldReducer
 ) extends RichRawWorldFactory {
@@ -33,7 +29,7 @@ class RichRawWorldFactoryImpl(
       toInject ← toInjects
       injected ← toInject.toInject
     } yield Map(injected.pair)
-    val eWorld = new RichRawWorldImpl(Merge(Nil,injectedList), emptyReadModel)
+    val eWorld = CreateRichRawWorld(Merge(Nil,injectedList), emptyReadModel, actorName)
     val firstborn = LEvent.update(Firstborn(actorName)).toList.map(toUpdate.toUpdate)
     val (bytes, headers) = toUpdate.toBytes(firstborn)
     val firstRawEvent = SimpleRawEvent(eWorld.offset, ToByteString(bytes), headers)
@@ -41,23 +37,31 @@ class RichRawWorldFactoryImpl(
   }
 }
 
-class RichRawWorldReducerImpl extends RichRawWorldReducer {
+class RichRawWorldReducerImpl(actorName: String) extends RichRawWorldReducer {
   def reduce(events: List[RawEvent]): SharedContext with AssembledContext ⇒ RichContext = context ⇒
     if(events.isEmpty) context match {
       case w: RichRawWorldImpl ⇒ w
-      case c ⇒ new RichRawWorldImpl(context.injected, context.assembled)
+      case c ⇒ CreateRichRawWorld(context.injected, context.assembled, actorName)
     } else {
       val nAssembled = ReadModelAddKey.of(context)(context)(events)(context.assembled)
-      new RichRawWorldImpl(context.injected ++ ReadModelOffsetKey.set(events.last.srcId).map(_.pair), nAssembled)
+      CreateRichRawWorld(context.injected, nAssembled, actorName)
     }
+}
+
+object CreateRichRawWorld {
+  def apply(injected: SharedComponentMap, assembled: ReadModel, actorName: String): RichRawWorldImpl = {
+    val offset = ByPK(classOf[Offset])
+      .of(new RichRawWorldImpl(injected, assembled, ""))
+      .get(actorName).fold("0" * OffsetHexSize())(_.txId)
+    new RichRawWorldImpl(injected, assembled, offset)
+  }
 }
 
 class RichRawWorldImpl(
   val injected: SharedComponentMap,
-  val assembled: ReadModel
-) extends RichContext {
-  def offset: NextOffset = ReadModelOffsetKey.of(this)
-}
+  val assembled: ReadModel,
+  val offset: NextOffset
+) extends RichContext
 
 object WorldStats {
   def make(context: AssembledContext): String = context.assembled.collect {
