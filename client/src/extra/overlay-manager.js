@@ -60,13 +60,15 @@ export default function OverlayManager({log,documentManager,windowManager}){
 			const wrapperEl = createElement("div")
 			wrapperEl.style.position="relative"
 			wrapperEl.style.top="calc(50% - 1em)"
-			wrapperEl.innerHTML = `${svgEl}${msg}`
+			const amsg = msg.length>0?`<pre>${msg}</pre>`:""
+			wrapperEl.innerHTML = `${svgEl}${amsg}`
 			wrapperEl.onclick = screenRefresh
 			el.appendChild(wrapperEl)
 			body().appendChild(el);
-			startCircularMotion()
+			startCircularMotion() 
 		}
 		else{
+			if(getEls().length == 0) return
 			killTimers()			
 			getEls().forEach(el=>body().removeChild(el));
 		}		

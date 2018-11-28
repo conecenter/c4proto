@@ -66,7 +66,7 @@ const windowManager = (()=>{
 	const getWindowRect = () => ({top:0,left:0,bottom:window.innerHeight,right:window.innerWidth,height:window.innerHeight,width:window.innerWidth})
 	const getPageYOffset = ()=> window.pageYOffset
 	const getComputedStyle = n => window.getComputedStyle(n)
-	const screenRefresh = () => location.reload()
+	const screenRefresh = () => window.location.reload()
 	const location = () => window.location
 	return {getWindowRect,setInterval,clearInterval,getPageYOffset,getComputedStyle,addEventListener,removeEventListener,setTimeout,clearTimeout,screenRefresh,location, urlPrefix:window.feedbackUrlPrefix,location}
 })()

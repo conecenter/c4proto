@@ -3409,6 +3409,24 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $("div",{style,ref:ref=>this.el=ref},drawChildren)
 		}
 	}	
+	const Availability = (() =>{		
+		let callbacks=[];
+		const receiver= (data) =>{			
+			const value = parseInt(data)
+			if(value==NaN) return
+			if(value<0) overlayManager.toggle(true,"Server Is Unavailable\nPlease wait for about 3mins")
+			else overlayManager.toggle(false)				
+		};		
+		const reg = (o) =>{
+			callbacks.push(o)			
+			const unreg = ()=>{
+				const index = callbacks.indexOf(o)
+				if(index>=0) callbacks.splice(index,1)								
+			}
+			return {unreg}
+		}		
+		return {receiver,reg};
+	})()	
 	const sendVal = ctx =>(action,value,opt) =>{
 		const act = action.length>0?action:"change"
 		const optHeader = opt?{"X-r-opt":opt}:{}
@@ -3455,7 +3473,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	};
 	const receivers = {
 		download,
-		ping:PingReceiver.ping,		
+		ping:PingReceiver.ping,
+		availability:Availability.receiver,
 		branches:Branches.store,
 		...errors.receivers
 	}	
