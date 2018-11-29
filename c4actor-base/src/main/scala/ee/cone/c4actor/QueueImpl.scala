@@ -92,7 +92,7 @@ class ToUpdateImpl(
         updatesAdapter.decode(data).updates
       }
     } yield
-      if (update.valueTypeId != refAdapter.id) update
+      if (update.valueTypeId != refAdapter.id || update.value.size == 0) update
       else {
         val ref: TxRef = refAdapter.decode(update.value)
         if (ref.txId.nonEmpty) update
