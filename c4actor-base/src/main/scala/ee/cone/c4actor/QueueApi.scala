@@ -35,7 +35,8 @@ import java.nio.charset.StandardCharsets.UTF_8
   )
 
   @Id(0x0016) case class Firstborn(
-    @Id(0x0011) srcId: String //app class
+    @Id(0x0011) srcId: String, //app class
+    @Id(0x001A) txId: String
   )
 
   @Id(0x0017) case class FailedUpdates(
@@ -208,12 +209,8 @@ trait RawEvent extends Product {
 }
 case class SimpleRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader]) extends RawEvent
 
-trait RichRawWorldFactory {
-  def create(): RichContext
-}
-
 trait RichRawWorldReducer {
-  def reduce(events: List[RawEvent]): SharedContext with AssembledContext ⇒ RichContext
+  def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext
 }
 
 trait FinishedRawObserver extends RawObserver

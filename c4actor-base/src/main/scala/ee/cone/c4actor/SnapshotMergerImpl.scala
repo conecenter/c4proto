@@ -17,7 +17,6 @@ class SnapshotMergerImpl(
   remoteSnapshotUtil: RemoteSnapshotUtil,
   rawSnapshotLoaderFactory: RawSnapshotLoaderFactory,
   snapshotLoaderFactory: SnapshotLoaderFactory,
-  rawWorldFactory: RichRawWorldFactory,
   reducer: RichRawWorldReducer,
   signer: Signer[SnapshotTask]
 ) extends SnapshotMerger {
@@ -32,7 +31,7 @@ class SnapshotMergerImpl(
   def merge(baseURL: String, signed: String): Context⇒Context = local ⇒ {
     val task = signer.retrieve(check = false)(Option(signed)).get
     val parentProcess = remoteSnapshotUtil.request(baseURL,signed)
-    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Nil)(local).offset)))
+    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Option(local),Nil).offset)))
     val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(baseURL))
     val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
     val Some(targetFullSnapshot) :: txs = parentProcess().map(parentSnapshotLoader.load)
@@ -43,7 +42,7 @@ class SnapshotMergerImpl(
       case (t:DebugSnapshotTask,Seq(Some(targetTxSnapshot))) ⇒
         val (bytes, headers) = toUpdate.toBytes(diffUpdates)
         val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(bytes), headers)
-        val preTargetWorld = reducer.reduce(List(diffRawEvent))(local)
+        val preTargetWorld = reducer.reduce(Option(local),List(diffRawEvent))
         DebugStateKey.set(Option((preTargetWorld,targetTxSnapshot)))(local)
     }
   }

@@ -21,38 +21,36 @@ object Merge {
     }
 }
 
-class RichRawWorldFactoryImpl(
-  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String, reducer: RichRawWorldReducer
-) extends RichRawWorldFactory {
-  def create(): RichContext = {
-    val injectedList = for{
-      toInject ← toInjects
-      injected ← toInject.toInject
-    } yield Map(injected.pair)
-    val eWorld = CreateRichRawWorld(Merge(Nil,injectedList), emptyReadModel, actorName)
-    val firstborn = LEvent.update(Firstborn(actorName)).toList.map(toUpdate.toUpdate)
-    val (bytes, headers) = toUpdate.toBytes(firstborn)
-    val firstRawEvent = SimpleRawEvent(eWorld.offset, ToByteString(bytes), headers)
-    reducer.reduce(List(firstRawEvent))(eWorld)
-  }
-}
-
-class RichRawWorldReducerImpl(actorName: String) extends RichRawWorldReducer {
-  def reduce(events: List[RawEvent]): SharedContext with AssembledContext ⇒ RichContext = context ⇒
-    if(events.isEmpty) context match {
-      case w: RichRawWorldImpl ⇒ w
-      case c ⇒ CreateRichRawWorld(context.injected, context.assembled, actorName)
-    } else {
-      val nAssembled = ReadModelAddKey.of(context)(context)(events)(context.assembled)
-      CreateRichRawWorld(context.injected, nAssembled, actorName)
+class RichRawWorldReducerImpl(
+  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String
+) extends RichRawWorldReducer {
+  def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
+    val events = if(contextOpt.nonEmpty) addEvents else {
+      val offset = addEvents.lastOption.fold(emptyOffset)(_.srcId)
+      val firstborn = LEvent.update(Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
+      val (bytes, headers) = toUpdate.toBytes(firstborn)
+      SimpleRawEvent(offset, ToByteString(bytes), headers) :: addEvents
     }
-}
-
-object CreateRichRawWorld {
-  def apply(injected: SharedComponentMap, assembled: ReadModel, actorName: String): RichRawWorldImpl = {
+    if(events.isEmpty) contextOpt.get match {
+      case context: RichRawWorldImpl ⇒ context
+      case context ⇒ create(context.injected, context.assembled)
+    } else {
+      val context = contextOpt.getOrElse{
+        val injectedList = for{
+          toInject ← toInjects
+          injected ← toInject.toInject
+        } yield Map(injected.pair)
+        create(Merge(Nil,injectedList), emptyReadModel)
+      }
+      val nAssembled = ReadModelAddKey.of(context)(context)(events)(context.assembled)
+      create(context.injected, nAssembled)
+    }
+  }
+  def emptyOffset: NextOffset = "0" * OffsetHexSize()
+  def create(injected: SharedComponentMap, assembled: ReadModel): RichRawWorldImpl = {
     val offset = ByPK(classOf[Offset])
       .of(new RichRawWorldImpl(injected, assembled, ""))
-      .get(actorName).fold("0" * OffsetHexSize())(_.txId)
+      .get(actorName).fold(emptyOffset)(_.txId)
     new RichRawWorldImpl(injected, assembled, offset)
   }
 }
