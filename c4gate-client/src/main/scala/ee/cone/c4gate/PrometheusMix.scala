@@ -16,8 +16,14 @@ trait PrometheusApp extends AssemblesApp with ProtocolsApp {
     new PrometheusAssemble(GzipFullCompressor()) :: super.assembles
 }
 
-trait AvailabilityApp extends AssemblesApp {
+trait AvailabilityApp extends AssemblesApp with ProtocolsApp {
+  def availabilityDefaultUpdatePeriod: Long = 3000
+  def availabilityDefaultTimeout: Long = 3000
+
+
+  override def protocols: List[Protocol] = AvailabilitySettingProtocol :: super.protocols
+
   override def assembles: List[Assemble] =
-    new AvailabilityAssemble :: super.assembles
+    new AvailabilityAssemble(availabilityDefaultUpdatePeriod, availabilityDefaultTimeout) :: super.assembles
 }
 

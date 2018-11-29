@@ -7,8 +7,9 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, JoinKey, assemble}
+import ee.cone.c4assemble.{Assemble, JoinKey, Single, assemble}
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
+import ee.cone.c4gate.AvailabilitySettingProtocol.OrigAvailabilitySetting
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import okio.ByteString
@@ -81,18 +82,31 @@ object Monitoring {
   }
 }
 
-@assemble class AvailabilityAssemble extends Assemble {
+@assemble class AvailabilityAssemble(updateDef: Long, timeoutDef: Long) extends Assemble {
   def join(
     key: SrcId,
-    first: Each[Firstborn]
-  ): Values[(SrcId,TxTransform)] =
-    List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}")))
+    first: Each[Firstborn],
+    settings: Values[OrigAvailabilitySetting]
+  ): Values[(SrcId,TxTransform)] = {
+    val (updatePeriod, timeout) = Single.option(settings.map(s ⇒ s.updatePeriod → s.timeout)).getOrElse((updateDef, timeoutDef))
+    List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}", updatePeriod, timeout)))
+  }
 }
 
-case class AvailabilityTx(srcId: SrcId) extends TxTransform {
+@protocol object AvailabilitySettingProtocol extends Protocol{
+
+  @Id(0x00f0) case class OrigAvailabilitySetting(
+    @Id(0x0001) srcId: String,
+    @Id(0x0002) updatePeriod: Long,
+    @Id(0x0003) timeout: Long
+  )
+
+}
+
+case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long) extends TxTransform {
   def transform(local: Context): Context =
     Monitoring.publish(
-      System.currentTimeMillis, 3000, 3000,
+      System.currentTimeMillis, updatePeriod, timeout,
       "/availability", Nil, ByteString.EMPTY
     )(local)
 }
