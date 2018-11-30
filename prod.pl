@@ -521,7 +521,7 @@ my $compose_up = sub{
                 &$app_user(),
                 $$conf{main} ? () : (depends_on => ["broker"]),
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
-                C4MAX_REQUEST_SIZE => "25000000",
+                C4MAX_REQUEST_SIZE => "250000000",
                 C4INBOX_TOPIC_PREFIX => "",
                 C4HTTP_SERVER => "http://$http_server",
                 #C4PARENT_HTTP_SERVER => "http://$parent_http_server",
