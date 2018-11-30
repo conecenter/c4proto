@@ -42,7 +42,7 @@ object IndexUtilImpl {
       val distinct = items.distinct
       if(distinct.tail.nonEmpty) throw new Exception(s"non-single $warning")
       if(warning.nonEmpty) {
-        val str = distinct.head.item.toString.substring(0,64)
+        val str = distinct.head.item.toString.slice(0,64)
         println(s"non-single $warning $str")
       }
       distinct.head.item

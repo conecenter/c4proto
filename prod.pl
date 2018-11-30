@@ -161,7 +161,7 @@ my $get_sm_binary = sub{
 
 my $snapshot_name = sub{
     my($snnm)=@_;
-    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12})\s*$/ ? ($1,$2) : die;
+    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)\s*$/ ? ($1,$2) : die;
     my $zero = '0' x length $fn[0];
     ("$fn[0]$fn[1]","$zero$fn[1]")
 };
