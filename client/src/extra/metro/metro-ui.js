@@ -3238,6 +3238,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.el) return
 			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return	
+			if(!this.props.overlay) return
 			if(PingReceiver && !this.pingR) this.pingR = PingReceiver.reg(this.signal)
 			if(prevState.on != this.state.on){
 				//log(`toggle ${this.state.on}`)
@@ -3414,7 +3415,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		const receiver= (data) =>{			
 			const value = parseInt(data)
 			if(value==NaN) return
-			if(value<0) overlayManager.toggle(true,"Server Is Unavailable\nPlease wait for about 3mins")
+			if(value < -1000) overlayManager.toggle(true,"Server is Unavailable\nPlease wait for about 3mins")
 			else overlayManager.toggle(false)				
 		};		
 		const reg = (o) =>{
