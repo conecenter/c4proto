@@ -25,9 +25,11 @@ trait Config {
   def get(key: String): String
 }
 
-trait AuthKey {
-  def value: String
+trait Signer[T] {
+  def sign(data: T, until: Long): String
+  def retrieve(check: Boolean): Option[String]⇒Option[T]
 }
+
 
 ////
 

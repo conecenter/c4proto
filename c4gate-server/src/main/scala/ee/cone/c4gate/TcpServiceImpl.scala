@@ -54,7 +54,7 @@ class ChannelHandler(
 }
 
 class TcpServerImpl(
-  port: Int, tcpHandler: TcpHandler, timeout: Long, compressorFactory: CompressorFactory,
+  port: Int, tcpHandler: TcpHandler, timeout: Long, compressorFactory: StreamCompressorFactory,
   channels: TrieMap[String,ChannelHandler] = TrieMap()
 ) extends ToInject with Executable with LazyLogging {
   def toInject: List[Injectable] = GetSenderKey.set(channels.get)

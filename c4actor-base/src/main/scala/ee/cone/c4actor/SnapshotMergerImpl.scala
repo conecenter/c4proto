@@ -14,11 +14,11 @@ class SnapshotMergerImpl(
   toUpdate: ToUpdate,
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader,
-  snapshotMakerFactory: SnapshotMakerFactory,
+  remoteSnapshotUtil: RemoteSnapshotUtil,
   rawSnapshotLoaderFactory: RawSnapshotLoaderFactory,
   snapshotLoaderFactory: SnapshotLoaderFactory,
-  rawWorldFactory: RichRawWorldFactory,
-  reducer: RichRawWorldReducer
+  reducer: RichRawWorldReducer,
+  signer: Signer[SnapshotTask]
 ) extends SnapshotMerger {
   private def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update] = {
     val currentUpdates = toUpdate.toUpdates(List(snapshot))
@@ -28,20 +28,21 @@ class SnapshotMergerImpl(
     val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
     (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
-  def merge(source: String, task: SnapshotTask): Context⇒Context = local ⇒ {
-    val process = snapshotMaker.make(NextSnapshotTask(Option(ReadModelOffsetKey.of(local))))
-    val parentSnapshotMaker = snapshotMakerFactory.create(source)
-    val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(source))
-    val parentProcess = parentSnapshotMaker.make(task)
-    val Seq(Some(currentFullSnapshot)) = process().map(snapshotLoader.load)
+  def merge(baseURL: String, signed: String): Context⇒Context = local ⇒ {
+    val task = signer.retrieve(check = false)(Option(signed)).get
+    val parentProcess = remoteSnapshotUtil.request(baseURL,signed)
+    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Option(local),Nil).offset)))
+    val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(baseURL))
+    val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
     val Some(targetFullSnapshot) :: txs = parentProcess().map(parentSnapshotLoader.load)
     val diffUpdates = diff(currentFullSnapshot,targetFullSnapshot)
     (task,txs) match {
       case (t:NextSnapshotTask,Seq()) ⇒
         WriteModelKey.modify(_.enqueue(diffUpdates))(local)
       case (t:DebugSnapshotTask,Seq(Some(targetTxSnapshot))) ⇒
-        val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(toUpdate.toBytes(diffUpdates)))
-        val preTargetWorld = reducer.reduce(List(diffRawEvent))(local)
+        val (bytes, headers) = toUpdate.toBytes(diffUpdates)
+        val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(bytes), headers)
+        val preTargetWorld = reducer.reduce(Option(local),List(diffRawEvent))
         DebugStateKey.set(Option((preTargetWorld,targetTxSnapshot)))(local)
     }
   }

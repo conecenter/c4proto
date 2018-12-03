@@ -33,6 +33,7 @@ class TestTodoApp extends ServerApp
   with AvailabilityApp
   with TestTodoRootViewApp
 {
+
   override def protocols: List[Protocol] =
     CommonFilterProtocol :: TestTodoProtocol :: super.protocols
   override def assembles: List[Assemble] =

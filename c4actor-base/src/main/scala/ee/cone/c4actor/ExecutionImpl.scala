@@ -1,14 +1,10 @@
 
 package ee.cone.c4actor
 
-import java.nio.charset.StandardCharsets.UTF_8
-import java.nio.file.{Files, Paths}
-
 import com.typesafe.scalalogging.LazyLogging
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
 import scala.util.Try
 
 class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with LazyLogging {
@@ -71,7 +67,3 @@ class EnvConfigImpl extends Config {
   def get(key: String): String =
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
-
-class FileAuthKey(fileName: String)(
-  val value: String = new String(Files.readAllBytes(Paths.get(fileName)),UTF_8)
-) extends AuthKey

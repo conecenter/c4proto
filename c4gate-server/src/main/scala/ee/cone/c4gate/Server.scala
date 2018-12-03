@@ -15,9 +15,10 @@ class HttpGatewayApp extends ServerApp
   with MortalFactoryApp
   with ManagementApp
   with SnapshotMakingApp
+  with LZ4CompressorApp
 {
   def httpHandlers: List[RHttpHandler] = //todo secure
-    new HttpGetSnapshotHandler(snapshotLoader,authKey) ::
+    new HttpGetSnapshotHandler(snapshotLoader) ::
     new HttpGetPublicationHandler(worldProvider) ::
     pongHandler ::
     new HttpPostHandler(qMessages,worldProvider) ::
@@ -35,14 +36,18 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   def snapshotLoader: SnapshotLoader
   def consuming: Consuming
   def toUpdate: ToUpdate
+  def config: Config
+  def idGenUtil: IdGenUtil
   //
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
   lazy val safeToRun: SafeToRun = new SafeToRun(fileSnapshotMaker)
+  lazy val dbDir = "db4"
+  lazy val signer: Signer[List[String]] =
+    new SimpleSigner(config.get("C4AUTH_KEY_FILE"), idGenUtil)()
   //
   private lazy val fileSnapshotMaker: SnapshotMakerImpl =
-    new SnapshotMakerImpl(snapshotConfig, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate)
-  private lazy val dbDir = "db4"
+    new SnapshotMakerImpl(snapshotConfig, fileRawSnapshotLoader, snapshotLoader, fileRawSnapshotLoader, fullSnapshotSaver, txSnapshotSaver, consuming, toUpdate)
   private lazy val snapshotConfig: SnapshotConfig =
     new FileSnapshotConfigImpl(dbDir)()
   private lazy val fullSnapshotSaver: SnapshotSaver =
@@ -50,8 +55,12 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   private lazy val txSnapshotSaver: SnapshotSaver =
     new SnapshotSaverImpl("snapshot_txs",new FileRawSnapshotSaver(dbDir))
   private lazy val fileRawSnapshotLoader: FileRawSnapshotLoader =
-    new FileRawSnapshotLoader(dbDir)
+    new FileRawSnapshotLoader(dbDir,SnapshotUtilImpl)
+  private lazy val snapshotTaskSigner: Signer[SnapshotTask] =
+    new SnapshotTaskSigner(signer)()
   //
   override def assembles: List[Assemble] =
-    new SnapshotMakingAssemble(getClass.getName,fileSnapshotMaker) :: super.assembles
+    new SnapshotMakingAssemble(getClass.getName, fileSnapshotMaker, snapshotTaskSigner) ::
+    //todo PurgerAssemble(dbDir, fileRawSnapshotLoader: SnapshotLister)
+    super.assembles
 }

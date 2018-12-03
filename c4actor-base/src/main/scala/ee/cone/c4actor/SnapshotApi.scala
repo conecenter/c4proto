@@ -7,21 +7,23 @@ case class RawSnapshot(relativePath: String)
 trait RawSnapshotSaver {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit
 }
+
 trait RawSnapshotLoader {
-  def list(subDirStr: String): List[RawSnapshot]
   def load(snapshot: RawSnapshot): ByteString
 }
 trait RawSnapshotLoaderFactory {
-  def create(source: String): RawSnapshotLoader
+  def create(baseURL: String): RawSnapshotLoader
 }
 
 trait SnapshotSaver {
-  def save(offset: NextOffset, data: Array[Byte]): RawSnapshot
+  def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot
 }
-case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, raw: RawSnapshot)
+trait SnapshotUtil {
+  def hashFromName: RawSnapshot⇒Option[SnapshotInfo]
+}
+case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, headers: List[RawHeader], raw: RawSnapshot)
 trait SnapshotLoader {
   def load(snapshot: RawSnapshot): Option[RawEvent]
-  def list: List[SnapshotInfo]
 }
 trait SnapshotLoaderFactory {
   def create(raw: RawSnapshotLoader): SnapshotLoader
@@ -32,11 +34,13 @@ case class NextSnapshotTask(offsetOptArg: Option[NextOffset]) extends SnapshotTa
 case class DebugSnapshotTask(offsetArg: NextOffset) extends SnapshotTask("debug",Option(offsetArg))
 
 trait SnapshotMaker {
-  def make(task: SnapshotTask): ()⇒List[RawSnapshot]
+  def make(task: SnapshotTask): List[RawSnapshot]
 }
-trait SnapshotMakerFactory {
-  def create(source: String): SnapshotMaker
+
+trait RemoteSnapshotUtil {
+  def request(appURL: String, signed: String): ()⇒List[RawSnapshot]
 }
+
 trait SnapshotMerger {
-  def merge(source: String, task: SnapshotTask): Context⇒Context
+  def merge(baseURL: String, signed: String): Context⇒Context
 }

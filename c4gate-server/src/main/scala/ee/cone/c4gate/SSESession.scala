@@ -35,7 +35,7 @@ trait SSEServerApp
   def mortal: MortalFactory
   lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig)
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
-  private lazy val compressorFactory: CompressorFactory = new GzipGzipCompressorStreamFactory
+  private lazy val compressorFactory: StreamCompressorFactory = new GzipStreamCompressorFactory
   private lazy val sseServer =
     new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10, compressorFactory)
   override def toStart: List[Executable] = sseServer :: super.toStart
@@ -54,10 +54,10 @@ class PongHandler(
     pongs: TrieMap[String,Instant] = TrieMap()
 ) extends RHttpHandler with ToInject with LazyLogging {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
-  def handle(httpExchange: HttpExchange): Boolean = {
+  def handle(httpExchange: HttpExchange, reqHeaders: List[Header]): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
-    val headers = httpExchange.getRequestHeaders.asScala.map{ case(k,v) ⇒ k→Single(v.asScala.toList) }
+    val headers = reqHeaders.groupBy(_.key).map{ case(k,v) ⇒ k→Single(v).value }
     val now = Instant.now
     val local = worldProvider.createTx()
     val sessionKey = headers("X-r-session")

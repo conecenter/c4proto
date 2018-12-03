@@ -10,6 +10,7 @@ class PublishApp extends ServerApp
   with PublishingApp
   with NoAssembleProfilerApp
   with FileRawSnapshotApp
+  with LZ4CompressorApp
 {
   def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
     "html" → "text/html; charset=UTF-8",
@@ -20,7 +21,7 @@ class PublishApp extends ServerApp
   def txObserver = None
 }
 
-trait PublishingApp extends ProtocolsApp with InitialObserversApp with GzipCompressorApp {
+trait PublishingApp extends ProtocolsApp with InitialObserversApp {
   def config: Config
   def qMessages: QMessages
   def idGenUtil: IdGenUtil
@@ -29,7 +30,7 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp with GzipCompr
 
   private lazy val publishDir = "htdocs"
   private lazy val publishingObserver =
-    new PublishingObserver(compressor,qMessages,idGenUtil,publishDir,publishFromStrings,mimeTypes.get)
+    new PublishingObserver(GzipFullCompressor(),qMessages,idGenUtil,publishDir,publishFromStrings,mimeTypes.get)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def initialObservers: List[Observer] =
     publishingObserver :: super.initialObservers

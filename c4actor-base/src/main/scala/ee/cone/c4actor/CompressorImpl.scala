@@ -2,13 +2,22 @@ package ee.cone.c4actor
 
 import okio._
 
-object NoCompressorFactory extends CompressorFactory {
-  def create():  Option[Compressor] = None
+import scala.annotation.tailrec
+
+object NoStreamCompressorFactory extends StreamCompressorFactory {
+  def create(): Option[Compressor] = None
 }
 
-case class GzipCompressor() extends Compressor {
+case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
+  val byNameMap: Map[String, DeCompressor] = compressors.map(c ⇒ c.name → c).toMap
+) extends DeCompressorRegistry {
+  def byName: String ⇒ DeCompressor = byNameMap
+}
+
+case class GzipFullCompressor() extends DeCompressor with Compressor with RawCompressor {
   def name: String = "gzip"
-  def compress: ByteString ⇒ ByteString = body ⇒
+
+  def compress(body: ByteString): ByteString =
     FinallyClose(new Buffer) { sink ⇒
       FinallyClose(new GzipSink(sink))(
         gzipSink ⇒
@@ -16,20 +25,46 @@ case class GzipCompressor() extends Compressor {
       )
       sink.readByteString()
     }
+
+  @tailrec
+  private def readAgain(source: Source, sink: Buffer): Unit =
+    if (source.read(sink, 10000000) >= 0)
+      readAgain(source, sink)
+
+  def deCompress(body: ByteString): ByteString =
+    FinallyClose(new Buffer) { sink ⇒
+      FinallyClose(new GzipSource(new Buffer().write(body)))(
+        gzipSource ⇒
+          readAgain(gzipSource, sink)
+      )
+      sink.readByteString()
+    }
+
+  def compress(body: Array[Byte]): Array[Byte] =
+    FinallyClose(new Buffer) { sink ⇒
+      FinallyClose(new GzipSink(sink))(
+        gzipSink ⇒
+          gzipSink.write(new Buffer().write(body), body.length)
+      )
+      sink.readByteArray()
+    }
 }
 
-class GzipCompressorStream extends Compressor {
+class GzipStreamCompressor extends Compressor {
   def name: String = "gzip"
-  private val sink = new Buffer()
-  private val gzipSink = new GzipSink(sink)
-  def compress: ByteString ⇒ ByteString = body ⇒ synchronized{    
-    gzipSink.write(new Buffer().write(body), body.size)   
-    gzipSink.flush()    
-    sink.readByteString()
+
+  private val readSink = new Buffer()
+  private val gzipSink = new GzipSink(readSink)
+
+  def compress(body: ByteString): ByteString = synchronized {
+    gzipSink.write(new Buffer().write(body), body.size)
+    gzipSink.flush()
+    readSink.readByteString()
   }
- // def close():Unit = gzipSink.close()  
+
+  // need? def close():Unit = gzipSink.close()
 }
 
-class GzipGzipCompressorStreamFactory extends CompressorFactory {
-  def create():  Option[Compressor] = Option(new GzipCompressorStream)
+class GzipStreamCompressorFactory extends StreamCompressorFactory {
+  def create(): Option[Compressor] = Option(new GzipStreamCompressor)
 }

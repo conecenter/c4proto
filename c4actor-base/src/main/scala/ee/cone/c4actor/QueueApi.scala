@@ -14,6 +14,8 @@ import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
 import okio.ByteString
 
+import java.nio.charset.StandardCharsets.UTF_8
+
 @protocol object QProtocol extends Protocol {
 
   /*@Id(0x0010) case class TopicKey(
@@ -33,7 +35,8 @@ import okio.ByteString
   )
 
   @Id(0x0016) case class Firstborn(
-    @Id(0x0011) srcId: String //dummy
+    @Id(0x0011) srcId: String, //app class
+    @Id(0x001A) txId: String
   )
 
   @Id(0x0017) case class FailedUpdates(
@@ -46,6 +49,10 @@ import okio.ByteString
     @Id(0x001A) txId: String
   )
 
+  @Id(0x001B) case class Offset(
+    @Id(0x0011) srcId: String, //app class
+    @Id(0x001A) txId: String
+  )
 
   /*@Id(0x0018) case class Leader(
     @Id(0x0019) actorName: String,
@@ -62,6 +69,7 @@ case class LogTopicName() extends TopicName
 trait QRecord {
   def topic: TopicName
   def value: Array[Byte]
+  def headers: Seq[RawHeader]
 }
 
 trait RawQSender {
@@ -77,7 +85,7 @@ trait QMessages {
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
-  def toBytes(updates: List[Update]): Array[Byte]
+  def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
   def toUpdates(events: List[RawEvent]): List[Update]
   def toKey(up: Update): Update
   def by(up: Update): (Long, String)
@@ -192,18 +200,17 @@ class QAdapterRegistry(
   val byId: Map[Long,ProtoAdapter[Product] with HasId]
 )
 
+case class RawHeader(key: String, value: String)
+
 trait RawEvent extends Product {
   def srcId: SrcId
   def data: ByteString
+  def headers: List[RawHeader]
 }
-case class SimpleRawEvent(srcId: SrcId, data: ByteString) extends RawEvent
-
-trait RichRawWorldFactory {
-  def create(): RichContext
-}
+case class SimpleRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader]) extends RawEvent
 
 trait RichRawWorldReducer {
-  def reduce(events: List[RawEvent]): SharedContext with AssembledContext ⇒ RichContext
+  def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext
 }
 
 trait FinishedRawObserver extends RawObserver
@@ -238,7 +245,5 @@ trait AssembleProfiler {
   def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling
   def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update]
 }
-
-case object ReadModelOffsetKey extends SharedComponentKey[NextOffset]
 
 case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
