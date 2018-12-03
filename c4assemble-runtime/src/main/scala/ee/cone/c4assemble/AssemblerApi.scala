@@ -1,6 +1,8 @@
 
 package ee.cone.c4assemble
 
+import java.security.Identity
+
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 
@@ -28,7 +30,7 @@ object ToPrimaryKey {
 class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends DataDependencyTo[A]
 
 object TreeAssemblerTypes {
-  type Replace = (ReadModel, ReadModel, Boolean, SerialJoiningProfiling) ⇒ WorldTransition
+  type Replace = (ReadModel, ReadModel, Boolean, JoiningProfiling) ⇒ WorldTransition
 }
 
 trait TreeAssembler {
@@ -42,7 +44,7 @@ trait ByPriority {
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
-class IndexUpdate(val diff: Index, val result: Index)
+class IndexUpdate(val diff: Index, val result: Index, val log: ProfilingLog)
 
 trait IndexUpdater {
   def setPart[K,V](worldKey: AssembledKey)(

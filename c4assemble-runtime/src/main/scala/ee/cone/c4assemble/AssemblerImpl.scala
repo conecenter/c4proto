@@ -204,18 +204,26 @@ class JoinMapIndex(
       outputDiff ← outputWorldKey.of(transition.diff)
       outputData ← outputWorldKey.of(transition.result)
       res ← {
-        if (worldDiffs.forall(composes.isEmpty)) Future.successful(new IndexUpdate(outputDiff,outputData))
+        if (worldDiffs.forall(composes.isEmpty)) Future.successful(new IndexUpdate(outputDiff,outputData,Nil))
         else for {
           prevInputs ← Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
           inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
-        } yield { //
+        } yield {
+          val profiler = transition.profiling
+          val calcStart = profiler.time
           val worlds: Seq[(Int, Seq[Index])] = Seq(-1→prevInputs, +1→inputs)
           val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
+          val findChangesStart = profiler.time
           val indexDiff = composes.mergeIndex(joinRes)
-          if(composes.isEmpty(indexDiff)) new IndexUpdate(outputDiff,outputData) else {
+          val patchStart = profiler.time
+          def indexUpdate(diff: Index, result: Index): IndexUpdate =
+            new IndexUpdate(diff,result,
+              profiler.handle(join, calcStart, findChangesStart, patchStart, joinRes)
+            )
+          if(composes.isEmpty(indexDiff)) indexUpdate(outputDiff,outputData) else {
             val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
             val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
-            new IndexUpdate(nextDiff,nextResult)
+            indexUpdate(nextDiff,nextResult)
           }
         }
       }
@@ -281,11 +289,11 @@ class TreeAssemblerImpl(
     }
 
     (prevWorld,diff,isParallel,profiler) ⇒ {
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler)
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler,Future.successful(Nil))
       val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
         seq ← Future.sequence(Seq(a,b))
       } yield composes.mergeIndex(seq) ))(prevWorld,diff)
-      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler)
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler,Future.successful(Nil))
       transformUntilStable(1000, nextTransition)
     }
   }

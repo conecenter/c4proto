@@ -62,7 +62,7 @@ class AssemblerInit(
 
   // read model part:
   private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel =
-    replace(wasAssembled,diff,isParallel,assembleProfiler.createSerialJoiningProfiling(None)).result
+    replace(wasAssembled,diff,isParallel,assembleProfiler.createJoiningProfiling(None)).result
   private def offset(events: Seq[RawEvent]): List[Update] = for{
     ev ← events.lastOption.toList
     lEvent ← LEvent.update(Offset(actorName,ev.srcId))
@@ -94,11 +94,11 @@ class AssemblerInit(
     if(out.isEmpty) identity[Context]
     else { local ⇒
       val diff = toTree(local.assembled, out)
-      val profiling = assembleProfiler.createSerialJoiningProfiling(Option(local))
+      val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val transition = replace(local.assembled,diff,false,profiling)
       val assembled = transition.result
-      val updates = assembleProfiler.addMeta(transition.profiling, out)
+      val updates = assembleProfiler.addMeta(transition, out)
       val nLocal = new Context(local.injected, assembled, local.transient)
       WriteModelKey.modify(_.enqueue(updates))(nLocal)
       //call add here for new mortal?

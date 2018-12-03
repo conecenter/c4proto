@@ -19,7 +19,7 @@ class ConnectBackStage[MapKey, Value](
     val next = for {
       diff ← nextKey.of(transition.prev.get.diff)
       result ← nextKey.of(transition.result)
-    } yield new IndexUpdate(diff,result)
+    } yield new IndexUpdate(diff,result,Nil)
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")
     //if(composes.isEmpty(diffPart)) transition else

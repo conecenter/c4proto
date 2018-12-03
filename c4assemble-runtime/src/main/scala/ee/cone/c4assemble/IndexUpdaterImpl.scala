@@ -11,7 +11,11 @@ class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
   ): WorldTransition⇒WorldTransition = transition ⇒ {
     val diff = readModelUtil.updated(worldKey,update.map(_.diff))(transition.diff)
     val next = readModelUtil.updated(worldKey,update.map(_.result))(transition.result)
-    transition.copy(diff=diff,result=next)
+    val log = for {
+      log ← transition.log
+      u ← update
+    } yield u.log ::: log
+    transition.copy(diff=diff,result=next,log=log)
   }
 }
 

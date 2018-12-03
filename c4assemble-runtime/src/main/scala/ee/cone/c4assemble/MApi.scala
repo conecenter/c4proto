@@ -35,6 +35,8 @@ object Types {
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
   def emptyReadModel: ReadModel = EmptyReadModel
   def emptyIndex: Index = EmptyIndex//emptyDMap
+  //
+  type ProfilingLog = List[Product]
 }
 
 trait ReadModelUtil {
@@ -62,16 +64,15 @@ trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with Data
   def transform(transition: WorldTransition): WorldTransition
 }
 //object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, isParallel: Boolean, profiling: SerialJoiningProfiling)
+case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, isParallel: Boolean, profiling: JoiningProfiling, log: Future[ProfilingLog])
 
-trait SerialJoiningProfiling extends Product {
+trait JoiningProfiling extends Product {
   def time: Long
   def handle(
     join: Join,
     calcStart: Long, findChangesStart: Long, patchStart: Long,
-    joinRes: DPIterable[Index],
-    transition: WorldTransition
-  ): WorldTransition
+    joinRes: DPIterable[Index]
+  ): ProfilingLog
 }
 
 trait IndexFactory {

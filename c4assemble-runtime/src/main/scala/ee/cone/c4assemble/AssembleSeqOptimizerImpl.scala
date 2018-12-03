@@ -27,7 +27,7 @@ class LoopExpression[MapKey, Value](
       res ← {
         if(composes.isEmpty(diffPart)) for {
           resVal ← outputWorldKey.of(transitionA.result)
-        } yield new IndexUpdate(resDiff, resVal)
+        } yield new IndexUpdate(resDiff, resVal, Nil)
         else if(left > 0) inner(
           left - 1,
           continueF(transitionA),
@@ -43,7 +43,7 @@ class LoopExpression[MapKey, Value](
     //println("E")
     Function.chain(Seq(
       updater.setPart(outputWorldKey)(next),
-      updater.setPart(wasOutputWorldKey)(next.map(update⇒new IndexUpdate(emptyIndex,update.result)))
+      updater.setPart(wasOutputWorldKey)(next.map(update⇒new IndexUpdate(emptyIndex,update.result,Nil)))
     ))(transition)
   }
 }

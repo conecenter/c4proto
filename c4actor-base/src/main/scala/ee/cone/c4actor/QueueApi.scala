@@ -242,8 +242,8 @@ object CheckedMap {
 }
 
 trait AssembleProfiler {
-  def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling
-  def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update]
+  def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling
+  def addMeta(transition: WorldTransition, updates: Seq[Update]): Seq[Update]
 }
 
 case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
