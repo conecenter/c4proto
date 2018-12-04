@@ -363,7 +363,8 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 			const fR = roots.find(r=>r.root == rootSpan)
 			if(!fR) return null
 			return fR.height*/
-			return windowManager.getWindowRect().height
+			if(!rootSpan||!rootSpan.ownerDocument||!rootSpan.ownerDocument.defaultView) return null
+			return rootSpan.ownerDocument.defaultView.innerHeight
 		}
 		const getMaxHeight = (rootSpan) => {
 			const root = rootSpan.parentElement
