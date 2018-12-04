@@ -35,7 +35,8 @@ import java.nio.charset.StandardCharsets.UTF_8
   )
 
   @Id(0x0016) case class Firstborn(
-    @Id(0x0011) srcId: String //dummy
+    @Id(0x0011) srcId: String, //app class
+    @Id(0x001A) txId: String
   )
 
   @Id(0x0017) case class FailedUpdates(
@@ -48,6 +49,10 @@ import java.nio.charset.StandardCharsets.UTF_8
     @Id(0x001A) txId: String
   )
 
+  @Id(0x001B) case class Offset(
+    @Id(0x0011) srcId: String, //app class
+    @Id(0x001A) txId: String
+  )
 
   /*@Id(0x0018) case class Leader(
     @Id(0x0019) actorName: String,
@@ -204,12 +209,8 @@ trait RawEvent extends Product {
 }
 case class SimpleRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader]) extends RawEvent
 
-trait RichRawWorldFactory {
-  def create(): RichContext
-}
-
 trait RichRawWorldReducer {
-  def reduce(events: List[RawEvent]): SharedContext with AssembledContext ⇒ RichContext
+  def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext
 }
 
 trait FinishedRawObserver extends RawObserver
@@ -241,10 +242,8 @@ object CheckedMap {
 }
 
 trait AssembleProfiler {
-  def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling
-  def addMeta(profiling: SerialJoiningProfiling, updates: Seq[Update]): Seq[Update]
+  def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling
+  def addMeta(transition: WorldTransition, updates: Seq[Update]): Seq[Update]
 }
-
-case object ReadModelOffsetKey extends SharedComponentKey[NextOffset]
 
 case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)

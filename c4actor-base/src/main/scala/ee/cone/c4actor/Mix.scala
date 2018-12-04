@@ -57,7 +57,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =
-    new RootConsumer(richRawWorldFactory, richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
+    new RootConsumer(richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
   override def protocols: List[Protocol] = OrigMetaAttrProtocol :: super.protocols
@@ -65,7 +65,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
 }
 
 trait TestRichDataApp extends RichDataApp {
-  lazy val contextFactory = new ContextFactory(richRawWorldFactory,richRawWorldReducer,toUpdate)
+  lazy val contextFactory = new ContextFactory(richRawWorldReducer,toUpdate)
 }
 
 trait RichDataApp extends ProtocolsApp
@@ -85,25 +85,24 @@ trait RichDataApp extends ProtocolsApp
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
-    new RichRawWorldReducerImpl
-  lazy val richRawWorldFactory: RichRawWorldFactory =
-    new RichRawWorldFactoryImpl(toInject,toUpdate,getClass.getName,richRawWorldReducer)
+    new RichRawWorldReducerImpl(toInject,toUpdate,getClass.getName)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
   def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer //new ShortAssembleSeqOptimizer(backStageFactory,indexUpdater) //make abstract
-  lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl
+  lazy val readModelUtil: ReadModelUtil = new ReadModelUtilImpl(indexUtil)
+  lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl(readModelUtil)
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   lazy val indexUtil: IndexUtil = IndexUtilImpl()()
   private lazy val deCompressorRegistry: DeCompressorRegistry = DeCompressorRegistryImpl(deCompressors)()
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
-  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
+  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, getClass.getName)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
@@ -113,7 +112,6 @@ trait RichDataApp extends ProtocolsApp
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::
-    NextOffsetInit ::
     super.toInject
 }
 
@@ -136,7 +134,6 @@ trait FileRawSnapshotApp { // Remote!
 
 trait MergingSnapshotApp {
   def toUpdate: ToUpdate
-  def richRawWorldFactory: RichRawWorldFactory
   def richRawWorldReducer: RichRawWorldReducer
   def snapshotLoader: SnapshotLoader
   def snapshotMaker: SnapshotMaker
@@ -146,7 +143,7 @@ trait MergingSnapshotApp {
   lazy val snapshotMerger: SnapshotMerger = new SnapshotMergerImpl(
     toUpdate, snapshotMaker,snapshotLoader,
     remoteSnapshotUtil,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl,
-    richRawWorldFactory,richRawWorldReducer, snapshotTaskSigner
+    richRawWorldReducer, snapshotTaskSigner
   )
 }
 

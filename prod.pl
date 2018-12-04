@@ -161,7 +161,7 @@ my $get_sm_binary = sub{
 
 my $snapshot_name = sub{
     my($snnm)=@_;
-    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12})\s*$/ ? ($1,$2) : die;
+    my @fn = $snnm=~/^(\w{16})(-\w{8}-\w{4}-\w{4}-\w{4}-\w{12}[-\w]*)\s*$/ ? ($1,$2) : die;
     my $zero = '0' x length $fn[0];
     ("$fn[0]$fn[1]","$zero$fn[1]")
 };
@@ -521,7 +521,7 @@ my $compose_up = sub{
                 &$app_user(),
                 $$conf{main} ? () : (depends_on => ["broker"]),
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
-                C4MAX_REQUEST_SIZE => "25000000",
+                C4MAX_REQUEST_SIZE => "250000000",
                 C4INBOX_TOPIC_PREFIX => "",
                 C4HTTP_SERVER => "http://$http_server",
                 #C4PARENT_HTTP_SERVER => "http://$parent_http_server",
