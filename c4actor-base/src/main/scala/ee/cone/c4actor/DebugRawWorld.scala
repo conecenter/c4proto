@@ -4,7 +4,6 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import ee.cone.c4actor.QProtocol.Updates
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
-import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4proto.ToByteString
 
 /*

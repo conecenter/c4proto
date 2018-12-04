@@ -6,6 +6,7 @@ import Types._
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.{GenIterable, GenMap, GenSeq}
+import scala.concurrent.Future
 
 trait IndexUtil extends Product {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
@@ -29,34 +30,49 @@ object Types {
   type DPIterable[V] = GenIterable[V]
   trait Index //DMap[Any,DMultiSet]
   private object EmptyIndex extends Index
-  type ReadModel = DMap[AssembledKey,Index]
+  private object EmptyReadModel extends ReadModelImpl(emptyDMap)
+  //
   def emptyDMap[K,V]: DMap[K,V] = Map.empty
-  def emptyReadModel: ReadModel = emptyDMap
+  def emptyReadModel: ReadModel = EmptyReadModel
   def emptyIndex: Index = EmptyIndex//emptyDMap
+  //
+  type ProfilingLog = List[Product]
+}
+
+trait ReadModelUtil {
+  type MMap = DMap[AssembledKey, Future[Index]]
+  def create(inner: MMap): ReadModel
+  def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel⇒ReadModel
+  def isEmpty: ReadModel⇒Future[Boolean]
+  def op(op: (MMap,MMap)⇒MMap): (ReadModel,ReadModel)⇒ReadModel
+  def toMap: ReadModel⇒Future[Map[AssembledKey,Index]]
+}
+
+trait ReadModel {
+  def apply(key: AssembledKey): Future[Index]
 }
 
 trait Getter[C,+I] {
   def of: C ⇒ I
 }
 
-abstract class AssembledKey extends Getter[ReadModel,Index] with Product {
-  def of: ReadModel ⇒ Index = world ⇒ world.getOrElse(this, emptyIndex)
+abstract class AssembledKey extends Getter[ReadModel,Future[Index]] with Product {
+  def of: ReadModel ⇒ Future[Index] = world ⇒ world(this)
 }
 
 trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {
   def transform(transition: WorldTransition): WorldTransition
 }
 //object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, isParallel: Boolean, profiling: SerialJoiningProfiling)
+case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, isParallel: Boolean, profiling: JoiningProfiling, log: Future[ProfilingLog])
 
-trait SerialJoiningProfiling extends Product {
+trait JoiningProfiling extends Product {
   def time: Long
   def handle(
     join: Join,
     calcStart: Long, findChangesStart: Long, patchStart: Long,
-    joinRes: DPIterable[Index],
-    transition: WorldTransition
-  ): WorldTransition
+    joinRes: DPIterable[Index]
+  ): ProfilingLog
 }
 
 trait IndexFactory {

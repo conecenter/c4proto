@@ -1,18 +1,18 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4assemble.{Join, SerialJoiningProfiling, WorldTransition}
-import ee.cone.c4assemble.Types.{DPIterable, Index}
+import ee.cone.c4assemble.{Join, JoiningProfiling, WorldTransition}
+import ee.cone.c4assemble.Types.{DPIterable, Index, ProfilingLog}
 
 import scala.collection.immutable
 
 case object ConsoleAssembleProfiler extends AssembleProfiler {
-  def createSerialJoiningProfiling(localOpt: Option[Context]): SerialJoiningProfiling = ConsoleProfiling
+  def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling = ConsoleProfiling
 
-  def addMeta(profiling: SerialJoiningProfiling, updates: immutable.Seq[QProtocol.Update]): immutable.Seq[QProtocol.Update] = updates
+  def addMeta(transition: WorldTransition, updates: immutable.Seq[QProtocol.Update]): immutable.Seq[QProtocol.Update] = updates
 }
 
-case object ConsoleProfiling extends SerialJoiningProfiling with LazyLogging {
+case object ConsoleProfiling extends JoiningProfiling with LazyLogging {
   def time: Long = System.nanoTime
 
   def handle(
@@ -20,14 +20,13 @@ case object ConsoleProfiling extends SerialJoiningProfiling with LazyLogging {
     calcStart: Long,
     findChangesStart: Long,
     patchStart: Long,
-    joinRes: DPIterable[Index],
-    transition: WorldTransition
-  ): WorldTransition = {
+    joinRes: DPIterable[Index]
+  ): ProfilingLog = {
     val timeNano: Long = (System.nanoTime - calcStart) / 10000
     val timeFront: Double = timeNano / 100.0
     val countT = joinRes.size
     logger.debug(s"rule ${join.assembleName}-${join.name} ${getColoredCount(countT)} items for ${getColoredPeriod(timeFront)} ms")
-    transition
+    Nil
   }
 
   def getColoredPeriod: Double ⇒ String = {

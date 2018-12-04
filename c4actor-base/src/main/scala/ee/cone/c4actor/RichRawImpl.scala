@@ -8,6 +8,9 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.ToByteString
 
 import scala.collection.immutable.{Map, Seq}
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 
 object Merge {
   def apply[A](path: List[Any], values: List[A]): A =
@@ -62,11 +65,17 @@ class RichRawWorldImpl(
 ) extends RichContext
 
 object WorldStats {
-  def make(context: AssembledContext): String = context.assembled.collect {
-    case (worldKey, index: Map[_, _]) ⇒
-      val sz = index.values.collect { case s: Seq[_] ⇒ s.size }.sum
-      s"$worldKey : ${index.size} : $sz"
-  }.mkString("\n")
+  def make(context: AssembledContext): String = ""
+    /*Await.result(Future.sequence(
+      for {
+        (worldKey,indexF) ← context.assembled.inner.toSeq.sortBy(_._1)
+      } yield for {
+        index ← indexF
+      } yield {
+        val sz = index.data.values.collect { case s: Seq[_] ⇒ s.size }.sum
+        s"$worldKey : ${index.size} : $sz"
+      }
+    ), Duration.Inf).mkString("\n")*/
 }
 
 class StatsObserver(inner: RawObserver) extends RawObserver with LazyLogging {

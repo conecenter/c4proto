@@ -9,7 +9,10 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Seq}
+import scala.concurrent.Await
 import scala.util.control.NonFatal
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration.Duration
 
 case class OrigKeyFactory(composes: IndexUtil) {
   def rawKey(className: String): AssembledKey =
@@ -34,31 +37,32 @@ class AssemblerInit(
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactory,
   assembleProfiler: AssembleProfiler,
+  readModelUtil: ReadModelUtil,
   actorName: String
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
-    (for {
+    readModelUtil.create((for {
       tpPair ← updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = origKeyFactory.rawKey(valueAdapter.className)
-      wasIndex = wKey.of(assembled)
-      indexDiff ← Option(composes.mergeIndex(for {
+    } yield {
+      wKey → (for {
+        wasIndex ← wKey.of(assembled)
+      } yield composes.mergeIndex(for {
         iPair ← tpUpdates.groupBy(_.srcId)
         (srcId, iUpdates) = iPair
         rawValue = iUpdates.last.value
         remove = composes.removingDiff(wasIndex,srcId)
         add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
         res ← remove :: add
-      } yield res)) if !composes.isEmpty(indexDiff)
-    } yield {
-      wKey → indexDiff
-    }).seq.toMap
+      } yield res))
+    }).seq.toMap)
 
   // read model part:
   private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel =
-    replace(wasAssembled,diff,isParallel,assembleProfiler.createSerialJoiningProfiling(None)).result
+    replace(wasAssembled,diff,isParallel,assembleProfiler.createJoiningProfiling(None)).result
   private def offset(events: Seq[RawEvent]): List[Update] = for{
     ev ← events.lastOption.toList
     lEvent ← LEvent.update(Offset(actorName,ev.srcId))
@@ -90,18 +94,18 @@ class AssemblerInit(
     if(out.isEmpty) identity[Context]
     else { local ⇒
       val diff = toTree(local.assembled, out)
-      val profiling = assembleProfiler.createSerialJoiningProfiling(Option(local))
+      val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val transition = replace(local.assembled,diff,false,profiling)
       val assembled = transition.result
-      val updates = assembleProfiler.addMeta(transition.profiling, out)
+      val updates = assembleProfiler.addMeta(transition, out)
       val nLocal = new Context(local.injected, assembled, local.transient)
       WriteModelKey.modify(_.enqueue(updates))(nLocal)
       //call add here for new mortal?
     }
 
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
-    UniqueIndexMap(origKeyFactory.rawKey(className).of(context.assembled))(composes)
+    UniqueIndexMap(concurrent.blocking{Await.result(origKeyFactory.rawKey(className).of(context.assembled),Duration.Inf)})(composes)
   }
 
   def toInject: List[Injectable] =

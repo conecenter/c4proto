@@ -2,7 +2,7 @@ package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types._
 
-import scala.collection.immutable.Map
+import scala.concurrent.ExecutionContext.Implicits.global
 
 object PrepareBackStage extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition =
@@ -16,11 +16,14 @@ class ConnectBackStage[MapKey, Value](
   composes: IndexUtil
 ) extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
-    val diffPart = nextKey.of(transition.prev.get.diff)
+    val next = for {
+      diff ← nextKey.of(transition.prev.get.diff)
+      result ← nextKey.of(transition.result)
+    } yield new IndexUpdate(diff,result,Nil)
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")
-    if(composes.isEmpty(diffPart)) transition
-    else updater.setPart(outputWorldKey)(diffPart, nextKey.of(transition.result))(transition)
+    //if(composes.isEmpty(diffPart)) transition else
+    updater.setPart(outputWorldKey)(next)(transition)
   }
 }
 
