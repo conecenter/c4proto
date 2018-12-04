@@ -2963,27 +2963,20 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	class SoundProducerElement extends StatefulComponent{
 		produce(){
 			const audio = miscUtil.audio
+			const audioType = this.props.type == 'errorSound'?images.errorSound:images.beepMidi
 			if(!audio) return
 			try{
-				this.audio = audio(images.beepMidi)
+				this.audio = audio(audioType)
 				this.audio.play()
 			}
 			catch(e){log(e)}
 		}		
-		componentDidUpdate(){
-			this.audio&&this.stop()
+		componentDidUpdate(){			
 			this.produce()
-		}
-		stop(){
-			this.audio&&this.audio.stop()
-			this.audio = null
-		}
+		}		
 		componentDidMount(){
 			this.produce()
-		}
-		componentWillUnmount(){
-			this.stop()
-		}
+		}		
 		render(){return null}
 	}	
 	class InteractiveAreaElement extends StatefulComponent{					    			

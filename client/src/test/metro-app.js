@@ -118,10 +118,10 @@ const miscUtil = (()=>{
 	const Scanner = () => window.Scanner
 	const scannerProxy = () => {if(!_scannerProxy) window.ScannerProxy = _scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}); return _scannerProxy}	
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
-	const audio = () => {return new Audio()}
+	const audio = (f) => {return new Audio(f)}
 	const fileReader = ()=> (new window.FileReader())
 	const image = () => (new Image())
-	return {winWifi,getBattery,scannerProxy,audioContext,fileReader,image}
+	return {winWifi,getBattery,scannerProxy,audioContext,fileReader,image,audio}
 })()
 
 const vDomAttributes = VDomAttributes(requestState)
