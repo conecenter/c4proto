@@ -2790,7 +2790,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.dragBinding.dragStart(e,this.el,"div",this.props.dragStyle)
 		}
 		onMouseUp(e){
-			const elements = documentManager.elementsFromPoint(e.clientX,e.clientY)
+			const {clientX,clientY} = e.type.includes("touch")&&e.touches.length>0?{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}:{clientX:e.clientX,clientY:e.clientY}
+			const elements = clientX&&clientY?documentManager.elementsFromPoint(clientX,clientY):[]
 			if(!elements.includes(this.el)) return			
 			if(!this.props.droppable) return
 			this.dragBinding.dragDrop(this.el)
@@ -3027,7 +3028,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				el = elements.find(e=>e==this.el)
 			}*/
 			if(e.target==this.el||e.target == this.el.firstElementChild){
-				this.props.onClickValue && this.props.onClickValue("change",this.maxZoomK().toString())
+				this.props.onClickValue && this.props.onClickValue("change",this.maxZoomK().toString())				
 				e.stopPropagation()
 			}			
 		}
@@ -3037,8 +3038,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.setState({width:rect.width,height:rect.height})
 		}
 		componentDidMount(){
-			addEventListener("mousedown",this.onMouseDown,true)
-			
+			if(!this.el) return
+			this.el.addEventListener("mousedown",this.onMouseDown,true)
+			//this.el.addEventListener("touchstart",this.onMouseDown,true)
 		}
 		maxZoomK(){
 			if(this.props.zoomed) return 1
@@ -3053,7 +3055,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return 1
 		}
 		componentWillUnmount(){
-			removeEventListener("mousedown",this.onMouseDown)
+			if(!this.el) return
+			this.el.removeEventListener("mousedown",this.onMouseDown,true)
+			//this.el.removeEventListener("touchstart",this.onMouseDown,true)
 			
 		}
 		render(){
@@ -3065,7 +3069,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const nonZoomed = !this.props.zoomed?{position:"absolute", zIndex:"9998",width:"100%",height:"100%",cursor:"zoom-in"}:{}
 			const className = "ZoomPopup"
 			return $("div",{className,ref:ref=>this.el=ref, style},[			
-				$("div",{key:1,style:nonZoomed,onMouseDown:this.MouseDown}),
+				$("div",{key:1,style:nonZoomed}),
 				$("div",{key:2,style:{alignSelf:"center"}},this.props.children)
 			])
 		}

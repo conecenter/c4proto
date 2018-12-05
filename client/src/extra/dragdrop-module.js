@@ -95,7 +95,7 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		return node
 	}
 	const getListRect = (node) => getListNode(node).getBoundingClientRect()
-	const isTouch = (event) => event.type.includes("touch")
+	const isTouch = (event) => event.type.includes("touch") && event.touches.length>0
 	const getXY = (event) =>  isTouch(event)?{x:event.touches[0].clientX,y:event.touches[0].clientY}:{x:event.clientX,y:event.clientY}
 	const getTarget = (event) => {
 		//if(isTouch(event)){
