@@ -13,22 +13,21 @@ class DumperApp extends RichDataApp
   with ToStartApp
   with EnvConfigApp
 {
-  lazy val snapshotLister: SnapshotLister = new SnapshotListerImpl(rawSnapshotLister)
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
-  override def toStart: List[Executable] = new Dumper(snapshotLister,snapshotLoader,richRawWorldFactory,richRawWorldReducer,execution) :: super.toStart
+  override def toStart: List[Executable] = new Dumper(snapshotMaker,snapshotLoader,richRawWorldReducer,execution) :: super.toStart
 }
 
 class Dumper(
-  snapshotLister: SnapshotLister,
+  snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader,
-  richRawWorldFactory: RichRawWorldFactory,
   richRawWorldReducer: RichRawWorldReducer,
   execution: Execution
 ) extends Executable {
   def run(): Unit = {
-    val event = snapshotLoader.load(snapshotLister.list.head.raw).get
-    val context = richRawWorldReducer.reduce(List(event))(richRawWorldFactory.create())
+    val list = snapshotMaker.make(NextSnapshotTask(None))
+    val event = snapshotLoader.load(list.head).get
+    val context = richRawWorldReducer.reduce(None,List(event))
     ByPK(classOf[HttpPost]).of(context).values.toList.sortBy(_.srcId).foreach(println)
     ByPK(classOf[FromAlienState]).of(context).values.toList.sortBy(_.sessionKey).foreach(println)
     execution.complete()
