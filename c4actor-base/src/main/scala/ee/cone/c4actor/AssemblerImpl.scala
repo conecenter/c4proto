@@ -9,7 +9,7 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Seq}
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 import scala.util.control.NonFatal
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
@@ -62,7 +62,10 @@ class AssemblerInit(
 
   // read model part:
   private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel =
-    replace(wasAssembled,diff,isParallel,assembleProfiler.createJoiningProfiling(None)).result
+    Await.result(
+      replace(wasAssembled,diff,isParallel,assembleProfiler.createJoiningProfiling(None)).map(_.result),
+      Duration.Inf
+    )
   private def offset(events: Seq[RawEvent]): List[Update] = for{
     ev ← events.lastOption.toList
     lEvent ← LEvent.update(Offset(actorName,ev.srcId))
@@ -96,11 +99,14 @@ class AssemblerInit(
       val diff = toTree(local.assembled, out)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
-      val transition = replace(local.assembled,diff,false,profiling)
-      val assembled = transition.result
-      val updates = assembleProfiler.addMeta(transition, out)
-      val nLocal = new Context(local.injected, assembled, local.transient)
-      WriteModelKey.modify(_.enqueue(updates))(nLocal)
+      val res = for {
+        transition ← replace(local.assembled,diff,false,profiling)
+        updates ← assembleProfiler.addMeta(transition, out)
+      } yield {
+        val nLocal = new Context(local.injected, transition.result, local.transient)
+        WriteModelKey.modify(_.enqueue(updates))(nLocal)
+      }
+      Await.result(res, Duration.Inf)
       //call add here for new mortal?
     }
 

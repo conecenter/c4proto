@@ -647,7 +647,7 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     } else {
         my $frpc_conf = [
             common => [&$get_frp_common($run_comp)],
-            #&$frp_client($run_comp,$http_server),
+            &$frp_client($run_comp,$bootstrap_server),
             &$frp_web($$conf{proxy_dom}||$run_comp),
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));

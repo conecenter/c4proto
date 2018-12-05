@@ -13,8 +13,9 @@ import ee.cone.c4assemble._
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
 import okio.ByteString
-
 import java.nio.charset.StandardCharsets.UTF_8
+
+import scala.concurrent.Future
 
 @protocol object QProtocol extends Protocol {
 
@@ -243,7 +244,7 @@ object CheckedMap {
 
 trait AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling
-  def addMeta(transition: WorldTransition, updates: Seq[Update]): Seq[Update]
+  def addMeta(transition: WorldTransition, updates: Seq[Update]): Future[Seq[Update]]
 }
 
 case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
