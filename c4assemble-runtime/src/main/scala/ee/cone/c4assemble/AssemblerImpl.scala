@@ -8,13 +8,10 @@ import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 
-import scala.annotation.tailrec
-import scala.collection.GenIterable
-import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
+import scala.collection.immutable.{Map, Seq, TreeMap}
 import scala.collection.parallel.immutable.ParVector
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
 
 case class Count(item: Product, count: Int)
 
@@ -278,15 +275,15 @@ class TreeAssemblerImpl(
 
     val testSZ = transforms.size
     //for(t ← transforms) println("T",t)
-    @tailrec def transformUntilStable(left: Int, transition: WorldTransition): WorldTransition = {
-      val stable = readModelUtil.isEmpty(transition.diff)
-      if(Await.result(stable,Duration.Inf)) transition
-      else if(left > 0){
-        //println(s"join iter [${Thread.currentThread.getName}] $testSZ")
-        transformUntilStable(left-1, transformAllOnce(transition))
-      }
-      else throw new Exception(s"unstable assemble ${transition.diff}")
-    }
+    def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] =
+      for {
+        stable ← readModelUtil.isEmpty(transition.diff)
+        res ← {
+          if(stable) Future.successful(transition)
+          else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
+          else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
+        }
+      } yield res
 
     (prevWorld,diff,isParallel,profiler) ⇒ {
       val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler,Future.successful(Nil))

@@ -5,22 +5,20 @@ import java.util.UUID
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{TxRef, Update}
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{LogEntry, TxAddMeta}
-import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.{Id, Protocol, protocol}
-import okio.ByteString
 
 import scala.collection.immutable.Seq
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =
     NoJoiningProfiling
-  def addMeta(transition: WorldTransition, updates: Seq[Update]): Seq[Update] =
-    updates
+  def addMeta(transition: WorldTransition, updates: Seq[Update]): Future[Seq[Update]] =
+    Future.successful(updates)
 }
 
 case object NoJoiningProfiling extends JoiningProfiling {
@@ -54,21 +52,26 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
   def createJoiningProfiling(localOpt: Option[Context]) =
     if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime)
-  def addMeta(transition: WorldTransition, updates: Seq[Update]): Seq[Update] = transition.profiling match {
+  def addMeta(transition: WorldTransition, updates: Seq[Update]): Future[Seq[Update]] = transition.profiling match {
     case SimpleSerialJoiningProfiling(startedAt) ⇒
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
     val size = updates.map(_.value.size).sum
     val types = updates.map(_.valueTypeId).distinct.toList
     val id = idGenUtil.srcIdFromStrings(UUID.randomUUID.toString)
-    val log = Await.result(transition.log, Duration.Inf).collect{
-      case l: LogEntry ⇒ l
+    for {
+      logAll ← transition.log
+    } yield {
+      val log = logAll.collect{ case l: LogEntry ⇒ l }
+      val meta = List(
+        TxRef(id,""),
+        TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
+      )
+      val metaUpdates = meta.flatMap(LEvent.update).map(toUpdate.toUpdate)
+      val metaTypeIds = metaUpdates.map(_.valueTypeId).toSet
+      if(updates.map(_.valueTypeId).forall(metaTypeIds)) updates
+      else metaUpdates ++ updates
     }
-    val meta = List(
-      TxRef(id,""),
-      TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
-    )
-    meta.flatMap(LEvent.update).map(toUpdate.toUpdate) ++ updates
   }
 }
 

@@ -73,25 +73,26 @@ class ToUpdateImpl(
     RawHeader(compressionKey, jc.name) :: Nil
 
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader]) = {
-    val updatesBytes = updatesAdapter.encode(Updates("", updates.filterNot(_.valueTypeId==offsetAdapter.id)))
-    logger.debug("ToUpdate: Compressing...")
+    val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
+    logger.debug(updates.toString)
+    val updatesBytes = updatesAdapter.encode(Updates("", filteredUpdates))
+    logger.debug("Compressing...")
     val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)
       .fold((updatesBytes, List.empty[RawHeader]))(compressor⇒
         (compressor.compress(updatesBytes), makeHeaderFromName(compressor))
       )
-    logger.debug("ToUpdate: Finished compressing...")
+    logger.debug("Finished compressing...")
     result
   }
 
   def toUpdates(events: List[RawEvent]): List[Update] =
     for {
       event ← events
-      compressorOpt = findCompressor(event.headers)
-      data = {
-        logger.debug("ToUpdate: Decompressing...")
-        compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)}
       update ← {
-        logger.debug("ToUpdate: Decoding...")
+        val compressorOpt = findCompressor(event.headers)
+        logger.trace("Decompressing...")
+        val data = compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)
+        logger.trace("Decoding...")
         updatesAdapter.decode(data).updates
       }
     } yield
