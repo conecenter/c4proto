@@ -418,7 +418,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		componentWillUnmount(){
 			//checkActivateCalls.remove(this.calc)
 		}
-		render(){
+		render(){			 
+			const re = /\d+(\.\d)?%/ //100%
+			const isLeft = re.test(this.props.style.left)
+			const sideStyle = isLeft && (this.state.right!==null)?{right:"100%",left:""}:{}
 			return $("div",{
 				ref:ref=>this.el=ref,
 				style: {
@@ -434,7 +437,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					borderColor:"#2196f3",					
 					maxHeight:this.state.maxHeight,
 					right:this.state.right!==null?this.state.right+"px":"",
-					...this.props.style
+					...this.props.style,
+					...sideStyle
 				}
 			},this.props.children);			
 		}				
