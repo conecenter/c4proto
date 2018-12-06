@@ -37,7 +37,7 @@ export default function OverlayManager({log,documentManager,windowManager}){
 				left:"0rem",
 				width:"100vw",
 				height:"100vh",
-				zIndex:"9999",
+				zIndex:"10001",
 				color:"wheat",
 				textAlign:"center",
 				backgroundColor:"rgba(0,0,0,0.4)",
