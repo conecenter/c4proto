@@ -12,6 +12,10 @@ trait Protocol {
   def adapters: List[ProtoAdapter[_] with HasId] = ??? //_<:Object
 }
 
+trait OrigCategory extends Product
+
+case class Cat(category: OrigCategory*) extends StaticAnnotation
+
 case class Id(id: Int) extends StaticAnnotation
 
 case class MetaProp(id: Int, propName: String, resultType: String)
@@ -19,6 +23,7 @@ case class MetaProp(id: Int, propName: String, resultType: String)
 trait HasId {
   def id: Long
   def hasId: Boolean
+  def categories: List[OrigCategory]
   def className: String
   def props: List[MetaProp]
 }

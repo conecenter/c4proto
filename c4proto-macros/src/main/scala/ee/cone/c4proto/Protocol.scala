@@ -2,6 +2,7 @@
 package ee.cone.c4proto
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
+import scala.meta.Term.Name
 import scala.meta._
 
 case class ProtoProp(
@@ -18,16 +19,27 @@ case class ProtoType(
   resultFix: String="", reduce: (String,String)=("","")
 )
 case class ProtoMessage(adapterName: String, adapterImpl: String)
-case class ProtoMods(id: Option[Int]=None)
+case class ProtoMods(id: Option[Int]=None, category: List[String])
 
 @compileTimeOnly("not expanded")
-class protocol extends StaticAnnotation {
+class protocol(category: Product*) extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
+    val args = this match {
+      case q"new protocol" ⇒ List()
+      case q"new protocol(...$exprs)" ⇒
+        exprs.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
+    }
+
     val q"object $objectName extends ..$ext { ..$stats }" = defn
+
     val messages: List[ProtoMessage] = stats.flatMap{
       case q"import ..$i" ⇒ None
       case q"..$mods case class ${Type.Name(messageName)} ( ..$params )" =>
-        val protoMods = mods./:(ProtoMods())((pMods,mod)⇒ mod match {
+        val protoMods = mods./:(ProtoMods(category = args))((pMods,mod)⇒ mod match {
+          case mod"@Cat(${Name(name:String)})" ⇒
+            pMods.copy(category = name :: Nil)
+          case mod"@Cat(...$exprs)" ⇒
+            pMods.copy(category = exprs.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList)
           case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty ⇒
             pMods.copy(id=Option(id))
         })
@@ -133,6 +145,7 @@ class protocol extends StaticAnnotation {
           ) with ee.cone.c4proto.HasId {
             def id = ${protoMods.id.getOrElse("throw new Exception")}
             def hasId = ${protoMods.id.nonEmpty}
+            def categories = List(${protoMods.category.mkString(", ")})
             def className = classOf[$resultType].getName
             def encodedSize(value: $resultType): Int = {
               val $struct = value
