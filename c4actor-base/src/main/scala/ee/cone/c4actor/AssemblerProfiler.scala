@@ -67,7 +67,10 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
         TxRef(id,""),
         TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
       )
-      meta.flatMap(LEvent.update).map(toUpdate.toUpdate) ++ updates
+      val metaUpdates = meta.flatMap(LEvent.update).map(toUpdate.toUpdate)
+      val metaTypeIds = metaUpdates.map(_.valueTypeId).toSet
+      if(updates.map(_.valueTypeId).forall(metaTypeIds)) updates
+      else metaUpdates ++ updates
     }
   }
 }

@@ -5,14 +5,6 @@ import okio.{Buffer, ByteString}
 
 import scala.annotation.tailrec
 
-trait LZ4CompressorApp extends DeCompressorsApp with RawCompressorsApp{
-  lazy val lz4Compressor: LZ4Compressor.type = LZ4Compressor
-
-  override def deCompressors: List[DeCompressor] = lz4Compressor :: super.deCompressors
-
-  override def rawCompressors: List[RawCompressor] = lz4Compressor :: super.rawCompressors
-}
-
 case object LZ4Compressor extends DeCompressor with Compressor with RawCompressor {
 
   @tailrec
