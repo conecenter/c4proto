@@ -5,6 +5,8 @@ import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta.Term.Name
 import scala.meta._
 
+import scala.collection.immutable.Seq
+
 case class ProtoProp(
   sizeStatement: String,
   encodeStatement: String,
@@ -24,10 +26,12 @@ case class ProtoMods(id: Option[Int]=None, category: List[String])
 @compileTimeOnly("not expanded")
 class protocol(category: Product*) extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
+    def parseArgs: Seq[Seq[Term.Arg]] ⇒ List[String] =
+      _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
+
     val args = this match {
       case q"new protocol" ⇒ List()
-      case q"new protocol(...$exprs)" ⇒
-        exprs.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
+      case q"new protocol(...$exprss)" ⇒ parseArgs(exprss)
     }
 
     val q"object $objectName extends ..$ext { ..$stats }" = defn
@@ -37,9 +41,11 @@ class protocol(category: Product*) extends StaticAnnotation {
       case q"..$mods case class ${Type.Name(messageName)} ( ..$params )" =>
         val protoMods = mods./:(ProtoMods(category = args))((pMods,mod)⇒ mod match {
           case mod"@Cat(${Name(name:String)})" ⇒
-            pMods.copy(category = name :: Nil)
-          case mod"@Cat(...$exprs)" ⇒
-            pMods.copy(category = exprs.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList)
+            val old = pMods.category
+            pMods.copy(category = name :: old)
+          case mod"@Cat(...$exprss)" ⇒
+            val old = pMods.category
+            pMods.copy(category = parseArgs(exprss) ::: old)
           case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty ⇒
             pMods.copy(id=Option(id))
         })
@@ -145,7 +151,7 @@ class protocol(category: Product*) extends StaticAnnotation {
           ) with ee.cone.c4proto.HasId {
             def id = ${protoMods.id.getOrElse("throw new Exception")}
             def hasId = ${protoMods.id.nonEmpty}
-            def categories = List(${protoMods.category.mkString(", ")})
+            def categories = List(${protoMods.category.mkString(", ")}).distinct
             def className = classOf[$resultType].getName
             def encodedSize(value: $resultType): Int = {
               val $struct = value
