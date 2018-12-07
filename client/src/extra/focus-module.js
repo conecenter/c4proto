@@ -46,6 +46,9 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const getCNode = () =>{
 		const aEl = documentManager.activeElement()
+		if(aEl.tagName == "IFRAME") {
+			return getParentWrapper(aEl.contentDocument.activeElement)
+		}
 		return getParentWrapper(aEl)	
 	}
 	const findBestDistance = (axis) => {
