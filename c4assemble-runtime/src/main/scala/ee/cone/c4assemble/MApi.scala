@@ -45,11 +45,12 @@ trait ReadModelUtil {
   def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel⇒ReadModel
   def isEmpty: ReadModel⇒Future[Boolean]
   def op(op: (MMap,MMap)⇒MMap): (ReadModel,ReadModel)⇒ReadModel
-  def toMap: ReadModel⇒Future[Map[AssembledKey,Index]]
+  def ready: ReadModel⇒Future[ReadModel]
+  def toMap: ReadModel⇒Map[AssembledKey,Index]
 }
 
 trait ReadModel {
-  def apply(key: AssembledKey): Future[Index]
+  def getFuture(key: AssembledKey): Future[Index]
 }
 
 trait Getter[C,+I] {
@@ -57,7 +58,7 @@ trait Getter[C,+I] {
 }
 
 abstract class AssembledKey extends Getter[ReadModel,Future[Index]] with Product {
-  def of: ReadModel ⇒ Future[Index] = world ⇒ world(this)
+  def of: ReadModel ⇒ Future[Index] = world ⇒ world.getFuture(this)
 }
 
 trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {

@@ -60,7 +60,7 @@ case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUt
       "runtime_mem_total" → runtime.totalMemory,
       "runtime_mem_free" → runtime.freeMemory
     )
-    val keyCounts: List[(String, Long)] = Await.result(readModelUtil.toMap(local.assembled),Duration.Inf).collect {
+    val keyCounts: List[(String, Long)] = readModelUtil.toMap(local.assembled).collect {
       case (worldKey:JoinKey, index: Index)
         if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
         s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → indexUtil.keySet(index).size.toLong
