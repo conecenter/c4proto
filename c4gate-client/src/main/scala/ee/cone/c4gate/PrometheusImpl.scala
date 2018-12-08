@@ -17,7 +17,7 @@ import okio.ByteString
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
-@protocol object ActorAccessProtocol extends Protocol {
+@protocol(SettingsOrigCat) object ActorAccessProtocol extends Protocol {
   @Id(0x006A) case class ActorAccessKey(
     @Id(0x006B) srcId: String,
     @Id(0x006C) value: String
@@ -96,7 +96,7 @@ object Monitoring {
   }
 }
 
-@protocol object AvailabilitySettingProtocol extends Protocol{
+@protocol(SettingsOrigCat) object AvailabilitySettingProtocol extends Protocol{
 
   @Id(0x00f0) case class OrigAvailabilitySetting(
     @Id(0x0001) srcId: String,
