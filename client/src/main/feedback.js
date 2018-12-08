@@ -55,7 +55,7 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
     }
     function signedIn(data) {
         sessionStorage.setItem("sessionKey",data)
-        localStorage.setItem(loadKeyForSession(), getLoadKey(never))
+		localStorage.setItem(loadKeyForSession(), getLoadKey(never))
         location.reload()
     }
 

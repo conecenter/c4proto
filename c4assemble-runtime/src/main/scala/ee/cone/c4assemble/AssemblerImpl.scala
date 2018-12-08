@@ -291,7 +291,10 @@ class TreeAssemblerImpl(
         seq ← Future.sequence(Seq(a,b))
       } yield composes.mergeIndex(seq) ))(prevWorld,diff)
       val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler,Future.successful(Nil))
-      transformUntilStable(1000, nextTransition)
+      for {
+        finalTransition ← transformUntilStable(1000, nextTransition)
+        ready ← readModelUtil.ready(finalTransition.result)
+      } yield finalTransition
     }
   }
 }

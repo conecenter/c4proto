@@ -32,13 +32,17 @@ class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
   def op(op: (MMap,MMap)⇒MMap): (ReadModel,ReadModel)⇒ReadModel = Function.untupled({
     case (a: ReadModelImpl, b: ReadModelImpl) ⇒ new ReadModelImpl(op(a.inner,b.inner))
   })
-  def toMap: ReadModel⇒Future[Map[AssembledKey,Index]] = {
-    case model: ReadModelImpl ⇒
-      Future.sequence(model.inner.map{ case (k,f) ⇒ f.map(v⇒k->v) }).map(_.toMap)
+  def toMap: ReadModel⇒Map[AssembledKey,Index] = {
+    case model: ReadModelImpl ⇒ model.inner.transform((k,f) ⇒ f.value.get.get)
   }
-
+  def ready: ReadModel⇒Future[ReadModel] = {
+    case model: ReadModelImpl ⇒
+      for {
+        ready ← Future.sequence(model.inner.values)
+      } yield model
+  }
 }
 
 class ReadModelImpl(val inner: DMap[AssembledKey,Future[Index]]) extends ReadModel {
-  def apply(key: AssembledKey): Future[Index] = inner.getOrElse(key, Future.successful(emptyIndex))
+  def getFuture(key: AssembledKey): Future[Index] = inner.getOrElse(key, Future.successful(emptyIndex))
 }
