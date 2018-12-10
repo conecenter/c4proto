@@ -43,10 +43,9 @@ trait BranchOperations {
 
 case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean)
 
-case object BranchOrigCat extends OrigCategory
 case object ErrorOrigCat extends OrigCategory
 
-@protocol(BranchOrigCat) object BranchProtocol extends Protocol {
+@protocol(HTTPCat) object BranchProtocol extends Protocol {
   @Id(0x0040) case class BranchResult(
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,

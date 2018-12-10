@@ -15,7 +15,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 import scala.collection.immutable
 
 
-@protocol(TestOrigCat) object TestProtocol extends Protocol {
+@protocol(TestCat) object TestProtocol extends Protocol {
 
   @Id(0x0001) case class TestNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 

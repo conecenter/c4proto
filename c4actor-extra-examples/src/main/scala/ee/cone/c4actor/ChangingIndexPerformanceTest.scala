@@ -12,7 +12,7 @@ import scala.util.Random
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ChangingIndexPerformanceTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 
-@protocol(TestOrigCat) object PerformanceProtocol extends Protocol {
+@protocol(TestCat) object PerformanceProtocol extends Protocol {
 
   @Id(0x0100) case class PerformanceNode(
     @Id(0x0101) srcId: String,

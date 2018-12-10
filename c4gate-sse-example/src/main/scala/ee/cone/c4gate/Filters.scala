@@ -39,7 +39,7 @@ trait ContainsAccessViewApp extends AccessViewsApp {
 
 //// api
 
-@protocol(TestOrigCat) object CommonFilterProtocol extends Protocol {
+@protocol(TestCat) object CommonFilterProtocol extends Protocol {
   @Id(0x0006) case class DateBefore(
     @Id(0x0001) srcId: String,
     @Id(0x0002) value: Option[Long]

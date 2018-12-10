@@ -139,13 +139,13 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
 
 @protocol object HashSearchDepRequestProtocol extends Protocol {
 
-  @Cat(DepRequestOrigCat)
+  @Cat(DepRequestCat)
   @Id(0x0f37) case class HashSearchDepRequest(
     @Id(0x0f3e) modelName: String,
     @Id(0x0f38) condition: Option[DepCondition]
   )
 
-  @Cat(InnerOrigCat)
+  @Cat(InnerCat)
   case class DepCondition(
     @Id(0x0f3f) modelClass: String,
     @Id(0x0f45) condType: String,
@@ -155,7 +155,7 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
     @Id(0x0f49) by: Option[By]
   )
 
-  @Cat(InnerOrigCat)
+  @Cat(InnerCat)
   case class By(
     @Id(0x0f4b) byClName: String,
     @Id(0x0f3b) value: okio.ByteString

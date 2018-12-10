@@ -8,11 +8,13 @@ import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{LogEntry, TxAddMeta}
 import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, OrigCategory, Protocol, protocol}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+
+case object ProfilerMetaCat extends OrigCategory
 
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =
@@ -32,7 +34,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
 
 ////
 
-@protocol(ProfilerMetaOrigCat) object SimpleAssembleProfilerProtocol extends Protocol {
+@protocol(ProfilerMetaCat) object SimpleAssembleProfilerProtocol extends Protocol {
   @Id(0x0073) case class TxAddMeta(
     @Id(0x0074) srcId: String,
     @Id(0x0075) startedAt: Long,
