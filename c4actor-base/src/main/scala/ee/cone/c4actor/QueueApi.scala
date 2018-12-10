@@ -5,25 +5,26 @@ import java.time.Instant
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.OrigMetaAttrProtocol.TxTransformNameMeta
-
-import scala.collection.immutable.{Map, Queue, Seq}
-import ee.cone.c4proto.{HasId, Id, Protocol, protocol}
-import ee.cone.c4assemble.Types._
-import ee.cone.c4assemble._
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
+import ee.cone.c4assemble._
+import ee.cone.c4proto._
 import okio.ByteString
-import java.nio.charset.StandardCharsets.UTF_8
 
+import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.Future
 
-@protocol object QProtocol extends Protocol {
+case object UpdatesOrigCat extends OrigCategory
+case object SettingsOrigCat extends OrigCategory
+
+@protocol(UpdatesOrigCat) object QProtocol extends Protocol {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
       @Id(0x0012) valueTypeId: Long
   )*/
 
+  @Cat(InnerOrigCat)
   case class Update(
     @Id(0x0011) srcId: String,
     @Id(0x0012) valueTypeId: Long,
@@ -35,6 +36,7 @@ import scala.concurrent.Future
     @Id(0x0015) updates: List[Update]
   )
 
+  @Cat(SettingsOrigCat)
   @Id(0x0016) case class Firstborn(
     @Id(0x0011) srcId: String, //app class
     @Id(0x001A) txId: String
@@ -241,6 +243,8 @@ object CheckedMap {
   def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
     pairs.groupBy(_._1).transform((k,l)⇒Single(l)._2)
 }
+
+case object ProfilerMetaOrigCat extends OrigCategory
 
 trait AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling

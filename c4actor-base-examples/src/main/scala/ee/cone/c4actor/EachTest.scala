@@ -19,7 +19,7 @@ class EachTestApp extends TestRichDataApp
       super.assembles
 }
 
-@protocol object EachTestProtocol extends Protocol {
+@protocol(TestOrigCat) object EachTestProtocol extends Protocol {
   @Id(0x0001) case class Item(@Id(0x0001) srcId: String, @Id(0x0002) parent: String)
 }
 

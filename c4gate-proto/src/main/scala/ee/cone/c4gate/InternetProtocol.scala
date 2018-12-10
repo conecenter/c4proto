@@ -1,9 +1,11 @@
 
 package ee.cone.c4gate
 
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 
-@protocol object HttpProtocol extends Protocol {
+case object HttpOrigCat extends OrigCategory
+
+@protocol(HttpOrigCat) object HttpProtocol extends Protocol {
   @Id(0x002C) case class HttpPublication(
     @Id(0x0021) path: String,
     @Id(0x0022) headers: List[Header],
@@ -17,10 +19,14 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0023) body: okio.ByteString,
     @Id(0x002D) time: Long
   )
+
+  @Cat(InnerOrigCat)
   case class Header(@Id(0x0024) key: String, @Id(0x0025) value: String)
 }
 
-@protocol object TcpProtocol extends Protocol {
+case object TcpOrigCat extends OrigCategory
+
+@protocol(TcpOrigCat) object TcpProtocol extends Protocol {
   @Id(0x0026) case class TcpWrite(
     @Id(0x002A) srcId: String,
     @Id(0x0027) connectionKey: String,
@@ -32,7 +38,10 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   //0x002F
 }
 
+case object AlienOrigCat extends OrigCategory
+
 @protocol object AlienProtocol extends Protocol {
+  @Cat(AlienOrigCat)
   @Id(0x0030) case class ToAlienWrite(
     @Id(0x0031) srcId: String,
     @Id(0x0032) sessionKey: String,
@@ -40,17 +49,23 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0034) data: String,
     @Id(0x0035) priority: Long
   )
+
+  @Cat(AlienOrigCat)
   @Id(0x0036) case class FromAlienState(
     @Id(0x0032) sessionKey: String,
     @Id(0x0037) location: String,
     @Id(0x0039) connectionKey: String, // we need to affect branchKey
     @Id(0x003A) userName: Option[String]
   )
+
+  @Cat(HttpOrigCat)
   @Id(0x003B) case class PostConsumer(
     @Id(0x003C) srcId: String,
     @Id(0x003D) consumer: String,
     @Id(0x003E) condition: String
   )
+
+  @Cat(AlienOrigCat)
   @Id(0x003F) case class FromAlienStatus(
     @Id(0x0032) sessionKey: String,
     @Id(0x0038) expirationSecond: Long,
@@ -58,7 +73,11 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
   )
 }
 
-@protocol object AuthProtocol extends Protocol {
+case object AuthOrigCat extends OrigCategory
+
+@protocol(AuthOrigCat) object AuthProtocol extends Protocol {
+
+  @Cat(InnerOrigCat)
   case class SecureHash(
     @Id(0x0050) iterations: Int,
     @Id(0x0051) hashSizeInBytes: Int,
