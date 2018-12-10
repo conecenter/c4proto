@@ -11,12 +11,29 @@ jsx?
 */
 
 
+const TextSelectionMonitor = ((log) =>{
+	const windows = []
+	const getSelection = w => w.document.getSelection().toString()
+	const regListener = w => {		
+		if(!w || windows.find(_=>_==w)) return w		
+		windows.push(w)
+		w.addEventListener("mouseup",e=>w.lastSelectionT = getSelection(w).length>0?e.timeStamp:0,true)		
+	}
+	const check = (elem,timeStamp) => {
+		const w = elem && elem.ownerDocument && elem.ownerDocument.defaultView		
+		if(!regListener(w) || !timeStamp) return false			
+		return timeStamp - w.lastSelectionT < 2000
+	}
+	return check
+})
+
+
 export default function MetroUi(log,requestState,images,documentManager,eventManager,OverlayManager,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
 	const $ = React.createElement	
 	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput
 	const dragDropModule = DragDropModule()
-	const overlayManager = OverlayManager()
-	
+	const overlayManager = OverlayManager()	
+	const textSelectionMonitor = TextSelectionMonitor(log)
 	const Branches = (()=>{
 		let main =""
 		const store = (o)=>{
@@ -974,12 +991,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){		
 			this.el.addEventListener("click",this.onClick)
+			textSelectionMonitor(this.el)
 		}
 		componentWillUnmount(){			
 			this.el.removeEventListener("click",this.onClick)
 		}
 		onClick(e){		
 			if(this.props.onClick){
+			    if(textSelectionMonitor(this.el,e.timeStamp)) return
 				if(!this.sentClick) {
 					this.props.onClick(e)					
 					this.sentClick = true

@@ -182,11 +182,11 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "Insert":
 			case "c":
 				if(event.ctrlKey){
-					sendEvent(()=>eventManager.create("ccopy"))
+					//sendEvent(()=>eventManager.create("ccopy"))
 					break
 				}
 				isPrintable = true
-				break				
+				break
 			case "F1":
 			case "F2":
 			case "F3":
