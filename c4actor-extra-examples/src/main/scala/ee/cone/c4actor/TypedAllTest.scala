@@ -142,7 +142,7 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 }
 
 
-@protocol(TestOrigCat) object TypedAllTestProtocol extends Protocol {
+@protocol(TestCat) object TypedAllTestProtocol extends Protocol {
 
   @Id(0xaabc) case class Model1(
     @Id(0xaabd) srcId: String

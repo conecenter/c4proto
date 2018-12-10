@@ -37,9 +37,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   }
 }
 
-case object TimeOrigCat extends OrigCategory
-
-@protocol(TimeOrigCat) object CurrentTimeProtocol extends Protocol {
+@protocol(OperativeCat) object CurrentTimeProtocol extends Protocol {
 
   @Id(0x0123) case class CurrentTimeNode(
     @Id(0x0124) srcId: String,
@@ -118,12 +116,12 @@ object CurrentTimeRequestAssembleTimeId {
 
 @protocol object CurrentTimeRequestProtocol extends Protocol {
 
-  @Cat(DepRequestOrigCat)
+  @Cat(DepRequestCat)
   @Id(0x0f83) case class CurrentTimeRequest(
     @Id(0x0f86) everyPeriod: Long
   )
 
-  @Cat(TxMetaOrigCat)
+  @Cat(TxMetaCat)
   @Id(0x0f87) case class CurrentTimeMetaAttr(
     @Id(0x0f88) srcId: String,
     @Id(0x0f89) everyPeriod: Long

@@ -14,7 +14,7 @@ trait Protocol {
 
 trait OrigCategory extends Product
 
-case object InnerOrigCat extends OrigCategory
+case object InnerCat extends OrigCategory
 
 case class Cat(category: OrigCategory*) extends StaticAnnotation
 

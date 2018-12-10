@@ -12,16 +12,16 @@ import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
 import ee.cone.c4proto._
 import okio.ByteString
 
-case object SessionAttrOrigCat extends OrigCategory
+case object SessionAttrCat extends OrigCategory
 
-@protocol(SessionAttrOrigCat) object SessionDataProtocol extends Protocol {
+@protocol(SessionAttrCat) object SessionDataProtocol extends Protocol {
   @Id(0x0066) case class RawSessionData(
     @Id(0x0061) srcId: String,
     @Id(0x0067) sessionKey: String,
     @Id(0x0a66) dataNode: Option[RawDataNode] // Always isDefined
   )
 
-  @Cat(InnerOrigCat)
+  @Cat(InnerCat)
   @Id(0x0a65) case class RawDataNode(
     @Id(0x0068) domainSrcId: String,
     @Id(0x0069) fieldId: Long,

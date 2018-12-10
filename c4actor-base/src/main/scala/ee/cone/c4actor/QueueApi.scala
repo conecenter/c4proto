@@ -14,17 +14,16 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.Future
 
-case object UpdatesOrigCat extends OrigCategory
-case object SettingsOrigCat extends OrigCategory
+case object UpdatesCat extends OrigCategory
 
-@protocol(UpdatesOrigCat) object QProtocol extends Protocol {
+@protocol(UpdatesCat) object QProtocol extends Protocol {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
       @Id(0x0012) valueTypeId: Long
   )*/
 
-  @Cat(InnerOrigCat)
+  @Cat(InnerCat)
   case class Update(
     @Id(0x0011) srcId: String,
     @Id(0x0012) valueTypeId: Long,
@@ -36,7 +35,7 @@ case object SettingsOrigCat extends OrigCategory
     @Id(0x0015) updates: List[Update]
   )
 
-  @Cat(SettingsOrigCat)
+  @Cat(SettingsCat)
   @Id(0x0016) case class Firstborn(
     @Id(0x0011) srcId: String, //app class
     @Id(0x001A) txId: String
@@ -243,8 +242,6 @@ object CheckedMap {
   def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
     pairs.groupBy(_._1).transform((k,l)⇒Single(l)._2)
 }
-
-case object ProfilerMetaOrigCat extends OrigCategory
 
 trait AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling

@@ -118,7 +118,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     } else Nil
 }
 
-@protocol(DepRequestOrigCat) object DepFilteredListRequestProtocol extends Protocol {
+@protocol(DepRequestCat) object DepFilteredListRequestProtocol extends Protocol {
 
   @Id(0x0a01) case class FilteredListRequest(
     @Id(0x0a0a) branchId: String,

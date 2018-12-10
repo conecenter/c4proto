@@ -110,7 +110,7 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 
 /******************************************/
 
-@protocol(TestOrigCat) object TestCanvasProtocol extends Protocol {
+@protocol(TestCat) object TestCanvasProtocol extends Protocol {
   @Id(0x0008) case class TestCanvasState(
     @Id(0x0009) srcId: String,
     @Id(0x000A) sizes: String

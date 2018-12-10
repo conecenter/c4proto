@@ -6,7 +6,7 @@ import okio.ByteString
 
 import scala.collection.immutable.Map
 
-case object TestOrigCat extends OrigCategory
+case object TestCat extends OrigCategory
 
 class ContextFactory(reducer: RichRawWorldReducer, toUpdate: ToUpdate) {
   def updated(updates: List[Update]): Context = {

@@ -11,13 +11,10 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.AvailabilitySettingProtocol.OrigAvailabilitySetting
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, SettingsCat, protocol}
 import okio.ByteString
 
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-
-@protocol(SettingsOrigCat) object ActorAccessProtocol extends Protocol {
+@protocol(SettingsCat) object ActorAccessProtocol extends Protocol {
   @Id(0x006A) case class ActorAccessKey(
     @Id(0x006B) srcId: String,
     @Id(0x006C) value: String
@@ -96,7 +93,7 @@ object Monitoring {
   }
 }
 
-@protocol(SettingsOrigCat) object AvailabilitySettingProtocol extends Protocol{
+@protocol(SettingsCat) object AvailabilitySettingProtocol extends Protocol{
 
   @Id(0x00f0) case class OrigAvailabilitySetting(
     @Id(0x0001) srcId: String,

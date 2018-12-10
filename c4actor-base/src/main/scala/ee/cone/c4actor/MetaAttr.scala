@@ -6,9 +6,9 @@ trait MetaAttr extends Product
 
 case class OrigMetaAttr(orig: Product) extends MetaAttr
 
-case object TxMetaOrigCat extends OrigCategory
+case object TxMetaCat extends OrigCategory
 
-@protocol(TxMetaOrigCat) object OrigMetaAttrProtocol extends Protocol {
+@protocol(TxMetaCat) object OrigMetaAttrProtocol extends Protocol {
   @Id(0x00ad) case class TxTransformNameMeta(
     @Id(0x00ae) clName: String
   )

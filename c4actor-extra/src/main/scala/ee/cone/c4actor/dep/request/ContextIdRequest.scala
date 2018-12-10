@@ -1,9 +1,9 @@
 package ee.cone.c4actor.dep.request
 
-import ee.cone.c4actor.dep.DepRequestOrigCat
+import ee.cone.c4actor.dep.DepRequestCat
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-@protocol(DepRequestOrigCat) object ContextIdRequestProtocol extends Protocol{
+@protocol(DepRequestCat) object ContextIdRequestProtocol extends Protocol{
   @Id(0x0f31) case class ContextIdRequest()
 
   @Id(0x0f3a) case class UserIdRequest()

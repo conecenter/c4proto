@@ -41,7 +41,7 @@ object AnyAdapter {
   }
 }
 
-@protocol(InnerOrigCat) object AnyOrigProtocol extends Protocol {
+@protocol(InnerCat) object AnyOrigProtocol extends Protocol {
 
   case class AnyOrig(
     @Id(0x00ab) adapterId: Long,
