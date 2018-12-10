@@ -22,7 +22,7 @@ object InsertOrigMeta {
     TxTransformOrigMetaKey.set(origs.map(OrigMetaAttr))
 }
 
-@protocol object CollectiveTransformProtocol extends Protocol {
+@protocol(TxMetaOrigCat) object CollectiveTransformProtocol extends Protocol {
 
   @Id(0x0ab0) case class CollectiveTransformMeta(
     @Id(0x0ab1) transforms: List[String]

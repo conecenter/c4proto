@@ -52,7 +52,7 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
 
 }
 
-@protocol object ByClassNameRequestProtocol extends Protocol {
+@protocol(DepRequestOrigCat) object ByClassNameRequestProtocol extends Protocol {
 
   @Id(0x0f26) case class ByClassNameRequest(
     @Id(0x0f27) className: String,

@@ -55,7 +55,7 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
     }
 }
 
-@protocol object ByClassNameAllRequestProtocol extends Protocol {
+@protocol(DepRequestOrigCat) object ByClassNameAllRequestProtocol extends Protocol {
 
   @Id(0x0230) case class ByClassNameAllRequest(
     @Id(0x0231) className: String

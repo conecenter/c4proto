@@ -8,7 +8,7 @@ import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{DepCondition, H
 import ee.cone.c4actor.utils.{GeneralizedOrigRegistry, GeneralizedOrigRegistryApi}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 
 trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with GeneralizedOrigRegistryApi with DepResponseFactoryApp {
   override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
@@ -139,12 +139,14 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
 
 @protocol object HashSearchDepRequestProtocol extends Protocol {
 
+  @Cat(DepRequestOrigCat)
   @Id(0x0f37) case class HashSearchDepRequest(
     @Id(0x0f3e) modelName: String,
     @Id(0x0f38) condition: Option[DepCondition]
   )
 
-  @Id(0x0f44) case class DepCondition(
+  @Cat(InnerOrigCat)
+  case class DepCondition(
     @Id(0x0f3f) modelClass: String,
     @Id(0x0f45) condType: String,
     @Id(0x0f46) condLeft: Option[DepCondition],
@@ -153,7 +155,8 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
     @Id(0x0f49) by: Option[By]
   )
 
-  @Id(0x0f4a) case class By(
+  @Cat(InnerOrigCat)
+  case class By(
     @Id(0x0f4b) byClName: String,
     @Id(0x0f3b) value: okio.ByteString
   )

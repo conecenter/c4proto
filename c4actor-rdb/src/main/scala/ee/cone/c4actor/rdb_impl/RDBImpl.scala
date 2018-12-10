@@ -30,7 +30,9 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
 
 ////
 
-@protocol object ToExternalDBProtocol extends c4proto.Protocol {
+case object ExternalDBOrigCat extends OrigCategory //ignore
+
+@protocol(ExternalDBOrigCat) object ToExternalDBProtocol extends c4proto.Protocol {
   @Id(0x0063) case class HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -138,7 +140,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol object FromExternalDBProtocol extends c4proto.Protocol {
+@protocol(ExternalDBOrigCat) object FromExternalDBProtocol extends c4proto.Protocol {
   @Id(0x0060) case class DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long

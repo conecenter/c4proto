@@ -9,16 +9,19 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
-import ee.cone.c4proto.{Id, Protocol, ToByteString, protocol}
+import ee.cone.c4proto._
 import okio.ByteString
 
-@protocol object SessionDataProtocol extends Protocol {
+case object SessionAttrOrigCat extends OrigCategory
+
+@protocol(SessionAttrOrigCat) object SessionDataProtocol extends Protocol {
   @Id(0x0066) case class RawSessionData(
     @Id(0x0061) srcId: String,
     @Id(0x0067) sessionKey: String,
     @Id(0x0a66) dataNode: Option[RawDataNode] // Always isDefined
   )
 
+  @Cat(InnerOrigCat)
   @Id(0x0a65) case class RawDataNode(
     @Id(0x0068) domainSrcId: String,
     @Id(0x0069) fieldId: Long,

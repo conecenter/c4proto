@@ -12,7 +12,7 @@ import scala.util.Random
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ChangingIndexPerformanceTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 
-@protocol object PerformanceProtocol extends Protocol {
+@protocol(TestOrigCat) object PerformanceProtocol extends Protocol {
 
   @Id(0x0100) case class PerformanceNode(
     @Id(0x0101) srcId: String,
@@ -53,6 +53,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
 @assemble class ChangingIndexAssemble(constant: NodeInstruction) extends Assemble {
   type InstructionId = SrcId
+  type TestId = SrcId
 
   def ModelsToInstruction(
     modelId: SrcId,
@@ -88,8 +89,18 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
     instructionId: SrcId,
     @by[InstructionId] models: Values[PerformanceNode],
     instruction: Each[NodeInstruction]
-  ): Values[(InstructionId, SrcIdContainer)] =
+  ): Values[(InstructionId, SrcIdContainer)] = {
     models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
+  }
+
+  def ModelsNInstructionToResult2(
+    instructionId: SrcId,
+    @by[InstructionId] models: Values[PerformanceNode],
+    instruction: Each[NodeInstruction]
+  ): Values[(TestId, SrcIdContainer)] = {
+    //throw new Exception("test")
+    models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
+  }
 
   def ModelsNInstructionToResultList(
     instructionId: SrcId,
@@ -133,19 +144,24 @@ class ChangingIndexPerformanceTest(
 
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("World Ready")
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    println("Change index")
+
     val firstGlobal = TxAdd(LEvent.update(NodeInstruction("test", 0, worldSize / 2)))(nGlobal)
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println("TxAdd index")
     println(ByPK(classOf[ResultNode]).of(firstGlobal))
     println(ByPK(classOf[ResultNodeFromList]).of(firstGlobal))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
     val secondGlobal = TxAdd(LEvent.update(NodeInstruction("test", worldSize / 2, worldSize)))(firstGlobal)
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println("TxAdd index")
     println(ByPK(classOf[ResultNode]).of(secondGlobal))
     println(ByPK(classOf[ResultNodeFromList]).of(secondGlobal))
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println("Change index")
     val thirdGlobal = TxAdd(LEvent.update(NodeInstruction("test", 0, 0)))(secondGlobal)
+    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    println("TxAdd index")
     println(ByPK(classOf[ResultNode]).of(thirdGlobal))
     println(ByPK(classOf[ResultNodeFromList]).of(thirdGlobal))
     execution.complete()
@@ -163,7 +179,7 @@ class ChangingIndexPerformanceTestApp extends TestRichDataApp
 
   override def assembles: List[Assemble] = new LUL(classOf[PerformanceNode], classOf[NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
 
-  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
+  lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
 }
 /*
 object ValueAssembleProfiler extends AssembleProfiler {

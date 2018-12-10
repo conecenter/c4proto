@@ -33,7 +33,7 @@ trait DepTestAssemble
   override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depRequestFactory) :: super.assembles
 }
 
-@protocol object DepTestProtocol extends Protocol {
+@protocol(TestOrigCat) object DepTestProtocol extends Protocol {
 
   @Id(0x0455) case class DepTestRequest()
 
