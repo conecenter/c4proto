@@ -11,11 +11,8 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.AvailabilitySettingProtocol.OrigAvailabilitySetting
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, SettingsCat, protocol}
 import okio.ByteString
-
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
 
 @protocol(SettingsCat) object ActorAccessProtocol extends Protocol {
   @Id(0x006A) case class ActorAccessKey(

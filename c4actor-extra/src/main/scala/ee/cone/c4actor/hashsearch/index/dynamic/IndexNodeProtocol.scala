@@ -1,7 +1,7 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
-import ee.cone.c4actor.{CollectiveTransformProtocol, OperativeCat, ProtocolsApp}
-import ee.cone.c4proto.{Id, OrigCategory, Protocol, protocol}
+import ee.cone.c4actor.{CollectiveTransformProtocol, ProtocolsApp}
+import ee.cone.c4proto._
 
 @protocol(OperativeCat) object IndexNodeProtocol extends Protocol{
   @Id(0x205) case class IndexNodesVersion(

@@ -1,6 +1,4 @@
-package ee.cone.c4actor
-
-import ee.cone.c4proto.OrigCategory
+package ee.cone.c4proto
 
 case object SettingsCat extends OrigCategory
 case object HTTPCat extends OrigCategory

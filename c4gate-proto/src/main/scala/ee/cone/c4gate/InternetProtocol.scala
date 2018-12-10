@@ -3,8 +3,6 @@ package ee.cone.c4gate
 
 import ee.cone.c4proto._
 
-case object ExchangeCat extends OrigCategory
-
 @protocol(ExchangeCat) object HttpProtocol extends Protocol {
   @Id(0x002C) case class HttpPublication(
     @Id(0x0021) path: String,
