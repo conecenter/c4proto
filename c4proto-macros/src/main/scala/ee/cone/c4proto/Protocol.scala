@@ -40,9 +40,6 @@ class protocol(category: Product*) extends StaticAnnotation {
       case q"import ..$i" ⇒ None
       case q"..$mods case class ${Type.Name(messageName)} ( ..$params )" =>
         val protoMods = mods./:(ProtoMods(category = args))((pMods,mod)⇒ mod match {
-          case mod"@Cat(${Name(name:String)})" ⇒
-            val old = pMods.category
-            pMods.copy(category = name :: old)
           case mod"@Cat(...$exprss)" ⇒
             val old = pMods.category
             pMods.copy(category = parseArgs(exprss) ::: old)
@@ -151,7 +148,8 @@ class protocol(category: Product*) extends StaticAnnotation {
           ) with ee.cone.c4proto.HasId {
             def id = ${protoMods.id.getOrElse("throw new Exception")}
             def hasId = ${protoMods.id.nonEmpty}
-            def categories = List(${protoMods.category.mkString(", ")}).distinct
+            val ${messageName}_categories = List(${protoMods.category.mkString(", ")}).distinct
+            def categories = ${messageName}_categories
             def className = classOf[$resultType].getName
             def encodedSize(value: $resultType): Int = {
               val $struct = value
