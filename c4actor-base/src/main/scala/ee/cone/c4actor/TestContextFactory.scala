@@ -1,10 +1,12 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4proto.{OrigCategory, ToByteString}
 import okio.ByteString
 
 import scala.collection.immutable.Map
+
+case object TestCat extends OrigCategory
 
 class ContextFactory(reducer: RichRawWorldReducer, toUpdate: ToUpdate) {
   def updated(updates: List[Update]): Context = {

@@ -128,7 +128,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 }
 
 
-@protocol object EqProtocol extends Protocol {
+@protocol(TestCat) object EqProtocol extends Protocol {
 
   @Id(0xaabc) case class ChangingNode(
     @Id(0xaabd) srcId: String,

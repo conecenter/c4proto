@@ -10,7 +10,7 @@ import ee.cone.c4actor.dep.request.CurrentTimeProtocol.CurrentTimeNode
 import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.{CurrentTimeMetaAttr, CurrentTimeRequest}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto._
 
 trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp {
 
@@ -37,7 +37,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   }
 }
 
-@protocol object CurrentTimeProtocol extends Protocol {
+@protocol(OperativeCat) object CurrentTimeProtocol extends Protocol {
 
   @Id(0x0123) case class CurrentTimeNode(
     @Id(0x0124) srcId: String,
@@ -116,10 +116,12 @@ object CurrentTimeRequestAssembleTimeId {
 
 @protocol object CurrentTimeRequestProtocol extends Protocol {
 
+  @Cat(DepRequestCat)
   @Id(0x0f83) case class CurrentTimeRequest(
     @Id(0x0f86) everyPeriod: Long
   )
 
+  @Cat(TxMetaCat)
   @Id(0x0f87) case class CurrentTimeMetaAttr(
     @Id(0x0f88) srcId: String,
     @Id(0x0f89) everyPeriod: Long
