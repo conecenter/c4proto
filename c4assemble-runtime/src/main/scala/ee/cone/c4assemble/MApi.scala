@@ -69,11 +69,7 @@ case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, resul
 
 trait JoiningProfiling extends Product {
   def time: Long
-  def handle(
-    join: Join,
-    calcStart: Long, findChangesStart: Long, patchStart: Long,
-    joinRes: DPIterable[Index]
-  ): ProfilingLog
+  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog
 }
 
 trait IndexFactory {

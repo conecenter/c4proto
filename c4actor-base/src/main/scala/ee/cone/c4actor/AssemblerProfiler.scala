@@ -25,11 +25,7 @@ case object NoAssembleProfiler extends AssembleProfiler {
 
 case object NoJoiningProfiling extends JoiningProfiling {
   def time: Long = 0L
-  def handle(
-    join: Join,
-    calcStart: Long, findChangesStart: Long, patchStart: Long,
-    joinRes: DPIterable[Index]
-  ): ProfilingLog = Nil
+  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog = Nil
 }
 
 ////
@@ -46,6 +42,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
   )
   @Id(0x0078) case class LogEntry(
     @Id(0x0079) name: String,
+    @Id(0x007E) stage: Long,
     @Id(0x007A) value: Long
   )
 }
@@ -79,30 +76,18 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
 
 case class SimpleSerialJoiningProfiling(startedAt: Long) extends JoiningProfiling {
   def time: Long = System.nanoTime
-  def handle(
-    join: Join,
-    calcStart: Long,
-    findChangesStart: Long,
-    patchStart: Long,
-    joinRes: DPIterable[Index]
-  ): ProfilingLog = {
-    val period = (System.nanoTime - calcStart) / 1000
-    LogEntry(join.name,period) :: Nil
+  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog = {
+    val period = (System.nanoTime - start) / 1000
+    LogEntry(join.name,stage,period) :: wasLog
   }
 }
 
 case object SimpleConsoleSerialJoiningProfiling extends JoiningProfiling with LazyLogging {
   def time: Long = System.nanoTime
-  def handle(
-    join: Join,
-    calcStart: Long,
-    findChangesStart: Long,
-    patchStart: Long,
-    joinRes: DPIterable[Index]
-  ): ProfilingLog = {
-    val period = (System.nanoTime - calcStart) / 1000000
+  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog = {
+    val period = (System.nanoTime - start) / 1000000
     if(period > 50)
-      logger.debug(s"$period ms ${joinRes.size} items for ${join.name}")
-    Nil
+      logger.debug(s"$period ms ${joinRes.size} items for ${join.name}-$stage")
+    wasLog
   }
 }

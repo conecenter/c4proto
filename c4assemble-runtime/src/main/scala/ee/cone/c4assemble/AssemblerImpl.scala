@@ -198,29 +198,32 @@ class JoinMapIndex(
 
     val next: Future[IndexUpdate] = for {
       worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
-      outputDiff ← outputWorldKey.of(transition.diff)
-      outputData ← outputWorldKey.of(transition.result)
       res ← {
-        if (worldDiffs.forall(composes.isEmpty)) Future.successful(new IndexUpdate(outputDiff,outputData,Nil))
+        if (worldDiffs.forall(composes.isEmpty)) for {
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield new IndexUpdate(outputDiff,outputData,Nil)
         else for {
           prevInputs ← Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
           inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
+          profiler = transition.profiling
+          calcStart = profiler.time
+          joinRes = join.joins(Seq(-1→prevInputs, +1→inputs).par, worldDiffs)
+          calcLog = profiler.handle(join, 0L, calcStart, joinRes, Nil)
+          findChangesStart = profiler.time
+          indexDiff = composes.mergeIndex(joinRes)
+          findChangesLog = profiler.handle(join, 1L, findChangesStart, Nil, calcLog)
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
         } yield {
-          val profiler = transition.profiling
-          val calcStart = profiler.time
-          val worlds: Seq[(Int, Seq[Index])] = Seq(-1→prevInputs, +1→inputs)
-          val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
-          val findChangesStart = profiler.time
-          val indexDiff = composes.mergeIndex(joinRes)
-          val patchStart = profiler.time
-          def indexUpdate(diff: Index, result: Index): IndexUpdate =
-            new IndexUpdate(diff,result,
-              profiler.handle(join, calcStart, findChangesStart, patchStart, joinRes)
-            )
-          if(composes.isEmpty(indexDiff)) indexUpdate(outputDiff,outputData) else {
+          if(composes.isEmpty(indexDiff))
+            new IndexUpdate(outputDiff,outputData,findChangesLog)
+          else {
+            val patchStart = profiler.time
             val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
             val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
-            indexUpdate(nextDiff,nextResult)
+            val patchLog = profiler.handle(join, 2L, patchStart, Nil, findChangesLog)
+            new IndexUpdate(nextDiff,nextResult,patchLog)
           }
         }
       }
