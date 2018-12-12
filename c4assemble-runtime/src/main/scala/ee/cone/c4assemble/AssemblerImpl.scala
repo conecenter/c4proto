@@ -252,6 +252,8 @@ class TreeAssemblerImpl(
     val permitWas: ExprByOutput = byOutput.keys.collect{
       case k: JoinKey if !k.was ⇒ k.withWas(was=true) → Nil
     }.toMap
+    Option(originals.keySet intersect byOutput.keySet)
+      .foreach(keys⇒assert(keys.isEmpty,s"can not output to originals: $keys"))
     val uses = originals ++ permitWas ++ byOutput
     val getJoins: ExprFrom ⇒ List[ExprFrom] = join ⇒
       (for (inKey ← join.inputWorldKeys.toList)
