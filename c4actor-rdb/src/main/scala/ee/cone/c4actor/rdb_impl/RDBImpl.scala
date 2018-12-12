@@ -27,8 +27,6 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
     new ToDBOption(cl.getName, code, new ToExternalDBOrigAssemble(toUpdate,cl))
-  def toDBPs[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
-    new ToDBOption(cl.getName, code, new ToExternalDBPseudoOrigAssemble(toUpdate,cl))
 }
 
 ////
@@ -81,12 +79,7 @@ trait  ToExternalDBItemAssembleUtil {
     item: Each[Item]
   ): Values[(NeedSrcId,HasState)] =
     itemToHasState(item)
-}
 
-@assemble class ToExternalDBPseudoOrigAssemble[Item<:Product](
-  val toUpdate: ToUpdate,
-  classItem: Class[Item]
-)  extends Assemble with ToExternalDBItemAssembleUtil {
   def PseudoOrigJoin(
     key: SrcId,
     @by[PseudoOrig] item: Each[Item]
@@ -94,7 +87,7 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@assemble class ToExternalDBTxAssemble extends Assemble {
+@assemble class ToExternalDBTxAssemble extends Assemble with LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -102,7 +95,13 @@ trait  ToExternalDBItemAssembleUtil {
     @by[NeedSrcId] needStates: Values[HasState],
     hasStates: Values[HasState]
   ): Values[(TypeHex, ToExternalDBTask)] = {
-    val mergedNeedStates = Single.option(needStates ++ pseudoNeedStates).toList
+    val mergedNeedStates =
+      if (needStates.isEmpty)
+        pseudoNeedStates
+      else {
+        if (pseudoNeedStates.nonEmpty) logger.warn(s"Orig and PseudoOrig conflict: O-$needStates,PSO-$pseudoNeedStates")
+        needStates
+      }
     if (hasStates.toList == mergedNeedStates) Nil else {
       val typeHex = Hex(Single((hasStates ++ mergedNeedStates).map(_.valueTypeId).distinct))
       List(typeHex → ToExternalDBTask(key, typeHex, Single.option(hasStates), Single.option(mergedNeedStates)))
