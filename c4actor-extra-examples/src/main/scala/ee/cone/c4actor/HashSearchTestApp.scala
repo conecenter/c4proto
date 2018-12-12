@@ -13,6 +13,7 @@ import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeStats, ProductWithId}
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodesStats, IndexNode, IndexNodeSettings}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
+import ee.cone.c4actor.tests.TestProtocolM
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -24,7 +25,7 @@ class HashSearchExtraTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
-  rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
+  //rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
   //observer: Option[Observer],
   qAdapterRegistry: QAdapterRegistry
 ) extends Executable with LazyLogging {
@@ -34,7 +35,7 @@ class HashSearchExtraTestStart(
     val world = for {
       i ← 1 to 10000
     } yield TestObject(i.toString, 239, i.toHexString)
-    val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test")) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
+    val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test","0" * OffsetHexSize())) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
@@ -127,7 +128,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 }
 
 
-@protocol object EqProtocol extends Protocol {
+@protocol(TestCat) object EqProtocol extends Protocol {
 
   @Id(0xaabc) case class ChangingNode(
     @Id(0xaabd) srcId: String,
@@ -272,7 +273,7 @@ class HashSearchExtraTestApp extends TestRichDataApp
   with DefaultModelFactoriesApp
   with CurrentTimeAssembleMix
   with ProdLensesApp {
-
+  println(TestProtocolM.adapters.map(a ⇒ a.categories))
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
 
@@ -286,7 +287,7 @@ class HashSearchExtraTestApp extends TestRichDataApp
 
   override def dynamicIndexAssembleDebugMode: Boolean = false
 
-  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, richRawWorldFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
+  override def toStart: List[Executable] = new HashSearchExtraTestStart(execution, toUpdate, contextFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
 
   override def protocols: List[Protocol] = AnyOrigProtocol :: EqProtocol :: TestProtocol :: super.protocols
 

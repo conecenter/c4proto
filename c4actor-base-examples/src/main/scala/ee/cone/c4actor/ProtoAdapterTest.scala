@@ -2,8 +2,6 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4assemble.Single
-import ee.cone.c4assemble.Types.ReadModel
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 
@@ -29,7 +27,7 @@ object ProtoAdapterTest extends App with LazyLogging {
   logger.info(s"OK $group1")
 }
 
-@protocol object MyProtocol extends Protocol {
+@protocol(TestCat) object MyProtocol extends Protocol {
   import ee.cone.c4proto.BigDecimalProtocol._
 
   //com.squareup.wire.ProtoAdapter

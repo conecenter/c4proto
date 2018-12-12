@@ -7,9 +7,7 @@ case class RawSnapshot(relativePath: String)
 trait RawSnapshotSaver {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit
 }
-trait RawSnapshotLister {
-  def list(subDirStr: String): List[RawSnapshot]
-}
+
 trait RawSnapshotLoader {
   def load(snapshot: RawSnapshot): ByteString
 }
@@ -20,10 +18,10 @@ trait RawSnapshotLoaderFactory {
 trait SnapshotSaver {
   def save(offset: NextOffset, data: Array[Byte], headers: List[RawHeader]): RawSnapshot
 }
-case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, headers: List[RawHeader], raw: RawSnapshot)
-trait SnapshotLister {
-  def list: List[SnapshotInfo]
+trait SnapshotUtil {
+  def hashFromName: RawSnapshot⇒Option[SnapshotInfo]
 }
+case class SnapshotInfo(subDirStr: String, offset: NextOffset, uuid: String, headers: List[RawHeader], raw: RawSnapshot)
 trait SnapshotLoader {
   def load(snapshot: RawSnapshot): Option[RawEvent]
 }

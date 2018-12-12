@@ -41,9 +41,9 @@ object AnyAdapter {
   }
 }
 
-@protocol object AnyOrigProtocol extends Protocol {
+@protocol(InnerCat) object AnyOrigProtocol extends Protocol {
 
-  @Id(0x00aa) case class AnyOrig(
+  case class AnyOrig(
     @Id(0x00ab) adapterId: Long,
     @Id(0x00ac) value: okio.ByteString
   )

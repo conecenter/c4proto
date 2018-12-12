@@ -8,11 +8,12 @@ import java.util.UUID
 
 import FromExternalDBProtocol.DBOffset
 import ToExternalDBProtocol.HasState
-import ToExternalDBTypes.NeedSrcId
+import ToExternalDBTypes.{NeedSrcId, PseudoOrigNeedSrcId}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor.rdb_impl.ToExternalDBAssembleTypes.PseudoOrig
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto
@@ -25,12 +26,14 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
-    new ToDBOption(cl.getName, code, new ToExternalDBItemAssemble(toUpdate,cl))
+    new ToDBOption(cl.getName, code, new ToExternalDBOrigAssemble(toUpdate,cl))
+  def toDBPs[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
+    new ToDBOption(cl.getName, code, new ToExternalDBPseudoOrigAssemble(toUpdate,cl))
 }
 
 ////
 
-@protocol object ToExternalDBProtocol extends c4proto.Protocol {
+@protocol(ExchangeCat) object ToExternalDBProtocol extends c4proto.Protocol {
   @Id(0x0063) case class HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -45,6 +48,7 @@ object ToBytes {
 
 object ToExternalDBTypes {
   type NeedSrcId = SrcId
+  type PseudoOrigNeedSrcId = SrcId
 }
 
 object ToExternalDBAssembles {
@@ -53,14 +57,14 @@ object ToExternalDBAssembles {
       options.collect{ case o: ToDBOption ⇒ o.assemble }
 }
 
-@assemble class ToExternalDBItemAssemble[Item<:Product](
-  toUpdate: ToUpdate,
-  classItem: Class[Item]
-)  extends Assemble {
-  def join(
-    key: SrcId,
-    item: Each[Item]
-  ): Values[(NeedSrcId,HasState)] =
+object ToExternalDBAssembleTypes {
+  type PseudoOrig = SrcId
+}
+
+trait  ToExternalDBItemAssembleUtil {
+  def toUpdate: ToUpdate
+
+  def itemToHasState[Item <: Product]: Item ⇒ Values[(String,HasState)] = item ⇒
     for(e ← LEvent.update(item)) yield {
       val u = toUpdate.toUpdate(e)
       val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
@@ -68,16 +72,40 @@ object ToExternalDBAssembles {
     }
 }
 
+@assemble class ToExternalDBOrigAssemble[Item<:Product](
+  val toUpdate: ToUpdate,
+  classItem: Class[Item]
+)  extends Assemble with ToExternalDBItemAssembleUtil {
+  def OrigJoin(
+    key: SrcId,
+    item: Each[Item]
+  ): Values[(NeedSrcId,HasState)] =
+    itemToHasState(item)
+}
+
+@assemble class ToExternalDBPseudoOrigAssemble[Item<:Product](
+  val toUpdate: ToUpdate,
+  classItem: Class[Item]
+)  extends Assemble with ToExternalDBItemAssembleUtil {
+  def PseudoOrigJoin(
+    key: SrcId,
+    @by[PseudoOrig] item: Each[Item]
+  ): Values[(PseudoOrigNeedSrcId,HasState)] =
+    itemToHasState(item)
+}
+
 @assemble class ToExternalDBTxAssemble extends Assemble {
   type TypeHex = String
   def joinTasks(
     key: SrcId,
+    @by[PseudoOrigNeedSrcId] pseudoNeedStates: Values[HasState],
     @by[NeedSrcId] needStates: Values[HasState],
     hasStates: Values[HasState]
   ): Values[(TypeHex, ToExternalDBTask)] = {
-    if (hasStates.toList == needStates.toList) Nil else {
-      val typeHex = Hex(Single((hasStates ++ needStates).map(_.valueTypeId).distinct))
-      List(typeHex → ToExternalDBTask(key, typeHex, Single.option(hasStates), Single.option(needStates)))
+    val mergedNeedStates = Single.option(needStates ++ pseudoNeedStates).toList
+    if (hasStates.toList == mergedNeedStates) Nil else {
+      val typeHex = Hex(Single((hasStates ++ mergedNeedStates).map(_.valueTypeId).distinct))
+      List(typeHex → ToExternalDBTask(key, typeHex, Single.option(hasStates), Single.option(mergedNeedStates)))
     }
   }
   def join(
@@ -138,7 +166,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol object FromExternalDBProtocol extends c4proto.Protocol {
+@protocol(ExchangeCat) object FromExternalDBProtocol extends c4proto.Protocol {
   @Id(0x0060) case class DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long

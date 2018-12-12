@@ -41,7 +41,7 @@ class TestTodoApp extends ServerApp
     super.assembles
 }
 
-@protocol object TestTodoProtocol extends Protocol {
+@protocol(TestCat) object TestTodoProtocol extends Protocol {
   @Id(0x0001) case class TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,

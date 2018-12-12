@@ -5,7 +5,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, OperativeCat, Protocol, protocol}
 
 trait K2TreeApp extends AssemblesApp with ProtocolsApp {
   def k2ModelRegistry: List[(Class[_ <: Product], _ <: Product ⇒ (Long, Long))] = Nil
@@ -157,7 +157,7 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
   }
 }
 
-@protocol object RangeTreeProtocol extends Protocol {
+@protocol(OperativeCat) object RangeTreeProtocol extends Protocol {
 
   @Id(0x0f8e) case class K2TreeParams(
     @Id(0x0f9b) srcId: String,

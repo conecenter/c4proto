@@ -6,36 +6,33 @@ import ee.cone.c4actor.QProtocol.FailedUpdates
 import scala.annotation.tailrec
 
 class RootConsumer(
-  rawWorldFactory: RichRawWorldFactory,
   reducer: RichRawWorldReducer,
   snapshotMaker: SnapshotMaker,
-  lister: SnapshotLister,
   loader: SnapshotLoader,
   progressObserverFactory: ProgressObserverFactory,
   consuming: Consuming
 ) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
-    val emptyRawWorld = rawWorldFactory.create()
     GCLog("before loadRecent")
-    logger.debug("Making snapshot NextSnapshotTask(None)")
-    snapshotMaker.make(NextSnapshotTask(None))
     val initialRawWorld: RichContext =
       (for{
         snapshot ← {
-          logger.debug("Listing snapshots")
-          lister.list.toStream}
+          logger.debug("Making snapshot")
+          snapshotMaker.make(NextSnapshotTask(None)).toStream
+        }
         event ← {
           logger.debug(s"Loading $snapshot")
-          loader.load(snapshot.raw)}
+          loader.load(snapshot)
+        }
         world ← {
           logger.debug(s"Reducing $snapshot")
-          Option(reducer.reduce(List(event))(emptyRawWorld))
+          Option(reducer.reduce(None,List(event)))
         }
         if ByPK(classOf[FailedUpdates]).of(world).isEmpty
       } yield {
-        logger.info(s"Snapshot reduced without failures [${snapshot.raw.relativePath}]")
+        logger.info(s"Snapshot reduced without failures [${snapshot.relativePath}]")
         world
-      }).headOption.getOrElse(emptyRawWorld)
+      }).headOption.getOrElse(reducer.reduce(None,Nil))
     GCLog("after loadRecent")
     consuming.process(initialRawWorld.offset, consumer ⇒ {
       val initialRawObserver = progressObserverFactory.create(consumer.endOffset)
@@ -51,7 +48,7 @@ class RootConsumer(
       logger.debug(s"p-c latency $latency ms")
     }
     val end = NanoTimer()
-    val newWorld = reducer.reduce(events)(world)
+    val newWorld = reducer.reduce(Option(world),events)
     val period = end.ms
     if(events.nonEmpty)
       logger.debug(s"reduced ${events.size} tx-s in $period ms")

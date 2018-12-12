@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 
-export default function VirtualKeyboard({log,btoa,eventManager,windowManager,miscReact,StatefulComponent,reactPathConsumer}){
+export default function VirtualKeyboard({log,btoa,eventManager,windowManager,StatefulComponent,reactPathConsumer}){
 	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const $ = React.createElement	
 	const checkActivateCalls=(()=>{
@@ -14,8 +14,9 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 		const check = () => callbacks.forEach(c=>c())
 		return {add,remove,check}
 	})();
-	const {getReactRoot} = miscReact
-	const {setTimeout,getPageYOffset,getWindowRect} = windowManager
+	const getReactRoot = (el) => el.ownerDocument.body
+	const {setTimeout,getWindowRect} = windowManager
+	const getPageYOffset = (el) => el&&el.ownerDocument&&el.ownerDocument.defaultView?el.ownerDocument.defaultView.pageYOffset:0
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -112,7 +113,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 			const topEdge = pRect.top - popRect.height;
 			let top = 0
 			let left = 0			
-			top += getPageYOffset()
+			top += getPageYOffset(thisEl)
 			return {top,left}	
 		}				
 		getParentWrapper(el){
@@ -207,7 +208,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 				left -= w.left				
 			}
 
-			top+=this.root?(this.root.style.display=="block"?this.root.scrollTop:getPageYOffset()):0
+			top+=this.root?(this.root.style.display=="block"?this.root.scrollTop:getPageYOffset(this.root)):0
 			return {top,left, cpHeight:pHeight}
 		}
 		updateState(inI,show){					    					
@@ -363,7 +364,9 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 			const fR = roots.find(r=>r.root == rootSpan)
 			if(!fR) return null
 			return fR.height*/
-			return windowManager.getWindowRect().height
+			if(!rootSpan||!rootSpan.ownerDocument||!rootSpan.ownerDocument.defaultView) return null
+			const v = rootSpan.ownerDocument.defaultView.innerHeight			
+			return v
 		}
 		const getMaxHeight = (rootSpan) => {
 			const root = rootSpan.parentElement
@@ -407,7 +410,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 			this.vkReg.unreg()			
 		}
 		render(){								
-			const height = this.state.vkView&&this.state.height&&this.rootHeight? (Math.floor(this.rootHeight - this.state.height))+"px": "100%"			
+			const height = this.state.vkView&&this.state.height&&this.rootHeight? (Math.floor(this.rootHeight - this.state.height))+"px": "100%"						
 			const style = {				
 				overflowY:height=="100%"?"":"auto",				
 				height:height
@@ -433,7 +436,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,mis
 			this.vkReg.unreg(this.mObj)			
 		}
 		render(){			
-			const height = this.state.vkView&&this.state.height?Math.floor(this.state.height)+"px":0+"px"			
+			const height = this.state.vkView&&this.state.height?Math.floor(this.state.height)+"px":0+"px"						
 			const style = {				
 				position:"absolute",
 				width:"100%",

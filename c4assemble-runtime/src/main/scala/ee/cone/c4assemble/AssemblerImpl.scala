@@ -8,10 +8,10 @@ import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 
-import scala.annotation.tailrec
-import scala.collection.GenIterable
-import scala.collection.immutable.{Iterable, Map, Seq, TreeMap}
+import scala.collection.immutable.{Map, Seq, TreeMap}
 import scala.collection.parallel.immutable.ParVector
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
 case class Count(item: Product, count: Int)
 
@@ -195,36 +195,49 @@ class JoinMapIndex(
   override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
 
   def transform(transition: WorldTransition): WorldTransition = {
-    //println(s"rule $outputWorldKey <- $inputWorldKeys")
-    if (inputWorldKeys.forall(k ⇒ composes.isEmpty(k.of(transition.diff)))) transition
-    else { //
-      val profiler = transition.profiling
-      val calcStart = profiler.time
-      val worlds = Seq(
-        -1→inputWorldKeys.map(_.of(transition.prev.get.result)),
-        +1→inputWorldKeys.map(_.of(transition.result))
-      )
-      val worldDiffs = inputWorldKeys.map(_.of(transition.diff))
-      val joinRes = join.joins(if(transition.isParallel) worlds.par else worlds, worldDiffs)
-      //joinRes.size  composes.keySet(indexDiff).size
-      val findChangesStart = profiler.time
-      val indexDiff = composes.mergeIndex(joinRes)
-      val patchStart = profiler.time
-      val patchedTransition = if(composes.isEmpty(indexDiff)) transition else {
-        val nextDiff = composes.mergeIndex(Seq(outputWorldKey.of(transition.diff), indexDiff))
-        val nextResult = composes.mergeIndex(Seq(outputWorldKey.of(transition.result), indexDiff))
-        updater.setPart(outputWorldKey)(nextDiff, nextResult)(transition)
+
+    val next: Future[IndexUpdate] = for {
+      worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
+      res ← {
+        if (worldDiffs.forall(composes.isEmpty)) for {
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield new IndexUpdate(outputDiff,outputData,Nil)
+        else for {
+          prevInputs ← Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
+          inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
+          profiler = transition.profiling
+          calcStart = profiler.time
+          joinRes = join.joins(Seq(-1→prevInputs, +1→inputs).par, worldDiffs)
+          calcLog = profiler.handle(join, 0L, calcStart, joinRes, Nil)
+          findChangesStart = profiler.time
+          indexDiff = composes.mergeIndex(joinRes)
+          findChangesLog = profiler.handle(join, 1L, findChangesStart, Nil, calcLog)
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield {
+          if(composes.isEmpty(indexDiff))
+            new IndexUpdate(outputDiff,outputData,findChangesLog)
+          else {
+            val patchStart = profiler.time
+            val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
+            val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
+            val patchLog = profiler.handle(join, 2L, patchStart, Nil, findChangesLog)
+            new IndexUpdate(nextDiff,nextResult,patchLog)
+          }
+        }
       }
-      profiler.handle(join, calcStart, findChangesStart, patchStart, joinRes, patchedTransition)
-    }
+    } yield res
+    updater.setPart(outputWorldKey)(next)(transition)
   }
 }
 
 class TreeAssemblerImpl(
-  composes: IndexUtil,
+  composes: IndexUtil, readModelUtil: ReadModelUtil,
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
 ) extends TreeAssembler {
+
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
     val expressions/*: Seq[WorldPartExpression]*/ =
       rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
@@ -239,6 +252,8 @@ class TreeAssemblerImpl(
     val permitWas: ExprByOutput = byOutput.keys.collect{
       case k: JoinKey if !k.was ⇒ k.withWas(was=true) → Nil
     }.toMap
+    Option(originals.keySet intersect byOutput.keySet)
+      .foreach(keys⇒assert(keys.isEmpty,s"can not output to originals: $keys"))
     val uses = originals ++ permitWas ++ byOutput
     val getJoins: ExprFrom ⇒ List[ExprFrom] = join ⇒
       (for (inKey ← join.inputWorldKeys.toList)
@@ -265,19 +280,26 @@ class TreeAssemblerImpl(
 
     val testSZ = transforms.size
     //for(t ← transforms) println("T",t)
-    @tailrec def transformUntilStable(left: Int, transition: WorldTransition): WorldTransition =
-      if(transition.diff.isEmpty) transition
-      else if(left > 0){
-        //println(s"join iter [${Thread.currentThread.getName}] $testSZ")
-        transformUntilStable(left-1, transformAllOnce(transition))
-      }
-      else throw new Exception(s"unstable assemble ${transition.diff}")
+    def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] =
+      for {
+        stable ← readModelUtil.isEmpty(transition.diff)
+        res ← {
+          if(stable) Future.successful(transition)
+          else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
+          else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
+        }
+      } yield res
 
     (prevWorld,diff,isParallel,profiler) ⇒ {
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler)
-      val currentWorld = Merge[AssembledKey,Index](composes.isEmpty,(a,b)⇒composes.mergeIndex(Seq(a,b)))(prevWorld, diff)
-      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler)
-      transformUntilStable(1000, nextTransition)
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler,Future.successful(Nil))
+      val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
+        seq ← Future.sequence(Seq(a,b))
+      } yield composes.mergeIndex(seq) ))(prevWorld,diff)
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler,Future.successful(Nil))
+      for {
+        finalTransition ← transformUntilStable(1000, nextTransition)
+        ready ← readModelUtil.ready(finalTransition.result)
+      } yield finalTransition
     }
   }
 }

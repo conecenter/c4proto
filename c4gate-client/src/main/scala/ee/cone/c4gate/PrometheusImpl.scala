@@ -6,15 +6,15 @@ import java.util.UUID
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, JoinKey, Single, assemble}
+import ee.cone.c4assemble.Types.{Each, Index, Values}
+import ee.cone.c4assemble._
 import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
 import ee.cone.c4gate.AvailabilitySettingProtocol.OrigAvailabilitySetting
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, SettingsCat, protocol}
 import okio.ByteString
 
-@protocol object ActorAccessProtocol extends Protocol {
+@protocol(SettingsCat) object ActorAccessProtocol extends Protocol {
   @Id(0x006A) case class ActorAccessKey(
     @Id(0x006B) srcId: String,
     @Id(0x006C) value: String
@@ -36,7 +36,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
     TxAdd(LEvent.update(ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssemble(compressor: Compressor) extends Assemble {
+@assemble class PrometheusAssemble(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends Assemble {
   def join(
     key: SrcId,
     first: Each[Firstborn],
@@ -44,11 +44,11 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
   ): Values[(SrcId,TxTransform)] = {
     val path = s"/${accessKey.value}-metrics"
     println(s"Prometheus metrics at $path")
-    List(WithPK(PrometheusTx(path, compressor)))
+    List(WithPK(PrometheusTx(path, compressor, indexUtil, readModelUtil)))
   }
 }
 
-case class PrometheusTx(path: String, compressor: Compressor) extends TxTransform {
+case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends TxTransform {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
     val runtime = Runtime.getRuntime
@@ -57,10 +57,10 @@ case class PrometheusTx(path: String, compressor: Compressor) extends TxTransfor
       "runtime_mem_total" → runtime.totalMemory,
       "runtime_mem_free" → runtime.freeMemory
     )
-    val keyCounts: List[(String, Long)] = local.assembled.collect {
-      case (worldKey:JoinKey, index: Map[_, _])
+    val keyCounts: List[(String, Long)] = readModelUtil.toMap(local.assembled).collect {
+      case (worldKey:JoinKey, index: Index)
         if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
-        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → index.size.toLong
+        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → indexUtil.keySet(index).size.toLong
     }.toList
     val metrics = memStats ::: keyCounts
     val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
@@ -93,7 +93,7 @@ object Monitoring {
   }
 }
 
-@protocol object AvailabilitySettingProtocol extends Protocol{
+@protocol(SettingsCat) object AvailabilitySettingProtocol extends Protocol{
 
   @Id(0x00f0) case class OrigAvailabilitySetting(
     @Id(0x0001) srcId: String,

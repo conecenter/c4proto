@@ -2,7 +2,10 @@
 package ee.cone.c4proto
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
+import scala.meta.Term.Name
 import scala.meta._
+
+import scala.collection.immutable.Seq
 
 case class ProtoProp(
   sizeStatement: String,
@@ -18,16 +21,28 @@ case class ProtoType(
   resultFix: String="", reduce: (String,String)=("","")
 )
 case class ProtoMessage(adapterName: String, adapterImpl: String)
-case class ProtoMods(id: Option[Int]=None)
+case class ProtoMods(id: Option[Int]=None, category: List[String])
 
 @compileTimeOnly("not expanded")
-class protocol extends StaticAnnotation {
+class protocol(category: Product*) extends StaticAnnotation {
   inline def apply(defn: Any): Any = meta {
+    def parseArgs: Seq[Seq[Term.Arg]] ⇒ List[String] =
+      _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
+
+    val args = this match {
+      case q"new protocol" ⇒ List()
+      case q"new protocol(...$exprss)" ⇒ parseArgs(exprss)
+    }
+
     val q"object $objectName extends ..$ext { ..$stats }" = defn
+
     val messages: List[ProtoMessage] = stats.flatMap{
       case q"import ..$i" ⇒ None
       case q"..$mods case class ${Type.Name(messageName)} ( ..$params )" =>
-        val protoMods = mods./:(ProtoMods())((pMods,mod)⇒ mod match {
+        val protoMods = mods./:(ProtoMods(category = args))((pMods,mod)⇒ mod match {
+          case mod"@Cat(...$exprss)" ⇒
+            val old = pMods.category
+            pMods.copy(category = parseArgs(exprss) ::: old)
           case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty ⇒
             pMods.copy(id=Option(id))
         })
@@ -133,6 +148,8 @@ class protocol extends StaticAnnotation {
           ) with ee.cone.c4proto.HasId {
             def id = ${protoMods.id.getOrElse("throw new Exception")}
             def hasId = ${protoMods.id.nonEmpty}
+            val ${messageName}_categories = List(${protoMods.category.mkString(", ")}).distinct
+            def categories = ${messageName}_categories
             def className = classOf[$resultType].getName
             def encodedSize(value: $resultType): Int = {
               val $struct = value

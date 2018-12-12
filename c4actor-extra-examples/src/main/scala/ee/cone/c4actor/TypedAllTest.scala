@@ -13,13 +13,13 @@ class TypedAllTestStart(
   execution: Execution,
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
-  rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
+  //rawWorldFactory: RichRawWorldFactory, /* progressObserverFactory: ProgressObserverFactory,*/
   //observer: Option[Observer],
   qAdapterRegistry: QAdapterRegistry
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
-    val recs = update(Firstborn("test")) ++ update(Model1("1")) ++ update(Model2("2"))
+    val recs = update(Firstborn("test", "0" * OffsetHexSize())) ++ update(Model1("1")) ++ update(Model2("2"))
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
@@ -142,7 +142,7 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 }
 
 
-@protocol object TypedAllTestProtocol extends Protocol {
+@protocol(TestCat) object TypedAllTestProtocol extends Protocol {
 
   @Id(0xaabc) case class Model1(
     @Id(0xaabd) srcId: String
@@ -173,7 +173,7 @@ class TypedAllTestApp extends TestRichDataApp
 
   override def parallelAssembleOn: Boolean = true
 
-  override def toStart: List[Executable] = new TypedAllTestStart(execution, toUpdate, contextFactory, richRawWorldFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
+  override def toStart: List[Executable] = new TypedAllTestStart(execution, toUpdate, contextFactory, /*txObserver,*/ qAdapterRegistry) :: super.toStart
 
 
   override def protocols: List[Protocol] = TypedAllTestProtocol :: super.protocols

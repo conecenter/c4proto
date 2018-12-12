@@ -17,7 +17,7 @@ import okio.ByteString
 import scala.annotation.tailrec
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
-class HttpGetSnapshotHandler(snapshotLister: SnapshotLister, snapshotLoader: SnapshotLoader, signatureChecker: Signer[List[String]]) extends RHttpHandler with LazyLogging {
+class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandler with LazyLogging {
   def ok(httpExchange: HttpExchange, bytes: Array[Byte]): Boolean = {
     logger.debug(s"Sending ${bytes.length} bytes")
     httpExchange.sendResponseHeaders(200, bytes.length)
@@ -27,12 +27,7 @@ class HttpGetSnapshotHandler(snapshotLister: SnapshotLister, snapshotLoader: Sna
   def handle(httpExchange: HttpExchange, reqHeaders: List[Header]): Boolean =
     if(httpExchange.getRequestMethod == "GET"){
       val path = httpExchange.getRequestURI.getPath
-      if(path == "/snapshots/"){
-        val retrieved = signatureChecker.retrieve(check = true)(SnapshotMakingUtil.signed(reqHeaders))
-        logger.debug(s"Got list request with $retrieved sign")
-        val Some(Seq(`path`)) = retrieved
-        ok(httpExchange, snapshotLister.list.map(_.raw.relativePath).mkString("\n").getBytes(UTF_8))
-      } else if(path.startsWith("/snapshot")){
+      if(path.startsWith("/snapshot")){
         logger.debug(s"Started loading snapshot ${path.tail}")
         snapshotLoader.load(RawSnapshot(path.tail)) // path will be checked inside loader
           .fold(false)(ev⇒ok(httpExchange, ev.data.toByteArray))
@@ -206,7 +201,10 @@ class SnapshotMakerImpl(
         val nSkip = progress(skipReportUntil,nWorld.offset,endOffset)
         task match {
           case t: NextSnapshotTask ⇒
-            if(nWorld.offset == endOffset) List(save(nWorld)) else {
+            if(nWorld.offset == endOffset) {
+              val saved = save(nWorld)
+              if(offsetOpt.nonEmpty) List(saved) else snapshotLister.list.map(_.raw)
+            } else {
               assert(gEvents.isEmpty)
               iteration(nWorld, endOffset, nSkip)
             }
@@ -253,7 +251,7 @@ class FileSnapshotConfigImpl(dirStr: String)(
     }
 ) extends SnapshotConfig
 
-class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader with RawSnapshotLister {
+class FileRawSnapshotLoader(baseDirStr: String, util: SnapshotUtil) extends RawSnapshotLoader with SnapshotLister {
   private def baseDir = Paths.get(baseDirStr)
   def load(snapshot: RawSnapshot): ByteString = {
     val path = baseDir.resolve(snapshot.relativePath)
@@ -265,7 +263,12 @@ class FileRawSnapshotLoader(baseDirStr: String) extends RawSnapshotLoader with R
     else FinallyClose(Files.newDirectoryStream(subDir))(_.asScala.toList)
       .map(path⇒RawSnapshot(baseDir.relativize(path).toString))
   }
-
+  def list: List[SnapshotInfo] = {
+    val parseName = util.hashFromName
+    val rawList = list("snapshots")
+    val res = rawList.flatMap(parseName(_)).sortBy(_.offset).reverse
+    res
+  }
   def mTime(snapshot: RawSnapshot): Long =
     Files.getLastModifiedTime(baseDir.resolve(snapshot.relativePath)).toMillis
   //remove Files.delete(path)
