@@ -30,6 +30,7 @@ scalaVersion in ThisBuild := "2.11.8"
 lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   ivyConfigurations += config("compileonly").hide,
   libraryDependencies += "org.scalameta" %% "scalameta" % "1.6.0" % "compileonly",
+  dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.1.0",
   unmanagedClasspath in Compile ++= update.value.select(configurationFilter("compileonly")),
   // New-style macro annotations are under active development.  As a result, in
   // this build we'll be referring to snapshot versions of both scala.meta and

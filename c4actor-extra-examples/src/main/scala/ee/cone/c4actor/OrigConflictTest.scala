@@ -8,7 +8,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConflictOrigTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
+//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConflictOrigTestApp sbt ~'c4actor-extra-examples/runMain -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 ee.cone.c4actor.ServerMain'
 
 @protocol(TestCat) object OrigConflictProtocol extends Protocol {
 
@@ -45,7 +45,10 @@ class ConflictingOrigTest(
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
+    println("DEBUG ME NOWWWW")
+    Thread.sleep(5000)
     val emptyLocal = contextFactory.updated(Nil)
+
 
     logger.info("============Empty local===================")
     println(ByPK(classOf[ConflictRich]).of(emptyLocal).values.toList)
