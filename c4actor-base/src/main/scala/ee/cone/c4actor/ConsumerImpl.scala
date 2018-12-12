@@ -32,7 +32,7 @@ class RootConsumer(
       } yield {
         logger.info(s"Snapshot reduced without failures [${snapshot.relativePath}]")
         world
-      }).headOption.getOrElse(reducer.reduce(None,Nil))
+      }).head
     GCLog("after loadRecent")
     consuming.process(initialRawWorld.offset, consumer ⇒ {
       val initialRawObserver = progressObserverFactory.create(consumer.endOffset)
