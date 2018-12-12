@@ -30,7 +30,6 @@ scalaVersion in ThisBuild := "2.11.8"
 lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   ivyConfigurations += config("compileonly").hide,
   libraryDependencies += "org.scalameta" %% "scalameta" % "1.6.0" % "compileonly",
-  dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.1.0",
   unmanagedClasspath in Compile ++= update.value.select(configurationFilter("compileonly")),
   // New-style macro annotations are under active development.  As a result, in
   // this build we'll be referring to snapshot versions of both scala.meta and
@@ -46,6 +45,10 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   scalacOptions in (Compile, console) := Seq(), // macroparadise plugin doesn't work in repl yet.
   // temporary workaround for https://github.com/scalameta/paradise/issues/55
   sources in (Compile, doc) := Nil // macroparadise doesn't work with scaladoc yet.
+)
+
+lazy val metaREPLSettins: Seq[Def.Setting[_]] = Seq(
+  dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.1.0"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,6 +146,7 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
+  .settings(metaREPLSettins)
   .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
   .enablePlugins(JavaServerAppPackaging)
 
