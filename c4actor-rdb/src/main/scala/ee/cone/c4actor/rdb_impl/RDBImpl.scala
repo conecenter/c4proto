@@ -97,10 +97,10 @@ trait  ToExternalDBItemAssembleUtil {
   ): Values[(TypeHex, ToExternalDBTask)] = {
     val mergedNeedStates =
       if (needStates.isEmpty)
-        pseudoNeedStates
+        pseudoNeedStates.toList
       else {
         if (pseudoNeedStates.nonEmpty) logger.warn(s"Orig and PseudoOrig conflict: O-$needStates,PSO-$pseudoNeedStates")
-        needStates
+        needStates.toList
       }
     if (hasStates.toList == mergedNeedStates) Nil else {
       val typeHex = Hex(Single((hasStates ++ mergedNeedStates).map(_.valueTypeId).distinct))
