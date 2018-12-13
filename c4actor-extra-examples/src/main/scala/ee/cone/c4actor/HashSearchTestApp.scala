@@ -13,6 +13,7 @@ import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeStats, ProductWithId}
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodesStats, IndexNode, IndexNodeSettings}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
+import ee.cone.c4actor.tests.TestProtocolM
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -127,7 +128,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 }
 
 
-@protocol object EqProtocol extends Protocol {
+@protocol(TestCat) object EqProtocol extends Protocol {
 
   @Id(0xaabc) case class ChangingNode(
     @Id(0xaabd) srcId: String,
@@ -272,7 +273,7 @@ class HashSearchExtraTestApp extends TestRichDataApp
   with DefaultModelFactoriesApp
   with CurrentTimeAssembleMix
   with ProdLensesApp {
-
+  println(TestProtocolM.adapters.map(a ⇒ a.categories))
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
 

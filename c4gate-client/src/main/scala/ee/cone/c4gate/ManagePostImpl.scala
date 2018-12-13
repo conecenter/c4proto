@@ -33,7 +33,7 @@ case class ManageHttpPostTx(srcId: SrcId, post: HttpPost)(indexUtil: IndexUtil, 
     indexUtil.getValues(index,k,"").flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
-    val world = Await.result(readModelUtil.toMap(local.assembled),Duration.Inf)
+    val world = readModelUtil.toMap(local.assembled)
     val WorldKeyAlias = """(\w+),(\w+)""".r
     val worldKeyAlias = headers("X-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias

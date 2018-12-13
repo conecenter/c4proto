@@ -61,11 +61,11 @@ class AssemblerInit(
     }).seq.toMap)
 
   // read model part:
-  private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel =
-    Await.result(
-      replace(wasAssembled,diff,isParallel,assembleProfiler.createJoiningProfiling(None)).map(_.result),
-      Duration.Inf
-    )
+  private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel = {
+    val res = replace(wasAssembled,diff,isParallel,assembleProfiler.createJoiningProfiling(None)).map(_.result)
+    concurrent.blocking{Await.result(res, Duration.Inf)}
+  }
+
   private def offset(events: Seq[RawEvent]): List[Update] = for{
     ev ← events.lastOption.toList
     lEvent ← LEvent.update(Offset(actorName,ev.srcId))
@@ -106,12 +106,13 @@ class AssemblerInit(
         val nLocal = new Context(local.injected, transition.result, local.transient)
         WriteModelKey.modify(_.enqueue(updates))(nLocal)
       }
-      Await.result(res, Duration.Inf)
+      concurrent.blocking{Await.result(res, Duration.Inf)}
       //call add here for new mortal?
     }
 
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
-    UniqueIndexMap(concurrent.blocking{Await.result(origKeyFactory.rawKey(className).of(context.assembled),Duration.Inf)})(composes)
+    val index = origKeyFactory.rawKey(className).of(context.assembled).value.get.get
+    UniqueIndexMap(index)(composes)
   }
 
   def toInject: List[Injectable] =
