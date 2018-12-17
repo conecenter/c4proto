@@ -109,12 +109,17 @@ my $docker_compose_up = sub{
     &$remote($run_comp,sub{"cd $_[0] && docker-compose up -d --remove-orphans $add"});
 };
 
-push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
-    my($proj,$app)=@_;
-    sy(&$ssh_add());
+my $git_info = sub{
+    my($app)=@_;
     my($comp,$service) = &$split_app($app);
     my ($host,$port,$ddir) = &$get_host_port(&$get_compose($comp));
     my $repo = "$ddir/$comp/$service";
+    ($comp,$service,$repo,"ssh://c4\@$host:$port$repo")
+};
+
+my $git_init_remote = sub{
+    my($proj,$app)=@_;
+    my($comp,$service,$repo,$r_repo) = &$git_info($app);
     #
     so(&$remote($comp,"mv $repo ".rand()));
     #
@@ -127,6 +132,11 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     sy(&$remote($comp,"$git config user.name deploy"));
     sy(&$remote($comp,"$git add .dummy"));
     sy(&$remote($comp,"$git commit -am-"));
+};
+
+my $git_init_local = sub{
+    my($proj,$app)=@_;
+    my($comp,$service,$repo,$r_repo) = &$git_info($app);
     #
     my $bdir = "$ENV{C4DEPLOY_CONF}/$proj";
     my $adir = "$bdir/$app.adc";
@@ -138,8 +148,21 @@ push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
     !-e $_ or rename $_, "$tmp/".rand() or die $_ for $git_dir, $cloned;
     #
     &$put_text("$adir/vconf.json",'{"git.postCommit" : "push"}');
-    sy("cd $tmp && git clone ssh://c4\@$host:$port$repo");
+    sy("cd $tmp && git clone $r_repo");
     sy("mv $cloned/.git $git_dir");
+};
+
+push @tasks, ["git_init", "<proj> $composes_txt-<service>", sub{
+    my($proj,$app)=@_;
+    sy(&$ssh_add());
+    &$git_init_remote($proj,$app);
+    &$git_init_local($proj,$app);
+}];
+
+push @tasks, ["git_init_local", "<proj> $composes_txt-<service>", sub{
+    my($proj,$app)=@_;
+    sy(&$ssh_add());
+    &$git_init_local($proj,$app);
 }];
 
 my $remote_acc  = sub{
