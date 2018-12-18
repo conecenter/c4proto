@@ -12,6 +12,7 @@ trait UIApp extends AlienExchangeApp with BranchApp with VDomApp with ToInjectAp
   //lazy val relocateKey: VDomLens[World, String] = RelocateKey
   private lazy val sseUI = new UIInit(vDomHandlerFactory)
   lazy val untilPolicy: UntilPolicy = DefaultUntilPolicy
+  lazy val jsonToString = new JsonToStringImpl(JsonBuildingImpl)
   override def assembles: List[Assemble] = new VDomAssemble :: super.assembles
   override def toInject: List[ToInject] = sseUI :: super.toInject
 }

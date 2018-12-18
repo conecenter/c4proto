@@ -1,5 +1,7 @@
 package ee.cone.c4ui
 
+import java.text.DecimalFormat
+
 import ee.cone.c4actor.BranchProtocol.BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -77,5 +79,20 @@ object DefaultUntilPolicy extends UntilPolicy {
     val endTime = System.currentTimeMillis
     val until = endTime+Math.max((endTime-startTime)*10, 500)
     UntilPair("until",until) :: res
+  }
+}
+
+import ee.cone.c4vdom.{MutableJsonBuilder⇒VDomMutableJsonBuilder}
+
+class JsonToStringImpl(building: MutableJsonBuilding) extends JsonToString {
+  def apply(value: VDomValue): String = building.process{ builder ⇒
+    value.appendJson(new VDomMutableJsonBuilder {
+      def startArray(): VDomMutableJsonBuilder = { builder.startArray(); this }
+      def startObject(): VDomMutableJsonBuilder = { builder.startObject(); this }
+      def end(): VDomMutableJsonBuilder = { builder.end(); this }
+      def append(value: String): VDomMutableJsonBuilder = { builder.append(value); this }
+      def append(value: BigDecimal, decimalFormat: DecimalFormat): VDomMutableJsonBuilder = { builder.append(value, decimalFormat); this }
+      def append(value: Boolean): VDomMutableJsonBuilder = { builder.append(value); this }
+    })
   }
 }

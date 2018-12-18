@@ -1,18 +1,17 @@
-package ee.cone.c4vdom_impl
+package ee.cone.c4actor
 
 import java.text.DecimalFormat
 
-import ee.cone.c4vdom.{MutableJsonBuilder, VDomValue}
-
-object JsonToStringImpl extends JsonToString {
-  def apply(value: VDomValue): String = {
-    val builder = new JsonBuilderImpl()
-    value.appendJson(builder)
-    builder.result.toString
+object JsonBuildingImpl extends MutableJsonBuilding {
+  def process(body: RMutableJsonBuilder⇒Unit): String = {
+    val stringBuilder = new StringBuilder
+    val builder = new JsonBuilderImpl(stringBuilder)
+    body(builder)
+    stringBuilder.toString
   }
 }
 
-class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends MutableJsonBuilder {
+class JsonBuilderImpl(result: StringBuilder) extends RMutableJsonBuilder {
   private var checkStack: Long = 1L
   private var isOddStack: Long = 0L
   private var nonEmptyStack: Long = 0L
@@ -23,14 +22,14 @@ class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends Mut
 
   private def push(isObjectFlag: Long): Unit = {
     checkStack <<= 1
-    if(checkStack == 0) Never() //maxDepth
+    assert(checkStack != 0) //maxDepth
     isOddStack <<= 1
     nonEmptyStack <<= 1
     isObjectStack = (isObjectStack << 1) | isObjectFlag
   }
   private def pop(): Unit = {
     checkStack >>>= 1
-    if(checkStack == 0) Never() //minDepth
+    assert(checkStack != 0) //minDepth
     isOddStack >>>= 1
     nonEmptyStack >>>= 1
     isObjectStack >>>= 1
@@ -43,7 +42,7 @@ class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends Mut
     isOddStack ^= 1L
   }
 
-  private def start(isObjectFlag: Long, c: Char): MutableJsonBuilder = {
+  private def start(isObjectFlag: Long, c: Char): RMutableJsonBuilder = {
     startElement()
     push(isObjectFlag)
     //result.append('\n')
@@ -89,3 +88,4 @@ class JsonBuilderImpl(val result: StringBuilder = new StringBuilder) extends Mut
     this
   }
 }
+

@@ -2,10 +2,6 @@ package ee.cone.c4vdom_impl
 
 import ee.cone.c4vdom._
 
-trait JsonToString {
-  def apply(value: VDomValue): String
-}
-
 trait WasNoVDomValue extends VDomValue
 
 trait VPair {
