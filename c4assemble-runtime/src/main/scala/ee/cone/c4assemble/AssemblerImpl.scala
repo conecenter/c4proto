@@ -42,8 +42,8 @@ object IndexUtilImpl {
       val distinct = items.distinct
       if(distinct.tail.nonEmpty) throw new Exception(s"non-single $warning")
       if(warning.nonEmpty) {
-        val str = distinct.head.item.toString.slice(0,64)
-        println(s"non-single $warning $str")
+        val item = distinct.head.item
+        println(s"non-single $warning ${item.productPrefix}:${ToPrimaryKey(item)}")
       }
       distinct.head.item
     }
