@@ -160,11 +160,11 @@ my $gen_docker_conf = sub{
         ("ENV C4HTTP_PORT $http_port","ENV C4SSE_PORT $sse_port")
     }));
     #
-    &$build("sshd"=>sub{
-        my($ctx_dir)=@_;
-        &$mkdirs($ctx_dir,"db4");
-        (&$from("openssh-server"), &$run("mkdir /var/run/sshd"))
-    });
+#    &$build("sshd"=>sub{
+#        my($ctx_dir)=@_;
+#        &$mkdirs($ctx_dir,"db4");
+#        (&$from("openssh-server"), &$run("mkdir /var/run/sshd"))
+#    });
     &$build("haproxy"=>sub{
         my($ctx_dir)=@_;
         &$put_text("$ctx_dir/haproxy.cfg",qq{
