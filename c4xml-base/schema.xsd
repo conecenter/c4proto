@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="Booking">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="eventId" type="xs:string"/>
+                <xs:element name="cargoName" type="xs:string"/>
+                <xs:element name="shipTo" type="xs:string"/>
+                <xs:element name="shipDate" type="xs:long"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>

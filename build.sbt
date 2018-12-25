@@ -187,6 +187,12 @@ lazy val `c4gate-repl` = project.settings(publishSettings)
   .settings(libraryDependencies += "com.lihaoyi" % "ammonite-sshd" % "1.4.4" cross CrossVersion.full)
   .dependsOn(`c4actor-base`)
 
+lazy val `c4xml-base` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .settings(metaMacroSettings)
+  .settings(libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.1.1")
+  .dependsOn(`c4actor-base`, `c4proto-types`)
+
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
@@ -214,5 +220,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-extra`,
   `c4actor-extra-examples`,
   `c4ui-main`,
-  `c4ui-extra`
+  `c4ui-extra`,
+  `c4xml-base`
 )
