@@ -44,27 +44,25 @@ object XMLProtocolGeneration {
       s"""case object ${orig.name}XMLParser extends XMLBuilder[${orig.name}]{
          #  def name: String = "${orig.name}"
          #
-         #  def from(fields: List[String]): ${orig.name} = {
-         #    val List(${fieldNames.mkString(", ")}) = fields
+         #  def fromXML(in: xml.Node): ${orig.name} = {
          #    ${orig.name}(
          #${
-        orig.fields.map(f ⇒ s"      ${f.name}${
+        orig.fields.map(f ⇒ s"""      (in \\ "${f.name}").text${
           f.fType match {
             case "String" ⇒ ""
             case "Long" ⇒ ".toLong"
             case "Int" ⇒ ".toInt"
             case a ⇒ throw new Exception("Can't find given type:" + a)
           }
-        }"
+        }"""
         ).mkString(",\n")
       }
          #    )
          #  }
          #
-         #  def to(a: ${orig.name}): xml.NodeBuffer =
-         #    <?xml version="1.0" encoding="utf-8"?>
+         #  def toXML(a: ${orig.name}): xml.Elem =
          #    <${orig.name} xsi:noNamespaceSchemaLocation="$schema" xmlns:xsi="$xsi">
-         #${orig.fields.map(f ⇒ s"      <${f.name}>" + "${" + s"a.${f.name}" + s"}</${f.name}>").mkString("\n")}
+         #${orig.fields.map(f ⇒ s"      <${f.name}>" + "{" + s"a.${f.name}" + s"}</${f.name}>").mkString("\n")}
          #    </${orig.name}>
          #}
        """.stripMargin('#')
@@ -79,6 +77,7 @@ object XMLProtocolGeneration {
   }
 
   def makeProtocol(origs: List[OrigProp], schema: String, xsi: String): String = {
+    val pckName = "ee.cone.xsd"
     val protocolName = "XSDTestProtocol"
     val lines =
       for {
@@ -95,6 +94,6 @@ object XMLProtocolGeneration {
         val origId = getId(orig.id, 0)
         getOrig(origId, orig.name, fields)
       }
-    getHeader("ee.cone.xsd", protocolName, lines.mkString("\n"), origs.map(_.name)) + "\n\n" + getParsers(schema, xsi, origs) + "\n\n" + getApp(protocolName, origs)
+    getHeader("pckName", protocolName, lines.mkString("\n"), origs.map(_.name)) + "\n\n" + getParsers(schema, xsi, origs) + "\n\n" + getApp(protocolName, origs)
   }
 }
