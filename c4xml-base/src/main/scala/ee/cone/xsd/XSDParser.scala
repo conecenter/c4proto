@@ -1,4 +1,4 @@
-package ee.cone.xml
+package ee.cone.xsd
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
@@ -12,13 +12,13 @@ object XSDParser {
   def getType(str: String): String = str match {
     case "xs:string" ⇒ "String"
     case "xs:long" ⇒ "Long"
-    case _ ⇒ throw new Exception("Can't find given type:"+str)
+    case "xs:int" ⇒ "Int"
+    case _ ⇒ throw new Exception("Can't find given type:" + str)
   }
 
-  def main(args: Array[String]): Unit = {
-    val xml: Elem = XML.loadFile("./schema.xsd")
-    val data = for {
-      (orig, id) ← (xml \ "element").toList.zipWithIndex
+  def parse(elem: xml.Node): List[OrigProp] =
+    for {
+      (orig, id) ← (elem \ "element").toList.zipWithIndex
       fieldSeq ← orig \\ "sequence"
     } yield {
       val origName = orig \@ "name"
@@ -30,7 +30,13 @@ object XSDParser {
         }
       OrigProp(origName, fields, id)
     }
-    val protocol = XMLProtocolGeneration.makeProtocol(data)
-    Files.write(Paths.get("./src/main/scala/ee/cone/xml/XMLTestProtocol.scala"), protocol.getBytes(StandardCharsets.UTF_8))
+}
+
+object XSDParserTest{
+  def main(args: Array[String]): Unit = {
+    val xml: Elem = XML.loadFile("./schema.xsd")
+    val data = XSDParser.parse(xml)
+    val protocol = XMLProtocolGeneration.makeProtocol(data, "file:///C:/Users/User/IdeaProjects/CONE-XSD2/src/main/xsd/schema.xsd","http://www.w3.org/2001/XMLSchema-instance")
+    Files.write(Paths.get("./src/main/scala/ee/cone/xsd/XSDTestProtocol.scala"), protocol.getBytes(StandardCharsets.UTF_8))
   }
 }
