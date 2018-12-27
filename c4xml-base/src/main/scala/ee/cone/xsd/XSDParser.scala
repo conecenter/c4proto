@@ -31,12 +31,3 @@ object XSDParser {
       OrigProp(origName, fields, id)
     }
 }
-
-object XSDParserTest{
-  def main(args: Array[String]): Unit = {
-    val xml: Elem = XML.loadFile("./schema.xsd")
-    val data = XSDParser.parse(xml)
-    val protocol = XMLProtocolGeneration.makeProtocol(data, "file:///C:/Users/User/Desktop/Cone/C4PROTO/c4xml-base/schema.xsd","http://www.w3.org/2001/XMLSchema-instance")
-    Files.write(Paths.get("./src/main/scala/ee/cone/xsd/XSDTestProtocol.scala"), protocol.getBytes(StandardCharsets.UTF_8))
-  }
-}

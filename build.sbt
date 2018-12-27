@@ -47,7 +47,7 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   sources in (Compile, doc) := Nil // macroparadise doesn't work with scaladoc yet.
 )
 
-lazy val metaREPLSettins: Seq[Def.Setting[_]] = Seq(
+lazy val metaREPLSettings: Seq[Def.Setting[_]] = Seq(
   dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.1.0"
 )
 
@@ -146,7 +146,7 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .settings(metaREPLSettins)
+  .settings(metaREPLSettings)
   .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
   .enablePlugins(JavaServerAppPackaging)
 
@@ -191,6 +191,11 @@ lazy val `c4xml-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
   .settings(libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.1.1")
+  .settings(libraryDependencies ++= Seq(
+    "org.scalikejdbc" %% "scalikejdbc"       % "3.3.1",
+    "ch.qos.logback"  %  "logback-classic"   % "1.2.3"
+  ))
+  .settings(libraryDependencies += "org.postgresql" % "postgresql" % "42.2.5")
   .dependsOn(`c4actor-base`, `c4proto-types`)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
