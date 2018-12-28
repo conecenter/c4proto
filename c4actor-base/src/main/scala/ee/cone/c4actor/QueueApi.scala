@@ -83,6 +83,10 @@ case object ReadAfterWriteOffsetKey extends TransientLens[NextOffset]("0" * Offs
 
 trait QMessages {
   def send[M<:Product](local: Context): Context
+  // pair of worldProvider.createTx/send can be turned to tx{local=>...} or
+  // worldProvider can be not in App, but passed to richServer.init(worldProvider),
+  // where richServers wrapped with txTr with AtomicRef;
+  // HOWEVER READ-AFTER-WRITE problem here is harder
 }
 
 trait ToUpdate {
