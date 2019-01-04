@@ -15,7 +15,7 @@ my $temp = "target";
 my $docker_build = "$temp/docker_build";
 my $user = "c4";
 my $uid = 1979;
-my $developer = $ENV{USER} || die;
+#my $developer = $ENV{USER} || die;
 
 ################################################################################
 
@@ -141,7 +141,6 @@ my $gen_docker_conf = sub{
             "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "frp_0.21.0_linux_amd64", "frp"
         );
-        &$gcp($_=>$ctx_dir,$_) for "purger.pl";
         &$mkdirs($ctx_dir,"db4");
         (&$from("rsync telnet mc"))
     });

@@ -447,51 +447,37 @@ my $extract_env = sub{
     &$merge({environment => \%env}, \%def);
 };
 
-my $app_user = sub{
-    my %opt = @_;
-    (user=>$user, working_dir=>"/$user");
-};
-
 my $common_services = sub{(
     gate => {
         C4APP_IMAGE => "gate-server",
         C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
         C4MAX_REQUEST_SIZE => "250000000",
         C4STATE_REFRESH_SECONDS => 100,
-        C4NEED_LOCAL_DB => 1,
+        volumes => ["db4:/c4/db4"],
         C4DEPLOY_LOCAL => 1,
-    },
-    purger => {
-        &$app_user(),
-        C4APP_IMAGE => "zoo",
-        command => ["perl","purger.pl"],
-        tty => "true",
-        C4NEED_LOCAL_DB => 1,
     },
     haproxy => {
         C4APP_IMAGE => "haproxy",
         C4EXPOSE_HTTP_PORT => 80,
         expose => [80],
         C4DEPLOY_LOCAL => 1,
+        C4SU => 1,
     },
     zookeeper => {
-        &$app_user(),
         C4APP_IMAGE => "zoo",
         command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
-        C4NEED_LOCAL_DB => 1,
+        volumes => ["db4:/c4/db4"],
     },
     broker => {
-        &$app_user(),
         C4APP_IMAGE => "zoo",
         command => ["$bin/kafka-server-start.sh","server.properties"],
         depends_on => ["zookeeper"],
-        C4NEED_LOCAL_DB => 1,
+        volumes => ["db4:/c4/db4"],
     },
     frpc => {
-        &$app_user(),
         C4APP_IMAGE => "zoo",
         command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
-        C4NEED_LOCAL_DB => 1,
+        volumes => ["db4:/c4/db4"],
         C4DEPLOY_LOCAL => 1,
     },
 )};
@@ -542,8 +528,15 @@ my $compose_up = sub{
         ##todo: !$need_commit or `cat $dockerfile`=~/c4commit/ or die "need commit and rebuild";
         my $generated_service = {
             restart=>"unless-stopped",
+            logging => {
+                driver => "json-file",
+                options => {
+                    "max-size" => "20m",
+                    "max-file" => "20",
+                },
+            },
+            $$service{C4SU} ? () : (user=>"c4", working_dir=>"/c4"),
             ($$service{C4STATE_TOPIC_PREFIX}?(
-                &$app_user(),
                 $$conf{main} ? () : (depends_on => ["broker"]),
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
                 C4MAX_REQUEST_SIZE => "250000000",
@@ -551,17 +544,9 @@ my $compose_up = sub{
                 C4HTTP_SERVER => "http://$http_server",
                 #C4PARENT_HTTP_SERVER => "http://$parent_http_server",
                 C4AUTH_KEY_FILE => "/c4deploy/simple.auth", #gate does no symlinks
-                logging => {
-                    driver => "json-file",
-                    options => {
-                        "max-size" => "20m",
-                        "max-file" => "20",
-                    },
-                },
             ):()),
             volumes => [
                 $$service{C4DEPLOY_LOCAL} ? "./$service_name:/c4deploy" : (),
-                $$service{C4NEED_LOCAL_DB} ? "db4:/$user/db4" : (),
             ],
             ($$service{C4EXPOSE_HTTP_PORT} && $$conf{http_port} ? (
                 ports => ["$$conf{http_port}:$$service{C4EXPOSE_HTTP_PORT}"],
@@ -660,23 +645,23 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
     my($mode,$run_comp)=@_;
     sy(&$ssh_add());
     my $conf = &$get_compose($run_comp);
-    my $main_comp = $$conf{main};
+#    my $main_comp = $$conf{main};
     my $ext_conf = &$merge(&$template_yml(),$conf);
-    if($main_comp){
-        my $frpc_conf = [
-            common => [&$get_frp_common($run_comp)],
-            #&$frp_visitor($main_comp,$http_server),
-            &$frp_web($$conf{proxy_dom}||$run_comp),
-        ];
-        &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($main_comp));
-    } else {
+#    if($main_comp){
+#        my $frpc_conf = [
+#            common => [&$get_frp_common($run_comp)],
+#            #&$frp_visitor($main_comp,$http_server),
+#            &$frp_web($$conf{proxy_dom}||$run_comp),
+#        ];
+#        &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($main_comp));
+#    } else {
         my $frpc_conf = [
             common => [&$get_frp_common($run_comp)],
             &$frp_client($run_comp,$bootstrap_server),
             &$frp_web($$conf{proxy_dom}||$run_comp),
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));
-    }
+#    }
 }];
 
 #snapshots => [

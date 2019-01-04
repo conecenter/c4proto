@@ -1,10 +1,13 @@
-package ee.cone.c4gate.purger
+package ee.cone.c4gate
 
 import java.nio.file.{Files, Path, Paths}
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor._
-import ee.cone.c4gate.SnapshotLister
+import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.{Context, TxTransform, WithPK}
+import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{Assemble, assemble}
 
 object PurgerDefaultPolicy {
   def apply(): List[KeepPolicy] = {
@@ -44,3 +47,19 @@ class Purger(
   }
 }
 
+case class PurgerTx(
+  srcId: SrcId, keepPolicyList: List[KeepPolicy]
+)(purger: Purger) extends TxTransform {
+  def transform(local: Context): Context = {
+    purger.process(keepPolicyList)
+    local
+  }
+}
+
+@assemble class PurgerAssemble(purger: Purger) extends Assemble {
+  def joinPurger(
+    key: SrcId,
+    first: Each[Firstborn]
+  ): Values[(SrcId,TxTransform)] =
+    List(WithPK(PurgerTx("purger",PurgerDefaultPolicy())(purger)))
+}
