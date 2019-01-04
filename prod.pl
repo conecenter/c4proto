@@ -537,13 +537,15 @@ my $compose_up = sub{
             },
             $$service{C4SU} ? () : (user=>"c4", working_dir=>"/c4"),
             ($$service{C4STATE_TOPIC_PREFIX}?(
-                $$conf{main} ? () : (depends_on => ["broker"]),
+                #$$conf{main} ? () :
+                (depends_on => ["broker"]),
                 C4BOOTSTRAP_SERVERS => $bootstrap_server,
                 C4MAX_REQUEST_SIZE => "250000000",
                 C4INBOX_TOPIC_PREFIX => "",
                 C4HTTP_SERVER => "http://$http_server",
                 #C4PARENT_HTTP_SERVER => "http://$parent_http_server",
                 C4AUTH_KEY_FILE => "/c4deploy/simple.auth", #gate does no symlinks
+                tty => "true",
             ):()),
             volumes => [
                 $$service{C4DEPLOY_LOCAL} ? "./$service_name:/c4deploy" : (),
@@ -560,7 +562,7 @@ my $compose_up = sub{
     #DumpFile("docker-compose.yml",$generated);
     my $yml_str = Dump($generated);
     #$text=~s/(\n\s+-\s+)([^\n]*\S:\d\d)/$1"$2"/gs;
-    $yml_str=~s/\b(tty:\s)'(true)'/$1$2/;
+    $yml_str=~s/\b(tty:\s)'(true)'/$1$2/g;
     ##todo: fix need_commit; ...[some.yml]
     if($is_full && $build_comp ne $run_comp){
         my %images = map{$_?($_=>1):()} map{$$_{image}} values %$generated_services;
@@ -922,6 +924,13 @@ push @tasks, ["thread_grep_not","<substring>",sub{
 push @tasks, ["thread_count"," ",sub{
     my @r = grep{/\S/} &$tp_split(join '',<STDIN>);
     print scalar(@r)."\n";
+}];
+
+push @tasks, ["repl","$composes_txt-<service>",sub{
+    my($app)=@_;
+    sy(&$ssh_add());
+    my($comp,$service) = &$split_app($app);
+    sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 sh -c 'test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222'"));
 }];
 
 ####
