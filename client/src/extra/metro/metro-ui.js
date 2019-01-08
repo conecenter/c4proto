@@ -20,9 +20,10 @@ const TextSelectionMonitor = ((log) =>{
 		windows.push(w)
 		w.addEventListener("mouseup",e=>w.lastSelectionT = getSelection(w).length>0?e.timeStamp:0,true)		
 	}
-	const check = (elem,timeStamp) => {
+	const check = (elem,event) => {
 		const w = elem && elem.ownerDocument && elem.ownerDocument.defaultView		
-		if(!regListener(w) || !timeStamp) return false			
+		if(!regListener(w) || !event) return false			
+		const timeStamp = event.timeStamp
 		return timeStamp - w.lastSelectionT < 2000
 	}
 	return check
@@ -903,10 +904,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		componentWillUnmount(){
 			if(this.dragBinding) this.dragBinding.release();					
 			this.props.droppable && this.el.removeEventListener("mousemove",this.onMouseMove)			
-		}			
-		onClick(e){
-			if(this.props.onClick) this.props.onClick(e)
-		}
+		}					
 	    updateState(v){
 			if(this.state.info.side !== v) {				
 			    const o = (el,_2) => (el?{el,rect:el.getBoundingClientRect(),s:_2}:null)
@@ -979,7 +977,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 			const chld = () => (children?[$("div",{key:1, style:styleT}),...children,$("div",{key:3, style:styleB})]: children)
 			const actions = {
-				onClick:this.onClick,
+				onClick:this.props.onClick,
 				onMouseDown:this.onMouseDown,
 				onTouchStart:this.onMouseDown,			
 				onMouseEnter:this.props.onMouseEnter,				
@@ -1060,7 +1058,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		onClick(e){		
 			if(this.props.onClick){
-			    if(textSelectionMonitor(this.el,e.timeStamp)) return
+			    if(textSelectionMonitor(this.el,e)) return
 				if(!this.sentClick) {
 					this.props.onClick(e)					
 					this.sentClick = true
@@ -2724,13 +2722,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				e = e.parentElement
 			}
 			return null
-		}
-		/*
-		findSticky(el,o){
-			const _ = el.querySelector(`*[data-sticky="sticky"]`)			
-			if(_ != o) return _
-			return null
-		}*/
+		}		
 		findAutofocusCandidate(el){
 			if(this.foundAuto) return
 			const a = Array.from(el.ownerDocument.querySelectorAll("input"))
@@ -2759,9 +2751,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		onBBlur(e){
 			if(e.relatedTarget ==null) {
-				//log(e,e.relatedTarget,e.target)
-				//const sticky = this.findSticky(this.el,null)
-				//if(sticky) return setTimeout(()=>sticky.focus(),400)
+				//log(e,e.relatedTarget,e.target)			
 				this.report(this.props.path)
 				this.active = this.w.parent == this.w
 			}
@@ -2770,9 +2760,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			//log("focus",e.target,this.getParentPath(e.target))
 			this.active = true			
 			const path = this.getParentPath(e.target)
-			if(path != this.props.value) {
-				//const sticky = this.findSticky(this.el,e.target)
-				//if(sticky) return setTimeout(()=>sticky.focus(),400)
+			if(path != this.props.value) {				
 				if(path) return this.report(path)
 			}
 		}
@@ -3487,11 +3475,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	}
 	class ClickableDivElement extends StatefulComponent{
 		onClick(e){
-			this.props.onClick&& this.props.onClick(e)
 			e.stopPropagation()
+			if(textSelectionMonitor(this.el,e)) return
+			this.props.onClick&& this.props.onClick(e)						
 		}
 		componentDidMount(){
 			if(this.el) this.el.addEventListener("click",this.onClick)
+			textSelectionMonitor(this.el)	
 		}
 		componentWillUnmount(){
 			if(this.el) this.el.removeEventListener("click",this.onClick)
