@@ -2742,6 +2742,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onFrame(modify){
 			if(!this.active||!this.el) return		
 			const activeElement = this.el.ownerDocument.activeElement
+			if(!activeElement) return
 			const path = this.getParentPath(activeElement)
 			if(path===null && activeElement.tagName!="BODY") return
 			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
