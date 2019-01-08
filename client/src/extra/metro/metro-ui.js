@@ -3,6 +3,7 @@ import React from 'react'
 import {pairOfInputAttributes}  from "../../main/vdom-util"
 import Errors from "../../extra/errors"
 import {ctxToPath,rootCtx} from "../../main/vdom-util"
+import {dragDropPositionStates} from "../dragdrop-module"
 
 /*
 todo:
@@ -79,7 +80,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		const srcM = !forceSrcWithoutPrefix?(urlPrefix||"")+src: src;
 		return $("img",{src:srcM,style,title})
 	}
-
+	
 	const resizeListener = (() =>{
 		const delay = 500
 		const callbacks = []
@@ -770,6 +771,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	
 	class TableElement extends StatefulComponent{		
 		check(){
+			if(!this.props.dynamic || !this.props.onClickValue) return
 			if(!this.el) return			
 			if(!this.emEl) return
 			if(!this.el.parentElement) return	
@@ -794,14 +796,18 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			e.stopPropagation()
 			eventManager.sendToWindow(event)
 		}
+		componentDidUpdate(){
+			this.props.dynamic && this.check()
+		}
 		componentDidMount(){
-			if(this.props.dynamic) checkActivateCalls.add(this.check)
+			this.resizeL = this.props.dynamic && resizeListener.reg(this.check)
+			this.props.dynamic && this.check()	
 			if(!this.el) return	
 			this.ctx = rootCtx(this.props.ctx)
 			this.el.addEventListener("cTab",this.onInputEnter)
 		}
 		componentWillUnmount(){
-			if(this.props.dynamic) checkActivateCalls.remove(this.check)			
+			this.resizeL && this.resizeL.unreg()						
 			this.el.removeEventListener("cTab",this.onInputEnter)
 		}
 		render(){			
@@ -872,7 +878,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	}	
 	const TBodyElement = ({style,children})=>$("tbody",{style:style},children);	
 	class THElement extends StatefulComponent{		
-		getInitialState(){return {last:false}}		
+		getInitialState(){return {last:false, info:{side:dragDropPositionStates.none}}}		
 		checkForSibling(){
 			if(!this.el) return;
 			if(!this.el.nextElementSibling) if(!this.state.last) this.setState({last:true})
@@ -883,7 +889,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.el && this.el.tagName=="TD") {		
 				if(this.props.draggable || this.props.droppable)
 					this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
-			}			
+			}
+			this.props.droppable && this.el.addEventListener("mousemove",this.onMouseMove)			
 		}
 		componentDidUpdate(prevProps,_){
 			this.checkForSibling()
@@ -891,14 +898,39 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.dragBinding.update({node:this.el,dragData:this.props.dragData})
 			else if(this.props.draggable || this.props.droppable)
 				this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
-		    if(!this.props.draggable && !this.props.droppable) return
-			if(prevProps.mouseEnter!=this.props.mouseEnter && this.props.mouseEnter) this.dragBinding.dragOver(this.el)
+		    if(!this.props.draggable && !this.props.droppable) return			
 		}			
 		componentWillUnmount(){
 			if(this.dragBinding) this.dragBinding.release();					
+			this.props.droppable && this.el.removeEventListener("mousemove",this.onMouseMove)			
 		}			
 		onClick(e){
 			if(this.props.onClick) this.props.onClick(e)
+		}
+	    updateState(v){
+			if(this.state.info.side !== v) {				
+			    const o = (el,_2) => (el?{el,rect:el.getBoundingClientRect(),s:_2}:null)
+				const a = (_ => {
+					switch(v){
+						case dragDropPositionStates.top: 							
+							return o(this.el.parentElement.previousElementSibling,-1)
+						case dragDropPositionStates.bottom: 							
+							return o(this.el.parentElement.nextElementSibling,1)					
+						default: return null;
+					}
+				})()
+				const thisElRect = this.el.getBoundingClientRect()
+				const b = a// && (Math.abs(a.rect.top - thisElRect.top) < thisElRect.height) && a
+				const parentRect = this.el.parentElement.getBoundingClientRect()
+				const offSetY = b?a.s * (a.s>0?parentRect.bottom - a.rect.top:a.rect.bottom - parentRect.top):0
+				const offSetX = parentRect.left - thisElRect.left
+				const pWidth = parentRect.width
+				log("update",v)
+				this.setState({info:{side:v,offSetY,offSetX,pWidth}})
+			}			
+		}
+		onMouseMove(e){
+			if(this.props.droppable) this.dragBinding.dragOver(e,this.el, this.updateState,true)
 		}
 		onMouseDown(e){			
 			if(!this.props.draggable) return;
@@ -910,13 +942,18 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}			
 			e.preventDefault();
 		}
+		onMouseLeave(e){			
+			if(this.state.info.side != dragDropPositionStates.none) this.setState({info:{side:dragDropPositionStates.none}})
+			this.props.onMouseLeave && this.props.onMouseLeave(e)	
+		}
 		onMouseUp(e){
 			if(!this.props.droppable) return;
 			if(this.dragBinding)
-				this.dragBinding.dragDrop(this.el)			
+				this.dragBinding.dragDrop(e,this.el)	
+			this.onMouseLeave(e)			
 		}
 		render(){
-			const {style,colSpan,children,rowSpan} = this.props
+			const {colSpan,children,rowSpan} = this.props
 			const rowSpanObj = rowSpan?{rowSpan}:{}
 			const nodeType = this.props.nodeType?this.props.nodeType:"th"
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
@@ -924,8 +961,35 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const focusActions = nodeType=="td"?{onFocus:this.onFocus,onBlur:this.onBlur}:{}
 			const className = "marker focusWrapper"			
 			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
-			return $(Consumer,{},path=>
-				$(nodeType,{style:{
+			const v = {border:"1px solid"}
+			const infoS = {position:"absolute",boxSizing:"border-box",width:this.state.info.pWidth+"px"}
+			const borderT = this.state.info.side == dragDropPositionStates.top?v:{}
+			const borderB = this.state.info.side == dragDropPositionStates.bottom?v:{}
+			const styleT = {
+				...infoS,
+				...borderT,
+				top:this.state.info.offSetY?this.state.info.offSetY+"px":"0",
+				left:this.state.info.offSetX?this.state.info.offSetX+"px":"0"
+			}
+			const styleB = {
+				...infoS,
+				...borderB,
+				bottom:this.state.info.offSetY?this.state.info.offSetY+"px":"0",
+				left:this.state.info.offSetX?this.state.info.offSetX+"px":"0"
+			}
+			const chld = () => (children?[$("div",{key:1, style:styleT}),...children,$("div",{key:3, style:styleB})]: children)
+			const actions = {
+				onClick:this.onClick,
+				onMouseDown:this.onMouseDown,
+				onTouchStart:this.onMouseDown,			
+				onMouseEnter:this.props.onMouseEnter,				
+				onMouseLeave:this.onMouseLeave,
+				onMouseUp:this.onMouseUp,
+				onTouchEnd:this.onMouseUp
+			}
+			const stO = this.state.info.side != dragDropPositionStates.none? {position:"relative",overflow:""}:{}
+			
+			const stStyle = (path)=>({
 					borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
 					borderLeft:'none',
 					borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
@@ -941,22 +1005,20 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					outlineColor:"red",
 					...propsOnPath(path,this.props.path),
 					outlineOffset:"-1px",
-					...style
-				},colSpan,
+					...this.props.style,
+					...stO
+			})
+			//log(stO,this.el,this.state.info)
+			return $(Consumer,{},path=>
+				$(nodeType,{style:stStyle(path),colSpan,
 				ref:ref=>this.el=ref,
-				onClick:this.onClick,
-				onMouseDown:this.onMouseDown,
-				onTouchStart:this.onMouseDown,			
-				onMouseEnter:this.props.onMouseEnter,
-				onMouseLeave:this.props.onMouseLeave,
-				onMouseUp:this.onMouseUp,
-				onTouchEnd:this.onMouseUp,
-				className:className,
+				...actions,
+				className,
 				"data-path":this.props.path,
 				...rowSpanObj,
 				...tabIndex,
 				...focusActions,			
-				},children)
+				},chld())
 			)
 		}
 	}
@@ -1658,12 +1720,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 	}
 	
-	const LabelElement = ({style,onClick,label})=>$("label",{onClick,style:{
+	const LabelElement = ({style,onClick,label,children})=>$("label",{onClick,style:{
 		color:"rgb(33,33,33)",
 		cursor:onClick?"pointer":"auto",
 		textTransform:"none",
 		...style
-	}},label?label:null)
+	}},[label?label:null,...(children?children:[])])
 
 	class FocusableElement extends StatefulComponent{		
 		onFocus(e){
@@ -2734,9 +2796,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 	}
 	class DragDropHandlerElement extends StatefulComponent{
-		report(action,fromSrcId,toSrcId){			
+		report(action,fromSrcId,toSrcId,side){			
 			if((!Array.isArray(this.props.filterActions)||this.props.filterActions.includes(action))&&this.props.onDragDrop)
-				this.props.onDragDrop("reorder",JSON.stringify({action,fromSrcId,toSrcId}))
+				this.props.onDragDrop("reorder",JSON.stringify({action,fromSrcId,toSrcId, side:side?side:""}))
 		}
 		componentDidMount(){
 			this.dragBinding = dragDropModule.regReporter(this.report)
@@ -2795,41 +2857,90 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $('div',{style,ref:ref=>this.el=ref,className:"confirmOverlay"},this.props.children)			
 		}
 	}
-	
+	 
 	class DragDropDivElement extends StatefulComponent{
+		getInitialState(){
+			return {info:{side:dragDropPositionStates.none}}
+		}
 		componentDidMount(){
+			this.className = "DragDropDivElement"
 			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})
 			addEventListener("mouseup",this.onMouseUp)
+			this.el.addEventListener("mousemove",this.onMouseMove)
 		}
 		componentDidUpdate(){
-			this.dragBinding.update({node:this.el,dragData:this.props.dragData})
+			this.dragBinding.update({node:this.el,dragData:this.props.dragData})			
 		}
 		componentWillUnmount(){
 			this.dragBinding.release()
 			removeEventListener("mouseup",this.onMouseUp)
+			this.el.removeEventListener("mousemove",this.onMouseMove)
 		}
 		onMouseDown(e){
 			if(!this.props.draggable) return
 			this.dragBinding.dragStart(e,this.el,"div",this.props.dragStyle)
+		}
+		updateState(v){
+			if(this.state.info.side !== v) {				
+			    const o = (el,_2) => (el?{el,rect:el.getBoundingClientRect(),s:_2}:null)
+				const a = (_ => {
+					switch(v){
+						case dragDropPositionStates.left: 							
+							return o(this.el.previousElementSibling,-1)
+						case dragDropPositionStates.right: 							
+							return o(this.el.nextElementSibling,1)					
+						default: return null;
+					}
+				})()
+				const thisElRect = this.el.getBoundingClientRect()
+				const b = a && (Math.abs(a.rect.top - thisElRect.top) < thisElRect.height) && a
+				const offSet = b?a.s * (a.s>0?thisElRect.right - a.rect.left:thisElRect.left - a.rect.right)/2:0				
+				this.setState({info:{side:v,offSet}})
+			}			
+		}
+		onMouseMove(e){
+			if(this.props.dragover) this.dragBinding.dragOver(e,this.el, this.updateState)
+		}
+		onMouseOut(e){
+			if(this.state.info.side != dragDropPositionStates.none) this.setState({info:{side:dragDropPositionStates.none}})
 		}
 		onMouseUp(e){
 			const {clientX,clientY} = e.type.includes("touch")&&e.touches.length>0?{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}:{clientX:e.clientX,clientY:e.clientY}
 			const elements = clientX&&clientY?documentManager.elementsFromPoint(clientX,clientY):[]
 			if(!elements.includes(this.el)) return			
 			if(!this.props.droppable) return
-			this.dragBinding.dragDrop(this.el)
+			this.dragBinding.dragDrop(e,this.el)
+			this.onMouseOut(e)
 		}	
 		render(){
+			const v = {border:"1px solid"}
+			const borderL = this.state.info.side == dragDropPositionStates.left?v:{}
+			const borderR = this.state.info.side == dragDropPositionStates.right?v:{}
+			const infoS = {position:"absolute",boxSizing:"border-box",height:"100%"}
+			const stO = this.state.info.side != dragDropPositionStates.none? {display:"flex",position:"relative"}:{}
 			const style = {
-				...this.props.style
+				...this.props.style,
+				...stO
 			}
-			const actions = {
+			const actions = {				
 				onMouseDown:this.onMouseDown,				
 				onTouchStart:this.onMouseDown,
-				onTouchEnd:this.onMouseUp
+				onTouchEnd:this.onMouseUp,
+				onMouseOut:this.onMouseOut
 			}
-			const ref = (ref)=>this.el=ref
-			return $("div",{style,ref,...actions},this.props.children)
+			const stStyleL = {
+				...infoS,
+				...borderL,
+				left:this.state.info.offSet?this.state.info.offSet+"px":"0"
+			}
+			const stStyleR = {
+				...infoS,
+				...borderR,
+				right:this.state.info.offSet?this.state.info.offSet+"px":"0"
+			}
+			const ref = _ =>this.el = _
+			const className = this.className
+			return $("div",{style,ref,...actions,className},[$("div",{style:stStyleL,key:1}),$("div",{key:2},this.props.children),$("div",{style:stStyleR,key:3})])
 		}
 	}
 
@@ -3325,7 +3436,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	const DragWrapperElement = (props)=> {					
 		const dragData = props.dragData
 		const dragStyle = {border:"1px solid grey",backgroundColor:"grey"}
-		return $(DragDropDivElement,{draggable:true,droppable:true,dragStyle,dragData},[
+		return $(DragDropDivElement,{draggable:true,droppable:true,dragover:true,dragStyle,dragData},[
 			$("div",{key:"1",style:props.style},props.caption),
 			$("div",{key:"2",style:{display:"flex",flexWrap:"wrap",justifyContent:"center"}},props.children)
 		])		

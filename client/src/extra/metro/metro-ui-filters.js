@@ -22,7 +22,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 		const keys = props.keys
 		const children = keys?props.children.filter(_=>keys.includes(_.key)):props.children
 		const dragStyle = {border:"1px solid grey",backgroundColor:"grey"}
-		const wrapped = props.draggable?children.map(_=>$(DragDropDivElement,{key:_.key,draggable:true,droppable:true,dragStyle,dragData:_.key},_)):children
+		const wrapped = props.draggable||props.dragover?children.map(_=>$(DragDropDivElement,{key:_.key,draggable:true,droppable:true,dragover:true,dragStyle,dragData:_.key},_)):children
 		return $("div",{className:"filters", style:props.style},wrapped)
 	}	
 	const calcLines = (fAMap, width) => {
@@ -278,7 +278,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 			const w3style = {}
 			return $("div",{className:"tableOpts", ref:ref=>this.el=ref, style},[
 			    $("div",{key:"remRef",ref:ref=>this.remRef=ref,style:{height:"1em",position:"absolute",zIndex:"-1"}}),
-				$(Filters,{key:1,style:fstyle,keys:fl, draggable:this.props.draggableFilters},this.getFilters()),
+				$(Filters,{key:1,style:fstyle,keys:fl, draggable:this.props.draggableFilters, dragover:this.props.dragoverFilters},this.getFilters()),
 				(wn1.length>0?$(wn,{key:2,className:"w1 z",style:w1style,ref:ref=>this.w1=ref?ref.el:null},wn1):null),
 				(wn3.length>0?$(wn,{key:"tx",className:"w3 z",style:w3style,ref:ref=>this.w3=ref?ref.el:null},wn3):null),
 				(wn2.length>0?$(wn,{key:3,className:"w2 z",style:w2style,ref:ref=>this.w2=ref?ref.el:null},wn2):null)
