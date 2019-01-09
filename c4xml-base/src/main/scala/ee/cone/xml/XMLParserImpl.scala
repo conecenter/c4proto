@@ -38,10 +38,8 @@ class XMLParserImpl(
   def fromXML(xmlStr: String): Option[Product] = {
     for {
       xml ← Try(reader.loadString(xmlStr)).toOption
-      origName = xml.label
-      builder ← xmlBuilderMap.get(origName)
     } yield {
-      builder.fromXML(xml)
+      scalaxb.fromXML[Messagename](xml)
     }
   }
 

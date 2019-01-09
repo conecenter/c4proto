@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<messagename xsi:noNamespaceSchemaLocation="file:///C:/Users/User/Desktop/Cone/C4PROTO/c4xml-base/schema.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<messagename xsi:noNamespaceSchemaLocation="file:///C:/Users/User/Desktop/Cone/C4PROTO/c4xml-base/src/main/xsd/schema.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <messageHeader>
         <version>1.0</version>
         <sender>TK</sender>

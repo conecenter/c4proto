@@ -1,42 +1,56 @@
 package ee.cone.dbrequest
 
-import ee.cone.xsd.OrigId
-import scalikejdbc.{NoExtractor, SQL, WrappedResultSet}
+import scalikejdbc._
 
-case class DBSchema(tableName: String, columnNames: List[String])
-
-case object PSQLSchemaGetter extends StaticDBAsk[DBSchema] {
-  def resultHandler: WrappedResultSet ⇒ DBSchema = r ⇒ DBSchema(r.string("table_name"), r.array("columns").getArray.asInstanceOf[Array[Object]].map(_.toString).toList)
-  def request: SQL[Nothing, NoExtractor] = SQL("select table_name, array_agg(column_name) as columns from INFORMATION_SCHEMA.COLUMNS where table_schema = 'public' group by table_name")
+object LongHex {
+  def apply(i: Long, prefix: String = ""): String = "%s0x%04x".format(prefix, i)
 }
 
-case class OrigSchema(origName: String, origId: Long, origFields: List[FieldSchema])
-case class FieldSchema(fieldName: String, fieldId: Long, fieldType: String)
+case object OracleOrigDBAdapter extends OrigDBAdapter {
+  def getSchema: List[TableSchema] =
+    DB readOnly {
+      implicit session ⇒
+        sql"SELECT table_name, column_name FROM USER_TAB_COLUMNS".map(res ⇒ res.string("table_name").toUpperCase → res.string("column_name").toUpperCase).list().apply()
+          .groupBy(_._1).toList.map(kv ⇒ TableSchema(kv._1, kv._2.map(_._2)))
+    }
 
-case class PSQLCreateTable(schemaAsk: StaticDBAsk[DBSchema], localSchema: List[OrigSchema]) extends DynamicDBUpdate {
-  def updateSchema: Int = {
-    val dbSchema = schemaAsk.getListRO
-    1
+  def patchSchema(origSchemas: List[OrigSchema]): List[TableSchema] = {
+    val currentSchema = getSchema
+    val currentSchemaMap = currentSchema.map(t ⇒ t.tableName → t.columnNames).toMap
+    val (toUpdate, toCreate) = origSchemas.partition(t ⇒ currentSchemaMap contains t.origTableName.toUpperCase)
+    val creations = toCreate.map(createTable)
+    val alters = toUpdate.map { orig ⇒
+      val columns = orig.fieldSchemas.filterNot(f ⇒ currentSchemaMap(orig.origTableName.toUpperCase) contains f.fieldName.toUpperCase).map(_.creationStatement)
+      if (columns.nonEmpty)
+        alterTable(orig.origTableName, columns)
+      else
+        ""
+    }.filter(_.nonEmpty)
+    requestExecution(creations ++ alters)
+    getSchema
   }
 
-  def compareSchemas(localSchema: List[OrigSchema], dbSchema: List[DBSchema]): String = {
-    val existingTables = dbSchema.map(_.tableName).toSet
-    ""
+  def requestExecution(sqls: List[String]): Int = {
+    DB localTx { implicit session ⇒
+      sqls.map(SQL.apply).map(_.update.apply()).sum
+    }
   }
 
-  /*def createTable(orig: OrigSchema): String = {
-    s"""create table t${OrigId(orig.origId)}
-       |(
-       |${orig.origFields.zipWithIndex.map(columnDefinition).mkString(",\n")}
-       |)
-     """.stripMargin
-  }
+  def createTable(orig: OrigSchema): String =
+    s"create table ${orig.origTableName} (\n${orig.fieldSchemas.map(_.creationStatement).mkString(",\n")},\n primary key (${orig.pkName})${("" :: orig.extraConstraints).mkString(",\n")})"
 
-  def columnDefinition(field : FieldSchema, primary: Boolean): String =
-    field.fieldType match {
-      case "String" ⇒ s"s${field.fieldId} default ''"
-      case "Int" ⇒
-      case "Long" ⇒
-      case "Boolean" ⇒
-    }*/
+  def alterTable(tableName: String, addColumns: List[String]): String =
+    s"alter table $tableName add (\n${addColumns.mkString("\n")}\n)"
+
+
+  def putOrig(orig: OrigSchema, origs: List[OrigValue]): Int =
+    DB localTx { implicit session ⇒
+      SQL(s"delete from ${orig.origTableName} where ${orig.pkName} in (${origs.map(_.pk).mkString(", ")})").update().apply()
+      SQL(s"insert into ${orig.origTableName} (${orig.fieldSchemas.map(_.fieldName).mkString(", ")}) values ${origs.map(_.value).mkString(", ")}").update().apply()
+    }
+
+  def getOrigFields(orig: OrigSchema, pk: String, columns: List[String]): Option[Map[String, Any]] =
+    DB readOnly { implicit session ⇒
+      SQL(s"select ${columns.mkString(",")} from ${orig.origTableName} where ${orig.pkName} = $pk").map(rt ⇒ rt.toMap()).single().apply()
+    }
 }
