@@ -891,7 +891,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				if(this.props.draggable || this.props.droppable)
 					this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
 			}
-			this.props.droppable && this.el.addEventListener("mousemove",this.onMouseMove)			
+			this.props.droppable && this.el.addEventListener("mousemove",this.onMouseMove)						
 		}
 		componentDidUpdate(prevProps,_){
 			this.checkForSibling()
@@ -899,7 +899,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.dragBinding.update({node:this.el,dragData:this.props.dragData})
 			else if(this.props.draggable || this.props.droppable)
 				this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})			
-		    if(!this.props.draggable && !this.props.droppable) return			
+		    if(!this.props.draggable && !this.props.droppable) return						
 		}			
 		componentWillUnmount(){
 			if(this.dragBinding) this.dragBinding.release();					
@@ -950,6 +950,16 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.dragBinding.dragDrop(e,this.el)	
 			this.onMouseLeave(e)			
 		}
+		getSvgData(){
+			if(!this.el) return
+			const btoa = this.el.ownerDocument.defaultView.btoa
+			const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)			
+			return svgSrc(
+			`<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 64 37" height="37" width="65" style="&#10;    /* transform: rotate(90deg); */&#10;    /* transform-origin: center center; */&#10;">    
+				<path d="M 32.593203,37.673996 H 0.30951829 L 1.6954863,35.851059 C 2.4577683,34.848444 9.5206683,26.406771 17.390819,17.091784 L 31.700184,0.1554501 43.426894,13.434065 c 6.4497,7.303243 13.91445,15.744917 16.58835,18.759276 l 4.86164,5.480655 z" style="fill:#000000;stroke-width:0.75595242"/>
+			</svg>`
+			)
+		}
 		render(){
 			const {colSpan,children,rowSpan} = this.props
 			const rowSpanObj = rowSpan?{rowSpan}:{}
@@ -975,7 +985,32 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				bottom:this.state.info.offSetY?this.state.info.offSetY+"px":"0",
 				left:this.state.info.offSetX?this.state.info.offSetX+"px":"0"
 			}
-			const chld = () => (children?[$("div",{key:1, style:styleT}),...children,$("div",{key:3, style:styleB})]: children)
+			const draw2 = (v) => Object.values(v).length>0 
+			const iStyle = {
+				height: "0.3em",
+				position: "absolute",
+				transformOrigin: "center center",
+				zIndex:"1"
+			}
+			const iStyleL = {				
+				...iStyle,
+				transform: "rotate(90deg)",				
+				left: "-0.25em",
+				top: "-0.17em"
+			}
+			const iStyleR = {
+				...iStyle,
+				transform: "rotate(-90deg)",				
+				right: "-0.25em",
+				top: "-0.2em"
+			}
+			const chld = () => (
+				children?[
+					$("div",{key:1, style:styleT},draw2(borderT)?[$("img",{key:1,src:this.getSvgData(),style:iStyleL}),$("img",{src:this.getSvgData(),style:iStyleR})]:null),
+					...children,
+					$("div",{key:3, style:styleB},draw2(borderB)?[$("img",{key:2,src:this.getSvgData(),style:iStyleL}),$("img",{src:this.getSvgData(),style:iStyleR})]:null)
+				]: children
+			)
 			const actions = {
 				onClick:this.props.onClick,
 				onMouseDown:this.onMouseDown,
@@ -2855,10 +2890,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.className = "DragDropDivElement"
 			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})
 			addEventListener("mouseup",this.onMouseUp)
-			this.el.addEventListener("mousemove",this.onMouseMove)
+			this.el.addEventListener("mousemove",this.onMouseMove)		
 		}
 		componentDidUpdate(){
-			this.dragBinding.update({node:this.el,dragData:this.props.dragData})			
+			this.dragBinding.update({node:this.el,dragData:this.props.dragData})				
 		}
 		componentWillUnmount(){
 			this.dragBinding.release()
@@ -2901,6 +2936,16 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.dragBinding.dragDrop(e,this.el)
 			this.onMouseOut(e)
 		}	
+		getSvgData(){
+			if(!this.el) return
+			const btoa = this.el.ownerDocument.defaultView.btoa
+			const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)			
+			return svgSrc(
+				`<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 64 37" height="37" width="65" style="&#10;    /* transform: rotate(90deg); */&#10;    /* transform-origin: center center; */&#10;">    
+					<path d="M 32.593203,37.673996 H 0.30951829 L 1.6954863,35.851059 C 2.4577683,34.848444 9.5206683,26.406771 17.390819,17.091784 L 31.700184,0.1554501 43.426894,13.434065 c 6.4497,7.303243 13.91445,15.744917 16.58835,18.759276 l 4.86164,5.480655 z" style="fill:#000000;stroke-width:0.75595242"/>
+				</svg>`
+			)
+		}
 		render(){
 			const v = {border:"1px solid"}
 			const borderL = this.state.info.side == dragDropPositionStates.left?v:{}
@@ -2911,6 +2956,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				...this.props.style,
 				...stO
 			}
+			const draw2 = (v) => Object.values(v).length>0 
 			const actions = {				
 				onMouseDown:this.onMouseDown,				
 				onTouchStart:this.onMouseDown,
@@ -2927,9 +2973,32 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				...borderR,
 				right:this.state.info.offSet?this.state.info.offSet+"px":"0"
 			}
+			const iStyle = {
+				height: "0.3em",
+				position: "absolute",
+				transformOrigin: "center center",
+				zIndex:"1"
+			}
+			const iStyleT = {				
+				...iStyle,
+				transform: "rotate(180deg)",				
+				left: "-0.25em",
+				top: "-0.1em"
+			}
+			const iStyleB = {
+				...iStyle,
+				transform: "rotate(0deg)",				
+				left: "-0.25em",
+				bottom: "-0.1em"
+			}
+			
 			const ref = _ =>this.el = _
 			const className = this.className
-			return $("div",{style,ref,...actions,className},[$("div",{style:stStyleL,key:1}),$("div",{key:2},this.props.children),$("div",{style:stStyleR,key:3})])
+			return $("div",{style,ref,...actions,className},[
+				$("div",{style:stStyleL,key:1},draw2(borderL)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{src:this.getSvgData(),style:iStyleB})]:null),
+				$("div",{key:2},this.props.children),
+				$("div",{style:stStyleR,key:3},draw2(borderR)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{src:this.getSvgData(),style:iStyleB})]:null)
+			])
 		}
 	}
 
