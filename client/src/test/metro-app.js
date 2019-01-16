@@ -127,7 +127,7 @@ const miscUtil = (()=>{
 const vDomAttributes = VDomAttributes(requestState)
 
 const images = Images(window.btoa)
-
+window.images = images
 const overlayManager = () => OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager})
 window.focusModule = focusModule

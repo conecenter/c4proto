@@ -764,7 +764,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			},onMouseOver:actions.onMouseOver,onMouseOut:actions.onMouseOut,onClick},$("span",{style:{
 				fontSize:"0.7em",
 				position:"relative",
-				bottom:"calc(0.1em)"
+				bottom:"0.1em"
 			}},deleteEl))
 		}
 	)	
@@ -952,13 +952,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		getSvgData(){
 			if(!this.el) return
-			const btoa = this.el.ownerDocument.defaultView.btoa
-			const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)			
-			return svgSrc(
-			`<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 64 37" height="37" width="65" style="&#10;    /* transform: rotate(90deg); */&#10;    /* transform-origin: center center; */&#10;">    
-				<path d="M 32.593203,37.673996 H 0.30951829 L 1.6954863,35.851059 C 2.4577683,34.848444 9.5206683,26.406771 17.390819,17.091784 L 31.700184,0.1554501 43.426894,13.434065 c 6.4497,7.303243 13.91445,15.744917 16.58835,18.759276 l 4.86164,5.480655 z" style="fill:#000000;stroke-width:0.75595242"/>
-			</svg>`
-			)
+			return images.triAngleSvgData
 		}
 		render(){
 			const {colSpan,children,rowSpan} = this.props
@@ -1006,9 +1000,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 			const chld = () => (
 				children?[
-					$("div",{key:1, style:styleT},draw2(borderT)?[$("img",{key:1,src:this.getSvgData(),style:iStyleL}),$("img",{src:this.getSvgData(),style:iStyleR})]:null),
+					$("div",{key:1, style:styleT},draw2(borderT)?[$("img",{key:1,src:this.getSvgData(),style:iStyleL}),$("img",{key:2,src:this.getSvgData(),style:iStyleR})]:null),
 					...children,
-					$("div",{key:3, style:styleB},draw2(borderB)?[$("img",{key:2,src:this.getSvgData(),style:iStyleL}),$("img",{src:this.getSvgData(),style:iStyleR})]:null)
+					$("div",{key:3, style:styleB},draw2(borderB)?[$("img",{key:1,src:this.getSvgData(),style:iStyleL}),$("img",{key:2,src:this.getSvgData(),style:iStyleR})]:null)
 				]: children
 			)
 			const actions = {
@@ -2936,22 +2930,16 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.dragBinding.dragDrop(e,this.el)
 			this.onMouseOut(e)
 		}	
-		getSvgData(){
+		getSvgData(w,t){
 			if(!this.el) return
-			const btoa = this.el.ownerDocument.defaultView.btoa
-			const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)			
-			return svgSrc(
-				`<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 64 37" height="37" width="65" style="&#10;    /* transform: rotate(90deg); */&#10;    /* transform-origin: center center; */&#10;">    
-					<path d="M 32.593203,37.673996 H 0.30951829 L 1.6954863,35.851059 C 2.4577683,34.848444 9.5206683,26.406771 17.390819,17.091784 L 31.700184,0.1554501 43.426894,13.434065 c 6.4497,7.303243 13.91445,15.744917 16.58835,18.759276 l 4.86164,5.480655 z" style="fill:#000000;stroke-width:0.75595242"/>
-				</svg>`
-			)
+			return images.triAngleSvgData
 		}
 		render(){
 			const v = {border:"1px solid"}
 			const borderL = this.state.info.side == dragDropPositionStates.left?v:{}
 			const borderR = this.state.info.side == dragDropPositionStates.right?v:{}
-			const infoS = {position:"absolute",boxSizing:"border-box",height:"100%"}
-			const stO = this.state.info.side != dragDropPositionStates.none? {display:"flex",position:"relative"}:{}
+			const infoS = {position:"absolute",boxSizing:"border-box",height:"100%",top:"0"}
+			const stO = this.state.info.side != dragDropPositionStates.none? {position:"relative"}:{}
 			const style = {
 				...this.props.style,
 				...stO
@@ -2995,9 +2983,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const ref = _ =>this.el = _
 			const className = this.className
 			return $("div",{style,ref,...actions,className},[
-				$("div",{style:stStyleL,key:1},draw2(borderL)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{src:this.getSvgData(),style:iStyleB})]:null),
+				$("div",{style:stStyleL,key:1},draw2(borderL)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{key:2,src:this.getSvgData(),style:iStyleB})]:null),
 				$("div",{key:2},this.props.children),
-				$("div",{style:stStyleR,key:3},draw2(borderR)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{src:this.getSvgData(),style:iStyleB})]:null)
+				$("div",{style:stStyleR,key:3},draw2(borderR)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{key:2,src:this.getSvgData(),style:iStyleB})]:null)
 			])
 		}
 	}
@@ -3601,6 +3589,104 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $("div",{style,ref:ref=>this.el=ref},drawChildren)
 		}
 	}	
+	class ProgressbarElement extends StatefulComponent{	
+		getInitialState(){
+			return {top:undefined,left:undefined}
+		}
+		update(top,left){			
+			if(this.state.top==top && this.state.left==left) return
+			this.setState({top,left})
+		}
+		recalc(){
+			if(!this.t) return
+			const tR = this.t.getBoundingClientRect()
+			const pR = this.t.parentElement.getBoundingClientRect()
+			if(tR.width>pR.width||tR.height>pR.height) return this.update()
+			const top = (pR.height - tR.height)/2
+			const left = (pR.width - tR.width)/2
+			return this.update(top,left)
+		}
+		componentDidMount(){
+			this.rb = resizeListener.reg(this.recalc)
+			this.recalc()
+		}
+		componentDidUpdate(){
+			this.recalc()
+		}
+		componentWillUnmount(){
+			this.rb&&this.rb.unreg()
+		}	
+		onRef(node){
+			this.t = node
+			if(node) this.recalc()
+		}
+		render(){
+			const {value,max} = this.props
+			const v1 = parseFloat(value)
+			const v2 = parseFloat(max)
+			let v = (v1/v2)*100
+			v = Number.isInteger(v)?v:v.toFixed(2)
+			const style = {
+				fontSize:'1em',
+				color:'white',
+				textAlign:'center',
+				borderRadius:'0.58em',														
+				margin:'0 0.1em',
+				verticalAlign:"top",			
+				alignSelf:"center",
+				MozUserSelect:"none",
+				userSelect:"none",		
+				overflow:"hidden",			
+				height:"1.76em",			
+				boxSizing:"border-box",
+				...this.props.style,
+				backgroundColor:"#eee"
+			}
+			const style2 = {
+				position:"absolute",
+				left:this.state.left+"px",
+				top:this.state.top+"px",
+				color:this.props.color,
+				visibility:this.state.top?"":"hidden"
+			} 
+			const style3 = {
+				backgroundColor:this.props.backgroundColor,
+				height:"100%",
+				width:v+"%",
+				position:"relative"				
+			}
+			return $("div",{style},
+				$("div",{style:style3},
+					$("div",{style:style2,ref:this.onRef},v+"%")
+				)
+			)
+		}
+	}
+	class TextElement extends StatefulComponent{
+		selectC(win){
+			const selection = win.getSelection()
+			if (selection.rangeCount > 0) selection.removeAllRanges()			
+			const range = win.document.createRange()
+			range.selectNode(this.el)
+			selection.addRange(range)			
+			documentManager.execCopy()
+			setTimeout(()=>selection.removeAllRanges(),200)
+		}
+		onClick(e){		
+			this.selectC(e.view)			
+		}
+		componentDidMount(){
+			if(!this.el) return
+			this.el.addEventListener("click",this.onClick)
+		}
+		componentWillUnmount(){
+			this.el.removeEventListener("click",this.onClick)
+		}		
+		render(){			
+			const {style,content} = this.props
+			return $("span",{ref:ref=>this.el=ref,style},content)
+		}
+	}
 	const Availability = (() =>{		
 		let callbacks=[];
 		const receiver= (data) =>{			
@@ -3634,11 +3720,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
             InputElement,AnchorElement,HeightLimitElement,ImageElement,SoundProducerElement,
-			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,
+			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,TextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
-			DateTimeClockElement,TimeElement,
+			DateTimeClockElement,TimeElement,ProgressbarElement,
             MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,MenuBurger,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,

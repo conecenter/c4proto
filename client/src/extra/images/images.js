@@ -59,6 +59,10 @@ export default function Images(btoa){
 					<circle style="stroke:white;fill: ${l1C};" cx="73.793" cy="121.272" r="8.231"></circle>
 				</svg>`;
 	const wifiSignalStateSvgData = (l1C,l2C,l3C,l4C) => svgSrc(wifiSignalStateSvg(l1C,l2C,l3C,l4C))
+	const triAngleSvg = `<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 64 37" height="37" width="65">    
+					<path d="M 32.593203,37.673996 H 0.30951829 L 1.6954863,35.851059 C 2.4577683,34.848444 9.5206683,26.406771 17.390819,17.091784 L 31.700184,0.1554501 43.426894,13.434065 c 6.4497,7.303243 13.91445,15.744917 16.58835,18.759276 l 4.86164,5.480655 z" style="fill:#000000;stroke-width:0.75595242"/>
+				</svg>`
+	const triAngleSvgData = svgSrc(triAngleSvg)
 	const beepMidi = `data:audio/mpeg;base64,SUQzAwAAAAAAJlRQRTEAAAAcAAAAU291bmRKYXkuY29tIFNvdW5kIEVmZmVjdHMA//uSwAAAAAAB
 LBQAAAMCw+onN1AKDBBBAFBAEPMD//2f/+nFun/3M1Y6NbBv/+mxPRshZuiBn5dAauNXNzdADFAa
 A4aWwMdFT06DAZgCQGIBwDigBh8J/bwGDIBg0OgBC8BcHgMB//3hqwEQHAcAACgYEgoBioVf7/AG
@@ -380,6 +384,25 @@ zR5MSVNUFAAAAElORk9JU0ZUCAAAAEZpc3Npb24A`
 	
 	return {
 		closeSvgData,noteSvgData,arrowDownSvgData,connectionSvgData,folderSvgData,checkboxSvgData,calendarSvgData,
-		wifiSignalStateSvgData,beepMidi,errorSound
+		wifiSignalStateSvgData,beepMidi,errorSound,triAngleSvgData
 	}
 }
+
+/*
+	const triAngleSvg = (h,t) =>{
+		const viewBox = !t?`0 0 42 ${50+h}`:`0 0 ${50+h} 42`
+		const height = !t?50+h:42
+		const width = !t?42:50+h
+		const p1d = !t?"M 0,0 42,0 21,25 Z":"M 0,0 0,42 25,21 Z"
+		const p2d = !t?`M 0,${50+h} 42,${50+h} 21,${50+h-25} Z`:`M ${50+h},0 ${50+h},42 ${50+h-25},21 Z`		
+		const r = !t?{x:16,y:0,height:50+h,width:10}:{x:0,y:16,width:50+h,height:10}		
+		return `
+		<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="${viewBox}" height="${height}" width="${width}" > 
+			<path style="stroke-width:0.2" d="${p1d}"/>
+			<path style="stroke-width:0.2" d="${p2d}"/>	  
+			<rect style="stroke-width:0.2" y="${r.y}" x="${r.x}" height="${r.height}" width="${r.width}"/>  
+		</svg>
+		`
+	}
+
+*/
