@@ -8,9 +8,7 @@ case class FieldSchema(fieldName: String, fieldType: String, creationStatement: 
 
 case class PrimaryKeySchema(pkName: String, pkType: String)
 
-case class OrigValue(schema: OrigSchema, pks: List[Any], values: List[Any]) {
-  override def toString: String = s"($pks,$values)"
-}
+case class OrigValue(schema: OrigSchema, pks: List[Any], values: List[Any])
 
 trait OrigDBAdapter {
   def getSchema: List[TableSchema]

@@ -20,9 +20,11 @@ object DBTest {
     val testOrig = TestOrig("1", 2, 3,
       Some("4"),
       List(
-        OtherOrig(5,Some(OtherOrig2(8, "11"))),
-        OtherOrig(6,Some(OtherOrig2(9, "12"))),
-        OtherOrig(7,Some(OtherOrig2(10, "13")))))
+        OtherOrig(5, Some(OtherOrig2(8, "11"))),
+        OtherOrig(6, Some(OtherOrig2(9, "12"))),
+        OtherOrig(7, Some(OtherOrig2(10, "13")))
+      )
+    )
     println(builder.getOrigValue(testOrig))
   }
 
@@ -40,9 +42,11 @@ object DBTest {
     val testOrig = TestOrig("1", 2, 3,
       Some("4"),
       List(
-        OtherOrig(5,Some(OtherOrig2(8, "11"))),
-        OtherOrig(6,Some(OtherOrig2(9, "12"))),
-        OtherOrig(7,Some(OtherOrig2(10, "13")))))
+        OtherOrig(5, Some(OtherOrig2(8, "11"))),
+        OtherOrig(6, Some(OtherOrig2(9, "12"))),
+        OtherOrig(7, Some(OtherOrig2(10, "13")))
+      )
+    )
     adapter.putOrigs(builder.getOrigValue(testOrig))
     println(adapter.getOrig(builder.getMainSchema, "1"))
     /* println(
