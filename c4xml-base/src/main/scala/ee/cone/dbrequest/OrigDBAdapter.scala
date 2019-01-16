@@ -2,16 +2,38 @@ package ee.cone.dbrequest
 
 case class TableSchema(tableName: String, columnNames: List[String])
 
-case class OrigSchema(origTableName: String, pkName: String, fieldSchemas: List[FieldSchema], extraConstraints: List[String] = Nil)
-case class FieldSchema(fieldName: String, creationStatement: String)
-case class OrigValue(pk: String, value: String)
+case class OrigSchema(level: Int, className: String, origTableName: String, pks: List[PrimaryKeySchema], fieldSchemas: List[FieldSchema], constraints: List[String] = Nil)
+
+case class FieldSchema(fieldName: String, fieldType: String, creationStatement: String)
+
+case class PrimaryKeySchema(pkName: String, pkType: String)
+
+case class OrigValue(schema: OrigSchema, pks: List[Any], values: List[Any]) {
+  override def toString: String = s"($pks,$values)"
+}
 
 trait OrigDBAdapter {
   def getSchema: List[TableSchema]
 
   def patchSchema(origSchemas: List[OrigSchema]): List[TableSchema]
 
-  def putOrig(orig: OrigSchema, origs: List[OrigValue]): Int
+  def putOrigs(origs: List[OrigValue]): List[(OrigSchema, Int)]
 
-  def getOrigFields(orig: OrigSchema, pk: String, columns: List[String]): Option[Map[String, Any]]
+  def getOrig(orig: OrigSchema, pk: String): Option[Product]
+}
+
+trait OrigSchemaBuilder[Model <: Product] {
+  def getMainSchema: OrigSchema
+
+  def getSchemas: List[OrigSchema]
+
+  def getOrigValue: Model ⇒ List[OrigValue]
+
+  def getPk: Model ⇒ String
+}
+
+trait OrigSchemaOption
+
+trait OrigSchemaBuilderFactory {
+  def make[Model <: Product](cl: Class[Model], options: List[OrigSchemaOption] = Nil): OrigSchemaBuilder[Model]
 }
