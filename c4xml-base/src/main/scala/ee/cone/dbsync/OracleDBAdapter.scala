@@ -3,23 +3,37 @@ package ee.cone.dbsync
 import java.io.ByteArrayInputStream
 
 import com.squareup.wire.ProtoAdapter
+import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.ToPrimaryKey
 import ee.cone.c4proto.{HasId, MetaProp}
 import scalikejdbc._
 
-case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry) extends OrigDBAdapter {
+case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: ConnectionSetting) extends OrigDBAdapter {
+  val poolSymbol: Symbol = cs.name
+  ConnectionPool.add(poolSymbol, cs.url, cs.user, cs.password, cs.connectionPoolSettings)
+
   def getSchema: List[TableSchema] =
-    DB readOnly {
+    NamedDB('conn) readOnly {
       implicit session ⇒
         sql"SELECT table_name, column_name FROM USER_TAB_COLUMNS".map(res ⇒ res.string("table_name").toUpperCase → res.string("column_name").toUpperCase).list().apply()
           .groupBy(_._1).toList.map(kv ⇒ TableSchema(kv._1, kv._2.map(_._2)))
     }
 
+  val offsetSchema = OrigSchema(0, "c4offset", "c4offset",
+    PrimaryKeySchema("id", "number(5,0)") :: Nil,
+    FieldSchema("id", "number(5,0)", "id number(5,0) default 0 not null") :: FieldSchema("c4offset", "varchar2(16)", "c4offset varchar2(16) default '0000000000000000' not null") :: Nil
+  )
+
+  def getOffset: NextOffset =
+    NamedDB('conn) readOnly { implicit session ⇒
+      sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
+    }
+
   def patchSchema(origSchemas: List[OrigSchema]): List[TableSchema] = {
     val currentSchema = getSchema
     val currentSchemaMap = currentSchema.map(t ⇒ t.tableName → t.columnNames).toMap
-    val (toUpdate, toCreate) = origSchemas.partition(t ⇒ currentSchemaMap contains t.origTableName.toUpperCase)
+    val (toUpdate, toCreate) = (offsetSchema :: origSchemas).partition(t ⇒ currentSchemaMap contains t.origTableName.toUpperCase)
     val creations = toCreate.map(createTable)
     val alters = toUpdate.map { orig ⇒
       val columns = orig.fieldSchemas.filterNot(f ⇒ currentSchemaMap(orig.origTableName.toUpperCase) contains f.fieldName.toUpperCase).map(_.creationStatement)
@@ -33,7 +47,7 @@ case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry) extends OrigD
   }
 
   def requestExecution(sqls: List[String]): Int = {
-    DB localTx { implicit session ⇒
+    NamedDB('conn) localTx { implicit session ⇒
       sqls.map(SQL.apply).map(_.update.apply()).sum
     }
   }
@@ -45,25 +59,30 @@ case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry) extends OrigD
     s"alter table $tableName add (\n${addColumns.mkString("\n")}\n)"
 
 
-  def putOrigs(toWrite: List[OrigValue]): List[(OrigSchema, Int)] =
-    DB localTx { implicit session ⇒
+  def putOrigs(toWrite: List[OrigValue], offset: NextOffset): List[(OrigSchema, Int)] =
+    NamedDB('conn) localTx { implicit session ⇒
       toWrite.groupBy(_.schema).toList.sortBy(_._1.level).map { case (orig, origs) ⇒
         val tableName = SQLSyntax.createUnsafely(orig.origTableName)
         val pkNames = orig.pks.map(_.pkName).map(SQLSyntax.createUnsafely(_))
         val keyValues = origs.map(_.pks).map(pkl ⇒ sqls"(${pkl})")
         sql"delete from ${tableName} where (${pkNames}) in (${keyValues})".update().apply()
         val columnNames = SQLSyntax.createUnsafely(orig.fieldSchemas.map(_.fieldName).mkString(", "))
-        orig → origs.map(value ⇒ sql"insert into ${tableName} (${columnNames}) values (${value.values})").map(_.update().apply()).sum
+        val sum = orig → origs.filterNot(_.delete).map(value ⇒ sql"insert into ${tableName} (${columnNames}) values (${value.values})").map(_.update().apply()).sum
+        sql"delete from c4offset where id = 0".update().apply()
+        sql"insert into c4offset values (0, ${offset})".update().apply()
+        sum
       }
     }
 
 
-  def getOrig(orig: OrigSchema, pk: String): Option[Product] = {
+  def getOrig(orig: OrigSchema, pk: String): (Option[Product], NextOffset) = {
     val adapter = qAdapterRegistry.byName(orig.className)
-    DB readOnly { implicit session ⇒
-      SQL(s"select blob from ${orig.origTableName} where (${orig.pks.map(_.pkName).mkString(", ")}) = ($pk)")
+    NamedDB('conn) readOnly { implicit session ⇒
+      val dbOrig = SQL(s"select blob from ${orig.origTableName} where (${orig.pks.map(_.pkName).mkString(", ")}) = ($pk)")
         .map(rt ⇒ rt.blob("blob"))
         .single().apply().map(bb ⇒ adapter.decode(bb.getBinaryStream))
+      val offset = sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
+      (dbOrig, offset)
     }
   }
 }
@@ -77,7 +96,7 @@ case class OracleLongString(fieldName: String)
 case class OracleOrigSchemaBuilderFactory(qAdapterRegistry: QAdapterRegistry) extends OrigSchemaBuilderFactory {
   lazy val byName: Map[String, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byName
 
-  def make[Model <: Product](cl: Class[Model], options: List[OrigSchemaOption]): OrigSchemaBuilder[Model] = {
+  def db[Model <: Product](cl: Class[Model], options: List[OrigSchemaOption]): OrigSchemaBuilder[Model] = {
     val adapter = byName(cl.getName)
     val props: List[MetaProp] = adapter.props
     val id = adapter.id
@@ -94,7 +113,7 @@ case class OracleOrigSchemaBuilderFactory(qAdapterRegistry: QAdapterRegistry) ex
     val innerSchemas = parseInners(1, origSchema.origTableName, origSchema.pks, props, options)
     val schMap = (origSchema :: innerSchemas).map(sch ⇒ sch.origTableName → sch).toMap
     val getter = makeGetterOuter(cl, schMap)
-    OracleOrigSchemaBuilder[Model](origSchema, innerSchemas, getter)
+    OracleOrigSchemaBuilder[Model](id, origSchema, innerSchemas, getter)
   }
 
   private def parseSchema(level: Int, parentName: String, parentPks: List[PrimaryKeySchema], clName: String, options: List[OrigSchemaOption]): (List[FieldSchema], List[OrigSchema]) = {
@@ -319,12 +338,13 @@ trait OrigGetter {
 }
 
 case class OracleOrigSchemaBuilder[Model <: Product](
+  getOrigId: Long,
   getMainSchema: OrigSchema,
   innerSchemas: List[OrigSchema],
   getter: OrigGetter /*,
   fields: Map[String, List[FieldSchema]]*/
 ) extends OrigSchemaBuilder[Model] {
-  def getOrigValue: Model ⇒ List[OrigValue] = getter.get
-  def getPk: Model ⇒ String = ToPrimaryKey(_)
+  def getUpdateValue: Product ⇒ List[OrigValue] = getter.get
+  def getDeleteValue: SrcId ⇒ List[OrigValue] = pk ⇒ OrigValue(getMainSchema, pk :: Nil, Nil, delete = true) :: Nil
   def getSchemas: List[OrigSchema] = getMainSchema :: innerSchemas
 }

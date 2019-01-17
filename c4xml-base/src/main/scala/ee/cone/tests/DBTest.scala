@@ -13,10 +13,9 @@ object DBTest {
   def main(args: Array[String]): Unit = {
     dbTest
     val registry: QAdapterRegistry = QAdapterRegistryFactory.apply(TestDbOrig :: Nil)
-    val adapter: OrigDBAdapter = OracleOrigDBAdapter(registry)
 
     val factory = OracleOrigSchemaBuilderFactory(registry)
-    val builder = factory.make(classOf[TestOrig], Nil)
+    val builder = factory.db(classOf[TestOrig], Nil)
     val testOrig = TestOrig("1", 2, 3,
       Some("4"),
       List(
@@ -29,16 +28,20 @@ object DBTest {
   }
 
   def dbTest: Unit = {
-    ConnectionPool.singleton("jdbc:oracle:thin:@x.edss.ee:65035:mct1", "K$JMS", "YUaAH6a5ypPTcP3p")
+    val settings = ConnectionPoolSettings(
+      initialSize = 5,
+      maxSize = 20,
+      connectionTimeoutMillis = 3000L,
+      validationQuery = "select 1 from dual")
+    val connectionsetting = ConnectionSetting('conn, "jdbc:oracle:thin:@x.edss.ee:65035:mct1", "K$JMS", "YUaAH6a5ypPTcP3p", settings)
 
     val registry: QAdapterRegistry = QAdapterRegistryFactory.apply(TestDbOrig :: Nil)
-    val adapter: OrigDBAdapter = OracleOrigDBAdapter(registry)
+    val adapter: OrigDBAdapter = OracleOrigDBAdapter(registry,connectionsetting)
 
     val factory = OracleOrigSchemaBuilderFactory(registry)
-    val builder = factory.make(classOf[TestOrig], Nil)
+    val builder = factory.db(classOf[TestOrig], Nil)
     println(adapter.getSchema)
     println(adapter.patchSchema(builder.getSchemas))
-    println(builder.getSchemas.mkString("\n===================\n"))
     val testOrig = TestOrig("1", 2, 3,
       Some("4"),
       List(
@@ -47,8 +50,9 @@ object DBTest {
         OtherOrig(7, Some(OtherOrig2(10, "13")))
       )
     )
-    adapter.putOrigs(builder.getOrigValue(testOrig))
+    adapter.putOrigs(builder.getOrigValue(testOrig), "00000000000000ac")
     println(adapter.getOrig(builder.getMainSchema, "1"))
+    println(adapter.getOffset)
     /* println(
        DB localTx { implicit session ⇒ testSQL("test", List("1243", new ByteArrayInputStream(registry.byName(classOf[TestOrig].getName).encode(TestOrig("1", 2, 3, None, Nil))))).update().apply() }
      )*/
