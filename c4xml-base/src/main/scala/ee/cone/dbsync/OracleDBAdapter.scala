@@ -1,4 +1,4 @@
-package ee.cone.dbrequest
+package ee.cone.dbsync
 
 import java.io.ByteArrayInputStream
 

@@ -4,7 +4,7 @@ import java.io.ByteArrayInputStream
 
 import ee.cone.c4actor.{QAdapterRegistry, QAdapterRegistryFactory}
 import ee.cone.c4proto.{Id, Protocol, protocol}
-import ee.cone.dbrequest._
+import ee.cone.dbsync._
 import ee.cone.tests.TestDbOrig.{OtherOrig, OtherOrig2, TestOrig}
 import scalikejdbc._
 

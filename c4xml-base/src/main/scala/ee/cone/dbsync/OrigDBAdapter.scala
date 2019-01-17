@@ -1,4 +1,4 @@
-package ee.cone.dbrequest
+package ee.cone.dbsync
 
 case class TableSchema(tableName: String, columnNames: List[String])
 
