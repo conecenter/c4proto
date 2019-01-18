@@ -191,7 +191,7 @@ lazy val `c4actor-jms` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
   .settings(libraryDependencies += "org.apache.activemq" % "activemq-all" % "5.11.0")
-  .dependsOn(`c4actor-base`, `c4gate-logback`, `c4actor-kafka`)
+  .dependsOn(`c4actor-extra`, `c4gate-logback`, `c4actor-kafka`)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(

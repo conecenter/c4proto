@@ -9,4 +9,8 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0a0b) jmsType: String,
     @Id(0x0acc) messageBody: String
   )
+
+  @Id(0x0dab) case class JmsDoneMarker(
+    @Id(0x0bad) srcId: String // messageId
+  )
 }
