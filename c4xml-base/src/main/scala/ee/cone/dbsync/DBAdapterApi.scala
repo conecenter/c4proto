@@ -32,6 +32,8 @@ trait DBAdapter {
 trait OrigSchemaBuilder[Model <: Product] {
   def getOrigId: Long
 
+  def getOrigCl: String
+
   def getMainSchema: OrigSchema
 
   def getSchemas: List[OrigSchema]

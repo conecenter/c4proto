@@ -11,6 +11,7 @@ import ee.cone.c4proto.{Id, Protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
+import ee.cone.dbsync.{ExternalDBSyncApp, OracleDBApp, OrigSchemaBuilder}
 
 class TestCoWorkApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -34,7 +35,11 @@ class TestCoWorkApp extends ServerApp
   with TestCoLeaderViewApp
   with TestTxLogApp
   with SSHDebugApp
+  with OracleDBApp
+  with ExternalDBSyncApp
 {
+  override def external: List[Class[_ <: Product]] = classOf[Content] :: super.external
+  override def builders: List[OrigSchemaBuilder[_ <: Product]] = origSchemaBuilderFactory.db(classOf[Content]) :: super.builders
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
       new FromAlienTaskAssemble("/react-app.html") ::

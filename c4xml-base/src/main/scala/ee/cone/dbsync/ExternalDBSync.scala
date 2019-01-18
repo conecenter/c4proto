@@ -8,13 +8,13 @@ import ee.cone.c4proto.HasId
 
 import scala.annotation.tailrec
 
-trait ExternalDBSyncApp extends ToStartApp with OrigSchemaBuildersApp {
+trait ExternalDBSyncApp extends ToStartApp with OrigSchemaBuildersApp with ExternalModelsApp {
   def qAdapterRegistry: QAdapterRegistry
   def toUpdate: ToUpdate
   def consuming: Consuming
   def dbAdapter: DBAdapter
 
-  override def toStart: List[Executable] = new ExternalDBSync(consuming, dbAdapter, builders, qAdapterRegistry, toUpdate) :: super.toStart
+  override def toStart: List[Executable] = new ExternalDBSync(consuming, dbAdapter, builders, qAdapterRegistry, toUpdate, external) :: super.toStart
 }
 
 class ExternalDBSync(
@@ -22,7 +22,8 @@ class ExternalDBSync(
   dbAdapter: DBAdapter,
   builders: List[OrigSchemaBuilder[_ <: Product]],
   qAdapterRegistry: QAdapterRegistry,
-  toUpdate: ToUpdate
+  toUpdate: ToUpdate,
+  external: List[Class[_ <: Product]]
 ) extends Executable {
   def run(): Unit = {
     val schemas = builders.flatMap(_.getSchemas)
@@ -34,8 +35,12 @@ class ExternalDBSync(
     )
   }
 
-  val builderMap: Map[Long, OrigSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigId → b).toMap
+  val externals: List[SrcId] = external.map(_.getName)
+  val buildersByName: Map[String, OrigSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigCl → b).toMap
+  // Check if registered externals have builder
+  val builderMap: Map[Long, OrigSchemaBuilder[_ <: Product]] = externals.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
   val supportedIds: Set[Long] = builderMap.keySet
+  // Check if registered externals have adapter
   val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.filterKeys(supportedIds)
 
   val extUpdate: ProtoAdapter[ExternalUpdate] with HasId =

@@ -20,10 +20,11 @@ trait OracleDBApp {
     initialSize = 5,
     maxSize = 20,
     connectionTimeoutMillis = 3000L,
-    validationQuery = "select 1 from dual")
+    validationQuery = "select 1 from dual"
+  )
 
   private val cs: ConnectionSetting = ConnectionSetting('conn, dbUrl, username, password, connPoolSettings)
-  val dbAdapter: DBAdapter = OracleDBAdapter(qAdapterRegistry,cs)
+  val dbAdapter: DBAdapter = OracleDBAdapter(qAdapterRegistry, cs)
   val origSchemaBuilderFactory: OrigSchemaBuilderFactory = OracleOrigSchemaBuilderFactory(qAdapterRegistry)
 }
 
@@ -151,7 +152,7 @@ case class OracleOrigSchemaBuilderFactory(qAdapterRegistry: QAdapterRegistry) ex
     val innerSchemas = parseInners(1, origSchema.origTableName, origSchema.pks, props, options)
     val schMap = (origSchema :: innerSchemas).map(sch ⇒ sch.origTableName → sch).toMap
     val getter = makeGetterOuter(cl, schMap)
-    OracleOrigSchemaBuilder[Model](id, origSchema, innerSchemas, getter)
+    OracleOrigSchemaBuilder[Model](id, cl.getName, origSchema, innerSchemas, getter)
   }
 
   private def parseSchema(level: Int, parentName: String, parentPks: List[PrimaryKeySchema], clName: String, options: List[OrigSchemaOption]): (List[FieldSchema], List[OrigSchema]) = {
@@ -377,6 +378,7 @@ trait OrigGetter {
 
 case class OracleOrigSchemaBuilder[Model <: Product](
   getOrigId: Long,
+  getOrigCl: String,
   getMainSchema: OrigSchema,
   innerSchemas: List[OrigSchema],
   getter: OrigGetter /*,

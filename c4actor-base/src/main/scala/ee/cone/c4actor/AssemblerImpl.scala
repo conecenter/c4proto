@@ -38,7 +38,8 @@ class AssemblerInit(
   origKeyFactory: OrigKeyFactory,
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
-  actorName: String
+  actorName: String,
+  processors: List[UpdatesPreprocessor]
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
@@ -84,7 +85,7 @@ class AssemblerInit(
       if(events.size == 1){
         val updates = offset(events) ++
           events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))
-          .flatMap(LEvent.update).map(toUpdate.toUpdate)
+            .flatMap(LEvent.update).map(toUpdate.toUpdate)
         val failDiff = toTree(assembled, updates)
         reduce(replace, assembled, failDiff)
       } else {
@@ -93,15 +94,16 @@ class AssemblerInit(
       }
   }
   // other parts:
-  private def add(out: Seq[Update]): Context ⇒ Context =
-    if(out.isEmpty) identity[Context]
+  private def add(out: Seq[Update]): Context ⇒ Context = {
+    val processedOut = processors.par.flatMap(_.process(out)).to[Seq] ++ out
+    if (processedOut.isEmpty) identity[Context]
     else { local ⇒
-      val diff = toTree(local.assembled, out)
+      val diff = toTree(local.assembled, processedOut)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val res = for {
         transition ← replace(local.assembled,diff,false,profiling)
-        updates ← assembleProfiler.addMeta(transition, out)
+        updates ← assembleProfiler.addMeta(transition, processedOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.transient)
         WriteModelKey.modify(_.enqueue(updates))(nLocal)
@@ -109,6 +111,7 @@ class AssemblerInit(
       concurrent.blocking{Await.result(res, Duration.Inf)}
       //call add here for new mortal?
     }
+  }
 
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
     val index = origKeyFactory.rawKey(className).of(context.assembled).value.get.get

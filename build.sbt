@@ -162,7 +162,7 @@ lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
   .settings(metaREPLSettings)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`, `c4xml-base`)
   .enablePlugins(JavaServerAppPackaging)
 
 
