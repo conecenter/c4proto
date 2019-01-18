@@ -1,6 +1,7 @@
 package ee.cone.tests
 
 import java.io.ByteArrayInputStream
+import java.util
 
 import ee.cone.c4actor.{QAdapterRegistry, QAdapterRegistryFactory}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -11,7 +12,11 @@ import scalikejdbc._
 
 object DBTest {
   def main(args: Array[String]): Unit = {
-    dbTest
+    GlobalSettings.loggingSQLAndTime = LoggingSQLAndTimeSettings(
+      singleLineMode = true,
+      logLevel = 'debug
+    )
+    dbTest(args)
     val registry: QAdapterRegistry = QAdapterRegistryFactory.apply(TestDbOrig :: Nil)
 
     val factory = OracleOrigSchemaBuilderFactory(registry)
@@ -24,19 +29,23 @@ object DBTest {
         OtherOrig(7, Some(OtherOrig2(10, "13")))
       )
     )
-    println(builder.getOrigValue(testOrig))
+    //println(builder.getOrig(testOrig))
   }
 
-  def dbTest: Unit = {
+  def dbTest(args: Array[String]): Unit = {
     val settings = ConnectionPoolSettings(
       initialSize = 5,
       maxSize = 20,
       connectionTimeoutMillis = 3000L,
       validationQuery = "select 1 from dual")
-    val connectionsetting = ConnectionSetting('conn, "jdbc:oracle:thin:@x.edss.ee:65035:mct1", "K$JMS", "YUaAH6a5ypPTcP3p", settings)
+    val url = args(0)
+    val user = args(1)
+    val pass = args(2)
+    println(util.Arrays.asList(args))
+    val connectionsetting = ConnectionSetting('conn, url, user, pass, settings)
 
     val registry: QAdapterRegistry = QAdapterRegistryFactory.apply(TestDbOrig :: Nil)
-    val adapter: OrigDBAdapter = OracleOrigDBAdapter(registry,connectionsetting)
+    val adapter: DBAdapter = OracleDBAdapter(registry,connectionsetting)
 
     val factory = OracleOrigSchemaBuilderFactory(registry)
     val builder = factory.db(classOf[TestOrig], Nil)
@@ -50,7 +59,7 @@ object DBTest {
         OtherOrig(7, Some(OtherOrig2(10, "13")))
       )
     )
-    adapter.putOrigs(builder.getOrigValue(testOrig), "00000000000000ac")
+    adapter.putOrigs(builder.getUpdateValue(testOrig), "00000000000000ac")
     println(adapter.getOrig(builder.getMainSchema, "1"))
     println(adapter.getOffset)
     /* println(

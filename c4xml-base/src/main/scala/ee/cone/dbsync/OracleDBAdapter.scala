@@ -9,12 +9,30 @@ import ee.cone.c4assemble.ToPrimaryKey
 import ee.cone.c4proto.{HasId, MetaProp}
 import scalikejdbc._
 
-case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: ConnectionSetting) extends OrigDBAdapter {
+trait OracleDBApp {
+  def config: Config
+  def qAdapterRegistry: QAdapterRegistry
+
+  private val dbUrl = config.get("DBURL")
+  private val username = config.get("DBUSER")
+  private val password = config.get("DBPASS")
+  private val connPoolSettings = ConnectionPoolSettings(
+    initialSize = 5,
+    maxSize = 20,
+    connectionTimeoutMillis = 3000L,
+    validationQuery = "select 1 from dual")
+
+  private val cs: ConnectionSetting = ConnectionSetting('conn, dbUrl, username, password, connPoolSettings)
+  val dbAdapter: DBAdapter = OracleDBAdapter(qAdapterRegistry,cs)
+  val origSchemaBuilderFactory: OrigSchemaBuilderFactory = OracleOrigSchemaBuilderFactory(qAdapterRegistry)
+}
+
+case class OracleDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: ConnectionSetting) extends DBAdapter {
   val poolSymbol: Symbol = cs.name
   ConnectionPool.add(poolSymbol, cs.url, cs.user, cs.password, cs.connectionPoolSettings)
 
   def getSchema: List[TableSchema] =
-    NamedDB('conn) readOnly {
+    NamedDB(poolSymbol) readOnly {
       implicit session ⇒
         sql"SELECT table_name, column_name FROM USER_TAB_COLUMNS".map(res ⇒ res.string("table_name").toUpperCase → res.string("column_name").toUpperCase).list().apply()
           .groupBy(_._1).toList.map(kv ⇒ TableSchema(kv._1, kv._2.map(_._2)))
@@ -26,7 +44,7 @@ case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: Connectio
   )
 
   def getOffset: NextOffset =
-    NamedDB('conn) readOnly { implicit session ⇒
+    NamedDB(poolSymbol) readOnly { implicit session ⇒
       sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
     }
 
@@ -47,7 +65,7 @@ case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: Connectio
   }
 
   def requestExecution(sqls: List[String]): Int = {
-    NamedDB('conn) localTx { implicit session ⇒
+    NamedDB(poolSymbol) localTx { implicit session ⇒
       sqls.map(SQL.apply).map(_.update.apply()).sum
     }
   }
@@ -60,7 +78,7 @@ case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: Connectio
 
 
   def putOrigs(toWrite: List[OrigValue], offset: NextOffset): List[(OrigSchema, Int)] =
-    NamedDB('conn) localTx { implicit session ⇒
+    NamedDB(poolSymbol) localTx { implicit session ⇒
       toWrite.groupBy(_.schema).toList.sortBy(_._1.level).map { case (orig, origs) ⇒
         val tableName = SQLSyntax.createUnsafely(orig.origTableName)
         val pkNames = orig.pks.map(_.pkName).map(SQLSyntax.createUnsafely(_))
@@ -77,10 +95,30 @@ case class OracleOrigDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: Connectio
 
   def getOrig(orig: OrigSchema, pk: String): (Option[Product], NextOffset) = {
     val adapter = qAdapterRegistry.byName(orig.className)
-    NamedDB('conn) readOnly { implicit session ⇒
+    NamedDB(poolSymbol) readOnly { implicit session ⇒
       val dbOrig = SQL(s"select blob from ${orig.origTableName} where (${orig.pks.map(_.pkName).mkString(", ")}) = ($pk)")
         .map(rt ⇒ rt.blob("blob"))
-        .single().apply().map(bb ⇒ adapter.decode(bb.getBinaryStream))
+        .single().apply().map(bb ⇒ {
+        val result = adapter.decode(bb.getBinaryStream)
+        bb.free()
+        result
+      }
+      )
+      val offset = sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
+      (dbOrig, offset)
+    }
+  }
+
+  def getOrigBytes(orig: OrigSchema, pk: String): (Option[Array[Byte]], NextOffset) = {
+    NamedDB(poolSymbol) readOnly { implicit session ⇒
+      val dbOrig = SQL(s"select blob from ${orig.origTableName} where (${orig.pks.map(_.pkName).mkString(", ")}) = ($pk)")
+        .map(rt ⇒ rt.blob("blob"))
+        .single().apply().map(bb ⇒ {
+        val result = bb.getBytes(1L, bb.length().toInt)
+        bb.free()
+        result
+      }
+      )
       val offset = sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
       (dbOrig, offset)
     }

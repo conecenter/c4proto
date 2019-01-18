@@ -8,9 +8,18 @@ import ee.cone.c4proto.HasId
 
 import scala.annotation.tailrec
 
+trait ExternalDBSyncApp extends ToStartApp with OrigSchemaBuildersApp {
+  def qAdapterRegistry: QAdapterRegistry
+  def toUpdate: ToUpdate
+  def consuming: Consuming
+  def dbAdapter: DBAdapter
+
+  override def toStart: List[Executable] = new ExternalDBSync(consuming, dbAdapter, builders, qAdapterRegistry, toUpdate) :: super.toStart
+}
+
 class ExternalDBSync(
   consuming: Consuming,
-  dbAdapter: OrigDBAdapter,
+  dbAdapter: DBAdapter,
   builders: List[OrigSchemaBuilder[_ <: Product]],
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate
@@ -29,7 +38,9 @@ class ExternalDBSync(
   val supportedIds: Set[Long] = builderMap.keySet
   val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.filterKeys(supportedIds)
 
-  val extUpdate: ProtoAdapter[ExternalUpdate] with HasId = qAdapterRegistry.byName(classOf[ExternalUpdate]).asInstanceOf[ProtoAdapter[ExternalUpdate] with HasId]
+  val extUpdate: ProtoAdapter[ExternalUpdate] with HasId =
+    qAdapterRegistry.byName(classOf[ExternalUpdate].getName)
+      .asInstanceOf[ProtoAdapter[ExternalUpdate] with HasId]
 
   @tailrec
   private def consume(consumer: Consumer): Unit = {
@@ -48,7 +59,9 @@ class ExternalDBSync(
       val deletes = toDelete.flatMap(ext ⇒ builderMap(ext.valueTypeId).getDeleteValue(ext.srcId))
       val updates = toUpdate.flatMap(ext ⇒ {
         val builder = builderMap(ext.valueTypeId)
-        builder.getUpdateValue(adaptersById(ext.valueTypeId).decode(ext.value))})
+        builder.getUpdateValue(adaptersById(ext.valueTypeId).decode(ext.value))
+      }
+      )
       dbAdapter.putOrigs(deletes ::: updates, offset)
     }
     consume(consumer)

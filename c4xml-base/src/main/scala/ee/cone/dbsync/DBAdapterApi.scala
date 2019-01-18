@@ -15,7 +15,7 @@ case class OrigValue(schema: OrigSchema, pks: List[Any], values: List[Any], dele
 
 case class ConnectionSetting(name: Symbol, url: String, user: String, password: String, connectionPoolSettings: ConnectionPoolSettings)
 
-trait OrigDBAdapter {
+trait DBAdapter {
   def getSchema: List[TableSchema]
 
   def patchSchema(origSchemas: List[OrigSchema]): List[TableSchema]
@@ -25,6 +25,8 @@ trait OrigDBAdapter {
   def putOrigs(origs: List[OrigValue], offset: NextOffset): List[(OrigSchema, Int)]
 
   def getOrig(orig: OrigSchema, pk: String): (Option[Product], NextOffset)
+
+  def getOrigBytes(orig: OrigSchema, pk: String): (Option[Array[Byte]], NextOffset)
 }
 
 trait OrigSchemaBuilder[Model <: Product] {
