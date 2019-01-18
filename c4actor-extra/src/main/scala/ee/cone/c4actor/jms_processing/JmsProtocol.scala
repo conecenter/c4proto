@@ -1,5 +1,6 @@
-package ee.cone.c4actor
+package ee.cone.c4actor.jms_processing
 
+import ee.cone.c4actor.UpdatesCat
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol(UpdatesCat) object JmsProtocol extends Protocol {
@@ -12,5 +13,9 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
   @Id(0x0dab) case class JmsDoneMarker(
     @Id(0x0bad) srcId: String // messageId
+  )
+
+  @Id(0x014c) case class ModelChangedMarker(
+    @Id(0x024c) srcId: String
   )
 }

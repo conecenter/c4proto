@@ -2,7 +2,8 @@ package ee.cone.c4actor
 
 import java.net.URI
 
-import ee.cone.c4actor.JmsProtocol.JmsMessage
+import ee.cone.c4actor.jms_processing.JmsProtocol
+import ee.cone.c4actor.jms_processing.JmsProtocol.JmsMessage
 import ee.cone.c4assemble.Single
 import ee.cone.c4proto.Protocol
 import javax.jms._

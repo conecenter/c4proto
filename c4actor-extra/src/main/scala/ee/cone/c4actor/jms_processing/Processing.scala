@@ -1,6 +1,6 @@
 package ee.cone.c4actor.jms_processing
 
-import ee.cone.c4actor.JmsProtocol.{JmsDoneMarker, JmsMessage}
+import JmsProtocol.{JmsDoneMarker, JmsMessage}
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
