@@ -77,6 +77,7 @@ trait RichDataApp extends ProtocolsApp
   with PreHashingApp
   with DeCompressorsApp
   with RawCompressorsApp
+  with UpdatesPreprocessorsApp
 {
   def assembleProfiler: AssembleProfiler
   //
@@ -90,7 +91,7 @@ trait RichDataApp extends ProtocolsApp
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
   def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer //new ShortAssembleSeqOptimizer(backStageFactory,indexUpdater) //make abstract
-  lazy val readModelUtil: ReadModelUtil = new ReadModelUtilImpl(indexUtil)
+lazy val readModelUtil: ReadModelUtil = new ReadModelUtilImpl(indexUtil)
   lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl(readModelUtil)
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
@@ -102,7 +103,7 @@ trait RichDataApp extends ProtocolsApp
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, getClass.getName)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, getClass.getName, processors)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
