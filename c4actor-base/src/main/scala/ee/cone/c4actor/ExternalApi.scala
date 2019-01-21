@@ -5,7 +5,7 @@ import java.util.UUID
 import ee.cone.c4actor.ExternalProtocol.{CacheUpdate, ExternalUpdate}
 import ee.cone.c4actor.QProtocol.{TxRef, Update}
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
@@ -56,12 +56,13 @@ class ExternalUpdatesPreprocessor(toUpdate: ToUpdate, qAdapterRegistry: QAdapter
   )
 
 }
-/*
-@assemble class ExternalOrigJoiner[Model <: Product](modelCl: Class[Model], qAdapterRegistry: QAdapterRegistry) extends Assemble {
+
+@assemble class ExternalOrigJoiner[Model <: Product](modelCl: Class[Model], modelId: Long, qAdapterRegistry: QAdapterRegistry) extends Assemble {
+
   def JoinOffset(
     origId: SrcId,
-
-  )
+    extU: Each[ExternalUpdate]
+  ): Values[]
 
   def CreateExternal(
     origId: SrcId,
@@ -72,4 +73,4 @@ class ExternalUpdatesPreprocessor(toUpdate: ToUpdate, qAdapterRegistry: QAdapter
 
     }
 
-}*/
+}
