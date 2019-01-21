@@ -529,7 +529,10 @@ case class SoulTransform(srcId: SrcId, modelId: Int, byAdapterId: Long, commonPr
 
 case class PowerTransform(srcId: SrcId, extraKey: String) extends LEventTransform {
   def lEvents(local: Context): Seq[LEvent[Product]] =
-    LEvent.delete(IndexByNodeLastSeen(srcId, 0L)) ++ LEvent.delete(IndexByNode(srcId, "", 0, Nil, "")) ++ LEvent.delete(IndexByNodeSettings(srcId, false, None))
+    LEvent.delete(IndexByNodeLastSeen(srcId, 0L)) ++
+      LEvent.delete(IndexByNode(srcId, "", 0, Nil, "")) ++
+      LEvent.delete(IndexByNodeSettings(srcId, false, None)) ++
+      LEvent.delete(TimeMeasurement(srcId, None))
 }
 
 case class MindTransform(srcId: SrcId) extends LEventTransform {
@@ -548,7 +551,7 @@ case class RevertedMindTransform(srcId: SrcId) extends LEventTransform {
 
 case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[IndexNode]) extends LEventTransform {
   def lEvents(local: Context): Seq[LEvent[Product]] =
-    indexNodeList.flatMap(node ⇒ node :: IndexNodeSettings(node.indexNodeId, false, None) :: Nil)
+    indexNodeList.flatMap(node ⇒ node :: IndexNodeSettings(node.indexNodeId, false, None) :: TimeMeasurement(node.indexNodeId, None) :: Nil)
       .flatMap(LEvent.delete)
 }
 
