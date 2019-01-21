@@ -78,6 +78,7 @@ trait RichDataApp extends ProtocolsApp
   with DeCompressorsApp
   with RawCompressorsApp
   with UpdatesPreprocessorsApp
+  with ExternalModelsApp
 {
   def assembleProfiler: AssembleProfiler
   //
@@ -109,7 +110,7 @@ trait RichDataApp extends ProtocolsApp
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct,origKeyFactory)() ::: super.dataDependencies
+    ProtocolDataDependencies(protocols.distinct,external,origKeyFactory)() ::: super.dataDependencies
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::

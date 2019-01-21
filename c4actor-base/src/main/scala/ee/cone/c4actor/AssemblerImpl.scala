@@ -19,9 +19,11 @@ case class OrigKeyFactory(composes: IndexUtil) {
     composes.joinKey(was=false, "SrcId", classOf[SrcId].getName, className)
 }
 
-case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: OrigKeyFactory) {
+case class ProtocolDataDependencies(protocols: List[Protocol], externals: List[Class[_ <: Product]], origKeyFactory: OrigKeyFactory) {
+  private val externalNamesSet = externals.map(_.getName).toSet
+
   def apply(): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
+    protocols.flatMap(_.adapters.filter(_.hasId)).filterNot(adapter ⇒ externalNamesSet(adapter.className)).map{ adapter ⇒
       new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
     }
 }

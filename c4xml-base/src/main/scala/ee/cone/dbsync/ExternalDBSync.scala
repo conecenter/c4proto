@@ -55,16 +55,16 @@ class ExternalDBSync(
         toUpdate.toUpdates(ev :: Nil)
           .filter(u ⇒ u.valueTypeId == extUpdate.id || u.value.size() > 0)
           .map(u ⇒ extUpdate.decode(u.value))
-          .filter(ext ⇒ supportedIds(ext.valueTypeId))
+          .filter(ext ⇒ supportedIds(ext.origTypeId))
     )
     for {
       (offset, extUpdates) ← updByOffset
     } yield {
-      val (toDelete, toUpdate) = extUpdates.partition(_.value.size() == 0)
-      val deletes = toDelete.flatMap(ext ⇒ builderMap(ext.valueTypeId).getDeleteValue(ext.srcId))
+      val (toDelete, toUpdate) = extUpdates.partition(_.origValue.size() == 0)
+      val deletes = toDelete.flatMap(ext ⇒ builderMap(ext.origTypeId).getDeleteValue(ext.origSrcId))
       val updates = toUpdate.flatMap(ext ⇒ {
-        val builder = builderMap(ext.valueTypeId)
-        builder.getUpdateValue(adaptersById(ext.valueTypeId).decode(ext.value))
+        val builder = builderMap(ext.origTypeId)
+        builder.getUpdateValue(adaptersById(ext.origTypeId).decode(ext.origValue))
       }
       )
       dbAdapter.putOrigs(deletes ::: updates, offset)

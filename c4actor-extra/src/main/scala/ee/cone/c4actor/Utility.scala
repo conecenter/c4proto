@@ -10,9 +10,10 @@ import scala.collection.immutable.Seq
 
 object Murmur3Hash{
   val parser: PreHashingMurMur3 = PreHashingMurMur3()
+  val instance: MurmurHash3 = new MurmurHash3()
 
   def apply[Model](m: Model): String = {
-    val instance = new MurmurHash3()
+    instance.reset()
     parser.calculateModelHash(m, instance)
     instance.getStringHash
   }
