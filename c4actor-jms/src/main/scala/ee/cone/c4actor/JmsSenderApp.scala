@@ -1,7 +1,10 @@
 package ee.cone.c4actor
 
+import java.net.URI
+
 import javax.jms._
 import org.apache.activemq.ActiveMQConnectionFactory
+import org.apache.activemq.broker.BrokerFactory
 
 
 case class ConsumerMessageSender(consumerName: String) extends MessageListener {
@@ -22,9 +25,9 @@ case class JmsSenderStart(
   def run(): Unit = {
     System.err.println("!!!!! TEST USE ONLY !!!!!!!")
     println("Starting JMS Sender")
-    /*val broker = BrokerFactory.createBroker(new URI(
-      s"broker:(tcp://${JmsRuntimeParams.ADDRESS}:${JmsRuntimeParams.PORT})"))
-    if(!broker.isStarted) broker.start()*/
+    val broker = BrokerFactory.createBroker(new URI(
+      s"broker:(tcp://${jmsParameters.address}:${jmsParameters.port})"))
+    if(!broker.isStarted) broker.start()
     try {
       val connectionFactory = new ActiveMQConnectionFactory(
         s"tcp://${jmsParameters.address}:${jmsParameters.port}")
@@ -59,7 +62,7 @@ class JmsSenderApp extends ToStartApp
   with SimpleAssembleProfilerApp
   with EnvConfigApp
 {
-  lazy val jmsParameters = JmsParameters(config.get("JMS_ADDRESS"), config.get("JMS_PORT"), config.get("JMS_QUEUE"), 0)
+  lazy val jmsParameters = JmsParameters(config.get("JMS_ADDRESS"), config.get("JMS_PORT"), config.get("JMS_QUEUE"))
   override def toStart: List[Executable] = JmsSenderStart(execution, toUpdate, jmsParameters) :: super.toStart
 }
 

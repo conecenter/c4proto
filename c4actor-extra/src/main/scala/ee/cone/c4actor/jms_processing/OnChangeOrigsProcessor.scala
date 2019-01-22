@@ -1,19 +1,23 @@
 package ee.cone.c4actor.jms_processing
 
-import ee.cone.c4actor.jms_processing.JmsProtocol.ModelChangedMarker
-import ee.cone.c4actor.{UpdatesPreprocessor, QAdapterRegistry, QProtocol, ToUpdate}
+import java.util.UUID
+
+import ee.cone.c4actor.QProtocol.TxRef
+import ee.cone.c4actor._
+import ee.cone.c4actor.jms_processing.JmsProtocol.{ChangedOrig, ModelsChanged}
 
 import scala.collection.immutable.Seq
 
-class OnChangeOrigsProcessor(watchedOrigs: List[Class[_ <: Product]], toUpdate: ToUpdate, qAdapterRegistry: QAdapterRegistry) extends UpdatesPreprocessor {
+class OnChangeOrigsProcessor(watchedOrigs: List[WatchedOrig], toUpdate: ToUpdate, qAdapterRegistry: QAdapterRegistry) extends UpdatesPreprocessor {
 
-  lazy val watchedOrigsIds: List[Long] = watchedOrigs.map(p => qAdapterRegistry.byName(p.getName).id)
+  lazy val watchedOrigsIds: Set[Long] = watchedOrigs.map(p => qAdapterRegistry.byName(p.className).id).toSet
 
   def process(
     updates: Seq[QProtocol.Update]
   ): Seq[QProtocol.Update] = {
+    val randomSrcId = UUID.randomUUID().toString
     val changed = updates.filter(up => watchedOrigsIds.contains(up.valueTypeId))
-    changed.map(p => ModelChangedMarker(p.srcId))
+    Seq(ModelsChanged(randomSrcId, changed.map(c => ChangedOrig(c.srcId, c.valueTypeId)).toList), TxRef(randomSrcId, "")).flatMap(LEvent.update).map(p => toUpdate.toUpdate(p))
   }
 
 }
