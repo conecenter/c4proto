@@ -6,6 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, fieldAccess}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4gate.SessionDataProtocol.RawSessionData
 import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{Id, Protocol}
 import ee.cone.c4ui._
@@ -38,8 +39,8 @@ class TestCoWorkApp extends ServerApp
   with OracleDBApp
   with ExternalDBSyncApp
 {
-  override def external: List[Class[_ <: Product]] = classOf[Content] :: super.external
-  override def builders: List[OrigSchemaBuilder[_ <: Product]] = origSchemaBuilderFactory.db(classOf[Content]) :: super.builders
+  override def external: List[Class[_ <: Product]] = classOf[RawSessionData] :: super.external
+  override def builders: List[OrigSchemaBuilder[_ <: Product]] = origSchemaBuilderFactory.db(classOf[RawSessionData]) :: super.builders
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
       new FromAlienTaskAssemble("/react-app.html") ::

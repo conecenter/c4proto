@@ -208,7 +208,7 @@ lazy val `c4xml-base` = project.settings(publishSettings)
   .settings(scalaxbSettins)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .settings(libraryDependencies += "com.oracle" % "ojdbc14" % "10.2.0.4.0" from "file:///C:/Users/User/Desktop/Cone/C4PROTO/lib/ojdbc7.jar")
+  .settings(libraryDependencies += "com.oracle" % "ojdbc14" % "10.2.0.4.0" from "file:///"+Path(".").absolutePath+"/lib/ojdbc7.jar")
   .settings(libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.1.1")
   .settings(libraryDependencies ++= Seq(
     "org.scalikejdbc" %% "scalikejdbc"       % "3.3.1",

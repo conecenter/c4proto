@@ -34,16 +34,21 @@ trait ExternalUpdatesApp extends ProtocolsApp with UpdatesPreprocessorsApp with 
 
 class ExternalUpdatesPreprocessor(toUpdate: ToUpdate, qAdapterRegistry: QAdapterRegistry, external: List[Class[_ <: Product]]) extends UpdatesPreprocessor {
   private val externalNames = external.map(_.getName).toSet
-  private val externalIdSet: Set[Long] = qAdapterRegistry.byName.transform { case (_, v) ⇒ v.id }.filterKeys(externalNames).values.toSet
+  private val externalIdSet: Set[Long] = qAdapterRegistry.byName.filterKeys(externalNames).transform { case (_, v) ⇒ v.id }.values.toSet
 
-  def process(updates: Seq[Update]): Seq[Update] = {
-    val external = updates.filter(u ⇒ externalIdSet(u.valueTypeId))
-    if (external.isEmpty) Seq()
-    else {
-      val txRefId = UUID.randomUUID().toString
-      (TxRef(txRefId, "") +: external.map(u ⇒ ExternalUpdate(u.srcId + "0x%04x".format(u.valueTypeId), u.srcId, u.valueTypeId, u.value, txRefId))).flatMap(LEvent.update).map(toUpdate.toUpdate)
+  def replace(updates: Seq[Update]): Seq[Update] = {
+    val txRefId = UUID.randomUUID().toString
+    val (postUpdates, needTxRef) = updates.foldLeft((Seq[Update](), false)) { case (b, u) ⇒
+      if (externalIdSet(u.valueTypeId))
+        (b._1 ++ LEvent.update(ExternalUpdate(u.srcId + "0x%04x".format(u.valueTypeId), u.srcId, u.valueTypeId, u.value, txRefId)).map(toUpdate.toUpdate), true)
+      else
+        (b._1 :+ u, b._2)
     }
+    postUpdates ++
+      (if (needTxRef) LEvent.update(TxRef(txRefId, "")).map(toUpdate.toUpdate) else Seq())
   }
+
+  def append(updates: Seq[Update]): Seq[Update] = Seq.empty
 }
 
 @protocol(UpdatesCat) object ExternalProtocol extends Protocol {

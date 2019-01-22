@@ -195,12 +195,12 @@ case class OracleOrigSchemaBuilderFactory(qAdapterRegistry: QAdapterRegistry) ex
         if (isLong) {
           val name = LongHex(id, "LS")
           val fType = "clob"
-          FieldSchema(name, fType, s"$name $fType default '' not null") :: Nil
+          FieldSchema(name, fType, s"$name $fType default ''") :: Nil
           Nil
         } else {
           val name = LongHex(id, "S")
           val fType = "varchar2(4000)"
-          FieldSchema(name, fType, s"$name $fType default '' not null") :: Nil
+          FieldSchema(name, fType, s"$name $fType default ''") :: Nil
         }
       case _ ⇒ Nil
     }

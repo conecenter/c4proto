@@ -97,7 +97,7 @@ class AssemblerInit(
   }
   // other parts:
   private def add(out: Seq[Update]): Context ⇒ Context = {
-    val processedOut = processors.par.flatMap(_.process(out)).to[Seq] ++ out
+    val processedOut = processors.par.flatMap(_.replace(out)).to[Seq]
     if (processedOut.isEmpty) identity[Context]
     else { local ⇒
       val diff = toTree(local.assembled, processedOut)

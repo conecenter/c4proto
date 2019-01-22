@@ -1,6 +1,7 @@
 package ee.cone.dbsync
 
 import com.squareup.wire.ProtoAdapter
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ExternalProtocol.ExternalUpdate
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
@@ -24,7 +25,7 @@ class ExternalDBSync(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   external: List[Class[_ <: Product]]
-) extends Executable {
+) extends Executable with LazyLogging{
   def run(): Unit = {
     val schemas = builders.flatMap(_.getSchemas)
     dbAdapter.patchSchema(schemas)
@@ -56,7 +57,7 @@ class ExternalDBSync(
           .filter(u ⇒ u.valueTypeId == extUpdate.id || u.value.size() > 0)
           .map(u ⇒ extUpdate.decode(u.value))
           .filter(ext ⇒ supportedIds(ext.origTypeId))
-    )
+    ).filter(_._2.nonEmpty)
     for {
       (offset, extUpdates) ← updByOffset
     } yield {
@@ -67,6 +68,7 @@ class ExternalDBSync(
         builder.getUpdateValue(adaptersById(ext.origTypeId).decode(ext.origValue))
       }
       )
+      logger.info(s"Writing ${deletes.size}/${updates.size} origs")
       dbAdapter.putOrigs(deletes ::: updates, offset)
     }
     consume(consumer)

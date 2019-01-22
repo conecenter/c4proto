@@ -259,5 +259,6 @@ trait UpdatesPreprocessorsApp {
 }
 
 trait UpdatesPreprocessor {
-  def process(updates: Seq[Update]): Seq[Update]
+  def append(updates: Seq[Update]): Seq[Update]
+  def replace(updates: Seq[Update]): Seq[Update]
 }
