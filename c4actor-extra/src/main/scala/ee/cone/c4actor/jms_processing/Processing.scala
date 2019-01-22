@@ -4,30 +4,25 @@ import JmsProtocol.{ChangedProcessedMarker, JmsIncomeDoneMarker, JmsIncomeMessag
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor.jms_processing.JmsProcessingIndexes.AllOrigsExtractedIndex
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, by}
 
 
-trait ConvertedOrig extends Product
+trait CaseClassOfXml extends Product
 
 trait WithConverters {
   def xmlConverter: CaseClassFromXMLConverter
-  def caseClassConverters: List[CaseClassToOrigsConverter] = Nil // CaseClassFromXML.clName => converter
-  def caseClassConvertersMap: Map[String, CaseClassToOrigsConverter] = caseClassConverters.map(p => (p.cl.getName, p)).toMap
+  def caseClassConverters: List[ProcessingAssemble[_ <: Product]] = Nil // CaseClassFromXML.clName => converter
+  def caseClassConvertersMap: Map[String, ProcessingAssemble[_ <: Product]] = caseClassConverters.map(p => (p.modelCl.getName, p)).toMap
   private val errorsList: List[SrcId] = xmlConverter.possibleClasses.map(_.getName).filterNot(caseClassConvertersMap.contains)
   if(errorsList.nonEmpty) throw new Exception(s"Not found caseClassConverters for: $errorsList")
 }
 
 trait CaseClassFromXMLConverter {
-  def convert(message: JmsIncomeMessage): ConvertedOrig
-  def convert(message: ConvertedOrig): JmsIncomeMessage
+  def convert(message: JmsIncomeMessage): CaseClassOfXml
+  def convert(message: CaseClassOfXml): JmsIncomeMessage
   def possibleClasses: List[Class[_ <: Product]]
-}
-
-trait CaseClassToOrigsConverter {
-  def cl: Class[_ <: Product]
-  def convert(caseClass: ConvertedOrig): Context => List[Product]
-  def convert(origs: List[Product]): Context => List[ConvertedOrig]
 }
 
 case class WatchedOrig(className: String)
@@ -41,8 +36,9 @@ trait WatchedOrigsApp {
 
 trait JmsProcessingApp extends WithConverters with AssemblesApp with MortalFactoryApp with UpdatesPreprocessorsApp with WatchedOrigsApp {
   override def assembles: List[Assemble] =
-    new ProcessJmsMessageAssemble(xmlConverter, caseClassConvertersMap) ::
+    new ProcessJmsMessageAssemble(xmlConverter) ::
     mortal(classOf[JmsIncomeDoneMarker]) ::
+    caseClassConverters :::
     super.assembles
 
   def toUpdate: ToUpdate
@@ -51,14 +47,13 @@ trait JmsProcessingApp extends WithConverters with AssemblesApp with MortalFacto
   override def processors: List[UpdatesPreprocessor] = new OnChangeOrigsProcessor(watchedOrigs, toUpdate, qAdapterRegistry) :: super.processors
 }
 
-case class ProcessJmsMessageTxTransform(message: JmsIncomeMessage, converter: CaseClassFromXMLConverter, caseClassConvertersMap: Map[String, CaseClassToOrigsConverter]) extends TxTransform {
+case class ProcessJmsMessageTxTransform(message: JmsIncomeMessage, converter: CaseClassFromXMLConverter) extends TxTransform {
   def transform(local: Context): Context = {
 
-    val converted: ConvertedOrig = converter.convert(message)
-    val origs = caseClassConvertersMap.getOrElse(converted.getClass.getName, throw new Exception(s"No CaseClassToOrigsConverter for type: ${converted.getClass.getName}")).convert(converted)(local)
-
+    val converted: CaseClassOfXml = converter.convert(message)
+    //val origs = caseClassConvertersMap.getOrElse(converted.getClass.getName, throw new Exception(s"No CaseClassToOrigsConverter for type: ${converted.getClass.getName}")).convert(converted)(local)
     val marker = JmsIncomeDoneMarker(message.messageId)
-    TxAdd(LEvent.update(marker) ++ origs.flatMap(LEvent.update))(local)
+    TxAdd(LEvent.update(marker) ++ LEvent.update(converted))(local)
   }
 }
 
@@ -74,13 +69,19 @@ case class ProcessChangedOrigsJoiner(changed: ModelsChanged, qAdapterRegistry: Q
   }
 }
 
-@assemble class ProcessJmsMessageAssemble(converter: CaseClassFromXMLConverter, caseClassConvertersMap: Map[String, CaseClassToOrigsConverter]) extends Assemble {
+case class ProcessConvertedOrigs(allOrigs: List[Product]) extends TxTransform {
+  def transform(local: Context): Context = {
+    TxAdd(allOrigs.flatMap(LEvent.update))(local)
+  }
+}
+
+class ProcessJmsMessageAssemble(converter: CaseClassFromXMLConverter) extends Assemble {
   def ProcessJoiner(
     key: String,
     message: Each[JmsIncomeMessage],
     markers: Values[JmsIncomeDoneMarker]
   ): Values[(SrcId, TxTransform)] =
-    if(markers.isEmpty) WithPK(ProcessJmsMessageTxTransform(message, converter, caseClassConvertersMap)) :: Nil else Nil
+    if(markers.isEmpty) WithPK(ProcessJmsMessageTxTransform(message, converter)) :: Nil else Nil
 
   def AliveMarkerJoiner(
     key: SrcId,
@@ -96,5 +97,10 @@ case class ProcessChangedOrigsJoiner(changed: ModelsChanged, qAdapterRegistry: Q
     if(markers.isEmpty) Nil
     else Nil
   }
+
+  def AllOrigsExtractedToTransformJoiner(
+    key: SrcId,
+    @by[AllOrigsExtractedIndex] models: Values[Product]
+  ): Values[(SrcId, TxTransform)] = List(WithPK(ProcessConvertedOrigs(models.toList)))
 
 }
