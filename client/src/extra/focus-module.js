@@ -182,11 +182,11 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "Insert":
 			case "c":
 				if(event.ctrlKey){
-					sendEvent(()=>eventManager.create("ccopy"))
+					//sendEvent(()=>eventManager.create("ccopy"))
 					break
 				}
 				isPrintable = true
-				break				
+				break
 			case "F1":
 			case "F2":
 			case "F3":
@@ -280,7 +280,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const isVk = (el) => el.classList.contains("vkElement")	
 	const focusTo = (data) => setTimeout(()=>{
 		mapNodes()
-		const preferedFocusObj = nodesObj.find(o=>o.n.dataset.path.includes(data))		
+		const preferedFocusObj = nodesObj.find(o=>o.n.dataset.path&&o.n.dataset.path.includes(data))
 		preferedFocusObj && preferedFocusObj.n.focus()
 	},200)
 	const toView = (className)=>setTimeout(()=>{

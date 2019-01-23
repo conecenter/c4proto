@@ -34,6 +34,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 	class VKButton extends StatefulComponent{		
 		getInitialState(){return {mouseDown:false}}
 		onClick(ev){
+			this.props.onPress && this.props.onPress()
 			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
 			if(this.props.onClick) this.props.onClick(ev)			
 		}
@@ -272,6 +273,12 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 				this.el = ref
 			}
 		}
+		onPress(){
+			if(this.getFocusedElement().tagName == "BODY") {
+				const sticky = this.getStickyElement()
+				sticky && sticky.focus()
+			}
+		}
 		render(){					    
 			const genKey = (char,i) => `${char}_${i}`			
 			const vkLayout = this.getCurrentLayout()		
@@ -309,7 +316,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 				$("div",{key:"vk",ref:this.onRef(path),style:positionStyle,className},
 					vkLayout?
 					$("div",{style:wrapperStyle},[				
-						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle}, key:genKey(btn.char,j), fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
+						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle}, key:genKey(btn.char,j),onPress:this.onPress, fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
 					]):
 					null
 				),

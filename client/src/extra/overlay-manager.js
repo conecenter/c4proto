@@ -20,9 +20,11 @@ export default function OverlayManager({log,documentManager,windowManager}){
 			const markedInnerPath = el.querySelector('path[data-selected="true"]')
 			const nextMarkedInnerPath = markedInnerPath.previousElementSibling?markedInnerPath.previousElementSibling:markedInnerPath.parentNode.lastElementChild			
 			markedInnerPath.style.fill = 'white'
-			markedInnerPath.dataset.selected = false
-			nextMarkedInnerPath.style.fill = 'transparent'
-			nextMarkedInnerPath.dataset.selected = true			
+			if(markedInnerPath.dataset){
+				markedInnerPath.dataset.selected = false
+				nextMarkedInnerPath.style.fill = 'transparent'
+				nextMarkedInnerPath.dataset.selected = true			
+			}
 		})
 		circularTimer = setTimeout(startCircularMotion,100)
 	}
