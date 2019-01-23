@@ -42,8 +42,8 @@ object IndexUtilImpl {
       val distinct = items.distinct
       if(distinct.tail.nonEmpty) throw new Exception(s"non-single $warning")
       if(warning.nonEmpty) {
-        val str = distinct.head.item.toString.slice(0,64)
-        println(s"non-single $warning $str")
+        val item = distinct.head.item
+        println(s"non-single $warning ${item.productPrefix}:${ToPrimaryKey(item)}")
       }
       distinct.head.item
     }
@@ -322,8 +322,20 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
 }
 
 object AssembleDataDependencies {
-  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] =
-    assembles.flatMap(assemble⇒assemble.dataDependencies(indexFactory))
+  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] = {
+    def gather(assembles: List[Assemble]): List[Assemble] =
+      if(assembles.isEmpty) Nil
+      else gather(assembles.collect{ case a: CallerAssemble ⇒ a.subAssembles }.flatten) ::: assembles
+    val(was,res) = gather(assembles).foldLeft((Set.empty[String],List.empty[Assemble])){(st,add)⇒
+      val(was,res) = st
+      add match {
+        case m: MergeableAssemble if was(m.mergeKey) ⇒ (was,res)
+        case m: MergeableAssemble ⇒ (was+m.mergeKey,m::res)
+        case m ⇒ (was,m::res)
+      }
+    }
+    res.flatMap{ case a: CheckedAssemble ⇒ a.dataDependencies(indexFactory) }
+  }
 }
 
 object Merge {

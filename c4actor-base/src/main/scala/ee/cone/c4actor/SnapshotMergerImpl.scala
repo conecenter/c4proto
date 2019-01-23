@@ -34,15 +34,18 @@ class SnapshotMergerImpl(
     val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Option(local),Nil).offset)))
     val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(baseURL))
     val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
-    val Some(targetFullSnapshot) :: txs = parentProcess().map(parentSnapshotLoader.load)
+    val targetRawSnapshot :: txs = parentProcess()
+    val Some(targetFullSnapshot) = parentSnapshotLoader.load(targetRawSnapshot)
     val diffUpdates = diff(currentFullSnapshot,targetFullSnapshot)
-    (task,txs) match {
-      case (t:NextSnapshotTask,Seq()) ⇒
+    task match {
+      case t:NextSnapshotTask ⇒
+        assert(t.offsetOpt.isEmpty || txs.isEmpty)
         WriteModelKey.modify(_.enqueue(diffUpdates))(local)
-      case (t:DebugSnapshotTask,Seq(Some(targetTxSnapshot))) ⇒
+      case t:DebugSnapshotTask ⇒
         val (bytes, headers) = toUpdate.toBytes(diffUpdates)
         val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(bytes), headers)
         val preTargetWorld = reducer.reduce(Option(local),List(diffRawEvent))
+        val Seq(Some(targetTxSnapshot)) = txs.map(parentSnapshotLoader.load)
         DebugStateKey.set(Option((preTargetWorld,targetTxSnapshot)))(local)
     }
   }

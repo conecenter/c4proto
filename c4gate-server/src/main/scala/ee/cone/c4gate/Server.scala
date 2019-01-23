@@ -61,6 +61,6 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   //
   override def assembles: List[Assemble] =
     new SnapshotMakingAssemble(getClass.getName, fileSnapshotMaker, snapshotTaskSigner) ::
-    //todo PurgerAssemble(dbDir, fileRawSnapshotLoader: SnapshotLister)
+    new PurgerAssemble(new Purger(fileRawSnapshotLoader,dbDir)) ::
     super.assembles
 }

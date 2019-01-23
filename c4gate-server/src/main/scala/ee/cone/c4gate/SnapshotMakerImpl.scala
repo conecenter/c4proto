@@ -178,13 +178,13 @@ class SnapshotMakerImpl(
       now + 2000
     }
 
-  def make(task: SnapshotTask): List[RawSnapshot] = {
+  def make(task: SnapshotTask): List[RawSnapshot] = concurrent.blocking {
     val result = makeInner(task)
     System.gc()
     result
   }
 
-  def makeInner(task: SnapshotTask): List[RawSnapshot] = concurrent.blocking {
+  def makeInner(task: SnapshotTask): List[RawSnapshot] = {
     logger.debug(s"Loading snapshot for $task...")
     val offsetOpt = task.offsetOpt
     val offsetFilter: NextOffset⇒NextOffset⇒Boolean = task match {

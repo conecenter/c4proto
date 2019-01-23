@@ -63,6 +63,6 @@ object GCLog extends LazyLogging {
     System.gc()
     val runtime = Runtime.getRuntime
     val used = runtime.totalMemory - runtime.freeMemory
-    logger.debug(s"$hint: then $used bytes used")
+    logger.info(s"$hint: then $used bytes used")
   }
 }

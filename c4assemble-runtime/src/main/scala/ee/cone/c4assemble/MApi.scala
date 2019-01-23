@@ -37,6 +37,9 @@ object Types {
   def emptyIndex: Index = EmptyIndex//emptyDMap
   //
   type ProfilingLog = List[Product]
+  //
+  implicit val canCallToValues: CanCallToValues = new CanCallToValues
+  implicit val canCallToEach: CanCallToEach = new CanCallToEach
 }
 
 trait ReadModelUtil {
@@ -79,12 +82,6 @@ trait IndexFactory {
     with DataDependencyTo[Index]
 
   def util: IndexUtil
-/*
-  def partition(current: Option[DMultiSet], diff: Option[DMultiSet]): Iterable[(Boolean,GenIterable[PreHashed[Product]])]
-  def wrapIndex: Object ⇒ Any ⇒ Option[DMultiSet]
-  def wrapValues: Option[DMultiSet] ⇒ Values[Product]
-  def nonEmptySeq: Seq[_]
-  def keySet(indexSeq: Seq[Index]): Set[Any]*/
 }
 
 trait DataDependencyFrom[From] {
@@ -107,7 +104,7 @@ class Join(
   with DataDependencyTo[Index]
 
 trait Assemble {
-  def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]] = ???
+  type MakeJoinKey = IndexFactory⇒JoinKey
 }
 
 trait JoinKey extends AssembledKey {
@@ -122,6 +119,7 @@ trait JoinKey extends AssembledKey {
 class by[T] extends StaticAnnotation
 class was extends StaticAnnotation
 class distinct extends StaticAnnotation
+class ns(key: String) extends StaticAnnotation
 
 trait ExpressionsDumper[To] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
@@ -131,3 +129,32 @@ sealed abstract class All
 case object All extends All
 
 //class JoinRes(val byKey: Any, val productHashed: PreHashed[Product], val count: Int)
+trait CheckedAssemble {
+  def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]]
+}
+trait MergeableAssemble {
+  def mergeKey: String
+}
+trait BasicMergeableAssemble extends MergeableAssemble {
+  def mergeKeyAddClasses: List[Class[_]]
+  def mergeKeyAddString: String
+  def mergeKey: String = s"${(getClass::mergeKeyAddClasses).map(_.getName).mkString("-")}#$mergeKeyAddString"
+}
+trait CallerAssemble extends Assemble {
+  def subAssembles: List[Assemble]
+}
+trait SubAssemble[R<:Product] extends Assemble {
+  type Result = _⇒Values[(_,R)]
+  def result: Result
+  def resultKey: IndexFactory⇒JoinKey = throw new Exception("never here")
+}
+object Tupler
+
+class CanCallToValues
+class CanCallToEach
+trait EachSubAssemble[R<:Product] extends SubAssemble[R] {
+  def call(implicit can: CanCallToEach): Each[R] = throw new Exception("never here")
+}
+trait ValuesSubAssemble[R<:Product] extends SubAssemble[R] {
+  def call(implicit can: CanCallToValues): Values[R] = throw new Exception("never here")
+}
