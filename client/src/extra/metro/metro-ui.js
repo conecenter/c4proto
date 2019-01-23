@@ -1418,8 +1418,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const type = this.props.type
 			const auto = this.props.autocomplete
 			const vkOnly = this.props.vkOnly?"vk":null
-			let readOnly = (this.props.onChange||this.props.onBlur)?null:"true";
-			readOnly = !readOnly&&vkOnly?"true":readOnly
+			let readOnly = (this.props.onChange||this.props.onBlur)?null:true;
+			readOnly = !readOnly&&vkOnly?true:readOnly
 			const rows= this.props.rows
 			const content = this.props.content
 			const actions = {onMouseOver:this.props.onMouseOver,onMouseOut:this.props.onMouseOut};			
