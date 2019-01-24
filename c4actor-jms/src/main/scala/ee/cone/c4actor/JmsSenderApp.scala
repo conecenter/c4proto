@@ -25,13 +25,16 @@ case class JmsSenderStart(
   def run(): Unit = {
     System.err.println("!!!!! TEST USE ONLY !!!!!!!")
     println("Starting JMS Sender")
-    val broker = BrokerFactory.createBroker(new URI(
+    /*val broker = BrokerFactory.createBroker(new URI(
       s"broker:(tcp://${jmsParameters.address}:${jmsParameters.port})"))
-    if(!broker.isStarted) broker.start()
+    if(!broker.isStarted) broker.start()*/
     try {
       val connectionFactory = new ActiveMQConnectionFactory(
         s"tcp://${jmsParameters.address}:${jmsParameters.port}")
+      connectionFactory.setUserName("admin")
+      connectionFactory.setPassword("admin")
       val connection = connectionFactory.createConnection()
+      connection.start()
       val session = connection.createSession(false,
         Session.AUTO_ACKNOWLEDGE)
       val queue = session.createQueue(jmsParameters.queue)

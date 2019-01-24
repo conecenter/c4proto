@@ -26,7 +26,9 @@ case class JmsListenerStart(
    // try {
       val connectionFactory = new ActiveMQConnectionFactory(
         s"tcp://${jmsParameters.address}:${jmsParameters.port}")
-      val connection = connectionFactory.createConnection()
+      //connectionFactory.setUserName("admin")
+     // connectionFactory.setPassword("admin")
+      val connection = connectionFactory.createConnection("admin", "admin")
       val session = connection.createSession(false,
         Session.CLIENT_ACKNOWLEDGE )
       val queue = session.createQueue(jmsParameters.queue)

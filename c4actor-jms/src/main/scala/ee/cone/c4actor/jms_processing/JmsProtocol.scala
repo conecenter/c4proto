@@ -11,8 +11,19 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0acc) messageBody: String
   )
 
+  @Id(0x0d22) case class JmsOutcomeMessage(
+    @Id(0x0d44) messageId: String,
+    @Id(0x0d34) txId: String,
+    @Id(0x0d43) jmsType: String,
+    @Id(0x0d54) messageBody: String
+  )
+
   @Id(0x0dab) case class JmsIncomeDoneMarker(
     @Id(0x0bad) srcId: String // messageId
+  )
+
+  @Id(0x0d67) case class JmsOutcomeDoneMarker(
+    @Id(0x0d75) srcId: String // messageId
   )
 
   @Id(0x014c) case class ModelsChanged(
