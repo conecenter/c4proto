@@ -6,6 +6,7 @@ import ee.cone.c4assemble.Single
 import ee.cone.c4proto.Protocol
 import javax.jms._
 import org.apache.activemq.ActiveMQConnectionFactory
+import org.apache.activemq.command.ActiveMQBytesMessage
 
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq
@@ -28,7 +29,7 @@ case class JmsListenerStart(
         s"tcp://${jmsParameters.address}:${jmsParameters.port}")
       //connectionFactory.setUserName("admin")
      // connectionFactory.setPassword("admin")
-      val connection = connectionFactory.createConnection("admin", "admin")
+      val connection = connectionFactory.createConnection()
       val session = connection.createSession(false,
         Session.CLIENT_ACKNOWLEDGE )
       val queue = session.createQueue(jmsParameters.queue)
@@ -65,6 +66,11 @@ case class JmsListenerStart(
               println("Received message: " + msg.getText)
               msg.acknowledge()
             }
+          case msg: ActiveMQBytesMessage => {
+            var bytes = new Array[Byte](msg.getBodyLength.toInt)
+            msg.readBytes(bytes)
+            println(new String(bytes))
+          }
         }
         execute()
       }

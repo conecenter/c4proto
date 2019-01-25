@@ -31,8 +31,8 @@ case class JmsSenderStart(
     try {
       val connectionFactory = new ActiveMQConnectionFactory(
         s"tcp://${jmsParameters.address}:${jmsParameters.port}")
-      connectionFactory.setUserName("admin")
-      connectionFactory.setPassword("admin")
+      //connectionFactory.setUserName("admin")
+      //connectionFactory.setPassword("admin")
       val connection = connectionFactory.createConnection()
       connection.start()
       val session = connection.createSession(false,
@@ -43,13 +43,13 @@ case class JmsSenderStart(
       val producer = session.createProducer(queue)
       println("Sending text '" + payload + "'")
       producer.send(msg)
-      var i = 5990
+      var i = 1
       while(true) {
         i = i + 1
-        val msg = session.createTextMessage(""+i)
+        val msg = session.createTextMessage("TEST MSG "+i)
         producer.send(msg)
         println("Sent: "+msg.getText)
-        Thread.sleep(1000)
+        Thread.sleep(60000)
       }
     }
     execution.complete()
