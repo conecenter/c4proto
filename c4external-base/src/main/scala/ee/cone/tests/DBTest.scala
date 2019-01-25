@@ -1,3 +1,4 @@
+/*
 package ee.cone.tests
 
 import java.io.ByteArrayInputStream
@@ -230,4 +231,4 @@ object TestDbOrig {
   }
 
   def adapters = List(TestOrigProtoAdapter, OtherOrigProtoAdapter, OtherOrig2ProtoAdapter)
-}
+}*/
