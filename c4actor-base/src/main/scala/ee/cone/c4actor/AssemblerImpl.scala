@@ -19,11 +19,10 @@ case class OrigKeyFactory(composes: IndexUtil) {
     composes.joinKey(was=false, "SrcId", classOf[SrcId].getName, className)
 }
 
-case class ProtocolDataDependencies(protocols: List[Protocol], externals: List[Class[_ <: Product]], origKeyFactory: OrigKeyFactory) {
-  private val externalNamesSet = externals.map(_.getName).toSet
+case class ProtocolDataDependencies(protocols: List[Protocol], externalIds:Set[Long], origKeyFactory: OrigKeyFactory) {
 
   def apply(): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters.filter(_.hasId)).filterNot(adapter ⇒ externalNamesSet(adapter.className)).map{ adapter ⇒
+    protocols.flatMap(_.adapters.filter(_.hasId)).filterNot(adapter ⇒ externalIds(adapter.id)).map{ adapter ⇒
       new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
     }
 }
@@ -41,13 +40,14 @@ class AssemblerInit(
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
   actorName: String,
-  processors: List[UpdatesPreprocessor]
+  externalUpdateProcessor: ExtUpdateProcessor
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
     readModelUtil.create((for {
       tpPair ← updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair
+      _ = assert(!externalUpdateProcessor.idSet(valueTypeId), s"Got Updates for external Model $tpUpdates")
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = origKeyFactory.rawKey(valueAdapter.className)
     } yield {
@@ -97,7 +97,7 @@ class AssemblerInit(
   }
   // other parts:
   private def add(out: Seq[Update]): Context ⇒ Context = {
-    val processedOut = processors.par.flatMap(_.replace(out)).to[Seq]
+    val processedOut = externalUpdateProcessor.process(out)
     if (processedOut.isEmpty) identity[Context]
     else { local ⇒
       val diff = toTree(local.assembled, processedOut)

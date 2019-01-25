@@ -1,4 +1,4 @@
-package ee.cone.dbsync
+package ee.cone.dbadapter
 
 import java.io.ByteArrayInputStream
 
@@ -17,8 +17,8 @@ trait OracleDBApp {
   private val username = config.get("DBUSER")
   private val password = config.get("DBPASS")
   private val connPoolSettings = ConnectionPoolSettings(
-    initialSize = 5,
-    maxSize = 20,
+    initialSize = 2,
+    maxSize = 2,
     connectionTimeoutMillis = 3000L,
     validationQuery = "select 1 from dual"
   )
@@ -32,6 +32,8 @@ case class OracleDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: ConnectionSet
   val poolSymbol: Symbol = cs.name
   ConnectionPool.add(poolSymbol, cs.url, cs.user, cs.password, cs.connectionPoolSettings)
 
+  def externalName: String = "ee.cone.dbadapter.Oracle"
+
   def getSchema: List[TableSchema] =
     NamedDB(poolSymbol) readOnly {
       implicit session ⇒
@@ -39,15 +41,24 @@ case class OracleDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: ConnectionSet
           .groupBy(_._1).toList.map(kv ⇒ TableSchema(kv._1, kv._2.map(_._2)))
     }
 
-  val offsetSchema = OrigSchema(0, "c4offset", "c4offset",
-    PrimaryKeySchema("id", "number(5,0)") :: Nil,
-    FieldSchema("id", "number(5,0)", "id number(5,0) default 0 not null") :: FieldSchema("c4offset", "varchar2(16)", "c4offset varchar2(16) default '0000000000000000' not null") :: Nil
+  val offsetSchema = OrigSchema(0, "c4offset", "c4offset", "c4offset",
+    PrimaryKeySchema("id", "number(5,0)", "id") :: Nil,
+    FieldSchema(0, "id", "number(5,0)", "id number(5,0) default 0 not null") :: FieldSchema(0, "c4offset", "varchar2(16)", "c4offset varchar2(16) default '0000000000000000' not null") :: Nil
   )
+
+  private def getOffsetPrivate(implicit session: DBSession): NextOffset =
+    sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
 
   def getOffset: NextOffset =
     NamedDB(poolSymbol) readOnly { implicit session ⇒
-      sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
+      getOffsetPrivate
     }
+
+  def flush: Unit =
+    NamedDB(poolSymbol) localTx  { implicit session ⇒
+      SQL("call E$MCT.A$EDBIC.PROCEED()").update().apply()
+    }
+
 
   def patchSchema(origSchemas: List[OrigSchema]): List[TableSchema] = {
     val currentSchema = getSchema
@@ -61,7 +72,7 @@ case class OracleDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: ConnectionSet
       else
         ""
     }.filter(_.nonEmpty)
-    requestExecution(creations ++ alters)
+    requestExecution(creations ++ alters ++ origSchemas.flatMap(createView))
     getSchema
   }
 
@@ -77,20 +88,31 @@ case class OracleDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: ConnectionSet
   def alterTable(tableName: String, addColumns: List[String]): String =
     s"alter table $tableName add (\n${addColumns.mkString("\n")}\n)"
 
+  def createView(orig: OrigSchema): List[String] =
+    if (orig.fieldSchemas.exists(_.fieldRealName.nonEmpty))
+      s"""create or replace view "${orig.origViewName}" as (select ${orig.fieldSchemas.filter(_.fieldRealName.isDefined).map(f ⇒ s"""${f.fieldName} as "${f.fieldRealName.get}"""").mkString(", ")} from ${orig.origTableName})""" ::
+        s"""grant select on "${orig.origViewName}" to E$$MCT""" :: Nil
+    else
+      Nil
+
 
   def putOrigs(toWrite: List[OrigValue], offset: NextOffset): List[(OrigSchema, Int)] =
     NamedDB(poolSymbol) localTx { implicit session ⇒
-      toWrite.groupBy(_.schema).toList.sortBy(_._1.level).map { case (orig, origs) ⇒
+      val result = toWrite.groupBy(_.schema).toList.sortBy(_._1.level).map { case (orig, origs) ⇒
         val tableName = SQLSyntax.createUnsafely(orig.origTableName)
         val pkNames = orig.pks.map(_.pkName).map(SQLSyntax.createUnsafely(_))
         val keyValues = origs.map(_.pks).map(pkl ⇒ sqls"(${pkl})")
         sql"delete from ${tableName} where (${pkNames}) in (${keyValues})".update().apply()
         val columnNames = SQLSyntax.createUnsafely(orig.fieldSchemas.map(_.fieldName).mkString(", "))
-        val sum = orig → origs.filterNot(_.delete).map(value ⇒ sql"insert into ${tableName} (${columnNames}) values (${value.values})").map(_.update().apply()).sum
-        sql"delete from c4offset where id = 0".update().apply()
-        sql"insert into c4offset values (0, ${offset})".update().apply()
-        sum
+        orig → origs.filterNot(_.delete).map(value ⇒ sql"insert into ${tableName} (${columnNames}) values (${value.values})").map(_.update().apply()).sum
       }
+      sql"delete from c4offset where id = 0".update().apply()
+      sql"insert into c4offset values (0, ${offset})".update().apply()
+      SQL(toWrite.filter(_.schema.level == 0).map(ov ⇒
+        s"E$$MCT.A$$EDBIC.CHANGED('${ov.schema.origViewName}', '${ov.pks.head}', '${if (ov.delete) "delete" else "update"}');"
+      ).mkString("begin ", "\n", " end;")
+      ).update().apply()
+      result
     }
 
 
@@ -105,25 +127,38 @@ case class OracleDBAdapter(qAdapterRegistry: QAdapterRegistry, cs: ConnectionSet
         result
       }
       )
-      val offset = sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
+      val offset = getOffsetPrivate
       (dbOrig, offset)
     }
   }
 
-  def getOrigBytes(orig: OrigSchema, pk: String): (Option[Array[Byte]], NextOffset) = {
+  def getOrigBytes(orig: OrigSchema, pk: List[String]): (List[Array[Byte]], NextOffset) = {
     NamedDB(poolSymbol) readOnly { implicit session ⇒
-      val dbOrig = SQL(s"select blob from ${orig.origTableName} where (${orig.pks.map(_.pkName).mkString(", ")}) = ($pk)")
+      val dbOrig = SQL(s"select blob from ${orig.origTableName} where (${orig.pks.map(_.pkName).mkString(", ")}) in ($pk)")
         .map(rt ⇒ rt.blob("blob"))
-        .single().apply().map(bb ⇒ {
+        .list().apply().map(bb ⇒ {
         val result = bb.getBytes(1L, bb.length().toInt)
         bb.free()
         result
       }
       )
-      val offset = sql"select c4offset from c4offset where id = 0".map(_.string("c4offset")).single().apply().getOrElse("0000000000000000")
+      val offset = getOffsetPrivate
       (dbOrig, offset)
     }
   }
+
+  def findOrigBy(orig: OrigSchema, fieldId: Long, field: List[Any]): List[String] =
+    NamedDB(poolSymbol) readOnly { implicit session ⇒
+      if (orig.level == 0) {
+        val pkName = SQLSyntax.createUnsafely(orig.pks.head.pkName)
+        val tableName = SQLSyntax.createUnsafely(orig.origTableName)
+        val fieldSchema = orig.fieldById(fieldId)
+        val fieldName = SQLSyntax.createUnsafely(fieldSchema.fieldName)
+        sql"select ${pkName} from ${tableName} where ${fieldName} in (${field})".map(_.string(1)).list().apply()
+      }
+      else
+        Nil
+    }
 }
 
 object LongHex {
@@ -144,22 +179,23 @@ case class OracleOrigSchemaBuilderFactory(qAdapterRegistry: QAdapterRegistry) ex
     val pk = primitives.head
     val origSchema = OrigSchema(
       0,
+      cl.getSimpleName,
       cl.getName,
       origTableName,
-      PrimaryKeySchema(pk.fieldName, pk.fieldType) :: Nil,
-      FieldSchema("blob", "blob", "blob blob") :: primitives
+      PrimaryKeySchema(pk.fieldName, pk.fieldType, pk.fieldRealName.get) :: Nil,
+      FieldSchema(0, "blob", "blob", "blob blob") :: primitives
     )
-    val innerSchemas = parseInners(1, origSchema.origTableName, origSchema.pks, props, options)
+    val innerSchemas = parseInners(1, cl.getSimpleName, origSchema.origTableName, origSchema.pks, props, options)
     val schMap = (origSchema :: innerSchemas).map(sch ⇒ sch.origTableName → sch).toMap
     val getter = makeGetterOuter(cl, schMap)
-    OracleOrigSchemaBuilder[Model](id, cl.getName, origSchema, innerSchemas, getter)
+    OracleOrigSchemaBuilder[Model](id, cl.getName, cl, origSchema, innerSchemas, getter)
   }
 
-  private def parseSchema(level: Int, parentName: String, parentPks: List[PrimaryKeySchema], clName: String, options: List[OrigSchemaOption]): (List[FieldSchema], List[OrigSchema]) = {
+  private def parseSchema(level: Int, parentSimpleName: String, parentName: String, parentPks: List[PrimaryKeySchema], clName: String, options: List[OrigSchemaOption]): (List[FieldSchema], List[OrigSchema]) = {
     val adapter = byName(clName)
     val props: List[MetaProp] = adapter.props
     val primitives: List[FieldSchema] = parsePrimitives(props, options)
-    val children = parseInners(level, parentName, parentPks, props, options)
+    val children = parseInners(level, parentSimpleName, parentName, parentPks, props, options)
     (primitives, children)
   }
 
@@ -176,31 +212,31 @@ case class OracleOrigSchemaBuilderFactory(qAdapterRegistry: QAdapterRegistry) ex
       case _ ⇒ false
     }
 
-  private def parsePrimitives(id: Long, alias: String, name: String, options: List[OrigSchemaOption]): List[FieldSchema] = {
+  private def parsePrimitives(id: Long, alias: String, fname: String, options: List[OrigSchemaOption]): List[FieldSchema] = {
     alias match {
       case "Int" ⇒
         val name = LongHex(id, "I")
         val fType = "number(16,0)"
-        FieldSchema(name, fType, s"$name $fType default 0 not null") :: Nil
+        FieldSchema(id, name, fType, s"$name $fType default 0 not null", Some(fname)) :: Nil
       case "Long" ⇒
         val name = LongHex(id, "LO")
         val fType = "number(16,0)"
-        FieldSchema(name, fType, s"$name $fType default 0 not null") :: Nil
+        FieldSchema(id, name, fType, s"$name $fType default 0 not null", Some(fname)) :: Nil
       case "Boolean" ⇒
         val name = LongHex(id, "B")
         val fType = "number(1)"
-        FieldSchema(name, fType, s"$name $fType default 0 check ($name in (0, 1)) not null") :: Nil
+        FieldSchema(id, name, fType, s"$name $fType default 0 check ($name in (0, 1)) not null", Some(fname)) :: Nil
       case "String" ⇒
-        val isLong = options.collectFirst { case a: OracleLongString if a.fieldName == name ⇒ true }.getOrElse(false)
+        val isLong = options.collectFirst { case a: OracleLongString if a.fieldName == fname ⇒ true }.getOrElse(false)
         if (isLong) {
           val name = LongHex(id, "LS")
           val fType = "clob"
-          FieldSchema(name, fType, s"$name $fType default ''") :: Nil
+          FieldSchema(id, name, fType, s"$name $fType default ''", Some(fname)) :: Nil
           Nil
         } else {
           val name = LongHex(id, "S")
           val fType = "varchar2(4000)"
-          FieldSchema(name, fType, s"$name $fType default ''") :: Nil
+          FieldSchema(id, name, fType, s"$name $fType default ''", Some(fname)) :: Nil
         }
       case _ ⇒ Nil
     }
@@ -210,31 +246,32 @@ case class OracleOrigSchemaBuilderFactory(qAdapterRegistry: QAdapterRegistry) ex
   private def parsePrimitives(props: List[MetaProp], options: List[OrigSchemaOption]): List[FieldSchema] =
     props.flatMap(mp ⇒ parsePrimitives(mp.id, mp.typeProp.alias, mp.propName, options))
 
-  private def parseInners(level: Int, parentName: String, parentPks: List[PrimaryKeySchema], props: List[MetaProp], options: List[OrigSchemaOption]): List[OrigSchema] =
+  private def parseInners(level: Int, parentSimpleName: String, parentName: String, parentPks: List[PrimaryKeySchema], props: List[MetaProp], options: List[OrigSchemaOption]): List[OrigSchema] =
     props.flatMap { mp ⇒
       mp.typeProp.alias match {
         case "Option" | "List" ⇒
           val tName = s"${parentName}ti${LongHex(mp.id)}"
           val pks =
-            parentPks.map(pk ⇒ pk.copy(pkName = pk.pkName + "_pk")) :+ PrimaryKeySchema(s"${parentName}_index", "number(16,0)")
+            parentPks.map(pk ⇒ pk.copy(pkName = pk.pkName + "_pk", pkRealName = pk.pkRealName + "_pk")) :+ PrimaryKeySchema(s"${parentName}_index", "number(16,0)", parentSimpleName + "_index")
           val fields =
             parentPks.map(pk ⇒
-              FieldSchema(pk.pkName + "_pk", pk.pkType, s"${pk.pkName}_pk ${pk.pkType} not null")
-            ) :+ FieldSchema(parentName + "_index", "number(16,0)", s"${parentName}_index number(16,0) not null")
+              FieldSchema(0, pk.pkName + "_pk", pk.pkType, s"${pk.pkName}_pk ${pk.pkType} not null", Some(pk.pkRealName + "_pk"))
+            ) :+ FieldSchema(0, parentName + "_index", "number(16,0)", s"${parentName}_index number(16,0) not null", Some(parentSimpleName + "_index"))
           val constraints =
             List(
               s"constraint ${tName}_parent foreign key (${parentPks.map(_.pkName + "_pk").mkString(", ")}) references $parentName (${parentPks.map(_.pkName).mkString(", ")}) on delete cascade"
             )
           val childType = mp.typeProp.children.head
-
+          val name = parentSimpleName + "." + childType.alias
           val (primitives, inners) =
             if (isPrimitive(childType.alias))
               (parsePrimitives(mp.id, childType.alias, mp.propName, options), Nil)
             else
-              parseSchema(level + 1, tName, pks, childType.clName, options)
+              parseSchema(level + 1, name, tName, pks, childType.clName, options)
           val innerSchema =
             OrigSchema(
               level,
+              name,
               childType.clName,
               tName,
               pks,
@@ -378,7 +415,8 @@ trait OrigGetter {
 
 case class OracleOrigSchemaBuilder[Model <: Product](
   getOrigId: Long,
-  getOrigCl: String,
+  getOrigClName: String,
+  getOrigCl: Class[Model],
   getMainSchema: OrigSchema,
   innerSchemas: List[OrigSchema],
   getter: OrigGetter /*,

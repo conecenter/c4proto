@@ -214,7 +214,7 @@ lazy val `c4xml-base` = project.settings(publishSettings)
     "org.scalikejdbc" %% "scalikejdbc"       % "3.3.1",
     "ch.qos.logback"  %  "logback-classic"   % "1.2.3"
   ))
-  .dependsOn(`c4actor-base`, `c4proto-types`)
+  .dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file("."))

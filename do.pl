@@ -154,6 +154,7 @@ push @tasks, ["stage", sub{
     &$client(1);
 }];
 
+my $dbconf = "DBURL='jdbc:oracle:thin:\@x.edss.ee:64820:mct1' DBUSER='K\$JMS' DBPASS='nQ6Wjspx8nKY7ZKu'";
 my $env = "C4BOOTSTRAP_SERVERS=$bootstrap_server C4INBOX_TOPIC_PREFIX='$inbox_prefix' C4MAX_REQUEST_SIZE=25000000 C4HTTP_SERVER=http://$http_server C4AUTH_KEY_FILE=db4/simple.auth C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
 sub staged{
     $ENV{C4NOSTAGE}?
@@ -209,7 +210,7 @@ push @tasks, ["test_ui_todo_service_run", sub{
     sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestTodoApp"))
 }];
 push @tasks, ["test_ui_cowork_service_run", sub{
-    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCoWorkApp"))
+    sy("$dbconf $env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCoWorkApp"))
 }];
 push @tasks, ["test_ui_canvas_service_run", sub{
     sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT='' ".staged("c4gate-sse-example","ee.cone.c4gate.TestCanvasApp"))

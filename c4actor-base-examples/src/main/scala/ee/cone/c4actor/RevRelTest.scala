@@ -111,6 +111,7 @@ case class RelOuterReq(callerId: SrcId)
 
 abstract class TestExecutionApp(addAssembles: List[Assemble]) extends TestRichDataApp
   with SimpleAssembleProfilerApp
+  with WithNoExtUpdateProcessor
   with VMExecutionApp with ToStartApp with ExecutableApp
 {
   override def toStart: List[Executable] = new JustJoinTestExecutable(execution, contextFactory) :: super.toStart

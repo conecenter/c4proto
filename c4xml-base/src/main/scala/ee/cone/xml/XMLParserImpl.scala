@@ -1,3 +1,4 @@
+
 package ee.cone.xml
 
 import javax.xml.validation.Schema
@@ -7,11 +8,8 @@ import scala.xml.Elem
 import scala.xml.factory.XMLLoader
 
 class XMLParserImpl(
-  XMLBuilderRegistry: XMLBuilderRegistry,
   schemaResource: String
 ) extends XMLParser {
-  val xmlBuilderMap: Map[String, XMLBuilder[_ <: Product]] = XMLBuilderRegistry.byName
-
   val reader: XMLLoader[Elem] = {
     val schemaLang = javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI
     val xsdFile = java.nio.file.Paths.get(schemaResource)
@@ -35,7 +33,7 @@ class XMLParserImpl(
     sitemap
   }
 
-  def fromXML(xmlStr: String): Option[Product] = {
+  def fromXML(xmlStr: String): Option[Messagename] = {
     for {
       xml ← Try(reader.loadString(xmlStr)).toOption
     } yield {
@@ -43,11 +41,8 @@ class XMLParserImpl(
     }
   }
 
-  def toXML(product: Product): Option[String] = {
-    for {
-      builder ← xmlBuilderMap.get(product.productPrefix)
-    } yield {
-      builder.productToXML(product)
-    }
+  def toXML(product: Messagename): Option[String] = {
+    Try(scalaxb.toXML[Messagename](product, "Messagename", defaultScope).toString()).toOption
   }
 }
+

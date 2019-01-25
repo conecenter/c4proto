@@ -1,38 +1,59 @@
-package ee.cone.dbsync
+package ee.cone.dbadapter
 
+import ee.cone.c4actor.ExtModelsApp
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import scalikejdbc.ConnectionPoolSettings
 
 case class TableSchema(tableName: String, columnNames: List[String])
 
-case class OrigSchema(level: Int, className: String, origTableName: String, pks: List[PrimaryKeySchema], fieldSchemas: List[FieldSchema], constraints: List[String] = Nil)
+case class OrigSchema(
+  level: Int,
+  origViewName: String,
+  className: String,
+  origTableName: String,
+  pks: List[PrimaryKeySchema],
+  fieldSchemas: List[FieldSchema],
+  constraints: List[String] = Nil
+) {
+  private val fieldByIdMap: Map[Long, FieldSchema] = fieldSchemas.map(t ⇒ t.fieldId → t).toMap
 
-case class FieldSchema(fieldName: String, fieldType: String, creationStatement: String)
+  def fieldById: Long ⇒ FieldSchema = fieldByIdMap
+}
 
-case class PrimaryKeySchema(pkName: String, pkType: String)
+case class FieldSchema(fieldId: Long, fieldName: String, fieldType: String, creationStatement: String, fieldRealName: Option[String] = None)
+
+case class PrimaryKeySchema(pkName: String, pkType: String, pkRealName: String)
 
 case class OrigValue(schema: OrigSchema, pks: List[Any], values: List[Any], delete: Boolean = false)
 
 case class ConnectionSetting(name: Symbol, url: String, user: String, password: String, connectionPoolSettings: ConnectionPoolSettings)
 
 trait DBAdapter {
+  def externalName:String
+
   def getSchema: List[TableSchema]
 
   def patchSchema(origSchemas: List[OrigSchema]): List[TableSchema]
 
   def getOffset: NextOffset
 
+  def flush: Unit
+
   def putOrigs(origs: List[OrigValue], offset: NextOffset): List[(OrigSchema, Int)]
 
   def getOrig(orig: OrigSchema, pk: String): (Option[Product], NextOffset)
 
-  def getOrigBytes(orig: OrigSchema, pk: String): (Option[Array[Byte]], NextOffset)
+  def getOrigBytes(orig: OrigSchema, pks: List[String]): (List[Array[Byte]], NextOffset)
+
+  def findOrigBy(orig: OrigSchema, fieldId: Long, field: List[Any]): List[String]
 }
 
 trait OrigSchemaBuilder[Model <: Product] {
   def getOrigId: Long
 
-  def getOrigCl: String
+  def getOrigClName: String
+
+  def getOrigCl: Class[Model]
 
   def getMainSchema: OrigSchema
 
@@ -49,6 +70,8 @@ trait OrigSchemaBuilderFactory {
   def db[Model <: Product](cl: Class[Model], options: List[OrigSchemaOption] = Nil): OrigSchemaBuilder[Model]
 }
 
-trait OrigSchemaBuildersApp {
+trait OrigSchemaBuildersApp extends ExtModelsApp {
   def builders: List[OrigSchemaBuilder[_ <: Product]] = Nil
+
+  override def external: List[Class[_ <: Product]] = builders.map(_.getOrigCl) ::: super.external
 }
