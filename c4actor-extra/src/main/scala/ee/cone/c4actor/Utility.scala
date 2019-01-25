@@ -8,11 +8,12 @@ import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
 
-object Murmur3Hash{
+object Murmur3Hash {
   val parser: PreHashingMurMur3 = PreHashingMurMur3()
+  val instance: MurmurHash3 = new MurmurHash3()
 
   def apply[Model](m: Model): String = {
-    val instance = new MurmurHash3()
+    instance.reset()
     parser.calculateModelHash(m, instance)
     instance.getStringHash
   }
@@ -33,6 +34,22 @@ object TimeColored {
       f
     }
   }
+}
+
+object PrintGreen {
+  def apply[R](f: ⇒ R): R = PrintColored("g")(f)
+}
+
+object PrintRed {
+  def apply[R](f: ⇒ R): R = PrintColored("r")(f)
+}
+
+object PrintBlue {
+  def apply[R](f: ⇒ R): R = PrintColored("b")(f)
+}
+
+object PrintYellow {
+  def apply[R](f: ⇒ R): R = PrintColored("y")(f)
 }
 
 object PrintColored {

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<messagename xsi:noNamespaceSchemaLocation="file:///C:/Users/User/Desktop/Cone/C4PROTO/c4xml-base/src/main/xsd/schema.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <messageHeader>
+        <version>1.0</version>
+        <sender>TK</sender>
+        <receiver>TOS</receiver>
+        <created>2017-10-27T18:54:00</created>
+        <messageId>NBFILE000091</messageId>
+    </messageHeader>
+    <body>
+        <vessel_visit>
+            <action>insert</action>
+            <action_date>2017-04-04T00:00:00</action_date>
+            <vessel_visit_syncid>12312323</vessel_visit_syncid>
+            <vessel_syncid>VESSEL/799</vessel_syncid>
+            <state>EXP</state>
+            <in_voyage_num>SEA42</in_voyage_num>
+            <out_voyage_num>SEA42</out_voyage_num>
+            <eta>2016-09-05T11:03:45</eta>
+            <plan_process_start>2016-09-05T11:03:45</plan_process_start>
+            <plan_process_finish>2016-09-05T11:03:45</plan_process_finish>
+            <ship_line_agent_syncid>533</ship_line_agent_syncid>
+            <ship_line_syncid>STAKEHOLDER/532</ship_line_syncid>
+        </vessel_visit>
+    </body>
+</messagename>

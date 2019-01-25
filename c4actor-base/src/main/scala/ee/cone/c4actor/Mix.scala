@@ -77,6 +77,7 @@ trait RichDataApp extends ProtocolsApp
   with PreHashingApp
   with DeCompressorsApp
   with RawCompressorsApp
+  with WithDefaultExtProcessor
 {
   def assembleProfiler: AssembleProfiler
   //
@@ -102,13 +103,13 @@ trait RichDataApp extends ProtocolsApp
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, getClass.getName)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, getClass.getName, extUpdateProcessor)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct,origKeyFactory)() ::: super.dataDependencies
+    ProtocolDataDependencies(protocols.distinct,extUpdateProcessor.idSet,origKeyFactory)() ::: super.dataDependencies
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::

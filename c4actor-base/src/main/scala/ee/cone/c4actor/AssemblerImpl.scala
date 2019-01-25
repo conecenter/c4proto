@@ -19,9 +19,10 @@ case class OrigKeyFactory(composes: IndexUtil) {
     composes.joinKey(was=false, "SrcId", classOf[SrcId].getName, className)
 }
 
-case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: OrigKeyFactory) {
+case class ProtocolDataDependencies(protocols: List[Protocol], externalIds:Set[Long], origKeyFactory: OrigKeyFactory) {
+
   def apply(): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters.filter(_.hasId)).map{ adapter ⇒
+    protocols.flatMap(_.adapters.filter(_.hasId)).filterNot(adapter ⇒ externalIds(adapter.id)).map{ adapter ⇒
       new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
     }
 }
@@ -38,13 +39,15 @@ class AssemblerInit(
   origKeyFactory: OrigKeyFactory,
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
-  actorName: String
+  actorName: String,
+  externalUpdateProcessor: ExtUpdateProcessor
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
     readModelUtil.create((for {
       tpPair ← updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair
+      _ = assert(!externalUpdateProcessor.idSet(valueTypeId), s"Got Updates for external Model $tpUpdates")
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = origKeyFactory.rawKey(valueAdapter.className)
     } yield {
@@ -84,7 +87,7 @@ class AssemblerInit(
       if(events.size == 1){
         val updates = offset(events) ++
           events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))
-          .flatMap(LEvent.update).map(toUpdate.toUpdate)
+            .flatMap(LEvent.update).map(toUpdate.toUpdate)
         val failDiff = toTree(assembled, updates)
         reduce(replace, assembled, failDiff)
       } else {
@@ -93,15 +96,16 @@ class AssemblerInit(
       }
   }
   // other parts:
-  private def add(out: Seq[Update]): Context ⇒ Context =
-    if(out.isEmpty) identity[Context]
+  private def add(out: Seq[Update]): Context ⇒ Context = {
+    val processedOut = externalUpdateProcessor.process(out)
+    if (processedOut.isEmpty) identity[Context]
     else { local ⇒
-      val diff = toTree(local.assembled, out)
+      val diff = toTree(local.assembled, processedOut)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val res = for {
         transition ← replace(local.assembled,diff,false,profiling)
-        updates ← assembleProfiler.addMeta(transition, out)
+        updates ← assembleProfiler.addMeta(transition, processedOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.transient)
         WriteModelKey.modify(_.enqueue(updates))(nLocal)
@@ -109,6 +113,7 @@ class AssemblerInit(
       concurrent.blocking{Await.result(res, Duration.Inf)}
       //call add here for new mortal?
     }
+  }
 
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
     val index = origKeyFactory.rawKey(className).of(context.assembled).value.get.get

@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.E.4.1",  
+  version := "0.E.5",  
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -47,8 +47,23 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   sources in (Compile, doc) := Nil // macroparadise doesn't work with scaladoc yet.
 )
 
-lazy val metaREPLSettins: Seq[Def.Setting[_]] = Seq(
+lazy val metaREPLSettings: Seq[Def.Setting[_]] = Seq(
   dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.1.0"
+)
+
+lazy val scalaXml = "org.scala-lang.modules" %% "scala-xml" % "1.0.2"
+lazy val scalaParser = "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.1"
+lazy val dispatchV = "0.11.3"
+lazy val dispatch = "net.databinder.dispatch" %% "dispatch-core" % dispatchV
+
+lazy val scalaxbPrerequestives: Seq[Def.Setting[_]] = Seq(
+  libraryDependencies ++= Seq(dispatch),
+  libraryDependencies ++= Seq(scalaXml, scalaParser)
+)
+
+lazy val scalaxbSettins: Seq[Def.Setting[_]] = Seq(
+  scalaxbDispatchVersion in(Compile, scalaxb) := dispatchV,
+  scalaxbPackageName in(Compile, scalaxb) := "ee.cone.xml"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,8 +161,8 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .settings(metaREPLSettins)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
+  .settings(metaREPLSettings)
+  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`, `c4xml-base`)
   .enablePlugins(JavaServerAppPackaging)
 
 
@@ -187,8 +202,24 @@ lazy val `c4gate-repl` = project.settings(publishSettings)
   .settings(libraryDependencies += "com.lihaoyi" % "ammonite-sshd" % "1.4.4" cross CrossVersion.full)
   .dependsOn(`c4actor-base`)
 
+lazy val `c4xml-base` = project.settings(publishSettings)
+  .enablePlugins(ScalaxbPlugin)
+  .settings(scalaxbPrerequestives)
+  .settings(scalaxbSettins)
+  .settings(description := s"$descr")
+  .settings(metaMacroSettings)
+  .settings(libraryDependencies += "com.oracle" % "ojdbc14" % "10.2.0.4.0" from "file:///"+Path(".").absolutePath+"/lib/ojdbc7.jar")
+  .settings(libraryDependencies += "org.scala-lang.modules" %% "scala-xml" % "1.1.1")
+  .settings(libraryDependencies ++= Seq(
+    "org.scalikejdbc" %% "scalikejdbc"       % "3.3.1",
+    "ch.qos.logback"  %  "logback-classic"   % "1.2.3"
+  ))
+  .dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
+
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
-lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
+lazy val `c4proto-aggregate` = project.in(file("."))
+  .settings(publishSettings)
+  .aggregate(
   `c4actor-base`,
   `c4actor-base-examples`,
   `c4actor-branch`,
@@ -214,5 +245,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-extra`,
   `c4actor-extra-examples`,
   `c4ui-main`,
-  `c4ui-extra`
+  `c4ui-extra`,
+  `c4xml-base`
 )
