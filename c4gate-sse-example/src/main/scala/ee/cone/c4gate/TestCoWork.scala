@@ -5,7 +5,6 @@ import java.net.URL
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, fieldAccess}
-import ee.cone.c4external.ExtDBSyncApp
 import ee.cone.c4gate.AlienProtocol.FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.RawSessionData
 import ee.cone.c4gate.TestFilterProtocol.Content
@@ -13,7 +12,6 @@ import ee.cone.c4proto.{Id, Protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.dbadapter.{OracleDBApp, OrigSchemaBuilder}
 
 class TestCoWorkApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
