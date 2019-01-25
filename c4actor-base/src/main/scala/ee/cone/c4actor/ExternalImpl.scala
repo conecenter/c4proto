@@ -6,6 +6,6 @@ class NoExtUpdateProcessor extends ExtUpdateProcessor {
   val idSet: Set[Long] = Set.empty
 }
 
-trait WithNoExtUpdateProcessor extends ExtUpdateProcessorApp {
+trait WithDefaultExtProcessor extends ExtUpdateProcessorApp {
   def extUpdateProcessor: ExtUpdateProcessor = new NoExtUpdateProcessor
 }
