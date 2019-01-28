@@ -254,7 +254,7 @@ trait AssembleProfiler {
 
 case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
 
-trait UpdatesPreprocessorsApp {
+trait UpdatesProcessorsApp {
   def processors: List[UpdatesPreprocessor] = Nil
 }
 

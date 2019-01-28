@@ -77,7 +77,7 @@ trait RichDataApp extends ProtocolsApp
   with PreHashingApp
   with DeCompressorsApp
   with RawCompressorsApp
-  with UpdatesPreprocessorsApp
+  with UpdatesProcessorsApp
 {
   def assembleProfiler: AssembleProfiler
   //

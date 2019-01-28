@@ -1,4 +1,4 @@
-package ee.cone.c4actor.jms_processing
+package ee.cone.c4actor.jms
 
 import ee.cone.c4actor.UpdatesCat
 import ee.cone.c4proto.{Id, Protocol, protocol}

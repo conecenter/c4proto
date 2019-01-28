@@ -188,12 +188,6 @@ lazy val `c4gate-repl` = project.settings(publishSettings)
   .settings(libraryDependencies += "com.lihaoyi" % "ammonite-sshd" % "1.4.4" cross CrossVersion.full)
   .dependsOn(`c4actor-base`)
 
-lazy val `c4actor-jms` = project.settings(publishSettings)
-  .settings(description := s"$descr")
-  .settings(metaMacroSettings)
-  .settings(libraryDependencies += "org.apache.activemq" % "activemq-all" % "5.11.0")
-  .dependsOn(/*`c4actor-extra`, */`c4gate-logback`, `c4actor-kafka`)
-
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
@@ -221,6 +215,5 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-extra`,
   `c4actor-extra-examples`,
   `c4ui-main`,
-  `c4ui-extra`,
-  `c4actor-jms`
+  `c4ui-extra`
 )
