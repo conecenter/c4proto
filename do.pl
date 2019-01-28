@@ -209,7 +209,7 @@ push @tasks, ["test_ui_todo_service_run", sub{
     sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestTodoApp"))
 }];
 push @tasks, ["test_ui_cowork_service_run", sub{
-    sy("$dbconf $env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCoWorkApp"))
+    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCoWorkApp"))
 }];
 push @tasks, ["test_ui_canvas_service_run", sub{
     sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT='' ".staged("c4gate-sse-example","ee.cone.c4gate.TestCanvasApp"))
