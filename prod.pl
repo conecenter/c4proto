@@ -88,6 +88,18 @@ my $rsync_start = sub{
 
 ####
 
+push @tasks, ["","",sub{
+    print join '', map{"$_\n"} "usage:",
+        (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
+}];
+
+push @tasks, ["stack_list"," ",sub{
+    my $width = 6;
+    my $composes = &$get_deploy_conf()->{stacks} || die;
+    print join '', map{"$_\n"}
+        (map{"  $_".(" "x($width-length))." -- ".(($$composes{$_}||die)->{description}||'?')} sort keys %$composes);
+}];
+
 push @tasks, ["agent","<command-with-args>",sub{
     my(@args)=@_;
     sy(&$ssh_add());
@@ -587,11 +599,11 @@ my $compose_up = sub{
 
 my $split_port = sub{ $_[0]=~/^(\S+):(\d+)$/ ? ($1,$2) : die };
 
-my $frp_auth_all = require "$ENV{C4DEPLOY_CONF}/frp_auth.pl";
-my $get_frp_sk = sub{($$frp_auth_all{$_[0]}||die)->[1]||die};
+my $frp_auth_all = lazy{ require "$ENV{C4DEPLOY_CONF}/frp_auth.pl" };
+my $get_frp_sk = sub{(&$frp_auth_all()->{$_[0]}||die)->[1]||die};
 my $get_frp_common = sub{
     my($comp)=@_;
-    my($token,$sk) = ($$frp_auth_all{$comp}||die "$comp frp auth not found")->[0]||die "frp auth not found";
+    my($token,$sk) = (&$frp_auth_all()->{$comp}||die "$comp frp auth not found")->[0]||die "frp auth not found";
     my $conf = &$get_compose($comp);
     my($frps_addr,$frps_port) = &$split_port($$conf{frps}||die);
     my $proxy = $$conf{frp_http_proxy};
@@ -935,17 +947,8 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
 
 ####
 
-if($ARGV[0]) {
-    my($cmd,@args)=@ARGV;
-    $cmd eq $$_[0] and $$_[2]->(@args) for @tasks;
-} else {
-    my $width = 6;
-    my $composes = &$get_deploy_conf()->{stacks} || die;
-    print join '', map{"$_\n"}
-        "stacks:",
-        (map{"  $_".(" "x($width-length))." -- ".(($$composes{$_}||die)->{description}||'?')} sort keys %$composes),
-        "usage:",
-        (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
-}
+my($cmd,@args)=@ARGV;
+($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
+
 
 #userns_mode: "host"

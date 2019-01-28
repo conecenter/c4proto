@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.E.5.1",  
+  version := "0.E.6",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -26,7 +26,7 @@ scalaVersion in ThisBuild := "2.11.8"
 
 ////////////////////////////////////////////////////////////////////////////////
 // from https://github.com/scalameta/sbt-macro-example/blob/master/build.sbt
-
+/*
 lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   ivyConfigurations += config("compileonly").hide,
   libraryDependencies += "org.scalameta" %% "scalameta" % "1.6.0" % "compileonly",
@@ -45,7 +45,7 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   scalacOptions in (Compile, console) := Seq(), // macroparadise plugin doesn't work in repl yet.
   // temporary workaround for https://github.com/scalameta/paradise/issues/55
   sources in (Compile, doc) := Nil // macroparadise doesn't work with scaladoc yet.
-)
+)*/
 
 lazy val metaREPLSettins: Seq[Def.Setting[_]] = Seq(
   dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.1.0"
@@ -53,54 +53,42 @@ lazy val metaREPLSettins: Seq[Def.Setting[_]] = Seq(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-
 lazy val descr = "C4 framework"
 
-lazy val `c4proto-macros` = project.settings(publishSettings ++ metaMacroSettings)
-  .settings(description := s"$descr / scalameta macros to generate Protobuf adapters for case classes")
 lazy val `c4proto-api` = project.settings(publishSettings)
   .settings(description := s"$descr / runtime dependency for generated Protobuf adapters")
   .settings(libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0")
 
 lazy val `c4proto-types` = project.settings(publishSettings)
   .settings(description := s"$descr / additional data types to use in messages")
-  .settings(metaMacroSettings).dependsOn(`c4proto-macros`,`c4proto-api`)
+  .dependsOn(`c4proto-api`)
 
-lazy val `c4assemble-macros` = project.settings(publishSettings ++ metaMacroSettings)
-  .settings(description := s"$descr")
 lazy val `c4assemble-runtime` = project.settings(publishSettings)
   .settings(description := s"$descr")
 
 lazy val `c4gate-proto` = project.settings(publishSettings)
   .settings(description := s"$descr / http message definitions")
-  .settings(metaMacroSettings)
-  .dependsOn(`c4proto-macros`,`c4proto-api`)
+  .dependsOn(`c4proto-api`)
 
 lazy val `c4actor-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
   .settings(libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2")
-  .dependsOn(`c4proto-macros`,`c4assemble-macros`,`c4proto-api`,`c4assemble-runtime`)
+  .dependsOn(`c4proto-api`,`c4assemble-runtime`)
 
 lazy val `c4actor-base-examples` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`)
 
 lazy val `c4actor-extra` = project.settings(publishSettings)
   .settings(description := s"$descr / dep impls")
-  .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`,`c4proto-types`)
 
 lazy val `c4gate-extra` = project.settings(publishSettings)
   .settings(description := s"$descr / dep gate impls")
-  .settings(metaMacroSettings)
   .dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`, `c4proto-types`)
 
 lazy val `c4actor-extra-examples` = project.settings(publishSettings)
   .settings(description := s"$descr / dep test")
-  .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
@@ -111,17 +99,16 @@ lazy val `c4actor-kafka` = project.settings(publishSettings)
 lazy val `c4gate-server` = project.settings(publishSettings)
   .settings(description := s"$descr / http/tcp gate server to kafka")
   //.settings(libraryDependencies += "org.slf4j" % "slf4j-nop" % "1.7.21")
-  .settings(metaMacroSettings,javaOptions in Universal ++= Seq(
+  .settings(javaOptions in Universal ++= Seq(
     "-J-XX:+UseG1GC","-J-XX:MaxGCPauseMillis=200","-J-XX:+ExitOnOutOfMemoryError",
     "-J-XX:GCTimeRatio=1","-J-XX:MinHeapFreeRatio=15","-J-XX:MaxHeapFreeRatio=50"
   ))
-  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
+  .dependsOn(`c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging/*,AshScriptPlugin*/)
 
 lazy val `c4gate-consumer-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
-  .dependsOn(`c4assemble-macros`, `c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
+  .dependsOn(`c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
   .enablePlugins(JavaServerAppPackaging)
 
 lazy val `c4gate-server-example` = project.settings(publishSettings)
@@ -130,13 +117,11 @@ lazy val `c4gate-server-example` = project.settings(publishSettings)
 
 lazy val `c4actor-branch` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`, `c4assemble-macros`)
+  .dependsOn(`c4actor-base`)
 
 lazy val `c4actor-rdb` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
-  .dependsOn(`c4actor-base`, `c4assemble-macros`, `c4proto-types`)
+  .dependsOn(`c4actor-base`, `c4proto-types`)
 
 lazy val `c4gate-publish` = project.settings(publishSettings)
   .settings(description := s"$descr")
@@ -145,9 +130,8 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
   .settings(metaREPLSettins)
-  .dependsOn(`c4proto-macros`, `c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
+  .dependsOn(`c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
   .enablePlugins(JavaServerAppPackaging)
 
 
@@ -163,17 +147,14 @@ lazy val `c4vdom-canvas` = project.settings(publishSettings)
 
 lazy val `c4ui-main` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
   .dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-client`)
 
 lazy val `c4ui-extra` = project.settings(publishSettings)
   .settings(description := s"$descr / c4ui extra")
-  .settings(metaMacroSettings)
   .dependsOn(`c4ui-main`, `c4actor-extra`, `c4gate-extra`)
 
 lazy val `c4gate-client` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
   .dependsOn(`c4gate-proto`,`c4actor-base`)
 
 lazy val `c4gate-logback` = project.settings(publishSettings)
@@ -183,7 +164,6 @@ lazy val `c4gate-logback` = project.settings(publishSettings)
 
 lazy val `c4gate-repl` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
   .settings(libraryDependencies += "com.lihaoyi" % "ammonite-sshd" % "1.4.4" cross CrossVersion.full)
   .dependsOn(`c4actor-base`)
 
@@ -194,7 +174,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4actor-branch`,
   `c4actor-kafka`,
   `c4actor-rdb`,
-  `c4assemble-macros`,
   `c4assemble-runtime`,
   `c4gate-consumer-example`,
   `c4gate-server-example`,
@@ -206,7 +185,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-sse-example`,
   `c4gate-repl`,
   `c4proto-api`,
-  `c4proto-macros`,
   `c4proto-types`,
   `c4vdom-base`,
   `c4vdom-canvas`,
