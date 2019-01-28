@@ -91,6 +91,7 @@ lazy val `c4actor-base-examples` = project.settings(publishSettings)
 lazy val `c4actor-extra` = project.settings(publishSettings)
   .settings(description := s"$descr / dep impls")
   .settings(metaMacroSettings)
+  //.settings(libraryDependencies += "org.apache.activemq" % "activemq-all" % "5.11.0")
   .dependsOn(`c4actor-base`,`c4proto-types`)
 
 lazy val `c4gate-extra` = project.settings(publishSettings)

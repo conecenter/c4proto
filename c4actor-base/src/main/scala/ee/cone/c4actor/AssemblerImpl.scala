@@ -40,6 +40,8 @@ class AssemblerInit(
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
   actorName: String,
+  processors: List[UpdatesPreprocessor]
+  actorName: String,
   externalUpdateProcessor: ExtUpdateProcessor
 ) extends ToInject with LazyLogging {
 
@@ -97,15 +99,16 @@ class AssemblerInit(
   }
   // other parts:
   private def add(out: Seq[Update]): Context ⇒ Context = {
-    val processedOut = externalUpdateProcessor.process(out)
-    if (processedOut.isEmpty) identity[Context]
+    val processedOut = processors.par.flatMap(_.process(out)).to[Seq] ++ out
+    val externalOut = externalUpdateProcessor.process(out)
+    if (externalOut.isEmpty) identity[Context]
     else { local ⇒
-      val diff = toTree(local.assembled, processedOut)
+      val diff = toTree(local.assembled, externalOut)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val res = for {
         transition ← replace(local.assembled,diff,false,profiling)
-        updates ← assembleProfiler.addMeta(transition, processedOut)
+        updates ← assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.transient)
         WriteModelKey.modify(_.enqueue(updates))(nLocal)
