@@ -40,9 +40,8 @@ class AssemblerInit(
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
   actorName: String,
+  externalUpdateProcessor: ExtUpdateProcessor,
   processors: List[UpdatesPreprocessor]
-  actorName: String,
-  externalUpdateProcessor: ExtUpdateProcessor
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =

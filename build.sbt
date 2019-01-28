@@ -191,10 +191,6 @@ lazy val `c4gate-repl` = project.settings(publishSettings)
 lazy val `c4external-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
   .settings(metaMacroSettings)
-  .settings(libraryDependencies ++= Seq(
-    "org.scalikejdbc" %% "scalikejdbc"       % "3.3.1",
-    "ch.qos.logback"  %  "logback-classic"   % "1.2.3"
-  ))
   .dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this

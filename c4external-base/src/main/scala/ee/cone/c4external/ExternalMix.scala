@@ -4,7 +4,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.Protocol
 
-trait ExternalMix extends ProtocolsApp with UpdatesPreprocessorsApp with ExtModelsApp with AssemblesApp {
+trait ExternalMix extends ProtocolsApp with UpdatesProcessorsApp with ExtModelsApp with AssemblesApp {
   def toUpdate: ToUpdate
   def qAdapterRegistry: QAdapterRegistry
 

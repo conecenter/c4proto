@@ -2,7 +2,6 @@ package ee.cone.dbadapter
 
 import ee.cone.c4actor.ExtModelsApp
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
-import scalikejdbc.ConnectionPoolSettings
 
 case class TableSchema(tableName: String, columnNames: List[String])
 
@@ -25,8 +24,6 @@ case class FieldSchema(fieldId: Long, fieldName: String, fieldType: String, crea
 case class PrimaryKeySchema(pkName: String, pkType: String, pkRealName: String)
 
 case class OrigValue(schema: OrigSchema, pks: List[Any], values: List[Any], delete: Boolean = false)
-
-case class ConnectionSetting(name: Symbol, url: String, user: String, password: String, connectionPoolSettings: ConnectionPoolSettings)
 
 trait DBAdapter {
   def externalName:String
