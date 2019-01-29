@@ -53,7 +53,7 @@ case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: 
   def ExternalUpdatesOlderCreate(
     externalId: SrcId,
     @by[OffsetId] exts: Values[ExtUpdatesWithTxId],
-    @by[OffsetAll] offset: Each[ExternalOffset]
+    offset: Each[ExternalOffset]
   ): Values[(SrcId, ExtUpdatesNewerThan)] =
     List(WithPK(ExtUpdatesNewerThan(externalId, offset.offset, exts.toList)))
 
