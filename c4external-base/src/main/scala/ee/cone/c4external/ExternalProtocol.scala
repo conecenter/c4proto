@@ -27,4 +27,8 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0088) updates: List[Update]
   )
 
+  @Id(0x0090) case class ExternalReady(
+    @Id(0x0091) srcId: String
+  )
+
 }

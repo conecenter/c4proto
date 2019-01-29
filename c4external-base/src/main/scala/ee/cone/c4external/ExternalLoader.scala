@@ -1,15 +1,26 @@
 package ee.cone.c4external
 
+import java.time.Instant
+
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, TxRef, Update}
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
-import ee.cone.c4external.ExternalProtocol.{ExternalOffset, ExternalUpdates}
-import ee.cone.dbadapter.DBAdapter
+import ee.cone.c4external.ExternalProtocol.{ExternalOffset, ExternalReady, ExternalUpdates}
+import ee.cone.dbadapter.{DBAdapter, OrigSchema, OrigSchemaBuildersApp}
+
+trait ExternalLoaderMix extends AssemblesApp with OrigSchemaBuildersApp{
+  def extDBSync: ExtDBSync
+  def dbAdapter: DBAdapter
+  override def assembles: List[Assemble] = {
+    dbAdapter.patchSchema(builders.flatMap(_.getSchemas))
+    new ExternalLoaderAssemble(extDBSync, dbAdapter) :: super.assembles}
+}
 
 case class ExtUpdatesWithTxId(srcId: SrcId, txId: NextOffset, updates: List[Update])
+
 case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: List[ExtUpdatesWithTxId])
 
 @assemble class ExternalLoaderAssemble(extDBSync: ExtDBSync, dbAdapter: DBAdapter) extends Assemble {
@@ -45,7 +56,6 @@ case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: 
     @by[OffsetAll] offset: Each[ExternalOffset]
   ): Values[(SrcId, ExtUpdatesNewerThan)] =
     List(WithPK(ExtUpdatesNewerThan(externalId, offset.offset, exts.toList)))
-
 
   def CreateExternalLoaderTx(
     srcId: SrcId,
