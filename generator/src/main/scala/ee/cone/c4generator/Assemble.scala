@@ -32,8 +32,8 @@ object ExtractKeyNSType {
   }
 }
 
-object AssembleGenerator {
-  def get: PartialFunction[Stat,String] = {
+object AssembleGenerator extends Generator {
+  def get: Get = {
     case q"@assemble class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" ⇒
     val classArgs = paramss.toList.flatten.collect{
       case param"${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒

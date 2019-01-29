@@ -4,8 +4,8 @@ import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta._
 //import org.scalameta.logger
 
-object FieldAccessGenerator {
-  def get: PartialFunction[Stat,String] = {
+object FieldAccessGenerator extends Generator {
+  def get: Get = {
     case code@Defn.Object(Seq(mod"@fieldAccess"),_,_) ⇒
     //case q"@fieldAccess object $name $code" ⇒
     //  println(s"=-=$code")

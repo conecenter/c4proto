@@ -23,11 +23,11 @@ case class ProtoType(
 case class ProtoMessage(adapterName: String, adapterImpl: String)
 case class ProtoMods(id: Option[Int]=None, category: List[String])
 
-object ProtocolGenerator {
+object ProtocolGenerator extends Generator {
   def parseArgs: Seq[Seq[Term]] ⇒ List[String] =
     _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
 
-  def get: PartialFunction[Stat,String] = {
+  def get: Get = {
     case q"@protocol(...$exprss) object $objectName extends ..$ext { ..$stats }" ⇒
 
       //println(t.structure)
