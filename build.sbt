@@ -16,8 +16,9 @@ lazy val publishSettings = Seq(
   //bintrayOrganization in bintray.Keys.bintray := None,
   licenses := ourLicense,
   fork := true, //looks like sbt hangs for a minute on System.exit
-  mainClass in Compile := Some("ee.cone.c4actor.ServerMain")
+  mainClass in Compile := Some("ee.cone.c4actor.ServerMain"),
   //scalacOptions += "-feature"//"-deprecation",
+  bintrayVcsUrl := Option("git@github.com:conecenter/c4proto.git")
 )
 
 scalaVersion in ThisBuild := "2.11.8"
