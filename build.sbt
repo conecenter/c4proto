@@ -90,6 +90,7 @@ lazy val `c4gate-extra` = project.settings(publishSettings)
 
 lazy val `c4actor-extra-examples` = project.settings(publishSettings)
   .settings(description := s"$descr / dep test")
+  .settings(libraryDependencies += "org.scalameta" %% "scalameta" % "4.1.0")
   .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
@@ -170,7 +171,6 @@ lazy val `c4gate-repl` = project.settings(publishSettings)
 
 lazy val `c4external-base` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaMacroSettings)
   .dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this

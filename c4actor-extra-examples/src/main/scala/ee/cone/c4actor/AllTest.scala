@@ -8,7 +8,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.AllTestTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
+//  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.AllTestTestApp ./app.pl sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 
 @protocol(TestCat) object AllTestProtocol extends Protocol {
 
