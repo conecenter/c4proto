@@ -105,9 +105,9 @@ case class IndexByNodeStats(
 )
 
 sealed trait ThanosTimeTypes {
-  type PowerIndexNodeThanos = All
+  type PowerIndexNodeThanosAll = All
 
-  type ThanosLEventsTransforms = All
+  type ThanosLEventsTransformsAll = All
 }
 
 @assemble class ThanosTimeFilters(version: String, maxTransforms: Int) extends Assemble with ThanosTimeTypes {
@@ -127,7 +127,7 @@ sealed trait ThanosTimeTypes {
     timeNode: SrcId,
     firstborn: Values[Firstborn],
     currentTimeNode: Each[CurrentTimeNode]
-  ): Values[(PowerIndexNodeThanos, CurrentTimeNode)] =
+  ): Values[(PowerIndexNodeThanosAll, CurrentTimeNode)] =
     if (currentTimeNode.srcId == "DynamicIndexAssembleRefresh")
       WithAll(currentTimeNode) :: Nil
     else
@@ -136,8 +136,8 @@ sealed trait ThanosTimeTypes {
 
   def ApplyThanosTransforms(
     firsBornId: SrcId,
-    firstborn: Values[Firstborn],
-    @by[ThanosLEventsTransforms] @distinct events: Values[LEventTransform]
+    firstborn: Each[Firstborn],
+    @by[ThanosLEventsTransformsAll] @distinct events: Values[LEventTransform]
   ): Values[(SrcId, TxTransform)] =
     WithPK(CollectiveTransform("ThanosTX", events.take(maxTransforms))) :: Nil
 }
@@ -325,7 +325,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     indexNodeId: SrcId,
     indexNodes: Values[IndexNodeTyped[Model]],
     @by[IndexNodeId] leafs: Values[PreProcessedLeaf[Model]]
-  ): Values[(ThanosLEventsTransforms, LEventTransform)] =
+  ): Values[(ThanosLEventsTransformsAll, LEventTransform)] =
     (indexNodes.toList, leafs.toList) match {
       case (Nil, leaf :: _) ⇒
         if (debugMode)
@@ -363,7 +363,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     innerLeafs: Values[ProcessedLeaf[Model]],
     indexByNodes: Values[IndexByNodeTyped[Model]],
     indexByNodesLastSeen: Values[IndexByNodeLastSeen]
-  ): Values[(ThanosLEventsTransforms, LEventTransform)] = {
+  ): Values[(ThanosLEventsTransformsAll, LEventTransform)] = {
     (innerLeafs.toList, indexByNodes.toList) match {
       case (leaf :: Nil, Nil) ⇒
         if (debugMode)
@@ -393,7 +393,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     innerLeafs: Values[ProcessedLeaf[Model]],
     indexByNodesLastSeen: Values[IndexByNodeLastSeen],
     indexByNodeSettings: Values[IndexByNodeSettings],
-    @by[PowerIndexNodeThanos] currentTimes: Each[CurrentTimeNode]
+    @by[PowerIndexNodeThanosAll] currentTimes: Each[CurrentTimeNode]
   ): Values[(IndexNodeId, IndexByNodeRich[Model])] =
     if (nodes.size == 1) {
       val node = nodes.head
@@ -471,7 +471,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   def PowerGCIndexByNodes(
     indexNodeRichId: SrcId,
     parent: Each[IndexNodeRich[Model]]
-  ): Values[(ThanosLEventsTransforms, LEventTransform)] =
+  ): Values[(ThanosLEventsTransformsAll, LEventTransform)] =
     if (!parent.isStatic)
       for {
         child ← parent.indexByNodes
@@ -487,8 +487,8 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     indexByNodeId: SrcId,
     indexByNodes: Each[IndexByNodeTyped[Model]],
     indexByNodesLastSeen: Values[IndexByNodeLastSeen],
-    @by[PowerIndexNodeThanos] currentTimes: Each[CurrentTimeNode]
-  ): Values[(ThanosLEventsTransforms, LEventTransform)] =
+    @by[PowerIndexNodeThanosAll] currentTimes: Each[CurrentTimeNode]
+  ): Values[(ThanosLEventsTransformsAll, LEventTransform)] =
     if (indexByNodesLastSeen.nonEmpty && currentTimes.currentTimeSeconds - indexByNodesLastSeen.head.lastSeenAtSeconds > deleteAnyway) {
       WithAll(PowerTransform(indexByNodes.leafId, s"Anyway-${indexByNodes.leafId}")) :: Nil
     } else {
