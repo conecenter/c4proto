@@ -20,7 +20,7 @@ import MetroUi       from "../extra/metro/metro-ui"
 import MetroUiFilters   from "../extra/metro/metro-ui-filters"
 
 import FocusModule		from "../extra/focus-module"
-import DragDropModule from "../extra/dragdrop-module"
+import {DragDropModule} from "../extra/dragdrop-module"
 import OverlayManager from "../extra/overlay-manager"
 //import RequestState from "../extra/request-state"
 import VirtualKeyboard from "../extra/virtual-keyboard"
@@ -127,11 +127,11 @@ const miscUtil = (()=>{
 const vDomAttributes = VDomAttributes(requestState)
 
 const images = Images(window.btoa)
-
+window.images = images
 const overlayManager = () => OverlayManager({log,documentManager,windowManager})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager})
 window.focusModule = focusModule
-const dragDropModule = () => DragDropModule({log,documentManager,windowManager})
+const dragDropModule = () => DragDropModule({log2,documentManager,windowManager})
 const metroUi = MetroUi(log2,requestState,images,documentManager,eventManager,overlayManager,dragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes);
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []

@@ -9,7 +9,7 @@ my $zoo_host = "zookeeper";
 my $build_dir = "client/build/test";
 my $kafka_version = "2.0.0";
 my $kafka = "kafka_2.11-$kafka_version";
-my $curl_test = "curl http://127.0.0.1:$http_port/abc";
+#my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "broker:9092";
 my $temp = "target";
 my $docker_build = "$temp/docker_build";
@@ -23,8 +23,25 @@ my $uid = 1979;
 sub so{ print join(" ",@_),"\n"; system @_ }
 sub sy{ &so and die $? }
 
-my $need_dir = sub{ my($d)=@_; -e $d or sy("mkdir -p $d"); $d };
-my $sy_in_dir = sub{ my($d,$c)=@_; &$need_dir($d); sy("cd $d && $c") };
+sub lazy(&){ my($calc)=@_; my $res; sub{ ($res||=[scalar &$calc()])->[0] } }
+
+my $need_path; $need_path = sub{
+    my($path)=@_;
+    my $parent = $path=~m{(.*)/[^/]*$} ? $1 : die "path($path)";
+    if(!-d $parent){
+        &$need_path($parent);
+        mkdir $parent or die "mkdir($parent)";
+    }
+    $path;
+};
+
+my $sy_in_dir = sub{ my($d,$c)=@_; &$need_path("$d/any"); sy("cd $d && $c") };
+
+my $pwd = lazy{ my $c = `pwd`; chomp $c; $c };
+my $abs_path = sub{ join '/', &$pwd(), @_ };
+
+my $get_generator_path = sub{ &$abs_path("$temp/c4gen") };
+my $get_generated_sbt_dir = sub{ &$get_generator_path()."/res" };
 
 my @tasks;
 
@@ -45,10 +62,10 @@ my $put_yml; $put_yml = sub{
     &$put_text($path,"#### this file is generated ####\n".&$yml($data))
 };
 
-my $put_compose = sub{
-    my($project,$services)=@_;
-    &$put_yml("$docker_build/docker-compose.test_$project.yml",{ services => $services });
-};
+#my $put_compose = sub{
+#    my($project,$services)=@_;
+#    &$put_yml("$docker_build/docker-compose.test_$project.yml",{ services => $services });
+#};
 
 my $mkdirs = sub{
     my($ctx_dir,@dirs)=@_;
@@ -56,7 +73,7 @@ my $mkdirs = sub{
 };
 
 my $recycling = sub{
-    !-e $_ or rename $_, &$need_dir("$temp/recycle")."/".rand() or die $! for @_;
+    !-e $_ or rename $_, &$need_path("$temp/recycle/".rand()) or die $! for @_;
 };
 
 my $run = sub{ "RUN ".join ' && ', @_ };
@@ -85,16 +102,18 @@ my $rename = sub{
 
 my $prepare_build = sub{
     my($name,$lines) = @_;
-    my $ctx_dir = &$need_dir("$docker_build/$name");
+    my $ctx_dir = "$docker_build/$name";
+    &$need_path("$ctx_dir/any");
     &$put_text("$ctx_dir/Dockerfile",join "\n", &$lines($ctx_dir));
-    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile")
+    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
 };
 
 my $staged = sub{
     my($name,$f) = @_;
     ($name=>sub{
         my($ctx_dir)=@_;
-        &$gcp("c4$name/target/universal/stage"=>$ctx_dir,"app");
+        my $gen_dir = &$get_generated_sbt_dir();
+        &$gcp("$gen_dir/c4$name/target/universal/stage"=>$ctx_dir,"app");
         &$mkdirs($ctx_dir,"db4");
         (&$from(""),qq{CMD ["app/bin/c4$name"]}, $f ? &$f($ctx_dir) : ())
     });
@@ -203,32 +222,32 @@ my $gen_docker_conf = sub{
         ()
     }));
     &$build(&$staged("gate-consumer-example"));
-    for(
-        [qw[post_get_tcp TestConsumerApp]],
-        [qw[actor_serial TestSerialApp]],
-        [qw[actor_parallel TestParallelApp]],
-    ){
-        my($project,$main)=@$_;
-        &$put_compose($project,{
-            app=>{
-                C4APP_IMAGE => "gate-consumer-example",
-                C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.$main"
-            }
-        })
-    }
-    for(
-        ["sse"=>[qw[PublishApp TestSSEApp]]], # http://localhost:8067/sse.html#
-        ["ui"=>[qw[PublishApp TestTodoApp TestCoWorkApp TestCanvasApp TestPasswordApp]]],
-    ){
-        my($project,$apps)=@$_;
-        &$put_compose($project,{
-            map{($_=>{
-                C4APP_IMAGE => "gate-sse-example",
-                C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.$_",
-                $_ eq "PublishApp" ? (restart => "on-failure") : ()
-            })} @$apps
-        });
-    }
+#    for(
+#        [qw[post_get_tcp TestConsumerApp]],
+#        [qw[actor_serial TestSerialApp]],
+#        [qw[actor_parallel TestParallelApp]],
+#    ){
+#        my($project,$main)=@$_;
+#        &$put_compose($project,{
+#            app=>{
+#                C4APP_IMAGE => "gate-consumer-example",
+#                C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.$main"
+#            }
+#        })
+#    }
+#    for(
+#        ["sse"=>[qw[PublishApp TestSSEApp]]], # http://localhost:8067/sse.html#
+#        ["ui"=>[qw[PublishApp TestTodoApp TestCoWorkApp TestCanvasApp TestPasswordApp]]],
+#    ){
+#        my($project,$apps)=@$_;
+#        &$put_compose($project,{
+#            map{($_=>{
+#                C4APP_IMAGE => "gate-sse-example",
+#                C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.$_",
+#                $_ eq "PublishApp" ? (restart => "on-failure") : ()
+#            })} @$apps
+#        });
+#    }
 };
 
 my $webpack = sub{
@@ -249,28 +268,82 @@ my $get_commit = sub{
     [qq{LABEL c4commit="$commit"}];
 };
 
+###
+
+my $git_need_repo = sub{
+    my($dir)=@_;
+    my $agit = ['git', "--git-dir=$dir/.git", "--work-tree=$dir"];
+    -e &$need_path("$dir/.git") or sy(@$agit, "init");
+    $agit;
+};
+my $git_add_commit = sub{
+    my($agit)=@_;
+    sy(@$agit, "add", "--all", ":/");
+    sy(@$agit, "commit", "-m-");
+};
+my $git_status = sub{
+    my($agit)=@_;
+    my $st = join ' ', @$agit, 'status', '--porcelain', ":/";
+    @{[`$st`]};
+};
+my $update_file_tree = sub{
+    my($gen_dir,$sbt_dir)=@_;
+    my $gen_git = &$git_need_repo($gen_dir);
+    my $sbt_git = &$git_need_repo($sbt_dir);
+    &$git_add_commit($gen_git) if &$git_status($gen_git,'');
+    #run(@$sbt_git, "checkout", ":/src") if git_status($sbt_git,"src"); #checkout failed to delete files
+    sy(@$sbt_git, "reset", "--hard");
+    sy(@$sbt_git, "pull", $gen_dir, "master:master"); #reset --hard failed to delete files
+};
+
+my $run_generator = sub{
+    my $generator_path = &$get_generator_path();
+    &$recycling($_) for <$generator_path/to/*>; # .git not included
+    my $generator_src_dir = &$abs_path("generator");
+    my $generator_exec = "$generator_src_dir/target/universal/stage/bin/generator";
+    &$sy_in_dir($generator_src_dir,"sbt stage") if !-e $generator_exec;
+    print "generation starting\n";
+    sy("C4GENERATOR_PATH=$generator_path $generator_exec");
+    print "generation finished\n";
+};
+
+my $build_some_server = sub{
+    my $generator_path = &$get_generator_path();
+    &$recycling("$generator_path/from");
+    my $src_dir = &$abs_path();
+    for my $path ((grep{!-d} <$src_dir/project/*>), "$src_dir/build.sbt", (grep{-e} map{"$_/src"} <$src_dir/c4*>)){
+        my $rel_path = substr $path, length $src_dir;
+        symlink $path,&$need_path("$generator_path/from$rel_path") or die $!;
+    }
+    &$run_generator();
+    &$update_file_tree("$generator_path/to",&$get_generated_sbt_dir());
+    &$sy_in_dir(&$get_generated_sbt_dir(),"sbt stage");
+};
+
 push @tasks, ["### build ###"];
 push @tasks, ["build_all", sub{
-    my($mode) = @_;
-    sy("sbt clean stage");
+    &$sy_in_dir(&$abs_path(),"sbt clean");
+    &$sy_in_dir(&$abs_path("generator"),"sbt clean");
+    &$build_some_server();
     &$sy_in_dir("client","npm install");
     &$recycling($build_dir);
     &$webpack();
     &$gen_docker_conf(&$get_commit());
 }];
 push @tasks, ["build_some_server", sub{
-    my($mode) = @_;
-    sy("sbt stage");
+    &$build_some_server(0);
     &$gen_docker_conf(&$get_commit());
 }];
 push @tasks, ["build_some_client", sub{
-    my($mode) = @_;
     &$webpack();
     &$gen_docker_conf([]);
 }];
 push @tasks, ["build_conf_only", sub{
-    my($mode) = @_;
     &$gen_docker_conf([]);
+}];
+push @tasks, ["sbt", sub{
+    chdir &$get_generated_sbt_dir() or die $!;
+    sy("sbt",@ARGV[1..$#ARGV]);
 }];
 
 ################################################################################
@@ -286,45 +359,45 @@ push @tasks, ["build_conf_only", sub{
 
 ################################################################################
 
-my $staged_up = sub{
-    #build-up build-push
-    #app.yml dev-proj-ports
-    my($name)=@_;
-    ["test_$name\_up", sub{
-        #todo fix
-        #&$composer("up_local",$developer,(die),"docker-compose.test_$name.yml");
-    }];
-};
-
-
-
-push @tasks, ["### tests ###"];
-push @tasks, ["test_es_examples", sub{
-    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
-    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
-}];
-push @tasks, ["test_not_effective_join_bench", sub{
-    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
-}];
-
-push @tasks, &$staged_up("post_get_tcp");
-push @tasks, ["test_post_get_check", sub{
-    my $v = int(rand()*10);
-    sy("$curl_test -X POST -d $v");
-    sleep 1;
-    sy("$curl_test -v");
-    sleep 4;
-    sy("$curl_test -v");
-    print " -- should be posted * 3\n";
-}];
-push @tasks, &$staged_up("actor_serial");
-push @tasks, &$staged_up("actor_parallel");
-push @tasks, ["test_actor_check", sub{ sy("$curl_test -X POST") for 0..11 }];
-push @tasks, ["test_big_message_check", sub{
-    &$sy_in_dir($temp,"dd if=/dev/zero of=test.bin bs=1M count=4 && $curl_test -v -XPOST -T test.bin")
-}];
-push @tasks, &$staged_up("sse");
-push @tasks, &$staged_up("ui");
+#my $staged_up = sub{
+#    #build-up build-push
+#    #app.yml dev-proj-ports
+#    my($name)=@_;
+#    ["test_$name\_up", sub{
+#        #todo fix
+#        #&$composer("up_local",$developer,(die),"docker-compose.test_$name.yml");
+#    }];
+#};
+#
+#
+#
+#push @tasks, ["### tests ###"];
+#push @tasks, ["test_es_examples", sub{
+#    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
+#    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
+#}];
+#push @tasks, ["test_not_effective_join_bench", sub{
+#    sy("sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
+#}];
+#
+#push @tasks, &$staged_up("post_get_tcp");
+#push @tasks, ["test_post_get_check", sub{
+#    my $v = int(rand()*10);
+#    sy("$curl_test -X POST -d $v");
+#    sleep 1;
+#    sy("$curl_test -v");
+#    sleep 4;
+#    sy("$curl_test -v");
+#    print " -- should be posted * 3\n";
+#}];
+#push @tasks, &$staged_up("actor_serial");
+#push @tasks, &$staged_up("actor_parallel");
+#push @tasks, ["test_actor_check", sub{ sy("$curl_test -X POST") for 0..11 }];
+#push @tasks, ["test_big_message_check", sub{
+#    &$sy_in_dir($temp,"dd if=/dev/zero of=test.bin bs=1M count=4 && $curl_test -v -XPOST -T test.bin")
+#}];
+#push @tasks, &$staged_up("sse");
+#push @tasks, &$staged_up("ui");
 
 ################################################################################
 

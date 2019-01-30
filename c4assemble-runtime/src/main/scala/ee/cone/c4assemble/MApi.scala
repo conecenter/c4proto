@@ -148,7 +148,6 @@ trait SubAssemble[R<:Product] extends Assemble {
   def result: Result
   def resultKey: IndexFactory⇒JoinKey = throw new Exception("never here")
 }
-object Tupler
 
 class CanCallToValues
 class CanCallToEach

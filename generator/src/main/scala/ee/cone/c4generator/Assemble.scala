@@ -1,4 +1,4 @@
-package ee.cone.c4assemble
+package ee.cone.c4generator
 
 import scala.collection.immutable.Seq
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
@@ -31,18 +31,10 @@ object ExtractKeyNSType {
     }
   }
 }
-object AnnotationCompat {
-  def unapply(m: Mod.Annot): Option[Tree] = m match {
-    case Mod.Annot(Term.Apply(tree,Nil)) ⇒ Option(tree)
-    case Mod.Annot(tree) ⇒ Option(tree)
-    case _ ⇒ None
-  }
-}
-//Defn.Def(Nil, Term.Name("result"), Nil, Nil, Some(Type.Name("Result")), Term.Apply(Term.Name("tupled"), Seq(Term.Apply(Term.Name("join"), Seq(Term.Placeholder(), Term.Placeholder(), Term.Placeholder())))))
-@compileTimeOnly("not expanded")
-class assemble extends StaticAnnotation {
-  inline def apply(defn: Any): Any = meta {
-    val q"class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" = defn
+
+object AssembleGenerator extends Generator {
+  def get: Get = {
+    case q"@assemble class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" ⇒
     val classArgs = paramss.toList.flatten.collect{
       case param"${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒
         typeName -> argName
@@ -79,12 +71,9 @@ class assemble extends StaticAnnotation {
             object WasAnn
             class ByAnn(val keyType: KeyNSType)
             val ann = mods.map{
-              case AnnotationCompat(Ctor.Ref.Name(name)) ⇒ name match {
-                case "distinct" ⇒ DistinctAnn
-                case "was" ⇒ WasAnn
-              }
-              case AnnotationCompat(Term.ApplyType(Ctor.Ref.Name("by"),Seq(ExtractKeyNSType(tp)))) ⇒
-                new ByAnn(tp)
+              case mod"@distinct" ⇒ DistinctAnn
+              case mod"@was" ⇒ WasAnn
+              case mod"@by[${ExtractKeyNSType(tp)}]" ⇒ new ByAnn(tp)
               case s ⇒ throw new Exception(s"${s.structure}")
             }
             val distinct = ann.contains(DistinctAnn)
@@ -164,16 +153,16 @@ class assemble extends StaticAnnotation {
     val statRules = rules.collect{ case JStat(c) ⇒ c.parse[Stat].get }
     val (subAssembleWith,subAssembleDef) = (rules.collect{ case SubAssembleName(n) ⇒ n }.distinct) match {
       case Seq() ⇒ (Nil,Nil)
-      case s ⇒ (List(Ctor.Ref.Name("ee.cone.c4assemble.CallerAssemble")),List(s.mkString(s"def subAssembles = List(",",",")").parse[Stat].get))
+      case s ⇒ (List(init"ee.cone.c4assemble.CallerAssemble"),List(s.mkString(s"def subAssembles = List(",",",")").parse[Stat].get))
     }
     val res = q"""
-      class $className [..$tparams] (...$paramss) extends ..${ext++List(Ctor.Ref.Name("ee.cone.c4assemble.CheckedAssemble"))++subAssembleWith} {
+      class $className [..$tparams] (...$paramss) extends ..${ext++List(init"ee.cone.c4assemble.CheckedAssemble")++subAssembleWith} {
         ..$stats;
         ..$statRules;
         $joinImpl;
         ..$subAssembleDef
       }"""
     //println(res)
-    res
+    res.syntax
   }
 }

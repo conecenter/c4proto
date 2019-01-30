@@ -1,5 +1,5 @@
 
-package ee.cone.c4proto
+package ee.cone.c4generator
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.meta.Term.Name
@@ -23,18 +23,16 @@ case class ProtoType(
 case class ProtoMessage(adapterName: String, adapterImpl: String)
 case class ProtoMods(id: Option[Int]=None, category: List[String])
 
-@compileTimeOnly("not expanded")
-class protocol(category: Product*) extends StaticAnnotation {
-  inline def apply(defn: Any): Any = meta {
-    def parseArgs: Seq[Seq[Term.Arg]] ⇒ List[String] =
-      _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
+object ProtocolGenerator extends Generator {
+  def parseArgs: Seq[Seq[Term]] ⇒ List[String] =
+    _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
 
-    val args = this match {
-      case q"new protocol" ⇒ List()
-      case q"new protocol(...$exprss)" ⇒ parseArgs(exprss)
-    }
+  def get: Get = {
+    case q"@protocol(...$exprss) object $objectName extends ..$ext { ..$stats }" ⇒
 
-    val q"object $objectName extends ..$ext { ..$stats }" = defn
+      //println(t.structure)
+
+    val args = parseArgs(exprss)
 
     val messages: List[ProtoMessage] = stats.flatMap{
       case q"import ..$i" ⇒ None
@@ -45,6 +43,7 @@ class protocol(category: Product*) extends StaticAnnotation {
             pMods.copy(category = parseArgs(exprss) ::: old)
           case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty ⇒
             pMods.copy(id=Option(id))
+          case mod"@deprecated" ⇒ pMods
         })
         val adapterOf: String=>String = {
           case "Int" ⇒ "com.squareup.wire.ProtoAdapter.SINT32"
@@ -194,6 +193,6 @@ class protocol(category: Product*) extends StaticAnnotation {
         override def adapters = List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})
       }"""
     //println(res)
-    res
+    res.syntax
   }
 }
