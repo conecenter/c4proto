@@ -128,6 +128,22 @@ trait ExpressionsDumper[To] {
 sealed abstract class All
 case object All extends All
 
+/**
+  * !!! bug
+  * if there is *All joiner arguments
+  *  and not all arguments are Values[]
+  *  and all non-All arguments are Values[]
+  *  and all non-All arguments are empty
+  *  and joiner will return non-Nil
+  *  then joiner will break the world
+  * In other words:
+  *  if there's Each[*All], then You either use also Each[non-All] or use if(isEmpty)-Nil-else explicitly
+  * todo:
+  *  make @by[T@all] or @by[All[T]] and check in generate the right condition
+  *  instead of 'if(eachParams.nonEmpty)'
+  * or make higher-order assembles and remove *All
+  */
+
 //class JoinRes(val byKey: Any, val productHashed: PreHashed[Product], val count: Int)
 trait CheckedAssemble {
   def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]]
