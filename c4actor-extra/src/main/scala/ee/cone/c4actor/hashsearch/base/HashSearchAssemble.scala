@@ -163,7 +163,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   val qAdapterRegistry: QAdapterRegistry,
   condSer: SerializationUtils,
   preHashing: PreHashing,
-  debugMode: Boolean = false
+  debugMode: Boolean // = false
 ) extends Assemble with HashSearchAssembleSharedKeys {
   type InnerUnionId = SrcId
   type InnerIntersectId = SrcId
