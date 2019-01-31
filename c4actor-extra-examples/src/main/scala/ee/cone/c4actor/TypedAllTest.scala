@@ -58,7 +58,7 @@ trait TypedAllType {
 
   def test2(
     srcId: SrcId,
-    firstborn: Values[Firstborn],
+    firstborn: Each[Firstborn],
     @by[FixedAll] test: Each[ModelTest]
   ): Values[(SrcId, Nothing)] = {
     println(test)
@@ -67,7 +67,7 @@ trait TypedAllType {
 
   def test3(
     srcId: SrcId,
-    firstborn: Values[Firstborn],
+    firstborn: Each[Firstborn],
     @by[FixedAll] test: Values[ModelTest]
   ): Values[(SrcId, Nothing)] = {
     println(test)
@@ -106,7 +106,7 @@ trait TypedAllType {
 
   def FixedAllGrabber(
     srcId: SrcId,
-    firstborn: Values[Firstborn],
+    firstborn: Each[Firstborn],
     @by[FixedAll] models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
     println(s"[FIXED,$modelCl]", models)
@@ -132,7 +132,7 @@ trait TypedAllType {
 
   def CreateTx(
     srcId: SrcId,
-    firstborn: Values[Firstborn],
+    firstborn: Each[Firstborn],
     @by[FixedAll] models: Values[Model]
   ): Values[(SrcId, TxTransform)] = WithPK(TestTx(srcId + modelCl.getName)) :: Nil
 }
