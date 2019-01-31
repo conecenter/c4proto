@@ -74,7 +74,7 @@ trait ExternalUpdateUtil[Model <: Product] {
   ): Values[(SrcId, CacheResponse[Model])] =
     cResp.updates
       .filter(_.valueTypeId == modelId)
-      .map(u ⇒ WithPK(CacheResponse[Model](u, cResp.offset)))
+      .map(u ⇒ WithPK(CacheResponse[Model](u, cResp.externalOffset)))
 
   def CreateExternal(
     origId: SrcId,
