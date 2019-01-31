@@ -307,7 +307,7 @@ my $run_generator = sub{
     print "generation finished\n";
 };
 
-my $build_some_server = sub{
+my $run_generator_outer = sub{
     my $generator_path = &$get_generator_path();
     &$recycling("$generator_path/from");
     my $src_dir = &$abs_path();
@@ -317,22 +317,26 @@ my $build_some_server = sub{
     }
     &$run_generator();
     &$update_file_tree("$generator_path/to",&$get_generated_sbt_dir());
-    &$sy_in_dir(&$get_generated_sbt_dir(),"sbt stage");
 };
 
 push @tasks, ["### build ###"];
 push @tasks, ["build_all", sub{
     &$sy_in_dir(&$abs_path(),"sbt clean");
     &$sy_in_dir(&$abs_path("generator"),"sbt clean");
-    &$build_some_server();
+    &$run_generator_outer();
+    &$sy_in_dir(&$get_generated_sbt_dir(),"sbt stage");
     &$sy_in_dir("client","npm install");
     &$recycling($build_dir);
     &$webpack();
     &$gen_docker_conf(&$get_commit());
 }];
 push @tasks, ["build_some_server", sub{
-    &$build_some_server(0);
+    &$run_generator_outer();
+    &$sy_in_dir(&$get_generated_sbt_dir(),"sbt stage");
     &$gen_docker_conf(&$get_commit());
+}];
+push @tasks, ["run_generator", sub{
+    &$run_generator_outer();
 }];
 push @tasks, ["build_some_client", sub{
     &$webpack();

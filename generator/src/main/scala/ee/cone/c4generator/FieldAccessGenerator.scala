@@ -6,10 +6,10 @@ import scala.meta._
 
 object FieldAccessGenerator extends Generator {
   def get: Get = {
-    case code@Defn.Object(Seq(mod"@fieldAccess"),_,_) ⇒
+    case code@Defn.Object(Seq(mod"@fieldAccess"),_,_) ⇒ cont ⇒
     //case q"@fieldAccess object $name $code" ⇒
     //  println(s"=-=$code")
-    code.transform{
+    Util.comment(code)(cont) + "\n\n" + code.transform{
       case q"$o.of(...$args)" ⇒
         val List(head :: tail) = args
         val q"_.$field" = head
