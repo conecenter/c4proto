@@ -1,6 +1,7 @@
 package ee.cone.dbadapter
 
 import ee.cone.c4actor.ExtModelsApp
+import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 
 case class TableSchema(tableName: String, columnNames: List[String])
@@ -38,9 +39,9 @@ trait DBAdapter {
 
   def putOrigs(origs: List[OrigValue], offset: NextOffset): List[(OrigSchema, Int)]
 
-  def getOrig(orig: OrigSchema, pk: String): (Option[Product], NextOffset)
+  def getOrig(orig: OrigSchema, pks: List[String]): Option[Product]
 
-  def getOrigBytes(orig: OrigSchema, pks: List[String]): (List[Array[Byte]], NextOffset)
+  def getOrigBytes(orig: OrigSchema, pks: List[String]): List[Update]
 
   def findOrigBy(orig: OrigSchema, fieldId: Long, field: List[Any]): List[String]
 }

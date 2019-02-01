@@ -6,30 +6,42 @@ import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
-import ee.cone.c4external.ExternalProtocol.{CacheResponses, ExternalOffset, ExternalTime, ExternalUpdates}
-import ee.cone.c4external.ExternalTypes.SatisfactionId
+import ee.cone.c4external.ExternalProtocol._
+import ee.cone.c4external.ExternalTypes.{DeletionId, OffsetAll, SatisfactionId}
 import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuildersApp}
+
+import scala.annotation.tailrec
 
 trait ExternalLoaderMix extends AssemblesApp with OrigSchemaBuildersApp {
   def extDBSync: ExtDBSync
   def dbAdapter: DBAdapter
+
+  def externalSyncTimeOut = 60000L
+
   override def assembles: List[Assemble] = {
     dbAdapter.patchSchema(builders.flatMap(_.getSchemas))
-    new ExternalLoaderAssemble(extDBSync, dbAdapter) :: super.assembles
+    new ExternalRequestsHandler ::
+    new ExternalLoaderAssemble(extDBSync, dbAdapter, externalSyncTimeOut) :: super.assembles
   }
 }
 
 object ExternalTypes {
+  type OffsetAll = All
+  type DeletionId = SrcId
   type SatisfactionId = SrcId
-  val byPK: String = "byPK1c5104c0"
+  val oldKey: String = "Old"
+  val newKey: String = "New"
+  val byPKLiveTime: Long = 10L * 60L * 1000L
 }
 
 case class ExtUpdatesWithTxId(srcId: SrcId, txId: NextOffset, updates: List[Update])
 
 case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: List[ExtUpdatesWithTxId])
 
-@assemble class ExternalLoaderAssemble(extDBSync: ExtDBSync, dbAdapter: DBAdapter) extends Assemble {
-  type OffsetAll = All
+case class ExtUpdatesForDeletion(srcId: SrcId)
+
+@assemble class ExternalLoaderAssemble(extDBSync: ExtDBSync, dbAdapter: DBAdapter, timeOut: Long) extends Assemble {
+
   type OffsetId = SrcId
 
   def ExternalUpdatesWithTx(
@@ -55,18 +67,28 @@ case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: 
     else
       Nil
 
-  def ExternalUpdatesOlderCreate(
+  def ExternalUpdatesNewerThanCreate(
     externalId: SrcId,
     @by[OffsetId] exts: Values[ExtUpdatesWithTxId],
     offset: Each[ExternalOffset]
   ): Values[(SrcId, ExtUpdatesNewerThan)] =
     List(WithPK(ExtUpdatesNewerThan(externalId, offset.offset, exts.toList)))
 
+  def ExtUpdatesForDeletionCreate(
+    extUpdId: SrcId,
+    extUpd: Each[ExtUpdatesWithTxId],
+    @by[OffsetAll] minOffset: Each[ExternalMinValidOffset]
+  ): Values[(DeletionId, ExtUpdatesForDeletion)] =
+    if (extUpd.txId < minOffset.minValidOffset)
+      List(minOffset.externalId → ExtUpdatesForDeletion(extUpd.srcId))
+    else
+      Nil
+
   def CreateExternalLoaderTx(
     srcId: SrcId,
     fb: Each[Firstborn]
   ): Values[(SrcId, TxTransform)] =
-    List(WithPK(ExternalLoaderTx(fb.srcId + "ExternalLoaderTx", extDBSync, dbAdapter)))
+    List(WithPK(ExternalLoaderTx(fb.srcId + "ExternalLoaderTx", extDBSync, dbAdapter, timeOut)))
 
   def CreateFlushTx(
     srcId: SrcId,
@@ -75,14 +97,22 @@ case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: 
     List(WithPK(FlushTx(fb.srcId + "FlushTx", dbAdapter)))
 }
 
-case class Satisfaction(reqId: SrcId, externalId: SrcId, status: Int) // 0 - old, 1 - new
+case class Satisfaction(srcId: SrcId, respId: SrcId, externalId: SrcId, offset: NextOffset, status: Int) // 0 - new, 1 - old
 
-case class ByPKExtRequest(srcId: SrcId, modelSrcId: SrcId, modelId: Long, status: Int = 0) // 0 - unsatisfied, 1 - old resp, 2 - new resp
+case class ByPKExtRequest(srcId: SrcId, externalId: SrcId, modelSrcId: SrcId, modelId: Long)
 
-case class MassByPKRequest(externalId: SrcId, rqs: List[ByPKExtRequest])
+case class ByPKExtRequestWStatus(rq: ByPKExtRequest, status: Int) // 0 - unsatisfied, 1 - old resp
+
+case class MassByPKRequest(externalId: SrcId, rqs: List[ByPKExtRequestWStatus])
+
+case class OldNewCacheResponses(externalId: SrcId, expired: List[SrcId], relevantOffsets: List[NextOffset])
+
+case class CacheResponseForDeletion(srcId: SrcId)
+
+case class GarbageContainer(externalId: SrcId, extUpds: List[ExtUpdatesForDeletion], cacheResp: List[CacheResponseForDeletion])
 
 
-@assemble class ExternalRequestsHandler() extends Assemble {
+@assemble class ExternalRequestsHandler extends Assemble {
   type ExternalTimeAll = All
   type ByPKCacheUpdate = SrcId
 
@@ -92,51 +122,153 @@ case class MassByPKRequest(externalId: SrcId, rqs: List[ByPKExtRequest])
   ): Values[(ExternalTimeAll, ExternalTime)] =
     List(WithAll(time))
 
+  def ExternalMinOffsetToAll(
+    externalId: SrcId,
+    offset: Each[ExternalMinValidOffset]
+  ): Values[(OffsetAll, ExternalMinValidOffset)] =
+    List(WithAll(offset))
+
+  def CacheResponsesForDeletionCreate(
+    cacheRespId: SrcId,
+    cacheResp: Each[CacheResponses],
+    @by[OffsetAll] minOffset: Each[ExternalMinValidOffset]
+  ): Values[(DeletionId, CacheResponseForDeletion)] =
+    if (cacheResp.externalOffset < minOffset.minValidOffset)
+      List(minOffset.externalId → CacheResponseForDeletion(cacheResp.srcId))
+    else
+      Nil
+
+  def GarbageContainerCreation(
+    externalId: SrcId,
+    @by[DeletionId] eufd: Values[ExtUpdatesForDeletion],
+    @by[DeletionId] crfd: Values[CacheResponseForDeletion]
+  ): Values[(SrcId, GarbageContainer)] =
+    List(WithPK(GarbageContainer(externalId, eufd.toList, crfd.toList)))
+
   def ProduceSatisfaction(
     responseId: SrcId,
     response: Each[CacheResponses],
     @by[ExternalTimeAll] time: Each[ExternalTime]
   ): Values[(SatisfactionId, Satisfaction)] = {
-    val status = if (response.validUntil > time.time) 1 else 0
+    val status = if (response.validUntil > time.time) 0 else 1
+    val offset = response.externalOffset
+    val srcId = status + response.srcId // Trick to optimize satisfactions.exists(_.status == 1) in the next joiner
     for {
-      reqId ← response.reqIds
-    } yield WithPK(Satisfaction(reqId, time.externalId, status))
+      reqId ← time.externalId :: response.reqIds
+    } yield reqId → Satisfaction(srcId, response.srcId, time.externalId, offset, status)
+  }
+
+  def OldNewResponses(
+    externalId: SrcId,
+    @by[SatisfactionId] cacheStatus: Values[Satisfaction]
+  ): Values[(SrcId, OldNewCacheResponses)] = {
+    val (expired, relevant) = cacheStatus.span(_.status == 1)
+    List(WithPK(OldNewCacheResponses(externalId, expired.map(_.respId).toList, relevant.map(_.offset).toList)))
   }
 
   def HandleByPKExtRequest(
     rqId: SrcId,
     rq: Each[ByPKExtRequest],
     @by[SatisfactionId] satisfactions: Values[Satisfaction]
-  ): Values[(ByPKCacheUpdate, ByPKExtRequest)] =
+  ): Values[(ByPKCacheUpdate, ByPKExtRequestWStatus)] =
     if (satisfactions.isEmpty)
-      List(ExternalTypes.byPK → rq)
-    else
+      List(rq.externalId + ExternalTypes.newKey → ByPKExtRequestWStatus(rq, 0))
+    else if (satisfactions.exists(_.status == 0))
       Nil
+    else
+      List(rq.externalId + ExternalTypes.oldKey → ByPKExtRequestWStatus(rq, 1))
 
   def HandleMassByPKRequest(
-    externalId: SrcId,
-    @by[ByPKCacheUpdate] rqs: Values[ByPKExtRequest]
+    externalIdWStatus: SrcId,
+    @by[ByPKCacheUpdate] rqs: Values[ByPKExtRequestWStatus]
   ): Values[(SrcId, MassByPKRequest)] =
-    List(WithPK(MassByPKRequest(externalId, rqs.toList)))
+    List(WithPK(MassByPKRequest(externalIdWStatus, rqs.toList)))
 }
 
-case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAdapter) extends TxTransform with LazyLogging {
+case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAdapter, timeOut: Long) extends TxTransform with LazyLogging {
+  val externalId: String = dBAdapter.externalName
+  val externalOld: String = externalId + ExternalTypes.oldKey
+  val externalNew: String = externalId + ExternalTypes.newKey
+  val zeroOffset: NextOffset = "0000000000000000"
+  val cacheRespClName: String = classOf[CacheResponses].getName
+  val extUpdateClName: String = classOf[ExternalUpdates].getName
+
   def transform(local: Context): Context = {
     val zeroLocal = phaseZero(local)
-    // TODO return here
-
-    zeroLocal
+    val extTime = ByPK(classOf[ExternalTime]).of(zeroLocal).get(externalId).map(_.time).getOrElse(0L)
+    val currentTime = System.currentTimeMillis()
+    val newTimeLocal = if (currentTime > extTime + timeOut - 5L) TxAdd(LEvent.update(ExternalTime(externalId, currentTime)))(zeroLocal) else zeroLocal
+    val oneLocal = phaseOne(newTimeLocal)
+    val twoLocal = phaseTwo(oneLocal)
+    twoLocal
   }
 
+  /**
+    * 0: Sends new External updates to External
+    *
+    * @return local with new db offset
+    */
   def phaseZero: Context ⇒ Context = l ⇒ {
     logger.debug("Phase Zero")
     val dbOffset = dBAdapter.getOffset
-    val current = ByPK(classOf[ExternalOffset]).of(l).getOrElse(dBAdapter.externalName, ExternalOffset(dBAdapter.externalName, ""))
-    val offLocal: Context = if (current.offset != dbOffset) TxAdd(LEvent.update(ExternalOffset(dBAdapter.externalName, dbOffset)))(l) else l
+    val current = ByPK(classOf[ExternalOffset]).of(l).getOrElse(externalId, ExternalOffset(externalId, ""))
+    val offLocal: Context = if (current.offset != dbOffset) TxAdd(LEvent.update(ExternalOffset(externalId, dbOffset)))(l) else l
     val grouped = ByPK(classOf[ExtUpdatesNewerThan]).of(offLocal).values.toList
-    extDBSync.sync(grouped.flatMap(_.externals))
+    extDBSync.upload(grouped.flatMap(_.externals))
     offLocal
   }
+
+  /**
+    * 1: Satisfies new requests and updates expired ones by timeout
+    *
+    * @return local with resolved old requests and new responses
+    */
+  def phaseOne: Context ⇒ Context = l ⇒ {
+    logger.debug("Phase One")
+    phaseOneRec(l)
+  }
+
+  @tailrec
+  private def phaseOneRec(l: Context): Context = {
+    val newRequests: List[ByPKExtRequest] = ByPK(classOf[MassByPKRequest]).of(l).get(externalNew).map(_.rqs).getOrElse(Nil).map(_.rq)
+    val expiredRqs: List[ByPKExtRequest] = ByPK(classOf[MassByPKRequest]).of(l).get(externalOld).map(_.rqs).getOrElse(Nil).map(_.rq)
+    if (newRequests.isEmpty && expiredRqs.isEmpty)
+      l
+    else {
+      val newResults = extDBSync.download(newRequests)
+      val expResults = extDBSync.download(expiredRqs)
+      val offset = dBAdapter.getOffset
+      val rqIds = newRequests.map(_.srcId) ++ expiredRqs.map(_.srcId)
+      val cacheResponse = CacheResponses(RandomUUID(), offset, System.currentTimeMillis() + ExternalTypes.byPKLiveTime, rqIds, newResults ++ expResults)
+      val updatedLocal = TxAdd(LEvent.update(cacheResponse))(l)
+      phaseOneRec(updatedLocal)
+    }
+  }
+
+  def phaseTwo: Context ⇒ Context = l ⇒ {
+    logger.debug("Phase Two")
+    val oldNewOpt = ByPK(classOf[OldNewCacheResponses]).of(l).get(externalId)
+    oldNewOpt match {
+      case Some(oldNew) ⇒
+        val minOffset: NextOffset =
+          if (oldNew.relevantOffsets.isEmpty)
+            zeroOffset
+          else
+            oldNew.relevantOffsets.min
+        val minOffsetLocal = TxAdd(LEvent.update(ExternalMinValidOffset(externalId, minOffset)))(l)
+        val toDeleteOpt = ByPK(classOf[GarbageContainer]).of(minOffsetLocal).get(externalId)
+        toDeleteOpt match {
+          case Some(toDelete) ⇒
+            val lEvents = toDelete.cacheResp.map(_.srcId).map(LEvent(_, cacheRespClName, None)) ++ toDelete.extUpds.map(_.srcId).map(LEvent(_, extUpdateClName, None))
+            TxAdd(lEvents)(minOffsetLocal)
+          case None ⇒
+            minOffsetLocal
+        }
+      case None ⇒ l
+    }
+  }
+
+
 }
 
 case class FlushTx(srcId: SrcId, dBAdapter: DBAdapter) extends TxTransform with LazyLogging {

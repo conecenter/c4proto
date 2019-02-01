@@ -60,10 +60,12 @@ trait ExternalUpdateUtil[Model <: Product] {
 )(
   val adapter: ProtoAdapter[Model] with HasId = qAdapterRegistry.byId(modelId).asInstanceOf[ProtoAdapter[Model] with HasId]
 ) extends Assemble with ExternalUpdateUtil[Model] {
+  type MergeId = SrcId
+  
   def ToSingleExtUpdate(
     origId: SrcId,
     extU: Each[ExtUpdatesWithTxId]
-  ): Values[(SrcId, ExternalUpdate[Model])] =
+  ): Values[(MergeId, ExternalUpdate[Model])] =
     extU.updates
       .filter(_.valueTypeId == modelId)
       .map(u ⇒ WithPK(ExternalUpdate[Model](u, extU.txId)))
@@ -71,10 +73,13 @@ trait ExternalUpdateUtil[Model <: Product] {
   def ToSingleCacheResponse(
     origId: SrcId,
     cResp: Each[CacheResponses]
-  ): Values[(SrcId, CacheResponse[Model])] =
+  ): Values[(MergeId, CacheResponse[Model])] =
     cResp.updates
       .filter(_.valueTypeId == modelId)
       .map(u ⇒ WithPK(CacheResponse[Model](u, cResp.externalOffset)))
+
+
+  // TODO create merger for ExternalUpdate & CacheResponse
 
   def CreateExternal(
     origId: SrcId,

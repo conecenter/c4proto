@@ -32,4 +32,10 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
     @Id(0x0092) time: Long
   )
 
+  @Id(0x0093) case class ExternalMinValidOffset(
+    @Id(0x0094) externalId: String,
+    @Id(0x0095) minValidOffset: String
+  )
+
+
 }
