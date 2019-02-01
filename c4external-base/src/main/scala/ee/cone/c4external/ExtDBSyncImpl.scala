@@ -14,7 +14,7 @@ trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
   def consuming: Consuming
   def dbAdapter: DBAdapter
 
-  val extDBSync: ExtDBSync = new ExtDBSyncImpl(dbAdapter, builders, qAdapterRegistry, toUpdate, external)
+  lazy val extDBSync: ExtDBSync = new ExtDBSyncImpl(dbAdapter, builders, qAdapterRegistry, toUpdate, external)
 }
 
 class ExtDBSyncImpl(

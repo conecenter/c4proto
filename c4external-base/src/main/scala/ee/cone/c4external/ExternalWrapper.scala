@@ -34,11 +34,11 @@ class ExtUpdatesPreprocessorImpl(toUpdate: ToUpdate, qAdapterRegistry: QAdapterR
   }
 }
 
-case class ExternalUpdate[Model <: Product](update: Update, offset: NextOffset) {
+case class ExternalUpdate[Model <: Product](srcId: SrcId, update: Update, offset: NextOffset) {
   def origValue: ByteString = update.value
 }
 
-case class CacheResponse[Model <: Product](update: Update, offset: NextOffset) {
+case class CacheResponse[Model <: Product](srcId: SrcId, update: Update, offset: NextOffset) {
   def origValue: ByteString = update.value
 }
 
@@ -61,14 +61,24 @@ trait ExternalUpdateUtil[Model <: Product] {
   val adapter: ProtoAdapter[Model] with HasId = qAdapterRegistry.byId(modelId).asInstanceOf[ProtoAdapter[Model] with HasId]
 ) extends Assemble with ExternalUpdateUtil[Model] {
   type MergeId = SrcId
-  
+  type CombineId = SrcId
+
   def ToSingleExtUpdate(
     origId: SrcId,
     extU: Each[ExtUpdatesWithTxId]
   ): Values[(MergeId, ExternalUpdate[Model])] =
     extU.updates
       .filter(_.valueTypeId == modelId)
-      .map(u ⇒ WithPK(ExternalUpdate[Model](u, extU.txId)))
+      .map(u ⇒ u.srcId → ExternalUpdate[Model](extU.txId + u.srcId, u, extU.txId))
+
+  def ToSingleExtUpdate(
+    origId: SrcId,
+    @by[MergeId] extUs: Values[ExternalUpdate[Model]]
+  ): Values[(CombineId, ExternalUpdate[Model])] =
+    if (extUs.nonEmpty) {
+      val u = extUs.maxBy(_.offset)
+      List(u.update.srcId → u)
+    } else Nil
 
   def ToSingleCacheResponse(
     origId: SrcId,
@@ -76,15 +86,21 @@ trait ExternalUpdateUtil[Model <: Product] {
   ): Values[(MergeId, CacheResponse[Model])] =
     cResp.updates
       .filter(_.valueTypeId == modelId)
-      .map(u ⇒ WithPK(CacheResponse[Model](u, cResp.externalOffset)))
+      .map(u ⇒ u.srcId → CacheResponse[Model](cResp.externalOffset + u.srcId, u, cResp.externalOffset))
 
-
-  // TODO create merger for ExternalUpdate & CacheResponse
+  def ToSingleCacheResponse(
+    origId: SrcId,
+    @by[MergeId] cResps: Values[CacheResponse[Model]]
+  ): Values[(CombineId, CacheResponse[Model])] =
+    if (cResps.nonEmpty) {
+      val u = cResps.maxBy(_.offset)
+      List(u.update.srcId → u)
+    } else Nil
 
   def CreateExternal(
     origId: SrcId,
-    externals: Values[ExternalUpdate[Model]],
-    caches: Values[CacheResponse[Model]]
+    @by[CombineId] externals: Values[ExternalUpdate[Model]],
+    @by[CombineId] caches: Values[CacheResponse[Model]]
   ): Values[(SrcId, Model)] =
     (Single.option(externals), Single.option(caches)) match {
       case (Some(e), None) ⇒ decode(e.origValue)
