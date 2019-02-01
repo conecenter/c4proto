@@ -1,5 +1,6 @@
 package ee.cone.c4ui.dep
 
+import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.ContextTypes.{ContextId, RoleId, UserId}
@@ -10,7 +11,7 @@ import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{RawRoleData, RawUserData}
 import ee.cone.c4gate.deep_session.{DeepRawSessionData, TxDeepRawDataLens, UserLevelAttr}
 import ee.cone.c4gate.{OrigKeyGenerator, SessionAttr}
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4proto.{HasId, ToByteString}
 import okio.ByteString
 
 case class SessionAttrAskFactoryImpl(
@@ -132,9 +133,9 @@ case class SessionAttrAskFactoryImpl(
     }
   }
 
-  lazy val rawDataAdapter = qAdapterRegistry.byName(classOf[RawSessionData].getName)
-  lazy val rawUserAdapter = qAdapterRegistry.byName(classOf[RawUserData].getName)
-  lazy val rawRoleAdapter = qAdapterRegistry.byName(classOf[RawRoleData].getName)
+  lazy val rawDataAdapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[RawSessionData].getName)
+  lazy val rawUserAdapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[RawUserData].getName)
+  lazy val rawRoleAdapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[RawRoleData].getName)
 
   def deepAsk[P <: Product](attr: SessionAttr[P], userIdOpt: Option[UserId] = None, roleIdOpt: Option[RoleId] = None): Dep[Option[Access[P]]] = {
     val dataNode = Option(

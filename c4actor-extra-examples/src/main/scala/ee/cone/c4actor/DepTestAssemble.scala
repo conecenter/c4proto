@@ -26,7 +26,7 @@ trait DepTestAssemble
 
   override def protocols: List[Protocol] = DepTestProtocol :: super.protocols
 
-  private val testRequestAsk = depAskFactory.forClasses(classOf[DepTestRequest], classOf[Any])
+  private lazy val testRequestAsk = depAskFactory.forClasses(classOf[DepTestRequest], classOf[Any])
 
   override def depHandlers: List[DepHandler] = testRequestAsk.by(_ ⇒ testDep) :: injectRole[DepTestRequest](testRequestAsk, _ ⇒ testContextId) :: super.depHandlers
 
