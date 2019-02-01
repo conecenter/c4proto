@@ -6,9 +6,12 @@ import ee.cone.c4assemble.{EachSubAssemble, ValuesSubAssemble}
 
 import scala.reflect.ClassTag
 
+trait ByJoinApp {
+  def byJoinFactory: ByJoinFactory
+}
+
 trait ByPKJoin[From <: Product, Value]{
-  def single[To <: Product](implicit ct: ClassTag[To]): EachSubAssemble[To]
-  def list[To <: Product](implicit ct: ClassTag[To]): ValuesSubAssemble[To]
+  def to[To <: Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with ValuesSubAssemble[To]
 }
 
 trait ByJoinFactory {

@@ -6,8 +6,9 @@ import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4external.ByPKTypes.ByPKRqId
 import ee.cone.c4external.ExternalProtocol._
-import ee.cone.c4external.ExternalTypes.{ByPKRqId, DeletionId, OffsetAll, SatisfactionId}
+import ee.cone.c4external.ExternalTypes.{DeletionId, OffsetAll, SatisfactionId}
 import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuildersApp}
 
 import scala.annotation.tailrec
@@ -29,7 +30,6 @@ object ExternalTypes {
   type OffsetAll = All
   type DeletionId = SrcId
   type SatisfactionId = SrcId
-  type ByPKRqId = SrcId
   val oldKey: String = "Old"
   val newKey: String = "New"
   val byPKLiveTime: Long = 10L * 60L * 1000L
@@ -99,8 +99,6 @@ case class ExtUpdatesForDeletion(srcId: SrcId)
 }
 
 case class Satisfaction(srcId: SrcId, respId: SrcId, externalId: SrcId, offset: NextOffset, status: Int) // 0 - new, 1 - old
-
-case class ByPKExtRequest(srcId: SrcId, externalId: SrcId, modelSrcId: SrcId, modelId: Long)
 
 case class ByPKExtRequestWStatus(rq: ByPKExtRequest, status: Int) // 0 - unsatisfied, 1 - old resp
 
@@ -180,11 +178,11 @@ case class GarbageContainer(externalId: SrcId, extUpds: List[ExtUpdatesForDeleti
     @by[SatisfactionId] satisfactions: Values[Satisfaction]
   ): Values[(ByPKCacheUpdate, ByPKExtRequestWStatus)] =
     if (satisfactions.isEmpty)
-      List(rq.externalId + ExternalTypes.newKey → ByPKExtRequestWStatus(rq, 0))
+      List((rq.externalId + ExternalTypes.newKey) → ByPKExtRequestWStatus(rq, 0))
     else if (satisfactions.exists(_.status == 0))
       Nil
     else
-      List(rq.externalId + ExternalTypes.oldKey → ByPKExtRequestWStatus(rq, 1))
+      List((rq.externalId + ExternalTypes.oldKey) → ByPKExtRequestWStatus(rq, 1))
 
   def HandleMassByPKRequest(
     externalIdWStatus: SrcId,

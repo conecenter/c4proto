@@ -25,10 +25,11 @@ class ExtDBSyncImpl(
   external: List[Class[_ <: Product]]
 ) extends ExtDBSync with LazyLogging {
 
-  val externals: List[SrcId] = external.map(_.getName)
+  val externalsList: List[String] = external.map(_.getName)
+  val externalsSet: Set[String] = externalsList.toSet
   val buildersByName: Map[String, OrigSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigClName → b).toMap
   // Check if registered externals have builder
-  val builderMap: Map[Long, OrigSchemaBuilder[_ <: Product]] = externals.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
+  val builderMap: Map[Long, OrigSchemaBuilder[_ <: Product]] = externalsList.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
   val supportedIds: Set[Long] = builderMap.keySet
   // Check if registered externals have adapter
   val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.filterKeys(supportedIds)
@@ -36,6 +37,9 @@ class ExtDBSyncImpl(
   val extUpdate: ProtoAdapter[ExternalUpdates] with HasId =
     qAdapterRegistry.byName(classOf[ExternalUpdates].getName)
       .asInstanceOf[ProtoAdapter[ExternalUpdates] with HasId]
+
+
+  lazy val externals: Map[String, Long] = buildersByName.transform{case (_, v) ⇒ v.getOrigId}.filterKeys(externalsSet)
 
   def upload: List[ExtUpdatesWithTxId] ⇒ List[(String, Int)] = list ⇒ {
     val toWrite: List[(NextOffset, List[QProtocol.Update])] = list.map(u ⇒
