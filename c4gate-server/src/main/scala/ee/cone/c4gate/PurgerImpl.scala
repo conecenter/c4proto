@@ -1,10 +1,11 @@
 package ee.cone.c4gate
 
 import java.nio.file.{Files, Path, Paths}
+import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Firstborn
-import ee.cone.c4actor.{Context, TxTransform, WithPK}
+import ee.cone.c4actor.{Context, SleepUntilKey, TxTransform, WithPK}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
@@ -52,7 +53,7 @@ case class PurgerTx(
 )(purger: Purger) extends TxTransform {
   def transform(local: Context): Context = {
     purger.process(keepPolicyList)
-    local
+    SleepUntilKey.set(Instant.now.plusSeconds(5))(local)
   }
 }
 

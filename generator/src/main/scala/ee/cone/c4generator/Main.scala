@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: Array[Byte] = Array(0,26)
+  def version: Array[Byte] = Array(0,34)
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -50,6 +50,7 @@ object Main {
         val content = new String(data,UTF_8).replace("\r\n","\n")
         val source = dialects.Scala211(content).parse[Source]
         val Parsed.Success(source"..$sourceStatements") = source
+        Lint.process(sourceStatements)
         val packageStatements = for {
           q"package $n { ..$packageStatements }" ← sourceStatements
           ps ← packageStatements
@@ -82,6 +83,29 @@ trait Generator {
   type Get = PartialFunction[Stat,String⇒String]
   def get: Get
 }
+
+object Lint {
+  def process(stats: Seq[Stat]): Unit = {
+    stats.foreach{ stat ⇒
+      stat.collect{
+        case q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
+          if mods.collect{ case mod"abstract" ⇒ true }.nonEmpty ⇒
+          ("abstract class",tname,template)
+        case q"..$mods trait $tname[..$tparams] extends $template" ⇒
+          ("trait",tname,template)
+      }.collect{
+        case (tp,tName,template"{ ..$statsA } with ..$inits { $self => ..$statsB }") ⇒
+          if(statsA.nonEmpty) println(s"warn: early initializer in $tName")
+          statsB.collect{
+            case q"..$mods val ..$patsnel: $tpeopt = $expr"
+              if mods.collect{ case mod"lazy" ⇒ true }.isEmpty ⇒
+              println(s"warn: val ${patsnel.mkString(" ")} in $tp $tName ")
+          }
+      }
+    }
+  }
+}
+
 
 /*
 git --git-dir=../.git --work-tree=target/c4generator/to  diff
