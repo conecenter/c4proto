@@ -213,7 +213,7 @@ import StaticHashSearchImpl._
 
 @assemble class StaticAssembleShared[Model <: Product](
   modelCl: Class[Model],
-  debugMode: Boolean = false
+  debugMode: Boolean// = false
 ) extends Assemble with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId

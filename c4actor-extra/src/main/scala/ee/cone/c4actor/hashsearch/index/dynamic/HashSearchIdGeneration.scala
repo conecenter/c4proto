@@ -11,30 +11,30 @@ object TestHash extends HashSearchIdGeneration {
 }
 
 trait HashSearchIdGeneration {
-  private val commonPrefixUd = 0
+  private lazy val commonPrefixUd = 0
 
   def commonPrefix(modelId: Int, lensName: List[String]): String =
     hash(commonPrefixUd, modelId, lensName)
 
-  private val leafId = 1
+  private lazy val leafId = 1
 
   def leafId(commonPrefix: String, by: Product): String = hash(leafId, commonPrefix, by)
 
   def leafId(modelId: Int, lensName: List[String], by: Product): String = hash(leafId, commonPrefix(modelId, lensName), by)
 
-  private val heapId = 2
+  private lazy val heapId = 2
 
   def heapId(commonPrefix: String, by: Product): String = hash(heapId, commonPrefix, by)
 
   def heapId(modelId: Int, lensName: List[String], by: Product): String = hash(heapId, commonPrefix(modelId, lensName), by)
 
-  private val nodeId = 3
+  private lazy val nodeId = 3
 
   def indexNodeId(commonPrefix: String, byId: Long): String = hash(nodeId, commonPrefix, byId)
 
   def indexNodeId(modelId: Int, lensName: List[String], byId: Long): String = hash(nodeId, commonPrefix(modelId, lensName), byId)
 
-  private val modelId = 4
+  private lazy val modelId = 4
 
   def indexModelId(commonPrefix: String, modelSrcId: String): String = hash(modelId, commonPrefix, modelSrcId)
 

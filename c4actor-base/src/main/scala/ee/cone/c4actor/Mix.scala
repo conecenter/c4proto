@@ -30,6 +30,7 @@ trait ToInjectApp {
 
 trait EnvConfigApp {
   lazy val config: Config = new EnvConfigImpl
+  lazy val actorName: String = config.get("C4STATE_TOPIC_PREFIX")
 }
 
 trait UMLClientsApp {
@@ -66,6 +67,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
 
 trait TestRichDataApp extends RichDataApp {
   lazy val contextFactory = new ContextFactory(richRawWorldReducer,toUpdate)
+  lazy val actorName: String = getClass.getName
 }
 
 trait RichDataApp extends ProtocolsApp
@@ -81,13 +83,14 @@ trait RichDataApp extends ProtocolsApp
   with UpdatesProcessorsApp
 {
   def assembleProfiler: AssembleProfiler
+  def actorName: String
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
-    new RichRawWorldReducerImpl(toInject,toUpdate,getClass.getName)
+    new RichRawWorldReducerImpl(toInject,toUpdate,actorName)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
@@ -104,7 +107,7 @@ lazy val readModelUtil: ReadModelUtil = new ReadModelUtilImpl(indexUtil)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, getClass.getName, extUpdateProcessor, processors)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, parallelAssembleOn, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, extUpdateProcessor, processors)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols

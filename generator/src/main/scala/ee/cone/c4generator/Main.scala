@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: Array[Byte] = Array(0,15)
+  def version: Array[Byte] = Array(0,26)
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -60,15 +60,9 @@ object Main {
 
         val res: String = packageStatements.foldRight(content){ (stat,cont)⇒
           AssembleGenerator.get
-            .orElse(ProtocolGenerator.get)
-            .orElse(FieldAccessGenerator.get)
-            .lift(stat).fold(cont){ nStr ⇒
-              //Option(stat.structure).filter(_ contains "TestTodoAccess").foreach(println)
-              //cont.substring(0,stat.pos.start) + nStr + cont.substring(stat.pos.end)
-              cont.substring(0,stat.pos.start) + " /* " +
-              cont.substring(stat.pos.start,stat.pos.end) + " */ " +
-              cont.substring(stat.pos.end) + "\n\n" + nStr
-            }
+          .orElse(ProtocolGenerator.get)
+          .orElse(FieldAccessGenerator.get)
+          .lift(stat).fold(cont)(_(cont))
         }
         Files.write(cachePath,/*s"/* --==C4-GENERATED==-- */\n$res"*/res.getBytes(UTF_8))
       }
@@ -77,8 +71,15 @@ object Main {
   }
 }
 
+object Util {
+  def comment(stat: Stat): String⇒String = cont ⇒
+    cont.substring(0,stat.pos.start) + " /* " +
+      cont.substring(stat.pos.start,stat.pos.end) + " */ " +
+      cont.substring(stat.pos.end)
+}
+
 trait Generator {
-  type Get = PartialFunction[Stat,String]
+  type Get = PartialFunction[Stat,String⇒String]
   def get: Get
 }
 

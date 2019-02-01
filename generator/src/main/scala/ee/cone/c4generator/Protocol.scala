@@ -28,7 +28,7 @@ object ProtocolGenerator extends Generator {
     _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
 
   def get: Get = {
-    case q"@protocol(...$exprss) object $objectName extends ..$ext { ..$stats }" ⇒
+    case code@q"@protocol(...$exprss) object $objectName extends ..$ext { ..$stats }" ⇒ cont ⇒
 
       //println(t.structure)
 
@@ -193,6 +193,6 @@ object ProtocolGenerator extends Generator {
         override def adapters = List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})
       }"""
     //println(res)
-    res.syntax
+    Util.comment(code)(cont) + "\n\n" + res.syntax
   }
 }

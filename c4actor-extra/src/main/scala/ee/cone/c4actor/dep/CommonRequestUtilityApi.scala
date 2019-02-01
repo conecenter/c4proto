@@ -58,15 +58,15 @@ trait CommonRequestUtilityMix extends DepHandlersApp with DepFactoryApp {
 
   override def depHandlers: List[DepHandler] = super.depHandlers
 
-  private val contextAsk: DepAsk[ContextIdRequest, ContextId] = depAskFactory.forClasses(classOf[ContextIdRequest], classOf[ContextId])
+  private lazy val contextAsk: DepAsk[ContextIdRequest, ContextId] = depAskFactory.forClasses(classOf[ContextIdRequest], classOf[ContextId])
 
-  private val userAsk: DepAsk[UserIdRequest, UserId] = depAskFactory.forClasses(classOf[UserIdRequest], classOf[UserId])
+  private lazy val userAsk: DepAsk[UserIdRequest, UserId] = depAskFactory.forClasses(classOf[UserIdRequest], classOf[UserId])
 
-  private val roleAsk: DepAsk[RoleIdRequest, RoleId] = depAskFactory.forClasses(classOf[RoleIdRequest], classOf[RoleId])
+  private lazy val roleAsk: DepAsk[RoleIdRequest, RoleId] = depAskFactory.forClasses(classOf[RoleIdRequest], classOf[RoleId])
 
-  private val byClassNameAsk: DepAsk[ByClassNameRequest, List[_]] = depAskFactory.forClasses(classOf[ByClassNameRequest], classOf[List[_]])
+  private lazy val byClassNameAsk: DepAsk[ByClassNameRequest, List[_]] = depAskFactory.forClasses(classOf[ByClassNameRequest], classOf[List[_]])
 
-  private val mockRoleAsk: DepAsk[MockRoleRequest, MockRoleOpt] = depAskFactory.forClasses(classOf[MockRoleRequest], classOf[MockRoleOpt])
+  private lazy val mockRoleAsk: DepAsk[MockRoleRequest, MockRoleOpt] = depAskFactory.forClasses(classOf[MockRoleRequest], classOf[MockRoleOpt])
 
   lazy val commonRequestUtilityFactory: CommonRequestUtilityFactory =
     CommonRequestUtilityFactoryImpl(depFactory, byClassNameAsk,

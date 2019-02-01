@@ -257,7 +257,8 @@ trait TestCondition extends SerializationUtilsApp {
 
 class HashSearchExtraTestApp extends TestRichDataApp
   //with ServerApp
-  with EnvConfigApp with VMExecutionApp
+  //with EnvConfigApp
+  with VMExecutionApp
   //with ParallelObserversApp
   //with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp

@@ -26,11 +26,11 @@ trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalF
   def sessionAttrAccessFactory: SessionAttrAccessFactory
   def testTags: TestTags[Context]
   def snapshotTaskSigner: Signer[SnapshotTask]
+  def actorName: String
 
   private lazy val testTxLogView = TestTxLogView()(
     actorName, untilPolicy, tags, snapshotMerger, snapshotTaskSigner, sessionAttrAccessFactory, testTags
   )
-  private lazy val actorName = getClass.getName
 
   override def assembles: List[Assemble] =
     mortal(classOf[TxRef]) :: mortal(classOf[TxAddMeta]) ::

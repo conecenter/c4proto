@@ -94,17 +94,24 @@ trait DataDependencyTo[To] {
   def outputWorldKey: AssembledKey
 }
 
-class Join(
+abstract class Join(
   val assembleName: String,
   val name: String,
   val inputWorldKeys: Seq[AssembledKey],
-  val outputWorldKey: AssembledKey,
-  val joins: (DPIterable[(Int,Seq[Index])], Seq[Index]/*, IndexOpt*/) ⇒ DPIterable[Index]
+  val outputWorldKey: AssembledKey
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
+{
+  type IndexRawSeqSeq = DPIterable[(Int,Seq[Index])]
+  type DiffIndexRawSeq = Seq[Index]
+  type Result = DPIterable[Index]
+  def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq): Result
+}
 
 trait Assemble {
   type MakeJoinKey = IndexFactory⇒JoinKey
+  type Join = ee.cone.c4assemble.Join
+  type IndexFactory = ee.cone.c4assemble.IndexFactory
 }
 
 trait JoinKey extends AssembledKey {

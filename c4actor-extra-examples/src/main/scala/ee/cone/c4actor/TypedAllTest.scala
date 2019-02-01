@@ -161,7 +161,8 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 
 class TypedAllTestApp extends TestRichDataApp
   //with ServerApp
-  with EnvConfigApp with VMExecutionApp
+  //with EnvConfigApp
+  with VMExecutionApp
   //with ParallelObserversApp
   //with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp
