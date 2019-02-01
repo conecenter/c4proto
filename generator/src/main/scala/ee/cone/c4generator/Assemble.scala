@@ -36,7 +36,7 @@ object AssembleGenerator extends Generator {
   def get: Get = {
     case code@q"@assemble class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" ⇒ cont ⇒
     val classArgs = paramss.toList.flatten.collect{
-      case param"${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒
+      case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒
         typeName -> argName
     }.toMap
     def mkLazyVal(name: String, body: String): JStat =
