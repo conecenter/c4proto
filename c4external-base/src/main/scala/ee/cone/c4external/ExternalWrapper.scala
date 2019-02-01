@@ -63,7 +63,7 @@ trait ExternalUpdateUtil[Model <: Product] {
   type MergeId = SrcId
   type CombineId = SrcId
 
-  def ToSingleExtUpdate(
+  def ToMergeExtUpdate(
     origId: SrcId,
     extU: Each[ExtUpdatesWithTxId]
   ): Values[(MergeId, ExternalUpdate[Model])] =
@@ -80,7 +80,7 @@ trait ExternalUpdateUtil[Model <: Product] {
       List(u.update.srcId → u)
     } else Nil
 
-  def ToSingleCacheResponse(
+  def ToMergeCacheResponse(
     origId: SrcId,
     cResp: Each[CacheResponses]
   ): Values[(MergeId, CacheResponse[Model])] =

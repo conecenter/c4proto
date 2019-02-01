@@ -26,7 +26,7 @@ class ExternalByJoinFactoryImpl(dbAdapter: DBAdapter, extDBSync: ExtDBSync) exte
     new ExternalByPKJoin[From](ct.runtimeClass.asInstanceOf[Class[From]], lens)(extMap, extId)
 }
 
-class ExternalByPKJoin[From](
+class ExternalByPKJoin[From <: Product](
   fromCl: Class[From],
   lens: ProdLens[From, List[SrcId]]
 )(
