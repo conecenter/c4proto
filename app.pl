@@ -345,6 +345,17 @@ push @tasks, ["sbt", sub{
     chdir &$get_generated_sbt_dir() or die $!;
     sy("sbt",@ARGV[1..$#ARGV]);
 }];
+push @tasks, ["generate", sub{
+    my $generator_path = &$get_generator_path();
+    &$recycling("$generator_path/from");
+    my $src_dir = &$abs_path();
+    for my $path ((grep{!-d} <$src_dir/project/*>), "$src_dir/build.sbt", (grep{-e} map{"$_/src"} <$src_dir/c4*>)){
+        my $rel_path = substr $path, length $src_dir;
+        symlink $path,&$need_path("$generator_path/from$rel_path") or die $!;
+    }
+    &$run_generator();
+    &$update_file_tree("$generator_path/to",&$get_generated_sbt_dir());
+}];
 
 ################################################################################
 
