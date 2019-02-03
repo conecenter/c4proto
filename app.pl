@@ -296,6 +296,8 @@ my $update_file_tree = sub{
     sy(@$sbt_git, "pull", $gen_dir, "master:master"); #reset --hard failed to delete files
 };
 
+
+
 my $run_generator = sub{
     my $generator_path = &$get_generator_path();
     &$recycling($_) for <$generator_path/to/*>; # .git not included
