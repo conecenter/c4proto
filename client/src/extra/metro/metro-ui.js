@@ -947,7 +947,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onMouseUp(e){
 			if(!this.props.droppable) return;
 			if(this.dragBinding)
-				this.dragBinding.dragDrop(e,this.el)	
+				this.dragBinding.dragDrop(e,this.el, true)	
 			this.onMouseLeave(e)			
 		}
 		getSvgData(){
