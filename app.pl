@@ -80,7 +80,7 @@ my $run = sub{ "RUN ".join ' && ', @_ };
 my $from = sub{
     my($install)=@_;
     (
-        "FROM openjdk:8",
+        "FROM openjdk:11",
         &$run(
             "useradd --home-dir /$user --create-home --user-group --uid $uid --shell /bin/bash $user",
             "apt-get update",
