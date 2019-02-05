@@ -1,17 +1,22 @@
 
 package ee.cone.c4vdom
 
-import java.text.DecimalFormat
+import java.text.{DecimalFormat, DecimalFormatSymbols}
 
 object CanvasToJsonImpl extends CanvasToJson {
+  private def createFormat(): DecimalFormat = {
+    val symbols = DecimalFormatSymbols.getInstance
+    symbols.setDecimalSeparator('.')
+    new DecimalFormat("#0.##",symbols)
+  }
   def appendPathJson(attrs: List[PathAttr], builder: MutableJsonBuilder): Unit =
-    PathToJsonImpl(attrs)(builder,new DecimalFormat("#0.##")).buildJson()
+    PathToJsonImpl(attrs)(builder,createFormat()).buildJson()
   def appendCanvasJson(attr: List[CanvasAttr], builder: MutableJsonBuilder): Unit = {
     builder.append("tp").append("Canvas")
     builder.append("ctx").append("ctx")
     builder.append("content").startArray().append("rawMerge").end()
 
-    val decimalFormat = new DecimalFormat("#0.##")
+    val decimalFormat = createFormat()
     //val builder = new JsonBuilderImpl()
     builder.append("width").append(100,decimalFormat) //map size
     builder.append("height").append(100,decimalFormat)
