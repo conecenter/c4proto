@@ -73,7 +73,10 @@ case class ExtUpdatesForDeletion(srcId: SrcId)
     @by[OffsetId] exts: Values[ExtUpdatesWithTxId],
     offset: Each[ExternalOffset]
   ): Values[(SrcId, ExtUpdatesNewerThan)] =
+    if (exts.nonEmpty)
     List(WithPK(ExtUpdatesNewerThan(externalId, offset.offset, exts.toList)))
+    else
+      Nil
 
   def ExtUpdatesForDeletionCreate(
     extUpdId: SrcId,
@@ -227,10 +230,10 @@ case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAda
     val dbOffset = dBAdapter.getOffset
     val current = ByPK(classOf[ExternalOffset]).of(l).getOrElse(externalId, ExternalOffset(externalId, ""))
     val offLocal: Context = if (current.offset != dbOffset) TxAdd(LEvent.update(ExternalOffset(externalId, dbOffset)))(l) else l
-    val grouped = ByPK(classOf[ExtUpdatesNewerThan]).of(offLocal).values.toList
+    val grouped = ByPK(classOf[ExtUpdatesNewerThan]).of(offLocal).values.toList.flatMap(_.externals)
     if (grouped.nonEmpty)
       logger.debug(s"Phase Zero: syncing ${grouped.size} records to $externalId")
-    extDBSync.upload(grouped.flatMap(_.externals))
+    extDBSync.upload(grouped)
     offLocal
   }
 
