@@ -26,6 +26,26 @@ trait HashSearchDynamicIndexApp
     rangerWiseAssemble ::: modelOnlyAssembles ::: super.assembles
   }
 
+    def createAssemble[Model <: Product, By <: Product, Field ](a: Class[Model], b: Class[By], c: Class[Field])(
+    modelId: Int,
+    byId: Long,
+    ranger: RangerWithCl[_ <: Product, _]
+  ): HashSearchDynamicIndexNew[Model, By, Field] =
+    new HashSearchDynamicIndexNew[Model, By, Field](
+      a,
+      b,
+      c,
+      c,
+      a,
+      modelId,
+      byId,
+      qAdapterRegistry,
+      lensRegistry,
+      idGenUtil,
+      ranger.asInstanceOf[RangerWithCl[By, Field]],
+      defaultModelRegistry
+    )
+
   def getAssembles(model: ProductWithId[_ <: Product]): List[HashSearchDynamicIndexNew[_ <: Product, Product, Any]] = {
     (for {
       ranger ← hashSearchRangerRegistry.getAll
@@ -36,19 +56,14 @@ trait HashSearchDynamicIndexApp
 
       val lenses = lensRegistry.getByClasses(model.modelCl.getName, fieldCl.getName)
       if (lenses.nonEmpty)
-        new HashSearchDynamicIndexNew(
+        createAssemble(
           model.modelCl,
           byCl,
-          fieldCl,
-          fieldCl,
-          model.modelCl,
+          fieldCl
+        )(
           model.modelId,
           byId,
-          qAdapterRegistry,
-          lensRegistry,
-          idGenUtil,
-          ranger,
-          defaultModelRegistry
+          ranger
         ) :: Nil
       else Nil
     }).flatten

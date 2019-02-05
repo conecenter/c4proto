@@ -80,7 +80,7 @@ my $run = sub{ "RUN ".join ' && ', @_ };
 my $from = sub{
     my($install)=@_;
     (
-        "FROM openjdk:8",
+        "FROM openjdk:11",
         &$run(
             "useradd --home-dir /$user --create-home --user-group --uid $uid --shell /bin/bash $user",
             "apt-get update",
@@ -295,6 +295,8 @@ my $update_file_tree = sub{
     sy(@$sbt_git, "reset", "--hard");
     sy(@$sbt_git, "pull", $gen_dir, "master:master"); #reset --hard failed to delete files
 };
+
+
 
 my $run_generator = sub{
     my $generator_path = &$get_generator_path();

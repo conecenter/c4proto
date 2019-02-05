@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.E.7.jms",
+  version := "0.E.8.jms",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -21,7 +21,7 @@ lazy val publishSettings = Seq(
   bintrayVcsUrl := Option("git@github.com:conecenter/c4proto.git")
 )
 
-scalaVersion in ThisBuild := "2.11.8"
+scalaVersion in ThisBuild := "2.12.8"
 
 //dockerBaseImage := "openjdk:8"
 
@@ -166,7 +166,7 @@ lazy val `c4gate-logback` = project.settings(publishSettings)
 
 lazy val `c4gate-repl` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(libraryDependencies += "com.lihaoyi" % "ammonite-sshd" % "1.4.4" cross CrossVersion.full)
+  .settings(libraryDependencies += "com.lihaoyi" % "ammonite-sshd" % "1.6.3" cross CrossVersion.full)
   .dependsOn(`c4actor-base`)
 
 lazy val `c4external-base` = project.settings(publishSettings)
