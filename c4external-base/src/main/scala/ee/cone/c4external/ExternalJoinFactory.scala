@@ -37,8 +37,11 @@ class ExternalByPKJoin[From <: Product](
   private def create[To <: Product](toCl: Class[To]): EachSubAssemble[To] with ValuesSubAssemble[To] = {
     externalsMap.get(toCl.getName) match {
       case Some(id) ⇒
-        val baseRq: ByPKExtRequest = ByPKExtRequest("", externalId, "", id)
-        val extIdHash = Murmur3Hash(externalId :: id :: Nil)
+        val add = "ext" + lens.metaList.collect { case l: NameMetaAttr ⇒ l.value }.mkString("-")
+        val mergeKey = s"${(getClass :: fromCl :: toCl :: Nil).map(_.getName).mkString("-")}#$add"
+        val mergeKeyHash = Murmur3Hash(mergeKey)
+        val baseRq: ByPKExtRequest = ByPKExtRequest("", externalId, mergeKeyHash, "", id)
+        val extIdHash = Murmur3Hash(externalId :: id :: mergeKeyHash :: Nil)
         val createRq = (id: SrcId) ⇒ {
           val srcId = Murmur3Hash(id :: extIdHash :: Nil)
           srcId → baseRq.copy(srcId = srcId, modelSrcId = id)
@@ -58,7 +61,7 @@ object ByPKTypes {
 
 case class InnerByPKRequest(fromSrcId: SrcId)
 
-case class ByPKExtRequest(srcId: SrcId, externalId: SrcId, modelSrcId: SrcId, modelId: Long)
+case class ByPKExtRequest(srcId: SrcId, externalId: SrcId, mergeKeyHash: String, modelSrcId: SrcId, modelId: Long)
 
 @assemble class ByPKExternalAssemble[From <: Product, To <: Product](
   fromCl: Class[From],

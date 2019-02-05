@@ -98,7 +98,7 @@ case class ExtUpdatesForDeletion(srcId: SrcId)
     List(WithPK(FlushTx(fb.srcId + "FlushTx", dbAdapter)))
 }
 
-case class Satisfaction(srcId: SrcId, respId: SrcId, externalId: SrcId, offset: NextOffset, status: Int) // 0 - new, 1 - old
+case class Satisfaction(srcId: SrcId, respId: SrcId, externalId: SrcId, offset: NextOffset, status: Symbol) // 'new, 'old
 
 case class ByPKExtRequestWStatus(rq: ByPKExtRequest, status: Int) // 0 - unsatisfied, 1 - old resp
 
@@ -148,23 +148,32 @@ case class GarbageContainer(externalId: SrcId, extUpds: List[ExtUpdatesForDeleti
   def ProduceSatisfaction(
     responseId: SrcId,
     response: Each[CacheResponses],
+    @by[OffsetAll] offset: Each[ExternalOffset],
     @by[ExternalTimeAll] time: Each[ExternalTime]
   ): Values[(SatisfactionId, Satisfaction)] = {
-    val status = if (response.validUntil > time.time) 0 else 1
-    val offset = response.externalOffset
+    val status = if (response.externalOffset == offset.offset || response.validUntil > time.time) 'new else 'old
+    val offsetR = response.externalOffset
     val srcId = status + response.srcId // Trick to optimize satisfactions.exists(_.status == 1) in the next joiner
     for {
       reqId ← time.externalId :: response.reqIds
-    } yield reqId → Satisfaction(srcId, response.srcId, time.externalId, offset, status)
+    } yield reqId → Satisfaction(srcId, response.srcId, time.externalId, offsetR, status)
   }
 
   def OldNewResponses(
     externalId: SrcId,
     @by[SatisfactionId] cacheStatus: Values[Satisfaction]
-  ): Values[(SrcId, OldNewCacheResponses)] = {
-    val (expired, relevant) = cacheStatus.span(_.status == 1)
-    List(WithPK(OldNewCacheResponses(externalId, expired.map(_.respId).toList, relevant.map(_.offset).toList)))
-  }
+  ): Values[(SrcId, OldNewCacheResponses)] =
+    if (cacheStatus.nonEmpty) {
+      val (expired, relevant) = cacheStatus.span(_.status == 'old)
+      List(WithPK(OldNewCacheResponses(externalId, expired.map(_.respId).toList, relevant.map(_.offset).toList)))
+    } else
+      Nil
+
+  def MockByPK(
+    fbId: SrcId,
+    fb: Each[Firstborn]
+  ): Values[(ByPKRqId, ByPKExtRequest)] =
+    Nil
 
   def CombineByPK(
     byPKRq: SrcId,
@@ -179,7 +188,7 @@ case class GarbageContainer(externalId: SrcId, extUpds: List[ExtUpdatesForDeleti
   ): Values[(ByPKCacheUpdate, ByPKExtRequestWStatus)] =
     if (satisfactions.isEmpty)
       List((rq.externalId + ExternalTypes.newKey) → ByPKExtRequestWStatus(rq, 0))
-    else if (satisfactions.exists(_.status == 0))
+    else if (satisfactions.exists(_.status == 'new))
       Nil
     else
       List((rq.externalId + ExternalTypes.oldKey) → ByPKExtRequestWStatus(rq, 1))
@@ -215,11 +224,12 @@ case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAda
     * @return local with new db offset
     */
   def phaseZero: Context ⇒ Context = l ⇒ {
-    logger.debug("Phase Zero")
     val dbOffset = dBAdapter.getOffset
     val current = ByPK(classOf[ExternalOffset]).of(l).getOrElse(externalId, ExternalOffset(externalId, ""))
     val offLocal: Context = if (current.offset != dbOffset) TxAdd(LEvent.update(ExternalOffset(externalId, dbOffset)))(l) else l
     val grouped = ByPK(classOf[ExtUpdatesNewerThan]).of(offLocal).values.toList
+    if (grouped.nonEmpty)
+      logger.debug(s"Phase Zero: syncing ${grouped.size} records to $externalId")
     extDBSync.upload(grouped.flatMap(_.externals))
     offLocal
   }
@@ -230,29 +240,28 @@ case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAda
     * @return local with resolved old requests and new responses
     */
   def phaseOne: Context ⇒ Context = l ⇒ {
-    logger.debug("Phase One")
     phaseOneRec(l)
   }
 
   @tailrec
-  private def phaseOneRec(l: Context): Context = {
+  private def phaseOneRec(l: Context, depth: Int = 0): Context = {
     val newRequests: List[ByPKExtRequest] = ByPK(classOf[MassByPKRequest]).of(l).get(externalNew).map(_.rqs).getOrElse(Nil).map(_.rq)
     val expiredRqs: List[ByPKExtRequest] = ByPK(classOf[MassByPKRequest]).of(l).get(externalOld).map(_.rqs).getOrElse(Nil).map(_.rq)
     if (newRequests.isEmpty && expiredRqs.isEmpty)
       l
     else {
+      logger.debug(s"Phase one/$depth: loading ${newRequests.size} new/ ${expiredRqs.size} expired")
       val newResults = extDBSync.download(newRequests)
       val expResults = extDBSync.download(expiredRqs)
       val offset = dBAdapter.getOffset
       val rqIds = newRequests.map(_.srcId) ++ expiredRqs.map(_.srcId)
       val cacheResponse = CacheResponses(RandomUUID(), offset, System.currentTimeMillis() + ExternalTypes.byPKLiveTime, rqIds, newResults ++ expResults)
       val updatedLocal = TxAdd(LEvent.update(cacheResponse))(l)
-      phaseOneRec(updatedLocal)
+      phaseOneRec(updatedLocal, depth + 1)
     }
   }
 
   def phaseTwo: Context ⇒ Context = l ⇒ {
-    logger.debug("Phase Two")
     val oldNewOpt = ByPK(classOf[OldNewCacheResponses]).of(l).get(externalId)
     oldNewOpt match {
       case Some(oldNew) ⇒
@@ -266,6 +275,7 @@ case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAda
         toDeleteOpt match {
           case Some(toDelete) ⇒
             val lEvents = toDelete.cacheResp.map(_.srcId).map(LEvent(_, cacheRespClName, None)) ++ toDelete.extUpds.map(_.srcId).map(LEvent(_, extUpdateClName, None))
+            logger.debug(s"Phase Two: deleting ${lEvents.size} entities")
             TxAdd(lEvents)(minOffsetLocal)
           case None ⇒
             minOffsetLocal
