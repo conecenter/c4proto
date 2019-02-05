@@ -1,4 +1,4 @@
-export default function OverlayManager({log,documentManager,windowManager}){
+export default function OverlayManager({log,documentManager,windowManager,mountNode}){
 	const {setTimeout,clearTimeout,screenRefresh} = windowManager
 	const {createElement,body} = documentManager
 	let stopCircular = false

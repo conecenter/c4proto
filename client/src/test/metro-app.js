@@ -37,6 +37,7 @@ import "../test/scrollIntoViewIfNeeded"
 
 
 import React from 'react'
+import ReactDOM from 'react-dom'
 import autoBind from 'react-autobind'
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
@@ -128,7 +129,7 @@ const vDomAttributes = VDomAttributes(requestState)
 
 const images = Images(window.btoa)
 window.images = images
-const overlayManager = () => OverlayManager({log,documentManager,windowManager})
+const overlayManager = () => OverlayManager({log,documentManager,windowManager,mountNode})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager})
 window.focusModule = focusModule
 const dragDropModule = () => DragDropModule({log2,documentManager,windowManager})
@@ -162,8 +163,11 @@ const transforms = mergeAll([
 	virtualKeyboard.transforms,
 	metroUiFilters.transforms	
 ])
-
-const vDom = VDomCore(log,transforms,() => document.body)
+window.transforms = transforms
+window.React = React
+window.ReactDOM = ReactDOM
+const mountNode = window.mountNode||document.body
+const vDom = VDomCore(log,transforms,() => mountNode)
 //const switchHost = SwitchHost(log,window)
 const receiversList = [
     vDom.receivers,

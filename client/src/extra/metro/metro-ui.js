@@ -64,6 +64,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		const update = (newStyles) => styles = {...styles,...newStyles}
 		return {...styles,update};
 	})()
+	const DarkPrimaryColor = "#1976d2"
+	const PrimaryColor = "#2196f3"
 	const checkActivateCalls=(()=>{
 		const callbacks=[]
 		const add = (c) => callbacks.push(c)
@@ -506,7 +508,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 	}
 	class ExecutableMenuElement extends StatefulComponent{		
-		getInitialState(){return {mouseEnter:false}}
+		getInitialState(){
+			return {mouseEnter:false}
+		}
 		mouseEnter(e){
 			this.setState({mouseEnter:true});
 		}
