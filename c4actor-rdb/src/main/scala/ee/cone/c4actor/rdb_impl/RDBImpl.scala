@@ -196,8 +196,13 @@ case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform with Laz
 }
 
 ////
+trait UniversalNode {
+  def props: List[UniversalProp]
+}
 
-case class UniversalNode(props: List[UniversalProp])
+case class UniversalNodeImpl(props: List[UniversalProp]) extends UniversalNode
+
+case class UniversalDeleteImpl(props: List[UniversalProp]) extends UniversalNode
 
 sealed trait UniversalProp {
   def tag: Int
@@ -213,12 +218,18 @@ case class UniversalPropImpl[T<:Object](tag: Int, value: T)(adapter: ProtoAdapte
   def encodedValue: Array[Byte] = adapter.encode(value)
 }
 
-object UniversalProtoAdapter extends ProtoAdapter[UniversalNode](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalNode]) {
-  def encodedSize(value: UniversalNode): Int =
+object UniversalProtoAdapter extends ProtoAdapter[UniversalNodeImpl](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalNodeImpl]) {
+  def encodedSize(value: UniversalNodeImpl): Int =
     value.props.map(_.encodedSize).sum
-  def encode(writer: ProtoWriter, value: UniversalNode): Unit =
+  def encode(writer: ProtoWriter, value: UniversalNodeImpl): Unit =
     value.props.foreach(_.encode(writer))
-  def decode(reader: ProtoReader): UniversalNode = throw new Exception("not implemented")
+  def decode(reader: ProtoReader): UniversalNodeImpl = throw new Exception("not implemented")
+}
+
+object UniversalDeleteProtoAdapter extends ProtoAdapter[UniversalDeleteImpl](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalDeleteImpl]) {
+  def encodedSize(value: UniversalDeleteImpl): Int = throw new Exception("Can't be called")
+  def encode(writer: ProtoWriter, value: UniversalDeleteImpl): Unit = throw new Exception("Can't be called")
+  def decode(reader: ProtoReader): UniversalDeleteImpl = throw new Exception("Can't be called")
 }
 
 class IndentedParser(
@@ -229,9 +240,11 @@ class IndentedParser(
     val Array(xHex,handlerName) = key.split(splitter)
     val ("0x", hex) = xHex.splitAt(2)
     val tag = Integer.parseInt(hex, 16)
-    if(handlerName != "Node")
-      RDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
-    else UniversalPropImpl(tag,UniversalNode(parseProps(value, Nil)))(UniversalProtoAdapter)
+    handlerName match {
+      case "Node" ⇒ UniversalPropImpl(tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
+      case "Delete" ⇒ UniversalPropImpl(tag,UniversalDeleteImpl(parseProps(value, Nil)))(UniversalDeleteProtoAdapter)
+      case _ ⇒ RDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
+    }
   }
   private def parseProps(lines: List[String], res: List[UniversalProp]): List[UniversalProp] =
     if(lines.isEmpty) res.reverse else {
@@ -241,17 +254,21 @@ class IndentedParser(
       parseProps(left, parseProp(key, value) :: res)
     }
 
+  private def getNodeSrcId(node: UniversalNode): SrcId =
+    node.props.head.value match {
+      case s: String ⇒ s
+    }
+
   def toUpdates(textEncoded: String): List[Update] = {
     val lines = textEncoded.split(lineSplitter).filter(_.nonEmpty).toList
-    val universalNode = UniversalNode(parseProps(lines, Nil))
+    val universalNode = UniversalNodeImpl(parseProps(lines, Nil))
     //println(PrettyProduct.encode(universalNode))
-    universalNode.props.map{ prop ⇒
-      val srcId = prop.value match {
-        case node: UniversalNode ⇒ node.props.head.value match {
-          case s: String ⇒ s
-        }
+    universalNode.props.map { prop ⇒
+      val (srcId, value) = prop.value match {
+        case node: UniversalDeleteImpl ⇒ (getNodeSrcId(node), ToByteString(Array.emptyByteArray))
+        case node: UniversalNode ⇒ (getNodeSrcId(node), ToByteString(prop.encodedValue))
       }
-      Update(srcId, prop.tag, ToByteString(prop.encodedValue))
+      Update(srcId, prop.tag, value)
     }
   }
 }
@@ -302,6 +319,6 @@ object RDBTypes {
       val BigDecimalFactory(scale,bytes) = BigDecimal(value)
       val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
       val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)
-      UniversalPropImpl(tag,UniversalNode(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
+      UniversalPropImpl(tag,UniversalNodeImpl(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
   }
 }
