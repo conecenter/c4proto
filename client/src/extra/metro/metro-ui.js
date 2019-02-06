@@ -389,8 +389,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				zIndex:"1000",
 				backgroundColor:"inherit"
 			}
-			const left = this.props.children.filter(_=>!_.key.includes("right"))									
-			const right = this.props.children.filter(_=>_.key.includes("right"))			
+			const left = this.props.children.filter(_=>_.key&&!_.key.includes("right"))									
+			const right = this.props.children.filter(_=>!_.key||_.key.includes("right"))
 			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[
 				$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:this.props.isBurgerOpen,key:"burger",onClick:this.openBurger}),
 				this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null
@@ -534,9 +534,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const newStyle={
                 minWidth:'7em',             
                 cursor:'pointer',
-				...this.props.style,
-				...(this.state.mouseEnter?this.props.overStyle:null)
-			};       
+				...this.props.style,				
+				...(this.state.mouseEnter?{backgroundColor:DarkPrimaryColor,...this.props.overStyle}:null)
+			}
 		return $("div",{
 			ref:ref=>this.el=ref,
             style:newStyle,    
@@ -597,17 +597,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.initListener()
 		}
 		componentDidMount(){
-			const node = documentManager.body().querySelector("#dev-content");
-			const nodeOld = documentManager.body().querySelector("#content");
+			const node = documentManager.body().querySelector("#dev-content")
+			const nodeOld = documentManager.body().querySelector("#content")			
+			while (node&&node.hasChildNodes()) node.removeChild(node.lastChild)						
+			while (nodeOld&&nodeOld.hasChildNodes()) nodeOld.removeChild(nodeOld.lastChild)
 			this.ctx = rootCtx(this.props.ctx)
-			if(node)
-			while (node.hasChildNodes())
-				node.removeChild(node.lastChild);
-			
-			if(nodeOld)
-			while (nodeOld.hasChildNodes())
-				nodeOld.removeChild(nodeOld.lastChild)			
-			this.initListener()
+			this.initListener()			
 		}
 		render(){			
 			const isSibling = Branches.isSibling(this.ctx)						
@@ -2583,29 +2578,36 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		let time = 0;
 		let bgTicks = 5;
 		const prefix = (num) =>{if(num.length<2) return `0${num}`; else return `${num}`}
-		const formatTime = () => {						
-			const date = new Date(time)			
-			return `${prefix(date.getUTCDate().toString())}-${prefix((date.getUTCMonth()+1).toString())}-${date.getUTCFullYear().toString()} ${prefix(date.getUTCHours().toString())}:${prefix(date.getUTCMinutes().toString())}:${prefix(date.getUTCSeconds().toString())}`;
+		const formatTime = (local) => {						
+			const date = !local?new Date(time):new Date()
+			const t = {
+				d:!local?date.getUTCDate():date.getDate(),
+				m:!local?(date.getUTCMonth()+1):(date.getMonth()+1),
+				y:!local?date.getUTCFullYear():date.getFullYear(),
+				h:!local?date.getUTCHours():date.getHours(),
+				min:!local?date.getUTCMinutes():date.getMinutes(),
+				s:!local?date.getUTCSeconds():date.getSeconds()}
+			return `${prefix(t.d.toString())}-${prefix(t.m.toString())}-${t.y.toString()} ${prefix(t.h.toString())}:${prefix(t.min.toString())}:${prefix(t.s.toString())}`;
 		}
-		const tick = () => {
-			if(time){
-				timeString = formatTime();
+		const tick = (local) => {
+			if(time||local){
+				timeString = formatTime(local);
 				time += 1000;
 			}
 			callbacks.forEach(o=>{
-				if(o.updateInterval>=5*60){o.updateServer();o.updateInterval=0}
+				if(o.updateInterval>=5*60){o.updateServer&&o.updateServer();o.updateInterval=0}
 				o.updateInterval += 1
 				o.clockTicks(timeString)
 			})			
-			timeout = setTimeout(tick,1000)			
+			timeout = setTimeout(()=>tick(local),1000)			
 			if(callbacks.length == 0 && bgTicks<=0) stop();
 			else if(callbacks.length == 0 && bgTicks>0) bgTicks -=1;
 		}	
 		const get = () => timeString
-		const start = ()=>{bgTicks = 5;tick();}
+		const start = (local)=>{bgTicks = 5;tick(local);}
 		const update = (updateTime) => {if(updateTime) time = updateTime}
 		const stop = ()=>{clearTimeout(timeout); timeout=null}
-		const reg = (obj) => {callbacks.push(obj); if(callbacks.length==1 && timeout==null) start(); return ()=>{const index = callbacks.indexOf(obj); if(index>=0) delete callbacks[index];};}
+		const reg = (obj) => {callbacks.push(obj); if(callbacks.length==1 && timeout==null) start(!obj.updateServer); return ()=>{const index = callbacks.indexOf(obj); if(index>=0) delete callbacks[index];};}
 		return {reg,update,get}
 	})()
 	let dateElementPrevCutBy = 0;
@@ -2641,7 +2643,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.recalc()
 			const clockTicks = this.clockTicks;
 			const updateInterval = 5*60
-			const updateServer = this.updateServer
+			const updateServer = this.props.onClick && this.updateServer
 			this.unreg = InternalClock.reg({clockTicks,updateInterval,updateServer})			
 		}
 		componentWillReceiveProps(nextProps){
@@ -2652,8 +2654,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(prevState.timeString.length == 0 && this.state.timeString.length>0) this.recalc();
 		}
 		componentWillUnmount(){
-			this.resizeL.unreg()
-      		this.unreg()
+			this.resizeL&&this.resizeL.unreg()
+      		this.unreg&&this.unreg()
 		}
 		splitTime(time){
 			const dateArr = time.split(' ')
@@ -3390,9 +3392,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){	
 			if(!this.el) return		
-			this.ctx = rootCtx(this.props.ctx)
-//			const isSibling = Branches.isSibling(this.ctx)
-//			if(isSibling) return
+			this.ctx = this.props.ctx&&rootCtx(this.props.ctx)
 			if(PingReceiver) this.pingR = PingReceiver.reg(this.signal)
 			this.toggleOverlay(!this.state.on);			
 			this.wifi = miscUtil.scannerProxy().regWifi(this.wifiCallback)
@@ -3417,7 +3417,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidUpdate(prevProps,prevState){
 			if(!this.el) return
-			const isSibling = Branches.isSibling(this.ctx)
+			const isSibling = this.ctx&& Branches.isSibling(this.ctx)
 			if(isSibling) return	
 			if(!this.props.overlay) return
 			if(PingReceiver && !this.pingR) this.pingR = PingReceiver.reg(this.signal)
@@ -3518,12 +3518,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.ctx = rootCtx(this.props.ctx)
 			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return
-			this.props.onClickValue("change",this.ratio().toString())	
+			const ratio = this.ratio()			
+			ratio && this.props.onClickValue("change",!ratio.toString())	
 			this.interval = setInterval(()=>{
 				if(this.props.show) return 
-				const r = this.ratio()
-				if(!r) return 
-				this.props.onClickValue("change",r.toString())			
+				const ratio = this.ratio()				 
+				ratio && this.props.onClickValue("change",ratio.toString())			
 			}, 1000)
 		}		
 		render(){			

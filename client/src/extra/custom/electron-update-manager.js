@@ -7,9 +7,11 @@ export default function ElectronUpdateManager(log,window,metroUi,StatefulCompone
 	const FlexGroup = metroUi.transforms.tp.FlexGroup
 	let checked = false
 	let announceOnce = false
+	const $ = React.createElement
 	const ProgressBar = props => {		
-		return React.createElement("div",{style:{position:"relative",height:"auto",margin:"0.625em 0.3125em 0.625em 0.3125em",backgroundColor:"#eeeeee",overflow:"hidden",boxSizing:"border-box",marginBottom:"1.5em"}},
-			React.createElement("div",{style:{width:props.progress,height:"1em",float:"left",backgroundColor:"#1ba1e2"}})
+		const value = props.progress+"%"
+		return $("div",{style:{position:"relative",height:"auto",margin:"0.625em 0.3125em 0.625em 0.3125em",backgroundColor:"#eeeeee",overflow:"hidden",boxSizing:"border-box",marginBottom:"1.5em"}},
+			$("div",{style:{width:value,height:"1em",float:"left",textAlign:"center",lineHeight:"1em",backgroundColor:"#1ba1e2"},color:"black"},props.progress>0?value:null)
 		)	 		
 	}
 	const StatusElement = ({children}) => {
@@ -30,14 +32,14 @@ export default function ElectronUpdateManager(log,window,metroUi,StatefulCompone
 		return {add,check}
 	})();
 	class UpdaterElement extends StatefulComponent{		
-		getInitialState(){return {progress:"0%"}}
+		getInitialState(){return {progress:0,text:""}}
 		update(){
-			const val = getUpdateProgress()			
-			if(val!= undefined) {
+			const obj = getUpdateProgress()			
+			if(obj!= undefined) {
 				checked = false
-				const prg = val + "%"				
+				const prg = obj.val
 				if(this.state.progress!=prg){
-					this.setState({progress:prg})				
+					this.setState({progress:prg,text:obj.text})				
 				}
 			}
 		}
@@ -47,6 +49,10 @@ export default function ElectronUpdateManager(log,window,metroUi,StatefulCompone
 			if(getUpdateProgress() == undefined) return checked = true
 		}
 		componentDidMount(){
+			const node = window.document.querySelector("#dev-content")
+			const nodeOld = window.document.querySelector("#content")						
+			while (node&&node.hasChildNodes()) node.removeChild(node.lastChild)		
+			while (nodeOld&&nodeOld.hasChildNodes()) nodeOld.removeChild(nodeOld.lastChild)	
 			this.bind = checkActivateCalls.add(this.update)			
 		}
 		componentWillUnmount(){
@@ -58,12 +64,14 @@ export default function ElectronUpdateManager(log,window,metroUi,StatefulCompone
 			}
 			const dialogStyle = {				
 				margin:"3.5rem auto 0em auto",
-				...this.props.style
+				maxWidth:"30em",
+				...this.props.dialogStyle
 			}
-			if(checked) return React.createElement("div",{style},this.props.children)
-			return React.createElement(FlexGroup,{style:dialogStyle,caption:""},[
-				React.createElement(StatusElement,{key:1},this.props.status),
-				React.createElement(ProgressBar,{key:2,progress:this.state.progress})
+			if(checked) return $("div",{style},this.props.children)
+			const status = `${this.props.status} ${this.state.progress>0?" downloading: "+this.state.text:""}`
+			return $(FlexGroup,{style:dialogStyle,caption:""},[
+				$(StatusElement,{key:1},status),
+				$(ProgressBar,{key:2,progress:this.state.progress})
 			])
 		}
 	}
