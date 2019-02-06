@@ -99,7 +99,7 @@ class AssemblerInit(
   // other parts:
   private def add(out: Seq[Update]): Context ⇒ Context = {
     val processedOut = processors.par.flatMap(_.process(out)).to[Seq] ++ out
-    val externalOut = externalUpdateProcessor.process(out)
+    val externalOut = externalUpdateProcessor.process(processedOut)
     if (externalOut.isEmpty) identity[Context]
     else { local ⇒
       val diff = toTree(local.assembled, externalOut)
