@@ -74,7 +74,7 @@ case class ExtUpdatesForDeletion(srcId: SrcId)
     offset: Each[ExternalOffset]
   ): Values[(SrcId, ExtUpdatesNewerThan)] =
     if (exts.nonEmpty)
-    List(WithPK(ExtUpdatesNewerThan(externalId, offset.offset, exts.toList)))
+      List(WithPK(ExtUpdatesNewerThan(externalId, offset.offset, exts.toList)))
     else
       Nil
 
@@ -154,9 +154,9 @@ case class GarbageContainer(externalId: SrcId, extUpds: List[ExtUpdatesForDeleti
     @by[OffsetAll] offset: Each[ExternalOffset],
     @by[ExternalTimeAll] time: Each[ExternalTime]
   ): Values[(SatisfactionId, Satisfaction)] = {
-    val status = if (response.externalOffset == offset.offset || response.validUntil > time.time) 'new else 'old
-    val offsetR = response.externalOffset
-    val srcId = status + response.srcId // Trick to optimize satisfactions.exists(_.status == 1) in the next joiner
+    val status: Symbol = if (response.externalOffset == offset.offset || response.validUntil > time.time) 'new else 'old
+    val offsetR: String = response.externalOffset
+    val srcId: String = status + response.srcId // Trick to optimize satisfactions.exists(_.status == 1) in the next joiner
     for {
       reqId ← time.externalId :: response.reqIds
     } yield reqId → Satisfaction(srcId, response.srcId, time.externalId, offsetR, status)
@@ -164,10 +164,11 @@ case class GarbageContainer(externalId: SrcId, extUpds: List[ExtUpdatesForDeleti
 
   def OldNewResponses(
     externalId: SrcId,
+    offset: Each[ExternalOffset],
     @by[SatisfactionId] cacheStatus: Values[Satisfaction]
   ): Values[(SrcId, OldNewCacheResponses)] =
     if (cacheStatus.nonEmpty) {
-      val (expired, relevant) = cacheStatus.span(_.status == 'old)
+      val (expired, relevant) = cacheStatus.partition(_.status == 'old)
       List(WithPK(OldNewCacheResponses(externalId, expired.map(_.respId).toList, relevant.map(_.offset).toList)))
     } else
       Nil
@@ -215,9 +216,10 @@ case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAda
     val zeroLocal = phaseZero(local)
     val extTime = ByPK(classOf[ExternalTime]).of(zeroLocal).get(externalId).map(_.time).getOrElse(0L)
     val currentTime = System.currentTimeMillis()
-    val newTimeLocal = if (currentTime > extTime + timeOut - 5L) TxAdd(LEvent.update(ExternalTime(externalId, currentTime)))(zeroLocal) else zeroLocal
+    val updateTimeOpt = if (currentTime > extTime + timeOut - 5L) Option(ExternalTime(externalId, currentTime)) else None
+    val newTimeLocal = updateTimeOpt.map(t ⇒ TxAdd(LEvent.update(t))(zeroLocal)).getOrElse(zeroLocal)
     val oneLocal = phaseOne(newTimeLocal)
-    val twoLocal = phaseTwo(oneLocal)
+    val twoLocal = if (updateTimeOpt.isDefined) phaseTwo(oneLocal) else oneLocal
     twoLocal
   }
 
@@ -273,16 +275,23 @@ case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAda
             zeroOffset
           else
             oldNew.relevantOffsets.min
-        val minOffsetLocal = TxAdd(LEvent.update(ExternalMinValidOffset(externalId, minOffset)))(l)
-        val toDeleteOpt = ByPK(classOf[GarbageContainer]).of(minOffsetLocal).get(externalId)
-        toDeleteOpt match {
-          case Some(toDelete) ⇒
-            val lEvents = toDelete.cacheResp.map(_.srcId).map(LEvent(_, cacheRespClName, None)) ++ toDelete.extUpds.map(_.srcId).map(LEvent(_, extUpdateClName, None))
-            logger.debug(s"Phase Two: deleting ${lEvents.size} entities")
-            TxAdd(lEvents)(minOffsetLocal)
-          case None ⇒
-            minOffsetLocal
-        }
+        val systemMinOffset = ByPK(classOf[ExternalMinValidOffset]).of(l).get(externalId).map(_.minValidOffset).getOrElse(zeroOffset)
+
+        if (minOffset != systemMinOffset) {
+          val minOffsetLocal = TxAdd(LEvent.update(ExternalMinValidOffset(externalId, minOffset)))(l)
+
+          val toDeleteOpt = ByPK(classOf[GarbageContainer]).of(minOffsetLocal).get(externalId)
+          toDeleteOpt match {
+            case Some(toDelete) ⇒
+              val lEvents = toDelete.cacheResp.map(_.srcId).map(LEvent(_, cacheRespClName, None)) ++ toDelete.extUpds.map(_.srcId).map(LEvent(_, extUpdateClName, None))
+              logger.debug(s"Phase Two: deleting ${lEvents.size} entities")
+              TxAdd(lEvents)(minOffsetLocal)
+            case None ⇒
+              minOffsetLocal
+
+          }
+        } else
+          l
       case None ⇒ l
     }
   }

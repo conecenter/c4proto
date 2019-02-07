@@ -10,8 +10,9 @@ trait ByJoinApp {
   def byJoinFactory: ByJoinFactory
 }
 
-trait ByPKJoin[From <: Product, Value]{
-  def to[To <: Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with ValuesSubAssemble[To]
+trait ByPKJoin[From <: Product, Value] {
+  def toEach[To <: Product](implicit ct: ClassTag[To]): EachSubAssemble[To]
+  def toValues[To <: Product](implicit ct: ClassTag[To]): ValuesSubAssemble[To]
 }
 
 trait ByJoinFactory {

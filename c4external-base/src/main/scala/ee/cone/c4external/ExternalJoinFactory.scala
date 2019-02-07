@@ -51,7 +51,8 @@ class ExternalByPKJoin[From <: Product](
     }
   }
 
-  def to[To <: Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with ValuesSubAssemble[To] = create(ct.runtimeClass.asInstanceOf[Class[To]])
+  def toEach[To <: Product](implicit ct: ClassTag[To]): EachSubAssemble[To] = create(ct.runtimeClass.asInstanceOf[Class[To]])
+  def toValues[To <: Product](implicit ct: ClassTag[To]): ValuesSubAssemble[To] = create(ct.runtimeClass.asInstanceOf[Class[To]])
 }
 
 object ByPKTypes {

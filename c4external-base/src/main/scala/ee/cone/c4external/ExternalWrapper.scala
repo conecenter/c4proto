@@ -24,7 +24,7 @@ class ExtUpdatesPreprocessorImpl(toUpdate: ToUpdate, qAdapterRegistry: QAdapterR
 
   def process(updates: Seq[Update]): Seq[Update] = {
     if (updates.exists(u ⇒ idSet(u.valueTypeId))) {
-      val (ext, normal) = updates.span(u ⇒ idSet(u.valueTypeId))
+      val (ext, normal) = updates.partition(u ⇒ idSet(u.valueTypeId))
       val srcId = RandomUUID()
       Seq(ExternalUpdates(srcId, System.currentTimeMillis(), ext.toList), TxRef(srcId, "")).flatMap(LEvent.update).map(toUpdate.toUpdate) ++ normal
     }
