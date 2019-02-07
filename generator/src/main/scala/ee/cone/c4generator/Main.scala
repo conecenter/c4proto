@@ -24,8 +24,59 @@ object DirInfo {
 }
 
 object Main {
-  def version: Array[Byte] = Array(0,34)
+  def version: String = "-v34"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
+  def main(args: Array[String]): Unit = {
+    val rootPath = Paths.get(env("C4GENERATOR_PATH"))
+    val rootFromPath = rootPath.resolve("from")
+    val rootCachePath = rootPath.resolve("cache")
+    val fromPostfix = ".scala"
+    val toPrefix = "c4gen."
+    val files = DirInfo.deepFiles(rootFromPath).filter(_.endsWith(fromPostfix))
+    val(wasFiles,fromFiles) = files.partition(_.getFileName.startsWith(toPrefix))
+    val was = (for { path ← wasFiles } yield path → Files.readAllBytes(path)).toMap
+    val will = for {
+      path ← fromFiles
+      fromData = Files.readAllBytes(path)
+      uuid = UUID.nameUUIDFromBytes(fromData).toString
+      cachePath = rootCachePath.resolve(s"$uuid$version")
+      toData ← List(if(Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
+        val toData = generate(fromData)
+        Files.write(cachePath,toData)
+        toData
+      }) if toData.length > 0
+    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") → toData
+    for(path ← (was.keySet -- will.toMap.keys)) {
+      println(s"removing $path")
+      Files.delete(path)
+    }
+    for{
+      (path,data) ← will if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
+    } {
+      println(s"saving $path")
+      Files.write(path,data)
+    }
+  }
+  def generate(data: Array[Byte]): Array[Byte] = {
+    println(s"parsing $fromPath")
+    val content = new String(data,UTF_8).replace("\r\n","\n")
+    val source = dialects.Scala211(content).parse[Source]
+    val Parsed.Success(source"..$sourceStatements") = source
+    Lint.process(sourceStatements)
+    val packageStatements = for {
+      q"package $n { ..$packageStatements }" ← sourceStatements
+      ps ← packageStatements
+    } yield ps
+    val res: String = packageStatements.foldRight(content){ (stat,cont)⇒
+      /*AssembleGenerator.get
+      .orElse(ProtocolGenerator.get)
+      .orElse(FieldAccessGenerator.get)
+      .lift(stat).fold(cont)(_(cont))*/
+    }
+    res.getBytes(UTF_8)
+  }
+
+/*
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
     val rootFromPath = rootPath.resolve("from")
@@ -69,7 +120,7 @@ object Main {
       }
       Option(cachePath)
     }
-  }
+  }*/
 }
 
 object Util {
