@@ -264,8 +264,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   val rangerRegistryApi: HashSearchRangerRegistryApi,
   val idGenUtil: IdGenUtil
 )
-  extends Assemble
-    with ThanosTimeTypes
+  extends Assemble    with ThanosTimeTypes
     with IndexNodeThanosUtils[Model] {
 
   type IndexNodeId = SrcId

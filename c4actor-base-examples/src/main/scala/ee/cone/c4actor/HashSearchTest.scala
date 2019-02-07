@@ -43,8 +43,7 @@ object DefaultRangers {
   )
 }
 
-@fieldAccess
-object SomeModelAccess {
+@fieldAccess object SomeModelAccess {
   lazy val fieldA: ProdLens[SomeModel,String] = ProdLens.of(_.fieldA)
   lazy val fieldB: ProdLens[SomeModel,String] = ProdLens.of(_.fieldB)
   lazy val fieldC: ProdLens[SomeModel,String] = ProdLens.of(_.fieldC)

@@ -152,7 +152,7 @@ case object All extends All
   */
 
 //class JoinRes(val byKey: Any, val productHashed: PreHashed[Product], val count: Int)
-trait CheckedAssemble {
+trait CheckedAssemble extends Assemble {
   def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]]
 }
 trait MergeableAssemble {

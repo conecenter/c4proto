@@ -41,7 +41,8 @@ my $pwd = lazy{ my $c = `pwd`; chomp $c; $c };
 my $abs_path = sub{ join '/', &$pwd(), @_ };
 
 my $get_generator_path = sub{ &$abs_path("$temp/c4gen") };
-my $get_generated_sbt_dir = sub{ &$get_generator_path()."/res" };
+#my $get_generated_sbt_dir = sub{ &$get_generator_path()."/res" };
+my $get_generated_sbt_dir = sub{ &$pwd() };
 
 my @tasks;
 
@@ -270,37 +271,37 @@ my $get_commit = sub{
 
 ###
 
-my $git_need_repo = sub{
-    my($dir)=@_;
-    my $agit = ['git', "--git-dir=$dir/.git", "--work-tree=$dir"];
-    -e &$need_path("$dir/.git") or sy(@$agit, "init");
-    $agit;
-};
-my $git_add_commit = sub{
-    my($agit)=@_;
-    sy(@$agit, "add", "--all", ":/");
-    sy(@$agit, "commit", "-m-");
-};
-my $git_status = sub{
-    my($agit)=@_;
-    my $st = join ' ', @$agit, 'status', '--porcelain', ":/";
-    @{[`$st`]};
-};
-my $update_file_tree = sub{
-    my($gen_dir,$sbt_dir)=@_;
-    my $gen_git = &$git_need_repo($gen_dir);
-    my $sbt_git = &$git_need_repo($sbt_dir);
-    &$git_add_commit($gen_git) if &$git_status($gen_git,'');
-    #run(@$sbt_git, "checkout", ":/src") if git_status($sbt_git,"src"); #checkout failed to delete files
-    sy(@$sbt_git, "reset", "--hard");
-    sy(@$sbt_git, "pull", $gen_dir, "master:master"); #reset --hard failed to delete files
-};
+#my $git_need_repo = sub{
+#    my($dir)=@_;
+#    my $agit = ['git', "--git-dir=$dir/.git", "--work-tree=$dir"];
+#    -e &$need_path("$dir/.git") or sy(@$agit, "init");
+#    $agit;
+#};
+#my $git_add_commit = sub{
+#    my($agit)=@_;
+#    sy(@$agit, "add", "--all", ":/");
+#    sy(@$agit, "commit", "-m-");
+#};
+#my $git_status = sub{
+#    my($agit)=@_;
+#    my $st = join ' ', @$agit, 'status', '--porcelain', ":/";
+#    @{[`$st`]};
+#};
+#my $update_file_tree = sub{
+#    my($gen_dir,$sbt_dir)=@_;
+#    my $gen_git = &$git_need_repo($gen_dir);
+#    my $sbt_git = &$git_need_repo($sbt_dir);
+#    &$git_add_commit($gen_git) if &$git_status($gen_git,'');
+#    #run(@$sbt_git, "checkout", ":/src") if git_status($sbt_git,"src"); #checkout failed to delete files
+#    sy(@$sbt_git, "reset", "--hard");
+#    sy(@$sbt_git, "pull", $gen_dir, "master:master"); #reset --hard failed to delete files
+#};
 
 
 
 my $run_generator = sub{
     my $generator_path = &$get_generator_path();
-    &$recycling($_) for <$generator_path/to/*>; # .git not included
+    #&$recycling($_) for <$generator_path/to/*>; # .git not included
     my $generator_src_dir = &$abs_path("generator");
     my $generator_exec = "$generator_src_dir/target/universal/stage/bin/generator";
     &$sy_in_dir($generator_src_dir,"sbt stage") if !-e $generator_exec;
@@ -311,14 +312,14 @@ my $run_generator = sub{
 
 my $run_generator_outer = sub{
     my $generator_path = &$get_generator_path();
-    &$recycling("$generator_path/from");
+    &$recycling("$generator_path/src");
     my $src_dir = &$abs_path();
-    for my $path ((grep{!-d} <$src_dir/project/*>), "$src_dir/build.sbt", (grep{-e} map{"$_/src"} <$src_dir/c4*>)){
+    for my $path (grep{-e} map{"$_/src"} <$src_dir/c4*>){
         my $rel_path = substr $path, length $src_dir;
-        symlink $path,&$need_path("$generator_path/from$rel_path") or die $!;
+        symlink $path,&$need_path("$generator_path/src$rel_path") or die $!;
     }
     &$run_generator();
-    &$update_file_tree("$generator_path/to",&$get_generated_sbt_dir());
+    #&$update_file_tree("$generator_path/to",&$get_generated_sbt_dir());
 };
 
 push @tasks, ["### build ###"];
@@ -347,10 +348,10 @@ push @tasks, ["build_some_client", sub{
 push @tasks, ["build_conf_only", sub{
     &$gen_docker_conf([]);
 }];
-push @tasks, ["sbt", sub{
-    chdir &$get_generated_sbt_dir() or die $!;
-    sy("sbt",@ARGV[1..$#ARGV]);
-}];
+#push @tasks, ["sbt", sub{
+#    chdir &$get_generated_sbt_dir() or die $!;
+#    sy("sbt",@ARGV[1..$#ARGV]);
+#}];
 
 ################################################################################
 
