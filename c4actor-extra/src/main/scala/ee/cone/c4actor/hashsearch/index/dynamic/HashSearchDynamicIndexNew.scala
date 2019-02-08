@@ -210,8 +210,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   val idGenUtil: IdGenUtil,
   val ranger: RangerWithCl[By, Field],
   val defaultModelRegistry: DefaultModelRegistry
-) extends Assemble
-  with DynamicIndexSharedTypes
+) extends Assemble with DynamicIndexSharedTypes
   with HashSearchAssembleSharedKeys
   with HashSearchDynamicIndexNewUtils[Model, By, Field] {
 

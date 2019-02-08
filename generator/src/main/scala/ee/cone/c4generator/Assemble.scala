@@ -168,7 +168,7 @@ object AssembleGenerator extends Generator {
 
     //cont.substring(0,className.pos.end) + "_Base" + cont.substring(className.pos.end) +
     (true,
-      s"${res.syntax} extends ${baseClassName}$paramNames with CheckedAssemble with Assemble$subAssembleWith " +
+      s"${res.syntax} extends ${baseClassName}$paramNames with Assemble$subAssembleWith " +
       s"{\n$statRules$joinImpl$dataDependencies$subAssembleDef}"
     )
   }}

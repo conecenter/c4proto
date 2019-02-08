@@ -16,7 +16,6 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.rdb_impl.ToExternalDBAssembleTypes.PseudoOrig
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto
 import ee.cone.c4proto._
 import okio.ByteString
 
@@ -31,7 +30,7 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
 
 ////
 
-@protocol(ExchangeCat) object ToExternalDBProtocol extends c4proto.Protocol {
+@protocol(ExchangeCat) object ToExternalDBProtocol extends Protocol {
   @Id(0x0063) case class HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -165,7 +164,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol(ExchangeCat) object FromExternalDBProtocol extends c4proto.Protocol {
+@protocol(ExchangeCat) object FromExternalDBProtocol extends Protocol {
   @Id(0x0060) case class DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long

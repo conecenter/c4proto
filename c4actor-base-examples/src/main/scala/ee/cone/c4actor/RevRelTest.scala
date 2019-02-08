@@ -16,19 +16,19 @@ object RRTypes {
 
 import scala.reflect.ClassTag
 trait RelSrc[From<:Product,Value] {
-  def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To]
-  def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]]
+  def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with Assemble
+  def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]] with Assemble
 }
 trait RevRelFactory {
   def rel[From<:Product](lens: ProdLens[From,List[SrcId]])(implicit cf: ClassTag[From]): RelSrc[From,List[SrcId]]
-  def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To]
+  def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To] with Assemble
 }
 import RRTypes._
 //
 class RelSrcImpl[From<:Product,Value](from: Class[From], lens: ProdLens[From,Value], adapter: Value⇒List[SrcId]) extends RelSrc[From,Value] {
-  def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To] =
+  def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with Assemble =
     new RelAssemble(from,ct.runtimeClass.asInstanceOf[Class[To]],lens,adapter)()
-  def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]] = {
+  def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]] with Assemble = {
     val to = ct.runtimeClass.asInstanceOf[Class[To]]
     new RelChildrenAssemble(from,to,new RelAssemble(from,to,lens,adapter)())()
   }
@@ -38,7 +38,7 @@ class RevRelFactoryImpl extends RevRelFactory {
     val from = cf.runtimeClass.asInstanceOf[Class[From]]
     new RelSrcImpl[From,List[SrcId]](from,lens,identity[List[SrcId]])
   }
-  def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To] =
+  def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To] with Assemble =
     new RevAssemble[To,SrcId](ct.runtimeClass.asInstanceOf[Class[To]],lens,v⇒List(v))()
 }
 @assemble class RevAssemble[To<:Product,Value](

@@ -334,7 +334,7 @@ object AssembleDataDependencies {
         case m ⇒ (was,m::res)
       }
     }
-    res.flatMap{ case a: CheckedAssemble ⇒ a.dataDependencies(indexFactory) }
+    res.flatMap(_.dataDependencies(indexFactory))
   }
 }
 

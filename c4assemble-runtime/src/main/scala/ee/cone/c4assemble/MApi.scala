@@ -108,11 +108,9 @@ abstract class Join(
   def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq): Result
 }
 
-trait Assemble /*{
-  type MakeJoinKey = IndexFactory⇒JoinKey
-  type Join = ee.cone.c4assemble.Join
-  type IndexFactory = ee.cone.c4assemble.IndexFactory
-}*/
+trait Assemble {
+  def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]]
+}
 
 trait JoinKey extends AssembledKey {
   def was: Boolean
@@ -152,9 +150,6 @@ case object All extends All
   */
 
 //class JoinRes(val byKey: Any, val productHashed: PreHashed[Product], val count: Int)
-trait CheckedAssemble extends Assemble {
-  def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]]
-}
 trait MergeableAssemble {
   def mergeKey: String
 }
@@ -163,10 +158,10 @@ trait BasicMergeableAssemble extends MergeableAssemble {
   def mergeKeyAddString: String
   def mergeKey: String = s"${(getClass::mergeKeyAddClasses).map(_.getName).mkString("-")}#$mergeKeyAddString"
 }
-trait CallerAssemble extends Assemble {
+trait CallerAssemble {
   def subAssembles: List[Assemble]
 }
-trait SubAssemble[R<:Product] extends Assemble {
+trait SubAssemble[R<:Product] {
   type Result = _⇒Values[(_,R)]
   def result: Result
   def resultKey: IndexFactory⇒JoinKey = throw new Exception("never here")

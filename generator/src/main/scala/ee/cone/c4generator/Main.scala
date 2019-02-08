@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v37"
+  def version: String = "-v38"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -177,7 +177,7 @@ object Lint {
           statsB.collect{
             case q"..$mods val ..$patsnel: $tpeopt = $expr"
               if mods.collect{ case mod"lazy" ⇒ true }.isEmpty ⇒
-              s"warn: val ${patsnel.mkString(" ")} in $tp $tName "
+              s"/*\nwarn: val ${patsnel.mkString(" ")} in $tp $tName \n*/"
           }
         case _ ⇒ Nil
       }
