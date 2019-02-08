@@ -74,7 +74,7 @@ class ToUpdateImpl(
 
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader]) = {
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
-    logger.debug(updates.toString)
+    logger.trace(updates.toString)
     val updatesBytes = updatesAdapter.encode(Updates("", filteredUpdates))
     logger.debug("Compressing...")
     val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)

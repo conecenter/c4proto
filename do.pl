@@ -16,7 +16,7 @@ my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
 my $bootstrap_server = "127.0.0.1:$kafka_port";
 my $http_server = "127.0.0.1:$http_port";
-my $gen_dir = "target/c4gen/res";
+my $gen_dir = "."; #"target/c4gen/res";
 
 sub syn{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
