@@ -50,7 +50,7 @@ class TestTodoApp extends ServerApp
 }
 
 import TestTodoAccess._
-@fieldAccessobject TestTodoAccess {
+@fieldAccess object TestTodoAccess {
   lazy val comments: ProdLens[TodoTask,String] =
     ProdLens.of(_.comments, UserLabel en "(comments)")
   lazy val createdAt: ProdLens[TodoTask,Long] =

@@ -108,11 +108,11 @@ abstract class Join(
   def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq): Result
 }
 
-trait Assemble {
+trait Assemble /*{
   type MakeJoinKey = IndexFactory⇒JoinKey
   type Join = ee.cone.c4assemble.Join
   type IndexFactory = ee.cone.c4assemble.IndexFactory
-}
+}*/
 
 trait JoinKey extends AssembledKey {
   def was: Boolean
