@@ -579,10 +579,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentWillUnmount(){
 			this.unmounted = true			
-			if(this.resizeL) {
-				//log(`delete listener`)
-				this.resizeL = this.resizeL.unreg()
-			}
+			if(this.resizeL) this.resizeL = this.resizeL.unreg()
+			this.remRef && this.remRef.parentElement.removeChild(this.remRef)
 		}
 		initListener(){			
 			const isSibling = Branches.isSibling(this.ctx)
@@ -597,19 +595,21 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.initListener()
 		}
 		componentDidMount(){
+			if(!this.el) return
 			const node = documentManager.body().querySelector("#dev-content")
 			const nodeOld = documentManager.body().querySelector("#content")			
 			while (node&&node.hasChildNodes()) node.removeChild(node.lastChild)						
 			while (nodeOld&&nodeOld.hasChildNodes()) nodeOld.removeChild(nodeOld.lastChild)
+			const doc = this.el.ownerDocument
+			this.remRef = doc.createElement("div")	
+			Object.assign(this.remRef.style,{height:"1em", position:"absolute",zIndex:"-1", top:"0px"})
+			doc.body.appendChild(this.remRef)
 			this.ctx = rootCtx(this.props.ctx)
 			this.initListener()			
 		}
 		render(){			
 			const isSibling = Branches.isSibling(this.ctx)						
-			return [
-				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref},this.props.children),				
-				$("div",{key:"2",style:{height:"1em", position:"absolute",zIndex:"-1", top:"0px"},ref:ref=>this.remRef=ref})				
-			]
+			return $("div",{key:"1",className:"docRoot",style:this.props.style,ref:ref=>this.el=ref},this.props.children)						
 		}
 	}
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -3506,7 +3506,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	
     class NoShowUntilElement extends StatefulComponent{
 		componentWillUnmount(){
-			if(this.interval) clearInterval(this.interval)			
+			if(this.interval) clearInterval(this.interval)
+			this.mmRef && this.mmRef.parentElement.removeChild(this.mmRef)
+			this.remRef && this.remRef.parentElement.removeChild(this.remRef)				
 		}
 		ratio(){
 			const mmH = this.mmRef.getBoundingClientRect().height
@@ -3518,20 +3520,23 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.ctx = rootCtx(this.props.ctx)
 			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return
+			if(!this.el) return
+			const doc = this.el.ownerDocument
+			this.mmRef = doc.createElement("div")
+			this.remRef = doc.createElement("div")
+			Object.assign(this.mmRef.style,{height:"1mm",position:"absolute",zIndex:"-1"})
+			Object.assign(this.remRef.style,{height:"1em",position:"absolute",zIndex:"-1"})
+			doc.body.appendChild(this.mmRef);doc.body.appendChild(this.remRef)
 			const ratio = this.ratio()			
-			ratio && this.props.onClickValue("change",!ratio.toString())	
+			ratio && this.props.onClickValue("change",ratio.toString())	
 			this.interval = setInterval(()=>{
 				if(this.props.show) return 
 				const ratio = this.ratio()				 
 				ratio && this.props.onClickValue("change",ratio.toString())			
 			}, 1000)
-		}		
-		render(){			
-			return [		    				
-				$("div",{key:"mm",ref:ref=>this.mmRef = ref,style:{height:"1mm",position:"absolute",zIndex:"-1"}}),
-				$("div",{key:"em",ref:ref=>this.remRef = ref,style:{height:"1em",position:"absolute",zIndex:"-1"}}),
-				$("div",{key:"children"},this.props.show?this.props.children:null)			
-			]
+		}			
+		render(){		
+			return $("div",{key:"children",ref:ref=>this.el=ref},this.props.show?this.props.children:null)				
 		}
 	}
 	class ClickableDivElement extends StatefulComponent{

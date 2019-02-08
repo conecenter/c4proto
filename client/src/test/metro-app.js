@@ -137,7 +137,7 @@ const metroUi = MetroUi(log2,requestState,images,documentManager,eventManager,ov
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
-const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,overlayManager,windowManager,miscReact,miscUtil,StatefulComponent});
+const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,overlayManager,miscReact,miscUtil,StatefulComponent});
 const electronUpdateManager = ElectronUpdateManager(log,window,metroUi, StatefulComponent)
 
 const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,eventManager,windowManager,miscReact,StatefulComponent,reactPathConsumer:metroUi.reactPathConsumer})
