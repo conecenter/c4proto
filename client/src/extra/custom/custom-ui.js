@@ -64,7 +64,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 					)
 				{
 					t.destroy(-1);
-					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params,this.props.wrk,this.props.ps);
+					t.init(this.props.host.split(":")[0],this.props.host.split(":")[1],this.props.username,this.props.password,this.props.params,this.props.wrk,this.props.ps);
 				}
 			})
 		}
@@ -73,8 +73,9 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 				backgroundColor:"black",
 				...this.props.style
 			}
+			const className = !this.props.host?"dummyTerminal":"terminalElement"
 			return $(React.Fragment,{},[
-				$("div",{key:"term",className:'terminalElement',version:this.props.version,style},
+				$("div",{key:"term",className:className,version:this.props.version,style},
 					$("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
 				),
 				$(ControlWrapperElement,{key:"btn",style:{alignSelf:"center",display:"inline-block",outlineWidth:"0.1em",padding:"0em",width:"auto"}},
