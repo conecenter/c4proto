@@ -57,7 +57,7 @@ class ToUpdateImpl(
 ) extends ToUpdate with LazyLogging {
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
-    val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.empty))
+    val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.emptyByteArray))
     Update(message.srcId, valueAdapter.id, byteString)
   }
 
