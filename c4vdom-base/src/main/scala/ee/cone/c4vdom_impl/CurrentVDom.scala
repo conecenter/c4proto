@@ -3,6 +3,7 @@ package ee.cone.c4vdom_impl
 import ee.cone.c4vdom._
 
 import Function.chain
+import scala.annotation.tailrec
 
 class VDomHandlerFactoryImpl(
   diff: Diff,
@@ -98,7 +99,7 @@ case class VDomHandlerImpl[State](
     val nextDom = vPair.value
     vDomStateKey.set(Option(VDomState(nextDom, until)))(state)
   }
-
+/*
   def seeds: State ⇒ List[(String,Product)] = state ⇒ {
     //println(vDomStateKey.of(state).get.value.getClass)
     gatherSeeds(Nil, Nil, vDomStateKey.of(state).get.value)
@@ -111,7 +112,37 @@ case class VDomHandlerImpl[State](
     case n: SeedVDomValue ⇒ (path.reverse.map(e⇒s"/$e").mkString,n.seed) :: acc
      //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
     case _ ⇒ acc
+  }*/
+  /*private def gatherSeedsValue(value: VDomValue): Product = value match {
+    case n: MapVDomValue ⇒
+      val subRes = gatherSeedsPairs(n.pairs,Nil)
+      if(subRes.nonEmpty) GatheredSeeds(subRes) else NoSeeds
+    case n: SeedVDomValue ⇒ n.seed
+    case _ ⇒ NoSeeds
+  }*/
+
+  type Seeds = List[(String,Product)]
+  def seeds: State ⇒ Seeds = state ⇒
+    gatherSeedsFinal(Nil, gatherSeedsPair("",vDomStateKey.of(state).get.value,Nil), Nil)
+  @tailrec private def gatherSeedsPairs(from: List[VPair], res: Seeds): Seeds =
+    if(from.isEmpty) res else gatherSeedsPairs(from.tail, gatherSeedsPair(from.head.jsonKey,from.head.value,res))
+  private def gatherSeedsPair(key: String, value: VDomValue, res: Seeds ): Seeds = value match {
+    case n: MapVDomValue ⇒
+      val subRes = gatherSeedsPairs(n.pairs,Nil)
+      if(subRes.nonEmpty) (key,GatheredSeeds(subRes)) :: res else res
+    case n: SeedVDomValue ⇒ (key,n.seed) :: res
+    case _ ⇒ res
   }
+  private def gatherSeedsFinal(path: List[String], from: Seeds, res: Seeds): Seeds =
+    if(from.isEmpty) res else {
+      val (key,value) = from.head
+      val subPath = key :: path
+      gatherSeedsFinal(path, from.tail, value match {
+        case GatheredSeeds(pairs) ⇒ gatherSeedsFinal(subPath,pairs,res)
+        case seed ⇒ (subPath.reverse.mkString("/"),seed) :: res
+      })
+    }
+
 
   //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
   //else List("relocateHash"→vState.hashTarget)
@@ -127,7 +158,7 @@ case class VDomHandlerImpl[State](
   */
 }
 
-
+case class GatheredSeeds(pairs: List[(String,Product)])
 
 
 case class RootElement(branchKey: String) extends VDomValue {
