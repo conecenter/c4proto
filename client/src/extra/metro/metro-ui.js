@@ -3630,7 +3630,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(node) this.recalc()
 		}
 		render(){
-			const {value,max} = this.props
+			const {value,max,percent} = this.props
 			const v1 = parseFloat(value)
 			const v2 = parseFloat(max)
 			let v = (v1/v2)*100
@@ -3664,9 +3664,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				width:v+"%",
 				position:"relative"				
 			}
+			const fv = percent?(v+"%"):`${value}/${max}`
 			return $("div",{style},
 				$("div",{style:style3},
-					$("div",{style:style2,ref:this.onRef},v+"%")
+					$("div",{style:style2,ref:this.onRef},fv)
 				)
 			)
 		}
