@@ -95,7 +95,7 @@ trait RichDataApp extends ProtocolsApp
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
   def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer //new ShortAssembleSeqOptimizer(backStageFactory,indexUpdater) //make abstract
-lazy val readModelUtil: ReadModelUtil = new ReadModelUtilImpl(indexUtil)
+  lazy val readModelUtil: ReadModelUtil = new ReadModelUtilImpl(indexUtil)
   lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl(readModelUtil)
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()

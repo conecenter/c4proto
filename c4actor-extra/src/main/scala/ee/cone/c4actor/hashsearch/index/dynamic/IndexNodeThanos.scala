@@ -74,7 +74,7 @@ trait DynamicIndexAssemble
     }
   }
 
-  lazy val hashSearchVersion: String = "MC5FLjA=" // note equals to base64 http://base64decode.toolur.com/
+  lazy val hashSearchVersion: String = "MC5FLjg=" // note equals to base64 http://base64decode.toolur.com/
 }
 
 case class IndexNodeRich[Model <: Product](
