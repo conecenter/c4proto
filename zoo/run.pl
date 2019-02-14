@@ -38,14 +38,28 @@ push @tasks, [gate=>sub{
 push @tasks, [desktop=>sub{
     my $pass_fn = $ENV{C4AUTH_KEY_FILE} || die;
     my $pass = `cat $pass_fn`=~/(\S+)/ ? $1 : die;
-    my $pass_line = qq[Option "SpicePassword" "$pass"\n];
     my $conf_fn = "c4spiceqxl.xorg.conf";
-    my $conf_cont = join '', map{!/"SpicePassword"/?$_:$pass_line}
-        `cat /etc/X11/$conf_fn`;
+    my $id = 1979;
+    my %opt = (
+        SpicePassword=>$pass,
+        SpiceVdagentEnabled=>"True", SpiceVdagentUid=>$id, SpiceVdagentGid=>$id
+    );
+    my $conf_cont = join '',
+        map{/(Option "(\w+)")/ && (exists $opt{$2})?($_,qq[$1 "$opt{$2}"\n]):$_}
+        `cat /etc/X11/spiceqxl.xorg.conf`;
     &$put_text("/etc/X11/$conf_fn", $conf_cont);
-    #print $conf_cont;
-    #$ENV{XSPICE_PASSWORD} = $pass;
-    &$exec("Xspice","--config",$conf_fn,"--xsession","openbox",":1"); #,"--vdagent"
+    my $agent = "/c4/vdagentd";
+    &$put_text($agent,"#!/usr/bin/perl\nexec 'spice-vdagentd','-X',\@ARGV;die");
+    system 'chmod', '+x', $agent and die $?;
+    my @vdagent = (
+        '--vdagent',
+        '--vdagentd-exec' => $agent,
+        '--vdagent-uid' => $id,
+        '--vdagent-gid' => $id,
+        '--vdagent-virtio-path' => '/tmp/xspice-virtio',
+        '--vdagent-uinput-path' => '/tmp/xspice-uinput',
+    );#--vdagent-no-launch
+    &$exec("Xspice",@vdagent,"--config",$conf_fn,"--xsession","openbox",":1"); #-session
 }];
 push @tasks, [def=>sub{
     m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4deploy/*>;
