@@ -172,7 +172,18 @@ my $gen_docker_conf = sub{
             'exec "sh serve.sh";'
         );
         #rsync -r /c4deploy/ /c4
-        (&$from("rsync mc"), q{CMD ["perl","run.pl"]});
+
+        my $jfr_dir = "/docker-java-home/lib/jfr";
+        my $jfr_url = "https://hg.openjdk.java.net/jdk/jdk11/raw-file/76072a077ee1/src/jdk.jfr/share/conf/jfr";
+        (
+            &$from("rsync mc"),
+            &$run(
+                qq{mkdir -p $jfr_dir},
+                qq{wget $jfr_url/default.jfc -O $jfr_dir/default.jfc},
+                qq{wget $jfr_url/profile.jfc -O $jfr_dir/profile.jfc},
+            ),
+            q{CMD ["perl","run.pl"]},
+        );
     });
     &$build(&$staged("gate-server"=>sub{
         my($ctx_dir)=@_;
