@@ -14,6 +14,8 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
 import ee.cone.c4gate.LocalPostConsumer
 import okio.ByteString
 
+import scala.collection.immutable.Seq
+
 case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
 object SendToAlienInit extends ToInject {
   def toInject: List[Injectable] = SendToAlienKey.set(
@@ -32,26 +34,25 @@ object SendToAlienInit extends ToInject {
 
 case class MessageFromAlienImpl(
   srcId: String,
-  index: Long,
   headers: Map[String,String],
   request: HttpPost
-) extends MessageFromAlien {
+) extends BranchMessage {
   def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
   def body: ByteString = request.body
-  def rm: Context ⇒ Context = TxAdd(delete(request))
+  def deletes: Seq[LEvent[Product]] = delete(request)
 }
 
 @assemble class MessageFromAlienAssemble extends Assemble {
   def mapHttpPostByBranch(
     key: SrcId,
     post: Each[HttpPost]
-  ): Values[(BranchKey, MessageFromAlien)] = if(post.path != "/connection") Nil else for(
+  ): Values[(BranchKey, BranchMessage)] = if(post.path != "/connection") Nil else for(
     headers ← List(post.headers.flatMap(h ⇒
       if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
     ).toMap);
     branchKey ← headers.get("X-r-branch");
     index ← headers.get("X-r-index").map(_.toLong)
-  ) yield branchKey → MessageFromAlienImpl(post.srcId,index,headers,post)
+  ) yield branchKey → MessageFromAlienImpl(post.srcId,headers,post)
 
 
   def consumersForHandlers(
