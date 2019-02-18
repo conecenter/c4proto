@@ -48,7 +48,7 @@ lazy val metaMacroSettings: Seq[Def.Setting[_]] = Seq(
   sources in (Compile, doc) := Nil // macroparadise doesn't work with scaladoc yet.
 )*/
 
-lazy val metaREPLSettins: Seq[Def.Setting[_]] = Seq(
+lazy val metaREPLSettings: Seq[Def.Setting[_]] = Seq(
   dependencyOverrides += "org.scala-lang.modules" %% "scala-xml" % "1.1.0"
 )
 
@@ -90,6 +90,7 @@ lazy val `c4gate-extra` = project.settings(publishSettings)
 
 lazy val `c4actor-extra-examples` = project.settings(publishSettings)
   .settings(description := s"$descr / dep test")
+  .settings(libraryDependencies += "org.scalameta" %% "scalameta" % "4.1.0")
   .dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`)
 
 lazy val `c4actor-kafka` = project.settings(publishSettings)
@@ -131,7 +132,7 @@ lazy val `c4gate-publish` = project.settings(publishSettings)
 
 lazy val `c4gate-sse-example` = project.settings(publishSettings)
   .settings(description := s"$descr")
-  .settings(metaREPLSettins)
+  .settings(metaREPLSettings)
   .dependsOn(`c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-publish`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
   .enablePlugins(JavaServerAppPackaging)
 
@@ -168,8 +169,14 @@ lazy val `c4gate-repl` = project.settings(publishSettings)
   .settings(libraryDependencies += "com.lihaoyi" % "ammonite-sshd" % "1.6.3" cross CrossVersion.full)
   .dependsOn(`c4actor-base`)
 
+lazy val `c4external-base` = project.settings(publishSettings)
+  .settings(description := s"$descr")
+  .dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
+
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
-lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
+lazy val `c4proto-aggregate` = project.in(file("."))
+  .settings(publishSettings)
+  .aggregate(
   `c4actor-base`,
   `c4actor-base-examples`,
   `c4actor-branch`,
@@ -193,5 +200,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-extra`,
   `c4actor-extra-examples`,
   `c4ui-main`,
-  `c4ui-extra`
+  `c4ui-extra`,
+  `c4external-base`
 )

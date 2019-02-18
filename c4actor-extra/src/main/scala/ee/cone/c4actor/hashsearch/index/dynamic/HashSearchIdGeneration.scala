@@ -38,7 +38,7 @@ trait HashSearchIdGeneration {
 
   def indexModelId(commonPrefix: String, modelSrcId: String): String = hash(modelId, commonPrefix, modelSrcId)
 
-  val parser: PreHashingMurMur3 = PreHashingMurMur3()
+  lazy val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
   private def hash(list: Any*): String = {
     val instance = new MurmurHash3()
