@@ -43,6 +43,10 @@ public class MurmurHash3 implements Java128HashInterface {
         h1 ^= 1;
         h2 ^= 1;
 
+        addHash(h1, h2);
+    }
+
+    private void addHash(long h1, long h2) {
         h1 += h2;
         h2 += h1;
 
@@ -73,17 +77,7 @@ public class MurmurHash3 implements Java128HashInterface {
         h1 ^= 4;
         h2 ^= 4;
 
-        h1 += h2;
-        h2 += h1;
-
-        h1 = fmix64(h1);
-        h2 = fmix64(h2);
-
-        h1 += h2;
-        h2 += h1;
-
-        murmur1 = h1;
-        murmur2 = h2;
+        addHash(h1, h2);
     }
 
     @Override
@@ -97,17 +91,7 @@ public class MurmurHash3 implements Java128HashInterface {
         h1 ^= 8;
         h2 ^= 8;
 
-        h1 += h2;
-        h2 += h1;
-
-        h1 = fmix64(h1);
-        h2 = fmix64(h2);
-
-        h1 += h2;
-        h2 += h1;
-
-        murmur1 = h1;
-        murmur2 = h2;
+        addHash(h1, h2);
     }
 
     @Override
@@ -187,17 +171,7 @@ public class MurmurHash3 implements Java128HashInterface {
         h1 ^= len;
         h2 ^= len;
 
-        h1 += h2;
-        h2 += h1;
-
-        h1 = fmix64(h1);
-        h2 = fmix64(h2);
-
-        h1 += h2;
-        h2 += h1;
-
-        murmur1 = h1;
-        murmur2 = h2;
+        addHash(h1, h2);
     }
 
     @Override
@@ -239,17 +213,7 @@ public class MurmurHash3 implements Java128HashInterface {
         h1 ^= length;
         h2 ^= length;
 
-        h1 += h2;
-        h2 += h1;
-
-        h1 = fmix64(h1);
-        h2 = fmix64(h2);
-
-        h1 += h2;
-        h2 += h1;
-
-        murmur1 = h1;
-        murmur2 = h2;
+        addHash(h1, h2);
     }
 
     public void updateBytes(byte[] data) {
@@ -346,17 +310,7 @@ public class MurmurHash3 implements Java128HashInterface {
         h1 ^= length;
         h2 ^= length;
 
-        h1 += h2;
-        h2 += h1;
-
-        h1 = fmix64(h1);
-        h2 = fmix64(h2);
-
-        h1 += h2;
-        h2 += h1;
-
-        murmur1 = h1;
-        murmur2 = h2;
+        addHash(h1, h2);
     }
 
     public void reset() {

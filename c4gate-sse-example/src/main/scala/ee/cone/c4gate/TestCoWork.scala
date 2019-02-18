@@ -6,6 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, fieldAccess}
 import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4gate.SessionDataProtocol.RawSessionData
 import ee.cone.c4gate.TestFilterProtocol.Content
 import ee.cone.c4proto.{Id, Protocol}
 import ee.cone.c4ui._

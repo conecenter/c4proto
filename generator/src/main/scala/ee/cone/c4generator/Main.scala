@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: Array[Byte] = Array(0,34)
+  def version: Array[Byte] = Array(0,39)
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
