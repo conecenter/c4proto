@@ -19,10 +19,10 @@ case class OrigKeyFactory(composes: IndexUtil) {
     composes.joinKey(was=false, "SrcId", classOf[SrcId].getName, className)
 }
 
-case class ProtocolDataDependencies(protocols: List[Protocol], externalIds:Set[Long], origKeyFactory: OrigKeyFactory) {
+case class ProtocolDataDependencies(protocols: List[Protocol], extUpdateProcessor: ExtUpdateProcessor, origKeyFactory: OrigKeyFactory) {
 
   def apply(): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters.filter(_.hasId)).filterNot(adapter ⇒ externalIds(adapter.id)).map{ adapter ⇒
+    protocols.flatMap(_.adapters.filter(_.hasId)).filterNot(adapter ⇒ extUpdateProcessor.idSet(adapter.id)).map{ adapter ⇒
       new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
     }
 }
@@ -98,10 +98,10 @@ class AssemblerInit(
   }
   // other parts:
   private def add(out: Seq[Update]): Context ⇒ Context = {
-    val processedOut = processors.par.flatMap(_.process(out)).to[Seq] ++ out
-    val externalOut = externalUpdateProcessor.process(processedOut)
-    if (externalOut.isEmpty) identity[Context]
+    if (out.isEmpty) identity[Context]
     else { local ⇒
+      val processedOut = processors.par.flatMap(_.process(out)).to[Seq] ++ out
+      val externalOut = externalUpdateProcessor.process(processedOut)
       val diff = toTree(local.assembled, externalOut)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)

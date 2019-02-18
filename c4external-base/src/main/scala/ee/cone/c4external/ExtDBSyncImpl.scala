@@ -11,10 +11,9 @@ import ee.cone.dbadapter.{DBAdapter, OrigSchema, OrigSchemaBuilder, OrigSchemaBu
 trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
   def qAdapterRegistry: QAdapterRegistry
   def toUpdate: ToUpdate
-  def consuming: Consuming
   def dbAdapter: DBAdapter
 
-  lazy val extDBSync: ExtDBSync = new ExtDBSyncImpl(dbAdapter, builders, qAdapterRegistry, toUpdate, external)
+  lazy val extDBSync: ExtDBSync = new ExtDBSyncImpl(dbAdapter, builders, qAdapterRegistry, toUpdate, extModels)
 }
 
 class ExtDBSyncImpl(
@@ -22,10 +21,10 @@ class ExtDBSyncImpl(
   builders: List[OrigSchemaBuilder[_ <: Product]],
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
-  external: List[Class[_ <: Product]]
+  external: List[ExternalModel[_ <: Product]]
 ) extends ExtDBSync with LazyLogging {
 
-  val externalsList: List[String] = external.map(_.getName)
+  val externalsList: List[String] = external.map(_.clName)
   val externalsSet: Set[String] = externalsList.toSet
   val buildersByName: Map[String, OrigSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigClName → b).toMap
   // Check if registered externals have builder
