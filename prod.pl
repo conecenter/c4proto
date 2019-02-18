@@ -865,7 +865,8 @@ push @tasks, ["cert","<hostname>",sub{
   sy(&$remote($comp,"docker exec proxy_haproxy_1 kill -s HUP 1"));
 }];
 
-push @tasks, ["devel_init_frpc"," ",sub{
+push @tasks, ["devel_init_frpc","<devel>|all",sub{
+    my($developer) = @_;
     my $comp = "devel";
     my $sk = &$get_frp_sk($comp);
     my $proxy_list = (&$get_deploy_conf()->{proxy_to}||die)->{visits}||die;
@@ -873,12 +874,12 @@ push @tasks, ["devel_init_frpc"," ",sub{
         my($inner_comp,$fn,$content) = @_;
         &$remote_interactive($comp, " -uc4 $inner_comp\_sshd_1 ", "cat > /c4/$fn")." < ".&$put_temp($fn,$content)
     };
-    for my $container(&$running_containers_all($comp)){
-        my $inner_comp = $container=~/^(\w+)_sshd_/ ? $1 : next;
+    my $process = sub{
+        my($inner_comp) = @_;
         sy(&$put($inner_comp,"frpc.ini",&$to_ini_file([
-             common => [&$get_frp_common("devel"), user=>$inner_comp],
+             common => [&$get_frp_common("devel")],
              &$frp_web($inner_comp),
-             map{my($port,$container)=@$_;("p_$port" => [
+             map{my($port,$container)=@$_;("$inner_comp.p_$port" => [
                  type => "stcp",
                  sk => $sk,
                  local_ip => $container,
@@ -886,18 +887,21 @@ push @tasks, ["devel_init_frpc"," ",sub{
              ])} @$proxy_list
         ])));
         sy(&$put($inner_comp,"frpc_visitor.ini", &$to_ini_file([
-            common => [&$get_frp_common("devel"), user=>$inner_comp],
-            map{my($port,$container)=@$_;("p_$port\_visitor" => [
+            common => [&$get_frp_common("devel")],
+            map{my($port,$container)=@$_;("$inner_comp.p_$port\_visitor" => [
                 type => "stcp",
                 role => "visitor",
                 sk => $sk,
-                server_name => "p_$port",
+                server_name => "$inner_comp.p_$port",
                 bind_port => $port,
                 bind_addr => "127.0.20.2",
             ])} @$proxy_list
         ])));
         sy(&$remote($comp,"docker restart $inner_comp\_frpc_1"));
-    }
+    };
+    &$process($_) for
+        $developer eq "all" ? (map{/^(\w+)_sshd_/ ? "$1" : ()} &$running_containers_all($comp)) :
+        $developer=~/^(\w+)$/ ? "$1" : die;
 }];
 
 ####
