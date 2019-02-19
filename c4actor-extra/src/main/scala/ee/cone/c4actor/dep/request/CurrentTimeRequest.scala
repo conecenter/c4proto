@@ -30,7 +30,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
     val now = Instant.now
     val nowMilli = now.toEpochMilli
     val prev = ByPK(classOf[CurrentTimeNode]).of(newLocal).get(srcId)
-    if (prev.isEmpty || prev.get.currentTimeMilli > nowMilli + refreshMilli) {
+    if (prev.isEmpty || prev.get.currentTimeMilli + refreshMilli < nowMilli) {
       val nowSeconds = now.getEpochSecond
       TxAdd(LEvent.update(CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
     } else {
