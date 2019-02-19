@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v38"
+  def version: String = "-v39"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -38,15 +38,7 @@ object Main {
     val was = (for { path ← wasFiles } yield path → Files.readAllBytes(path)).toMap
     val will = for {
       path ← fromFiles
-      fromData = Files.readAllBytes(path)
-      uuid = UUID.nameUUIDFromBytes(fromData).toString
-      cachePath = rootCachePath.resolve(s"$uuid$version")
-      toData ← List(if(Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
-        println(s"parsing $path")
-        val toData = generate(fromData)
-        Files.write(cachePath,toData)
-        toData
-      }) if toData.length > 0
+      toData ← Option(pathToData(path,rootCachePath)) if toData.length > 0
     } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") → toData
     for(path ← (was.keySet -- will.toMap.keys)) {
       println(s"removing $path")
@@ -59,25 +51,48 @@ object Main {
       Files.write(path,data)
     }
   }
-  def generate(data: Array[Byte]): Array[Byte] = {
-    val content = new String(data,UTF_8).replace("\r\n","\n")
-    val source = dialects.Scala211(content).parse[Source]
-    val Parsed.Success(source"..$sourceStatements") = source
-    val warnings = Lint.process(sourceStatements)
-    val generators = ImportGenerator.get
-      .orElse(AssembleGenerator.get)
-      .orElse(ProtocolGenerator.get)
-      .orElse(FieldAccessGenerator.get)
-      .lift
-    val packageStatements = for {
-      q"package $n { ..$packageStatements }" ← sourceStatements
-      statements ← Option(
-        packageStatements.flatMap(s⇒generators(s))
-          .reverse.dropWhile(!_._1).reverseMap(_._2)
-      ) if statements.nonEmpty
-    } yield statements.mkString(s"package $n {\n\n","\n\n","\n\n}")
-    (warnings ++ packageStatements).mkString("\n\n").getBytes(UTF_8)
+  lazy val generators: Stat⇒Seq[Generated] = {
+    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator)
+    stat ⇒ generators.flatMap(_.get.lift(stat)).flatten
   }
+  def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
+    val fromData = Files.readAllBytes(path)
+    val uuid = UUID.nameUUIDFromBytes(fromData).toString
+    val cachePath = rootCachePath.resolve(s"$uuid$version")
+    if(Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
+      println(s"parsing $path")
+      val content = new String(fromData,UTF_8).replace("\r\n","\n")
+      val source = dialects.Scala211(content).parse[Source]
+      val Parsed.Success(source"..$sourceStatements") = source
+      val resStatements = for {
+        q"package $n { ..$packageStatements }" ← sourceStatements
+        generated: Seq[Generated] = for {
+          packageStatement ← (packageStatements: Seq[Stat])
+          generated ← generators(packageStatement)
+        } yield generated
+        patches: Seq[Patch] = generated.collect{ case p: Patch ⇒ p }
+        statements = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverseMap(_.content)
+        res ← if(patches.nonEmpty) patches
+        else if(statements.nonEmpty) List(GeneratedCode(statements.mkString(s"package $n {\n\n","\n\n","\n\n}")))
+        else Nil
+      } yield res
+      val patches = resStatements.collect{ case p: Patch ⇒ p }
+      if(patches.nonEmpty){
+        val patchedContent = patches.sortBy(_.pos).foldRight(content)((patch,cont)⇒
+          cont.substring(0,patch.pos) + patch.content + cont.substring(patch.pos)
+        )
+        println(s"patching $path")
+        Files.write(path, patchedContent.getBytes(UTF_8))
+        pathToData(path,rootCachePath)
+      } else {
+        val warnings = Lint.process(sourceStatements)
+        val toData = (warnings ++ resStatements.map(_.content)).mkString("\n\n").getBytes(UTF_8)
+        Files.write(cachePath,toData)
+        toData
+      }
+    }
+  }
+
 
 /*
   def main(args: Array[String]): Unit = {
@@ -137,7 +152,7 @@ object ImportGenerator extends Generator {
             case _ ⇒ initialImporter
           }
       }
-      (false,"\n\n" + q"import ..$nextImporters".syntax)
+      List(GeneratedImport("\n\n" + q"import ..$nextImporters".syntax))
   }
 }
 
@@ -148,19 +163,24 @@ object Util {
       cont.substring(stat.pos.start,stat.pos.end) + " */ " +
       cont.substring(stat.pos.end)*/
 
-  def unBase(name: String)(f: String⇒(Boolean,String)): (Boolean,String) = {
+  def unBase(name: String, pos: Int)(f: String⇒Seq[Generated]): Seq[Generated] = {
     val UnBase = """(\w+)Base""".r
     name match {
       case UnBase(n) ⇒ f(n)
-      case n ⇒ (true,s"/*\nwarn: $n should end with *Base\n*/")
+      case n ⇒ List(Patch(pos,"Base"))
     }
   }
 }
 
 trait Generator {
-  type Get = PartialFunction[Stat,(Boolean,String)]
+  type Get = PartialFunction[Stat,Seq[Generated]]
   def get: Get
 }
+
+sealed trait Generated { def content: String }
+case class GeneratedImport(content: String) extends Generated
+case class GeneratedCode(content: String) extends Generated
+case class Patch(pos: Int, content: String) extends Generated
 
 object Lint {
   def process(stats: Seq[Stat]): Seq[String] =

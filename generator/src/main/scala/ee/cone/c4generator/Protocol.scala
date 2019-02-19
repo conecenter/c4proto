@@ -27,7 +27,7 @@ object ProtocolGenerator extends Generator {
   def parseArgs: Seq[Seq[Term]] ⇒ List[String] =
     _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
 
-  def get: Get = { case code@q"@protocol(...$exprss) object ${Term.Name(objectName)} extends ..$ext { ..$stats }" ⇒ Util.unBase(objectName){ objectName ⇒
+  def get: Get = { case code@q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" ⇒ Util.unBase(objectName,objectNameNode.pos.end){ objectName ⇒
 
       //println(t.structure)
 
@@ -186,6 +186,6 @@ object ProtocolGenerator extends Generator {
       }"""
     //println(res)
     //Util.comment(code)(cont) +
-    (true, res.syntax)
+    List(GeneratedCode(res.syntax))
   }}
 }
