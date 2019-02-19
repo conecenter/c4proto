@@ -10,9 +10,10 @@ object BranchTypes {
   type BranchKey = SrcId
 }
 
-trait BranchMessage {
+trait BranchMessage extends Product {
   def header: String⇒String
   def body: okio.ByteString
+  def deletes: Seq[LEvent[Product]]
 }
 
 trait BranchHandler extends Product {
@@ -28,12 +29,6 @@ trait BranchTask extends Product {
   type Send = Option[(String,String) ⇒ Context ⇒ Context]
   def sending: Context ⇒ (Send,Send)
   def relocate(to: String): Context ⇒ Context
-}
-
-trait MessageFromAlien extends BranchMessage with Product {
-  def srcId: String
-  def index: Long
-  def rm: Context ⇒ Context
 }
 
 trait BranchOperations {
@@ -63,6 +58,10 @@ case object ErrorOrigCat extends OrigCategory
     //retry: List[HttpPost]
   )
 
+  @Id(0x004B) case class Redraw(
+    @Id(0x004C) srcId: String,
+    @Id(0x004D) branchKey: String
+  )
 }
 
 case object SendToAlienKey extends SharedComponentKey[(Seq[String],String,String)⇒Context⇒Context]

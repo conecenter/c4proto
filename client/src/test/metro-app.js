@@ -166,8 +166,8 @@ const transforms = mergeAll([
 window.transforms = transforms
 window.React = React
 window.ReactDOM = ReactDOM
-const mountNode = window.mountNode||document.body
-const vDom = VDomCore(log,transforms,() => mountNode)
+const getMountNode = () => window.mountNode || document.body
+const vDom = VDomCore(log,transforms,getMountNode)
 //const switchHost = SwitchHost(log,window)
 const receiversList = [
     vDom.receivers,

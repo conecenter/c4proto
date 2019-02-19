@@ -53,7 +53,7 @@ case class PurgerTx(
 )(purger: Purger) extends TxTransform {
   def transform(local: Context): Context = {
     purger.process(keepPolicyList)
-    SleepUntilKey.set(Instant.now.plusSeconds(5))(local)
+    SleepUntilKey.set(Instant.now.plusSeconds(60L))(local)
   }
 }
 
