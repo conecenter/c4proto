@@ -72,7 +72,7 @@ class ParallelObserver(
   transforms: TxTransforms,
   execution: Execution
 ) extends Observer with LazyLogging {
-  private def empty: FatalFuture[Option[Context]] = execution.future(None)
+  private def empty: FatalFuture[Option[Context]] = execution.emptySkippingFuture
   def activate(global: RichContext): Seq[Observer] = {
     val inProgressMap = localStates.filter{ case(k,v) ⇒
       v.value match {
