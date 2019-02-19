@@ -23,16 +23,14 @@ trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentT
 }
 
 case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends TxTransform {
-  private val refreshMilli = refreshRateSeconds * 1000L + 5L
-
   def transform(l: Context): Context = {
     val newLocal = InsertOrigMeta(CurrentTimeMetaAttr(srcId, refreshRateSeconds) :: Nil)(l)
     val now = Instant.now
-    val nowMilli = now.toEpochMilli
+    val nowTimeSecondsTruncated = now.getEpochSecond / refreshRateSeconds * refreshRateSeconds
+    val currentTimeNode = CurrentTimeNode(srcId, nowTimeSecondsTruncated)
     val prev = ByPK(classOf[CurrentTimeNode]).of(newLocal).get(srcId)
-    if (prev.isEmpty || prev.get.currentTimeMilli + refreshMilli < nowMilli) {
-      val nowSeconds = now.getEpochSecond
-      TxAdd(LEvent.update(CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
+    if (prev.isEmpty || prev.get != currentTimeNode) {
+      TxAdd(LEvent.update(currentTimeNode))(newLocal)
     } else {
       newLocal
     }
@@ -43,8 +41,8 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
 
   @Id(0x0123) case class CurrentTimeNode(
     @Id(0x0124) srcId: String,
-    @Id(0x0125) currentTimeSeconds: Long,
-    @Id(0x0126) currentTimeMilli: Long
+    @Id(0x0125) currentTimeSeconds: Long/*,
+    @Id(0x0126) currentTimeMilli: Long*/
   )
 
 }
@@ -59,7 +57,10 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with
 
   override def protocols: List[Protocol] = CurrentTimeProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
+  override def assembles: List[Assemble] = {
+    val grouped = currentTimeConfig.distinct.groupBy(_.srcId).filter(kv ⇒ kv._2.size > 1)
+    assert(grouped.isEmpty, s"Duplicate keys ${grouped.keySet}")
+    new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles}
 }
 
 object CurrentTimeRequestAssembleTimeId {
