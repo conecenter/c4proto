@@ -18,8 +18,8 @@ object RandomUUID {
   def apply(): String = UUID.randomUUID().toString
 }
 
-class ExtUpdatesPreprocessorImpl(toUpdate: ToUpdate, qAdapterRegistry: QAdapterRegistry, external: List[Class[_ <: Product]]) extends ExtUpdateProcessor {
-  private val externalNames = external.map(_.getName).toSet
+class ExtUpdatesPreprocessorImpl(toUpdate: ToUpdate, qAdapterRegistry: QAdapterRegistry, external: List[ExternalModel[_ <: Product]]) extends ExtUpdateProcessor {
+  private val externalNames = external.map(_.clName).toSet
   val idSet: Set[Long] = qAdapterRegistry.byName.filterKeys(externalNames).transform { case (_, v) ⇒ v.id }.values.toSet
 
   def process(updates: Seq[Update]): Seq[Update] = {
