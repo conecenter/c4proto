@@ -113,7 +113,7 @@ trait RichDataApp extends ProtocolsApp
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct,extUpdateProcessor.idSet,origKeyFactory)() ::: super.dataDependencies
+    ProtocolDataDependencies(protocols.distinct,extUpdateProcessor,origKeyFactory)() ::: super.dataDependencies
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::

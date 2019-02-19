@@ -1,6 +1,6 @@
 package ee.cone.dbadapter
 
-import ee.cone.c4actor.ExtModelsApp
+import ee.cone.c4actor.{ExtModelsApp, ExternalModel}
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 
@@ -71,5 +71,5 @@ trait OrigSchemaBuilderFactory {
 trait OrigSchemaBuildersApp extends ExtModelsApp {
   def builders: List[OrigSchemaBuilder[_ <: Product]] = Nil
 
-  override def external: List[Class[_ <: Product]] = builders.map(_.getOrigCl) ::: super.external
+  override def extModels: List[ExternalModel[_ <: Product]] = builders.map(b ⇒ ExternalModel(b.getOrigCl)) ::: super.extModels
 }

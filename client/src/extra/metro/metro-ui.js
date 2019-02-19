@@ -64,6 +64,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		const update = (newStyles) => styles = {...styles,...newStyles}
 		return {...styles,update};
 	})()
+	const DarkPrimaryColor = "#1976d2"
+	const PrimaryColor = "#2196f3"
 	const checkActivateCalls=(()=>{
 		const callbacks=[]
 		const add = (c) => callbacks.push(c)
@@ -387,8 +389,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				zIndex:"1000",
 				backgroundColor:"inherit"
 			}
-			const left = this.props.children.filter(_=>!_.key.includes("right"))									
-			const right = this.props.children.filter(_=>_.key.includes("right"))			
+			const left = this.props.children.filter(_=>_.key&&!_.key.includes("right"))									
+			const right = this.props.children.filter(_=>!_.key||_.key.includes("right"))
 			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[
 				$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:this.props.isBurgerOpen,key:"burger",onClick:this.openBurger}),
 				this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null
@@ -506,7 +508,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 	}
 	class ExecutableMenuElement extends StatefulComponent{		
-		getInitialState(){return {mouseEnter:false}}
+		getInitialState(){
+			return {mouseEnter:false}
+		}
 		mouseEnter(e){
 			this.setState({mouseEnter:true});
 		}
@@ -530,9 +534,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const newStyle={
                 minWidth:'7em',             
                 cursor:'pointer',
-				...this.props.style,
-				...(this.state.mouseEnter?this.props.overStyle:null)
-			};       
+				...this.props.style,				
+				...(this.state.mouseEnter?{backgroundColor:DarkPrimaryColor,...this.props.overStyle}:null)
+			}
 		return $("div",{
 			ref:ref=>this.el=ref,
             style:newStyle,    
@@ -575,10 +579,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentWillUnmount(){
 			this.unmounted = true			
-			if(this.resizeL) {
-				//log(`delete listener`)
-				this.resizeL = this.resizeL.unreg()
-			}
+			if(this.resizeL) this.resizeL = this.resizeL.unreg()
+			this.remRef && this.remRef.parentElement.removeChild(this.remRef)
 		}
 		initListener(){			
 			const isSibling = Branches.isSibling(this.ctx)
@@ -593,24 +595,21 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.initListener()
 		}
 		componentDidMount(){
-			const node = documentManager.body().querySelector("#dev-content");
-			const nodeOld = documentManager.body().querySelector("#content");
+			if(!this.el) return
+			const node = documentManager.body().querySelector("#dev-content")
+			const nodeOld = documentManager.body().querySelector("#content")			
+			while (node&&node.hasChildNodes()) node.removeChild(node.lastChild)						
+			while (nodeOld&&nodeOld.hasChildNodes()) nodeOld.removeChild(nodeOld.lastChild)
+			const doc = this.el.ownerDocument
+			this.remRef = doc.createElement("div")	
+			Object.assign(this.remRef.style,{height:"1em", position:"absolute",zIndex:"-1", top:"0px"})
+			doc.body.appendChild(this.remRef)
 			this.ctx = rootCtx(this.props.ctx)
-			if(node)
-			while (node.hasChildNodes())
-				node.removeChild(node.lastChild);
-			
-			if(nodeOld)
-			while (nodeOld.hasChildNodes())
-				nodeOld.removeChild(nodeOld.lastChild)			
-			this.initListener()
+			this.initListener()			
 		}
 		render(){			
 			const isSibling = Branches.isSibling(this.ctx)						
-			return [
-				$("div",{key:"1",style:this.props.style,ref:ref=>this.el=ref},this.props.children),				
-				$("div",{key:"2",style:{height:"1em", position:"absolute",zIndex:"-1", top:"0px"},ref:ref=>this.remRef=ref})				
-			]
+			return $("div",{key:"1",className:"docRoot",style:this.props.style,ref:ref=>this.el=ref},this.props.children)						
 		}
 	}
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -947,7 +946,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onMouseUp(e){
 			if(!this.props.droppable) return;
 			if(this.dragBinding)
-				this.dragBinding.dragDrop(e,this.el)	
+				this.dragBinding.dragDrop(e,this.el, true)	
 			this.onMouseLeave(e)			
 		}
 		getSvgData(){
@@ -2579,29 +2578,36 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		let time = 0;
 		let bgTicks = 5;
 		const prefix = (num) =>{if(num.length<2) return `0${num}`; else return `${num}`}
-		const formatTime = () => {						
-			const date = new Date(time)			
-			return `${prefix(date.getUTCDate().toString())}-${prefix((date.getUTCMonth()+1).toString())}-${date.getUTCFullYear().toString()} ${prefix(date.getUTCHours().toString())}:${prefix(date.getUTCMinutes().toString())}:${prefix(date.getUTCSeconds().toString())}`;
+		const formatTime = (local) => {						
+			const date = !local?new Date(time):new Date()
+			const t = {
+				d:!local?date.getUTCDate():date.getDate(),
+				m:!local?(date.getUTCMonth()+1):(date.getMonth()+1),
+				y:!local?date.getUTCFullYear():date.getFullYear(),
+				h:!local?date.getUTCHours():date.getHours(),
+				min:!local?date.getUTCMinutes():date.getMinutes(),
+				s:!local?date.getUTCSeconds():date.getSeconds()}
+			return `${prefix(t.d.toString())}-${prefix(t.m.toString())}-${t.y.toString()} ${prefix(t.h.toString())}:${prefix(t.min.toString())}:${prefix(t.s.toString())}`;
 		}
-		const tick = () => {
-			if(time){
-				timeString = formatTime();
+		const tick = (local) => {
+			if(time||local){
+				timeString = formatTime(local);
 				time += 1000;
 			}
 			callbacks.forEach(o=>{
-				if(o.updateInterval>=5*60){o.updateServer();o.updateInterval=0}
+				if(o.updateInterval>=5*60){o.updateServer&&o.updateServer();o.updateInterval=0}
 				o.updateInterval += 1
 				o.clockTicks(timeString)
 			})			
-			timeout = setTimeout(tick,1000)			
+			timeout = setTimeout(()=>tick(local),1000)			
 			if(callbacks.length == 0 && bgTicks<=0) stop();
 			else if(callbacks.length == 0 && bgTicks>0) bgTicks -=1;
 		}	
 		const get = () => timeString
-		const start = ()=>{bgTicks = 5;tick();}
+		const start = (local)=>{bgTicks = 5;tick(local);}
 		const update = (updateTime) => {if(updateTime) time = updateTime}
 		const stop = ()=>{clearTimeout(timeout); timeout=null}
-		const reg = (obj) => {callbacks.push(obj); if(callbacks.length==1 && timeout==null) start(); return ()=>{const index = callbacks.indexOf(obj); if(index>=0) delete callbacks[index];};}
+		const reg = (obj) => {callbacks.push(obj); if(callbacks.length==1 && timeout==null) start(!obj.updateServer); return ()=>{const index = callbacks.indexOf(obj); if(index>=0) delete callbacks[index];};}
 		return {reg,update,get}
 	})()
 	let dateElementPrevCutBy = 0;
@@ -2637,7 +2643,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.recalc()
 			const clockTicks = this.clockTicks;
 			const updateInterval = 5*60
-			const updateServer = this.updateServer
+			const updateServer = this.props.onClick && this.updateServer
 			this.unreg = InternalClock.reg({clockTicks,updateInterval,updateServer})			
 		}
 		componentWillReceiveProps(nextProps){
@@ -2648,8 +2654,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(prevState.timeString.length == 0 && this.state.timeString.length>0) this.recalc();
 		}
 		componentWillUnmount(){
-			this.resizeL.unreg()
-      		this.unreg()
+			this.resizeL&&this.resizeL.unreg()
+      		this.unreg&&this.unreg()
 		}
 		splitTime(time){
 			const dateArr = time.split(' ')
@@ -3386,9 +3392,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){	
 			if(!this.el) return		
-			this.ctx = rootCtx(this.props.ctx)
-//			const isSibling = Branches.isSibling(this.ctx)
-//			if(isSibling) return
+			this.ctx = this.props.ctx&&rootCtx(this.props.ctx)
 			if(PingReceiver) this.pingR = PingReceiver.reg(this.signal)
 			this.toggleOverlay(!this.state.on);			
 			this.wifi = miscUtil.scannerProxy().regWifi(this.wifiCallback)
@@ -3413,7 +3417,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidUpdate(prevProps,prevState){
 			if(!this.el) return
-			const isSibling = Branches.isSibling(this.ctx)
+			const isSibling = this.ctx&& Branches.isSibling(this.ctx)
 			if(isSibling) return	
 			if(!this.props.overlay) return
 			if(PingReceiver && !this.pingR) this.pingR = PingReceiver.reg(this.signal)
@@ -3502,7 +3506,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	
     class NoShowUntilElement extends StatefulComponent{
 		componentWillUnmount(){
-			if(this.interval) clearInterval(this.interval)			
+			if(this.interval) clearInterval(this.interval)
+			this.mmRef && this.mmRef.parentElement.removeChild(this.mmRef)
+			this.remRef && this.remRef.parentElement.removeChild(this.remRef)				
 		}
 		ratio(){
 			const mmH = this.mmRef.getBoundingClientRect().height
@@ -3514,20 +3520,23 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.ctx = rootCtx(this.props.ctx)
 			const isSibling = Branches.isSibling(this.ctx)
 			if(isSibling) return
-			this.props.onClickValue("change",this.ratio().toString())	
+			if(!this.el) return
+			const doc = this.el.ownerDocument
+			this.mmRef = doc.createElement("div")
+			this.remRef = doc.createElement("div")
+			Object.assign(this.mmRef.style,{height:"1mm",position:"absolute",zIndex:"-1"})
+			Object.assign(this.remRef.style,{height:"1em",position:"absolute",zIndex:"-1"})
+			doc.body.appendChild(this.mmRef);doc.body.appendChild(this.remRef)
+			const ratio = this.ratio()			
+			ratio && this.props.onClickValue("change",ratio.toString())	
 			this.interval = setInterval(()=>{
 				if(this.props.show) return 
-				const r = this.ratio()
-				if(!r) return 
-				this.props.onClickValue("change",r.toString())			
+				const ratio = this.ratio()				 
+				ratio && this.props.onClickValue("change",ratio.toString())			
 			}, 1000)
-		}		
-		render(){			
-			return [		    				
-				$("div",{key:"mm",ref:ref=>this.mmRef = ref,style:{height:"1mm",position:"absolute",zIndex:"-1"}}),
-				$("div",{key:"em",ref:ref=>this.remRef = ref,style:{height:"1em",position:"absolute",zIndex:"-1"}}),
-				$("div",{key:"children"},this.props.show?this.props.children:null)			
-			]
+		}			
+		render(){		
+			return $("div",{key:"children",ref:ref=>this.el=ref},this.props.show?this.props.children:null)				
 		}
 	}
 	class ClickableDivElement extends StatefulComponent{
@@ -3621,7 +3630,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(node) this.recalc()
 		}
 		render(){
-			const {value,max} = this.props
+			const {value,max,percent} = this.props
 			const v1 = parseFloat(value)
 			const v2 = parseFloat(max)
 			let v = (v1/v2)*100
@@ -3655,9 +3664,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				width:v+"%",
 				position:"relative"				
 			}
+			const fv = percent?(v+"%"):`${value}/${max}`
 			return $("div",{style},
 				$("div",{style:style3},
-					$("div",{style:style2,ref:this.onRef},v+"%")
+					$("div",{style:style2,ref:this.onRef},fv)
 				)
 			)
 		}

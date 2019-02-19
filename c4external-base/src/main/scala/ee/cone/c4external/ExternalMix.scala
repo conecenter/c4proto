@@ -9,11 +9,11 @@ trait ExternalMix extends ProtocolsApp with UpdatesProcessorsApp with ExtModelsA
   def qAdapterRegistry: QAdapterRegistry
 
   override def protocols: List[Protocol] = ExternalProtocol :: super.protocols
-  def externalPreprocessor = new ExtUpdatesPreprocessorImpl(toUpdate, qAdapterRegistry, external)
-  override def assembles: List[Assemble] = external.map(ext ⇒ {
-    val extName = ext.getName
+  def externalPreprocessor = new ExtUpdatesPreprocessorImpl(toUpdate, qAdapterRegistry, extModels)
+  override def assembles: List[Assemble] = extModels.map(ext ⇒ {
+    val extName = ext.clName
     val id = qAdapterRegistry.byName(extName).id
-    new ExternalOrigJoiner(ext, id, qAdapterRegistry)()
+    new ExternalOrigJoiner(ext.cl, id, qAdapterRegistry)()
   }
 
   ) ::: super.assembles
