@@ -2747,6 +2747,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	}	
 	class FocusAnnouncerElement extends StatefulComponent{					
 		report(path){
+			//log("report",path)
 			this.props.onChange({target:{headers:{"X-r-action":"change"},value:path}})
 		}		
 		getParentPath(el){
@@ -2762,7 +2763,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.foundAuto) return
 			const a = Array.from(el.ownerDocument.querySelectorAll("input"))
 			const b = a.find(_=>this.getParentPath(_))
-		//	log("atuoCnaditate",b)
+			//log("atuoCnaditate",b)
 			this.foundAuto = true
 			b&& b.focus()
 		}
@@ -2772,21 +2773,24 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!activeElement) return
 			const path = this.getParentPath(activeElement)
 			if(path===null && activeElement.tagName!="BODY") return
+			//log("aa",path,this.props.value)
 			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
-				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)					
+				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)		
+				//log("onFrame",el);log("onFrame2",this.foundAuto)
 				if(el) el.focus()
-				else if(this.validUntil<Date.now() && !this.foundAuto) this.report("undefined")
+				else if(!this.foundAuto) this.report("undefined")
 			}
 			else{
-				this.validUntil = Date.now() + this.timeout
+			//	this.validUntil = Date.now() + this.timeout
+			//	log("onFrame","check")
 				if(path == this.props.value)
 					this.foundAuto = false
 			}
 			if((this.props.value == "undefined"||this.props.value == "") && this.props.value!=this.props.path)  this.findAutofocusCandidate(this.el)			
 		}
-		onBBlur(e){
-			if(e.relatedTarget ==null) {
-				//log(e,e.relatedTarget,e.target)			
+		onBBlur(e){			
+			if(this.el.ownerDocument.activeElement.tagName=="BODY") {
+				//log("blur",e,e.relatedTarget,e.target)			
 				this.report(this.props.path)
 				this.active = this.w.parent == this.w
 			}
@@ -2800,18 +2804,19 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 		}
 		componentWillUnmount(){		
-			this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
+			//this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
 			this.el.ownerDocument.documentElement.removeEventListener("focus",this.onBFocus,true)	
-			checkActivateCalls.remove(this.onFrame)			
+			clearInterval(this.interval)
 		}
 		componentDidMount(){			
 			this.timeout = 300
-			this.validUntil = 0
-			this.w  =this.el.ownerDocument.defaultView
+			//this.validUntil = 0
+			this.w = this.el.ownerDocument.defaultView
 			this.active = this.w.parent == this.w					
-			this.el.ownerDocument.documentElement.addEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.addEventListener("click",this.onBBlur,true)
 			this.el.ownerDocument.documentElement.addEventListener("focus",this.onBFocus,true)
-			checkActivateCalls.add(this.onFrame)
+			this.inteval = setInterval(this.onFrame,this.timeout)	
+			//checkActivateCalls.add(this.onFrame)
 		}
 		render(){
 			return $(Provider,{value:this.props.value},
