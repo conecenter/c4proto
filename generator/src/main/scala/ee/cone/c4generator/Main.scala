@@ -5,7 +5,6 @@ import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
 
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
-import scala.collection.immutable
 import scala.meta._
 
 object FinallyClose {
@@ -24,7 +23,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v39"
+  def version: String = "-v40"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -40,7 +39,7 @@ object Main {
       path ← fromFiles
       toData ← Option(pathToData(path,rootCachePath)) if toData.length > 0
     } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") → toData
-    for(path ← (was.keySet -- will.toMap.keys)) {
+    for(path ← was.keySet -- will.toMap.keys) {
       println(s"removing $path")
       Files.delete(path)
     }
@@ -67,7 +66,7 @@ object Main {
       val resStatements = for {
         q"package $n { ..$packageStatements }" ← sourceStatements
         generated: Seq[Generated] = for {
-          packageStatement ← (packageStatements: Seq[Stat])
+          packageStatement ← packageStatements
           generated ← generators(packageStatement)
         } yield generated
         patches: Seq[Patch] = generated.collect{ case p: Patch ⇒ p }
