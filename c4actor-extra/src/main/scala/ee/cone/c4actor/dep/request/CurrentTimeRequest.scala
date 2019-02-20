@@ -1,5 +1,6 @@
 package ee.cone.c4actor.dep.request
 
+import java.security.SecureRandom
 import java.time.Instant
 
 import ee.cone.c4actor.QProtocol.Firstborn
@@ -12,6 +13,8 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4proto._
 
+import scala.util.Random
+
 trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp {
 
 
@@ -23,18 +26,24 @@ trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentT
 }
 
 case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends TxTransform {
-  private val refreshMilli = refreshRateSeconds * 1000L + 5L
+  private val refreshMilli = refreshRateSeconds * 1000L
+  private val random: SecureRandom = new SecureRandom()
+
+  private val getOffset: Long = refreshMilli + random.nextInt(10)
 
   def transform(l: Context): Context = {
     val newLocal = InsertOrigMeta(CurrentTimeMetaAttr(srcId, refreshRateSeconds) :: Nil)(l)
     val now = Instant.now
     val nowMilli = now.toEpochMilli
     val prev = ByPK(classOf[CurrentTimeNode]).of(newLocal).get(srcId)
-    if (prev.isEmpty || prev.get.currentTimeMilli + refreshMilli < nowMilli) {
-      val nowSeconds = now.getEpochSecond
-      TxAdd(LEvent.update(CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
-    } else {
-      newLocal
+    prev match {
+      case Some(currentTimeNode) if currentTimeNode.currentTimeMilli + getOffset < nowMilli ⇒
+        val nowSeconds = now.getEpochSecond
+        TxAdd(LEvent.update(currentTimeNode.copy(currentTimeSeconds = nowSeconds, currentTimeMilli = nowMilli)))(newLocal)
+      case None ⇒
+        val nowSeconds = now.getEpochSecond
+        TxAdd(LEvent.update(CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
+      case _ ⇒ l
     }
   }
 }
@@ -85,31 +94,30 @@ object CurrentTimeRequestAssembleTimeId {
 }
 
 @assemble class CurrentTimeRequestAssemble(util: DepResponseFactory) extends Assemble {
-  type CurrentTimeRequestAssembleTimeAll = All
-  type FilterTimeRequests = SrcId
+  type CTRATimeId = SrcId
 
   def FilterTimeForCurrentTimeRequestAssemble(
     timeId: SrcId,
     time: Each[CurrentTimeNode]
-  ): Values[(CurrentTimeRequestAssembleTimeAll, CurrentTimeNode)] =
+  ): Values[(CTRATimeId, CurrentTimeNode)] =
     if (time.srcId == CurrentTimeRequestAssembleTimeId.id)
-      List(All → time)
+      WithPK(time) :: Nil
     else
       Nil
 
   def FilterTimeRequests(
     requestId: SrcId,
     rq: Each[DepInnerRequest]
-  ): Values[(FilterTimeRequests, DepInnerRequest)] =
+  ): Values[(CTRATimeId, DepInnerRequest)] =
     rq.request match {
-      case _: CurrentTimeRequest ⇒ WithPK(rq) :: Nil
+      case _: CurrentTimeRequest ⇒ (CurrentTimeRequestAssembleTimeId.id → rq) :: Nil
       case _ ⇒ Nil
     }
 
   def TimeToDepResponse(
     alienId: SrcId,
-    @by[CurrentTimeRequestAssembleTimeAll] pong: Each[CurrentTimeNode],
-    @by[FilterTimeRequests] rq: Each[DepInnerRequest]
+    @by[CTRATimeId] pong: Each[CurrentTimeNode],
+    @by[CTRATimeId] rq: Each[DepInnerRequest]
   ): Values[(SrcId, DepResponse)] = {
     val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
     val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
