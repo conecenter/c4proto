@@ -15,7 +15,7 @@ trait SerializationUtilsMix extends SerializationUtilsApp {
   def serializer: SerializationUtils = SerializationUtils(idGenUtil, qAdapterRegistry, hashGen)
 }
 
-case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, hashGen: HashGen) {
+case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, hashGen: HashGen) { // TODO remove IdGenUtil usage
   def srcIdFromMetaAttrList(metaAttrs: List[MetaAttr]): SrcId = //1
     u.srcIdFromSrcIds(metaAttrs.map(srcIdFromMetaAttr):_*)
   def srcIdFromMetaAttr(metaAttr: MetaAttr): SrcId =
