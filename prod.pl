@@ -993,6 +993,13 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
     sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 sh -c 'test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222'"));
 }];
 
+push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
+    my($app,$tgz)=@_;
+    sy(&$ssh_add());
+    my($comp,$service) = &$split_app($app);
+    sy(&$remote_interactive($comp, " -uc4 $comp\_$service\_1 ", "tar -xz")." < $tgz");
+}];
+
 ####
 
 my($cmd,@args)=@ARGV;
