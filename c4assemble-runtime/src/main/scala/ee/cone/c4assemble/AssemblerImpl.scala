@@ -232,6 +232,99 @@ class JoinMapIndex(
   }
 }
 
+/* For debug purposes
+class DebugIndexFactoryImpl(
+  val util: IndexUtil,
+  updater: IndexUpdater,
+  readModelUtil: ReadModelUtil
+) extends IndexFactory {
+  def createJoinMapIndex(join: Join):
+  WorldPartExpression
+    with DataDependencyFrom[Index]
+    with DataDependencyTo[Index]
+  = new DebugJoinMapIndex(join, updater, util, readModelUtil)
+}
+
+class DebugJoinMapIndex(
+  join: Join,
+  updater: IndexUpdater,
+  composes: IndexUtil,
+  readModelUtil: ReadModelUtil
+) extends WorldPartExpression
+  with DataDependencyFrom[Index]
+  with DataDependencyTo[Index]
+{
+  def assembleName = join.assembleName
+  def name = join.name
+  def inputWorldKeys: Seq[AssembledKey] = join.inputWorldKeys
+  def outputWorldKey: AssembledKey = join.outputWorldKey
+
+  override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
+
+  def transform(transition: WorldTransition): WorldTransition = {
+
+    val next: Future[IndexUpdate] = for {
+      worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
+      res ← {
+        if (worldDiffs.forall(composes.isEmpty)) for {
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield new IndexUpdate(outputDiff,outputData,Nil)
+        else for {
+          prevInputs ← Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
+          inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
+          profiler = transition.profiling
+          calcStart = profiler.time
+          joinRes = join.joins(Seq(-1→prevInputs, +1→inputs).par, worldDiffs)
+          calcLog = profiler.handle(join, 0L, calcStart, joinRes, Nil)
+          findChangesStart = profiler.time
+          indexDiff = composes.mergeIndex(joinRes)
+          findChangesLog = profiler.handle(join, 1L, findChangesStart, Nil, calcLog)
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield {
+          if(composes.isEmpty(indexDiff))
+            new IndexUpdate(outputDiff,outputData,findChangesLog)
+          else {
+            val patchStart = profiler.time
+            val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
+            val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
+            val patchLog = profiler.handle(join, 2L, patchStart, Nil, findChangesLog)
+            new IndexUpdate(nextDiff,nextResult,patchLog)
+          }
+        }
+      }
+    } yield res
+    testTransition(updater.setPart(outputWorldKey)(next)(transition))
+  }
+
+  def testTransition(transition: WorldTransition): WorldTransition = {
+    val readModelDone = Await.result(readModelUtil.ready(transition.result), Duration.Inf)
+    readModelDone match {
+      case a: ReadModelImpl ⇒
+        (for {
+          (assKey, indexF) ← a.inner
+        } yield {
+          indexF.map {
+            case index: IndexImpl ⇒
+              for {
+                (outerKey, values) ← index.data
+                (pk, counts) ← values
+                count ← counts
+              } yield {
+                assert(count.count >= 0, s"Failed ${count.count} at assKey:$assKey, outerKey:$outerKey, pk:$pk after join $name/$assembleName")
+                0
+              }
+            case _ ⇒ 0
+          }
+        }).map(Await.result(_, Duration.Inf))
+      case _ ⇒ 0
+    }
+    transition
+  }
+}
+*/
+
 class TreeAssemblerImpl(
   composes: IndexUtil, readModelUtil: ReadModelUtil,
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],

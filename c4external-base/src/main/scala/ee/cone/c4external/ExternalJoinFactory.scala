@@ -1,29 +1,30 @@
 package ee.cone.c4external
 
-import ee.cone.c4actor.{Murmur3Hash, NameMetaAttr, ProdLens}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.byjoin.{ByJoinApp, ByJoinFactory, ByPKJoin}
+import ee.cone.c4actor.{HashGen, NameMetaAttr, ProdLens}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4external.ByPKTypes.{ByPKRqId, ToID}
 import ee.cone.dbadapter.DBAdapter
 
+import scala.Function.tupled
 import scala.reflect.ClassTag
-import Function.tupled
 
 trait ExternalByJoinFactoryApp extends ByJoinApp {
   def dbAdapter: DBAdapter
   def extDBSync: ExtDBSync
+  def hashGen: HashGen
 
-  lazy val byJoinFactory: ByJoinFactory = new ExternalByJoinFactoryImpl(dbAdapter, extDBSync)
+  lazy val byJoinFactory: ByJoinFactory = new ExternalByJoinFactoryImpl(dbAdapter, extDBSync, hashGen)
 }
 
-class ExternalByJoinFactoryImpl(dbAdapter: DBAdapter, extDBSync: ExtDBSync) extends ByJoinFactory {
+class ExternalByJoinFactoryImpl(dbAdapter: DBAdapter, extDBSync: ExtDBSync, hashGen: HashGen) extends ByJoinFactory {
   lazy val extId: String = dbAdapter.externalName
   lazy val extMap: Map[String, Long] = extDBSync.externals
 
   def byPK[From <: Product](lens: ProdLens[From, List[SrcId]])(implicit ct: ClassTag[From]): ByPKJoin[From, List[SrcId]] =
-    new ExternalByPKJoin[From](ct.runtimeClass.asInstanceOf[Class[From]], lens)(extMap, extId)
+    new ExternalByPKJoin[From](ct.runtimeClass.asInstanceOf[Class[From]], lens)(extMap, extId, hashGen)
 }
 
 class ExternalByPKJoin[From <: Product](
@@ -31,7 +32,8 @@ class ExternalByPKJoin[From <: Product](
   lens: ProdLens[From, List[SrcId]]
 )(
   externalsMap: Map[String, Long],
-  externalId: String
+  externalId: String,
+  hashGen: HashGen
 ) extends ByPKJoin[From, List[SrcId]] {
 
   private def create[To <: Product](toCl: Class[To]): EachSubAssemble[To] with ValuesSubAssemble[To] = {
@@ -39,11 +41,11 @@ class ExternalByPKJoin[From <: Product](
       case Some(id) ⇒
         val add = "ext" + lens.metaList.collect { case l: NameMetaAttr ⇒ l.value }.mkString("-")
         val mergeKey = s"${(getClass :: fromCl :: toCl :: Nil).map(_.getName).mkString("-")}#$add"
-        val mergeKeyHash = Murmur3Hash(mergeKey)
+        val mergeKeyHash = hashGen.generate(mergeKey)
         val baseRq: ByPKExtRequest = ByPKExtRequest("", externalId, mergeKeyHash, "", id)
-        val extIdHash = Murmur3Hash(externalId :: id :: mergeKeyHash :: Nil)
+        val extIdHash = hashGen.generate(externalId :: id :: mergeKeyHash :: Nil)
         val createRq = (id: SrcId) ⇒ {
-          val srcId = Murmur3Hash(id :: extIdHash :: Nil)
+          val srcId = hashGen.generate(id :: extIdHash :: Nil)
           srcId → baseRq.copy(srcId = srcId, modelSrcId = id)
         }
         new ByPKExternalAssemble(fromCl, toCl, lens, createRq)()
