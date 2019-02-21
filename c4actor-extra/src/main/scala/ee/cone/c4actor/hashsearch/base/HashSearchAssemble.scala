@@ -178,7 +178,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   ): Values[(SrcId, RootCondition[Model])] = {
     val condition: Condition[Model] = request.condition
     val condUnion: InnerUnionList[Model] = conditionToUnionList(modelCl)(condSer)(condition)
-    List(WithPK(RootCondition(hashGen.generate(request.requestId, condUnion.srcId), condUnion, request.requestId)))
+    List(WithPK(RootCondition(hashGen.generate(request.requestId::condUnion.srcId::Nil), condUnion, request.requestId)))
   }
 
   def RootCondToInnerConditionId(

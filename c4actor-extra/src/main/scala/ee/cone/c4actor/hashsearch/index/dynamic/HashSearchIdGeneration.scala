@@ -42,7 +42,7 @@ trait HashSearchIdGeneration {
   lazy val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
   private def hash(list: Any*): String = {
-    hashGen.generate(list)
+    hashGen.generate(list.toList)
   }
 }
 
