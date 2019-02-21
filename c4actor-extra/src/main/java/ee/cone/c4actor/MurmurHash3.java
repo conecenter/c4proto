@@ -333,7 +333,7 @@ public class MurmurHash3 implements Java128HashInterface {
 
     @Override
     public String getStringHash() {
-        return Base64.getEncoder().encodeToString(doubleLongToBytes(murmur1, murmur2));
+        return Base64.getUrlEncoder().encodeToString(doubleLongToBytes(murmur1, murmur2));
         //return Long.toHexString(murmur1) + Long.toHexString(murmur2);
     }
 

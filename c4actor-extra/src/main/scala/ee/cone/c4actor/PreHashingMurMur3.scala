@@ -58,9 +58,9 @@ case class PreHashingMurMur3() extends PreHashing {
       case d: okio.ByteString ⇒
         messengerInner.updateLong(9)
         messengerInner.updateBytes(d.toByteArray)
-      case h: Array[Byte] ⇒
+      /*case h: Array[Byte] ⇒
         messengerInner.updateLong(9)
-        messengerInner.updateBytes(h)
+        messengerInner.updateBytes(h)*/
       case h ⇒ FailWith.apply(s"Unsupported type ${h.getClass} by PreHashedMurMur3")
     }
   }
