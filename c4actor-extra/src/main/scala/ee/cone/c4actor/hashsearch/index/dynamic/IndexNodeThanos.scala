@@ -120,7 +120,7 @@ sealed trait ThanosTimeTypes {
     if (versions.headOption.map(_.version).getOrElse("") == version) {
       Nil
     } else {
-      WithPK(SnapTransform(version)) :: Nil
+      WithPK(SnapTransform(firstBorn.srcId + "Snap", firstBorn.srcId, version)) :: Nil
     }
 
   def PowerFilterCurrentTimeNode(
@@ -558,7 +558,7 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[IndexNode])
       .flatMap(LEvent.delete)
 }
 
-case class SnapTransform(version: String) extends TxTransform {
+case class SnapTransform(srcId: String, fbId: String, version: String) extends TxTransform {
   def transform(local: Context): Context = {
     val versionW = ByPK(classOf[IndexNodesVersion]).of(local).values.headOption.map(_.version).getOrElse("")
     if (version != versionW) {
@@ -571,7 +571,7 @@ case class SnapTransform(version: String) extends TxTransform {
           ByPK(classOf[IndexByNodeLastSeen]).of(local).values ++
           ByPK(classOf[IndexByNodeSettings]).of(local).values ++
           ByPK(classOf[TimeMeasurement]).of(local).values).flatMap(LEvent.delete).toList
-      val add = LEvent.update(IndexNodesVersion(version))
+      val add = LEvent.update(IndexNodesVersion(fbId, version))
       TxAdd(delete ++ add)(local)
     }
     else
