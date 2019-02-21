@@ -10,11 +10,12 @@ trait SerializationUtilsApp {
 trait SerializationUtilsMix extends SerializationUtilsApp {
   def qAdapterRegistry: QAdapterRegistry
   def idGenUtil: IdGenUtil
+  def hashGen: HashGen
 
-  def serializer: SerializationUtils = SerializationUtils(idGenUtil, qAdapterRegistry)
+  def serializer: SerializationUtils = SerializationUtils(idGenUtil, qAdapterRegistry, hashGen)
 }
 
-case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry) {
+case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, hashGen: HashGen) {
   def srcIdFromMetaAttrList(metaAttrs: List[MetaAttr]): SrcId = //1
     u.srcIdFromSrcIds(metaAttrs.map(srcIdFromMetaAttr):_*)
   def srcIdFromMetaAttr(metaAttr: MetaAttr): SrcId =
@@ -41,13 +42,13 @@ case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry) 
             val bytesHash = u.srcIdFromSerialized(0,ToByteString(valueAdapter.encode(rq)))
             val byHash = byClassName :: bytesHash :: Nil
             val names = c.metaList.collect { case NameMetaAttr(name) ⇒ name }
-            Murmur3Hash(modelCl.getName :: byHash ::: names)
+            hashGen.generate(modelCl.getName :: byHash ::: names)
           case None ⇒
             PrintColored("r")(s"[Warning] NonSerializable condition by: ${rq.getClass}")
-            Murmur3Hash(c.toString)
+            hashGen.generate(c.toString)
         }
       case c: Condition[_] ⇒
-        Murmur3Hash(c.getClass.getName :: c.productIterator.map(get).toList)
+        hashGen.generate(c.getClass.getName :: c.productIterator.map(get).toList)
     }
 
     get(condition)

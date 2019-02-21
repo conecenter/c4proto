@@ -74,7 +74,7 @@ trait DynamicIndexAssemble
     }
   }
 
-  lazy val hashSearchVersion: String = "MC5FLjg=" // note equals to base64 http://base64decode.toolur.com/
+  lazy val hashSearchVersion: String = "MC5FLjk=" // note equals to base64 http://base64decode.toolur.com/
 }
 
 case class IndexNodeRich[Model <: Product](
@@ -113,7 +113,7 @@ sealed trait ThanosTimeTypes {
 @assemble class ThanosTimeFilters(version: String, maxTransforms: Int) extends Assemble with ThanosTimeTypes {
 
   def SnapTransformWatcher(
-    version: SrcId,
+    verId: SrcId,
     firstBorn: Each[Firstborn],
     versions: Values[IndexNodesVersion]
   ): Values[(SrcId, TxTransform)] =
@@ -139,7 +139,10 @@ sealed trait ThanosTimeTypes {
     firstborn: Each[Firstborn],
     @by[ThanosLEventsTransformsAll] @distinct events: Values[LEventTransform]
   ): Values[(SrcId, TxTransform)] =
-    WithPK(CollectiveTransform("ThanosTX", events.take(maxTransforms))) :: Nil
+    if (events.nonEmpty)
+      WithPK(CollectiveTransform("ThanosTX", events.take(maxTransforms))) :: Nil
+    else
+      Nil
 }
 
 import ee.cone.c4actor.hashsearch.rangers.IndexType._

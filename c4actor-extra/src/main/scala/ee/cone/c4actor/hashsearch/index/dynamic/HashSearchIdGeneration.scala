@@ -1,6 +1,5 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
-import ee.cone.c4actor.Murmur3Hash.parser
 import ee.cone.c4actor._
 
 object TestHash extends HashSearchIdGeneration {
@@ -11,6 +10,8 @@ object TestHash extends HashSearchIdGeneration {
 }
 
 trait HashSearchIdGeneration {
+  private val hashGen: HashGen = new MurMur3HashGen
+
   private lazy val commonPrefixUd = 0
 
   def commonPrefix(modelId: Int, lensName: List[String]): String =
@@ -41,9 +42,7 @@ trait HashSearchIdGeneration {
   lazy val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
   private def hash(list: Any*): String = {
-    val instance = new MurmurHash3()
-    parser.calculateModelHash(list.toList, instance)
-    instance.getStringHash
+    hashGen.generate(list)
   }
 }
 

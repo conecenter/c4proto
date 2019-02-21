@@ -13,8 +13,6 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4proto._
 
-import scala.util.Random
-
 trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp {
 
 
@@ -29,7 +27,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   private val refreshMilli = refreshRateSeconds * 1000L
   private val random: SecureRandom = new SecureRandom()
 
-  private val getOffset: Long = refreshMilli + random.nextInt(10)
+  private val getOffset: Long = refreshMilli + random.nextInt(500)
 
   def transform(l: Context): Context = {
     val newLocal = InsertOrigMeta(CurrentTimeMetaAttr(srcId, refreshRateSeconds) :: Nil)(l)
