@@ -14,7 +14,7 @@ case class DepResponseImpl(innerRequest: DepInnerRequest, valueHashed: PreHashed
 }
 case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOuterRequest)])
 
-@assemble class DepAssemble(reg: DepRequestHandlerRegistry)   {
+@assemble class DepAssembleBase(reg: DepRequestHandlerRegistry)   {
   type ParentId = SrcId
   type AddId = SrcId
 

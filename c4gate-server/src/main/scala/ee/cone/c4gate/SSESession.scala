@@ -163,7 +163,7 @@ object SSEAssembles {
       mortal(classOf[ToAlienWrite]) :: Nil
 }
 
-@assemble class SSEAssemble   {
+@assemble class SSEAssembleBase   {
   type SessionKey = SrcId
 
   def joinToAlienWrite(

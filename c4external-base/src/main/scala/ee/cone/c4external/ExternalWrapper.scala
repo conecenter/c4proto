@@ -53,7 +53,7 @@ trait ExternalUpdateUtil[Model <: Product] {
 
 }
 
-@assemble class ExternalOrigJoiner[Model <: Product](
+@assemble class ExternalOrigJoinerBase[Model <: Product](
   modelCl: Class[Model],
   modelId: Long,
   qAdapterRegistry: QAdapterRegistry

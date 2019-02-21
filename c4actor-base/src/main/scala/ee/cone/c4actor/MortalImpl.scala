@@ -15,7 +15,7 @@ object Killing {
   type KillerId = SrcId
 }
 
-@assemble class MortalAssemble[Node<:Product](
+@assemble class MortalAssembleBase[Node<:Product](
   classOfMortal: Class[Node],
   anUUIDUtil: IdGenUtil
 )   {
@@ -29,7 +29,7 @@ object Killing {
   } yield killing.hash.substring(0,1) → killing
 }
 
-@assemble class MortalFatalityAssemble   {
+@assemble class MortalFatalityAssembleBase   {
   def aggregateKilling(
     key: SrcId,
     @by[KillerId] killings: Values[Killing]

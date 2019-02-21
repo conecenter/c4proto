@@ -48,7 +48,7 @@ trait TypedAllType {
   type TestBy[T] = SrcId
 }
 
-@assemble class TestAllEach   {
+@assemble class TestAllEachBase   {
   type FixedAll = All
 
   def test1(
@@ -75,7 +75,7 @@ trait TypedAllType {
   }
 }
 
-@assemble class TypedAllTestAssemble[Model <: Product](modelCl: Class[Model]) extends   TypedAllType {
+@assemble class TypedAllTestAssembleBase[Model <: Product](modelCl: Class[Model]) extends   TypedAllType {
 
   def ModelToTypedAll(
     srcId: SrcId,
@@ -142,7 +142,7 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 }
 
 
-@protocol(TestCat) object TypedAllTestProtocol   {
+@protocol(TestCat) object TypedAllTestProtocolBase   {
 
   @Id(0xaabc) case class Model1(
     @Id(0xaabd) srcId: String

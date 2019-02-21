@@ -35,7 +35,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandle
     } else false
 }
 
-@assemble class SnapshotMakingAssemble(actorName: String, snapshotMaking: SnapshotMakerImpl, signatureChecker: Signer[SnapshotTask])   {
+@assemble class SnapshotMakingAssembleBase(actorName: String, snapshotMaking: SnapshotMakerImpl, signatureChecker: Signer[SnapshotTask])   {
   type NeedSnapshot = SrcId
 
   def needConsumer(

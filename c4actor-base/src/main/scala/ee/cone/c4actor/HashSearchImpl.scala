@@ -127,7 +127,7 @@ object HashSearchImpl {
   //  l ⇒ Single.option(l.distinct).toList
 }
 
-@assemble class HashSearchAssemble[RespLine<:Product](
+@assemble class HashSearchAssembleBase[RespLine<:Product](
   classOfRespLine: Class[RespLine],
   indexers: Indexer[RespLine],
   preHashing: PreHashing

@@ -159,7 +159,7 @@ object HashSearchAssembleUtils {
 
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
 
-@assemble class HashSearchAssemble[Model <: Product](
+@assemble class HashSearchAssembleBase[Model <: Product](
   modelCl: Class[Model],
   val qAdapterRegistry: QAdapterRegistry,
   condSer: SerializationUtils,

@@ -50,7 +50,7 @@ class TestCoWorkApp extends ServerApp
   )
 }
 
-@fieldAccess object TestContentAccess {
+@fieldAccess object TestContentAccessBase {
   lazy val value: ProdLens[Content,String] = ProdLens.of(_.value)
 }
 object TestAttrs {

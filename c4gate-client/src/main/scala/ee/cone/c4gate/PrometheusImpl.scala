@@ -14,14 +14,14 @@ import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
 import ee.cone.c4proto.{Id, Protocol, SettingsCat, protocol}
 import okio.ByteString
 
-@protocol(SettingsCat) object ActorAccessProtocol   {
+@protocol(SettingsCat) object ActorAccessProtocolBase   {
   @Id(0x006A) case class ActorAccessKey(
     @Id(0x006B) srcId: String,
     @Id(0x006C) value: String
   )
 }
 
-@assemble class ActorAccessAssemble   {
+@assemble class ActorAccessAssembleBase   {
   def join(
     key: SrcId,
     first: Each[Firstborn],
@@ -36,7 +36,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
     TxAdd(LEvent.update(ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssemble(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
+@assemble class PrometheusAssembleBase(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
   def join(
     key: SrcId,
     first: Each[Firstborn],
@@ -82,7 +82,7 @@ object Monitoring {
   }
 }
 
-@assemble class AvailabilityAssemble(updateDef: Long, timeoutDef: Long)   {
+@assemble class AvailabilityAssembleBase(updateDef: Long, timeoutDef: Long)   {
   def join(
     key: SrcId,
     first: Each[Firstborn],
@@ -93,7 +93,7 @@ object Monitoring {
   }
 }
 
-@protocol(SettingsCat) object AvailabilitySettingProtocol  {
+@protocol(SettingsCat) object AvailabilitySettingProtocolBase  {
 
   @Id(0x00f0) case class OrigAvailabilitySetting(
     @Id(0x0001) srcId: String,

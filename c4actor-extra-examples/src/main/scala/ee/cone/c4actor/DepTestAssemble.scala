@@ -33,7 +33,7 @@ trait DepTestAssemble
   override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depRequestFactory) :: super.assembles
 }
 
-@protocol(TestCat) object DepTestProtocol   {
+@protocol(TestCat) object DepTestProtocolBase   {
 
   @Id(0x0455) case class DepTestRequest()
 
@@ -51,7 +51,7 @@ case class DepTestHandler(dep: Dep[_], contextId: String) extends DepHandler {
 
 case class DepTestResponse(srcId: String, response: Option[_])
 
-@assemble class DepTestAssembles(val qAdapterRegistry: QAdapterRegistry, f: DepRequestFactory)   {
+@assemble class DepTestAssemblesBase(val qAdapterRegistry: QAdapterRegistry, f: DepRequestFactory)   {
   def GiveBirth(
     firstBornId: SrcId,
     spark: Each[Spark]

@@ -33,7 +33,7 @@ case class RichSandboxPair(
   sandboxOrig: OrigSandbox
 )
 
-@assemble class SandboxJoiners(idGenUtil: IdGenUtil)   {
+@assemble class SandboxJoinersBase(idGenUtil: IdGenUtil)   {
 
   def OrigSandboxToRichSandbox(
     srcId: SrcId,

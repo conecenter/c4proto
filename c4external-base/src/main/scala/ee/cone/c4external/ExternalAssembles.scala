@@ -41,7 +41,7 @@ case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: 
 
 case class ExtUpdatesForDeletion(srcId: SrcId)
 
-@assemble class ExternalLoaderAssemble(extDBSync: ExtDBSync, dbAdapter: DBAdapter, timeOut: Long)   {
+@assemble class ExternalLoaderAssembleBase(extDBSync: ExtDBSync, dbAdapter: DBAdapter, timeOut: Long)   {
 
   type OffsetId = SrcId
 
@@ -114,7 +114,7 @@ case class CacheResponseForDeletion(srcId: SrcId)
 case class GarbageContainer(externalId: SrcId, extUpds: List[ExtUpdatesForDeletion], cacheResp: List[CacheResponseForDeletion])
 
 
-@assemble class ExternalRequestsHandler   {
+@assemble class ExternalRequestsHandlerBase   {
   type ExternalTimeAll = All
   type ByPKCacheUpdate = SrcId
   type ByPkCombinedId = SrcId

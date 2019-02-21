@@ -19,7 +19,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with S
 
 case class InnerByClassNameRequest(request: DepInnerRequest, className: String, from: Int, to: Int)
 
-@assemble class ByClassNameGenericAssemble[A <: Product](handledClass: Class[A], classSrcId: SrcId, depResponseFactory: DepResponseFactory) extends   ByClassNameRequestUtils {
+@assemble class ByClassNameGenericAssembleBase[A <: Product](handledClass: Class[A], classSrcId: SrcId, depResponseFactory: DepResponseFactory) extends   ByClassNameRequestUtils {
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId
 
@@ -52,7 +52,7 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
 
 }
 
-@protocol(DepRequestCat) object ByClassNameRequestProtocol   {
+@protocol(DepRequestCat) object ByClassNameRequestProtocolBase   {
 
   @Id(0x0f26) case class ByClassNameRequest(
     @Id(0x0f27) className: String,

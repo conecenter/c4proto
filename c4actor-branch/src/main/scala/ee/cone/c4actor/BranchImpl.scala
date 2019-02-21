@@ -169,7 +169,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
-@assemble class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations)   {
+@assemble class BranchAssembleBase(registry: QAdapterRegistry, operations: BranchOperations)   {
   def mapBranchSeedsByChild(
     key: SrcId,
     branchResult: Each[BranchResult]

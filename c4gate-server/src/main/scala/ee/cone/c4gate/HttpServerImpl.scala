@@ -191,7 +191,7 @@ object PostAssembles {
 
 case class HttpPostAllow(condition: SrcId)
 
-@assemble class PostLifeAssemble(sseConfig: SSEConfig)   {
+@assemble class PostLifeAssembleBase(sseConfig: SSEConfig)   {
   type ASessionKey = SrcId
   type Condition = SrcId
 

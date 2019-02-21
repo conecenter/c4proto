@@ -30,7 +30,7 @@ object DefaultRangers {
   implicit lazy val strEq: Ranger[StrEq,String] = StrEqRanger
 }
 
-@protocol(TestCat) object HashSearchTestProtocol   {
+@protocol(TestCat) object HashSearchTestProtocolBase   {
   @Id(0x0001) case class SomeModel(
     @Id(0x0003) srcId: String,
     @Id(0x0004) fieldA: String,
@@ -43,7 +43,7 @@ object DefaultRangers {
   )
 }
 
-@fieldAccess object SomeModelAccess {
+@fieldAccess object SomeModelAccessBase {
   lazy val fieldA: ProdLens[SomeModel,String] = ProdLens.of(_.fieldA)
   lazy val fieldB: ProdLens[SomeModel,String] = ProdLens.of(_.fieldB)
   lazy val fieldC: ProdLens[SomeModel,String] = ProdLens.of(_.fieldC)
@@ -52,7 +52,7 @@ object DefaultRangers {
 import HashSearch.{Request,Response}
 import SomeModelAccess._
 
-@assemble class HashSearchTestAssemble(
+@assemble class HashSearchTestAssembleBase(
   modelConditionFactory: ModelConditionFactory[Unit],
   hashSearchFactory: HashSearch.Factory
 )   {

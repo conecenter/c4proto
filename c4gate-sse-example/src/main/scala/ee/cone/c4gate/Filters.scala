@@ -39,7 +39,7 @@ trait ContainsAccessViewApp extends AccessViewsApp {
 
 //// api
 
-@protocol(TestCat) object CommonFilterProtocol   {
+@protocol(TestCat) object CommonFilterProtocolBase   {
   @Id(0x0006) case class DateBefore(
     @Id(0x0001) srcId: String,
     @Id(0x0002) value: Option[Long]
@@ -89,7 +89,7 @@ class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf
     local ⇒ List(testTags.input(access to CommonFilterAccess.containsValue))
 }
 
-@fieldAccess object CommonFilterAccess {
+@fieldAccess object CommonFilterAccessBase {
   lazy val dateBeforeValue: ProdLens[DateBefore,Option[Long]] = ProdLens.of(_.value)
   lazy val containsValue: ProdLens[Contains,String] = ProdLens.of(_.value)
 }

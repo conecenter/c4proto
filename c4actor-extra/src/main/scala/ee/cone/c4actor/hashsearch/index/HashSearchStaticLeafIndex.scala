@@ -172,7 +172,7 @@ trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with
 
 import StaticHashSearchImpl._
 
-@assemble class HashSearchStaticLeafAssemble[Model <: Product](
+@assemble class HashSearchStaticLeafAssembleBase[Model <: Product](
   modelCl: Class[Model],
   indexer: Indexer[Model],
   serializer: SerializationUtils
@@ -211,7 +211,7 @@ import StaticHashSearchImpl._
 }
 
 
-@assemble class StaticAssembleShared[Model <: Product](
+@assemble class StaticAssembleSharedBase[Model <: Product](
   modelCl: Class[Model],
   debugMode: Boolean// = false
 ) extends   HashSearchAssembleSharedKeys {

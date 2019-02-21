@@ -66,7 +66,7 @@ case class InnerByPKRequest(fromSrcId: SrcId)
 
 case class ByPKExtRequest(srcId: SrcId, externalId: SrcId, mergeKeyHash: String, modelSrcId: SrcId, modelId: Long)
 
-@assemble class ByPKExternalAssemble[From <: Product, To <: Product](
+@assemble class ByPKExternalAssembleBase[From <: Product, To <: Product](
   fromCl: Class[From],
   toCl: Class[To],
   lens: ProdLens[From, List[SrcId]],
@@ -101,7 +101,7 @@ case class ByPKExtRequest(srcId: SrcId, externalId: SrcId, mergeKeyHash: String,
   def result: Result = tupled(retTo _)
 }
 
-@assemble class ByPKAssemble[From <: Product, To <: Product](
+@assemble class ByPKAssembleBase[From <: Product, To <: Product](
   fromCl: Class[From],
   toCl: Class[To],
   lens: ProdLens[From, List[SrcId]]

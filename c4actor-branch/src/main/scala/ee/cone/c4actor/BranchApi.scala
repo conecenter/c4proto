@@ -40,7 +40,7 @@ case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, paren
 
 case object ErrorOrigCat extends OrigCategory
 
-@protocol(HTTPCat) object BranchProtocol   {
+@protocol(HTTPCat) object BranchProtocolBase   {
   @Id(0x0040) case class BranchResult(
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,

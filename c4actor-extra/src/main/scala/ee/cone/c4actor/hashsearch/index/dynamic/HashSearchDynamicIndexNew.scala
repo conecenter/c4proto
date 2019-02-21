@@ -197,7 +197,7 @@ case class DynamicNeed[Model <: Product](requestId: SrcId)
 
 case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
 
-@assemble class HashSearchDynamicIndexNew[Model <: Product, By <: Product, Field](
+@assemble class HashSearchDynamicIndexNewBase[Model <: Product, By <: Product, Field](
   modelCl: Class[Model],
   byCl: Class[By],
   fieldCl: Class[Field],
@@ -334,7 +334,7 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
   }
 }
 
-@assemble class HashSearchDynamicIndexCommon[Model <: Product](
+@assemble class HashSearchDynamicIndexCommonBase[Model <: Product](
   modelCl: Class[Model],
   val modelClass: Class[_],
   val modelId: Int,

@@ -46,7 +46,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   }
 }
 
-@protocol(OperativeCat) object CurrentTimeProtocol   {
+@protocol(OperativeCat) object CurrentTimeProtocolBase   {
 
   @Id(0x0123) case class CurrentTimeNode(
     @Id(0x0124) srcId: String,
@@ -77,7 +77,7 @@ object CurrentTimeRequestAssembleTimeId {
 }
 
 
-@assemble class CurrentTimeAssemble(configList: List[CurrentTimeConfig])   {
+@assemble class CurrentTimeAssembleBase(configList: List[CurrentTimeConfig])   {
   type PongSrcId = SrcId
 
   def FromFirstBornCreateNowTime(
@@ -94,7 +94,7 @@ object CurrentTimeRequestAssembleTimeId {
     List(All → nowTimeNode)
 }
 
-@assemble class CurrentTimeRequestAssemble(util: DepResponseFactory)   {
+@assemble class CurrentTimeRequestAssembleBase(util: DepResponseFactory)   {
   type CTRATimeId = SrcId
 
   def FilterTimeForCurrentTimeRequestAssemble(
@@ -126,7 +126,7 @@ object CurrentTimeRequestAssembleTimeId {
   }
 }
 
-@protocol object CurrentTimeRequestProtocol   {
+@protocol object CurrentTimeRequestProtocolBase   {
 
   @Cat(DepRequestCat)
   @Id(0x0f83) case class CurrentTimeRequest(

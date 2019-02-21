@@ -7,7 +7,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.PostConsumer
 
-@assemble class PostConsumerAssemble(
+@assemble class PostConsumerAssembleBase(
   actorName: String, syncTxFactory: SyncTxFactory
 )(
   val subAssembles: List[Assemble] = List(syncTxFactory.create[PostConsumer](

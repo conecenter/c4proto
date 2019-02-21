@@ -76,7 +76,7 @@ import ee.cone.c4ui.dep.request.FilterListRequestCreatorUtils._
 // TODO need to throw this into world
 case class BranchWithUserId(branchId: String, contextId: String, userId: String, roleId: String, mockRole: MockRoleOpt)
 
-@assemble class FilteredListResponseReceiver(
+@assemble class FilteredListResponseReceiverBase(
   preHashing: PreHashing,
   hashGen: HashGen
 )   {
@@ -96,7 +96,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     }
 }
 
-@assemble class FilterListRequestCreator(
+@assemble class FilterListRequestCreatorBase(
   val qAdapterRegistry: QAdapterRegistry,
   listName: String,
   filterPK: String,
@@ -122,7 +122,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     } else Nil
 }
 
-@protocol(DepRequestCat) object DepFilteredListRequestProtocol   {
+@protocol(DepRequestCat) object DepFilteredListRequestProtocolBase   {
 
   @Id(0x0a01) case class FilteredListRequest(
     @Id(0x0a0a) branchId: String,

@@ -105,7 +105,7 @@ object TestTxLogAttrs {
 case class UpdatesSummary(add: TxAddMeta, ref: TxRef)
 case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount: Long, objCount: Long, byteCount: Long)
 
-@assemble class TestTxLogAssemble(actorName: String)(
+@assemble class TestTxLogAssembleBase(actorName: String)(
   qAdapterRegistry: QAdapterRegistry
 )(
   metaAdapter: ProtoAdapter[TxAddMeta] with HasId =

@@ -30,7 +30,7 @@ class TestSSEApp extends ServerApp
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 }
 
-@assemble class TestSSEAssemble   {
+@assemble class TestSSEAssembleBase   {
   def joinView(
     key: SrcId,
     task: Each[BranchTask]

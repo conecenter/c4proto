@@ -23,7 +23,7 @@ case class NonHashedRich[T](srcId: SrcId, preHashed: T)
 
 case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[TestOrigEasy], NonHashedRich[TestOrigHard])])
 
-@protocol(TestCat) object MD5HashingProtocol   {
+@protocol(TestCat) object MD5HashingProtocolBase   {
 
   @Id(0x239) case class TestOrigHard(
     @Id(0x240) srcId: String,
@@ -40,7 +40,7 @@ case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[TestO
 
 }
 
-@assemble class MD5HashingAssemble(preHashing: PreHashing)   {
+@assemble class MD5HashingAssembleBase(preHashing: PreHashing)   {
   type HashedId = SrcId
 
   def nonHashMD5Easy(
