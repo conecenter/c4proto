@@ -7,13 +7,14 @@ import java.util.UUID
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4actor.BranchProtocol.{BranchResult, SessionFailure}
+import ee.cone.c4actor.BranchProtocol.{BranchResult, Redraw, SessionFailure}
 import ee.cone.c4actor.BranchTypes._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 import Function.chain
+import scala.collection.immutable.Seq
 
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
@@ -55,15 +56,16 @@ case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Pr
 case object ReportAliveBranchesKey extends TransientLens[String]("")
 
 case object EmptyBranchMessage extends BranchMessage {
-  override def header: String ⇒ String = _⇒""
-  override def body: ByteString = ByteString.EMPTY
+  def header: String ⇒ String = _⇒""
+  def body: ByteString = ByteString.EMPTY
+  def deletes: Seq[LEvent[Product]] = Nil
 }
 
 case class BranchTxTransform(
   branchKey: String,
   seed: Option[BranchResult],
   sessionKeys: List[SrcId],
-  posts: List[MessageFromAlien],
+  posts: List[BranchMessage],
   handler: BranchHandler
 ) extends TxTransform with LazyLogging {
   private def saveResult: Context ⇒ Context = local ⇒ {
@@ -133,8 +135,9 @@ case class BranchTxTransform(
     chain(posts.map{ post ⇒
       val sessionKey = post.header("X-r-session")
       val index = post.header("X-r-index")
-      if(sessionKey.isEmpty) post.rm
-      else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(post.rm)
+      val deletes = post.deletes
+      if(sessionKey.isEmpty) TxAdd(deletes)
+      else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(TxAdd(deletes))
     }).andThen(ErrorKey.set(Nil))(local)
   }
 
@@ -190,13 +193,16 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
   def joinTxTransform(
     key: SrcId,
     @by[BranchKey] seeds: Values[BranchRel],
-    @by[BranchKey] posts: Values[MessageFromAlien],
+    @by[BranchKey] posts: Values[BranchMessage],
     handler: Each[BranchHandler]
   ): Values[(SrcId,TxTransform)] =
     List(key → BranchTxTransform(key,
         seeds.headOption.map(_.seed),
         seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
-        posts.sortBy(_.index).toList,
+        posts.sortBy(post⇒(post.header("X-r-index") match{
+          case "" ⇒ 0L
+          case s ⇒ s.toLong
+        },ToPrimaryKey(post))).toList,
         handler
     ))
 
@@ -214,6 +220,17 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
   ): Values[(SrcId,SessionFailures)] =
     List(WithPK(SessionFailures(key,failures.sortBy(_.time).toList)))
 
+  def redrawByBranch(
+    key: SrcId,
+    redraw: Each[Redraw]
+  ): Values[(BranchKey, BranchMessage)] =
+    List(redraw.branchKey → RedrawBranchMessage(redraw))
+}
+
+case class RedrawBranchMessage(redraw: Redraw) extends BranchMessage {
+  def header: String ⇒ String = { case "X-r-redraw" ⇒ "1" case _ ⇒ "" }
+  def body: okio.ByteString = okio.ByteString.EMPTY
+  def deletes: Seq[LEvent[Product]] = LEvent.delete(redraw)
 }
 
 case class SessionFailures(sessionKey: SrcId, failures: List[SessionFailure])

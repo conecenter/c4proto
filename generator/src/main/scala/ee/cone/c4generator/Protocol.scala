@@ -53,9 +53,9 @@ object ProtocolGenerator extends Generator {
           case name ⇒ s"${name}ProtoAdapter"
         }
         val props: List[ProtoProp] = params.map{
-          case param"..$mods ${Term.Name(propName)}: $tpe = $v" ⇒
+          case param"..$mods ${Term.Name(propName)}: $tpeopt = $v" ⇒
             val Seq(mod"@Id(${Lit(id:Int)})") = mods
-            val tp = tpe.get
+            val tp = tpeopt.asInstanceOf[Option[Type]].get
             /*
             val (tp,meta) = tpe.get match {
               case t"$tp @meta(..$ann)" ⇒ (tp,ann)
@@ -126,6 +126,13 @@ object ProtocolGenerator extends Generator {
               //String, Option[Boolean], Option[Int], Option[BigDecimal], Option[Instant], Option[$]
               */
             }
+            def parseType(t: Type): String = {
+              t match {
+                case t"$tpe[..$tpesnel]" => s"""ee.cone.c4proto.TypeProp(classOf[$tpe[${tpesnel.map(_ ⇒ "_").mkString(", ")}]].getName, "$tpe", ${tpesnel.map(parseType)})"""
+                case t"$tpe" ⇒ s"""ee.cone.c4proto.TypeProp(classOf[$tpe].getName, "$tpe", Nil)"""
+              }
+            }
+
             ProtoProp(
               sizeStatement = s"${pt.encodeStatement._1} res += ${pt.serializerType}.encodedSizeWithTag($id, ${pt.encodeStatement._2}",
               encodeStatement = s"${pt.encodeStatement._1} ${pt.serializerType}.encodeWithTag(writer, $id, ${pt.encodeStatement._2}",
@@ -133,7 +140,7 @@ object ProtocolGenerator extends Generator {
               decodeCase = s"case $id => prep_$propName = ${pt.reduce._1} ${pt.serializerType}.decode(reader) ${pt.reduce._2}",
               constructArg = s"prep_$propName",
               resultFix = if(pt.resultFix.nonEmpty) s"prep_$propName = ${pt.resultFix}" else "",
-              metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName","${pt.resultType}")"""
+              metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName","${pt.resultType}", ${parseType(tp)})"""
             )
         }.toList
         val Sys = "Sys(.*)".r

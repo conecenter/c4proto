@@ -20,7 +20,8 @@ case class Cat(category: OrigCategory*) extends StaticAnnotation
 
 case class Id(id: Int) extends StaticAnnotation
 
-case class MetaProp(id: Int, propName: String, resultType: String)
+case class TypeProp(clName: String, alias: String, children: List[TypeProp])
+case class MetaProp(id: Int, propName: String, resultType: String, typeProp: TypeProp)
 
 trait HasId {
   def id: Long

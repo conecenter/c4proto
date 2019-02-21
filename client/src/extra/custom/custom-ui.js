@@ -1,13 +1,10 @@
 "use strict";
 import React from 'react'
-export default function CustomUi({log,ui,customMeasurer,customTerminal,windowManager,miscReact,miscUtil,StatefulComponent}){
-	const {setTimeout,clearTimeout} = windowManager
-
-	const ChipElement=ui.transforms.tp.ChipElement;
-	const TDElement=ui.transforms.tp.TDElement;
-	const ConnectionState=ui.transforms.tp.ConnectionState;
-	const ButtonElement=ui.transforms.tp.ButtonElement;
-
+export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact,miscUtil,StatefulComponent}){
+	const {ChipElement,TDElement,ConnectionState,ButtonElement,ControlWrapperElement} = ui.transforms.tp	
+	const $ = React.createElement
+	const DarkPrimaryColor = "#1976d2"
+	const PrimaryColor = "#2196f3"
 	class StatusElement extends StatefulComponent{		
 		getInitialState(){return {lit:false}}
 		signal(on){
@@ -40,24 +37,34 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 				borderColor				
 			};
 		
-			return React.createElement(ChipElement,{style,onClick:this.onClick,value:this.props.fkey});
+			return $(ChipElement,{style,onClick:this.onClick,value:this.props.fkey});
 		}
 	}
-	class TerminalElement extends StatefulComponent{   
+	class TerminalElement extends StatefulComponent{  
+		getInitialState(){
+			return {version:0}
+		}
 		componentDidMount(){
-			customTerminal().forEach(t=>t.init(this.props.host,this.props.port,this.props.username,this.props.password,(this.props.params||0),this.props.wrk,this.props.ps));
+			if(!this.props.host) return
+			customTerminal().forEach(t=>t.init(this.props.host.split(":")[0],this.props.host.split(":")[1],this.props.username,this.props.password,(this.props.params||0),this.props.wrk,this.props.ps));
 			log("term mount")
 		}
 		componentWillUnmount(){
+			if(!this.props.host) return
 			customTerminal().forEach(t=>t.destroy());
 			log("term unmount")
 		}
 		componentDidUpdate(prevProps, prevState){
+			if(!this.props.host) return
 			customTerminal().forEach(t=>{
 				log("term_update")
-				if(prevProps.version!=this.props.version&&this.props.version!=0){
+				if(
+					prevProps.version!=this.props.version&&this.props.version!=0 ||
+					prevState.version!=this.state.version&&this.state.version!=0
+					)
+				{
 					t.destroy(-1);
-					t.init(this.props.host,this.props.port,this.props.username,this.props.password,this.props.params,this.props.wrk,this.props.ps);
+					t.init(this.props.host.split(":")[0],this.props.host.split(":")[1],this.props.username,this.props.password,this.props.params,this.props.wrk,this.props.ps);
 				}
 			})
 		}
@@ -66,9 +73,18 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 				backgroundColor:"black",
 				...this.props.style
 			}
-			return React.createElement("div",{className:'terminalElement',version:this.props.version,style},
-				React.createElement("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
+			const className = !this.props.host?"dummyTerminal":"terminalElement"
+			return $(React.Fragment,{},[
+				$("div",{key:"term",className:className,version:this.props.version,style},
+					$("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
+				),
+				$(ControlWrapperElement,{key:"btn",style:{alignSelf:"center",display:"inline-block",outlineWidth:"0.1em",padding:"0em",width:"auto"}},
+					$(ButtonElement,{key:"btn",onClick:()=>this.setState({version:this.state.version+1}),
+						overStyle:{backgroundColor:DarkPrimaryColor,color:"white"},
+						style:{backgroundColor:PrimaryColor,color:"white",fontSize:"1.5em",position:"relative",zIndex:"1"}
+						},"Reconnect")
 				)
+			])
 		}
 	}
 	class MJobCell extends StatefulComponent{		
@@ -113,12 +129,12 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 			};				
 			const statusText = (this.props.statusText?this.props.statusText:"");
 			
-			return React.createElement(TDElement,{key:"wEl",odd:this.props.odd,style},[
-				React.createElement(ControlledComparator,{key:"1",onChange:this.onChange,data:this.state.data},null),
-				React.createElement('div',{key:"2",style:{display:'flex',flexWrap:'noWrap'}},[				
-					React.createElement("input",{type:"text",readOnly:"readonly",key:"3",style:inpStyle,value:statusText},null),
+			return $(TDElement,{key:"wEl",odd:this.props.odd,style},[
+				$(ControlledComparator,{key:"1",onChange:this.onChange,data:this.state.data},null),
+				$('div',{key:"2",style:{display:'flex',flexWrap:'noWrap'}},[				
+					$("input",{type:"text",readOnly:"readonly",key:"3",style:inpStyle,value:statusText},null),
 					(this.props.time&&this.props.time.length>0?
-					React.createElement("span",{style:{key:"time",marginRight:"1rem",lineHeight:"1"}},this.props.time):null),
+					$("span",{style:{key:"time",marginRight:"1rem",lineHeight:"1"}},this.props.time):null),
 					//(this.state.data!=null?
 					//React.createElement(GotoButton,{key:"2",onClick:this.onClick,style:this.props.buttonStyle,overStyle:this.props.buttonOverStyle},buttonText):null),
 				]),
@@ -136,7 +152,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 		}
 		render(){		
 			//const value = this.props.data!=null?this.props.data:"";
-			return React.createElement('span',{key:"1"},null);
+			return $('span',{key:"1"},null);
 		}
 	}
 	class CustomMeasurerConnectionState extends StatefulComponent{		
@@ -156,7 +172,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 			var iconStyle ={};
 			if(this.props.style) Object.assign(style,this.props.style);
 			if(this.props.iconStyle) Object.assign(iconStyle,this.props.iconStyle);	
-			return React.createElement(ConnectionState,{on:this.state.on,style,iconStyle});
+			return $(ConnectionState,{on:this.state.on,style,iconStyle});
 		}
 	}
 
@@ -180,7 +196,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
         }
 
         render(){
-            return React.createElement(ButtonElement, {onClick:this.onclick, ref:ref=>this.el=ref}, this.props.value);
+            return $(ButtonElement, {onClick:this.onclick, ref:ref=>this.el=ref}, this.props.value);
         }
     }
 
@@ -221,7 +237,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,windowMan
 		}
 		render(){
 			const children = this.state.status?this.props.children:null
-			return React.createElement("span",{style:{alignSelf:"center"}}, children);
+			return $("span",{style:{alignSelf:"center"}}, children);
 		}
 	}	
 	const transforms= {

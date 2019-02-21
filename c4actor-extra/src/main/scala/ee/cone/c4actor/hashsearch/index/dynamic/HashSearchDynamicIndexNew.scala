@@ -72,7 +72,7 @@ trait HashSearchDynamicIndexApp
 
 sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Field] extends HashSearchIdGeneration {
 
-  val murMurHash: MurmurHash3 = new MurmurHash3()
+  lazy val murMurHash: MurmurHash3 = new MurmurHash3()
 
   def qAdapterRegistry: QAdapterRegistry
 

@@ -145,9 +145,9 @@ function DragDropModule({log2,documentManager,windowManager}){
 		}
 	}
 	
-	const dragDrop = (event,node) => {
+	const dragDrop = (event,node, vert) => {
 		if(onDrag() && getData(node)) {	
-			const info = withInElement(event,node)
+			const info = withInElement(event,node, vert)
 			report("dragDrop",dragNode,node,info)
 			dragEnd()
 		}

@@ -426,7 +426,7 @@ use YAML::XS qw(LoadFile DumpFile Dump);
 $YAML::XS::QuoteNumericStrings = 1;
 
 #my $inbox_prefix = '';
-my $bin = "kafka/bin";
+
 
 my $bootstrap_server = "broker:9092";
 my $zookeeper_server = "zookeeper:2181";
@@ -461,7 +461,8 @@ my $extract_env = sub{
 
 my $common_services = sub{(
     gate => {
-        C4APP_IMAGE => "gate-server",
+        C4APP_IMAGE => "synced",
+        command => "gate",
         C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
         C4MAX_REQUEST_SIZE => "250000000",
         C4STATE_REFRESH_SECONDS => 100,
@@ -470,27 +471,36 @@ my $common_services = sub{(
     },
     haproxy => {
         C4APP_IMAGE => "haproxy",
+        C4INTERNAL_PORTS => "80,443",
         C4EXPOSE_HTTP_PORT => 80,
         expose => [80],
         C4DEPLOY_LOCAL => 1,
-        C4SU => 1,
     },
     zookeeper => {
-        C4APP_IMAGE => "zoo",
-        command => ["$bin/zookeeper-server-start.sh","zookeeper.properties"],
+        C4APP_IMAGE => "synced",
+        command => "zookeeper",
         volumes => ["db4:/c4/db4"],
     },
     broker => {
-        C4APP_IMAGE => "zoo",
-        command => ["$bin/kafka-server-start.sh","server.properties"],
+        C4APP_IMAGE => "synced",
+        command => "broker",
         depends_on => ["zookeeper"],
         volumes => ["db4:/c4/db4"],
+        C4INTERNAL_PORTS => "9092",
     },
     frpc => {
-        C4APP_IMAGE => "zoo",
-        command => ["frp/frpc","-c","/c4deploy/frpc.ini"],
+        C4APP_IMAGE => "synced",
+        command => "frpc",
         volumes => ["db4:/c4/db4"],
         C4DEPLOY_LOCAL => 1,
+    },
+    desktop => {
+        C4APP_IMAGE => "synced",
+        command => "desktop",
+        C4INTERNAL_PORTS => "5900",
+        C4AUTH_KEY_FILE => "/c4deploy/simple.auth",
+        C4DEPLOY_LOCAL => 1,
+        volumes => ["db4:/c4/db4"],
     },
 )};
 
@@ -521,6 +531,9 @@ my $to_ini_file = sub{
         &$to_pairs(@$c);
 };
 
+my $frp_auth_all = lazy{ require "$ENV{C4DEPLOY_CONF}/frp_auth.pl" };
+my $get_frp_sk = sub{(&$frp_auth_all()->{$_[0]}||die)->[1]||die};
+
 my $compose_up = sub{
     my($mode,$run_comp,$conf,$frpc_conf,$simple_auth)=@_;
     my $build_comp = $$conf{builder} || $run_comp;
@@ -547,7 +560,6 @@ my $compose_up = sub{
                     "max-file" => "20",
                 },
             },
-            $$service{C4SU} ? () : (user=>"c4", working_dir=>"/c4"),
             ($$service{C4STATE_TOPIC_PREFIX}?(
                 #$$conf{main} ? () :
                 (depends_on => ["broker"]),
@@ -558,6 +570,16 @@ my $compose_up = sub{
                 #C4PARENT_HTTP_SERVER => "http://$parent_http_server",
                 C4AUTH_KEY_FILE => "/c4deploy/simple.auth", #gate does no symlinks
                 tty => "true",
+                C4INTERNAL_PORTS => 9010,
+                environment => {
+                    JAVA_TOOL_OPTIONS => join(' ',qw(
+                        -Dcom.sun.management.jmxremote.port=9010
+                        -Dcom.sun.management.jmxremote.ssl=false
+                        -Dcom.sun.management.jmxremote.authenticate=false
+                        -Dcom.sun.management.jmxremote.local.only=false
+                        -Dcom.sun.management.jmxremote.rmi.port=9010
+                    )),
+                }, #-com.sun.management.jmxremote.host=0.0.0.0
             ):()),
             volumes => [
                 $$service{C4DEPLOY_LOCAL} ? "./$service_name:/c4deploy" : (),
@@ -584,10 +606,24 @@ my $compose_up = sub{
     my($put,$sync) = &$docker_compose_start($yml_str);
     for my $k(keys %$generated_services){
         my $env = ($$generated_services{$k} || die)->{environment}||next;
-        $$env{C4STATE_TOPIC_PREFIX} && $$env{C4DEPLOY_LOCAL} or next;
+        $$env{C4AUTH_KEY_FILE} eq "/c4deploy/simple.auth" && $$env{C4DEPLOY_LOCAL} or next;
         &$put("$k/simple.auth",$simple_auth);
     }
-    &$put("frpc/frpc.ini",&$to_ini_file($frpc_conf));
+
+    my @frpc_add_conf = map{
+        my $k = $_;
+        my $env = ($$generated_services{$k} || die)->{environment};
+        map{
+            my $port = $_;
+            ("$run_comp.$k.$port" => [
+                type => "stcp",
+                sk => &$get_frp_sk($run_comp),
+                local_ip => $k,
+                local_port => $port,
+            ])
+        } ($env||'')->{C4INTERNAL_PORTS}=~/(\d+)/g;
+    } keys %$generated_services;
+    &$put("frpc/frpc.ini",&$to_ini_file([@$frpc_conf,@frpc_add_conf]));
     #
     my $cert_path = &$get_tmp_path(0);
     sy(qq[openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $cert_path.key -out $cert_path.crt -subj "/C=EE"]);
@@ -599,8 +635,6 @@ my $compose_up = sub{
 
 my $split_port = sub{ $_[0]=~/^(\S+):(\d+)$/ ? ($1,$2) : die };
 
-my $frp_auth_all = lazy{ require "$ENV{C4DEPLOY_CONF}/frp_auth.pl" };
-my $get_frp_sk = sub{(&$frp_auth_all()->{$_[0]}||die)->[1]||die};
 my $get_frp_common = sub{
     my($comp)=@_;
     my($token,$sk) = (&$frp_auth_all()->{$comp}||die "$comp frp auth not found")->[0]||die "frp auth not found";
@@ -615,25 +649,27 @@ my $get_frp_common = sub{
     );
 };
 
-my $frp_visitor = sub{
-    my($comp,$server)=@_;
-    my($name,$port) = &$split_port($server);
-    ("$comp.$name\_visitor" => [
-        type => "stcp",
-        role => "visitor",
-        sk => &$get_frp_sk($comp),
-        server_name => "$comp.$name",
-        bind_port => $port,
-        bind_addr => "0.0.0.0",
-    ]);
-};
+
+#my $frp_visitor = sub{
+#    my($comp,$server)=@_;
+#    my($name,$port) = &$split_port($server);
+#    ("$comp.$name\_visitor" => [
+#        type => "stcp",
+#        role => "visitor",
+#        sk => &$get_frp_sk($comp),
+#        server_name => "$comp.$name",
+#        bind_port => $port,
+#        bind_addr => "0.0.0.0",
+#    ]);
+#};
+
 my $frp_client = sub{
     my($comp,$server)=@_;
-    my($name,$port) = &$split_port($server);
-    ("$comp.$name" => [
+    my($host,$port) = &$split_port($server);
+    ("$comp.p$port" => [
         type => "stcp",
         sk => &$get_frp_sk($comp),
-        local_ip => $name,
+        local_ip => $host,
         local_port => $port,
     ]);
 };
@@ -671,12 +707,20 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
 #    } else {
         my $frpc_conf = [
             common => [&$get_frp_common($run_comp)],
-            &$frp_client($run_comp,$bootstrap_server),
             &$frp_web($$conf{proxy_dom}||$run_comp),
         ];
         &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));
 #    }
 }];
+
+#push @tasks, ["build","$composes_txt",sub{
+#    my $conf = &$get_compose($run_comp);
+#
+#    my $build_comp = $$conf{builder} || $run_comp;
+#    my $tag = "c4-$run_comp-$img";
+#    $is_full and $build_parent_dir and !($was{$img}++)
+#        and &$remote_build($build_comp,$build_parent_dir,$img,$tag);
+#}];
 
 #snapshots => [
 #                type => "stcp",
@@ -865,7 +909,8 @@ push @tasks, ["cert","<hostname>",sub{
   sy(&$remote($comp,"docker exec proxy_haproxy_1 kill -s HUP 1"));
 }];
 
-push @tasks, ["devel_init_frpc"," ",sub{
+push @tasks, ["devel_init_frpc","<devel>|all",sub{
+    my($developer) = @_;
     my $comp = "devel";
     my $sk = &$get_frp_sk($comp);
     my $proxy_list = (&$get_deploy_conf()->{proxy_to}||die)->{visits}||die;
@@ -873,12 +918,12 @@ push @tasks, ["devel_init_frpc"," ",sub{
         my($inner_comp,$fn,$content) = @_;
         &$remote_interactive($comp, " -uc4 $inner_comp\_sshd_1 ", "cat > /c4/$fn")." < ".&$put_temp($fn,$content)
     };
-    for my $container(&$running_containers_all($comp)){
-        my $inner_comp = $container=~/^(\w+)_sshd_/ ? $1 : next;
+    my $process = sub{
+        my($inner_comp) = @_;
         sy(&$put($inner_comp,"frpc.ini",&$to_ini_file([
-             common => [&$get_frp_common("devel"), user=>$inner_comp],
+             common => [&$get_frp_common("devel")],
              &$frp_web($inner_comp),
-             map{my($port,$container)=@$_;("p_$port" => [
+             map{my($port,$container)=@$_;("$inner_comp.p_$port" => [
                  type => "stcp",
                  sk => $sk,
                  local_ip => $container,
@@ -886,18 +931,21 @@ push @tasks, ["devel_init_frpc"," ",sub{
              ])} @$proxy_list
         ])));
         sy(&$put($inner_comp,"frpc_visitor.ini", &$to_ini_file([
-            common => [&$get_frp_common("devel"), user=>$inner_comp],
-            map{my($port,$container)=@$_;("p_$port\_visitor" => [
+            common => [&$get_frp_common("devel")],
+            map{my($port,$container)=@$_;("$inner_comp.p_$port\_visitor" => [
                 type => "stcp",
                 role => "visitor",
                 sk => $sk,
-                server_name => "p_$port",
+                server_name => "$inner_comp.p_$port",
                 bind_port => $port,
                 bind_addr => "127.0.20.2",
             ])} @$proxy_list
         ])));
         sy(&$remote($comp,"docker restart $inner_comp\_frpc_1"));
-    }
+    };
+    &$process($_) for
+        $developer eq "all" ? (map{/^(\w+)_sshd_/ ? "$1" : ()} &$running_containers_all($comp)) :
+        $developer=~/^(\w+)$/ ? "$1" : die;
 }];
 
 ####
@@ -943,6 +991,13 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
     sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 sh -c 'test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222'"));
+}];
+
+push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
+    my($app,$tgz)=@_;
+    sy(&$ssh_add());
+    my($comp,$service) = &$split_app($app);
+    sy(&$remote_interactive($comp, " -uc4 $comp\_$service\_1 ", "tar -xz")." < $tgz");
 }];
 
 ####
