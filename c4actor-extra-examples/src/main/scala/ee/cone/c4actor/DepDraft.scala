@@ -104,7 +104,7 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[Val
   }
 }
 
-@protocol(TestCat) object TestRequests extends Protocol {
+@protocol(TestCat) object TestRequests   {
 
   @Id(0x3031) case class FooDepRequest(@Id(0x3036) v: String)
 

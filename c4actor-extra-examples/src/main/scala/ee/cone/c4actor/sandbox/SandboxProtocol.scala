@@ -14,7 +14,7 @@ trait SandboxProtocolsApp
 }
 
 
-@protocol(TestCat) object SandboxProtocol extends Protocol {
+@protocol(TestCat) object SandboxProtocol   {
 
   import OtherProtocol._
 
@@ -27,7 +27,7 @@ trait SandboxProtocolsApp
 
 }
 
-@protocol(TestCat) object OtherProtocol extends Protocol {
+@protocol(TestCat) object OtherProtocol   {
 
   @Id(0x0235) case class OrigOther(
     @Id(0x0236) srcId: String

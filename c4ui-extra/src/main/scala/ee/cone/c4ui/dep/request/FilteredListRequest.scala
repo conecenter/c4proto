@@ -79,7 +79,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
 @assemble class FilteredListResponseReceiver(
   preHashing: PreHashing,
   hashGen: HashGen
-) extends Assemble {
+)   {
   def FilterListResponseGrabber(
     key: SrcId,
     alienTask: Each[FromAlienTask],
@@ -102,7 +102,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
   filterPK: String,
   matches: List[String],
   u: DepRequestFactory
-) extends Assemble {
+)   {
 
   def SparkFilterListRequest(
     key: SrcId,
@@ -122,7 +122,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     } else Nil
 }
 
-@protocol(DepRequestCat) object DepFilteredListRequestProtocol extends Protocol {
+@protocol(DepRequestCat) object DepFilteredListRequestProtocol   {
 
   @Id(0x0a01) case class FilteredListRequest(
     @Id(0x0a0a) branchId: String,

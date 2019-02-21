@@ -19,13 +19,13 @@ class EachTestApp extends TestRichDataApp
       super.assembles
 }
 
-@protocol(TestCat) object EachTestProtocol extends Protocol {
+@protocol(TestCat) object EachTestProtocol   {
   @Id(0x0001) case class Item(@Id(0x0001) srcId: String, @Id(0x0002) parent: String)
 }
 
 case class EachTestItem(item: Item, valueItem: Item)
 
-@assemble class EachTestAssemble extends Assemble {
+@assemble class EachTestAssemble   {
   type ByParent = SrcId
   def joinByVal(
     key: SrcId,
@@ -40,7 +40,7 @@ case class EachTestItem(item: Item, valueItem: Item)
   }
 }
 
-@assemble class EachTestNotEffectiveAssemble extends Assemble {
+@assemble class EachTestNotEffectiveAssemble   {
   type ByParent = SrcId
   def joinByVal(
     key: SrcId,

@@ -42,7 +42,7 @@ case class MessageFromAlienImpl(
   def deletes: Seq[LEvent[Product]] = delete(request)
 }
 
-@assemble class MessageFromAlienAssemble extends Assemble {
+@assemble class MessageFromAlienAssemble   {
   def mapHttpPostByBranch(
     key: SrcId,
     post: Each[HttpPost]
@@ -63,7 +63,7 @@ case class MessageFromAlienImpl(
 
 }
 
-@assemble class FromAlienBranchAssemble(operations: BranchOperations) extends Assemble {
+@assemble class FromAlienBranchAssemble(operations: BranchOperations)   {
   // more rich session may be joined
   def fromAliensToSeeds(
     key: SrcId,
@@ -74,7 +74,7 @@ case class MessageFromAlienImpl(
   }
 }
 
-@assemble class FromAlienTaskAssemble(file: String) extends Assemble {
+@assemble class FromAlienTaskAssemble(file: String)   {
   def mapBranchTaskByLocationHash(
     key: SrcId,
     task: Each[BranchTask]

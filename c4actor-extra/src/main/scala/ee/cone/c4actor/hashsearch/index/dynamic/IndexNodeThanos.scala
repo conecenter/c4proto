@@ -110,7 +110,7 @@ sealed trait ThanosTimeTypes {
   type ThanosLEventsTransformsAll = All
 }
 
-@assemble class ThanosTimeFilters(version: String, maxTransforms: Int) extends Assemble with ThanosTimeTypes {
+@assemble class ThanosTimeFilters(version: String, maxTransforms: Int) extends   ThanosTimeTypes {
 
   def SnapTransformWatcher(
     verId: SrcId,
@@ -267,7 +267,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   val rangerRegistryApi: HashSearchRangerRegistryApi,
   val idGenUtil: IdGenUtil
 )
-  extends Assemble    with ThanosTimeTypes
+  extends      ThanosTimeTypes
     with IndexNodeThanosUtils[Model] {
 
   type IndexNodeId = SrcId

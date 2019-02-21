@@ -3,7 +3,7 @@ package ee.cone.c4actor.tests
 import ee.cone.c4actor.TestProtocol
 import ee.cone.c4proto.{Cat, Id, Protocol, protocol, OrigCategory}
 
-@protocol(Cat1) object TestProtocolM extends Protocol{
+@protocol(Cat1) object TestProtocolM  {
     @Id(1) @Cat(Cat2, Cat1) case class LUL ()
     @Id(2)  @Cat(Cat1) case class LUL2 ()
 }

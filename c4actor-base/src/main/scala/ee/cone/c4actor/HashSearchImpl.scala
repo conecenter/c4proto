@@ -131,7 +131,7 @@ object HashSearchImpl {
   classOfRespLine: Class[RespLine],
   indexers: Indexer[RespLine],
   preHashing: PreHashing
-) extends Assemble {
+)   {
   type HeapId = SrcId
   type ResponseId = SrcId
 

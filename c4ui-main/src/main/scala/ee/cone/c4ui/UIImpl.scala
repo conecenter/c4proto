@@ -20,7 +20,7 @@ class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
 //case object RelocateKey extends WorldKey[String]("")
 //  with VDomLens[World, String]
 
-@assemble class VDomAssemble extends Assemble {
+@assemble class VDomAssemble   {
   def joinBranchHandler(
     key: SrcId,
     task: Each[BranchTask],

@@ -10,7 +10,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.AllTestTestApp ./app.pl sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 
-@protocol(TestCat) object AllTestProtocol extends Protocol {
+@protocol(TestCat) object AllTestProtocol   {
 
   @Id(0x103) case class AllTestOrig(
     @Id(0x104) srcId: String,
@@ -26,7 +26,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class AllTestRich(srcId: SrcId, twos: List[AllTestOrig2])
 
-@assemble class AllTestAssemble() extends Assemble {
+@assemble class AllTestAssemble()   {
   type TestAll = All
   type TestSrcId = SrcId
 

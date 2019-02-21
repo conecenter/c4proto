@@ -14,7 +14,7 @@ import okio.ByteString
 
 case object SessionAttrCat extends OrigCategory
 
-@protocol(SessionAttrCat) object SessionDataProtocol extends Protocol {
+@protocol(SessionAttrCat) object SessionDataProtocol   {
   @Id(0x0066) case class RawSessionData(
     @Id(0x0061) srcId: String,
     @Id(0x0067) sessionKey: String,
@@ -35,7 +35,7 @@ object SessionDataAssembles {
     mortal(classOf[RawSessionData]) :: new SessionDataAssemble :: Nil
 }
 
-@assemble class SessionDataAssemble extends Assemble {
+@assemble class SessionDataAssemble   {
   type SessionKey = SrcId
 
   def joinBySessionKey(

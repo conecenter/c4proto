@@ -143,7 +143,7 @@ import RRTestItems._
 }
 import RRTestLenses._
 
-@assemble class RRTest1RuleAssemble(rr: RevRelFactory) extends Assemble {
+@assemble class RRTest1RuleAssemble(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[Foo],
@@ -151,7 +151,7 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.values)))
 }
 
-@assemble class RRTest1CheckAssemble extends Assemble {
+@assemble class RRTest1CheckAssemble   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -181,7 +181,7 @@ import RRTestLenses._
   }
 }
 
-@assemble class RRTest2RuleAssemble(rr: RevRelFactory) extends Assemble {
+@assemble class RRTest2RuleAssemble(rr: RevRelFactory)   {
   type FooId = SrcId
   def join(
     key: SrcId,
@@ -190,7 +190,7 @@ import RRTestLenses._
   ): Values[(FooId,RichFooBar)] = List(WithPK(RichFooBar(foo, bar)))
 }
 
-@assemble class RRTest2CheckAssemble extends Assemble {
+@assemble class RRTest2CheckAssemble   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -224,7 +224,7 @@ import RRTestLenses._
   }
 }
 
-@assemble class RRTest3RuleAssemble(rr: RevRelFactory) extends Assemble {
+@assemble class RRTest3RuleAssemble(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[FooRev],
@@ -232,7 +232,7 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.toList.sortBy(_.id).map(i⇒Bar(i.id)))))
 }
 
-@assemble class RRTest3CheckAssemble extends Assemble {
+@assemble class RRTest3CheckAssemble   {
   type CheckId = String
   def given(
     key: SrcId,

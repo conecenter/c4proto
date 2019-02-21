@@ -30,7 +30,7 @@ object DefaultRangers {
   implicit lazy val strEq: Ranger[StrEq,String] = StrEqRanger
 }
 
-@protocol(TestCat) object HashSearchTestProtocol extends Protocol {
+@protocol(TestCat) object HashSearchTestProtocol   {
   @Id(0x0001) case class SomeModel(
     @Id(0x0003) srcId: String,
     @Id(0x0004) fieldA: String,
@@ -55,7 +55,7 @@ import SomeModelAccess._
 @assemble class HashSearchTestAssemble(
   modelConditionFactory: ModelConditionFactory[Unit],
   hashSearchFactory: HashSearch.Factory
-) extends Assemble {
+)   {
   def joinReq(
     srcId: SrcId,
     request: Each[SomeRequest]

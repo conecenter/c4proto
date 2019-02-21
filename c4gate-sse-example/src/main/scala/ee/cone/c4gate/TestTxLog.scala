@@ -111,7 +111,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
   metaAdapter: ProtoAdapter[TxAddMeta] with HasId =
     qAdapterRegistry.byName(classOf[TxAddMeta].getName)
       .asInstanceOf[ProtoAdapter[TxAddMeta] with HasId]
-) extends Assemble {
+)   {
   type SummaryId = SrcId
 
   def mapMeta(

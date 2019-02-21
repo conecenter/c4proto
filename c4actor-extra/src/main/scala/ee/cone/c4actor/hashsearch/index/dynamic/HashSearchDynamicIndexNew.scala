@@ -210,7 +210,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   val idGenUtil: IdGenUtil,
   val ranger: RangerWithCl[By, Field],
   val defaultModelRegistry: DefaultModelRegistry
-) extends Assemble with DynamicIndexSharedTypes
+) extends   DynamicIndexSharedTypes
   with HashSearchAssembleSharedKeys
   with HashSearchDynamicIndexNewUtils[Model, By, Field] {
 
@@ -339,7 +339,7 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
   val modelClass: Class[_],
   val modelId: Int,
   val idGenUtil: IdGenUtil
-) extends Assemble with DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
+) extends   DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
   type InnerIndexModel = SrcId
   type OuterDynamicHeapId = SrcId
   type IndexNodeDirectiveAll = All

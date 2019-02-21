@@ -10,7 +10,7 @@ object BigDecimalFactory {
   }
 }
 
-@protocol object BigDecimalProtocol extends Protocol {
+@protocol object BigDecimalProtocol   {
   @Cat(InnerCat)
   case class SysBigDecimal(@Id(0x0001) scale: Int, @Id(0x0002) bytes: okio.ByteString)
 }

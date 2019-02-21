@@ -4,7 +4,7 @@ import ee.cone.c4gate.SessionAttrCat
 import ee.cone.c4gate.SessionDataProtocol.RawDataNode
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-@protocol(SessionAttrCat) object DeepSessionDataProtocol extends Protocol {
+@protocol(SessionAttrCat) object DeepSessionDataProtocol   {
 
   import ee.cone.c4gate.SessionDataProtocol._
 

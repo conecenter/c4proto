@@ -79,7 +79,7 @@ class HashSearchExtraTestStart(
 
 case class CustomResponse(srcId: SrcId, list: List[TestObject])
 
-@assemble class CreateRequest(condition: List[Condition[TestObject]], changingCondition: String ⇒ Condition[TestObject]) extends Assemble {
+@assemble class CreateRequest(condition: List[Condition[TestObject]], changingCondition: String ⇒ Condition[TestObject])   {
   def createRequest(
     testId: SrcId,
     test: Each[TestNode]
@@ -128,7 +128,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 }
 
 
-@protocol(TestCat) object EqProtocol extends Protocol {
+@protocol(TestCat) object EqProtocol   {
 
   @Id(0xaabc) case class ChangingNode(
     @Id(0xaabd) srcId: String,

@@ -21,7 +21,7 @@ class SyncTxFactoryImpl extends SyncTxFactory {
   filter: Item⇒Boolean,
   group: Item⇒SrcId,
   txTransform: (SrcId,List[SyncTxTask[Item]])⇒TxTransform
-) extends Assemble {
+)   {
   type ExecutorId = SrcId
   def makeTasks(
     key: SrcId,

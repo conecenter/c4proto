@@ -30,7 +30,7 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
 
 ////
 
-@protocol(ExchangeCat) object ToExternalDBProtocol extends Protocol {
+@protocol(ExchangeCat) object ToExternalDBProtocol   {
   @Id(0x0063) case class HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -72,7 +72,7 @@ trait  ToExternalDBItemAssembleUtil {
 @assemble class ToExternalDBOrigAssemble[Item<:Product](
   val toUpdate: ToUpdate,
   classItem: Class[Item]
-)  extends Assemble with ToExternalDBItemAssembleUtil {
+)  extends   ToExternalDBItemAssembleUtil {
   def OrigJoin(
     key: SrcId,
     item: Each[Item]
@@ -86,7 +86,7 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@assemble class ToExternalDBTxAssemble extends Assemble with LazyLogging{
+@assemble class ToExternalDBTxAssemble extends   LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -164,14 +164,14 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol(ExchangeCat) object FromExternalDBProtocol extends Protocol {
+@protocol(ExchangeCat) object FromExternalDBProtocol   {
   @Id(0x0060) case class DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long
   )
 }
 
-@assemble class FromExternalDBSyncAssemble extends Assemble {
+@assemble class FromExternalDBSyncAssemble   {
   def joinTxTransform(
     key: SrcId,
     first: Each[Firstborn]

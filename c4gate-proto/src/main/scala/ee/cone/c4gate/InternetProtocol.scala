@@ -3,7 +3,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4proto._
 
-@protocol(ExchangeCat) object HttpProtocol extends Protocol {
+@protocol(ExchangeCat) object HttpProtocol   {
   @Id(0x002C) case class HttpPublication(
     @Id(0x0021) path: String,
     @Id(0x0022) headers: List[Header],
@@ -22,7 +22,7 @@ import ee.cone.c4proto._
   case class Header(@Id(0x0024) key: String, @Id(0x0025) value: String)
 }
 
-@protocol(ExchangeCat) object TcpProtocol extends Protocol {
+@protocol(ExchangeCat) object TcpProtocol   {
   @Id(0x0026) case class TcpWrite(
     @Id(0x002A) srcId: String,
     @Id(0x0027) connectionKey: String,
@@ -36,7 +36,7 @@ import ee.cone.c4proto._
 
 case object AlienCat extends OrigCategory
 
-@protocol object AlienProtocol extends Protocol {
+@protocol object AlienProtocol   {
   @Cat(AlienCat)
   @Id(0x0030) case class ToAlienWrite(
     @Id(0x0031) srcId: String,
@@ -71,7 +71,7 @@ case object AlienCat extends OrigCategory
 
 case object AuthOrigCat extends OrigCategory
 
-@protocol(AuthOrigCat) object AuthProtocol extends Protocol {
+@protocol(AuthOrigCat) object AuthProtocol   {
 
   @Cat(InnerCat)
   case class SecureHash(

@@ -59,7 +59,7 @@ trait ExternalUpdateUtil[Model <: Product] {
   qAdapterRegistry: QAdapterRegistry
 )(
   val adapter: ProtoAdapter[Model] with HasId = qAdapterRegistry.byId(modelId).asInstanceOf[ProtoAdapter[Model] with HasId]
-) extends Assemble with ExternalUpdateUtil[Model] {
+) extends   ExternalUpdateUtil[Model] {
   type MergeId = SrcId
   type CombineId = SrcId
 

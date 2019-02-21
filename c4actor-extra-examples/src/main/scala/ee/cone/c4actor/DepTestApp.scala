@@ -15,7 +15,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 import scala.collection.immutable
 
 
-@protocol(TestCat) object TestProtocol extends Protocol {
+@protocol(TestCat) object TestProtocol   {
 
   @Id(0x0001) case class TestNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 
@@ -26,7 +26,7 @@ import scala.collection.immutable
 object DefaultPffNode extends DefaultModelFactory(classOf[ValueNode], ValueNode(_, 0))
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.DepTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
-/*@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry) extends Assemble {
+/*@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry)   {
   type ToResponse = SrcId
 
   def reponsesTest

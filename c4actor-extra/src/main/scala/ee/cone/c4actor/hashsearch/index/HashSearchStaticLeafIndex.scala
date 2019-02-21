@@ -176,7 +176,7 @@ import StaticHashSearchImpl._
   modelCl: Class[Model],
   indexer: Indexer[Model],
   serializer: SerializationUtils
-) extends Assemble with HashSearchAssembleSharedKeys {
+) extends   HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
 
@@ -214,7 +214,7 @@ import StaticHashSearchImpl._
 @assemble class StaticAssembleShared[Model <: Product](
   modelCl: Class[Model],
   debugMode: Boolean// = false
-) extends Assemble with HashSearchAssembleSharedKeys {
+) extends   HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
 

@@ -169,7 +169,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
-@assemble class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations) extends Assemble {
+@assemble class BranchAssemble(registry: QAdapterRegistry, operations: BranchOperations)   {
   def mapBranchSeedsByChild(
     key: SrcId,
     branchResult: Each[BranchResult]
@@ -240,7 +240,7 @@ case class SessionFailures(sessionKey: SrcId, failures: List[SessionFailure])
 //todo checkUpdate()?
 
 /*
-@assemble class PurgeBranchAssemble extends Assemble {
+@assemble class PurgeBranchAssemble   {
   def purgeBranches(
     key: SrcId,
     tasks: Values[BranchTaskSender]
@@ -258,7 +258,7 @@ private def setupAdapters =
     ).toMap)
 
 
-@assemble class AdapterAssemble extends Assemble {
+@assemble class AdapterAssemble   {
   type AnnotationId = Long
   def joinProductProtoAdapterByAnnotationId(
     key: SrcId,

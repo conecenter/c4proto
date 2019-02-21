@@ -30,7 +30,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
 
 ////
 
-@protocol(ProfilerMetaCat) object SimpleAssembleProfilerProtocol extends Protocol {
+@protocol(ProfilerMetaCat) object SimpleAssembleProfilerProtocol   {
   @Id(0x0073) case class TxAddMeta(
     @Id(0x0074) srcId: String,
     @Id(0x0075) startedAt: Long,

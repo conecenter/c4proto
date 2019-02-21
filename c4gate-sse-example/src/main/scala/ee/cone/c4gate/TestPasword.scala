@@ -30,7 +30,7 @@ class TestPasswordApp extends ServerApp
       super.assembles
 }
 
-@assemble class TestPasswordAssemble extends Assemble {
+@assemble class TestPasswordAssemble   {
   def joinView(
     key: SrcId,
     fromAlien: Each[FromAlienTask]

@@ -19,7 +19,7 @@ trait SSHDebugApp extends AssemblesApp {
     new SSHDebugAssemble(richRawWorldReducer,qMessages) :: super.assembles
 }
 
-@assemble class SSHDebugAssemble(reducer: RichRawWorldReducer, qMessages: QMessages) extends Assemble {
+@assemble class SSHDebugAssemble(reducer: RichRawWorldReducer, qMessages: QMessages)   {
   def join(
     key: SrcId,
     firstborn: Each[Firstborn]

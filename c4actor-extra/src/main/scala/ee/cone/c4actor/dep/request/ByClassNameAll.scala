@@ -35,7 +35,7 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
   override def protocols: List[Protocol] = ByClassNameAllRequestProtocol :: super.protocols
 }
 
-@assemble class ByClassNameAllRequestGenericHandler[Model <: Product](modelCl: Class[Model], util: DepResponseFactory) extends Assemble {
+@assemble class ByClassNameAllRequestGenericHandler[Model <: Product](modelCl: Class[Model], util: DepResponseFactory)   {
   type ByClassNameRequestAll = All
 
   def GatherAllModels(
@@ -55,7 +55,7 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
     }
 }
 
-@protocol(DepRequestCat) object ByClassNameAllRequestProtocol extends Protocol {
+@protocol(DepRequestCat) object ByClassNameAllRequestProtocol   {
 
   @Id(0x0230) case class ByClassNameAllRequest(
     @Id(0x0231) className: String
