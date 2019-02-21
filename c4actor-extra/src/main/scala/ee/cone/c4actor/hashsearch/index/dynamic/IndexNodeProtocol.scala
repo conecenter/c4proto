@@ -5,6 +5,7 @@ import ee.cone.c4proto._
 
 @protocol(OperativeCat) object IndexNodeProtocol extends Protocol{
   @Id(0x205) case class IndexNodesVersion(
+    @Id(0x207) srcId: String,
     @Id(0x206) version: String
   )
 

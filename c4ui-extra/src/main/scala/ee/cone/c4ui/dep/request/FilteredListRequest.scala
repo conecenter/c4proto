@@ -7,7 +7,7 @@ import ee.cone.c4actor.dep.DepTypes.GroupId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.{DepHandlersApp, DepResponseImpl}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4ui.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui.FromAlienTask
@@ -28,6 +28,8 @@ trait FilterListRequestHandlerApp
     with DepRequestFactoryApp
     with PreHashingApp {
 
+  def hashGen: HashGen
+
   private lazy val depMap: Map[(String, String), Dep[List[_]]] = filterDepList.map(elem ⇒ (elem.listName, elem.filterPK) → elem.requestDep).toMap
 
   private def fltAsk: DepAsk[FilteredListRequest, List[_]] = depAskFactory.forClasses(classOf[FilteredListRequest], classOf[List[_]])
@@ -40,7 +42,7 @@ trait FilterListRequestHandlerApp
     injectMockRole[FilteredListRequest](fltAsk, rq ⇒ rq.mockRoleId.flatMap(id ⇒ rq.mockRoleEditable.map(ed ⇒ id → ed))) ::
     injectRole[FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
-  override def assembles: List[Assemble] = new FilteredListResponseReceiver(preHashing) :: filterDepList.map(
+  override def assembles: List[Assemble] = new FilteredListResponseReceiver(preHashing, hashGen) :: filterDepList.map(
     df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory)
   ) ::: super.assembles
 
@@ -50,7 +52,7 @@ trait FilterListRequestHandlerApp
 }
 
 case class FilteredListResponse(srcId: String, listName: String, filterPK: String, responseHashed: PreHashed[Option[_]]) extends LazyHashCodeProduct {
-  lazy val response: Option[_] = responseHashed.value
+  def response: Option[_] = responseHashed.value
 }
 
 object FilterListRequestCreatorUtils {
@@ -75,15 +77,17 @@ import ee.cone.c4ui.dep.request.FilterListRequestCreatorUtils._
 case class BranchWithUserId(branchId: String, contextId: String, userId: String, roleId: String, mockRole: MockRoleOpt)
 
 @assemble class FilteredListResponseReceiver(
-  preHashing: PreHashing
+  preHashing: PreHashing,
+  hashGen: HashGen
 ) extends Assemble {
   def FilterListResponseGrabber(
     key: SrcId,
-    resp: Each[DepResponse]
+    alienTask: Each[FromAlienTask],
+    @by[GroupId] resp: Each[DepResponse]
   ): Values[(SrcId, FilteredListResponse)] =
     resp.innerRequest.request match {
       case request: FilteredListRequest ⇒
-        val srcId = Murmur3Hash((request.branchId, request.listName, request.filterPK))
+        val srcId = hashGen.generate((request.branchId, request.listName, request.filterPK))
         resp match {
           case a: DepResponseImpl ⇒ List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, a.valueHashed)))
           case _ ⇒ List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, preHashing.wrap(resp.value))))

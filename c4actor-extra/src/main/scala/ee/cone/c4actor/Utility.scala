@@ -8,12 +8,15 @@ import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
 
-object Murmur3Hash {
-  private val parser: PreHashingMurMur3 = PreHashingMurMur3()
-  private val instance: MurmurHash3 = new MurmurHash3()
+trait WithMurMur3HashGenApp {
+  def hashGen: HashGen = new MurMur3HashGen
+}
 
-  def apply[Model](m: Model): String = {
-    instance.reset()
+class MurMur3HashGen extends HashGen{
+  private val parser: PreHashingMurMur3 = PreHashingMurMur3()
+
+  def generate[Model](m: Model): String = {
+    val instance: MurmurHash3 = new MurmurHash3()
     parser.calculateModelHash(m, instance)
     instance.getStringHash
   }

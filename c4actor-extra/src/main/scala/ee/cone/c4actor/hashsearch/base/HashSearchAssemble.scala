@@ -66,10 +66,11 @@ trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with S
   def qAdapterRegistry: QAdapterRegistry
 
   def idGenUtil: IdGenUtil
+  def hashGen: HashGen
 
   def debugModeHashSearchAssemble: Boolean = false
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, preHashing, debugModeHashSearchAssemble)) ::: super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, preHashing, hashGen, debugModeHashSearchAssemble)) ::: super.assembles
 }
 
 object HashSearchAssembleUtils {
@@ -163,6 +164,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   val qAdapterRegistry: QAdapterRegistry,
   condSer: SerializationUtils,
   preHashing: PreHashing,
+  hashGen: HashGen,
   debugMode: Boolean // = false
 ) extends Assemble with HashSearchAssembleSharedKeys {
   type InnerUnionId = SrcId
@@ -176,7 +178,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   ): Values[(SrcId, RootCondition[Model])] = {
     val condition: Condition[Model] = request.condition
     val condUnion: InnerUnionList[Model] = conditionToUnionList(modelCl)(condSer)(condition)
-    List(WithPK(RootCondition(Murmur3Hash(request.requestId, condUnion.srcId), condUnion, request.requestId)))
+    List(WithPK(RootCondition(hashGen.generate(request.requestId::condUnion.srcId::Nil), condUnion, request.requestId)))
   }
 
   def RootCondToInnerConditionId(
