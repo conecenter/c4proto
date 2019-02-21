@@ -7,7 +7,7 @@ import scala.util.Try
 trait Execution extends Runnable {
   def onShutdown(hint: String, f:()⇒Unit): ()⇒Unit
   def complete(): Unit
-  def future[T](value: T): FatalFuture[T]
+  def emptySkippingFuture[T]: FatalFuture[Option[T]]
 }
 
 trait FatalFuture[T] {

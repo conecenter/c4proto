@@ -82,7 +82,10 @@ case class VDomHandlerImpl[State](
     else if(
       vState.value != wasNoValue &&
       vState.until > System.currentTimeMillis &&
-      pathHeader(exchange).isEmpty &&
+      (exchange.header("X-r-redraw") match {
+        case "1" ⇒ false
+        case "" ⇒ pathHeader(exchange).isEmpty
+      }) &&
       freshTo.isEmpty
     ) state
     else chain[State](Seq(
