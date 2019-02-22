@@ -10,7 +10,12 @@ object BigDecimalFactory {
   }
 }
 
-@protocol object BigDecimalProtocolBase   {
+trait BigDecimalProtocolAdd {
+  type BigDecimal = scala.math.BigDecimal
+  val BigDecimal = scala.math.BigDecimal
+}
+
+@protocol object BigDecimalProtocolBase extends BigDecimalProtocolAdd {
   @Cat(InnerCat)
   case class SysBigDecimal(@Id(0x0001) scale: Int, @Id(0x0002) bytes: okio.ByteString)
 }
