@@ -148,7 +148,7 @@ object ProtocolGenerator extends Generator {
         val struct = s"""${factoryName}(${props.map(_.constructArg).mkString(",")})"""
         val statements = List(
           s"""type ${resultType} = ${objectName}Base.${resultType}""",
-          s"""val ${resultType} = ${objectName}Base.${resultType}""",
+          s"""val ${factoryName} = ${objectName}Base.${factoryName}""",
           s"""
           object ${resultType}ProtoAdapter extends com.squareup.wire.ProtoAdapter[$resultType](
             com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
@@ -190,7 +190,7 @@ object ProtocolGenerator extends Generator {
     }.toList
     val imports = stats.collect{ case s@q"import ..$i" ⇒ s }
     val res = q"""
-      object ${Term.Name(objectName)} extends Protocol with ..$ext {
+      object ${Term.Name(objectName)} extends Protocol {
         ..$imports;
         ..${messages.flatMap(_.statements).map(_.parse[Stat].get)};
         override def adapters = List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})
