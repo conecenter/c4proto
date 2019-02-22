@@ -4,7 +4,7 @@ import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.UpdatesCat
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-@protocol(UpdatesCat) object ExternalProtocol extends Protocol {
+@protocol(UpdatesCat) object ExternalProtocolBase   {
 
   import ee.cone.c4actor.QProtocol._
 

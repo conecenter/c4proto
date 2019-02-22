@@ -51,7 +51,7 @@ case class TcpConnectionTxTransform(
   }
 }
 
-@assemble class TcpAssemble extends Assemble {
+@assemble class TcpAssembleBase   {
   type ConnectionKey = SrcId
 
   def joinTcpWrite(key: SrcId, write: Each[TcpWrite]): Values[(ConnectionKey, TcpWrite)] =

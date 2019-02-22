@@ -21,7 +21,7 @@ case class IdGenUtilImpl()(
       d.update((l>> 0).toByte)
       d.update(bytes)
     }
-    Base64.getEncoder.encodeToString(d.digest)
+    Base64.getUrlEncoder.encodeToString(d.digest)
   }
   private def toBytes(value: String): Array[Byte] = value.getBytes(UTF_8)
   private def toBytes(value: Long): Array[Byte] =

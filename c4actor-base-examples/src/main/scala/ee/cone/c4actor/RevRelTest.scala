@@ -16,19 +16,19 @@ object RRTypes {
 
 import scala.reflect.ClassTag
 trait RelSrc[From<:Product,Value] {
-  def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To]
-  def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]]
+  def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with Assemble
+  def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]] with Assemble
 }
 trait RevRelFactory {
   def rel[From<:Product](lens: ProdLens[From,List[SrcId]])(implicit cf: ClassTag[From]): RelSrc[From,List[SrcId]]
-  def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To]
+  def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To] with Assemble
 }
 import RRTypes._
 //
 class RelSrcImpl[From<:Product,Value](from: Class[From], lens: ProdLens[From,Value], adapter: Value⇒List[SrcId]) extends RelSrc[From,Value] {
-  def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To] =
+  def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with Assemble =
     new RelAssemble(from,ct.runtimeClass.asInstanceOf[Class[To]],lens,adapter)()
-  def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]] = {
+  def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]] with Assemble = {
     val to = ct.runtimeClass.asInstanceOf[Class[To]]
     new RelChildrenAssemble(from,to,new RelAssemble(from,to,lens,adapter)())()
   }
@@ -38,10 +38,10 @@ class RevRelFactoryImpl extends RevRelFactory {
     val from = cf.runtimeClass.asInstanceOf[Class[From]]
     new RelSrcImpl[From,List[SrcId]](from,lens,identity[List[SrcId]])
   }
-  def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To] =
+  def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To] with Assemble =
     new RevAssemble[To,SrcId](ct.runtimeClass.asInstanceOf[Class[To]],lens,v⇒List(v))()
 }
-@assemble class RevAssemble[To<:Product,Value](
+@assemble class RevAssembleBase[To<:Product,Value](
   classOfTo: Class[To],
   lens: ProdLens[To,Value],
   adapter: Value⇒List[SrcId]
@@ -60,7 +60,7 @@ class RevRelFactoryImpl extends RevRelFactory {
 }
 case class RelChildren[T<:Product](srcId: SrcId, values: List[T])
 case class RelOuterReq(callerId: SrcId)
-@assemble class RelAssemble[From<:Product,Value,To<:Product](
+@assemble class RelAssembleBase[From<:Product,Value,To<:Product](
   classOfFrom: Class[From],
   classOfTo: Class[To],
   val lens: ProdLens[From,Value],
@@ -84,7 +84,7 @@ case class RelOuterReq(callerId: SrcId)
     List(request.callerId → to)
   def result: Result = tupled(mapResp _)
 }
-@assemble class RelChildrenAssemble[From<:Product,Value,To<:Product](
+@assemble class RelChildrenAssembleBase[From<:Product,Value,To<:Product](
   classOfFrom: Class[From],
   classOfTo: Class[To],
   val inner: RelAssemble[From,Value,To]
@@ -137,13 +137,13 @@ object RRTestItems {
   case class BarRev(id: SrcId, foo: SrcId)
 }
 import RRTestItems._
-@fieldAccess object RRTestLenses {
+@fieldAccess object RRTestLensesBase {
   lazy val fooBarsL: ProdLens[Foo,List[SrcId]] = ProdLens.of(_.bars)
   lazy val barFooL: ProdLens[BarRev,SrcId] = ProdLens.of(_.foo)
 }
 import RRTestLenses._
 
-@assemble class RRTest1RuleAssemble(rr: RevRelFactory) extends Assemble {
+@assemble class RRTest1RuleAssembleBase(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[Foo],
@@ -151,7 +151,7 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.values)))
 }
 
-@assemble class RRTest1CheckAssemble extends Assemble {
+@assemble class RRTest1CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -181,7 +181,7 @@ import RRTestLenses._
   }
 }
 
-@assemble class RRTest2RuleAssemble(rr: RevRelFactory) extends Assemble {
+@assemble class RRTest2RuleAssembleBase(rr: RevRelFactory)   {
   type FooId = SrcId
   def join(
     key: SrcId,
@@ -190,7 +190,7 @@ import RRTestLenses._
   ): Values[(FooId,RichFooBar)] = List(WithPK(RichFooBar(foo, bar)))
 }
 
-@assemble class RRTest2CheckAssemble extends Assemble {
+@assemble class RRTest2CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -224,7 +224,7 @@ import RRTestLenses._
   }
 }
 
-@assemble class RRTest3RuleAssemble(rr: RevRelFactory) extends Assemble {
+@assemble class RRTest3RuleAssembleBase(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[FooRev],
@@ -232,7 +232,7 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.toList.sortBy(_.id).map(i⇒Bar(i.id)))))
 }
 
-@assemble class RRTest3CheckAssemble extends Assemble {
+@assemble class RRTest3CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,

@@ -50,14 +50,14 @@ object HashSearchMockAssembleTest {
 
 import HashSearchMockUtils._
 
-@assemble class HashSearchMockAssemble[Model <: Product](
+@assemble class HashSearchMockAssembleBase[Model <: Product](
   modelCl: Class[Model],
   getDate: Model ⇒ (Option[Long], Option[Long]),
   conditionToRegion: Condition[Model] ⇒ TreeRange,
   filterName: NameMetaAttr,
   qAdapterRegistry: QAdapterRegistry,
   idGenUtil: IdGenUtil
-) extends Assemble with HashSearchAssembleSharedKeys{
+) extends   HashSearchAssembleSharedKeys{
   type K2HeapId = SrcId
   type K2ToCountId = SrcId
 

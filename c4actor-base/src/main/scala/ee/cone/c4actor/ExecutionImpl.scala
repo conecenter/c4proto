@@ -1,6 +1,8 @@
 
 package ee.cone.c4actor
 
+import java.util.concurrent.atomic.AtomicReference
+
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.Future
@@ -35,6 +37,30 @@ class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with Lazy
   }
   def future[T](value: T): FatalFuture[T] =
     new VMFatalFuture(Future.successful(value))
+  def emptySkippingFuture[T]: FatalFuture[Option[T]] =
+    new VMFatalSkippingFuture[Option[T]](Future.successful(None))
+}
+
+class VMFatalSkippingFuture[T](inner: Future[T]) extends FatalFuture[T] with LazyLogging {
+  private def canSkip[T](future: Future[T]) = future match {
+    case a: AtomicReference[_] ⇒ a.get() match {
+      case s: Seq[_] ⇒ s.nonEmpty
+      case u ⇒ logger.warn(s"no skip rule for inner ${u.getClass.getName}"); false
+    }
+    case u ⇒ logger.warn(s"no skip rule for outer ${u.getClass.getName}"); false
+  }
+  def map(body: T ⇒ T): FatalFuture[T] = {
+    lazy val nextFuture: Future[T] = inner.map(from ⇒ try {
+      if(canSkip(nextFuture)) from else body(from)
+    } catch {
+      case e: Throwable ⇒
+        logger.error("fatal",e)
+        System.exit(1)
+        throw e
+    })
+    new VMFatalSkippingFuture(nextFuture)
+  }
+  def value: Option[Try[T]] = inner.value
 }
 
 class VMFatalFuture[T](val inner: Future[T]) extends FatalFuture[T] with LazyLogging {

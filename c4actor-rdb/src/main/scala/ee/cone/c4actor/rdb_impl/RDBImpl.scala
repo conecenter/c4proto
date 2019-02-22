@@ -16,7 +16,6 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.rdb_impl.ToExternalDBAssembleTypes.PseudoOrig
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto
 import ee.cone.c4proto._
 import okio.ByteString
 
@@ -31,7 +30,7 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
 
 ////
 
-@protocol(ExchangeCat) object ToExternalDBProtocol extends c4proto.Protocol {
+@protocol(ExchangeCat) object ToExternalDBProtocolBase   {
   @Id(0x0063) case class HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -70,10 +69,10 @@ trait  ToExternalDBItemAssembleUtil {
     }
 }
 
-@assemble class ToExternalDBOrigAssemble[Item<:Product](
+@assemble class ToExternalDBOrigAssembleBase[Item<:Product](
   val toUpdate: ToUpdate,
   classItem: Class[Item]
-)  extends Assemble with ToExternalDBItemAssembleUtil {
+)  extends   ToExternalDBItemAssembleUtil {
   def OrigJoin(
     key: SrcId,
     item: Each[Item]
@@ -87,7 +86,7 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@assemble class ToExternalDBTxAssemble extends Assemble with LazyLogging{
+@assemble class ToExternalDBTxAssembleBase extends   LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -165,14 +164,14 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol(ExchangeCat) object FromExternalDBProtocol extends c4proto.Protocol {
+@protocol(ExchangeCat) object FromExternalDBProtocolBase   {
   @Id(0x0060) case class DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long
   )
 }
 
-@assemble class FromExternalDBSyncAssemble extends Assemble {
+@assemble class FromExternalDBSyncAssembleBase   {
   def joinTxTransform(
     key: SrcId,
     first: Each[Firstborn]

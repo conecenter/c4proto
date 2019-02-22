@@ -15,10 +15,10 @@ object Killing {
   type KillerId = SrcId
 }
 
-@assemble class MortalAssemble[Node<:Product](
+@assemble class MortalAssembleBase[Node<:Product](
   classOfMortal: Class[Node],
   anUUIDUtil: IdGenUtil
-) extends Assemble {
+)   {
   def createKilling(
     key: SrcId,
     mortal: Each[Node],
@@ -29,7 +29,7 @@ object Killing {
   } yield killing.hash.substring(0,1) → killing
 }
 
-@assemble class MortalFatalityAssemble extends Assemble {
+@assemble class MortalFatalityAssembleBase   {
   def aggregateKilling(
     key: SrcId,
     @by[KillerId] killings: Values[Killing]
@@ -49,7 +49,7 @@ object LifeTypes {
 @assemble class LifeAssemble[Parent,Child](
   classOfParent: Class[Parent],
   classOfChild: Class[Child]
-) extends Assemble {
+)   {
   import LifeTypes.ParentSrcId
   def join(
     key: SrcId,
@@ -82,7 +82,7 @@ object ToPrimaryKey {
   classOfGiver: Class[Giver],
   classOfMortal: Class[Mortal],
   f: Giver ⇒ List[Mortal]
-) extends Assemble {
+)   {
   import LifeTypes.MortalSrcId
   def join(
     key: SrcId,

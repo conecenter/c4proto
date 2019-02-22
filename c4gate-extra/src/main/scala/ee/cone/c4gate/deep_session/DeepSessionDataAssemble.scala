@@ -15,7 +15,7 @@ object DeepSessionDataAssembles {
       new RawRoleDataAssemble(roleModel) :: Nil
 }
 
-@assemble class RawUserDataAssemble[User <: Product](modelCl: Class[User]) extends Assemble {
+@assemble class RawUserDataAssembleBase[User <: Product](modelCl: Class[User])   {
   type UserId = SrcId
 
   def RawUserDataByRoleId(
@@ -31,7 +31,7 @@ object DeepSessionDataAssembles {
   ): Values[(Alive, RawUserData)] = List(WithPK(rawData))
 }
 
-@assemble class RawRoleDataAssemble[Role <: Product](roleCl: Class[Role]) extends Assemble {
+@assemble class RawRoleDataAssembleBase[Role <: Product](roleCl: Class[Role])   {
   type RoleId = SrcId
 
   def RawRoleDataByRoleId(

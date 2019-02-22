@@ -16,7 +16,7 @@ import scala.concurrent.Future
 
 case object UpdatesCat extends OrigCategory
 
-@protocol(UpdatesCat) object QProtocol extends Protocol {
+@protocol(UpdatesCat) object QProtocolBase   {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,

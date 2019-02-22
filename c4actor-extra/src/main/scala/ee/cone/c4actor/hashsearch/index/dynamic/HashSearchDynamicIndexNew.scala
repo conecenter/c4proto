@@ -197,7 +197,7 @@ case class DynamicNeed[Model <: Product](requestId: SrcId)
 
 case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
 
-@assemble class HashSearchDynamicIndexNew[Model <: Product, By <: Product, Field](
+@assemble class HashSearchDynamicIndexNewBase[Model <: Product, By <: Product, Field](
   modelCl: Class[Model],
   byCl: Class[By],
   fieldCl: Class[Field],
@@ -210,8 +210,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   val idGenUtil: IdGenUtil,
   val ranger: RangerWithCl[By, Field],
   val defaultModelRegistry: DefaultModelRegistry
-) extends Assemble
-  with DynamicIndexSharedTypes
+) extends   DynamicIndexSharedTypes
   with HashSearchAssembleSharedKeys
   with HashSearchDynamicIndexNewUtils[Model, By, Field] {
 
@@ -335,12 +334,12 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
   }
 }
 
-@assemble class HashSearchDynamicIndexCommon[Model <: Product](
+@assemble class HashSearchDynamicIndexCommonBase[Model <: Product](
   modelCl: Class[Model],
   val modelClass: Class[_],
   val modelId: Int,
   val idGenUtil: IdGenUtil
-) extends Assemble with DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
+) extends   DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
   type InnerIndexModel = SrcId
   type OuterDynamicHeapId = SrcId
   type IndexNodeDirectiveAll = All

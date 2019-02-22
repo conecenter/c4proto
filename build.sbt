@@ -6,7 +6,7 @@ lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Ap
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.E.8",
+  version := "0.E.9",
   bintrayRepository := "c4proto",
   //name := "c4proto",
   //description := "Protobuf scalameta macros",
@@ -174,9 +174,7 @@ lazy val `c4external-base` = project.settings(publishSettings)
   .dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
 
 //publishArtifact := false -- bintrayEnsureBintrayPackageExists fails if this
-lazy val `c4proto-aggregate` = project.in(file("."))
-  .settings(publishSettings)
-  .aggregate(
+lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
   `c4actor-base-examples`,
   `c4actor-branch`,

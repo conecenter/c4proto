@@ -9,7 +9,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-@protocol(DepRequestCat) object ByPKRequestProtocol extends Protocol {
+@protocol(DepRequestCat) object ByPKRequestProtocolBase   {
   @Id(0x0070) case class ByPKRequest(
     @Id(0x0071) className: String,
     @Id(0x0072) itemSrcId: String
@@ -22,7 +22,7 @@ object ByPKTypes {
   type ByPkItemSrcId = SrcId
 }
 
-@assemble class ByPKAssemble extends Assemble {
+@assemble class ByPKAssembleBase   {
   def byPKRequestWithSrcToItemSrcId(
     key: SrcId,
     rq: Each[DepInnerRequest]
@@ -33,7 +33,7 @@ object ByPKTypes {
     }
 }
 
-@assemble class ByPKGenericAssemble[A <: Product](handledClass: Class[A], util: DepResponseFactory) extends Assemble {
+@assemble class ByPKGenericAssembleBase[A <: Product](handledClass: Class[A], util: DepResponseFactory)   {
   def BPKRequestToResponse(
     key: SrcId,
     @by[ByPkItemSrcId] rq: Each[InnerByPKRequest],

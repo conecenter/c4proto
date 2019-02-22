@@ -26,7 +26,7 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with Generaliz
 
 case class HashSearchDepRqWrap(srcId: String, request: HashSearchDepRequest, modelCl: String)
 
-@assemble class HSDepRequestAssemble[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model], util: DepResponseFactory) extends Assemble {
+@assemble class HSDepRequestAssembleBase[Model <: Product](hsDepRequestHandler: HashSearchDepRequestHandler, model: Class[Model], util: DepResponseFactory)   {
 
   def HSDepRequestWithSrcToItemSrcId(
     key: SrcId,
@@ -137,7 +137,7 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
 
 case class HashSearchRequestInner[Model](condition: Condition[Model])
 
-@protocol object HashSearchDepRequestProtocol extends Protocol {
+@protocol object HashSearchDepRequestProtocolBase   {
 
   @Cat(DepRequestCat)
   @Id(0x0f37) case class HashSearchDepRequest(

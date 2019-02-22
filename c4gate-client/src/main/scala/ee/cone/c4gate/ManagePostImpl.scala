@@ -12,7 +12,7 @@ import ee.cone.c4gate.HttpProtocol.HttpPost
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-@assemble class ManagementPostAssemble(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends Assemble {
+@assemble class ManagementPostAssembleBase(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
   def joinHttpPostHandler(
     key: SrcId,
     post: Each[HttpPost]

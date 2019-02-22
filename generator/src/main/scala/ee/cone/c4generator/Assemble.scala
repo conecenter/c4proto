@@ -33,8 +33,8 @@ object ExtractKeyNSType {
 }
 
 object AssembleGenerator extends Generator {
-  def get: Get = {
-    case code@q"@assemble class $className [..$tparams] (...$paramss) extends ..$ext { ..$stats }" ⇒ cont ⇒
+  def get: Get = { case code@q"@assemble class ${baseClassNameNode@Type.Name(baseClassName)} [..$tparams] (...$paramss) extends ..$ext { ..$stats }" ⇒
+    Util.unBase(baseClassName,baseClassNameNode.pos.end){className ⇒
     val classArgs = paramss.toList.flatten.collect{
       case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒
         typeName -> argName
@@ -165,10 +165,12 @@ object AssembleGenerator extends Generator {
     val paramNamesWithTypes = paramss.map(params⇒params.map{
       case param"..$mods $name: $tpeopt = $expropt" ⇒ if(expropt.isEmpty) Option(param"..${mods.collect{ case mod"valparam" ⇒ None case o ⇒ Option(o) }.flatten} $name: $tpeopt") else None
     }.flatten)
-    val res = q"""class $className [..$tparams] (...$paramNamesWithTypes)"""
+    val res = q"""class ${Type.Name(className)} [..$tparams] (...$paramNamesWithTypes)"""
 
-    cont.substring(0,className.pos.end) + "_Base" + cont.substring(className.pos.end) +
-      s"\n\n${res.syntax} extends ${className}_Base$paramNames with ee.cone.c4assemble.CheckedAssemble$subAssembleWith " +
-      s"{\n$statRules$joinImpl$dataDependencies$subAssembleDef}\n"
-  }
+    //cont.substring(0,className.pos.end) + "_Base" + cont.substring(className.pos.end) +
+    List(GeneratedCode(
+      s"${res.syntax} extends ${baseClassName}$paramNames with Assemble$subAssembleWith " +
+      s"{\n$statRules$joinImpl$dataDependencies$subAssembleDef}"
+    ))
+  }}
 }

@@ -8,16 +8,15 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, _}
-import ee.cone.c4proto
 
-@protocol(TestCat) object PCProtocol extends c4proto.Protocol {
+@protocol(TestCat) object PCProtocolBase   {
   @Id(0x0003) case class RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
   @Id(0x0001) case class RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }
 
 case class ParentNodeWithChildren(srcId: String, caption: String, children: Values[RawChildNode])
 
-@assemble class TestAssemble extends Assemble {
+@assemble class TestAssembleBase   {
   type ParentSrcId = SrcId
   def joinChildNodeByParent(
     key: SrcId,

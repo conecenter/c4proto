@@ -9,7 +9,7 @@ import okio.ByteString
 import scala.annotation.StaticAnnotation
 
 trait Protocol {
-  def adapters: List[ProtoAdapter[_] with HasId] = ??? //_<:Object
+  def adapters: List[ProtoAdapter[_] with HasId]
 }
 
 trait OrigCategory extends Product

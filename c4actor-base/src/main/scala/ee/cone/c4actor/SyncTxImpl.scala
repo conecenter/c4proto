@@ -16,12 +16,12 @@ class SyncTxFactoryImpl extends SyncTxFactory {
   ): Assemble = new SyncTxAssemble(classOfItem,filter,group,txTransform)
 }
 
-@assemble class SyncTxAssemble[Item<:Product](
+@assemble class SyncTxAssembleBase[Item<:Product](
   classOfItem: Class[Item],
   filter: Item⇒Boolean,
   group: Item⇒SrcId,
   txTransform: (SrcId,List[SyncTxTask[Item]])⇒TxTransform
-) extends Assemble {
+)   {
   type ExecutorId = SrcId
   def makeTasks(
     key: SrcId,

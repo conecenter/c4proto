@@ -74,7 +74,7 @@ trait DynamicIndexAssemble
     }
   }
 
-  lazy val hashSearchVersion: String = "MC5FLjg=" // note equals to base64 http://base64decode.toolur.com/
+  lazy val hashSearchVersion: String = "MC5FLjk=" // note equals to base64 http://base64decode.toolur.com/
 }
 
 case class IndexNodeRich[Model <: Product](
@@ -110,17 +110,17 @@ sealed trait ThanosTimeTypes {
   type ThanosLEventsTransformsAll = All
 }
 
-@assemble class ThanosTimeFilters(version: String, maxTransforms: Int) extends Assemble with ThanosTimeTypes {
+@assemble class ThanosTimeFiltersBase(version: String, maxTransforms: Int) extends   ThanosTimeTypes {
 
   def SnapTransformWatcher(
-    version: SrcId,
+    verId: SrcId,
     firstBorn: Each[Firstborn],
     versions: Values[IndexNodesVersion]
   ): Values[(SrcId, TxTransform)] =
     if (versions.headOption.map(_.version).getOrElse("") == version) {
       Nil
     } else {
-      WithPK(SnapTransform(version)) :: Nil
+      WithPK(SnapTransform(firstBorn.srcId + "Snap", firstBorn.srcId, version)) :: Nil
     }
 
   def PowerFilterCurrentTimeNode(
@@ -139,7 +139,10 @@ sealed trait ThanosTimeTypes {
     firstborn: Each[Firstborn],
     @by[ThanosLEventsTransformsAll] @distinct events: Values[LEventTransform]
   ): Values[(SrcId, TxTransform)] =
-    WithPK(CollectiveTransform("ThanosTX", events.take(maxTransforms))) :: Nil
+    if (events.nonEmpty)
+      WithPK(CollectiveTransform("ThanosTX", events.take(maxTransforms))) :: Nil
+    else
+      Nil
 }
 
 import ee.cone.c4actor.hashsearch.rangers.IndexType._
@@ -251,7 +254,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
 
 }
 
-@assemble class IndexNodeThanos[Model <: Product](
+@assemble class IndexNodeThanosBase[Model <: Product](
   modelCl: Class[Model], val modelId: Int,
   debugMode: Boolean,
   autoCount: Int,
@@ -264,8 +267,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   val rangerRegistryApi: HashSearchRangerRegistryApi,
   val idGenUtil: IdGenUtil
 )
-  extends Assemble
-    with ThanosTimeTypes
+  extends      ThanosTimeTypes
     with IndexNodeThanosUtils[Model] {
 
   type IndexNodeId = SrcId
@@ -555,7 +557,7 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[IndexNode])
       .flatMap(LEvent.delete)
 }
 
-case class SnapTransform(version: String) extends TxTransform {
+case class SnapTransform(srcId: String, fbId: String, version: String) extends TxTransform {
   def transform(local: Context): Context = {
     val versionW = ByPK(classOf[IndexNodesVersion]).of(local).values.headOption.map(_.version).getOrElse("")
     if (version != versionW) {
@@ -568,7 +570,7 @@ case class SnapTransform(version: String) extends TxTransform {
           ByPK(classOf[IndexByNodeLastSeen]).of(local).values ++
           ByPK(classOf[IndexByNodeSettings]).of(local).values ++
           ByPK(classOf[TimeMeasurement]).of(local).values).flatMap(LEvent.delete).toList
-      val add = LEvent.update(IndexNodesVersion(version))
+      val add = LEvent.update(IndexNodesVersion(fbId, version))
       TxAdd(delete ++ add)(local)
     }
     else

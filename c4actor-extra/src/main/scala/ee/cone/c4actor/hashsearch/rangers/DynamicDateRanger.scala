@@ -83,7 +83,7 @@ object K2TreeUtils {
     }
 }
 
-@assemble class K2SparkJoiner[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long)) extends Assemble {
+@assemble class K2SparkJoinerBase[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long))   {
   def SparkK2Tree(
     paramId: SrcId,
     param: Each[K2TreeParams]
@@ -157,7 +157,7 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
   }
 }
 
-@protocol(OperativeCat) object RangeTreeProtocol extends Protocol {
+@protocol(OperativeCat) object RangeTreeProtocolBase   {
 
   @Id(0x0f8e) case class K2TreeParams(
     @Id(0x0f9b) srcId: String,

@@ -35,7 +35,7 @@ class HashSearchExtraTestStart(
     val world = for {
       i ← 1 to 10000
     } yield TestObject(i.toString, 239, i.toHexString)
-    val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test","0" * OffsetHexSize())) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
+    val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test", "0" * OffsetHexSize())) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
@@ -79,7 +79,7 @@ class HashSearchExtraTestStart(
 
 case class CustomResponse(srcId: SrcId, list: List[TestObject])
 
-@assemble class CreateRequest(condition: List[Condition[TestObject]], changingCondition: String ⇒ Condition[TestObject]) extends Assemble {
+@assemble class CreateRequestBase(condition: List[Condition[TestObject]], changingCondition: String ⇒ Condition[TestObject])   {
   def createRequest(
     testId: SrcId,
     test: Each[TestNode]
@@ -128,7 +128,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 }
 
 
-@protocol(TestCat) object EqProtocol extends Protocol {
+@protocol(TestCat) object EqProtocolBase   {
 
   @Id(0xaabc) case class ChangingNode(
     @Id(0xaabd) srcId: String,
@@ -273,6 +273,7 @@ class HashSearchExtraTestApp extends TestRichDataApp
   with HashSearchRangerRegistryMix
   with DefaultModelFactoriesApp
   with CurrentTimeAssembleMix
+  with WithMurMur3HashGenApp
   with ProdLensesApp {
   println(TestProtocolM.adapters.map(a ⇒ a.categories))
 

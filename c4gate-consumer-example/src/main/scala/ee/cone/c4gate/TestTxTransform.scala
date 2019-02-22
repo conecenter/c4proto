@@ -23,7 +23,7 @@ abstract class TestTxTransformApp extends ServerApp
   override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles
 }
 
-@assemble class TestDelayAssemble extends Assemble {
+@assemble class TestDelayAssembleBase   {
   def joinTestHttpPostHandler(
     key: SrcId,
     post: Each[HttpPost]

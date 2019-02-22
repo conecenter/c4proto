@@ -7,13 +7,13 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-@protocol(TestCat) object ConnProtocol extends Protocol {
+@protocol(TestCat) object ConnProtocolBase   {
   @Id(0x0001) case class Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 }
 
 case class ConnNodePath(path: List[Node])
 
-@assemble class ConnAssemble extends Assemble {
+@assemble class ConnAssembleBase   {
   type ParentId = SrcId
 
   def nodesByParentId(

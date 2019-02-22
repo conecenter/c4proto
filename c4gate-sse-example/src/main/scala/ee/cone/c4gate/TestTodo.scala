@@ -41,7 +41,7 @@ class TestTodoApp extends ServerApp
     super.assembles
 }
 
-@protocol(TestCat) object TestTodoProtocol extends Protocol {
+@protocol(TestCat) object TestTodoProtocolBase   {
   @Id(0x0001) case class TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,
@@ -50,8 +50,7 @@ class TestTodoApp extends ServerApp
 }
 
 import TestTodoAccess._
-@fieldAccess
-object TestTodoAccess {
+@fieldAccess object TestTodoAccessBase {
   lazy val comments: ProdLens[TodoTask,String] =
     ProdLens.of(_.comments, UserLabel en "(comments)")
   lazy val createdAt: ProdLens[TodoTask,Long] =

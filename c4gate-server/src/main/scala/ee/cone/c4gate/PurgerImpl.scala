@@ -57,7 +57,7 @@ case class PurgerTx(
   }
 }
 
-@assemble class PurgerAssemble(purger: Purger) extends Assemble {
+@assemble class PurgerAssembleBase(purger: Purger)   {
   def joinPurger(
     key: SrcId,
     first: Each[Firstborn]

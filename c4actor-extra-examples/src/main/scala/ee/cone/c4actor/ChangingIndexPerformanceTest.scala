@@ -12,7 +12,7 @@ import scala.util.Random
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ChangingIndexPerformanceTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 
-@protocol(TestCat) object PerformanceProtocol extends Protocol {
+@protocol(TestCat) object PerformanceProtocolBase   {
 
   @Id(0x0100) case class PerformanceNode(
     @Id(0x0101) srcId: String,
@@ -31,7 +31,7 @@ case class Test[Model, Model2, Model3](model: Model, model2: Model2, model3: Mod
 
 case class Test2[Model, Model2](model: Model, model2: Model2)
 
-@assemble class LUL[Model, Model2, Model3](modelCl: Class[Model], model2: Class[Model2], model3: Class[Model3]) extends Assemble {
+@assemble class LULBase[Model, Model2, Model3](modelCl: Class[Model], model2: Class[Model2], model3: Class[Model3])   {
 
   def test(
     modelId: SrcId,
@@ -51,7 +51,7 @@ case class ResultNode(srcId: SrcId, modelsSize: Int, result: String)
 
 case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
-@assemble class ChangingIndexAssemble(constant: NodeInstruction) extends Assemble {
+@assemble class ChangingIndexAssembleBase(constant: NodeInstruction)   {
   type InstructionId = SrcId
   type TestId = SrcId
 
