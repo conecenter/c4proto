@@ -36,7 +36,7 @@ class ExternalByPKJoin[From <: Product](
   hashGen: HashGen
 ) extends ByPKJoin[From, List[SrcId]] {
 
-  private def create[To <: Product](toCl: Class[To]): EachSubAssemble[To] with ValuesSubAssemble[To] = {
+  private def create[To <: Product](toCl: Class[To]): EachSubAssemble[To] with ValuesSubAssemble[To] with Assemble = {
     externalsMap.get(toCl.getName) match {
       case Some(id) ⇒
         val add = "ext" + lens.metaList.collect { case l: NameMetaAttr ⇒ l.value }.mkString("-")
@@ -53,8 +53,8 @@ class ExternalByPKJoin[From <: Product](
     }
   }
 
-  def toEach[To <: Product](implicit ct: ClassTag[To]): EachSubAssemble[To] = create(ct.runtimeClass.asInstanceOf[Class[To]])
-  def toValues[To <: Product](implicit ct: ClassTag[To]): ValuesSubAssemble[To] = create(ct.runtimeClass.asInstanceOf[Class[To]])
+  def toEach[To <: Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with Assemble = create(ct.runtimeClass.asInstanceOf[Class[To]])
+  def toValues[To <: Product](implicit ct: ClassTag[To]): ValuesSubAssemble[To] with Assemble = create(ct.runtimeClass.asInstanceOf[Class[To]])
 }
 
 object ByPKTypes {

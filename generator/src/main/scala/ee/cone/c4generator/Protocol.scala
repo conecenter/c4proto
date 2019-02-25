@@ -20,7 +20,7 @@ case class ProtoType(
   encodeStatement: (String,String), serializerType: String, empty: String, resultType: String,
   resultFix: String="", reduce: (String,String)=("","")
 )
-case class ProtoMessage(adapterName: String, adapterImpl: String)
+case class ProtoMessage(adapterName: String, statements: List[String])
 case class ProtoMods(id: Option[Int]=None, category: List[String])
 
 object ProtocolGenerator extends Generator {
@@ -146,7 +146,10 @@ object ProtocolGenerator extends Generator {
         val Sys = "Sys(.*)".r
         val (resultType,factoryName) = messageName match { case Sys(v) ⇒ (v,s"${v}Factory") case v ⇒ (v,v) }
         val struct = s"""${factoryName}(${props.map(_.constructArg).mkString(",")})"""
-        val adapterImpl = s"""
+        val statements = List(
+          s"""type ${resultType} = ${objectName}Base.${resultType}""",
+          s"""val ${factoryName} = ${objectName}Base.${factoryName}""",
+          s"""
           object ${resultType}ProtoAdapter extends com.squareup.wire.ProtoAdapter[$resultType](
             com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
             classOf[$resultType]
@@ -181,14 +184,15 @@ object ProtocolGenerator extends Generator {
             }
             def props = List(${props.map(_.metaProp).mkString(",")})
           }
-        """
+        """)
         val regAdapter = s"${resultType}ProtoAdapter"
-        ProtoMessage(regAdapter, adapterImpl) :: Nil
+        ProtoMessage(regAdapter, statements) :: Nil
     }.toList
+    val imports = stats.collect{ case s@q"import ..$i" ⇒ s }
     val res = q"""
-      object ${Term.Name(objectName)} extends Protocol with ..$ext {
-        ..$stats;
-        ..${messages.map(_.adapterImpl.parse[Stat].get)};
+      object ${Term.Name(objectName)} extends Protocol {
+        ..$imports;
+        ..${messages.flatMap(_.statements).map(_.parse[Stat].get)};
         override def adapters = List(..${messages.map(_.adapterName).filter(_.nonEmpty).map(_.parse[Term].get)})
       }"""
     //println(res)
