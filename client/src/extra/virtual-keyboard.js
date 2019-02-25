@@ -97,7 +97,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 		}	
 		getVkContainer(){
 			if(!this.root) return null
-			const vkContainer = this.root.querySelector(".vk-container")
+			const vkContainer = Array.from(this.root.querySelectorAll(".vk-container")).find(_=>_.offsetParent!==null)			
 			if(!vkContainer) return null
 			return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position,o:vkContainer,static:vkContainer.dataset.static}			
 		}

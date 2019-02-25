@@ -1425,7 +1425,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const dataType = this.props.dataType
 			const className = this.props.className
 			const drawFunc = this.props.drawFunc
-			
+			log(this.props.value)
 			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					$("div",{key:"xx",style:inp2ContStyle}, drawFunc(
@@ -2121,11 +2121,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},$("form",{onSubmit:(e)=>{e.preventDefault()}},[
 				$(ControlWrapperElement,{key:"1"},
 					$(LabelElement,{label:usernameCaption},null),
-					$(InputElement,{...attributesA,value:undefined,onChange:this.onChange,vkOnly,style:styleA,dataType, inputType:"input"},null)			
+					$(InputElement,{...attributesA,/*onChange:this.onChange,*/vkOnly,style:styleA,dataType, inputType:"input"},null)			
 				),
 				$(ControlWrapperElement,{key:"2"},
 					$(LabelElement,{label:passwordCaption},null),
-					$(InputElement,{...attributesB,vkOnly,value:undefined,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
+					$(InputElement,{...attributesB,vkOnly,style:styleB,/*onChange:this.onChange,*/onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
 				),
 				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
 					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
@@ -2789,6 +2789,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if((this.props.value == "undefined"||this.props.value == "") && this.props.value!=this.props.path)  this.findAutofocusCandidate(this.el)			
 		}
 		onBBlur(e){			
+			if(!this.el || !this.el.ownerDocument) return
 			if(this.el.ownerDocument.activeElement.tagName=="BODY") {
 				//log("blur",e,e.relatedTarget,e.target)			
 				this.report(this.props.path)

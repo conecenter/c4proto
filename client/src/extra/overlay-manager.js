@@ -1,5 +1,5 @@
 export default function OverlayManager({log,documentManager,windowManager,mountNode}){
-	const {setTimeout,clearTimeout,screenRefresh} = windowManager
+	const {setTimeout,clearTimeout,screenRefresh,getComputedStyle} = windowManager
 	const {createElement,body} = documentManager
 	let stopCircular = false
 	let circularTimer = null
@@ -17,6 +17,7 @@ export default function OverlayManager({log,documentManager,windowManager,mountN
 		if(stopCircular) return 
 		const els = getEls()
 		els.forEach(el=>{
+			el.style.display = mountNode&&getComputedStyle(mountNode).display=="none"?"none":""			
 			const markedInnerPath = el.querySelector('path[data-selected="true"]')
 			const nextMarkedInnerPath = markedInnerPath.previousElementSibling?markedInnerPath.previousElementSibling:markedInnerPath.parentNode.lastElementChild			
 			markedInnerPath.style.fill = 'white'
@@ -33,12 +34,20 @@ export default function OverlayManager({log,documentManager,windowManager,mountN
 			if(getEls().length>0) return
 			killTimers();stopCircular = false
 			const el=createElement("div");
+			const bRect = mountNode?mountNode.getBoundingClientRect():null
+			const sRect = bRect?{
+				top:bRect.top+"px",
+				left:bRect.left+"px",
+				width:bRect.width+"px",
+				height:bRect.height?bRect.height+"px":`calc(100vh - ${bRect.top}px)`
+				}:null			
 			const style={
+				display:mountNode&&getComputedStyle(mountNode).display=="none"?"none":"",
 				position:"fixed",
-				top:"0rem",
-				left:"0rem",
-				width:"100vw",
-				height:"100vh",
+				top:sRect?sRect.top:"0",
+				left:sRect?sRect.left:"0",
+				width:sRect?sRect.width:"100vw",
+				height:sRect?sRect.height:"100vh",
 				zIndex:"10011",
 				color:"wheat",
 				textAlign:"center",
