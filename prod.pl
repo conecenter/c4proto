@@ -6,6 +6,7 @@ use Digest::MD5 qw(md5_hex);
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ print "$_\n" and return scalar `$_` for @_ }
+sub syl{ print "$_\n" and return `$_` for @_ }
 
 sub lazy(&){ my($calc)=@_; my $res; sub{ ($res||=[scalar &$calc()])->[0] } }
 
@@ -187,7 +188,7 @@ my $list_snapshots = sub{
     my($comp,$opt)=@_;
     my $ls = &$remote_acc($comp,"ls $opt /c4/db4/snapshots");
     print "$ls\n";
-    `$ls`;
+    syl($ls);
 };
 
 my $get_sm_binary = sub{
@@ -350,16 +351,21 @@ push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
 #    }
 #}];
 
+my $docker_exec_java = sub{
+    my($container,$cmd)=@_;
+    qq[docker exec $container sh -c "JAVA_TOOL_OPTIONS= $cmd"]
+};
+
 push @tasks, ["gc","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
     for my $c(&$running_containers($comp)){
         #print "container: $c\n";
-        my $cmd = &$remote($comp,"docker exec $c jcmd");
-        for(`$cmd`){
+        my $cmd = &$remote($comp,&$docker_exec_java($c,"jcmd"));
+        for(syl($cmd)){
             my $pid = /^(\d+)/ ? $1 : next;
             /JCmd/ && next;
-            sy(&$remote($comp,"docker exec $c jcmd $pid GC.run"));
+            sy(&$remote($comp,&$docker_exec_java($c,"jcmd $pid GC.run")));
         }
     }
 }];
@@ -955,7 +961,7 @@ my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
 my $tp_run = sub{
     my($pkg,$wrap)=@_;
     my $cmd = &$wrap("jcmd");
-    my @pid = map{/^(\d+)\s+(\S+)/ && index($2, $pkg)==0?"$1":()} `$cmd`;
+    my @pid = map{/^(\d+)\s+(\S+)/ && index($2, $pkg)==0?"$1":()} syl($cmd);
     my $pid = $pid[0] || return;
     while(1){
         select undef, undef, undef, 0.25;
@@ -971,7 +977,7 @@ push @tasks, ["thread_print","$composes_txt-<service> <package>",sub{
     my($app,$pkg)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    &$tp_run($pkg,sub{ &$remote($comp,"docker exec $comp\_$service\_1 $_[0]") });#/RUNNABLE/
+    &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$docker_exec_java("$comp\_$service\_1",$cmd)) });#/RUNNABLE/
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
