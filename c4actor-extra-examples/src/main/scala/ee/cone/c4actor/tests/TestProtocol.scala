@@ -1,11 +1,19 @@
 package ee.cone.c4actor.tests
 
 import ee.cone.c4actor.TestProtocol
-import ee.cone.c4proto.{Cat, Id, Protocol, protocol, OrigCategory}
+import ee.cone.c4proto._
 
-@protocol(Cat1) object TestProtocolMBase  {
-    @Id(1) @Cat(Cat2, Cat1) case class LUL ()
-    @Id(2)  @Cat(Cat1) case class LUL2 ()
+@protocol(Cat1) object TestProtocolMBase {
+
+  @Sh("KEK")
+  @Id(1)
+  @Cat(Cat2, Cat1) case class LUL(
+    @Sh("LUL") @Id(2) test: String
+  )
+
+  @Id(2)
+  @Cat(Cat1) case class LUL2()
+
 }
 
 case object Cat1 extends OrigCategory {

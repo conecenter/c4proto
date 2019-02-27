@@ -21,11 +21,17 @@ case class ProtoType(
   resultFix: String="", reduce: (String,String)=("","")
 )
 case class ProtoMessage(adapterName: String, statements: List[String])
-case class ProtoMods(id: Option[Int]=None, category: List[String])
+case class ProtoMods(id: Option[Int]=None, category: List[String], shortName: Option[String] = None)
+case class FieldMods(id: Option[Int]=None, shortName: Option[String] = None)
 
 object ProtocolGenerator extends Generator {
   def parseArgs: Seq[Seq[Term]] ⇒ List[String] =
     _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
+
+  def deOpt: Option[String] ⇒ String = {
+    case None ⇒ "None"
+    case Some(a) ⇒ s"""Some("$a")"""
+  }
 
   def get: Get = { case code@q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" ⇒ Util.unBase(objectName,objectNameNode.pos.end){ objectName ⇒
 
@@ -42,6 +48,8 @@ object ProtocolGenerator extends Generator {
             pMods.copy(category = parseArgs(exprss) ::: old)
           case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty ⇒
             pMods.copy(id=Option(id))
+          case mod"@Sh(${Lit(shortName:String)})" if pMods.shortName.isEmpty ⇒
+            pMods.copy(shortName=Option(shortName))
           case mod"@deprecated" ⇒ pMods
         })
         val adapterOf: String=>String = {
@@ -54,7 +62,12 @@ object ProtocolGenerator extends Generator {
         }
         val props: List[ProtoProp] = params.map{
           case param"..$mods ${Term.Name(propName)}: $tpeopt = $v" ⇒
-            val Seq(mod"@Id(${Lit(id:Int)})") = mods
+            val fieldProps = mods./:(FieldMods())((fMods, mod) ⇒ mod match {
+              case mod"@Id(${Lit(id:Int)})" ⇒
+                fMods.copy(id = Option(id))
+              case mod"@Sh(${Lit(shortName:String)})" ⇒
+                fMods.copy(shortName = Option(shortName))
+            })
             val tp = tpeopt.asInstanceOf[Option[Type]].get
             /*
             val (tp,meta) = tpe.get match {
@@ -132,7 +145,7 @@ object ProtocolGenerator extends Generator {
                 case t"$tpe" ⇒ s"""ee.cone.c4proto.TypeProp(classOf[$tpe].getName, "$tpe", Nil)"""
               }
             }
-
+            val id = fieldProps.id.get
             ProtoProp(
               sizeStatement = s"${pt.encodeStatement._1} res += ${pt.serializerType}.encodedSizeWithTag($id, ${pt.encodeStatement._2}",
               encodeStatement = s"${pt.encodeStatement._1} ${pt.serializerType}.encodeWithTag(writer, $id, ${pt.encodeStatement._2}",
@@ -140,7 +153,7 @@ object ProtocolGenerator extends Generator {
               decodeCase = s"case $id => prep_$propName = ${pt.reduce._1} ${pt.serializerType}.decode(reader) ${pt.reduce._2}",
               constructArg = s"prep_$propName",
               resultFix = if(pt.resultFix.nonEmpty) s"prep_$propName = ${pt.resultFix}" else "",
-              metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName","${pt.resultType}", ${parseType(tp)})"""
+              metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName",${deOpt(fieldProps.shortName)},"${pt.resultType}", ${parseType(tp)})"""
             )
         }.toList
         val Sys = "Sys(.*)".r
@@ -159,6 +172,7 @@ object ProtocolGenerator extends Generator {
             val ${messageName}_categories = List(${protoMods.category.mkString(", ")}).distinct
             def categories = ${messageName}_categories
             def className = classOf[$resultType].getName
+            def shortName = ${deOpt(protoMods.shortName)}
             def encodedSize(value: $resultType): Int = {
               val $struct = value
               var res = 0;
