@@ -48,7 +48,7 @@ object ProtocolGenerator extends Generator {
             pMods.copy(category = parseArgs(exprss) ::: old)
           case mod"@Id(${Lit(id:Int)})" if pMods.id.isEmpty ⇒
             pMods.copy(id=Option(id))
-          case mod"@Sh(${Lit(shortName:String)})" if pMods.shortName.isEmpty ⇒
+          case mod"@ShortName(${Lit(shortName:String)})" if pMods.shortName.isEmpty ⇒
             pMods.copy(shortName=Option(shortName))
           case mod"@deprecated" ⇒ pMods
         })
@@ -65,7 +65,7 @@ object ProtocolGenerator extends Generator {
             val fieldProps = mods./:(FieldMods())((fMods, mod) ⇒ mod match {
               case mod"@Id(${Lit(id:Int)})" ⇒
                 fMods.copy(id = Option(id))
-              case mod"@Sh(${Lit(shortName:String)})" ⇒
+              case mod"@ShortName(${Lit(shortName:String)})" ⇒
                 fMods.copy(shortName = Option(shortName))
             })
             val tp = tpeopt.asInstanceOf[Option[Type]].get

@@ -5,10 +5,10 @@ import ee.cone.c4proto._
 
 @protocol(Cat1) object TestProtocolMBase {
 
-  @Sh("KEK")
+  @ShortName("KEK")
   @Id(1)
   @Cat(Cat2, Cat1) case class LUL(
-    @Sh("LUL") @Id(2) test: String
+    @ShortName("LUL") @Id(2) test: String
   )
 
   @Id(2)
