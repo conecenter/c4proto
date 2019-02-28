@@ -21,6 +21,8 @@ trait IndexUtil extends Product {
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
   def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ DPIterable[Any] //m
+  def mayBePar[V](iterable: Iterable[V]): DPIterable[V]
+  def isParallel: Boolean
 }
 
 object Types {
