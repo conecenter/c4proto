@@ -79,7 +79,7 @@ class AssemblerInit(
     val end = NanoTimer()
     val nAssembled = reduce(replace, assembled, realDiff)
     val period = end.ms
-    if(period > 1000) logger.info(s"long join $period ms")
+    if(period > 1000) logger.info(s"${if(composes.isParallel) "fully-parallel" else "outer-parallel"} long join $period ms")
     nAssembled
   } catch {
     case NonFatal(e) ⇒
