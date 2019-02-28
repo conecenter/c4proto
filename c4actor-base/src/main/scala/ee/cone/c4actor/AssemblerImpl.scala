@@ -34,7 +34,6 @@ class AssemblerInit(
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
   getDependencies: ()⇒List[DataDependencyTo[_]],
-  isParallel: Boolean,
   composes: IndexUtil,
   origKeyFactory: OrigKeyFactory,
   assembleProfiler: AssembleProfiler,
@@ -66,7 +65,7 @@ class AssemblerInit(
 
   // read model part:
   private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel = {
-    val res = replace(wasAssembled,diff,isParallel,assembleProfiler.createJoiningProfiling(None)).map(_.result)
+    val res = replace(wasAssembled,diff,/*isParallel*/true,assembleProfiler.createJoiningProfiling(None)).map(_.result)
     concurrent.blocking{Await.result(res, Duration.Inf)}
   }
 
@@ -76,7 +75,7 @@ class AssemblerInit(
   } yield toUpdate.toUpdate(lEvent)
   private def readModelAdd(replace: Replace): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ try {
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
-    val realDiff = toTree(assembled, if(isParallel) updates.par else updates)
+    val realDiff = toTree(assembled, composes.mayBePar(updates))
     val end = NanoTimer()
     val nAssembled = reduce(replace, assembled, realDiff)
     val period = end.ms
@@ -100,7 +99,7 @@ class AssemblerInit(
   private def add(out: Seq[Update]): Context ⇒ Context = {
     if (out.isEmpty) identity[Context]
     else { local ⇒
-      val processedOut = processors.par.flatMap(_.process(out)).to[Seq] ++ out
+      val processedOut = composes.mayBePar(processors).flatMap(_.process(out)).to[Seq] ++ out
       val externalOut = externalUpdateProcessor.process(processedOut)
       val diff = toTree(local.assembled, externalOut)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))

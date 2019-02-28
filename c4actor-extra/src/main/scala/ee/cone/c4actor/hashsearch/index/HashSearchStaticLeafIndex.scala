@@ -55,10 +55,11 @@ object StaticHashSearchImpl {
   class StaticFactoryImpl(
     modelConditionFactory: ModelConditionFactory[Unit],
     serializer: SerializationUtils,
-    idGenUtil: IdGenUtil
+    idGenUtil: IdGenUtil,
+    indexUtil: IndexUtil
   ) extends StaticFactory {
     def index[Model <: Product](cl: Class[Model]): Indexer[Model] =
-      EmptyIndexer[Model]()(cl, modelConditionFactory.ofWithCl[Model](cl), serializer)
+      EmptyIndexer[Model]()(cl, modelConditionFactory.ofWithCl[Model](cl), serializer, indexUtil)
 
     def request[Model <: Product](condition: Condition[Model]): Request[Model] =
       Request(idGenUtil.srcIdFromStrings(condition.toString), condition)
@@ -91,6 +92,7 @@ object StaticHashSearchImpl {
     val modelClass: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
     val serializer: SerializationUtils,
+    indexUtil: IndexUtil,
     debugMode: Boolean = false
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = None
@@ -99,7 +101,7 @@ object StaticHashSearchImpl {
 
     def isMy(cond: InnerLeaf[Model]): Boolean = false
 
-    def assemble: List[Assemble] = new StaticAssembleShared(modelClass, debugMode) :: Nil
+    def assemble: List[Assemble] = new StaticAssembleShared(modelClass, debugMode, indexUtil) :: Nil
   }
 
   case class IndexerImpl[By <: Product, Model <: Product, Field](
@@ -166,8 +168,9 @@ trait HashSearchStaticLeafFactoryApi {
 trait HashSearchStaticLeafFactoryMix extends HashSearchStaticLeafFactoryApi with SerializationUtilsApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
   def idGenUtil: IdGenUtil
+  def indexUtil: IndexUtil
 
-  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, idGenUtil)
+  def staticLeafFactory: StaticFactory = new StaticFactoryImpl(modelConditionFactory, serializer, idGenUtil, indexUtil)
 }
 
 import StaticHashSearchImpl._
@@ -213,7 +216,8 @@ import StaticHashSearchImpl._
 
 @assemble class StaticAssembleSharedBase[Model <: Product](
   modelCl: Class[Model],
-  debugMode: Boolean// = false
+  debugMode: Boolean,// = false
+  indexUtil: IndexUtil
 ) extends   HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
@@ -231,10 +235,7 @@ import StaticHashSearchImpl._
     @by[SharedHeapId] request: Each[InnerUnionList[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
     //TimeColored("r", ("handleRequest", heapId, requests.size, responses.size), requests.isEmpty || !debugMode) {
-    val lines = for {
-      line ← responses.par
-      if request.check(line)
-    } yield line
+    val lines = indexUtil.mayBePar(responses).filter(request.check)
     List(request.srcId → ResponseModelList(request.srcId + heapId, lines.toList))
     //}
   }

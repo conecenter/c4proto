@@ -64,13 +64,13 @@ trait HashSearchModelsApp extends DynamicIndexModelsApp {
 
 trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with SerializationUtilsApp with PreHashingApp {
   def qAdapterRegistry: QAdapterRegistry
-
+  def indexUtil: IndexUtil
   def idGenUtil: IdGenUtil
   def hashGen: HashGen
 
   def debugModeHashSearchAssemble: Boolean = false
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, preHashing, hashGen, debugModeHashSearchAssemble)) ::: super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, preHashing, hashGen, debugModeHashSearchAssemble, indexUtil)) ::: super.assembles
 }
 
 object HashSearchAssembleUtils {
@@ -165,7 +165,8 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   condSer: SerializationUtils,
   preHashing: PreHashing,
   hashGen: HashGen,
-  debugMode: Boolean // = false
+  debugMode: Boolean, // = false
+  indexUtil: IndexUtil
 ) extends   HashSearchAssembleSharedKeys {
   type InnerUnionId = SrcId
   type InnerIntersectId = SrcId
@@ -280,7 +281,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     TimeColored("g", ("ResponsesToRequest", responses.size, responses.map(_.modelList.size).sum), doNotPrint = !debugMode) {
       val distinctList = MergeBySrcId(responses.map(_.modelList))
       val result = for {
-        root ← rootConditions.par
+        root ← indexUtil.mayBePar(rootConditions)
       } yield {
         root.requestId → ResponseModelList(root.requestId + innerUnionId, distinctList)
       }
