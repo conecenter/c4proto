@@ -158,13 +158,16 @@ case class IndexUtilImpl(isParallel: Boolean)(
   def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ DPIterable[Any] = {
     val diffKeySet = diffIndexSeq.map(keySet).reduce(_ ++ _)
     val res = if(diffKeySet.contains(All)){
-      (indexSeq: Seq[Index]) ⇒ (indexSeq.map(keySet).reduce(_ ++ _) - All).to[ParVector]
+      (indexSeq: Seq[Index]) ⇒ mayBeParVector(indexSeq.map(keySet).reduce(_ ++ _) - All)
     } else {
-      val ids = diffKeySet.to[ParVector]
+      val ids = mayBeParVector(diffKeySet)
       (indexSeq:Seq[Index]) ⇒ ids
     }
     res
   }
+
+  def mayBeParVector[V](iterable: immutable.Set[V]): DPIterable[V] =
+    if(isParallel) iterable.to[ParVector] else iterable
 
   def mayBePar[V](iterable: immutable.Iterable[V]): DPIterable[V] =
     if(isParallel) iterable.par else iterable
