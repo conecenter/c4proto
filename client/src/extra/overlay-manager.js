@@ -1,4 +1,4 @@
-export default function OverlayManager({log,documentManager,windowManager,mountNode}){
+export default function OverlayManager({log,documentManager,windowManager,getMountNode}){
 	const {setTimeout,clearTimeout,screenRefresh,getComputedStyle} = windowManager
 	const {createElement,body} = documentManager
 	let stopCircular = false
@@ -17,7 +17,9 @@ export default function OverlayManager({log,documentManager,windowManager,mountN
 		if(stopCircular) return 
 		const els = getEls()
 		els.forEach(el=>{
-			el.style.display = mountNode&&getComputedStyle(mountNode).display=="none"?"none":""			
+			const mountNode = getMountNode()
+			el.style.display = mountNode&&getComputedStyle(mountNode).display=="none"?"none":""
+			if(mountNode) el.style.width = mountNode.getBoundingClientRect().width + "px"
 			const markedInnerPath = el.querySelector('path[data-selected="true"]')
 			const nextMarkedInnerPath = markedInnerPath.previousElementSibling?markedInnerPath.previousElementSibling:markedInnerPath.parentNode.lastElementChild			
 			markedInnerPath.style.fill = 'white'
@@ -33,6 +35,7 @@ export default function OverlayManager({log,documentManager,windowManager,mountN
 		if(on){			
 			if(getEls().length>0) return
 			killTimers();stopCircular = false
+			const mountNode = getMountNode()
 			const el=createElement("div");
 			const bRect = mountNode?mountNode.getBoundingClientRect():null
 			const sRect = bRect?{

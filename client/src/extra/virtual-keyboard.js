@@ -15,6 +15,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 		return {add,remove,check}
 	})();
 	const getReactRoot = (el) => el.ownerDocument.body
+	const isNodePosition = (el,v) => el.ownerDocument.defaultView.getComputedStyle(el).position == v
 	const {setTimeout,getWindowRect} = windowManager
 	const getPageYOffset = (el) => el&&el.ownerDocument&&el.ownerDocument.defaultView?el.ownerDocument.defaultView.pageYOffset:0
 	const GlobalStyles = (()=>{
@@ -97,7 +98,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 		}	
 		getVkContainer(){
 			if(!this.root) return null
-			const vkContainer = Array.from(this.root.querySelectorAll(".vk-container")).find(_=>_.offsetParent!==null)			
+			const vkContainer = Array.from(this.root.querySelectorAll(".vk-container")).find(_=>_.offsetParent!==null||isNodePosition(_,"fixed"))			
 			if(!vkContainer) return null
 			return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position,o:vkContainer,static:vkContainer.dataset.static}			
 		}
