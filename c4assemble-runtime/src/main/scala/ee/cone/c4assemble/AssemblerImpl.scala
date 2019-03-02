@@ -8,6 +8,7 @@ import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 
+import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
 import scala.collection.parallel.immutable.ParVector
 import scala.concurrent.Future
@@ -81,7 +82,7 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
-case class IndexUtilImpl()(
+case class IndexUtilImpl(isParallel: Boolean)(
   val nonEmptySeq: Seq[Unit] = Seq(()),
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v⇒v.isEmpty,
@@ -143,12 +144,12 @@ case class IndexUtilImpl()(
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
-      val changed = (for {
+      val changed = mayBePar(for {
         (k,v) ← diffValues; values ← currentValues.get(k)
-      } yield IndexUtilImpl.single(values,warning)).par
-      lazy val unchanged = (for {
+      } yield IndexUtilImpl.single(values,warning))
+      lazy val unchanged = mayBePar(for {
         (k,values) ← currentValues if !diffValues.contains(k)
-      } yield IndexUtilImpl.single(values,warning)).par
+      } yield IndexUtilImpl.single(values,warning))
       val unchangedRes = (false,()⇒unchanged) :: Nil
       if(changed.nonEmpty) (true,()⇒changed) :: unchangedRes else unchangedRes
     }
@@ -157,13 +158,19 @@ case class IndexUtilImpl()(
   def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ DPIterable[Any] = {
     val diffKeySet = diffIndexSeq.map(keySet).reduce(_ ++ _)
     val res = if(diffKeySet.contains(All)){
-      (indexSeq: Seq[Index]) ⇒ (indexSeq.map(keySet).reduce(_ ++ _) - All).to[ParVector]
+      (indexSeq: Seq[Index]) ⇒ mayBeParVector(indexSeq.map(keySet).reduce(_ ++ _) - All)
     } else {
-      val ids = diffKeySet.to[ParVector]
+      val ids = mayBeParVector(diffKeySet)
       (indexSeq:Seq[Index]) ⇒ ids
     }
     res
   }
+
+  def mayBeParVector[V](iterable: immutable.Set[V]): DPIterable[V] =
+    if(isParallel) iterable.to[ParVector] else iterable
+
+  def mayBePar[V](iterable: immutable.Iterable[V]): DPIterable[V] =
+    if(isParallel) iterable.par else iterable
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,6 +185,11 @@ class IndexFactoryImpl(
       with DataDependencyTo[Index]
   = new JoinMapIndex(join, updater, util)
 }
+
+/*
+trait ParallelAssembleStrategy {
+
+}*/
 
 class JoinMapIndex(
   join: Join,
@@ -208,7 +220,7 @@ class JoinMapIndex(
           inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
           profiler = transition.profiling
           calcStart = profiler.time
-          joinRes = join.joins(Seq(-1→prevInputs, +1→inputs).par, worldDiffs)
+          joinRes = join.joins(composes.mayBePar(Seq(-1→prevInputs, +1→inputs)), worldDiffs)
           calcLog = profiler.handle(join, 0L, calcStart, joinRes, Nil)
           findChangesStart = profiler.time
           indexDiff = composes.mergeIndex(joinRes)

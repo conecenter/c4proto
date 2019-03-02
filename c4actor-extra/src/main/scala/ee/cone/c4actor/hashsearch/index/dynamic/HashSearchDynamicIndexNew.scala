@@ -17,16 +17,19 @@ trait HashSearchDynamicIndexApp
     with LensRegistryApp
     with HashSearchRangerRegistryApp
     with IdGenUtilApp
-    with DefaultModelRegistryApp {
+    with DefaultModelRegistryApp
+{
+  def indexUtil: IndexUtil
+
   override def assembles: List[Assemble] = {
     val models: List[ProductWithId[_ <: Product]] = dynIndexModels.distinct
     val rangerWiseAssemble: List[HashSearchDynamicIndexNew[_ <: Product, Product, Any]] = models.flatMap(model ⇒ getAssembles(model))
     val availableModels = rangerWiseAssemble.map(_.modelId)
-    val modelOnlyAssembles: List[Assemble] = models.map { model ⇒ new HashSearchDynamicIndexCommon(model.modelCl, model.modelCl, model.modelId, idGenUtil) }.filter(id ⇒ availableModels.contains(id.modelId))
+    val modelOnlyAssembles: List[Assemble] = models.map { model ⇒ new HashSearchDynamicIndexCommon(model.modelCl, model.modelCl, model.modelId, idGenUtil, indexUtil) }.filter(id ⇒ availableModels.contains(id.modelId))
     rangerWiseAssemble ::: modelOnlyAssembles ::: super.assembles
   }
 
-    def createAssemble[Model <: Product, By <: Product, Field ](a: Class[Model], b: Class[By], c: Class[Field])(
+  def createAssemble[Model <: Product, By <: Product, Field ](a: Class[Model], b: Class[By], c: Class[Field])(
     modelId: Int,
     byId: Long,
     ranger: RangerWithCl[_ <: Product, _]
@@ -338,7 +341,8 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
   modelCl: Class[Model],
   val modelClass: Class[_],
   val modelId: Int,
-  val idGenUtil: IdGenUtil
+  val idGenUtil: IdGenUtil,
+  indexUtil: IndexUtil
 ) extends   DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
   type InnerIndexModel = SrcId
   type OuterDynamicHeapId = SrcId
@@ -398,10 +402,7 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
     @by[OuterDynamicHeapId] @distinct models: Values[Model],
     @by[SharedHeapId] request: Each[InnerUnionList[Model]]
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
-    val lines = for {
-      line ← models.par
-      if request.check(line)
-    } yield line
+    val lines = indexUtil.mayBePar(models).filter(request.check)
     (request.srcId → ResponseModelList[Model](request.srcId + heapId, lines.toList)) :: Nil
   }
 }

@@ -240,8 +240,9 @@ trait TestCondition extends SerializationUtilsApp {
   def conditions: List[Condition[TestObject]] = condition1 /*:: condition2*//*:: condition3*/ :: Nil
 
   def idGenUtil: IdGenUtil
+  def indexUtil: IndexUtil
 
-  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer, idGenUtil)
+  def factory = new StaticFactoryImpl(new ModelConditionFactoryImpl, serializer, idGenUtil, indexUtil)
 
   def joiners: List[Assemble] = Nil
 

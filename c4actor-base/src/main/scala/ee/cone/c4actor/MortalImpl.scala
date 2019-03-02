@@ -26,7 +26,7 @@ object Killing {
   ): Values[(KillerId,Killing)] = if(keepAlive.nonEmpty) Nil else for {
     ev ← LEvent.delete(mortal)
     killing ← Seq(Killing(anUUIDUtil.srcIdFromSrcIds(ev.srcId,ev.className/*it's just string*/),ev))
-  } yield killing.hash.substring(0,1) → killing
+  } yield s"killing" → killing //scaling: killing.hash.substring(0,1)
 }
 
 @assemble class MortalFatalityAssembleBase   {
