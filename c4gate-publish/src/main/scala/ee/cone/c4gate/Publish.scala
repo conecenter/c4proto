@@ -6,7 +6,6 @@ import java.nio.file._
 
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
-import okio.{Buffer, ByteString, GzipSink}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
