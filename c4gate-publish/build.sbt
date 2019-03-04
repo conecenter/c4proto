@@ -1,2 +1,0 @@
-
-enablePlugins(JavaServerAppPackaging)
