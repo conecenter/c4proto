@@ -41,7 +41,7 @@ import ReactDOM from 'react-dom'
 import autoBind from 'react-autobind'
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
-const feedback = Feedback(localStorage,sessionStorage,document.location,send)
+const feedback = Feedback(localStorage,sessionStorage,document.location,send,setTimeout)
 window.onhashchange = () => feedback.pong()
 const requestState = VDomSender(feedback)
 const log = (...v) => { if(!window.console) console.log("log",...v)}

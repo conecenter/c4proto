@@ -1,6 +1,19 @@
 
 import React from 'react'
 
+export function ExampleComponents(components){
+    const {ReControlledInput} = components
+    const ExampleInput = prop => {
+        const style = prop.changing ? {...prop.style, backgroundColor: "yellow"} : prop.style
+        return React.createElement(ReControlledInput, {...prop, style}, null)
+    }
+    const transforms= {
+        tp: ({ExampleInput})
+    };
+    return ({transforms});
+
+}
+
 export function ExampleAuth(pairOfInputAttributes,components){
     const {ReControlledInput} = components
     const ChangePassword = prop => {

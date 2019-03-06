@@ -17,7 +17,7 @@ abstract class ElementValue extends VDomValue {
 case class InputTextElement[State](value: String, deferSend: Boolean, placeholder: String)(
   input: TagJsonUtils, val receive: VDomMessage ⇒ State ⇒ State
 ) extends ElementValue with Receiver[State] {
-  def elementType = "ReControlledInput"
+  def elementType = "ExampleInput"
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     builder.append("type").append("text")
     input.appendInputAttributes(builder, value, deferSend)
@@ -49,11 +49,12 @@ class TestTags[State](
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
 
-  def input(access: Access[String]): ChildPair[OfDiv] = {
+  def input(access: Access[String]): ChildPair[OfDiv] = input(access, deferSend = true)
+  def input(access: Access[String], deferSend: Boolean): ChildPair[OfDiv] = {
     val name = access.metaList.collect{ case l: NameMetaAttr ⇒ l.value }.mkString(".")
     access.updatingLens.map { lens ⇒
       val placeholder = access.metaList.collect{ case l: UserLabel ⇒ l.values.get("en") }.flatten.lastOption.getOrElse("")
-      val input = InputTextElement(access.initialValue, deferSend = true, placeholder)(
+      val input = InputTextElement(access.initialValue, deferSend, placeholder)(
         inputAttributes,
         message ⇒ lens.set(messageStrBody(message))
       )
@@ -65,7 +66,7 @@ class TestTags[State](
     input(access to ProdLens[Option[Long],String](Nil)(
       _.map(_.toString).getOrElse(""),
       s⇒_⇒ for(s←Option(s) if s.nonEmpty) yield s.toLong
-    ))
+    ), deferSend = false)
 
   def signIn(change: String ⇒ State ⇒ State): ChildPair[OfDiv] =
     child[OfDiv]("signIn", SignIn()(inputAttributes,

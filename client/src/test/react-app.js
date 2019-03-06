@@ -10,7 +10,7 @@ import {VDomSender,pairOfInputAttributes} from "../main/vdom-util"
 import {mergeAll}    from "../main/util"
 import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
-import {ExampleAuth} from "../test/vdom-auth"
+import {ExampleAuth,ExampleComponents} from "../test/vdom-components"
 import {ExampleRequestState} from "../test/request-state"
 import CanvasExtraMix from "../extra/canvas-extra-mix"
 import {CanvasBaseMix,CanvasSimpleMix} from "../main/canvas-mix"
@@ -20,7 +20,7 @@ function fail(data){ alert(data) }
 
 const send = fetch
 
-const feedback = Feedback(localStorage,sessionStorage,document.location,send)
+const feedback = Feedback(localStorage,sessionStorage,document.location,send,setTimeout)
 window.onhashchange = () => feedback.pong()
 const sender = VDomSender(feedback)
 const exampleRequestState = ExampleRequestState(sender)
@@ -36,8 +36,9 @@ const canvasMods = [CanvasBaseMix(log,util),exchangeMix,CanvasExtraMix(log)]
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, log)
 
 const vDomAttributes = VDomAttributes(exampleRequestState)
+const exampleComponents = ExampleComponents(vDomAttributes.transforms.tp)
 const exampleAuth = ExampleAuth(pairOfInputAttributes,vDomAttributes.transforms.tp)
-const transforms = mergeAll([vDomAttributes.transforms, exampleAuth.transforms, canvas.transforms])
+const transforms = mergeAll([vDomAttributes.transforms, exampleComponents.transforms, exampleAuth.transforms, canvas.transforms])
 
 const vDom = VDomCore(log,transforms,getRootElement)
 

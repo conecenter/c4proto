@@ -15,8 +15,8 @@ function ctxToPatch(ctx,res){
 const setDeferred = (ctx,target) => {
     const rCtx = rootCtx(ctx)
     const path = ctxToPath(ctx)
-    const patch = ctxToPatch(ctx, {value: target.value})
-    const change = ({ctx,target,patch})
+    const patch = ctxToPatch(ctx, { value: target.value, changing: true })
+    const change = ({ctx,target:{...target,skipByPath:true},patch})
     rCtx.modify("CHANGE_SET",branchByKey.one(rCtx.branchKey,localByKey.one(path, st => change)))
 }
 const sendDeferred = (sender,ctx) => {
