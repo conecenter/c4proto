@@ -45,14 +45,19 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 			return {version:0}
 		}
 		componentDidMount(){
-			if(!this.props.host) return
+			if(!this.props.host||!this.el) return
 			customTerminal().forEach(t=>t.init(this.props.host.split(":")[0],this.props.host.split(":")[1],this.props.username,this.props.password,(this.props.params||0),this.props.wrk,this.props.ps));
 			log("term mount")
+			this.le= this.el.ownerDocument.defaultView.logoutTrigger && this.el.ownerDocument.defaultView.logoutTrigger.reg(this.el,this.reset)
+		}
+		reset(){
+			this.setState({version:this.state.version+1})
 		}
 		componentWillUnmount(){
 			if(!this.props.host) return
 			customTerminal().forEach(t=>t.destroy());
 			log("term unmount")
+			this.le && this.le.unreg()
 		}
 		componentDidUpdate(prevProps, prevState){
 			if(!this.props.host) return
@@ -75,11 +80,11 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 			}
 			const className = !this.props.host?"dummyTerminal":"terminalElement"
 			return $(React.Fragment,{},[
-				$("div",{key:"term",className:className,version:this.props.version,style},
+				$("div",{key:"term",ref:ref=>this.el=ref,className:className,version:this.props.version,style},
 					$("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
 				),
 				$(ControlWrapperElement,{key:"btn",style:{alignSelf:"center",display:"inline-block",outlineWidth:"0.1em",padding:"0em",width:"auto"}},
-					$(ButtonElement,{key:"btn",onClick:()=>this.setState({version:this.state.version+1}),
+					$(ButtonElement,{key:"btn",onClick:this.reset,
 						overStyle:{backgroundColor:DarkPrimaryColor,color:"white"},
 						style:{backgroundColor:PrimaryColor,color:"white",fontSize:"1.5em",position:"relative",zIndex:"1"}
 						},"Reconnect")
@@ -240,10 +245,22 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 			return $("span",{style:{alignSelf:"center"}}, children);
 		}
 	}	
+	class LogoutTriggerElement extends StatefulComponent{
+		componentWillUnmount(){
+			this.el&&this.binding&&this.binding.unreg()
+		}
+		componentDidMount(){
+			if(!this.el) return
+			this.binding = this.el.ownerDocument.defaultView.logoutTrigger&&this.el.ownerDocument.defaultView.logoutTrigger.reg(this.el,this.props.onClick)
+		}
+		render(){			
+			return $("div",{ref:ref=>this.el=ref, style:{display:"none"}})
+		}		
+	}
 	const transforms= {
 		tp:{
 			StatusElement,TerminalElement,MJobCell,CustomMeasurerConnectionState,			
-			ScannerProxyElement,OCRScannerElement
+			ScannerProxyElement,OCRScannerElement, LogoutTriggerElement
 		}		
 	}
 	return ({transforms})
