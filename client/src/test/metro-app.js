@@ -129,7 +129,7 @@ const vDomAttributes = VDomAttributes(requestState)
 
 const images = Images(window.btoa)
 window.images = images
-const overlayManager = () => OverlayManager({log,documentManager,windowManager,mountNode})
+const overlayManager = () => OverlayManager({log,documentManager,windowManager,getMountNode:()=>window.mountNode})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager})
 window.focusModule = focusModule
 const dragDropModule = () => DragDropModule({log2,documentManager,windowManager})

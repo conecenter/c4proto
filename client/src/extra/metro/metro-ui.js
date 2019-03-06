@@ -922,7 +922,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				const offSetY = b?a.s * (a.s>0?parentRect.bottom - a.rect.top:a.rect.bottom - parentRect.top):0
 				const offSetX = parentRect.left - thisElRect.left
 				const pWidth = parentRect.width
-				log("update",v)
+				//log("update",v)
 				this.setState({info:{side:v,offSetY,offSetX,pWidth}})
 			}			
 		}
@@ -1425,7 +1425,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const dataType = this.props.dataType
 			const className = this.props.className
 			const drawFunc = this.props.drawFunc
-			
+			//log(this.props.value)
 			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					$("div",{key:"xx",style:inp2ContStyle}, drawFunc(
@@ -2094,7 +2094,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.props.onBlur()
 		}
 		onChange(e){
-			if(this.props.vkOnly && e.inp){
+			if(e.inp){
 				e.inp.value = e.target.value
 			}			
 		}
@@ -2125,7 +2125,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				),
 				$(ControlWrapperElement,{key:"2"},
 					$(LabelElement,{label:passwordCaption},null),
-					$(InputElement,{...attributesB,vkOnly,value:undefined,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
+					$(InputElement,{...attributesB,value:undefined,vkOnly,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
 				),
 				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
 					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
@@ -2747,6 +2747,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	}	
 	class FocusAnnouncerElement extends StatefulComponent{					
 		report(path){
+			//log("report",path)
 			this.props.onChange({target:{headers:{"X-r-action":"change"},value:path}})
 		}		
 		getParentPath(el){
@@ -2762,7 +2763,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.foundAuto) return
 			const a = Array.from(el.ownerDocument.querySelectorAll("input"))
 			const b = a.find(_=>this.getParentPath(_))
-		//	log("atuoCnaditate",b)
+			//log("atuoCnaditate",b)
 			this.foundAuto = true
 			b&& b.focus()
 		}
@@ -2772,21 +2773,25 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!activeElement) return
 			const path = this.getParentPath(activeElement)
 			if(path===null && activeElement.tagName!="BODY") return
+			//log("aa",path,this.props.value)
 			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
-				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)					
+				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)		
+				//log("onFrame",el);log("onFrame2",this.foundAuto)
 				if(el) el.focus()
-				else if(this.validUntil<Date.now() && !this.foundAuto) this.report("undefined")
+				else if(!this.foundAuto) this.report("undefined")
 			}
 			else{
-				this.validUntil = Date.now() + this.timeout
+			//	this.validUntil = Date.now() + this.timeout
+			//	log("onFrame","check")
 				if(path == this.props.value)
 					this.foundAuto = false
 			}
 			if((this.props.value == "undefined"||this.props.value == "") && this.props.value!=this.props.path)  this.findAutofocusCandidate(this.el)			
 		}
-		onBBlur(e){
-			if(e.relatedTarget ==null) {
-				//log(e,e.relatedTarget,e.target)			
+		onBBlur(e){			
+			if(!this.el || !this.el.ownerDocument) return
+			if(this.el.ownerDocument.activeElement.tagName=="BODY") {
+				//log("blur",e,e.relatedTarget,e.target)			
 				this.report(this.props.path)
 				this.active = this.w.parent == this.w
 			}
@@ -2800,18 +2805,19 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 		}
 		componentWillUnmount(){		
-			this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
+			//this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
 			this.el.ownerDocument.documentElement.removeEventListener("focus",this.onBFocus,true)	
-			checkActivateCalls.remove(this.onFrame)			
+			clearInterval(this.interval)
 		}
 		componentDidMount(){			
 			this.timeout = 300
-			this.validUntil = 0
-			this.w  =this.el.ownerDocument.defaultView
+			//this.validUntil = 0
+			this.w = this.el.ownerDocument.defaultView
 			this.active = this.w.parent == this.w					
-			this.el.ownerDocument.documentElement.addEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.addEventListener("click",this.onBBlur,true)
 			this.el.ownerDocument.documentElement.addEventListener("focus",this.onBFocus,true)
-			checkActivateCalls.add(this.onFrame)
+			this.inteval = setInterval(this.onFrame,this.timeout)	
+			//checkActivateCalls.add(this.onFrame)
 		}
 		render(){
 			return $(Provider,{value:this.props.value},
@@ -3357,11 +3363,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		};		
 		function reg(o){
 			callbacks.push(o)
-			log(`reg`)
+		//	log(`reg`)
 			const unreg = function(){
 				const index = callbacks.indexOf(o)
 				if(index>=0) callbacks.splice(index,1)				
-				log(`unreg`)
+			//	log(`unreg`)
 			}
 			return {unreg}
 		}		
@@ -3383,7 +3389,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.state.wifiLevel != wifiLevel){				
 				this.setState({wifiLevel})
 				const lvl = this.wifiLevel(wifiLevel)
-				if(lvl!==null) this.props.onClickValue("change",lvl.toString())
+				if(lvl!==null && this.props.onClickValue) 
+					this.props.onClickValue("change",lvl.toString())
 			}
 		}
 		yellowSignal(on){
