@@ -99,7 +99,7 @@ trait RichDataApp extends ProtocolsApp
   lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl(readModelUtil)
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
-  lazy val indexUtil: IndexUtil = IndexUtilImpl(isParallel = parallelAssembleOn)()
+  lazy val indexUtil: IndexUtil = IndexUtilImpl()()
   private lazy val deCompressorRegistry: DeCompressorRegistry = DeCompressorRegistryImpl(deCompressors)()
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
@@ -107,7 +107,8 @@ trait RichDataApp extends ProtocolsApp
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, extUpdateProcessor, processors)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, extUpdateProcessor, processors, defaultAssembleOptions)()
+  lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
