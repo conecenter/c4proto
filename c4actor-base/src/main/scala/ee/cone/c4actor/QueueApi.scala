@@ -27,7 +27,8 @@ case object UpdatesCat extends OrigCategory
   case class Update(
     @Id(0x0011) srcId: String,
     @Id(0x0012) valueTypeId: Long,
-    @Id(0x0013) value: okio.ByteString
+    @Id(0x0013) value: okio.ByteString,
+    @Id(0x001C) flags: Long
   )
 
   @Id(0x0014) case class Updates(
