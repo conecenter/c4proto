@@ -53,12 +53,15 @@ class ToUpdateImpl(
     .asInstanceOf[ProtoAdapter[TxRef] with HasId],
   offsetAdapter: ProtoAdapter[Offset] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.Offset].getName)
-    .asInstanceOf[ProtoAdapter[Offset] with HasId]
+    .asInstanceOf[ProtoAdapter[Offset] with HasId],
+  fillTxIdFlag: Long = 1L,
+  txIdPropId: Long = 0x001A
 ) extends ToUpdate with LazyLogging {
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.emptyByteArray))
-    Update(message.srcId, valueAdapter.id, byteString)
+    val flags = if(message.value.nonEmpty && valueAdapter.props.exists(_.id==txIdPropId)) fillTxIdFlag else 0L
+    Update(message.srcId, valueAdapter.id, byteString, flags)
   }
 
   private val compressionKey = "c"
@@ -96,11 +99,11 @@ class ToUpdateImpl(
         updatesAdapter.decode(data).updates
       }
     } yield
-      if (update.valueTypeId != refAdapter.id || update.value.size == 0) update
+      if ((update.flags & fillTxIdFlag) == 0) update
       else {
-        val ref: TxRef = refAdapter.decode(update.value)
-        if (ref.txId.nonEmpty) update
-        else update.copy(value = ToByteString(refAdapter.encode(ref.copy(txId = event.srcId))))
+        val ref = TxRef("",event.srcId)
+        val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
+        update.copy(value = value)
       }
 
   def toKey(up: Update): Update = up.copy(value=ByteString.EMPTY)
