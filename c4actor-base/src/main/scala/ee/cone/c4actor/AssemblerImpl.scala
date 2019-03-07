@@ -40,7 +40,11 @@ class AssemblerInit(
   readModelUtil: ReadModelUtil,
   actorName: String,
   externalUpdateProcessor: ExtUpdateProcessor,
-  processors: List[UpdatesPreprocessor]
+  processors: List[UpdatesPreprocessor],
+  defaultAssembleOptions: AssembleOptions
+)(
+  assembleOptionsOuterKey: AssembledKey = origKeyFactory.rawKey(classOf[AssembleOptions].getName),
+  assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends ToInject with LazyLogging {
 
   private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
@@ -64,8 +68,8 @@ class AssemblerInit(
     }).seq.toMap)
 
   // read model part:
-  private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel): ReadModel = {
-    val res = replace(wasAssembled,diff,/*isParallel*/true,assembleProfiler.createJoiningProfiling(None)).map(_.result)
+  private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel, options: AssembleOptions): ReadModel = {
+    val res = replace(wasAssembled,diff,options,assembleProfiler.createJoiningProfiling(None)).map(_.result)
     concurrent.blocking{Await.result(res, Duration.Inf)}
   }
 
@@ -74,22 +78,24 @@ class AssemblerInit(
     lEvent ← LEvent.update(Offset(actorName,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
   private def readModelAdd(replace: Replace): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ try {
+    val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
-    val realDiff = toTree(assembled, composes.mayBePar(updates))
+    val realDiff = toTree(assembled, composes.mayBePar(updates, options))
     val end = NanoTimer()
-    val nAssembled = reduce(replace, assembled, realDiff)
+    val nAssembled = reduce(replace, assembled, realDiff, options)
     val period = end.ms
-    if(period > 1000) logger.info(s"${if(composes.isParallel) "fully-parallel-2" else "outer-parallel-2"} long join $period ms")
+    if(period > 1000) logger.info(s"${options.toString} long join $period ms")
     nAssembled
   } catch {
     case NonFatal(e) ⇒
       logger.error("reduce", e) // ??? exception to record
       if(events.size == 1){
+        val options = getAssembleOptions(assembled)
         val updates = offset(events) ++
           events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))
             .flatMap(LEvent.update).map(toUpdate.toUpdate)
         val failDiff = toTree(assembled, updates)
-        reduce(replace, assembled, failDiff)
+        reduce(replace, assembled, failDiff, options)
       } else {
         val(a,b) = events.splitAt(events.size / 2)
         Function.chain(Seq(readModelAdd(replace)(a), readModelAdd(replace)(b)))(assembled)
@@ -99,13 +105,14 @@ class AssemblerInit(
   private def add(out: Seq[Update]): Context ⇒ Context = {
     if (out.isEmpty) identity[Context]
     else { local ⇒
-      val processedOut = composes.mayBePar(processors).flatMap(_.process(out)).to[Seq] ++ out
+      val options = getAssembleOptions(local.assembled)
+      val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).to[Seq] ++ out
       val externalOut = externalUpdateProcessor.process(processedOut)
       val diff = toTree(local.assembled, externalOut)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val res = for {
-        transition ← replace(local.assembled,diff,false,profiling)
+        transition ← replace(local.assembled,diff,options,profiling)
         updates ← assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.transient)
@@ -116,9 +123,17 @@ class AssemblerInit(
     }
   }
 
+  private def getAssembleOptions(assembled: ReadModel): AssembleOptions = {
+    val index = assembleOptionsOuterKey.of(assembled).value.get.get
+    composes.getValues(index,assembleOptionsInnerKey,"",defaultAssembleOptions).collectFirst{
+      case o: AssembleOptions ⇒ o
+    }.getOrElse(defaultAssembleOptions)
+  }
+
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
     val index = origKeyFactory.rawKey(className).of(context.assembled).value.get.get
-    UniqueIndexMap(index)(composes)
+    val options = getAssembleOptions(context.assembled)
+    UniqueIndexMap(index,options)(composes)
   }
 
   def toInject: List[Injectable] =
@@ -133,10 +148,10 @@ class AssemblerInit(
       GetOrigIndexKey.set(getOrigIndex)
 }
 
-case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
+case class UniqueIndexMap[K,V](index: Index, options: AssembleOptions)(indexUtil: IndexUtil) extends Map[K,V] {
   def +[B1 >: V](kv: (K, B1)): Map[K, B1] = iterator.toMap + kv
-  def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"")).asInstanceOf[Option[V]]
-  def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
+  def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"",options)).asInstanceOf[Option[V]]
+  def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,"",options))).asInstanceOf[(K,V)] }
   def -(key: K): Map[K, V] = iterator.toMap - key
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
 }
