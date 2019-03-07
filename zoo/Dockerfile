@@ -6,7 +6,7 @@ RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-1
 RUN perl install.pl curl http://www-eu.apache.org/dist/kafka/2.0.0/kafka_2.11-2.0.0.tgz
 RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz
 RUN perl install.pl curl https://github.com/visualvm/visualvm.src/releases/download/1.4.2/visualvm_142.zip
-RUN perl install.pl apt lsof rsync telnet mc xserver-xspice openbox firefox spice-vdagent terminology
+RUN perl install.pl apt lsof openssh-client rsync telnet mc xserver-xspice openbox firefox spice-vdagent terminology
 RUN mkdir /c4/db4
 ENV JAVA_HOME=/c4/jdk
 ENV PATH=${PATH}:/c4/jdk/bin:/c4/visualvm/bin
