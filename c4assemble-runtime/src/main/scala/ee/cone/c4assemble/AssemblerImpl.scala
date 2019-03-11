@@ -22,6 +22,7 @@ case class DValuesImpl(asMultiSet: DMultiSet, warning: String, options: Assemble
     IndexUtilImpl.single(kv._2,warning)
   def apply(idx: Int): Product = value(asMultiSet.view(idx,idx+1).head)
   def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
+  override def isEmpty: Boolean = asMultiSet.isEmpty //optim
 }
 
 class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val opt: IndexOpt*/) extends Index {
