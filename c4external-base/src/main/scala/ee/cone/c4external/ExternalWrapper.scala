@@ -26,7 +26,7 @@ class ExtUpdatesPreprocessorImpl(toUpdate: ToUpdate, qAdapterRegistry: QAdapterR
     if (updates.exists(u ⇒ idSet(u.valueTypeId))) {
       val (ext, normal) = updates.partition(u ⇒ idSet(u.valueTypeId))
       val srcId = RandomUUID()
-      Seq(ExternalUpdates(srcId, System.currentTimeMillis(), ext.toList), TxRef(srcId, "")).flatMap(LEvent.update).map(toUpdate.toUpdate) ++ normal
+      Seq(ExternalUpdates(srcId, "", System.currentTimeMillis(), ext.toList), TxRef(srcId, "")).flatMap(LEvent.update).map(toUpdate.toUpdate) ++ normal
     }
     else {
       updates
@@ -65,7 +65,7 @@ trait ExternalUpdateUtil[Model <: Product] {
 
   def ToMergeExtUpdate(
     origId: SrcId,
-    extU: Each[ExtUpdatesWithTxId]
+    extU: Each[ExternalUpdates]
   ): Values[(MergeId, ExternalUpdate[Model])] =
     extU.updates
       .filter(_.valueTypeId == modelId)
