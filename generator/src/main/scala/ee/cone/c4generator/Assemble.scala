@@ -7,7 +7,7 @@ import scala.meta._
 sealed trait JRule extends Product
 case class JStat(content: String) extends JRule
 case class JoinDef(params: Seq[JConnDef], inKeyType: KeyNSType, out: JConnDef) extends JRule
-case class JConnDef(name: String, indexKeyName: String, inValOuterType: String, many: Boolean, distinct: Boolean)
+case class JConnDef(name: String, indexKeyName: String, inValOuterType: String, many: Boolean, distinct: Boolean, keyEq: Option[String])
 case class KeyValType(name: String, of: List[KeyValType])
 case class KeyNSType(key: KeyValType, str: String, ns: String)
 case class SubAssembleName(name: String) extends JRule
@@ -69,39 +69,45 @@ object AssembleGenerator extends Generator {
             //
             object DistinctAnn
             object WasAnn
-            class ByAnn(val keyType: KeyNSType)
+            class ByAnn(val keyType: KeyNSType, val keyEq: Option[String])
             val ann = mods.map{
               case mod"@distinct" ⇒ DistinctAnn
               case mod"@was" ⇒ WasAnn
-              case mod"@by[${ExtractKeyNSType(tp)}]" ⇒ new ByAnn(tp)
+              case mod"@by[${ExtractKeyNSType(tp)}]" ⇒ new ByAnn(tp,None)
+              case mod"@byEq[${ExtractKeyNSType(tp)}]($v)" ⇒ new ByAnn(tp,Option(s"$v"))
               case s ⇒ throw new Exception(s"${s.structure}")
             }
             val distinct = ann.contains(DistinctAnn)
             val was = ann.contains(WasAnn)
-            val byOpt = ann.collect{ case b: ByAnn ⇒ b.keyType } match {
+            val byOpt = ann.collect{ case b: ByAnn ⇒ b } match {
               case Seq(tp) ⇒ Option(tp)
               case Seq() ⇒ None
             }
+            val keyEq: Option[String] = for {
+              by ← byOpt
+              keyEq ← by.keyEq
+            } yield keyEq
             //
             val fullNamePrefix = s"${defName}_$paramName"
             val fullName = s"${fullNamePrefix}_inKey"
             val statements = defVal match {
               case None ⇒
-              joinKey(fullName, was, byOpt.getOrElse(inKeyType), inValType) :: Nil
-             case Some(q"$expr.call") ⇒
-              assert(!was)
-              assert(byOpt.isEmpty)
-              val subAssembleName = s"${fullNamePrefix}_subAssemble"
-              SubAssembleName(subAssembleName) ::
-              mkLazyVal(subAssembleName,s"$expr") ::
-              joinKeyB(fullName, s"$subAssembleName.resultKey") :: Nil
+                val by = byOpt.getOrElse(new ByAnn(inKeyType,None))
+                joinKey(fullName, was, by.keyType , inValType) :: Nil
+              case Some(q"$expr.call") ⇒
+                assert(!was)
+                assert(byOpt.isEmpty)
+                val subAssembleName = s"${fullNamePrefix}_subAssemble"
+                SubAssembleName(subAssembleName) ::
+                mkLazyVal(subAssembleName,s"$expr") ::
+                joinKeyB(fullName, s"$subAssembleName.resultKey") :: Nil
             }
-            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct),statements)
+            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct, keyEq),statements)
         }
         val joinDefParams = paramInfo.map(_._1)
         val fullName = s"${defName}_outKey"
         joinKey(fullName,was=false,outKeyType,outValType) ::
-        JoinDef(joinDefParams,inKeyType,JConnDef(defName,fullName,"",many=false,distinct=false)) :: paramInfo.flatMap(_._2)
+        JoinDef(joinDefParams,inKeyType,JConnDef(defName,fullName,"",many=false,distinct=false,None)) :: paramInfo.flatMap(_._2)
       case s ⇒ throw new Exception(s"${s.structure}")
     }
     val toString =
