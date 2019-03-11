@@ -119,19 +119,19 @@ object AssembleGenerator extends Generator {
            |    collection.immutable.Seq(${params.map(p⇒s"${p.indexKeyName}(indexFactory)").mkString(",")}),
            |    ${out.indexKeyName}(indexFactory)
            |  ) {
-           |    def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq): Result = {
+           |    def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions): Result = {
            |      val iUtil = indexFactory.util
            |      val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
-           |      val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq)
+           |      val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq,options)
            |      ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
            |      for {
            |        indexRawSeqI <- indexRawSeqSeq
            |        (dir,indexRawSeq) = indexRawSeqI
            |        Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
            |        id <- invalidateKeySet(indexRawSeq)
-           |        ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_warn); ").mkString}
+           |        ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_warn,options); ").mkString}
            |        ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,id); ").mkString}
-           |        ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id,${p.name}_warn); ").mkString}
+           |        ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id,${p.name}_warn,options); ").mkString}
            |        ${eachParams.map(p⇒s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
            |        pass <- if(
            |          ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}

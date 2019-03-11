@@ -1,18 +1,19 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor.{AssemblesApp, Config, SyncTxFactory, SyncTxFactoryImpl}
-import ee.cone.c4assemble.{Assemble, IndexUtil, ReadModelUtil}
+import ee.cone.c4assemble.{Assemble, AssembleOptions, IndexUtil, ReadModelUtil}
 
 trait ManagementApp extends AssemblesApp with ActorAccessApp with PrometheusApp {
   def config: Config
   def indexUtil: IndexUtil
   def readModelUtil: ReadModelUtil
   def actorName: String
+  def defaultAssembleOptions: AssembleOptions
 
   lazy val syncTxFactory: SyncTxFactory = new SyncTxFactoryImpl
 
   override def assembles: List[Assemble] =
-    new ManagementPostAssemble(actorName, indexUtil, readModelUtil) :: new PostConsumerAssemble(actorName, syncTxFactory)() ::
+    new ManagementPostAssemble(actorName, indexUtil, readModelUtil, defaultAssembleOptions) :: new PostConsumerAssemble(actorName, syncTxFactory)() ::
       super.assembles
 }
 

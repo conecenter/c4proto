@@ -15,6 +15,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
   @Id(0x0080) case class ExternalUpdates(
     @Id(0x008a) srcId: String,
+    @Id(0x001A) txId: String,
     @Id(0x0081) time: Long,
     @Id(0x0082) updates: List[Update]
   )
