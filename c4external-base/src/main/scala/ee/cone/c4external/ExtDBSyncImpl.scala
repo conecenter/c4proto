@@ -40,7 +40,7 @@ class ExtDBSyncImpl(
 
   lazy val externals: Map[String, Long] = buildersByName.transform{case (_, v) ⇒ v.getOrigId}.filterKeys(externalsSet)
 
-  def upload: List[ExtUpdatesWithTxId] ⇒ List[(String, Int)] = list ⇒ {
+  def upload: List[ExternalUpdates] ⇒ List[(String, Int)] = list ⇒ {
     val toWrite: List[(NextOffset, List[QProtocol.Update])] = list.map(u ⇒
       u.txId → u.updates
     )

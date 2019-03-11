@@ -35,22 +35,13 @@ object ExternalTypes {
   val byPKLiveTime: Long = 10L * 60L * 1000L
 }
 
-case class ExtUpdatesWithTxId(srcId: SrcId, txId: NextOffset, updates: List[Update])
-
-case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: List[ExtUpdatesWithTxId])
+case class ExtUpdatesNewerThan(srcId: String, olderThen: NextOffset, externals: List[ExternalUpdates])
 
 case class ExtUpdatesForDeletion(srcId: SrcId)
 
 @assemble class ExternalLoaderAssembleBase(extDBSync: ExtDBSync, dbAdapter: DBAdapter, timeOut: Long)   {
 
   type OffsetId = SrcId
-
-  def ExternalUpdatesWithTx(
-    srcId: SrcId,
-    ext: Each[ExternalUpdates],
-    txRef: Each[TxRef]
-  ): Values[(SrcId, ExtUpdatesWithTxId)] =
-    List(WithPK(ExtUpdatesWithTxId(ext.srcId, txRef.txId, ext.updates)))
 
   def DBOffsetToAll(
     dbOffsetId: SrcId,
@@ -60,9 +51,9 @@ case class ExtUpdatesForDeletion(srcId: SrcId)
 
   def ExternalsOlderThen(
     extId: SrcId,
-    ext: Each[ExtUpdatesWithTxId],
+    ext: Each[ExternalUpdates],
     @by[OffsetAll] offset: Each[ExternalOffset]
-  ): Values[(OffsetId, ExtUpdatesWithTxId)] =
+  ): Values[(OffsetId, ExternalUpdates)] =
     if (ext.txId > offset.offset)
       List(offset.externalId → ext)
     else
@@ -70,7 +61,7 @@ case class ExtUpdatesForDeletion(srcId: SrcId)
 
   def ExternalUpdatesNewerThanCreate(
     externalId: SrcId,
-    @by[OffsetId] exts: Values[ExtUpdatesWithTxId],
+    @by[OffsetId] exts: Values[ExternalUpdates],
     offset: Each[ExternalOffset]
   ): Values[(SrcId, ExtUpdatesNewerThan)] =
     if (exts.nonEmpty)
@@ -80,7 +71,7 @@ case class ExtUpdatesForDeletion(srcId: SrcId)
 
   def ExtUpdatesForDeletionCreate(
     extUpdId: SrcId,
-    extUpd: Each[ExtUpdatesWithTxId],
+    extUpd: Each[ExternalUpdates],
     @by[OffsetAll] minOffset: Each[ExternalMinValidOffset]
   ): Values[(DeletionId, ExtUpdatesForDeletion)] =
     if (extUpd.txId < minOffset.minValidOffset)
