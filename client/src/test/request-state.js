@@ -7,9 +7,9 @@ export function ExampleRequestState(sender){
         const branchKey = sent["X-r-branch"]
         const index = parseInt(sent["X-r-index"])
         console.log("req started",branchKey,index)
-        const onFulfilled = response => console.log("req status",branchKey,index,response.status)
-        const onRejected = error => console.log("req error",branchKey,index,error)
-        sent.response.then(onFulfilled,onRejected)
+//        const onFulfilled = response => console.log("req status",branchKey,index,response.status)
+//        const onRejected = error => console.log("req error",branchKey,index,error)
+//        sent.response.then(onFulfilled,onRejected)
         return sent
     }
     const ackChange = data => {

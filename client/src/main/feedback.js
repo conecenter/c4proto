@@ -1,8 +1,9 @@
 
 let loadKeyState, connectionState;
 let nextMessageIndex = 0
+const senders = {}
 
-export default function Feedback(localStorage,sessionStorage,location,fetch){
+export default function Feedback(localStorage,sessionStorage,location,fetch,setTimeout){
 
     function never(){ throw ["not ready"] }
     function pong(){
@@ -13,7 +14,8 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
                     "X-r-connection": getConnectionKey(never),
                     "X-r-location": location+""
                 }
-            }
+            },
+            skip: that=>true
         })
         //console.log("pong")
     }
@@ -45,10 +47,11 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
             "X-r-index": nextMessageIndex++,
             "X-r-alien-date": Date.now()
         }
-        //todo: contron message delivery at server
         const options = {method:"post", ...message.options, headers}
-        const response = fetch(message.url, {method:"post", ...options})
-        return {...headers,response}
+        const qKey = headers["X-r-branch"] || message.url
+        const sender = senders[qKey] || (senders[qKey] = Sender(fetch,setTimeout))
+        sender.send({...message, options})
+        return headers
     }
     function relocateHash(data) {
         location.href = "#"+data
@@ -61,4 +64,33 @@ export default function Feedback(localStorage,sessionStorage,location,fetch){
 
     const receivers = {connect,ping,relocateHash,signedIn}
     return ({receivers,send,pong})
+}
+
+function Sender(fetch,setTimeout){
+    let queue = []
+    let busy = null
+    /*
+    if make retry here, then it can lead to post duplication, so requires extra server deduplication stuff;
+    retry is ok for idempotent messages, like input changes;
+    // todo
+    may be it would be better to make all server actions idempotent, but currently they are not;
+    so retry is an option safely default to false
+    */
+    function activate(){
+        busy = queue[0]
+        if(busy) fetch(busy.url,busy.options)
+            .then(resp=>resp.status===200,err=>false)
+            .then(ok=>{
+                if(ok || !busy.retry){
+                    queue = queue.filter(item=>item!==busy)
+                    activate()
+                }
+                else setTimeout(()=>activate(),1000)
+            })
+    }
+    function send(message){
+        queue = [...queue.filter(m=>!(m.skip && m.skip(message))), message]
+        if(!busy) activate()
+    }
+    return ({send})
 }

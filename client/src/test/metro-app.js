@@ -41,7 +41,7 @@ import ReactDOM from 'react-dom'
 import autoBind from 'react-autobind'
 
 const send = (url,options)=>fetch((window.feedbackUrlPrefix||"")+url, options)
-const feedback = Feedback(localStorage,sessionStorage,document.location,send)
+const feedback = Feedback(localStorage,sessionStorage,document.location,send,setTimeout)
 window.onhashchange = () => feedback.pong()
 const requestState = VDomSender(feedback)
 const log = (...v) => { if(!window.console) console.log("log",...v)}
@@ -129,7 +129,7 @@ const vDomAttributes = VDomAttributes(requestState)
 
 const images = Images(window.btoa)
 window.images = images
-const overlayManager = () => OverlayManager({log,documentManager,windowManager,mountNode})
+const overlayManager = () => OverlayManager({log,documentManager,windowManager,getMountNode:()=>window.mountNode})
 const focusModule = FocusModule({log,documentManager,eventManager,windowManager})
 window.focusModule = focusModule
 const dragDropModule = () => DragDropModule({log2,documentManager,windowManager})

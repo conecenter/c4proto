@@ -127,7 +127,7 @@ case class TestTodoRootView(locationHash: String = "todo")(
         divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-")))
       ))
     ))
-
+Thread.sleep(3000)
     List(filterList,btnList,taskLines).flatten
   }
 }
