@@ -267,7 +267,7 @@ class IndentedParser(
         case node: UniversalDeleteImpl ⇒ (getNodeSrcId(node), ToByteString(Array.emptyByteArray))
         case node: UniversalNode ⇒ (getNodeSrcId(node), ToByteString(prop.encodedValue))
       }
-      Update(srcId, prop.tag, value)
+      Update(srcId, prop.tag, value, 0L)
     }
   }
 }
