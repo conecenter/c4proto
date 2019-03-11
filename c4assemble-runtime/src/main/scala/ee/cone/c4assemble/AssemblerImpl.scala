@@ -176,6 +176,7 @@ case class IndexUtilImpl()(
 
   def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq match {
     case s: DValuesImpl ⇒ if(isParallel(s.options)) s.par else s
+    case s if s.isEmpty ⇒ s
   }
 
 }
