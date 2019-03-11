@@ -140,9 +140,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onTouchEnd(e){		
 			this.setState({touch:false,mouseOver:false});		
 		}
-		onClick(e){			
-			if(this.props.onClick){
-				setTimeout(function(){this.props.onClick(e)}.bind(this),(this.props.delay?parseInt(this.props.delay):0));
+		onClick(e){						
+			if(!this.props.changing && (this.props.onClick || this.props.onChange)){
+				setTimeout(()=>(this.props.onClick&&this.props.onClick(e) || this.props.onChange && this.props.onChange({target:{headers:{"X-r-action":"change"},value:""}})),(this.props.delay?parseInt(this.props.delay):0))
 			}				
 			e.stopPropagation()
 		}	
@@ -197,6 +197,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const defbg = "#eeeeee"
 			const bg = this.props.style&&this.props.style.backgroundColor?this.props.style.backgroundColor:defbg			
 			const oStyle = this.props.ripple?{margin:"0px"}:{}
+			const disabled = this.props.changing?true:null
 			const style={
 				border:'none',
 				cursor:'pointer',
@@ -213,10 +214,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				...this.props.style,
 				...oStyle,				
 				...(this.state.mouseOver && Object.keys(this.props.overStyle||{}).length==0?{opacity:"0.8"}:null),
-				...(this.state.mouseOver?this.props.overStyle:null),				
+				...(this.state.mouseOver?this.props.overStyle:null),
+				...(disabled?{opacity:"0.4"}:null)
 			}
-			const className = this.props.className
-			
+			const className = this.props.className			
 			const wrap = (el) =>{
 				if(this.props.ripple && this.state.top!==undefined && this.state.left!==undefined && this.state.rBox){					
 					const rEl = $("div",{key:"rp",style:{
@@ -1296,7 +1297,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		componentDidMount(){
 			//this.setFocus(this.props.focus)
-			//const inp = this.getInput()						
+			const inp = this.getInput()						
+			if(inp) inp.changing = this.props.changing
 		}
 		componentWillUnmount(){			
 			if(this.dragBinding) this.dragBinding.releaseDD()
@@ -1328,6 +1330,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				inp.selectionEnd = this.k
 				this.k = null
 			}
+			const inp = this.getInput()						
+			if(inp) inp.changing = this.props.changing
 		}		
 		onChange(e){
 			const inp = this.getInput()			
@@ -1387,12 +1391,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				minHeight:"100%",
 				overflow:"hidden",
 				display:"flex"
-			};
+			};			
 			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
 				verticalAlign:"top",
-				color:"rgb(33,33,33)",
+				color:"inherit",
 				border:"none",
 				height:this.props.div?"auto":"100%",
 				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
@@ -1410,7 +1414,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				display:this.props.div?"inline-block":"",
 				fontFamily:"inherit",
 				visibility:this.state.visibility,
-				...this.props.inputStyle				
+				...this.props.inputStyle,
+				...(this.props.changing?{backgroundColor:"#ffffaa"}:null)
 			};		
 			const placeholder = this.props.placeholder
 			const inputType = !this.props.inputType?ReControlledInput:this.props.inputType
@@ -1425,6 +1430,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const dataType = this.props.dataType
 			const className = this.props.className
 			const drawFunc = this.props.drawFunc
+			
 			//log(this.props.value)
 			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
 					this.props.shadowElement?this.props.shadowElement():null,
@@ -1440,7 +1446,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 							style:inputStyle,							
 							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:this.props.value,
 							onMouseDown:this.onMouseDown,
-							onTouchStart:this.onMouseDown
+							onTouchStart:this.onMouseDown							
 							},
 							content?content:null
 						),inputStyle						
@@ -1879,6 +1885,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.binding) this.binding.unreg()
 		}
 		onClick(e){
+			if(this.props.changing) return
 			if(this.props.onChange) 
 				this.props.onChange({target:{headers:{"X-r-action":"change"},value:(this.props.value?"":"checked")}})			
 			e&&e.stopPropagation()
@@ -1895,7 +1902,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				lineHeight:"1",
 				outline:this.state.focused?"1px dashed red":"none",
 				...props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
-				...props.style
+				...props.style,
+				...(props.changing?{opacity:"0.4"}:null)
 			};
 			const innerStyle={
 				border:"none",
