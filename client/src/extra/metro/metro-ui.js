@@ -2848,52 +2848,21 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $('span',{className:"dragDropHandler"})
 		}
 	}
-	class ConfirmationOverlayElement extends StatefulComponent{		
-		getInitialState(){ return {dims:null}}
-		getRootDims(){
-			if(!this.root){
-				this.root = getReactRoot(this.el)
-				this.root = this.root.parentNode?this.root.parentNode:this.root
-			}
-			const dims = this.root.getBoundingClientRect()
-			return dims
+	const OverlayElement = (props) =>{			
+		const style={
+			position:"fixed",
+			display:(!props.show)?"none":"",
+			top:"0px",
+			left:"0px",
+			width:"100vw",
+			height:"100vh",
+			zIndex:"6666",
+			color:"wheat",
+			textAlign:"center",
+			backgroundColor:"rgba(0,0,0,0.4)",
+			...props.style
 		}
-		recalc(){
-			const rdims = this.getRootDims()
-			if(!this.state.dims) return this.setState({dims:rdims})			
-			const sdims = this.state.dims
-			if(sdims.top != rdims.top || sdims.left!=rdims.left || sdims.bottom!=rdims.bottom||sdims.right!=rdims.right)
-				this.setState({dims:rdims})
-		}
-		componentDidMount(){
-			if(this.props.show) checkActivateCalls.add(this.recalc)			
-		}
-		componentDidUpdate(prevProps){
-			if(this.props.show && !prevProps.show) checkActivateCalls.add(this.recalc)				
-			if(!this.props.show && prevProps.show) checkActivateCalls.remove(this.recalc)		
-		}
-		componentWillUnmount(){
-			if(this.props.show) checkActivateCalls.remove(this.recalc)
-		}
-		render(){
-			const getSide = (dims,side)=>{
-				if(!dims) return "0px"
-				return dims[side] + "px"
-			}
-			const style={
-				position:"fixed",
-				display:(!this.state.dims||!this.props.show)?"none":"",
-				top:getSide(this.state.dims,"top"),
-				left:getSide(this.state.dims,"left"),
-				width:getSide(this.state.dims,"width"),
-				height:getSide(this.state.dims,"height"),
-				zIndex:"6666",
-				color:"wheat",
-				textAlign:"center",
-				backgroundColor:"rgba(0,0,0,0.4)"
-			};
-			return $('div',{style,ref:ref=>this.el=ref,className:"confirmOverlay"},this.props.children)			
-		}
+		return $('div',{style,className:"confirmOverlay"},props.children)		
 	}
 	 
 	class DragDropDivElement extends StatefulComponent{
@@ -3712,6 +3681,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $("span",{ref:ref=>this.el=ref,style},content)
 		}
 	}
+	const RawElement = (props) => $("pre",{styles:props.styles},props.value)
 	const Availability = (() =>{		
 		let callbacks=[];
 		const receiver= (data) =>{			
@@ -3757,7 +3727,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			ErrorElement,
 			ClickableDivElement,
 			FocusAnnouncerElement,
-			ConfirmationOverlayElement,
+			OverlayElement,
 			DragDropHandlerElement,
 			DragDropDivElement,			
 			ColorCreator,ColorItem,ColorPicker,
@@ -3765,7 +3735,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			BatteryState,DeviceConnectionState,
 			DragWrapperElement,
 			CanvasMaxHeightElement,
-			NoShowUntilElement			
+			NoShowUntilElement,
+			RawElement
     },
 		onClickValue,		
 		onReadySendBlob,
