@@ -103,7 +103,8 @@ class ToUpdateImpl(
       else {
         val ref = TxRef("",event.srcId)
         val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
-        update.copy(value = value)
+        val flags = update.flags & ~fillTxIdFlag
+        update.copy(value = value, flags = flags)
       }
 
   def toKey(up: Update): Update = up.copy(value=ByteString.EMPTY)
