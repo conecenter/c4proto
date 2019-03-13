@@ -25,7 +25,7 @@ case class DValuesImpl(asMultiSet: DMultiSet, warning: String, options: Assemble
   override def isEmpty: Boolean = asMultiSet.isEmpty //optim
 }
 
-class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val opt: IndexOpt*/) extends Index {
+class IndexImpl(val data: InnerIndex) extends Index {
   override def toString: String = s"IndexImpl($data)"
 }
 
@@ -97,10 +97,8 @@ case class IndexUtilImpl()(
     JoinKeyImpl(was,keyAlias,keyClassName,valueClassName)
 
   def makeIndex(data: InnerIndex/*, opt: IndexOpt*/): Index =
-    if(data.isEmpty) emptyIndex else {
-      val all = data.get(All)
-      new IndexImpl(data, if(all.nonEmpty) (k:Any)⇒all else data.get/*, opt*/)
-    }
+    if(data.isEmpty) emptyIndex else new IndexImpl(data)
+
 
   def data(index: Index): InnerIndex = index match {
     case i: IndexImpl ⇒ i.data
@@ -108,7 +106,7 @@ case class IndexUtilImpl()(
   }
 
   def getMS(index: Index, key: Any): Option[DMultiSet] = index match {
-    case i: IndexImpl ⇒ i.getMS(key)
+    case i: IndexImpl ⇒ i.data.get(key)
     case _ if index == emptyIndex ⇒ None
   }
 
@@ -154,17 +152,6 @@ case class IndexUtilImpl()(
       val unchangedRes = (false,()⇒unchanged) :: Nil
       if(changed.nonEmpty) (true,()⇒changed) :: unchangedRes else unchangedRes
     }
-  }
-
-  def invalidateKeySet(diffIndexSeq: Seq[Index], options: AssembleOptions): Seq[Index] ⇒ DPIterable[Any] = {
-    val diffKeySet = diffIndexSeq.map(keySet).reduce(_ ++ _)
-    val res = if(diffKeySet.contains(All)){
-      (indexSeq: Seq[Index]) ⇒ mayBeParVector(indexSeq.map(keySet).reduce(_ ++ _) - All, options)
-    } else {
-      val ids = mayBeParVector(diffKeySet, options)
-      (indexSeq:Seq[Index]) ⇒ ids
-    }
-    res
   }
 
   def isParallel(options: AssembleOptions): Boolean = options.isParallel

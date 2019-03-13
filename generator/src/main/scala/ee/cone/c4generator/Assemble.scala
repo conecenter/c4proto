@@ -119,6 +119,8 @@ object AssembleGenerator extends Generator {
     val joinImpl = rules.collect{
       case JoinDef(params,inKeyType,out) ⇒
         val (seqParams,eachParams) = params.partition(_.many)
+        val (keyEqParams,keyIdParams) = params.partition(_.keyEq.nonEmpty)
+        def litOrId(p: JConnDef): String = p.keyEq.getOrElse("id")
         s"""  private class ${out.name}_Join(indexFactory: IndexFactory) extends Join(
            |    $toString,
            |    "${out.name}",
@@ -128,19 +130,23 @@ object AssembleGenerator extends Generator {
            |    def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions): Result = {
            |      val iUtil = indexFactory.util
            |      val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
-           |      val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq,options)
+           |      ${keyEqParams.map(p⇒s"${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
+           |      val invalidateKeySetOpt =
+           |          if(${keyEqParams.map(p⇒s"${p.name}_isAllChanged").mkString(" || ")}) None
+           |          else Option(${keyIdParams.map(p⇒s"iUtil.keySet(${p.name}_diffIndex)").mkString(" ++ ")})
            |      ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
            |      for {
            |        indexRawSeqI <- indexRawSeqSeq
            |        (dir,indexRawSeq) = indexRawSeqI
            |        Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
-           |        id <- invalidateKeySet(indexRawSeq)
-           |        ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_warn,options); ").mkString}
-           |        ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,id); ").mkString}
-           |        ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id,${p.name}_warn,options); ").mkString}
+           |        invalidateKeySet = invalidateKeySetOpt.getOrElse(${keyIdParams.map(p⇒s"iUtil.keySet(${p.name}_index)").mkString(" ++ ")})
+           |        id <- iUtil.mayBeParVector(invalidateKeySet, options)
+           |        ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn,options); ").mkString}
+           |        ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
+           |        ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn,options); ").mkString}
            |        ${eachParams.map(p⇒s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
            |        pass <- if(
-           |          ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}
+           |          ${if(eachParams.exists(_.keyEq.isEmpty))"" else seqParams.filter(_.keyEq.isEmpty).map(p⇒s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}
            |          (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
            |        ) iUtil.nonEmptySeq else Nil;
            |        ${eachParams.map(p⇒s"${p.name}_arg <- ${p.name}_items(); ").mkString}
