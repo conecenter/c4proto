@@ -998,6 +998,12 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
     my($comp,$service) = &$split_app($app);
     sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 sh -c 'test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222'"));
 }];
+push @tasks, ["greys","$composes_txt-<service>",sub{
+    my($app)=@_;
+    sy(&$ssh_add());
+    my($comp,$service) = &$split_app($app);
+    sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 sh -c 'JAVA_TOOL_OPTIONS= /c4/greys/greys.sh 1'"));
+}];
 
 push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
     my($app,$tgz)=@_;

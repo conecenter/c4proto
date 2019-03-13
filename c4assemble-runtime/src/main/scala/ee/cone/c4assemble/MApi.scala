@@ -5,24 +5,26 @@ import collection.immutable.{Iterable, Map, Seq, TreeMap}
 import Types._
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
-import scala.collection.{GenIterable, GenMap, GenSeq}
+import scala.collection.{GenIterable, GenMap, GenSeq, immutable}
 import scala.concurrent.Future
+
+case class AssembleOptions(srcId: String, isParallel: Boolean)
 
 trait IndexUtil extends Product {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
   def isEmpty(index: Index): Boolean
   def keySet(index: Index): Set[Any]
   def mergeIndex(l: DPIterable[Index]): Index
-  def getValues(index: Index, key: Any, warning: String): Values[Product] //m
+  def getValues(index: Index, key: Any, warning: String, options: AssembleOptions): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, key: Any): Index
   def result(key: Any, product: Product, count: Int): Index //m
   type Partitioning = Iterable[(Boolean,()⇒DPIterable[Product])]
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning  //m
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
-  def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ DPIterable[Any] //m
-  def mayBePar[V](iterable: Iterable[V]): DPIterable[V]
-  def isParallel: Boolean
+  def invalidateKeySet(diffIndexSeq: Seq[Index], options: AssembleOptions): Seq[Index] ⇒ DPIterable[Any] //m
+  def mayBePar[V](iterable: Iterable[V], options: AssembleOptions): DPIterable[V]
+  def mayBePar[V](seq: Seq[V]): DPIterable[V]
 }
 
 object Types {
@@ -70,7 +72,7 @@ trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with Data
   def transform(transition: WorldTransition): WorldTransition
 }
 //object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, isParallel: Boolean, profiling: JoiningProfiling, log: Future[ProfilingLog])
+case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, options: AssembleOptions, profiling: JoiningProfiling, log: Future[ProfilingLog])
 
 trait JoiningProfiling extends Product {
   def time: Long
@@ -107,7 +109,7 @@ abstract class Join(
   type IndexRawSeqSeq = DPIterable[(Int,Seq[Index])]
   type DiffIndexRawSeq = Seq[Index]
   type Result = DPIterable[Index]
-  def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq): Result
+  def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions): Result
 }
 
 trait Assemble {

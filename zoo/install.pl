@@ -17,7 +17,7 @@ if($cmd eq 'apt'){
     sy('tar', 'xvf', $_), unlink $_ or die $_ for <*.tgz>, <*.tar.gz>;
     sy('unzip', $_), unlink $_ or die $_ for <*.zip>;
     sy('chown', '-R', 'c4:c4', '/download');
-    /^([a-z]+).+/ and rename $_,"/c4/$1" or die $_ for <*>;
+    /^([a-z]+).*/ and rename $_,"/c4/$1" or die $_ for <*>;
 } else {
     die;
 }

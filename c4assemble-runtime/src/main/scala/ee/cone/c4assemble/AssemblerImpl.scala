@@ -16,12 +16,13 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 case class Count(item: Product, count: Int)
 
-case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Product] {
+case class DValuesImpl(asMultiSet: DMultiSet, warning: String, options: AssembleOptions) extends Values[Product] {
   def length: Int = asMultiSet.size
   private def value(kv: (InnerKey,Products)): Product =
     IndexUtilImpl.single(kv._2,warning)
   def apply(idx: Int): Product = value(asMultiSet.view(idx,idx+1).head)
   def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
+  override def isEmpty: Boolean = asMultiSet.isEmpty //optim
 }
 
 class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val opt: IndexOpt*/) extends Index {
@@ -82,7 +83,7 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
-case class IndexUtilImpl(isParallel: Boolean)(
+case class IndexUtilImpl()(
   val nonEmptySeq: Seq[Unit] = Seq(()),
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v⇒v.isEmpty,
@@ -120,8 +121,8 @@ case class IndexUtilImpl(isParallel: Boolean)(
     res
   }
 
-  def getValues(index: Index, key: Any, warning: String): Values[Product] = {
-    val res = getMS(index,key).fold(Nil:Values[Product])(v ⇒ DValuesImpl(v,warning))
+  def getValues(index: Index, key: Any, warning: String, options: AssembleOptions): Values[Product] = {
+    val res = getMS(index,key).fold(Nil:Values[Product])(v ⇒ DValuesImpl(v,warning,options))
     res
   }
 
@@ -141,36 +142,44 @@ case class IndexUtilImpl(isParallel: Boolean)(
   def result(key: Any, product: Product, count: Int): Index =
     makeIndex(Map(key→Map((ToPrimaryKey(product),product.hashCode)→(Count(product,count)::Nil)))/*, opt*/)
 
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
       val changed = mayBePar(for {
         (k,v) ← diffValues; values ← currentValues.get(k)
-      } yield IndexUtilImpl.single(values,warning))
+      } yield IndexUtilImpl.single(values,warning), options)
       lazy val unchanged = mayBePar(for {
         (k,values) ← currentValues if !diffValues.contains(k)
-      } yield IndexUtilImpl.single(values,warning))
+      } yield IndexUtilImpl.single(values,warning), options)
       val unchangedRes = (false,()⇒unchanged) :: Nil
       if(changed.nonEmpty) (true,()⇒changed) :: unchangedRes else unchangedRes
     }
   }
 
-  def invalidateKeySet(diffIndexSeq: Seq[Index]): Seq[Index] ⇒ DPIterable[Any] = {
+  def invalidateKeySet(diffIndexSeq: Seq[Index], options: AssembleOptions): Seq[Index] ⇒ DPIterable[Any] = {
     val diffKeySet = diffIndexSeq.map(keySet).reduce(_ ++ _)
     val res = if(diffKeySet.contains(All)){
-      (indexSeq: Seq[Index]) ⇒ mayBeParVector(indexSeq.map(keySet).reduce(_ ++ _) - All)
+      (indexSeq: Seq[Index]) ⇒ mayBeParVector(indexSeq.map(keySet).reduce(_ ++ _) - All, options)
     } else {
-      val ids = mayBeParVector(diffKeySet)
+      val ids = mayBeParVector(diffKeySet, options)
       (indexSeq:Seq[Index]) ⇒ ids
     }
     res
   }
 
-  def mayBeParVector[V](iterable: immutable.Set[V]): DPIterable[V] =
-    if(isParallel) iterable.to[ParVector] else iterable
+  def isParallel(options: AssembleOptions): Boolean = options.isParallel
 
-  def mayBePar[V](iterable: immutable.Iterable[V]): DPIterable[V] =
-    if(isParallel) iterable.par else iterable
+  def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V] =
+    if(isParallel(options)) iterable.to[ParVector] else iterable
+
+  def mayBePar[V](iterable: immutable.Iterable[V], options: AssembleOptions): DPIterable[V] =
+    if(isParallel(options)) iterable.par else iterable
+
+  def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq match {
+    case s: DValuesImpl ⇒ if(isParallel(s.options)) s.par else s
+    case s if s.isEmpty ⇒ s
+  }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +229,7 @@ class JoinMapIndex(
           inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
           profiler = transition.profiling
           calcStart = profiler.time
-          joinRes = join.joins(composes.mayBePar(Seq(-1→prevInputs, +1→inputs)), worldDiffs)
+          joinRes = join.joins(composes.mayBePar(Seq(-1→prevInputs, +1→inputs), transition.options), worldDiffs, transition.options)
           calcLog = profiler.handle(join, 0L, calcStart, joinRes, Nil)
           findChangesStart = profiler.time
           indexDiff = composes.mergeIndex(joinRes)
@@ -395,12 +404,12 @@ class TreeAssemblerImpl(
         }
       } yield res
 
-    (prevWorld,diff,isParallel,profiler) ⇒ {
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,isParallel,profiler,Future.successful(Nil))
+    (prevWorld,diff,options,profiler) ⇒ {
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil))
       val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
         seq ← Future.sequence(Seq(a,b))
       } yield composes.mergeIndex(seq) ))(prevWorld,diff)
-      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,isParallel,profiler,Future.successful(Nil))
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil))
       for {
         finalTransition ← transformUntilStable(1000, nextTransition)
         ready ← readModelUtil.ready(finalTransition.result)
