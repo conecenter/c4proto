@@ -11,6 +11,10 @@ trait RConnectionPool {
   def doWith[T](f: RConnection⇒T): T
 }
 
+trait ExternalDBClient {
+  def await(): Unit
+}
+
 trait RDBBind[R] {
   def in(value: String): RDBBind[R]
   def in(value: Long): RDBBind[R]

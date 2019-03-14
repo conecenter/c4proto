@@ -34,7 +34,7 @@ trait RDBSyncApp extends ToStartApp with ToInjectApp {
 
   lazy val rdbOptionFactory = new RDBOptionFactoryImpl(toUpdate)
 
-  private lazy val externalDBSyncClient = new ExternalDBSyncClient(externalDBFactory)
+  lazy val externalDBSyncClient = new ExternalDBSyncClient(externalDBFactory)
   override def toInject: List[ToInject] = externalDBSyncClient :: super.toInject
   override def toStart: List[Executable] = externalDBSyncClient :: super.toStart
 }

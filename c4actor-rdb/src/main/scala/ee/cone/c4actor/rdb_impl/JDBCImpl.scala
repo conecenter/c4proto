@@ -10,7 +10,7 @@ import ee.cone.c4actor._
 class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
-) extends ToInject with Executable {
+) extends ToInject with Executable with ExternalDBClient {
   def toInject: List[Injectable] = WithJDBCKey.set(concurrent.blocking(db.get).doWith)
   def run(): Unit = concurrent.blocking{ db.complete(dbFactory.create(
     createConnection ⇒ new RConnectionPool {
@@ -22,6 +22,7 @@ class ExternalDBSyncClient(
       }
     }
   ))}
+  def await(): Unit = db.get
 }
 
 
