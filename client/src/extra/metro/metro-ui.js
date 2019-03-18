@@ -162,6 +162,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.updatePeriod = 50
 			this.updateAt = 0
 			if(!this.el) return
+			this.el.changing = this.props.changing
 			this.el.addEventListener("enter",this.onEnter)
 			this.el.addEventListener("click",this.onClick)
 			if(this.props.ripple)
@@ -172,6 +173,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				checkActivateCalls.add(this.rippleAnim)
 			if(!this.props.ripple && prevProps.ripple)
 				checkActivateCalls.remove(this.rippleAnim)
+			if(!this.el) return
+			this.el.changing = this.props.changing
 		}
 		componentWillUnmount(){
 			this.el.removeEventListener("enter",this.onEnter)
@@ -1864,7 +1867,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}},this.props.children);
 		}		
 	}
-	const Checkbox = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
+	const CheckboxElement = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
 	class CheckboxBase extends StatefulComponent{				
 		onDelete(event){
 			if(!event.detail) return
@@ -1875,7 +1878,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.el) {		
 				this.el.addEventListener("click",this.onClick)			
 				this.el.addEventListener("delete",this.onDelete)
+				this.el.changing = this.props.changing
 			}		
+		}
+		componentDidUpdate(){
+			if(!this.el) return
+			this.el.changing = this.props.changing
 		}
 		componentWillUnmount(){
 			if(this.el) {						
@@ -1992,7 +2000,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		};
 		const checkImage = $("div",{style:imageStyle,key:"checkImage"},null);
 		
-		return $(Checkbox,{...props,innerStyle,checkImage,checkBoxStyle,});			
+		return $(CheckboxElement,{...props,innerStyle,checkImage,checkBoxStyle,});			
 	};	
 	const ConnectionState = (props) => {
 		const {style,iconStyle,on} = props;
@@ -3716,7 +3724,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
             InputElement,AnchorElement,HeightLimitElement,ImageElement,SoundProducerElement,
 			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,TextElement,
-			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
+			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,CheckboxElement,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
 			DateTimeClockElement,TimeElement,ProgressbarElement,

@@ -15,7 +15,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 		return {add,remove,check}
 	})();
 	const getReactRoot = (el) => el.ownerDocument.body
-	const isNodePosition = (el,v) => el.ownerDocument.defaultView.getComputedStyle(el).position == v
+	const isNodePosition = (el,v) => el&&el.ownerDocument&&el.ownerDocument.defaultView&&el.ownerDocument.defaultView.getComputedStyle(el).position == v	
 	const {setTimeout,getWindowRect} = windowManager
 	const getPageYOffset = (el) => el&&el.ownerDocument&&el.ownerDocument.defaultView?el.ownerDocument.defaultView.pageYOffset:0
 	const GlobalStyles = (()=>{
