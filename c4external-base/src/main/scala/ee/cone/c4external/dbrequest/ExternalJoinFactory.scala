@@ -1,30 +1,33 @@
-package ee.cone.c4external
+package ee.cone.c4external.dbrequest
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.byjoin.{ByJoinApp, ByJoinFactory, ByPKJoin}
-import ee.cone.c4actor.{HashGen, NameMetaAttr, ProdLens}
+import ee.cone.c4actor.{AssemblesApp, HashGen, NameMetaAttr, ProdLens}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4external.ByPKTypes.{ByPKRqId, ToID}
-import ee.cone.dbadapter.DBAdapter
+import ee.cone.c4external._
+import ee.cone.c4external.dbrequest.ByPKTypes.{ByPKRqId, ToID}
+import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuildersApp}
 
 import scala.Function.tupled
 import scala.reflect.ClassTag
 
-trait ExternalByJoinFactoryApp extends ByJoinApp {
+trait ExternalByJoinFactoryApp extends ByJoinApp with AssemblesApp with ExtDBRqHandlersApp with OrigSchemaBuildersApp {
   def dbAdapter: DBAdapter
   def extDBSync: ExtDBSync
   def hashGen: HashGen
 
   lazy val byJoinFactory: ByJoinFactory = new ExternalByJoinFactoryImpl(dbAdapter, extDBSync, hashGen)
+  override def assembles: List[Assemble] = new ExtByPKJoiner :: super.assembles
+  override def extDBRequestHandlerFactories: List[ExtDBRequestHandlerFactory[_ <: ExtDBRequest]] = new ExtByPKHandlerFactory(builders, 60L * 1000L) :: super.extDBRequestHandlerFactories
 }
 
 class ExternalByJoinFactoryImpl(dbAdapter: DBAdapter, extDBSync: ExtDBSync, hashGen: HashGen) extends ByJoinFactory {
-  lazy val extId: String = dbAdapter.externalName
+  lazy val extId: ExternalId = dbAdapter.externalId
   lazy val extMap: Map[String, Long] = extDBSync.externals
 
   def byPK[From <: Product](lens: ProdLens[From, List[SrcId]])(implicit ct: ClassTag[From]): ByPKJoin[From, List[SrcId]] =
-    new ExternalByPKJoin[From](ct.runtimeClass.asInstanceOf[Class[From]], lens)(extMap, extId, hashGen)
+    new ExternalByPKJoin[From](ct.runtimeClass.asInstanceOf[Class[From]], lens)(extMap, hashGen, extId)
 }
 
 class ExternalByPKJoin[From <: Product](
@@ -32,8 +35,8 @@ class ExternalByPKJoin[From <: Product](
   lens: ProdLens[From, List[SrcId]]
 )(
   externalsMap: Map[String, Long],
-  externalId: String,
-  hashGen: HashGen
+  hashGen: HashGen,
+  externalId: ExternalId
 ) extends ByPKJoin[From, List[SrcId]] {
 
   private def create[To <: Product](toCl: Class[To]): EachSubAssemble[To] with ValuesSubAssemble[To] with Assemble = {
@@ -42,7 +45,7 @@ class ExternalByPKJoin[From <: Product](
         val add = "ext" + lens.metaList.collect { case l: NameMetaAttr ⇒ l.value }.mkString("-")
         val mergeKey = s"${(getClass :: fromCl :: toCl :: Nil).map(_.getName).mkString("-")}#$add"
         val mergeKeyHash = hashGen.generate(mergeKey)
-        val baseRq: ByPKExtRequest = ByPKExtRequest("", externalId, mergeKeyHash, "", id)
+        val baseRq: ExtByPKRequest = ExtByPKRequest("", externalId, "", id)
         val extIdHash = hashGen.generate(externalId :: id :: mergeKeyHash :: Nil)
         val createRq = (id: SrcId) ⇒ {
           val srcId = hashGen.generate(id :: extIdHash :: Nil)
@@ -64,13 +67,11 @@ object ByPKTypes {
 
 case class InnerByPKRequest(fromSrcId: SrcId)
 
-case class ByPKExtRequest(srcId: SrcId, externalId: SrcId, mergeKeyHash: String, modelSrcId: SrcId, modelId: Long)
-
 @assemble class ByPKExternalAssembleBase[From <: Product, To <: Product](
   fromCl: Class[From],
   toCl: Class[To],
   lens: ProdLens[From, List[SrcId]],
-  rqCreation: SrcId ⇒ (SrcId, ByPKExtRequest)
+  rqCreation: SrcId ⇒ (SrcId, ExtByPKRequest)
 )(
   val mergeKeyAddClasses: List[Class[_]] = List(fromCl, toCl),
   val mergeKeyAddString: String = "ext" + lens.metaList.collect { case l: NameMetaAttr ⇒ l.value }.mkString("-")
@@ -88,7 +89,7 @@ case class ByPKExtRequest(srcId: SrcId, externalId: SrcId, mergeKeyHash: String,
   def rqToExtRq(
     srcId: SrcId,
     @by[ToID@ns(mergeKey)] rq: Each[InnerByPKRequest]
-  ): Values[(ByPKRqId, ByPKExtRequest)] =
+  ): Values[(ByPKRqId, ExtByPKRequest)] =
     List(rqCreation(srcId))
 
   def retTo(
