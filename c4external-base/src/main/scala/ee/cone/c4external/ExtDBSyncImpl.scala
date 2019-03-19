@@ -2,18 +2,18 @@ package ee.cone.c4external
 
 import com.squareup.wire.ProtoAdapter
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.{NextOffset, SrcId}
+import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
-import ee.cone.c4external.ExternalProtocol.ExternalUpdates
+import ee.cone.c4external.ExternalProtocol.{CacheResponses, ExternalUpdates}
 import ee.cone.c4proto.HasId
-import ee.cone.dbadapter.{DBAdapter, OrigSchema, OrigSchemaBuilder, OrigSchemaBuildersApp}
+import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuilder, OrigSchemaBuildersApp}
 
-trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
+trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp with ExtDBRqHandlersApp {
   def qAdapterRegistry: QAdapterRegistry
   def toUpdate: ToUpdate
   def dbAdapter: DBAdapter
 
-  lazy val extDBSync: ExtDBSync = new ExtDBSyncImpl(dbAdapter, builders, qAdapterRegistry, toUpdate, extModels)
+  lazy val extDBSync: ExtDBSync = new ExtDBSyncImpl(dbAdapter, builders, qAdapterRegistry, toUpdate, extModels, extDBRequestHandlerFactories)
 }
 
 class ExtDBSyncImpl(
@@ -21,7 +21,8 @@ class ExtDBSyncImpl(
   builders: List[OrigSchemaBuilder[_ <: Product]],
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
-  external: List[ExternalModel[_ <: Product]]
+  external: List[ExternalModel[_ <: Product]],
+  factories: List[ExtDBRequestHandlerFactory[_ <: ExtDBRequest]]
 ) extends ExtDBSync with LazyLogging {
 
   val externalsList: List[String] = external.map(_.clName)
@@ -38,7 +39,7 @@ class ExtDBSyncImpl(
       .asInstanceOf[ProtoAdapter[ExternalUpdates] with HasId]
 
 
-  lazy val externals: Map[String, Long] = buildersByName.transform{case (_, v) ⇒ v.getOrigId}.filterKeys(externalsSet)
+  lazy val externals: Map[String, Long] = buildersByName.transform { case (_, v) ⇒ v.getOrigId }.filterKeys(externalsSet)
 
   def upload: List[ExternalUpdates] ⇒ List[(String, Int)] = list ⇒ {
     val toWrite: List[(NextOffset, List[QProtocol.Update])] = list.map(u ⇒
@@ -58,9 +59,10 @@ class ExtDBSyncImpl(
       dbAdapter.putOrigs(deletes ::: updates, offset)
     }).flatten.map(t ⇒ t._1.className → t._2)
   }
-  
-  def download: List[ByPKExtRequest] ⇒ List[QProtocol.Update] = list ⇒ {
-    val loadList: List[(OrigSchema, List[SrcId])] = list.groupBy(_.modelId).toList.filter(p ⇒ supportedIds(p._1)).collect { case (k, v) ⇒ builderMap(k).getMainSchema → v.map(_.modelSrcId) }
-    loadList.flatMap { case (sch, pks) ⇒ dbAdapter.getOrigBytes(sch, pks) }
+
+  val handlersMap: Map[String, ExtDBRequestHandler] = factories.map(_.create(dbAdapter)).map(h ⇒ h.supportedType.uName → h).toMap
+
+  def download: List[ExtDBRequestGroup] ⇒ List[CacheResponses] = list ⇒ {
+    list.flatMap(group ⇒ handlersMap(group.extRequestTypeId).handle(group.request))
   }
 }

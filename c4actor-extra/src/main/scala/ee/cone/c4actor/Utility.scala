@@ -1,12 +1,23 @@
 package ee.cone.c4actor
 
+import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.ToPrimaryKey
+import ee.cone.c4proto.HasId
 
 import scala.annotation.tailrec
 import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
+
+object ByClassAdapter {
+  def apply[Model <: Product](qAdapterRegistry: QAdapterRegistry)(model: Class[Model]): ProtoAdapter[Model] with HasId =
+    qAdapterRegistry.byName(model.getName).asInstanceOf[ProtoAdapter[Model] with HasId]
+}
+
+object MinOpt{
+  def apply[A](iterable: Iterable[A])(implicit cmp: Ordering[A]): Option[A] = if (iterable.isEmpty) None else Some(iterable.min)
+}
 
 trait WithMurMur3HashGenApp {
   def hashGen: HashGen = new MurMur3HashGen
