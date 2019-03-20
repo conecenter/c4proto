@@ -390,6 +390,7 @@ my $restart = sub{
     sy(&$git_with_dir($app,"push"));
     my($comp,$service) = &$split_app($app);
     my $container = "$comp\_$service\_1";
+    sy(&$remote($comp,"docker exec $container kill -3 1"));
     sy(&$remote($comp,sub{"cd $_[0]/$service && git reset --hard && docker restart $container && docker logs $container -ft --tail 2000"}));
 };
 
