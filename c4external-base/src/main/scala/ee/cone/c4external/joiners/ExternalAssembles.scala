@@ -156,7 +156,7 @@ case class RequestsToProcess(externalId: SrcId, rqs: List[ExtDBRequestGroup])
       Nil
 
   def RequestsCollector(
-    externalName: String,
+    externalName: SrcId,
     bind: Each[ExternalIdBind],
     @by[RequestGroupId] groups: Values[ExtDBRequestGroup]
   ): Values[(SrcId, RequestsToProcess)] =
