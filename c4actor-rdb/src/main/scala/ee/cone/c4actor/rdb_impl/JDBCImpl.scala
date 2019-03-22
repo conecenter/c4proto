@@ -11,7 +11,7 @@ class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
 ) extends ToInject with Executable with ExternalDBClient {
-  def toInject: List[Injectable] = WithJDBCKey.set(concurrent.blocking(db.get).doWith)
+  def toInject: List[Injectable] = WithJDBCKey.set(getConnectionPool.doWith)
   def run(): Unit = concurrent.blocking{ db.complete(dbFactory.create(
     createConnection ⇒ new RConnectionPool {
       def doWith[T](f: RConnection⇒T): T = {
@@ -22,7 +22,7 @@ class ExternalDBSyncClient(
       }
     }
   ))}
-  def await(): Unit = db.get
+  def getConnectionPool: RConnectionPool = concurrent.blocking(db.get)
 }
 
 

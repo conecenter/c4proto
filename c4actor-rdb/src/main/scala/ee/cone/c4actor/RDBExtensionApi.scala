@@ -12,7 +12,11 @@ trait RConnectionPool {
 }
 
 trait ExternalDBClient {
-  def await(): Unit
+  /**
+    * Blocking method, which waits for db to be prepared for usage.
+    * @return RConnectionPool
+    */
+  def getConnectionPool: RConnectionPool
 }
 
 trait RDBBind[R] {
