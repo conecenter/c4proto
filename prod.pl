@@ -477,10 +477,11 @@ my $common_services = sub{(
         C4DEPLOY_LOCAL => 1,
     },
     haproxy => {
-        C4APP_IMAGE => "haproxy",
-        C4INTERNAL_PORTS => "80,443",
-        C4EXPOSE_HTTP_PORT => 80,
-        expose => [80],
+        C4APP_IMAGE => "synced",
+        command => "haproxy",
+        C4INTERNAL_PORTS => "1080,1443",
+        C4EXPOSE_HTTP_PORT => 1080,
+        expose => [1080],
         C4DEPLOY_LOCAL => 1,
     },
     zookeeper => {
@@ -686,13 +687,13 @@ my $frp_web = sub{
     "$comp.http" => [
         type => "http",
         local_ip => "haproxy",
-        local_port => 80,
+        local_port => 1080,
         subdomain => $comp,
     ],
     "$comp.https" => [
         type => "https",
         local_ip => "haproxy",
-        local_port => 443,
+        local_port => 1443,
         subdomain => $comp,
     ],
     );

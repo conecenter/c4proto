@@ -5,6 +5,8 @@ my $zoo_port = 2181;
 my $zoo_host = "zookeeper";
 my $bootstrap_server = "broker:9092";
 my $bin = "kafka/bin";
+my $http_port = 8067;
+my $sse_port = 8068;
 
 my $put_text = sub{
     my($fn,$content)=@_;
@@ -21,7 +23,7 @@ push @tasks, [zookeeper=>sub{
     &$exec("$bin/zookeeper-server-start.sh", "zookeeper.properties");
 }];
 push @tasks, [broker=>sub{
-    &$put_text("/c4/server.properties",join "\n",
+    &$put_text("/c4/server.properties", join "\n",
         "listeners=PLAINTEXT://$bootstrap_server",
         "log.dirs=db4/kafka-logs",
         "zookeeper.connect=$zoo_host:$zoo_port",
@@ -29,11 +31,38 @@ push @tasks, [broker=>sub{
     );
     &$exec("$bin/kafka-server-start.sh", "server.properties");
 }];
+push @tasks, [haproxy=>sub{
+    &$put_text("/c4/haproxy.cfg", join "\n",
+      "defaults",
+      "  timeout connect 5s",
+      "  timeout client  900s",
+      "  timeout server  900s",
+      "resolvers docker_resolver",
+      "  nameserver dns \"127.0.0.11:53\"",
+      "frontend fe80",
+      "  mode http",
+      "  bind :1080",
+      "  acl acl_sse hdr(accept) -i text/event-stream",
+      "  use_backend be_sse if acl_sse",
+      "  default_backend be_http",
+      "listen listen_443",
+      "  mode http",
+      "  bind :1443 ssl crt /c4deploy/dummy.pem",
+      "  server s_http :1080",
+      "backend be_http",
+      "  mode http",
+      "  server se_http gate:$http_port check resolvers docker_resolver resolve-prefer ipv4",
+      "backend be_sse",
+      "  mode http",
+      "  server se_sse gate:$sse_port check resolvers docker_resolver resolve-prefer ipv4",
+    );
+    &$exec("/usr/sbin/haproxy", "-f", "haproxy.cfg");
+}];
 push @tasks, [frpc=>sub{
     &$exec("frp/frpc", "-c", "/c4deploy/frpc.ini");
 }];
 push @tasks, [gate=>sub{
-    &$exec("sh", "gate.sh");
+    &$exec("sh", "C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port app/bin/c4gate-server");
 }];
 push @tasks, [desktop=>sub{
     my $pass_fn = $ENV{C4AUTH_KEY_FILE} || die;

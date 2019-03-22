@@ -2,7 +2,9 @@ FROM ubuntu:18.04
 COPY install.pl /
 RUN useradd --home-dir /c4 --create-home --user-group --uid 1979 --shell /bin/bash c4
 RUN perl install.pl apt curl unzip \
-    lsof openssh-client rsync telnet mc xserver-xspice openbox firefox spice-vdagent terminology
+    lsof telnet mc \
+    rsync openssh-client haproxy \
+    xserver-xspice openbox firefox spice-vdagent terminology
 RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz
 RUN perl install.pl curl http://www-eu.apache.org/dist/kafka/2.0.0/kafka_2.11-2.0.0.tgz
 RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz
