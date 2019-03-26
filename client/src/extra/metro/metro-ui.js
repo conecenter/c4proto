@@ -1677,7 +1677,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
 			const value = this.props.value
 			const inputChildren = div? this.props.children.slice(0,parseInt(this.props.div)): null
-			const popupElement = this.props.open?$("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null			
+			const popupElement = this.props.open?$("div",{key:"popup",style:popupStyle,className:"popup",ref:ref=>this.pop=ref},div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null			
 			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}	
 			const drawFunc = (input,styles) => ([
 					(this.props.div?$("div",{key:"div",style:{...styles,...overRideInputStyle}},[inputChildren,input]):input),
@@ -2766,19 +2766,24 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			//log("report",path)
 			this.props.onChange({target:{headers:{"X-r-action":"change"},value:path}})
 		}		
-		getParentPath(el){
+		getParentPath(el,func){
 			let e = el
 			while(e){
-				if(e.className.includes("popup")) return null
-				if(e.dataset.path) return e.dataset.path
+				const {r,o} = func(e)
+				if(r) return o				
 				e = e.parentElement
 			}
 			return null
 		}		
+		popIgnore(e){
+			if(e.className.includes("popup")) return {r:true,o:null}
+			if(e.dataset.path) return {r:true,o:e.dataset.path}
+			return {}
+		}
 		findAutofocusCandidate(el){
 			if(this.foundAuto) return
-			const a = Array.from(el.ownerDocument.querySelectorAll("input"))
-			const b = a.find(_=>this.getParentPath(_))
+			const a = Array.from(el.ownerDocument.querySelectorAll("input"))			
+			const b = a.find(_=>this.getParentPath(_,this.popIgnore))
 			//log("atuoCnaditate",b)
 			this.foundAuto = true
 			b&& b.focus()
@@ -2787,7 +2792,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.active||!this.el) return		
 			const activeElement = this.el.ownerDocument.activeElement
 			if(!activeElement) return
-			const path = this.getParentPath(activeElement)
+			const path = this.getParentPath(activeElement,this.popIgnore)
 			if(path===null && activeElement.tagName!="BODY") return
 			//log("aa",path,this.props.value)
 			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
@@ -2804,8 +2809,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 			if((this.props.value == "undefined"||this.props.value == "") && this.props.value!=this.props.path)  this.findAutofocusCandidate(this.el)			
 		}
+		ignoreFocout(e){
+			if(e.className.includes("popup")) return {r:true,o:true}
+			return {}
+		}
 		onBBlur(e){			
 			if(!this.el || !this.el.ownerDocument) return
+			if(this.getParentPath(e.target,this.ignoreFocout)) return
 			if(this.el.ownerDocument.activeElement.tagName=="BODY") {
 				//log("blur",e,e.relatedTarget,e.target)			
 				this.report(this.props.path)
@@ -2815,7 +2825,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onBFocus(e){			
 			//log("focus",e.target,this.getParentPath(e.target))
 			this.active = true			
-			const path = this.getParentPath(e.target)
+			const path = this.getParentPath(e.target,this.popIgnore)
 			if(path != this.props.value) {				
 				if(path) return this.report(path)
 			}
