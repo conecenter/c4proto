@@ -3,6 +3,7 @@ package ee.cone.dbadapter
 import ee.cone.c4actor.{ExtModelsApp, ExternalModel}
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
+import ee.cone.c4external.ExternalId
 
 case class TableSchema(tableName: String, columnNames: List[String])
 
@@ -20,14 +21,29 @@ case class OrigSchema(
   def fieldById: Long ⇒ FieldSchema = fieldByIdMap
 }
 
-case class FieldSchema(fieldId: Long, fieldName: String, fieldType: String, creationStatement: String, fieldRealName: Option[String] = None)
+case class FieldSchema(
+  fieldId: Long,
+  fieldName: String,
+  fieldType: String,
+  creationStatement: String,
+  fieldRealName: Option[String] = None
+)
 
-case class PrimaryKeySchema(pkName: String, pkType: String, pkRealName: String)
+case class PrimaryKeySchema(
+  pkName: String,
+  pkType: String,
+  pkRealName: String
+)
 
-case class OrigValue(schema: OrigSchema, pks: List[Any], values: List[Any], delete: Boolean = false)
+case class OrigValue(
+  schema: OrigSchema,
+  pks: List[Any],
+  values: List[Any],
+  delete: Boolean = false
+)
 
 trait DBAdapter {
-  def externalName:String
+  def externalId: ExternalId
 
   def getSchema: List[TableSchema]
 
@@ -47,6 +63,8 @@ trait DBAdapter {
 }
 
 trait OrigSchemaBuilder[Model <: Product] {
+  def externalId: ExternalId
+
   def getOrigId: Long
 
   def getOrigClName: String
