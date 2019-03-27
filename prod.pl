@@ -33,7 +33,6 @@ my $ssh_ctl = sub{
 my $remote = sub{ 
     my($comp,$stm)=@_;
     my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-    $stm = &$stm("$dir/$comp") if ref $stm;
     "ssh c4\@$host -p $port '$stm'"; #'' must be here; ssh joins with ' ' args for the remote sh anyway
 };
 
@@ -52,10 +51,10 @@ my $running_containers_all = sub{
 
 my $user = "c4";
 my $rsync_to = sub{
-    my($from_path,$comp,$to_path,$opt)=@_;
+    my($from_path,$comp,$to_path)=@_;
     my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
     sy(&$remote($comp,"mkdir -p $to_path"));
-    sy("rsync -e 'ssh -p $port' -a $opt $from_path $user\@$host:$to_path");
+    sy("rsync -e 'ssh -p $port' -a --del $from_path/ $user\@$host:$to_path");
 };
 my $put_temp = sub{
     my($fn,$text)=@_;
@@ -75,16 +74,13 @@ my $get_tmp_path; $get_tmp_path = sub{
     my $path = "/tmp/$$-$c";
     (-e $path) ? &$get_tmp_path($c+1) : $path;
 };
-my $rsync_start = sub{
+my $get_tmp_dir = sub{
     my $path = &$get_tmp_path(0);
+    &$need_path("$path/");
     (sub{
         my($fn)=@_;
         &$need_path("$path/$fn")
-    },sub{
-        my($comp)=@_;
-        my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-        &$rsync_to(&$need_path("$path/"),$comp,"$dir/$comp","");
-    })
+    },$path)
 };
 
 ####
@@ -118,9 +114,12 @@ my $split_app = sub{
     $app=~/^(\w+)-(\w+)$/ ? ($1,$2) : die "<stack>-<service> expected ($app)"
 };
 
-my $docker_compose_up = sub{
-    my($run_comp,$add)=@_;
-    &$remote($run_comp,sub{"cd $_[0] && docker-compose up -d --remove-orphans $add"});
+my $remote_compose_up = sub{
+    my($from_path,$comp,$add)=@_;
+    my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
+    my $conf_dir = "$dir/$comp.c4conf"
+    &$rsync_to($from_path,$comp,$conf_dir);
+    &$remote($comp,"cd $conf_dir && docker-compose up -d --remove-orphans $add");
 };
 
 my $git_info = sub{
@@ -259,28 +258,29 @@ my $move_db_to_bak = sub{
     die $_ for &$ls();
 };
 
-my $db4put_start = sub{
-    my($mk_path,$sync) = &$rsync_start();
-    (sub{
-        &$mk_path("frpc/db4ini/$_[0]");
-    },sub{
-        my($comp)=@_;
-        so(&$remote($comp,sub{"rm -r $_[0]/frpc/db4ini"}));
-        &$sync($comp);
-        sy(&$remote_acc($comp,"rsync -a /c4deploy/db4ini/ /c4/db4"));
-    })
-};
-
-push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
-    my($comp,$path)=@_;
-    sy(&$ssh_add());
-    my($mk_path,$sync) = &$db4put_start();
-    my($fn,$zfn) = &$snapshot_name($path=~m{([^/]+)$} ? $1 : die "bad snapshot name");
-    sy("cp $path ".&$mk_path("snapshots/$zfn"));
-    &$move_db_to_bak($comp);
-    &$sync($comp);
-    sy(&$docker_compose_up($comp,""));
-}];
+#my $db4put_start = sub{
+#    my($mk_path,$from_path) = &$rsync_start();
+#    (sub{
+#        &$mk_path("frpc/db4ini/$_[0]");
+#    },sub{
+#        my($comp)=@_;
+#        so(&$remote($comp,sub{"rm -r $_[0]/frpc/db4ini"}));
+#        my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
+#        &$sync($from_path,$comp,"$dir/$comp"); #! --del
+#        sy(&$remote_acc($comp,"rsync -a /c4deploy/db4ini/ /c4/db4"));
+#    })
+#};
+#
+#push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
+#    my($comp,$path)=@_;
+#    sy(&$ssh_add());
+#    my($mk_path,$sync) = &$db4put_start();
+#    my($fn,$zfn) = &$snapshot_name($path=~m{([^/]+)$} ? $1 : die "bad snapshot name");
+#    sy("cp $path ".&$mk_path("snapshots/$zfn"));
+#    &$move_db_to_bak($comp);
+#    &$sync($comp);
+#    sy(&$docker_compose_up($comp,""));
+#}];
 
 #push @tasks, ["snapshot_put", "$composes_txt <file_path>", sub{
 #    my($comp,$path)=@_;
@@ -390,8 +390,9 @@ my $restart = sub{
     sy(&$git_with_dir($app,"push"));
     my($comp,$service) = &$split_app($app);
     my $container = "$comp\_$service\_1";
+    my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
     sy(&$remote($comp,"docker exec $container kill -3 1"));
-    sy(&$remote($comp,sub{"cd $_[0]/$service && git reset --hard && docker restart $container && docker logs $container -ft --tail 2000"}));
+    sy(&$remote($comp,"cd $dir/$comp/$service && git reset --hard && docker restart $container && docker logs $container -ft --tail 2000"));
 };
 
 push @tasks, ["restart","$composes_txt-<service>",sub{
@@ -416,15 +417,13 @@ push @tasks, ["revert_to","$composes_txt-<service> <commit>",sub{
 #to: && git checkout $commit -b $commit-$time
 #off: && git checkout master
 
-my $docker_compose_start = sub{
-    my($content)=@_;
-    my($mk_path,$sync) = &$rsync_start();
+my $get_tmp_conf_dir = sub{
+    my($mk_path,$from_path) = &$get_tmp_dir();
     my $put = sub{
         my($path,$cont)=@_;
         &$put_text(&$mk_path($path),$cont);
     };
-    &$put("docker-compose.yml",$content);
-    ($put,$sync);
+    ($put,$from_path);
 };
 
 #### composer
@@ -468,47 +467,38 @@ my $extract_env = sub{
 
 my $common_services = sub{(
     gate => {
-        C4APP_IMAGE => "synced",
         command => "gate",
         C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
         C4MAX_REQUEST_SIZE => "250000000",
-        C4STATE_REFRESH_SECONDS => 100,
+        C4STATE_REFRESH_SECONDS => 300,
         volumes => ["db4:/c4/db4"],
-        C4DEPLOY_LOCAL => 1,
     },
     haproxy => {
-        C4APP_IMAGE => "synced",
         command => "haproxy",
         C4INTERNAL_PORTS => "1080,1443",
         C4EXPOSE_HTTP_PORT => 1080,
         expose => [1080],
-        C4DEPLOY_LOCAL => 1,
     },
     zookeeper => {
-        C4APP_IMAGE => "synced",
         command => "zookeeper",
         volumes => ["db4:/c4/db4"],
     },
     broker => {
-        C4APP_IMAGE => "synced",
         command => "broker",
         depends_on => ["zookeeper"],
         volumes => ["db4:/c4/db4"],
         C4INTERNAL_PORTS => "9092",
     },
     frpc => {
-        C4APP_IMAGE => "synced",
         command => "frpc",
-        volumes => ["db4:/c4/db4"],
-        C4DEPLOY_LOCAL => 1,
+        C4FRPC_INI => "/c4conf/frpc.ini",
+        volumes => ["db4:/c4/db4",".:/c4conf"],
     },
     desktop => {
-        C4APP_IMAGE => "synced",
         command => "desktop",
         C4INTERNAL_PORTS => "5900",
-        C4AUTH_KEY_FILE => "/c4deploy/simple.auth",
-        C4DEPLOY_LOCAL => 1,
-        volumes => ["db4:/c4/db4"],
+        C4AUTH_KEY_FILE => "/c4conf/simple.auth",
+        volumes => ["db4:/c4/db4",".:/c4conf"],
     },
 )};
 
@@ -521,11 +511,13 @@ my $template_yml = sub{+{
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
 my $remote_build = sub{
-    my($build_comp,$dir,$nm,$tag)=@_;
+    my($build_comp,$dir,$tag)=@_;
     my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
-    &$rsync_to("$dir/$nm",$build_comp,$build_temp,"--del");
+    my $nm = $dir=~m{([^/]+)$} ? $1 : die;
+    &$rsync_to($dir,$build_comp,"$build_temp/$nm");
     sy(&$remote($build_comp,"docker build -t $tag $build_temp/$nm"));
 };
+
 
 my $to_pairs = sub{
     my @arg=@_;
@@ -543,9 +535,7 @@ my $frp_auth_all = lazy{ require "$ENV{C4DEPLOY_CONF}/frp_auth.pl" };
 my $get_frp_sk = sub{(&$frp_auth_all()->{$_[0]}||die)->[1]||die};
 
 my $compose_up = sub{
-    my($mode,$run_comp,$conf,$frpc_conf,$simple_auth)=@_;
-    my $build_comp = $$conf{builder} || $run_comp;
-    my $is_full = $mode eq 'fast' ? 0 : $mode eq 'full' ? 1 : die "fast|full?";
+    my($tag,$run_comp,$conf,$frpc_conf,$simple_auth)=@_;
     my $template = { volumes => { db4 => {} }, version => "3.2" };
     my $override = &$merge($template, $conf);
     my $override_services = $$override{services} || die;
@@ -553,12 +543,6 @@ my $compose_up = sub{
     my $generated_services = {map{
         my $service_name = $_;
         my $service = $$override_services{$service_name} || die;
-        my $img = $$service{C4APP_IMAGE} || $service_name;
-        my $build_parent_dir = (grep{-e "$_/$img/Dockerfile"} $ENV{C4DOCKERFILE_PATH}=~/[^:]+/g)[0];
-        my $tag = "c4-$run_comp-$img";
-        $is_full and $build_parent_dir and !($was{$img}++)
-            and &$remote_build($build_comp,$build_parent_dir,$img,$tag);
-        ##todo: !$need_commit or `cat $dockerfile`=~/c4commit/ or die "need commit and rebuild";
         my $generated_service = {
             restart=>"unless-stopped",
             logging => {
@@ -576,9 +560,8 @@ my $compose_up = sub{
                 C4INBOX_TOPIC_PREFIX => "",
                 C4HTTP_SERVER => "http://$http_server",
                 #C4PARENT_HTTP_SERVER => "http://$parent_http_server",
-                C4AUTH_KEY_FILE => "/c4deploy/simple.auth", #gate does no symlinks
+                C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
                 tty => "true",
-                C4INTERNAL_PORTS => 9010,
                 environment => {
                     JAVA_TOOL_OPTIONS => join(' ',qw(
                         -Dcom.sun.management.jmxremote.port=9010
@@ -588,10 +571,8 @@ my $compose_up = sub{
                         -Dcom.sun.management.jmxremote.rmi.port=9010
                     )),
                 }, #-com.sun.management.jmxremote.host=0.0.0.0
+                volumes => [".:/c4conf"],
             ):()),
-            volumes => [
-                $$service{C4DEPLOY_LOCAL} ? "./$service_name:/c4deploy" : (),
-            ],
             ($$service{C4EXPOSE_HTTP_PORT} && $$conf{http_port} ? (
                 ports => ["$$conf{http_port}:$$service{C4EXPOSE_HTTP_PORT}"],
             ):()),
@@ -606,17 +587,11 @@ my $compose_up = sub{
     #$text=~s/(\n\s+-\s+)([^\n]*\S:\d\d)/$1"$2"/gs;
     $yml_str=~s/\b(tty:\s)'(true)'/$1$2/g;
     ##todo: fix need_commit; ...[some.yml]
-    if($is_full && $build_comp ne $run_comp){
-        my %images = map{$_?($_=>1):()} map{$$_{image}} values %$generated_services;
-        my $images_str = join " ", sort keys %images;
-        sy(&$remote($build_comp,"docker save $images_str").' | '.&$remote($run_comp,"docker load"));
-    }
-    my($put,$sync) = &$docker_compose_start($yml_str);
-    for my $k(keys %$generated_services){
-        my $env = ($$generated_services{$k} || die)->{environment}||next;
-        $$env{C4AUTH_KEY_FILE} eq "/c4deploy/simple.auth" && $$env{C4DEPLOY_LOCAL} or next;
-        &$put("$k/simple.auth",$simple_auth);
-    }
+    # docker save then load
+
+    my($put,$from_path) = &$get_tmp_conf_dir();
+    &$put("docker-compose.yml",$yml_str);
+    &$put("simple.auth",$simple_auth);
 
     my @frpc_add_conf = map{
         my $k = $_;
@@ -633,12 +608,7 @@ my $compose_up = sub{
     } keys %$generated_services;
     &$put("frpc/frpc.ini",&$to_ini_file([@$frpc_conf,@frpc_add_conf]));
     #
-    my $cert_path = &$get_tmp_path(0);
-    sy(qq[openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $cert_path.key -out $cert_path.crt -subj "/C=EE"]);
-    &$put("haproxy/dummy.pem",syf("cat $cert_path.crt $cert_path.key"));
-    #
-    &$sync($run_comp);
-    sy(&$docker_compose_up($run_comp,""));
+    sy(&$remote_compose_up($from_path,$run_comp,""));
 };
 
 my $split_port = sub{ $_[0]=~/^(\S+):(\d+)$/ ? ($1,$2) : die };
@@ -699,8 +669,8 @@ my $frp_web = sub{
     );
 };
 
-push @tasks, ["compose_up","fast|full $composes_txt",sub{
-    my($mode,$run_comp)=@_;
+push @tasks, ["compose_up","<tag> $composes_txt",sub{
+    my($tag,$run_comp)=@_;
     sy(&$ssh_add());
     my $conf = &$get_compose($run_comp);
 #    my $main_comp = $$conf{main};
@@ -717,8 +687,20 @@ push @tasks, ["compose_up","fast|full $composes_txt",sub{
             common => [&$get_frp_common($run_comp)],
             &$frp_web($$conf{proxy_dom}||$run_comp),
         ];
-        &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));
+        &$compose_up($tag,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));
 #    }
+}];
+
+##todo: !$need_commit or `cat $dockerfile`=~/c4commit/ or die "need commit and rebuild";
+push @tasks, ["build_push_zoo","$composes_txt",sub{
+    my($build_comp)=@_;
+    sy(&$ssh_add());
+    my $tag = "cone/c4zoo:u".time;
+    my @dirs = grep{"$_/Dockerfile"} map{<$_/*>} $ENV{C4DOCKERFILE_PATH}=~/[^:]+/g;
+    @dirs==1 or die join ",", @dirs;
+    my ($dir) = @dirs;
+    &$remote_build($build_comp,$dir,$tag);
+    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
 }];
 
 #push @tasks, ["build","$composes_txt",sub{
@@ -822,7 +804,7 @@ services:
     image: "haproxy:1.7"
     restart: unless-stopped
     volumes:
-    - "./haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    - "./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
     - "certs:/etc/letsencrypt:ro"
     ports:
     - "$to_ssl_host:443:443"
@@ -845,7 +827,7 @@ services:
     restart: unless-stopped
     command: ["/frps","-c","/frps.ini"]
     volumes:
-    - "./frps/frps.ini:/frps.ini:ro"
+    - "./frps.ini:/frps.ini:ro"
     ports:
     - "7000:7000"
     - "7500:7500"
@@ -870,10 +852,11 @@ push @tasks, ["proxy_to","up|test",sub{
 #        } : ()
 #    });
     my $yml_str = &$mk_to_yml($conf);
-    my($put,$sync) = &$docker_compose_start($yml_str);
-    &$put("haproxy/haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]}])); #@sb_items
+    my($put,$from_path) = &$get_tmp_conf_dir();
+    &$put("docker-compose.yml",$yml_str);
+    &$put("haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]}])); #@sb_items
     my %common = &$get_frp_common($comp);
-    my $tmp_frps_path = &$put("frps/frps.ini",&$to_ini_file([common=>[
+    my $tmp_frps_path = &$put("frps.ini",&$to_ini_file([common=>[
         token=>$common{token},
         dashboard_addr => "0.0.0.0",
         dashboard_port => "7500",
@@ -885,8 +868,7 @@ push @tasks, ["proxy_to","up|test",sub{
     ]]));
     if($mode eq "up"){
         sy(&$ssh_add());
-        &$sync($comp);
-        sy(&$docker_compose_up($comp," --force-recreate"));
+        sy(&$remote_compose_up($from_path,$comp," --force-recreate"));
     }
 }];
 

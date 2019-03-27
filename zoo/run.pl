@@ -32,6 +32,12 @@ push @tasks, [broker=>sub{
     &$exec("$bin/kafka-server-start.sh", "server.properties");
 }];
 push @tasks, [haproxy=>sub{
+    my $pem_path = "/c4/dummy.pem";
+    if(!-e $pem_path){
+        my $cert_path = "/c4/dummy.cert";
+        sy(qq[openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $cert_path.key -out $cert_path.crt -subj "/C=EE"]);
+        &$put($pem_path,syf("cat $cert_path.crt $cert_path.key"));
+    }
     &$put_text("/c4/haproxy.cfg", join "\n",
       "defaults",
       "  timeout connect 5s",
@@ -47,7 +53,7 @@ push @tasks, [haproxy=>sub{
       "  default_backend be_http",
       "listen listen_443",
       "  mode http",
-      "  bind :1443 ssl crt /c4deploy/dummy.pem",
+      "  bind :1443 ssl crt $pem_path",
       "  server s_http :1080",
       "backend be_http",
       "  mode http",
@@ -56,10 +62,10 @@ push @tasks, [haproxy=>sub{
       "  mode http",
       "  server se_sse gate:$sse_port check resolvers docker_resolver resolve-prefer ipv4",
     );
-    &$exec("/usr/sbin/haproxy", "-f", "haproxy.cfg");
+    &$exec("/usr/sbin/haproxy", "-f", "/c4/haproxy.cfg");
 }];
 push @tasks, [frpc=>sub{
-    &$exec("frp/frpc", "-c", "/c4deploy/frpc.ini");
+    &$exec("frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
 }];
 push @tasks, [gate=>sub{
     &$exec("sh", "C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port app/bin/c4gate-server");
