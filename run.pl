@@ -1,10 +1,12 @@
 
+### here is script to run different containers in runtime/production where most of sources do not present
+
 use strict;
 
 my $zoo_port = 2181;
 my $zoo_host = "zookeeper";
 my $bootstrap_server = "broker:9092";
-my $bin = "kafka/bin";
+my $bin = "/tools/kafka/bin";
 my $http_port = 8067;
 my $sse_port = 8068;
 
@@ -65,10 +67,18 @@ push @tasks, [haproxy=>sub{
     &$exec("/usr/sbin/haproxy", "-f", "/c4/haproxy.cfg");
 }];
 push @tasks, [frpc=>sub{
-    &$exec("frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
+    &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
 }];
 push @tasks, [gate=>sub{
     &$exec("sh", "C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port app/bin/c4gate-server");
+}];
+push @tasks, [fix_desktop=>sub{
+    system $_ and die "$_,$?" for
+        'echo "allowed_users=anybody" > /etc/X11/Xwrapper.config',
+        'cp /etc/X11/spiceqxl.xorg.conf /etc/X11/c4spiceqxl.xorg.conf',
+        'chown c4:c4 /etc/X11/c4spiceqxl.xorg.conf',
+        q[perl  -i -pe 's{(/python\n)}{$1\ntemp_dir=None\n}' /usr/bin/Xspice],
+        'mkdir -p /c4/.config/autostart';
 }];
 push @tasks, [desktop=>sub{
     my $pass_fn = $ENV{C4AUTH_KEY_FILE} || die;

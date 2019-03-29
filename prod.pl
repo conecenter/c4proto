@@ -692,16 +692,29 @@ push @tasks, ["compose_up","<tag> $composes_txt",sub{
 }];
 
 ##todo: !$need_commit or `cat $dockerfile`=~/c4commit/ or die "need commit and rebuild";
-push @tasks, ["build_push_zoo","$composes_txt",sub{
-    my($build_comp)=@_;
-    sy(&$ssh_add());
-    my $tag = "cone/c4zoo:u".time;
-    my @dirs = grep{"$_/Dockerfile"} map{<$_/*>} $ENV{C4DOCKERFILE_PATH}=~/[^:]+/g;
-    @dirs==1 or die join ",", @dirs;
-    my ($dir) = @dirs;
-    &$remote_build($build_comp,$dir,$tag);
-    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
+#push @tasks, ["build_push_zoo","$composes_txt",sub{
+#    my($build_comp)=@_;
+#    sy(&$ssh_add());
+#    my $tag = "cone/c4zoo:u".time;
+#    my @dirs = grep{"$_/Dockerfile"} map{<$_/*>} $ENV{C4DOCKERFILE_PATH}=~/[^:]+/g;
+#    @dirs==1 or die join ",", @dirs;
+#    my ($dir) = @dirs;
+#    &$remote_build($build_comp,$dir,$tag);
+#    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
+#}];
+
+push @tasks, ["ci_prepare_runtime_build_context","",sub{
+    my($gen_dir)=@_;
+    my($put,$from_path) = &$get_tmp_conf_dir();
+    my $ctx_dir = "/c4res";
+    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
+    sy("cp $gen_dir/zoo.dockerfile $ctx_dir/Dockerfile");
+    sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
+    sy("cp -r $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
 }];
+
+
+
 
 #push @tasks, ["build","$composes_txt",sub{
 #    my $conf = &$get_compose($run_comp);

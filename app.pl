@@ -3,7 +3,6 @@
 use strict;
 
 my $temp = "target";
-my $docker_build = "$temp/docker_build";
 
 ################################################################################
 
@@ -35,33 +34,33 @@ my @tasks;
 
 ############################### image builds ###################################
 
-my $put_text = sub{
-    my($fn,$content)=@_;
-    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
-};
+#my $put_text = sub{
+#    my($fn,$content)=@_;
+#    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+#};
 
 my $recycling = sub{
     !-e $_ or rename $_, &$need_path("$temp/recycle/".rand()) or die $! for @_;
 };
 
-my $prepare_build = sub{
-    my($name,$f) = @_;
-    my $ctx_dir = "$docker_build/$name";
-    &$need_path("$ctx_dir/any");
-    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
-    &$f($ctx_dir);
-};
+
+#my $docker_build = "$temp/docker_build";
+#my $prepare_build = sub{
+#    my($name,$f) = @_;
+#    my $ctx_dir = "$docker_build/$name";
+#    &$need_path("$ctx_dir/any");
+#    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
+#    &$f($ctx_dir);
+#};
+#&$recycling($docker_build);
+#&$prepare_build("synced"=>sub{
+#        my($ctx_dir)=@_;
+#        sy("cp zoo/* $ctx_dir/");
+#        my $gen_dir = &$get_generated_sbt_dir();
+#        sy("cp -r $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
+#    });
 
 
-my $gen_docker_conf = sub{
-    &$recycling($docker_build);
-    &$prepare_build("synced"=>sub{
-        my($ctx_dir)=@_;
-        sy("cp zoo/* $ctx_dir/");
-        my $gen_dir = &$get_generated_sbt_dir();
-        sy("cp -r $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
-    });
-};
 
 ###
 #    &$prepare_build("haproxy"=>sub{
@@ -123,24 +122,23 @@ my $run_generator_outer = sub{
     #&$update_file_tree("$generator_path/to",&$get_generated_sbt_dir());
 };
 
+my $build_some_server = sub{
+    &$run_generator_outer();
+    my $gen_dir = &$get_generated_sbt_dir();
+    &$sy_in_dir($gen_dir,"sbt stage");
+};
+
 push @tasks, ["### build ###"];
 push @tasks, ["build_all", sub{
     &$sy_in_dir(&$abs_path(),"sbt clean");
     &$sy_in_dir(&$abs_path("generator"),"sbt clean");
-    &$run_generator_outer();
-    &$sy_in_dir(&$get_generated_sbt_dir(),"sbt stage");
-    &$gen_docker_conf();
+    &$build_some_server();
 }];
 push @tasks, ["build_some_server", sub{
-    &$run_generator_outer();
-    &$sy_in_dir(&$get_generated_sbt_dir(),"sbt stage");
-    &$gen_docker_conf();
+    &$build_some_server();
 }];
 push @tasks, ["run_generator", sub{
     &$run_generator_outer();
-}];
-push @tasks, ["build_conf_only", sub{
-    &$gen_docker_conf([]);
 }];
 #push @tasks, ["sbt", sub{
 #    chdir &$get_generated_sbt_dir() or die $!;
