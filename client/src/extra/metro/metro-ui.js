@@ -2815,7 +2815,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		onBBlur(e){			
 			if(!this.el || !this.el.ownerDocument) return
-			if(this.getParentPath(e.target,this.ignoreFocout)) return
+			if(this.getParentPath(e.target,this.ignoreFocout)) return //ios focusout fix
 			if(this.el.ownerDocument.activeElement.tagName=="BODY") {
 				//log("blur",e,e.relatedTarget,e.target)			
 				this.report(this.props.path)
