@@ -68,7 +68,6 @@ my $need_path = sub{
     $dn=~s{/[^/]*$}{} and sy("mkdir -p $dn");
     $_[0];
 };
-my $tmp_dir_count=0;
 my $get_tmp_path; $get_tmp_path = sub{
     my($c)=@_;
     my $path = "/tmp/$$-$c";
@@ -703,14 +702,16 @@ push @tasks, ["compose_up","<tag> $composes_txt",sub{
 #    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
 #}];
 
-push @tasks, ["ci_prepare_runtime_build_context","",sub{
-    my($gen_dir)=@_;
-    my($put,$from_path) = &$get_tmp_conf_dir();
+push @tasks, ["build_some_server","",sub{
+    my($full_img,$gen_dir)=@_;
+    $full_img=~m{^cone/c4zoo:def\.} || die "bad repo/img";
+    sy("cd $gen_dir && ./app.pl build_some_server");
     my $ctx_dir = "/c4res";
+    sy("rm -r $ctx_dir/*");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     sy("cp $gen_dir/zoo.dockerfile $ctx_dir/Dockerfile");
     sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
-    sy("cp -r $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
+    sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
 }];
 
 
