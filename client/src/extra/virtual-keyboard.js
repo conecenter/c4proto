@@ -16,7 +16,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 	})();
 	const getReactRoot = (el) => el.ownerDocument.body
 	const isNodePosition = (el,v) => el&&el.ownerDocument&&el.ownerDocument.defaultView&&el.ownerDocument.defaultView.getComputedStyle(el).position == v	
-	const {setTimeout,getWindowRect} = windowManager
+	const {setTimeout,getWindowRect,setInterval,clearInterval} = windowManager
 	const getPageYOffset = (el) => el&&el.ownerDocument&&el.ownerDocument.defaultView?el.ownerDocument.defaultView.pageYOffset:0
 	const GlobalStyles = (()=>{
 		let styles = {
@@ -151,11 +151,16 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 			return this.root
 		}
 		componentDidMount(){
-			this.root = this.getRoot()				
-			checkActivateCalls.add(this.fitIn)			
+			this.root = this.getRoot()
+			if(!this.props.auto)
+				checkActivateCalls.add(this.fitIn)			
+			else 
+				this.posInterval = setInterval(this.fitIn,100)
+			
 		}
 		componentWillUnmount(){
-			this.unmounted = true			
+			this.unmounted = true	
+			clearInterval(this.posInterval)
 			checkActivateCalls.remove(this.fitIn)		
 		}
 		emRatio(){

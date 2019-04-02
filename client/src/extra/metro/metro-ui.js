@@ -12,23 +12,16 @@ jsx?
 */
 
 
-const TextSelectionMonitor = ((log) =>{
-	const windows = []
-	const getSelection = w => w.document.getSelection().toString()
-	const regListener = w => {		
-		if(!w || windows.find(_=>_==w)) return w		
-		windows.push(w)
-		w.addEventListener("mouseup",e=>w.lastSelectionT = getSelection(w).length>0?e.timeStamp:0,true)		
-	}
-	const check = (elem,event) => {
+const TextSelectionMonitor = ((log) =>{	
+	const getSelection = w => w.document.getSelection()
+	const check = (event) => {
+		const elem = event.target
 		const w = elem && elem.ownerDocument && elem.ownerDocument.defaultView		
-		if(!regListener(w) || !event) return false			
-		const timeStamp = event.timeStamp
-		return timeStamp - w.lastSelectionT < 2000
+		const selection = getSelection(w)
+		return selection.toString().length>0 && Array.from(elem.childNodes).includes(selection.anchorNode)		
 	}
 	return check
 })
-
 
 export default function MetroUi(log,requestState,images,documentManager,eventManager,OverlayManager,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
 	const $ = React.createElement	
@@ -1082,15 +1075,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}					
 		}
 		componentDidMount(){		
-			this.el.addEventListener("click",this.onClick)
-			textSelectionMonitor(this.el)
+			this.el.addEventListener("click",this.onClick)			
 		}
 		componentWillUnmount(){			
 			this.el.removeEventListener("click",this.onClick)
 		}
 		onClick(e){		
 			if(this.props.onClick){
-			    if(textSelectionMonitor(this.el,e)) return
+			    if(textSelectionMonitor(e)) return
 				if(!this.sentClick) {
 					this.props.onClick(e)					
 					this.sentClick = true
@@ -2763,6 +2755,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	}	
 	class FocusAnnouncerElement extends StatefulComponent{					
 		report(path){
+			if(path == this.props.value) return
 			//log("report",path)
 			this.props.onChange({target:{headers:{"X-r-action":"change"},value:path}})
 		}		
@@ -3544,12 +3537,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	class ClickableDivElement extends StatefulComponent{
 		onClick(e){
 			e.stopPropagation()
-			if(textSelectionMonitor(this.el,e)) return
+			if(textSelectionMonitor(e)) return
 			this.props.onClick&& this.props.onClick(e)						
 		}
 		componentDidMount(){
-			if(this.el) this.el.addEventListener("click",this.onClick)
-			textSelectionMonitor(this.el)	
+			if(this.el) this.el.addEventListener("click",this.onClick)			
 		}
 		componentWillUnmount(){
 			if(this.el) this.el.removeEventListener("click",this.onClick)
