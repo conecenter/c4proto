@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-use Digest::MD5 qw(md5_hex);
+#use Digest::MD5 qw(md5_hex);
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
