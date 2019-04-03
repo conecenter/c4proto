@@ -722,6 +722,7 @@ push @tasks, ["ci_cp_proto","",sub{
     sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     sy("cp $gen_dir/zoo.dockerfile $ctx_dir/Dockerfile");
+    sy("cp $gen_dir/install.pl $ctx_dir/install.pl");
     sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
     sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
 }];
