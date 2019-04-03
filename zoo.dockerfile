@@ -17,5 +17,5 @@ RUN perl /c4/run.pl fix_desktop
 RUN chown -R c4:c4 /c4
 WORKDIR /c4
 USER c4
-RUN cd /c4/greys && bash ./install-local.sh
+RUN cd /tools/greys && bash ./install-local.sh
 ENTRYPOINT ["perl","run.pl"]
