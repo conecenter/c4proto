@@ -9,4 +9,4 @@ RUN mkdir /c4res \
  && chown c4:c4 /c4res \
  && chown -R c4:c4 /c4
 USER c4
-RUN perl prod.pl build_some_server $C4CI_FULL_IMG /c4/c4proto
+RUN perl /c4/c4proto/prod.pl build_some_server $C4CI_FULL_IMG /c4/c4proto

@@ -51,7 +51,7 @@ my $handle = sub{
         &$clear_ctx(),
         "cd $repo_dir && git fetch && git fetch --tags",
         "git --git-dir=$repo_dir/.git --work-tree=$ctx_dir checkout $checkout -- .",
-        "docker build -t builder:$tag -f build.$mode.dockerfile $args $ctx_dir",
+        "docker build -t builder:$tag -f $ctx_dir/build.$mode.dockerfile $args $ctx_dir",
         &$clear_ctx(),
         "docker create --name $builder builder:$tag",
         "docker cp $builder:/c4res $ctx_dir",
