@@ -716,7 +716,7 @@ push @tasks, ["compose_up","<tag> $composes_txt",sub{
 
 push @tasks, ["build_some_server","",sub{
     my($full_img,$gen_dir)=@_;
-    $full_img=~m{^cone/c4zoo:def\.} || die "bad repo/img";
+    $full_img=~m{^cone/c4zoo:def\.} || die "bad repo/img: $full_img";
     sy("cd $gen_dir && ./app.pl build_some_server");
     my $ctx_dir = "/c4res";
     sy("rm -r $ctx_dir/*");
