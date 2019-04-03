@@ -55,7 +55,7 @@ my $handle = sub{
         &$clear_ctx(),
         "docker create --name $builder builder:$tag",
         "docker cp $builder:/c4/res $ctx_dir",
-        "docker rm -f builder-$$",
+        "docker rm -f $builder",
         "docker build -t $full_img $ctx_dir",
         "docker push $full_img",
     );
