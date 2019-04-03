@@ -166,6 +166,11 @@ push @tasks, ["gate_server_run", sub{
 #    sy("$env ".staged("c4gate-server","ee.cone.c4gate.SnapshotMakerApp"));
 #}];
 
+push @tasks, ["test", sub{
+    my ($arg_a,$arg_b) = @_;
+    sy("$env ".staged(($ARGV[1]||die),($ARGV[2]||die)));
+}];
+
 push @tasks, ["test_post_get_tcp_service_run", sub{
     sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestConsumerApp"))
 }];
