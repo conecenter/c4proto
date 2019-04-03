@@ -38,7 +38,7 @@ push @tasks, [haproxy=>sub{
     if(!-e $pem_path){
         my $cert_path = "/c4/dummy.cert";
         sy(qq[openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $cert_path.key -out $cert_path.crt -subj "/C=EE"]);
-        &$put($pem_path,syf("cat $cert_path.crt $cert_path.key"));
+        &$put_text($pem_path,syf("cat $cert_path.crt $cert_path.key"));
     }
     &$put_text("/c4/haproxy.cfg", join "\n",
       "defaults",
