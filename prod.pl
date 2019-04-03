@@ -719,6 +719,7 @@ push @tasks, ["ci_cp_proto","",sub{
     $full_img=~m{^cone/c4zoo:def\.} || die "bad repo/img: $full_img";
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
+    sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     sy("cp $gen_dir/zoo.dockerfile $ctx_dir/Dockerfile");
     sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
