@@ -1,9 +1,15 @@
 #!/usr/bin/perl
 use strict;
+use Digest::MD5 qw(md5_hex);
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syl{ print "$_\n" and return `$_` for @_ }
+my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my $env = sub{ $ENV{$_[0]} || die "no $_[0]" };
+my $put_text = sub{
+    my($fn,$content)=@_;
+    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+};
 my $serve = sub{
     my($port,$handle)=@_;
     use strict;
@@ -26,42 +32,47 @@ my $serve = sub{
     }
     $socket->close();
 };
-my $ctx_dir = "/tmp/c4ctx-$$";
-my $clear_ctx = sub{ sy("rm -r $ctx_dir; mkdir -p $ctx_dir"); };
-sy("test -e /usr/bin/docker || curl https://get.docker.com/ | sh");
-my $repo_dir = &$env("C4CI_REPO_DIR");
-&$serve(&$env("C4CI_PORT"),sub{
+
+my $handle = sub{
     my $full_img = <STDIN> || die;
     chomp $full_img;
     my($tag,$base,$mode,$checkout) =
         $full_img=~/^[\w\-\.\:]+\:(([\w\-\.]+)\.(\w+)\.([\w\-]+))$/ ?
         ($1,$2,$3,$4) : die "bad tag: $full_img";
-    &$clear_ctx();
-    sy("cd $repo_dir && git fetch && git fetch --tags");
-    sy("git --git-dir=$repo_dir/.git --work-tree=$ctx_dir checkout $checkout -- .");
     #we can implement fork after checkout later and unshare ctx_dir
+    my $builder = md5_hex($full_img);
+    my $host = &$env("C4CI_HOST");
+    my $ctx_dir = &$env("C4CI_CTX_DIR");;
+    my $repo_dir = &$env("C4CI_REPO_DIR");;
+    my $clear_ctx = sub{ ("(rm -r $ctx_dir;true)","mkdir $ctx_dir") };
     my $args = " --build-arg C4CI_FULL_IMG=$full_img --build-arg C4CI_BASE_TAG=$base";
-    sy("docker build -t builder:$tag -f build.$mode.dockerfile $args $ctx_dir");
-    &$clear_ctx();
-    sy("docker create --name builder-$$ builder:$tag");
-    sy("docker cp builder-$$:/c4res $ctx_dir");
-    sy("docker rm -f builder-$$");
-    sy("docker build -t $full_img $ctx_dir");
-    sy("docker push $full_img");
-});
+    my @commands = (
+        "set -x",
+        &$clear_ctx(),
+        "cd $repo_dir && git fetch && git fetch --tags",
+        "git --git-dir=$repo_dir/.git --work-tree=$ctx_dir checkout $checkout -- .",
+        "docker build -t builder:$tag -f build.$mode.dockerfile $args $ctx_dir",
+        &$clear_ctx(),
+        "docker create --name $builder builder:$tag",
+        "docker cp $builder:/c4res $ctx_dir",
+        "docker rm -f builder-$$",
+        "docker build -t $full_img $ctx_dir",
+        "docker push $full_img",
+    );
+    &$put_text("/tmp/build.sh", join " && ",@commands);
+    sy("ssh -v $host sh < /tmp/build.sh");
+};
 
-=sk
-version: "3.2"
-services:
-  ci:
-    image: ubuntu
-    userns_mode: "host"
-    command: ["sh","-c","test -e /c4proto || git clone git@github.com:conecenter/c4proto.git; perl /ci.pl"] #inst doc; clone
-    restart: unless-stopped
-    volumes:
-    - /var/run/docker.sock:/var/run/docker.sock
-    - ./ci.pl:/ci.pl
-    environment:
-    - C4CI_REPO_DIR=/c4proto
-    - C4CI_PORT=7079
-=cut
+my @tasks;
+push @tasks, [serve=>sub{
+    my $tgz = &$env("C4CI_KEY_TGZ");
+    my $dir = "/c4/.ssh";
+    sy("mkdir -p $dir && cd $dir && chmod 0700 . && tar -xzf $tgz");
+    &$serve(&$env("C4CI_PORT"),$handle);
+}];
+push @tasks, [frpc=>sub{
+    &$exec("/tools/frp/frpc", "-c", &$env("C4FRPC_INI"));
+}];
+
+my($cmd,@args)=@ARGV;
+($cmd||'def') eq $$_[0] and $$_[1]->(@args) for @tasks;
