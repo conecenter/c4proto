@@ -8,6 +8,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.CurrentTimeNode
+import ee.cone.c4actor.dep.request.CurrentTimeProtocolBase.CurrentTimeNodeSetting
 import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.{CurrentTimeMetaAttr, CurrentTimeRequest}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
@@ -46,7 +47,12 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   }
 }
 
-@protocol(OperativeCat) object CurrentTimeProtocolBase   {
+@protocol(OperativeCat) object CurrentTimeProtocolBase {
+
+  @Id(0x0127) case class CurrentTimeNodeSetting(
+    @Id(0x0128) timeNodeId: String,
+    @Id(0x0129) refreshSeconds: Long
+  )
 
   @Id(0x0123) case class CurrentTimeNode(
     @Id(0x0124) srcId: String,
@@ -69,7 +75,8 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with
   override def assembles: List[Assemble] = {
     val grouped = currentTimeConfig.distinct.groupBy(_.srcId).filter(kv ⇒ kv._2.size > 1)
     assert(grouped.isEmpty, s"Duplicate keys ${grouped.keySet}")
-    new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles}
+    new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
+  }
 }
 
 object CurrentTimeRequestAssembleTimeId {
@@ -77,24 +84,24 @@ object CurrentTimeRequestAssembleTimeId {
 }
 
 
-@assemble class CurrentTimeAssembleBase(configList: List[CurrentTimeConfig])   {
-  type PongSrcId = SrcId
+@assemble class CurrentTimeAssembleBase(configList: List[CurrentTimeConfig]) {
+  type CurrentTimeId = SrcId
 
-  def FromFirstBornCreateNowTime(
+  def CreateTimeConfig(
     firstBornId: SrcId,
     firstborn: Each[Firstborn]
-  ): Values[(SrcId, TxTransform)] = for {
-    config ← configList
-  } yield WithPK(CurrentTimeTransform(config.srcId, config.periodSeconds))
+  ): Values[(CurrentTimeId, CurrentTimeConfig)] =
+    configList.map(WithPK(_))
 
-  def GetCurrentTimeToAll(
-    nowTimeId: SrcId,
-    nowTimeNode: Each[CurrentTimeNode]
-  ): Values[(All, CurrentTimeNode)] =
-    List(All → nowTimeNode)
+  def FromSettingsCreateNowTime(
+    firstBornId: SrcId,
+    @by[CurrentTimeId] config: Each[CurrentTimeConfig],
+    settings: Values[CurrentTimeNodeSetting]
+  ): Values[(SrcId, TxTransform)] =
+    List(WithPK(CurrentTimeTransform(config.srcId, settings.headOption.map(_.refreshSeconds).getOrElse(config.periodSeconds))))
 }
 
-@assemble class CurrentTimeRequestAssembleBase(util: DepResponseFactory)   {
+@assemble class CurrentTimeRequestAssembleBase(util: DepResponseFactory) {
   type CTRATimeId = SrcId
 
   def FilterTimeForCurrentTimeRequestAssemble(
@@ -126,7 +133,7 @@ object CurrentTimeRequestAssembleTimeId {
   }
 }
 
-@protocol object CurrentTimeRequestProtocolBase   {
+@protocol object CurrentTimeRequestProtocolBase {
 
   @Cat(DepRequestCat)
   @Id(0x0f83) case class CurrentTimeRequest(

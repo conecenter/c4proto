@@ -199,7 +199,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "F10":
 				break;
 			case " ":
-				if(event.target.tagName !== "INPUT")
+				if(event.target.tagName !== "INPUT" && event.target.tagName !== "TEXTAREA")
 					event.preventDefault()
 			default:
 				isPrintable = true
