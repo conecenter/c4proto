@@ -36,9 +36,9 @@ my $serve = sub{
 my $handle = sub{
     my $full_img = <STDIN> || die;
     chomp $full_img;
-    my($tag,$base,$mode,$checkout) =
-        $full_img=~/^[\w\-\.\:\/]+\:(([\w\-\.]+)\.(\w+)\.([\w\-]+))$/ ?
-        ($1,$2,$3,$4) : die "bad tag: $full_img";
+    my($tag,$base,$mode,$repo_name,$checkout) =
+        $full_img=~/^[\w\-\.\:\/]+\:(([\w\-\.]+)\.(\w+)\.([\w\-]+)\.([\w\-]+))$/ ?
+        ($1,$2,$3,$4,$5) : die "bad tag: $full_img";
     #we can implement fork after checkout later and unshare ctx_dir
     my $builder = md5_hex($full_img)."-".time;
     my $host = &$env("C4CI_HOST");
@@ -50,8 +50,8 @@ my $handle = sub{
         "set -x",
         "(test -e $ctx_dir && rm -r $ctx_dir; true)",
         "mkdir $ctx_dir",
-        "cd $repo_dir && git fetch && git fetch --tags",
-        "git --git-dir=$repo_dir/.git --work-tree=$ctx_dir checkout $checkout -- .",
+        "cd $repo_dir/$repo_name && git fetch && git fetch --tags",
+        "git --git-dir=$repo_dir/$repo_name/.git --work-tree=$ctx_dir checkout $checkout -- .",
         "docker build -t builder:$tag -f $ctx_dir/build.$mode.dockerfile $args $ctx_dir",
         "rm -r $ctx_dir",
         "docker create --name $builder builder:$tag",

@@ -747,21 +747,19 @@ push @tasks, ["ci_setup","",sub{
         &$remote_build($comp,$from_path,$img);
     };
     my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-    my $repo_dir = "/home/c4/tmp_ci4proto/repo";
-    my $ctx_dir = "/home/c4/tmp_ci4proto/ctx";
-    my $repo_url = "https://github.com/conecenter/c4proto.git";
+    my $data_dir = &$get_compose($comp)->{ci_data_dir} || die "no ci_data_dir";
+    #userns_mode => "host" with docker.sock -- bad uid-s
     my $services = {
         main => &$extract_env({
             @server_options,
             image => $img,
             command => "serve",
-            #userns_mode => "host", volumes => ["/var/run/docker.sock:/var/run/docker.sock"
             volumes => ["./ssh.tar.gz:/c4conf/ssh.tar.gz"],
             C4CI_KEY_TGZ => "/c4conf/ssh.tar.gz",
             C4CI_PORT => "7079",
             C4INTERNAL_PORTS => "7079",
-            C4CI_REPO_DIR =>$repo_dir,
-            C4CI_CTX_DIR =>$ctx_dir,
+            C4CI_REPO_DIR =>"$data_dir/repo",
+            C4CI_CTX_DIR =>"$data_dir/ctx",
             C4CI_HOST => $host,
             tty => "true",
         }),
@@ -787,8 +785,8 @@ push @tasks, ["ci_setup","",sub{
             "ssh-copy-id -i id_rsa.pub -p $port c4\@$host"
         );
     };
-    sy(&$remote($comp,"mkdir -p $repo_dir"));
-    sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
+    #sy(&$remote($comp,"mkdir -p $repo_dir"));
+    #sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
     sy(&$remote_compose_up($from_path,$comp,""));
 }];
 
