@@ -713,8 +713,24 @@ push @tasks, ["compose_up","<tag> $composes_txt",sub{
 #    &$remote_build($build_comp,$dir,$tag);
 #    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
 #}];
-
-push @tasks, ["ci_cp_proto","",sub{
+push @tasks, ["ci_build_head","<dir> <host>:<port> [parent]",sub{
+    my($repo_dir,$addr,$parent) = @_;
+    my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
+    my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w+)/ ? $1 : die;
+    my $pf =
+        !$parent ? "base.$repo_name.$commit" :
+        $parent=~/^(\w+)$/ ? "base.$repo_name.$1.next.$repo_name.$commit" :
+        die $parent;
+    my $req = "test:test.$pf\n";
+    print $req;
+    my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
+    open SOCKET, "|nc $host $port" || die $!; #-w 10
+    select SOCKET;
+    $| = 1;
+    print $req || die $!;
+    sleep 10000;
+}];
+push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     my($full_img,$gen_dir)=@_;
     $full_img=~m{^cone/c4zoo:def\.} || die "bad repo/img: $full_img";
     my $ctx_dir = "/c4/res";

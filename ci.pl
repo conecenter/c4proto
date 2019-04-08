@@ -58,7 +58,7 @@ my $handle = sub{
         "docker cp $builder:/c4/res $ctx_dir",
         "docker rm -f $builder",
         "docker build -t $full_img $ctx_dir",
-        "docker push $full_img",
+        $full_img=~m{/} ? "docker push $full_img" : (),
     );
     &$put_text("/tmp/build.sh", join " && ",@commands);
     sy("ssh -v $host sh < /tmp/build.sh");
