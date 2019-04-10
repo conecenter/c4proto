@@ -459,10 +459,21 @@ $merge{"ARRAY-ARRAY"} = sub{[map{@$_}@_]};
 
 my $extract_env = sub{
     my($opt) = @_;
-    my %env = map{/^C4/?($_=>$$opt{$_}):()} keys %$opt;
-    my %def = map{/^C4/?():($_=>$$opt{$_})} keys %$opt;
+    my %env = map{/^[A-Z]/?($_=>$$opt{$_}):()} keys %$opt;
+    my %def = map{/^[A-Z]/?():($_=>$$opt{$_})} keys %$opt;
     &$merge({environment => \%env}, \%def);
 };
+
+my @server_options = (
+    restart=>"unless-stopped",
+    logging => {
+        driver => "json-file",
+        options => {
+            "max-size" => "20m",
+            "max-file" => "20",
+        },
+    },
+);
 
 my $common_services = sub{(
     gate => {
@@ -491,17 +502,18 @@ my $common_services = sub{(
     frpc => {
         command => "frpc",
         C4FRPC_INI => "/c4conf/frpc.ini",
-        volumes => ["db4:/c4/db4",".:/c4conf"],
+        volumes => ["db4:/c4/db4"],
     },
     desktop => {
         command => "desktop",
         C4INTERNAL_PORTS => "5900",
         C4AUTH_KEY_FILE => "/c4conf/simple.auth",
-        volumes => ["db4:/c4/db4",".:/c4conf"],
+        volumes => ["db4:/c4/db4"],
     },
 )};
 
 my $template_yml = sub{+{
+    service_def => {@server_options},
     services => {
         &$common_services(),
     },
@@ -531,24 +543,17 @@ my $to_ini_file = sub{
 };
 
 my $frp_auth_all = lazy{ require "$ENV{C4DEPLOY_CONF}/frp_auth.pl" };
-my $get_frp_sk = sub{(&$frp_auth_all()->{$_[0]}||die)->[1]||die};
-
-my @server_options = (
-    restart=>"unless-stopped",
-    logging => {
-        driver => "json-file",
-        options => {
-            "max-size" => "20m",
-            "max-file" => "20",
-        },
-    },
-);
+my $get_auth = sub{
+    my($comp) = @_;
+    @{&$frp_auth_all()->{$comp} || die "$comp auth not found"};
+};
 
 my $split_port = sub{ $_[0]=~/^(\S+):(\d+)$/ ? ($1,$2) : die };
 
 my $get_frp_common = sub{
     my($comp)=@_;
-    my($token,$sk) = (&$frp_auth_all()->{$comp}||die "$comp frp auth not found")->[0]||die "frp auth not found";
+    my($token,$sk,%auth) = &$get_auth($comp);
+    $token || die "frp auth not found";
     my $conf = &$get_compose($comp);
     my($frps_addr,$frps_port) = &$split_port($$conf{frps}||die);
     my $proxy = $$conf{frp_http_proxy};
@@ -560,9 +565,18 @@ my $get_frp_common = sub{
     );
 };
 
+my $mount_conf = sub{
+    my($service) = @_;
+    my $env = $$service{environment} || {};
+    my @vol = map{"./$_:/c4conf/$_"}
+        map{/^C4/ && $$env{$_}=~m{^/c4conf/([\w\.]+)$} ? "$1":() } keys %$env;
+    @vol ? &$merge({volumes=>\@vol},$service) : $service;
+};
+
 my $make_frpc_conf = sub{
     my($comp,$services) = @_;
     my @common = (common => [&$get_frp_common($comp)]);
+    my($token,$sk,%auth) = &$get_auth($comp);
     my @add = map{
         my $k = $_;
         my $env = ($$services{$k} || die)->{environment};
@@ -570,7 +584,7 @@ my $make_frpc_conf = sub{
             my $port = $_;
             ("$comp.$k.$port" => [
                 type => "stcp",
-                sk => &$get_frp_sk($comp),
+                sk => $sk,
                 local_ip => $k,
                 local_port => $port,
             ])
@@ -590,16 +604,16 @@ my $to_yml_str = sub{
 };
 
 my $compose_up = sub{
-    my($tag,$run_comp,$conf,$frpc_conf,$simple_auth)=@_;
+    my($run_comp,$conf,$frpc_conf,$simple_auth)=@_;
     my $template = { volumes => { db4 => {} }, version => "3.2" };
     my $override = &$merge($template, $conf);
     my $override_services = $$override{services} || die;
     my %was;
+    my $service_def = $$conf{service_def} || {};
     my $generated_services = {map{
         my $service_name = $_;
         my $service = $$override_services{$service_name} || die;
         my $generated_service = {
-            @server_options,
             ($$service{C4STATE_TOPIC_PREFIX}?(
                 #$$conf{main} ? () :
                 (depends_on => ["broker"]),
@@ -610,23 +624,20 @@ my $compose_up = sub{
                 #C4PARENT_HTTP_SERVER => "http://$parent_http_server",
                 C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
                 tty => "true",
-                environment => {
-                    JAVA_TOOL_OPTIONS => join(' ',qw(
-                        -Dcom.sun.management.jmxremote.port=9010
-                        -Dcom.sun.management.jmxremote.ssl=false
-                        -Dcom.sun.management.jmxremote.authenticate=false
-                        -Dcom.sun.management.jmxremote.local.only=false
-                        -Dcom.sun.management.jmxremote.rmi.port=9010
-                    )),
-                }, #-com.sun.management.jmxremote.host=0.0.0.0
-                volumes => [".:/c4conf"],
+                JAVA_TOOL_OPTIONS => join(' ',qw(
+                    -Dcom.sun.management.jmxremote.port=9010
+                    -Dcom.sun.management.jmxremote.ssl=false
+                    -Dcom.sun.management.jmxremote.authenticate=false
+                    -Dcom.sun.management.jmxremote.local.only=false
+                    -Dcom.sun.management.jmxremote.rmi.port=9010
+                )),
+                 #-com.sun.management.jmxremote.host=0.0.0.0
             ):()),
             ($$service{C4EXPOSE_HTTP_PORT} && $$conf{http_port} ? (
                 ports => ["$$conf{http_port}:$$service{C4EXPOSE_HTTP_PORT}"],
             ):()),
-            image => $tag
         };
-        ($service_name => &$extract_env(&$merge($generated_service,$service)));
+        ($service_name => &$mount_conf(&$extract_env(&$merge(&$merge($service_def,$generated_service),$service))));
     } keys %$override_services };
     my $generated = { %$template, services => $generated_services };
 
@@ -635,9 +646,11 @@ my $compose_up = sub{
     # docker save then load
 
     my($put,$from_path) = &$get_tmp_conf_dir();
+    my($token,$sk,%auth) = &$get_auth($run_comp);
     &$put("docker-compose.yml",&$to_yml_str($generated));
     &$put("simple.auth",$simple_auth);
     &$put("frpc.ini", &$make_frpc_conf($run_comp,$generated_services).$frpc_conf);
+    &$put($_,$auth{$_}) for sort keys %auth;
     #
     sy(&$remote_compose_up($from_path,$run_comp,""));
 };
@@ -658,9 +671,10 @@ my $compose_up = sub{
 my $frp_client = sub{
     my($comp,$server)=@_;
     my($host,$port) = &$split_port($server);
+    my($token,$sk,%auth) = &$get_auth($comp);
     ("$comp.p$port" => [
         type => "stcp",
-        sk => &$get_frp_sk($comp),
+        sk => $sk,
         local_ip => $host,
         local_port => $port,
     ]);
@@ -683,8 +697,8 @@ my $frp_web = sub{
     );
 };
 
-push @tasks, ["compose_up","<tag> $composes_txt",sub{
-    my($tag,$run_comp)=@_;
+push @tasks, ["compose_up","$composes_txt",sub{
+    my($run_comp)=@_;
     sy(&$ssh_add());
     my $conf = &$get_compose($run_comp);
 #    my $main_comp = $$conf{main};
@@ -698,7 +712,8 @@ push @tasks, ["compose_up","<tag> $composes_txt",sub{
 #        &$compose_up($mode,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($main_comp));
 #    } else {
         my $frpc_conf = &$to_ini_file([&$frp_web($$conf{proxy_dom}||$run_comp)]);
-        &$compose_up($tag,$run_comp,$ext_conf,$frpc_conf,&$get_frp_sk($run_comp));
+        my($token,$sk,%auth) = &$get_auth($run_comp);
+        &$compose_up($run_comp,$ext_conf,$frpc_conf,$sk);
 #    }
 }];
 
@@ -713,15 +728,15 @@ push @tasks, ["compose_up","<tag> $composes_txt",sub{
 #    &$remote_build($build_comp,$dir,$tag);
 #    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
 #}];
-push @tasks, ["ci_build_head","<dir> <host>:<port> [parent]",sub{
-    my($repo_dir,$addr,$parent) = @_;
+push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
+    my($repo_dir,$addr,$req_pre,$parent) = @_;
     my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
     my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w+)/ ? $1 : die;
     my $pf =
         !$parent ? "base.$repo_name.$commit" :
         $parent=~/^(\w+)$/ ? "base.$repo_name.$1.next.$repo_name.$commit" :
         die $parent;
-    my $req = "test:test.$pf\n";
+    my $req = "$req_pre.$pf\n";
     print $req;
     my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
     open SOCKET, "|nc $host $port" || die $!; #-w 10
@@ -766,11 +781,10 @@ push @tasks, ["ci_setup","",sub{
     my $data_dir = &$get_compose($comp)->{ci_data_dir} || die "no ci_data_dir";
     #userns_mode => "host" with docker.sock -- bad uid-s
     my $services = {
-        main => &$extract_env({
+        main => &$mount_conf(&$extract_env({
             @server_options,
             image => $img,
             command => "serve",
-            volumes => ["./ssh.tar.gz:/c4conf/ssh.tar.gz"],
             C4CI_KEY_TGZ => "/c4conf/ssh.tar.gz",
             C4CI_PORT => "7079",
             C4INTERNAL_PORTS => "7079",
@@ -778,14 +792,13 @@ push @tasks, ["ci_setup","",sub{
             C4CI_CTX_DIR =>"$data_dir/ctx",
             C4CI_HOST => $host,
             tty => "true",
-        }),
-        frpc => &$extract_env({
+        })),
+        frpc => &$mount_conf(&$extract_env({
             @server_options,
             image => $img,
             command => "frpc",
-            volumes => ["./frpc.ini:/c4conf/frpc.ini"],
             C4FRPC_INI => "/c4conf/frpc.ini",
-        }),
+        })),
     };
     my $yml_str = &$to_yml_str({ version => "3.2", services => $services });
     my($put,$from_path) = &$get_tmp_conf_dir();
@@ -1007,7 +1020,7 @@ push @tasks, ["cert","<hostname>",sub{
 push @tasks, ["devel_init_frpc","<devel>|all",sub{
     my($developer) = @_;
     my $comp = "devel";
-    my $sk = &$get_frp_sk($comp);
+    my($token,$sk,%auth) = &$get_auth($comp);
     my $proxy_list = (&$get_deploy_conf()->{proxy_to}||die)->{visits}||die;
     my $put = sub{
         my($inner_comp,$fn,$content) = @_;

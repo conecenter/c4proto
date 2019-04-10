@@ -10,6 +10,8 @@ my $bin = "/tools/kafka/bin";
 my $http_port = 8067;
 my $sse_port = 8068;
 
+sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
+sub syf{ print "$_\n" and return scalar `$_` for @_ }
 my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
@@ -73,7 +75,7 @@ push @tasks, [gate=>sub{
     &$exec("sh", "C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port app/bin/c4gate-server");
 }];
 push @tasks, [fix_desktop=>sub{
-    system $_ and die "$_,$?" for
+    sy($_) for
         'echo "allowed_users=anybody" > /etc/X11/Xwrapper.config',
         'cp /etc/X11/spiceqxl.xorg.conf /etc/X11/c4spiceqxl.xorg.conf',
         'chown c4:c4 /etc/X11/c4spiceqxl.xorg.conf',
@@ -95,7 +97,7 @@ push @tasks, [desktop=>sub{
     &$put_text("/etc/X11/$conf_fn", $conf_cont);
     my $agent = "/c4/vdagentd";
     &$put_text($agent,"#!/usr/bin/perl\nexec 'spice-vdagentd','-X',\@ARGV;die");
-    system 'chmod', '+x', $agent and die $?;
+    sy('chmod', '+x', $agent);
     my @vdagent = (
         '--vdagent',
         '--vdagentd-exec' => $agent,
@@ -107,7 +109,7 @@ push @tasks, [desktop=>sub{
     &$exec("Xspice",@vdagent,"--config",$conf_fn,"--xsession","openbox",":1"); #-session
 }];
 push @tasks, [def=>sub{
-    m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4deploy/*>;
+    m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>;
     &$exec("sh", "serve.sh");
 }];
 
