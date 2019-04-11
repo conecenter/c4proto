@@ -136,7 +136,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const sendEvent = (event) => {
 		const cNode = getCNode()
 		if(!cNode) return
-		const controlEl = cNode.querySelector("input")||cNode.querySelector("button,.button")
+		const controlEl = cNode.querySelector("input") || cNode.querySelector("textarea") || cNode.querySelector("button,.button")
 		const innerTab = cNode.querySelector('[tabindex="1"]')
 		const cEvent = event()
 		if(controlEl) 
