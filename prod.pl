@@ -730,13 +730,14 @@ push @tasks, ["compose_up","$composes_txt",sub{
 #}];
 push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
     my($repo_dir,$addr,$req_pre,$parent) = @_;
-    my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
-    my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w+)/ ? $1 : die;
+    #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
+    my $commit = syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die;
+    #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
     my $pf =
-        !$parent ? "base.$repo_name.$commit" :
-        $parent=~/^(\w+)$/ ? "base.$repo_name.$1.next.$repo_name.$commit" :
+        !$parent ? "base.$commit" :
+        $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
         die $parent;
-    my $req = "$req_pre.$pf\n";
+    my $req = "build $req_pre.$pf\n";
     print $req;
     my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
     open SOCKET, "|nc $host $port" || die $!; #-w 10
