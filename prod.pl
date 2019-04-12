@@ -118,7 +118,7 @@ my $remote_compose_up = sub{
     my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
     my $conf_dir = "$dir/$comp"; #.c4conf
     &$rsync_to($from_path,$comp,$conf_dir);
-    &$remote($comp,"cd $conf_dir && docker-compose up -d --remove-orphans $add");
+    &$remote($comp,"cd $conf_dir && $add");
 };
 
 my $git_info = sub{
@@ -652,7 +652,7 @@ my $compose_up = sub{
     &$put("frpc.ini", &$make_frpc_conf($run_comp,$generated_services).$frpc_conf);
     &$put($_,$auth{$_}) for sort keys %auth;
     #
-    sy(&$remote_compose_up($from_path,$run_comp,""));
+    sy(&$remote_compose_up($from_path,$run_comp,"docker-compose pull && docker-compose up -d --remove-orphans"));
 };
 
 #my $frp_visitor = sub{
@@ -817,7 +817,7 @@ push @tasks, ["ci_setup","",sub{
     };
     #sy(&$remote($comp,"mkdir -p $repo_dir"));
     #sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
-    sy(&$remote_compose_up($from_path,$comp,""));
+    sy(&$remote_compose_up($from_path,$comp,"docker-compose up -d --remove-orphans"));
 }];
 
 
@@ -987,7 +987,7 @@ push @tasks, ["proxy_to","up|test",sub{
     ]]));
     if($mode eq "up"){
         sy(&$ssh_add());
-        sy(&$remote_compose_up($from_path,$comp," --force-recreate"));
+        sy(&$remote_compose_up($from_path,$comp,"docker-compose up -d --remove-orphans --force-recreate"));
     }
 }];
 
