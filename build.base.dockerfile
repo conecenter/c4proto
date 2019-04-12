@@ -9,5 +9,5 @@ RUN perl install.pl sbt 2.12.8 1.2.8
 USER c4
 COPY --chown=c4:c4 . /c4/c4proto
 RUN cd /c4/c4proto && ./app.pl build_some_server
-ARG C4CI_FULL_IMG
-RUN perl /c4/c4proto/prod.pl ci_cp_proto ${C4CI_FULL_IMG} /c4/c4proto
+ARG C4CI_BASE_TAG
+RUN perl /c4/c4proto/prod.pl ci_cp_proto ${C4CI_BASE_TAG} /c4/c4proto

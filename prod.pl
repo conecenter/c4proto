@@ -746,8 +746,8 @@ push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
     sleep 10000;
 }];
 push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
-    my($full_img,$gen_dir)=@_;
-    $full_img=~m{^cone/c4zoo:def\.} || die "bad repo/img: $full_img";
+    my($base,$gen_dir)=@_;
+    $base eq 'def' || die "bad tag prefix: $base";
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
@@ -777,8 +777,8 @@ push @tasks, ["ci_setup","",sub{
         );
         &$remote_build($comp,$from_path,$img);
     };
-    my ($host,$port,$dir) = &$get_host_port(&$get_compose($comp));
-    my $data_dir = &$get_compose($comp)->{ci_data_dir} || die "no ci_data_dir";
+    my $conf = &$get_compose($comp);
+    my ($host,$port,$dir) = &$get_host_port($conf);
     #userns_mode => "host" with docker.sock -- bad uid-s
     my $services = {
         main => &$mount_conf(&$extract_env({
@@ -788,8 +788,8 @@ push @tasks, ["ci_setup","",sub{
             C4CI_KEY_TGZ => "/c4conf/ssh.tar.gz",
             C4CI_PORT => "7079",
             C4INTERNAL_PORTS => "7079",
-            C4CI_REPO_DIR =>"$data_dir/repo",
-            C4CI_CTX_DIR =>"$data_dir/ctx",
+            C4CI_REPO_DIRS =>($$conf{ci_repo_dirs} || die "no ci_repo_dirs"),
+            C4CI_CTX_DIR => ($$conf{ci_ctx_dir} || die "no ci_ctx_dir"),
             C4CI_HOST => $host,
             tty => "true",
         })),

@@ -33,35 +33,47 @@ my $serve = sub{
     $socket->close();
 };
 
-my $handle = sub{
-    my $full_img = <STDIN> || die;
-    chomp $full_img;
-    my($tag,$base,$mode,$repo_name,$checkout) =
-        $full_img=~/^[\w\-\.\:\/]+\:(([\w\-\.]+)\.(\w+)\.([\w\-]+)\.([\w\-]+))$/ ?
-        ($1,$2,$3,$4,$5) : die "bad tag: $full_img";
+my $handle_build = sub{
+    my ($arg) = @_;
+    my($full_img,$img,$tag,$base,$mode,$checkout) =
+        $arg=~/^build\s+(([\w\-\.\:\/]+)\:(([\w\-\.]+)\.(\w+)\.([\w\-]+)))\s*$/ ?
+        ($1,$2,$3,$4,$5,$6) : return 0;
     #we can implement fork after checkout later and unshare ctx_dir
     my $builder = md5_hex($full_img)."-".time;
     my $host = &$env("C4CI_HOST");
     my $ctx_dir = &$env("C4CI_CTX_DIR");
-    my $repo_dir = &$env("C4CI_REPO_DIR");
-    my $clear_ctx = sub{ ("(rm -r $ctx_dir;true)","mkdir $ctx_dir") };
-    my $args = " --build-arg C4CI_FULL_IMG=$full_img --build-arg C4CI_BASE_TAG=$base";
+    my %repo_dirs = &$env("C4CI_REPO_DIRS")=~/(\S+)/g;
+    my $repo_dir = $repo_dirs{$img} || die "no repo for $img";
+    my $args = " --build-arg C4CI_BASE_TAG=$base";
     my @commands = (
         "set -x",
         "(test -e $ctx_dir && rm -r $ctx_dir; true)",
         "mkdir $ctx_dir",
-        "cd $repo_dir/$repo_name && git fetch && git fetch --tags",
-        "git --git-dir=$repo_dir/$repo_name/.git --work-tree=$ctx_dir checkout $checkout -- .",
+        "cd $repo_dir && git fetch && git fetch --tags",
+        "git --git-dir=$repo_dir/.git --work-tree=$ctx_dir checkout $checkout -- .",
         "docker build -t builder:$tag -f $ctx_dir/build.$mode.dockerfile $args $ctx_dir",
         "rm -r $ctx_dir",
         "docker create --name $builder builder:$tag",
         "docker cp $builder:/c4/res $ctx_dir",
         "docker rm -f $builder",
         "docker build -t $full_img $ctx_dir",
-        $full_img=~m{/} ? "docker push $full_img" : (),
+        $img=~m{/} ? "docker push $full_img" : (),
     );
     &$put_text("/tmp/build.sh", join " && ",@commands);
-    sy("ssh -v $host sh < /tmp/build.sh");
+    sy("ssh $host sh < /tmp/build.sh");
+    1;
+};
+#my $handle_run = sub{
+#    my ($arg) = @_;
+#    my $i_arg = $arg=~/^run\s+(\w[\w\-]*)/ ? $1 : return 0;
+#    my $run = &$env("C4CI_RUN"); # "ssh $host -p$port perl "
+#    sy($run.$i_arg);
+#    1;
+#};
+
+my $handle = sub{
+    my $arg = <STDIN>;
+    &$handle_build($arg) || die "can not [$arg]"
 };
 
 my @tasks;
