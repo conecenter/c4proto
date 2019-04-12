@@ -72,7 +72,9 @@ push @tasks, [frpc=>sub{
     &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
 }];
 push @tasks, [gate=>sub{
-    &$exec("sh", "C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port app/bin/c4gate-server");
+    $ENV{C4HTTP_PORT} = $http_port;
+    $ENV{C4SSE_PORT} = $sse_port;
+    &$exec("app/bin/c4gate-server");
 }];
 push @tasks, [fix_desktop=>sub{
     sy($_) for
