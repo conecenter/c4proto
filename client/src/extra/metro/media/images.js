@@ -1,4 +1,4 @@
-export default function Images(btoa){
+const Images = (btoa) =>{
 	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const closeSvg = `
 				<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 348.333 348.334" style="enable-background:new 0 0 348.333 348.334;" xml:space="preserve" fill="black">
@@ -388,21 +388,4 @@ zR5MSVNUFAAAAElORk9JU0ZUCAAAAEZpc3Npb24A`
 	}
 }
 
-/*
-	const triAngleSvg = (h,t) =>{
-		const viewBox = !t?`0 0 42 ${50+h}`:`0 0 ${50+h} 42`
-		const height = !t?50+h:42
-		const width = !t?42:50+h
-		const p1d = !t?"M 0,0 42,0 21,25 Z":"M 0,0 0,42 25,21 Z"
-		const p2d = !t?`M 0,${50+h} 42,${50+h} 21,${50+h-25} Z`:`M ${50+h},0 ${50+h},42 ${50+h-25},21 Z`		
-		const r = !t?{x:16,y:0,height:50+h,width:10}:{x:0,y:16,width:50+h,height:10}		
-		return `
-		<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="${viewBox}" height="${height}" width="${width}" > 
-			<path style="stroke-width:0.2" d="${p1d}"/>
-			<path style="stroke-width:0.2" d="${p2d}"/>	  
-			<rect style="stroke-width:0.2" y="${r.y}" x="${r.x}" height="${r.height}" width="${r.width}"/>  
-		</svg>
-		`
-	}
-
-*/
+export default Images
