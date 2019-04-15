@@ -6,7 +6,7 @@ import {ctxToPath,rootCtx,chain} from "../../main/vdom-util"
 import {dragDropPositionStates} from "../dragdrop-module"
 import GlobalStyles from './global-styles.js'
 import {eventManager,checkActivateCalls} from '../event-manager.js'
-import {ButtonElement,ButtonWithRippleElement,checkActivateCalls as buttonsActivate} from './components/buttons'
+import {ButtonElement,ButtonWithRippleElement} from './components/buttons'
 import Images from "./media/images.js"
 /*
 todo:
@@ -962,7 +962,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 				const markerButton = this.props.mButtonEnter
 				let cEvent
 				if(markerButton){					
-					cEvent = eventManager.create("cEnter",{bubbles:true,detail:markerButton})
+					cEvent = eventManager.create(event.target)("cEnter",{bubbles:true,detail:markerButton})
 					if(this.props.onBlur) this.props.onBlur()
 					else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:this.inp.value}})					
 				}
@@ -3544,6 +3544,6 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		availability:Availability.receiver,
 		branches:Branches.store		
 	}	
-	const checkActivate = chain([checkActivateCalls.check,buttonsActivate.check])
+	const checkActivate = checkActivateCalls.check
 	return ({transforms,receivers,checkActivate,reactPathConsumer:Consumer});
 }

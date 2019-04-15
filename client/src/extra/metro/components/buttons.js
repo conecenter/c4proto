@@ -130,4 +130,4 @@ const ButtonWithRippleElement = (props) =>{
 	return wrap($(ButtonElement,{...props,_ref:elem,style:{...props.style,margin:"0px"},key:"btn"}))
 }
 
-export {ButtonElement,ButtonWithRippleElement, checkActivateCalls}
+export {ButtonElement,ButtonWithRippleElement}

@@ -2,7 +2,8 @@
 const eventManager = (()=>{
 	let w
 	const create = el=>(type,params) => {
-	w = el.ownerDocument.defaultView
+		const doc =  (el.ownerDocument || el.documentElement.ownerDocument)
+		w = doc.defaultView
 		switch(type){
 			case "keydown": return (new w.KeyboardEvent(type,params))
 			case "click": return (new w.MouseEvent(type,params))
