@@ -14,11 +14,6 @@ import scala.util.control.NonFatal
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
-case class OrigKeyFactory(composes: IndexUtil) {
-  def rawKey(className: String): AssembledKey =
-    composes.joinKey(was=false, "SrcId", classOf[SrcId].getName, className)
-}
-
 case class ProtocolDataDependencies(protocols: List[Protocol], extUpdateProcessor: ExtUpdateProcessor, origKeyFactory: OrigKeyFactory) {
 
   def apply(): List[DataDependencyTo[_]] =

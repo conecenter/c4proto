@@ -81,6 +81,7 @@ trait RichDataApp extends ProtocolsApp
   with RawCompressorsApp
   with WithDefaultExtProcessor
   with UpdatesProcessorsApp
+  with OrigKeyFactoryApp
 {
   def assembleProfiler: AssembleProfiler
   def actorName: String
@@ -105,7 +106,6 @@ trait RichDataApp extends ProtocolsApp
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
-  private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
     new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, extUpdateProcessor, processors, defaultAssembleOptions)()
   lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn)
