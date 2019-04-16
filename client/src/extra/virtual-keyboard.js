@@ -1,19 +1,11 @@
 "use strict";
 import React from 'react'
+import {eventManager,checkActivateCalls} from './event-manager.js'
 
-export default function VirtualKeyboard({log,btoa,eventManager,windowManager,StatefulComponent,reactPathConsumer}){
+export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponent,reactPathConsumer}){
 	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const $ = React.createElement	
-	const checkActivateCalls=(()=>{
-		const callbacks=[]
-		const add = (c) => callbacks.push(c)
-		const remove = (c) => {
-			const index = callbacks.indexOf(c)
-			callbacks.splice(index,1)
-		}
-		const check = () => callbacks.forEach(c=>c())
-		return {add,remove,check}
-	})();
+	
 	const getReactRoot = (el) => el.ownerDocument.body
 	const isNodePosition = (el,v) => el&&el.ownerDocument&&el.ownerDocument.defaultView&&el.ownerDocument.defaultView.getComputedStyle(el).position == v	
 	const {setTimeout,getWindowRect,setInterval,clearInterval} = windowManager
@@ -36,7 +28,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 		getInitialState(){return {mouseDown:false}}
 		onClick(ev){
 			this.props.onPress && this.props.onPress()
-			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
+			if(this.props.fkey) eventManager.sendToWindow(eventManager.create(ev.target)("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
 			if(this.props.onClick) this.props.onClick(ev)			
 		}
 		onTouchStart(e){
