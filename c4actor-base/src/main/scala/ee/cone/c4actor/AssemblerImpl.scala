@@ -14,10 +14,9 @@ import scala.util.control.NonFatal
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
-case class ProtocolDataDependencies(protocols: List[Protocol], extUpdateProcessor: ExtUpdateProcessor, origKeyFactory: OrigKeyFactory) {
-
+case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: OrigKeyFactory) {
   def apply(): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters.filter(_.hasId)).filterNot(adapter ⇒ extUpdateProcessor.idSet(adapter.id)).map{ adapter ⇒
+    protocols.flatMap(_.adapters.filter(_.hasId)).map { adapter ⇒
       new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
     }
 }
@@ -34,7 +33,7 @@ class AssemblerInit(
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
   actorName: String,
-  externalUpdateProcessor: ExtUpdateProcessor,
+  updateProcessor: UpdateProcessor,
   processors: List[UpdatesPreprocessor],
   defaultAssembleOptions: AssembleOptions
 )(
@@ -46,7 +45,6 @@ class AssemblerInit(
     readModelUtil.create((for {
       tpPair ← updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair
-      _ = assert(!externalUpdateProcessor.idSet(valueTypeId), s"Got Updates for external Model $tpUpdates")
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = origKeyFactory.rawKey(valueAdapter.className)
     } yield {
@@ -102,7 +100,7 @@ class AssemblerInit(
     else { local ⇒
       val options = getAssembleOptions(local.assembled)
       val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).to[Seq] ++ out
-      val externalOut = externalUpdateProcessor.process(processedOut)
+      val externalOut = updateProcessor.process(processedOut)
       val diff = toTree(local.assembled, externalOut)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)

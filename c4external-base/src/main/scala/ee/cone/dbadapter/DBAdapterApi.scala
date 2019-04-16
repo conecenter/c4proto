@@ -1,9 +1,8 @@
 package ee.cone.dbadapter
 
-import ee.cone.c4actor.{ExtModelsApp, ExternalModel}
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
-import ee.cone.c4external.ExternalId
+import ee.cone.c4external.{ExtModelsApp, ExternalId, ExternalModel}
 
 case class TableSchema(tableName: String, columnNames: List[String])
 
@@ -54,6 +53,8 @@ trait DBAdapter {
   def flush: Unit
 
   def putOrigs(origs: List[OrigValue], offset: NextOffset): List[(OrigSchema, Int)]
+
+  def getOrigField[Field](orig: OrigSchema, fieldId: Long, pks: List[String]): List[Field]
 
   def getOrigs(orig: OrigSchema, pks: List[String]): List[Product]
 

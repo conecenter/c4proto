@@ -29,13 +29,16 @@ trait ExternalUpdateUtil[Model <: Product] {
 
 }
 
+
+import ee.cone.c4external.ExternalOrigKey._
+
 @assemble class ExternalOrigJoinerBase[Model <: Product](
   modelCl: Class[Model],
   modelId: Long,
   qAdapterRegistry: QAdapterRegistry
 )(
   val adapter: ProtoAdapter[Model] with HasId = qAdapterRegistry.byId(modelId).asInstanceOf[ProtoAdapter[Model] with HasId]
-) extends   ExternalUpdateUtil[Model] {
+) extends ExternalUpdateUtil[Model] {
   type MergeId = SrcId
   type CombineId = SrcId
 
@@ -44,9 +47,9 @@ trait ExternalUpdateUtil[Model <: Product] {
     extU: Each[ExternalUpdates]
   ): Values[(MergeId, ExternalUpdate[Model])] =
     if (extU.valueTypeId == modelId)
-    extU.updates
-      .filter(_.valueTypeId == modelId)
-      .map(u ⇒ u.srcId → ExternalUpdate[Model](extU.txId + u.srcId, u, extU.txId))
+      extU.updates
+        .filter(_.valueTypeId == modelId)
+        .map(u ⇒ u.srcId → ExternalUpdate[Model](extU.txId + u.srcId, u, extU.txId))
     else
       Nil
 
@@ -78,6 +81,7 @@ trait ExternalUpdateUtil[Model <: Product] {
 
   def CreateExternal(
     origId: SrcId,
+    @by[ExtSrcId] model: Values[Model],
     @by[CombineId] externals: Values[ExternalUpdate[Model]],
     @by[CombineId] caches: Values[CacheResponse[Model]]
   ): Values[(SrcId, Model)] =

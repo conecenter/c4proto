@@ -58,10 +58,11 @@ class ToUpdateImpl(
   txIdPropId: Long = 0x001A
 ) extends ToUpdate with LazyLogging {
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
+    val eventFlags = message.flags
     val valueAdapter = qAdapterRegistry.byName(message.className)
     val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.emptyByteArray))
-    val flags = if(message.value.nonEmpty && valueAdapter.props.exists(_.id==txIdPropId)) fillTxIdFlag else 0L
-    Update(message.srcId, valueAdapter.id, byteString, flags)
+    val txRefFlags = if(message.value.nonEmpty && valueAdapter.props.exists(_.id==txIdPropId)) fillTxIdFlag else 0L
+    Update(message.srcId, valueAdapter.id, byteString, eventFlags | txRefFlags)
   }
 
   private val compressionKey = "c"

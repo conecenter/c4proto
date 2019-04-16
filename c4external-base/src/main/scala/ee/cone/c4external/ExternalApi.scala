@@ -7,21 +7,31 @@ import ee.cone.c4external.ExternalProtocol.{CacheResponses, ExternalUpdates}
 import ee.cone.c4proto.{Id, protocol}
 import ee.cone.dbadapter.DBAdapter
 
+object ExternalModel {
+  def apply[Model <: Product](cl: Class[Model]): ExternalModel[Model] = ExternalModel(cl.getName)(cl)
+}
+
+case class ExternalModel[Model <: Product](clName: String)(val cl: Class[Model])
+
+trait ExtModelsApp {
+  def extModels: List[ExternalModel[_ <: Product]] = Nil
+}
+
 object ExtSatisfactionApi {
   type ExtSatisfaction = SrcId
   /**
     * How to:
-    *   @by[SatisfactionId] satisfactions: Values[Satisfaction]
+    * $@by[SatisfactionId] satisfactions: Values[Satisfaction]
     *
-    *   if Satisfaction.status == 'new then request is resolved, and no need to emmit request
-    *   if Satisfaction.status == 'old then request is resolved, but response is older then specified lifetime, possibly should emmit request
-    *   if Satisfactions.isEmpty then no responses are ready, need to emmit request
+    * if Satisfaction.status == 'new then request is resolved, and no need to emmit request
+    * if Satisfaction.status == 'old then request is resolved, but response is older then specified lifetime, possibly should emmit request
+    * if Satisfactions.isEmpty then no responses are ready, need to emmit request
     *
-    *   All ExtDBRequest should be grouped into ExtDBRequestGroup
+    * All ExtDBRequest should be grouped into ExtDBRequestGroup
     *
-    *   Values[(RequestGroupId, ExtDBRequestGroup)] =
-    *     if (requests.nonEmpty)
-    *       List(externalId.name -> ExtDBRequestGroup(ExtDBRequestType.name, requests)))
+    * Values[(RequestGroupId, ExtDBRequestGroup)] =
+    * if (requests.nonEmpty)
+    * List(externalId.name -> ExtDBRequestGroup(ExtDBRequestType.name, requests)))
     */
   type RequestGroupId = SrcId
 }
@@ -96,4 +106,5 @@ trait ExtDBSync {
     @Id(0x0094) externalName: String,
     @Id(0x0095) minValidOffset: String
   )
+
 }
