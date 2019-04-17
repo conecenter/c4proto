@@ -8,13 +8,15 @@ my $port_prefix = $ENV{C4PORT_PREFIX} || 8000;
 my $http_port = $port_prefix+67;
 my $sse_port = $port_prefix+68;
 my $zoo_port = $port_prefix+81;
-my $kafka_port = $port_prefix+92;
+my $plain_kafka_port = $port_prefix+92;
+my $ssl_kafka_port = $port_prefix+93;
 my $build_dir = "./client/build/test";
 my $inbox_prefix = '';
 my $kafka_version = "2.0.0";
 my $kafka = "kafka_2.11-$kafka_version";
 my $curl_test = "curl http://127.0.0.1:$http_port/abc";
-my $bootstrap_server = "127.0.0.1:$kafka_port";
+my $plain_bootstrap_server = "127.0.0.1:$plain_kafka_port";
+my $ssl_bootstrap_server = "localhost:$ssl_kafka_port";
 my $http_server = "127.0.0.1:$http_port";
 my $gen_dir = "."; #"target/c4gen/res";
 
@@ -69,11 +71,6 @@ my $inbox_configure = sub{
     my $kafka_topics = "tmp/$kafka/bin/kafka-topics.sh --zookeeper 127.0.0.1:$zoo_port --topic .inbox";
     sy("$kafka_topics --create --partitions 1 --replication-factor 1")
         if 0 > index syf("$kafka_topics --list"), ".inbox";
-    my $kafka_configs = "tmp/$kafka/bin/kafka-configs.sh --zookeeper 127.0.0.1:$zoo_port --entity-type topics ";
-    my $infinite_lag = "min.compaction.lag.ms=9223372036854775807";
-    my $compression = "compression.type=producer";
-    sy("$kafka_configs --alter --entity-name .inbox --add-config $infinite_lag,$compression");
-    die if 0 > index syf("$kafka_configs --describe --entity-name .inbox"),$infinite_lag;
 };
 
 my $stop_kafka = sub{
@@ -84,17 +81,24 @@ my $stop_kafka = sub{
 push @tasks, ["restart_kafka", sub{
     &$stop_kafka();
     &$put_text("tmp/zookeeper.properties","dataDir=db4/zookeeper\nclientPort=$zoo_port\n");
+    my $jks = "tmp/kafka.jks";
+    my $auth = "db4/simple.auth";
+    my $auth_data = `cat $auth`=~/^(\S+)\s*$/ ? $1 : die;
     &$put_text("tmp/server.properties",join "\n",
-        "listeners=PLAINTEXT://$bootstrap_server",
         "log.dirs=db4/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",
-        "log.cleanup.policy=compact",
-        "log.segment.bytes=104857600", #active segment is not compacting, so we reduce it
-        "log.cleaner.delete.retention.ms=3600000", #1h
-        "log.roll.hours=1", #delete-s will be triggered to remove?
-        "compression.type=uncompressed", #probably better compaction for .state topics
-        "message.max.bytes=110000000" #seems to be compressed
+        "message.max.bytes=250000000", #seems to be compressed
+        "listeners=PLAINTEXT://$plain_bootstrap_server,SSL://$ssl_bootstrap_server",
+        "ssl.client.auth=required",
+        "ssl.keystore.location=$jks",
+        "ssl.keystore.password=$auth_data",
+        "ssl.key.password=$auth_data",
+        "ssl.truststore.location=$jks",
+        "ssl.truststore.password=$auth_data",
+        "security.inter.broker.protocol=SSL",
+        "ssl.endpoint.identification.algorithm=",
     );
+    -e $jks or sy("keytool -genkey -keyalg RSA -alias localhost -dname 'cn=localhost' -keypass:file $auth -keystore $jks -storepass:file $auth -validity 16384");
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
     sleep 5;
     sy("tmp/$kafka/bin/kafka-server-start.sh -daemon tmp/server.properties");
@@ -106,10 +110,10 @@ push @tasks, ["stop_kafka", sub{&$stop_kafka()}];
 push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
 
 push @tasks, ["inbox_log_tail", sub{
-    sy("tmp/$kafka/bin/kafka-console-consumer.sh --bootstrap-server $bootstrap_server --topic $inbox_prefix.inbox.log")
+    sy("tmp/$kafka/bin/kafka-console-consumer.sh --bootstrap-server $plain_bootstrap_server --topic $inbox_prefix.inbox.log")
 }];
 push @tasks, ["inbox_test", sub{
-    sy("tmp/$kafka/bin/kafka-verifiable-consumer.sh --broker-list $bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
+    sy("tmp/$kafka/bin/kafka-verifiable-consumer.sh --broker-list $plain_bootstrap_server --topic $inbox_prefix.inbox --group-id dummy-".rand())
 }];
 
 =sk
@@ -148,7 +152,7 @@ my $client = sub{
     $build_dir
 };
 
-my $env = "C4BOOTSTRAP_SERVERS=$bootstrap_server C4INBOX_TOPIC_PREFIX='$inbox_prefix' C4MAX_REQUEST_SIZE=25000000 C4HTTP_SERVER=http://$http_server C4AUTH_KEY_FILE=db4/simple.auth C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
+my $env = "C4BOOTSTRAP_SERVERS=$ssl_bootstrap_server C4INBOX_TOPIC_PREFIX='$inbox_prefix' C4MAX_REQUEST_SIZE=25000000 C4HTTP_SERVER=http://$http_server C4AUTH_KEY_FILE=db4/simple.auth C4KEYSTORE_PATH=tmp/kafka.jks C4HTTP_PORT=$http_port C4SSE_PORT=$sse_port ";
 
 sub staged{
     "C4STATE_TOPIC_PREFIX=$_[1] $gen_dir/$_[0]/target/universal/stage/bin/$_[0] $_[1]"

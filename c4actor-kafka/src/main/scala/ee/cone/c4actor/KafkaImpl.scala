@@ -9,6 +9,8 @@ import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Single
 import ee.cone.c4proto.ToByteString
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file.{Files, Paths}
+
 import okio.ByteString
 import org.apache.kafka.clients.consumer.{ConsumerRecord, KafkaConsumer}
 import org.apache.kafka.clients.producer.{KafkaProducer, Producer, RecordMetadata}
@@ -32,9 +34,16 @@ class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
       "linger.ms" → "1",
       "buffer.memory" → conf.maxRequestSize,
       "compression.type" → "lz4",
-      "max.request.size" → conf.maxRequestSize
+      "max.request.size" → conf.maxRequestSize,
       // max.request.size -- seems to be uncompressed
       // + in broker config: message.max.bytes
+      "security.protocol" → "SSL",
+      "ssl.keystore.location" → conf.keyStorePath,
+      "ssl.keystore.password" → conf.keyStorePass,
+      "ssl.key.password"      → conf.keyStorePass,
+      "ssl.truststore.location" → conf.keyStorePath,
+      "ssl.truststore.password" → conf.keyStorePass,
+      "ssl.endpoint.identification.algorithm" → "",
     )
     val serializer = new ByteArraySerializer
     producer.complete(new KafkaProducer[Array[Byte], Array[Byte]](
@@ -63,8 +72,12 @@ object OffsetHex {
     (("0" * OffsetHexSize())+java.lang.Long.toHexString(offset)).takeRight(OffsetHexSize())
 }
 
-case class KafkaConfig(bootstrapServers: String, inboxTopicPrefix: String, maxRequestSize: String)(
-  ok: Unit = assert(bootstrapServers.nonEmpty && maxRequestSize.nonEmpty)
+case class KafkaConfig(
+  bootstrapServers: String, inboxTopicPrefix: String, maxRequestSize: String,
+  keyStorePath: String, keyStorePassPath: String
+)(
+  ok: Unit = assert(bootstrapServers.nonEmpty && maxRequestSize.nonEmpty && keyStorePath.nonEmpty && keyStorePassPath.nonEmpty),
+  val keyStorePass: String = new String(Files.readAllBytes(Paths.get(keyStorePassPath)),UTF_8)
 ){
   def topicNameToString(topicName: TopicName): String = topicName match {
     case InboxTopicName() ⇒ s"$inboxTopicPrefix.inbox"
@@ -77,10 +90,17 @@ case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consu
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = Map(
       "bootstrap.servers" → conf.bootstrapServers,
-      "enable.auto.commit" → "false"
+      "enable.auto.commit" → "false",
       //"receive.buffer.bytes" → "1000000",
       //"max.poll.records" → "10001"
       //"group.id" → actorName.value //?pos
+      "security.protocol" → "SSL",
+      "ssl.keystore.location" → conf.keyStorePath,
+      "ssl.keystore.password" → conf.keyStorePass,
+      "ssl.key.password"      → conf.keyStorePass,
+      "ssl.truststore.location" → conf.keyStorePath,
+      "ssl.truststore.password" → conf.keyStorePass,
+      "ssl.endpoint.identification.algorithm" → "",
     )
     FinallyClose(new KafkaConsumer[Array[Byte], Array[Byte]](
       props.asJava, deserializer, deserializer
