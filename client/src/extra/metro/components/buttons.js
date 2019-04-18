@@ -7,9 +7,9 @@ import {eventManager,checkActivateCalls} from '../../event-manager.js'
 const initialButtonState = {mouseOver:false,touchStart:false}
 const buttonReducer = (state,action) => {
 	switch(action.type){
-		case 'mouseover':
+		case 'mouseOver':
 			return {...state,mouseOver: action.value}
-		case 'touchstart':
+		case 'touchStart':
 			return {...state,touchStart: action.value}
 		default:
 			return state
@@ -44,7 +44,7 @@ const ButtonElement = (props) => {
 	const className = props.className	
 	React.useEffect(()=>{
 		props._ref && props._ref(elem.current)
-		elem.current.changing = props.changing
+		elem.current.changing = props.changing			
 		if(!elem.current.actions){
 			elem.current.actions = {
 				onEnter: e =>{
@@ -69,7 +69,7 @@ const ButtonElement = (props) => {
 			elem.current.removeEventListener("enter",elem.current.actions.onEnter)
 			elem.current.removeEventListener("click",elem.current.actions.onClick)
 		}
-	},[])
+	},[props.changing,props.onClick,props.onChange])
 	const onMouseOver = (value) => () => {
 			if(value) props.onMouseOver && props.onMouseOver()
 			else props.onMouseOut && props.onMouseOut()

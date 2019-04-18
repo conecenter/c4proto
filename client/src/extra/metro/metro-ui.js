@@ -3538,11 +3538,15 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		onWResize,
 		onContext:({ctx:ctx=>()=>rootCtx(ctx).branchKey})
 	};
+	const toUrl = (path) => {
+		setTimeout(()=>{documentManager.document.location.href = path})
+	}
 	const receivers = {
 		download,
 		ping:PingReceiver.ping,
 		availability:Availability.receiver,
-		branches:Branches.store		
+		branches:Branches.store,
+		toUrl
 	}	
 	const checkActivate = checkActivateCalls.check
 	return ({transforms,receivers,checkActivate,reactPathConsumer:Consumer});
