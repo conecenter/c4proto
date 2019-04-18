@@ -820,7 +820,48 @@ push @tasks, ["ci_setup","",sub{
     sy(&$remote_compose_up($from_path,$comp,"docker-compose up -d --remove-orphans"));
 }];
 
-
+my $need_certs = sub{
+    my($dir,$pre,$cf_pre) = @_;
+    my $auth = "$dir/simple.auth";
+    my $days = "16384";
+    my $ca_key = "$dir/ca-key";
+    my $ca_cert = "$dir/ca-cert";
+    my $ca_ts = "$dir/truststore.jks";
+    if(!-e $ca_ts){
+        sy("openssl req -new -x509 -keyout $ca_key -out $ca_cert -days $days -subj '/CN=CARoot' -nodes");
+        sy("keytool -keystore $ca_ts -storepass:file $auth -alias CARoot -import -noprompt -file $ca_cert");
+    }
+    #
+    $pre||die;
+    my $ts = "$pre.truststore.jks";
+    my $ks = "$pre.keystore.jks";
+    my $csr = "$pre.unsigned";
+    my $signed = "$pre.signed";
+    my $keytool = "keytool -keystore $ks -storepass:file $auth -alias localhost -noprompt";
+    if(!-e $ts){
+        sy("$keytool -genkey -keyalg RSA -dname 'cn=localhost' -keypass:file $auth -validity $days");
+        sy("$keytool -certreq -file $csr");
+        sy("openssl x509 -req -CA $ca_cert -CAkey $ca_key -in $csr -out $signed -days $days -CAcreateserial");
+        sy("keytool -keystore $ks -storepass:file $auth -alias CARoot -noprompt -import -file $ca_cert -trustcacerts");
+        sy("$keytool -import -file $signed -trustcacerts");
+        sy("cp $ca_ts $ts");
+    }
+    #
+    if($cf_pre){
+        my $auth_data = `cat $auth`=~/^(\S+)\s*$/ ? $1 : die;
+        &$put_text("$pre.properties",join '', map{"$_\n"}
+            "ssl.keystore.location=$cf_pre.keystore.jks",
+            "ssl.keystore.password=$auth_data",
+            "ssl.key.password=$auth_data",
+            "ssl.truststore.location=$cf_pre.truststore.jks",
+            "ssl.truststore.password=$auth_data",
+            "ssl.endpoint.identification.algorithm=",
+        );
+    }
+};
+push @tasks, ["need_certs","",sub{
+    &$need_certs(@_);
+}];
 
 #push @tasks, ["build","$composes_txt",sub{
 #    my $conf = &$get_compose($run_comp);
