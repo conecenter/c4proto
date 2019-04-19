@@ -1,4 +1,6 @@
-export default function ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}){
+import {eventManager} from '../event-manager.js'
+
+export default function ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy}){
 	let referenceCounter = 0;
 	let isOn = false
 	let interval = null
@@ -24,7 +26,7 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 			case "uhf": if(isOn) _scanner.setUHFenable(); else _scanner.setUHFdisable(); break;
 			default: if(isOn) _scanner.setScannerEnable(); else _scanner.setScannerDisable();
 		}		
-		let event = eventManager.create('onScannerChange', { 'detail': value, bubbles:true });	
+		let event = eventManager.create(document)('onScannerChange', { 'detail': value, bubbles:true });	
 		documentManager.body().dispatchEvent(event);
 		log(`scanner: set ${value} ${scanMode}`)
 	}
@@ -57,7 +59,7 @@ export default function ScannerProxy({Scanner,setInterval,clearInterval,log,inne
 		moveScrollBy(10)
 	}
 	const fireGlobalEvent = (key) => {
-		var event = eventManager.create("keydown",{key,bubbles:true})
+		var event = eventManager.create(document)("keydown",{key,bubbles:true})
 		activeElement().dispatchEvent(event)
 	}
 	const arrowUP = () => fireGlobalEvent("ArrowUp")
