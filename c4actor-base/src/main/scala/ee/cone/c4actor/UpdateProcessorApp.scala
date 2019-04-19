@@ -13,6 +13,6 @@ class DefaultUpdateProcessor extends UpdateProcessor {
   def process(updates: immutable.Seq[QProtocol.Update]): immutable.Seq[QProtocol.Update] = updates
 }
 
-trait UpdateProcessorApp {
+trait DefaultUpdateProcessorApp {
   def updateProcessor: UpdateProcessor = new DefaultUpdateProcessor
 }

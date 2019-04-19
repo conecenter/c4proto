@@ -1,10 +1,12 @@
 package ee.cone.c4external
 
+import java.net.CacheResponse
+
 import com.squareup.wire.ProtoAdapter
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
-import ee.cone.c4external.ExternalProtocol.{CacheResponses, ExternalUpdates}
+import ee.cone.c4external.ExternalProtocol.{CacheResponses, ExternalUpdate, ExternalUpdates}
 import ee.cone.c4proto.HasId
 import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuilder, OrigSchemaBuildersApp}
 
@@ -34,22 +36,20 @@ class ExtDBSyncImpl(
   // Check if registered externals have adapter
   val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.filterKeys(supportedIds)
 
-  val extUpdate: ProtoAdapter[ExternalUpdates] with HasId =
-    qAdapterRegistry.byName(classOf[ExternalUpdates].getName)
-      .asInstanceOf[ProtoAdapter[ExternalUpdates] with HasId]
+  val extUpdate: ProtoAdapter[ExternalUpdate] with HasId =
+    qAdapterRegistry.byName(classOf[ExternalUpdate].getName)
+      .asInstanceOf[ProtoAdapter[ExternalUpdate] with HasId]
 
 
   lazy val externals: Map[String, Long] = buildersByName.transform { case (_, v) ⇒ v.getOrigId }.filterKeys(externalsSet)
 
-  def upload: List[ExternalUpdates] ⇒ List[(String, Int)] = list ⇒ {
-    val toWrite: List[(NextOffset, List[QProtocol.Update])] = list.map(u ⇒
-      u.txId → u.updates
-    )
+  def upload: List[ExternalUpdate] ⇒ List[(String, Int)] = list ⇒ {
+    val toWrite: List[(NextOffset, List[ExternalUpdate])] = list.filter(_.flags & ).groupBy(_.txId).toList.sortBy(_._1)
     (for {
       (offset, qUpdates) ← toWrite
     } yield {
       val (toDelete, toUpdate) = qUpdates.partition(_.value.size() == 0)
-      val deletes = toDelete.flatMap(ext ⇒ builderMap(ext.valueTypeId).getDeleteValue(ext.srcId))
+      val deletes = toDelete.flatMap(ext ⇒ builderMap(ext.valueTypeId).getDeleteValue(ext.valueSrcId))
       val updates = toUpdate.flatMap(ext ⇒ {
         val builder = builderMap(ext.valueTypeId)
         builder.getUpdateValue(adaptersById(ext.valueTypeId).decode(ext.value))
@@ -62,7 +62,7 @@ class ExtDBSyncImpl(
 
   val handlersMap: Map[String, ExtDBRequestHandler] = factories.map(_.create(dbAdapter)).map(h ⇒ h.supportedType.uName → h).toMap
 
-  def download: List[ExtDBRequestGroup] ⇒ List[CacheResponses] = list ⇒ {
+  def download: List[ExtDBRequestGroup] ⇒ List[CacheResponse] = list ⇒ {
     list.flatMap(group ⇒ handlersMap(group.extRequestTypeId).handle(group.request))
   }
 }

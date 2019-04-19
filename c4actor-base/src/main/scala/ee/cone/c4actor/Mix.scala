@@ -79,9 +79,9 @@ trait RichDataApp extends ProtocolsApp
   with PreHashingApp
   with DeCompressorsApp
   with RawCompressorsApp
-  with UpdateProcessorApp
+  with DefaultUpdateProcessorApp
   with UpdatesProcessorsApp
-  with OrigKeyFactoryApp
+  with DefaultKeyFactoryApp
 {
   def assembleProfiler: AssembleProfiler
   def actorName: String

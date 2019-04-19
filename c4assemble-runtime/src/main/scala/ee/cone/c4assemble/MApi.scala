@@ -68,10 +68,6 @@ abstract class AssembledKey extends Getter[ReadModel,Future[Index]] with Product
   def of: ReadModel ⇒ Future[Index] = world ⇒ world.getFuture(this)
 }
 
-trait OrigKeyFactory {
-  def rawKey(className: String): AssembledKey
-}
-
 trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {
   def transform(transition: WorldTransition): WorldTransition
 }

@@ -1,7 +1,7 @@
 package ee.cone.c4external
 
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, OrigKeyFactory}
+import ee.cone.c4assemble.Assemble
 import ee.cone.c4external.joiners.{ExternalJoinersMix, ExternalOrigJoiner}
 import ee.cone.c4proto.Protocol
 
@@ -10,8 +10,8 @@ trait ExternalMix
     with ExtModelsApp
     with AssemblesApp
     with ExternalJoinersMix
-    with OrigKeyFactoryApp
-    with UpdateProcessorApp {
+    with DefaultKeyFactoryApp
+    with DefaultUpdateProcessorApp {
   def toUpdate: ToUpdate
   def qAdapterRegistry: QAdapterRegistry
 
