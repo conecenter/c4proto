@@ -6,16 +6,16 @@ import com.squareup.wire.ProtoAdapter
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
-import ee.cone.c4external.ExternalProtocol.{CacheResponses, ExternalUpdate, ExternalUpdates}
+import ee.cone.c4external.ExternalProtocol.ExternalUpdate
 import ee.cone.c4proto.HasId
 import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuilder, OrigSchemaBuildersApp}
 
-trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp with ExtDBRqHandlersApp {
+trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
   def qAdapterRegistry: QAdapterRegistry
   def toUpdate: ToUpdate
   def dbAdapter: DBAdapter
 
-  lazy val extDBSync: ExtDBSync = new ExtDBSyncImpl(dbAdapter, builders, qAdapterRegistry, toUpdate, extModels, extDBRequestHandlerFactories)
+  lazy val extDBSync: ExtDBSync = new ExtDBSyncImpl(dbAdapter, builders, qAdapterRegistry, toUpdate, extModels)
 }
 
 class ExtDBSyncImpl(
@@ -24,7 +24,7 @@ class ExtDBSyncImpl(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   external: List[ExternalModel[_ <: Product]],
-  factories: List[ExtDBRequestHandlerFactory[_ <: ExtDBRequest]]
+  archiveFlag: Long = 2L
 ) extends ExtDBSync with LazyLogging {
 
   val externalsList: List[String] = external.map(_.clName)
@@ -40,11 +40,8 @@ class ExtDBSyncImpl(
     qAdapterRegistry.byName(classOf[ExternalUpdate].getName)
       .asInstanceOf[ProtoAdapter[ExternalUpdate] with HasId]
 
-
-  lazy val externals: Map[String, Long] = buildersByName.transform { case (_, v) ⇒ v.getOrigId }.filterKeys(externalsSet)
-
   def upload: List[ExternalUpdate] ⇒ List[(String, Int)] = list ⇒ {
-    val toWrite: List[(NextOffset, List[ExternalUpdate])] = list.filter(_.flags & ).groupBy(_.txId).toList.sortBy(_._1)
+    val toWrite: List[(NextOffset, List[ExternalUpdate])] = list.filter(u ⇒ (u.flags & archiveFlag) != 0L).groupBy(_.txId).toList.sortBy(_._1)
     (for {
       (offset, qUpdates) ← toWrite
     } yield {
@@ -58,11 +55,5 @@ class ExtDBSyncImpl(
       logger.debug(s"Writing $offset $deletes/$updates origs")
       dbAdapter.putOrigs(deletes ::: updates, offset)
     }).flatten.map(t ⇒ t._1.className → t._2)
-  }
-
-  val handlersMap: Map[String, ExtDBRequestHandler] = factories.map(_.create(dbAdapter)).map(h ⇒ h.supportedType.uName → h).toMap
-
-  def download: List[ExtDBRequestGroup] ⇒ List[CacheResponse] = list ⇒ {
-    list.flatMap(group ⇒ handlersMap(group.extRequestTypeId).handle(group.request))
   }
 }

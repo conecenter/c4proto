@@ -1,31 +1,30 @@
 package ee.cone.c4external.joiners
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.{NextOffset, SrcId}
+import ee.cone.c4actor.QProtocolBase.Firstborn
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.assemble
+import ee.cone.c4external.ExtDBSync
 import ee.cone.c4external.ExternalProtocol._
-import ee.cone.c4external.{ExtDBRequestGroup, ExtDBSync}
 import ee.cone.dbadapter.DBAdapter
 
-import scala.annotation.tailrec
-
-@assemble class ProduceExternalTransformsBase(dbAdapter: DBAdapter, extDBSync: ExtDBSync, tickMillis: Long) {
+@assemble class ProduceExternalTransformsBase(dbAdapter: DBAdapter, extDBSync: ExtDBSync, toUpdate: ToUpdate) {
   def CreateExternalLoaderTx(
     srcId: SrcId,
-    bind: Each[ExternalIdBind]
+    bind: Each[Firstborn]
   ): Values[(SrcId, TxTransform)] =
-    List(WithPK(ExternalLoaderTx(bind.externalName + "ExternalLoaderTx", extDBSync, dbAdapter, tickMillis)))
+    List(WithPK(ExternalLoaderTx(bind.srcId + "ExternalLoaderTx", extDBSync, dbAdapter, toUpdate)))
 
   def CreateFlushTx(
     srcId: SrcId,
-    bind: Each[ExternalIdBind]
+    bind: Each[Firstborn]
   ): Values[(SrcId, TxTransform)] =
-    List(WithPK(FlushTx(bind.externalName + "FlushTx", dbAdapter)))
+    List(WithPK(FlushTx(bind.srcId + "FlushTx", dbAdapter)))
 }
 
-case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAdapter, timeTickMillis: Long) extends TxTransform with LazyLogging {
+case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAdapter, toUpdate: ToUpdate) extends TxTransform with LazyLogging {
   val externalId: String = dBAdapter.externalId.uName
 
   def transform(local: Context): Context = {
@@ -47,7 +46,8 @@ case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAda
     if (extUpdates.nonEmpty)
       logger.debug(s"Phase Zero: syncing ${extUpdates.size} records to $externalId")
     extDBSync.upload(extUpdates)
-    (TxAdd(cacheResponses.flatMap(LEvent.delete)) andThen WriteModelAddKey.of(l)(writeToKafka.map(_.toKafka)))(offLocal)
+    val updates = cacheResponses.flatMap(LEvent.delete).map(toUpdate.toUpdate)
+    WriteModelAddKey.of(offLocal)(updates ++ writeToKafka.map(_.toKafka))(offLocal)
   }
 }
 

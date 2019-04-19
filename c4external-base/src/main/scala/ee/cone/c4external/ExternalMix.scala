@@ -2,14 +2,14 @@ package ee.cone.c4external
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4external.joiners.{ExternalJoinersMix, ExternalOrigJoiner}
+import ee.cone.c4external.joiners.{ExternalSyncMix, ExternalOrigJoiner}
 import ee.cone.c4proto.Protocol
 
 trait ExternalMix
   extends ProtocolsApp
     with ExtModelsApp
     with AssemblesApp
-    with ExternalJoinersMix
+    with ExternalSyncMix
     with DefaultKeyFactoryApp
     with DefaultUpdateProcessorApp {
   def toUpdate: ToUpdate
@@ -17,7 +17,7 @@ trait ExternalMix
 
   override def protocols: List[Protocol] = ExternalProtocol :: super.protocols
 
-  override def updateProcessor: UpdateProcessor = new ExtUpdatesPreprocessor(toUpdate, qAdapterRegistry, extModels)
+  override def updateProcessor: UpdateProcessor = new ExtUpdatesPreprocessor(toUpdate, qAdapterRegistry, extModels)()
 
   override def origKeyFactory: OrigKeyFactory = new ExtOrigKeyFactory(indexUtil, extModels)
   override def assembles: List[Assemble] = extModels.map(ext ⇒ {

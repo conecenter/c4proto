@@ -108,7 +108,7 @@ import MergeTypes._
     else
       model.map(WithPK(_))
 
-  def CreateExternal(
+  def CreateWriteToKafka(
     origId: SrcId,
     @by[CombineId[Model]] externals: Values[ExternalUpdate],
     @by[CombineId[Model]] caches: Values[CacheUpdate]

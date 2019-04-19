@@ -54,8 +54,6 @@ trait DBAdapter {
 
   def putOrigs(origs: List[OrigValue], offset: NextOffset): List[(OrigSchema, Int)]
 
-  def getOrigField[Field](orig: OrigSchema, fieldId: Long, pks: List[String]): List[Field]
-
   def getOrigs(orig: OrigSchema, pks: List[String]): List[Product]
 
   def getOrigBytes(orig: OrigSchema, pks: List[String]): List[Update]
