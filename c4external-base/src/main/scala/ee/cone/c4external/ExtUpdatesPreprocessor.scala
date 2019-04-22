@@ -54,7 +54,7 @@ class ExtOrigKeyFactory(composes: IndexUtil, external: List[ExternalModel[_ <: P
 
   def rawKey(className: String): AssembledKey =
     if (externalClassesSet(className))
-      composes.joinKey(was = false, normalKeyAlias, normalKeyClass, className)
+      composes.joinKey(was = false, extKeyAlias, extKeyClass, className)
     else
-      composes.joinKey(was = false, normalKeyAlias, extKeyClass, className)
+      composes.joinKey(was = false, normalKeyAlias, normalKeyClass, className)
 }
