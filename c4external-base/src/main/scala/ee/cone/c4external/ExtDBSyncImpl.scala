@@ -42,7 +42,7 @@ class ExtDBSyncImpl(
       .asInstanceOf[ProtoAdapter[ExternalUpdate] with HasId]
 
   def upload: List[ExternalUpdate] ⇒ List[(String, Int)] = list ⇒ {
-    val toWrite: List[(NextOffset, List[ExternalUpdate])] = list.filter(u ⇒ (u.flags & archiveFlag) != 0L).groupBy(_.txId).toList.sortBy(_._1)
+    val toWrite: List[(NextOffset, List[ExternalUpdate])] = list.filter(u ⇒ (u.flags & archiveFlag) == 0L).groupBy(_.txId).toList.sortBy(_._1)
     (for {
       (offset, qUpdates) ← toWrite
     } yield {
