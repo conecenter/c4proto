@@ -11,7 +11,8 @@ trait ExternalMix
     with AssemblesApp
     with ExternalSyncMix
     with DefaultKeyFactoryApp
-    with DefaultUpdateProcessorApp {
+    with DefaultUpdateProcessorApp
+    with ExtDBSyncApp {
   def toUpdate: ToUpdate
   def qAdapterRegistry: QAdapterRegistry
 

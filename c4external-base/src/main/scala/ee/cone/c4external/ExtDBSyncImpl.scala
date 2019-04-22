@@ -8,7 +8,7 @@ import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
 import ee.cone.c4external.ExternalProtocol.ExternalUpdate
 import ee.cone.c4proto.HasId
-import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuilder, OrigSchemaBuildersApp}
+import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuilder, OrigSchemaBuildersApp, TableSchema}
 
 trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
   def qAdapterRegistry: QAdapterRegistry
@@ -26,7 +26,8 @@ class ExtDBSyncImpl(
   external: List[ExternalModel[_ <: Product]],
   archiveFlag: Long = 2L
 ) extends ExtDBSync with LazyLogging {
-
+  val patch: List[TableSchema] = dbAdapter.patchSchema(builders.flatMap(_.getSchemas))
+  logger.debug(patch.toString())
   val externalsList: List[String] = external.map(_.clName)
   val externalsSet: Set[String] = externalsList.toSet
   val buildersByName: Map[String, OrigSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigClName → b).toMap
