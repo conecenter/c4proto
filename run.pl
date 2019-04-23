@@ -5,7 +5,7 @@ use strict;
 
 my $zoo_port = 2181;
 my $zoo_host = "zookeeper";
-my $bootstrap_server = "broker:9092";
+my $ssl_bootstrap_server = "broker:9093";
 my $bin = "/tools/kafka/bin";
 my $http_port = 8067;
 my $sse_port = 8068;
@@ -22,17 +22,20 @@ my @tasks;
 push @tasks, [zookeeper=>sub{
     &$put_text("/c4/zookeeper.properties",join "\n",
         "dataDir=db4/zookeeper",
-        "clientPort=$zoo_port"
+        "clientPort=$zoo_port",
+        "clientPortAddress=$zoo_host",
     );
     &$exec("$bin/zookeeper-server-start.sh", "zookeeper.properties");
 }];
 push @tasks, [broker=>sub{
-    &$put_text("/c4/server.properties", join "\n",
-        "listeners=PLAINTEXT://$bootstrap_server",
+    &$put_text("/c4/server.properties", join '', map{"$_\n"}
         "log.dirs=db4/kafka-logs",
         "zookeeper.connect=$zoo_host:$zoo_port",
         "message.max.bytes=250000000" #seems to be compressed
+        "listeners=SSL://$ssl_bootstrap_server",
     );
+    my $props = $ENV{C4SSL_PROPS} || die;
+    sy("cat $props >> server.properties");
     &$exec("$bin/kafka-server-start.sh", "server.properties");
 }];
 push @tasks, [haproxy=>sub{

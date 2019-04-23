@@ -63,17 +63,18 @@ my $handle_build = sub{
     sy("ssh $host sh < /tmp/build.sh");
     1;
 };
-#my $handle_run = sub{
-#    my ($arg) = @_;
-#    my $i_arg = $arg=~/^run\s+(\w[\w\-]*)/ ? $1 : return 0;
-#    my $run = &$env("C4CI_RUN"); # "ssh $host -p$port perl "
-#    sy($run.$i_arg);
-#    1;
-#};
+my $handle_run = sub{
+    my ($arg) = @_;
+    my $i_arg = $arg=~m{^run\s+(\w[\w\-]*/up)} ? $1 : return 0;
+    my $host = &$env("C4CI_HOST");
+    my $dir = &$env("C4CI_RUN_DIR");
+    sy("ssh $host $dir/$i_arg");
+    1;
+};
 
 my $handle = sub{
     my $arg = <STDIN>;
-    &$handle_build($arg) || die "can not [$arg]"
+    &$handle_build($arg) || &$handle_run($arg) || die "can not [$arg]"
 };
 
 my @tasks;

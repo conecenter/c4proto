@@ -8,10 +8,11 @@ trait KafkaConfigApp {
   lazy val inboxTopicPrefix: String = config.get("C4INBOX_TOPIC_PREFIX")
   private lazy val maxRequestSize: String = config.get("C4MAX_REQUEST_SIZE")
   private lazy val keyStorePath: String = config.get("C4KEYSTORE_PATH")
+  private lazy val trustStorePath: String = config.get("C4TRUSTSTORE_PATH")
   private lazy val keyPassPath: String = config.get("C4AUTH_KEY_FILE")
   lazy val kafkaConfig: KafkaConfig = KafkaConfig(
     bootstrapServers,inboxTopicPrefix,maxRequestSize,
-    s"$keyStorePath.keystore.jks",s"$keyStorePath.truststore.jks",keyPassPath
+    keyStorePath,trustStorePath,keyPassPath
   )()
 }
 

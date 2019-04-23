@@ -91,10 +91,6 @@ push @tasks, ["restart_kafka", sub{
         "message.max.bytes=250000000", #seems to be compressed
         #"listeners=PLAINTEXT://$plain_bootstrap_server,SSL://$ssl_bootstrap_server",
         "listeners=SSL://$ssl_bootstrap_server",
-        "SSL://$ssl_bootstrap_server",
-        "ssl.client.auth=required",
-        "security.inter.broker.protocol=SSL",
-        #"inter.broker.listener.name=SSL",
     );
     sy("cat db4/cu.broker.properties >> tmp/server.properties");
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
@@ -156,7 +152,8 @@ my $env = join " ",
     "C4MAX_REQUEST_SIZE=25000000",
     "C4HTTP_SERVER=http://$http_server",
     "C4AUTH_KEY_FILE=db4/simple.auth",
-    "C4KEYSTORE_PATH=db4/cu.def",
+    "C4KEYSTORE_PATH=db4/cu.def.keystore.jks",
+    "C4TRUSTSTORE_PATH=db4/cu.def.truststore.jks",
     "C4HTTP_PORT=$http_port",
     "C4SSE_PORT=$sse_port";
 
