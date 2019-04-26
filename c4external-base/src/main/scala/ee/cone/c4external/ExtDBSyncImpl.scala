@@ -53,7 +53,7 @@ class ExtDBSyncImpl(
         builder.getUpdateValue(adaptersById(ext.valueTypeId).decode(ext.value))
       }
       )
-      logger.debug(s"Writing $offset $deletes/$updates origs")
+      logger.debug(s"Writing $offset ${deletes.length}/${updates.length} origs")
       dbAdapter.putOrigs(deletes ::: updates, offset)
     }).flatten.map(t ⇒ t._1.className → t._2)
   }
