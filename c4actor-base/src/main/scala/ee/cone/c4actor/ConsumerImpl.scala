@@ -13,7 +13,7 @@ class RootConsumer(
   consuming: Consuming
 ) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
-    logger.info(s"Starting app...")
+    logger.info(s"Starting RootConsumer...")
     GCLog("before loadRecent")
     val initialRawWorld: RichContext =
       (for{
