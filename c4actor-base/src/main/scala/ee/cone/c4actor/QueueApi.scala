@@ -23,6 +23,13 @@ case object UpdatesCat extends OrigCategory
       @Id(0x0012) valueTypeId: Long
   )*/
 
+  /**
+    * Central update class
+    * @param srcId == ToPrimaryKey(orig)
+    * @param valueTypeId == QAdapterRegistry.byName(orig.getClass.getName).id
+    * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
+    * @param flags == One of {0L, 1L, 2L, 4L}
+    */
   @Cat(InnerCat)
   case class Update(
     @Id(0x0011) srcId: String,
@@ -159,17 +166,25 @@ abstract class TransientLens[Item](default: Item) extends AbstractLens[Context,I
   )
 }
 
-case class LEvent[+M<:Product](srcId: SrcId, className: String, value: Option[M])
+trait LEvent[+M <: Product] extends Product {
+  def srcId: SrcId
+  def className: String
+}
+
+case class UpdateLEvent[+M <: Product](srcId: SrcId, className: String, value: M) extends LEvent[M]
+
+case class DeleteLEvent[+M <: Product](srcId: SrcId, className: String) extends LEvent[M]
+
 object LEvent {
   def update(model: Product): Seq[LEvent[Product]] =
     model match {
-      case list: List[_] ⇒ list.flatMap{case element: Product ⇒ update(element)}
-      case value ⇒ List(LEvent(ToPrimaryKey(value), value.getClass.getName, Option(value)))
+      case list: List[_] ⇒ list.flatMap { case element: Product ⇒ update(element) }
+      case value ⇒ List(UpdateLEvent(ToPrimaryKey(value), value.getClass.getName, value))
     }
   def delete(model: Product): Seq[LEvent[Product]] =
     model match {
-      case list: List[_] ⇒ list.flatMap{case element: Product ⇒ delete(element)}
-      case value ⇒ List(LEvent(ToPrimaryKey(value), value.getClass.getName, None))
+      case list: List[_] ⇒ list.flatMap { case element: Product ⇒ delete(element) }
+      case value ⇒ List(DeleteLEvent(ToPrimaryKey(value), value.getClass.getName))
     }
 }
 
@@ -261,5 +276,13 @@ trait UpdatesProcessorsApp {
 }
 
 trait UpdatesPreprocessor {
+  def process(updates: Seq[Update]): Seq[Update]
+}
+
+trait OrigKeyFactory {
+  def rawKey(className: String): AssembledKey
+}
+
+trait UpdateProcessor {
   def process(updates: Seq[Update]): Seq[Update]
 }
