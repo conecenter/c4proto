@@ -53,7 +53,7 @@ case class TxProtoLens[V<:Product](initialValue: V) extends AbstractLens[Context
   def of: Context ⇒ V = local ⇒ key.of(local).getOrElse(srcId,initialValue)
   def set: V ⇒ Context ⇒ Context = value ⇒ local ⇒ {
     if(initialValue != of(local)) throw new Exception(s"'$initialValue' != '${of(local)}'")
-    val eventsC = List(LEvent(srcId, className, Option(value)))
+    val eventsC = List(UpdateLEvent(srcId, className, value))
     val eventsA = LEvent.update(value)
     if(eventsC != eventsA) throw new Exception(s"'$eventsC' != '$eventsA'")
     TxAdd(eventsC)(local)

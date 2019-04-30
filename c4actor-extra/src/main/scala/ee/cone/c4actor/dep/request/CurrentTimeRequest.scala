@@ -75,7 +75,8 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with
   override def assembles: List[Assemble] = {
     val grouped = currentTimeConfig.distinct.groupBy(_.srcId).filter(kv ⇒ kv._2.size > 1)
     assert(grouped.isEmpty, s"Duplicate keys ${grouped.keySet}")
-    new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles}
+    new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
+  }
 }
 
 object CurrentTimeRequestAssembleTimeId {
@@ -96,12 +97,11 @@ object CurrentTimeRequestAssembleTimeId {
     firstBornId: SrcId,
     @by[CurrentTimeId] config: Each[CurrentTimeConfig],
     settings: Values[CurrentTimeNodeSetting]
-  ): Values[(SrcId, TxTransform)] = for {
-    config ← configList
-  } yield WithPK(CurrentTimeTransform(config.srcId, settings.headOption.map(_.refreshSeconds).getOrElse(config.periodSeconds)))
+  ): Values[(SrcId, TxTransform)] =
+    List(WithPK(CurrentTimeTransform(config.srcId, settings.headOption.map(_.refreshSeconds).getOrElse(config.periodSeconds))))
 }
 
-@assemble class CurrentTimeRequestAssembleBase(util: DepResponseFactory)   {
+@assemble class CurrentTimeRequestAssembleBase(util: DepResponseFactory) {
   type CTRATimeId = SrcId
 
   def FilterTimeForCurrentTimeRequestAssemble(
@@ -133,7 +133,7 @@ object CurrentTimeRequestAssembleTimeId {
   }
 }
 
-@protocol object CurrentTimeRequestProtocolBase   {
+@protocol object CurrentTimeRequestProtocolBase {
 
   @Cat(DepRequestCat)
   @Id(0x0f83) case class CurrentTimeRequest(
