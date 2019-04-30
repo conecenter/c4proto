@@ -57,8 +57,9 @@ class ToUpdateImpl(
   fillTxIdFlag: Long = 1L,
   txIdPropId: Long = 0x001A,
   archiveFlag: Long = 2L
+)(
+  withFillTxId: Set[Long] = qAdapterRegistry.byId.collect{case (k, v) if v.props.exists(_.id == txIdPropId) ⇒ k}.toSet
 ) extends ToUpdate with LazyLogging {
-  private val withFillTxId: Set[Long] = qAdapterRegistry.byId.mapValues(_.props.exists(_.id == txIdPropId)).keySet
 
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
