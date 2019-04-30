@@ -278,3 +278,11 @@ trait UpdatesProcessorsApp {
 trait UpdatesPreprocessor {
   def process(updates: Seq[Update]): Seq[Update]
 }
+
+trait OrigKeyFactory {
+  def rawKey(className: String): AssembledKey
+}
+
+trait UpdateProcessor {
+  def process(updates: Seq[Update]): Seq[Update]
+}
