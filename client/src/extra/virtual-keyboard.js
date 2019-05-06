@@ -118,6 +118,14 @@ export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponen
 			}
 			return null
 		}
+		isOfParentNode(el,parentNode){
+			let e = el
+			while(e){
+				if(e == parentNode) return true
+				e = e.parenElement
+			}
+			return false
+		}
 		getFocusedElement(){
 			const a = this.el.ownerDocument.querySelector(`*[data-path="${this.path}"]`)
 			const b = this.el.ownerDocument.activeElement
@@ -272,9 +280,10 @@ export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponen
 			}
 		}
 		onPress(){
-			if(this.getFocusedElement().tagName == "BODY") {
+			//if(this.getFocusedElement().tagName == "BODY") 
+			{
 				const sticky = this.getStickyElement()
-				sticky && sticky.focus()
+				if(sticky && !this.isOfParentNode(this.getFocusedElement(),sticky)) sticky.focus()
 			}
 		}
 		render(){					    

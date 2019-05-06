@@ -1,7 +1,7 @@
 "use strict";
 import React from 'react'
 export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact,miscUtil,StatefulComponent}){
-	const {ChipElement,TDElement,ConnectionState,ButtonElement,ControlWrapperElement} = ui.transforms.tp	
+	const {ChipElement,ConnectionState,ButtonElement,ControlWrapperElement} = ui.transforms.tp	
 	const $ = React.createElement
 	const DarkPrimaryColor = "#1976d2"
 	const PrimaryColor = "#2196f3"
@@ -113,10 +113,10 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 			if(nextProps.init&&nextProps.init!=this.props.init)
 				this.setState({data:null});
 		}
-		onClick(e){
+		/*onClick(e){
 			if(this.props.onClick)
 				this.props.onClick(e);
-		}
+		}*/
 		render(){
 			const style={
 				minWidth:'2rem',
@@ -134,7 +134,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 			};				
 			const statusText = (this.props.statusText?this.props.statusText:"");
 			
-			return $(TDElement,{key:"wEl",odd:this.props.odd,style},[
+			return $("div",{key:"wEl",odd:this.props.odd,style},[
 				$(ControlledComparator,{key:"1",onChange:this.onChange,data:this.state.data},null),
 				$('div',{key:"2",style:{display:'flex',flexWrap:'noWrap'}},[				
 					$("input",{type:"text",readOnly:"readonly",key:"3",style:inpStyle,value:statusText},null),

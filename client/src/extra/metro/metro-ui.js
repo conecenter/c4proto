@@ -246,6 +246,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			const re = /\d+(\.\d)?%/ //100%
 			const isLeft = re.test(this.props.style.left)
 			const sideStyle = isLeft && (this.state.right!==null)?{right:"100%",left:""}:{}
+			const ieFix = this.state.right!==null?{right:this.state.right+"px"}:{left:"0px"}
 			return $("div",{
 				ref:ref=>this.el=ref,
 				style: {
@@ -260,7 +261,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 					borderStyle:GlobalStyles.borderStyle,
 					borderColor:"#2196f3",					
 					maxHeight:this.state.maxHeight,
-					right:this.state.right!==null?this.state.right+"px":"",
+					...ieFix,
 					...this.props.style,
 					...sideStyle
 				}
@@ -878,7 +879,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		}
 		onClick(e){		
 			if(this.props.onClick){
-			    if(textSelectionMonitor(e)) return
+			    if(textSelectionMonitor && textSelectionMonitor(e)) return
 				if(!this.sentClick) {
 					this.props.onClick(e)					
 					this.sentClick = true
@@ -3320,7 +3321,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 	class ClickableDivElement extends StatefulComponent{
 		onClick(e){
 			e.stopPropagation()
-			if(textSelectionMonitor(e)) return
+			if(textSelectionMonitor && textSelectionMonitor(e)) return
 			this.props.onClick&& this.props.onClick(e)						
 		}
 		componentDidMount(){

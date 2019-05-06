@@ -150,9 +150,9 @@ export default function FocusModule({log,documentManager,windowManager}){
 	const onKeyDown = (event) =>{
 		//if(nodesObj.length == 0) return		
 		let best = null	
-        let isPrintable = false
-		const vk = event.code == "vk"
-		const eventKey = event.key || String.fromCharCode(event.keyCode)
+        let isPrintable = false		
+		const vk = event.code == "vk" || event.detail && event.detail.code == "vk"
+		const eventKey = event.key || event.keyCode && String.fromCharCode(event.keyCode) || event.detail && event.detail.key
 		const detail = {key:eventKey,vk}
 		switch(eventKey){
 			case "ArrowUp":
