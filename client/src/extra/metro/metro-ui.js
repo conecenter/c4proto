@@ -21,7 +21,7 @@ const TextSelectionMonitor = ((log) =>{
 		const elem = event.target
 		const w = elem && elem.ownerDocument && elem.ownerDocument.defaultView		
 		const selection = getSelection(w)
-		return selection.toString().length>0 && Array.from(elem.childNodes).includes(selection.anchorNode)		
+		return selection.toString().length>0 && (!selection.anchorNode || elem.hasChildNodes(selection.anchorNode))
 	}
 	return check
 })
@@ -2560,7 +2560,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			const a = Array.from(el.ownerDocument.querySelectorAll("input"))			
 			const b = a.find(_=>this.getParentPath(_,this.popIgnore))
 			//log("atuoCnaditate",b)
-			this.foundAuto = true
+			this.foundAuto = true			
 			b&& b.focus()
 		}
 		onFrame(modify){
@@ -2573,7 +2573,10 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
 				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)		
 				//log("onFrame",el);log("onFrame2",this.foundAuto)
-				if(el) el.focus()
+				if(el) {					
+					if(textSelectionMonitor({target:activeElement})) return
+					el.focus()
+				}
 				else if(!this.foundAuto) this.report("undefined")
 			}
 			else{
@@ -2606,7 +2609,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			}
 		}
 		componentWillUnmount(){		
-			//this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.removeEventListener("click",this.onBBlur,true)	
 			this.el.ownerDocument.documentElement.removeEventListener("focus",this.onBFocus,true)	
 			clearInterval(this.interval)
 		}
