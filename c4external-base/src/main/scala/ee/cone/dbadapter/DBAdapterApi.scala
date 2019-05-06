@@ -1,9 +1,8 @@
 package ee.cone.dbadapter
 
-import ee.cone.c4actor.{ExtModelsApp, ExternalModel}
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
-import ee.cone.c4external.ExternalId
+import ee.cone.c4external.{ExtModelsApp, ExternalId, ExternalModel}
 
 case class TableSchema(tableName: String, columnNames: List[String])
 

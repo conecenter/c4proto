@@ -55,13 +55,26 @@ class ToUpdateImpl(
   qAdapterRegistry.byName(classOf[QProtocol.Offset].getName)
     .asInstanceOf[ProtoAdapter[Offset] with HasId],
   fillTxIdFlag: Long = 1L,
-  txIdPropId: Long = 0x001A
+  txIdPropId: Long = 0x001A,
+  archiveFlag: Long = 2L
+)(
+  withFillTxId: Set[Long] = qAdapterRegistry.byId.collect{case (k, v) if v.props.exists(_.id == txIdPropId) ⇒ k}.toSet
 ) extends ToUpdate with LazyLogging {
+
   def toUpdate[M <: Product](message: LEvent[M]): Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
-    val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.emptyByteArray))
-    val flags = if(message.value.nonEmpty && valueAdapter.props.exists(_.id==txIdPropId)) fillTxIdFlag else 0L
-    Update(message.srcId, valueAdapter.id, byteString, flags)
+    message match {
+      case upd: UpdateLEvent[_] ⇒
+        val byteString = ToByteString(valueAdapter.encode(upd.value))
+        val txRefFlags = if (withFillTxId(valueAdapter.id)) fillTxIdFlag else 0L
+        Update(message.srcId, valueAdapter.id, byteString, txRefFlags)
+      case _: DeleteLEvent[_] ⇒
+        val byteString = ToByteString(Array.emptyByteArray)
+        Update(message.srcId, valueAdapter.id, byteString, 0L)
+      case _: ArchiveLEvent[_] ⇒
+        val byteString = ToByteString(Array.emptyByteArray)
+        Update(message.srcId, valueAdapter.id, byteString, archiveFlag)
+    }
   }
 
   private val compressionKey = "c"
