@@ -4,8 +4,7 @@
 use strict;
 
 my $zoo_port = 2181;
-my $zoo_host = "zookeeper";
-my $ssl_bootstrap_server = "broker:9093";
+my $zoo_host = "127.0.0.1";
 my $bin = "/tools/kafka/bin";
 my $http_port = 8067;
 my $sse_port = 8068;
@@ -21,24 +20,26 @@ my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my @tasks;
 push @tasks, [zookeeper=>sub{
     &$put_text("/c4/zookeeper.properties",join "\n",
-        "dataDir=db4/zookeeper",
+        "dataDir=/c4db/zookeeper",
         "clientPort=$zoo_port",
         "clientPortAddress=$zoo_host",
     );
     &$exec("$bin/zookeeper-server-start.sh", "zookeeper.properties");
 }];
 push @tasks, [broker=>sub{
+    my $port = $ENV{C4BOOTSTRAP_PORT} || die;
     &$put_text("/c4/server.properties", join '', map{"$_\n"}
-        "log.dirs=db4/kafka-logs",
+        "log.dirs=/c4db/kafka-logs",
         "zookeeper.connect=$zoo_host:$zoo_port",
         "message.max.bytes=250000000" #seems to be compressed
-        "listeners=SSL://$ssl_bootstrap_server",
+        "listeners=SSL://0.0.0.0:$port",
     );
     my $props = $ENV{C4SSL_PROPS} || die;
     sy("cat $props >> server.properties");
     &$exec("$bin/kafka-server-start.sh", "server.properties");
 }];
 push @tasks, [haproxy=>sub{
+    my $ext_http_port = $ENV{C4JOINED_HTTP_PORT} || die;
     my $pem_path = "/c4/dummy.pem";
     if(!-e $pem_path){
         my $cert_path = "/c4/dummy.cert";
@@ -50,24 +51,22 @@ push @tasks, [haproxy=>sub{
       "  timeout connect 5s",
       "  timeout client  900s",
       "  timeout server  900s",
-      "resolvers docker_resolver",
-      "  nameserver dns \"127.0.0.11:53\"",
       "frontend fe80",
       "  mode http",
-      "  bind :1080",
+      "  bind :$ext_http_port",
       "  acl acl_sse hdr(accept) -i text/event-stream",
       "  use_backend be_sse if acl_sse",
       "  default_backend be_http",
       "listen listen_443",
       "  mode http",
       "  bind :1443 ssl crt $pem_path",
-      "  server s_http :1080",
+      "  server s_http :$ext_http_port",
       "backend be_http",
       "  mode http",
-      "  server se_http gate:$http_port check resolvers docker_resolver resolve-prefer ipv4",
+      "  server se_http 127.0.0.1:$ext_http_port",
       "backend be_sse",
       "  mode http",
-      "  server se_sse gate:$sse_port check resolvers docker_resolver resolve-prefer ipv4",
+      "  server se_http 127.0.0.1:$sse_port",
     );
     &$exec("/usr/sbin/haproxy", "-f", "/c4/haproxy.cfg");
 }];
@@ -75,8 +74,11 @@ push @tasks, [frpc=>sub{
     &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
 }];
 push @tasks, [gate=>sub{
+    mkdir "/c4db/def" and symlink "/c4db/def","db4" or die if !-e "/c4db/def";
     $ENV{C4HTTP_PORT} = $http_port;
     $ENV{C4SSE_PORT} = $sse_port;
+    my $port = $ENV{C4BOOTSTRAP_PORT} || die;
+    $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$port";
     &$exec("app/bin/c4gate-server");
 }];
 push @tasks, [fix_desktop=>sub{
@@ -113,10 +115,10 @@ push @tasks, [desktop=>sub{
     );#--vdagent-no-launch
     &$exec("Xspice",@vdagent,"--config",$conf_fn,"--xsession","openbox",":1"); #-session
 }];
-push @tasks, [def=>sub{
+push @tasks, [main=>sub{
     m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>;
     &$exec("sh", "serve.sh");
 }];
 
 my($cmd,@args)=@ARGV;
-($cmd||'def') eq $$_[0] and $$_[1]->(@args) for @tasks;
+$cmd eq $$_[0] and $$_[1]->(@args) for @tasks;

@@ -83,8 +83,8 @@ my $stop_kafka = sub{
 push @tasks, ["restart_kafka", sub{
     &$stop_kafka();
     &$put_text("tmp/zookeeper.properties","dataDir=db4/zookeeper\nclientPort=$zoo_port\n");
-    sy("perl prod.pl need_certs db4 db4/cu.broker db4/cu.broker");
-    sy("perl prod.pl need_certs db4 db4/cu.def");
+    sy("perl prod.pl need_certs db4 cu.broker db4 db4");
+    sy("perl prod.pl need_certs db4 cu.def db4");
     &$put_text("tmp/server.properties", join '', map{"$_\n"}
         "log.dirs=db4/kafka-logs",
         "zookeeper.connect=127.0.0.1:$zoo_port",

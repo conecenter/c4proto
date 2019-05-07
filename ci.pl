@@ -65,10 +65,10 @@ my $handle_build = sub{
 };
 my $handle_run = sub{
     my ($arg) = @_;
-    my $i_arg = $arg=~m{^run\s+(\w[\w\-]*/up)} ? $1 : return 0;
+    my $comp = $arg=~m{^run\s+(\w[\w\-]*)/up\b} ? $1 : return 0;
     my $host = &$env("C4CI_HOST");
     my $dir = &$env("C4CI_RUN_DIR");
-    sy("ssh $host $dir/$i_arg");
+    sy("ssh $host sh -c 'cd $dir/$comp && ./up'");
     1;
 };
 
@@ -78,7 +78,7 @@ my $handle = sub{
 };
 
 my @tasks;
-push @tasks, [serve=>sub{
+push @tasks, [main=>sub{
     my $tgz = &$env("C4CI_KEY_TGZ");
     my $dir = "/c4/.ssh";
     sy("mkdir -p $dir && cd $dir && chmod 0700 . && tar -xzf $tgz");
