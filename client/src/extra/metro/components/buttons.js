@@ -1,6 +1,5 @@
 "use strict";
 import React 	from 'react'
-import ReactDOM from 'react-dom'
 import GlobalStyles from '../global-styles.js'
 import {eventManager,checkActivateCalls} from '../../event-manager.js'
 
@@ -23,6 +22,7 @@ const ButtonElement = (props) => {
 	const defbg = "#eeeeee"
 	const bg = props.style&&props.style.backgroundColor?props.style.backgroundColor:defbg					
 	const disabled = props.changing?true:null
+	const {outlineWidth, outlineStyle, outlineColor,outlineOffset} = GlobalStyles
 	const style={
 		border:'none',
 		cursor:'pointer',
@@ -34,8 +34,8 @@ const ButtonElement = (props) => {
 		fontSize:'1em',
 		alignSelf:'center',
 		fontFamily:'inherit',				
-		outline:state.touchStart?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-		outlineOffset:GlobalStyles.outlineOffset,
+		outline:state.touchStart?`${outlineWidth} ${outlineStyle} ${outlineColor}`:'none',
+		outlineOffset:outlineOffset,
 		...props.style,			
 		...(state.mouseOver && Object.keys(props.overStyle||{}).length==0?{opacity:"0.8"}:null),
 		...(state.mouseOver?props.overStyle:null),
@@ -89,23 +89,21 @@ const ButtonWithRippleElement = (props) =>{
 	const [riple,setRipple] = React.useState({effect:undefined,rBox:undefined,top:undefined,left:undefined})
 	const [updateAt,setUpdateAt] = React.useState({v:0})
 	const elem = React.useRef(null)
-	React.useEffect(()=>{
-		if(!elem.current.rippleAnim){	
-			elem.current.rippleAnim = () =>{
-				if(updateAt.v<=0) {
-					const {width,height} = elem.current.getBoundingClientRect()					
-					const rBox = Math.max(width,height)
-					const top = width>height?-(rBox-height)/2:0
-					const left = width<height?-(rBox-width)/2:0								
-					setRipple({ripple:!riple.effect, rBox,top,left})	
-					setUpdateAt({v:50})
-				}
-				setUpdateAt({v:updateAt.v-1})				
+	React.useEffect(()=>{			
+		elem.current.rippleAnim = () =>{
+			if(updateAt.v<=0) {
+				const {width,height} = elem.current.getBoundingClientRect()					
+				const rBox = Math.max(width,height)
+				const top = width>height?-(rBox-height)/2:0
+				const left = width<height?-(rBox-width)/2:0								
+				setRipple({ripple:!riple.effect, rBox,top,left})	
+				setUpdateAt({v:50})
 			}
-			checkActivateCalls.add(elem.current.rippleAnim) //onMount						
+			setUpdateAt({v:updateAt.v-1})				
 		}
+		checkActivateCalls.add(elem.current.rippleAnim) //onMount		
 		return ()=>	checkActivateCalls.remove(elem.current.rippleAnim)		
-	},[])
+	},[updateAt])
 	
 	const wrap = button =>{
 		if(riple.top!==undefined && riple.left!==undefined && riple.rBox){					

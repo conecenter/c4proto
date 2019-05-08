@@ -1,10 +1,11 @@
 "use strict";
 import React from 'react'
+import GlobalStyles from '../metro/global-styles.js'
+
 export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact,miscUtil,StatefulComponent}){
 	const {ChipElement,ConnectionState,ButtonElement,ControlWrapperElement} = ui.transforms.tp	
 	const $ = React.createElement
-	const DarkPrimaryColor = "#1976d2"
-	const PrimaryColor = "#2196f3"
+	const {DarkPrimaryColor,PrimaryColor} = GlobalStyles	
 	class StatusElement extends StatefulComponent{		
 		getInitialState(){return {lit:false}}
 		signal(on){
