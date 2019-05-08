@@ -1,7 +1,7 @@
 "use strict";
 import React 	from 'react'
 import {dragDropModule, dragDropPositionStates} from "../../dragdrop-module"
-import Images from "../media/images.js"
+import {images} from "../media/images.js"
 
 
 const $ = React.createElement
@@ -125,7 +125,7 @@ const DragDropDivElement  = (props) => {
 	const className = "DragDropDivElement"
 	const getSvgData = () =>{
 		if(!elem.current) return
-		return ""//images.triAngleSvgData
+		return images(elem.current).triAngleSvgData
 	}
 	return $("div",{style,ref:elem,...actions,className},[
 		$("div",{style:stStyleL,key:1},draw2(borderL)?[$("img",{key:1,src:getSvgData(),style:iStyleT}),$("img",{key:2,src:getSvgData(),style:iStyleB})]:null),

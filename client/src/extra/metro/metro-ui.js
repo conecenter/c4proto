@@ -9,7 +9,7 @@ import {ButtonElement,ButtonWithRippleElement} from './components/buttons'
 import {MenuBarElement, MenuDropdownElement, FolderMenuElement, ExecutableMenuElement} from './components/menu'
 import {dragDropModule,dragDropPositionStates} from "../dragdrop-module"
 import {DragDropHandlerElement, DragDropDivElement} from './components/drag-drop.js'
-import Images from "./media/images.js"
+import {images as _images} from "./media/images.js"
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
@@ -47,7 +47,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		}
 		return {store, get, isSibling}
 	})()
-	const images = Images(documentManager.document.defaultView.btoa)
+	const images = _images(documentManager.body())
 	const {DarkPrimaryColor, PrimaryColor} = GlobalStyles	
 	
 	const {isReactRoot,getReactRoot} = miscReact
