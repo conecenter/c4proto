@@ -116,7 +116,8 @@ my $rel_put_text = sub{
 
 my $sync_up = sub{
     my($comp,$from_path,$up_content)=@_;
-    my $dir = &$get_host_port(&$get_compose($comp))->{dir} || die "no dir";
+    my $conf = &$get_compose($comp);
+    my $dir = $$conf{dir} || die "no dir";
     my $conf_dir = "$dir/$comp"; #.c4conf
     $from_path ||= &$get_tmp_dir();
     &$rel_put_text($from_path)->("up",$up_content);
@@ -272,25 +273,31 @@ my $to_yml_str = sub{
     $yml_str
 };
 
-#
+my $interpolation_body = sub{
+    my($run_comp)=@_;
+    my $conf = &$get_compose($run_comp);
+    my $repo = $$conf{cd_args_repo} || die;
+    qq[die if system -e "var" ? "git clone $repo var" : "git -C var pull";]
+    .'my %vars = (reverse grep{$_}`cat var/$run_comp`)[0]=~/([\w\-\.\:\/]+)/g;'
+    .'$c=~s{<var:([^>]+)>}{$vars{$1}}eg;'
+};
+my $up_body = sub{
+    my($tmpl_in,$int,$up)=@_;
+    $tmpl_in=~/C4_END_TEMPLATE/ && die;
+    "#!/usr/bin/perl\n"
+    .'use strict; use utf8;'
+    ."my \$c = <<'C4_END_TEMPLATE';\n$tmpl_in\nC4_END_TEMPLATE\n$int"
+    .qq[open OUT, "|$up" and print OUT \$c and close OUT or die;];
+};
 
 my $wrap_tmpl = sub{
     my($run_comp,$from_path,$tmpl_in,$up)=@_;
-    my $conf = &$get_compose($run_comp);
-    my $repo = $$conf{cd_args_repo} || die;
-    $tmpl_in=~/C4_END_TEMPLATE/ && die;
-    my $up_content = "#!/usr/bin/perl\n"
-        .'use strict; use utf8;'
-        ."my \$c = <<'C4_END_TEMPLATE';\n$tmpl_in\nC4_END_TEMPLATE\n"
-        .qq[die if system -e "var" ? "git clone $repo var" : "git -C var pull";]
-        .'my %vars = (reverse grep{$_}`cat var/$run_comp`)[0]=~/([\w\-\.\:\/]+)/g;'
-        .'$c=~s{<var:([^>]+)>}{$vars{$1}}eg;'
-        .qq[open OUT, "|$up" and print OUT \$c and close OUT or die;];
+    my $up_content = &$up_body($tmpl_in,&$interpolation_body($run_comp),$up);
     ($run_comp,$from_path,$up_content);
 };
 
-my $wrap_dc = sub{
-    my ($name,$from_path,$options) = @_;
+my $make_dc_yml = sub{
+    my ($name,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
         $k=~/^([A-Z]|host:|port:)/ ||
@@ -327,7 +334,13 @@ my $wrap_dc = sub{
         version => "3.2",
         $all{need_c4db} ? (volumes => { db4 => {} }) : (),
     });
-    ($name,$from_path,$yml_str,"docker-compose -f- up -d --remove-orphans");
+    ($yml_str,"docker-compose -p $name -f- up -d --remove-orphans");
+};
+
+my $wrap_dc = sub{
+    my ($name,$from_path,$options) = @_;
+    my($yml_str,$up) = &$make_dc_yml($name,$options);
+    ($name,$from_path,$yml_str,$up);
 };
 
 #todo securityContext/runAsUser
@@ -774,7 +787,7 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
     sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
 }];
-push @tasks, ["up_ci","",sub{
+push @tasks, ["ci_setup","",sub{
     my ($comp,$gen_dir) = @_;
     sy(&$ssh_add());
     $gen_dir || die;
@@ -806,7 +819,7 @@ push @tasks, ["up_ci","",sub{
             C4CI_PORT => "7079",
             C4CI_HOST => $host,
             tty => "true",
-            (map{($_=>$$conf{$_}||die "no $_")} qw[C4CI_REPO_DIRS C4CI_CTX_DIR C4CI_RUN_DIR]),
+            (map{($_=>$$conf{$_}||die "no $_")} qw[C4CI_REPO_DIRS C4CI_CTX_DIR]),
         },
         {
             image => $img,
@@ -828,7 +841,10 @@ push @tasks, ["up_ci","",sub{
     };
     #sy(&$remote($comp,"mkdir -p $repo_dir"));
     #sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
-    &$sync_up(&$wrap_tmpl(&$wrap_dc($comp,$from_path,\@containers)));
+
+    my($yml_str,$up) = &$make_dc_yml($comp,\@containers);
+    my $up_content = &$up_body($yml_str,"",$up);
+    &$sync_up($comp,$from_path,$up_content);
 }];
 
 push @tasks, ["kube_host_setup", "", sub{
@@ -878,6 +894,7 @@ push @tasks, ["kube_host_setup", "", sub{
 }];
 
 =sk
+C4CI_RUN_DIR
 push @tasks, ["cd_setup", "", sub{
     my ($comp) = @_;
     sy(&$ssh_add());
