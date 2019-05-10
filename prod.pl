@@ -283,7 +283,7 @@ my $interpolation_body = sub{
 my $pl_head = sub{
     "#!/usr/bin/perl\n"
     .'use strict; use utf8; my %c;'
-    .'sub pp{ open OUT, "|$_[1]" and print OUT $c{$_[0]} and close OUT or die };'
+    .'sub pp{ print "|$_[1]\n" and open OUT, "|$_[1]" and print OUT $c{$_[0]} and close OUT or die };'
 };
 my $pl_embed = sub{
     my($nm,$v)=@_;
@@ -376,7 +376,7 @@ my $make_kc_yml = sub{
         my $opt = $_;
         my $nm = &$mandatory_of(name=>$opt);
         my @env = &$map($opt,sub{ my($k,$v)=@_;
-            $k=~/^([A-Z].+)/ ? {name=>$1,value=>$v} : ()
+            $k=~/^([A-Z].+)/ ? {name=>$1,value=>"$v"} : ()
         });
         my $secret_name = "$name-$nm-secret";
         my @volume_mounts = (
@@ -422,6 +422,7 @@ my $make_kc_yml = sub{
                         fsGroup => 1979,
                         runAsNonRoot => "true",
                     },
+                    $all{is_deployer} ? (serviceAccountName => "deployer") : (),
                 },
             },
             @volume_claim_templates,
@@ -430,7 +431,7 @@ my $make_kc_yml = sub{
     #
     my @service_yml = do{
         my @ports = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^port:(\d+):(\d+)$/ ? { port => $1-0, targetPort => $2-0, nodePort => $1-0 } : ()
+            $k=~/^port:(\d+):(\d+)$/ ? { nodePort => $1-0, port => $1-0, targetPort => $2-0, name => "c4-$2" } : ()
         });
         @ports ? &$to_yml_str({
             apiVersion => "v1",
@@ -448,15 +449,16 @@ my $make_kc_yml = sub{
         data => { map{($_=>syf("base64 -w0 < $tmp_path/$_"))} @{$$_{files}||die} },
     })} @secrets;
     #
-    my $yml_str = join("", @secrets_yml, @service_yml, $stateful_set_yml);
-    ($yml_str, "kubectl apply -f-");
+    join("", @secrets_yml, @service_yml, $stateful_set_yml);
 };
 
 my $wrap_kc = sub{
     my($name,$tmp_path,$options) = @_;
-    my($yml_str,$up) = &$make_kc_yml($name,$tmp_path,$options);
+    my $yml_str = &$make_kc_yml($name,$tmp_path,$options);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
-        .&$interpolation_body($name).qq[pp(main=>"$up");];
+        .&$interpolation_body($name)
+        .q[my $ns=`cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`;]
+        .q[pp(main=>"kubectl -n $ns apply -f-");];
     ($name,undef,$up_content);
 };
 
@@ -904,11 +906,33 @@ push @tasks, ["kube_host_setup", "", sub{
         {
             image => $img,
             name => "kubectl",
+            is_deployer => 1,
         },
     );
     my $from_path = &$get_tmp_dir();
-    my($yml_str,$up) = &$make_kc_yml($comp,$from_path,\@containers);
-    print "########\n$yml_str";
+    my $run_comp = "deployer";
+    my $yml_str = &$make_kc_yml($run_comp,$from_path,\@containers);
+    my $add_yml = join "", map{&$to_yml_str($_)} ({
+        apiVersion => "rbac.authorization.k8s.io/v1",
+        kind => "Role",
+        metadata => { name => $run_comp },
+        rules => [{
+            apiGroups => ["","apps"],
+            resources => ["statefulsets","secrets","services"],
+            verbs => ["get","create","patch"],
+        }],
+    }, {
+        apiVersion => "v1",
+        kind => "ServiceAccount",
+        metadata => { name => $run_comp },
+    }, {
+        apiVersion => "rbac.authorization.k8s.io/v1",
+        kind => "RoleBinding",
+        metadata => { name => $run_comp },
+        subjects => [{ kind => "ServiceAccount", name => $run_comp }],
+        roleRef => { kind => "Role", name => $run_comp, apiGroup => "rbac.authorization.k8s.io" },
+    });
+    print "########\n$add_yml$yml_str";
 }];
 
 =sk
