@@ -39,9 +39,9 @@ my @tasks;
 #    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 #};
 
-my $recycling = sub{
-    !-e $_ or rename $_, &$need_path("$temp/recycle/".rand()) or die $! for @_;
-};
+#my $recycling = sub{
+#    !-e $_ or rename $_, &$need_path("$temp/recycle/".rand()) or die $! for @_;
+#};
 
 
 #my $docker_build = "$temp/docker_build";
@@ -112,7 +112,7 @@ my $run_generator = sub{
 
 my $run_generator_outer = sub{
     my $generator_path = &$get_generator_path();
-    &$recycling("$generator_path/src");
+    sy("rm -r $generator_path/src");
     my $src_dir = &$abs_path();
     for my $path (grep{-e} map{"$_/src"} <$src_dir/c4*>){
         my $rel_path = substr $path, length $src_dir;
