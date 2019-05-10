@@ -31,7 +31,7 @@ push @tasks, [broker=>sub{
     &$put_text("/c4/server.properties", join '', map{"$_\n"}
         "log.dirs=/c4db/kafka-logs",
         "zookeeper.connect=$zoo_host:$zoo_port",
-        "message.max.bytes=250000000" #seems to be compressed
+        "message.max.bytes=250000000", #seems to be compressed
         "listeners=SSL://0.0.0.0:$port",
     );
     my $props = $ENV{C4SSL_PROPS} || die;
