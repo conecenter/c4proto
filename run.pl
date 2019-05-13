@@ -63,7 +63,7 @@ push @tasks, [haproxy=>sub{
       "  server s_http :$ext_http_port",
       "backend be_http",
       "  mode http",
-      "  server se_http 127.0.0.1:$ext_http_port",
+      "  server se_http 127.0.0.1:$http_port",
       "backend be_sse",
       "  mode http",
       "  server se_http 127.0.0.1:$sse_port",
