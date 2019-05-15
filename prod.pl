@@ -25,8 +25,6 @@ my $get_conf_cert_path = sub{
 my $ssh_add  = sub{ "ssh-add ".&$get_conf_cert_path("") };
 my $composes_txt = "<stack>";
 
-my $get_host_port = sub{grep{$_||die}@{$_[0]}{qw(host port)}};
-
 my $need_path = sub{
     my($dn)=@_;
     -d $dn or sy("mkdir -p $dn") if $dn=~s{/[^/]*$}{};
@@ -70,14 +68,21 @@ my $get_deploy_conf = lazy{
 };
 my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected"};
 
+my $get_deployer_conf = sub{
+    my($comp,@k)=@_;
+    my $conf = &$get_compose(&$get_compose($comp)->{deployer}||die);
+    map{$$conf{$_}||die "no $_"} @k;
+};
+my $get_host_port = sub{ &$get_deployer_conf($_[0],qw(host port)) };
+
 my $ssh_ctl = sub{
     my($comp,@args)=@_;
-    my ($host,$port) = &$get_host_port(&$get_compose($comp));
+    my ($host,$port) = &$get_host_port($comp);
     ("ssh","c4\@$host","-p$port",@args);
 };
 my $remote = sub{
     my($comp,$stm)=@_;
-    my ($host,$port) = &$get_host_port(&$get_compose($comp));
+    my ($host,$port) = &$get_host_port($comp);
     "ssh c4\@$host -p $port '$stm'"; #'' must be here; ssh joins with ' ' args for the remote sh anyway
 };
 
@@ -96,7 +101,7 @@ my $running_containers_all = sub{
 
 my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
-    my ($host,$port) = &$get_host_port(&$get_compose($comp));
+    my ($host,$port) = &$get_host_port($comp);
     sy(&$remote($comp,"mkdir -p $to_path"));
     sy("rsync -e 'ssh -p $port' -a --del $from_path/ c4\@$host:$to_path");
 };
@@ -116,8 +121,7 @@ my $rel_put_text = sub{
 
 my $sync_up = sub{
     my($comp,$from_path,$up_content)=@_;
-    my $conf = &$get_compose($comp);
-    my $dir = $$conf{dir} || die "no dir";
+    my ($dir) = &$get_deployer_conf($comp,qw[dir]);
     my $conf_dir = "$dir/$comp"; #.c4conf
     $from_path ||= &$get_tmp_dir();
     &$rel_put_text($from_path)->("up",$up_content);
@@ -757,6 +761,7 @@ my $frp_web = sub{
     ],
     );
 };
+my $cicd_port = "7079";
 
 push @tasks, ["up","$composes_txt",sub{
     my($run_comp)=@_;
@@ -797,10 +802,9 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
     sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
 }];
-push @tasks, ["ci_setup","",sub{
-    my ($comp,$gen_dir) = @_;
-    sy(&$ssh_add());
-    $gen_dir || die;
+push @tasks, ["up_ci","",sub{
+    my ($comp) = @_;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my $img = "c4ci";
     do{
         my $from_path = &$get_tmp_dir();
@@ -819,14 +823,14 @@ push @tasks, ["ci_setup","",sub{
         &$remote_build($comp,$from_path,$img);
     };
     my $conf = &$get_compose($comp);
-    my ($host,$port) = &$get_host_port($conf);
+    my ($host,$port) = &$get_host_port($comp);
     #userns_mode => "host" with docker.sock -- bad uid-s
     my @containers = (
         {
             image => $img,
-            name => "main",
+            name => "ci",
             C4CI_KEY_TGZ => "/c4conf/ssh.tar.gz",
-            C4CI_PORT => "7079",
+            C4CI_PORT => $cicd_port,
             C4CI_HOST => $host,
             tty => "true",
             (map{($_=>$$conf{$_}||die "no $_")} qw[C4CI_REPO_DIRS C4CI_CTX_DIR]),
@@ -838,7 +842,7 @@ push @tasks, ["ci_setup","",sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path,[[qw[main 7079]]]);
+    &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port]]);
     do{
         my $key_dir = &$get_tmp_dir();
         sy(join ' && ',
@@ -857,40 +861,36 @@ push @tasks, ["ci_setup","",sub{
     &$sync_up($comp,$from_path,$up_content);
 }];
 
-push @tasks, ["kube_host_setup", "", sub{
-    my ($comp,$gen_dir) = @_;
-    sy(&$ssh_add());
+push @tasks, ["up_kc_host", "", sub{
+    my ($comp) = @_;
     my $conf = &$get_compose($comp);
     my $img = $$conf{image} || die;
-    $gen_dir || die;
-    my $external_ssh_port = $$conf{ssh_port} || die;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $external_ssh_port = $$conf{port} || die;
+    my $dir = $$conf{dir} || die;
     my $conf_cert_path = &$get_conf_cert_path(".pub");
     do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
-        sy("cp $gen_dir/install.pl $conf_cert_path $from_path/");
-        &$put("run.pl",q[
-            my($cmd)=@ARGV;
-            $cmd eq 'sshd' and exec 'dropbear', '-RFEmwgs', '-p', ].$ssh_port.q[;
-            $cmd eq 'kubectl' and exec 'kubectl', 'proxy', '--port=8080';
-            die;
-        ]);
+        sy("cp $gen_dir/install.pl $gen_dir/ci.pl $conf_cert_path $from_path/");
         &$put("Dockerfile", join "\n",
             "FROM ubuntu:18.04",
             "COPY install.pl /",
             "RUN perl install.pl useradd",
             "RUN perl install.pl apt curl rsync dropbear lsof",
+            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "RUN rm -r /etc/dropbear "
             ."&& ln -s /c4/dropbear /etc/dropbear ",
             "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
             ."&& chmod +x ./kubectl "
             ."&& mv ./kubectl /usr/bin/kubectl ",
-            "COPY id_rsa.pub run.pl /",
+            "COPY id_rsa.pub ci.pl /",
             "USER c4",
             "RUN mkdir /c4/.ssh /c4/dropbear "
             ."&& cat /id_rsa.pub > /c4/.ssh/authorized_keys "
             ."&& chmod 0600 /c4/.ssh/authorized_keys ",
-            'ENTRYPOINT ["perl", "/run.pl"]',
+            "ENV C4SSH_PORT=$ssh_port",
+            'ENTRYPOINT ["perl", "/ci.pl"]',
         );
         my $builder_comp = $$conf{builder} || die "no builder";
         &$remote_build($builder_comp,$from_path,$img);
@@ -900,7 +900,7 @@ push @tasks, ["kube_host_setup", "", sub{
         {
             image => $img,
             name => "sshd",
-            need_c4db=>1,
+            need_c4db => 1,
             "port:$external_ssh_port:$ssh_port" => "",
         },
         {
@@ -908,8 +908,21 @@ push @tasks, ["kube_host_setup", "", sub{
             name => "kubectl",
             is_deployer => 1,
         },
+        {
+            image => $img,
+            name => "cd",
+            need_c4db => 1,
+            C4CD_PORT => $cicd_port,
+            C4CD_DIR => $dir,
+        },
+        {
+            image => $img,
+            name => "frpc",
+            C4FRPC_INI => "/c4conf/frpc.ini",
+        },
     );
     my $from_path = &$get_tmp_dir();
+    &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port]]);
     my $run_comp = "deployer";
     my $yml_str = &$make_kc_yml($run_comp,$from_path,\@containers);
     my $add_yml = join "", map{&$to_yml_str($_)} ({
@@ -935,64 +948,7 @@ push @tasks, ["kube_host_setup", "", sub{
     print "########\n$add_yml$yml_str";
 }];
 
-=sk
-C4CI_RUN_DIR
-push @tasks, ["cd_setup", "", sub{
-    my ($comp) = @_;
-    sy(&$ssh_add());
-    my $img = $$conf{cd_image} || die;
-    do{
-        my $from_path = &$get_tmp_dir();
-        my $put = &$rel_put_text($from_path);
-        sy("cp $gen_dir/install.pl $gen_dir/cd.pl $ENV{C4DE PLOY_ CONF}/id_rsa.pub $from_path/");
-        &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl git rsync dropbear lsof",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
-            "RUN rm /etc/dropbear/dropbear_dss_host_key /etc/dropbear/dropbear_rsa_host_key",
-            "COPY cd.pl id_rsa.pub /",
-            "USER c4",
-            'ENTRYPOINT ["perl","cd.pl"]',
-        );
-        &$remote_build($comp,$from_path,$img);
-    };
-    my $conf = &$get_compose($comp);
-    my $gen_dir = $$conf{cd_script_src_dir} || die;
-    my $external_ssh_port = $$conf{cd_ssh_port} || die;
-
-    my @containers = (
-        {
-            image => $img,
-            name => "sshd",
-            need_c4db=>1,
-            C4SSH_PORT => $ssh_port,
-            "port:$external_ssh_port:$ssh_port" => "",
-        },
-        {
-            image => $img,
-            name => "main",
-            need_c4db=>1,
-            C4CD_PORT => "7079",
-        },
-        {
-            image => $img,
-            name => "frpc",
-            C4FRPC_INI => "/c4conf/frpc.ini",
-        },
-    );
-    my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path,[[qw[main 7079]]]);
-    my($tmp_comp,$tmp_path,$up_content) = &$wrap_kc($comp,$from_path,\@containers);
-    print "########\n\n$up_content";
-
-    #auth keys
-    #args => ["dropbear", "-RFEmwg", "-p", "22"]
-}];
-
-=cut
-
+###
 
 push @tasks, ["need_certs","",sub{
     &$need_certs(@_);

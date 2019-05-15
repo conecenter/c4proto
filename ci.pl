@@ -63,29 +63,33 @@ my $handle_build = sub{
     sy("ssh $host sh < /tmp/build.sh");
     1;
 };
-my $handle_run = sub{
-    my ($arg) = @_;
-    my $comp = $arg=~m{^run\s+(\w[\w\-]*)/up\b} ? $1 : return 0;
-    my $host = &$env("C4CI_HOST");
-    my $dir = &$env("C4CI_RUN_DIR");
-    sy("ssh $host sh -c 'cd $dir/$comp && ./up'");
-    1;
-};
-
-my $handle = sub{
-    my $arg = <STDIN>;
-    &$handle_build($arg) || &$handle_run($arg) || die "can not [$arg]"
-};
 
 my @tasks;
-push @tasks, [main=>sub{
+push @tasks, [ci=>sub{
     my $tgz = &$env("C4CI_KEY_TGZ");
     my $dir = "/c4/.ssh";
     sy("mkdir -p $dir && cd $dir && chmod 0700 . && tar -xzf $tgz");
-    &$serve(&$env("C4CI_PORT"),$handle);
+    &$serve(&$env("C4CI_PORT"),sub{
+        my $arg = <STDIN>;
+        &$handle_build($arg) || die "can not [$arg]";
+    });
 }];
 push @tasks, [frpc=>sub{
     &$exec("/tools/frp/frpc", "-c", &$env("C4FRPC_INI"));
+}];
+push @tasks, [sshd=>sub{
+    &$exec('dropbear', '-RFEmwgs', '-p', &$env("C4SSH_PORT"));
+}];
+push @tasks, [kubectl=>sub{
+    &$exec('kubectl', 'proxy', '--port=8080');
+}];
+push @tasks, [cd=>sub{
+    &$serve(&$env("C4CD_PORT"),sub{
+        my $arg = <STDIN>;
+        my $comp = $arg=~m{^run\s+(\w[\w\-]*)/up\b} ? $1 : die "can not [$arg]";
+        my $dir = &$env("C4CD_DIR");
+        sy("cd $dir/$comp && ./up");
+    });
 }];
 
 my($cmd,@args)=@ARGV;
