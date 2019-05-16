@@ -70,8 +70,9 @@ my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected"};
 
 my $get_deployer_conf = sub{
     my($comp,@k)=@_;
-    my $conf = &$get_compose(&$get_compose($comp)->{deployer}||die);
-    map{$$conf{$_}||die "no $_"} @k;
+    my $conf = &$get_compose($comp);
+    my $n_conf = $$conf{deployer} ? &$get_compose($$conf{deployer}) : $conf;
+    map{$$n_conf{$_}||die "no $_"} @k;
 };
 my $get_host_port = sub{ &$get_deployer_conf($_[0],qw(host port)) };
 
@@ -772,6 +773,16 @@ push @tasks, ["up","$composes_txt",sub{
     &$todo($run_comp);
 }];
 
+my $nc = sub{
+    my($addr,$req)=@_;
+    print $req;
+    my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
+    open SOCKET, "|nc $host $port" || die $!; #-w 10
+    select SOCKET;
+    $| = 1;
+    print $req || die $!;
+    sleep 10000;
+};
 push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
     my($repo_dir,$addr,$req_pre,$parent) = @_;
     #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
@@ -782,13 +793,11 @@ push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
         $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
         die $parent;
     my $req = "build $req_pre.$pf\n";
-    print $req;
-    my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
-    open SOCKET, "|nc $host $port" || die $!; #-w 10
-    select SOCKET;
-    $| = 1;
-    print $req || die $!;
-    sleep 10000;
+    &$nc($addr,$req);
+}];
+push @tasks, ["cd_up","<host>:<port> $composes_txt",sub{
+    my($addr,$comp) = @_;
+    &$nc($addr,"run $comp/up\n");
 }];
 push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     my($base,$gen_dir)=@_;
@@ -872,7 +881,7 @@ push @tasks, ["up_kc_host", "", sub{
     do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
-        sy("cp $gen_dir/install.pl $gen_dir/ci.pl $conf_cert_path $from_path/");
+        sy("cp $gen_dir/install.pl $gen_dir/cd.pl $conf_cert_path $from_path/");
         &$put("Dockerfile", join "\n",
             "FROM ubuntu:18.04",
             "COPY install.pl /",
@@ -884,13 +893,13 @@ push @tasks, ["up_kc_host", "", sub{
             "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
             ."&& chmod +x ./kubectl "
             ."&& mv ./kubectl /usr/bin/kubectl ",
-            "COPY id_rsa.pub ci.pl /",
+            "COPY id_rsa.pub cd.pl /",
             "USER c4",
             "RUN mkdir /c4/.ssh /c4/dropbear "
             ."&& cat /id_rsa.pub > /c4/.ssh/authorized_keys "
             ."&& chmod 0600 /c4/.ssh/authorized_keys ",
             "ENV C4SSH_PORT=$ssh_port",
-            'ENTRYPOINT ["perl", "/ci.pl"]',
+            'ENTRYPOINT ["perl", "/cd.pl"]',
         );
         my $builder_comp = $$conf{builder} || die "no builder";
         &$remote_build($builder_comp,$from_path,$img);
