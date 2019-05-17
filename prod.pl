@@ -140,7 +140,7 @@ push @tasks, ["","",sub{
 push @tasks, ["stack_list"," ",sub{
     sy(&$ssh_add());
     my $width = 6;
-    my $composes = &$get_deploy_conf()->{stacks} || die;
+    my $composes = &$get_deploy_conf() || die;
     print join '', map{"$_\n"}
         (map{"  $_".(" "x($width-length))." -- ".(($$composes{$_}||die)->{description}||'?')} sort keys %$composes);
 }];
@@ -304,14 +304,18 @@ my $make_dc_yml = sub{
         $k=~/^(volumes|tty|image|name|need_c4db)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
-    my @pod = (pod => { command => ["sleep","infinity"], image => "ubuntu:18.04" });
+    my @port_maps = &$map(\%all,sub{ my($k,$v)=@_; $k=~/^port:(.+)/ ? "$1" : () });
+    my @pod = (pod => {
+        command => ["sleep","infinity"],
+        image => "ubuntu:18.04",
+        @port_maps ? (ports=>\@port_maps) : (),
+    });
     my $yml_str = &$to_yml_str({
         services => {@pod, map{
             my $opt = $_;
             my $res = &$merge_list(&$map($opt,sub{ my($k,$v)=@_;(
                 $k=~/^([A-Z].+)/ ? { environment=>{$1=>$v} } : (),
                 $k=~/^host:(.+)/ ? { extra_hosts=>["$1:$v"]} : (),
-                $k=~/^port:(.+)/ ? { ports=>["$1"] } : (),
                 $k=~/^(volumes|tty)$/ ? {$1=>$v} : (),
                 $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? {volumes=>["./$1:/c4conf/$1"]} : (),
                 $k eq 'need_c4db' ? {volumes=>["db4:/c4db"]} : (),
@@ -893,6 +897,7 @@ push @tasks, ["up_kc_host", "", sub{
             "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
             ."&& chmod +x ./kubectl "
             ."&& mv ./kubectl /usr/bin/kubectl ",
+            "RUN mkdir /c4db && chown c4:c4 /c4db",
             "COPY id_rsa.pub cd.pl /",
             "USER c4",
             "RUN mkdir /c4/.ssh /c4/dropbear "

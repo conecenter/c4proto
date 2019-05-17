@@ -17,6 +17,7 @@ ENV PATH=${PATH}:/tools/jdk/bin
 COPY . /c4
 RUN perl /c4/run.pl fix_desktop
 RUN chown -R c4:c4 /c4
+RUN mkdir /c4db && chown c4:c4 /c4db
 WORKDIR /c4
 USER c4
 RUN cd /tools/greys && bash ./install-local.sh
