@@ -3011,80 +3011,75 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			return $("div",{style,ref:ref=>this.el=ref},drawChildren)
 		}
 	}	
-	class ProgressbarElement extends StatefulComponent{	
-		getInitialState(){
-			return {top:undefined,left:undefined}
-		}
-		update(top,left){			
-			if(this.state.top==top && this.state.left==left) return
-			this.setState({top,left})
-		}
-		recalc(){
-			if(!this.t) return
-			const tR = this.t.getBoundingClientRect()
-			const pR = this.t.parentElement.getBoundingClientRect()
-			if(tR.width>pR.width||tR.height>pR.height) return this.update()
-			const top = (pR.height - tR.height)/2
-			const left = (pR.width - tR.width)/2
-			return this.update(top,left)
-		}
-		componentDidMount(){
-			this.rb = resizeListener.reg(this.recalc)
-			this.recalc()
-		}
-		componentDidUpdate(){
-			this.recalc()
-		}
-		componentWillUnmount(){
-			this.rb&&this.rb.unreg()
-		}	
-		onRef(node){
-			this.t = node
-			if(node) this.recalc()
-		}
-		render(){
-			const {value,max,percent} = this.props
-			const v1 = parseFloat(value)
-			const v2 = parseFloat(max)
-			let v = (v1/v2)*100
-			v = Number.isInteger(v)?v:v.toFixed(2)
-			const style = {
-				fontSize:'1em',
-				color:'white',
-				textAlign:'center',
-				borderRadius:'0.58em',														
-				margin:'0 0.1em',
-				verticalAlign:"top",			
-				alignSelf:"center",
-				MozUserSelect:"none",
-				userSelect:"none",		
-				overflow:"hidden",			
-				height:"1.76em",			
-				boxSizing:"border-box",
-				...this.props.style,
-				backgroundColor:"#eee"
+	const ProgressbarElement  = (props) => {
+		const elem = React.useRef(null)		
+		const [width, setWidth] = React.useState(null)
+		
+		React.useEffect(()=>{		
+			const recalc = () =>{
+				if(!elem.current) return
+				const tRw = elem.current.getBoundingClientRect().width
+				if(tRw != width) {					
+					setWidth(tRw)			
+				}
 			}
-			const style2 = {
-				position:"absolute",
-				left:this.state.left+"px",
-				top:this.state.top+"px",
-				color:this.props.color,
-				visibility:this.state.top?"":"hidden"
-			} 
-			const style3 = {
-				backgroundColor:this.props.backgroundColor,
-				height:"100%",
-				width:v+"%",
-				position:"relative"				
+			checkActivateCalls.add(recalc)
+			
+			return ()=>{
+				checkActivateCalls.remove(recalc)
 			}
-			const fv = percent?(v+"%"):`${value}/${max}`
-			return $("div",{style},
-				$("div",{style:style3},
-					$("div",{style:style2,ref:this.onRef},fv)
-				)
+		},[width])
+		const prg1 = {
+			position: "absolute",
+			border: "0",		
+			height: "1.76em",
+			lineHeight: "1.76em",
+			margin: "1mm 0.1em",			
+			fontWeight: "bold",
+			fontSize: "1em",
+			backgroundColor: "#eee",
+			borderRadius: "0.58em",
+			overflow: "hidden",
+			userSelect:"none",
+			MozUserSelect:"none",
+			width:width?width+"px":"0"
+		}		
+		const prg1T = {
+			position: "absolute",
+			top: "0",			
+			textAlign: "center",
+			color: PrimaryColor,
+			fontVariant: "small-caps",
+			width:width?width+"px":"0"
+		}
+		const prg1BT = {
+			...prg1T,
+			color: "white"
+		}
+		const {value,max,percent} = props
+		const v1 = parseFloat(value)
+		const v2 = parseFloat(max)
+		let v = (v1/v2)*100
+		v = Number.isInteger(v)?v:v.toFixed(2)
+		const prg1B = {
+			height: "100%",
+			overflow: "hidden",
+			width: v+"%",
+			backgroundColor: PrimaryColor,
+			borderRadius: "inherit",
+			overflow: "hidden",
+			position: "relative"
+		}		
+		const fv = percent?(v+"%"):`${value}/${max}`
+		return $("div",{style:{flexGrow:"1"},ref:elem},$("div",{style:prg1},[
+				$("div",{key:1,style:prg1T},fv),
+				$("div",{key:2,style:prg1B},
+					$("div",{style:prg1BT},fv)
+				)]
 			)
-		}
+		)
 	}
+
 	class TextElement extends StatefulComponent{
 		selectC(win){
 			const selection = win.getSelection()
