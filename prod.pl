@@ -634,17 +634,17 @@ my $make_desktop_secret = sub{
 my $gate_ports = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
+    my $host = $$conf{host} || die "no host";
     my $external_broker_port = $$conf{broker_port} || die "no broker_port";
     my $external_http_port = $$conf{http_port} || die "no http_port";
-    ($external_http_port,$external_broker_port);
+    ($host,$external_http_port,$external_broker_port);
 };
 
 my $up_consumer = sub{
     my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
-    my $server = $$conf{gate} || die "no gate";
     my $gate_comp = $$conf{ca} || die "no ca";
-    my ($external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
+    my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($gate_comp,$from_path);
     &$make_secrets($run_comp,$from_path);
@@ -657,7 +657,7 @@ my $up_consumer = sub{
 };
 my $up_gate = sub{
     my($run_comp)=@_;
-    my ($external_http_port,$external_broker_port) = &$gate_ports($run_comp);
+    my ($server,$external_http_port,$external_broker_port) = &$gate_ports($run_comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($run_comp,$from_path);
     ($run_comp, $from_path, [
@@ -671,6 +671,7 @@ my $up_gate = sub{
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
             C4BOOTSTRAP_PORT => $broker_port,
+            C4BOOTSTRAP_SERVERS => "$server:$external_broker_port",
         },
         {
             @var_img,

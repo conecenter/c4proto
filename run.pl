@@ -28,11 +28,13 @@ push @tasks, [zookeeper=>sub{
 }];
 push @tasks, [broker=>sub{
     my $port = $ENV{C4BOOTSTRAP_PORT} || die;
+    my $add = $ENV{C4BOOTSTRAP_SERVERS} || die;
     &$put_text("/c4/server.properties", join '', map{"$_\n"}
         "log.dirs=/c4db/kafka-logs",
         "zookeeper.connect=$zoo_host:$zoo_port",
         "message.max.bytes=250000000", #seems to be compressed
         "listeners=SSL://:$port", #0.0.0.0
+        "advertised.listeners=SSL://127.0.0.1:$port,$add",
     );
     my $props = $ENV{C4SSL_PROPS} || die;
     sy("cat $props >> server.properties");
