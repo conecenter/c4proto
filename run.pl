@@ -35,7 +35,7 @@ push @tasks, [broker=>sub{
         "message.max.bytes=250000000", #seems to be compressed
         "listeners=SSL://:$port", #0.0.0.0
         "advertised.listeners=INTERNAL://127.0.0.1:$port,EXTERNAL://$add",
-        "listener.security.protocol.map=INTERNAL:SSL,EXTERNAL:SSL",
+        "listener.security.protocol.map=SSL:SSL,INTERNAL:SSL,EXTERNAL:SSL",
     );
     my $props = $ENV{C4SSL_PROPS} || die;
     sy("cat $props >> server.properties");

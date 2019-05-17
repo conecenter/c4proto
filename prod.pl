@@ -770,12 +770,14 @@ my $frp_web = sub{
 my $cicd_port = "7079";
 
 push @tasks, ["up","$composes_txt",sub{
-    my($run_comp)=@_;
+    #my($run_comp)=@_;
     sy(&$ssh_add());
-    my $nm = "up_".&$get_compose($run_comp)->{type};
-    my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
-    my $todo = @todo == 1 ? $todo[0] : die "bad type";
-    &$todo($run_comp);
+    for my $run_comp(@_){
+        my $nm = "up_".&$get_compose($run_comp)->{type};
+        my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
+        my $todo = @todo == 1 ? $todo[0] : die "bad type";
+        &$todo($run_comp);
+    }
 }];
 
 my $nc = sub{
