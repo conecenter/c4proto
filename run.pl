@@ -34,7 +34,7 @@ push @tasks, [broker=>sub{
         "zookeeper.connect=$zoo_host:$zoo_port",
         "message.max.bytes=250000000", #seems to be compressed
         "listeners=SSL://:$port", #0.0.0.0
-        "advertised.listeners=SSL://127.0.0.1:$port,$add",
+        "advertised.listeners=SSL://127.0.0.1:$port,SSL://$add",
     );
     my $props = $ENV{C4SSL_PROPS} || die;
     sy("cat $props >> server.properties");
