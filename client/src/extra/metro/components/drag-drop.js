@@ -84,7 +84,7 @@ const DragDropDivElement  = (props) => {
 	const infoS = {position:"absolute",boxSizing:"border-box",height:"100%",top:"0"}
 	const stO = state.side != dragDropPositionStates.none? {position:"relative"}:{}
 	const style = {
-		...this.props.style,
+		...props.style,
 		...stO
 	}
 	const draw2 = (v) => Object.values(v).length>0 
