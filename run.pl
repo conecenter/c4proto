@@ -3,6 +3,7 @@
 
 use strict;
 
+my $bootstrap_port = 9092;
 my $zoo_port = 2181;
 my $zoo_host = "127.0.0.1";
 my $bin = "/tools/kafka/bin";
@@ -27,16 +28,14 @@ push @tasks, [zookeeper=>sub{
     &$exec("$bin/zookeeper-server-start.sh", "zookeeper.properties");
 }];
 push @tasks, [broker=>sub{
-    my $port = $ENV{C4BOOTSTRAP_PORT} || die;
-    #my $add = $ENV{C4BOOTSTRAP_SERVERS} || die;
     my $ext_host = $ENV{C4BOOTSTRAP_EXT_HOST} || die;
     my $ext_port = $ENV{C4BOOTSTRAP_EXT_PORT} || die;
     &$put_text("/c4/server.properties", join '', map{"$_\n"}
         "log.dirs=/c4db/kafka-logs",
         "zookeeper.connect=$zoo_host:$zoo_port",
         "message.max.bytes=250000000", #seems to be compressed
-        "listeners=INTERNAL://:$port,EXTERNAL://:$ext_port", #0.0.0.0
-        "advertised.listeners=INTERNAL://127.0.0.1:$port,EXTERNAL://$ext_host:$ext_port",
+        "listeners=INTERNAL://:$bootstrap_port,EXTERNAL://:$ext_port", #0.0.0.0
+        "advertised.listeners=INTERNAL://127.0.0.1:$bootstrap_port,EXTERNAL://$ext_host:$ext_port",
         "listener.security.protocol.map=INTERNAL:SSL,EXTERNAL:SSL",
         "inter.broker.listener.name=EXTERNAL",
     );
@@ -83,8 +82,7 @@ push @tasks, [gate=>sub{
     mkdir "/c4db/def" and symlink "/c4db/def","db4" or die if !-e "/c4db/def";
     $ENV{C4HTTP_PORT} = $http_port;
     $ENV{C4SSE_PORT} = $sse_port;
-    my $port = $ENV{C4BOOTSTRAP_PORT} || die;
-    $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$port";
+    $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$bootstrap_port";
     &$exec("app/bin/c4gate-server");
 }];
 push @tasks, [fix_desktop=>sub{

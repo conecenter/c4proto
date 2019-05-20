@@ -239,7 +239,6 @@ $YAML::XS::QuoteNumericStrings = 1;
 
 #my $inbox_prefix = '';
 
-my $broker_port = "9092";
 my $http_port = "1080";
 my $vhost_http_port = "80";
 my $vhost_https_port = "443";
@@ -603,7 +602,7 @@ my $need_certs = sub{
             "ssl.endpoint.identification.algorithm=",
             "", #broker
             "ssl.client.auth=required",
-            "security.inter.broker.protocol=SSL",
+            #"security.inter.broker.protocol=SSL",
         );
     }
     $was_no_ca;
@@ -666,11 +665,10 @@ my $up_gate = sub{
         },
         {
             @var_img,
-            name => "broker", need_c4db=>1, "port:$external_broker_port:$broker_port"=>"",
+            name => "broker", need_c4db=>1, "port:$external_broker_port:$external_broker_port"=>"",
             C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
-            C4BOOTSTRAP_PORT => $broker_port,
             C4BOOTSTRAP_EXT_HOST => $server,
             C4BOOTSTRAP_EXT_PORT => $external_broker_port,
         },
@@ -680,7 +678,6 @@ my $up_gate = sub{
             name => "gate", need_c4db=>1,
             C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
             C4STATE_REFRESH_SECONDS => 1000,
-            C4BOOTSTRAP_PORT => $broker_port,
         },
         {
             @var_img, name => "haproxy", "port:$external_http_port:$http_port"=>"",
