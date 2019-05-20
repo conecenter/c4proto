@@ -38,6 +38,7 @@ push @tasks, [broker=>sub{
         "listeners=INTERNAL://:$port,EXTERNAL://:$ext_port", #0.0.0.0
         "advertised.listeners=INTERNAL://127.0.0.1:$port,EXTERNAL://$ext_host:$ext_port",
         "listener.security.protocol.map=INTERNAL:SSL,EXTERNAL:SSL",
+        "inter.broker.listener.name=EXTERNAL",
     );
     my $props = $ENV{C4SSL_PROPS} || die;
     sy("cat $props >> server.properties");
