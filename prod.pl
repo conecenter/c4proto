@@ -95,7 +95,7 @@ my $remote_interactive = sub{
 my $running_containers_all = sub{
     my($comp)=@_;
     my $ps_stm = &$remote($comp,'docker ps --format "table {{.Names}}"');
-    my ($names,@ps) = syf($ps_stm)=~/(\w+)/g;
+    my ($names,@ps) = syf($ps_stm)=~/([\w\-]+)/g;
     $names eq "NAMES" or die;
     @ps;
 };
@@ -223,7 +223,7 @@ push @tasks, ["gc","$composes_txt",sub{
     sy(&$ssh_add());
     for my $c(&$running_containers($comp)){
         #print "container: $c\n";
-        my $cmd = &$remote($comp,&$docker_exec_java($c,"jcmd"));
+        my $cmd = &$remote($comp,&$docker_exec_java($c,"jcmd || echo -"));
         for(syl($cmd)){
             my $pid = /^(\d+)/ ? $1 : next;
             /JCmd/ && next;
