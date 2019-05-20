@@ -27,7 +27,7 @@ my $serve = sub{
       open STDOUT, ">&$fileno" or die;
       open STDERR, ">&$fileno" or die;
       &$handle();
-      shutdown($client_socket, 1);
+      shutdown($client_socket,2) or die;
     }
     $socket->close();
 };

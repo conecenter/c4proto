@@ -109,7 +109,7 @@ my $rsync_to = sub{
 
 my $split_app = sub{
     my($app)=@_;
-    $app=~/^(\w+)-(\w+)$/ ? ($1,$2) : die "<stack>-<service> expected ($app)"
+    $app=~/^([\w\-]+)-(\w+)$/ ? ($1,$2) : die "<stack>-<container> expected ($app)"
 };
 
 my $rel_put_text = sub{
@@ -702,27 +702,27 @@ my $up_desktop = sub{
 # dc:
 # kc:
 
-push @tasks, ["up_kc_desktop", "", sub{
+push @tasks, ["up-kc_desktop", "", sub{
     my($run_comp)=@_;
     #sy(&$ssh_add());
     &$sync_up(&$wrap_kc(&$up_desktop($run_comp)));
 }];
-push @tasks, ["up_kc_consumer", "", sub{
+push @tasks, ["up-kc_consumer", "", sub{
     my($run_comp)=@_;
     #sy(&$ssh_add());
     &$sync_up(&$wrap_kc(&$up_consumer($run_comp)));
 }];
-push @tasks, ["up_dc_consumer", "", sub{
+push @tasks, ["up-dc_consumer", "", sub{
     my($run_comp)=@_;
     #sy(&$ssh_add());
     &$sync_up(&$wrap_dc(&$up_consumer($run_comp)));
 }];
-push @tasks, ["up_kc_gate", "", sub{
+push @tasks, ["up-kc_gate", "", sub{
     my($run_comp)=@_;
     #sy(&$ssh_add());
     &$sync_up(&$wrap_kc(&$up_gate($run_comp)));
 }];
-push @tasks, ["up_dc_gate", "", sub{
+push @tasks, ["up-dc_gate", "", sub{
     my($run_comp)=@_;
     #sy(&$ssh_add());
     &$sync_up(&$wrap_dc(&$up_gate($run_comp)));
@@ -767,14 +767,18 @@ my $frp_web = sub{
 };
 my $cicd_port = "7079";
 
+my $find_handler = sub{
+    my($ev,$comp)=@_;
+    my $nm = "$ev-".&$get_compose($comp)->{type};
+    my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
+    @todo == 1 ? $todo[0] : die "bad type";
+};
+
 push @tasks, ["up","$composes_txt",sub{
-    #my($run_comp)=@_;
+    my(@comps)=@_;
     sy(&$ssh_add());
-    for my $run_comp(@_){
-        my $nm = "up_".&$get_compose($run_comp)->{type};
-        my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
-        my $todo = @todo == 1 ? $todo[0] : die "bad type";
-        &$todo($run_comp);
+    for my $run_comp(@comps){
+        &$find_handler(up=>$run_comp)->($run_comp);
     }
 }];
 
@@ -782,11 +786,13 @@ my $nc = sub{
     my($addr,$req)=@_;
     print $req;
     my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
-    open SOCKET, "|nc $host $port" || die $!; #-w 10
-    select SOCKET;
-    $| = 1;
-    print $req || die $!;
-    sleep 10000;
+    use IPC::Open2;
+    my($chld_out, $chld_in);
+    my $pid = open2($chld_out, $chld_in, 'nc', $host, $port);
+    print $chld_in $req or die;
+    print while <$chld_out>;
+    waitpid($pid, 0);
+    print "FINISHED\n";
 };
 push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
     my($repo_dir,$addr,$req_pre,$parent) = @_;
@@ -816,7 +822,7 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
     sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
 }];
-push @tasks, ["up_ci","",sub{
+push @tasks, ["up-ci","",sub{
     my ($comp) = @_;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my $img = "c4ci";
@@ -875,7 +881,7 @@ push @tasks, ["up_ci","",sub{
     &$sync_up($comp,$from_path,$up_content);
 }];
 
-push @tasks, ["up_kc_host", "", sub{
+push @tasks, ["up-kc_host", "", sub{
     my ($comp) = @_;
     my $conf = &$get_compose($comp);
     my $img = $$conf{image} || die;
@@ -927,6 +933,7 @@ push @tasks, ["up_kc_host", "", sub{
             image => $img,
             name => "cd",
             need_c4db => 1,
+            tty => "true",
             C4CD_PORT => $cicd_port,
             C4CD_DIR => $dir,
         },
@@ -944,11 +951,23 @@ push @tasks, ["up_kc_host", "", sub{
         apiVersion => "rbac.authorization.k8s.io/v1",
         kind => "Role",
         metadata => { name => $run_comp },
-        rules => [{
-            apiGroups => ["","apps"],
-            resources => ["statefulsets","secrets","services"],
-            verbs => ["get","create","patch"],
-        }],
+        rules => [
+            {
+                apiGroups => ["","apps"],
+                resources => ["statefulsets","secrets","services"],
+                verbs => ["get","create","patch"],
+            },
+            {
+                apiGroups => [""],
+                resources => ["pods/exec"],
+                verbs => ["create"],
+            },
+            {
+                apiGroups => [""],
+                resources => ["pods"],
+                verbs => ["get","delete","exec"],
+            },
+        ],
     }, {
         apiVersion => "v1",
         kind => "ServiceAccount",
@@ -1056,11 +1075,10 @@ volumes:
 my $hmap = sub{ my($h,$f)=@_; map{&$f($_,$$h{$_})} sort keys %$h };
 
 
-push @tasks, ["proxy_to","up|test",sub{
-    my($mode)=@_;
+push @tasks, ["up-proxy","",sub{
+    my($comp)=@_;
     sy(&$ssh_add());
-    my $conf = &$get_deploy_conf()->{proxy_to} || die;
-    my $comp = $$conf{stack} || die;
+    my $conf = &$get_compose($comp);
 #    my @sb_items = &$hmap($composes, sub{ my($comp,$comp_conf)=@_;
 #        $$comp_conf{proxy_dom} ? do{
 #            my $host = $$comp_conf{host}||die;
@@ -1084,9 +1102,9 @@ push @tasks, ["proxy_to","up|test",sub{
         vhost_https_port => $vhost_https_port,
         subdomain_host => ($$conf{subdomain_host}||die)
     ]]));
-    if($mode eq "up"){
+    #if($mode eq "up"){
         sy(&$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate"));
-    }
+    #}
 }];
 
 push @tasks, ["cert","<hostname>",sub{
@@ -1186,17 +1204,29 @@ push @tasks, ["thread_count"," ",sub{
     print scalar(@r)."\n";
 }];
 
+
+
+push @tasks, ["exec-dc_consumer","",sub{
+    my($comp,$service,$stm)=@_;
+    sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 $stm"));
+}];
+push @tasks, ["exec-kc_consumer","",sub{
+    my($comp,$service,$stm)=@_;
+    my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? $1 : die;
+    sy(&$ssh_ctl($comp,'-t',"kubectl -n $ns exec -i --tty $comp-0 -c $service -- $stm"));
+}];
+
 push @tasks, ["repl","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 sh -c 'test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222'"));
+    &$find_handler(exec=>$comp)->($comp,$service,"sh -c 'test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222'");
 }];
 push @tasks, ["greys","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 sh -c 'JAVA_TOOL_OPTIONS= /c4/greys/greys.sh 1'"));
+    &$find_handler(exec=>$comp)->($comp,$service,"sh -c 'JAVA_TOOL_OPTIONS= /tools/greys/greys.sh 1'");
 }];
 
 push @tasks, ["install","$composes_txt-<service> <tgz>",sub{

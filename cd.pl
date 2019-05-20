@@ -22,7 +22,7 @@ my $serve = sub{
       open STDOUT, ">&$fileno" or die;
       open STDERR, ">&$fileno" or die;
       &$handle();
-      shutdown($client_socket, 1);
+      shutdown($client_socket,2) or die;
     }
     $socket->close();
 };
@@ -37,7 +37,7 @@ push @tasks, [sshd=>sub{
     &$exec('dropbear', '-RFEmwgs', '-p', &$env("C4SSH_PORT"));
 }];
 push @tasks, [kubectl=>sub{
-    &$exec('kubectl', 'proxy', '--port=8080');
+    &$exec('kubectl', 'proxy', '--port=8080', '--disable-filter=true');
 }];
 push @tasks, [cd=>sub{
     &$serve(&$env("C4CD_PORT"),sub{
