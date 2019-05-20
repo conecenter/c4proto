@@ -671,7 +671,8 @@ my $up_gate = sub{
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
             C4BOOTSTRAP_PORT => $broker_port,
-            C4BOOTSTRAP_SERVERS => "$server:$external_broker_port",
+            C4BOOTSTRAP_EXT_HOST => $server,
+            C4BOOTSTRAP_EXT_PORT => $external_broker_port,
         },
         {
             @var_img,
