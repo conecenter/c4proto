@@ -965,7 +965,7 @@ push @tasks, ["up-kc_host", "", sub{
             {
                 apiGroups => [""],
                 resources => ["pods"],
-                verbs => ["get","delete","exec"],
+                verbs => ["get","delete"],
             },
         ],
     }, {
