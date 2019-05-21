@@ -1181,6 +1181,23 @@ my $tp_run = sub{
     }
 };
 
+
+push @tasks, ["exec-dc_consumer","",sub{
+    my($comp)=@_;
+    sub{
+        my($md,$service,$stm)=@_;
+        qq[docker exec $md $comp\_$service\_1 sh -c "JAVA_TOOL_OPTIONS= $stm"];
+    };
+}];
+push @tasks, ["exec-kc_consumer","",sub{
+    my($comp)=@_;
+    my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? $1 : die;
+    sub{
+        my($md,$service,$stm)=@_;
+        qq[kubectl -n $ns exec $md $comp-0 -c $service -- sh -c "JAVA_TOOL_OPTIONS= $stm"];
+    };
+}];
+
 push @tasks, ["thread_print_local","<package>",sub{
     my($pkg)=@_;
     &$tp_run($pkg,sub{"$_[0]"});
@@ -1189,7 +1206,8 @@ push @tasks, ["thread_print","$composes_txt-<service> <package>",sub{
     my($app,$pkg)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$docker_exec_java("$comp\_$service\_1",$cmd)) });#/RUNNABLE/
+    my $mk_stm = &$find_handler(exec=>$comp)->($comp);
+    &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$mk_stm("",$service,$cmd)) });#/RUNNABLE/
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
@@ -1204,29 +1222,17 @@ push @tasks, ["thread_count"," ",sub{
     print scalar(@r)."\n";
 }];
 
-
-
-push @tasks, ["exec-dc_consumer","",sub{
-    my($comp,$service,$stm)=@_;
-    sy(&$ssh_ctl($comp,'-t',"docker exec -it $comp\_$service\_1 $stm"));
-}];
-push @tasks, ["exec-kc_consumer","",sub{
-    my($comp,$service,$stm)=@_;
-    my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? $1 : die;
-    sy(&$ssh_ctl($comp,'-t',"kubectl -n $ns exec -i --tty $comp-0 -c $service -- $stm"));
-}];
-
 push @tasks, ["repl","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    &$find_handler(exec=>$comp)->($comp,$service,"sh -c 'test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222'");
+    sy(&$ssh_ctl($comp,'-t',&$find_handler(exec=>$comp)->($comp)->("-it",$service,"test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222")));
 }];
 push @tasks, ["greys","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    &$find_handler(exec=>$comp)->($comp,$service,"sh -c 'JAVA_TOOL_OPTIONS= /tools/greys/greys.sh 1'");
+    sy(&$ssh_ctl($comp,'-t',&$find_handler(exec=>$comp)->($comp)->("-it",$service,"/tools/greys/greys.sh 1")));
 }];
 
 push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
