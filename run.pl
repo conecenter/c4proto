@@ -83,8 +83,9 @@ push @tasks, [gate=>sub{
     -e $dir or mkdir $dir or die;
     my $lnk = readlink "db4";
     if($lnk ne $dir){
-        print "[$lnk] ne [$dir]\n";
-        !-e "db4" or unlink "db4" or die;
+        my $ex = -e "db4";
+        print "[$ex]; [$lnk] ne [$dir]\n";
+        !$ex or unlink "db4" or die;
         symlink $dir,"db4" or die;
     }
     $ENV{C4HTTP_PORT} = $http_port;
