@@ -78,7 +78,7 @@ push @tasks, [haproxy=>sub{
 push @tasks, [frpc=>sub{
     &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
 }];
-push @tasks, [gate=>sub{
+my $link_bd4 = sub{
     my $dir = "/c4db/def";
     -e $dir or mkdir $dir or die;
     my $lnk = readlink "db4";
@@ -88,6 +88,9 @@ push @tasks, [gate=>sub{
         !$ex or unlink "db4" or die;
         symlink $dir,"db4" or die;
     }
+};
+push @tasks, [gate=>sub{
+    &$link_bd4();
     $ENV{C4HTTP_PORT} = $http_port;
     $ENV{C4SSE_PORT} = $sse_port;
     $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$bootstrap_port";

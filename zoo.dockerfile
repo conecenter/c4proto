@@ -11,7 +11,6 @@ RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-1
 RUN perl install.pl curl https://www-eu.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz
 RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz
 RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip
-RUN mkdir /c4/db4
 ENV JAVA_HOME=/tools/jdk
 ENV PATH=${PATH}:/tools/jdk/bin
 COPY . /c4
