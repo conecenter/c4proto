@@ -81,7 +81,9 @@ push @tasks, [frpc=>sub{
 push @tasks, [gate=>sub{
     my $dir = "/c4db/def";
     -e $dir or mkdir $dir or die;
-    if(readlink "db4" ne $dir){
+    my $lnk = readlink "db4";
+    if($lnk ne $dir){
+        print "[$lnk] ne [$dir]\n";
         !-e "db4" or unlink "db4" or die;
         symlink $dir,"db4" or die;
     }
