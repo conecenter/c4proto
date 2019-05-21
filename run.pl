@@ -79,7 +79,12 @@ push @tasks, [frpc=>sub{
     &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
 }];
 push @tasks, [gate=>sub{
-    mkdir "/c4db/def" and symlink "/c4db/def","db4" or die if !-e "/c4db/def";
+    my $dir = "/c4db/def";
+    -e $dir or mkdir $dir or die;
+    if(readlink "db4" ne $dir){
+        !-e "db4" or unlink "db4" or die;
+        symlink $dir,"db4" or die;
+    }
     $ENV{C4HTTP_PORT} = $http_port;
     $ENV{C4SSE_PORT} = $sse_port;
     $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$bootstrap_port";

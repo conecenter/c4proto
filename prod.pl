@@ -87,9 +87,17 @@ my $remote = sub{
     "ssh c4\@$host -p $port '$stm'"; #'' must be here; ssh joins with ' ' args for the remote sh anyway
 };
 
-my $remote_interactive = sub{
-    my($comp,$add,$stm)=@_;
-    &$remote($comp,"docker exec -i $add sh -c \"$stm\"");
+my $find_handler = sub{
+    my($ev,$comp)=@_;
+    my $nm = "$ev-".&$get_compose($comp)->{type};
+    my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
+    @todo == 1 ? $todo[0] : die "bad type: $ev,$comp";
+};
+
+my $interactive = sub{
+    my($comp,$container,$stm)=@_;
+    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    &$mk_exec("-i",$container,$stm);
 };
 
 my $running_containers_all = sub{
@@ -157,16 +165,17 @@ push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     sy(&$ssh_ctl($comp,@args));
 }];
 
-my $get_acc = sub{ my($comp)=@_; "$comp\_access_1" };
 my $remote_acc  = sub{
     my($comp,$stm)=@_;
-    my $acc = &$get_acc($comp);
-    &$remote($comp,"docker exec -uc4 $acc $stm");
+    my $service = "zookeeper";
+    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    &$remote($comp,&$mk_exec("",$service,$stm));
 };
 
+my $snapshots_path = "/c4db/def/snapshots";
 my $list_snapshots = sub{
     my($comp,$opt)=@_;
-    my $ls = &$remote_acc($comp,"ls $opt /c4/db4/snapshots");
+    my $ls = &$remote_acc($comp,"ls $opt $snapshots_path");
     print "$ls\n";
     syl($ls);
 };
@@ -186,7 +195,7 @@ my $snapshot_name = sub{
 my $get_snapshot = sub{
     my($comp,$snnm,$mk_path)=@_;
     my($fn,$zfn) = &$snapshot_name($snnm);
-    &$get_sm_binary($comp,"/c4/db4/snapshots/$fn",&$mk_path($zfn));
+    &$get_sm_binary($comp,"$snapshots_path/$fn",&$mk_path($zfn));
 };
 
 push @tasks, ["list_snapshots", $composes_txt, sub{
@@ -213,16 +222,15 @@ my $running_containers = sub{
     grep{ 0==index $_,"$comp\_" } &$running_containers_all($comp);
 };
 
-my $docker_exec_java = sub{
-    my($container,$cmd)=@_;
-    qq[docker exec $container sh -c "JAVA_TOOL_OPTIONS= $cmd"]
-};
-
 push @tasks, ["gc","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
     for my $c(&$running_containers($comp)){
         #print "container: $c\n";
+        my $docker_exec_java = sub{
+            my($container,$cmd)=@_;
+            qq[docker exec $container sh -c "JAVA_TOOL_OPTIONS= $cmd"]
+        };
         my $cmd = &$remote($comp,&$docker_exec_java($c,"jcmd || echo -"));
         for(syl($cmd)){
             my $pid = /^(\d+)/ ? $1 : next;
@@ -767,13 +775,6 @@ my $frp_web = sub{
 };
 my $cicd_port = "7079";
 
-my $find_handler = sub{
-    my($ev,$comp)=@_;
-    my $nm = "$ev-".&$get_compose($comp)->{type};
-    my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
-    @todo == 1 ? $todo[0] : die "bad type";
-};
-
 push @tasks, ["up","$composes_txt",sub{
     my(@comps)=@_;
     sy(&$ssh_add());
@@ -1134,7 +1135,7 @@ push @tasks, ["devel_init_frpc","<devel>|all",sub{
     my $proxy_list = (&$get_deploy_conf()->{proxy_to}||die)->{visits}||die;
     my $put = sub{
         my($inner_comp,$fn,$content) = @_;
-        &$remote_interactive($comp, " -uc4 $inner_comp\_sshd_1 ", "cat > /c4/$fn")." < ".&$put_temp($fn,$content)
+        &$remote($comp,&$interactive($inner_comp, "sshd", "cat > /c4/$fn"))." < ".&$put_temp($fn,$content)
     };
     my $process = sub{
         my($inner_comp) = @_;
@@ -1181,22 +1182,26 @@ my $tp_run = sub{
     }
 };
 
-
-push @tasks, ["exec-dc_consumer","",sub{
+my $exec_dc = sub{
     my($comp)=@_;
     sub{
         my($md,$service,$stm)=@_;
         qq[docker exec $md $comp\_$service\_1 sh -c "JAVA_TOOL_OPTIONS= $stm"];
     };
-}];
-push @tasks, ["exec-kc_consumer","",sub{
+};
+my $exec_kc = sub{
     my($comp)=@_;
     my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? $1 : die;
     sub{
         my($md,$service,$stm)=@_;
         qq[kubectl -n $ns exec $md $comp-0 -c $service -- sh -c "JAVA_TOOL_OPTIONS= $stm"];
     };
-}];
+};
+
+push @tasks, ["exec-dc_consumer","",$exec_dc];
+push @tasks, ["exec-dc_gate","",$exec_dc];
+push @tasks, ["exec-kc_consumer","",$exec_kc];
+push @tasks, ["exec-kc_gate","",$exec_kc];
 
 push @tasks, ["thread_print_local","<package>",sub{
     my($pkg)=@_;
@@ -1206,8 +1211,8 @@ push @tasks, ["thread_print","$composes_txt-<service> <package>",sub{
     my($app,$pkg)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    my $mk_stm = &$find_handler(exec=>$comp)->($comp);
-    &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$mk_stm("",$service,$cmd)) });#/RUNNABLE/
+    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
     my($v)=@_;
@@ -1226,20 +1231,22 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    sy(&$ssh_ctl($comp,'-t',&$find_handler(exec=>$comp)->($comp)->("-it",$service,"test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222")));
+    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222")));
 }];
 push @tasks, ["greys","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    sy(&$ssh_ctl($comp,'-t',&$find_handler(exec=>$comp)->($comp)->("-it",$service,"/tools/greys/greys.sh 1")));
+    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"/tools/greys/greys.sh 1")));
 }];
 
 push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
     my($app,$tgz)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    sy(&$remote_interactive($comp, " -uc4 $comp\_$service\_1 ", "tar -xz")." < $tgz");
+    sy(&$remote($comp,&$interactive($comp, $service, "tar -xz"))." < $tgz");
 }];
 
 ####
