@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-#use Digest::MD5 qw(md5_hex);
+use Digest::MD5 qw(md5_hex);
 
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
@@ -129,12 +129,13 @@ my $rel_put_text = sub{
 };
 
 my $sync_up = sub{
-    my($comp,$from_path,$up_content)=@_;
+    my($comp,$from_path,$up_content,$args)=@_;
     my ($dir) = &$get_deployer_conf($comp,qw[dir]);
     my $conf_dir = "$dir/$comp"; #.c4conf
     $from_path ||= &$get_tmp_dir();
     &$rel_put_text($from_path)->("up",$up_content);
     &$rsync_to($from_path,$comp,$conf_dir);
+    sy(&$remote($comp,"cat >> $conf_dir.args")." < ".&$put_temp("args"," $args\n")) if $args;
     sy(&$remote($comp,"cd $conf_dir && chmod +x up && ./up"));
 };
 
@@ -287,9 +288,8 @@ my $to_yml_str = sub{
 
 my $interpolation_body = sub{
     my($run_comp)=@_;
-    my $conf = &$get_compose($run_comp);
-    my $url = $$conf{cd_args_url} || die;
-    'my %vars = (reverse grep{$_}`curl '.$url.'`)[0]=~/([\w\-\.\:\/]+)/g;'
+    'my %vars = `cat ../'.$run_comp.'.args`=~/([\w\-\.\:\/]+)/g;'
+    .'print "[$_=$vars{$_}]\n" for sort keys %vars;'
     .'$c{main}=~s{<var:([^>]+)>}{$vars{$1}}eg;'
 };
 my $pl_head = sub{
@@ -350,7 +350,9 @@ my $wrap_dc = sub{
     my ($name,$from_path,$options) = @_;
     my($yml_str,$up) = &$make_dc_yml($name,$options);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
-        .&$interpolation_body($name).qq[pp(main=>"$up");];
+        .&$interpolation_body($name)
+        .'($vars{replicas}-0) or $c{main}=q[version: "3.2"];'
+        .qq[pp(main=>"$up");];
     ($name,$from_path,$up_content);
 };
 
@@ -361,7 +363,7 @@ my $wrap_dc = sub{
 my $mandatory_of = sub{ my($k,$h)=@_; (exists $$h{$k}) ? $$h{$k} : die "no $k" };
 
 my $make_kc_yml = sub{
-    my($name,$tmp_path,$options) = @_;
+    my($name,$tmp_path,$spec,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
         $k=~/^([A-Z]|host:|port:)/ ||
@@ -423,6 +425,7 @@ my $make_kc_yml = sub{
         kind => "StatefulSet",
         metadata => { name => $name },
         spec => {
+            %$spec,
             selector => { matchLabels => { app => $name } },
             serviceName => $name,
             template => {
@@ -470,7 +473,7 @@ my $make_kc_yml = sub{
 
 my $wrap_kc = sub{
     my($name,$tmp_path,$options) = @_;
-    my $yml_str = &$make_kc_yml($name,$tmp_path,$options);
+    my $yml_str = &$make_kc_yml($name,$tmp_path,{ replicas => "<var:replicas>" },$options);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
         .&$interpolation_body($name)
         .q[my $ns=`cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`;]
@@ -711,29 +714,29 @@ my $up_desktop = sub{
 # kc:
 
 push @tasks, ["up-kc_desktop", "", sub{
-    my($run_comp)=@_;
+    my($run_comp,$args)=@_;
     #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_desktop($run_comp)));
+    &$sync_up(&$wrap_kc(&$up_desktop($run_comp)),$args);
 }];
 push @tasks, ["up-kc_consumer", "", sub{
-    my($run_comp)=@_;
+    my($run_comp,$args)=@_;
     #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_consumer($run_comp)));
+    &$sync_up(&$wrap_kc(&$up_consumer($run_comp)),$args);
 }];
 push @tasks, ["up-dc_consumer", "", sub{
-    my($run_comp)=@_;
+    my($run_comp,$args)=@_;
     #sy(&$ssh_add());
-    &$sync_up(&$wrap_dc(&$up_consumer($run_comp)));
+    &$sync_up(&$wrap_dc(&$up_consumer($run_comp)),$args);
 }];
 push @tasks, ["up-kc_gate", "", sub{
-    my($run_comp)=@_;
+    my($run_comp,$args)=@_;
     #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_gate($run_comp)));
+    &$sync_up(&$wrap_kc(&$up_gate($run_comp)),$args);
 }];
 push @tasks, ["up-dc_gate", "", sub{
-    my($run_comp)=@_;
+    my($run_comp,$args)=@_;
     #sy(&$ssh_add());
-    &$sync_up(&$wrap_dc(&$up_gate($run_comp)));
+    &$sync_up(&$wrap_dc(&$up_gate($run_comp)),$args);
 }];
 
 # deploy-time, conf-arity, easy-conf, restart-fail-independ -- gate|main|exch (or more, try min);
@@ -775,21 +778,21 @@ my $frp_web = sub{
 };
 my $cicd_port = "7079";
 
-push @tasks, ["up","$composes_txt",sub{
-    my(@comps)=@_;
+push @tasks, ["up","$composes_txt <args>",sub{
+    my($comp,$args)=@_;
     sy(&$ssh_add());
-    for my $run_comp(@comps){
-        &$find_handler(up=>$run_comp)->($run_comp);
-    }
+    &$find_handler(up=>$comp||die)->($comp,$args);
 }];
 
 my $nc = sub{
-    my($addr,$req)=@_;
-    print $req;
+    my($addr,$exch)=@_;
     my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
     use IPC::Open2;
     my($chld_out, $chld_in);
+    print "nc $host $port\n";
     my $pid = open2($chld_out, $chld_in, 'nc', $host, $port);
+    my $req = &$exch($chld_out);
+    print $req;
     print $chld_in $req or die;
     print while <$chld_out>;
     waitpid($pid, 0);
@@ -805,11 +808,21 @@ push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
         $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
         die $parent;
     my $req = "build $req_pre.$pf\n";
-    &$nc($addr,$req);
+    &$nc($addr,sub{ $req });
 }];
-push @tasks, ["cd_up","<host>:<port> $composes_txt",sub{
-    my($addr,$comp) = @_;
-    &$nc($addr,"run $comp/up\n");
+push @tasks, ["test_up","",sub{ # <host>:<port> $composes_txt $args
+    my($addr,$comp,$args) = @_;
+    my $deployer_comp = &$get_compose($comp)->{deployer} || die;
+    my($token,$sk,%auth) = &$get_auth($deployer_comp);
+    my $auth = $auth{"deploy.auth"} || die "no deploy.auth";
+    &$nc($addr,sub{
+        my($chld_out) = @_;
+        my $uuid = <$chld_out>;
+        my $add = $args ? " $args" : "";
+        my $req = "run $comp/up$add\n";
+        my $signature = md5_hex("$auth\n$uuid$req")."\n";
+        "$req$signature"
+    });
 }];
 push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     my($base,$gen_dir)=@_;
@@ -824,7 +837,7 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
 }];
 push @tasks, ["up-ci","",sub{
-    my ($comp) = @_;
+    my ($comp,$args) = @_;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my $img = "c4ci";
     do{
@@ -879,11 +892,11 @@ push @tasks, ["up-ci","",sub{
 
     my($yml_str,$up) = &$make_dc_yml($comp,\@containers);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str).qq[pp(main=>"$up");];
-    &$sync_up($comp,$from_path,$up_content);
+    &$sync_up($comp,$from_path,$up_content,"");
 }];
 
 push @tasks, ["up-kc_host", "", sub{
-    my ($comp) = @_;
+    my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $img = $$conf{image} || die;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
@@ -898,7 +911,7 @@ push @tasks, ["up-kc_host", "", sub{
             "FROM ubuntu:18.04",
             "COPY install.pl /",
             "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl rsync dropbear lsof",
+            "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl lsof nano",
             "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "RUN rm -r /etc/dropbear "
             ."&& ln -s /c4/dropbear /etc/dropbear ",
@@ -937,6 +950,7 @@ push @tasks, ["up-kc_host", "", sub{
             tty => "true",
             C4CD_PORT => $cicd_port,
             C4CD_DIR => $dir,
+            C4CD_AUTH_KEY_FILE => "/c4conf/deploy.auth",
         },
         {
             image => $img,
@@ -946,8 +960,10 @@ push @tasks, ["up-kc_host", "", sub{
     );
     my $from_path = &$get_tmp_dir();
     &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port]]);
+    &$make_secrets($comp,$from_path);
+
     my $run_comp = "deployer";
-    my $yml_str = &$make_kc_yml($run_comp,$from_path,\@containers);
+    my $yml_str = &$make_kc_yml($run_comp,$from_path,{},\@containers);
     my $add_yml = join "", map{&$to_yml_str($_)} ({
         apiVersion => "rbac.authorization.k8s.io/v1",
         kind => "Role",
@@ -1077,7 +1093,7 @@ my $hmap = sub{ my($h,$f)=@_; map{&$f($_,$$h{$_})} sort keys %$h };
 
 
 push @tasks, ["up-proxy","",sub{
-    my($comp)=@_;
+    my($comp,$args)=@_;
     sy(&$ssh_add());
     my $conf = &$get_compose($comp);
 #    my @sb_items = &$hmap($composes, sub{ my($comp,$comp_conf)=@_;
@@ -1104,7 +1120,7 @@ push @tasks, ["up-proxy","",sub{
         subdomain_host => ($$conf{subdomain_host}||die)
     ]]));
     #if($mode eq "up"){
-        sy(&$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate"));
+        &$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate","");
     #}
 }];
 

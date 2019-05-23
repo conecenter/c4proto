@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 use strict;
+use Digest::MD5 qw(md5_hex);
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
@@ -40,10 +41,19 @@ push @tasks, [kubectl=>sub{
     &$exec('kubectl', 'proxy', '--port=8080', '--disable-filter=true');
 }];
 push @tasks, [cd=>sub{
+    my $auth_path = &$env("C4CD_AUTH_KEY_FILE");
+    my $auth = `cat $auth_path` || die;
     &$serve(&$env("C4CD_PORT"),sub{
+        my $uuid = `uuidgen`;
+        $| = 1;
+        print $uuid;
         my $arg = <STDIN>;
-        my $comp = $arg=~m{^run\s+(\w[\w\-]*)/up\b} ? $1 : die "can not [$arg]";
+        my $signature = <STDIN>;
+        md5_hex("$auth\n$uuid$arg")."\n" eq $signature or die "bad signature";
+        my ($comp,$add) = $arg=~m{^run\s+(\w[\w\-]*)/up\b(.*)} ? ($1,$2) : die "can not [$arg]";
         my $dir = &$env("C4CD_DIR");
+        my $args_path = "$dir/$comp.args";
+        !$add or open FF, ">>", $args_path and print FF "$add\n" and close FF or die;
         sy("cd $dir/$comp && ./up");
     });
 }];
