@@ -911,7 +911,7 @@ push @tasks, ["up-kc_host", "", sub{
             "FROM ubuntu:18.04",
             "COPY install.pl /",
             "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl lsof nano",
+            "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
             "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "RUN rm -r /etc/dropbear "
             ."&& ln -s /c4/dropbear /etc/dropbear ",
