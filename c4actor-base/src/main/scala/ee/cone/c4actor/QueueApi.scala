@@ -102,12 +102,14 @@ trait ToUpdate {
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
   /**
     * Transforms RawEvents to updates, adds TxId and removes ALL flags
+    *
     * @param events events from Kafka or Snapshot
     * @return updates
     */
   def toUpdates(events: List[RawEvent]): List[Update]
   /**
     * Transforms RawEvents to updates, adds TxId and keeps ALL flags
+    *
     * @param events events from Kafka or Snapshot
     * @return updates
     */

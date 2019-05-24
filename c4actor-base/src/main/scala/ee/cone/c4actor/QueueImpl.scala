@@ -109,12 +109,12 @@ class ToUpdateImpl(
         updatesAdapter.decode(data).updates
       }
     } yield
-      if ((update.flags & fillTxIdFlag) == 0) update.copy(flags = 0L)
+      (if ((update.flags & fillTxIdFlag) == 0) update
       else {
         val ref = TxRef("", event.srcId)
         val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
         update.copy(value = value, flags = 0L)
-      }
+      }).copy(flags = 0L)
 
   def toUpdatesRaw(events: List[RawEvent]): List[Update] =
     for {
