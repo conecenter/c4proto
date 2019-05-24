@@ -6,7 +6,7 @@ import java.nio.file.{Files, Path, Paths}
 import com.sun.net.httpserver.HttpExchange
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
-import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId}
+import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
