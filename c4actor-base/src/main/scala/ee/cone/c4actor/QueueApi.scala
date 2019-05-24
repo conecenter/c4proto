@@ -6,7 +6,7 @@ import java.time.Instant
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.OrigMetaAttrProtocol.TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
+import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap, TypeId}
 import ee.cone.c4assemble._
 import ee.cone.c4proto._
 import okio.ByteString
@@ -101,11 +101,11 @@ trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
   def toUpdates(events: List[RawEvent]): List[Update]
-  def toKey(up: Update): Update
-  def by(up: Update): (Long, String)
+  def toKey(up: Update): (SrcId, TypeId)
 }
 
 object Types {
+  type ClName = String
   type TypeId = Long
   type SrcId = String
   type TransientMap = Map[TransientLens[_],Object]

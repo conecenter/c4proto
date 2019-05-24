@@ -9,7 +9,7 @@ import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.NextOffset
+import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId}
 import okio.ByteString
 
 /*Future[RecordMetadata]*/
@@ -69,11 +69,9 @@ class ToUpdateImpl(
         val txRefFlags = if (withFillTxId(valueAdapter.id)) fillTxIdFlag else 0L
         Update(message.srcId, valueAdapter.id, byteString, txRefFlags)
       case _: DeleteLEvent[_] ⇒
-        val byteString = ToByteString(Array.emptyByteArray)
-        Update(message.srcId, valueAdapter.id, byteString, 0L)
+        Update(message.srcId, valueAdapter.id, ByteString.EMPTY, 0L)
       case _: ArchiveLEvent[_] ⇒
-        val byteString = ToByteString(Array.emptyByteArray)
-        Update(message.srcId, valueAdapter.id, byteString, archiveFlag)
+        Update(message.srcId, valueAdapter.id, ByteString.EMPTY, archiveFlag)
     }
   }
 
@@ -90,7 +88,6 @@ class ToUpdateImpl(
 
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader]) = {
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
-    logger.trace(updates.toString)
     val updatesBytes = updatesAdapter.encode(Updates("", filteredUpdates))
     logger.debug("Compressing...")
     val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)
@@ -120,8 +117,7 @@ class ToUpdateImpl(
         update.copy(value = value, flags = flags)
       }
 
-  def toKey(up: Update): Update = up.copy(value=ByteString.EMPTY)
-  def by(up: Update): (Long, String) = (up.valueTypeId,up.srcId)
+  def toKey(up: Update): (SrcId, TypeId) = (up.srcId, up.valueTypeId)
 }
 
 object QAdapterRegistryFactory {

@@ -29,8 +29,10 @@ case class WriteToKafka(origSrcId: SrcId, toKafka: Update)
 object WriteToKafka {
   private val extUpdateId: Long = 4L
 
-  def apply(ext: ExternalUpdate): List[(SrcId, WriteToKafka)] = (ext.valueSrcId -> WriteToKafka(ext.valueSrcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, ext.flags | extUpdateId))) :: Nil
-  def apply(ext: CacheUpdate): List[(SrcId, WriteToKafka)] = (ext.valueSrcId -> WriteToKafka(ext.valueSrcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, extUpdateId))) :: Nil
+  def apply(ext: ExternalUpdate): List[(SrcId, WriteToKafka)] =
+    (ext.valueSrcId -> WriteToKafka(ext.valueSrcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, ext.flags | extUpdateId))) :: Nil
+  def apply(ext: CacheUpdate): List[(SrcId, WriteToKafka)] =
+    (ext.valueSrcId -> WriteToKafka(ext.valueSrcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, extUpdateId))) :: Nil
 }
 
 object MergeTypes {

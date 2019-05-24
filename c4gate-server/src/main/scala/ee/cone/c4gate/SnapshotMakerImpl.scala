@@ -6,7 +6,7 @@ import java.nio.file.{Files, Path, Paths}
 import com.sun.net.httpserver.HttpExchange
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
-import ee.cone.c4actor.Types.{NextOffset, SrcId}
+import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -137,7 +137,7 @@ class SnapshotMakerImpl(
     val newState = (world.state /: updates){(state,up)⇒
       if(snapshotConfig.ignore(up.valueTypeId)) state
       else if(up.value.size > 0) state + (toUpdate.toKey(up)→up)
-      else state - up
+      else state - toUpdate.toKey(up)
     }
     new SnapshotWorld(newState,events.last.srcId)
   }
@@ -165,7 +165,7 @@ class SnapshotMakerImpl(
 
   private def save(world: SnapshotWorld): RawSnapshot = {
     logger.debug("Saving...")
-    val updates = world.state.values.toList.sortBy(toUpdate.by)
+    val updates = world.state.values.toList.sortBy(toUpdate.toKey)
     makeStats(updates)
     val (bytes, headers) = toUpdate.toBytes(updates)
     val res = fullSnapshotSaver.save(world.offset, bytes, headers)
@@ -233,7 +233,7 @@ class SafeToRun(snapshotMaker: SnapshotMakerImpl) extends Executable {
   }
 }
 
-class SnapshotWorld(val state: Map[Update,Update],val offset: NextOffset)
+class SnapshotWorld(val state: Map[(SrcId, TypeId), Update], val offset: NextOffset)
 
 trait SnapshotConfig {
   def ignore: Set[Long]
