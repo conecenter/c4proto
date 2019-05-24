@@ -109,6 +109,24 @@ class ToUpdateImpl(
         updatesAdapter.decode(data).updates
       }
     } yield
+      if ((update.flags & fillTxIdFlag) == 0) update.copy(flags = 0L)
+      else {
+        val ref = TxRef("", event.srcId)
+        val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
+        update.copy(value = value, flags = 0L)
+      }
+
+  def toUpdatesRaw(events: List[RawEvent]): List[Update] =
+    for {
+      event ← events
+      update ← {
+        val compressorOpt = findCompressor(event.headers)
+        logger.trace("Decompressing...")
+        val data = compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)
+        logger.trace("Decoding...")
+        updatesAdapter.decode(data).updates
+      }
+    } yield
       if ((update.flags & fillTxIdFlag) == 0) update
       else {
         val ref = TxRef("",event.srcId)
@@ -117,7 +135,9 @@ class ToUpdateImpl(
         update.copy(value = value, flags = flags)
       }
 
-  def toKey(up: Update): (SrcId, TypeId) = (up.srcId, up.valueTypeId)
+
+  def toKey(up: Update): Update = up.copy(value=ByteString.EMPTY)
+  def by(up: Update): (TypeId, SrcId) = (up.valueTypeId,up.srcId)
 }
 
 object QAdapterRegistryFactory {

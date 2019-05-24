@@ -25,8 +25,8 @@ class SnapshotMergerImpl(
     val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
     val state = currentUpdates.map(up⇒toUpdate.toKey(up)→up).toMap
     val updates = targetUpdates.filterNot{ up ⇒ state.get(toUpdate.toKey(up)).contains(up) }
-    val deletes = (state.keySet -- targetUpdates.map(toUpdate.toKey)).map(state)
-    (deletes.toList ::: updates).sortBy(toUpdate.toKey)
+    val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
+    (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
   def merge(baseURL: String, signed: String): Context⇒Context = local ⇒ {
     val task = signer.retrieve(check = false)(Option(signed)).get

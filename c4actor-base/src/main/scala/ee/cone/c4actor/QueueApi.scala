@@ -100,8 +100,20 @@ trait QMessages {
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
+  /**
+    * Transforms RawEvents to updates, adds TxId and removes ALL flags
+    * @param events events from Kafka or Snapshot
+    * @return updates
+    */
   def toUpdates(events: List[RawEvent]): List[Update]
-  def toKey(up: Update): (SrcId, TypeId)
+  /**
+    * Transforms RawEvents to updates, adds TxId and keeps ALL flags
+    * @param events events from Kafka or Snapshot
+    * @return updates
+    */
+  def toUpdatesRaw(events: List[RawEvent]): List[Update]
+  def toKey(up: Update): Update
+  def by(up: Update): (TypeId, SrcId)
 }
 
 object Types {

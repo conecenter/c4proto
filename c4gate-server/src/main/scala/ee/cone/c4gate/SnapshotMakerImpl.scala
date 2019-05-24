@@ -137,7 +137,7 @@ class SnapshotMakerImpl(
     val newState = (world.state /: updates){(state,up)⇒
       if(snapshotConfig.ignore(up.valueTypeId)) state
       else if(up.value.size > 0) state + (toUpdate.toKey(up)→up)
-      else state - toUpdate.toKey(up)
+      else state - up
     }
     new SnapshotWorld(newState,events.last.srcId)
   }
@@ -165,7 +165,7 @@ class SnapshotMakerImpl(
 
   private def save(world: SnapshotWorld): RawSnapshot = {
     logger.debug("Saving...")
-    val updates = world.state.values.toList.sortBy(toUpdate.toKey)
+    val updates = world.state.values.toList.sortBy(toUpdate.by)
     makeStats(updates)
     val (bytes, headers) = toUpdate.toBytes(updates)
     val res = fullSnapshotSaver.save(world.offset, bytes, headers)
@@ -233,7 +233,7 @@ class SafeToRun(snapshotMaker: SnapshotMakerImpl) extends Executable {
   }
 }
 
-class SnapshotWorld(val state: Map[(SrcId, TypeId), Update], val offset: NextOffset)
+class SnapshotWorld(val state: Map[Update,Update],val offset: NextOffset)
 
 trait SnapshotConfig {
   def ignore: Set[Long]
