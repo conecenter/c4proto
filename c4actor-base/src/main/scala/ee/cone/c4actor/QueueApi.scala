@@ -108,12 +108,12 @@ trait ToUpdate {
     */
   def toUpdates(events: List[RawEvent]): List[Update]
   /**
-    * Transforms RawEvents to updates, adds TxId and keeps ALL flags
+    * Transforms RawEvents to updates, adds TxId and keeps ALL but TxId flags
     *
     * @param events events from Kafka or Snapshot
     * @return updates
     */
-  def toUpdatesRaw(events: List[RawEvent]): List[Update]
+  def toUpdatesWithFlags(events: List[RawEvent]): List[Update]
   def toKey(up: Update): Update
   def by(up: Update): (TypeId, SrcId)
 }

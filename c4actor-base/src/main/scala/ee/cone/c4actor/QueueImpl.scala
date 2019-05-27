@@ -117,7 +117,7 @@ class ToUpdateImpl(
         update.copy(value = value, flags = 0L)
       }
 
-  def toUpdatesRaw(events: List[RawEvent]): List[Update] =
+  def toUpdatesWithFlags(events: List[RawEvent]): List[Update] =
     for {
       event ← events
       update ← {
