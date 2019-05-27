@@ -172,6 +172,7 @@ object ProtocolGenerator extends Generator {
             val ${messageName}_categories = List(${protoMods.category.mkString(", ")}).distinct
             def categories = ${messageName}_categories
             def className = classOf[$resultType].getName
+            def cl = classOf[$resultType]
             def shortName = ${deOpt(protoMods.shortName)}
             def encodedSize(value: $resultType): Int = {
               val $struct = value

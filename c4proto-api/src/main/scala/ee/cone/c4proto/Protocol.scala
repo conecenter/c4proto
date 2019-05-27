@@ -30,6 +30,7 @@ trait HasId {
   def hasId: Boolean
   def categories: List[OrigCategory]
   def className: String
+  def cl: Class[_]
   def shortName: Option[String]
   def props: List[MetaProp]
 }

@@ -6,7 +6,7 @@ import java.time.Instant
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.OrigMetaAttrProtocol.TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
+import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap, TypeId}
 import ee.cone.c4assemble._
 import ee.cone.c4proto._
 import okio.ByteString
@@ -100,12 +100,26 @@ trait QMessages {
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
+  /**
+    * Transforms RawEvents to updates, adds TxId and removes ALL flags
+    *
+    * @param events events from Kafka or Snapshot
+    * @return updates
+    */
   def toUpdates(events: List[RawEvent]): List[Update]
+  /**
+    * Transforms RawEvents to updates, adds TxId and keeps ALL but TxId flags
+    *
+    * @param events events from Kafka or Snapshot
+    * @return updates
+    */
+  def toUpdatesWithFlags(events: List[RawEvent]): List[Update]
   def toKey(up: Update): Update
-  def by(up: Update): (Long, String)
+  def by(up: Update): (TypeId, SrcId)
 }
 
 object Types {
+  type ClName = String
   type TypeId = Long
   type SrcId = String
   type TransientMap = Map[TransientLens[_],Object]
