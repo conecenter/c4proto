@@ -218,25 +218,61 @@ push @tasks, ["get_last_snapshot", $composes_txt, sub{
     sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
 }];
 
-my $running_containers = sub{
+my $get_kc_ns = sub{
     my($comp)=@_;
-    grep{ 0==index $_,"$comp\_" } &$running_containers_all($comp);
+    syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
 };
+
+my $exec_stm_dc = sub{
+    my($md,$comp,$service,$stm)=@_;
+    qq[docker exec $md $comp\_$service\_1 sh -c "JAVA_TOOL_OPTIONS= $stm"];
+};
+my $exec_stm_kc = sub{
+    my($ns,$md,$comp,$service,$stm) = @_;
+    qq[kubectl -n $ns exec $md $comp-0 -c $service -- sh -c "JAVA_TOOL_OPTIONS= $stm"];
+};
+my $exec_dc = sub{
+    my($comp)=@_;
+    sub{ my($md,$service,$stm)=@_; &$exec_stm_dc($md,$comp,$service,$stm) };
+};
+my $exec_kc = sub{
+    my($comp)=@_;
+    my $ns = &$get_kc_ns($comp);
+    sub{ my($md,$service,$stm)=@_; &$exec_stm_kc($ns,$md,$comp,$service,$stm) };
+};
+my $lscont_dc = sub{
+    my($comp)=@_;
+    map{ my $c = $_; sub{ my($stm)=@_; &$exec_stm_dc("",$comp,$c,$stm) } }
+    map{ /^(.+)_([a-z]+)_1$/ && $1 eq $comp && $2 ne "pod" ? "$2" : () }
+    &$running_containers_all($comp)
+};
+my $lscont_kc = sub{
+    my($comp)=@_;
+    my $ns = &$get_kc_ns($comp);
+    my $stm = "kubectl -n $ns get po/$comp-0 -o jsonpath={.spec.containers[*].name}";
+    map{ my $c = $_; sub{ my($stm)=@_; &$exec_stm_kc($ns,"",$comp,$c,$stm) } }
+        syf(&$remote($comp,$stm))=~/(\w+)/g;
+};
+
+push @tasks, ["exec-dc_consumer","",$exec_dc];
+push @tasks, ["exec-dc_gate","",$exec_dc];
+push @tasks, ["exec-kc_consumer","",$exec_kc];
+push @tasks, ["exec-kc_gate","",$exec_kc];
+push @tasks, ["lscont-dc_consumer", "", $lscont_dc];
+push @tasks, ["lscont-dc_gate", "", $lscont_dc];
+push @tasks, ["lscont-kc_consumer", "", $lscont_kc];
+push @tasks, ["lscont-kc_gate", "", $lscont_kc];
 
 push @tasks, ["gc","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
-    for my $c(&$running_containers($comp)){
+    for my $l_exec(&$find_handler(lscont=>$comp)->($comp)){
         #print "container: $c\n";
-        my $docker_exec_java = sub{
-            my($container,$cmd)=@_;
-            qq[docker exec $container sh -c "JAVA_TOOL_OPTIONS= $cmd"]
-        };
-        my $cmd = &$remote($comp,&$docker_exec_java($c,"jcmd || echo -"));
+        my $cmd = &$remote($comp,&$l_exec("jcmd || echo -"));
         for(syl($cmd)){
             my $pid = /^(\d+)/ ? $1 : next;
             /JCmd/ && next;
-            sy(&$remote($comp,&$docker_exec_java($c,"jcmd $pid GC.run")));
+            sy(&$remote($comp,&$l_exec("jcmd $pid GC.run")));
         }
     }
 }];
@@ -343,7 +379,7 @@ my $make_dc_yml = sub{
         version => "3.2",
         $all{need_c4db} ? (volumes => { db4 => {} }) : (),
     });
-    ($yml_str,"docker-compose -p $name -f- up -d --remove-orphans");
+    ($yml_str,'"docker-compose -p '.$name.' -f- up -d --remove-orphans".($ENV{C4FORCE_RECREATE}?" --force-recreate":"")');
 };
 
 my $wrap_dc = sub{
@@ -352,7 +388,7 @@ my $wrap_dc = sub{
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
         .&$interpolation_body($name)
         .'($vars{replicas}-0) or $c{main}=q[version: "3.2"];'
-        .qq[pp(main=>"$up");];
+        .qq[pp(main=>$up);];
     ($name,$from_path,$up_content);
 };
 
@@ -477,6 +513,7 @@ my $wrap_kc = sub{
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
         .&$interpolation_body($name)
         .q[my $ns=`cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`;]
+        .q[$ENV{C4FORCE_RECREATE} and system "kubectl -n $ns delete pods/].$name.q[-0" and die $?;]
         .q[pp(main=>"kubectl -n $ns apply -f-");];
     ($name,undef,$up_content);
 };
@@ -784,6 +821,12 @@ push @tasks, ["up","$composes_txt <args>",sub{
     &$find_handler(up=>$comp||die)->($comp,$args);
 }];
 
+push @tasks, ["restart","$composes_txt",sub{
+    my($comp)=@_;
+    my ($dir) = &$get_deployer_conf($comp,qw[dir]);
+    sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
+}];
+
 my $nc = sub{
     my($addr,$exch)=@_;
     my($host,$port) = $addr=~/^([\w\-\.]+):(\d+)$/ ? ($1,$2) : die $addr;
@@ -891,7 +934,7 @@ push @tasks, ["up-ci","",sub{
     #sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
 
     my($yml_str,$up) = &$make_dc_yml($comp,\@containers);
-    my $up_content = &$pl_head().&$pl_embed(main=>$yml_str).qq[pp(main=>"$up");];
+    my $up_content = &$pl_head().&$pl_embed(main=>$yml_str).qq[pp(main=>$up);];
     &$sync_up($comp,$from_path,$up_content,"");
 }];
 
@@ -1197,27 +1240,6 @@ my $tp_run = sub{
         print grep{ !/\.epollWait\(/ && /\sat\s/ } &$tp_split(syf(&$wrap("jcmd $pid Thread.print")));
     }
 };
-
-my $exec_dc = sub{
-    my($comp)=@_;
-    sub{
-        my($md,$service,$stm)=@_;
-        qq[docker exec $md $comp\_$service\_1 sh -c "JAVA_TOOL_OPTIONS= $stm"];
-    };
-};
-my $exec_kc = sub{
-    my($comp)=@_;
-    my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? $1 : die;
-    sub{
-        my($md,$service,$stm)=@_;
-        qq[kubectl -n $ns exec $md $comp-0 -c $service -- sh -c "JAVA_TOOL_OPTIONS= $stm"];
-    };
-};
-
-push @tasks, ["exec-dc_consumer","",$exec_dc];
-push @tasks, ["exec-dc_gate","",$exec_dc];
-push @tasks, ["exec-kc_consumer","",$exec_kc];
-push @tasks, ["exec-kc_gate","",$exec_kc];
 
 push @tasks, ["thread_print_local","<package>",sub{
     my($pkg)=@_;
