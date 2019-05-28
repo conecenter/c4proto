@@ -36,10 +36,18 @@ push @tasks, [cd_handle=>sub{
     my $arg = <STDIN>;
     my $signature = <STDIN>;
     md5_hex("$auth\n$uuid$arg")."\n" eq $signature or die "bad signature";
-    my ($comp,$add) = $arg=~m{^run\s+(\w[\w\-]*)/up\b(.*)} ? ($1,$2) : die "can not [$arg]";
-    my $dir = &$env("C4CD_DIR");
-    $add and &$log("$dir/$comp.args","$add\n");
-    sy("cd $dir/$comp && ./up");
+    if($arg=~m{^run\s+(\w[\w\-]*)/up\b(.*)}){
+        my ($comp,$add) = ($1,$2);
+        my $dir = &$env("C4CD_DIR");
+        $add and &$log("$dir/$comp.args","$add\n");
+        sy("cd $dir/$comp && ./up");
+    } elsif($arg=~/^pods\n$/){
+        my $ns = `cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`=~/(\w+)/ ? "$1" : die;
+        sy("kubectl -n $ns get po -o jsonpath='pods: {.items[*].metadata.name}'");
+    } else {
+        die "can not [$arg]";
+    }
+    print "\n[OK]\n";
 }];
 
 ###

@@ -853,20 +853,30 @@ push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
     my $req = "build $req_pre.$pf\n";
     &$nc($addr,sub{ $req });
 }];
-push @tasks, ["test_up","",sub{ # <host>:<port> $composes_txt $args
-    my($addr,$comp,$args) = @_;
-    my $deployer_comp = &$get_compose($comp)->{deployer} || die;
-    my($token,$sk,%auth) = &$get_auth($deployer_comp);
+my $nc_sec = sub{
+    my($comp,$addr,$req) = @_;
+    my($token,$sk,%auth) = &$get_auth($comp);
     my $auth = $auth{"deploy.auth"} || die "no deploy.auth";
     &$nc($addr,sub{
         my($chld_out) = @_;
         my $uuid = <$chld_out>;
-        my $add = $args ? " $args" : "";
-        my $req = "run $comp/up$add\n";
         my $signature = md5_hex("$auth\n$uuid$req")."\n";
         "$req$signature"
     });
+
+};
+
+push @tasks, ["test_up","",sub{ # <host>:<port> $composes_txt $args
+    my($addr,$comp,$args) = @_;
+    my $deployer_comp = &$get_compose($comp)->{deployer} || die;
+    my $add = $args ? " $args" : "";
+    &$nc_sec($deployer_comp,$addr,"run $comp/up$add\n");
 }];
+push @tasks, ["test_pods","",sub{ # <host>:<port> $composes_txt
+    my($addr,$comp,$args) = @_;
+    &$nc_sec($comp,$addr,"pods\n");
+}];
+
 push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     my($base,$gen_dir)=@_;
     $base eq 'def' || die "bad tag prefix: $base";
@@ -1025,7 +1035,7 @@ push @tasks, ["up-kc_host", "", sub{
             {
                 apiGroups => [""],
                 resources => ["pods"],
-                verbs => ["get","delete"],
+                verbs => ["get","list","delete"],
             },
         ],
     }, {
