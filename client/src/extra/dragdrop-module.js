@@ -33,13 +33,13 @@ const DragDropModule = () =>{
 	}
 	const dragEnd = () => {
 		if(!cNode) return false;			
-		cNode.parentElement.removeChild(cNode);			
+		cNode.parentElement.removeChild(cNode);
+		const removeEventListener = cNode.ownerDocument.defaultView.removeEventListener		
 		cNode = null;
 		dragNode = null;
 		listRect = null;
 		scrollNodes = null;
-		//reporters.splice(0)
-		const removeEventListener = cNode.ownerDocument.defaultView.removeEventListener
+		//reporters.splice(0)		
 		removeEventListener("mousemove",onMouseMove)
 		removeEventListener("mouseup",onMouseUp)
 		removeEventListener("touchend",onMouseUp)

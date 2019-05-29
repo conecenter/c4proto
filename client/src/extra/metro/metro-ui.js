@@ -105,6 +105,23 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		marginTop:'0rem',
 		...style
 	}},children);
+	
+	const mountPaletteCSS = (e,p) => {
+		let st = e.ownerDocument.querySelector("style.palette")
+		if(!st){
+			st = e.ownerDocument.createElement("style")
+			st.className = "palette"
+			e.ownerDocument.head.appendChild(st)
+		}
+		Array.from(st.sheet.cssRules).forEach(_=>st.sheet.removeRule(0))
+		const json = JSON.parse(p)
+		json.forEach(rule=>{			
+			const selector = rule[0]
+			const rules = rule[1]
+			const ruleStr = rules.reduce((a,e)=>a+=`${e[0]}:${e[1]};\n`,"")
+			st.sheet.insertRule(`${selector} { ${ruleStr} }`)
+		})		
+	}
 	class DocElement extends StatefulComponent{
 		sentData(){
 			const values = this.el.getBoundingClientRect()
@@ -143,8 +160,21 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				this.resizeL = resizeListener.reg(this.onResize)
 			}
 		}
+		/*setBodyStyle(prev = {}){
+			if(prev.style != this.props.style && this.el){
+				const isSibling = Branches.isSibling(this.ctx)
+				if(isSibling) {
+					Object.assign(this.el.style,this.props.style)
+				}
+				else
+					Object.assign(this.el.ownerDocument.body.style,this.props.style)
+			}
+		}*/
 		componentDidUpdate(prevProps){
 			this.initListener()
+			//this.setBodyStyle(prevProps)
+			if(prevProps.pathPalette != this.props.pathPalette)
+				mountPaletteCSS(this.el,this.props.pathPalette)
 		}
 		componentDidMount(){
 			if(!this.el) return
@@ -158,10 +188,12 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			doc.body.appendChild(this.remRef)
 			this.ctx = rootCtx(this.props.ctx)
 			this.initListener()			
+			//this.setBodyStyle()
+			mountPaletteCSS(this.el,this.props.pathPalette)
 		}
 		render(){			
 			const isSibling = Branches.isSibling(this.ctx)						
-			return $("div",{key:"1",className:"docRoot",style:this.props.style,ref:ref=>this.el=ref},this.props.children)						
+			return $("div",{key:"1",className:"docRoot",ref:ref=>this.el=ref},this.props.children)
 		}
 	}
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -221,7 +253,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		}
 		render(){			
 			const style={
-				backgroundColor:'white',
+				//backgroundColor:'white',
 				borderColor:'#b6b6b6',
 				borderStyle:'dashed',
 				borderWidth:GlobalStyles.borderWidth,
@@ -648,11 +680,10 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		render(){
 			const trStyle={
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-				outlineOffset:GlobalStyles.outlineOffset,
-				...(this.props.odd?{backgroundColor:'#fafafa'}:{backgroundColor:'#ffffff'}),
-				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
-				...this.props.style
-			};			
+				outlineOffset:GlobalStyles.outlineOffset,								
+				...this.props.style,
+				...(this.state.mouseOver?this.props.overStyle:null)
+			}
 			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	}

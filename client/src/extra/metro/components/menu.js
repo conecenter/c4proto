@@ -78,6 +78,7 @@ const MenuBarElement = (props) => {
 		flexWrap:'nowrap',
 		justifyContent:'flex-start',
 		backgroundColor:'#2196f3',
+		color:"white",
 		verticalAlign:'middle',				
 		width:"100%",
 		...props.style				
