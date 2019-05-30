@@ -734,13 +734,49 @@ my $up_gate = sub{
     ]);
 };
 my $up_desktop = sub{
-    my($run_comp)=@_;
+    my($comp)=@_;
+    my $conf = &$get_compose($comp);
+    my $img = $$conf{image} || die;
+    do{
+        my $from_path = &$get_tmp_dir();
+        my $put = &$rel_put_text($from_path);
+        my $gen_dir = $ENV{C4PROTO_DIR} || die;
+        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $from_path/");
+        &$put("Dockerfile", join "\n",
+            "FROM ubuntu:18.04",
+            "COPY install.pl /",
+            "RUN perl install.pl useradd",
+            "RUN perl install.pl apt curl unzip".
+            " lsof mc".
+            " rsync openssh-client dropbear".
+            " xserver-xspice openbox firefox spice-vdagent terminology".
+            " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
+            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime",
+            "RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
+            "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
+            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
+            "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
+            "RUN perl install.pl apt git",
+            "ENV JAVA_HOME=/tools/jdk",
+            'ENV PATH=${PATH}:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin',
+            "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
+            "COPY desktop.pl /",
+            "RUN perl /desktop.pl fix",
+            "USER c4",
+            'ENTRYPOINT ["perl","/desktop.pl"]',
+        );
+        my $builder_comp = $$conf{builder} || die "no builder";
+        &$remote_build($builder_comp,$from_path,$img);
+        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
+    };
     my $from_path = &$get_tmp_dir();
-    &$make_desktop_secret($run_comp,$from_path);
-    &$make_frpc_conf($run_comp,$from_path,[[qw[desktop 5900]]]);
-    ($run_comp, $from_path,[
-        { @var_img, name => "frpc", C4FRPC_INI => "/c4conf/frpc.ini" },
-        { @var_img, name => "desktop", C4AUTH_KEY_FILE => "/c4conf/simple.auth" },
+    &$make_desktop_secret($comp,$from_path);
+    &$make_frpc_conf($comp,$from_path,[[desktop=>5900],[ssh=>$ssh_port],[debug=>5005]]);
+    ($comp, $from_path,[
+        { image => $img, name => "frpc", C4FRPC_INI => "/c4conf/frpc.ini" },
+        { image => $img, name => "desktop", need_c4db => 1 , C4AUTH_KEY_FILE => "/c4conf/simple.auth" },
+        { image => $img, name => "sshd", need_c4db => 1, C4SSH_PORT => $ssh_port },
     ])
 };
 
@@ -841,18 +877,6 @@ my $nc = sub{
     waitpid($pid, 0);
     print "FINISHED\n";
 };
-push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
-    my($repo_dir,$addr,$req_pre,$parent) = @_;
-    #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
-    my $commit = syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die;
-    #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
-    my $pf =
-        !$parent ? "base.$commit" :
-        $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
-        die $parent;
-    my $req = "build $req_pre.$pf\n";
-    &$nc($addr,sub{ $req });
-}];
 my $nc_sec = sub{
     my($comp,$addr,$req) = @_;
     my($token,$sk,%auth) = &$get_auth($comp);
@@ -877,6 +901,18 @@ push @tasks, ["test_pods","",sub{ # <host>:<port> $composes_txt
     &$nc_sec($comp,$addr,"pods\n");
 }];
 
+push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
+    my($repo_dir,$addr,$req_pre,$parent) = @_;
+    #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
+    my $commit = syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die;
+    #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
+    my $pf =
+        !$parent ? "base.$commit" :
+        $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
+        die $parent;
+    my $req = "build $req_pre.$pf\n";
+    &$nc($addr,sub{ $req });
+}];
 push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     my($base,$gen_dir)=@_;
     $base eq 'def' || die "bad tag prefix: $base";
@@ -884,7 +920,27 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
-    sy("cp $gen_dir/zoo.dockerfile $ctx_dir/Dockerfile");
+    &$put_text("$ctx_dir/Dockerfile", join "\n",
+        "FROM ubuntu:18.04",
+        "COPY install.pl /",
+        "RUN perl install.pl useradd",
+        "RUN perl install.pl apt curl unzip software-properties-common".
+        " lsof mc",
+        "RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
+        "RUN perl install.pl apt haproxy",
+        "RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
+        "RUN perl install.pl curl https://www-eu.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
+        "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
+        "ENV JAVA_HOME=/tools/jdk",
+        'ENV PATH=${PATH}:/tools/jdk/bin',
+        "COPY . /c4",
+        "RUN chown -R c4:c4 /c4",
+        "RUN mkdir /c4db && chown c4:c4 /c4db",
+        "WORKDIR /c4",
+        "USER c4",
+        "RUN cd /tools/greys && bash ./install-local.sh",
+        'ENTRYPOINT ["perl","run.pl"]',
+    );
     sy("cp $gen_dir/install.pl $ctx_dir/install.pl");
     sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
     sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
@@ -966,8 +1022,7 @@ push @tasks, ["up-kc_host", "", sub{
             "RUN perl install.pl useradd",
             "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
             "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
-            "RUN rm -r /etc/dropbear "
-            ."&& ln -s /c4/dropbear /etc/dropbear ",
+            "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
             ."&& chmod +x ./kubectl "
             ."&& mv ./kubectl /usr/bin/kubectl ",

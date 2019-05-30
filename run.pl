@@ -75,9 +75,6 @@ push @tasks, [haproxy=>sub{
     );
     &$exec("/usr/sbin/haproxy", "-f", "/c4/haproxy.cfg");
 }];
-push @tasks, [frpc=>sub{
-    &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
-}];
 my $link_bd4 = sub{
     my $dir = "/c4db/def";
     -e $dir or mkdir $dir or die;
@@ -95,40 +92,6 @@ push @tasks, [gate=>sub{
     $ENV{C4SSE_PORT} = $sse_port;
     $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$bootstrap_port";
     &$exec("app/bin/c4gate-server");
-}];
-push @tasks, [fix_desktop=>sub{
-    sy($_) for
-        'echo "allowed_users=anybody" > /etc/X11/Xwrapper.config',
-        'cp /etc/X11/spiceqxl.xorg.conf /etc/X11/c4spiceqxl.xorg.conf',
-        'chown c4:c4 /etc/X11/c4spiceqxl.xorg.conf',
-        q[perl  -i -pe 's{(/python\n)}{$1\ntemp_dir=None\n}' /usr/bin/Xspice],
-        'mkdir -p /c4/.config/autostart';
-}];
-push @tasks, [desktop=>sub{
-    my $pass_fn = $ENV{C4AUTH_KEY_FILE} || die;
-    my $pass = `cat $pass_fn`=~/(\S+)/ ? $1 : die;
-    my $conf_fn = "c4spiceqxl.xorg.conf";
-    my $id = 1979;
-    my %opt = (
-        SpicePassword=>$pass,
-        SpiceVdagentEnabled=>"True", SpiceVdagentUid=>$id, SpiceVdagentGid=>$id
-    );
-    my $conf_cont = join '',
-        map{/(Option "(\w+)")/ && (exists $opt{$2})?($_,qq[$1 "$opt{$2}"\n]):$_}
-        `cat /etc/X11/spiceqxl.xorg.conf`;
-    &$put_text("/etc/X11/$conf_fn", $conf_cont);
-    my $agent = "/c4/vdagentd";
-    &$put_text($agent,"#!/usr/bin/perl\nexec 'spice-vdagentd','-X',\@ARGV;die");
-    sy('chmod', '+x', $agent);
-    my @vdagent = (
-        '--vdagent',
-        '--vdagentd-exec' => $agent,
-        '--vdagent-uid' => $id,
-        '--vdagent-gid' => $id,
-        '--vdagent-virtio-path' => '/tmp/xspice-virtio',
-        '--vdagent-uinput-path' => '/tmp/xspice-uinput',
-    );#--vdagent-no-launch
-    &$exec("Xspice",@vdagent,"--config",$conf_fn,"--xsession","openbox",":1"); #-session
 }];
 push @tasks, [main=>sub{
     m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>;

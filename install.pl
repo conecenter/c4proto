@@ -17,7 +17,7 @@ if($cmd eq 'apt'){
 } elsif($cmd eq 'curl'){
     for('/download'){ mkdir $_; chdir $_ or die $_ }
     sy('curl', '-LO', $_) for @args;
-    sy('tar', 'xvf', $_), unlink $_ or die $_ for <*.tgz>, <*.tar.gz>;
+    sy('tar', 'xvf', $_), unlink $_ or die $_ for <*.tgz>, <*.tar.gz>, <*.tar.xz>;
     sy('unzip', $_), unlink $_ or die $_ for <*.zip>;
     sy('chown', '-R', 'c4:c4', '/download');
     -e $_ or mkdir $_ or die for "/tools";
