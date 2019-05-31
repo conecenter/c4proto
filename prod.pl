@@ -17,12 +17,6 @@ my $put_text = sub{
 
 my @tasks;
 
-my $get_conf_cert_path = sub{
-    my $dir = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
-    "$dir/id_rsa$_[0]";
-};
-
-my $ssh_add  = sub{ "ssh-add ".&$get_conf_cert_path("") };
 my $composes_txt = "<stack>";
 
 my $need_path = sub{
@@ -31,8 +25,8 @@ my $need_path = sub{
     $_[0];
 };
 
-my $tmp_root = "/tmp/c4prod-$$";
-my $get_tmp_path_inner = sub{ my($fn)=@_; &$need_path("$tmp_root/$fn") };
+my $tmp_root = "/tmp/c4prod";
+my $get_tmp_path_inner = sub{ my($fn)=@_; &$need_path("$tmp_root/$$/$fn") };
 my $put_temp = sub{
     my($fn,$text)=@_;
     my $path = &$get_tmp_path_inner($fn);
@@ -40,7 +34,9 @@ my $put_temp = sub{
     print "generated $path\n";
     $path;
 };
-my $cleanup = sub{ -e $tmp_root and sy("rm -r $tmp_root") };
+my $cleanup = sub{
+    sy("rm","-rf",$_) for grep{/(\d+)/ and $$ eq $1 ||!-e "/proc/$1"} <$tmp_root/*>;
+};
 my $get_tmp_path; $get_tmp_path = sub{
     my($c)=@_;
     my $path = &$get_tmp_path_inner("$c");
@@ -51,6 +47,15 @@ my $get_tmp_dir = sub{
     &$need_path("$path/");
     $path;
 };
+
+my $get_conf_cert_path = lazy{
+    my $path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
+    my $dir = &$get_tmp_dir();
+    sy("cd $dir && tar -xzf $path");
+    "$dir/id_rsa";
+};
+
+my $ssh_add  = sub{ "ssh-add ".&$get_conf_cert_path() };
 
 my $get_conf_dir = lazy{
     my($host,$port,$path) =
@@ -733,6 +738,22 @@ my $up_gate = sub{
         },
     ]);
 };
+
+my $prod_image_steps = sub{(
+    "FROM ubuntu:18.04",
+    "COPY install.pl /",
+    "RUN perl install.pl useradd",
+    "RUN perl install.pl apt".
+    " curl unzip software-properties-common".
+    " lsof mc",
+    "RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
+    "RUN perl install.pl apt haproxy",
+    "RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
+    "RUN perl install.pl curl https://www-eu.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
+    "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
+    "RUN mkdir /c4db && chown c4:c4 /c4db",
+)};
+
 my $up_desktop = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
@@ -741,27 +762,27 @@ my $up_desktop = sub{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
         my $gen_dir = $ENV{C4PROTO_DIR} || die;
-        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $from_path/");
+        my $conf_cert_path = &$get_conf_cert_path().".pub";
+        sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $conf_cert_path $from_path/");
+        &$put("c4p_alias.sh", join "\n",
+            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin',
+            'export JAVA_HOME=/tools/jdk',
+            'export C4DEPLOY_CONF=/c4conf/ssh.tar.gz',
+            'export C4PROTO_DIR=/c4/c4proto',
+            "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
+        );
         &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl unzip".
-            " lsof mc".
-            " rsync openssh-client dropbear".
+            &$prod_image_steps(),
+            "RUN perl install.pl apt".
+            " rsync openssh-client dropbear git".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
             " atop less bash-completion netcat-openbsd locales tmux uuid-runtime",
-            "RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
-            "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
             "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
-            "RUN perl install.pl apt git",
-            "ENV JAVA_HOME=/tools/jdk",
-            'ENV PATH=${PATH}:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin',
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
-            "COPY desktop.pl /",
+            "COPY desktop.pl haproxy.pl id_rsa.pub c4p_alias.sh /",
             "RUN perl /desktop.pl fix",
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
@@ -771,16 +792,29 @@ my $up_desktop = sub{
         sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
     };
     my $from_path = &$get_tmp_dir();
+    my $cert_path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
+    sy("cp $cert_path $from_path/ssh.tar.gz");
     &$make_desktop_secret($comp,$from_path);
-    &$make_frpc_conf($comp,$from_path,[[desktop=>5900],[ssh=>$ssh_port],[debug=>5005]]);
+    &$make_frpc_conf($comp,$from_path,[[desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]]);
     ($comp, $from_path,[
-        { image => $img, name => "frpc", C4FRPC_INI => "/c4conf/frpc.ini" },
-        { image => $img, name => "desktop", need_c4db => 1 , C4AUTH_KEY_FILE => "/c4conf/simple.auth" },
-        { image => $img, name => "sshd", need_c4db => 1, C4SSH_PORT => $ssh_port },
+        {
+            image => $img, name => "frpc",
+            C4FRPC_INI => "/c4conf/frpc.ini",
+        },
+        {
+            image => $img, name => "desktop", need_c4db => 1 ,
+            C4AUTH_KEY_FILE => "/c4conf/simple.auth",
+        },
+        {
+            image => $img, name => "sshd", need_c4db => 1,
+            C4SSH_PORT => $ssh_port, C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
+        },
+        {
+            image => $img, name => "haproxy", need_c4db => 1,
+            C4JOINED_HTTP_PORT => $http_port,
+        },
     ])
 };
-
-
 
 # m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
 # dc:
@@ -859,6 +893,7 @@ push @tasks, ["up","$composes_txt <args>",sub{
 
 push @tasks, ["restart","$composes_txt",sub{
     my($comp)=@_;
+    sy(&$ssh_add());
     my ($dir) = &$get_deployer_conf($comp,qw[dir]);
     sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
 }];
@@ -921,28 +956,17 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     sy("mkdir $ctx_dir");
     &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
     &$put_text("$ctx_dir/Dockerfile", join "\n",
-        "FROM ubuntu:18.04",
-        "COPY install.pl /",
-        "RUN perl install.pl useradd",
-        "RUN perl install.pl apt curl unzip software-properties-common".
-        " lsof mc",
-        "RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
-        "RUN perl install.pl apt haproxy",
-        "RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
-        "RUN perl install.pl curl https://www-eu.apache.org/dist/kafka/2.2.0/kafka_2.12-2.2.0.tgz",
-        "RUN perl install.pl curl http://ompc.oss.aliyuncs.com/greys/release/greys-stable-bin.zip",
+        &$prod_image_steps(),
         "ENV JAVA_HOME=/tools/jdk",
         'ENV PATH=${PATH}:/tools/jdk/bin',
         "COPY . /c4",
         "RUN chown -R c4:c4 /c4",
-        "RUN mkdir /c4db && chown c4:c4 /c4db",
         "WORKDIR /c4",
         "USER c4",
         "RUN cd /tools/greys && bash ./install-local.sh",
         'ENTRYPOINT ["perl","run.pl"]',
     );
-    sy("cp $gen_dir/install.pl $ctx_dir/install.pl");
-    sy("cp $gen_dir/run.pl $ctx_dir/run.pl");
+    sy("cp $gen_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
     sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
 }];
 push @tasks, ["up-ci","",sub{
@@ -1011,7 +1035,7 @@ push @tasks, ["up-kc_host", "", sub{
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my $external_ssh_port = $$conf{port} || die;
     my $dir = $$conf{dir} || die;
-    my $conf_cert_path = &$get_conf_cert_path(".pub");
+    my $conf_cert_path = &$get_conf_cert_path().".pub";
     do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
@@ -1029,9 +1053,9 @@ push @tasks, ["up-kc_host", "", sub{
             "RUN mkdir /c4db && chown c4:c4 /c4db",
             "COPY id_rsa.pub cd.pl /",
             "USER c4",
-            "RUN mkdir /c4/.ssh /c4/dropbear "
-            ."&& cat /id_rsa.pub > /c4/.ssh/authorized_keys "
-            ."&& chmod 0600 /c4/.ssh/authorized_keys ",
+            "RUN mkdir /c4/.ssh /c4/dropbear".
+            " && cat /id_rsa.pub > /c4/.ssh/authorized_keys".
+            " && chmod 0600 /c4/.ssh/authorized_keys",
             "ENV C4SSH_PORT=$ssh_port",
             'ENTRYPOINT ["perl", "/cd.pl"]',
         );
@@ -1357,6 +1381,7 @@ push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
 my($cmd,@args)=@ARGV;
 ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
 &$cleanup();
+
 
 
 
