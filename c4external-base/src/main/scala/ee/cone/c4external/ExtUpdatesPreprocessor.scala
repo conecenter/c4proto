@@ -41,7 +41,13 @@ class ExtUpdatesPreprocessor(
         val u = updates.last
         ExternalUpdate(randomUid, u.srcId, typeId, u.value, u.flags, "")
       }
-    extUpdates.to[Seq].flatMap(LEvent.update).map(toUpdate.toUpdate) ++ normal
+    extUpdates.to[Seq].flatMap(LEvent.update).map(toUpdate.toUpdate) ++
+      normal.map(u ⇒
+        if ((u.flags & extUpdateId) == 0L)
+          u
+        else
+          u.copy(flags = u.flags & ~extUpdateId)
+      )
   }
 }
 

@@ -2,7 +2,7 @@ package ee.cone.c4external.joiners
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{SrcId, TypeId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, assemble, by}
@@ -26,13 +26,17 @@ import ee.cone.c4external.ExternalOrigKey._
 
 case class WriteToKafka(origSrcId: SrcId, toKafka: Update)
 
-object WriteToKafka {
+class WriteToKafkaImpl(hashGen: HashGen, typeId: TypeId) {
   private val extUpdateId: Long = 4L
 
-  def apply(ext: ExternalUpdate): List[(SrcId, WriteToKafka)] =
-    (ext.valueSrcId -> WriteToKafka(ext.valueSrcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, ext.flags | extUpdateId))) :: Nil
-  def apply(ext: CacheUpdate): List[(SrcId, WriteToKafka)] =
-    (ext.valueSrcId -> WriteToKafka(ext.valueSrcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, extUpdateId))) :: Nil
+  def apply(ext: ExternalUpdate): List[(SrcId, WriteToKafka)] = {
+    val srcId = hashGen.generate(ext.valueSrcId, typeId)
+    (srcId -> WriteToKafka(srcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, ext.flags | extUpdateId))) :: Nil
+  }
+  def apply(ext: CacheUpdate): List[(SrcId, WriteToKafka)] = {
+    val srcId = hashGen.generate(ext.valueSrcId, typeId)
+    (srcId -> WriteToKafka(srcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, extUpdateId))) :: Nil
+  }
 }
 
 object MergeTypes {
@@ -45,7 +49,8 @@ import MergeTypes._
 @assemble class ExternalOrigJoinerBase[Model <: Product](
   modelCl: Class[Model],
   modelId: Long,
-  qAdapterRegistry: QAdapterRegistry
+  qAdapterRegistry: QAdapterRegistry,
+  writeToKafka: WriteToKafkaImpl
 )(
   val adapter: ProtoAdapter[Model] with HasId = qAdapterRegistry.byId(modelId).asInstanceOf[ProtoAdapter[Model] with HasId]
 ) extends ExternalUpdateUtil[Model] {
@@ -117,16 +122,16 @@ import MergeTypes._
   ): Values[(SrcId, WriteToKafka)] =
     if (externals.nonEmpty || caches.nonEmpty)
       (Single.option(externals), Single.option(caches)) match {
-        case (Some(e), None) ⇒ WriteToKafka(e)
-        case (None, Some(c)) ⇒ WriteToKafka(c)
+        case (Some(e), None) ⇒ writeToKafka(e)
+        case (None, Some(c)) ⇒ writeToKafka(c)
         case (Some(e), Some(c)) ⇒
           if (e.txId > c.extOffset)
-            WriteToKafka(e)
+            writeToKafka(e)
           else if (e.txId < c.extOffset)
-            WriteToKafka(c)
+            writeToKafka(c)
           else {
             assert(e.txId == c.extOffset, s"Same offset, different values: $e, $c")
-            WriteToKafka(e)
+            writeToKafka(e)
           }
         case _ ⇒ Nil
       }
