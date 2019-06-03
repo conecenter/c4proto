@@ -147,16 +147,18 @@ my $client = sub{
     $build_dir
 };
 
-my $env = join " ",
-    "C4BOOTSTRAP_SERVERS=$ssl_bootstrap_server",
-    "C4INBOX_TOPIC_PREFIX='$inbox_prefix'",
-    "C4MAX_REQUEST_SIZE=25000000",
-    "C4HTTP_SERVER=http://$http_server",
-    "C4AUTH_KEY_FILE=db4/simple.auth",
-    "C4KEYSTORE_PATH=db4/cu.def.keystore.jks",
-    "C4TRUSTSTORE_PATH=db4/cu.def.truststore.jks",
-    "C4HTTP_PORT=$http_port",
-    "C4SSE_PORT=$sse_port";
+my %env = (
+    C4BOOTSTRAP_SERVERS => $ssl_bootstrap_server,
+    C4INBOX_TOPIC_PREFIX => "",
+    C4MAX_REQUEST_SIZE => 25000000,
+    C4HTTP_SERVER => "http://$http_server",
+    C4AUTH_KEY_FILE => "db4/simple.auth",
+    C4KEYSTORE_PATH => "db4/cu.def.keystore.jks",
+    C4TRUSTSTORE_PATH => "db4/cu.def.truststore.jks",
+    C4HTTP_PORT => $http_port,
+    C4SSE_PORT => $sse_port,
+);
+my $env = join " ", map{($_=>$env{$_})} sort keys %env;
 
 sub staged{
     "C4STATE_TOPIC_PREFIX=$_[1] $gen_dir/$_[0]/target/universal/stage/bin/$_[0] $_[1]"
@@ -170,6 +172,13 @@ push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
     sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
 }];
+push @tasks, ["env", sub{
+    my ($cmd,$nm,@exec) = @ARGV;
+    $ENV{$_} = $env{$_} for keys %env;
+    $ENV{C4STATE_TOPIC_PREFIX} = $nm || die "no actor name";
+    sy(@exec);
+}];
+
 #push @tasks, ["snapshot_maker_run", sub{
 #    sy("$env ".staged("c4gate-server","ee.cone.c4gate.SnapshotMakerApp"));
 #}];
