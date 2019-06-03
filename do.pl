@@ -91,6 +91,7 @@ push @tasks, ["restart_kafka", sub{
         "message.max.bytes=250000000", #seems to be compressed
         #"listeners=PLAINTEXT://$plain_bootstrap_server,SSL://$ssl_bootstrap_server",
         "listeners=SSL://$ssl_bootstrap_server",
+        "inter.broker.listener.name=SSL",
     );
     sy("cat db4/cu.broker.properties >> tmp/server.properties");
     sy("tmp/$kafka/bin/zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
