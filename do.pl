@@ -97,11 +97,11 @@ push @tasks, ["restart_kafka", sub{
     sleep 5;
     sy("tmp/$kafka/bin/kafka-server-start.sh -daemon tmp/server.properties");
     sy("jps");
-    &$inbox_configure();
+    #&$inbox_configure();
 }];
 push @tasks, ["stop_kafka", sub{&$stop_kafka()}];
 
-push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
+#push @tasks, ["inbox_configure", sub{&$inbox_configure()}];
 
 push @tasks, ["inbox_log_tail", sub{
     sy("tmp/$kafka/bin/kafka-console-consumer.sh --bootstrap-server $ssl_bootstrap_server --topic $inbox_prefix.inbox.log")
