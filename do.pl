@@ -158,7 +158,7 @@ my %env = (
     C4HTTP_PORT => $http_port,
     C4SSE_PORT => $sse_port,
 );
-my $env = join " ", map{($_=>$env{$_})} sort keys %env;
+my $env = join " ", map{"$_=$env{$_}"} sort keys %env;
 
 sub staged{
     "C4STATE_TOPIC_PREFIX=$_[1] $gen_dir/$_[0]/target/universal/stage/bin/$_[0] $_[1]"
