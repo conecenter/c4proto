@@ -7,7 +7,7 @@ lazy val descr = "C4 framework"
 
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.E.B.5",
+  version := "0.E.C",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
