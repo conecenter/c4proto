@@ -2,7 +2,7 @@ package ee.cone.c4gate.deep_session
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4gate.{CurrentSessionKey, OrigKeyGenerator, SessionAttr, SessionAttrAccessFactory}
+import ee.cone.c4gate.{CurrentSessionKey, KeyGenerator, SessionAttr, SessionAttrAccessFactory}
 import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{RawRoleData, RawUserData}
 import ee.cone.c4proto.ToByteString
@@ -14,7 +14,7 @@ class DeepSessionAttrAccessFactoryImpl(
   modelAccessFactory: ModelAccessFactory,
   val idGenUtil: IdGenUtil,
   sessionAttrAccessFactory: SessionAttrAccessFactory
-) extends DeepSessionAttrAccessFactory with OrigKeyGenerator {
+) extends DeepSessionAttrAccessFactory with KeyGenerator {
   lazy val rawDataAdapter = registry.byName(classOf[RawSessionData].getName)
   lazy val rawUserAdapter = registry.byName(classOf[RawUserData].getName)
   lazy val rawRoleAdapter = registry.byName(classOf[RawRoleData].getName)

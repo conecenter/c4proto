@@ -10,7 +10,7 @@ import ee.cone.c4actor.dep_impl.RequestDep
 import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{RawRoleData, RawUserData}
 import ee.cone.c4gate.deep_session.{DeepRawSessionData, TxDeepRawDataLens, UserLevelAttr}
-import ee.cone.c4gate.{OrigKeyGenerator, SessionAttr}
+import ee.cone.c4gate.{KeyGenerator, SessionAttr}
 import ee.cone.c4proto.{HasId, ToByteString}
 import okio.ByteString
 
@@ -24,7 +24,7 @@ case class SessionAttrAskFactoryImpl(
   rawRoleDataAsk: AskByPK[RawRoleData],
   idGenUtil: IdGenUtil,
   depFactory: DepFactory
-) extends SessionAttrAskFactoryApi with OrigKeyGenerator {
+) extends SessionAttrAskFactoryApi with KeyGenerator {
 
   def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String ⇒ Dep[Option[Access[P]]] = pk ⇒ askSessionAttr(attr.withPK(pk))
 

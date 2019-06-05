@@ -8,13 +8,13 @@ import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{LogEntry, TxAddMeta}
 import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, OrigCategory, Protocol, protocol}
+import ee.cone.c4proto.{Id, DataCategory, Protocol, protocol}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case object ProfilerMetaCat extends OrigCategory
+case object ProfilerMetaCat extends DataCategory
 
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =

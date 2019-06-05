@@ -14,7 +14,7 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.Future
 
-case object UpdatesCat extends OrigCategory
+case object UpdatesCat extends DataCategory
 
 @protocol(UpdatesCat) object QProtocolBase   {
 
@@ -293,7 +293,7 @@ trait UpdatesPreprocessor {
   def process(updates: Seq[Update]): Seq[Update]
 }
 
-trait OrigKeyFactory {
+trait KeyFactory {
   def rawKey(className: String): AssembledKey
 }
 

@@ -8,9 +8,9 @@ import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
 import ee.cone.c4external.ExternalProtocol.ExternalUpdate
 import ee.cone.c4proto.HasId
-import ee.cone.dbadapter.{DBAdapter, OrigSchemaBuilder, OrigSchemaBuildersApp, TableSchema}
+import ee.cone.dbadapter.{DBAdapter, DBSchemaBuilder, DBSchemaBuildersApp, TableSchema}
 
-trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
+trait ExtDBSyncApp extends DBSchemaBuildersApp with ExtModelsApp {
   def qAdapterRegistry: QAdapterRegistry
   def toUpdate: ToUpdate
   def dbAdapter: DBAdapter
@@ -20,7 +20,7 @@ trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
 
 class ExtDBSyncImpl(
   dbAdapter: DBAdapter,
-  builders: List[OrigSchemaBuilder[_ <: Product]],
+  builders: List[DBSchemaBuilder[_ <: Product]],
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   external: List[ExternalModel[_ <: Product]],
@@ -30,9 +30,9 @@ class ExtDBSyncImpl(
   logger.debug(patch.toString())
   val externalsList: List[String] = external.map(_.clName)
   val externalsSet: Set[String] = externalsList.toSet
-  val buildersByName: Map[String, OrigSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigClName → b).toMap
+  val buildersByName: Map[String, DBSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigClName → b).toMap
   // Check if registered externals have builder
-  val builderMap: Map[Long, OrigSchemaBuilder[_ <: Product]] = externalsList.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
+  val builderMap: Map[Long, DBSchemaBuilder[_ <: Product]] = externalsList.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
   val supportedIds: Set[Long] = builderMap.keySet
   // Check if registered externals have adapter
   val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.filterKeys(supportedIds)

@@ -51,7 +51,7 @@ class ExtUpdatesPreprocessor(
   }
 }
 
-class ExtOrigKeyFactory(composes: IndexUtil, external: List[ExternalModel[_ <: Product]]) extends OrigKeyFactory {
+class ExtKeyFactory(composes: IndexUtil, external: List[ExternalModel[_ <: Product]]) extends KeyFactory {
   val externalClassesSet: Set[String] = external.map(_.clName).toSet
   val extKeyAlias: String = "ExtSrcId"
   val extKeyClass: String = classOf[ExtSrcId].getName

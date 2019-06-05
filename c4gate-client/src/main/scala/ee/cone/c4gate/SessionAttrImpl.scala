@@ -12,7 +12,7 @@ import ee.cone.c4gate.SessionDataProtocol.{RawDataNode, RawSessionData}
 import ee.cone.c4proto._
 import okio.ByteString
 
-case object SessionAttrCat extends OrigCategory
+case object SessionAttrCat extends DataCategory
 
 @protocol(SessionAttrCat) object SessionDataProtocolBase   {
   @Id(0x0066) case class RawSessionData(
@@ -55,7 +55,7 @@ class SessionAttrAccessFactoryImpl(
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,
   val idGenUtil: IdGenUtil
-) extends SessionAttrAccessFactory with OrigKeyGenerator{
+) extends SessionAttrAccessFactory with KeyGenerator{
   def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
     val adapter = registry.byName(classOf[RawSessionData].getName)
     val lens = ProdLens[RawSessionData,P](attr.metaList)(

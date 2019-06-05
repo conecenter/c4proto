@@ -34,7 +34,7 @@ import ee.cone.c4proto._
   //0x002F
 }
 
-case object AlienCat extends OrigCategory
+case object AlienCat extends DataCategory
 
 @protocol object AlienProtocolBase   {
   @Cat(AlienCat)
@@ -69,7 +69,7 @@ case object AlienCat extends OrigCategory
   )
 }
 
-case object AuthOrigCat extends OrigCategory
+case object AuthOrigCat extends DataCategory
 
 @protocol(AuthOrigCat) object AuthProtocolBase   {
 
