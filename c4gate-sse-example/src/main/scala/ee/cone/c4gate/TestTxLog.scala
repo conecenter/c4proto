@@ -4,13 +4,13 @@ import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.QProtocol.TxRef
 import ee.cone.c4actor._
-import ee.cone.c4actor.SimpleAssembleProfilerProtocol.TxAddMeta
+import ee.cone.c4actor.SimpleAssembleProfilerProtocol.D_TxAddMeta
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.ToAlienWrite
-import ee.cone.c4gate.HttpProtocol.HttpPublication
-import ee.cone.c4gate.TestFilterProtocol.Content
+import ee.cone.c4gate.HttpProtocol.S_HttpPublication
+import ee.cone.c4gate.TestFilterProtocol.B_Content
 import ee.cone.c4proto.{HasId, Id}
 import ee.cone.c4ui.{ByLocationHashView, ByLocationHashViewsApp, UntilPolicy}
 import ee.cone.c4vdom.{ChildPair, OfDiv, Tags}
@@ -33,7 +33,7 @@ trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalF
   )
 
   override def assembles: List[Assemble] =
-    mortal(classOf[TxRef]) :: mortal(classOf[TxAddMeta]) ::
+    mortal(classOf[TxRef]) :: mortal(classOf[D_TxAddMeta]) ::
     new TestTxLogAssemble(actorName)(qAdapterRegistry)() ::
     super.assembles
   override def byLocationHashViews: List[ByLocationHashView] =
@@ -73,7 +73,7 @@ case class TestTxLogView(locationHash: String = "txlog")(
       ))
     )
 
-    def getAccess(attr: SessionAttr[Content]): Option[Access[String]] =
+    def getAccess(attr: SessionAttr[B_Content]): Option[Access[String]] =
       sessionAttrAccess.to(attr)(local).map(_.to(TestContentAccess.value))
 
     val baseURLAccessOpt = getAccess(TestTxLogAttrs.baseURL)
@@ -98,26 +98,26 @@ case class TestTxLogView(locationHash: String = "txlog")(
 //TestContentAccess
 
 object TestTxLogAttrs {
-  lazy val baseURL = SessionAttr(Id(0x000A), classOf[Content], UserLabel en "(baseURL)")
-  lazy val authKey = SessionAttr(Id(0x000B), classOf[Content], UserLabel en "(authKey)")
+  lazy val baseURL = SessionAttr(Id(0x000A), classOf[B_Content], UserLabel en "(baseURL)")
+  lazy val authKey = SessionAttr(Id(0x000B), classOf[B_Content], UserLabel en "(authKey)")
 }
 
-case class UpdatesSummary(add: TxAddMeta, ref: TxRef)
+case class UpdatesSummary(add: D_TxAddMeta, ref: TxRef)
 case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount: Long, objCount: Long, byteCount: Long)
 
 @assemble class TestTxLogAssembleBase(actorName: String)(
   qAdapterRegistry: QAdapterRegistry
 )(
-  metaAdapter: ProtoAdapter[TxAddMeta] with HasId =
-    qAdapterRegistry.byName(classOf[TxAddMeta].getName)
-      .asInstanceOf[ProtoAdapter[TxAddMeta] with HasId]
+  metaAdapter: ProtoAdapter[D_TxAddMeta] with HasId =
+    qAdapterRegistry.byName(classOf[D_TxAddMeta].getName)
+      .asInstanceOf[ProtoAdapter[D_TxAddMeta] with HasId]
 )   {
   type SummaryId = SrcId
 
   def mapMeta(
     key: SrcId,
     txRef: Each[TxRef],
-    txAdd: Each[TxAddMeta]
+    txAdd: Each[D_TxAddMeta]
   ): Values[(SummaryId,UpdatesSummary)] =
     List(actorName → UpdatesSummary(txAdd, txRef))
 
@@ -141,7 +141,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
         else headToKeep(will, in.tail)
       }
 
-    val skipIds = Seq(classOf[ToAlienWrite],classOf[HttpPublication],classOf[TxAddMeta],classOf[TxRef])
+    val skipIds = Seq(classOf[ToAlienWrite],classOf[S_HttpPublication],classOf[D_TxAddMeta],classOf[TxRef])
       .map(cl⇒qAdapterRegistry.byName(cl.getName).id).toSet
 
     List(WithPK(headToKeep(
@@ -154,7 +154,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
   def keepAdds(
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
-  ): Values[(Alive,TxAddMeta)] = for {
+  ): Values[(Alive,D_TxAddMeta)] = for {
     item ← updatesListSummary.items
   } yield WithPK(item.add)
 

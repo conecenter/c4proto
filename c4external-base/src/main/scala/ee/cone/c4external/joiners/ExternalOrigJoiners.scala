@@ -6,7 +6,7 @@ import ee.cone.c4actor.Types.{SrcId, TypeId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, assemble, by}
-import ee.cone.c4external.ExternalProtocol.{CacheUpdate, ExternalUpdate}
+import ee.cone.c4external.ExternalProtocol.{S_CacheUpdate, S_ExternalUpdate}
 import ee.cone.c4proto.HasId
 import okio.ByteString
 
@@ -29,11 +29,11 @@ case class WriteToKafka(origSrcId: SrcId, toKafka: Update)
 class WriteToKafkaImpl(hashGen: HashGen, typeId: TypeId) {
   private val extUpdateId: Long = 4L
 
-  def apply(ext: ExternalUpdate): List[(SrcId, WriteToKafka)] = {
+  def apply(ext: S_ExternalUpdate): List[(SrcId, WriteToKafka)] = {
     val srcId = hashGen.generate(ext.valueSrcId, typeId)
     (srcId -> WriteToKafka(srcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, ext.flags | extUpdateId))) :: Nil
   }
-  def apply(ext: CacheUpdate): List[(SrcId, WriteToKafka)] = {
+  def apply(ext: S_CacheUpdate): List[(SrcId, WriteToKafka)] = {
     val srcId = hashGen.generate(ext.valueSrcId, typeId)
     (srcId -> WriteToKafka(srcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, extUpdateId))) :: Nil
   }
@@ -57,8 +57,8 @@ import MergeTypes._
 
   def ToMergeExtUpdate(
     origId: SrcId,
-    extU: Each[ExternalUpdate]
-  ): Values[(MergeId[Model], ExternalUpdate)] =
+    extU: Each[S_ExternalUpdate]
+  ): Values[(MergeId[Model], S_ExternalUpdate)] =
     if (extU.valueTypeId == modelId)
       (extU.valueSrcId → extU) :: Nil
     else
@@ -66,8 +66,8 @@ import MergeTypes._
 
   def ToSingleExtUpdate(
     origId: SrcId,
-    @by[MergeId[Model]] extUs: Values[ExternalUpdate]
-  ): Values[(CombineId[Model], ExternalUpdate)] =
+    @by[MergeId[Model]] extUs: Values[S_ExternalUpdate]
+  ): Values[(CombineId[Model], S_ExternalUpdate)] =
     if (extUs.nonEmpty) {
       val u = extUs.maxBy(_.txId)
       List(origId → u)
@@ -75,8 +75,8 @@ import MergeTypes._
 
   def ToMergeCacheResponse(
     origId: SrcId,
-    cResp: Each[CacheUpdate]
-  ): Values[(MergeId[Model], CacheUpdate)] =
+    cResp: Each[S_CacheUpdate]
+  ): Values[(MergeId[Model], S_CacheUpdate)] =
     if (cResp.valueTypeId == modelId)
       (cResp.valueSrcId → cResp) :: Nil
     else
@@ -84,8 +84,8 @@ import MergeTypes._
 
   def ToSingleCacheResponse(
     origId: SrcId,
-    @by[MergeId[Model]] cResps: Values[CacheUpdate]
-  ): Values[(CombineId[Model], CacheUpdate)] =
+    @by[MergeId[Model]] cResps: Values[S_CacheUpdate]
+  ): Values[(CombineId[Model], S_CacheUpdate)] =
     if (cResps.nonEmpty) {
       val u = cResps.maxBy(_.extOffset)
       List(origId → u)
@@ -94,8 +94,8 @@ import MergeTypes._
   def CreateExternal(
     origId: SrcId,
     @by[ExtSrcId] model: Values[Model],
-    @by[CombineId[Model]] externals: Values[ExternalUpdate],
-    @by[CombineId[Model]] caches: Values[CacheUpdate]
+    @by[CombineId[Model]] externals: Values[S_ExternalUpdate],
+    @by[CombineId[Model]] caches: Values[S_CacheUpdate]
   ): Values[(SrcId, Model)] =
     if (externals.nonEmpty || caches.nonEmpty)
       (Single.option(externals), Single.option(caches)) match {
@@ -117,8 +117,8 @@ import MergeTypes._
 
   def CreateWriteToKafka(
     origId: SrcId,
-    @by[CombineId[Model]] externals: Values[ExternalUpdate],
-    @by[CombineId[Model]] caches: Values[CacheUpdate]
+    @by[CombineId[Model]] externals: Values[S_ExternalUpdate],
+    @by[CombineId[Model]] caches: Values[S_CacheUpdate]
   ): Values[(SrcId, WriteToKafka)] =
     if (externals.nonEmpty || caches.nonEmpty)
       (Single.option(externals), Single.option(caches)) match {

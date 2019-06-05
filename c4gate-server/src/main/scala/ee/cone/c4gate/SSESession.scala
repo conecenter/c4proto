@@ -18,8 +18,8 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
-import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
-import ee.cone.c4gate.HttpProtocol.{Header, HttpPost, HttpPublication}
+import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPost, S_HttpPublication}
 import okio.ByteString
 
 trait SSEServerApp
@@ -54,14 +54,14 @@ class PongHandler(
     pongs: TrieMap[String,Instant] = TrieMap()
 ) extends RHttpHandler with ToInject with LazyLogging {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
-  def handle(httpExchange: HttpExchange, reqHeaders: List[Header]): Boolean = {
+  def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
     val headers = reqHeaders.groupBy(_.key).map{ case(k,v) ⇒ k→Single(v).value }
     val now = Instant.now
     val local = worldProvider.createTx()
     val sessionKey = headers("X-r-session")
-    val userName = ByPK(classOf[AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
+    val userName = ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
     val session = FromAlienState(
       sessionKey,
       headers("X-r-location"),
@@ -109,7 +109,7 @@ class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHan
     val allowOrigin =
       config.allowOrigin.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
     val zipHeader = sender.compressor.fold("")(compressor =>
-      s"Content-Encoding: ${compressor.name}\n"
+      s"B_Content-Encoding: ${compressor.name}\n"
     )
     val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$zipHeader$allowOrigin\n"
     val data = s"$connectionKey ${config.pongURL}"
@@ -198,7 +198,7 @@ object SSEAssembles {
   def checkAuthenticatedSession(
     key: SrcId,
     fromAliens: Values[FromAlienState],
-    authenticatedSession: Each[AuthenticatedSession]
+    authenticatedSession: Each[U_AuthenticatedSession]
   ): Values[(SrcId,TxTransform)] =
     if(fromAliens.isEmpty)
       List(WithPK(CheckAuthenticatedSessionTxTransform(authenticatedSession)))
@@ -206,7 +206,7 @@ object SSEAssembles {
 
   def allAvailability(
     key: SrcId,
-    doc: Each[HttpPublication]
+    doc: Each[S_HttpPublication]
   ): Values[(All,Availability)] = for {
     until ← doc.until.toList if doc.path == "/availability"
   } yield All → Availability(doc.path,until)
@@ -215,7 +215,7 @@ object SSEAssembles {
 case class Availability(path: String, until: Long)
 
 case class CheckAuthenticatedSessionTxTransform(
-  authenticatedSession: AuthenticatedSession
+  authenticatedSession: U_AuthenticatedSession
 ) extends TxTransform {
   def transform(local: Context) =
     if(Instant.ofEpochSecond(authenticatedSession.untilSecond).isBefore(Instant.now))

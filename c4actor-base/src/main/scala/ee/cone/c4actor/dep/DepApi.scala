@@ -4,7 +4,7 @@ import ee.cone.c4actor.PreHashed
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4proto.OrigCategory
+import ee.cone.c4proto.DataCategory
 
 import scala.collection.immutable.{Map, Seq}
 
@@ -13,7 +13,7 @@ import scala.collection.immutable.{Map, Seq}
 
 case class Resolvable[+A](value: Option[A], requests: Seq[DepRequest] = Nil)  // low-level //?hashed
 
-case object DepRequestCat extends OrigCategory
+case object DepRequestCat extends DataCategory
 
 trait Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B]

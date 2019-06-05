@@ -21,7 +21,7 @@ trait FromExternalDBSyncApp extends RDBSyncApp with ExternalDBOptionsApp with Pr
   import rdbOptionFactory._
   override def externalDBOptions: List[ExternalDBOption] =
     dbProtocol(FromExternalDBProtocol) ::
-      fromDB(classOf[FromExternalDBProtocol.DBOffset]) ::
+      fromDB(classOf[FromExternalDBProtocol.B_DBOffset]) ::
       super.externalDBOptions
   override def assembles: List[Assemble] = new FromExternalDBSyncAssemble :: super.assembles
   override def protocols: List[Protocol] = FromExternalDBProtocol :: super.protocols

@@ -4,8 +4,8 @@ import ee.cone.c4actor.dep.request.ContextIdRequestProtocol
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.AskByPKsApp
 import ee.cone.c4actor._
-import ee.cone.c4gate.SessionDataProtocol.RawSessionData
-import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{RawRoleData, RawUserData}
+import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
+import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
 import ee.cone.c4proto.Protocol
 
 trait SessionAttrAskUtility {
@@ -29,9 +29,9 @@ trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtilityA
 
   def idGenUtil: IdGenUtil
 
-  private lazy val rawDataAsk: AskByPK[RawSessionData] = askByPKFactory.forClass(classOf[RawSessionData])
-  private lazy val userDataAsk: AskByPK[RawUserData] = askByPKFactory.forClass(classOf[RawUserData])
-  private lazy val roleDataAsk: AskByPK[RawRoleData] = askByPKFactory.forClass(classOf[RawRoleData])
+  private lazy val rawDataAsk: AskByPK[U_RawSessionData] = askByPKFactory.forClass(classOf[U_RawSessionData])
+  private lazy val userDataAsk: AskByPK[U_RawUserData] = askByPKFactory.forClass(classOf[U_RawUserData])
+  private lazy val roleDataAsk: AskByPK[U_RawRoleData] = askByPKFactory.forClass(classOf[U_RawRoleData])
 
   override def askByPKs: List[AbstractAskByPK] = rawDataAsk :: userDataAsk :: roleDataAsk :: super.askByPKs
 

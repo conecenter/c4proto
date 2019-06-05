@@ -6,7 +6,7 @@ package ee.cone.c4actor
 trait Access[C] extends Product{
   def updatingLens: Option[Lens[Context,C]]
   def initialValue: C
-  def metaList: List[MetaAttr]
+  def metaList: List[AbstractMetaAttr]
   def to[I](inner: ProdLens[C,I]): Access[I]
   def zoom: Access[C]
 }

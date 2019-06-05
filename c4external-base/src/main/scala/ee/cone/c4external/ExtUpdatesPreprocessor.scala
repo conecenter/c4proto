@@ -7,7 +7,7 @@ import ee.cone.c4actor.Types.{SrcId, TypeId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{AssembledKey, IndexUtil}
 import ee.cone.c4external.ExternalOrigKey.ExtSrcId
-import ee.cone.c4external.ExternalProtocol.ExternalUpdate
+import ee.cone.c4external.ExternalProtocol.S_ExternalUpdate
 
 import scala.collection.immutable.Seq
 
@@ -39,7 +39,7 @@ class ExtUpdatesPreprocessor(
       } yield {
         val randomUid = RandomUUID()
         val u = updates.last
-        ExternalUpdate(randomUid, u.srcId, typeId, u.value, u.flags, "")
+        S_ExternalUpdate(randomUid, u.srcId, typeId, u.value, u.flags, "")
       }
     extUpdates.to[Seq].flatMap(LEvent.update).map(toUpdate.toUpdate) ++
       normal.map(u ⇒
@@ -51,7 +51,7 @@ class ExtUpdatesPreprocessor(
   }
 }
 
-class ExtOrigKeyFactory(composes: IndexUtil, external: List[ExternalModel[_ <: Product]]) extends OrigKeyFactory {
+class ExtKeyFactory(composes: IndexUtil, external: List[ExternalModel[_ <: Product]]) extends KeyFactory {
   val externalClassesSet: Set[String] = external.map(_.clName).toSet
   val extKeyAlias: String = "ExtSrcId"
   val extKeyClass: String = classOf[ExtSrcId].getName

@@ -51,5 +51,5 @@ case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHand
     }
     SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
   }
-  def seeds: Context ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
+  def seeds: Context ⇒ List[BranchProtocol.S_BranchResult] = _ ⇒ Nil
 }
