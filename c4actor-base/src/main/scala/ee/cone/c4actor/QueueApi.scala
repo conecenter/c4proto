@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.OrigMetaAttrProtocol.TxTransformNameMeta
+import ee.cone.c4actor.OrigMetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap, TypeId}
 import ee.cone.c4assemble._
@@ -171,9 +171,9 @@ abstract class AbstractLens[C,I] extends Lens[C,I] {
   def modify: (I⇒I) ⇒ C⇒C = f ⇒ c ⇒ set(f(of(c)))(c)
 }
 
-abstract class TransientLens[Item](default: Item) extends AbstractLens[Context,Item] with Product {
-  def of: Context ⇒ Item = context ⇒ context.transient.getOrElse(this, default).asInstanceOf[Item]
-  def set: Item ⇒ Context ⇒ Context = value ⇒ context ⇒ new Context(
+abstract class TransientLens[D_Item](default: D_Item) extends AbstractLens[Context,D_Item] with Product {
+  def of: Context ⇒ D_Item = context ⇒ context.transient.getOrElse(this, default).asInstanceOf[D_Item]
+  def set: D_Item ⇒ Context ⇒ Context = value ⇒ context ⇒ new Context(
     context.injected,
     context.assembled,
     context.transient + (this → value.asInstanceOf[Object])
@@ -216,7 +216,7 @@ trait Observer {
 }
 
 case object TxTransformOrigMeta{
-  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(OrigMetaAttr(TxTransformNameMeta(name)) :: Nil)
+  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(OrigMetaAttr(D_TxTransformNameMeta(name)) :: Nil)
 }
 case object TxTransformOrigMetaKey extends TransientLens[List[OrigMetaAttr]](Nil)
 

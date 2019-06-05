@@ -6,7 +6,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4gate.HttpProtocol.S_HttpPost
 import ee.cone.c4proto.Protocol
 
 class TestSerialApp extends TestTxTransformApp with SerialObserversApp
@@ -26,12 +26,12 @@ abstract class TestTxTransformApp extends ServerApp
 @assemble class TestDelayAssembleBase   {
   def joinTestHttpPostHandler(
     key: SrcId,
-    post: Each[HttpPost]
+    post: Each[S_HttpPost]
   ): Values[(SrcId, TxTransform)] =
     List(WithPK(TestDelayHttpPostHandler(post.srcId, post)))
 }
 
-case class TestDelayHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
+case class TestDelayHttpPostHandler(srcId: SrcId, post: S_HttpPost) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     logger.info(s"start handling $srcId")
     concurrent.blocking{

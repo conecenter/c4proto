@@ -6,7 +6,7 @@ import com.squareup.wire.ProtoAdapter
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
-import ee.cone.c4external.ExternalProtocol.ExternalUpdate
+import ee.cone.c4external.ExternalProtocol.S_ExternalUpdate
 import ee.cone.c4proto.HasId
 import ee.cone.dbadapter.{DBAdapter, DBSchemaBuilder, DBSchemaBuildersApp, TableSchema}
 
@@ -37,12 +37,12 @@ class ExtDBSyncImpl(
   // Check if registered externals have adapter
   val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.filterKeys(supportedIds)
 
-  val extUpdate: ProtoAdapter[ExternalUpdate] with HasId =
-    qAdapterRegistry.byName(classOf[ExternalUpdate].getName)
-      .asInstanceOf[ProtoAdapter[ExternalUpdate] with HasId]
+  val extUpdate: ProtoAdapter[S_ExternalUpdate] with HasId =
+    qAdapterRegistry.byName(classOf[S_ExternalUpdate].getName)
+      .asInstanceOf[ProtoAdapter[S_ExternalUpdate] with HasId]
 
-  def upload: List[ExternalUpdate] ⇒ List[(String, Int)] = list ⇒ {
-    val toWrite: List[(NextOffset, List[ExternalUpdate])] = list.filter(u ⇒ (u.flags & archiveFlag) == 0L).groupBy(_.txId).toList.sortBy(_._1)
+  def upload: List[S_ExternalUpdate] ⇒ List[(String, Int)] = list ⇒ {
+    val toWrite: List[(NextOffset, List[S_ExternalUpdate])] = list.filter(u ⇒ (u.flags & archiveFlag) == 0L).groupBy(_.txId).toList.sortBy(_._1)
     (for {
       (offset, qUpdates) ← toWrite
     } yield {

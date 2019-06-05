@@ -6,8 +6,8 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.time.Instant
 import java.util.UUID
 
-import FromExternalDBProtocol.DBOffset
-import ToExternalDBProtocol.HasState
+import FromExternalDBProtocol.B_DBOffset
+import ToExternalDBProtocol.B_HasState
 import ToExternalDBTypes.{NeedSrcId, PseudoOrigNeedSrcId}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{Firstborn, Update}
@@ -31,7 +31,7 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
 ////
 
 @protocol(ExchangeCat) object ToExternalDBProtocolBase   {
-  @Id(0x0063) case class HasState(
+  @Id(0x0063) case class B_HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
     @Id(0x0065) value: okio.ByteString
@@ -61,28 +61,28 @@ object ToExternalDBAssembleTypes {
 trait  ToExternalDBItemAssembleUtil {
   def toUpdate: ToUpdate
 
-  def itemToHasState[Item <: Product]: Item ⇒ Values[(String,HasState)] = item ⇒
+  def itemToHasState[D_Item <: Product]: D_Item ⇒ Values[(String,B_HasState)] = item ⇒
     for(e ← LEvent.update(item)) yield {
       val u = toUpdate.toUpdate(e)
       val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
-      key → HasState(key,u.valueTypeId,u.value)
+      key → B_HasState(key,u.valueTypeId,u.value)
     }
 }
 
-@assemble class ToExternalDBOrigAssembleBase[Item<:Product](
+@assemble class ToExternalDBOrigAssembleBase[D_Item<:Product](
   val toUpdate: ToUpdate,
-  classItem: Class[Item]
+  classItem: Class[D_Item]
 )  extends   ToExternalDBItemAssembleUtil {
   def OrigJoin(
     key: SrcId,
-    item: Each[Item]
-  ): Values[(NeedSrcId,HasState)] =
+    item: Each[D_Item]
+  ): Values[(NeedSrcId,B_HasState)] =
     itemToHasState(item)
 
   def PseudoOrigJoin(
     key: SrcId,
-    @by[PseudoOrig] item: Each[Item]
-  ): Values[(PseudoOrigNeedSrcId,HasState)] =
+    @by[PseudoOrig] item: Each[D_Item]
+  ): Values[(PseudoOrigNeedSrcId,B_HasState)] =
     itemToHasState(item)
 }
 
@@ -90,9 +90,9 @@ trait  ToExternalDBItemAssembleUtil {
   type TypeHex = String
   def joinTasks(
     key: SrcId,
-    @by[PseudoOrigNeedSrcId] pseudoNeedStates: Values[HasState],
-    @by[NeedSrcId] needStates: Values[HasState],
-    hasStates: Values[HasState]
+    @by[PseudoOrigNeedSrcId] pseudoNeedStates: Values[B_HasState],
+    @by[NeedSrcId] needStates: Values[B_HasState],
+    hasStates: Values[B_HasState]
   ): Values[(TypeHex, ToExternalDBTask)] = {
     val mergedNeedStates =
       if (needStates.isEmpty)
@@ -115,11 +115,11 @@ trait  ToExternalDBItemAssembleUtil {
 case class ToExternalDBTask(
   srcId: SrcId,
   typeHex: String,
-  from: Option[HasState],
-  to: Option[HasState]
+  from: Option[B_HasState],
+  to: Option[B_HasState]
 )
 
-case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[HasState])]](Map.empty)
+case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_HasState])]](Map.empty)
 
 case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
@@ -132,7 +132,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
       import task.{from,to}
       val registry = QAdapterRegistryKey.of(local)
       val protoToString = new ProtoToString(registry)
-      def recode(stateOpt: Option[HasState]) = stateOpt.map{ state ⇒
+      def recode(stateOpt: Option[B_HasState]) = stateOpt.map{ state ⇒
         protoToString.recode(state.valueTypeId, state.value)
       }.getOrElse(("",""))
       val(fromSrcId,fromText) = recode(from)
@@ -165,7 +165,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 ////
 
 @protocol(ExchangeCat) object FromExternalDBProtocolBase   {
-  @Id(0x0060) case class DBOffset(
+  @Id(0x0060) case class B_DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long
   )
@@ -182,10 +182,10 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = WithJDBCKey.of(local){ conn ⇒
     val offset =
-      ByPK(classOf[DBOffset]).of(local).getOrElse(srcId, DBOffset(srcId, 0L))
+      ByPK(classOf[B_DBOffset]).of(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
     logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
     val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
-    //val updateOffset = List(DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
+    //val updateOffset = List(B_DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
     //  .map(n⇒LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
       logger.debug(s"textEncoded $textEncoded")
@@ -240,7 +240,7 @@ class IndentedParser(
     val ("0x", hex) = xHex.splitAt(2)
     val tag = Integer.parseInt(hex, 16)
     handlerName match {
-      case "Node" ⇒ UniversalPropImpl(tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
+      case "D_Node" ⇒ UniversalPropImpl(tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
       case "Delete" ⇒ UniversalPropImpl(tag,UniversalDeleteImpl(parseProps(value, Nil)))(UniversalDeleteProtoAdapter)
       case _ ⇒ RDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
     }
@@ -281,7 +281,7 @@ class ProtoToString(registry: QAdapterRegistry){
     case l: List[_] ⇒ l.map(encode(id, _)).mkString
     case p: Product ⇒
       val adapter = registry.byName(p.getClass.getName)
-      esc(id, "Node", adapter.props.zipWithIndex.map{
+      esc(id, "D_Node", adapter.props.zipWithIndex.map{
         case(prop,i) ⇒ encode(prop.id, p.productElement(i))
       }.mkString)
     case e: Object ⇒

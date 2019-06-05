@@ -40,13 +40,13 @@ case class ExternalLoaderTx(srcId: SrcId, extDBSync: ExtDBSync, dBAdapter: DBAda
   }
 
   /**
-    * 0: Sends new ExternalUpdates to External, converts ExternalUpdates/CacheUpdate to Origs
+    * 0: Sends new ExternalUpdates to External, converts ExternalUpdates/S_CacheUpdate to Origs
     *
     * @return local with new db offset
     */
   def phaseZero: Context ⇒ Context = l ⇒ {
-    val extUpdates = ByPK(classOf[ExternalUpdate]).of(l).values.toList
-    val cacheResponses = ByPK(classOf[CacheUpdate]).of(l).values.toList
+    val extUpdates = ByPK(classOf[S_ExternalUpdate]).of(l).values.toList
+    val cacheResponses = ByPK(classOf[S_CacheUpdate]).of(l).values.toList
     val writeToKafka = ByPK(classOf[WriteToKafka]).of(l).values.toList
     if (extUpdates.nonEmpty) {
       logger.debug(s"Phase Zero: syncing ${extUpdates.size} records to $externalId")
@@ -77,8 +77,8 @@ case class UpdateOffsetTx(srcId: SrcId, dBAdapter: DBAdapter) extends TxTransfor
 
   def transform(local: Context): Context = {
     val dbOffset = dBAdapter.getOffset
-    val current = ByPK(classOf[ExternalOffset]).of(local).getOrElse(externalId, ExternalOffset(externalId, ""))
-    val offLocal: Context = if (current.offset != dbOffset) TxAdd(LEvent.update(ExternalOffset(externalId, dbOffset)))(local) else local
+    val current = ByPK(classOf[S_ExternalOffset]).of(local).getOrElse(externalId, S_ExternalOffset(externalId, ""))
+    val offLocal: Context = if (current.offset != dbOffset) TxAdd(LEvent.update(S_ExternalOffset(externalId, dbOffset)))(local) else local
     SleepUntilKey.set(Instant.now.plusMillis(15000))(offLocal)
   }
 }
