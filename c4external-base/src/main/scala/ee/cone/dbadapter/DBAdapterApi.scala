@@ -34,7 +34,7 @@ case class PrimaryKeySchema(
   pkRealName: String
 )
 
-case class OrigValue(
+case class DBValue(
   schema: DBSchema,
   pks: List[Any],
   values: List[Any],
@@ -52,7 +52,7 @@ trait DBAdapter {
 
   def flush: Unit
 
-  def putOrigs(origs: List[OrigValue], offset: NextOffset): List[(DBSchema, Int)]
+  def putOrigs(origs: List[DBValue], offset: NextOffset): List[(DBSchema, Int)]
 
   def getOrigs(orig: DBSchema, pks: List[String]): List[Product]
 
@@ -74,9 +74,9 @@ trait DBSchemaBuilder[Model <: Product] {
 
   def getSchemas: List[DBSchema]
 
-  def getUpdateValue: Product ⇒ List[OrigValue]
+  def getUpdateValue: Product ⇒ List[DBValue]
 
-  def getDeleteValue: SrcId ⇒ List[OrigValue]
+  def getDeleteValue: SrcId ⇒ List[DBValue]
 }
 
 trait DBSchemaOption
