@@ -54,7 +54,7 @@ class TestCoWorkApp extends ServerApp
   lazy val value: ProdLens[B_Content,String] = ProdLens.of(_.value)
 }
 object TestAttrs {
-  lazy val contentFlt = SessionAttr(Id(0x0008), classOf[B_Content], UserLabel en "(B_Content)")
+  lazy val contentFlt = SessionAttr(Id(0x0008), classOf[B_Content], UserLabel en "(Content)")
 }
 
 object ContentDefault extends DefaultModelFactory(classOf[B_Content], B_Content(_,""))

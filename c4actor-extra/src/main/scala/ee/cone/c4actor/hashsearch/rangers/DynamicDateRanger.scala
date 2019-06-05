@@ -65,7 +65,7 @@ object K2TreeUtils {
     root match {
       case S_TreeNode(Some(_), None, None) ⇒ root :: Nil
       case S_TreeNode(_, Some(left), Some(right)) ⇒ getAllRegions(left) ::: getAllRegions(right)
-      case _ ⇒ throw new Exception("D_Node w/o left / right DynDateRanger:39")
+      case _ ⇒ throw new Exception("Node w/o left / right DynDateRanger:39")
     }
 
   lazy val maxValue = 3155760000000L

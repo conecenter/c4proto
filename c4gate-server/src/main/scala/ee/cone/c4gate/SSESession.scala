@@ -109,7 +109,7 @@ class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHan
     val allowOrigin =
       config.allowOrigin.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
     val zipHeader = sender.compressor.fold("")(compressor =>
-      s"B_Content-Encoding: ${compressor.name}\n"
+      s"Content-Encoding: ${compressor.name}\n"
     )
     val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$zipHeader$allowOrigin\n"
     val data = s"$connectionKey ${config.pongURL}"

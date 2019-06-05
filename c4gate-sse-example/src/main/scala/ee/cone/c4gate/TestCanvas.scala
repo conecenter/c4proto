@@ -120,7 +120,7 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 @fieldAccess object TestCanvasStateAccessBase {
   lazy val sizes: ProdLens[TestCanvasProtocol.B_TestCanvasState,String] = ProdLens.of(_.sizes)
   lazy val state =
-    SessionAttr(Id(0x0009), classOf[B_TestCanvasState], UserLabel en "(B_TestCanvasState)")
+    SessionAttr(Id(0x0009), classOf[B_TestCanvasState], UserLabel en "(TestCanvasState)")
 }
 
 object TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))

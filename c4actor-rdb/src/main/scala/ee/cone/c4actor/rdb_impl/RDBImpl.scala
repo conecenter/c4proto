@@ -240,7 +240,7 @@ class IndentedParser(
     val ("0x", hex) = xHex.splitAt(2)
     val tag = Integer.parseInt(hex, 16)
     handlerName match {
-      case "D_Node" ⇒ UniversalPropImpl(tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
+      case "Node" ⇒ UniversalPropImpl(tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
       case "Delete" ⇒ UniversalPropImpl(tag,UniversalDeleteImpl(parseProps(value, Nil)))(UniversalDeleteProtoAdapter)
       case _ ⇒ RDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
     }
@@ -281,7 +281,7 @@ class ProtoToString(registry: QAdapterRegistry){
     case l: List[_] ⇒ l.map(encode(id, _)).mkString
     case p: Product ⇒
       val adapter = registry.byName(p.getClass.getName)
-      esc(id, "D_Node", adapter.props.zipWithIndex.map{
+      esc(id, "Node", adapter.props.zipWithIndex.map{
         case(prop,i) ⇒ encode(prop.id, p.productElement(i))
       }.mkString)
     case e: Object ⇒
