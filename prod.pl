@@ -578,17 +578,32 @@ my $make_frpc_conf = sub{
     my($comp,$from_path,$services) = @_;
     my @common = (common => [&$get_frp_common($comp)]);
     my($token,$sk,%auth) = &$get_auth($comp);
-    my @add = map{
-        my($service_name,$port) = @$_;
-        ("$comp.$service_name" => [
-            type => "stcp",
-            sk => $sk,
-            local_ip => "127.0.0.1",
-            local_port => $port,
-        ])
-    } @$services;
     my $put = &$rel_put_text($from_path);
-    &$put("frpc.ini", &$to_ini_file([@common,@add]));
+    do{
+        my @add = map{
+            my($service_name,$port) = @$_;
+            ("$comp.$service_name" => [
+                type => "stcp",
+                sk => $sk,
+                local_ip => "127.0.0.1",
+                local_port => $port,
+            ])
+        } @$services;
+        &$put("frpc.ini", &$to_ini_file([@common,@add]));
+    };
+    do{
+        my @add = map{
+            my($service_name,$port) = @$_;
+            ("$comp.$service_name.visitor" => [
+                type => "stcp",
+                role => "visitor",
+                sk => $sk,
+                server_name => "$comp.$service_name",
+                bind_port => $port,
+            ])
+        } @$services;
+        &$put("frpc.visitor.ini", &$to_ini_file([@common,@add]));
+    };
 };
 
 #C4INTERNAL_PORTS => "1080,1443",
@@ -754,6 +769,13 @@ my $prod_image_steps = sub{(
     "RUN mkdir /c4db && chown c4:c4 /c4db",
 )};
 
+#push @tasks, ["local", "$composes_txt", sub{
+#    my($comp)=@_;
+#    my $conf = &$get_compose($comp);
+#    my $img = $$conf{image} || die;
+#
+#}];
+
 my $up_desktop = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
@@ -795,7 +817,9 @@ my $up_desktop = sub{
     my $cert_path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
     sy("cp $cert_path $from_path/ssh.tar.gz");
     &$make_desktop_secret($comp,$from_path);
-    &$make_frpc_conf($comp,$from_path,[[desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]]);
+    &$make_frpc_conf($comp,$from_path,[
+        [desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]
+    ]);
     ($comp, $from_path,[
         {
             image => $img, name => "frpc",
@@ -808,6 +832,7 @@ my $up_desktop = sub{
         {
             image => $img, name => "sshd", need_c4db => 1,
             C4SSH_PORT => $ssh_port, C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
+            C4FRPC_VISITOR_INI => "/c4conf/frpc.visitor.ini",
         },
         {
             image => $img, name => "haproxy", need_c4db => 1,

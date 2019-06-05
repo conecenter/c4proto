@@ -62,7 +62,7 @@ push @tasks, [sshd=>sub{
     -e "/c4/.ssh/authorized_keys" or sy("cat /id_rsa.pub >> /c4/.ssh/authorized_keys");
     sy('chmod 0700 /c4/.ssh /c4/.ssh/authorized_keys');
     grep{/c4p_alias/} `cat /c4/.profile` or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
-    sy('test -e /c4/c4proto || git clone https://github.com/conecenter/c4proto.git /c4/c4proto');
+    #sy('test -e /c4/c4proto || git clone https://github.com/conecenter/c4proto.git /c4/c4proto');
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 }];
 push @tasks, [haproxy=>sub{
