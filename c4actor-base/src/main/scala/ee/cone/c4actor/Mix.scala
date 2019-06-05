@@ -61,7 +61,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
     new RootConsumer(richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
-  override def protocols: List[Protocol] = OrigMetaAttrProtocol :: super.protocols
+  override def protocols: List[Protocol] = MetaAttrProtocol :: super.protocols
   override def deCompressors: List[DeCompressor] = GzipFullCompressor() :: super.deCompressors
 }
 

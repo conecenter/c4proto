@@ -16,9 +16,9 @@ trait SerializationUtilsMix extends SerializationUtilsApp {
 }
 
 case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, hashGen: HashGen) { // TODO remove IdGenUtil usage
-  def srcIdFromMetaAttrList(metaAttrs: List[MetaAttr]): SrcId = //1
+  def srcIdFromMetaAttrList(metaAttrs: List[AbstractMetaAttr]): SrcId = //1
     u.srcIdFromSrcIds(metaAttrs.map(srcIdFromMetaAttr):_*)
-  def srcIdFromMetaAttr(metaAttr: MetaAttr): SrcId =
+  def srcIdFromMetaAttr(metaAttr: AbstractMetaAttr): SrcId =
     u.srcIdFromStrings(metaAttr.productPrefix +: metaAttr.productIterator.map(_.toString).to[Seq]:_*)
   def srcIdFromOrig(orig: Product, origClName: String): SrcId = { //2 //todo is it bad, className lost?
     val adapter = qAdapterRegistry.byName(origClName)

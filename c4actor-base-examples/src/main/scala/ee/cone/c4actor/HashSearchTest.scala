@@ -10,7 +10,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
-  def prepare: List[MetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
+  def prepare: List[AbstractMetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
   def check: StrEq ⇒ String ⇒ Boolean = by ⇒ value ⇒ value == by.value
 
   def defaultBy: Option[StrEq => Boolean] = None

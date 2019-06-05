@@ -61,14 +61,14 @@ object DateBeforeDefault extends DefaultModelFactory(classOf[B_DateBefore],B_Dat
 object ContainsDefault extends DefaultModelFactory(classOf[B_Contains],B_Contains(_,""))
 
 case object DateBeforeCheck extends ConditionCheck[B_DateBefore,Long] {
-  def prepare: List[MetaAttr] ⇒ B_DateBefore ⇒ B_DateBefore = _ ⇒ identity[B_DateBefore]
+  def prepare: List[AbstractMetaAttr] ⇒ B_DateBefore ⇒ B_DateBefore = _ ⇒ identity[B_DateBefore]
   def check: B_DateBefore ⇒ Long ⇒ Boolean = by ⇒ value ⇒ by.value forall (_>value)
 
   def defaultBy: Option[B_DateBefore => Boolean] = None
 }
 
 case object ContainsCheck extends ConditionCheck[B_Contains,String] {
-  def prepare: List[MetaAttr] ⇒ B_Contains ⇒ B_Contains = _ ⇒ identity[B_Contains]
+  def prepare: List[AbstractMetaAttr] ⇒ B_Contains ⇒ B_Contains = _ ⇒ identity[B_Contains]
   def check: B_Contains ⇒ String ⇒ Boolean = by ⇒ value ⇒ value contains by.value
 
   def defaultBy: Option[B_Contains => Boolean] = None

@@ -73,7 +73,7 @@ trait  ToExternalDBItemAssembleUtil {
   val toUpdate: ToUpdate,
   classItem: Class[D_Item]
 )  extends   ToExternalDBItemAssembleUtil {
-  def OrigJoin(
+  def hasStateByNeedSrcIdJoiner(
     key: SrcId,
     item: Each[D_Item]
   ): Values[(NeedSrcId,B_HasState)] =

@@ -19,7 +19,7 @@ case class CollectiveTransform(srcId: String, events: Values[LEventTransform]) e
 
 object InsertOrigMeta {
   def apply(origs: List[Product]): Context ⇒ Context =
-    TxTransformOrigMetaKey.set(origs.map(OrigMetaAttr))
+    TxTransformOrigMetaKey.set(origs.map(MetaAttr))
 }
 
 @protocol(TxMetaCat) object CollectiveTransformProtocolBase   {

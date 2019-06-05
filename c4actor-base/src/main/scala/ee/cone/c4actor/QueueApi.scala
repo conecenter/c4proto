@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.OrigMetaAttrProtocol.D_TxTransformNameMeta
+import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.Update
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap, TypeId}
 import ee.cone.c4assemble._
@@ -216,9 +216,9 @@ trait Observer {
 }
 
 case object TxTransformOrigMeta{
-  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(OrigMetaAttr(D_TxTransformNameMeta(name)) :: Nil)
+  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(MetaAttr(D_TxTransformNameMeta(name)) :: Nil)
 }
-case object TxTransformOrigMetaKey extends TransientLens[List[OrigMetaAttr]](Nil)
+case object TxTransformOrigMetaKey extends TransientLens[List[MetaAttr]](Nil)
 
 trait TxTransform extends Product {
   def transform(local: Context): Context

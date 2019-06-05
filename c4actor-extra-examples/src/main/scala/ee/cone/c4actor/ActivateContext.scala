@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.OrigMetaAttrProtocol.D_TxTransformNameMeta
+import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 
 object ActivateContext {
   def apply(local: Context): Context = {

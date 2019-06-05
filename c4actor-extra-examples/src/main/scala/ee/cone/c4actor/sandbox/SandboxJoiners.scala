@@ -35,7 +35,7 @@ case class RichSandboxPair(
 
 @assemble class SandboxJoinersBase(idGenUtil: IdGenUtil)   {
 
-  def OrigSandboxToRichSandbox(
+  def sandboxToRichSandbox(
     srcId: SrcId,
     sandboxOrigs: Values[D_Sandbox]
   ): Values[(SrcId, RichSandbox)] =
@@ -43,12 +43,12 @@ case class RichSandboxPair(
       .map(orig ⇒ RichSandbox(orig.srcId, orig.value))
       .map(rich ⇒ (rich.srcId, rich))
 
-  type OrigOtherSrcId = SrcId
+  type OtherSrcId = SrcId
 
-  def OrigSandboxToOrigOtherId(
+  def sandboxToOrigOtherId(
     srcId: SrcId,
     sandboxOrig: Each[D_Sandbox]
-  ): Values[(OrigOtherSrcId, D_Sandbox)] =
+  ): Values[(OtherSrcId, D_Sandbox)] =
     sandboxOrig.otherOrig match {
       case Some(otherOrig) ⇒ (otherOrig.srcId → sandboxOrig) :: Nil
       case None ⇒ Nil
@@ -57,14 +57,14 @@ case class RichSandboxPair(
   def RichSandboxValueConstruction(
     srcId: SrcId,
     otherOrig: Each[D_Other],
-    @by[OrigOtherSrcId] sandboxOrigs: Values[D_Sandbox]
+    @by[OtherSrcId] sandboxOrigs: Values[D_Sandbox]
   ): Values[(SrcId, RichSandboxValue)] =
     WithPK(RichSandboxValue(otherOrig.srcId, otherOrig, sandboxOrigs.toList)) :: Nil
 
   def RichSandboxPairConstruction(
     srcId: SrcId,
     otherOrig: Each[D_Other],
-    @by[OrigOtherSrcId] sandboxOrig: Each[D_Sandbox]
+    @by[OtherSrcId] sandboxOrig: Each[D_Sandbox]
   ): Values[(SrcId, RichSandboxPair)] = {
     val srcId = idGenUtil.srcIdFromSrcIds(
       otherOrig.srcId, sandboxOrig.srcId

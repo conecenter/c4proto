@@ -158,7 +158,7 @@ case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
 }
 
 case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[D_StrStartsWith], classOf[String]) {
-  def prepare: List[MetaAttr] => D_StrStartsWith => D_StrStartsWith = _ ⇒ by ⇒ by
+  def prepare: List[AbstractMetaAttr] => D_StrStartsWith => D_StrStartsWith = _ ⇒ by ⇒ by
 
   def check: D_StrStartsWith => String => Boolean = {
     case D_StrStartsWith(v) ⇒ _.startsWith(v)
@@ -185,7 +185,7 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[D_StrStartsWith], c
 object DefaultStrStartsWith extends DefaultModelFactory[D_StrStartsWith](classOf[D_StrStartsWith], _ ⇒ D_StrStartsWith(""))
 
 case object IntEqCheck extends ConditionCheckWithCl[D_IntEq, Int](classOf[D_IntEq], classOf[Int]) {
-  def prepare: List[MetaAttr] ⇒ D_IntEq ⇒ D_IntEq = _ ⇒ identity[D_IntEq]
+  def prepare: List[AbstractMetaAttr] ⇒ D_IntEq ⇒ D_IntEq = _ ⇒ identity[D_IntEq]
 
   def check: D_IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ true
 
