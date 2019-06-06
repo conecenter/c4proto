@@ -43,7 +43,7 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
   lazy val safeToRun: SafeToRun = new SafeToRun(fileSnapshotMaker)
-  lazy val dbDir = "db4"
+  lazy val dbDir = config.get("C4DATA_DIR")
   lazy val signer: Signer[List[String]] =
     new SimpleSigner(config.get("C4AUTH_KEY_FILE"), idGenUtil)()
   //

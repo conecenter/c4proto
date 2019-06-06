@@ -11,11 +11,17 @@ my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my @tasks;
 
 push @tasks, [frpc=>sub{
+    if($ENV{C4DATA_DIR}){
+        &$need_home();
+        m{^/c4repo/(\w+)$} and !-e "/c4/$1" and sy("ln -s $_ /c4/$1") for </c4repo/*>;
+
+    }
     &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
 }];
 push @tasks, [fix=>sub{
+    my $data_dir = $ENV{C4DATA_DIR} || die;
     sy($_) for
-        'mv /c4 /tools/skel', 'ln -s /c4db/home /c4',
+        'mv /c4 /tools/skel', "ln -s $data_dir/home /c4",
         #desktop
         'echo "allowed_users=anybody" > /etc/X11/Xwrapper.config',
         'cp /etc/X11/spiceqxl.xorg.conf /etc/X11/c4spiceqxl.xorg.conf',
@@ -24,7 +30,8 @@ push @tasks, [fix=>sub{
 }];
 my $need_home = sub{
     print "1\n";
-    sy("mkdir -p /c4db/home && chmod 0700 /c4db/home");
+    my $data_dir = $ENV{C4DATA_DIR} || die;
+    sy("mkdir -p $data_dir/home && chmod 0700 $data_dir/home");
     print "2\n";
 };
 push @tasks, [desktop=>sub{

@@ -178,7 +178,7 @@ my $remote_acc  = sub{
     &$remote($comp,&$mk_exec("",$service,$stm));
 };
 
-my $snapshots_path = "/c4db/def/snapshots";
+my $snapshots_path = "/c4db/snapshots";
 my $list_snapshots = sub{
     my($comp,$opt)=@_;
     my $ls = &$remote_acc($comp,"ls $opt $snapshots_path");
@@ -349,7 +349,7 @@ my $make_dc_yml = sub{
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
         $k=~/^([A-Z]|host:|port:)/ ||
-        $k=~/^(volumes|tty|image|name|need_c4db)$/ ? () : $k
+        $k=~/^(volumes|tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
     my @port_maps = &$map(\%all,sub{ my($k,$v)=@_; $k=~/^port:(.+)/ ? "$1" : () });
@@ -366,7 +366,7 @@ my $make_dc_yml = sub{
                 $k=~/^host:(.+)/ ? { extra_hosts=>["$1:$v"]} : (),
                 $k=~/^(volumes|tty)$/ ? {$1=>$v} : (),
                 $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? {volumes=>["./$1:/c4conf/$1"]} : (),
-                $k eq 'need_c4db' ? {volumes=>["db4:/c4db"]} : (),
+                $k eq 'C4DATA_DIR' ? {volumes=>["db4:$v"]} : (),
             )}));
             (($$opt{name}||die)=>{
                 command => ($$opt{name}||die),
@@ -382,7 +382,7 @@ my $make_dc_yml = sub{
             });
         } @$options},
         version => "3.2",
-        $all{need_c4db} ? (volumes => { db4 => {} }) : (),
+        $all{C4DATA_DIR} ? (volumes => { db4 => {} }) : (),
     });
     ($yml_str,'"docker-compose -p '.$name.' -f- up -d --remove-orphans".($ENV{C4FORCE_RECREATE}?" --force-recreate":"")');
 };
@@ -408,7 +408,7 @@ my $make_kc_yml = sub{
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
         $k=~/^([A-Z]|host:|port:)/ ||
-        $k=~/^(tty|image|name|need_c4db)$/ ? () : $k
+        $k=~/^(tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
     #
@@ -438,9 +438,10 @@ my $make_kc_yml = sub{
             $k=~/^([A-Z].+)/ ? {name=>$1,value=>"$v"} : ()
         });
         my $secret_name = "$name-$nm-secret";
+        my $data_dir = $$opt{C4DATA_DIR};
         my @volume_mounts = (
             $secret_volumes_by_name{$secret_name} ? { name => $secret_name, mountPath => "/c4conf" } : (),
-            $$opt{need_c4db} ? { name => "db4", mountPath => "/c4db" } : (),
+            $data_dir ? { name => "db4", mountPath => $data_dir } : (),
         );
         +{
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
@@ -450,16 +451,16 @@ my $make_kc_yml = sub{
         }
     } @$options;
     #
-    my @volume_claim_templates = $all{need_c4db} ? (
+    my @volume_claim_templates = $all{C4DATA_DIR} ? (
         volumeClaimTemplates => [{
             metadata => { name => "db4" },
             spec => {
-                accessModes => ["ReadWriteOnce"],
+                accessModes => ["ReadWriteMany"],
                 resources => { requests => { storage => "100Gi" } },
             },
         }],
     ) : ();
-    my @db4_volumes = $all{need_c4db} ? {name=>"db4"} : ();
+    my @db4_volumes = $all{C4DATA_DIR} ? {name=>"db4"} : ();
     #
     my $stateful_set_yml = &$to_yml_str({
         apiVersion => "apps/v1",
@@ -729,11 +730,12 @@ my $up_gate = sub{
     &$need_deploy_cert($run_comp,$from_path);
     ($run_comp, $from_path, [
         {
-            @var_img, name => "zookeeper", need_c4db=>1,
+            @var_img, name => "zookeeper", C4DATA_DIR => "/c4db",
         },
         {
             @var_img,
-            name => "broker", need_c4db=>1, "port:$external_broker_port:$external_broker_port"=>"",
+            name => "broker", "port:$external_broker_port:$external_broker_port"=>"",
+            C4DATA_DIR => "/c4db",
             C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
@@ -743,7 +745,8 @@ my $up_gate = sub{
         {
             @var_img,
             &$consumer_options(),
-            name => "gate", need_c4db=>1,
+            name => "gate",
+            C4DATA_DIR => "/c4db",
             C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
             C4STATE_REFRESH_SECONDS => 1000,
         },
@@ -787,9 +790,10 @@ my $up_desktop = sub{
         my $conf_cert_path = &$get_conf_cert_path().".pub";
         sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $conf_cert_path $from_path/");
         &$put("c4p_alias.sh", join "\n",
-            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin',
+            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin',
             'export JAVA_HOME=/tools/jdk',
             'export C4DEPLOY_CONF=/c4conf/ssh.tar.gz',
+            "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
             'export C4PROTO_DIR=/c4/c4proto',
             "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
         );
@@ -805,7 +809,7 @@ my $up_desktop = sub{
             "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "COPY desktop.pl haproxy.pl id_rsa.pub c4p_alias.sh /",
-            "RUN perl /desktop.pl fix",
+            "RUN C4DATA_DIR=/c4db perl /desktop.pl fix",
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
         );
@@ -826,16 +830,20 @@ my $up_desktop = sub{
             C4FRPC_INI => "/c4conf/frpc.ini",
         },
         {
-            image => $img, name => "desktop", need_c4db => 1 ,
+            image => $img, name => "desktop",
+            C4DATA_DIR => "/c4db",
             C4AUTH_KEY_FILE => "/c4conf/simple.auth",
         },
         {
-            image => $img, name => "sshd", need_c4db => 1,
-            C4SSH_PORT => $ssh_port, C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
+            image => $img, name => "sshd",
+            C4DATA_DIR => "/c4db",
+            C4SSH_PORT => $ssh_port,
+            C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
             C4FRPC_VISITOR_INI => "/c4conf/frpc.visitor.ini",
         },
         {
-            image => $img, name => "haproxy", need_c4db => 1,
+            image => $img, name => "haproxy",
+            C4DATA_DIR => "/c4db",
             C4JOINED_HTTP_PORT => $http_port,
         },
     ])
@@ -983,7 +991,7 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     &$put_text("$ctx_dir/Dockerfile", join "\n",
         &$prod_image_steps(),
         "ENV JAVA_HOME=/tools/jdk",
-        'ENV PATH=${PATH}:/tools/jdk/bin',
+        'ENV PATH=${PATH}:/tools/jdk/bin:/tools/kafka/bin',
         "COPY . /c4",
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
@@ -1092,7 +1100,7 @@ push @tasks, ["up-kc_host", "", sub{
         {
             image => $img,
             name => "sshd",
-            need_c4db => 1,
+            C4DATA_DIR => "/c4db",
             "port:$external_ssh_port:$ssh_port" => "",
         },
         {
@@ -1103,8 +1111,8 @@ push @tasks, ["up-kc_host", "", sub{
         {
             image => $img,
             name => "cd",
-            need_c4db => 1,
             tty => "true",
+            C4DATA_DIR => "/c4db",
             C4CD_PORT => $cicd_port,
             C4CD_DIR => $dir,
             C4CD_AUTH_KEY_FILE => "/c4conf/deploy.auth",

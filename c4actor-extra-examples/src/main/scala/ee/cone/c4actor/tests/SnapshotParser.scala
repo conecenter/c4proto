@@ -27,10 +27,12 @@ class SnapshotParserApp
     with VMExecutionApp
     with ProtocolsApp
     with ExecutableApp
-    with RichDataApp {
+    with RichDataApp
+    with EnvConfigApp
+{
   val loader = new RawSnapshotLoader {
     def load(snapshot: RawSnapshot): ByteString = {
-      val path = Paths.get("/c4/c4proto/db4").resolve(snapshot.relativePath)
+      val path = Paths.get(config.get("C4DATA_DIR")).resolve(snapshot.relativePath)
       ToByteString(Files.readAllBytes(path))
     }
   }
