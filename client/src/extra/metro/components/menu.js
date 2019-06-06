@@ -94,8 +94,9 @@ const MenuBarElement = (props) => {
 		$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:props.isBurgerOpen,key:"burger",onClick:openBurger}),
 		props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null
 	])
+	const className = "menuBar "+props.className
 	return $("div",{},
-		$("div",{style:barStyle,className:"menuBar",ref:elem},[
+		$("div",{style:barStyle,className,ref:elem},[
 			$("div",{key:"left", ref:leftElem,style:{whiteSpace:"nowrap",backgroundColor:"inherit",flex:"1",alignSelf:"center",display:"flex"}},state.isBurger?menuBurger:left),
 			$("div",{key:"right",style:{alignSelf:"center"}},right)
 		])				
@@ -131,9 +132,10 @@ const MenuDropdownElement = (props) =>{
 	const isLeft = re.test(props.style.left)
 	const sideStyle = isLeft && (stateRight!==null)?{right:"100%",left:""}:{}
 	const ieFix = stateRight!==null?{right:stateRight+"px"}:{left:"0px"}
-	const {boxShadow,borderWidth,borderStyle} = GlobalStyles
+	const {boxShadow,borderWidth,borderStyle} = GlobalStyles	
 	return $("div",{
 		ref:elem,
+		className:props.className,
 		style: {
 			position:'absolute',					
 			minWidth:'7em',					
@@ -152,9 +154,7 @@ const MenuDropdownElement = (props) =>{
 	},props.children)					
 }
 const FolderMenuElement = React.memo((props) =>{
-	const elem = React.useRef(null)
-	const [mEnter, setEnter] = React.useState(false)
-	const [mTouch, setTouch] = React.useState(false)
+	const elem = React.useRef(null)	
 	React.useEffect(()=>{
 		elem.current.actions = {
 			onClick:e =>{props.onClick && props.onClick(e); e.stopPropagation()}
@@ -165,26 +165,23 @@ const FolderMenuElement = React.memo((props) =>{
 		}
 	},[props.onClick])
 	const selStyle={
-		position:'relative',
-		backgroundColor:'inherit',
+		position:'relative',		
 		whiteSpace:'nowrap',
 		paddingRight:'0.8em',
 		cursor:"pointer",
 		outline:"none",
-		...props.style,
-		...(mEnter?props.overStyle:null)
+		...props.style		
 	}		
+	const className = "menu-popup " + props.className
 	return $("div",{
 		ref:elem,
-		style:selStyle,
-		onMouseEnter:_ =>setEnter(true),
-		onMouseLeave:_ =>setEnter(false),			    
-		className:"menu-popup",
+		style:selStyle,					    
+		className,
 		tabIndex:"1",
 	},props.children)
 })	
 const ExecutableMenuElement = (props) => {
-	const [mEnter, setEnter] = React.useState(false)
+	//const [mEnter, setEnter] = React.useState(false)
 	const elem = React.useRef(null)
 	React.useEffect(()=>{
 		elem.current.actions = {
@@ -194,19 +191,16 @@ const ExecutableMenuElement = (props) => {
 		return () => {
 			elem.current.removeEventListener("click",elem.current.actions.onClick)
 		}
-	},[props.onClick])
-	const {DarkPrimaryColor} = GlobalStyles
+	},[props.onClick])	
 	const newStyle={
 		minWidth:'7em',             
 		cursor:'pointer',
-		...props.style,				
-		...(mEnter?{backgroundColor:DarkPrimaryColor,...props.overStyle}:null)
+		...props.style		
 	}
 	return $("div",{
 		ref:elem,
 		style:newStyle,    
-		onMouseEnter:_=>setEnter(true),
-		onMouseLeave:_=>setEnter(false)           
+		className:props.className		           
 	},props.children)
 	
 }

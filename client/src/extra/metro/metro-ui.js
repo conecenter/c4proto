@@ -192,8 +192,9 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			mountPaletteCSS(this.el,this.props.pathPalette)
 		}
 		render(){			
-			const isSibling = Branches.isSibling(this.ctx)						
-			return $("div",{key:"1",className:"docRoot",ref:ref=>this.el=ref},this.props.children)
+			const isSibling = Branches.isSibling(this.ctx)	
+			const style = this.props.style
+			return $("div",{key:"1",style,className:"docRoot",ref:ref=>this.el=ref},this.props.children)
 		}
 	}
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -314,6 +315,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		render(){
 			const {value,style,tooltip,children} = this.props			
 			const title = tooltip?tooltip:null
+			const className = "button " + (this.props.className?this.props.className:"")
 			return	$("div",{style:{
 				fontSize:'1em',
 				color:'white',
@@ -333,7 +335,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				MozUserSelect:"none",
 				userSelect:"none",				
 				...style
-			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
+			},className,onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
 		}
 	}
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{			
@@ -544,7 +546,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
 			const focusActions = nodeType=="td"?{onFocus:this.onFocus,onBlur:this.onBlur}:{}
-			const className = "marker focusWrapper"			
+			const className = "marker focusWrapper " + (this.props.className?this.props.className:"")
 			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
 			const v = {border:"1px solid"}
 			const infoS = {position:"absolute",boxSizing:"border-box",width:this.state.info.pWidth+"px"}
@@ -600,17 +602,16 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			const stO = this.state.info.side != dragDropPositionStates.none? {position:"relative",overflow:""}:{}
 			
 			const stStyle = (path)=>({
-					borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 					borderLeft:'none',
-					borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
-					borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`:"none",
+					borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 					fontWeight:'bold',
 					padding:'0.1em 0.2em',
 					verticalAlign:'middle',
 					overflow:"hidden",				
 					textOverflow:"ellipsis",
-					cursor:this.props.draggable?"move":"auto",
-					backgroundColor:"transparent",
+					cursor:this.props.draggable?"move":"auto",					
 					outlineWidth:"1px",
 					outlineColor:"red",
 					...propsOnPath(path,this.props.path),
@@ -678,13 +679,14 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			}
 		}
 		render(){
+			const className = this.props.className
 			const trStyle={
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
 				outlineOffset:GlobalStyles.outlineOffset,								
 				...this.props.style,
 				...(this.state.mouseOver?this.props.overStyle:null)
 			}
-			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+			return $("tr",{ref:ref=>this.el=ref,className,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	}
 	class Interactive extends StatefulComponent{		
@@ -933,7 +935,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				width:"100%",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				borderColor:this.props.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:(this.props.onChange||this.props.onBlur)?"white":"#eeeeee",
+				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
 				boxSizing:"border-box",
 				...this.props.style
 			};
@@ -959,8 +961,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				whiteSpace:this.props.div?"normal":"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
-				textTransform:"inherit",
-				backgroundColor:"inherit",
+				textTransform:"inherit",				
 				outline:"none",
 				textAlign:"inherit",
 				display:this.props.div?"inline-block":"",
@@ -984,15 +985,14 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			const drawFunc = this.props.drawFunc
 			
 			//log(this.props.value)
-			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
+			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions, className},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					$("div",{key:"xx",style:inp2ContStyle}, drawFunc(
 						$(inputType,{
 							key:"input",
 							ref:ref=>this.inp = ref,
 							type,rows,readOnly,placeholder,auto,
-							"data-type":dataType,
-							className,
+							"data-type":dataType,							
 							name:vkOnly,
 							content,							
 							style:inputStyle,							
@@ -1225,7 +1225,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			};
 			const div = this.props.div&&this.props.div!=0
 			const urlData = this.props.url?this.props.url:images.arrowDownSvgData;
-			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""		
+			//const className = (this.props.focusMarker?`marker-${this.props.focusMarker}`:"") + this.props.className
 			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
@@ -1246,7 +1246,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 					height:"auto"
 				}:null)
 			}
-			return $(InputElement,{...this.props,lockedFocus:this.props.open,drawFunc,inputStyle,className,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
+			return $(InputElement,{...this.props,lockedFocus:this.props.open,drawFunc,inputStyle,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
 		}
 	}
 	const ButtonInputElement = (props) => $(Interactive,{},(actions)=>{
@@ -1680,8 +1680,8 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		render(){
 			const prop = this.props
 			const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"},log)
-			const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
-			const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
+			const buttonStyle = prop.buttonStyle
+			const buttonOverStyle = prop.buttonOverStyle
 			const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
 			const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
 			const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
@@ -1697,6 +1697,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			const check = (e) =>{
 				
 			}
+			const className = "marker-login " + this.props.buttonCs
 			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},$("form",{onSubmit:(e)=>{e.preventDefault()}},[
 				$(ControlWrapperElement,{key:"1"},
 					$(LabelElement,{label:usernameCaption},null),
@@ -1707,7 +1708,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 					$(InputElement,{...attributesB,value:undefined,vkOnly,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
 				),
 				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
+					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className},buttonCaption)
 				)
 			]))		
 		}
@@ -2997,8 +2998,8 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			if(this.el) this.el.removeEventListener("click",this.onClick)
 		}
 		render(){
-			const style = this.props.style
-			return $("div",{style,ref:ref=>this.el=ref},this.props.children)
+			const {style,className} = this.props			
+			return $("div",{style,ref:ref=>this.el=ref,className},this.props.children)
 		}
 	}		
 	class CanvasMaxHeightElement extends StatefulComponent{

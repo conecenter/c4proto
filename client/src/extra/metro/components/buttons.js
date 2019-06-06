@@ -18,11 +18,10 @@ const buttonReducer = (state,action) => {
 const $ = React.createElement
 const ButtonElement = (props) => {	
 	const [state,dispatch] = React.useReducer(buttonReducer,initialButtonState)
-	const elem = React.useRef(null)
-	const defbg = "#eeeeee"
-	const bg = props.style&&props.style.backgroundColor?props.style.backgroundColor:defbg					
+	const elem = React.useRef(null)				
 	const disabled = props.changing?true:null
-	const {outlineWidth, outlineStyle, outlineColor,outlineOffset} = GlobalStyles
+	const {outlineWidth, outlineStyle, outlineColor,outlineOffset} = GlobalStyles	
+	const hasOverStyle = props.className && props.className.split(" ").some(cs=>cs.includes("-over"))
 	const style={
 		border:'none',
 		cursor:'pointer',
@@ -37,8 +36,7 @@ const ButtonElement = (props) => {
 		outline:state.touchStart?`${outlineWidth} ${outlineStyle} ${outlineColor}`:'none',
 		outlineOffset:outlineOffset,
 		...props.style,			
-		...(state.mouseOver && Object.keys(props.overStyle||{}).length==0?{opacity:"0.8"}:null),
-		...(state.mouseOver?props.overStyle:null),
+		...(state.mouseOver && !hasOverStyle?{opacity:"0.8"}:null),		
 		...(disabled?{opacity:"0.4"}:null)
 	}
 	const className = props.className	
