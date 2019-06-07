@@ -7,14 +7,20 @@ my $put_text = sub{
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
+my $need_home = sub{
+    print "1\n";
+    my $data_dir = $ENV{C4DATA_DIR} || die;
+    sy("mkdir -p $data_dir/home && chmod 0700 $data_dir/home");
+    print "2\n";
+};
 
 my @tasks;
 
 push @tasks, [frpc=>sub{
     if($ENV{C4DATA_DIR}){
+        sy("ls -la $ENV{C4DATA_DIR}");
         &$need_home();
         m{^/c4repo/(\w+)$} and !-e "/c4/$1" and sy("ln -s $_ /c4/$1") for </c4repo/*>;
-
     }
     &$exec("/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die);
 }];
@@ -28,12 +34,6 @@ push @tasks, [fix=>sub{
         'chown c4:c4 /etc/X11/c4spiceqxl.xorg.conf',
         q[perl  -i -pe 's{(/python\n)}{$1\ntemp_dir=None\n}' /usr/bin/Xspice];
 }];
-my $need_home = sub{
-    print "1\n";
-    my $data_dir = $ENV{C4DATA_DIR} || die;
-    sy("mkdir -p $data_dir/home && chmod 0700 $data_dir/home");
-    print "2\n";
-};
 push @tasks, [desktop=>sub{
     &$need_home();
     sy("mkdir -p /c4/.config/autostart");

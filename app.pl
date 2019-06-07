@@ -112,7 +112,7 @@ my $run_generator = sub{
 
 my $run_generator_outer = sub{
     my $generator_path = &$get_generator_path();
-    -e $_ and sy("rm -r $_") for "$generator_path/src";
+    -e $_ and sy("rm -rf $_") for "$generator_path/src";
     my $src_dir = &$abs_path();
     for my $path (grep{-e} map{"$_/src"} <$src_dir/c4*>){
         my $rel_path = substr $path, length $src_dir;

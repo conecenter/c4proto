@@ -263,10 +263,12 @@ push @tasks, ["exec-dc_consumer","",$exec_dc];
 push @tasks, ["exec-dc_gate","",$exec_dc];
 push @tasks, ["exec-kc_consumer","",$exec_kc];
 push @tasks, ["exec-kc_gate","",$exec_kc];
+push @tasks, ["exec-kc_desktop","",$exec_kc];
 push @tasks, ["lscont-dc_consumer", "", $lscont_dc];
 push @tasks, ["lscont-dc_gate", "", $lscont_dc];
 push @tasks, ["lscont-kc_consumer", "", $lscont_kc];
 push @tasks, ["lscont-kc_gate", "", $lscont_kc];
+push @tasks, ["lscont-kc_desktop", "", $lscont_kc];
 
 push @tasks, ["gc","$composes_txt",sub{
     my($comp)=@_;
@@ -455,7 +457,7 @@ my $make_kc_yml = sub{
         volumeClaimTemplates => [{
             metadata => { name => "db4" },
             spec => {
-                accessModes => ["ReadWriteMany"],
+                accessModes => ["ReadWriteOnce"], #Many
                 resources => { requests => { storage => "100Gi" } },
             },
         }],
@@ -1308,46 +1310,6 @@ push @tasks, ["cert","<hostname>",sub{
   sy(&$remote($comp,"docker exec proxy_haproxy_1 kill -s HUP 1"));
 }];
 
-push @tasks, ["devel_init_frpc","<devel>|all",sub{
-    my($developer) = @_;
-    sy(&$ssh_add());
-    my $comp = "devel";
-    my($token,$sk,%auth) = &$get_auth($comp);
-    my $proxy_list = (&$get_deploy_conf()->{proxy_to}||die)->{visits}||die;
-    my $put = sub{
-        my($inner_comp,$fn,$content) = @_;
-        &$remote($comp,&$interactive($inner_comp, "sshd", "cat > /c4/$fn"))." < ".&$put_temp($fn,$content)
-    };
-    my $process = sub{
-        my($inner_comp) = @_;
-        sy(&$put($inner_comp,"frpc.ini",&$to_ini_file([
-             common => [&$get_frp_common("devel")],
-             &$frp_web($inner_comp),
-             map{my($port,$container)=@$_;("$inner_comp.p_$port" => [
-                 type => "stcp",
-                 sk => $sk,
-                 local_ip => $container,
-                 local_port => $port,
-             ])} @$proxy_list
-        ])));
-        sy(&$put($inner_comp,"frpc_visitor.ini", &$to_ini_file([
-            common => [&$get_frp_common("devel")],
-            map{my($port,$container)=@$_;("$inner_comp.p_$port\_visitor" => [
-                type => "stcp",
-                role => "visitor",
-                sk => $sk,
-                server_name => "$inner_comp.p_$port",
-                bind_port => $port,
-                bind_addr => "127.0.20.2",
-            ])} @$proxy_list
-        ])));
-        sy(&$remote($comp,"docker restart $inner_comp\_frpc_1"));
-    };
-    &$process($_) for
-        $developer eq "all" ? (map{/^(\w+)_sshd_/ ? "$1" : ()} &$running_containers_all($comp)) :
-        $developer=~/^(\w+)$/ ? "$1" : die;
-}];
-
 ####
 
 my $tp_split = sub{ "$_[0]\n\n"=~/(.*?\n\n)/gs };
@@ -1408,6 +1370,19 @@ push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
     my($comp,$service) = &$split_app($app);
     sy(&$remote($comp,&$interactive($comp, $service, "tar -xz"))." < $tgz");
 }];
+push @tasks, ["cat_visitor_conf","$composes_txt",sub{
+    my($comp)=@_;
+    sy(&$ssh_add());
+    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    sy(&$remote($comp,&$mk_exec("","sshd","cat /c4conf/frpc.visitor.ini")));
+}];
+push @tasks, ["add_authorized_key","$composes_txt <key>",sub{
+    my($comp,@key)=@_;
+    sy(&$ssh_add());
+    my $content = join ' ',@key;
+    sy(&$remote($comp,&$interactive($comp,"sshd","cat >> /c4/.ssh/authorized_keys"))." < ".&$put_temp("key",$content));
+}];
+
 
 ####
 
@@ -1417,7 +1392,45 @@ my($cmd,@args)=@ARGV;
 
 
 
-
+#push @tasks, ["devel_init_frpc","<devel>|all",sub{
+#    my($developer) = @_;
+#    sy(&$ssh_add());
+#    my $comp = "devel";
+#    my($token,$sk,%auth) = &$get_auth($comp);
+#    my $proxy_list = (&$get_deploy_conf()->{proxy_to}||die)->{visits}||die;
+#    my $put = sub{
+#        my($inner_comp,$fn,$content) = @_;
+#        &$remote($comp,&$interactive($inner_comp, "sshd", "cat > /c4/$fn"))." < ".&$put_temp($fn,$content)
+#    };
+#    my $process = sub{
+#        my($inner_comp) = @_;
+#        sy(&$put($inner_comp,"frpc.ini",&$to_ini_file([
+#             common => [&$get_frp_common("devel")],
+#             &$frp_web($inner_comp),
+#             map{my($port,$container)=@$_;("$inner_comp.p_$port" => [
+#                 type => "stcp",
+#                 sk => $sk,
+#                 local_ip => $container,
+#                 local_port => $port,
+#             ])} @$proxy_list
+#        ])));
+#        sy(&$put($inner_comp,"frpc_visitor.ini", &$to_ini_file([
+#            common => [&$get_frp_common("devel")],
+#            map{my($port,$container)=@$_;("$inner_comp.p_$port\_visitor" => [
+#                type => "stcp",
+#                role => "visitor",
+#                sk => $sk,
+#                server_name => "$inner_comp.p_$port",
+#                bind_port => $port,
+#                bind_addr => "127.0.20.2",
+#            ])} @$proxy_list
+#        ])));
+#        sy(&$remote($comp,"docker restart $inner_comp\_frpc_1"));
+#    };
+#    &$process($_) for
+#        $developer eq "all" ? (map{/^(\w+)_sshd_/ ? "$1" : ()} &$running_containers_all($comp)) :
+#        $developer=~/^(\w+)$/ ? "$1" : die;
+#}];
 
 #my $git_with_dir = sub{
 #    my($app,$args)=@_;
