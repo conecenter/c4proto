@@ -1379,7 +1379,7 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
 push @tasks, ["add_authorized_key","$composes_txt <key>",sub{
     my($comp,@key)=@_;
     sy(&$ssh_add());
-    my $content = join ' ',@key;
+    my $content = join(' ',@key)."\n";
     sy(&$remote($comp,&$interactive($comp,"sshd","cat >> /c4/.ssh/authorized_keys"))." < ".&$put_temp("key",$content));
 }];
 
