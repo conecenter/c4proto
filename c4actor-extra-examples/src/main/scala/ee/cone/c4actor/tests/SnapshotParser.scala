@@ -40,5 +40,4 @@ class SnapshotParserApp
   override def toStart: List[Executable] = new SnapshotParser(execution, toUpdate, new SnapshotLoaderImpl(loader), qAdapterRegistry) :: super.toStart
   override def protocols: List[Protocol] = ExternalProtocol :: super.protocols
   def assembleProfiler: AssembleProfiler = NoAssembleProfiler
-  def actorName: String = "SnapshotParser"
 }

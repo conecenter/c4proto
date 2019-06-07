@@ -18,7 +18,7 @@ my @tasks;
 
 push @tasks, [frpc=>sub{
     if($ENV{C4DATA_DIR}){
-        sy("ls -la $ENV{C4DATA_DIR}");
+        #sy("ls -la $ENV{C4DATA_DIR}");
         &$need_home();
         m{^/c4repo/(\w+)$} and !-e "/c4/$1" and sy("ln -s $_ /c4/$1") for </c4repo/*>;
     }
