@@ -603,6 +603,7 @@ my $make_frpc_conf = sub{
                 sk => $sk,
                 server_name => "$comp.$service_name",
                 bind_port => $port,
+                bind_addr => "0.0.0.0",
             ])
         } @$services;
         &$put("frpc.visitor.ini", &$to_ini_file([@common,@add]));
