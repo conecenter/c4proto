@@ -3,7 +3,7 @@ package ee.cone.c4gate
 
 import com.sun.net.httpserver.HttpExchange
 import ee.cone.c4actor._
-import ee.cone.c4gate.HttpProtocol.Header
+import ee.cone.c4gate.HttpProtocol.N_Header
 
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
@@ -32,5 +32,5 @@ trait SSEConfig {
 }
 
 trait RHttpHandler {
-  def handle(httpExchange: HttpExchange, headers: List[Header]): Boolean
+  def handle(httpExchange: HttpExchange, headers: List[N_Header]): Boolean
 }

@@ -5,7 +5,7 @@ import java.nio.file.{Files, Paths}
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor._
 import ee.cone.c4external.ExternalProtocol
-import ee.cone.c4external.ExternalProtocol.ExternalUpdate
+import ee.cone.c4external.ExternalProtocol.S_ExternalUpdate
 import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 import okio.ByteString
 
@@ -13,11 +13,10 @@ import okio.ByteString
 
 class SnapshotParser(execution: Execution, toUpdate: ToUpdate, snapshotLoader: SnapshotLoader, qAdapterRegistry: QAdapterRegistry) extends Executable {
   def run(): Unit = {
-    val adapter = qAdapterRegistry.byName(classOf[ExternalUpdate].getName).asInstanceOf[ProtoAdapter[ExternalUpdate] with HasId]
-    val sn = snapshotLoader.load(RawSnapshot("snapshots/0000000000000000-9f4d7985-dcee-331f-a010-fa9eb61063fa"))
+    val adapter = qAdapterRegistry.byName(classOf[S_ExternalUpdate].getName).asInstanceOf[ProtoAdapter[S_ExternalUpdate] with HasId]
+    val sn = snapshotLoader.load(RawSnapshot("snapshots/0000000000005868-3c8ce3d3-d3b3-3027-9622-e210238e0276-c-lz4"))
     val updates = toUpdate.toUpdates(sn.toList)
-    println(updates.filter(_.flags != 0L))
-    println(updates.filter(_.valueTypeId == adapter.id).map(u ⇒ adapter.decode(u.value)).map(_.txId).map(txId ⇒ s"|$txId|"))
+    println(updates.filter(_.flags != 0L).mkString("\n"))
     execution.complete()
   }
 }
@@ -27,7 +26,8 @@ class SnapshotParserApp
     with VMExecutionApp
     with ProtocolsApp
     with ExecutableApp
-    with RichDataApp {
+    with RichDataApp
+    with LZ4DeCompressorApp {
   val loader = new RawSnapshotLoader {
     def load(snapshot: RawSnapshot): ByteString = {
       val path = Paths.get("/c4/c4proto/db4").resolve(snapshot.relativePath)

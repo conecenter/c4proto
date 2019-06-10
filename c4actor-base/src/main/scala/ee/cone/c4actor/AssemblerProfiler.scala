@@ -4,17 +4,17 @@ import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{TxRef, Update}
-import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{LogEntry, TxAddMeta}
+import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{D_LogEntry, D_TxAddMeta}
 import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, OrigCategory, Protocol, protocol}
+import ee.cone.c4proto.{Id, DataCategory, Protocol, protocol}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case object ProfilerMetaCat extends OrigCategory
+case object ProfilerMetaCat extends DataCategory
 
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =
@@ -31,16 +31,16 @@ case object NoJoiningProfiling extends JoiningProfiling {
 ////
 
 @protocol(ProfilerMetaCat) object SimpleAssembleProfilerProtocolBase   {
-  @Id(0x0073) case class TxAddMeta(
+  @Id(0x0073) case class D_TxAddMeta(
     @Id(0x0074) srcId: String,
     @Id(0x0075) startedAt: Long,
     @Id(0x0076) finishedAt: Long,
-    @Id(0x0077) log: List[LogEntry],
+    @Id(0x0077) log: List[D_LogEntry],
     @Id(0x007B) updObjCount: Long,
     @Id(0x007C) updByteCount: Long,
     @Id(0x007D) updValueTypeIds: List[Long]
   )
-  @Id(0x0078) case class LogEntry(
+  @Id(0x0078) case class D_LogEntry(
     @Id(0x0079) name: String,
     @Id(0x007E) stage: Long,
     @Id(0x007A) value: Long
@@ -61,10 +61,10 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
     for {
       logAll ← transition.log
     } yield {
-      val log = logAll.collect{ case l: LogEntry ⇒ l }
+      val log = logAll.collect{ case l: D_LogEntry ⇒ l }
       val meta = List(
         TxRef(id,""),
-        TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
+        D_TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
       )
       val metaUpdates = meta.flatMap(LEvent.update).map(toUpdate.toUpdate)
       val metaTypeIds = metaUpdates.map(_.valueTypeId).toSet
@@ -78,7 +78,7 @@ case class SimpleSerialJoiningProfiling(startedAt: Long) extends JoiningProfilin
   def time: Long = System.nanoTime
   def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog = {
     val period = (System.nanoTime - start) / 1000
-    LogEntry(join.name,stage,period) :: wasLog
+    D_LogEntry(join.name,stage,period) :: wasLog
   }
 }
 

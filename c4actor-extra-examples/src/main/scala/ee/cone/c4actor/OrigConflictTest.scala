@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.OrigConflictProtocol.ConflictOrig
+import ee.cone.c4actor.ProtoConflict.ConflictOrig
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -10,7 +10,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConflictOrigTestApp sbt ~'c4actor-extra-examples/runMain -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 ee.cone.c4actor.ServerMain'
 
-@protocol(TestCat) object OrigConflictProtocolBase   {
+@protocol(TestCat) object ProtoConflictBase   {
 
   @Id(0x103) case class ConflictOrig(
     @Id(0x104) srcId: String,
@@ -21,7 +21,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class ConflictRich(conflict: ConflictOrig)
 
-@assemble class OrigConflictAssembleBase(produce: ConflictOrig)   {
+@assemble class AssembleConflictBase(produce: ConflictOrig)   {
 
   def Produce(
     modelId: SrcId,
@@ -72,9 +72,9 @@ class ConflictOrigTestApp extends TestRichDataApp
   with ToStartApp {
   override def toStart: List[Executable] = new ConflictingOrigTest(execution, toUpdate, contextFactory) :: super.toStart
 
-  override def protocols: List[Protocol] = OrigConflictProtocol :: super.protocols
+  override def protocols: List[Protocol] = ProtoConflict :: super.protocols
 
-  override def assembles: List[Assemble] = new OrigConflictAssemble(ConflictOrig("main", 0)) :: super.assembles
+  override def assembles: List[Assemble] = new AssembleConflict(ConflictOrig("main", 0)) :: super.assembles
 
   lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
 }

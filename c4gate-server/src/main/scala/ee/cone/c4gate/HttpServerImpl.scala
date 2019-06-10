@@ -27,12 +27,12 @@ import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
-  def handle(httpExchange: HttpExchange, reqHeaders: List[Header]): Boolean = {
+  def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean = {
     if(httpExchange.getRequestMethod != "GET") return false
     val path = httpExchange.getRequestURI.getPath
     val now = System.currentTimeMillis
     val local = worldProvider.createTx()
-    val publicationsByPath = ByPK(classOf[HttpPublication]).of(local)
+    val publicationsByPath = ByPK(classOf[S_HttpPublication]).of(local)
     publicationsByPath.get(path).filter(_.until.forall(now<_)) match {
       case Some(publication) ⇒
         val cTag = reqHeaders.find(_.key=="If-none-match").map(_.value)
@@ -63,27 +63,27 @@ object AuthOperations {
     random.nextBytes(salt)
     ToByteString(salt)
   }
-  private def pbkdf2(password: String, template: SecureHash): SecureHash = {
+  private def pbkdf2(password: String, template: N_SecureHash): N_SecureHash = {
     val spec = new PBEKeySpec(password.toCharArray, template.salt.toByteArray, template.iterations, template.hashSizeInBytes * 8)
     val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
     template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
   }
-  def createHash(password: String): SecureHash =
-    pbkdf2(password, SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))
-  def verify(password: String, correctHash: SecureHash): Boolean =
+  def createHash(password: String): N_SecureHash =
+    pbkdf2(password, N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))
+  def verify(password: String, correctHash: N_SecureHash): Boolean =
     correctHash == pbkdf2(password, correctHash)
 }
 
 class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
-  def handle(httpExchange: HttpExchange, headers: List[Header]): Boolean = {
+  def handle(httpExchange: HttpExchange, headers: List[N_Header]): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     val headerMap = headers.map(h⇒h.key→h.value).toMap
     val local = worldProvider.createTx()
     val requestId = UUID.randomUUID.toString
     val path = httpExchange.getRequestURI.getPath
     val buffer = (new okio.Buffer).readFrom(httpExchange.getRequestBody)
-    val post: okio.ByteString ⇒ HttpPost =
-      HttpPost(requestId, path, headers, _, System.currentTimeMillis)
+    val post: okio.ByteString ⇒ S_HttpPost =
+      S_HttpPost(requestId, path, headers, _, System.currentTimeMillis)
 
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
@@ -92,12 +92,12 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         if(password!=again) throw new Exception("passwords do not match")
         val hash = Option(AuthOperations.createHash(password))
         List(
-          PasswordChangeRequest(requestId, hash),
+          S_PasswordChangeRequest(requestId, hash),
           post(okio.ByteString.encodeUtf8(requestId))
         )
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
-        val hashesByUser = ByPK(classOf[PasswordHashOfUser]).of(local)
+        val hashesByUser = ByPK(classOf[C_PasswordHashOfUser]).of(local)
         val hash = hashesByUser.get(userName).map(_.hash.get)
         val endTime = System.currentTimeMillis() + 1000
         val hashOK = hash.exists(pass⇒AuthOperations.verify(password,pass))
@@ -106,7 +106,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         val newId = UUID.randomUUID.toString
         if(hashOK) List(
           post(ToByteString(newId)),
-          AuthenticatedSession(newId, userName, Instant.now.plusSeconds(20).getEpochSecond),
+          U_AuthenticatedSession(newId, userName, Instant.now.plusSeconds(20).getEpochSecond),
           ToAlienWrite(newId,currentSessionKey,"signedIn",newId,0)
         ) else List(
           post(okio.ByteString.EMPTY)
@@ -131,8 +131,8 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
 class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
   def handle(httpExchange: HttpExchange) =
     Trace{ FinallyClose[HttpExchange,Unit](_.close())(httpExchange) { ex ⇒
-      val headers: List[Header] = httpExchange.getRequestHeaders.asScala
-          .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
+      val headers: List[N_Header] = httpExchange.getRequestHeaders.asScala
+          .flatMap{ case(k,l)⇒l.asScala.map(v⇒N_Header(k,v)) }.toList
       handlers.find(_.handle(ex,headers))
     } }
 }
@@ -186,7 +186,7 @@ trait HttpServerApp extends ToStartApp {
 
 object PostAssembles {
   def apply(mortal: MortalFactory, sseConfig: SSEConfig): List[Assemble] =
-    mortal(classOf[HttpPost]) :: new PostLifeAssemble(sseConfig) :: Nil
+    mortal(classOf[S_HttpPost]) :: new PostLifeAssemble(sseConfig) :: Nil
 }
 
 case class HttpPostAllow(condition: SrcId)
@@ -197,8 +197,8 @@ case class HttpPostAllow(condition: SrcId)
 
   def postsByCondition(
     key: SrcId,
-    post: Each[HttpPost]
-  ): Values[(Condition, HttpPost)] =
+    post: Each[S_HttpPost]
+  ): Values[(Condition, S_HttpPost)] =
     List(post.headers.find(_.key=="X-r-branch").map(_.value).getOrElse(post.path) → post)
 
   def consumersByCondition(
@@ -210,19 +210,19 @@ case class HttpPostAllow(condition: SrcId)
   def lifeToPosts(
     key: SrcId,
     @by[Condition] consumers: Values[LocalPostConsumer],
-    @by[Condition] post: Each[HttpPost]
-  ): Values[(Alive, HttpPost)] = //it's not ok if postConsumers.size > 1
+    @by[Condition] post: Each[S_HttpPost]
+  ): Values[(Alive, S_HttpPost)] = //it's not ok if postConsumers.size > 1
     if(consumers.nonEmpty) List(WithPK(post)) else Nil
 
   def alivePostsBySession(
     key: SrcId,
-    @by[Alive] post: Each[HttpPost]
-  ): Values[(ASessionKey, HttpPost)] =
+    @by[Alive] post: Each[S_HttpPost]
+  ): Values[(ASessionKey, S_HttpPost)] =
     List(post.headers.find(_.key=="X-r-session").map(_.value).getOrElse("") → post)
 
   def allowSessionPosts(
     key: SrcId,
-    @by[ASessionKey] posts: Values[HttpPost]
+    @by[ASessionKey] posts: Values[S_HttpPost]
   ): Values[(SrcId, HttpPostAllow)] =
     for(post ← posts if posts.size <= sseConfig.sessionWaitingPosts || key.isEmpty)
       yield WithPK(HttpPostAllow(post.srcId))

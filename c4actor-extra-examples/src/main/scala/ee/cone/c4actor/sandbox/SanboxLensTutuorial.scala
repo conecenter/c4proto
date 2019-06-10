@@ -6,7 +6,7 @@ import ee.cone.c4assemble.Getter
 object SanboxLensTutuorial {
   def main(args: Array[String]): Unit = {
 
-    val person = Person("Dmitri", Phone(123, (789, 75, 99)))
+    val person = D_Person("Dmitri", Phone(123, (789, 75, 99)))
     val number = person.phone.number._3
     person.copy(
       phone = person.phone.copy(
@@ -18,8 +18,8 @@ object SanboxLensTutuorial {
 
     val newPerson = PersonToPhoneLens.set(Phone(1, (1, 2, 3)))(person)
 
-    val prodPhoneLens: ProdLens[Person, Phone] =
-      ProdLens.ofSet[Person, Phone](
+    val prodPhoneLens: ProdLens[D_Person, Phone] =
+      ProdLens.ofSet[D_Person, Phone](
         _.phone,
         phone ⇒ _.copy(phone = phone),
         "PersonToPhone"
@@ -30,7 +30,7 @@ object SanboxLensTutuorial {
         code ⇒ _.copy(code = code),
         "PhoneToCode"
       )
-    val prodPersonCodeLens: ProdLens[Person, Int] =
+    val prodPersonCodeLens: ProdLens[D_Person, Int] =
       prodPhoneLens.to(prodCodeLens)
 
 
@@ -40,10 +40,10 @@ object SanboxLensTutuorial {
 
 case class Phone(code: Int, number: (Int, Int, Int))
 
-case class Person(name: String, phone: Phone)
+case class D_Person(name: String, phone: Phone)
 
-trait PhoneGetter extends Getter[Person, Phone] {
-  def of: Person => Phone = _.phone
+trait PhoneGetter extends Getter[D_Person, Phone] {
+  def of: D_Person => Phone = _.phone
 }
 
 case object CodeGetter extends Getter[Phone, Int] {
@@ -54,12 +54,12 @@ case class GetterComposer[A, B, C](getterA: Getter[A, B], getterB: Getter[B, C])
   def of: A => C = model ⇒ getterB.of(getterA.of(model))
 }
 
-case object PersonToPhoneLens extends Lens[Person, Phone]
+case object PersonToPhoneLens extends Lens[D_Person, Phone]
   with PhoneGetter {
-  def modify: (Phone => Phone) => Person => Person =
+  def modify: (Phone => Phone) => D_Person => D_Person =
     f => model => set(f(of(model)))(model)
 
-  def set: Phone => Person => Person =
+  def set: Phone => D_Person => D_Person =
     newPhone => _.copy(phone = newPhone)
 }
 

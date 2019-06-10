@@ -10,7 +10,7 @@ import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4gate.HttpProtocol.{Header, HttpPost, HttpPublication}
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPost, S_HttpPublication}
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
@@ -24,7 +24,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandle
     if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
     true
   }
-  def handle(httpExchange: HttpExchange, reqHeaders: List[Header]): Boolean =
+  def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean =
     if(httpExchange.getRequestMethod == "GET"){
       val path = httpExchange.getRequestURI.getPath
       if(path.startsWith("/snapshot")){
@@ -46,19 +46,19 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandle
 
   def mapAll(
     key: SrcId,
-    post: Each[HttpPost]
-  ): Values[(NeedSnapshot,HttpPost)] =
+    post: Each[S_HttpPost]
+  ): Values[(NeedSnapshot,S_HttpPost)] =
     if(post.path == SnapshotMakingUtil.url) List(actorName→post) else Nil
 
   def mapFirstborn(
     key: SrcId,
     firstborn: Each[Firstborn],
-    @by[NeedSnapshot] posts: Values[HttpPost]
+    @by[NeedSnapshot] posts: Values[S_HttpPost]
   ): Values[(SrcId,TxTransform)] = {
     val srcId = "snapshotMaker"
     if(posts.isEmpty) List(WithPK(PeriodicSnapshotMakingTx(srcId)(snapshotMaking)))
     else {
-      def task(post: HttpPost) = signatureChecker.retrieve(check=false)(SnapshotMakingUtil.signed(post.headers))
+      def task(post: S_HttpPost) = signatureChecker.retrieve(check=false)(SnapshotMakingUtil.signed(post.headers))
       val taskOpt = task(posts.minBy(_.srcId))
       val similarPosts = posts.toList.filter(post ⇒ task(post)==taskOpt).sortBy(_.srcId)
       List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking, signatureChecker)))
@@ -67,10 +67,10 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandle
 }
 
 object SnapshotMakingUtil {
-  def header(headers: List[Header], key: String): Option[String] =
+  def header(headers: List[N_Header], key: String): Option[String] =
     headers.find(_.key == key).map(_.value)
   val url = "/need-snapshot"
-  def signed(headers: List[Header]): Option[String] = header(headers,"X-r-signed")
+  def signed(headers: List[N_Header]): Option[String] = header(headers,"X-r-signed")
 }
 
 object Time {
@@ -90,27 +90,27 @@ case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMakerI
 }
 
 case class RequestedSnapshotMakingTx(
-  srcId: SrcId, taskOpt: Option[SnapshotTask], posts: List[HttpPost]
+  srcId: SrcId, taskOpt: Option[SnapshotTask], posts: List[S_HttpPost]
 )(snapshotMaking: SnapshotMaker, signatureChecker: Signer[SnapshotTask]) extends TxTransform {
   def transform(local: Context): Context = {
-    val res: List[(HttpPost, List[Header])] = (ErrorKey.of(local), taskOpt) match {
+    val res: List[(S_HttpPost, List[N_Header])] = (ErrorKey.of(local), taskOpt) match {
       case (Seq(), Some(task)) ⇒
         val (authorized, nonAuthorized) = posts.partition(post ⇒
           signatureChecker.retrieve(check=true)(SnapshotMakingUtil.signed(post.headers)).nonEmpty
         )
         val res = if (authorized.nonEmpty) snapshotMaking.make(task) else Nil
-        val goodResp = List(Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
+        val goodResp = List(N_Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
         val authorizedResponses = authorized.map(au ⇒ au → goodResp)
-        val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → List(Header("X-r-error-message", "Non authorized request")))
+        val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → List(N_Header("X-r-error-message", "Non authorized request")))
         authorizedResponses ::: nonAuthorizedResponses
       case (errors, _) if errors.nonEmpty ⇒
-        val errorHeaders = errors.map(e ⇒ Header("X-r-error-message", e.getMessage))
+        val errorHeaders = errors.map(e ⇒ N_Header("X-r-error-message", e.getMessage))
         posts.map(post ⇒ post → errorHeaders)
     }
     val updates = for {
       (post, headers) ← res
       key ← SnapshotMakingUtil.header(post.headers,"X-r-response-key").toList
-      update ← LEvent.update(HttpPublication(s"/response/$key", headers, ByteString.EMPTY, Option(now + hour)))
+      update ← LEvent.update(S_HttpPublication(s"/response/$key", headers, ByteString.EMPTY, Option(now + hour)))
     } yield update
     Function.chain(Seq(
       TxAdd(updates ++ posts.flatMap(LEvent.delete)),

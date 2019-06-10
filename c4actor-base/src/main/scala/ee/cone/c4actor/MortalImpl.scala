@@ -15,14 +15,14 @@ object Killing {
   type KillerId = SrcId
 }
 
-@assemble class MortalAssembleBase[Node<:Product](
-  classOfMortal: Class[Node],
+@assemble class MortalAssembleBase[D_Node<:Product](
+  classOfMortal: Class[D_Node],
   anUUIDUtil: IdGenUtil
 )   {
   def createKilling(
     key: SrcId,
-    mortal: Each[Node],
-    @distinct @by[Alive] keepAlive: Values[Node]
+    mortal: Each[D_Node],
+    @distinct @by[Alive] keepAlive: Values[D_Node]
   ): Values[(KillerId,Killing)] = if(keepAlive.nonEmpty) Nil else for {
     ev ← LEvent.delete(mortal)
     killing ← Seq(Killing(anUUIDUtil.srcIdFromSrcIds(ev.srcId,ev.className/*it's just string*/),ev))

@@ -4,7 +4,7 @@ import java.lang.management.ManagementFactory
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.MD5HashingProtocol.{TestOrigEasy, TestOrigHard}
-import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, PerformanceNode}
+import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, D_PerformanceNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._

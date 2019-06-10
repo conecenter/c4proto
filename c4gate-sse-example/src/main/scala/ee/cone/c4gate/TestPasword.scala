@@ -6,7 +6,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.AuthProtocol.{PasswordChangeRequest, PasswordHashOfUser}
+import ee.cone.c4gate.AuthProtocol.{S_PasswordChangeRequest, C_PasswordHashOfUser}
 import ee.cone.c4proto.Protocol
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
@@ -94,7 +94,7 @@ case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState
   def view: Context ⇒ ViewRes = local ⇒ UntilPolicyKey.of(local){ ()⇒
     val tags = TestTagsKey.of(local)
     val mTags = TagsKey.of(local)
-    val freshDB = ByPK(classOf[PasswordHashOfUser]).of(local).isEmpty
+    val freshDB = ByPK(classOf[C_PasswordHashOfUser]).of(local).isEmpty
     val userName = fromAlienState.userName
     println(userName,freshDB)
     if(userName.isEmpty && !freshDB){
@@ -108,9 +108,9 @@ case class TestPasswordRootView(branchKey: SrcId, fromAlienState: FromAlienState
       List(
         tags.changePassword(message ⇒ local ⇒ {
           val reqId = tags.messageStrBody(message)
-          val requests = ByPK(classOf[PasswordChangeRequest]).of(local)
+          val requests = ByPK(classOf[S_PasswordChangeRequest]).of(local)
           val updates = requests.get(reqId).toList
-            .flatMap(req⇒update(PasswordHashOfUser("test",req.hash)))
+            .flatMap(req⇒update(C_PasswordHashOfUser("test",req.hash)))
           TxAdd(updates)(local)
         })
       ) ++ userName.map(n⇒mTags.text("hint",s"signed in as $n"))

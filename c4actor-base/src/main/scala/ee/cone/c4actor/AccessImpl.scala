@@ -17,7 +17,7 @@ object ModelAccessFactoryImpl extends ModelAccessFactory {
 }
 
 case class AccessImpl[P](
-  initialValue: P, updatingLens: Option[Lens[Context, P] with Product], metaList: List[MetaAttr]
+  initialValue: P, updatingLens: Option[Lens[Context, P] with Product], metaList: List[AbstractMetaAttr]
 ) extends Access[P] {
   def to[V](inner: ProdLens[P,V]): Access[V] = {
     val rValue = inner.of(initialValue)

@@ -7,7 +7,7 @@ import java.util.UUID
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4actor.BranchProtocol.{BranchResult, Redraw, SessionFailure}
+import ee.cone.c4actor.BranchProtocol.{S_BranchResult, U_Redraw, U_SessionFailure}
 import ee.cone.c4actor.BranchTypes._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.ToByteString
@@ -63,15 +63,15 @@ case object EmptyBranchMessage extends BranchMessage {
 
 case class BranchTxTransform(
   branchKey: String,
-  seed: Option[BranchResult],
+  seed: Option[S_BranchResult],
   sessionKeys: List[SrcId],
   posts: List[BranchMessage],
   handler: BranchHandler
 ) extends TxTransform with LazyLogging {
   private def saveResult: Context ⇒ Context = local ⇒ {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
-    //println(s"BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
-    val wasBranchResults = ByPK(classOf[BranchResult]).of(local).get(branchKey).toList
+    //println(s"S_BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
+    val wasBranchResults = ByPK(classOf[S_BranchResult]).of(local).get(branchKey).toList
     //
     val wasChildren = wasBranchResults.flatMap(_.children)
     val newChildren = handler.seeds(local)
@@ -94,7 +94,7 @@ case class BranchTxTransform(
       if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
     }
     else {
-      val index = ByPK(classOf[BranchResult]).of(local)
+      val index = ByPK(classOf[S_BranchResult]).of(local)
       def gather(branchKey: SrcId): List[String] = {
         val children = index.get(branchKey).toList.flatMap(_.children).map(_.hash)
         (branchKey :: children).mkString(",") :: children.flatMap(gather)
@@ -126,7 +126,7 @@ case class BranchTxTransform(
 
   private def savePostsErrors: String ⇒ Context ⇒ Context = text ⇒ {
     val now = System.currentTimeMillis
-    val failure = SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
+    val failure = U_SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
     TxAdd(LEvent.update(failure))
   }
 
@@ -159,27 +159,27 @@ case class BranchTxTransform(
 //class UnconfirmedException() extends Exception
 
 class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) extends BranchOperations {
-  def toSeed(value: Product): BranchResult = {
+  def toSeed(value: Product): S_BranchResult = {
     val valueAdapter = registry.byName(value.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(value))
     val id = idGenUtil.srcIdFromSerialized(valueAdapter.id, bytes)
-    BranchResult(id, valueAdapter.id, bytes, Nil, "")
+    S_BranchResult(id, valueAdapter.id, bytes, Nil, "")
   }
-  def toRel(seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
+  def toRel(seed: S_BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
     seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
 @assemble class BranchAssembleBase(registry: QAdapterRegistry, operations: BranchOperations)   {
   def mapBranchSeedsByChild(
     key: SrcId,
-    branchResult: Each[BranchResult]
+    branchResult: Each[S_BranchResult]
   ): Values[(BranchKey,BranchRel)] = for {
     child ← branchResult.children
   } yield operations.toRel(child, branchResult.hash, parentIsSession=false)
 
   def joinBranchTask(
       key: SrcId,
-      wasBranchResults: Values[BranchResult],
+      wasBranchResults: Values[S_BranchResult],
       @by[BranchKey] seeds: Values[BranchRel]
   ): Values[(SrcId,BranchTask)] = {
     val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
@@ -210,30 +210,30 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
 
   def failuresBySession(
     key: SrcId,
-    failure: Each[SessionFailure]
-  ): Values[(SessionKey,SessionFailure)] =
+    failure: Each[U_SessionFailure]
+  ): Values[(SessionKey,U_SessionFailure)] =
     for(k ← failure.sessionKeys) yield k → failure
 
   def joinSessionFailures(
     key: SrcId,
-    @by[SessionKey] failures: Values[SessionFailure]
+    @by[SessionKey] failures: Values[U_SessionFailure]
   ): Values[(SrcId,SessionFailures)] =
     List(WithPK(SessionFailures(key,failures.sortBy(_.time).toList)))
 
   def redrawByBranch(
     key: SrcId,
-    redraw: Each[Redraw]
+    redraw: Each[U_Redraw]
   ): Values[(BranchKey, BranchMessage)] =
     List(redraw.branchKey → RedrawBranchMessage(redraw))
 }
 
-case class RedrawBranchMessage(redraw: Redraw) extends BranchMessage {
+case class RedrawBranchMessage(redraw: U_Redraw) extends BranchMessage {
   def header: String ⇒ String = { case "X-r-redraw" ⇒ "1" case _ ⇒ "" }
   def body: okio.ByteString = okio.ByteString.EMPTY
   def deletes: Seq[LEvent[Product]] = LEvent.delete(redraw)
 }
 
-case class SessionFailures(sessionKey: SrcId, failures: List[SessionFailure])
+case class SessionFailures(sessionKey: SrcId, failures: List[U_SessionFailure])
 
 //todo relocate toAlien
 //todo error in view
@@ -275,7 +275,7 @@ private def setupAdapters =
 //(World,Msg) => (WorldWithChanges,Seq[Send])
 
 /* embed plan:
-TcpWrite to many conns
+S_TcpWrite to many conns
 dispatch to service by sse.js
 posts to connections and sseUI-s
 vdom emb host/guest
