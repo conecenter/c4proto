@@ -16,11 +16,11 @@ import ee.cone.c4proto._
 
 }
 
-case object Cat1 extends OrigCategory {
+case object Cat1 extends DataCategory {
   def uid: Int = 0x001
 }
 
-case object Cat2 extends OrigCategory {
+case object Cat2 extends DataCategory {
   def uid: Int = 0x002
 }
 

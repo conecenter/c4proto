@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.Firstborn
-import ee.cone.c4actor.TypedAllTestProtocol.{Model1, Model2, ModelTest}
+import ee.cone.c4actor.TypedAllTestProtocol.{D_Model1, D_Model2, D_ModelTest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -19,7 +19,7 @@ class TypedAllTestStart(
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
-    val recs = update(Firstborn("test", "0" * OffsetHexSize())) ++ update(Model1("1")) ++ update(Model2("2"))
+    val recs = update(Firstborn("test", "0" * OffsetHexSize())) ++ update(D_Model1("1")) ++ update(D_Model2("2"))
     val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
@@ -29,15 +29,15 @@ class TypedAllTestStart(
 
     //logger.info(s"${nGlobal.assembled}")
     println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
+    //println(ByPK(classOf[D_TestObject]).of(nGlobal).values.toList)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
+    //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    val test = TxAdd(update(ModelTest("1", 1)) ++ update(ModelTest("2", 2)))(nGlobalAAAA)
+    val test = TxAdd(update(D_ModelTest("1", 1)) ++ update(D_ModelTest("2", 2)))(nGlobalAAAA)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    val test2 = TxAdd(update(ModelTest("1", 3)) ++ update(ModelTest("3", 5)) ++ update(ModelTest("2", 2)))(test)
-    //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
+    val test2 = TxAdd(update(D_ModelTest("1", 3)) ++ update(D_ModelTest("3", 5)) ++ update(D_ModelTest("2", 2)))(test)
+    //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
     execution.complete()
 
   }
@@ -53,13 +53,13 @@ trait TypedAllType {
 
   def test1(
     srcId: SrcId,
-    test: Each[ModelTest]
-  ): Values[(FixedAll, ModelTest)] = (All → test) :: Nil
+    test: Each[D_ModelTest]
+  ): Values[(FixedAll, D_ModelTest)] = (All → test) :: Nil
 
   def test2(
     srcId: SrcId,
     firstborn: Each[Firstborn],
-    @by[FixedAll] test: Each[ModelTest]
+    @by[FixedAll] test: Each[D_ModelTest]
   ): Values[(SrcId, Nothing)] = {
     println(test)
     Nil
@@ -68,7 +68,7 @@ trait TypedAllType {
   def test3(
     srcId: SrcId,
     firstborn: Each[Firstborn],
-    @by[FixedAll] test: Values[ModelTest]
+    @by[FixedAll] test: Values[D_ModelTest]
   ): Values[(SrcId, Nothing)] = {
     println(test)
     Nil
@@ -138,21 +138,21 @@ trait TypedAllType {
 }
 
 case class TestTx(srcId: SrcId) extends TxTransform {
-  def transform(local: Context): Context = TxAdd(LEvent.update(Model2(srcId)))(local)
+  def transform(local: Context): Context = TxAdd(LEvent.update(D_Model2(srcId)))(local)
 }
 
 
 @protocol(TestCat) object TypedAllTestProtocolBase   {
 
-  @Id(0xaabc) case class Model1(
+  @Id(0xaabc) case class D_Model1(
     @Id(0xaabd) srcId: String
   )
 
-  @Id(0x4567) case class Model2(
+  @Id(0x4567) case class D_Model2(
     @Id(0xabcd) srcId: String
   )
 
-  @Id(0x789a) case class ModelTest(
+  @Id(0x789a) case class D_ModelTest(
     @Id(0x1234) srcId: String,
     @Id(0x1235) value: Int
   )
@@ -180,7 +180,7 @@ class TypedAllTestApp extends TestRichDataApp
   override def protocols: List[Protocol] = TypedAllTestProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
-    new TypedAllTestAssemble(classOf[Model1]) :: new TypedAllTestAssemble(classOf[Model2]) :: new TestAllEach ::
+    new TypedAllTestAssemble(classOf[D_Model1]) :: new TypedAllTestAssemble(classOf[D_Model2]) :: new TestAllEach ::
       super.assembles
   }
 

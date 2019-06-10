@@ -9,20 +9,20 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.base.{HashSearchAssembleSharedKeys, InnerConditionEstimate, InnerLeaf}
 import ee.cone.c4actor.hashsearch.index.HashSearchMockAssembleTest.K2TreeAll
 import ee.cone.c4actor.hashsearch.rangers.K2TreeUtils._
-import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
+import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{S_K2TreeParams, S_TreeNode, S_TreeNodeOuter, S_TreeRange}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.ToByteString
 
 object HashSearchMockUtils {
-  def heapId(cl: Class[_], node: TreeNode, qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): SrcId = {
+  def heapId(cl: Class[_], node: S_TreeNode, qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): SrcId = {
     val clName = cl.getName
     val valueAdapter = qAdapterRegistry.byName(node.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(node))
     idGenUtil.srcIdFromSerialized(valueAdapter.id, bytes)
   }
 
-  def heapIds(cl: Class[_], nodes: List[TreeNode], qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): List[SrcId] =
+  def heapIds(cl: Class[_], nodes: List[S_TreeNode], qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): List[SrcId] =
     for {
       node ← nodes
     } yield heapId(cl, node, qAdapterRegistry, idGenUtil)
@@ -53,7 +53,7 @@ import HashSearchMockUtils._
 @assemble class HashSearchMockAssembleBase[Model <: Product](
   modelCl: Class[Model],
   getDate: Model ⇒ (Option[Long], Option[Long]),
-  conditionToRegion: Condition[Model] ⇒ TreeRange,
+  conditionToRegion: Condition[Model] ⇒ S_TreeRange,
   filterName: NameMetaAttr,
   qAdapterRegistry: QAdapterRegistry,
   idGenUtil: IdGenUtil
@@ -64,16 +64,16 @@ import HashSearchMockUtils._
 
   def GetTreeToAll(
     treeId: SrcId,
-    param: Each[K2TreeParams],
-    tree: Each[TreeNodeOuter]
-  ): Values[(K2TreeAll[Model], TreeNodeOuter)] =
+    param: Each[S_K2TreeParams],
+    tree: Each[S_TreeNodeOuter]
+  ): Values[(K2TreeAll[Model], S_TreeNodeOuter)] =
     if(param.modelName == modelCl.getName) List(All → tree) else Nil
 
   // Index builder
   def RespLineByHeap(
     respLineId: SrcId,
     respLine: Each[Model],
-    @by[K2TreeAll[Model]] tree: Each[TreeNodeOuter]
+    @by[K2TreeAll[Model]] tree: Each[S_TreeNodeOuter]
   ): Values[(K2HeapId, Model)] =
     for {
       tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry, idGenUtil) :: Nil
@@ -85,7 +85,7 @@ import HashSearchMockUtils._
   def ReqByHeap(
     leafCondId: SrcId,
     leaf: Each[InnerLeaf[Model]],
-    @by[K2TreeAll[Model]] trees: Values[TreeNodeOuter]
+    @by[K2TreeAll[Model]] trees: Values[S_TreeNodeOuter]
   ): Values[(K2HeapId, K2Need[Model])] =
     if(isMy(leaf.condition, filterName))
       for {

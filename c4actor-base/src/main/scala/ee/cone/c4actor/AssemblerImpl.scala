@@ -14,7 +14,7 @@ import scala.util.control.NonFatal
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
-case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: OrigKeyFactory) {
+case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: KeyFactory) {
   def apply(): List[DataDependencyTo[_]] =
     protocols.flatMap(_.adapters.filter(_.hasId)).map { adapter ⇒
       new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
@@ -29,7 +29,7 @@ class AssemblerInit(
   treeAssembler: TreeAssembler,
   getDependencies: ()⇒List[DataDependencyTo[_]],
   composes: IndexUtil,
-  origKeyFactory: OrigKeyFactory,
+  origKeyFactory: KeyFactory,
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
   actorName: String,

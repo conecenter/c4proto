@@ -97,7 +97,7 @@ object HashSearchImpl {
   }
 
   case class IndexerImpl[By<:Product,Model<:Product,Field](
-    metaList: List[MetaAttr], by: By, next: Indexer[Model]
+    metaList: List[AbstractMetaAttr], by: By, next: Indexer[Model]
   )(
     val preHashing: PreHashing,
     val modelClass: Class[Model],
@@ -115,7 +115,7 @@ object HashSearchImpl {
       ).orElse(next.heapIdsBy(condition))
     def heapIds(model: Model): List[SrcId] =
       heapIds(metaList, valueToRanges(of(model))) ::: next.heapIds(model)
-    private def heapIds(metaList: List[MetaAttr], ranges: List[By]): List[SrcId] = for {
+    private def heapIds(metaList: List[AbstractMetaAttr], ranges: List[By]): List[SrcId] = for {
       range ← ranges
     } yield {
       //println(range,range.hashCode())

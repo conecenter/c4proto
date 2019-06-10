@@ -8,37 +8,37 @@ import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 //todo RDBImpl
 
 class SyncTxFactoryImpl extends SyncTxFactory {
-  def create[Item<:Product](
-    classOfItem: Class[Item],
-    filter: Item⇒Boolean,
-    group: Item⇒SrcId,
-    txTransform: (SrcId,List[SyncTxTask[Item]])⇒TxTransform
+  def create[D_Item<:Product](
+    classOfItem: Class[D_Item],
+    filter: D_Item⇒Boolean,
+    group: D_Item⇒SrcId,
+    txTransform: (SrcId,List[SyncTxTask[D_Item]])⇒TxTransform
   ): Assemble = new SyncTxAssemble(classOfItem,filter,group,txTransform)
 }
 
-@assemble class SyncTxAssembleBase[Item<:Product](
-  classOfItem: Class[Item],
-  filter: Item⇒Boolean,
-  group: Item⇒SrcId,
-  txTransform: (SrcId,List[SyncTxTask[Item]])⇒TxTransform
+@assemble class SyncTxAssembleBase[D_Item<:Product](
+  classOfItem: Class[D_Item],
+  filter: D_Item⇒Boolean,
+  group: D_Item⇒SrcId,
+  txTransform: (SrcId,List[SyncTxTask[D_Item]])⇒TxTransform
 )   {
   type ExecutorId = SrcId
   def makeTasks(
     key: SrcId,
-    items: Values[Item],
-    @by[NeedSrcId] needItems: Values[Item]
-  ): Values[(ExecutorId,SyncTxTask[Item])] =
+    items: Values[D_Item],
+    @by[NeedSrcId] needItems: Values[D_Item]
+  ): Values[(ExecutorId,SyncTxTask[D_Item])] =
     (items.filter(filter).toList,needItems.filter(filter).toList) match {
       case (has,need) if has == need ⇒ Nil
       case (has,need) ⇒
         val executorId = Single((has ::: need).map(group).distinct)
-        val events = (has.flatMap(LEvent.delete) ::: need.flatMap(LEvent.update)).asInstanceOf[List[LEvent[Item]]]
+        val events = (has.flatMap(LEvent.delete) ::: need.flatMap(LEvent.update)).asInstanceOf[List[LEvent[D_Item]]]
         val task = SyncTxTask(key, Single.option(has), Single.option(need), events)
         List(executorId -> task)
     }
 
   def makeExecutors(
     key: SrcId,
-    @by[ExecutorId] tasks: Values[SyncTxTask[Item]]
+    @by[ExecutorId] tasks: Values[SyncTxTask[D_Item]]
   ): Values[(SrcId,TxTransform)] = List(WithPK(txTransform(key,tasks.toList)))
 }

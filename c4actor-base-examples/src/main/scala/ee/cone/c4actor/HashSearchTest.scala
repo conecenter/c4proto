@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.HashSearchTestProtocol.{SomeModel, SomeRequest}
+import ee.cone.c4actor.HashSearchTestProtocol.{D_SomeModel, D_SomeRequest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -10,7 +10,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
-  def prepare: List[MetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
+  def prepare: List[AbstractMetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
   def check: StrEq ⇒ String ⇒ Boolean = by ⇒ value ⇒ value == by.value
 
   def defaultBy: Option[StrEq => Boolean] = None
@@ -31,22 +31,22 @@ object DefaultRangers {
 }
 
 @protocol(TestCat) object HashSearchTestProtocolBase   {
-  @Id(0x0001) case class SomeModel(
+  @Id(0x0001) case class D_SomeModel(
     @Id(0x0003) srcId: String,
     @Id(0x0004) fieldA: String,
     @Id(0x0005) fieldB: String,
     @Id(0x0006) fieldC: String
   )
-  @Id(0x0002) case class SomeRequest(
+  @Id(0x0002) case class D_SomeRequest(
     @Id(0x0003) srcId: String,
-    @Id(0x0007) pattern: Option[SomeModel]
+    @Id(0x0007) pattern: Option[D_SomeModel]
   )
 }
 
 @fieldAccess object SomeModelAccessBase {
-  lazy val fieldA: ProdLens[SomeModel,String] = ProdLens.of(_.fieldA)
-  lazy val fieldB: ProdLens[SomeModel,String] = ProdLens.of(_.fieldB)
-  lazy val fieldC: ProdLens[SomeModel,String] = ProdLens.of(_.fieldC)
+  lazy val fieldA: ProdLens[D_SomeModel,String] = ProdLens.of(_.fieldA)
+  lazy val fieldB: ProdLens[D_SomeModel,String] = ProdLens.of(_.fieldB)
+  lazy val fieldC: ProdLens[D_SomeModel,String] = ProdLens.of(_.fieldC)
 }
 
 import HashSearch.{Request,Response}
@@ -58,19 +58,19 @@ import SomeModelAccess._
 )   {
   def joinReq(
     srcId: SrcId,
-    request: Each[SomeRequest]
-  ): Values[(SrcId,Request[SomeModel])] =
+    request: Each[D_SomeRequest]
+  ): Values[(SrcId,Request[D_SomeModel])] =
     List(WithPK(hashSearchFactory.request(HashSearchTestMain.condition(modelConditionFactory,request))))
 
   def joinResp(
     srcId: SrcId,
-    response: Each[Response[SomeModel]]
+    response: Each[Response[D_SomeModel]]
   ): Values[(SrcId,SomeResponse)] =
     List(WithPK(SomeResponse(response.srcId,response.lines)))
 }
 
 
-case class SomeResponse(srcId: SrcId, lines: List[SomeModel])
+case class SomeResponse(srcId: SrcId, lines: List[D_SomeModel])
 //todo reg
 class HashSearchTestApp extends TestRichDataApp
   with TreeIndexValueMergerFactoryApp
@@ -80,7 +80,7 @@ class HashSearchTestApp extends TestRichDataApp
     HashSearchTestProtocol :: super.protocols
   import DefaultRangers._
   override def assembles: List[Assemble] = List(
-    hashSearchFactory.index(classOf[SomeModel])
+    hashSearchFactory.index(classOf[D_SomeModel])
       .add(fieldA, StrEq(""))
       .add(fieldB, StrEq(""))
       .add(fieldC, StrEq(""))
@@ -90,9 +90,9 @@ class HashSearchTestApp extends TestRichDataApp
 }
 
 object HashSearchTestMain extends LazyLogging {
-  def condition(modelConditionFactory: ModelConditionFactory[Unit], request: SomeRequest): Condition[SomeModel] = {
+  def condition(modelConditionFactory: ModelConditionFactory[Unit], request: D_SomeRequest): Condition[D_SomeModel] = {
     import DefaultConditionChecks._
-    val cf = modelConditionFactory.of[SomeModel]
+    val cf = modelConditionFactory.of[D_SomeModel]
     val leafs = for {
       lens ← List(fieldA, fieldB, fieldC)
       pattern ← request.pattern
@@ -111,14 +111,14 @@ object HashSearchTestMain extends LazyLogging {
   def main(args: Array[String]): Unit = test()
 
 
-  def ask(modelConditionFactory: ModelConditionFactory[Unit]): SomeModel⇒Context⇒Unit = pattern ⇒ local ⇒ {
-    val request = SomeRequest("123",Option(pattern))
+  def ask(modelConditionFactory: ModelConditionFactory[Unit]): D_SomeModel⇒Context⇒Unit = pattern ⇒ local ⇒ {
+    val request = D_SomeRequest("123",Option(pattern))
 
-    logger.info(s"$request ${ByPK(classOf[SomeModel]).of(local).size}")
+    logger.info(s"$request ${ByPK(classOf[D_SomeModel]).of(local).size}")
     val res0 = measure("dumb  find models") { () ⇒
       val pattern = request.pattern.get
       for{
-        model ← ByPK(classOf[SomeModel]).of(local).values if
+        model ← ByPK(classOf[D_SomeModel]).of(local).values if
           (pattern.fieldA.isEmpty || model.fieldA == pattern.fieldA) &&
           (pattern.fieldB.isEmpty || model.fieldB == pattern.fieldB) &&
           (pattern.fieldC.isEmpty || model.fieldC == pattern.fieldC)
@@ -128,7 +128,7 @@ object HashSearchTestMain extends LazyLogging {
     val res1 = measure("cond  find models") { () ⇒
       val lenses = List(fieldA,fieldB,fieldC)
       val condition = this.condition(modelConditionFactory,request)
-      ByPK(classOf[SomeModel]).of(local).values.filter(condition.check)
+      ByPK(classOf[D_SomeModel]).of(local).values.filter(condition.check)
     }
 
     val res2 = measure("index find models") { () ⇒
@@ -143,7 +143,7 @@ object HashSearchTestMain extends LazyLogging {
   }
 
   private def fillWorld(size: Int): Context⇒Context = local ⇒ {
-    val models = for{ i ← 1 to size } yield SomeModel(s"$i",s"${i%7}",s"${i%59}",s"${i%541}") //
+    val models = for{ i ← 1 to size } yield D_SomeModel(s"$i",s"${i%7}",s"${i%59}",s"${i%541}") //
     measure("TxAdd models"){ () ⇒
       TxAdd(models.flatMap(LEvent.update))(local)
     }
@@ -161,10 +161,10 @@ object HashSearchTestMain extends LazyLogging {
       i ← 1 to 2
       local ← contexts
       pattern ← List(
-        SomeModel("","1","2","3"),
-        SomeModel("","1","2",""),
-        SomeModel("","1","","3"),
-        SomeModel("","","2","3")
+        D_SomeModel("","1","2","3"),
+        D_SomeModel("","1","2",""),
+        D_SomeModel("","1","","3"),
+        D_SomeModel("","","2","3")
       )
     } ask(app.modelConditionFactory)(pattern)(local)
 

@@ -1013,6 +1013,13 @@ push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
     sy(&$remote_interactive($comp, " -uc4 $comp\_$service\_1 ", "tar -xz")." < $tgz");
 }];
 
+push @tasks, ["logs","$composes_txt-<service>",sub{
+    my($app)=@_;
+    sy(&$ssh_add());
+    my($comp,$service) = &$split_app($app);
+    sy(&$ssh_ctl($comp,'-t',"docker logs $comp\_$service\_1 -tf --tail 1000"));
+}];
+
 ####
 
 my($cmd,@args)=@ARGV;

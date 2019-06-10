@@ -1,7 +1,7 @@
 package ee.cone.c4gate.deep_session
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.{Access, Context, MetaAttr, TransientLens}
+import ee.cone.c4actor.{Access, Context, AbstractMetaAttr, TransientLens}
 import ee.cone.c4gate.{SessionAttr, SessionAttrAccessFactory}
 
 trait DeepSessionAttrAccessFactory extends SessionAttrAccessFactory{
@@ -14,4 +14,4 @@ case object CurrentUserIdKey extends TransientLens[SrcId]("")
 
 case object CurrentRoleIdKey extends TransientLens[SrcId]("")
 
-case object UserLevelAttr extends MetaAttr
+case object UserLevelAttr extends AbstractMetaAttr

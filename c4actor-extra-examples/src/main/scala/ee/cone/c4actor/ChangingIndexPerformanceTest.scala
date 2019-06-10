@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, PerformanceNode}
+import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, D_PerformanceNode}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -14,7 +14,7 @@ import scala.util.Random
 
 @protocol(TestCat) object PerformanceProtocolBase   {
 
-  @Id(0x0100) case class PerformanceNode(
+  @Id(0x0100) case class D_PerformanceNode(
     @Id(0x0101) srcId: String,
     @Id(0x0102) value: String
   )
@@ -27,16 +27,16 @@ import scala.util.Random
 
 }
 
-case class Test[Model, Model2, Model3](model: Model, model2: Model2, model3: Model3)
+case class Test[Model, D_Model2, Model3](model: Model, model2: D_Model2, model3: Model3)
 
-case class Test2[Model, Model2](model: Model, model2: Model2)
+case class Test2[Model, D_Model2](model: Model, model2: D_Model2)
 
-@assemble class LULBase[Model, Model2, Model3](modelCl: Class[Model], model2: Class[Model2], model3: Class[Model3])   {
+@assemble class LULBase[Model, D_Model2, Model3](modelCl: Class[Model], model2: Class[D_Model2], model3: Class[Model3])   {
 
   def test(
     modelId: SrcId,
-    model: Each[Test[Model, Model2, Model3]]
-  ): Values[(SrcId, Test2[Model, Model2])] = {
+    model: Each[Test[Model, D_Model2, Model3]]
+  ): Values[(SrcId, Test2[Model, D_Model2])] = {
     println(modelCl, model2, model)
     WithPK(Test2(model.model, model.model2)) :: Nil
   }
@@ -57,20 +57,20 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
   def ModelsToInstruction(
     modelId: SrcId,
-    model: Each[PerformanceNode]
-  ): Values[(InstructionId, PerformanceNode)] = List(constant.srcId → model)
+    model: Each[D_PerformanceNode]
+  ): Values[(InstructionId, D_PerformanceNode)] = List(constant.srcId → model)
 
   def test3(
     modelId: SrcId,
-    firstb: Each[PerformanceNode]
-  ): Values[(SrcId, Test[PerformanceNode, NodeInstruction, Int])] =
+    firstb: Each[D_PerformanceNode]
+  ): Values[(SrcId, Test[D_PerformanceNode, NodeInstruction, Int])] =
     if (firstb.srcId.toInt < 10)
       WithPK(Test(firstb, NodeInstruction(firstb.srcId, 1, 1), 1)) :: Nil
     else Nil
 
   def test4(
     modelId: SrcId,
-    firstb: Each[PerformanceNode]
+    firstb: Each[D_PerformanceNode]
   ): Values[(SrcId, Test[String, NodeInstruction, Int])] =
     if (firstb.srcId.toInt < 10)
       WithPK(Test(firstb.srcId, NodeInstruction(firstb.srcId, 1, 1), 1)) :: Nil
@@ -78,8 +78,8 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
   def test5(
     modelId: SrcId,
-    firstb: Each[PerformanceNode]
-  ): Values[(SrcId, Test[PerformanceNode, Int, Int])] =
+    firstb: Each[D_PerformanceNode]
+  ): Values[(SrcId, Test[D_PerformanceNode, Int, Int])] =
     if (firstb.srcId.toInt < 10)
       WithPK(Test(firstb, 1, 1)) :: Nil
     else Nil
@@ -87,7 +87,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
   def ModelsNInstructionToResult(
     instructionId: SrcId,
-    @by[InstructionId] models: Values[PerformanceNode],
+    @by[InstructionId] models: Values[D_PerformanceNode],
     instruction: Each[NodeInstruction]
   ): Values[(InstructionId, SrcIdContainer)] = {
     models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
@@ -95,7 +95,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
   def ModelsNInstructionToResult2(
     instructionId: SrcId,
-    @by[InstructionId] models: Values[PerformanceNode],
+    @by[InstructionId] models: Values[D_PerformanceNode],
     instruction: Each[NodeInstruction]
   ): Values[(TestId, SrcIdContainer)] = {
     //throw new Exception("test")
@@ -104,7 +104,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
 
   def ModelsNInstructionToResultList(
     instructionId: SrcId,
-    @by[InstructionId] models: Values[PerformanceNode],
+    @by[InstructionId] models: Values[D_PerformanceNode],
     instruction: Each[NodeInstruction]
   ): Values[(InstructionId, SrcIdListContainer)] = {
     val idList = models.slice(instruction.from, instruction.to).map(_.srcId)
@@ -132,10 +132,10 @@ class ChangingIndexPerformanceTest(
   def run(): Unit = {
     import LEvent.update
     val worldSize = 100000
-    val world: immutable.Seq[PerformanceNode] =
+    val world: immutable.Seq[D_PerformanceNode] =
       for {
         i ← 1 to worldSize
-      } yield PerformanceNode(i.toString, Random.nextDouble().toString)
+      } yield D_PerformanceNode(i.toString, Random.nextDouble().toString)
     val worldUpdate: immutable.Seq[LEvent[Product]] = world.flatMap(update)
     val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
@@ -177,7 +177,7 @@ class ChangingIndexPerformanceTestApp extends TestRichDataApp
 
   override def protocols: List[Protocol] = PerformanceProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = new LUL(classOf[PerformanceNode], classOf[NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
+  override def assembles: List[Assemble] = new LUL(classOf[D_PerformanceNode], classOf[NodeInstruction], classOf[Int]) :: new LUL(classOf[String], classOf[NodeInstruction], classOf[Int]) :: new ChangingIndexAssemble(NodeInstruction("test", 0, 25000)) :: super.assembles
 
   lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
 }

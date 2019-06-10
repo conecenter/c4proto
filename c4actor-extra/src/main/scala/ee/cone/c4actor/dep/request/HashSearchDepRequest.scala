@@ -69,7 +69,7 @@ trait LeafRegistry {
 
 case class LeafInfoHolder[Model <: Product, By <: Product, Field](
   lens: ProdLens[Model, Field],
-  byOptions: List[MetaAttr],
+  byOptions: List[AbstractMetaAttr],
   check: ConditionCheck[By, Field],
 
   modelCl: Class[Model],
@@ -122,7 +122,7 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
 
   private def makeLeaf[Model <: Product, By <: Product, Field](modelCl: Class[Model], byClass: Class[By], fieldCl: Class[Field]):
   (LeafInfoHolder[_, _, _], HashSearchDepRequestProtocol.By) ⇒ ProdConditionImpl[By, Model, Field] = (leafInfo, by) ⇒ {
-    def filterMetaList: ProdLens[Model, Field] ⇒ List[MetaAttr] =
+    def filterMetaList: ProdLens[Model, Field] ⇒ List[AbstractMetaAttr] =
       _.metaList.collect { case l: NameMetaAttr ⇒ l }
 
     val byAdapter = qAdapterRegistry.byName(by.byClName)

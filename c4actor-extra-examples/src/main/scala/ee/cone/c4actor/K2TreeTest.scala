@@ -4,7 +4,7 @@ import java.awt.{BasicStroke, Color, Font}
 import java.awt.geom.{Ellipse2D, Line2D, Rectangle2D}
 import java.awt.image.BufferedImage
 
-import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.TreeNode
+import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.S_TreeNode
 import ee.cone.c4actor.hashsearch.rangers.{Date2D, K2Tree}
 
 import scala.util.Random
@@ -64,7 +64,7 @@ object K2TreeTest {
     )
 
     g.setColor(Color.BLACK)
-    def recDraw(treeNode: TreeNode): Unit = {
+    def recDraw(treeNode: S_TreeNode): Unit = {
       if (treeNode.left.isEmpty && treeNode.right.isEmpty) {
         val region = treeNode.range.get
         g.draw(new Rectangle2D.Double(region.minX * scale, region.minY * scale, (-region.minX + region.maxX) * scale, (-region.minY + region.maxY) * scale))

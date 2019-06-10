@@ -4,9 +4,9 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.OrigMetaAttrProtocol.TxTransformNameMeta
+import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap}
+import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap, TypeId}
 import ee.cone.c4assemble._
 import ee.cone.c4proto._
 import okio.ByteString
@@ -14,7 +14,7 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.Future
 
-case object UpdatesCat extends OrigCategory
+case object UpdatesCat extends DataCategory
 
 @protocol(UpdatesCat) object QProtocolBase   {
 
@@ -100,12 +100,26 @@ trait QMessages {
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): Update
   def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
+  /**
+    * Transforms RawEvents to updates, adds TxId and removes ALL flags
+    *
+    * @param events events from Kafka or Snapshot
+    * @return updates
+    */
   def toUpdates(events: List[RawEvent]): List[Update]
+  /**
+    * Transforms RawEvents to updates, adds TxId and keeps ALL but TxId flags
+    *
+    * @param events events from Kafka or Snapshot
+    * @return updates
+    */
+  def toUpdatesWithFlags(events: List[RawEvent]): List[Update]
   def toKey(up: Update): Update
-  def by(up: Update): (Long, String)
+  def by(up: Update): (TypeId, SrcId)
 }
 
 object Types {
+  type ClName = String
   type TypeId = Long
   type SrcId = String
   type TransientMap = Map[TransientLens[_],Object]
@@ -157,9 +171,9 @@ abstract class AbstractLens[C,I] extends Lens[C,I] {
   def modify: (I⇒I) ⇒ C⇒C = f ⇒ c ⇒ set(f(of(c)))(c)
 }
 
-abstract class TransientLens[Item](default: Item) extends AbstractLens[Context,Item] with Product {
-  def of: Context ⇒ Item = context ⇒ context.transient.getOrElse(this, default).asInstanceOf[Item]
-  def set: Item ⇒ Context ⇒ Context = value ⇒ context ⇒ new Context(
+abstract class TransientLens[D_Item](default: D_Item) extends AbstractLens[Context,D_Item] with Product {
+  def of: Context ⇒ D_Item = context ⇒ context.transient.getOrElse(this, default).asInstanceOf[D_Item]
+  def set: D_Item ⇒ Context ⇒ Context = value ⇒ context ⇒ new Context(
     context.injected,
     context.assembled,
     context.transient + (this → value.asInstanceOf[Object])
@@ -202,9 +216,9 @@ trait Observer {
 }
 
 case object TxTransformOrigMeta{
-  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(OrigMetaAttr(TxTransformNameMeta(name)) :: Nil)
+  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(MetaAttr(D_TxTransformNameMeta(name)) :: Nil)
 }
-case object TxTransformOrigMetaKey extends TransientLens[List[OrigMetaAttr]](Nil)
+case object TxTransformOrigMetaKey extends TransientLens[List[MetaAttr]](Nil)
 
 trait TxTransform extends Product {
   def transform(local: Context): Context
@@ -279,7 +293,7 @@ trait UpdatesPreprocessor {
   def process(updates: Seq[Update]): Seq[Update]
 }
 
-trait OrigKeyFactory {
+trait KeyFactory {
   def rawKey(className: String): AssembledKey
 }
 

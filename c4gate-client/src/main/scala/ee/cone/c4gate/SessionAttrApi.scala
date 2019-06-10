@@ -5,7 +5,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto.Id
 
 object SessionAttr {
-  def apply[B](id: Id, cl: Class[B], values: MetaAttr*): SessionAttr[B] =
+  def apply[B](id: Id, cl: Class[B], values: AbstractMetaAttr*): SessionAttr[B] =
     SessionAttr(
       className = cl.getName,
       id = id.id,
@@ -14,10 +14,10 @@ object SessionAttr {
     )
 }
 
-case class WithPKMetaAttr(pk: String) extends MetaAttr
+case class WithPKMetaAttr(pk: String) extends AbstractMetaAttr
 
 case class SessionAttr[+By](
-  className: String, id: Long, pk: SrcId, metaList: List[MetaAttr]
+  className: String, id: Long, pk: SrcId, metaList: List[AbstractMetaAttr]
 ){
   def withPK(nPK: SrcId): SessionAttr[By] = copy(pk=nPK, metaList= WithPKMetaAttr(nPK) :: metaList)
 }
