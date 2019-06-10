@@ -41,7 +41,7 @@ const ButtonElement = (props) => {
 	}
 	const className = props.className	
 	React.useEffect(()=>{
-		props._ref && props._ref(elem.current)
+		if(props.forwardRef) props.forwardRef.current = elem.current
 		elem.current.changing = props.changing					
 	},[props.changing])
 	React.useEffect(()=>{		
@@ -123,7 +123,7 @@ const ButtonWithRippleElement = (props) =>{
 		else 
 			return button
 	}	
-	return wrap($(ButtonElement,{...props,_ref:elem,style:{...props.style,margin:"0px"},key:"btn"}))
+	return wrap($(ButtonElement,{...props,forwardRef:elem,style:{...props.style,margin:"0px"},key:"btn"}))
 }
 
 export {ButtonElement,ButtonWithRippleElement}

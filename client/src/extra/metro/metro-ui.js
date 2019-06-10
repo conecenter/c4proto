@@ -10,6 +10,7 @@ import {MenuBarElement, MenuDropdownElement, FolderMenuElement, ExecutableMenuEl
 import {dragDropModule,dragDropPositionStates} from "../dragdrop-module"
 import {DragDropHandlerElement, DragDropDivElement} from './components/drag-drop.js'
 import {images as _images} from "./media/images.js"
+import TalmanElements from "./talman/talman.js"
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
@@ -95,7 +96,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		maxWidth:maxWidth?maxWidth:'auto',
 		...style
 	}},children);	
-
+    
 
 	const TabSet=({style,children})=>$("div",{style:{
 		borderBottomWidth:GlobalStyles.borderWidth,
@@ -106,21 +107,31 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		...style
 	}},children);
 	
-	const mountPaletteCSS = (e,p) => {
-		let st = e.ownerDocument.querySelector("style.palette")
+	
+	const appendCSS = (e,cs,data) =>{
+		let st = e.ownerDocument.querySelector(`style.${cs}`)
 		if(!st){
 			st = e.ownerDocument.createElement("style")
-			st.className = "palette"
+			st.className = cs
 			e.ownerDocument.head.appendChild(st)
 		}
 		Array.from(st.sheet.cssRules).forEach(_=>st.sheet.removeRule(0))
+		data.forEach(rule => st.sheet.insertRule(`${rule.selector} { ${rule.ruleStr} }`))
+	}	
+	const mountPaletteCSS = (e,p) => {		
 		const json = JSON.parse(p)
-		json.forEach(rule=>{			
+		const data = json.map(rule=>{			
 			const selector = rule[0]
 			const rules = rule[1]
 			const ruleStr = rules.reduce((a,e)=>a+=`${e[0]}:${e[1]};\n`,"")
-			st.sheet.insertRule(`${selector} { ${ruleStr} }`)
-		})		
+			return {selector,ruleStr}			
+		})				
+		appendCSS(e,"palette",data)
+	}	
+	const disableMouseCSS = (e, on) => {	
+		const selector = "*"
+		const ruleStr = "pointer-events:none;"
+		appendCSS(e,"mouse",on?[{selector,ruleStr}]:[])		
 	}
 	class DocElement extends StatefulComponent{
 		sentData(){
@@ -175,6 +186,8 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			//this.setBodyStyle(prevProps)
 			if(prevProps.pathPalette != this.props.pathPalette)
 				mountPaletteCSS(this.el,this.props.pathPalette)
+			if(prevProps.noMouseEvents != this.props.noMouseEvents)
+				disableMouseCSS(this.el,this.props.noMouseEvents)
 		}
 		componentDidMount(){
 			if(!this.el) return
@@ -189,7 +202,8 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			this.ctx = rootCtx(this.props.ctx)
 			this.initListener()			
 			//this.setBodyStyle()
-			mountPaletteCSS(this.el,this.props.pathPalette)
+			if(this.props.pathPalette) mountPaletteCSS(this.el,this.props.pathPalette)
+			if(this.props.noMouseEvents) disableMouseCSS(this.el,this.props.noMouseEvents)
 		}
 		render(){			
 			const isSibling = Branches.isSibling(this.ctx)	
@@ -317,11 +331,9 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			const title = tooltip?tooltip:null
 			const className = "button " + (this.props.className?this.props.className:"")
 			return	$("div",{style:{
-				fontSize:'1em',
-				color:'white',
+				fontSize:'1em',			
 				textAlign:'center',
-				borderRadius:'0.28em',					
-				backgroundColor:"#eee",
+				borderRadius:'0.28em',				
 				cursor:this.props.onClick?'pointer':'default',				
 				display:'inline-block',				
 				margin:'0 0.1em',
@@ -405,9 +417,11 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				height:"1em"
 			}			
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
+			const className = this.props.className?this.props.className:""
 			return [
 				$("table",{
 					key:"table",
+					className,
 					style:{
 					borderCollapse:'separate',
 					borderSpacing:GlobalStyles.borderSpacing,
@@ -602,10 +616,13 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			const stO = this.state.info.side != dragDropPositionStates.none? {position:"relative",overflow:""}:{}
 			
 			const stStyle = (path)=>({
-					borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
+					borderBottomWidth:GlobalStyles.borderWidth,
+					borderBottomStyle:GlobalStyles.borderStyle,
 					borderLeft:'none',
-					borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`:"none",
-					borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
+					borderRightWidth:GlobalStyles.borderWidth,
+					borderRightStyle:!this.state.last?GlobalStyles.borderStyle:"none",
+					borderTopWidth:GlobalStyles.borderWidth,
+					borderTopStyle:GlobalStyles.borderStyle,
 					fontWeight:'bold',
 					padding:'0.1em 0.2em',
 					verticalAlign:'middle',
@@ -949,8 +966,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
-				verticalAlign:"top",
-				color:"inherit",
+				verticalAlign:"top",				
 				border:"none",
 				height:this.props.div?"auto":"100%",
 				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
@@ -1284,7 +1300,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			return (ref)=> this.el=ref
 		}		
 		render(){
-			const className = "focusWrapper"		
+			const className = "focusWrapper " + (this.props.className?this.props.className:"")
 			const {style,children} = this.props
 			const focusedStyle  = this.state.focused
 			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
@@ -1309,8 +1325,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		}
 	}
 	
-	const LabelElement = ({style,onClick,label,children})=>$("label",{onClick,style:{
-		color:"rgb(33,33,33)",
+	const LabelElement = ({style,onClick,label,children})=>$("label",{onClick,style:{		
 		cursor:onClick?"pointer":"auto",
 		textTransform:"none",
 		...style
@@ -1712,7 +1727,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				)
 			]))		
 		}
-	}	
+	}		
 	
 	const CalenderCell = (props) => $(Interactive,{},(actions)=>{		
 		const onClick = () =>{
@@ -3137,7 +3152,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			return $("span",{ref:ref=>this.el=ref,style},content)
 		}
 	}
-	const RawElement = (props) => $("pre",{styles:props.styles},props.value)
+	
 	const Availability = (() =>{		
 		let callbacks=[];
 		const receiver= (data) =>{			
@@ -3192,7 +3207,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			DragWrapperElement,
 			CanvasMaxHeightElement,
 			NoShowUntilElement,
-			RawElement
+			...TalmanElements
     },
 		onClickValue,		
 		onReadySendBlob,

@@ -50,7 +50,7 @@ export default function FocusModule({log,documentManager,windowManager}){
 		if(aEl.tagName == "IFRAME") {
 			return getParentWrapper(aEl.contentDocument.activeElement)
 		}
-		return getParentWrapper(aEl)	
+		return getParentWrapper(aEl)		
 	}
 	const findBestDistance = (axis) => {
 		const aEl = documentManager.activeElement()
@@ -222,6 +222,10 @@ export default function FocusModule({log,documentManager,windowManager}){
 	}
 	const onTab = (event,vk) =>{		
 		const cNode = getCNode()
+		if(!cNode){		
+			mapNodes()
+			return nodesObj[0]&&nodesObj[0].n.focus()	
+		}
 		const root = vk?(cNode&&cNode.ownerDocument):event.target.ownerDocument
 		if(!root) return
 		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
