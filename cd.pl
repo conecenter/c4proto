@@ -11,6 +11,7 @@ my $log = sub{
     open FF, ">>", $path and flock FF, LOCK_EX and print FF $data and close FF or die $!;
 };
 my @tasks;
+my $get_handler = sub{ for my $v(@_){$v eq $$_[0] and return $$_[1] for @tasks} die };
 
 ###
 
@@ -36,21 +37,31 @@ push @tasks, [cd_handle=>sub{
     my $arg = <STDIN>;
     my $signature = <STDIN>;
     md5_hex("$auth\n$uuid$arg")."\n" eq $signature or die "bad signature";
-    if($arg=~m{^run\s+(\w[\w\-]*)/up\b(.*)}){
-        my ($comp,$add) = ($1,$2);
-        my $dir = &$env("C4CD_DIR");
-        $add and &$log("$dir/$comp.args","$add\n");
-        sy("cd $dir/$comp && ./up");
-    } elsif($arg=~/^pods\n$/){
-        my $ns = `cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`=~/(\w+)/ ? "$1" : die;
-        sy("kubectl -n $ns get pods -o jsonpath='pods: {.items[*].metadata.name}'");
-    } else {
-        die "can not [$arg]";
-    }
+    my ($cmd,$left) = $arg=~m{^(\w+)\s+(.*)} ? ($1,$2) : die "no command";
+    &$get_handler("cmd-$cmd",'cmd-def')->($left);
     print "\n[OK]\n";
+}];
+push @tasks, ["cmd-def"=>sub{ die "can not [$_[0]]" }];
+push @tasks, ["cmd-run"=>sub{
+    my($arg)=@_;
+    my ($comp,$add) = $arg=~m{^(\w[\w\-]*)/up\b(.*)} ? ($1,$2) : die "bad run [$arg]";
+    my $dir = &$env("C4CD_DIR");
+    $add and &$log("$dir/$comp.args","$add\n");
+    sy("cd $dir/$comp && ./up");
+}];
+push @tasks, ["cmd-pods"=>sub{
+    my $ns = `cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`=~/(\w+)/ ? "$1" : die;
+    sy("kubectl -n $ns get pods -o jsonpath='pods: {.items[*].metadata.name}'");
+}];
+push @tasks, ["cmd-history"=>sub{
+    my($arg)=@_;
+    my $comp = $arg=~/^(\w[\w\-]*)$/ ? $1 : die;
+    my $dir = &$env("C4CD_DIR");
+    sy("echo 'history:' && cat $dir/$comp.args");
 }];
 
 ###
 
 my($cmd,@args)=@ARGV;
-($cmd||'def') eq $$_[0] and $$_[1]->(@args) for @tasks;
+&$get_handler($cmd,'def')->(@args);
+

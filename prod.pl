@@ -457,7 +457,7 @@ my $make_kc_yml = sub{
         volumeClaimTemplates => [{
             metadata => { name => "db4" },
             spec => {
-                accessModes => ["ReadWriteOnce"], #Many
+                accessModes => ["ReadWriteOnce"], # Once Many
                 resources => { requests => { storage => "100Gi" } },
             },
         }],

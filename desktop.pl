@@ -32,7 +32,9 @@ push @tasks, [fix=>sub{
         'echo "allowed_users=anybody" > /etc/X11/Xwrapper.config',
         'cp /etc/X11/spiceqxl.xorg.conf /etc/X11/c4spiceqxl.xorg.conf',
         'chown c4:c4 /etc/X11/c4spiceqxl.xorg.conf',
-        q[perl  -i -pe 's{(/python\n)}{$1\ntemp_dir=None\n}' /usr/bin/Xspice];
+        q[perl -i -pe 's{(/python\n)}{$1\ntemp_dir=None\n}' /usr/bin/Xspice],
+        'echo en_DK.UTF-8 UTF-8 >> /etc/locale.gen',
+        'locale-gen';
 }];
 push @tasks, [desktop=>sub{
     &$need_home();
