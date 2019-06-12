@@ -7,7 +7,13 @@ trait KafkaConfigApp {
   private lazy val bootstrapServers: String = config.get("C4BOOTSTRAP_SERVERS")
   lazy val inboxTopicPrefix: String = config.get("C4INBOX_TOPIC_PREFIX")
   private lazy val maxRequestSize: String = config.get("C4MAX_REQUEST_SIZE")
-  lazy val kafkaConfig: KafkaConfig = KafkaConfig(bootstrapServers,inboxTopicPrefix,maxRequestSize)()
+  private lazy val keyStorePath: String = config.get("C4KEYSTORE_PATH")
+  private lazy val trustStorePath: String = config.get("C4TRUSTSTORE_PATH")
+  private lazy val keyPassPath: String = config.get("C4AUTH_KEY_FILE")
+  lazy val kafkaConfig: KafkaConfig = KafkaConfig(
+    bootstrapServers,inboxTopicPrefix,maxRequestSize,
+    keyStorePath,trustStorePath,keyPassPath
+  )()
 }
 
 trait KafkaProducerApp extends KafkaConfigApp with ToStartApp {

@@ -4,10 +4,10 @@ import sbt._
 
 lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
 lazy val descr = "C4 framework"
-
+     
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.E.C",
+  version := "0.E.D",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
