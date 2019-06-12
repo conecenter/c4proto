@@ -1,6 +1,6 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.BranchProtocol.BranchResult
+import ee.cone.c4actor.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -52,9 +52,9 @@ case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[Context], view
       (CurrentPathKey.set(handlePath) andThen
         vHandler(local).receive(vDomMessage))(local)
     }
-  def seeds: Context ⇒ List[BranchResult] =
+  def seeds: Context ⇒ List[S_BranchResult] =
     local ⇒ vHandler(local).seeds(local).collect{
-      case (k: String, r: BranchResult) ⇒ r.copy(position=k)
+      case (k: String, r: S_BranchResult) ⇒ r.copy(position=k)
     }
 }
 

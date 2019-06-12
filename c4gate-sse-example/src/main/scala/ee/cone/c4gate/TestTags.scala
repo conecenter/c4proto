@@ -80,9 +80,9 @@ object UserLabel {
   def en: String ⇒ UserLabel = UserLabel().en
   def ru: String ⇒ UserLabel = UserLabel().ru
 }
-case class UserLabel(values: Map[String,String] = Map.empty) extends MetaAttr {
+case class UserLabel(values: Map[String,String] = Map.empty) extends AbstractMetaAttr {
   def en: String ⇒ UserLabel = v ⇒ copy(values + ("en"→v))
   def ru: String ⇒ UserLabel = v ⇒ copy(values + ("ru"→v))
 }
 
-case object IsDeep extends MetaAttr
+case object IsDeep extends AbstractMetaAttr

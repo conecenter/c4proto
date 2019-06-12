@@ -5,7 +5,7 @@ import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4gate.CommonFilterProtocol._
-import ee.cone.c4gate.TestTodoProtocol.TodoTask
+import ee.cone.c4gate.TestTodoProtocol.B_TodoTask
 import ee.cone.c4proto._
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
@@ -42,7 +42,7 @@ class TestTodoApp extends ServerApp
 }
 
 @protocol(TestCat) object TestTodoProtocolBase   {
-  @Id(0x0001) case class TodoTask(
+  @Id(0x0001) case class B_TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,
     @Id(0x0004) comments: String
@@ -51,14 +51,14 @@ class TestTodoApp extends ServerApp
 
 import TestTodoAccess._
 @fieldAccess object TestTodoAccessBase {
-  lazy val comments: ProdLens[TodoTask,String] =
+  lazy val comments: ProdLens[B_TodoTask,String] =
     ProdLens.of(_.comments, UserLabel en "(comments)")
-  lazy val createdAt: ProdLens[TodoTask,Long] =
+  lazy val createdAt: ProdLens[B_TodoTask,Long] =
     ProdLens.of(_.createdAt, UserLabel en "(created at)")
   lazy val createdAtFlt =
-    SessionAttr(Id(0x0006), classOf[DateBefore], UserLabel en "(created before)")
+    SessionAttr(Id(0x0006), classOf[B_DateBefore], UserLabel en "(created before)")
   lazy val commentsFlt =
-    SessionAttr(Id(0x0007), classOf[Contains], IsDeep, UserLabel en "(comments contain)")
+    SessionAttr(Id(0x0007), classOf[B_Contains], IsDeep, UserLabel en "(comments contain)")
 }
 
 trait TestTodoRootViewApp extends ByLocationHashViewsApp {
@@ -100,7 +100,7 @@ case class TestTodoRootView(locationHash: String = "todo")(
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     import mTags._
     import commonFilterConditionChecks._
-    val filterPredicate = filterPredicates.create[TodoTask](local)
+    val filterPredicate = filterPredicates.create[B_TodoTask](local)
       .add(commentsFlt, comments)
       .add(createdAtFlt, createdAt)
 
@@ -112,11 +112,11 @@ case class TestTodoRootView(locationHash: String = "todo")(
 
     val btnList = List(
       divButton("add")(
-        TxAdd(update(TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
+        TxAdd(update(B_TodoTask(UUID.randomUUID.toString,System.currentTimeMillis,"")))
       )(List(text("text","+")))
     )
 
-    val todoTasks = ByPK(classOf[TodoTask]).of(local).values
+    val todoTasks = ByPK(classOf[B_TodoTask]).of(local).values
       .filter(filterPredicate.condition.check).toList.sortBy(-_.createdAt)
     val taskLines = for {
       prod ← todoTasks
@@ -134,8 +134,8 @@ Thread.sleep(3000)
 
 /*
 branches:
-    BranchResult --> BranchRel-s
-    BranchResult [prev] + BranchRel-s --> BranchTask [decode]
+    S_BranchResult --> BranchRel-s
+    S_BranchResult [prev] + BranchRel-s --> BranchTask [decode]
     ...
     BranchHandler + BranchRel-s + MessageFromAlien-s -> TxTransform
 ui:
@@ -147,5 +147,5 @@ custom:
     FromAlienTask --> View [match hash]
     BranchTask --> CanvasHandler
 
-BranchResult --> BranchRel-s --> BranchTask --> [custom] --> BranchHandler --> TxTransform
+S_BranchResult --> BranchRel-s --> BranchTask --> [custom] --> BranchHandler --> TxTransform
 */

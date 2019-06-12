@@ -3,14 +3,14 @@ package ee.cone.c4actor.dep_impl
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.WithPK
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.ByPKRequest
+import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.N_ByPKRequest
 import ee.cone.c4actor.dep_impl.ByPKTypes.ByPkItemSrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol(DepRequestCat) object ByPKRequestProtocolBase   {
-  @Id(0x0070) case class ByPKRequest(
+  @Id(0x0070) case class N_ByPKRequest(
     @Id(0x0071) className: String,
     @Id(0x0072) itemSrcId: String
   )
@@ -27,8 +27,8 @@ object ByPKTypes {
     key: SrcId,
     rq: Each[DepInnerRequest]
   ): Values[(ByPkItemSrcId, InnerByPKRequest)] =
-    if(!rq.request.isInstanceOf[ByPKRequest]) Nil else {
-      val brq = rq.request.asInstanceOf[ByPKRequest]
+    if(!rq.request.isInstanceOf[N_ByPKRequest]) Nil else {
+      val brq = rq.request.asInstanceOf[N_ByPKRequest]
       List(brq.itemSrcId → InnerByPKRequest(rq, brq.className))
     }
 }
@@ -50,12 +50,12 @@ object ByPKAssembles {
 
 case class AskByPKFactoryImpl(depAskFactory: DepAskFactory, util: DepResponseFactory) extends AskByPKFactory {
   def forClass[A<:Product](cl: Class[A]): AskByPK[A] =
-    AskByPKImpl(cl.getName, util)(cl,depAskFactory.forClasses(classOf[ByPKRequest],classOf[List[A]]))
+    AskByPKImpl(cl.getName, util)(cl,depAskFactory.forClasses(classOf[N_ByPKRequest],classOf[List[A]]))
 }
 case class AskByPKImpl[A<:Product](name: String, util: DepResponseFactory)(
-  theClass: Class[A], depAsk: DepAsk[ByPKRequest,List[A]]
+  theClass: Class[A], depAsk: DepAsk[N_ByPKRequest,List[A]]
 ) extends AskByPK[A] {
-  def list(id: SrcId): Dep[List[A]] = depAsk.ask(ByPKRequest(name,id))
+  def list(id: SrcId): Dep[List[A]] = depAsk.ask(N_ByPKRequest(name,id))
   def option(id: SrcId): Dep[Option[A]] = list(id).map(Single.option)
   def assemble: Assemble = new ByPKGenericAssemble(theClass, util)
 }
@@ -89,7 +89,7 @@ case class BarView(
 
 
 def subView(a: Int): Dep[Int] = for {
-    c ← askByPK(classOf[ValueNode], "123")
+    c ← askByPK(classOf[D_ValueNode], "123")
     b ← askFoo("B")
   } yield a + b + c.map(_.value).getOrElse(0)
  */

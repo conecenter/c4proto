@@ -10,7 +10,7 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
-import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4gate.HttpProtocol.S_HttpPost
 import ee.cone.c4gate.LocalPostConsumer
 import okio.ByteString
 
@@ -35,7 +35,7 @@ object SendToAlienInit extends ToInject {
 case class MessageFromAlienImpl(
   srcId: String,
   headers: Map[String,String],
-  request: HttpPost
+  request: S_HttpPost
 ) extends BranchMessage {
   def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
   def body: ByteString = request.body
@@ -45,7 +45,7 @@ case class MessageFromAlienImpl(
 @assemble class MessageFromAlienAssembleBase   {
   def mapHttpPostByBranch(
     key: SrcId,
-    post: Each[HttpPost]
+    post: Each[S_HttpPost]
   ): Values[(BranchKey, BranchMessage)] = if(post.path != "/connection") Nil else for(
     headers ← List(post.headers.flatMap(h ⇒
       if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil

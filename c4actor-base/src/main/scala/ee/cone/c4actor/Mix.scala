@@ -61,7 +61,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
     new RootConsumer(richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
-  override def protocols: List[Protocol] = OrigMetaAttrProtocol :: super.protocols
+  override def protocols: List[Protocol] = MetaAttrProtocol :: super.protocols
   override def deCompressors: List[DeCompressor] = GzipFullCompressor() :: super.deCompressors
 }
 
@@ -79,14 +79,15 @@ trait RichDataApp extends ProtocolsApp
   with PreHashingApp
   with DeCompressorsApp
   with RawCompressorsApp
-  with WithDefaultExtProcessor
+  with DefaultUpdateProcessorApp
   with UpdatesProcessorsApp
+  with DefaultKeyFactoryApp
 {
   def assembleProfiler: AssembleProfiler
   def actorName: String
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
@@ -105,16 +106,15 @@ trait RichDataApp extends ProtocolsApp
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
-  private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, extUpdateProcessor, processors, defaultAssembleOptions)()
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions)()
   lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct,extUpdateProcessor,origKeyFactory)() ::: super.dataDependencies
+    ProtocolDataDependencies(protocols.distinct,origKeyFactory)() ::: super.dataDependencies
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::

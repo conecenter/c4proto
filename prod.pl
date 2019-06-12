@@ -1385,14 +1385,19 @@ push @tasks, ["add_authorized_key","$composes_txt <key>",sub{
     sy(&$remote($comp,&$interactive($comp,"sshd","cat >> /c4/.ssh/authorized_keys"))." < ".&$put_temp("key",$content));
 }];
 
-
 ####
 
 my($cmd,@args)=@ARGV;
 ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
 &$cleanup();
 
-
+## todo adapt for kube
+#push @tasks, ["logs","$composes_txt-<service>",sub{
+#    my($app)=@_;
+#    sy(&$ssh_add());
+#    my($comp,$service) = &$split_app($app);
+#    sy(&$ssh_ctl($comp,'-t',"docker logs $comp\_$service\_1 -tf --tail 1000"));
+#}];
 
 #push @tasks, ["devel_init_frpc","<devel>|all",sub{
 #    my($developer) = @_;

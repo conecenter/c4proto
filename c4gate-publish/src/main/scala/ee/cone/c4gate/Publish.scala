@@ -5,7 +5,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file._
 
 import ee.cone.c4actor._
-import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
@@ -41,11 +41,11 @@ class PublishingObserver(
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
     val byteString = compressor.compress(ToByteString(body))
     val headers =
-      Header("ETag", s""""${idGenUtil.srcIdFromSerialized(0,byteString)}"""") ::
-      Header("Content-Encoding", compressor.name) ::
-      ext.flatMap(mimeTypes).map(Header("Content-Type",_)).toList
-    val publication = HttpPublication(path,headers,byteString,None)
-    val existingPublications = ByPK(classOf[HttpPublication]).of(global)
+      N_Header("ETag", s""""${idGenUtil.srcIdFromSerialized(0,byteString)}"""") ::
+      N_Header("Content-Encoding", compressor.name) ::
+      ext.flatMap(mimeTypes).map(N_Header("Content-Type",_)).toList
+    val publication = S_HttpPublication(path,headers,byteString,None)
+    val existingPublications = ByPK(classOf[S_HttpPublication]).of(global)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.get(path).contains(publication)) {
       logger.debug(s"$path (${byteString.size}) exists")

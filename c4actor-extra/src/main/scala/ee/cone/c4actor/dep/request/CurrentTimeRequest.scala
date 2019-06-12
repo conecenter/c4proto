@@ -7,8 +7,8 @@ import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.CurrentTimeProtocol.CurrentTimeNode
-import ee.cone.c4actor.dep.request.CurrentTimeProtocolBase.CurrentTimeNodeSetting
+import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNode
+import ee.cone.c4actor.dep.request.CurrentTimeProtocolBase.S_CurrentTimeNodeSetting
 import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.{CurrentTimeMetaAttr, CurrentTimeRequest}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
@@ -34,14 +34,14 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
     val newLocal = InsertOrigMeta(CurrentTimeMetaAttr(srcId, refreshRateSeconds) :: Nil)(l)
     val now = Instant.now
     val nowMilli = now.toEpochMilli
-    val prev = ByPK(classOf[CurrentTimeNode]).of(newLocal).get(srcId)
+    val prev = ByPK(classOf[S_CurrentTimeNode]).of(newLocal).get(srcId)
     prev match {
       case Some(currentTimeNode) if currentTimeNode.currentTimeMilli + getOffset < nowMilli ⇒
         val nowSeconds = now.getEpochSecond
         TxAdd(LEvent.update(currentTimeNode.copy(currentTimeSeconds = nowSeconds, currentTimeMilli = nowMilli)))(newLocal)
       case None ⇒
         val nowSeconds = now.getEpochSecond
-        TxAdd(LEvent.update(CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
+        TxAdd(LEvent.update(S_CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
       case _ ⇒ l
     }
   }
@@ -49,12 +49,12 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
 
 @protocol(OperativeCat) object CurrentTimeProtocolBase {
 
-  @Id(0x0127) case class CurrentTimeNodeSetting(
+  @Id(0x0127) case class S_CurrentTimeNodeSetting(
     @Id(0x0128) timeNodeId: String,
     @Id(0x0129) refreshSeconds: Long
   )
 
-  @Id(0x0123) case class CurrentTimeNode(
+  @Id(0x0123) case class S_CurrentTimeNode(
     @Id(0x0124) srcId: String,
     @Id(0x0125) currentTimeSeconds: Long,
     @Id(0x0126) currentTimeMilli: Long
@@ -96,7 +96,7 @@ object CurrentTimeRequestAssembleTimeId {
   def FromSettingsCreateNowTime(
     firstBornId: SrcId,
     @by[CurrentTimeId] config: Each[CurrentTimeConfig],
-    settings: Values[CurrentTimeNodeSetting]
+    settings: Values[S_CurrentTimeNodeSetting]
   ): Values[(SrcId, TxTransform)] =
     List(WithPK(CurrentTimeTransform(config.srcId, settings.headOption.map(_.refreshSeconds).getOrElse(config.periodSeconds))))
 }
@@ -106,8 +106,8 @@ object CurrentTimeRequestAssembleTimeId {
 
   def FilterTimeForCurrentTimeRequestAssemble(
     timeId: SrcId,
-    time: Each[CurrentTimeNode]
-  ): Values[(CTRATimeId, CurrentTimeNode)] =
+    time: Each[S_CurrentTimeNode]
+  ): Values[(CTRATimeId, S_CurrentTimeNode)] =
     if (time.srcId == CurrentTimeRequestAssembleTimeId.id)
       WithPK(time) :: Nil
     else
@@ -124,7 +124,7 @@ object CurrentTimeRequestAssembleTimeId {
 
   def TimeToDepResponse(
     alienId: SrcId,
-    @by[CTRATimeId] pong: Each[CurrentTimeNode],
+    @by[CTRATimeId] pong: Each[S_CurrentTimeNode],
     @by[CTRATimeId] rq: Each[DepInnerRequest]
   ): Values[(SrcId, DepResponse)] = {
     val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]

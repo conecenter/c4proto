@@ -55,6 +55,7 @@ object AssembleGenerator extends Generator {
     }
     val rules: List[JRule] = stats.toList.flatMap {
       case q"type $tname = $tpe" ⇒ Nil
+      case q"type $tname[..$params] = $tpe" ⇒ Nil
       case q"import ..$i" ⇒ Nil
       case q"def result: Result = tupled(${Term.Name(joinerName)} _)" ⇒
         JStat(s"override def resultKey = ${joinerName}_outKey") :: Nil
