@@ -115,7 +115,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			st.className = cs
 			e.ownerDocument.head.appendChild(st)
 		}
-		Array.from(st.sheet.cssRules).forEach(_=>st.sheet.removeRule(0))
+		Array.from(st.sheet.cssRules).forEach(_=>st.sheet.deleteRule(0))
 		data.forEach(rule => st.sheet.insertRule(`${rule.selector} { ${rule.ruleStr} }`))
 	}	
 	const mountPaletteCSS = (e,p) => {		
