@@ -976,7 +976,8 @@ push @tasks, ["test_pods","",sub{ # <host>:<port> $composes_txt
 my $get_head_img_tag = sub{
     my($repo_dir,$parent)=@_;
     #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
-    my $commit = !-e $repo_dir ?
+    print "[$repo_dir][$parent]\n";
+    my $commit = (!-e $repo_dir) ?
         ($repo_dir=~/^(\w+)$/ ? $1 : die) :
         (syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die);
     #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
