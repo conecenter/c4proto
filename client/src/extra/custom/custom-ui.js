@@ -80,16 +80,20 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 				...this.props.style
 			}
 			const className = !this.props.host?"dummyTerminal":"terminalElement"
-			return $(React.Fragment,{},[
-				$("div",{key:"term",ref:ref=>this.el=ref,className:className,version:this.props.version,style},
-					$("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
-				),
-				$(ControlWrapperElement,{key:"btn",style:{alignSelf:"center",display:"inline-block",outlineWidth:"0.1em",padding:"0em",width:"auto"}},
+			const children =()=> {
+				if(this.props.children) return this.props.children
+				return $(ControlWrapperElement,{key:"btn",style:{alignSelf:"center",display:"inline-block",outlineWidth:"0.1em",padding:"0em",width:"auto"}},
 					$(ButtonElement,{key:"btn",onClick:this.reset,
 						overStyle:{backgroundColor:DarkPrimaryColor,color:"white"},
 						style:{backgroundColor:PrimaryColor,color:"white",fontSize:"1.5em",position:"relative",zIndex:"1"}
 						},"Reconnect")
 				)
+			}
+			return $(React.Fragment,{},[
+				$("div",{key:"term",ref:ref=>this.el=ref,className:className,version:this.props.version,style},
+					$("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
+				),
+				children()
 			])
 		}
 	}
