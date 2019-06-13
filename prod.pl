@@ -976,15 +976,17 @@ push @tasks, ["test_pods","",sub{ # <host>:<port> $composes_txt
 my $get_head_img_tag = sub{
     my($repo_dir,$parent)=@_;
     #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
-    my $commit = syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die;
+    my $commit = !-e $repo_dir ?
+        ($repo_dir=~/^(\w+)$/ ? $1 : die) :
+        (syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die);
     #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
     !$parent ? "base.$commit" :
     $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
     die $parent;
 };
 
-push @tasks, ["ci_build_head","<dir> <builder> <req> [parent]",sub{ # <dir> <host>:<port> <req> [parent]
-    my($repo_dir,$builder_comp,$req_pre,$parent) = @_;
+push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
+    my($builder_comp,$req_pre,$repo_dir,$parent) = @_;
     sy(&$ssh_add());
     my $pf = &$get_head_img_tag($repo_dir,$parent);
     my $req = "build $req_pre.$pf\n";
@@ -996,8 +998,8 @@ push @tasks, ["ci_build_head","<dir> <builder> <req> [parent]",sub{ # <dir> <hos
     local $ENV{C4CI_CTX_DIR} = $$conf{C4CI_CTX_DIR} || die;
     sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
 }];
-push @tasks, ["ci_build_head_tcp","",sub{ # <dir> <host>:<port> <req> [parent]
-    my($repo_dir,$addr,$req_pre,$parent) = @_;
+push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [parent]
+    my($addr,$req_pre,$repo_dir,$parent) = @_;
     my $pf = &$get_head_img_tag($repo_dir,$parent);
     my $req = "build $req_pre.$pf\n";
     &$nc($addr,sub{ $req });
