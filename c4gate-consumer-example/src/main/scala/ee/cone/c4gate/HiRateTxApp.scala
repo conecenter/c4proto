@@ -9,8 +9,8 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.QProtocolBase.Firstborn
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.HttpProtocol.HttpPost
-import ee.cone.c4gate.HttpProtocolBase.HttpPublication
+import ee.cone.c4gate.HttpProtocol.S_HttpPost
+import ee.cone.c4gate.HttpProtocolBase.S_HttpPublication
 import ee.cone.c4proto.{Protocol, ToByteString}
 
 
@@ -37,7 +37,7 @@ case class HiRateTx(srcId: SrcId) extends TxTransform with LazyLogging {
     val timeStr = System.currentTimeMillis.toString
     logger.info(s"start handling $timeStr")
     val bytes = ToByteString(timeStr)
-    TxAdd(LEvent.update(HttpPublication("/time",Nil,bytes,None)))(local)
+    TxAdd(LEvent.update(S_HttpPublication("/time",Nil,bytes,None)))(local)
   }
 }
 
