@@ -973,15 +973,32 @@ push @tasks, ["test_pods","",sub{ # <host>:<port> $composes_txt
     &$nc_sec($comp,$addr,"pods\n");
 }];
 
-push @tasks, ["ci_build_head","<dir> <host>:<port> <req> [parent]",sub{
-    my($repo_dir,$addr,$req_pre,$parent) = @_;
+my $get_head_img_tag = sub{
+    my($repo_dir,$parent)=@_;
     #my $repo_name = $repo_dir=~/(\w+)$/ ? $1 : die;
     my $commit = syf("git --git-dir=$repo_dir/.git rev-parse --short HEAD")=~/(\w+)/ ? $1 : die;
     #my $commit = syf("git --git-dir=$repo_dir/.git log -n1")=~/\bcommit\s+(\w{10})/ ? $1 : die;
-    my $pf =
-        !$parent ? "base.$commit" :
-        $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
-        die $parent;
+    !$parent ? "base.$commit" :
+    $parent=~/^(\w+)$/ ? "base.$1.next.$commit" :
+    die $parent;
+};
+
+push @tasks, ["ci_build_head","<dir> <builder> <req> [parent]",sub{ # <dir> <host>:<port> <req> [parent]
+    my($repo_dir,$builder_comp,$req_pre,$parent) = @_;
+    sy(&$ssh_add());
+    my $pf = &$get_head_img_tag($repo_dir,$parent);
+    my $req = "build $req_pre.$pf\n";
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my ($host,$port) = &$get_host_port($builder_comp);
+    my $conf = &$get_compose($builder_comp);
+    local $ENV{C4CI_HOST} = $host;
+    local $ENV{C4CI_REPO_DIRS} = $$conf{C4CI_REPO_DIRS} || die;
+    local $ENV{C4CI_CTX_DIR} = $$conf{C4CI_CTX_DIR} || die;
+    sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
+}];
+push @tasks, ["ci_build_head_tcp","",sub{ # <dir> <host>:<port> <req> [parent]
+    my($repo_dir,$addr,$req_pre,$parent) = @_;
+    my $pf = &$get_head_img_tag($repo_dir,$parent);
     my $req = "build $req_pre.$pf\n";
     &$nc($addr,sub{ $req });
 }];
@@ -1018,11 +1035,11 @@ push @tasks, ["up-ci","",sub{
             "FROM ubuntu:18.04",
             "COPY install.pl /",
             "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl git",
+            "RUN perl install.pl apt curl openssh-client socat",
             "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "COPY ci.pl /",
             "USER c4",
-            'ENTRYPOINT ["perl","ci.pl"]',
+            'ENTRYPOINT ["perl","/ci.pl"]',
         );
         &$remote_build($comp,$from_path,$img);
     };

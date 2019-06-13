@@ -9,28 +9,6 @@ my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
-my $serve = sub{
-    my($port,$handle)=@_;
-    use strict;
-    use IO::Socket::INET;
-    my $socket = new IO::Socket::INET(
-        LocalHost => '0.0.0.0',
-        LocalPort => $port,
-        Proto => 'tcp',
-        Listen => 5,
-        Reuse => 1
-    ) or die $!;
-    while(1){
-      my $client_socket = $socket->accept();
-      my $fileno = $client_socket->fileno;
-      open STDIN, "<&$fileno" or die;
-      open STDOUT, ">&$fileno" or die;
-      open STDERR, ">&$fileno" or die;
-      &$handle();
-      shutdown($client_socket,2) or die;
-    }
-    $socket->close();
-};
 my @tasks;
 
 ###
@@ -39,7 +17,7 @@ my $handle_build = sub{
     my ($arg) = @_;
     my($full_img,$img,$tag,$base,$mode,$checkout) =
         $arg=~/^build\s+(([\w\-\.\:\/]+)\:(([\w\-\.]+)\.(\w+)\.([\w\-]+)))\s*$/ ?
-        ($1,$2,$3,$4,$5,$6) : return 0;
+        ($1,$2,$3,$4,$5,$6) : die "can not [$arg]";
     #we can implement fork after checkout later and unshare ctx_dir
     my $builder = md5_hex($full_img)."-".time;
     my $host = &$env("C4CI_HOST");
@@ -62,21 +40,26 @@ my $handle_build = sub{
         $img=~m{/} ? "docker push $full_img" : (),
     );
     &$put_text("/tmp/build.sh", join " && ",@commands);
-    sy("ssh $host sh < /tmp/build.sh");
-    1;
+    sy("ssh c4\@$host sh < /tmp/build.sh");
 };
 
 push @tasks, [ci=>sub{
     my $tgz = &$env("C4CI_KEY_TGZ");
     my $dir = "/c4/.ssh";
     sy("mkdir -p $dir && cd $dir && chmod 0700 . && tar -xzf $tgz");
-    &$serve(&$env("C4CI_PORT"),sub{
-        my $arg = <STDIN>;
-        &$handle_build($arg) || die "can not [$arg]";
-    });
+    my $port = &$env("C4CI_PORT");
+    &$exec('socat', "tcp-l:$port,reuseaddr,fork", "exec:perl /ci.pl ci_handle");
+}];
+push @tasks, [ci_handle=>sub{
+    my $arg = <STDIN>;
+    &$handle_build($arg);
 }];
 push @tasks, [frpc=>sub{
     &$exec("/tools/frp/frpc", "-c", &$env("C4FRPC_INI"));
+}];
+push @tasks, [ci_arg=>sub{
+    my($arg)=@_;
+    &$handle_build($arg);
 }];
 
 ###
