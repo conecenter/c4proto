@@ -737,7 +737,7 @@ my $gate_ports = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $host = $$conf{host} || $comp;
-    my $external_broker_port = $$conf{broker_port} || die "no broker_port";
+    my $external_broker_port = $$conf{broker_port} || 1093;
     my $external_http_port = $$conf{http_port} || $http_port;
     ($host,$external_http_port,$external_broker_port);
 };
