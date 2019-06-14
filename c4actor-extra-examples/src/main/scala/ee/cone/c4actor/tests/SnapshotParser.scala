@@ -27,10 +27,12 @@ class SnapshotParserApp
     with ProtocolsApp
     with ExecutableApp
     with RichDataApp
-    with LZ4DeCompressorApp {
+    with EnvConfigApp
+    with LZ4DeCompressorApp
+{
   val loader = new RawSnapshotLoader {
     def load(snapshot: RawSnapshot): ByteString = {
-      val path = Paths.get("/c4/c4proto/db4").resolve(snapshot.relativePath)
+      val path = Paths.get(config.get("C4DATA_DIR")).resolve(snapshot.relativePath)
       ToByteString(Files.readAllBytes(path))
     }
   }
@@ -38,5 +40,4 @@ class SnapshotParserApp
   override def toStart: List[Executable] = new SnapshotParser(execution, toUpdate, new SnapshotLoaderImpl(loader), qAdapterRegistry) :: super.toStart
   override def protocols: List[Protocol] = ExternalProtocol :: super.protocols
   def assembleProfiler: AssembleProfiler = NoAssembleProfiler
-  def actorName: String = "SnapshotParser"
 }

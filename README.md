@@ -19,4 +19,4 @@ Application state changes are consumed to in-memory immutable object graph (read
 - Changes are propogated through the graph according to dependency rules.
 - Propogation forms data structures optimized for different "requests".
 
-`./app.pl build_all` and `./do.pl` can help to run examples
+`./app.pl build_all` and `C4DATA_DIR=db4 ./do.pl` can help to run examples
