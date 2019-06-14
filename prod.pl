@@ -74,12 +74,12 @@ my $get_deploy_conf = lazy{
 my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected"};
 
 my $get_deployer_conf = sub{
-    my($comp,@k)=@_;
+    my($comp,$chk,@k)=@_;
     my $conf = &$get_compose($comp);
     my $n_conf = $$conf{deployer} ? &$get_compose($$conf{deployer}) : $conf;
-    map{$$n_conf{$_}||die "no $_"} @k;
+    map{$$n_conf{$_} || $chk && die "no $_"} @k;
 };
-my $get_host_port = sub{ &$get_deployer_conf($_[0],qw(host port)) };
+my $get_host_port = sub{ &$get_deployer_conf($_[0],1,qw(host port)) };
 
 my $ssh_ctl = sub{
     my($comp,@args)=@_;
@@ -135,7 +135,7 @@ my $rel_put_text = sub{
 
 my $sync_up = sub{
     my($comp,$from_path,$up_content,$args)=@_;
-    my ($dir) = &$get_deployer_conf($comp,qw[dir]);
+    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
     my $conf_dir = "$dir/$comp"; #.c4conf
     $from_path ||= &$get_tmp_dir();
     &$rel_put_text($from_path)->("up",$up_content);
@@ -350,7 +350,7 @@ my $make_dc_yml = sub{
     my ($name,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:)/ ||
+        $k=~/^([A-Z]|host:|port:|ingres:)/ ||
         $k=~/^(volumes|tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
@@ -409,7 +409,7 @@ my $make_kc_yml = sub{
     my($name,$tmp_path,$spec,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:)/ ||
+        $k=~/^([A-Z]|host:|port:|ingres:)/ ||
         $k=~/^(tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
@@ -494,13 +494,44 @@ my $make_kc_yml = sub{
     #
     my @service_yml = do{
         my @ports = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^port:(\d+):(\d+)$/ ? { nodePort => $1-0, port => $1-0, targetPort => $2-0, name => "c4-$2" } : ()
+            $k=~/^port:(\d+):(\d+)$/ ? {
+                $all{is_deployer} ? (nodePort => $1-0) : (),
+                port => $1-0,
+                targetPort => $2-0,
+                name => "c4-$2"
+            } : ()
         });
         @ports ? &$to_yml_str({
             apiVersion => "v1",
             kind => "Service",
             metadata => { name => $name },
-            spec => { selector => { app => $name }, ports => \@ports, type => "NodePort" },
+            spec => {
+                selector => { app => $name },
+                ports => \@ports,
+                $all{is_deployer} ? (type => "NodePort") : ()
+            },
+        }) : ();
+    };
+    #
+    my @ingress_yml = do{
+        my @rules = &$map(\%all,sub{ my($k,$v)=@_;
+            $k=~/^ingres:(.+)$/ ? {
+                host => "$1",
+                http => {
+                    paths => [{
+                        backend => {
+                            serviceName => $name,
+                            servicePort => $v-0,
+                        },
+                    }],
+                },
+            } : ()
+        });
+        @rules ? &$to_yml_str({
+            apiVersion => "extensions/v1beta1",
+            kind => "Ingress",
+            metadata => { name => $name },
+            spec => { rules => \@rules },
         }) : ();
     };
     #
@@ -512,7 +543,7 @@ my $make_kc_yml = sub{
         data => { map{($_=>syf("base64 -w0 < $tmp_path/$_"))} @{$$_{files}||die} },
     })} @secrets;
     #
-    join("", @secrets_yml, @service_yml, $stateful_set_yml);
+    join("", @secrets_yml, @service_yml, @ingress_yml, $stateful_set_yml);
 };
 
 my $wrap_kc = sub{
@@ -705,10 +736,15 @@ my $make_desktop_secret = sub{
 my $gate_ports = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
-    my $host = $$conf{host} || die "no host";
+    my $host = $$conf{host} || $comp;
     my $external_broker_port = $$conf{broker_port} || die "no broker_port";
-    my $external_http_port = $$conf{http_port} || die "no http_port";
+    my $external_http_port = $$conf{http_port} || $http_port;
     ($host,$external_http_port,$external_broker_port);
+};
+my $get_ingres = sub{
+    my($comp,$http_port)=@_;
+    my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
+    $domain_zone ? ("ingres:$comp.$domain_zone"=>$http_port) : ();
 };
 
 my $up_consumer = sub{
@@ -754,8 +790,10 @@ my $up_gate = sub{
             C4STATE_REFRESH_SECONDS => 1000,
         },
         {
-            @var_img, name => "haproxy", "port:$external_http_port:$http_port"=>"",
+            @var_img, name => "haproxy",
             C4JOINED_HTTP_PORT => $http_port,
+            "port:$external_http_port:$http_port"=>"",
+            &$get_ingres($run_comp,$external_http_port),
         },
     ]);
 };
@@ -849,6 +887,8 @@ my $up_desktop = sub{
             image => $img, name => "haproxy",
             C4DATA_DIR => "/c4db",
             C4JOINED_HTTP_PORT => $http_port,
+            "port:$http_port:$http_port"=>"",
+            &$get_ingres($comp,$http_port),
         },
     ])
 };
@@ -931,7 +971,7 @@ push @tasks, ["up","$composes_txt <args>",sub{
 push @tasks, ["restart","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
-    my ($dir) = &$get_deployer_conf($comp,qw[dir]);
+    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
     sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
 }];
 
@@ -1125,7 +1165,7 @@ push @tasks, ["up-kc_host", "", sub{
             image => $img,
             name => "sshd",
             C4DATA_DIR => "/c4db",
-            "port:$external_ssh_port:$ssh_port" => "",
+            "port:$external_ssh_port:$ssh_port" => "node",
         },
         {
             image => $img,
@@ -1170,8 +1210,18 @@ push @tasks, ["up-kc_host", "", sub{
             },
             {
                 apiGroups => [""],
+                resources => ["pods/log"],
+                verbs => ["get"],
+            },
+            {
+                apiGroups => [""],
                 resources => ["pods"],
                 verbs => ["get","list","delete"],
+            },
+            {
+                apiGroups => ["extensions"],
+                resources => ["ingresses"],
+                verbs => ["get","create","patch"],
             },
         ],
     }, {
