@@ -12,31 +12,21 @@ docker restart ..._snapshot_maker_1
 
 class SnapshotMergerImpl(
   toUpdate: ToUpdate,
-  snapshotMaker: SnapshotMaker,
-  snapshotLoader: SnapshotLoader,
+  differ: SnapshotDiffer,
   remoteSnapshotUtil: RemoteSnapshotUtil,
   rawSnapshotLoaderFactory: RawSnapshotLoaderFactory,
   snapshotLoaderFactory: SnapshotLoaderFactory,
   reducer: RichRawWorldReducer,
   signer: Signer[SnapshotTask]
 ) extends SnapshotMerger {
-  private def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update] = {
-    val currentUpdates = toUpdate.toUpdates(List(snapshot))
-    val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
-    val state = currentUpdates.map(up⇒toUpdate.toKey(up)→up).toMap
-    val updates = targetUpdates.filterNot{ up ⇒ state.get(toUpdate.toKey(up)).contains(up) }
-    val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
-    (deletes.toList ::: updates).sortBy(toUpdate.by)
-  }
   def merge(baseURL: String, signed: String): Context⇒Context = local ⇒ {
     val task = signer.retrieve(check = false)(Option(signed)).get
     val parentProcess = remoteSnapshotUtil.request(baseURL,signed)
-    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Option(local),Nil).offset)))
     val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(baseURL))
-    val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
+    val currentFullSnapshot = differ.needCurrentSnapshot(local)
     val targetRawSnapshot :: txs = parentProcess()
     val Some(targetFullSnapshot) = parentSnapshotLoader.load(targetRawSnapshot)
-    val diffUpdates = diff(currentFullSnapshot,targetFullSnapshot)
+    val diffUpdates = differ.diff(currentFullSnapshot,targetFullSnapshot)
     task match {
       case t:NextSnapshotTask ⇒
         assert(t.offsetOpt.isEmpty || txs.isEmpty)
@@ -48,5 +38,26 @@ class SnapshotMergerImpl(
         val Seq(Some(targetTxSnapshot)) = txs.map(parentSnapshotLoader.load)
         DebugStateKey.set(Option((preTargetWorld,targetTxSnapshot)))(local)
     }
+  }
+}
+
+class SnapshotDifferImpl(
+  toUpdate: ToUpdate,
+  reducer: RichRawWorldReducer,
+  snapshotMaker: SnapshotMaker,
+  snapshotLoader: SnapshotLoader
+) extends SnapshotDiffer {
+  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update] = {
+    val currentUpdates = toUpdate.toUpdates(List(snapshot))
+    val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
+    val state = currentUpdates.map(up⇒toUpdate.toKey(up)→up).toMap
+    val updates = targetUpdates.filterNot{ up ⇒ state.get(toUpdate.toKey(up)).contains(up) }
+    val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
+    (deletes.toList ::: updates).sortBy(toUpdate.by)
+  }
+  def needCurrentSnapshot: Context⇒RawEvent = local ⇒ {
+    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Option(local),Nil).offset)))
+    val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
+    currentFullSnapshot
   }
 }

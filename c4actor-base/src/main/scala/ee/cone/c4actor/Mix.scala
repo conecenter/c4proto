@@ -59,6 +59,9 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =
     new RootConsumer(richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
+  lazy val snapshotDiffer: SnapshotDiffer = new SnapshotDifferImpl(
+    toUpdate, richRawWorldReducer, snapshotMaker, snapshotLoader
+  )
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
   override def protocols: List[Protocol] = MetaAttrProtocol :: super.protocols
@@ -141,13 +144,12 @@ trait FileRawSnapshotApp { // Remote!
 trait MergingSnapshotApp {
   def toUpdate: ToUpdate
   def richRawWorldReducer: RichRawWorldReducer
-  def snapshotLoader: SnapshotLoader
-  def snapshotMaker: SnapshotMaker
+  def snapshotDiffer: SnapshotDiffer
   def remoteSnapshotUtil: RemoteSnapshotUtil
   def snapshotTaskSigner: Signer[SnapshotTask]
   //
   lazy val snapshotMerger: SnapshotMerger = new SnapshotMergerImpl(
-    toUpdate, snapshotMaker,snapshotLoader,
+    toUpdate, snapshotDiffer,
     remoteSnapshotUtil,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl,
     richRawWorldReducer, snapshotTaskSigner
   )
