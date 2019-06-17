@@ -3,216 +3,427 @@ package ee.cone.c4assemble
 
 // see Topological sorting
 
-//import java.util.Comparator
-
 import Types._
-import ee.cone.c4assemble.TreeAssemblerTypes.{MultiSet, Replace}
+import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
+import ee.cone.c4assemble.Merge.Compose
+import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 
-import scala.annotation.tailrec
-import scala.collection.immutable.{Iterable, Map, Seq}
+import scala.collection.immutable
+import scala.collection.immutable.{Map, Seq, TreeMap}
+import scala.collection.parallel.immutable.ParVector
+import scala.concurrent.Future
+import scala.concurrent.ExecutionContext.Implicits.global
 
-class PatchMap[K,V,DV](empty: V, isEmpty: V⇒Boolean, op: (V,DV)⇒V) {
-  def one(res: Map[K,V], key: K, diffV: DV): Map[K,V] = {
-    val prevV = res.getOrElse(key,empty)
-    val nextV = op(prevV,diffV)
-    if(isEmpty(nextV)) res - key else res + (key → nextV)
-  }
-  def many(res: Map[K,V], keys: Iterable[K], value: DV): Map[K,V] =
-    (res /: keys)((res, key) ⇒ one(res, key, value))
-  def many(res: Map[K,V], diff: Iterable[(K,DV)]): Map[K,V] =
-    (res /: diff)((res, kv) ⇒ one(res, kv._1, kv._2))
+case class Count(item: Product, count: Int)
+
+case class DValuesImpl(asMultiSet: DMultiSet, warning: String, options: AssembleOptions) extends Values[Product] {
+  def length: Int = asMultiSet.size
+  private def value(kv: (InnerKey,Products)): Product =
+    IndexUtilImpl.single(kv._2,warning)
+  def apply(idx: Int): Product = value(asMultiSet.view(idx,idx+1).head)
+  def iterator: Iterator[Product] = asMultiSet.iterator.map(value)
+  override def isEmpty: Boolean = asMultiSet.isEmpty //optim
 }
 
-class IndexFactoryImpl(
-  merger: IndexValueMergerFactory,
-  profiler: AssembleProfiler
-) extends IndexFactory {
-  def createJoinMapIndex[T,R<:Product,TK,RK](join: Join[T,R,TK,RK]):
-    WorldPartExpression
-      with DataDependencyFrom[Index[TK, T]]
-      with DataDependencyTo[Index[RK, R]]
-  = {
-    val add: PatchMap[R,Int,Int] =
-      new PatchMap[R,Int,Int](0,_==0,(v,d)⇒v+d)
-    val merge = merger.create[R]
-    val addNestedPatch: PatchMap[RK,Values[R],MultiSet[R]] =
-      new PatchMap[RK,Values[R],MultiSet[R]](Nil,_.isEmpty, merge)
-    val addNestedDiff: PatchMap[RK,MultiSet[R],R] =
-      new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, +1))
-    val subNestedDiff: PatchMap[RK,MultiSet[R],R] =
-      new PatchMap[RK,MultiSet[R],R](Map.empty,_.isEmpty,(v,d)⇒add.one(v, d, -1))
-    new JoinMapIndex[T,TK,RK,R](
-      join, addNestedPatch, addNestedDiff, subNestedDiff, profiler.get(join.name)
-    )
-  }
+class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val opt: IndexOpt*/) extends Index {
+  override def toString: String = s"IndexImpl($data)"
 }
 
-trait DataDependencyToIndexUpdater[MapKey, Value] extends DataDependencyTo[Index[MapKey, Value]] {
-  private def setPart[V](res: ReadModel, part: Map[MapKey,V]) =
-    (res + (outputWorldKey → part)).asInstanceOf[Map[AssembledKey[_],Map[Object,V]]]
-  protected def setPart(
-    transition: WorldTransition, nextDiff: Map[MapKey, Boolean], nextIndex: Index[MapKey,Value]
-  ): WorldTransition = {
-    val diff = setPart(transition.diff,nextDiff)
-    val next = setPart(transition.result, nextIndex)
-    WorldTransition(transition.prev, diff, next)
-  }
-  protected def diffOf(
-    transition: WorldTransition, worldKey: AssembledKey[Index[MapKey, Value]]
-  ): Map[MapKey, Boolean] =
-    transition.diff.getOrElse(worldKey,Map.empty).asInstanceOf[Map[MapKey, Boolean]]
+object IndexTypes {
+  type Products = List[Count]
+  type InnerKey = (String,Int)
+  type DMultiSet = Map[InnerKey,Products]
+  type InnerIndex = DMap[Any,DMultiSet]
 }
 
-class JoinMapIndex[T,JoinKey,MapKey,Value<:Product](
-  join: Join[T,Value,JoinKey,MapKey],
-  addNestedPatch: PatchMap[MapKey,Values[Value],MultiSet[Value]],
-  addNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
-  subNestedDiff: PatchMap[MapKey,MultiSet[Value],Value],
-  profiler: String ⇒ Int ⇒ Unit
-) extends WorldPartExpression
-  with DataDependencyFrom[Index[JoinKey, T]]
-  with DataDependencyToIndexUpdater[MapKey, Value]
-{
-  def assembleName = join.assembleName
-  def name = join.name
-  def inputWorldKeys: Seq[AssembledKey[Index[JoinKey, T]]] = join.inputWorldKeys
-  def outputWorldKey: AssembledKey[Index[MapKey, Value]] = join.outputWorldKey
-  override def toString: String = s"${super.toString} ($assembleName,$name,$inputWorldKeys,$outputWorldKey)"
+// todo All on upd, Tree on upd
 
-  def recalculateSome(
-    getIndex: AssembledKey[Index[JoinKey,T]]⇒Index[JoinKey,T],
-    add: PatchMap[MapKey,MultiSet[Value],Value],
-    ids: Set[JoinKey], res: Map[MapKey,MultiSet[Value]]
-  ): Map[MapKey,MultiSet[Value]] = {
-    val worldParts: Seq[Index[JoinKey,T]] =
-      inputWorldKeys.map(getIndex)
-    (res /: ids){(res: Map[MapKey,MultiSet[Value]], id: JoinKey)⇒
-      val args = worldParts.map(_.getOrElse(id, Nil))
-      add.many(res, join.joins(id, args))
+object IndexUtilImpl {
+  def single(items: Products, warning: String): Product =
+    if(items.tail.isEmpty && items.head.count==1) items.head.item else {
+      val distinct = items.distinct
+      if(distinct.tail.nonEmpty) throw new Exception(s"non-single $warning")
+      if(warning.nonEmpty) {
+        val item = distinct.head.item
+        println(s"non-single $warning ${item.productPrefix}:${ToPrimaryKey(item)}")
+      }
+      distinct.head.item
+    }
+
+  def toOrdered(inner: Compose[DMultiSet]): Compose[DMultiSet] = { // Ordering.by can drop keys!: https://github.com/scala/bug/issues/8674
+    (a, b) ⇒ {
+      val res = inner(a, b)
+      val tRes = if(res.size > 1 && !res.isInstanceOf[TreeMap[_, _]])
+        TreeMap.empty[InnerKey,Products] ++ res else res
+      tRes
     }
   }
 
-  def transform(transition: WorldTransition): WorldTransition = {
-    //println(s"rule $outputWorldKey <- $inputWorldKeys")
-    val ids = (Set.empty[JoinKey] /: inputWorldKeys)((res,key) ⇒
-      res ++ transition.diff.getOrElse(key, Map.empty).keys.asInstanceOf[Set[JoinKey]]
+  def inverse(a: Count): Count = a.copy(count = -a.count)
+
+  def mergeProduct(a: Count, l: Products): Products =
+    if(l.isEmpty) a::Nil else {
+      val b = l.head
+      if(a.item!=b.item) b :: mergeProduct(a,l.tail) else {
+        val count = a.count + b.count
+        if(count==0) l.tail else b.copy(count=count) :: l.tail
+      }
+    }
+
+  def mergeProducts(aList: Products, bList: Products): Products =
+    if(aList.isEmpty) bList
+    else mergeProducts(aList.tail, mergeProduct(aList.head, bList))
+}
+
+case class JoinKeyImpl(
+  was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String
+) extends JoinKey {
+  override def toString: String =
+    s"JK(${if (was) "@was " else ""}@by[$keyAlias] $valueClassName)"
+  def withWas(was: Boolean): JoinKey = copy(was=was)
+}
+
+case class IndexUtilImpl()(
+  val nonEmptySeq: Seq[Unit] = Seq(()),
+  mergeIndexInner: Compose[InnerIndex] =
+    Merge[Any,DMultiSet](v⇒v.isEmpty,
+      IndexUtilImpl.toOrdered(
+        Merge[InnerKey,Products](v⇒v.isEmpty, IndexUtilImpl.mergeProducts)
+      )
     )
-    if (ids.isEmpty) transition else transform(transition,ids)
-  }
-  private def transform(transition: WorldTransition, ids: Set[JoinKey]): WorldTransition = {
-    val end = profiler("calculate")
-    val prevOutput = recalculateSome(_.of(transition.prev.get.result), subNestedDiff, ids, Map.empty)
-    val indexDiff = recalculateSome(_.of(transition.result), addNestedDiff, ids, prevOutput)
-    end(ids.size)
-    if(indexDiff.isEmpty) transition else patch(transition, indexDiff)
-  }
-  private def patch(transition: WorldTransition, indexDiff: Map[MapKey, MultiSet[Value]]): WorldTransition = {
-    val end = profiler("patch    ")
+) extends IndexUtil {
 
-    val currentIndex: Index[MapKey,Value] = outputWorldKey.of(transition.result)
-    val nextIndex: Index[MapKey,Value] = addNestedPatch.many(currentIndex, indexDiff)
+  def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey =
+    JoinKeyImpl(was,keyAlias,keyClassName,valueClassName)
 
-    val currentDiff = diffOf(transition,outputWorldKey)
-    val nextDiff: Map[MapKey, Boolean] = currentDiff ++ indexDiff.transform((_,_)⇒true)
+  def makeIndex(data: InnerIndex/*, opt: IndexOpt*/): Index =
+    if(data.isEmpty) emptyIndex else {
+      val all = data.get(All)
+      new IndexImpl(data, if(all.nonEmpty) (k:Any)⇒all else data.get/*, opt*/)
+    }
 
-    end(indexDiff.size)
-    setPart(transition, nextDiff, nextIndex)
+  def data(index: Index): InnerIndex = index match {
+    case i: IndexImpl ⇒ i.data
+    case i if i == emptyIndex ⇒ Map.empty
   }
+
+  def getMS(index: Index, key: Any): Option[DMultiSet] = index match {
+    case i: IndexImpl ⇒ i.getMS(key)
+    case _ if index == emptyIndex ⇒ None
+  }
+
+  def isEmpty(index: Index): Boolean = data(index).isEmpty
+
+  def keySet(index: Index): Set[Any] = data(index).keySet
+
+  def nonEmpty(index: Index, key: Any): Boolean = {
+    val res = getMS(index,key).nonEmpty
+    res
+  }
+
+  def getValues(index: Index, key: Any, warning: String, options: AssembleOptions): Values[Product] = {
+    val res = getMS(index,key).fold(Nil:Values[Product])(v ⇒ DValuesImpl(v,warning,options))
+    res
+  }
+
+
+  def mergeIndex(l: DPIterable[Index]): Index = {
+    val res =
+      makeIndex(l.map(data).foldLeft(Map.empty: InnerIndex)(mergeIndexInner))
+    res
+  }
+
+  def emptyMS: DMultiSet = Map.empty
+
+  def removingDiff(index: Index, key: Any): Index = getMS(index,key).fold(emptyIndex){
+    values ⇒ makeIndex(Map(key→values.transform((k,v)⇒ v.map(IndexUtilImpl.inverse)))/*, index match { case i: IndexImpl ⇒ i.opt }*/)
+  }
+
+  def result(key: Any, product: Product, count: Int): Index =
+    makeIndex(Map(key→Map((ToPrimaryKey(product),product.hashCode)→(Count(product,count)::Nil)))/*, opt*/)
+
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning = {
+    getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
+      val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
+      val changed = mayBePar(for {
+        (k,v) ← diffValues; values ← currentValues.get(k)
+      } yield IndexUtilImpl.single(values,warning), options)
+      lazy val unchanged = mayBePar(for {
+        (k,values) ← currentValues if !diffValues.contains(k)
+      } yield IndexUtilImpl.single(values,warning), options)
+      val unchangedRes = (false,()⇒unchanged) :: Nil
+      if(changed.nonEmpty) (true,()⇒changed) :: unchangedRes else unchangedRes
+    }
+  }
+
+  def invalidateKeySet(diffIndexSeq: Seq[Index], options: AssembleOptions): Seq[Index] ⇒ DPIterable[Any] = {
+    val diffKeySet = diffIndexSeq.map(keySet).reduce(_ ++ _)
+    val res = if(diffKeySet.contains(All)){
+      (indexSeq: Seq[Index]) ⇒ mayBeParVector(indexSeq.map(keySet).reduce(_ ++ _) - All, options)
+    } else {
+      val ids = mayBeParVector(diffKeySet, options)
+      (indexSeq:Seq[Index]) ⇒ ids
+    }
+    res
+  }
+
+  def isParallel(options: AssembleOptions): Boolean = options.isParallel
+
+  def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V] =
+    if(isParallel(options)) iterable.to[ParVector] else iterable
+
+  def mayBePar[V](iterable: immutable.Iterable[V], options: AssembleOptions): DPIterable[V] =
+    if(isParallel(options)) iterable.par else iterable
+
+  def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq match {
+    case s: DValuesImpl ⇒ if(isParallel(s.options)) s.par else s
+    case s if s.isEmpty ⇒ s
+  }
+
 }
 
-object PrepareBackStage extends WorldPartExpression {
-  def transform(transition: WorldTransition): WorldTransition =
-    WorldTransition(Option(transition), Map.empty, transition.result)
-}
+////////////////////////////////////////////////////////////////////////////////
 
-class ConnectBackStage[MapKey, Value](
-  val outputWorldKey: AssembledKey[Index[MapKey, Value]],
-  val nextKey:        AssembledKey[Index[MapKey, Value]]
-) extends WorldPartExpression with DataDependencyToIndexUpdater[MapKey, Value] {
-  def transform(transition: WorldTransition): WorldTransition = {
-    val diffPart = diffOf(transition.prev.get, nextKey)
-    //println(s"AAA: $nextKey $diffPart")
-    //println(s"BBB: $transition")
-    if(diffPart.isEmpty) transition
-    else setPart(transition, diffPart, nextKey.of(transition.result))
-  }
+class IndexFactoryImpl(
+  val util: IndexUtil,
+  updater: IndexUpdater
+) extends IndexFactory {
+  def createJoinMapIndex(join: Join):
+    WorldPartExpression
+      with DataDependencyFrom[Index]
+      with DataDependencyTo[Index]
+  = new JoinMapIndex(join, updater, util)
 }
-
-object NoAssembleProfiler extends AssembleProfiler {
-  def get(ruleName: String): String ⇒ Int ⇒ Unit = dummy
-  private def dummy(startAction: String)(finalCount: Int): Unit = ()
-}
-
-//case class AssembleProfiling(key: String, tp: String, count: Int, period: Long)
 
 /*
-class ByPriority[Item](uses: Item⇒List[Item]){
-  private def regOne(res: ReverseInsertionOrder[Item,Item], item: Item): ReverseInsertionOrder[Item,Item] =
-    if(res.map.contains(item)) res else (res /: uses(item))(regOne).add(item,item)
-  def apply(items: List[Item]): List[Item] =
-    (ReverseInsertionOrder[Item,Item]() /: items)(regOne).values.reverse
+trait ParallelAssembleStrategy {
+
+}*/
+
+class JoinMapIndex(
+  join: Join,
+  updater: IndexUpdater,
+  composes: IndexUtil
+) extends WorldPartExpression
+  with DataDependencyFrom[Index]
+  with DataDependencyTo[Index]
+{
+  def assembleName = join.assembleName
+  def name = join.name
+  def inputWorldKeys: Seq[AssembledKey] = join.inputWorldKeys
+  def outputWorldKey: AssembledKey = join.outputWorldKey
+
+  override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
+
+  def transform(transition: WorldTransition): WorldTransition = {
+
+    val next: Future[IndexUpdate] = for {
+      worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
+      res ← {
+        if (worldDiffs.forall(composes.isEmpty)) for {
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield new IndexUpdate(outputDiff,outputData,Nil)
+        else for {
+          prevInputs ← Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
+          inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
+          profiler = transition.profiling
+          calcStart = profiler.time
+          joinRes = join.joins(composes.mayBePar(Seq(-1→prevInputs, +1→inputs), transition.options), worldDiffs, transition.options)
+          calcLog = profiler.handle(join, 0L, calcStart, joinRes, Nil)
+          findChangesStart = profiler.time
+          indexDiff = composes.mergeIndex(joinRes)
+          findChangesLog = profiler.handle(join, 1L, findChangesStart, Nil, calcLog)
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield {
+          if(composes.isEmpty(indexDiff))
+            new IndexUpdate(outputDiff,outputData,findChangesLog)
+          else {
+            val patchStart = profiler.time
+            val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
+            val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
+            val patchLog = profiler.handle(join, 2L, patchStart, Nil, findChangesLog)
+            new IndexUpdate(nextDiff,nextResult,patchLog)
+          }
+        }
+      }
+    } yield res
+    updater.setPart(outputWorldKey)(next)(transition)
+  }
+}
+
+/* For debug purposes
+class DebugIndexFactoryImpl(
+  val util: IndexUtil,
+  updater: IndexUpdater,
+  readModelUtil: ReadModelUtil
+) extends IndexFactory {
+  def createJoinMapIndex(join: Join):
+  WorldPartExpression
+    with DataDependencyFrom[Index]
+    with DataDependencyTo[Index]
+  = new DebugJoinMapIndex(join, updater, util, readModelUtil)
+}
+
+class DebugJoinMapIndex(
+  join: Join,
+  updater: IndexUpdater,
+  composes: IndexUtil,
+  readModelUtil: ReadModelUtil
+) extends WorldPartExpression
+  with DataDependencyFrom[Index]
+  with DataDependencyTo[Index]
+{
+  def assembleName = join.assembleName
+  def name = join.name
+  def inputWorldKeys: Seq[AssembledKey] = join.inputWorldKeys
+  def outputWorldKey: AssembledKey = join.outputWorldKey
+
+  override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
+
+  def transform(transition: WorldTransition): WorldTransition = {
+
+    val next: Future[IndexUpdate] = for {
+      worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
+      res ← {
+        if (worldDiffs.forall(composes.isEmpty)) for {
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield new IndexUpdate(outputDiff,outputData,Nil)
+        else for {
+          prevInputs ← Future.sequence(inputWorldKeys.map(_.of(transition.prev.get.result)))
+          inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
+          profiler = transition.profiling
+          calcStart = profiler.time
+          joinRes = join.joins(Seq(-1→prevInputs, +1→inputs).par, worldDiffs)
+          calcLog = profiler.handle(join, 0L, calcStart, joinRes, Nil)
+          findChangesStart = profiler.time
+          indexDiff = composes.mergeIndex(joinRes)
+          findChangesLog = profiler.handle(join, 1L, findChangesStart, Nil, calcLog)
+          outputDiff ← outputWorldKey.of(transition.diff)
+          outputData ← outputWorldKey.of(transition.result)
+        } yield {
+          if(composes.isEmpty(indexDiff))
+            new IndexUpdate(outputDiff,outputData,findChangesLog)
+          else {
+            val patchStart = profiler.time
+            val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
+            val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
+            val patchLog = profiler.handle(join, 2L, patchStart, Nil, findChangesLog)
+            new IndexUpdate(nextDiff,nextResult,patchLog)
+          }
+        }
+      }
+    } yield res
+    testTransition(updater.setPart(outputWorldKey)(next)(transition))
+  }
+
+  def testTransition(transition: WorldTransition): WorldTransition = {
+    val readModelDone = Await.result(readModelUtil.ready(transition.result), Duration.Inf)
+    readModelDone match {
+      case a: ReadModelImpl ⇒
+        (for {
+          (assKey, indexF) ← a.inner
+        } yield {
+          indexF.map {
+            case index: IndexImpl ⇒
+              for {
+                (outerKey, values) ← index.data
+                (pk, counts) ← values
+                count ← counts
+              } yield {
+                assert(count.count >= 0, s"Failed ${count.count} at assKey:$assKey, outerKey:$outerKey, pk:$pk after join $name/$assembleName")
+                0
+              }
+            case _ ⇒ 0
+          }
+        }).map(Await.result(_, Duration.Inf))
+      case _ ⇒ 0
+    }
+    transition
+  }
 }
 */
 
-class TreeAssemblerImpl(byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]]) extends TreeAssembler {
+class TreeAssemblerImpl(
+  composes: IndexUtil, readModelUtil: ReadModelUtil,
+  byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
+  optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
+) extends TreeAssembler {
+
   def replace: List[DataDependencyTo[_]] ⇒ Replace = rules ⇒ {
-    val replace: PatchMap[Object,Values[Object],Values[Object]] =
-      new PatchMap[Object,Values[Object],Values[Object]](Nil,_.isEmpty,(v,d)⇒d)
-    val add =
-      new PatchMap[AssembledKey[_],Index[Object,Object],Index[Object,Object]](Map.empty,_.isEmpty,replace.many)
-          .asInstanceOf[PatchMap[AssembledKey[_],Object,Index[Object,Object]]]
     val expressions/*: Seq[WorldPartExpression]*/ =
       rules.collect{ case e: WorldPartExpression with DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e }
       //handlerLists.list(WorldPartExpressionKey)
     type ExprFrom = WorldPartExpression with DataDependencyFrom[_]
-    type ExprByOutput = Map[AssembledKey[_], Seq[ExprFrom]]
+    type ExprByOutput = Map[AssembledKey, Seq[ExprFrom]]
     val originals: ExprByOutput = rules.collect{
       case e: OriginalWorldPart[_] ⇒ e.outputWorldKey → Nil
     }.toMap
     //umlClients.foreach(_(s"# rules: ${rules.size}, originals: ${originals.size}, expressions: ${expressions.size}"))
     val byOutput: ExprByOutput = expressions.groupBy(_.outputWorldKey)
     val permitWas: ExprByOutput = byOutput.keys.collect{
-      case k: JoinKey[_,_] if !k.was ⇒ k.copy(was=true) → Nil
+      case k: JoinKey if !k.was ⇒ k.withWas(was=true) → Nil
     }.toMap
+    Option(originals.keySet intersect byOutput.keySet)
+      .foreach(keys⇒assert(keys.isEmpty,s"can not output to originals: $keys"))
     val uses = originals ++ permitWas ++ byOutput
+    val getJoins: ExprFrom ⇒ List[ExprFrom] = join ⇒
+      (for (inKey ← join.inputWorldKeys.toList)
+        yield
+          if (uses.contains(inKey))
+            uses(inKey)
+          else throw new Exception(s"$inKey not found \n" +
+            s"for assemble ${join.assembleName}, join ${join.name}")).flatten
     val expressionsByPriority: List[ExprFrom] =
       byPriority.byPriority[ExprFrom,ExprFrom](
-        item⇒(item.inputWorldKeys.flatMap(uses).toList, _ ⇒ item)
+        item⇒(getJoins(item), _ ⇒ item)
       )(expressions).reverse
 
     expressionsDumpers.foreach(_.dump(expressionsByPriority.map{
       case e: DataDependencyTo[_] with DataDependencyFrom[_] ⇒ e
     }))
 
-    val wasKeys = (for {
-      e ← expressionsByPriority
-      k ← e.inputWorldKeys
-    } yield k).collect{ case k:JoinKey[_,_] if k.was ⇒ k }.distinct
-    val backStage = PrepareBackStage ::
-      wasKeys.map(k⇒new ConnectBackStage(k,k.copy(was=false)))
-    val transforms = expressionsByPriority ::: backStage ::: Nil
+    val expressionsByPriorityWithLoops =
+      optimizer.optimize(expressionsByPriority.collect{ case e: ExprFrom with DataDependencyTo[_] ⇒ e})
+    val backStage =
+      backStageFactory.create(expressionsByPriorityWithLoops.collect{ case e: ExprFrom ⇒ e })
+    val transforms = expressionsByPriorityWithLoops ::: backStage ::: Nil
     val transformAllOnce = Function.chain(transforms.map(h⇒h.transform(_)))
-    @tailrec def transformUntilStable(left: Int, transition: WorldTransition): ReadModel =
-      if(transition.diff.isEmpty) transition.result
-      else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
-      else throw new Exception(s"unstable assemble ${transition.diff}")
 
-    replaced ⇒ prevWorld ⇒ {
-      val prevTransition = WorldTransition(None,Map.empty,prevWorld)
-      val diff = replaced.transform((k,v)⇒v.transform((_,_)⇒true))
-      val currentWorld = add.many(prevWorld, replaced)
-      val transition = WorldTransition(Option(prevTransition),diff,currentWorld)
-      transformUntilStable(1000, transition)
+    val testSZ = transforms.size
+    //for(t ← transforms) println("T",t)
+    def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] =
+      for {
+        stable ← readModelUtil.isEmpty(transition.diff)
+        res ← {
+          if(stable) Future.successful(transition)
+          else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
+          else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
+        }
+      } yield res
+
+    (prevWorld,diff,options,profiler) ⇒ {
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil))
+      val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
+        seq ← Future.sequence(Seq(a,b))
+      } yield composes.mergeIndex(seq) ))(prevWorld,diff)
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil))
+      for {
+        finalTransition ← transformUntilStable(1000, nextTransition)
+        ready ← readModelUtil.ready(finalTransition.result)
+      } yield finalTransition
     }
   }
 }
 
 object UMLExpressionsDumper extends ExpressionsDumper[String] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): String = {
-    val keyAliases: List[(AssembledKey[_], String)] =
-      expressions.flatMap[AssembledKey[_],List[AssembledKey[_]]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
+    val keyAliases: List[(AssembledKey, String)] =
+      expressions.flatMap[AssembledKey,List[AssembledKey]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
         .distinct.zipWithIndex.map{ case (k,i) ⇒ (k,s"wk$i")}
-    val keyToAlias: Map[AssembledKey[_], String] = keyAliases.toMap
+    val keyToAlias: Map[AssembledKey, String] = keyAliases.toMap
     List(
       for((k:Product,a) ← keyAliases) yield
         s"(${k.productElement(0)} ${k.productElement(2).toString.split("[\\$\\.]").last}) as $a",
@@ -225,6 +436,143 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
 }
 
 object AssembleDataDependencies {
-  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] =
-    assembles.flatMap(assemble⇒assemble.dataDependencies(indexFactory))
+  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] = {
+    def gather(assembles: List[Assemble]): List[Assemble] =
+      if(assembles.isEmpty) Nil
+      else gather(assembles.collect{ case a: CallerAssemble ⇒ a.subAssembles }.flatten) ::: assembles
+    val(was,res) = gather(assembles).foldLeft((Set.empty[String],List.empty[Assemble])){(st,add)⇒
+      val(was,res) = st
+      add match {
+        case m: MergeableAssemble if was(m.mergeKey) ⇒ (was,res)
+        case m: MergeableAssemble ⇒ (was+m.mergeKey,m::res)
+        case m ⇒ (was,m::res)
+      }
+    }
+    res.flatMap(_.dataDependencies(indexFactory))
+  }
 }
+
+object Merge {
+  type Compose[V] = (V,V)⇒V
+  def bigFirst[K,V](inner: Compose[DMap[K,V]]): Compose[DMap[K,V]] =
+    (a,b) ⇒ {
+      if(a.size < b.size) inner(b,a) else inner(a,b)
+    }
+  def apply[K,V](isEmpty: V⇒Boolean, inner: Compose[V]): Compose[DMap[K,V]] =
+    bigFirst((bigMap,smallMap) ⇒ {
+      val res =
+      smallMap.foldLeft(bigMap){ (resMap,kv)⇒
+        val (k,smallVal) = kv
+        val bigValOpt = resMap.get(k)
+        val resVal = if(bigValOpt.isEmpty) smallVal else inner(bigValOpt.get,smallVal)
+        if(isEmpty(resVal)) resMap - k else resMap + (k → resVal)
+      }
+      res
+    })
+}
+
+// if we need more: scala rrb vector, java...binarySearch
+// also consider: http://docs.scala-lang.org/overviews/collections/performance-characteristics.html
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+//class NonSingleValuesException(k: Product, v: Int) extends Exception
+
+//trait IndexOpt extends Product
+//case object UndefinedIndexOpt extends IndexOpt
+//case class DefIndexOpt(key: AssembledKey) extends IndexOpt
+
+/*
+trait DValues extends Product {
+  def setOnDistinct(onDistinct: Count⇒Unit): Seq[Product]
+}
+
+case class SingleValues(item: Product) extends DValues with Seq[Product] {
+  def setOnDistinct(onDistinct: Count⇒Unit): Seq[Product] = this
+
+  def length: Int = 1
+  def apply(idx: Int): Product =
+    if(idx==0) item else throw new IndexOutOfBoundsException
+  def iterator: Iterator[Product] = Iterator(item)
+}*/
+
+//type DPMap[K,V] = GenMap[K,V] //ParMap[K,V]
+//
+/*
+
+
+
+  val wrapIndex: Object ⇒ Any ⇒ Option[DMultiSet] = in ⇒ {
+    val index = in.asInstanceOf[Index]
+    val all = index.get(All)
+    if(all.nonEmpty) (k:Any)⇒all else (k:Any)⇒index.get(k)
+  },
+  val wrapValues: Option[DMultiSet] ⇒ Values[Product] =
+    _.fold(Nil:Values[Product])(m⇒DValuesImpl(m.asInstanceOf[TreeMap[PreHashed[Product],Int]])),
+  val mergeIndex: Compose[Index] = Merge[Any,DMultiSet](_.isEmpty,Merge(_==0,_+_)),
+  val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] = {
+    def valuesDiffFromJoinRes(in: DPIterable[JoinRes]): Option[DMultiSet] = {
+      val m = in.foldLeft(emptyMultiSet) { (res, jRes) ⇒
+        val k = jRes.productHashed
+        val was = res.getOrElse(k,0)
+        val will = was + jRes.count
+        if(will==0) res - k else res + (k→will)
+      }
+      if(m.isEmpty) None else Option(m.seq)
+    }
+    in ⇒
+      val m = for {(k,part) ← in.groupBy(_.byKey); v ← valuesDiffFromJoinRes(part) } yield k→v
+      if(m.isEmpty) None else Option(m.seq.toMap)
+  }
+  def partition(currentOpt: Option[DMultiSet], diffOpt: Option[DMultiSet]): Iterable[(Boolean,GenIterable[PreHashed[Product]])] =
+
+
+  def keySet(indexSeq: Seq[Index]): Set[Any] = indexSeq.map(_.keySet).reduce(_++_)
+  def result(key: Any, product: Product, count: Int): JoinRes =
+    new JoinRes(key,preHashing.wrap(product),count)
+*/
+
+
+/******************************************************************************/
+
+/*
+object IndexFactoryUtil {
+  def group[K,V](by: JoinRes⇒K, wrap: DPMap[K,V]⇒DMap[K,V], inner: DPIterable[JoinRes] ⇒ Option[V]): DPIterable[JoinRes] ⇒ Option[DMap[K,V]] =
+    (in:DPIterable[JoinRes]) ⇒ {
+      val m = for {(k,part) ← in.groupBy(by); v ← inner(part) } yield k→v
+      if(m.isEmpty) None else Option(wrap(m))
+    }
+  def sumOpt: DPIterable[JoinRes] ⇒ Option[Int] = part ⇒ {
+    val sum = part.map(_.count).sum
+    if(sum==0) None else Option(sum)
+  }
+}
+val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
+    IndexFactoryUtil.group[Any,DMultiSet](_.byKey, _.seq.toMap,
+      IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, emptyMultiSet++_, IndexFactoryUtil.sumOpt)
+    )
+
+*/
+
+/*
+object IndexFactoryUtil {
+  def group[K,V](by: JoinRes⇒K, empty: V, isEmpty: V⇒Boolean, inner: (V,JoinRes)⇒V): (DMap[K,V],JoinRes)⇒DMap[K,V] =
+    (res,jRes) ⇒ {
+      val k = by(jRes)
+      val was = res.getOrElse(k,empty)
+      val will = inner(was,jRes)
+      if(isEmpty(will)) res - k else res + (k→will)
+    }
+}
+val diffFromJoinRes: DPIterable[JoinRes]⇒Option[Index] =
+    ((in:DPIterable[JoinRes])⇒in.foldLeft(emptyIndex)(
+      IndexFactoryUtil.group[Any,DMultiSet](_.byKey, emptyMultiSet, _.isEmpty,
+        IndexFactoryUtil.group[PreHashed[Product],Int](_.productHashed, 0, _==0,
+          (res,jRes)⇒res+jRes.count
+        )
+      )
+    )).andThen(in⇒Option(in).filter(_.nonEmpty))
+*/
+
+

@@ -3,6 +3,7 @@ package ee.cone.c4vdom_impl
 import ee.cone.c4vdom._
 
 import Function.chain
+import scala.annotation.tailrec
 
 class VDomHandlerFactoryImpl(
   diff: Diff,
@@ -17,6 +18,16 @@ class VDomHandlerFactoryImpl(
     vDomStateKey: VDomLens[State,Option[VDomState]]
   ): VDomHandler[State] =
     VDomHandlerImpl(sender,view)(diff,jsonToString,wasNoValue,child,vDomUntil,vDomStateKey)
+}
+
+object VDomResolverImpl extends VDomResolver {
+  def resolve(pathStr: String): Option[VDomValue] ⇒ Option[VDomValue] = from ⇒ {
+    val path = pathStr.split("/").toList match {
+      case "" :: parts => parts
+      case _ => Never()
+    }
+    from.flatMap(ResolveValue(_, path))
+  }
 }
 
 case class VDomHandlerImpl[State](
@@ -38,12 +49,9 @@ case class VDomHandlerImpl[State](
 
   private def pathHeader: VDomMessage => String = _.header("X-r-vdom-path")
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = exchange ⇒ state ⇒ if(pathHeader(exchange).isEmpty) state else {
-    val path = pathHeader(exchange).split("/").toList match {
-      case "" :: parts => parts
-      case _ => Never()
-    }
-    (ResolveValue(vDomStateKey.of(state).get.value, path) match {
+  private def dispatch: Handler = exchange ⇒ state ⇒ {
+    val path = pathHeader(exchange)
+    if(path.isEmpty) state else (VDomResolverImpl.resolve(path)(vDomStateKey.of(state).map(_.value)) match {
       case Some(v: Receiver[_]) => v.receive(exchange)
       case v =>
         println(s"$path ($v) can not receive")
@@ -74,7 +82,10 @@ case class VDomHandlerImpl[State](
     else if(
       vState.value != wasNoValue &&
       vState.until > System.currentTimeMillis &&
-      pathHeader(exchange).isEmpty &&
+      (exchange.header("X-r-redraw") match {
+        case "1" ⇒ false
+        case "" ⇒ pathHeader(exchange).isEmpty
+      }) &&
       freshTo.isEmpty
     ) state
     else chain[State](Seq(
@@ -91,7 +102,7 @@ case class VDomHandlerImpl[State](
     val nextDom = vPair.value
     vDomStateKey.set(Option(VDomState(nextDom, until)))(state)
   }
-
+/*
   def seeds: State ⇒ List[(String,Product)] = state ⇒ {
     //println(vDomStateKey.of(state).get.value.getClass)
     gatherSeeds(Nil, Nil, vDomStateKey.of(state).get.value)
@@ -104,7 +115,37 @@ case class VDomHandlerImpl[State](
     case n: SeedVDomValue ⇒ (path.reverse.map(e⇒s"/$e").mkString,n.seed) :: acc
      //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
     case _ ⇒ acc
+  }*/
+  /*private def gatherSeedsValue(value: VDomValue): Product = value match {
+    case n: MapVDomValue ⇒
+      val subRes = gatherSeedsPairs(n.pairs,Nil)
+      if(subRes.nonEmpty) GatheredSeeds(subRes) else NoSeeds
+    case n: SeedVDomValue ⇒ n.seed
+    case _ ⇒ NoSeeds
+  }*/
+
+  type Seeds = List[(String,Product)]
+  def seeds: State ⇒ Seeds = state ⇒
+    gatherSeedsFinal(Nil, gatherSeedsPair("",vDomStateKey.of(state).get.value,Nil), Nil)
+  @tailrec private def gatherSeedsPairs(from: List[VPair], res: Seeds): Seeds =
+    if(from.isEmpty) res else gatherSeedsPairs(from.tail, gatherSeedsPair(from.head.jsonKey,from.head.value,res))
+  private def gatherSeedsPair(key: String, value: VDomValue, res: Seeds ): Seeds = value match {
+    case n: MapVDomValue ⇒
+      val subRes = gatherSeedsPairs(n.pairs,Nil)
+      if(subRes.nonEmpty) (key,GatheredSeeds(subRes)) :: res else res
+    case n: SeedVDomValue ⇒ (key,n.seed) :: res
+    case _ ⇒ res
   }
+  private def gatherSeedsFinal(path: List[String], from: Seeds, res: Seeds): Seeds =
+    if(from.isEmpty) res else {
+      val (key,value) = from.head
+      val subPath = key :: path
+      gatherSeedsFinal(path, from.tail, value match {
+        case GatheredSeeds(pairs) ⇒ gatherSeedsFinal(subPath,pairs,res)
+        case seed ⇒ (subPath.reverse.mkString("/"),seed) :: res
+      })
+    }
+
 
   //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
   //else List("relocateHash"→vState.hashTarget)
@@ -120,19 +161,20 @@ case class VDomHandlerImpl[State](
   */
 }
 
-
+case class GatheredSeeds(pairs: List[(String,Product)])
 
 
 case class RootElement(branchKey: String) extends VDomValue {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
     builder.append("tp").append("span")
+    /*
     builder.append("ref");{
       builder.startArray()
       builder.append("root")
       builder.append(branchKey)
       builder.end()
-    }
+    }*/
     builder.end()
   }
 }

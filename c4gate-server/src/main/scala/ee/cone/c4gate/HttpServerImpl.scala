@@ -15,7 +15,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.HttpProtocol._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4actor._
 import ee.cone.c4gate.AlienProtocol.{PostConsumer, ToAlienWrite}
@@ -26,24 +26,29 @@ import scala.collection.immutable.Seq
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
-trait RHttpHandler {
-  def handle(httpExchange: HttpExchange): Boolean
-}
-
-class HttpGetHandler(worldProvider: WorldProvider) extends RHttpHandler {
-  def handle(httpExchange: HttpExchange): Boolean = {
+class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
+  def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean = {
     if(httpExchange.getRequestMethod != "GET") return false
     val path = httpExchange.getRequestURI.getPath
     val now = System.currentTimeMillis
     val local = worldProvider.createTx()
-    val publicationsByPath = ByPK(classOf[HttpPublication]).of(local)
+    val publicationsByPath = ByPK(classOf[S_HttpPublication]).of(local)
     publicationsByPath.get(path).filter(_.until.forall(now<_)) match {
       case Some(publication) ⇒
-        val headers = httpExchange.getResponseHeaders
-        publication.headers.foreach(header⇒headers.add(header.key,header.value))
-        val bytes = publication.body.toByteArray
-        httpExchange.sendResponseHeaders(200, bytes.length)
-        if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
+        val cTag = reqHeaders.find(_.key=="If-none-match").map(_.value)
+        val sTag = publication.headers.find(_.key=="ETag").map(_.value)
+        logger.debug(s"$reqHeaders")
+        logger.debug(s"$cTag $sTag")
+        (cTag,sTag) match {
+          case (Some(a),Some(b)) if a == b ⇒
+            httpExchange.sendResponseHeaders(304, 0)
+          case _ ⇒
+            val headers = httpExchange.getResponseHeaders
+            publication.headers.foreach(header⇒headers.add(header.key,header.value))
+            val bytes = publication.body.toByteArray
+            httpExchange.sendResponseHeaders(200, bytes.length)
+            if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
+        }
       case _ ⇒
         httpExchange.sendResponseHeaders(404, 0)
     }
@@ -58,29 +63,27 @@ object AuthOperations {
     random.nextBytes(salt)
     ToByteString(salt)
   }
-  private def pbkdf2(password: String, template: SecureHash): SecureHash = {
+  private def pbkdf2(password: String, template: N_SecureHash): N_SecureHash = {
     val spec = new PBEKeySpec(password.toCharArray, template.salt.toByteArray, template.iterations, template.hashSizeInBytes * 8)
     val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
     template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
   }
-  def createHash(password: String): SecureHash =
-    pbkdf2(password, SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))
-  def verify(password: String, correctHash: SecureHash): Boolean =
+  def createHash(password: String): N_SecureHash =
+    pbkdf2(password, N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))
+  def verify(password: String, correctHash: N_SecureHash): Boolean =
     correctHash == pbkdf2(password, correctHash)
 }
 
 class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
-  def handle(httpExchange: HttpExchange): Boolean = {
+  def handle(httpExchange: HttpExchange, headers: List[N_Header]): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
-    val headers = httpExchange.getRequestHeaders.asScala
-      .flatMap{ case(k,l)⇒l.asScala.map(v⇒Header(k,v)) }.toList
     val headerMap = headers.map(h⇒h.key→h.value).toMap
     val local = worldProvider.createTx()
     val requestId = UUID.randomUUID.toString
     val path = httpExchange.getRequestURI.getPath
     val buffer = (new okio.Buffer).readFrom(httpExchange.getRequestBody)
-    val post: okio.ByteString ⇒ HttpPost =
-      HttpPost(requestId, path, headers, _, System.currentTimeMillis)
+    val post: okio.ByteString ⇒ S_HttpPost =
+      S_HttpPost(requestId, path, headers, _, System.currentTimeMillis)
 
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
@@ -89,12 +92,12 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         if(password!=again) throw new Exception("passwords do not match")
         val hash = Option(AuthOperations.createHash(password))
         List(
-          PasswordChangeRequest(requestId, hash),
+          S_PasswordChangeRequest(requestId, hash),
           post(okio.ByteString.encodeUtf8(requestId))
         )
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
-        val hashesByUser = ByPK(classOf[PasswordHashOfUser]).of(local)
+        val hashesByUser = ByPK(classOf[C_PasswordHashOfUser]).of(local)
         val hash = hashesByUser.get(userName).map(_.hash.get)
         val endTime = System.currentTimeMillis() + 1000
         val hashOK = hash.exists(pass⇒AuthOperations.verify(password,pass))
@@ -103,7 +106,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         val newId = UUID.randomUUID.toString
         if(hashOK) List(
           post(ToByteString(newId)),
-          AuthenticatedSession(newId, userName, Instant.now.plusSeconds(20).getEpochSecond),
+          U_AuthenticatedSession(newId, userName, Instant.now.plusSeconds(20).getEpochSecond),
           ToAlienWrite(newId,currentSessionKey,"signedIn",newId,0)
         ) else List(
           post(okio.ByteString.EMPTY)
@@ -114,9 +117,11 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
       if(ByPK(classOf[HttpPostAllow]).of(nLocal).contains(requestId)){
         qMessages.send(nLocal)
         httpExchange.sendResponseHeaders(200, 0)
+        //logger.debug(s"200 $path $headers")
       } else {
         logger.warn(path)
         httpExchange.sendResponseHeaders(429, 0) //Too Many Requests
+        //logger.debug(s"429 $path $headers")
       }
     }(local)
     true
@@ -125,7 +130,11 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
 
 class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
   def handle(httpExchange: HttpExchange) =
-    Trace{ FinallyClose[HttpExchange,Unit](_.close())(httpExchange) { ex ⇒ handlers.find(_.handle(ex)) } }
+    Trace{ FinallyClose[HttpExchange,Unit](_.close())(httpExchange) { ex ⇒
+      val headers: List[N_Header] = httpExchange.getRequestHeaders.asScala
+          .flatMap{ case(k,l)⇒l.asScala.map(v⇒N_Header(k,v)) }.toList
+      handlers.find(_.handle(ex,headers))
+    } }
 }
 
 class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends Executable {
@@ -144,10 +153,13 @@ class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends
 }
 
 class WorldProviderImpl(
-  worldFuture: CompletableFuture[AtomicReference[Context]] = new CompletableFuture()
+  worldFuture: CompletableFuture[AtomicReference[RichContext]] = new CompletableFuture()
 ) extends WorldProvider with Observer {
-  def createTx(): Context = concurrent.blocking{ worldFuture.get.get }
-  def activate(global: Context): Seq[Observer] = {
+  def createTx(): Context = {
+    val global = concurrent.blocking{ worldFuture.get.get }
+    new Context(global.injected, global.assembled, Map.empty)
+  }
+  def activate(global: RichContext): Seq[Observer] = {
     if(worldFuture.isDone) worldFuture.get.set(global)
     else worldFuture.complete(new AtomicReference(global))
     List(this)
@@ -167,52 +179,50 @@ trait HttpServerApp extends ToStartApp {
   def httpHandlers: List[RHttpHandler]
   private lazy val httpPort = config.get("C4HTTP_PORT").toInt
   lazy val httpServer: Executable =
-    new RHttpServer(httpPort, new ReqHandler(new HttpGetHandler(worldProvider) :: httpHandlers), execution)
+    new RHttpServer(httpPort, new ReqHandler(httpHandlers), execution)
 
   override def toStart: List[Executable] = httpServer :: super.toStart
 }
 
 object PostAssembles {
   def apply(mortal: MortalFactory, sseConfig: SSEConfig): List[Assemble] =
-    mortal(classOf[HttpPost]) :: new PostLifeAssemble(sseConfig) :: Nil
+    mortal(classOf[S_HttpPost]) :: new PostLifeAssemble(sseConfig) :: Nil
 }
 
 case class HttpPostAllow(condition: SrcId)
 
-@assemble class PostLifeAssemble(sseConfig: SSEConfig) extends Assemble {
+@assemble class PostLifeAssembleBase(sseConfig: SSEConfig)   {
   type ASessionKey = SrcId
   type Condition = SrcId
 
   def postsByCondition(
     key: SrcId,
-    posts: Values[HttpPost]
-  ): Values[(Condition, HttpPost)] =
-    for(post ← posts)
-      yield post.headers.find(_.key=="X-r-branch").map(_.value).getOrElse(post.path) → post
+    post: Each[S_HttpPost]
+  ): Values[(Condition, S_HttpPost)] =
+    List(post.headers.find(_.key=="X-r-branch").map(_.value).getOrElse(post.path) → post)
 
   def consumersByCondition(
     key: SrcId,
-    consumers: Values[PostConsumer]
+    c: Each[PostConsumer]
   ): Values[(Condition, LocalPostConsumer)] =
-    for(c ← consumers) yield WithPK(LocalPostConsumer(c.condition))
+    List(WithPK(LocalPostConsumer(c.condition)))
 
   def lifeToPosts(
     key: SrcId,
     @by[Condition] consumers: Values[LocalPostConsumer],
-    @by[Condition] posts: Values[HttpPost]
-  ): Values[(Alive, HttpPost)] = //it's not ok if postConsumers.size > 1
-    for(post ← posts if consumers.nonEmpty) yield WithPK(post)
+    @by[Condition] post: Each[S_HttpPost]
+  ): Values[(Alive, S_HttpPost)] = //it's not ok if postConsumers.size > 1
+    if(consumers.nonEmpty) List(WithPK(post)) else Nil
 
   def alivePostsBySession(
     key: SrcId,
-    @by[Alive] posts: Values[HttpPost]
-  ): Values[(ASessionKey, HttpPost)] =
-    for(post ← posts)
-      yield post.headers.find(_.key=="X-r-session").map(_.value).getOrElse("") → post
+    @by[Alive] post: Each[S_HttpPost]
+  ): Values[(ASessionKey, S_HttpPost)] =
+    List(post.headers.find(_.key=="X-r-session").map(_.value).getOrElse("") → post)
 
   def allowSessionPosts(
     key: SrcId,
-    @by[ASessionKey] posts: Values[HttpPost]
+    @by[ASessionKey] posts: Values[S_HttpPost]
   ): Values[(SrcId, HttpPostAllow)] =
     for(post ← posts if posts.size <= sseConfig.sessionWaitingPosts || key.isEmpty)
       yield WithPK(HttpPostAllow(post.srcId))

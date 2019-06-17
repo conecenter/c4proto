@@ -1,11 +1,11 @@
-export default function OverlayManager({log,documentManager,windowManager}){
-	const {setTimeout,clearTimeout,screenRefresh} = windowManager
+export default function OverlayManager({log,documentManager,windowManager,getMountNode}){
+	const {setTimeout,clearTimeout,screenRefresh,getComputedStyle} = windowManager
 	const {createElement,body} = documentManager
 	let stopCircular = false
 	let circularTimer = null
 	let delayTimer = null
 	const className = "overlayMain"
-	const getEls = () => body().querySelectorAll(`.${className}`)
+	const getEls = () => Array.from(body().querySelectorAll(`.${className}`))
 	const killTimers = () =>{
 		clearTimeout(circularTimer);
 		circularTimer = null
@@ -17,12 +17,17 @@ export default function OverlayManager({log,documentManager,windowManager}){
 		if(stopCircular) return 
 		const els = getEls()
 		els.forEach(el=>{
+			const mountNode = getMountNode()
+			el.style.display = mountNode&&getComputedStyle(mountNode).display=="none"?"none":""
+			if(mountNode) el.style.width = mountNode.getBoundingClientRect().width + "px"
 			const markedInnerPath = el.querySelector('path[data-selected="true"]')
 			const nextMarkedInnerPath = markedInnerPath.previousElementSibling?markedInnerPath.previousElementSibling:markedInnerPath.parentNode.lastElementChild			
 			markedInnerPath.style.fill = 'white'
-			markedInnerPath.dataset.selected = false
-			nextMarkedInnerPath.style.fill = 'transparent'
-			nextMarkedInnerPath.dataset.selected = true			
+			if(markedInnerPath.dataset){
+				markedInnerPath.dataset.selected = false
+				nextMarkedInnerPath.style.fill = 'transparent'
+				nextMarkedInnerPath.dataset.selected = true			
+			}
 		})
 		circularTimer = setTimeout(startCircularMotion,100)
 	}
@@ -30,14 +35,23 @@ export default function OverlayManager({log,documentManager,windowManager}){
 		if(on){			
 			if(getEls().length>0) return
 			killTimers();stopCircular = false
+			const mountNode = getMountNode()
 			const el=createElement("div");
+			const bRect = mountNode?mountNode.getBoundingClientRect():null
+			const sRect = bRect?{
+				top:bRect.top+"px",
+				left:bRect.left+"px",
+				width:bRect.width+"px",
+				height:bRect.height?bRect.height+"px":`calc(100vh - ${bRect.top}px)`
+				}:null			
 			const style={
+				display:mountNode&&getComputedStyle(mountNode).display=="none"?"none":"",
 				position:"fixed",
-				top:"0rem",
-				left:"0rem",
-				width:"100vw",
-				height:"100vh",
-				zIndex:"6666",
+				top:sRect?sRect.top:"0",
+				left:sRect?sRect.left:"0",
+				width:sRect?sRect.width:"100vw",
+				height:sRect?sRect.height:"100vh",
+				zIndex:"10011",
 				color:"wheat",
 				textAlign:"center",
 				backgroundColor:"rgba(0,0,0,0.4)",
@@ -60,13 +74,15 @@ export default function OverlayManager({log,documentManager,windowManager}){
 			const wrapperEl = createElement("div")
 			wrapperEl.style.position="relative"
 			wrapperEl.style.top="calc(50% - 1em)"
-			wrapperEl.innerHTML = `${svgEl}${msg}`
+			const amsg = msg.length>0?`<pre>${msg}</pre>`:""
+			wrapperEl.innerHTML = `${svgEl}${amsg}`
 			wrapperEl.onclick = screenRefresh
 			el.appendChild(wrapperEl)
 			body().appendChild(el);
-			startCircularMotion()
+			startCircularMotion() 
 		}
 		else{
+			if(getEls().length == 0) return
 			killTimers()			
 			getEls().forEach(el=>body().removeChild(el));
 		}		

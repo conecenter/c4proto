@@ -4,9 +4,9 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4gate.HttpProtocol.S_HttpPost
 import ee.cone.c4proto.Protocol
 
 class TestSerialApp extends TestTxTransformApp with SerialObserversApp
@@ -23,21 +23,21 @@ abstract class TestTxTransformApp extends ServerApp
   override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles
 }
 
-@assemble class TestDelayAssemble extends Assemble {
+@assemble class TestDelayAssembleBase   {
   def joinTestHttpPostHandler(
     key: SrcId,
-    posts: Values[HttpPost]
+    post: Each[S_HttpPost]
   ): Values[(SrcId, TxTransform)] =
-    posts.map(post ⇒ post.srcId → TestDelayHttpPostHandler(post.srcId, post))
+    List(WithPK(TestDelayHttpPostHandler(post.srcId, post)))
 }
 
-case class TestDelayHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
+case class TestDelayHttpPostHandler(srcId: SrcId, post: S_HttpPost) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     logger.info(s"start handling $srcId")
     concurrent.blocking{
       Thread.sleep(1000)
     }
     logger.info(s"finish handling $srcId")
-    TxAdd(delete[Product](post))(local)
+    TxAdd(delete(post))(local)
   }
 }

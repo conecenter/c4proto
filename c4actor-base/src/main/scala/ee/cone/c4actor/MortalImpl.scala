@@ -1,26 +1,40 @@
 package ee.cone.c4actor
 
+import ee.cone.c4actor.Killing.KillerId
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{Assemble, assemble, by, distinct}
 
-object MortalFactoryImpl extends MortalFactory {
-  def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl)
+case class MortalFactoryImpl(anUUIDUtil: IdGenUtil) extends MortalFactory {
+  def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl,anUUIDUtil)
 }
 
-@assemble class MortalAssemble[Node<:Product](
-  classOfMortal: Class[Node]
-) extends Assemble {
-  def join(
+case class Killing(hash: SrcId, ev: LEvent[Product])
+object Killing {
+  type KillerId = SrcId
+}
+
+@assemble class MortalAssembleBase[D_Node<:Product](
+  classOfMortal: Class[D_Node],
+  anUUIDUtil: IdGenUtil
+)   {
+  def createKilling(
     key: SrcId,
-    mortals: Values[Node],
-    @by[Alive] keepAlive: Values[Node]
-  ): Values[(SrcId,TxTransform)] =
-    if(mortals.nonEmpty && keepAlive.isEmpty) {
-      val pk = s"kill/${classOfMortal.getName}/$key"
-      List(pk → SimpleTxTransform[Product](pk, mortals.flatMap(LEvent.delete)))
-    } else Nil
+    mortal: Each[D_Node],
+    @distinct @by[Alive] keepAlive: Values[D_Node]
+  ): Values[(KillerId,Killing)] = if(keepAlive.nonEmpty) Nil else for {
+    ev ← LEvent.delete(mortal)
+    killing ← Seq(Killing(anUUIDUtil.srcIdFromSrcIds(ev.srcId,ev.className/*it's just string*/),ev))
+  } yield s"killing" → killing //scaling: killing.hash.substring(0,1)
+}
+
+@assemble class MortalFatalityAssembleBase   {
+  def aggregateKilling(
+    key: SrcId,
+    @by[KillerId] killings: Values[Killing]
+  ): Values[(SrcId, TxTransform)] =
+    WithPK(SimpleTxTransform(s"killer/$key", killings.map(_.ev))) :: Nil
 }
 
 case class SimpleTxTransform[P<:Product](srcId: SrcId, todo: Values[LEvent[P]]) extends TxTransform {
@@ -35,7 +49,7 @@ object LifeTypes {
 @assemble class LifeAssemble[Parent,Child](
   classOfParent: Class[Parent],
   classOfChild: Class[Child]
-) extends Assemble {
+)   {
   import LifeTypes.ParentSrcId
   def join(
     key: SrcId,
@@ -68,7 +82,7 @@ object ToPrimaryKey {
   classOfGiver: Class[Giver],
   classOfMortal: Class[Mortal],
   f: Giver ⇒ List[Mortal]
-) extends Assemble {
+)   {
   import LifeTypes.MortalSrcId
   def join(
     key: SrcId,

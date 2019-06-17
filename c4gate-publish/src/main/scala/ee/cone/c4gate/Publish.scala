@@ -5,8 +5,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file._
 
 import ee.cone.c4actor._
-import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
-import okio.{Buffer, ByteString, GzipSink}
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
@@ -17,11 +16,13 @@ import ee.cone.c4proto.ToByteString
 class PublishingObserver(
   compressor: Compressor,
   qMessages: QMessages,
+  idGenUtil: IdGenUtil,
   fromDir: String,
   fromStrings: List[(String,String)],
   mimeTypes: String⇒Option[String]
 ) extends Observer with LazyLogging {
-  def activate(global: Context): Seq[Observer] = {
+  def activate(global: RichContext): Seq[Observer] = {
+    //println("AAA")
     logger.debug("publish started")
     val fromPath = Paths.get(fromDir)
     val visitor = new PublishFileVisitor(fromPath,publish(global))
@@ -32,20 +33,24 @@ class PublishingObserver(
       publish(global)(path,body.getBytes(UTF_8))
     }
     logger.debug("publish finished")
+    //println("BBB")
     Nil
   }
-  def publish(local: Context)(path: String, body: Array[Byte]): Unit = {
+  def publish(global: RichContext)(path: String, body: Array[Byte]): Unit = {
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
-    val headers = Header("Content-Encoding", compressor.name) ::
-      ext.flatMap(mimeTypes).map(Header("Content-Type",_)).toList
     val byteString = compressor.compress(ToByteString(body))
-    val publication = HttpPublication(path,headers,byteString,None)
-    val existingPublications = ByPK(classOf[HttpPublication]).of(local)
+    val headers =
+      N_Header("ETag", s""""${idGenUtil.srcIdFromSerialized(0,byteString)}"""") ::
+      N_Header("Content-Encoding", compressor.name) ::
+      ext.flatMap(mimeTypes).map(N_Header("Content-Type",_)).toList
+    val publication = S_HttpPublication(path,headers,byteString,None)
+    val existingPublications = ByPK(classOf[S_HttpPublication]).of(global)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.get(path).contains(publication)) {
       logger.debug(s"$path (${byteString.size}) exists")
     } else {
+      val local = new Context(global.injected, global.assembled, Map.empty)
       TxAdd(LEvent.update(publication)).andThen(qMessages.send)(local)
       logger.debug(s"$path (${byteString.size}) published")
     }

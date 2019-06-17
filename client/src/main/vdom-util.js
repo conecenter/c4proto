@@ -1,110 +1,28 @@
 
+import {spreadAll} from "../main/util"
+
 export function rootCtx(ctx){ return ctx.parent ? rootCtx(ctx.parent) : ctx }
 
-function ctxToPath(ctx){
+export function ctxToPath(ctx){
     return !ctx ? "" : ctxToPath(ctx.parent) + (ctx.key ? "/"+ctx.key : "")
 }
 
 export function VDomSender(feedback){ // todo: may be we need a queue to be sure server will receive messages in right order
-    const send = (ctx, target) => feedback.send({
-        url: "/connection",
-        options: {
-            headers: {
-                ...target.headers,
-                "X-r-branch": rootCtx(ctx).branchKey,
-                "X-r-vdom-path": ctxToPath(ctx)
-            },
-            body: target.value
-        },
-    })
+    const send = (ctx, target) => {
+        const headers = {
+            ...target.headers,
+            "X-r-branch": rootCtx(ctx).branchKey,
+            "X-r-vdom-path": ctxToPath(ctx)
+        }
+        const skipByPath = that => that.options.headers["X-r-vdom-path"] === headers["X-r-vdom-path"]
+        return feedback.send({
+            url: "/connection",
+            options: { headers, body: target.value },
+            skip: target.skipByPath && skipByPath,
+            retry: target.skipByPath //vdom-changes are more or less idempotent and can be retried
+        })
+    }
     return ({send})
-}
-
-const single = res => fail => res.length === 1 ? res[0] : fail()
-const singleParentNode = branch => single(Object.values(branch.parentNodes||{}).filter(v=>v))(()=>null)
-
-export const elementPos = element => {
-    const p = element.getBoundingClientRect()
-    return {
-        pos: {x:p.left,y:p.top},
-        size:{x:p.width,y:p.height},
-        end:{x:p.right,y:p.bottom}
-    }
-}
-export const calcPos = calc => ({ x:calc("x"), y:calc("y") })
-
-function ctxToArray(ctx,res){
-    if(ctx){
-        ctxToArray(ctx.parent, res)
-        if(ctx.key) res.push(ctx.key)
-    }
-    return res
-}
-
-export function VDomSeeds(log,DiffPrepare){
-    const seed = ctx => parentNode => {
-        const rCtx = rootCtx(ctx)
-        const fromKey = rCtx.branchKey + ":" + ctxToPath(ctx)
-        const branchKey = ctx.value[1]
-        rCtx.modify(branchKey, state=>({
-            ...state,
-            parentNodes:{
-                ...state.parentNodes,
-                [fromKey]: parentNode
-            }
-        }))
-    }
-    const root = ctx => rootNativeElement => {
-        const branchKey = ctx.value[1]
-        const rCtx = rootCtx(ctx)
-        rCtx.modify(branchKey, state=>({
-            ...state,
-            checkActivate: checkActivate(ctx),
-            rootNativeElement
-        }))
-    }
-    const setRootBox = (rootBox,ctx,style) => state => {
-        const path = ctxToArray(ctx,[])
-        const rCtx = rootCtx(ctx)
-        const diff = DiffPrepare(rCtx.localState)
-        diff.jump(path)
-        diff.addIfChanged("style", style)
-        diff.apply()
-        return ({...state,rootBox})
-    }
-
-    const checkActivate = ctx => state => {
-        const containerElement = singleParentNode(state)
-        const contentElement = state.rootNativeElement
-        const wasBox = state.rootBox
-        if(!containerElement || !contentElement)
-            return wasBox ? setRootBox(null,ctx,{display:"none"})(state) : state
-        const contentPos = elementPos(contentElement)
-        const containerPos = elementPos(containerElement)
-        const targetPos = containerPos // todo f(containerPos,contentPos)
-        const d = {
-            pos:  calcPos(dir=>(targetPos.pos[dir] -contentPos.pos[dir] )|0),
-            size: calcPos(dir=>(targetPos.size[dir]-contentPos.size[dir])|0)
-        }
-        if(!(d.pos.x||d.pos.y||d.size.x||d.size.y)) return state
-        const box = {
-            pos:  calcPos(dir => (wasBox ? wasBox.pos[dir] : 0) + d.pos[dir] ),
-            size: calcPos(dir => Math.max(0,(wasBox ? wasBox.size[dir]: 0) + d.size[dir]))
-        }
-        return setRootBox(box,ctx,{
-            border: "1px solid blue",
-            display: "block",
-            position: "absolute", //"fixed",
-            left: box.pos.x+"px",
-            top: box.pos.y+"px",
-            width: box.size.x+"px",
-            height: box.size.y+"px"
-        })(state)
-    }
-
-    const ref = ({seed,root})
-    const transforms = ({ref})
-    return ({transforms})
 }
 
 export const pairOfInputAttributes = ({value,onChange},headers) => {
@@ -117,3 +35,37 @@ export const pairOfInputAttributes = ({value,onChange},headers) => {
         }})
     }))
 };
+
+export const chain = functions => arg => functions.reduce((res,f)=>f(res), arg)
+export const deleted = ks => st => spreadAll(...Object.keys(st).filter(ck=>!ks[ck]).map(ck=>({[ck]:st[ck]})))
+
+const oneKey = (k,by) => st => {
+    const was = st && st[k]
+    const will = by(was)
+    return was === will ? st : will ? {...(st||{}), [k]: will} : !st ? st : deleted({[k]:1})(st)
+
+}
+export const someKeys = bys => chain(Object.keys(bys).map(k=>oneKey(k,bys[k])))
+const allKeys = by => state => state ? chain(Object.keys(state).map(k=>oneKey(k,by)))(state) : state
+export const dictKeys = f => ({
+    one: (k,by) => someKeys(f(oneKey(k,by))),
+    all: by => someKeys(f(allKeys(by)))
+})
+
+export const branchByKey = dictKeys(f=>({branchByKey:f}))
+
+export const ifInputsChanged = log => (cacheKey,inpKeysObj,f) => {
+    const inpKeys = Object.keys(inpKeysObj)
+    const changed = state => {
+        const will = spreadAll(...inpKeys.map(k=>({[k]: state && state[k]})))
+        return ({...state, [cacheKey]:will})
+    }
+    const doRun = f(changed)
+    return state => {
+        const was = state && state[cacheKey]
+        if(inpKeys.every(k=>(was && was[k])===(state && state[k]))) return state
+        const res = doRun(state)
+        log({hint:cacheKey, status:state===res?"deferred":"done", state:res})
+        return res
+    }
+}

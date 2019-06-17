@@ -1,9 +1,9 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.BranchProtocol.BranchResult
+import ee.cone.c4actor.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
@@ -17,19 +17,16 @@ class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
   ).flatten
 }
 
-case object VDomStateKey extends TransientLens[Option[VDomState]](None)
-  with VDomLens[Context, Option[VDomState]]
 //case object RelocateKey extends WorldKey[String]("")
 //  with VDomLens[World, String]
 
-@assemble class VDomAssemble extends Assemble {
+@assemble class VDomAssembleBase   {
   def joinBranchHandler(
     key: SrcId,
-    tasks: Values[BranchTask],
-    views: Values[View]
+    task: Each[BranchTask],
+    view: Each[View]
   ): Values[(SrcId,BranchHandler)] =
-    for(task ← tasks; view ← views) yield task.branchKey →
-      VDomBranchHandler(task.branchKey, VDomBranchSender(task),view)
+    List(WithPK(VDomBranchHandler(task.branchKey, VDomBranchSender(task),view)))
 }
 
 case class VDomBranchSender(pass: BranchTask) extends VDomSender[Context] {
@@ -49,12 +46,15 @@ case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[Context], view
     local ⇒ CreateVDomHandlerKey.of(local)(sender,view)
   def exchange: BranchMessage ⇒ Context ⇒ Context =
     message ⇒ local ⇒ {
+      val vDomMessage = VDomMessageImpl(message)
       //println(s"act ${message("X-r-action")}")
-      vHandler(local).receive(VDomMessageImpl(message))(local)
+      val handlePath = vDomMessage.header("X-r-vdom-path")
+      (CurrentPathKey.set(handlePath) andThen
+        vHandler(local).receive(vDomMessage))(local)
     }
-  def seeds: Context ⇒ List[BranchResult] =
+  def seeds: Context ⇒ List[S_BranchResult] =
     local ⇒ vHandler(local).seeds(local).collect{
-      case (k: String, r: BranchResult) ⇒ r.copy(position=k)
+      case (k: String, r: S_BranchResult) ⇒ r.copy(position=k)
     }
 }
 

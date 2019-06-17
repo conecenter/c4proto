@@ -3,19 +3,26 @@ package ee.cone.c4actor
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.{SrcId, TransientMap}
-import ee.cone.c4assemble.Types.Index
+import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.{Map, Seq}
+import scala.util.control.NonFatal
 import scala.util.{Success, Try}
 
 class TxTransforms(qMessages: QMessages) extends LazyLogging {
-  def get(global: Context): Map[SrcId,Option[Context]⇒Context] =
+  def get(global: RichContext): Map[SrcId,Option[Context]⇒Context] =
     ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
-  private def handle(global: Context, key: SrcId): Option[Context]⇒Context = prevOpt ⇒ {
-    val local = prevOpt.getOrElse(new Context(global.injected, Map.empty, Map.empty))
-    if( //todo implement skip for outdated world
-        OffsetWorldKey.of(global) < OffsetWorldKey.of(local) ||
+  private def handle(global: RichContext, key: SrcId): Option[Context]⇒Context = {
+    val enqueueTimer = NanoTimer()
+    prevOpt ⇒
+    val local = prevOpt.getOrElse(new Context(global.injected, emptyReadModel, Map.empty))
+    val startLatency = enqueueTimer.ms
+    if(startLatency > 200)
+      logger.debug(s"tx $key start latency $startLatency ms")
+    val workTimer = NanoTimer()
+    val res = if( //todo implement skip for outdated world
+        global.offset < ReadAfterWriteOffsetKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
     ) local else try {
       Trace {
@@ -23,26 +30,34 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
           case None ⇒ local
           case Some(tr) ⇒
             val prepLocal = new Context(global.injected, global.assembled, local.transient)
-            val nextLocal = (tr.transform _).andThen(qMessages.send)(prepLocal)
-            new Context(global.injected, Map.empty, nextLocal.transient)
+            val nextLocal = TxTransformOrigMeta(tr.getClass.getName).andThen(tr.transform).andThen(qMessages.send)(prepLocal)
+            new Context(global.injected, emptyReadModel, nextLocal.transient)
         }
       }
     } catch {
-      case exception: Exception ⇒
-        logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",exception)
+      case NonFatal(e) ⇒
+        logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",e)
         val was = ErrorKey.of(local)
+        val exception = e match {
+          case e: Exception ⇒ e
+          case err ⇒ new Exception(err)
+        }
         Function.chain(List(
           ErrorKey.set(exception :: was),
           SleepUntilKey.set(Instant.now.plusSeconds(was.size))
-        ))(new Context(global.injected, Map.empty, Map.empty))
+        ))(new Context(global.injected, emptyReadModel, Map.empty))
     }
+    val period = workTimer.ms
+    if(period > 500)
+      logger.debug(s"tx $key worked for $period ms")
+    res
   }
 }
 
 class SerialObserver(localStates: Map[SrcId,Context])(
   transforms: TxTransforms
 ) extends Observer {
-  def activate(global: Context): Seq[Observer] = {
+  def activate(global: RichContext): Seq[Observer] = {
     val nLocalStates = transforms.get(global).transform{ case(key,handle) ⇒
       handle(localStates.get(key))
     }
@@ -56,14 +71,14 @@ class ParallelObserver(
   localStates: Map[SrcId,FatalFuture[Option[Context]]],
   transforms: TxTransforms,
   execution: Execution
-) extends Observer {
-  private def empty: FatalFuture[Option[Context]] = execution.future(None)
-  def activate(global: Context): Seq[Observer] = {
+) extends Observer with LazyLogging {
+  private def empty: FatalFuture[Option[Context]] = execution.emptySkippingFuture
+  def activate(global: RichContext): Seq[Observer] = {
     val inProgressMap = localStates.filter{ case(k,v) ⇒
       v.value match {
         case None ⇒ true // inProgress
         case Some(Success(Some(local))) ⇒
-          OffsetWorldKey.of(global) < OffsetWorldKey.of(local)
+          global.offset < ReadAfterWriteOffsetKey.of(local)
         case a ⇒ throw new Exception(s"$a")
       }
     }
@@ -71,6 +86,12 @@ class ParallelObserver(
       localStates.getOrElse(key,empty).map(opt⇒Option(handle(opt)))
     }
     val nLocalStates = inProgressMap ++ toAdd
+    logger.debug(
+      s"txTr count: ${nLocalStates.size}, " +
+      s"inProgress: ${inProgressMap.size}, " +
+      s"uncompleted: ${inProgressMap.values.count(_.value.isEmpty)}, " +
+      s"just-mapped: ${toAdd.size}"
+    )
     List(new ParallelObserver(nLocalStates,transforms,execution))
   }
 }

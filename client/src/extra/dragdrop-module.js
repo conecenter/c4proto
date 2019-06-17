@@ -1,4 +1,4 @@
-export default function DragDropModule({log,documentManager,windowManager}){
+function DragDropModule({log2,documentManager,windowManager}){
 	let cNode = null;
 	let dragNode = null;
 	let ddNode = null
@@ -61,13 +61,18 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	}
 	const onMouseMove = (event) => {
 		if(!cNode) return;
+		if(cNode.style.display == "none") {
+			cNode.style.display = ""
+			report("dragStart",dragNode)
+		}
 		const {x,y} = getXY(event)
 		curMousePoint.y = y
 		curMousePoint.x = x
 		const offsetT = mouseHitPoint.top - mouseHitPoint.y  + getPageYOffset() + y + "px"
 		const offsetL =  mouseHitPoint.left - mouseHitPoint.x + x + "px"
 		cNode.style.top = offsetT
-		cNode.style.left = offsetL		
+		cNode.style.left = offsetL	
+        		
 		event.preventDefault();
 	}
 	const onMouseUp = (event) => {
@@ -79,9 +84,9 @@ export default function DragDropModule({log,documentManager,windowManager}){
 				x>=listRect.left&&
 				x<=listRect.right				
 			)   
-				report("dragEnd",dragNode)
+				onDrag()&&report("dragEnd",dragNode)
 			else
-				report("dragEndOutside",dragNode)
+				onDrag()&&report("dragEndOutside",dragNode)
 		}
 		dragEnd();
 	}
@@ -91,7 +96,7 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		return node
 	}
 	const getListRect = (node) => getListNode(node).getBoundingClientRect()
-	const isTouch = (event) => event.type.includes("touch")
+	const isTouch = (event) => event.type.includes("touch") && event.touches.length>0
 	const getXY = (event) =>  isTouch(event)?{x:event.touches[0].clientX,y:event.touches[0].clientY}:{x:event.clientX,y:event.clientY}
 	const getTarget = (event) => {
 		//if(isTouch(event)){
@@ -119,20 +124,35 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		}
 		const update = (props) =>{
 			const index = dragElements.indexOf(dragEl)			
-			dragElements[index].dragData = props.dragData			
+			dragElements[index].dragData = props.dragData						
 		}
 		return ({update,release,dragOver,dragStart,dragDrop})
 	}
-	const dragOver = (node) => {
-		if(onDrag()) report("dragOver",dragNode,node)
+	let lastNodeRect = null
+	const withInElement = (event,node,vert) =>{
+		if(!node) return null
+		if(!lastNodeRect || lastNodeRect.node != node) lastNodeRect = {node,rect:node.getBoundingClientRect()}
+		const rect = lastNodeRect.rect
+		if(!vert)
+			return rect.width/2 > event.clientX - rect.left? dragDropPositionStates.left:dragDropPositionStates.right		
+		return rect.height/2 > event.clientY - rect.top? dragDropPositionStates.top:dragDropPositionStates.bottom
 	}
-	const dragDrop = (node) => {
-		if(onDrag() && getData(node)) {			
-			report("dragDrop",dragNode,node)
+	const dragOver = (event,node,updateFunc,vert) => {		
+		if(onDrag()) {
+			const info = withInElement(event,node,vert)			
+			info && updateFunc(info)
+			//report("dragOver",dragNode,node)
+		}
+	}
+	
+	const dragDrop = (event,node, vert) => {
+		if(onDrag() && getData(node)) {	
+			const info = withInElement(event,node, vert)
+			report("dragDrop",dragNode,node,info)
 			dragEnd()
 		}
 	}
-	const report = (action,fromNode, toNode) => {
+	const report = (action,fromNode, toNode,side) => {
 		let fromSrcId = "",toSrcId =""
 		const fEl = dragElements.find(el=> fromNode && el.node == fromNode)
 		if(fEl)
@@ -140,14 +160,17 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		const tEl = dragElements.find(el=> toNode && el.node == toNode)
 		if(tEl)
 			toSrcId = tEl.dragData?tEl.dragData:""
-		reporters.forEach(r=>r(action,fromSrcId,toSrcId))
+		reporters.forEach(r=>r(action,fromSrcId,toSrcId,side))
 	}
-	const dragStart = (event,node,div) => {
+	const dragStart = (event,node,div,style) => {
 		const {x,y} = getXY(event)
 		let listNode
 		let refNode
+		const old = Array.from(documentManager.body().querySelectorAll(".dragClone"))
+		old.forEach(o=>documentManager.remove(o))
 		if(!div){ //td
 			cNode = documentManager.createElement("table")	
+			Object.assign(cNode.style,style)
 			listRect = getListRect(node);
 			listNode = getListNode(node);					
 			//callbacks.push(callback)
@@ -155,11 +178,14 @@ export default function DragDropModule({log,documentManager,windowManager}){
 			cNode.appendChild(node.parentNode.cloneNode(true));
 		}
 		else{ //div
-			cNode = node.cloneNode(true)
+			cNode = node.cloneNode(true)			
+			Object.assign(cNode.style,style)
 			listRect = node.getBoundingClientRect()
 			listNode = node			
 			refNode = node
 		}
+		cNode.style.display = "none"
+		cNode.className ="dragClone"
 		scrollNodes = findScrollNodes(listNode)	
 		dragNode = node	
 		const refRect = refNode.getBoundingClientRect();			
@@ -180,12 +206,11 @@ export default function DragDropModule({log,documentManager,windowManager}){
 		addEventListener("mouseup",onMouseUp)
 		addEventListener("touchend",onMouseUp)
 		addEventListener("keydown",onKeyDown)
-		checkActivateCalls.add(doCheck)		
-		report("dragStart",dragNode)
+		//checkActivateCalls.add(doCheck)				
 		//return ({release});
 	}
 	const getData = (node) => {const el = dragElements.find(el=>el.node == node); if(el) return el.dragData; else return null;}
-	const onDrag = () => cNode&&true		
+	const onDrag = () => cNode&&cNode.style.display!="none"		
 	const onKeyDown = (event) => {
 		if(event.key == "Escape") onEsc()
 	}
@@ -295,3 +320,6 @@ export default function DragDropModule({log,documentManager,windowManager}){
 	}
 	return {dragReg,checkActivate,regReporter,dragStartDD}
 }
+const dragDropPositionStates = {none:"none",left:"left",right:"right",top:"top",bottom:"bottom"}
+
+export {DragDropModule,dragDropPositionStates}

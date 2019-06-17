@@ -7,8 +7,9 @@ import com.typesafe.scalalogging.LazyLogging
 import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4gate.AlienProtocol.FromAlienStatus
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
 
@@ -29,13 +30,13 @@ class TestSSEApp extends ServerApp
     //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 }
 
-@assemble class TestSSEAssemble extends Assemble {
+@assemble class TestSSEAssembleBase   {
   def joinView(
     key: SrcId,
-    tasks: Values[BranchTask]
+    task: Each[BranchTask]
   ): Values[(SrcId,BranchHandler)] = {
     //println(s"joinView ${tasks}")
-    for(task ← tasks) yield task.branchKey → TestSSEHandler(task.branchKey, task)
+    List(WithPK(TestSSEHandler(task.branchKey, task)))
   }
 }
 
@@ -45,7 +46,10 @@ case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHand
     val (keepTo,freshTo) = task.sending(local)
     val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
     logger.info(s"TestSSEHandler $keepTo $freshTo")
+    ByPK(classOf[FromAlienStatus]).of(local).values.foreach{ status ⇒
+      logger.info(s"${status.isOnline} ... ${status.expirationSecond - now.getEpochSecond}")
+    }
     SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
   }
-  def seeds: Context ⇒ List[BranchProtocol.BranchResult] = _ ⇒ Nil
+  def seeds: Context ⇒ List[BranchProtocol.S_BranchResult] = _ ⇒ Nil
 }

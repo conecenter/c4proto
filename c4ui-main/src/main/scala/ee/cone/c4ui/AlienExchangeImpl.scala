@@ -7,12 +7,14 @@ import ee.cone.c4actor.BranchTypes.BranchKey
 import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
-import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4gate.HttpProtocol.S_HttpPost
 import ee.cone.c4gate.LocalPostConsumer
 import okio.ByteString
+
+import scala.collection.immutable.Seq
 
 case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
 object SendToAlienInit extends ToInject {
@@ -32,55 +34,53 @@ object SendToAlienInit extends ToInject {
 
 case class MessageFromAlienImpl(
   srcId: String,
-  index: Long,
   headers: Map[String,String],
-  request: HttpPost
-) extends MessageFromAlien {
+  request: S_HttpPost
+) extends BranchMessage {
   def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
   def body: ByteString = request.body
-  def rm: Context ⇒ Context = TxAdd(delete(request))
+  def deletes: Seq[LEvent[Product]] = delete(request)
 }
 
-@assemble class MessageFromAlienAssemble extends Assemble {
+@assemble class MessageFromAlienAssembleBase   {
   def mapHttpPostByBranch(
     key: SrcId,
-    posts: Values[HttpPost]
-  ): Values[(BranchKey, MessageFromAlien)] = for(
-    post ← posts if post.path == "/connection";
-    headers ← Option(post.headers.flatMap(h ⇒
+    post: Each[S_HttpPost]
+  ): Values[(BranchKey, BranchMessage)] = if(post.path != "/connection") Nil else for(
+    headers ← List(post.headers.flatMap(h ⇒
       if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
     ).toMap);
     branchKey ← headers.get("X-r-branch");
     index ← headers.get("X-r-index").map(_.toLong)
-  ) yield branchKey → MessageFromAlienImpl(post.srcId,index,headers,post)
+  ) yield branchKey → MessageFromAlienImpl(post.srcId,headers,post)
 
 
   def consumersForHandlers(
     key: SrcId,
-    handlers: Values[BranchHandler]
+    h: Each[BranchHandler]
   ): Values[(SrcId,LocalPostConsumer)] =
-    for(h ← handlers) yield WithPK(LocalPostConsumer(h.branchKey))
+    List(WithPK(LocalPostConsumer(h.branchKey)))
 
 }
 
-@assemble class FromAlienBranchAssemble(operations: BranchOperations) extends Assemble {
+@assemble class FromAlienBranchAssembleBase(operations: BranchOperations)   {
   // more rich session may be joined
   def fromAliensToSeeds(
     key: SrcId,
-    fromAliens: Values[FromAlienState]
-  ): Values[(BranchKey, BranchRel)] =
-  for(fromAlien ← fromAliens; child ← Option(operations.toSeed(fromAlien)))
-    yield operations.toRel(child, fromAlien.sessionKey, parentIsSession = true)
+    fromAlien: Each[FromAlienState]
+  ): Values[(BranchKey, BranchRel)] = {
+    val child = operations.toSeed(fromAlien)
+    List(operations.toRel(child, fromAlien.sessionKey, parentIsSession = true))
+  }
 }
 
-@assemble class FromAlienTaskAssemble(file: String) extends Assemble {
+@assemble class FromAlienTaskAssembleBase(file: String)   {
   def mapBranchTaskByLocationHash(
     key: SrcId,
-    tasks: Values[BranchTask]
+    task: Each[BranchTask]
   ): Values[(SrcId, FromAlienTask)] =
     for (
-      task ← tasks;
-      fromAlien ← Option(task.product).collect { case s: FromAlienState ⇒ s };
+      fromAlien ← List(task.product).collect { case s: FromAlienState ⇒ s };
       url ← Option(new URL(fromAlien.location))
         if /*url.getHost == host && (*/ url.getFile == file || url.getPath == file
     ) yield task.branchKey → FromAlienTask(

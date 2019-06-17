@@ -1,21 +1,15 @@
 "use strict";
 import React from 'react'
+import {eventManager,checkActivateCalls} from './event-manager.js'
 
-export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,windowManager,miscReact}){
-	const $ = React.createElement
-	const $C = React.createClass
-	const checkActivateCalls=(()=>{
-		const callbacks=[]
-		const add = (c) => callbacks.push(c)
-		const remove = (c) => {
-			const index = callbacks.indexOf(c)
-			callbacks.splice(index,1)
-		}
-		const check = () => callbacks.forEach(c=>c())
-		return {add,remove,check}
-	})();
-	const {getReactRoot} = miscReact
-	const {setTimeout,getPageYOffset,getWindowRect} = windowManager
+export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponent,reactPathConsumer}){
+	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
+	const $ = React.createElement	
+	
+	const getReactRoot = (el) => el.ownerDocument.body
+	const isNodePosition = (el,v) => el&&el.ownerDocument&&el.ownerDocument.defaultView&&el.ownerDocument.defaultView.getComputedStyle(el).position == v	
+	const {setTimeout,getWindowRect,setInterval,clearInterval} = windowManager
+	const getPageYOffset = (el) => el&&el.ownerDocument&&el.ownerDocument.defaultView?el.ownerDocument.defaultView.pageYOffset:0
 	const GlobalStyles = (()=>{
 		let styles = {
 			outlineWidth:"0.04em",
@@ -30,26 +24,23 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		const update = (newStyles) => styles = {...styles,...newStyles}
 		return {...styles,update};
 	})()
-	const VKButton = React.createClass({
-		getInitialState:function(){
-			return {touch:false,mouseDown:false};
-		},
-		onClick:function(ev){
-			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
-			if(this.props.onClick){
-				this.props.onClick(ev);				
-				return;
-			}			
-		},
-		onTouchStart:function(e){
-			this.setState({touch:true});
-		},
-		onTouchEnd:function(e){
-			this.setState({touch:false});
-		},
-		onMouseDown:function(){this.setState({mouseDown:true})},
-		onMouseUp:function(){this.setState({mouseDown:false})},
-		render:function(){					
+	class VKButton extends StatefulComponent{		
+		getInitialState(){return {mouseDown:false}}
+		onClick(ev){
+			this.props.onPress && this.props.onPress()
+			if(this.props.fkey) eventManager.sendToWindow(eventManager.create(ev.target)("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
+			if(this.props.onClick) this.props.onClick(ev)			
+		}
+		onTouchStart(e){
+			//this.onMouseDown(e)
+		}
+		onMouseDown(e){
+			this.setState({mouseDown:true})
+			this.onClick(e)
+			e.preventDefault()
+		}
+		onMouseUp(){this.setState({mouseDown:false})}
+		render(){					
 			const bStyle={
 				height:'2.2em',
 				width:'2em',
@@ -59,19 +50,19 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				backgroundColor:'#eeeeee',
 				verticalAlign:'middle',
 				overflow:"hidden",
-				outline:(this.state.touch||this.state.mouseDown)?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',				
+				outline:(this.state.mouseDown?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none'),				
 				color:'inherit',
 				padding:"0px",
 				textAlign:'center',
 				...this.props.style,				
-				...((this.state.touch||this.state.mouseDown)?{backgroundColor:"rgb(25, 118, 210)"}:{})				
+				...(this.state.mouseDown?{backgroundColor:"rgb(25, 118, 210)"}:{})
 			};
 			const className = "vkElement"
-			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp,onClick:this.onClick},this.props.children);
+			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
 		}
-	});	
-	const VirtualKeyboard = React.createClass({
-		getInputVKType:function(){						
+	}	
+	class VirtualKeyboard extends StatefulComponent{
+		getInputVKType(){						
 			const layoutAlpha = "layoutAlpha"
 			const layoutNumeric = "layoutNumeric"
 			const input = this.getInput()
@@ -83,28 +74,27 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			switch(vkType){
 				case "text": res = {layout:layoutAlpha,ver:"simple"};break;
 				case "extText": res = {layout:alt?layoutNumeric:layoutAlpha,ver:"extended"};break;
+				case "extFuncText": res = {layout:alt?layoutNumeric:layoutAlpha,ver:"extendedFunc"};break;
 				case "num": res = {layout:layoutNumeric,ver:"simple"};break;
 				case "extNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:"extended"};break;
-				case "extFuncNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:alt?"extended":"extendedFunc"};break;
+				case "extFuncNum": res = {layout:alt?layoutAlpha:layoutNumeric,ver:"extendedFunc"};break;
 				case "none": res = {layout:"none",ver:"simple"};break;
 				default:res = {layout:layoutAlpha, ver:"simple"};break;
 			}
 			//this.vkType = res
 			return res
-		},
-		getInitialState:function(){
-			return {left:0,top:0, alt:false,fontSize:1, show:false}
-		},
-		switchMode:function(e){
+		}		
+		getInitialState(){return {left:0,top:0, alt:false,fontSize:1, show:false}}		
+		switchMode(e){
 			this.setState({alt:!this.state.alt})			
-		},		
-		getVkContainer:function(){
+		}	
+		getVkContainer(){
 			if(!this.root) return null
-			const vkContainer = this.root.querySelector(".vk-container")
+			const vkContainer = Array.from(this.root.querySelectorAll(".vk-container")).find(_=>_.offsetParent!==null||isNodePosition(_,"fixed"))			
 			if(!vkContainer) return null
 			return {rect:vkContainer.getBoundingClientRect(),position:vkContainer.dataset.position,o:vkContainer,static:vkContainer.dataset.static}			
-		},
-		getPopupPos:function(thisEl,parentEl){
+		}
+		getPopupPos(thisEl,parentEl){
 			if(!thisEl||!parentEl) return null;			
 			const pRect = parentEl.parentNode.getBoundingClientRect()					
 			const popRect = thisEl.getBoundingClientRect()
@@ -117,39 +107,66 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const topEdge = pRect.top - popRect.height;
 			let top = 0
 			let left = 0			
-			top += getPageYOffset()
+			top += getPageYOffset(thisEl)
 			return {top,left}	
-		},		
-		getInput:function(){
-			const cNode = focusModule.getFocusNode()
+		}				
+		getParentWrapper(el){
+			let e = el
+			while(e){
+				if(e.classList.contains("focusWrapper")) return e
+				e = e.parentElement
+			}
+			return null
+		}
+		getFocusedElement(){
+			const a = this.el.ownerDocument.querySelector(`*[data-path="${this.path}"]`)
+			const b = this.el.ownerDocument.activeElement
+			return a||b
+		}
+		getStickyElement(){
+			return this.el.ownerDocument.querySelector(`*[data-sticky="sticky"]`)
+		}
+		getInput(){
+			if(!this.root||!this.el) return null			
+			const cNode = this.getParentWrapper(this.getStickyElement() || this.getFocusedElement())
 			if(!cNode) return null
-			const input = cNode.querySelector("input:not([readonly])")
+			const input = cNode.querySelector("input:not([readonly])")||cNode.querySelector('input[name="vk"]')
 			return input
-		},	
-		showVk:function(){
-			const input = this.getInput()	
+		}	
+		showVk(){
+			const input = this.getInput()				
 			if(input) return true
 			return false						
-		},
-		componentDidMount:function(){
-			this.root = getReactRoot(this.el)
-			if(this.props.isStatic) return
-			checkActivateCalls.add(this.fitIn)			
-		},
-		componentWillUnmount:function(){
-			if(this.props.isStatic) return
+		}
+		getRoot(){
+			if(!this.root|| !this.root.parentElement) return getReactRoot(this.el)				
+			return this.root
+		}
+		componentDidMount(){
+			this.root = this.getRoot()
+			if(!this.props.auto)
+				checkActivateCalls.add(this.fitIn)			
+			else 
+				this.posInterval = setInterval(this.fitIn,100)
+			
+		}
+		componentWillUnmount(){
+			this.unmounted = true	
+			clearInterval(this.posInterval)
 			checkActivateCalls.remove(this.fitIn)		
-		},
-		emRatio:function(){
+		}
+		emRatio(){
 			if(!this.remRef) return null
 			return this.remRef.getBoundingClientRect().height
-		},
-		moveToAnchor:function(vkContainer,vkLayout){
+		}
+		moveToAnchor(vkContainer,vkLayout){
 			const bm = vkContainer.position == "bm"
 			const tl = vkContainer.position == "tl"
 			const ml = vkContainer.position == "ml"
+			const mr = vkContainer.position == "mr"
 			const tm = vkContainer.position == "tm"
 			const tr = vkContainer.position == "tr"
+			const br = vkContainer.position == "br"
 			
 			let top = vkContainer.rect.top 			
 			let left = vkContainer.rect.left
@@ -172,62 +189,95 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 				top = vkContainer.rect.top + vkContainer.rect.height/2 - pHeight/2	
 				left = vkContainer.rect.left					
 			}			
+			if(mr){
+				top = vkContainer.rect.top + vkContainer.rect.height/2 - pHeight/2	
+				left = vkContainer.rect.right - pWidth
+			}
 			if(tr){
 				top = vkContainer.rect.top 
 				left = vkContainer.rect.right - pWidth
 			}
-			top+=getPageYOffset()					
-			return {top,left}
-		},
-		updateState:function(inI,show){					    					
+			if(br){
+				top = vkContainer.rect.bottom - pHeight
+				left = vkContainer.rect.right - pWidth
+			}
+			if(this.root && this.root.style.position == "absolute"){
+				const w = this.root.getBoundingClientRect()
+				top-= w.top
+				left -= w.left				
+			}
+
+			top+=this.root?(this.root.style.display=="block"?this.root.scrollTop:getPageYOffset(this.root)):0
+			return {top,left, cpHeight:pHeight}
+		}
+		updateState(inI,show){					    					
+			if(this.unmounted) return
 			if(show) {
 				this.setState(inI)
-				setTimeout(()=>{this.setState({show})},300)
+				setTimeout(()=>{if(!this.unmounted)this.setState({show})},300)
 			}
 			else 
 				this.setState({...inI,show})			
-		},
-		same:function(aRect,bRect){
+		}
+		same(aRect,bRect){
 			if(!aRect||!bRect) return false
 			return aRect.top==bRect.top && aRect.left==bRect.left && aRect.height == bRect.height && aRect.width == bRect.width
-		},
-		fitIn:function(){			
+		}
+		fitIn(){			
 			const vkLayout = this.getCurrentLayout()			
-			if(!vkLayout && this.vkLayout == vkLayout) return
+			if(!vkLayout && this.vkLayout == vkLayout) return 
+			this.root = this.getRoot()
 			const emK = this.emRatio()
-			if(!emK) return
+			if(!emK) return 
 			const vkContainer = this.getVkContainer()			
 			if(!vkContainer||!vkLayout) return this.state.show?this.updateState({},false):null	
-			const show = vkContainer.static||this.showVk()	
-			const wRect = getWindowRect()				
-			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout) return				
-			
+			const show = vkContainer.static||this.showVk()
+			const wRect = this.root&&this.root.getBoundingClientRect()				
+			if( this.state.show==show && this.same(this.wRect,wRect) && vkLayout == this.vkLayout && vkContainer.o == this.vkContainerO) {
+				if(!this.iter||this.iter<=0) return
+				this.iter-=1
+			}
+			if(!this.iter||this.iter<0) this.iter=1
 			let pWidth = Math.ceil(vkLayout.width * emK); pWidth == 0?1:pWidth
 			const pHeight = Math.ceil(vkLayout.height * emK)
 			const cHeight  = vkModule.getMaxHeight(this.root)
-			let hK = (vkContainer.rect.height||cHeight)/pHeight; if(hK == 0) hK = 1
+			let hK = (cHeight||vkContainer.rect.height)/pHeight; if(hK == 0) hK = 1
 			let wK = vkContainer.rect.width/pWidth; if(wK == 0) wK = 1
 			let fK = Math.min(hK,wK)*0.9;fK=fK>1?1:fK			 			
 			
 			this.wRect = wRect
 			this.vkLayout = vkLayout
+			this.vkContainerO = vkContainer.o
 			const fontSize = fK
-			const {top,left} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
+			const {top,left,cpHeight} = this.moveToAnchor(vkContainer,{pWidth,pHeight,fK})			
 			if(this.state.fontSize!=fontSize || this.state.top!=top || this.state.left!=left || this.state.show!=show){		
-				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,cHeight)					
+				if(vkContainer.o.parentElement.classList.contains("vkView")) vkModule.onVk(show,cpHeight)					
 				this.updateState({fontSize,top,left},show)
 			}							
-		},
-		getCurrentLayout:function(){			
+		}
+		getCurrentLayout(){			
 			const vkType = this.getInputVKType()			
 			const vkLayout = this.props[vkType.layout]
 			if(!vkLayout) return null	
 			return vkLayout[vkType.ver]			
-		},
-		getDefaultFontSize:function(){
+		}
+		getDefaultFontSize(){
 			return this.props.style.fontSize?parseFloat(this.props.style.fontSize):1
-		},		
-		render:function(){			
+		}
+		onRef(path){			
+			return (ref)=>{
+				this.path = path
+				log(`path`,this.path)
+				this.el = ref
+			}
+		}
+		onPress(){
+			if(this.getFocusedElement().tagName == "BODY") {
+				const sticky = this.getStickyElement()
+				sticky && sticky.focus()
+			}
+		}
+		render(){					    
 			const genKey = (char,i) => `${char}_${i}`			
 			const vkLayout = this.getCurrentLayout()		
 			const visible = "visible"
@@ -260,19 +310,19 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			
 			const buttons = vkLayout?vkLayout.buttons:[]
 			const className = "vkKeyboard"	
-			return $("div",{},[
-				$("div",{key:"vk",ref:ref=>this.el=ref,style:positionStyle,className},
+			return $(reactPathConsumer,{},path=>([
+				$("div",{key:"vk",ref:this.onRef(path),style:positionStyle,className},
 					vkLayout?
 					$("div",{style:wrapperStyle},[				
-						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle}, key:genKey(btn.char,j), fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
+						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle}, key:genKey(btn.char,j),onPress:this.onPress, fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
 					]):
 					null
 				),
 				$("div",{key:"emRef",className:"vkRemRef",style:{position:"absolute",zIndex:"-1",height:"1em"}, ref:ref=>this.remRef=ref},null)
 			])	
-			
-		},
-	});	
+			)
+		}
+	}	
 	
 	const vkModule = (() => {
 		const views = []
@@ -314,11 +364,14 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			return {unreg}
 		}
 		const getRootHeight = (rootSpan) => {
-			const root = rootSpan.parentElement
+			/*const root = rootSpan.parentElement
 			if(!root) return null
 			const fR = roots.find(r=>r.root == rootSpan)
 			if(!fR) return null
-			return fR.height
+			return fR.height*/
+			if(!rootSpan||!rootSpan.ownerDocument||!rootSpan.ownerDocument.defaultView) return null
+			const v = rootSpan.ownerDocument.defaultView.innerHeight			
+			return v
 		}
 		const getMaxHeight = (rootSpan) => {
 			const root = rootSpan.parentElement
@@ -335,59 +388,60 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 		}
 		return {regView,regVk, onVk,getRootHeight,getMaxHeight}
 	})()
-	const VKMainViewElement = $C({
-		getInitialState:function(){
-			return {height:null, vkView:false}
-		},		
-		updateVkView:function(vkView, height){
+	class VKMainViewElement extends StatefulComponent{		
+		getInitialState(){return {height:null, vkView:false}}		
+		updateVkView(vkView, height){
+			if(this.unmounted) return
 			this.rootHeight = vkModule.getRootHeight(this.root)			
 			if(vkView === null && height === null && this.state.vkView){
 				return this.setState({})
 			}
 			if(vkView!=this.state.vkView || height!=this.state.height) 
 				this.setState({vkView,height:vkView?height:null})
-		},		
-		componentDidMount:function(){			
+		}		
+		componentDidMount(){			
 			this.root = getReactRoot(this.el)
 			if(this.root) {
-				this.prevRootHeight = this.root.parentElement.style.maxHeight
-				this.root.parentElement.style.maxHeight="100%"
+				const vkMain = this.root.querySelector(".vkMain")
+				this.prevRootHeight = vkMain.style.maxHeight
+				vkMain.style.maxHeight="100%"
 			}
 			this.mObj = {f:this.updateVkView, maxHeight:parseInt(this.props.maxHeight)/100}
 			this.vkReg = vkModule.regView(this.mObj,this.el)				
-		},
-		componentWillUnmount:function(){			
-			if(this.root) this.root.parentElement.style.maxHeight=this.prevRootHeight
+		}
+		componentWillUnmount(){	
+			this.unmounted = true
+			if(this.root && this.root.parentElement) this.root.parentElement.style.maxHeight=this.prevRootHeight
 			this.vkReg.unreg()			
-		},
-		render:function(){								
-			const height = this.state.vkView&&this.state.height&&this.rootHeight? (Math.floor(this.rootHeight - this.state.height))+"px": "100%"			
+		}
+		render(){								
+			const height = this.state.vkView&&this.state.height&&this.rootHeight? (Math.floor(this.rootHeight - this.state.height))+"px": "100%"						
 			const style = {				
 				overflowY:height=="100%"?"":"auto",				
 				height:height
 			}			
-			return $("div",{style, ref:ref=>this.el=ref},this.props.children)
+			const className = "vkMain"
+			return $("div",{style, ref:ref=>this.el=ref,className},this.props.children)
 		}
-	})
-	const VkViewElement = $C({
-		getInitialState:function(){
-			return {vkView:false, height:null}
-		},
-		updateVkView:function(vkView,height){
+	}
+	class VkViewElement extends StatefulComponent{		
+		getInitialState(){return {vkView:false, height:null}}				
+		updateVkView(vkView,height){
+			if(this.unmounted) return
 			//if(vkView === null && this.state.vkView) return this.setState({height})
 			if(vkView!=this.state.vkView || height!=this.state.height) 
 				this.setState({vkView,height:vkView?height:null})
-		},
-		
-		componentDidMount:function(){
+		}		
+		componentDidMount(){
 			this.mObj = {f:this.updateVkView, maxHeight:parseInt(this.props.maxHeight)/100}
 			this.vkReg = vkModule.regVk(this.mObj,this.el)			
-		},
-		componentWillUnmount:function(){			
+		}
+		componentWillUnmount(){			
+			this.unmounted = true
 			this.vkReg.unreg(this.mObj)			
-		},
-		render:function(){			
-			const height = this.state.vkView&&this.state.height?Math.floor(this.state.height)+"px":0+"px"			
+		}
+		render(){			
+			const height = this.state.vkView&&this.state.height?Math.floor(this.state.height)+"px":0+"px"						
 			const style = {				
 				position:"absolute",
 				width:"100%",
@@ -396,15 +450,13 @@ export default function VirtualKeyboard({log,svgSrc,focusModule,eventManager,win
 			const className = "vkView"
 			return $("div",{style,ref:ref=>this.el=ref,className},this.props.children)
 		}
-	})
-	
-	
+	}
 	
 	const transforms= {
 		tp:{
             VirtualKeyboard,VKMainViewElement,VkViewElement           
 		}		
-	};
+	}
 	const checkActivate = checkActivateCalls.check	
 	return ({transforms,checkActivate});
 }

@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import scala.collection.immutable.Seq
-import ee.cone.c4actor.BranchProtocol.BranchResult
+import ee.cone.c4actor.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4proto._
 
@@ -10,15 +10,16 @@ object BranchTypes {
   type BranchKey = SrcId
 }
 
-trait BranchMessage {
+trait BranchMessage extends Product {
   def header: String⇒String
   def body: okio.ByteString
+  def deletes: Seq[LEvent[Product]]
 }
 
 trait BranchHandler extends Product {
   def branchKey: SrcId
   def exchange: BranchMessage ⇒ Context ⇒ Context
-  def seeds: Context ⇒ List[BranchResult]
+  def seeds: Context ⇒ List[S_BranchResult]
 }
 
 trait BranchTask extends Product {
@@ -30,36 +31,37 @@ trait BranchTask extends Product {
   def relocate(to: String): Context ⇒ Context
 }
 
-trait MessageFromAlien extends BranchMessage with Product {
-  def srcId: String
-  def index: Long
-  def rm: Context ⇒ Context
-}
-
 trait BranchOperations {
-  def toSeed(value: Product): BranchResult
-  def toRel(seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel)
+  def toSeed(value: Product): S_BranchResult
+  def toRel(seed: S_BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel)
 }
 
-case class BranchRel(srcId: SrcId, seed: BranchResult, parentSrcId: SrcId, parentIsSession: Boolean)
+case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, parentIsSession: Boolean)
 
-@protocol object BranchProtocol extends Protocol {
-  @Id(0x0040) case class BranchResult(
+case object ErrorOrigCat extends DataCategory
+
+@protocol(HTTPCat) object BranchProtocolBase   {
+  @Id(0x0040) case class S_BranchResult(
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,
     @Id(0x0043) value: okio.ByteString,
-    @Id(0x0044) children: List[BranchResult],
+    @Id(0x0044) children: List[S_BranchResult],
     @Id(0x0045) position: String
   )
 
-  @Id(0x0046) case class SessionFailure(
+  @Cat(ErrorOrigCat)
+  @Id(0x0046) case class U_SessionFailure(
     @Id(0x0047) srcId: String,
     @Id(0x0048) text: String,
     @Id(0x0049) time: Long,
     @Id(0x004A) sessionKeys: List[String]
-    //retry: List[HttpPost]
+    //retry: List[S_HttpPost]
   )
 
+  @Id(0x004B) case class U_Redraw(
+    @Id(0x004C) srcId: String,
+    @Id(0x004D) branchKey: String
+  )
 }
 
 case object SendToAlienKey extends SharedComponentKey[(Seq[String],String,String)⇒Context⇒Context]

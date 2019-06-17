@@ -29,51 +29,6 @@ export function OverlayCanvasSetup(canvas){
     return {setupContext,processFrame}
 }
 
-export function ScrollViewPositionCanvasSetup(canvas){
-/*
-    function handleWheel(ev){
-        const mainNode=canvas.parentNode()
-        var parentNode=mainNode.parentNode
-        while(parentNode){//!=document
-            if(mainNode.getBoundingClientRect().height>parentNode.getBoundingClientRect().height){
-                parentNode.scrollTop=(parentNode.scrollTop+ev.deltaY*6)
-            }
-            parentNode=parentNode.parentNode
-        }
-    }*/
-    function processFrame(frame,prev){
-        //if(!prev) canvas.visibleElement().addEventListener("wheel",handleWheel)
-        frame.parentHeightFix(canvas.fromServer().height + "px")
-    }
-    function setupFrame(){
-        const {viewExternalSize,viewExternalPos,scrollPos,parentPos} = canvas.viewPositions(false)
-        const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
-        //
-        const parentHeight = canvas.parentNode().style.height
-        const parentHeightFix = need => {
-            if(parentHeight !== need) canvas.parentNode().style.height = need //this is not good if parentNode is controlled by React
-        }
-        return {viewExternalSize,viewExternalPos,viewPos,parentHeightFix}
-    }
-    return {setupFrame,processFrame}
-}
-export function ScrollViewPositionMaxHeightCanvasSetup(canvas){
-    function processFrame(frame,prev){       
-		frame.parentHeightFix(frame.viewExternalSize.y + "px")
-    }
-    function setupFrame(){
-        const {viewExternalSize,viewExternalPos,scrollPos,parentPos} = canvas.viewPositions(true)
-        const viewPos = canvas.calcPos(dir=>Math.max(0, scrollPos.pos[dir] - parentPos.pos[dir])|0)
-        //
-		const parentHeight = canvas.parentNode().style.height
-		const parentHeightFix = need => {
-            if(parentHeight !== need) canvas.parentNode().style.height = need //this is not good if parentNode is controlled by React
-        }
-        return {viewExternalSize,viewExternalPos,viewPos,parentHeightFix}
-    }
-    return {setupFrame,processFrame}
-}
-
 export function BoundTextCanvasSetup(canvas){
     function setupContext(utx){
         const ellipsisChar="...";
@@ -435,4 +390,28 @@ export function TransitionCanvasSetup(canvas,log){
         return {animState};
     };
     return {processFrame,setupContext,setupFrame};
+}
+
+export function ExchangeCanvasSetup(canvas,activeElement){
+    function setupCanvasElement(element){
+        element.style.zIndex = "554"
+		element.style.outline = "none"
+		if(element.tagName == "CANVAS"){
+			element.tabIndex = "1"
+			element.onclick = ()=>{
+				const aElement = activeElement?activeElement():null;
+				if(aElement&&element!=aElement) aElement.blur&&aElement.blur();
+			}
+		}
+    }
+    function getViewPortRect(){
+        const body = canvas.document().body
+        const footer = body.querySelector(".mainFooter")
+        const bRect = body.getBoundingClientRect()
+        return !footer ? bRect : {
+          top: bRect.top, left: bRect.left, right: bRect.right,
+          bottom: footer.getBoundingClientRect().top
+        }
+    }
+    return {getViewPortRect,setupCanvasElement}
 }

@@ -2,7 +2,7 @@
 export default function SSEConnection(createEventSource,handlers,reconnectTimeout){
     let eventSource = null
     let lastOK = 0
-    function checkActivate(){
+    function checkActivate(modify){
         if(eventSource && Date.now() - lastOK > reconnectTimeout){
             eventSource.close()
             eventSource = null
@@ -14,7 +14,7 @@ export default function SSEConnection(createEventSource,handlers,reconnectTimeou
             handlers.forEach(
                 handlerMap => Object.keys(handlerMap).forEach(
                     handlerName => eventSource.addEventListener(handlerName,
-                        event => handlerMap[handlerName](event.data)
+                        event => handlerMap[handlerName](event.data,modify)
                     )
                 )
             )

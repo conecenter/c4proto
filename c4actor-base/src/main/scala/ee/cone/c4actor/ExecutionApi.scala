@@ -5,9 +5,9 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.util.Try
 
 trait Execution extends Runnable {
-  def onShutdown(hint: String, f:()⇒Unit): Unit
+  def onShutdown(hint: String, f:()⇒Unit): ()⇒Unit
   def complete(): Unit
-  def future[T](value: T): FatalFuture[T]
+  def emptySkippingFuture[T]: FatalFuture[Option[T]]
 }
 
 trait FatalFuture[T] {
@@ -25,6 +25,12 @@ trait Config {
   def get(key: String): String
 }
 
+trait Signer[T] {
+  def sign(data: T, until: Long): String
+  def retrieve(check: Boolean): Option[String]⇒Option[T]
+}
+
+
 ////
 
 object Trace extends LazyLogging { //m. b. to util
@@ -38,4 +44,8 @@ object Trace extends LazyLogging { //m. b. to util
 object FinallyClose {
   def apply[A<:AutoCloseable,R](o: A)(f: A⇒R): R = try f(o) finally o.close()
   def apply[A,R](close: A⇒Unit)(o: A)(f: A⇒R): R = try f(o) finally close(o)
+}
+
+case class NanoTimer(startedAt: Long = System.nanoTime){
+  def ms: Long = (System.nanoTime - startedAt) / 1000000
 }

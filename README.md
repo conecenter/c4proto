@@ -8,7 +8,7 @@ Protocol buffers are used to serialize messages (`c4proto-*`):
 - supports BigDecimal in messages and is extensible to support custom classes
 - messages are described by annotations on case classes
 - uses small wire-runtime
-- uses scalameta / macro paradise to generate protocol buffer adapters
+- uses scalameta to generate protocol buffer adapters
 
 Includes gate-microservice (`c4gate-*`) that:
 - serves all external requests, so other microservices can be freely moved
@@ -19,6 +19,4 @@ Application state changes are consumed to in-memory immutable object graph (read
 - Changes are propogated through the graph according to dependency rules.
 - Propogation forms data structures optimized for different "requests".
 
-[usage sbt config example](https://github.com/conecenter/c4proto-example)
-
-`./do.pl` can help to run examples
+`./app.pl build_all` and `C4DATA_DIR=db4 ./do.pl` can help to run examples

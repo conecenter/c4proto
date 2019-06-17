@@ -1,16 +1,19 @@
 
 package ee.cone.c4assemble
 
+import java.security.Identity
+
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 
-import scala.collection.immutable.{Seq,Map}
+import scala.collection.immutable.Seq
+import scala.concurrent.Future
 
 object Single {
   def apply[C](l: Seq[C]): C = if(l.isEmpty) {
     throw new Exception("empty")
   } else if(l.tail.isEmpty) l.head else {
-    throw new Exception(s"non-single: ${l.head}, ${l.tail.head} ...")
+    throw new Exception(s"non-single: \n${l.head}, \n${l.tail.head} ...")
   }
   def option[C](l: Seq[C]): Option[C] = if(l.isEmpty) None else Option(apply(l))
 }
@@ -24,11 +27,10 @@ object ToPrimaryKey {
     } else ""
 }
 
-class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey[A]) extends DataDependencyTo[A]
+class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends DataDependencyTo[A]
 
 object TreeAssemblerTypes {
-  type Replace = Map[AssembledKey[_],Index[Object,Object]] ⇒ ReadModel ⇒ ReadModel
-  type MultiSet[T] = Map[T,Int]
+  type Replace = (ReadModel, ReadModel, AssembleOptions, JoiningProfiling) ⇒ Future[WorldTransition]
 }
 
 trait TreeAssembler {
@@ -42,4 +44,19 @@ trait ByPriority {
 ////
 // moment -> mod/index -> key/srcId -> value -> count
 
+class IndexUpdate(val diff: Index, val result: Index, val log: ProfilingLog)
 
+trait IndexUpdater {
+  def setPart[K,V](worldKey: AssembledKey)(
+    next: Future[IndexUpdate]
+  ): WorldTransition⇒WorldTransition
+}
+
+trait AssembleSeqOptimizer {
+  type Expr = WorldPartExpression with DataDependencyFrom[_] with DataDependencyTo[_]
+  def optimize: List[Expr]⇒List[WorldPartExpression]
+}
+
+trait BackStageFactory {
+  def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression]
+}

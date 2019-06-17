@@ -1,33 +1,66 @@
 
 package ee.cone.c4actor
 
+import java.util.concurrent.atomic.AtomicReference
+
 import com.typesafe.scalalogging.LazyLogging
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
 import scala.util.Try
 
 class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with LazyLogging {
   def run(): Unit = {
     val toStart = getToStart()
     logger.debug(s"tracking ${toStart.size} services")
-    toStart.foreach(f ⇒ future().map(_⇒f.run()))
+    toStart.foreach(f ⇒ future(()).map(_⇒f.run()))
   }
-  def onShutdown(hint: String, f: () ⇒ Unit): Unit =
-    Runtime.getRuntime.addShutdownHook(new Thread(){
+  def onShutdown(hint: String, f: () ⇒ Unit): ()⇒Unit = {
+    val thread = new Thread(){
       override def run(): Unit = {
         //println(s"hook-in $hint")
         f()
         //println(s"hook-out $hint")
       }
-    })
+    }
+    Runtime.getRuntime.addShutdownHook(thread)
+    () ⇒ try {
+      Runtime.getRuntime.removeShutdownHook(thread)
+    } catch {
+      case e: IllegalStateException ⇒ ()
+    }
+  }
+
   def complete(): Unit = { // exit from pooled thread will block itself
     logger.info("exiting")
     System.exit(0)
   }
   def future[T](value: T): FatalFuture[T] =
     new VMFatalFuture(Future.successful(value))
+  def emptySkippingFuture[T]: FatalFuture[Option[T]] =
+    new VMFatalSkippingFuture[Option[T]](Future.successful(None))
+}
+
+class VMFatalSkippingFuture[T](inner: Future[T]) extends FatalFuture[T] with LazyLogging {
+  private def canSkip[T](future: Future[T]) = future match {
+    case a: AtomicReference[_] ⇒ a.get() match {
+      case s: Seq[_] ⇒ s.nonEmpty
+      case u ⇒ logger.warn(s"no skip rule for inner ${u.getClass.getName}"); false
+    }
+    case u ⇒ logger.warn(s"no skip rule for outer ${u.getClass.getName}"); false
+  }
+  def map(body: T ⇒ T): FatalFuture[T] = {
+    lazy val nextFuture: Future[T] = inner.map(from ⇒ try {
+      if(canSkip(nextFuture)) from else body(from)
+    } catch {
+      case e: Throwable ⇒
+        logger.error("fatal",e)
+        System.exit(1)
+        throw e
+    })
+    new VMFatalSkippingFuture(nextFuture)
+  }
+  def value: Option[Try[T]] = inner.value
 }
 
 class VMFatalFuture[T](val inner: Future[T]) extends FatalFuture[T] with LazyLogging {
@@ -60,4 +93,3 @@ class EnvConfigImpl extends Config {
   def get(key: String): String =
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
-

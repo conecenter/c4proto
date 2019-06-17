@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import Function.chain
 import LEvent._
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.PCProtocol.{RawChildNode, RawParentNode}
+import ee.cone.c4actor.PCProtocol.{D_RawChildNode, D_RawParentNode}
 
 
 
@@ -17,9 +17,9 @@ object Measure {
 
 object NotEffectiveAssemblerTest extends App with LazyLogging {
   val app = new AssemblerTestApp
-  val nodes = List(RawParentNode("0","P-1")) ++
-    (1 to 10000).map(_.toString).map(srcId⇒RawChildNode(srcId,"0",s"C-$srcId"))
-  val local = app.contextFactory.create()
+  val nodes = List(D_RawParentNode("0","P-1")) ++
+    (1 to 10000).map(_.toString).map(srcId⇒D_RawChildNode(srcId,"0",s"C-$srcId"))
+  val local = app.contextFactory.updated(Nil)
 
   Measure { () ⇒
     chain(nodes.map(update).map(TxAdd(_)))(local)

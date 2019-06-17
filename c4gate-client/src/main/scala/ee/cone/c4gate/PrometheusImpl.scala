@@ -6,50 +6,49 @@ import java.util.UUID
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.Values
-import ee.cone.c4assemble.{Assemble, JoinKey, assemble}
-import ee.cone.c4gate.ActorAccessProtocol.ActorAccessKey
-import ee.cone.c4gate.HttpProtocol.{Header, HttpPublication}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4assemble.Types.{Each, Index, Values}
+import ee.cone.c4assemble._
+import ee.cone.c4gate.ActorAccessProtocol.C_ActorAccessKey
+import ee.cone.c4gate.AvailabilitySettingProtocol.C_AvailabilitySetting
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
+import ee.cone.c4proto.{Id, Protocol, SettingsCat, protocol}
+import okio.ByteString
 
-@protocol object ActorAccessProtocol extends Protocol {
-  @Id(0x006A) case class ActorAccessKey(
+@protocol(SettingsCat) object ActorAccessProtocolBase   {
+  @Id(0x006A) case class C_ActorAccessKey(
     @Id(0x006B) srcId: String,
     @Id(0x006C) value: String
   )
 }
 
-@assemble class ActorAccessAssemble extends Assemble {
+@assemble class ActorAccessAssembleBase   {
   def join(
     key: SrcId,
-    firsts: Values[Firstborn],
-    accessKeys: Values[ActorAccessKey]
-  ): Values[(SrcId,TxTransform)] = for {
-    first ← firsts if accessKeys.isEmpty
-  } yield WithPK(ActorAccessCreateTx(s"ActorAccessCreateTx-${first.srcId}",first))
+    first: Each[Firstborn],
+    accessKeys: Values[C_ActorAccessKey]
+  ): Values[(SrcId,TxTransform)] =
+    if(accessKeys.nonEmpty) Nil
+    else List(WithPK(ActorAccessCreateTx(s"ActorAccessCreateTx-${first.srcId}",first)))
 }
 
 case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransform {
   def transform(local: Context): Context =
-    TxAdd(LEvent.update(ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
+    TxAdd(LEvent.update(C_ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssemble(compressor: Compressor) extends Assemble {
+@assemble class PrometheusAssembleBase(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
   def join(
     key: SrcId,
-    firsts: Values[Firstborn],
-    accessKeys: Values[ActorAccessKey]
-  ): Values[(SrcId,TxTransform)] = for {
-    first ← firsts
-    accessKey ← accessKeys
-  } yield {
+    first: Each[Firstborn],
+    accessKey: Each[C_ActorAccessKey]
+  ): Values[(SrcId,TxTransform)] = {
     val path = s"/${accessKey.value}-metrics"
     println(s"Prometheus metrics at $path")
-    WithPK(PrometheusTx(path, compressor))
+    List(WithPK(PrometheusTx(path, compressor, indexUtil, readModelUtil)))
   }
 }
 
-case class PrometheusTx(path: String, compressor: Compressor) extends TxTransform {
+case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends TxTransform {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
     val runtime = Runtime.getRuntime
@@ -58,19 +57,56 @@ case class PrometheusTx(path: String, compressor: Compressor) extends TxTransfor
       "runtime_mem_total" → runtime.totalMemory,
       "runtime_mem_free" → runtime.freeMemory
     )
-    val keyCounts: List[(String, Long)] = local.assembled.collect {
-      case (worldKey:JoinKey[_,_], index: Map[_, _])
+    val keyCounts: List[(String, Long)] = readModelUtil.toMap(local.assembled).collect {
+      case (worldKey:JoinKey, index: Index)
         if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
-        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → index.size.toLong
+        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → indexUtil.keySet(index).size.toLong
     }.toList
     val metrics = memStats ::: keyCounts
     val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
     val body = compressor.compress(okio.ByteString.encodeUtf8(bodyStr))
-    val headers = List(Header("Content-Encoding", compressor.name))
-    val nextTime = time + 15000
-    val invalidateTime = nextTime + 5000
-    val publication = HttpPublication(path, headers, body, Option(invalidateTime))
-    TxAdd(LEvent.update(publication)).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))(local)
+    val headers = List(N_Header("Content-Encoding", compressor.name))
+    Monitoring.publish(time, 15000, 5000, path, headers, body)(local)
   }
 }
 
+object Monitoring {
+  def publish(
+    time: Long, updatePeriod: Long, timeout: Long,
+    path: String, headers: List[N_Header], body: okio.ByteString
+  ): Context⇒Context = {
+    val nextTime = time + updatePeriod
+    val invalidateTime = nextTime + timeout
+    val publication = S_HttpPublication(path, headers, body, Option(invalidateTime))
+    TxAdd(LEvent.update(publication)).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
+  }
+}
+
+@assemble class AvailabilityAssembleBase(updateDef: Long, timeoutDef: Long)   {
+  def join(
+    key: SrcId,
+    first: Each[Firstborn],
+    settings: Values[C_AvailabilitySetting]
+  ): Values[(SrcId,TxTransform)] = {
+    val (updatePeriod, timeout) = Single.option(settings.map(s ⇒ s.updatePeriod → s.timeout)).getOrElse((updateDef, timeoutDef))
+    List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}", updatePeriod, timeout)))
+  }
+}
+
+@protocol(SettingsCat) object AvailabilitySettingProtocolBase  {
+
+  @Id(0x00f0) case class C_AvailabilitySetting(
+    @Id(0x0001) srcId: String,
+    @Id(0x0002) updatePeriod: Long,
+    @Id(0x0003) timeout: Long
+  )
+
+}
+
+case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long) extends TxTransform {
+  def transform(local: Context): Context =
+    Monitoring.publish(
+      System.currentTimeMillis, updatePeriod, timeout,
+      "/availability", Nil, ByteString.EMPTY
+    )(local)
+}

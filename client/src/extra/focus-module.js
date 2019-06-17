@@ -1,11 +1,12 @@
-export default function FocusModule({log,documentManager,eventManager,windowManager,miscReact}){		
+import {rootCtx} from "../main/vdom-util"
+import {eventManager} from './event-manager.js'
+
+export default function FocusModule({log,documentManager,windowManager}){		
 	let nodesObj = [];
-	let currentFocusNode = null;
-	let preferNode = null;
-	const callbacks = []
-	
-	const {addEventListener,setTimeout} = windowManager
-	const {isReactRoot,getReactRoot} = miscReact	
+	let lastMousePos = {};
+	let stickyNode = null;
+	const {document} = documentManager
+	const {addEventListener,setTimeout} = windowManager	
 	const distance = (no1,no2) =>{
 		if(!no1 || !no2) return undefined
 		const a = (no2.fy - no1.fy)
@@ -29,10 +30,34 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		if(axis == 3 && i==2 && m.fy - mc.fy <= 0) return true
 		return false
 	}
+	const getParentWrapper = (el) => {
+		let e = el
+		while(e){
+			if(e.classList.contains("focusWrapper")) return e
+			e = e.parentElement
+		}
+		return null
+	}
+	const mapNodes =() =>{
+		const aEl = documentManager.activeElement()
+		nodesObj = Array.from(aEl.ownerDocument.querySelectorAll(".focusWrapper")).map(n=>{
+			const r = n.getBoundingClientRect()				
+			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n:n}
+		})
+	}
+	const getCNode = () =>{
+		const aEl = documentManager.activeElement()
+		if(aEl.tagName == "IFRAME") {
+			return getParentWrapper(aEl.contentDocument.activeElement)
+		}
+		return getParentWrapper(aEl)	
+	}
 	const findBestDistance = (axis) => {
 		const aEl = documentManager.activeElement()
 		if((axis==2||axis==0) && aEl.tagName == "INPUT") return
-		const index = nodesObj.findIndex(o => o.n == currentFocusNode)
+		mapNodes()
+	    const wrap = getCNode()	
+		const index = nodesObj.findIndex(o => o.n == wrap)
 		if(index<0) return
 		const cNodeObj = nodesObj[index]
 		const k = [-1,1]
@@ -110,24 +135,26 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		return bestDistance
 	}
 	const sendEvent = (event) => {
-		if(!currentFocusNode) return;
-		const controlEl = currentFocusNode.querySelector("input,button,.button")		
-		const innerTab = currentFocusNode.querySelector('[tabindex="1"]')
+		const cNode = getCNode()
+		if(!cNode) return
+		const controlEl = cNode.querySelector("input") || cNode.querySelector("textarea") || cNode.querySelector("button,.button")
+		const innerTab = cNode.querySelector('[tabindex="1"]')
 		const cEvent = event()
 		if(controlEl) 
 			controlEl.dispatchEvent(cEvent)
 		else if(innerTab)				
 			innerTab.dispatchEvent(cEvent)
 		else
-			currentFocusNode.dispatchEvent(cEvent)
+			cNode.dispatchEvent(cEvent)
 	}
 	const onKeyDown = (event) =>{
-		if(nodesObj.length == 0) return
+		//if(nodesObj.length == 0) return		
 		let best = null	
         let isPrintable = false
 		const vk = event.code == "vk"
-		const detail = {key:event.key,vk}
-		switch(event.key){
+		const eventKey = event.key || String.fromCharCode(event.keyCode)
+		const detail = {key:eventKey,vk}
+		switch(eventKey){
 			case "ArrowUp":
 				best = findBestDistance(3);break;
 			case "ArrowDown":
@@ -137,22 +164,26 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "ArrowRight":
 				best = findBestDistance(0);break;
 			case "Escape":
-				currentFocusNode.focus();break;
+				//currentFocusNode&&currentFocusNode.el.focus();
+				break;			
 			case "Tab":				 
-				currentFocusNode.focus();
-				onTab(event)
+				//currentFocusNode&&currentFocusNode.el.focus();
+				onTab(event,vk)
 				event.preventDefault();return;
 			case "F2":	
 			case "Enter":
-				sendEvent(()=>eventManager.create("enter",{detail}));break;					
+				sendEvent(()=>eventManager.create(document)("enter",{detail}));
+				break;
+			case "Erase":
+				sendEvent(()=>eventManager.create(document)("erase"));break;
 			case "Delete":
-			    sendEvent(()=>eventManager.create("delete"));break;	
+			    sendEvent(()=>eventManager.create(document)("delete"));break;	
 			case "Backspace":
-				sendEvent(()=>eventManager.create("backspace"));break;			
+				sendEvent(()=>eventManager.create(document)("backspace",{detail}));break;			
 			case "Insert":
 			case "c":
 				if(event.ctrlKey){
-					sendEvent(()=>eventManager.create("ccopy"))
+					//sendEvent(()=>eventManager.create(document)("ccopy"))
 					break
 				}
 				isPrintable = true
@@ -168,103 +199,95 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "F9":
 			case "F10":
 				break;
+			case " ":
+				if(event.target.tagName !== "INPUT" && event.target.tagName !== "TEXTAREA")
+					event.preventDefault()
 			default:
 				isPrintable = true
 		}		
 		if(best) best.o.n.focus();				
-		if(isPrintable && isPrintableKeyCode(event.key)) {			
-			sendEvent(()=>eventManager.create("delete",{detail}))
-			const cRNode = callbacks.find(o=>o.el == currentFocusNode)			
-			if(cRNode && cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)
+		if(isPrintable && isPrintableKeyCode(eventKey)) {			
+			sendEvent(()=>eventManager.create(document)("delete",{detail}))
+			/*const cRNode = callbacks.find(o=>o.el == currentFocusNode&&currentFocusNode.el)			
+			if(cRNode && cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)*/
 		}			
 	}
 	const sendToServer = (cRNode,type,action) => {if(cRNode.props.onClickValue) cRNode.props.onClickValue(type,action)}
-	const onTab = (event) =>{
-		const root = getReactRoot();
+	const ifLastThenEnter = (index,nodes) =>{
+		const sb = 'button[type="submit"]'
+		if(!nodes.slice(index).find(_=>_.querySelector("input"))) {
+			const node=nodes.slice(index).find(_=>_.querySelector(sb))
+			if(node) node.querySelector(sb).click()
+		}
+	}
+	const onTab = (event,vk) =>{		
+		const cNode = getCNode()
+		const root = vk?(cNode&&cNode.ownerDocument):event.target.ownerDocument
 		if(!root) return
 		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
-		const cRNode = callbacks.find(o=>o.el == currentFocusNode)
-		if(cRNode.props.autoFocus == false){
+		/*const cRNode = callbacks.find(o=>currentFocusNode&&true && o.el == currentFocusNode.el)
+		if(cRNode&&cRNode.props.autoFocus == false){
 			sendToServer(cRNode,"focus","change")
 			return
-		}
-		
-		const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+		}*/		
+		const cIndex = nodes.findIndex(n=> n == cNode)
 		if(cIndex>=0) {
-			if(cIndex+1<nodes.length) nodes[cIndex+1].focus()
+			if(cIndex+1<nodes.length) {
+				nodes[cIndex+1].focus()				
+			}
 			else{
 				setTimeout(()=>{
 					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
-					const cIndex = nodes.findIndex(n=>n == currentFocusNode)
+					const cIndex = nodes.findIndex(n=>n == cNode)
 					if(cIndex>=0) {
-						if(cIndex+1<nodes.length) nodes[cIndex+1].focus()
-						else currentFocusNode.focus()
+						if(cIndex+1<nodes.length) {
+							nodes[cIndex+1].focus()							
+						}
+						else 
+							cNode&&cNode.focus()
 					}					
 				},200)
 			}				
 		}		
-		
+	}
+	const onEnter = (event) =>{
+		const root = event.target.ownerDocument
+		if(!root) return
+		const detail = event.detail
+		if(!detail) return		
+		const marker = `marker-${detail}`
+		const btn = root.querySelector(`button.${marker}`)
+		if(btn) {
+			btn.dispatchEvent(eventManager.create(document)("click",{bubbles:true}))
+		}
+	}
+	const getLastClickNode = () =>{
+		const {x,y} = lastMousePos
+		return x&&y&&documentManager.nodeFromPoint(x,y)		
+	}
+	const onMouseDown = (e) => {
+		lastMousePos = {x:e.clientX,y:e.clientY}
 	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
-		sendEvent(()=>eventManager.create("cpaste",{detail:data}))
+		sendEvent(()=>eventManager.create(document)("cpaste",{detail:data}))
 	}		
 	addEventListener("keydown",onKeyDown)
 	addEventListener("paste",onPaste)
 	addEventListener("cTab",onTab)		
-	const isPrintableKeyCode = (ch)	=> "abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase())
-	const isVk = (el) => el.classList.contains("vkElement")
-	const doCheck = () => {		
-		const root = getReactRoot();
-		if(!root) return
-		const nodes = callbacks.map(o=>o.el)
-		if(nodes.length==0) return
-		//
-		const newNodesObj = nodes.map(n=>{
-			const r = n.getBoundingClientRect()				
-			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n}
-		})	
-		
-		if(nodesObj.length!=newNodesObj.length || nodesObj.some((o,i)=>o.n!=newNodesObj[i].n)) {
-			nodesObj = newNodesObj			
-			/*if(!nodesObj.find(o=>o.n == currentFocusNode) && nodesObj.length>0) {
-				nodesObj[0].n.focus()
-				//currentFocusNode.focus()
-			}*/
-		}			
-	}	
-	const reg = (o) => {
-		callbacks.push(o)
-		const unreg = () => {
-			const index = callbacks.indexOf(o)
-			if(index>=0) callbacks.splice(index,1)
-		}
-		return {unreg}
-	}	
-	const switchOff = (node,relatedTarget) => {
-		if(currentFocusNode == node.el && relatedTarget) {
-			if(!nodesObj.find(o=>o.n.contains(relatedTarget))) {				
-				currentFocusNode = null
-			}
-		}
-		if(!relatedTarget) currentFocusNode = null
-	}
-	const switchTo = (node) => {
-		
-		const roNode = callbacks.find(o=>o.el == currentFocusNode)
-		if(roNode&&roNode.state.focused) roNode.onBlur()
-			if(!node.el) return			
-		currentFocusNode = node.el		
-	}
-	const checkActivate = doCheck
-	const focusTo = (data) => setTimeout(()=>{		
-		const preferedFocusObj = callbacks.find(o=>o.el.classList.contains(`marker-${data}`))
-		if(preferedFocusObj) {
-			switchTo(preferedFocusObj)
-			preferedFocusObj.el.focus()
-		}
+	addEventListener("cEnter",onEnter)
+	addEventListener("mousedown",onMouseDown,true)
+	const isPrintableKeyCode = (ch)	=> ch&&("abcdefghijklmnopqrtsuvwxyz1234567890.,*/-+:;&%#@!~? ".split('').some(c=>c.toUpperCase()==ch.toUpperCase()))
+	const isVk = (el) => el.classList.contains("vkElement")	
+	const focusTo = (data) => setTimeout(()=>{
+		mapNodes()
+		const preferedFocusObj = nodesObj.find(o=>o.n.dataset.path&&o.n.dataset.path.includes(data))
+		preferedFocusObj && preferedFocusObj.n.focus()
 	},200)
-	const getFocusNode = () => currentFocusNode
-	const receivers = {focusTo}
-	return {reg,switchTo,checkActivate,receivers,getFocusNode,switchOff}
+	const toView = (className)=>setTimeout(()=>{
+		const o = document.querySelector(`.${className}`)
+		o&&o.scrollIntoViewIfNeeded(false)
+	})	
+	const receivers = {focusTo,toView}
+	return {receivers}
 }

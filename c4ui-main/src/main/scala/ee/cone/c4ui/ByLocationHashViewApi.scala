@@ -7,6 +7,8 @@ trait ByLocationHashView extends View
 
 case object CurrentBranchKey extends TransientLens[SrcId]("")
 
+case object CurrentPathKey extends TransientLens[SrcId]("")
+
 trait ByLocationHashViewsApp {
   def byLocationHashViews: List[ByLocationHashView] = Nil
 }

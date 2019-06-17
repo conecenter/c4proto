@@ -26,3 +26,8 @@ node_modules
 db-*
 db4*
 db.*
+htdocs
+/logback.xml
+.stignore
+*.auth
+c4gen.*.scala

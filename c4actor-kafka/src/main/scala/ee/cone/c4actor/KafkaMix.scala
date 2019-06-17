@@ -5,8 +5,15 @@ trait KafkaConfigApp {
   def config: Config
 
   private lazy val bootstrapServers: String = config.get("C4BOOTSTRAP_SERVERS")
-  private lazy val inboxTopicPrefix: String = config.get("C4INBOX_TOPIC_PREFIX")
-  lazy val kafkaConfig = KafkaConfig(bootstrapServers,inboxTopicPrefix)
+  lazy val inboxTopicPrefix: String = config.get("C4INBOX_TOPIC_PREFIX")
+  private lazy val maxRequestSize: String = config.get("C4MAX_REQUEST_SIZE")
+  private lazy val keyStorePath: String = config.get("C4KEYSTORE_PATH")
+  private lazy val trustStorePath: String = config.get("C4TRUSTSTORE_PATH")
+  private lazy val keyPassPath: String = config.get("C4AUTH_KEY_FILE")
+  lazy val kafkaConfig: KafkaConfig = KafkaConfig(
+    bootstrapServers,inboxTopicPrefix,maxRequestSize,
+    keyStorePath,trustStorePath,keyPassPath
+  )()
 }
 
 trait KafkaProducerApp extends KafkaConfigApp with ToStartApp {
@@ -17,12 +24,20 @@ trait KafkaProducerApp extends KafkaConfigApp with ToStartApp {
   override def toStart: List[Executable] = rawQSender :: super.toStart
 }
 
-trait KafkaConsumerApp extends KafkaConfigApp with ToStartApp {
+trait KafkaConsumerApp extends KafkaConfigApp with LZ4DeCompressorApp {
   def execution: Execution
-  def rawSnapshot: RawSnapshot
-  def progressObserverFactory: ProgressObserverFactory
   //
-  private lazy val kafkaConsumer =
-    new KafkaActor(kafkaConfig)(rawSnapshot,progressObserverFactory,execution)
-  override def toStart: List[Executable] = kafkaConsumer :: super.toStart
+  lazy val consuming: Consuming = KafkaConsuming(kafkaConfig)(execution)
+}
+
+trait LZ4DeCompressorApp extends DeCompressorsApp {
+  private lazy val lz4DeCompressor = LZ4Compressor
+  override def deCompressors: List[DeCompressor] =
+    lz4DeCompressor :: super.deCompressors
+}
+
+trait LZ4RawCompressorApp extends RawCompressorsApp{
+  private lazy val lz4RawCompressor = LZ4Compressor
+  override def rawCompressors: List[RawCompressor] =
+    lz4RawCompressor :: super.rawCompressors
 }

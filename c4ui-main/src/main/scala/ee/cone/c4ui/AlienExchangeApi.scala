@@ -11,4 +11,3 @@ case class FromAlienTask(
   locationQuery: String,
   locationHash: String
 )
-

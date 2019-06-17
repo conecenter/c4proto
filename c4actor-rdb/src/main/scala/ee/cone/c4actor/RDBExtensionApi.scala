@@ -11,6 +11,14 @@ trait RConnectionPool {
   def doWith[T](f: RConnection⇒T): T
 }
 
+trait ExternalDBClient {
+  /**
+    * Blocking method, which waits for db to be prepared for usage.
+    * @return RConnectionPool
+    */
+  def getConnectionPool: RConnectionPool
+}
+
 trait RDBBind[R] {
   def in(value: String): RDBBind[R]
   def in(value: Long): RDBBind[R]

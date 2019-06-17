@@ -9,7 +9,7 @@ import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.QProtocol.Firstborn
 import ee.cone.c4assemble._
-import ee.cone.c4assemble.Types.Values
+import ee.cone.c4assemble.Types.{Each, Values}
 
 class TestConsumerApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -36,52 +36,52 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --descri
 curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 */
 
-@assemble class TestAssemble extends Assemble {
+@assemble class TestAssembleBase   {
   def joinTestHttpPostHandler(
     key: SrcId,
-    posts: Values[HttpPost]
+    post: Each[S_HttpPost]
   ): Values[(SrcId, TxTransform)] =
-    for(post ← posts if post.path == "/abc")
-      yield WithPK(TestHttpPostHandler(post.srcId,post))
+    if(post.path == "/abc")
+      List(WithPK(TestHttpPostHandler(post.srcId,post))) else Nil
 
   def needConsumer(
     key: SrcId,
-    firsts: Values[Firstborn]
+    first: Each[Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
-    for(_ ← firsts) yield WithPK(LocalPostConsumer("/abc"))
+    List(WithPK(LocalPostConsumer("/abc")))
 
   def joinDebug(
     key: SrcId,
-    posts: Values[HttpPost]
+    posts: Values[S_HttpPost]
   ): Values[(SrcId, TxTransform)] = {
     //println(posts)
     Nil
   }
 
 /*
-  def joinAllTcpConnections(key: SrcId, items: Values[TcpConnection]): Values[(Unit, TcpConnection)] =
+  def joinAllTcpConnections(key: SrcId, items: Values[S_TcpConnection]): Values[(Unit, S_TcpConnection)] =
     items.map(()→_)
-  def joinGateTester(key: Unit, connections: Values[TcpConnection]): Values[(SrcId, TxTransform)] =
+  def joinGateTester(key: Unit, connections: Values[S_TcpConnection]): Values[(SrcId, TxTransform)] =
     List("GateTester"→GateTester(connections))*/
 }
 
-case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
+case class TestHttpPostHandler(srcId: SrcId, post: S_HttpPost) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val resp = if(ErrorKey.of(local).nonEmpty) Nil else {
       val prev = new String(post.body.toByteArray, "UTF-8")
       val next = (prev.toLong * 3).toString
       val body = okio.ByteString.encodeUtf8(next)
-      List(HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
+      List(S_HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
     }
     logger.info(s"$resp")
-    TxAdd(delete[Product](post) ++ resp.flatMap(update[Product]))(local)
+    TxAdd(delete(post) ++ resp.flatMap(update))(local)
   }
 }
 
 /*
 case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
-case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
+case class GateTester(connections: Values[S_TcpConnection]) extends TxTransform {
   def transform(local: World): World = {
     val seconds = System.currentTimeMillis / 1000
     if(TestTimerKey.of(local) == seconds) return local
@@ -90,7 +90,7 @@ case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
     println(size)
     val broadEvents = connections.flatMap { connection ⇒
       val key = UUID.randomUUID.toString
-      update(TcpWrite(key, connection.connectionKey, sizeBody, seconds))
+      update(S_TcpWrite(key, connection.connectionKey, sizeBody, seconds))
     }
     add(broadEvents).andThen(TestTimerKey.set(seconds))(local)
   }
@@ -143,8 +143,8 @@ object Test {
 ////
   case class Update[V](from: Seq[V], to: Seq[V])
 
-  trait MapReduce[Node, K, V, AV] {
-    def map(node: Node): Map[K, V]
+  trait MapReduce[D_Node, K, V, AV] {
+    def map(node: D_Node): Map[K, V]
     def del(aggregateValue: AV, partialValue: V): AV
     def add(aggregateValue: AV, partialValue: V): AV
   }
