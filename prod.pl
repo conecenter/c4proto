@@ -837,6 +837,8 @@ my $up_desktop = sub{
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
             'export C4PROTO_DIR=/c4/c4proto',
             'export C4DATA_DIR=/c4db',
+            'export DB_AUTH=./c4conf/ora.auth',
+            'export JMS_AUTH=./c4conf/jms.auth',
             "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
         );
         &$put("Dockerfile", join "\n",
@@ -845,7 +847,8 @@ my $up_desktop = sub{
             " rsync openssh-client dropbear git".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
-            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime",
+            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime".
+            " iputils-ping wget nano",
             "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
