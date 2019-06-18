@@ -72,12 +72,12 @@ class DepTestStart(
 
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    logger.debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(ByPK(classOf[DepTestResponse]).of(nGlobal).values.toList)
     /*println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test ⇒ test.resolvable.value → test.request.srcId))
     val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
     println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")*/
-    println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    logger.debug("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     val newLocal = TxAdd(LEvent.update(D_ValueNode("124", 555)))(nGlobal)
     println(ByPK(classOf[DepTestResponse]).of(newLocal).values.toList)
 

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Configuration xmlns="http://logging.apache.org/log4j/2.0/config" monitorInterval="30">
+    <Properties>
+        <Property name="logPath">/c4db/log4j2/</Property>
+    </Properties>
+    <Appenders>
+        <!-- File Appender -->
+        <Async name="ASYNC">
+            <AppenderRef ref="RollingFile"/>
+        </Async>
+        <RollingFile name="RollingFile" fileName="${logPath}app.log"
+                     filePattern="${logPath}$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
+            <PatternLayout>
+                <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <TimeBasedTriggeringPolicy />
+                <SizeBasedTriggeringPolicy size="250 MB"/>
+            </Policies>
+        </RollingFile>
+        <!-- Console Appender -->
+        <Console name="STDOUT" target="SYSTEM_OUT">
+            <PatternLayout pattern="%-5p | %d{yyyy-MM-dd HH:mm:ss} | [%t] %C{2} (%F:%L) - %highlight{%m%n}{FATAL=white, ERROR=red, WARN=Cyan, INFO=green, DEBUG=orange, TRACE=blue}"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Root level="debug">
+            <AppenderRef ref="STDOUT"/>
+            <AppenderRef ref="ASYNC"/>
+        </Root>
+    </Loggers>
+</Configuration>
