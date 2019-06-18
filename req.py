@@ -19,20 +19,21 @@ def md5s(data):
 def get_file(fn):
     return pathlib.Path(fn).read_bytes()
 
-#print(md5s([b'ABC',b'DEF']))
-#print("=".join([urllib.parse.quote_plus(e) for e in ["/A","/B"]]))
-#print(pathlib.Path("req.py").read_text())
-#read_bytes() encoding='utf-8'
-#sys.argv[1:]
-#print(int((time.time()+3600)*1000))
+def signed_req(salt,args,opt):
+    until = [str(int((time.time()+3600)*1000)).encode("utf-8")]
+    uData = until + [s.encode("utf-8") for s in args]
+    hash = [md5s([salt] + uData)]
+    header = "=".join([urllib.parse.quote_plus(e) for e in hash + uData])
+    headers = { "X-r-signed": header }
+    req =  urllib.request.Request(headers=headers, **opt)
+    return urllib.request.urlopen(req)
 
-cmd, salt_path, body_path, url, *data = sys.argv
-salt = [get_file(salt_path)]
-until = [str(int((time.time()+3600)*1000)).encode("utf-8")]
-uData = until + [s.encode("utf-8") for s in data]
-hash = [md5s(salt + uData)]
-header = "=".join([urllib.parse.quote_plus(e) for e in hash + uData])
-headers = { "X-r-signed": header }
-req =  urllib.request.Request(url, data=get_file(body_path), headers=headers)
-resp = urllib.request.urlopen(req)
+
+cmd, salt_path, body_path, url, *args = sys.argv
+salt = get_file(salt_path)
+{
+    url: url,
+    data: get_file(body_path)
+}
+
 print(resp)

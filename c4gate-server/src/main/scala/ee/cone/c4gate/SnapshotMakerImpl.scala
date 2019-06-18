@@ -93,17 +93,19 @@ case class RequestedSnapshotMakingTx(
   srcId: SrcId, taskOpt: Option[SnapshotTask], posts: List[S_HttpPost]
 )(snapshotMaking: SnapshotMaker, signatureChecker: Signer[SnapshotTask]) extends TxTransform {
   def transform(local: Context): Context = {
-    val res: List[(S_HttpPost, List[N_Header])] = (ErrorKey.of(local), taskOpt) match {
-      case (Seq(), Some(task)) ⇒
+    val res: List[(S_HttpPost, List[N_Header])] = ErrorKey.of(local) match {
+      case errors if errors.isEmpty ⇒
         val (authorized, nonAuthorized) = posts.partition(post ⇒
           signatureChecker.retrieve(check=true)(SnapshotMakingUtil.signed(post.headers)).nonEmpty
         )
-        val res = if (authorized.nonEmpty) snapshotMaking.make(task) else Nil
+
+        val res = if (authorized.nonEmpty) snapshotMaking.make(taskOpt.get) else Nil
         val goodResp = List(N_Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
+
         val authorizedResponses = authorized.map(au ⇒ au → goodResp)
         val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → List(N_Header("X-r-error-message", "Non authorized request")))
         authorizedResponses ::: nonAuthorizedResponses
-      case (errors, _) if errors.nonEmpty ⇒
+      case errors ⇒
         val errorHeaders = errors.map(e ⇒ N_Header("X-r-error-message", e.getMessage))
         posts.map(post ⇒ post → errorHeaders)
     }
