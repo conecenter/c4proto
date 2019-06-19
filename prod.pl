@@ -837,8 +837,8 @@ my $up_desktop = sub{
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
             'export C4PROTO_DIR=/c4/c4proto',
             'export C4DATA_DIR=/c4db',
-            'export DB_AUTH=./c4conf/ora.auth',
-            'export JMS_AUTH=./c4conf/jms.auth',
+            'export C4DB_AUTH=./c4conf/ora.auth',
+            'export C4JMS_AUTH=./c4conf/jms.auth',
             "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
         );
         &$put("Dockerfile", join "\n",
