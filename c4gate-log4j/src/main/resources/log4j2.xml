@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<Configuration xmlns="http://logging.apache.org/log4j/2.0/config" monitorInterval="30">
+<Configuration status="all" xmlns="http://logging.apache.org/log4j/2.0/config"
+               xmlns:xi="http://www.w3.org/2001/XInclude"
+               monitorInterval="30">
     <Properties>
         <Property name="logPath">/c4db/log4j2/</Property>
     </Properties>
@@ -15,17 +17,26 @@
             </PatternLayout>
             <Policies>
                 <TimeBasedTriggeringPolicy />
-                <SizeBasedTriggeringPolicy size="250 MB"/>
+                <SizeBasedTriggeringPolicy size="1GB"/>
             </Policies>
+            <DefaultRolloverStrategy>
+                <Delete basePath="${logPath}" maxDepth="2">
+                    <ifLastModified age="7d"/>
+                </Delete>
+            </DefaultRolloverStrategy>
         </RollingFile>
+
         <!-- Console Appender -->
+        <Async name="ASYNCCONSOLE">
+            <AppenderRef ref="STDOUT"/>
+        </Async>
         <Console name="STDOUT" target="SYSTEM_OUT">
-            <PatternLayout pattern="%-5p | %d{yyyy-MM-dd HH:mm:ss} | [%t] %C{2} (%F:%L) - %highlight{%m%n}{FATAL=white, ERROR=red, WARN=Cyan, INFO=green, DEBUG=orange, TRACE=blue}"/>
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} %highlight{%-5p} %c{2} - %m%n"/>
         </Console>
     </Appenders>
     <Loggers>
-        <Root level="debug">
-            <AppenderRef ref="STDOUT"/>
+        <Root level = "info">
+            <AppenderRef ref="ASYNCCONSOLE"/>
             <AppenderRef ref="ASYNC"/>
         </Root>
     </Loggers>
