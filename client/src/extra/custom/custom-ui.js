@@ -1,10 +1,11 @@
 "use strict";
 import React from 'react'
+import GlobalStyles from '../metro/global-styles.js'
+
 export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact,miscUtil,StatefulComponent}){
-	const {ChipElement,TDElement,ConnectionState,ButtonElement,ControlWrapperElement} = ui.transforms.tp	
+	const {ChipElement,ConnectionState,ButtonElement,ControlWrapperElement} = ui.transforms.tp	
 	const $ = React.createElement
-	const DarkPrimaryColor = "#1976d2"
-	const PrimaryColor = "#2196f3"
+	const {DarkPrimaryColor,PrimaryColor} = GlobalStyles	
 	class StatusElement extends StatefulComponent{		
 		getInitialState(){return {lit:false}}
 		signal(on){
@@ -79,16 +80,20 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 				...this.props.style
 			}
 			const className = !this.props.host?"dummyTerminal":"terminalElement"
-			return $(React.Fragment,{},[
-				$("div",{key:"term",ref:ref=>this.el=ref,className:className,version:this.props.version,style},
-					$("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
-				),
-				$(ControlWrapperElement,{key:"btn",style:{alignSelf:"center",display:"inline-block",outlineWidth:"0.1em",padding:"0em",width:"auto"}},
+			const children =()=> {
+				if(this.props.children) return this.props.children
+				return $(ControlWrapperElement,{key:"btn",style:{alignSelf:"center",display:"inline-block",outlineWidth:"0.1em",padding:"0em",width:"auto"}},
 					$(ButtonElement,{key:"btn",onClick:this.reset,
 						overStyle:{backgroundColor:DarkPrimaryColor,color:"white"},
 						style:{backgroundColor:PrimaryColor,color:"white",fontSize:"1.5em",position:"relative",zIndex:"1"}
 						},"Reconnect")
 				)
+			}
+			return $(React.Fragment,{},[
+				$("div",{key:"term",ref:ref=>this.el=ref,className:className,version:this.props.version,style},
+					$("div",{style:{color:"white", position:"absolute"}}, "Client Private Terminal")
+				),
+				children()
 			])
 		}
 	}
@@ -113,10 +118,10 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 			if(nextProps.init&&nextProps.init!=this.props.init)
 				this.setState({data:null});
 		}
-		onClick(e){
+		/*onClick(e){
 			if(this.props.onClick)
 				this.props.onClick(e);
-		}
+		}*/
 		render(){
 			const style={
 				minWidth:'2rem',
@@ -134,7 +139,7 @@ export default function CustomUi({log,ui,customMeasurer,customTerminal,miscReact
 			};				
 			const statusText = (this.props.statusText?this.props.statusText:"");
 			
-			return $(TDElement,{key:"wEl",odd:this.props.odd,style},[
+			return $("div",{key:"wEl",odd:this.props.odd,style},[
 				$(ControlledComparator,{key:"1",onChange:this.onChange,data:this.state.data},null),
 				$('div',{key:"2",style:{display:'flex',flexWrap:'noWrap'}},[				
 					$("input",{type:"text",readOnly:"readonly",key:"3",style:inpStyle,value:statusText},null),

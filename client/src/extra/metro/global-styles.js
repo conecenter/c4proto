@@ -9,9 +9,12 @@ const GlobalStyles = (()=>{
 		borderWidth:"1px",
 		borderStyle:"solid",
 		borderSpacing:"0em",
+	}	
+	const DarkPrimaryColor = "#1976d2"
+	const PrimaryColor = "#2196f3"
+	return {...styles,
+		DarkPrimaryColor, PrimaryColor
 	}
-	const update = (newStyles) => styles = {...styles,...newStyles}
-	return {...styles,update};
 })()
 	
 export default GlobalStyles

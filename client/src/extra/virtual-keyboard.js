@@ -57,7 +57,7 @@ export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponen
 				...this.props.style,				
 				...(this.state.mouseDown?{backgroundColor:"rgb(25, 118, 210)"}:{})
 			};
-			const className = "vkElement"
+			const className = "vkElement " + (this.props.className?this.props.className:"")
 			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
 		}
 	}	
@@ -117,6 +117,14 @@ export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponen
 				e = e.parentElement
 			}
 			return null
+		}
+		isOfParentNode(el,parentNode){
+			let e = el
+			while(e){
+				if(e == parentNode) return true
+				e = e.parenElement
+			}
+			return false
 		}
 		getFocusedElement(){
 			const a = this.el.ownerDocument.querySelector(`*[data-path="${this.path}"]`)
@@ -272,9 +280,10 @@ export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponen
 			}
 		}
 		onPress(){
-			if(this.getFocusedElement().tagName == "BODY") {
+			//if(this.getFocusedElement().tagName == "BODY") 
+			{
 				const sticky = this.getStickyElement()
-				sticky && sticky.focus()
+				if(sticky && !this.isOfParentNode(this.getFocusedElement(),sticky)) sticky.focus()
 			}
 		}
 		render(){					    
@@ -314,7 +323,7 @@ export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponen
 				$("div",{key:"vk",ref:this.onRef(path),style:positionStyle,className},
 					vkLayout?
 					$("div",{style:wrapperStyle},[				
-						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle}, key:genKey(btn.char,j),onPress:this.onPress, fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
+						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle},className:btn.className, key:genKey(btn.char,j),onPress:this.onPress, fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
 					]):
 					null
 				),

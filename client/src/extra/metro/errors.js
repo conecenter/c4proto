@@ -1,7 +1,7 @@
 "use strict";
 import React 	from 'react'
 import ReactDOM from 'react-dom'
-import Images from "./media/images.js"
+import {images} from "./media/images.js"
 import {ButtonElement} from './components/buttons.js'
 const $ = React.createElement
 let errors
@@ -40,11 +40,6 @@ const Errors = (document) =>{
 	}
 	const receivers = {fail};	
 	return {receivers,reg};
-}
-let _images
-const images = (el) => {
-	if(!_images) _images = Images(el.ownerDocument.defaultView.btoa)
-	return _images
 }
 
 const ErrorElement = (props) => {

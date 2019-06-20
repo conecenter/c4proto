@@ -355,17 +355,19 @@ my $make_dc_yml = sub{
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
     my @port_maps = &$map(\%all,sub{ my($k,$v)=@_; $k=~/^port:(.+)/ ? "$1" : () });
+    my @host_maps = &$map(\%all,sub{ my($k,$v)=@_; $k=~/^host:(.+)/ ? "$1:$v" : () });
     my @pod = (pod => {
         command => ["sleep","infinity"],
         image => "ubuntu:18.04",
         @port_maps ? (ports=>\@port_maps) : (),
+        @host_maps ? (extra_hosts=>\@host_maps) : (),
     });
     my $yml_str = &$to_yml_str({
         services => {@pod, map{
             my $opt = $_;
             my $res = &$merge_list(&$map($opt,sub{ my($k,$v)=@_;(
                 $k=~/^([A-Z].+)/ ? { environment=>{$1=>$v} } : (),
-                $k=~/^host:(.+)/ ? { extra_hosts=>["$1:$v"]} : (),
+                #$k=~/^host:(.+)/ ? { extra_hosts=>["$1:$v"]} : (),
                 $k=~/^(volumes|tty)$/ ? {$1=>$v} : (),
                 $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? {volumes=>["./$1:/c4conf/$1"]} : (),
                 $k eq 'C4DATA_DIR' ? {volumes=>["db4:$v"]} : (),
