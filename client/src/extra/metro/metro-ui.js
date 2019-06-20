@@ -3,11 +3,14 @@ import React from 'react'
 import {pairOfInputAttributes}  from "../../main/vdom-util"
 import {ErrorElement} from "./errors"
 import {ctxToPath,rootCtx,chain} from "../../main/vdom-util"
-import {dragDropPositionStates} from "../dragdrop-module"
 import GlobalStyles from './global-styles.js'
 import {eventManager,checkActivateCalls} from '../event-manager.js'
 import {ButtonElement,ButtonWithRippleElement} from './components/buttons'
-import Images from "./media/images.js"
+import {MenuBarElement, MenuDropdownElement, FolderMenuElement, ExecutableMenuElement} from './components/menu'
+import {dragDropModule,dragDropPositionStates} from "../dragdrop-module"
+import {DragDropHandlerElement, DragDropDivElement} from './components/drag-drop.js'
+import {images as _images} from "./media/images.js"
+import TalmanElements from "./talman/talman.js"
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
@@ -21,15 +24,14 @@ const TextSelectionMonitor = ((log) =>{
 		const elem = event.target
 		const w = elem && elem.ownerDocument && elem.ownerDocument.defaultView		
 		const selection = getSelection(w)
-		return selection.toString().length>0 && Array.from(elem.childNodes).includes(selection.anchorNode)		
+		return selection.toString().length>0 && (!selection.anchorNode || elem.hasChildNodes(selection.anchorNode))
 	}
 	return check
 })
 
-export default function MetroUi(log,requestState,documentManager,OverlayManager,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
+export default function MetroUi({log,requestState,documentManager,OverlayManager,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes}){
 	const $ = React.createElement	
-	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput
-	const dragDropModule = DragDropModule()
+	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput	
 	const overlayManager = OverlayManager()	
 	const textSelectionMonitor = TextSelectionMonitor(log)
 	const Branches = (()=>{
@@ -46,9 +48,8 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		}
 		return {store, get, isSibling}
 	})()
-	const images = Images(documentManager.document.defaultView.btoa)
-	const DarkPrimaryColor = "#1976d2"
-	const PrimaryColor = "#2196f3"
+	const images = _images(documentManager.body())
+	const {DarkPrimaryColor, PrimaryColor} = GlobalStyles	
 	
 	const {isReactRoot,getReactRoot} = miscReact
 	const {setTimeout,clearTimeout,setInterval,clearInterval,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
@@ -95,249 +96,8 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		maxWidth:maxWidth?maxWidth:'auto',
 		...style
 	}},children);	
+    
 
-	const MenuBurger = (props) => {	
-	
-		const c = {transition:"all 100ms",transformOrigin:"center"}
-		const alt1 = props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
-		const alt2 = props.isBurgerOpen?{opacity: "0"}:{}
-		const alt3 = props.isBurgerOpen?{transform: "rotate(45deg)"}:{}	
-		const color = props.style&&props.style.color?props.style.color:"white"
-		const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
-				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:props.isBurgerOpen?"16":"9",x2:"30",y2:props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":color}),							
-				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":color}),								
-				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:props.isBurgerOpen?"16":"25",x2:"30",y2:props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":color})				
-		])
-		const style = {
-			backgroundColor:"inherit",
-			cursor:"pointer",
-			...props.style
-		}
-		return $("div",{style,onClick:props.onClick},svg)
-	}
-	
-	class MenuBarElement extends StatefulComponent{		
-		getInitialState(){return {fixedHeight:"",scrolled:false, isBurger:false}}	
-		process(){
-			if(!this.el) return;
-			const height = this.el.getBoundingClientRect().height + "px";			
-			if(height !== this.state.fixedHeight) this.setState({fixedHeight:height});			
-		}
-		onScroll(){
-			const scrolled = getPageYOffset()>0;
-			if(!this.state.scrolled&&scrolled) this.setState({scrolled}) 
-			else if(this.state.scrolled&&!scrolled) this.setState({scrolled})
-		}
-		componentWillUnmount(){
-			checkActivateCalls.remove(this.calc)
-			//removeEventListener("scroll",this.onScroll);
-		}		
-		calc(){
-			if(!this.leftEl) return						
-			const tCLength = Math.round(Array.from(this.leftEl.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0))
-			const tLength = Math.round(this.leftEl.getBoundingClientRect().width)
-			
-			if(!this.bpLength && tCLength>0 && tCLength>=tLength && !this.state.isBurger) {
-				this.bpLength = tCLength				
-				this.setState({isBurger:true})
-			}
-			if(this.bpLength && this.bpLength<tLength && this.state.isBurger){					
-				this.bpLength = null
-				this.setState({isBurger:false})
-			}
-		}
-		openBurger(e){
-			if(this.props.onClick)
-				this.props.onClick(e)			
-		}
-		componentDidMount(){
-			checkActivateCalls.add(this.calc)
-			//this.process();
-			//addEventListener("scroll",this.onScroll);
-		}
-		parentEl(node){
-			if(!this.leftEl||!node) return true
-			let p = node
-			while(p && p !=this.leftEl){
-				p = p.parentElement
-				if(p == this.leftEl) return true
-			}
-			return false
-		}
-		onBurgerBlur(e){
-			if(this.props.isBurgerOpen && !this.parentEl(e.relatedTarget)) this.openBurger(e)
-		}
-		render(){
-			const style = {								
-			}
-			const menuStyle = {
-				position:"static",
-				width:"100%",
-				zIndex:"6662",
-				top:"0rem",
-				boxShadow:this.state.scrolled?GlobalStyles.boxShadow:"",
-				...this.props.style				
-			}
-			const barStyle = {
-				display:'flex',
-				flexWrap:'nowrap',
-				justifyContent:'flex-start',
-				backgroundColor:'#2196f3',
-				verticalAlign:'middle',				
-				width:"100%",
-				...this.props.style				
-			}
-			const burgerPopStyle = {
-				position:"absolute",
-				zIndex:"1000",
-				backgroundColor:"inherit"
-			}
-			const left = this.props.children.filter(_=>_.key&&!_.key.includes("right"))									
-			const right = this.props.children.filter(_=>!_.key||_.key.includes("right"))
-			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[
-				$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:this.props.isBurgerOpen,key:"burger",onClick:this.openBurger}),
-				this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null
-			])
-			return $("div",{style:style},
-				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
-					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{whiteSpace:"nowrap",backgroundColor:"inherit",flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
-					$("div",{key:"right",style:{alignSelf:"center"}},right)
-				])				
-			)
-		}		
-	}
-	const getParentNode = function(childNode,className){
-		let parentNode = childNode.parentNode;
-		while(parentNode!=null&&parentNode!=undefined){
-			if(parentNode.classList.contains(className)) break;
-			parentNode = parentNode.parentNode;
-		}
-		return parentNode;
-	}
-	class MenuDropdownElement extends StatefulComponent{		
-		getInitialState(){return {maxHeight:"",right:null}}	
-		calcMaxHeight(){
-			if(!this.el) return;			
-			const elTop = this.el.getBoundingClientRect().top;
-			const innerHeight = getWindowRect().height;
-			if(this.props.isOpen&&parseFloat(this.state.maxHeight)!=innerHeight - elTop)						
-				this.setState({maxHeight:innerHeight - elTop + "px"});				
-		}
-		calc(){
-			if(!this.el) return
-			const menuRoot = getParentNode(this.el,"menuBar");
-			const maxRight = menuRoot.getBoundingClientRect().right
-			const elRight = this.el.getBoundingClientRect().right			
-			if(elRight>maxRight){				
-				if(this.state.right != 0) this.setState({right:0})
-			}
-		}
-		componentDidMount(){
-			//checkActivateCalls.add(this.calc)
-			this.calc()
-		}
-		componentDidUpdate(){
-			this.calc()
-		}
-		componentWillUnmount(){
-			//checkActivateCalls.remove(this.calc)
-		}
-		render(){			 
-			const re = /\d+(\.\d)?%/ //100%
-			const isLeft = re.test(this.props.style.left)
-			const sideStyle = isLeft && (this.state.right!==null)?{right:"100%",left:""}:{}
-			return $("div",{
-				ref:ref=>this.el=ref,
-				style: {
-					position:'absolute',					
-					minWidth:'7em',					
-					boxShadow:GlobalStyles.boxShadow,
-					zIndex:'10002',
-					transitionProperty:'all',
-					transitionDuration:'0.15s',
-					transformOrigin:'50% 0%',
-					borderWidth:GlobalStyles.borderWidth,
-					borderStyle:GlobalStyles.borderStyle,
-					borderColor:"#2196f3",					
-					maxHeight:this.state.maxHeight,
-					right:this.state.right!==null?this.state.right+"px":"",
-					...this.props.style,
-					...sideStyle
-				}
-			},this.props.children);			
-		}				
-	}
-	const FolderMenuElement = React.memo((props) =>{
-		const elem = React.useRef(null)
-		const [mEnter, setEnter] = React.useState(false)
-		const [mTouch, setTouch] = React.useState(false)
-		React.useEffect(()=>{
-			if(!elem.current.customClick) {
-				elem.current.customClick = e =>{props.onClick && props.onClick(e); e.stopPropagation()}
-				elem.current.addEventListener("click",elem.current.customClick)
-			}
-			return ()=>{ 						
-				elem.current.removeEventListener("click",elem.current.customClick)
-				elem.current.customClick = undefined
-			}
-		},[])
-		const selStyle={
-			position:'relative',
-			backgroundColor:'inherit',
-			whiteSpace:'nowrap',
-			paddingRight:'0.8em',
-			cursor:"pointer",
-			outline:"none",
-			...props.style,
-			...(mEnter?props.overStyle:null)
-		}		
-		return $("div",{
-				ref:elem,
-			    style:selStyle,
-			    onMouseEnter:_ =>setEnter(true),
-			    onMouseLeave:_ =>setEnter(false),			    
-				className:"menu-popup",
-				tabIndex:"1",
-		},props.children)
-	})	
-	class ExecutableMenuElement extends StatefulComponent{		
-		getInitialState(){
-			return {mouseEnter:false}
-		}
-		mouseEnter(e){
-			this.setState({mouseEnter:true});
-		}
-		mouseLeave(e){
-			this.setState({mouseEnter:false});
-		}
-		onClick(e){
-			if(this.props.onClick)
-				this.props.onClick(e);
-			e.stopPropagation();
-		}
-		componentDidMount(){
-			if(!this.el) return
-			this.el.addEventListener("click",this.onClick)
-		}
-		componentWillUnmount(){
-			if(!this.el) return
-			this.el.removeEventListener("click",this.onClick)
-		}
-		render(){
-			const newStyle={
-                minWidth:'7em',             
-                cursor:'pointer',
-				...this.props.style,				
-				...(this.state.mouseEnter?{backgroundColor:DarkPrimaryColor,...this.props.overStyle}:null)
-			}
-		return $("div",{
-			ref:ref=>this.el=ref,
-            style:newStyle,    
-            onMouseEnter:this.mouseEnter,
-            onMouseLeave:this.mouseLeave           
-			},this.props.children);
-		}
-	}
 	const TabSet=({style,children})=>$("div",{style:{
 		borderBottomWidth:GlobalStyles.borderWidth,
 		borderBottomStyle:GlobalStyles.borderStyle,		         
@@ -346,6 +106,33 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		marginTop:'0rem',
 		...style
 	}},children);
+	
+	
+	const appendCSS = (e,cs,data) =>{
+		let st = e.ownerDocument.querySelector(`style.${cs}`)
+		if(!st){
+			st = e.ownerDocument.createElement("style")
+			st.className = cs
+			e.ownerDocument.head.appendChild(st)
+		}
+		Array.from(st.sheet.cssRules).forEach(_=>st.sheet.deleteRule(0))
+		data.forEach(rule => st.sheet.insertRule(`${rule.selector} { ${rule.ruleStr} }`))
+	}	
+	const mountPaletteCSS = (e,p) => {		
+		const json = JSON.parse(p)
+		const data = json.map(rule=>{			
+			const selector = rule[0]
+			const rules = rule[1]
+			const ruleStr = rules.reduce((a,e)=>a+=`${e[0]}:${e[1]};\n`,"")
+			return {selector,ruleStr}			
+		})				
+		appendCSS(e,"palette",data)
+	}	
+	const disableMouseCSS = (e, on) => {	
+		const selector = "*"
+		const ruleStr = "pointer-events:none;"
+		appendCSS(e,"mouse",on?[{selector,ruleStr}]:[])		
+	}
 	class DocElement extends StatefulComponent{
 		sentData(){
 			const values = this.el.getBoundingClientRect()
@@ -384,8 +171,23 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 				this.resizeL = resizeListener.reg(this.onResize)
 			}
 		}
+		/*setBodyStyle(prev = {}){
+			if(prev.style != this.props.style && this.el){
+				const isSibling = Branches.isSibling(this.ctx)
+				if(isSibling) {
+					Object.assign(this.el.style,this.props.style)
+				}
+				else
+					Object.assign(this.el.ownerDocument.body.style,this.props.style)
+			}
+		}*/
 		componentDidUpdate(prevProps){
 			this.initListener()
+			//this.setBodyStyle(prevProps)
+			if(prevProps.pathPalette != this.props.pathPalette)
+				mountPaletteCSS(this.el,this.props.pathPalette)
+			if(prevProps.noMouseEvents != this.props.noMouseEvents)
+				disableMouseCSS(this.el,this.props.noMouseEvents)
 		}
 		componentDidMount(){
 			if(!this.el) return
@@ -399,10 +201,14 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			doc.body.appendChild(this.remRef)
 			this.ctx = rootCtx(this.props.ctx)
 			this.initListener()			
+			//this.setBodyStyle()
+			if(this.props.pathPalette) mountPaletteCSS(this.el,this.props.pathPalette)
+			if(this.props.noMouseEvents) disableMouseCSS(this.el,this.props.noMouseEvents)
 		}
 		render(){			
-			const isSibling = Branches.isSibling(this.ctx)						
-			return $("div",{key:"1",className:"docRoot",style:this.props.style,ref:ref=>this.el=ref},this.props.children)						
+			const isSibling = Branches.isSibling(this.ctx)	
+			const style = this.props.style
+			return $("div",{key:"1",style,className:"docRoot",ref:ref=>this.el=ref},this.props.children)
 		}
 	}
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -462,7 +268,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		}
 		render(){			
 			const style={
-				backgroundColor:'white',
+				//backgroundColor:'white',
 				borderColor:'#b6b6b6',
 				borderStyle:'dashed',
 				borderWidth:GlobalStyles.borderWidth,
@@ -523,12 +329,11 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		render(){
 			const {value,style,tooltip,children} = this.props			
 			const title = tooltip?tooltip:null
+			const className = "button " + (this.props.className?this.props.className:"")
 			return	$("div",{style:{
-				fontSize:'1em',
-				color:'white',
+				fontSize:'1em',			
 				textAlign:'center',
-				borderRadius:'0.28em',					
-				backgroundColor:"#eee",
+				borderRadius:'0.28em',				
 				cursor:this.props.onClick?'pointer':'default',				
 				display:'inline-block',				
 				margin:'0 0.1em',
@@ -542,7 +347,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 				MozUserSelect:"none",
 				userSelect:"none",				
 				...style
-			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
+			},className,onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
 		}
 	}
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{			
@@ -612,9 +417,11 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 				height:"1em"
 			}			
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
+			const className = this.props.className?this.props.className:""
 			return [
 				$("table",{
 					key:"table",
+					className,
 					style:{
 					borderCollapse:'separate',
 					borderSpacing:GlobalStyles.borderSpacing,
@@ -753,7 +560,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
 			const focusActions = nodeType=="td"?{onFocus:this.onFocus,onBlur:this.onBlur}:{}
-			const className = "marker focusWrapper"			
+			const className = "marker focusWrapper " + (this.props.className?this.props.className:"")
 			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
 			const v = {border:"1px solid"}
 			const infoS = {position:"absolute",boxSizing:"border-box",width:this.state.info.pWidth+"px"}
@@ -809,17 +616,19 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			const stO = this.state.info.side != dragDropPositionStates.none? {position:"relative",overflow:""}:{}
 			
 			const stStyle = (path)=>({
-					borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					borderBottomWidth:GlobalStyles.borderWidth,
+					borderBottomStyle:GlobalStyles.borderStyle,
 					borderLeft:'none',
-					borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
-					borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					borderRightWidth:GlobalStyles.borderWidth,
+					borderRightStyle:!this.state.last?GlobalStyles.borderStyle:"none",
+					borderTopWidth:GlobalStyles.borderWidth,
+					borderTopStyle:GlobalStyles.borderStyle,
 					fontWeight:'bold',
 					padding:'0.1em 0.2em',
 					verticalAlign:'middle',
 					overflow:"hidden",				
 					textOverflow:"ellipsis",
-					cursor:this.props.draggable?"move":"auto",
-					backgroundColor:"transparent",
+					cursor:this.props.draggable?"move":"auto",					
 					outlineWidth:"1px",
 					outlineColor:"red",
 					...propsOnPath(path,this.props.path),
@@ -878,7 +687,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		}
 		onClick(e){		
 			if(this.props.onClick){
-			    if(textSelectionMonitor(e)) return
+			    if(textSelectionMonitor && textSelectionMonitor(e)) return
 				if(!this.sentClick) {
 					this.props.onClick(e)					
 					this.sentClick = true
@@ -887,14 +696,14 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			}
 		}
 		render(){
+			const className = this.props.className
 			const trStyle={
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-				outlineOffset:GlobalStyles.outlineOffset,
-				...(this.props.odd?{backgroundColor:'#fafafa'}:{backgroundColor:'#ffffff'}),
-				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
-				...this.props.style
-			};			
-			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+				outlineOffset:GlobalStyles.outlineOffset,								
+				...this.props.style,
+				...(this.state.mouseOver?this.props.overStyle:null)
+			}
+			return $("tr",{ref:ref=>this.el=ref,className,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	}
 	class Interactive extends StatefulComponent{		
@@ -1143,7 +952,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 				width:"100%",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				borderColor:this.props.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:(this.props.onChange||this.props.onBlur)?"white":"#eeeeee",
+				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
 				boxSizing:"border-box",
 				...this.props.style
 			};
@@ -1157,8 +966,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
-				verticalAlign:"top",
-				color:"inherit",
+				verticalAlign:"top",				
 				border:"none",
 				height:this.props.div?"auto":"100%",
 				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
@@ -1169,8 +977,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 				whiteSpace:this.props.div?"normal":"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
-				textTransform:"inherit",
-				backgroundColor:"inherit",
+				textTransform:"inherit",				
 				outline:"none",
 				textAlign:"inherit",
 				display:this.props.div?"inline-block":"",
@@ -1194,15 +1001,14 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			const drawFunc = this.props.drawFunc
 			
 			//log(this.props.value)
-			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
+			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions, className},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					$("div",{key:"xx",style:inp2ContStyle}, drawFunc(
 						$(inputType,{
 							key:"input",
 							ref:ref=>this.inp = ref,
 							type,rows,readOnly,placeholder,auto,
-							"data-type":dataType,
-							className,
+							"data-type":dataType,							
 							name:vkOnly,
 							content,							
 							style:inputStyle,							
@@ -1435,7 +1241,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			};
 			const div = this.props.div&&this.props.div!=0
 			const urlData = this.props.url?this.props.url:images.arrowDownSvgData;
-			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""		
+			//const className = (this.props.focusMarker?`marker-${this.props.focusMarker}`:"") + this.props.className
 			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
@@ -1456,7 +1262,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 					height:"auto"
 				}:null)
 			}
-			return $(InputElement,{...this.props,lockedFocus:this.props.open,drawFunc,inputStyle,className,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
+			return $(InputElement,{...this.props,lockedFocus:this.props.open,drawFunc,inputStyle,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
 		}
 	}
 	const ButtonInputElement = (props) => $(Interactive,{},(actions)=>{
@@ -1494,7 +1300,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			return (ref)=> this.el=ref
 		}		
 		render(){
-			const className = "focusWrapper"		
+			const className = "focusWrapper " + (this.props.className?this.props.className:"")
 			const {style,children} = this.props
 			const focusedStyle  = this.state.focused
 			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
@@ -1519,8 +1325,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		}
 	}
 	
-	const LabelElement = ({style,onClick,label,children})=>$("label",{onClick,style:{
-		color:"rgb(33,33,33)",
+	const LabelElement = ({style,onClick,label,children})=>$("label",{onClick,style:{		
 		cursor:onClick?"pointer":"auto",
 		textTransform:"none",
 		...style
@@ -1890,8 +1695,8 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		render(){
 			const prop = this.props
 			const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"},log)
-			const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
-			const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
+			const buttonStyle = prop.buttonStyle
+			const buttonOverStyle = prop.buttonOverStyle
 			const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
 			const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
 			const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
@@ -1907,6 +1712,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			const check = (e) =>{
 				
 			}
+			const className = "marker-login " + this.props.buttonCs
 			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},$("form",{onSubmit:(e)=>{e.preventDefault()}},[
 				$(ControlWrapperElement,{key:"1"},
 					$(LabelElement,{label:usernameCaption},null),
@@ -1917,11 +1723,11 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 					$(InputElement,{...attributesB,value:undefined,vkOnly,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
 				),
 				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
+					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className},buttonCaption)
 				)
 			]))		
 		}
-	}	
+	}		
 	
 	const CalenderCell = (props) => $(Interactive,{},(actions)=>{		
 		const onClick = () =>{
@@ -2559,7 +2365,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			const a = Array.from(el.ownerDocument.querySelectorAll("input"))			
 			const b = a.find(_=>this.getParentPath(_,this.popIgnore))
 			//log("atuoCnaditate",b)
-			this.foundAuto = true
+			this.foundAuto = true			
 			b&& b.focus()
 		}
 		onFrame(modify){
@@ -2572,7 +2378,10 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
 				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)		
 				//log("onFrame",el);log("onFrame2",this.foundAuto)
-				if(el) el.focus()
+				if(el) {					
+					if(textSelectionMonitor({target:activeElement})) return
+					el.focus()
+				}
 				else if(!this.foundAuto) this.report("undefined")
 			}
 			else{
@@ -2605,7 +2414,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			}
 		}
 		componentWillUnmount(){		
-			//this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.removeEventListener("click",this.onBBlur,true)	
 			this.el.ownerDocument.documentElement.removeEventListener("focus",this.onBFocus,true)	
 			clearInterval(this.interval)
 		}
@@ -2625,21 +2434,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			)
 		}
 	}
-	class DragDropHandlerElement extends StatefulComponent{
-		report(action,fromSrcId,toSrcId,side){			
-			if((!Array.isArray(this.props.filterActions)||this.props.filterActions.includes(action))&&this.props.onDragDrop)
-				this.props.onDragDrop("reorder",JSON.stringify({action,fromSrcId,toSrcId, side:side?side:""}))
-		}
-		componentDidMount(){
-			this.dragBinding = dragDropModule.regReporter(this.report)
-		}
-		componentWillUnmount(){
-			if(this.dragBinding) this.dragBinding.release()
-		}
-		render(){
-			return $('span',{className:"dragDropHandler"})
-		}
-	}
+	
 	const OverlayElement = (props) =>{			
 		const style={
 			position:"fixed",
@@ -2657,119 +2452,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		return $('div',{style,className:"confirmOverlay"},props.children)		
 	}
 	 
-	class DragDropDivElement extends StatefulComponent{
-		getInitialState(){
-			return {info:{side:dragDropPositionStates.none}}
-		}
-		componentDidMount(){
-			this.className = "DragDropDivElement"
-			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})
-			addEventListener("mouseup",this.onMouseUp)
-			this.el.addEventListener("mousemove",this.onMouseMove)		
-		}
-		componentDidUpdate(){
-			this.dragBinding.update({node:this.el,dragData:this.props.dragData})				
-		}
-		componentWillUnmount(){
-			this.dragBinding.release()
-			removeEventListener("mouseup",this.onMouseUp)
-			this.el.removeEventListener("mousemove",this.onMouseMove)
-		}
-		onMouseDown(e){
-			if(!this.props.draggable) return
-			this.dragBinding.dragStart(e,this.el,"div",this.props.dragStyle)
-		}
-		updateState(v){
-			if(this.state.info.side !== v) {				
-			    const o = (el,_2) => (el?{el,rect:el.getBoundingClientRect(),s:_2}:null)
-				const a = (_ => {
-					switch(v){
-						case dragDropPositionStates.left: 							
-							return o(this.el.previousElementSibling,-1)
-						case dragDropPositionStates.right: 							
-							return o(this.el.nextElementSibling,1)					
-						default: return null;
-					}
-				})()
-				const thisElRect = this.el.getBoundingClientRect()
-				const b = a && (Math.abs(a.rect.top - thisElRect.top) < thisElRect.height) && a
-				const offSet = b?a.s * (a.s>0?thisElRect.right - a.rect.left:thisElRect.left - a.rect.right)/2:0				
-				this.setState({info:{side:v,offSet}})
-			}			
-		}
-		onMouseMove(e){
-			if(this.props.dragover) this.dragBinding.dragOver(e,this.el, this.updateState)
-		}
-		onMouseOut(e){
-			if(this.state.info.side != dragDropPositionStates.none) this.setState({info:{side:dragDropPositionStates.none}})
-		}
-		onMouseUp(e){
-			const {clientX,clientY} = e.type.includes("touch")&&e.touches.length>0?{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}:{clientX:e.clientX,clientY:e.clientY}
-			const elements = clientX&&clientY?documentManager.elementsFromPoint(clientX,clientY):[]
-			if(!elements.includes(this.el)) return			
-			if(!this.props.droppable) return
-			this.dragBinding.dragDrop(e,this.el)
-			this.onMouseOut(e)
-		}	
-		getSvgData(w,t){
-			if(!this.el) return
-			return images.triAngleSvgData
-		}
-		render(){
-			const v = {border:"1px solid"}
-			const borderL = this.state.info.side == dragDropPositionStates.left?v:{}
-			const borderR = this.state.info.side == dragDropPositionStates.right?v:{}
-			const infoS = {position:"absolute",boxSizing:"border-box",height:"100%",top:"0"}
-			const stO = this.state.info.side != dragDropPositionStates.none? {position:"relative"}:{}
-			const style = {
-				...this.props.style,
-				...stO
-			}
-			const draw2 = (v) => Object.values(v).length>0 
-			const actions = {				
-				onMouseDown:this.onMouseDown,				
-				onTouchStart:this.onMouseDown,
-				onTouchEnd:this.onMouseUp,
-				onMouseOut:this.onMouseOut
-			}
-			const stStyleL = {
-				...infoS,
-				...borderL,
-				left:this.state.info.offSet?this.state.info.offSet+"px":"0"
-			}
-			const stStyleR = {
-				...infoS,
-				...borderR,
-				right:this.state.info.offSet?this.state.info.offSet+"px":"0"
-			}
-			const iStyle = {
-				height: "0.3em",
-				position: "absolute",
-				transformOrigin: "center center",
-				zIndex:"1"
-			}
-			const iStyleT = {				
-				...iStyle,
-				transform: "rotate(180deg)",				
-				left: "-0.25em",
-				top: "-0.1em"
-			}
-			const iStyleB = {
-				...iStyle,
-				transform: "rotate(0deg)",				
-				left: "-0.25em",
-				bottom: "-0.1em"
-			}
-			
-			const ref = _ =>this.el = _
-			const className = this.className
-			return $("div",{style,ref,...actions,className},[
-				$("div",{style:stStyleL,key:1},draw2(borderL)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{key:2,src:this.getSvgData(),style:iStyleB})]:null),
-				$("div",{key:2},this.props.children),
-				$("div",{style:stStyleR,key:3},draw2(borderR)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{key:2,src:this.getSvgData(),style:iStyleB})]:null)
-			])
-		}
-	}
+	
 
 	class ColorCreator extends StatefulComponent{
 		onChange(e){
@@ -3320,7 +3003,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 	class ClickableDivElement extends StatefulComponent{
 		onClick(e){
 			e.stopPropagation()
-			if(textSelectionMonitor(e)) return
+			if(textSelectionMonitor && textSelectionMonitor(e)) return
 			this.props.onClick&& this.props.onClick(e)						
 		}
 		componentDidMount(){
@@ -3330,8 +3013,8 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			if(this.el) this.el.removeEventListener("click",this.onClick)
 		}
 		render(){
-			const style = this.props.style
-			return $("div",{style,ref:ref=>this.el=ref},this.props.children)
+			const {style,className} = this.props			
+			return $("div",{style,ref:ref=>this.el=ref,className},this.props.children)
 		}
 	}		
 	class CanvasMaxHeightElement extends StatefulComponent{
@@ -3375,80 +3058,75 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			return $("div",{style,ref:ref=>this.el=ref},drawChildren)
 		}
 	}	
-	class ProgressbarElement extends StatefulComponent{	
-		getInitialState(){
-			return {top:undefined,left:undefined}
-		}
-		update(top,left){			
-			if(this.state.top==top && this.state.left==left) return
-			this.setState({top,left})
-		}
-		recalc(){
-			if(!this.t) return
-			const tR = this.t.getBoundingClientRect()
-			const pR = this.t.parentElement.getBoundingClientRect()
-			if(tR.width>pR.width||tR.height>pR.height) return this.update()
-			const top = (pR.height - tR.height)/2
-			const left = (pR.width - tR.width)/2
-			return this.update(top,left)
-		}
-		componentDidMount(){
-			this.rb = resizeListener.reg(this.recalc)
-			this.recalc()
-		}
-		componentDidUpdate(){
-			this.recalc()
-		}
-		componentWillUnmount(){
-			this.rb&&this.rb.unreg()
-		}	
-		onRef(node){
-			this.t = node
-			if(node) this.recalc()
-		}
-		render(){
-			const {value,max,percent} = this.props
-			const v1 = parseFloat(value)
-			const v2 = parseFloat(max)
-			let v = (v1/v2)*100
-			v = Number.isInteger(v)?v:v.toFixed(2)
-			const style = {
-				fontSize:'1em',
-				color:'white',
-				textAlign:'center',
-				borderRadius:'0.58em',														
-				margin:'0 0.1em',
-				verticalAlign:"top",			
-				alignSelf:"center",
-				MozUserSelect:"none",
-				userSelect:"none",		
-				overflow:"hidden",			
-				height:"1.76em",			
-				boxSizing:"border-box",
-				...this.props.style,
-				backgroundColor:"#eee"
+	const ProgressbarElement  = (props) => {
+		const elem = React.useRef(null)		
+		const [width, setWidth] = React.useState(null)
+		
+		React.useEffect(()=>{		
+			const recalc = () =>{
+				if(!elem.current) return
+				const tRw = elem.current.getBoundingClientRect().width
+				if(tRw != width) {					
+					setWidth(tRw)			
+				}
 			}
-			const style2 = {
-				position:"absolute",
-				left:this.state.left+"px",
-				top:this.state.top+"px",
-				color:this.props.color,
-				visibility:this.state.top?"":"hidden"
-			} 
-			const style3 = {
-				backgroundColor:this.props.backgroundColor,
-				height:"100%",
-				width:v+"%",
-				position:"relative"				
+			checkActivateCalls.add(recalc)
+			
+			return ()=>{
+				checkActivateCalls.remove(recalc)
 			}
-			const fv = percent?(v+"%"):`${value}/${max}`
-			return $("div",{style},
-				$("div",{style:style3},
-					$("div",{style:style2,ref:this.onRef},fv)
-				)
+		},[width])
+		const prg1 = {
+			position: "absolute",
+			border: "0",		
+			height: "1.76em",
+			lineHeight: "1.76em",
+			margin: "1mm 0.1em",			
+			fontWeight: "bold",
+			fontSize: "1em",
+			backgroundColor: "#eee",
+			borderRadius: "0.58em",
+			overflow: "hidden",
+			userSelect:"none",
+			MozUserSelect:"none",
+			width:width?width+"px":"0"
+		}		
+		const prg1T = {
+			position: "absolute",
+			top: "0",			
+			textAlign: "center",
+			color: PrimaryColor,
+			fontVariant: "small-caps",
+			width:width?width+"px":"0"
+		}
+		const prg1BT = {
+			...prg1T,
+			color: "white"
+		}
+		const {value,max,percent} = props
+		const v1 = parseFloat(value)
+		const v2 = parseFloat(max)
+		let v = (v1/v2)*100
+		v = Number.isInteger(v)?v:v.toFixed(2)
+		const prg1B = {
+			height: "100%",
+			overflow: "hidden",
+			width: v+"%",
+			backgroundColor: PrimaryColor,
+			borderRadius: "inherit",
+			overflow: "hidden",
+			position: "relative"
+		}		
+		const fv = percent?(v+"%"):`${value}/${max}`
+		return $("div",{style:{flexGrow:"1"},ref:elem},$("div",{style:prg1},[
+				$("div",{key:1,style:prg1T},fv),
+				$("div",{key:2,style:prg1B},
+					$("div",{style:prg1BT},fv)
+				)]
 			)
-		}
+		)
 	}
+
 	class TextElement extends StatefulComponent{
 		selectC(win){
 			const selection = win.getSelection()
@@ -3474,7 +3152,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			return $("span",{ref:ref=>this.el=ref,style},content)
 		}
 	}
-	const RawElement = (props) => $("pre",{styles:props.styles},props.value)
+	
 	const Availability = (() =>{		
 		let callbacks=[];
 		const receiver= (data) =>{			
@@ -3513,7 +3191,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
 			DateTimeClockElement,TimeElement,ProgressbarElement,
-            MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,MenuBurger,
+            MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
 			SignIn,ChangePassword,
@@ -3529,7 +3207,7 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 			DragWrapperElement,
 			CanvasMaxHeightElement,
 			NoShowUntilElement,
-			RawElement
+			...TalmanElements
     },
 		onClickValue,		
 		onReadySendBlob,
@@ -3538,11 +3216,15 @@ export default function MetroUi(log,requestState,documentManager,OverlayManager,
 		onWResize,
 		onContext:({ctx:ctx=>()=>rootCtx(ctx).branchKey})
 	};
+	const toUrl = (path) => {
+		setTimeout(()=>{documentManager.document.location.href = path})
+	}
 	const receivers = {
 		download,
 		ping:PingReceiver.ping,
 		availability:Availability.receiver,
-		branches:Branches.store		
+		branches:Branches.store,
+		toUrl
 	}	
 	const checkActivate = checkActivateCalls.check
 	return ({transforms,receivers,checkActivate,reactPathConsumer:Consumer});

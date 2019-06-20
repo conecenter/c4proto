@@ -20,7 +20,7 @@ import MetroUi       from "../extra/metro/metro-ui"
 import MetroUiFilters   from "../extra/metro/metro-ui-filters"
 
 import FocusModule		from "../extra/focus-module"
-import {DragDropModule} from "../extra/dragdrop-module"
+
 import OverlayManager from "../extra/overlay-manager"
 //import RequestState from "../extra/request-state"
 import VirtualKeyboard from "../extra/virtual-keyboard"
@@ -117,8 +117,8 @@ const vDomAttributes = VDomAttributes(requestState)
 const overlayManager = () => OverlayManager({log,documentManager,windowManager,getMountNode:()=>window.mountNode})
 const focusModule = FocusModule({log,documentManager,windowManager})
 
-const dragDropModule = () => DragDropModule({log2,documentManager,windowManager})
-const metroUi = MetroUi(log2,requestState,documentManager,overlayManager,dragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes);
+//const dragDropModule = () => DragDropModule()
+const metroUi = MetroUi({log:log2,requestState,documentManager,OverlayManager:overlayManager,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes})
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
@@ -127,7 +127,7 @@ const electronUpdateManager = ElectronUpdateManager(log,window,metroUi, Stateful
 
 const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,windowManager,miscReact,StatefulComponent,reactPathConsumer:metroUi.reactPathConsumer})
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob:window.atob,parentWindow:()=> window.parent,StatefulComponent});
-const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComponent})
+const metroUiFilters = MetroUiFilters({log,StatefulComponent})
 
 //canvas
 const util = Canvas.CanvasUtil()

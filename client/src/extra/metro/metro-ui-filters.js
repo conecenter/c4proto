@@ -2,21 +2,12 @@
 import React from 'react'
 import {pairOfInputAttributes}  from "../../main/vdom-util"
 import {ctxToPath,rootCtx} from "../../main/vdom-util"
+import {MenuBurger} from "./components/menu.js"
+import {checkActivateCalls} from '../event-manager.js'
+import {DragDropDivElement} from './components/drag-drop.js'
 
-export default function MetroUiFilters({log,ui,windowManager,StatefulComponent}){
-	const {DragDropDivElement,MenuBurger} = ui.transforms.tp	
-	const $ = React.createElement
-	const checkActivateCalls=(()=>{
-		const callbacks=[]
-		const add = (c) => callbacks.push(c)
-		const remove = (c) => {
-			const index = callbacks.indexOf(c)
-			if(index>=0) callbacks.splice(index,1)
-		}
-		const check = () => callbacks.forEach(c=>c())
-		return {add,remove,check}
-	})();
-	const {getComputedStyle} = windowManager
+export default function MetroUiFilters({log,StatefulComponent}){	
+	const $ = React.createElement	
 	const Filters  = (props) => {
 		const keys = props.keys
 		const children = keys?props.children.filter(_=>keys.includes(_.key)):props.children
@@ -80,6 +71,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 	}
 	const calcMsOpts = (el) => {
 		const els = el.querySelectorAll(".msOpt")
+		const getComputedStyle = el.ownerDocument.defaultView.getComputedStyle
 		const msOpts = Array.from(els,o=>{
 			const rc = o.getBoundingClientRect()
 			const width = rc.width
