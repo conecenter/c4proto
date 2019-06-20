@@ -387,5 +387,12 @@ zR5MSVNUFAAAAElORk9JU0ZUCAAAAEZpc3Npb24A`
 		wifiSignalStateSvgData,beepMidi,errorSound,triAngleSvgData
 	}
 }
-
-export default Images
+const images = (()=>{
+	let _img
+	const init = ref => {
+		if(!_img) _img = Images(ref.ownerDocument.defaultView.btoa)
+		return _img
+	}
+	return init
+})()
+export {Images,images}
