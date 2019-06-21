@@ -7,7 +7,7 @@ lazy val descr = "C4 framework"
      
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.E.D",
+  version := "0.E.E",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
@@ -44,7 +44,7 @@ lazy val `c4ui-main` = project.settings(publishSettings).dependsOn(`c4actor-bran
 lazy val `c4ui-extra` = project.settings(publishSettings).dependsOn(`c4ui-main`, `c4actor-extra`, `c4gate-extra`)
 lazy val `c4gate-client` = project.settings(publishSettings).dependsOn(`c4gate-proto`,`c4actor-base`)
 //lazy val `c4gate-logback` = project.settings(publishSettings)
-lazy val `c4gate-log4j` = project.settings(publishSettings)
+lazy val `c4gate-log4j` = project.settings(publishSettings).dependsOn(`c4actor-extra`)
 lazy val `c4gate-repl` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4external-base` = project.settings(publishSettings).dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
 

@@ -3,6 +3,8 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
+import ee.cone.log4j.C4Log4j2App
+import ee.cone.logger.LoggerUpdaterApp
 
 class HttpGatewayApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -16,6 +18,8 @@ class HttpGatewayApp extends ServerApp
   with ManagementApp
   with SnapshotMakingApp
   with LZ4RawCompressorApp
+  with LoggerUpdaterApp
+  with C4Log4j2App
 {
   def httpHandlers: List[RHttpHandler] = //todo secure
     new HttpGetSnapshotHandler(snapshotLoader) ::

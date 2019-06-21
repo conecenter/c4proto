@@ -1,6 +1,8 @@
 package ee.cone.c4gate
 
 import java.util.UUID
+
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
@@ -10,6 +12,8 @@ import ee.cone.c4proto._
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
+import ee.cone.log4j.C4Log4j2App
+import ee.cone.logger.{DEBUG, LogSetting, LoggerUpdaterApp}
 
 class TestTodoApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -32,7 +36,12 @@ class TestTodoApp extends ServerApp
   with MortalFactoryApp
   with AvailabilityApp
   with TestTodoRootViewApp
+  with LoggerUpdaterApp
+  with C4Log4j2App
 {
+
+
+  override def appLoggers: List[LogSetting] = LogSetting("cone.ee",DEBUG) :: super.appLoggers
 
   override def protocols: List[Protocol] =
     CommonFilterProtocol :: TestTodoProtocol :: super.protocols
@@ -96,13 +105,17 @@ case class TestTodoRootView(locationHash: String = "todo")(
   commonFilterConditionChecks: CommonFilterConditionChecks,
   accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy
-) extends ByLocationHashView {
+) extends ByLocationHashView with LazyLogging {
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
     import mTags._
     import commonFilterConditionChecks._
     val filterPredicate = filterPredicates.create[B_TodoTask](local)
       .add(commentsFlt, comments)
       .add(createdAtFlt, createdAt)
+
+    logger.debug("bazinga")
+    logger.info("bazinga")
+    logger.error("bazinga")
 
     val filterList = for {
       access ← filterPredicate.accesses
