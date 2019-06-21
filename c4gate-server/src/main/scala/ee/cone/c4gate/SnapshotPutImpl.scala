@@ -17,18 +17,12 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
 }
 
 class SnapshotPutter(
-  signatureChecker: Signer[List[String]],
   snapshotLoaderFactory: SnapshotLoaderFactory,
   snapshotDiffer: SnapshotDiffer
 ) extends LazyLogging {
   val url = "/put-snapshot"
-  def header(headers: List[N_Header], key: String): Option[String] =
-    headers.find(_.key == key).map(_.value)
-  def signed(headers: List[N_Header]): Option[String] = header(headers,"X-r-signed")
-  def merge(post: S_HttpPost): Context⇒Context = local ⇒ {
-    val Some(Seq(`url`,relativePath)) =
-      signatureChecker.retrieve(check=true)(signed(post.headers))
-    val rawSnapshotLoader = new MemRawSnapshotLoader(relativePath,post.body)
+  def merge(relativePath: String, data: ByteString): Context⇒Context = local ⇒ {
+    val rawSnapshotLoader = new MemRawSnapshotLoader(relativePath,data)
     val snapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoader)
     val Some(targetFullSnapshot) = snapshotLoader.load(RawSnapshot(relativePath))
     val currentSnapshot = snapshotDiffer.needCurrentSnapshot(local)
@@ -38,13 +32,22 @@ class SnapshotPutter(
   }
 }
 
-case class SnapshotPutTx(srcId: SrcId, post: S_HttpPost)(putter: SnapshotPutter) extends TxTransform {
-  def transform(local: Context): Context =
-    if(ErrorKey.of(local).nonEmpty) TxAdd(LEvent.delete(post))(local)
-    else putter.merge(post)(local)
+case class SnapshotPutTx(srcId: SrcId, posts: List[S_HttpPost])(
+  putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedPostUtil
+) extends TxTransform {
+  import signedPostUtil._
+  def transform(local: Context): Context = catchNonFatal {
+    val post = posts.head
+    val Some(Seq(putter.`url`,relativePath)) =
+      signatureChecker.retrieve(check=true)(signed(post.headers))
+    putter.merge(relativePath, post.body)(local)
+    respond(List(post→Nil),posts.tail.map(_→"Ignored"))(local)
+  }{ e ⇒
+    respond(Nil,List(posts.head → e.getMessage))(local)
+  }
 }
 
-@assemble class SnapshotPutAssembleBase(putter: SnapshotPutter) {
+@assemble class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedPostUtil) {
   type PuttingId = SrcId
 
   def needConsumer(
@@ -59,12 +62,12 @@ case class SnapshotPutTx(srcId: SrcId, post: S_HttpPost)(putter: SnapshotPutter)
   ): Values[(PuttingId,S_HttpPost)] =
     if(post.path == putter.url) List("snapshotPut"→post) else Nil
 
-  def mapFirstborn(
+  def mapTx(
     key: SrcId,
     @by[PuttingId] posts: Values[S_HttpPost]
   ): Values[(SrcId,TxTransform)] =
-    List(WithPK(SnapshotPutTx(key,posts.head)(putter)))
+    List(WithPK(SnapshotPutTx(key,posts.toList.sortBy(_.srcId))(putter,signatureChecker,signedPostUtil)))
 }
 
-// todo: what if 2 posts? how to know if post failed?
+// how to know if post failed?
 

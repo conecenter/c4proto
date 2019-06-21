@@ -35,7 +35,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandle
     } else false
 }
 
-@assemble class SnapshotMakingAssembleBase(actorName: String, snapshotMaking: SnapshotMakerImpl, signatureChecker: Signer[SnapshotTask])   {
+@assemble class SnapshotMakingAssembleBase(actorName: String, snapshotMaking: SnapshotMakerImpl, signatureChecker: Signer[SnapshotTask], signedPostUtil: SignedPostUtil)   {
   type NeedSnapshot = SrcId
 
   def needConsumer(
@@ -58,19 +58,18 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandle
     val srcId = "snapshotMaker"
     if(posts.isEmpty) List(WithPK(PeriodicSnapshotMakingTx(srcId)(snapshotMaking)))
     else {
-      def task(post: S_HttpPost) = signatureChecker.retrieve(check=false)(SnapshotMakingUtil.signed(post.headers))
+      def task(post: S_HttpPost) =
+        signatureChecker.retrieve(check=false)(signedPostUtil.signed(post.headers))
+        // check=false <== no system time in joiners
       val taskOpt = task(posts.minBy(_.srcId))
       val similarPosts = posts.toList.filter(post ⇒ task(post)==taskOpt).sortBy(_.srcId)
-      List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking, signatureChecker)))
+      List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking, signatureChecker, signedPostUtil)))
     }
   }
 }
 
 object SnapshotMakingUtil {
-  def header(headers: List[N_Header], key: String): Option[String] =
-    headers.find(_.key == key).map(_.value)
   val url = "/need-snapshot"
-  def signed(headers: List[N_Header]): Option[String] = header(headers,"X-r-signed")
 }
 
 object Time {
@@ -91,33 +90,25 @@ case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMakerI
 
 case class RequestedSnapshotMakingTx(
   srcId: SrcId, taskOpt: Option[SnapshotTask], posts: List[S_HttpPost]
-)(snapshotMaking: SnapshotMaker, signatureChecker: Signer[SnapshotTask]) extends TxTransform {
-  def transform(local: Context): Context = {
-    val res: List[(S_HttpPost, List[N_Header])] = ErrorKey.of(local) match {
-      case errors if errors.isEmpty ⇒
-        val (authorized, nonAuthorized) = posts.partition(post ⇒
-          signatureChecker.retrieve(check=true)(SnapshotMakingUtil.signed(post.headers)).nonEmpty
-        )
-
-        val res = if (authorized.nonEmpty) snapshotMaking.make(taskOpt.get) else Nil
-        val goodResp = List(N_Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
-
-        val authorizedResponses = authorized.map(au ⇒ au → goodResp)
-        val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → List(N_Header("X-r-error-message", "Non authorized request")))
-        authorizedResponses ::: nonAuthorizedResponses
-      case errors ⇒
-        val errorHeaders = errors.map(e ⇒ N_Header("X-r-error-message", e.getMessage))
-        posts.map(post ⇒ post → errorHeaders)
-    }
-    val updates = for {
-      (post, headers) ← res
-      key ← SnapshotMakingUtil.header(post.headers,"X-r-response-key").toList
-      update ← LEvent.update(S_HttpPublication(s"/response/$key", headers, ByteString.EMPTY, Option(now + hour)))
-    } yield update
-    Function.chain(Seq(
-      TxAdd(updates ++ posts.flatMap(LEvent.delete)),
-      ErrorKey.set(Nil)
-    ))(local)
+)(
+  snapshotMaking: SnapshotMaker,
+  signatureChecker: Signer[SnapshotTask],
+  signedPostUtil: SignedPostUtil
+) extends TxTransform {
+  import signedPostUtil._
+  def transform(local: Context): Context = catchNonFatal {
+    val task = taskOpt.get
+    val (authorized, nonAuthorized) = posts.partition(post ⇒
+      signatureChecker.retrieve(check=true)(signed(post.headers)).nonEmpty
+    )
+    val res = if (authorized.nonEmpty) snapshotMaking.make(task) else Nil
+    val goodResp = List(N_Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
+    val authorizedResponses = authorized.map(au ⇒ au → goodResp)
+    val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → "Non authorized request")
+    respond(authorizedResponses, nonAuthorizedResponses)(local)
+  }{ e ⇒
+    val message = e.getMessage
+    respond(Nil,posts.map(_ → message))(local)
   }
 }
 

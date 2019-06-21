@@ -62,7 +62,7 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
     new SnapshotTaskSigner(signer)()
   //
   override def assembles: List[Assemble] =
-    new SnapshotMakingAssemble(actorName, fileSnapshotMaker, snapshotTaskSigner) ::
+    new SnapshotMakingAssemble(actorName, fileSnapshotMaker, snapshotTaskSigner, new SignedPostUtilImpl(CatchNonFatalImpl)) ::
     new PurgerAssemble(new Purger(fileRawSnapshotLoader,dbDir)) ::
     super.assembles
 }
@@ -72,9 +72,9 @@ trait SnapshotPutApp extends AssemblesApp {
   def snapshotDiffer: SnapshotDiffer
   //
   private lazy val snapshotPutter =
-    new SnapshotPutter(signer, SnapshotLoaderFactoryImpl, snapshotDiffer)
+    new SnapshotPutter(SnapshotLoaderFactoryImpl, snapshotDiffer)
   //
   override def assembles: List[Assemble] =
-    new SnapshotPutAssemble(snapshotPutter) ::
+    new SnapshotPutAssemble(snapshotPutter, signer, new SignedPostUtilImpl(CatchNonFatalImpl)) ::
     super.assembles
 }

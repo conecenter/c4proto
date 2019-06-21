@@ -20,7 +20,7 @@ class TestConsumerApp extends ServerApp
   with FileRawSnapshotApp
 {
   override def protocols: List[Protocol] = AlienProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
-  override def assembles: List[Assemble] = new TestAssemble :: super.assembles
+  override def assembles: List[Assemble] = new TestAssemble(CatchNonFatalImpl) :: super.assembles
 }
 
 /*
@@ -36,13 +36,13 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --descri
 curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 */
 
-@assemble class TestAssembleBase   {
+@assemble class TestAssembleBase(catchNonFatal: CatchNonFatal)   {
   def joinTestHttpPostHandler(
     key: SrcId,
     post: Each[S_HttpPost]
   ): Values[(SrcId, TxTransform)] =
     if(post.path == "/abc")
-      List(WithPK(TestHttpPostHandler(post.srcId,post))) else Nil
+      List(WithPK(TestHttpPostHandler(post.srcId,post)(catchNonFatal))) else Nil
 
   def needConsumer(
     key: SrcId,
@@ -65,16 +65,16 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
     List("GateTester"→GateTester(connections))*/
 }
 
-case class TestHttpPostHandler(srcId: SrcId, post: S_HttpPost) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = {
-    val resp = if(ErrorKey.of(local).nonEmpty) Nil else {
-      val prev = new String(post.body.toByteArray, "UTF-8")
-      val next = (prev.toLong * 3).toString
-      val body = okio.ByteString.encodeUtf8(next)
-      List(S_HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
-    }
+case class TestHttpPostHandler(srcId: SrcId, post: S_HttpPost)(catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
+  def transform(local: Context): Context = catchNonFatal {
+    val prev = new String(post.body.toByteArray, "UTF-8")
+    val next = (prev.toLong * 3).toString
+    val body = okio.ByteString.encodeUtf8(next)
+    val resp = List(S_HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
     logger.info(s"$resp")
     TxAdd(delete(post) ++ resp.flatMap(update))(local)
+  }{ e ⇒
+    TxAdd(delete(post))(local)
   }
 }
 

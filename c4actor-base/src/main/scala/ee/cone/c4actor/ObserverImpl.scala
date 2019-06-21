@@ -10,7 +10,7 @@ import scala.collection.immutable.{Map, Seq}
 import scala.util.control.NonFatal
 import scala.util.{Success, Try}
 
-class TxTransforms(qMessages: QMessages) extends LazyLogging {
+class TxTransforms(qMessages: QMessages, catchNonFatal: CatchNonFatal) extends LazyLogging {
   def get(global: RichContext): Map[SrcId,Option[Context]⇒Context] =
     ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
   private def handle(global: RichContext, key: SrcId): Option[Context]⇒Context = {
@@ -24,8 +24,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
     val res = if( //todo implement skip for outdated world
         global.offset < ReadAfterWriteOffsetKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
-    ) local else try {
-      Trace {
+    ) local else catchNonFatal {
         ByPK(classOf[TxTransform]).of(global).get(key) match {
           case None ⇒ local
           case Some(tr) ⇒
@@ -33,9 +32,7 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
             val nextLocal = TxTransformOrigMeta(tr.getClass.getName).andThen(tr.transform).andThen(qMessages.send)(prepLocal)
             new Context(global.injected, emptyReadModel, nextLocal.transient)
         }
-      }
-    } catch {
-      case NonFatal(e) ⇒
+    }{ e ⇒
         logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",e)
         val was = ErrorKey.of(local)
         val exception = e match {

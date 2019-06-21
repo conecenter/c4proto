@@ -12,13 +12,13 @@ import ee.cone.c4gate.HttpProtocol.S_HttpPost
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-@assemble class ManagementPostAssembleBase(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, defaultAssembleOptions: AssembleOptions)   {
+@assemble class ManagementPostAssembleBase(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, defaultAssembleOptions: AssembleOptions, catchNonFatal: CatchNonFatal)   {
   def joinHttpPostHandler(
     key: SrcId,
     post: Each[S_HttpPost]
   ): Values[(SrcId, TxTransform)] =
     if(post.path == s"/manage/$actorName")
-      List(WithPK(ManageHttpPostTx(post.srcId, post, defaultAssembleOptions)(indexUtil,readModelUtil))) else Nil
+      List(WithPK(ManageHttpPostTx(post.srcId, post, defaultAssembleOptions)(indexUtil,readModelUtil,catchNonFatal))) else Nil
 
   def joinConsumers(
     key: SrcId,
@@ -27,7 +27,7 @@ import scala.concurrent.{Await, Future}
     List(WithPK(LocalPostConsumer(s"/manage/$actorName")))
 }
 
-case class ManageHttpPostTx(srcId: SrcId, post: S_HttpPost, defaultAssembleOptions: AssembleOptions)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends TxTransform with LazyLogging {
+case class ManageHttpPostTx(srcId: SrcId, post: S_HttpPost, defaultAssembleOptions: AssembleOptions)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index, options: AssembleOptions)(k: Any): List[String] =
     indexUtil.getValues(index,k,"",options).flatMap(v⇒s"$v".split("\n")).map(indent).toList
@@ -54,7 +54,7 @@ case class ManageHttpPostTx(srcId: SrcId, post: S_HttpPost, defaultAssembleOptio
     (s"REPORT $indexStr" :: res.map(indent) ::: "END" :: Nil).mkString("\n")
   }
   def transform(local: Context): Context = {
-    if(ErrorKey.of(local).isEmpty) logger.info(report(local))
+    catchNonFatal{ logger.info(report(local)) }{ e ⇒ ()}
     TxAdd(LEvent.delete(post))(local)
   }
 }

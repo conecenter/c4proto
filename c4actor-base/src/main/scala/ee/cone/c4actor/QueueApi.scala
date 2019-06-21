@@ -270,6 +270,7 @@ trait MTime {
 //  def save(key: String, value: Array[Byte]): Unit
 //}
 
+// problem with ErrorKey is that when we check it world is different
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
 

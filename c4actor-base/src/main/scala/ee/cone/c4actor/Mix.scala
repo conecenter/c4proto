@@ -54,7 +54,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   //
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
-  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
+  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages, CatchNonFatalImpl)
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =
@@ -110,7 +110,7 @@ trait RichDataApp extends ProtocolsApp
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions)()
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, CatchNonFatalImpl)()
   lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn)
   def parallelAssembleOn: Boolean = false
   //
