@@ -7,7 +7,7 @@ trait C4LoggerApp{
 
 trait C4Logger {
    def initialize(setting:List[LogSetting]):Unit
-   def refresh(filePath: String):Unit
+   def refresh(filePath: String,firstRun:Boolean):Unit
    def setLogLevel(log: LogSetting):Unit
 
 }
@@ -21,8 +21,10 @@ sealed trait LogLevel{
 
 object LogLevel {
   def apply(name: String): LogLevel = name.toLowerCase match{
-    case INFO.name ⇒ INFO
     case DEBUG.name ⇒ DEBUG
+    case INFO.name ⇒ INFO
+    case WARN.name ⇒ WARN
+    case ERROR.name ⇒ ERROR
 }
 }
 
@@ -32,4 +34,12 @@ case object INFO extends LogLevel {
 
 case object DEBUG extends LogLevel {
   val name: String = "debug"
+}
+
+case object WARN extends LogLevel{
+  val name: String = "warn"
+}
+
+case object ERROR extends LogLevel{
+  val name: String = "error"
 }

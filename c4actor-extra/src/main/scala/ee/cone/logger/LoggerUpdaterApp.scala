@@ -12,9 +12,10 @@ trait LoggerUpdaterApp extends ToStartApp with C4LoggerApp{
 class LoggerUpdaterExec(logger:C4Logger,appLoggers:List[LogSetting]) extends Executable{
   def run(): Unit = concurrent blocking {
     logger.initialize(appLoggers)
-    while(true) {
-      PrintColored.makeColored("y")("check")
-      logger.refresh("./log4j2-loggers.xml")
+    val fileName  = "./log4j2-loggers.xml"
+    logger.refresh(fileName,true)
+    while(true){
+      logger.refresh(fileName,false)
       Thread.sleep(60000)
     }
   }
