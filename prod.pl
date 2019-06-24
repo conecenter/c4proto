@@ -564,11 +564,13 @@ my $wrap_kc = sub{
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
 my $remote_build = sub{
-    my($build_comp,$dir,$tag)=@_;
+    my($build_comp,$dir,$tag,$do_push)=@_;
+    $build_comp || die "no builder";
     my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
     my $nm = $dir=~m{([^/]+)$} ? $1 : die;
     &$rsync_to($dir,$build_comp,"$build_temp/$nm");
     sy(&$remote($build_comp,"docker build -t $tag $build_temp/$nm"));
+    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
 };
 
 
@@ -617,11 +619,11 @@ my $make_frpc_conf = sub{
     my $put = &$rel_put_text($from_path);
     do{
         my @add = map{
-            my($service_name,$port) = @$_;
+            my($service_name,$port,$host) = @$_;
             ("$comp.$service_name" => [
                 type => "stcp",
                 sk => $sk,
-                local_ip => "127.0.0.1",
+                local_ip => $host || "127.0.0.1",
                 local_port => $port,
             ])
         } @$services;
@@ -629,7 +631,7 @@ my $make_frpc_conf = sub{
     };
     do{
         my @add = map{
-            my($service_name,$port) = @$_;
+            my($service_name,$port,$host) = @$_;
             ("$comp.$service_name.visitor" => [
                 type => "stcp",
                 role => "visitor",
@@ -800,10 +802,14 @@ my $up_gate = sub{
     ]);
 };
 
-my $prod_image_steps = sub{(
+my $base_image_steps = sub{(
     "FROM ubuntu:18.04",
     "COPY install.pl /",
     "RUN perl install.pl useradd",
+)};
+
+my $prod_image_steps = sub{(
+    &$base_image_steps(),
     "RUN perl install.pl apt".
     " curl unzip software-properties-common".
     " lsof mc",
@@ -862,9 +868,7 @@ my $up_desktop = sub{
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
         );
-        my $builder_comp = $$conf{builder} || die "no builder";
-        &$remote_build($builder_comp,$from_path,$img);
-        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
+        &$remote_build($$conf{builder},$from_path,$img,1);
     };
     my $from_path = &$get_tmp_dir();
     my $cert_path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
@@ -1082,16 +1086,14 @@ push @tasks, ["up-ci","",sub{
         my $put = &$rel_put_text($from_path);
         sy("cp $gen_dir/install.pl $gen_dir/ci.pl $from_path/");
         &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
+            &$base_image_steps(),
             "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl",
             "RUN perl install.pl curl $dl_frp_url",
             "COPY ci.pl /",
             "USER c4",
             'ENTRYPOINT ["perl","/ci.pl"]',
         );
-        &$remote_build($comp,$from_path,$img);
+        &$remote_build($comp,$from_path,$img,0);
     };
     my $conf = &$get_compose($comp);
     my ($host,$port) = &$get_host_port($comp);
@@ -1132,42 +1134,58 @@ push @tasks, ["up-ci","",sub{
     &$sync_up($comp,$from_path,$up_content,"");
 }];
 
-push @tasks, ["up-kc_host_visitor", "", sub{
-    my ($comp,$args) = @_;
+my $make_frpc_image = sub{
+    my ($comp) = @_;
     my $conf = &$get_compose($comp);
     my $img = $$conf{image} || die;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $server_comp = $$conf{server} || die;
-    do{
-        my $from_path = &$get_tmp_dir();
-        my $put = &$rel_put_text($from_path);
-        sy("cp $gen_dir/install.pl $from_path/");
-        &$put("frpc.pl", join "\n",
-            '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die; die;'
-        );
-        &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl",
-            "RUN perl install.pl curl $dl_frp_url",
-            "COPY frpc.pl /",
-            "USER c4",
-            'ENTRYPOINT ["perl", "/frpc.pl"]',
-        );
-        my $builder_comp = $$conf{builder} || die "no builder";
-        &$remote_build($builder_comp,$from_path,$img);
-        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
-    };
-    my @containers = (
-        {
-            image => $img,
-            name => "frpc",
-            C4FRPC_INI => "/c4conf/frpc.visitor.ini",
-            "port:$cicd_port:$cicd_port" => "",
-            "port:22:$ssh_port" => "",
-        },
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    sy("cp $gen_dir/install.pl $from_path/");
+    &$put("frpc.pl", join "\n",
+        '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die; die;'
     );
+    &$put("Dockerfile", join "\n",
+        &$base_image_steps(),
+        "RUN perl install.pl apt curl",
+        "RUN perl install.pl curl $dl_frp_url",
+        "COPY frpc.pl /",
+        "USER c4",
+        'ENTRYPOINT ["perl", "/frpc.pl"]',
+    );
+    &$remote_build($$conf{builder},$from_path,$img,1);
+    $img;
+};
+
+push @tasks, ["up-kc_http_client", "", sub{
+    my ($comp,$args) = @_;
+    my $conf = &$get_compose($comp);
+    my $img = &$make_frpc_image($comp);
+    my $gate_comp = $$conf{ca} || die "no ca";
+    my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
+    my @containers = ({
+        image => $img,
+        name => "frpc",
+        C4FRPC_INI => "/c4conf/frpc.ini",
+    });
+    my $from_path = &$get_tmp_dir();
+    &$make_frpc_conf($comp,$from_path,[[http=>$external_http_port,$server]]);
+    print "3\n";
+    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+}];
+
+push @tasks, ["up-kc_host_visitor", "", sub{
+    my ($comp,$args) = @_;
+    my $conf = &$get_compose($comp);
+    my $server_comp = $$conf{server} || die;
+    my $img = &$make_frpc_image($comp);
+    my @containers = ({
+        image => $img,
+        name => "frpc",
+        C4FRPC_INI => "/c4conf/frpc.visitor.ini",
+        "port:$cicd_port:$cicd_port" => "",
+        "port:22:$ssh_port" => "",
+    });
     my $from_path = &$get_tmp_dir();
     &$make_frpc_conf($server_comp,$from_path,[[main=>$cicd_port],[ssh=>$ssh_port]]);
     &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
@@ -1186,9 +1204,7 @@ push @tasks, ["up-kc_host", "", sub{
         my $put = &$rel_put_text($from_path);
         sy("cp $gen_dir/install.pl $gen_dir/cd.pl $conf_cert_path $from_path/");
         &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
+            &$base_image_steps(),
             "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
@@ -1204,9 +1220,7 @@ push @tasks, ["up-kc_host", "", sub{
             "ENV C4SSH_PORT=$ssh_port",
             'ENTRYPOINT ["perl", "/cd.pl"]',
         );
-        my $builder_comp = $$conf{builder} || die "no builder";
-        &$remote_build($builder_comp,$from_path,$img);
-        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
+        &$remote_build($$conf{builder},$from_path,$img,1);
     };
     my @containers = (
         {
