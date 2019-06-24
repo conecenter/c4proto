@@ -24,13 +24,19 @@ class C4Log4j2Impl extends C4Logger {
   }
 
   def refresh(filePath: String,firstRun:Boolean): Unit = {
-    val path: Path = Paths.get(filePath)
-    if (System.currentTimeMillis - 90000L <= Files.getLastModifiedTime(path).toMillis || firstRun) {
-      val settings: util.List[String] = Files.readAllLines(path)
-      settings.forEach(s ⇒ {
-        val splits = s.split('=')
-        setLogLevel(LogSetting(splits(0), LogLevel(splits(1))))
-      })
+    try {
+      val path: Path = Paths.get(filePath)
+
+      if (System.currentTimeMillis - 90000L <= Files.getLastModifiedTime(path).toMillis || firstRun) {
+        val settings: util.List[String] = Files.readAllLines(path)
+        settings.forEach(s ⇒ {
+          val splits = s.split('=')
+          setLogLevel(LogSetting(splits(0), LogLevel(splits(1))))
+        }
+        )
+      }
+    }catch {
+      case _: Exception ⇒ ""
     }
   }
 

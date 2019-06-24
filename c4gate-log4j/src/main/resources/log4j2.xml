@@ -8,8 +8,8 @@
         <Async name="ASYNC">
             <AppenderRef ref="RollingFile"/>
         </Async>
-        <RollingFile name="RollingFile" fileName="${logPath}app.log"
-                     filePattern="${logPath}$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
+        <RollingFile name="RollingFile" fileName="${logPath}${env:C4STATE_TOPIC_PREFIX}.log"
+                     filePattern="${logPath}$${date:yyyy-MM}/${env:C4STATE_TOPIC_PREFIX}-%i.log.gz">
             <PatternLayout>
                 <Pattern>%d %p %c{1.} [%t] %m%n</Pattern>
             </PatternLayout>
