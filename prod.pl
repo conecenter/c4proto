@@ -117,7 +117,7 @@ my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
     my ($host,$port) = &$get_host_port($comp);
     sy(&$remote($comp,"mkdir -p $to_path"));
-    sy("rsync -e 'ssh -p $port' -a --del $from_path/ c4\@$host:$to_path");
+    sy("rsync -e 'ssh -p $port' -a --del --no-group $from_path/ c4\@$host:$to_path");
 };
 
 my $split_app = sub{
@@ -822,6 +822,8 @@ my $prod_image_steps = sub{(
 #
 #}];
 
+my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
+
 my $up_desktop = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
@@ -851,7 +853,7 @@ my $up_desktop = sub{
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
             " atop less bash-completion netcat-openbsd locales tmux uuid-runtime".
             " iputils-ping wget nano",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
@@ -1084,7 +1086,7 @@ push @tasks, ["up-ci","",sub{
             "COPY install.pl /",
             "RUN perl install.pl useradd",
             "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            "RUN perl install.pl curl $dl_frp_url",
             "COPY ci.pl /",
             "USER c4",
             'ENTRYPOINT ["perl","/ci.pl"]',
@@ -1130,12 +1132,53 @@ push @tasks, ["up-ci","",sub{
     &$sync_up($comp,$from_path,$up_content,"");
 }];
 
+push @tasks, ["up-kc_host_visitor", "", sub{
+    my ($comp,$args) = @_;
+    my $conf = &$get_compose($comp);
+    my $img = $$conf{image} || die;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $server_comp = $$conf{server} || die;
+    do{
+        my $from_path = &$get_tmp_dir();
+        my $put = &$rel_put_text($from_path);
+        sy("cp $gen_dir/install.pl $from_path/");
+        &$put("frpc.pl", join "\n",
+            '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die; die;'
+        );
+        &$put("Dockerfile", join "\n",
+            "FROM ubuntu:18.04",
+            "COPY install.pl /",
+            "RUN perl install.pl useradd",
+            "RUN perl install.pl apt curl",
+            "RUN perl install.pl curl $dl_frp_url",
+            "COPY frpc.pl /",
+            "USER c4",
+            'ENTRYPOINT ["perl", "/frpc.pl"]',
+        );
+        my $builder_comp = $$conf{builder} || die "no builder";
+        &$remote_build($builder_comp,$from_path,$img);
+        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
+    };
+    my @containers = (
+        {
+            image => $img,
+            name => "frpc",
+            C4FRPC_INI => "/c4conf/frpc.visitor.ini",
+            "port:$cicd_port:$cicd_port" => "",
+            "port:22:$ssh_port" => "",
+        },
+    );
+    my $from_path = &$get_tmp_dir();
+    &$make_frpc_conf($server_comp,$from_path,[[main=>$cicd_port],[ssh=>$ssh_port]]);
+    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+}];
+
 push @tasks, ["up-kc_host", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $img = $$conf{image} || die;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $external_ssh_port = $$conf{port} || die;
+    my $external_ssh_port = $$conf{port};
     my $dir = $$conf{dir} || die;
     my $conf_cert_path = &$get_conf_cert_path().".pub";
     do{
@@ -1147,7 +1190,7 @@ push @tasks, ["up-kc_host", "", sub{
             "COPY install.pl /",
             "RUN perl install.pl useradd",
             "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            "RUN perl install.pl curl $dl_frp_url",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
             ."&& chmod +x ./kubectl "
@@ -1170,7 +1213,7 @@ push @tasks, ["up-kc_host", "", sub{
             image => $img,
             name => "sshd",
             C4DATA_DIR => "/c4db",
-            "port:$external_ssh_port:$ssh_port" => "node",
+            $external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
         },
         {
             image => $img,
@@ -1193,7 +1236,7 @@ push @tasks, ["up-kc_host", "", sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port]]);
+    &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port],[ssh=>$ssh_port]]);
     &$make_secrets($comp,$from_path);
 
     my $run_comp = "deployer";
