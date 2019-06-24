@@ -18,7 +18,6 @@ class HttpGatewayApp extends ServerApp
   with ManagementApp
   with SnapshotMakingApp
   with LZ4RawCompressorApp
-  with LoggerUpdaterApp
   with C4Log4j2App
 {
   def httpHandlers: List[RHttpHandler] = //todo secure

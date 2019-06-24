@@ -8,7 +8,7 @@ import org.apache.logging.log4j.core.LoggerContext
 import org.apache.logging.log4j.core.config.{Configuration, LoggerConfig}
 import org.apache.logging.log4j.{Level, LogManager, Logger}
 
-trait C4Log4j2App extends C4LoggerApp {
+trait C4Log4j2App extends LoggerUpdaterApp {
   def c4Logger: C4Logger = new C4Log4j2Impl
 }
 

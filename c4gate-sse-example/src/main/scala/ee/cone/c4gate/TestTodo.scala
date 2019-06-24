@@ -36,7 +36,6 @@ class TestTodoApp extends ServerApp
   with MortalFactoryApp
   with AvailabilityApp
   with TestTodoRootViewApp
-  with LoggerUpdaterApp
   with C4Log4j2App
 {
 
