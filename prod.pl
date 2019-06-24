@@ -1080,7 +1080,7 @@ push @tasks, ["up-ci","",sub{
             "FROM ubuntu:18.04",
             "COPY install.pl /",
             "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl openssh-client socat",
+            "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl",
             "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
             "COPY ci.pl /",
             "USER c4",
