@@ -305,12 +305,15 @@ object RDBTypes {
     case v: java.lang.Long ⇒ v.toString
     case v: java.lang.Integer ⇒ v.toString
     case v: BigDecimal ⇒ v.bigDecimal.toString
+    case v: okio.ByteString => v.base64()
     case v: Instant ⇒ v.toEpochMilli.toString
   }
   def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
   def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
     case "String" ⇒
       UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
+    case "ByteString" ⇒
+      UniversalPropImpl[okio.ByteString](tag, okio.ByteString.decodeBase64(value))(ProtoAdapter.BYTES)
     case "Boolean" ⇒
       UniversalPropImpl[java.lang.Boolean](tag,value.nonEmpty)(ProtoAdapter.BOOL)
     case "Long" | "Instant" ⇒
