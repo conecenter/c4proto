@@ -303,6 +303,7 @@ object RDBTypes {
     case v: String ⇒ v
     case v: java.lang.Boolean ⇒ if(v) "T" else ""
     case v: java.lang.Long ⇒ v.toString
+    case v: java.lang.Integer ⇒ v.toString
     case v: BigDecimal ⇒ v.bigDecimal.toString
     case v: Instant ⇒ v.toEpochMilli.toString
   }
@@ -314,6 +315,8 @@ object RDBTypes {
       UniversalPropImpl[java.lang.Boolean](tag,value.nonEmpty)(ProtoAdapter.BOOL)
     case "Long" | "Instant" ⇒
       UniversalPropImpl[java.lang.Long](tag,java.lang.Long.parseLong(value))(ProtoAdapter.SINT64)
+    case "Integer" ⇒
+      UniversalPropImpl[java.lang.Integer](tag,java.lang.Integer.parseInt(value))(ProtoAdapter.SINT32)
     case "BigDecimal" ⇒
       val BigDecimalFactory(scale,bytes) = BigDecimal(value)
       val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
