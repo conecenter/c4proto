@@ -655,6 +655,7 @@ my $consumer_options = sub{(
     C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
     C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
     C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
+    JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
 )};
 # todo secure jmx
 #            JAVA_TOOL_OPTIONS => join(' ',qw(
@@ -773,7 +774,7 @@ my $up_gate = sub{
     &$need_deploy_cert($run_comp,$from_path);
     ($run_comp, $from_path, [
         {
-            @var_img, name => "zookeeper", C4DATA_DIR => "/c4db",
+            @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
         },
         {
             @var_img,
@@ -783,7 +784,7 @@ my $up_gate = sub{
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
             C4BOOTSTRAP_EXT_HOST => $server,
-            C4BOOTSTRAP_EXT_PORT => $external_broker_port,
+            C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
         },
         {
             @var_img,
@@ -847,6 +848,7 @@ my $up_desktop = sub{
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
             'export C4PROTO_DIR=/c4/c4proto',
             'export C4DATA_DIR=/c4db',
+            'export JAVA_TOOL_OPTIONS=-XX:-UseContainerSupport',
             "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
         );
         &$put("Dockerfile", join "\n",
@@ -855,7 +857,8 @@ my $up_desktop = sub{
             " rsync openssh-client dropbear git".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
-            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime",
+            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime".
+            " iputils-ping wget nano",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
