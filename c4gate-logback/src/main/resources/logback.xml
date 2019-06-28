@@ -2,11 +2,21 @@
     <!--statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" /-->
     <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
     <include file="./logback.xml"/>
+
+    <appender name="ASYNСCON" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="CON" />
+    </appender>
+
     <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
+
+    <appender name="ASYNСFILE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE" />
+    </appender>
+
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>/c4db/logback/%d{yyyy-MM-dd}/${C4STATE_TOPIC_PREFIX}.log</fileNamePattern>
@@ -18,8 +28,8 @@
         </encoder>
     </appender>
     <root level="INFO">
-        <appender-ref ref="CON" />
-        <appender-ref ref="FILE" />
+        <appender-ref ref="ASYNСCON" />
+        <appender-ref ref="ASYNСFILE" />
     </root>
     <shutdownHook/>
 </configuration>
