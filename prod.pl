@@ -264,6 +264,7 @@ push @tasks, ["exec-dc_gate","",$exec_dc];
 push @tasks, ["exec-kc_consumer","",$exec_kc];
 push @tasks, ["exec-kc_gate","",$exec_kc];
 push @tasks, ["exec-kc_desktop","",$exec_kc];
+#push @tasks, ["exec-kc_http_client","",$exec_kc];
 push @tasks, ["lscont-dc_consumer", "", $lscont_dc];
 push @tasks, ["lscont-dc_gate", "", $lscont_dc];
 push @tasks, ["lscont-kc_consumer", "", $lscont_kc];
@@ -1170,7 +1171,8 @@ push @tasks, ["up-kc_http_client", "", sub{
     });
     my $from_path = &$get_tmp_dir();
     &$make_frpc_conf($comp,$from_path,[[http=>$external_http_port,$server]]);
-    print "3\n";
+    sy("cat $from_path/frpc.visitor.ini");
+    print "----\n";
     &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
 }];
 
