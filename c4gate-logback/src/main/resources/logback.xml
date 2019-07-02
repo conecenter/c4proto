@@ -3,9 +3,7 @@
     <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
     <include file="./logback.xml"/>
 
-    <appender name="ASYNСCON" class="ch.qos.logback.classic.AsyncAppender">
-        <appender-ref ref="CON" />
-    </appender>
+
 
     <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -13,8 +11,10 @@
         </encoder>
     </appender>
 
-    <appender name="ASYNСFILE" class="ch.qos.logback.classic.AsyncAppender">
-        <appender-ref ref="FILE" />
+    <appender name="ASYNСCON" class="ch.qos.logback.classic.AsyncAppender">
+        <discardingThreshold>0</discardingThreshold>
+        <queueSize>1000000</queueSize>
+        <appender-ref ref="CON" />
     </appender>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
@@ -27,6 +27,13 @@
             <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
+
+    <appender name="ASYNСFILE" class="ch.qos.logback.classic.AsyncAppender">
+        <discardingThreshold>0</discardingThreshold>
+        <queueSize>1000000</queueSize>
+        <appender-ref ref="FILE" />
+    </appender>
+
     <root level="INFO">
         <appender-ref ref="ASYNСCON" />
         <appender-ref ref="ASYNСFILE" />
