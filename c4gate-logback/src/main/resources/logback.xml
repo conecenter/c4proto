@@ -12,6 +12,8 @@
     </appender>
 
     <appender name="ASYNСCON" class="ch.qos.logback.classic.AsyncAppender">
+        <discardingThreshold>0</discardingThreshold>
+        <queueSize>1000000</queueSize>
         <appender-ref ref="CON" />
     </appender>
 
@@ -27,6 +29,8 @@
     </appender>
 
     <appender name="ASYNСFILE" class="ch.qos.logback.classic.AsyncAppender">
+        <discardingThreshold>0</discardingThreshold>
+        <queueSize>1000000</queueSize>
         <appender-ref ref="FILE" />
     </appender>
 
