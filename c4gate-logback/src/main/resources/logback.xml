@@ -3,18 +3,10 @@
     <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
     <include file="./logback.xml"/>
 
-
-
     <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
         </encoder>
-    </appender>
-
-    <appender name="ASYNСCON" class="ch.qos.logback.classic.AsyncAppender">
-        <discardingThreshold>0</discardingThreshold>
-        <queueSize>1000000</queueSize>
-        <appender-ref ref="CON" />
     </appender>
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
@@ -28,15 +20,9 @@
         </encoder>
     </appender>
 
-    <appender name="ASYNСFILE" class="ch.qos.logback.classic.AsyncAppender">
-        <discardingThreshold>0</discardingThreshold>
-        <queueSize>1000000</queueSize>
-        <appender-ref ref="FILE" />
-    </appender>
-
     <root level="INFO">
-        <appender-ref ref="ASYNСCON" />
-        <appender-ref ref="ASYNСFILE" />
+        <appender-ref ref="CON" />
+        <appender-ref ref="FILE" />
     </root>
     <shutdownHook/>
 </configuration>
