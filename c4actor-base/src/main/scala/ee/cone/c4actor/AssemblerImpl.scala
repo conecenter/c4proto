@@ -124,7 +124,7 @@ class AssemblerInit(
   }
 
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
-    val index = origKeyFactory.rawKey(className).of(context.assembled).value.get.get
+    val index = origKeyFactory.srcIdKey(className).of(context.assembled).value.get.get
     val options = getAssembleOptions(context.assembled)
     UniqueIndexMap(index,options)(composes)
   }

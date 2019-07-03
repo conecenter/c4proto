@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4actor.Types.{ClName, SrcId}
 import ee.cone.c4assemble.{AssembledKey, IndexUtil}
 
 trait DefaultKeyFactoryApp {
@@ -10,6 +10,12 @@ trait DefaultKeyFactoryApp {
 }
 
 case class DefaultKeyFactory(composes: IndexUtil) extends KeyFactory {
+  val srcIdAlias: String = "SrcId"
+  val srcIdClass: ClName = classOf[SrcId].getName
+
   def rawKey(className: String): AssembledKey =
-    composes.joinKey(was = false, "SrcId", classOf[SrcId].getName, className)
+    srcIdKey(className)
+
+  def srcIdKey(className: String): AssembledKey =
+    composes.joinKey(was = false, srcIdAlias, srcIdClass, className)
 }
