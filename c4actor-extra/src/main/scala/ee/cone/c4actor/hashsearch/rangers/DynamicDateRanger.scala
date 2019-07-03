@@ -71,7 +71,7 @@ object K2TreeUtils {
   lazy val maxValue = 3155760000000L
   lazy val minValue = 0L
 
-  def inReg(pair: (Option[Long],Option[Long]), range:S_TreeRange): Boolean = in(convert(pair)._1, convert(pair)._2, range)
+  def inReg(pair: (Option[Long], Option[Long]), range: S_TreeRange): Boolean = in(convert(pair)._1, convert(pair)._2, range)
   private def in(x: Long, y: Long, range: S_TreeRange): Boolean = (range.minX <= x && x < range.maxX) && (range.minY <= y && y < range.maxY)
 
   private def convert(dateOpt: (Option[Long], Option[Long])): (Long, Long) =
@@ -83,12 +83,13 @@ object K2TreeUtils {
     }
 }
 
-@assemble class K2SparkJoinerBase[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long))   {
+@assemble class K2SparkJoinerBase[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long))
+  extends AssembleName("K2SparkJoiner", modelCl) {
   def SparkK2Tree(
     paramId: SrcId,
     param: Each[S_K2TreeParams]
   ): Values[(SrcId, TxTransform)] =
-    if(param.modelName == modelCl.getName)
+    if (param.modelName == modelCl.getName)
       List(WithPK(K2TreeUpdate[Model](param.srcId, param, modelCl)(modelToDate)))
     else Nil
 }
@@ -157,7 +158,7 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
   }
 }
 
-@protocol(OperativeCat) object RangeTreeProtocolBase   {
+@protocol(OperativeCat) object RangeTreeProtocolBase {
 
   @Id(0x0f8e) case class S_K2TreeParams(
     @Id(0x0f9b) srcId: String,

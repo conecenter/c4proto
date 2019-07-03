@@ -167,7 +167,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   hashGen: HashGen,
   debugMode: Boolean, // = false
   indexUtil: IndexUtil
-) extends   HashSearchAssembleSharedKeys {
+) extends AssembleName("HashSearchAssemble", modelCl) with HashSearchAssembleSharedKeys {
   type InnerUnionId = SrcId
   type InnerIntersectId = SrcId
   type InnerLeafId = SrcId
