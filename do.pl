@@ -193,6 +193,9 @@ push @tasks, ["env", sub{
     $ENV{$_} = $env{$_} for keys %env;
     $ENV{C4STATE_TOPIC_PREFIX} || die "no actor name";
     sy(@exec);
+
+    #perl $ENV{C4PROTO_DIR}/prod.pl
+
 }];
 
 #push @tasks, ["snapshot_maker_run", sub{
