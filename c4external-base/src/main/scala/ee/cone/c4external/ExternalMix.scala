@@ -21,7 +21,12 @@ trait ExternalMix
 
   override def updateProcessor: UpdateProcessor = new ExtUpdatesPreprocessor(toUpdate, qAdapterRegistry, extModels)()
 
-  override def origKeyFactory: KeyFactory = new ExtKeyFactory(indexUtil, extModels)
+  override def origKeyFactoryOpt: Option[KeyFactory] = {
+    if (super.origKeyFactoryOpt.isEmpty)
+      Some(new ExtKeyFactory(indexUtil, extModels))
+    else
+      FailWith(s"origKeyFactoryOpt was already initialized with ${super.origKeyFactoryOpt}")
+  }
   override def assembles: List[Assemble] = extModels.map(ext ⇒ {
     val extName = ext.clName
     val id = qAdapterRegistry.byName(extName).id

@@ -69,7 +69,4 @@ class ExtKeyFactory(composes: IndexUtil, external: List[ExternalModel[_ <: Produ
       extKey(className)
     else
       normalKey(className)
-
-  def srcIdKey(className: String): AssembledKey =
-    normalKey(className)
 }

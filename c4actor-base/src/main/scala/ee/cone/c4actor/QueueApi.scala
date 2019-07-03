@@ -297,7 +297,6 @@ trait UpdatesPreprocessor {
 
 trait KeyFactory {
   def rawKey(className: String): AssembledKey
-  def srcIdKey(className: String): AssembledKey
 }
 
 trait UpdateProcessor {

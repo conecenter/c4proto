@@ -6,7 +6,8 @@ import ee.cone.c4assemble.{AssembledKey, IndexUtil}
 trait DefaultKeyFactoryApp {
   def indexUtil: IndexUtil
 
-  def origKeyFactory: KeyFactory = DefaultKeyFactory(indexUtil)
+  def byPKKeyFactory: KeyFactory = DefaultKeyFactory(indexUtil)
+  def origKeyFactoryOpt: Option[KeyFactory] = None
 }
 
 case class DefaultKeyFactory(composes: IndexUtil) extends KeyFactory {
@@ -14,8 +15,5 @@ case class DefaultKeyFactory(composes: IndexUtil) extends KeyFactory {
   val srcIdClass: ClName = classOf[SrcId].getName
 
   def rawKey(className: String): AssembledKey =
-    srcIdKey(className)
-
-  def srcIdKey(className: String): AssembledKey =
     composes.joinKey(was = false, srcIdAlias, srcIdClass, className)
 }
