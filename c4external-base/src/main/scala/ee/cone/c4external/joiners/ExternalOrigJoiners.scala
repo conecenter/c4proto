@@ -53,7 +53,7 @@ import MergeTypes._
   writeToKafka: WriteToKafkaImpl
 )(
   val adapter: ProtoAdapter[Model] with HasId = qAdapterRegistry.byId(modelId).asInstanceOf[ProtoAdapter[Model] with HasId]
-) extends ExternalUpdateUtil[Model] {
+) extends AssembleName("ExternalOrigJoiner", modelCl) with ExternalUpdateUtil[Model] {
 
   def ToMergeExtUpdate(
     origId: SrcId,
