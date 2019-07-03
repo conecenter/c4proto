@@ -100,7 +100,6 @@ import MergeTypes._
     if (externals.nonEmpty || caches.nonEmpty)
       (Single.option(externals), Single.option(caches)) match {
         case (Some(e), None) ⇒
-          PrintGreen(e.txId, decode(e.value))
           decode(e.value)
         case (None, Some(c)) ⇒ decode(c.value)
         case (Some(e), Some(c)) ⇒
