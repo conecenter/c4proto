@@ -2,7 +2,7 @@ package ee.cone.c4gate.deep_session
 
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.{MortalFactory, WithPK}
+import ee.cone.c4actor.{AssembleName, MortalFactory, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.deep_session.DeepSessionDataProtocol.{U_RawRoleData, U_RawUserData}
@@ -15,7 +15,8 @@ object DeepSessionDataAssembles {
       new RawRoleDataAssemble(roleModel) :: Nil
 }
 
-@assemble class RawUserDataAssembleBase[User <: Product](modelCl: Class[User])   {
+@assemble class RawUserDataAssembleBase[User <: Product](modelCl: Class[User])
+  extends AssembleName("RawUserDataAssemble", modelCl) {
   type UserId = SrcId
 
   def RawUserDataByRoleId(
@@ -31,7 +32,8 @@ object DeepSessionDataAssembles {
   ): Values[(Alive, U_RawUserData)] = List(WithPK(rawData))
 }
 
-@assemble class RawRoleDataAssembleBase[Role <: Product](roleCl: Class[Role])   {
+@assemble class RawRoleDataAssembleBase[Role <: Product](roleCl: Class[Role])
+  extends AssembleName("RawRoleDataAssemble", roleCl) {
   type RoleId = SrcId
 
   def RawRoleDataByRoleId(

@@ -100,6 +100,7 @@ push @tasks, ["restart_kafka", sub{
         #"listeners=PLAINTEXT://$plain_bootstrap_server,SSL://$ssl_bootstrap_server",
         "listeners=SSL://$ssl_bootstrap_server",
         "inter.broker.listener.name=SSL",
+        "socket.request.max.bytes=250000000",
     );
     sy("cat $data_dir/cu.broker.properties >> tmp/server.properties");
     sy("zookeeper-server-start.sh -daemon tmp/zookeeper.properties");

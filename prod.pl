@@ -74,12 +74,12 @@ my $get_deploy_conf = lazy{
 my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected"};
 
 my $get_deployer_conf = sub{
-    my($comp,@k)=@_;
+    my($comp,$chk,@k)=@_;
     my $conf = &$get_compose($comp);
     my $n_conf = $$conf{deployer} ? &$get_compose($$conf{deployer}) : $conf;
-    map{$$n_conf{$_}||die "no $_"} @k;
+    map{$$n_conf{$_} || $chk && die "no $_"} @k;
 };
-my $get_host_port = sub{ &$get_deployer_conf($_[0],qw(host port)) };
+my $get_host_port = sub{ &$get_deployer_conf($_[0],1,qw(host port)) };
 
 my $ssh_ctl = sub{
     my($comp,@args)=@_;
@@ -117,7 +117,7 @@ my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
     my ($host,$port) = &$get_host_port($comp);
     sy(&$remote($comp,"mkdir -p $to_path"));
-    sy("rsync -e 'ssh -p $port' -a --del $from_path/ c4\@$host:$to_path");
+    sy("rsync -e 'ssh -p $port' -a --del --no-group $from_path/ c4\@$host:$to_path");
 };
 
 my $split_app = sub{
@@ -135,7 +135,7 @@ my $rel_put_text = sub{
 
 my $sync_up = sub{
     my($comp,$from_path,$up_content,$args)=@_;
-    my ($dir) = &$get_deployer_conf($comp,qw[dir]);
+    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
     my $conf_dir = "$dir/$comp"; #.c4conf
     $from_path ||= &$get_tmp_dir();
     &$rel_put_text($from_path)->("up",$up_content);
@@ -264,6 +264,7 @@ push @tasks, ["exec-dc_gate","",$exec_dc];
 push @tasks, ["exec-kc_consumer","",$exec_kc];
 push @tasks, ["exec-kc_gate","",$exec_kc];
 push @tasks, ["exec-kc_desktop","",$exec_kc];
+#push @tasks, ["exec-kc_http_client","",$exec_kc];
 push @tasks, ["lscont-dc_consumer", "", $lscont_dc];
 push @tasks, ["lscont-dc_gate", "", $lscont_dc];
 push @tasks, ["lscont-kc_consumer", "", $lscont_kc];
@@ -350,22 +351,24 @@ my $make_dc_yml = sub{
     my ($name,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:)/ ||
+        $k=~/^([A-Z]|host:|port:|ingres:)/ ||
         $k=~/^(volumes|tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
     my @port_maps = &$map(\%all,sub{ my($k,$v)=@_; $k=~/^port:(.+)/ ? "$1" : () });
+    my @host_maps = &$map(\%all,sub{ my($k,$v)=@_; $k=~/^host:(.+)/ ? "$1:$v" : () });
     my @pod = (pod => {
         command => ["sleep","infinity"],
         image => "ubuntu:18.04",
         @port_maps ? (ports=>\@port_maps) : (),
+        @host_maps ? (extra_hosts=>\@host_maps) : (),
     });
     my $yml_str = &$to_yml_str({
         services => {@pod, map{
             my $opt = $_;
             my $res = &$merge_list(&$map($opt,sub{ my($k,$v)=@_;(
                 $k=~/^([A-Z].+)/ ? { environment=>{$1=>$v} } : (),
-                $k=~/^host:(.+)/ ? { extra_hosts=>["$1:$v"]} : (),
+                #$k=~/^host:(.+)/ ? { extra_hosts=>["$1:$v"]} : (),
                 $k=~/^(volumes|tty)$/ ? {$1=>$v} : (),
                 $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? {volumes=>["./$1:/c4conf/$1"]} : (),
                 $k eq 'C4DATA_DIR' ? {volumes=>["db4:$v"]} : (),
@@ -409,7 +412,7 @@ my $make_kc_yml = sub{
     my($name,$tmp_path,$spec,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:)/ ||
+        $k=~/^([A-Z]|host:|port:|ingres:)/ ||
         $k=~/^(tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
@@ -494,13 +497,44 @@ my $make_kc_yml = sub{
     #
     my @service_yml = do{
         my @ports = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^port:(\d+):(\d+)$/ ? { nodePort => $1-0, port => $1-0, targetPort => $2-0, name => "c4-$2" } : ()
+            $k=~/^port:(\d+):(\d+)$/ ? {
+                $all{is_deployer} ? (nodePort => $1-0) : (),
+                port => $1-0,
+                targetPort => $2-0,
+                name => "c4-$2"
+            } : ()
         });
         @ports ? &$to_yml_str({
             apiVersion => "v1",
             kind => "Service",
             metadata => { name => $name },
-            spec => { selector => { app => $name }, ports => \@ports, type => "NodePort" },
+            spec => {
+                selector => { app => $name },
+                ports => \@ports,
+                $all{is_deployer} ? (type => "NodePort") : ()
+            },
+        }) : ();
+    };
+    #
+    my @ingress_yml = do{
+        my @rules = &$map(\%all,sub{ my($k,$v)=@_;
+            $k=~/^ingres:(.+)$/ ? {
+                host => "$1",
+                http => {
+                    paths => [{
+                        backend => {
+                            serviceName => $name,
+                            servicePort => $v-0,
+                        },
+                    }],
+                },
+            } : ()
+        });
+        @rules ? &$to_yml_str({
+            apiVersion => "extensions/v1beta1",
+            kind => "Ingress",
+            metadata => { name => $name },
+            spec => { rules => \@rules },
         }) : ();
     };
     #
@@ -512,7 +546,7 @@ my $make_kc_yml = sub{
         data => { map{($_=>syf("base64 -w0 < $tmp_path/$_"))} @{$$_{files}||die} },
     })} @secrets;
     #
-    join("", @secrets_yml, @service_yml, $stateful_set_yml);
+    join("", @secrets_yml, @service_yml, @ingress_yml, $stateful_set_yml);
 };
 
 my $wrap_kc = sub{
@@ -531,11 +565,13 @@ my $wrap_kc = sub{
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
 my $remote_build = sub{
-    my($build_comp,$dir,$tag)=@_;
+    my($build_comp,$dir,$tag,$do_push)=@_;
+    $build_comp || die "no builder";
     my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
     my $nm = $dir=~m{([^/]+)$} ? $1 : die;
     &$rsync_to($dir,$build_comp,"$build_temp/$nm");
     sy(&$remote($build_comp,"docker build -t $tag $build_temp/$nm"));
+    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
 };
 
 
@@ -584,11 +620,11 @@ my $make_frpc_conf = sub{
     my $put = &$rel_put_text($from_path);
     do{
         my @add = map{
-            my($service_name,$port) = @$_;
+            my($service_name,$port,$host) = @$_;
             ("$comp.$service_name" => [
                 type => "stcp",
                 sk => $sk,
-                local_ip => "127.0.0.1",
+                local_ip => $host || "127.0.0.1",
                 local_port => $port,
             ])
         } @$services;
@@ -596,7 +632,7 @@ my $make_frpc_conf = sub{
     };
     do{
         my @add = map{
-            my($service_name,$port) = @$_;
+            my($service_name,$port,$host) = @$_;
             ("$comp.$service_name.visitor" => [
                 type => "stcp",
                 role => "visitor",
@@ -620,6 +656,7 @@ my $consumer_options = sub{(
     C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
     C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
     C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
+    JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
 )};
 # todo secure jmx
 #            JAVA_TOOL_OPTIONS => join(' ',qw(
@@ -705,10 +742,15 @@ my $make_desktop_secret = sub{
 my $gate_ports = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
-    my $host = $$conf{host} || die "no host";
-    my $external_broker_port = $$conf{broker_port} || die "no broker_port";
-    my $external_http_port = $$conf{http_port} || die "no http_port";
+    my $host = $$conf{host} || $comp;
+    my $external_broker_port = $$conf{broker_port} || 1093;
+    my $external_http_port = $$conf{http_port} || $http_port;
     ($host,$external_http_port,$external_broker_port);
+};
+my $get_ingres = sub{
+    my($comp,$http_port)=@_;
+    my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
+    $domain_zone ? ("ingres:$comp.$domain_zone"=>$http_port) : ();
 };
 
 my $up_consumer = sub{
@@ -733,7 +775,7 @@ my $up_gate = sub{
     &$need_deploy_cert($run_comp,$from_path);
     ($run_comp, $from_path, [
         {
-            @var_img, name => "zookeeper", C4DATA_DIR => "/c4db",
+            @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
         },
         {
             @var_img,
@@ -743,7 +785,7 @@ my $up_gate = sub{
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
             C4BOOTSTRAP_EXT_HOST => $server,
-            C4BOOTSTRAP_EXT_PORT => $external_broker_port,
+            C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
         },
         {
             @var_img,
@@ -754,16 +796,22 @@ my $up_gate = sub{
             C4STATE_REFRESH_SECONDS => 1000,
         },
         {
-            @var_img, name => "haproxy", "port:$external_http_port:$http_port"=>"",
+            @var_img, name => "haproxy",
             C4JOINED_HTTP_PORT => $http_port,
+            "port:$external_http_port:$http_port"=>"",
+            &$get_ingres($run_comp,$external_http_port),
         },
     ]);
 };
 
-my $prod_image_steps = sub{(
+my $base_image_steps = sub{(
     "FROM ubuntu:18.04",
     "COPY install.pl /",
     "RUN perl install.pl useradd",
+)};
+
+my $prod_image_steps = sub{(
+    &$base_image_steps(),
     "RUN perl install.pl apt".
     " curl unzip software-properties-common".
     " lsof mc",
@@ -782,6 +830,8 @@ my $prod_image_steps = sub{(
 #
 #}];
 
+my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
+
 my $up_desktop = sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
@@ -799,6 +849,7 @@ my $up_desktop = sub{
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
             'export C4PROTO_DIR=/c4/c4proto',
             'export C4DATA_DIR=/c4db',
+            'export JAVA_TOOL_OPTIONS=-XX:-UseContainerSupport',
             "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
         );
         &$put("Dockerfile", join "\n",
@@ -807,8 +858,9 @@ my $up_desktop = sub{
             " rsync openssh-client dropbear git".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
-            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime".
+            " iputils-ping wget nano",
+            "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
@@ -817,9 +869,7 @@ my $up_desktop = sub{
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
         );
-        my $builder_comp = $$conf{builder} || die "no builder";
-        &$remote_build($builder_comp,$from_path,$img);
-        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
+        &$remote_build($$conf{builder},$from_path,$img,1);
     };
     my $from_path = &$get_tmp_dir();
     my $cert_path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
@@ -849,6 +899,8 @@ my $up_desktop = sub{
             image => $img, name => "haproxy",
             C4DATA_DIR => "/c4db",
             C4JOINED_HTTP_PORT => $http_port,
+            "port:$http_port:$http_port"=>"",
+            &$get_ingres($comp,$http_port),
         },
     ])
 };
@@ -931,7 +983,7 @@ push @tasks, ["up","$composes_txt <args>",sub{
 push @tasks, ["restart","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
-    my ($dir) = &$get_deployer_conf($comp,qw[dir]);
+    my ($dir) = &$get_deployer_conf($comp,1,qw[dir]);
     sy(&$remote($comp,"cd $dir/$comp && C4FORCE_RECREATE=1 ./up"));
 }];
 
@@ -1035,16 +1087,14 @@ push @tasks, ["up-ci","",sub{
         my $put = &$rel_put_text($from_path);
         sy("cp $gen_dir/install.pl $gen_dir/ci.pl $from_path/");
         &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl openssh-client socat",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            &$base_image_steps(),
+            "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl",
+            "RUN perl install.pl curl $dl_frp_url",
             "COPY ci.pl /",
             "USER c4",
             'ENTRYPOINT ["perl","/ci.pl"]',
         );
-        &$remote_build($comp,$from_path,$img);
+        &$remote_build($comp,$from_path,$img,0);
     };
     my $conf = &$get_compose($comp);
     my ($host,$port) = &$get_host_port($comp);
@@ -1085,12 +1135,77 @@ push @tasks, ["up-ci","",sub{
     &$sync_up($comp,$from_path,$up_content,"");
 }];
 
+my $make_frpc_image = sub{
+    my ($comp) = @_;
+    my $conf = &$get_compose($comp);
+    my $img = $$conf{image} || die;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    sy("cp $gen_dir/install.pl $from_path/");
+    &$put("frpc.pl", join "\n",
+        '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die; die;'
+    );
+    &$put("Dockerfile", join "\n",
+        &$base_image_steps(),
+        "RUN perl install.pl apt curl",
+        "RUN perl install.pl curl $dl_frp_url",
+        "COPY frpc.pl /",
+        "USER c4",
+        'ENTRYPOINT ["perl", "/frpc.pl"]',
+    );
+    &$remote_build($$conf{builder},$from_path,$img,1);
+    $img;
+};
+
+push @tasks, ["up-kc_frp_client", "", sub{
+    my ($comp,$args) = @_;
+    my $conf = &$get_compose($comp);
+    my $img = &$make_frpc_image($comp);
+    my $gate_comp = $$conf{ca};
+    my @http_client = !$gate_comp ? () : do{
+        my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
+        ([http=>$external_http_port,$server])
+    };
+    my @connects = &$map($conf,sub{ my($k,$v)=@_;
+        $k=~/^frpc:(\w+)$/ ? ["$1",$v=~/^(.+):(\d+)$/?($2,$1):die] : ()
+    });
+
+    my @containers = ({
+        image => $img,
+        name => "frpc",
+        C4FRPC_INI => "/c4conf/frpc.ini",
+    });
+    my $from_path = &$get_tmp_dir();
+    &$make_frpc_conf($comp,$from_path,[@http_client,@connects]);
+    sy("cat $from_path/frpc.visitor.ini");
+    print "----\n";
+    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+}];
+
+push @tasks, ["up-kc_host_visitor", "", sub{
+    my ($comp,$args) = @_;
+    my $conf = &$get_compose($comp);
+    my $server_comp = $$conf{server} || die;
+    my $img = &$make_frpc_image($comp);
+    my @containers = ({
+        image => $img,
+        name => "frpc",
+        C4FRPC_INI => "/c4conf/frpc.visitor.ini",
+        "port:$cicd_port:$cicd_port" => "",
+        "port:22:$ssh_port" => "",
+    });
+    my $from_path = &$get_tmp_dir();
+    &$make_frpc_conf($server_comp,$from_path,[[main=>$cicd_port],[ssh=>$ssh_port]]);
+    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+}];
+
 push @tasks, ["up-kc_host", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $img = $$conf{image} || die;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $external_ssh_port = $$conf{port} || die;
+    my $external_ssh_port = $$conf{port};
     my $dir = $$conf{dir} || die;
     my $conf_cert_path = &$get_conf_cert_path().".pub";
     do{
@@ -1098,11 +1213,9 @@ push @tasks, ["up-kc_host", "", sub{
         my $put = &$rel_put_text($from_path);
         sy("cp $gen_dir/install.pl $gen_dir/cd.pl $conf_cert_path $from_path/");
         &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
+            &$base_image_steps(),
             "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            "RUN perl install.pl curl $dl_frp_url",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
             ."&& chmod +x ./kubectl "
@@ -1116,16 +1229,14 @@ push @tasks, ["up-kc_host", "", sub{
             "ENV C4SSH_PORT=$ssh_port",
             'ENTRYPOINT ["perl", "/cd.pl"]',
         );
-        my $builder_comp = $$conf{builder} || die "no builder";
-        &$remote_build($builder_comp,$from_path,$img);
-        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
+        &$remote_build($$conf{builder},$from_path,$img,1);
     };
     my @containers = (
         {
             image => $img,
             name => "sshd",
             C4DATA_DIR => "/c4db",
-            "port:$external_ssh_port:$ssh_port" => "",
+            $external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
         },
         {
             image => $img,
@@ -1148,7 +1259,7 @@ push @tasks, ["up-kc_host", "", sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port]]);
+    &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port],[ssh=>$ssh_port]]);
     &$make_secrets($comp,$from_path);
 
     my $run_comp = "deployer";
@@ -1170,8 +1281,18 @@ push @tasks, ["up-kc_host", "", sub{
             },
             {
                 apiGroups => [""],
+                resources => ["pods/log"],
+                verbs => ["get"],
+            },
+            {
+                apiGroups => [""],
                 resources => ["pods"],
                 verbs => ["get","list","delete"],
+            },
+            {
+                apiGroups => ["extensions"],
+                resources => ["ingresses"],
+                verbs => ["get","create","patch"],
             },
         ],
     }, {

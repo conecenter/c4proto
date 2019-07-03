@@ -57,7 +57,7 @@ import HashSearchMockUtils._
   filterName: NameMetaAttr,
   qAdapterRegistry: QAdapterRegistry,
   idGenUtil: IdGenUtil
-) extends   HashSearchAssembleSharedKeys{
+) extends AssembleName("HashSearchMockAssemble", modelCl) with HashSearchAssembleSharedKeys {
   type K2HeapId = SrcId
   type K2ToCountId = SrcId
 

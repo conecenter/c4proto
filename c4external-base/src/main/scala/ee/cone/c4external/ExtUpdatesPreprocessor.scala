@@ -58,9 +58,15 @@ class ExtKeyFactory(composes: IndexUtil, external: List[ExternalModel[_ <: Produ
   val normalKeyAlias: String = "SrcId"
   val normalKeyClass: String = classOf[SrcId].getName
 
+  def normalKey(className: String): AssembledKey =
+    composes.joinKey(was = false, normalKeyAlias, normalKeyClass, className)
+
+  def extKey(className: String): AssembledKey =
+    composes.joinKey(was = false, extKeyAlias, extKeyClass, className)
+
   def rawKey(className: String): AssembledKey =
     if (externalClassesSet(className))
-      composes.joinKey(was = false, extKeyAlias, extKeyClass, className)
+      extKey(className)
     else
-      composes.joinKey(was = false, normalKeyAlias, normalKeyClass, className)
+      normalKey(className)
 }

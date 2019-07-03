@@ -35,6 +35,7 @@ push @tasks, [broker=>sub{
         "log.dirs=$data_dir/kafka-logs",
         "zookeeper.connect=$zoo_host:$zoo_port",
         "message.max.bytes=250000000", #seems to be compressed
+        "socket.request.max.bytes=250000000",
         "listeners=INTERNAL://:$bootstrap_port,EXTERNAL://:$ext_port", #0.0.0.0
         "advertised.listeners=INTERNAL://127.0.0.1:$bootstrap_port,EXTERNAL://$ext_host:$ext_port",
         "listener.security.protocol.map=INTERNAL:SSL,EXTERNAL:SSL",
