@@ -1158,19 +1158,26 @@ my $make_frpc_image = sub{
     $img;
 };
 
-push @tasks, ["up-kc_http_client", "", sub{
+push @tasks, ["up-kc_frp_client", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $img = &$make_frpc_image($comp);
-    my $gate_comp = $$conf{ca} || die "no ca";
-    my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
+    my $gate_comp = $$conf{ca};
+    my @http_client = !$gate_comp ? () : do{
+        my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
+        ([http=>$external_http_port,$server])
+    };
+    my @connects = &$map($conf,sub{ my($k,$v)=@_;
+        $k=~/^frpc:(\w+)$/ ? ["$1",$v=~/^(.+):(\d+)$/?($2,$1):die] : ()
+    });
+
     my @containers = ({
         image => $img,
         name => "frpc",
         C4FRPC_INI => "/c4conf/frpc.ini",
     });
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path,[[http=>$external_http_port,$server]]);
+    &$make_frpc_conf($comp,$from_path,[@http_client,@connects]);
     sy("cat $from_path/frpc.visitor.ini");
     print "----\n";
     &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
