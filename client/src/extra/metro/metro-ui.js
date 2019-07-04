@@ -300,7 +300,8 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			}
 			const captionEl = this.props.caption? $("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption): null;
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
-			return $("div",{ref:ref=>this.groupEl=ref,style:style},[				
+			const className = this.props.className
+			return $("div",{ref:ref=>this.groupEl=ref,style:style, className},[				
 				captionEl,
 				emRefEl,
 				this.props.children
@@ -983,8 +984,10 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				display:this.props.div?"inline-block":"",
 				fontFamily:"inherit",
 				visibility:this.state.visibility,
+				color:"inherit",
+				backgroundColor:"inherit",
 				...this.props.inputStyle,
-				...(this.props.changing?{backgroundColor:"#ffffaa"}:null)
+				...(this.props.changing?{backgroundColor:"#ffffaa",color:"black"}:null)
 			};		
 			const placeholder = this.props.placeholder
 			const inputType = !this.props.inputType?ReControlledInput:this.props.inputType
@@ -1504,9 +1507,10 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				position:"relative",
 				verticalAlign:"middle",
 				width:"1.625em",
-				boxSizing:"border-box",
+				boxSizing:"border-box",				
 				borderColor:props.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:props.onChange?"white":"#eeeeee",
+				...(!props.onChange?{backgroundColor:"#eeeeee"}:{}),		
+				...(props.changing?{backgroundColor:"#ffffaa",color:"black"}:{}),		
 				...props.altLabel?{height:"1.655em",width:"1.655em"}:null,
 				...props.checkBoxStyle
 			};
@@ -3219,11 +3223,15 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 	const toUrl = (path) => {
 		setTimeout(()=>{documentManager.document.location.href = path})
 	}
+	const reload = () => {
+		documentManager.document.location.reload()
+	}
 	const receivers = {
 		download,
 		ping:PingReceiver.ping,
 		availability:Availability.receiver,
 		branches:Branches.store,
+		reload,
 		toUrl
 	}	
 	const checkActivate = checkActivateCalls.check

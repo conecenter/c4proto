@@ -10,7 +10,7 @@ const keyBinder = (() =>{
 		const fcall = (event) =>{
 			if(event.key == key){
 				event.preventDefault()
-				callback(event.target)				
+				callback(event)				
 			}
 		}
 		log(e)("keyBinder",key)
@@ -27,8 +27,8 @@ const keyBinder = (() =>{
 })()
 const log  = e => e.ownerDocument.defaultView.console.log
 
-const sendLogin = (e,props)=>{
-	const doc = e.ownerDocument
+const sendLogin = (event,props)=>{
+	const doc = event.target.ownerDocument
 	const ar = Array.from(doc.querySelectorAll(".loginDialog input"))
 	if(ar.length!=2) return
 	const getComputedStyle = doc.defaultView.getComputedStyle
@@ -40,13 +40,13 @@ const sendLogin = (e,props)=>{
 }
 				
 const TButtonElement = (props) =>{
-	const {style,buttonCaption,className,binding, onClick} = props								
+	const {style,buttonCaption,className,binding, onChange} = props								
 	const elem = React.useRef(null)
 	React.useEffect(()=>{
 		log(elem.current)("bind",binding)
-		const callback = (e) =>{
+		const callback = (event) =>{
 			log(elem.current)("bind","do",binding)
-			onClick && onClick(e,props)								
+			onChange && onChange(event,props)								
 		}
 		keyBinder.bind(elem.current,binding,callback)
 		return () =>{
@@ -54,9 +54,9 @@ const TButtonElement = (props) =>{
 			log(elem.current)("unbind",binding)	
 			
 		}
-	},[binding])
-	return $(ButtonElement,{className,style,forwardRef:elem}, buttonCaption)
+	},[binding])	
+	return $(ButtonElement,{forwardRef:elem, ...props}, buttonCaption)
 }
-const TLoginButtonElement = props => $(TButtonElement,{...props, onClick:sendLogin})
+const TLoginButtonElement = props => $(TButtonElement,{...props, onChange:sendLogin})
 export default {TLoginButtonElement, TButtonElement}
 	
