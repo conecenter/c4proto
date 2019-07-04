@@ -598,7 +598,7 @@ my $frp_auth_all = lazy{
 };
 my $get_auth = sub{
     my($comp) = @_;
-    @{&$frp_auth_all()->{$comp} || die "$comp auth not found"};
+    @{&$frp_auth_all()->{$comp}||[]};
 };
 
 my $split_port = sub{ $_[0]=~/^(\S+):(\d+)$/ ? ($1,$2) : die };
