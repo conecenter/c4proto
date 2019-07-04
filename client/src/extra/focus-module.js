@@ -248,7 +248,7 @@ export default function FocusModule({log,documentManager,windowManager}){
 							nodes[cIndex+1].focus()							
 						}
 						else 
-							cNode&&cNode.focus()
+							nodes[0]&&nodes[0].focus() || cNode&&cNode.focus()
 					}					
 				},200)
 			}				

@@ -300,7 +300,8 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			}
 			const captionEl = this.props.caption? $("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption): null;
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
-			return $("div",{ref:ref=>this.groupEl=ref,style:style},[				
+			const className = this.props.className
+			return $("div",{ref:ref=>this.groupEl=ref,style:style, className},[				
 				captionEl,
 				emRefEl,
 				this.props.children
