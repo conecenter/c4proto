@@ -28,7 +28,7 @@ trait HashSearchIdGeneration {
   private lazy val nodeId = 3
 
   def indexNodeId(commonPrefix: String, byId: Long): String = hash(nodeId, commonPrefix, byId)
-
+ 
   def indexNodeId(modelId: Int, lensName: List[String], byId: Long): String = hash(nodeId, commonPrefix(modelId, lensName), byId)
 
   private lazy val modelId = 4
