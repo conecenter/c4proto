@@ -19,7 +19,8 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with S
 
 case class InnerByClassNameRequest(request: DepInnerRequest, className: String, from: Int, to: Int)
 
-@assemble class ByClassNameGenericAssembleBase[A <: Product](handledClass: Class[A], classSrcId: SrcId, depResponseFactory: DepResponseFactory) extends   ByClassNameRequestUtils {
+@assemble class ByClassNameGenericAssembleBase[A <: Product](handledClass: Class[A], classSrcId: SrcId, depResponseFactory: DepResponseFactory)
+   extends AssembleName("ByClassNameGenericAssemble", handledClass) with ByClassNameRequestUtils {
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId
 

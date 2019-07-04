@@ -29,6 +29,7 @@ class AssemblerInit(
   treeAssembler: TreeAssembler,
   getDependencies: ()⇒List[DataDependencyTo[_]],
   composes: IndexUtil,
+  byPKKeyFactory: KeyFactory,
   origKeyFactory: KeyFactory,
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
@@ -124,13 +125,16 @@ class AssemblerInit(
   }
 
   private def getOrigIndex(context: AssembledContext, className: String): Map[SrcId,Product] = {
-    val index = origKeyFactory.rawKey(className).of(context.assembled).value.get.get
+    val index = byPKKeyFactory.rawKey(className).of(context.assembled).value.get.get
     val options = getAssembleOptions(context.assembled)
     UniqueIndexMap(index,options)(composes)
   }
 
-  def toInject: List[Injectable] =
-    TreeAssemblerKey.set(treeAssembler.replace(getDependencies())) :::
+  def toInject: List[Injectable] = {
+    logger.debug("getDependencies started")
+    val deps = getDependencies()
+    logger.debug("getDependencies finished")
+    TreeAssemblerKey.set(treeAssembler.replace(deps)) :::
       WriteModelDebugAddKey.set(out ⇒
         if(out.isEmpty) identity[Context]
         else WriteModelDebugKey.modify(_.enqueue(out))
@@ -139,6 +143,7 @@ class AssemblerInit(
       WriteModelAddKey.set(add) :::
       ReadModelAddKey.set(context⇒readModelAdd(TreeAssemblerKey.of(context))) :::
       GetOrigIndexKey.set(getOrigIndex)
+  }
 }
 
 case class UniqueIndexMap[K,V](index: Index, options: AssembleOptions)(indexUtil: IndexUtil) extends Map[K,V] {

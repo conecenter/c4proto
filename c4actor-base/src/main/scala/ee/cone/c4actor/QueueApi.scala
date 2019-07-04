@@ -6,7 +6,7 @@ import java.time.Instant
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 import ee.cone.c4actor.QProtocol.Update
-import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap, SrcId, TransientMap, TypeId}
+import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4proto._
 import okio.ByteString
@@ -32,35 +32,35 @@ case object UpdatesCat extends DataCategory
     */
   @Cat(InnerCat)
   case class Update(
-    @Id(0x0011) srcId: String,
+    @Id(0x0011) srcId: SrcId,
     @Id(0x0012) valueTypeId: Long,
     @Id(0x0013) value: okio.ByteString,
     @Id(0x001C) flags: Long
   )
 
   @Id(0x0014) case class Updates(
-    @Id(0x0011) srcId: String, //dummy
+    @Id(0x0011) srcId: SrcId, //dummy
     @Id(0x0015) updates: List[Update]
   )
 
   @Cat(SettingsCat)
   @Id(0x0016) case class Firstborn(
-    @Id(0x0011) srcId: String, //app class
+    @Id(0x0011) srcId: SrcId, //app class
     @Id(0x001A) txId: String
   )
 
   @Id(0x0017) case class FailedUpdates(
-    @Id(0x0011) srcId: String,
+    @Id(0x0011) srcId: SrcId,
     @Id(0x0018) reason: String
   )
 
   @Id(0x0019) case class TxRef( //add actorName if need cross ms mortality?
-    @Id(0x0011) srcId: String,
+    @Id(0x0011) srcId: SrcId,
     @Id(0x001A) txId: String
   )
 
   @Id(0x001B) case class Offset(
-    @Id(0x0011) srcId: String, //app class
+    @Id(0x0011) srcId: SrcId, //app class
     @Id(0x001A) txId: String
   )
 
@@ -122,6 +122,8 @@ object Types {
   type ClName = String
   type TypeId = Long
   type SrcId = String
+  def SrcIdProtoAdapter: ProtoAdapter[SrcId] = com.squareup.wire.ProtoAdapter.STRING
+  def SrcIdEmpty = ""
   type TransientMap = Map[TransientLens[_],Object]
   type SharedComponentMap = Map[SharedComponentKey[_],Object]
   type NextOffset = String

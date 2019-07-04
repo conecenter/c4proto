@@ -109,8 +109,9 @@ trait RichDataApp extends ProtocolsApp
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
+  private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, CatchNonFatalImpl)()
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, CatchNonFatalImpl)()
   lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn)
   def parallelAssembleOn: Boolean = false
   //

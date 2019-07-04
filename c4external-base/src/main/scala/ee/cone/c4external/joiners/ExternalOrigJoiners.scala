@@ -53,7 +53,7 @@ import MergeTypes._
   writeToKafka: WriteToKafkaImpl
 )(
   val adapter: ProtoAdapter[Model] with HasId = qAdapterRegistry.byId(modelId).asInstanceOf[ProtoAdapter[Model] with HasId]
-) extends ExternalUpdateUtil[Model] {
+) extends AssembleName("ExternalOrigJoiner", modelCl) with ExternalUpdateUtil[Model] {
 
   def ToMergeExtUpdate(
     origId: SrcId,
@@ -99,7 +99,8 @@ import MergeTypes._
   ): Values[(SrcId, Model)] =
     if (externals.nonEmpty || caches.nonEmpty)
       (Single.option(externals), Single.option(caches)) match {
-        case (Some(e), None) ⇒ decode(e.value)
+        case (Some(e), None) ⇒
+          decode(e.value)
         case (None, Some(c)) ⇒ decode(c.value)
         case (Some(e), Some(c)) ⇒
           if (e.txId > c.extOffset)

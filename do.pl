@@ -100,6 +100,7 @@ push @tasks, ["restart_kafka", sub{
         #"listeners=PLAINTEXT://$plain_bootstrap_server,SSL://$ssl_bootstrap_server",
         "listeners=SSL://$ssl_bootstrap_server",
         "inter.broker.listener.name=SSL",
+        "socket.request.max.bytes=250000000",
     );
     sy("cat $data_dir/cu.broker.properties >> tmp/server.properties");
     sy("zookeeper-server-start.sh -daemon tmp/zookeeper.properties");
@@ -192,6 +193,9 @@ push @tasks, ["env", sub{
     $ENV{$_} = $env{$_} for keys %env;
     $ENV{C4STATE_TOPIC_PREFIX} || die "no actor name";
     sy(@exec);
+
+    #perl $ENV{C4PROTO_DIR}/prod.pl
+
 }];
 
 #push @tasks, ["snapshot_maker_run", sub{

@@ -71,7 +71,7 @@ my $get_deploy_conf = lazy{
     my($dir,$save) = @{&$get_conf_dir()};
     require "$dir/main.pl"
 };
-my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected"};
+my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected $_[0]"};
 
 my $get_deployer_conf = sub{
     my($comp,$chk,@k)=@_;
@@ -117,7 +117,7 @@ my $rsync_to = sub{
     my($from_path,$comp,$to_path)=@_;
     my ($host,$port) = &$get_host_port($comp);
     sy(&$remote($comp,"mkdir -p $to_path"));
-    sy("rsync -e 'ssh -p $port' -a --del $from_path/ c4\@$host:$to_path");
+    sy("rsync -e 'ssh -p $port' -a --del --no-group $from_path/ c4\@$host:$to_path");
 };
 
 my $split_app = sub{
@@ -264,6 +264,7 @@ push @tasks, ["exec-dc_gate","",$exec_dc];
 push @tasks, ["exec-kc_consumer","",$exec_kc];
 push @tasks, ["exec-kc_gate","",$exec_kc];
 push @tasks, ["exec-kc_desktop","",$exec_kc];
+#push @tasks, ["exec-kc_http_client","",$exec_kc];
 push @tasks, ["lscont-dc_consumer", "", $lscont_dc];
 push @tasks, ["lscont-dc_gate", "", $lscont_dc];
 push @tasks, ["lscont-kc_consumer", "", $lscont_kc];
@@ -563,12 +564,19 @@ my $wrap_kc = sub{
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
+my $sys_image_ver = "v37";
 my $remote_build = sub{
-    my($build_comp,$dir,$tag)=@_;
+    my($comp,$dir)=@_;
+    my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
+    my $conf = &$get_compose($comp);
+    my $type = $$conf{type} || die;
+    my $tag = "$repo:$type.$sys_image_ver";
     my $build_temp = syf("hostname")=~/(\w+)/ ? "c4build_temp/$1" : die;
     my $nm = $dir=~m{([^/]+)$} ? $1 : die;
     &$rsync_to($dir,$build_comp,"$build_temp/$nm");
     sy(&$remote($build_comp,"docker build -t $tag $build_temp/$nm"));
+    sy(&$ssh_ctl($build_comp,"-t","docker push $tag"));
+    $tag;
 };
 
 
@@ -597,11 +605,12 @@ my $split_port = sub{ $_[0]=~/^(\S+):(\d+)$/ ? ($1,$2) : die };
 
 my $get_frp_common = sub{
     my($comp)=@_;
-    my($token,$sk,%auth) = &$get_auth($comp);
-    $token || die "frp auth not found";
-    my $conf = &$get_compose($comp);
-    my($frps_addr,$frps_port) = &$split_port($$conf{frps}||die);
-    my $proxy = $$conf{frp_http_proxy};
+    my ($frps) = &$get_deployer_conf($comp,1,qw[frps]);
+    my ($proxy) = &$get_deployer_conf($comp,0,qw[frp_http_proxy]);
+    my $deployer_comp = &$get_compose($comp)->{deployer} || $comp;
+    my %common_auth = &$get_auth($deployer_comp);
+    my $token = $common_auth{frps_token} || die "no frps_token in $deployer_comp";
+    my($frps_addr,$frps_port) = &$split_port($frps);
     (
         server_addr => $frps_addr,
         server_port => $frps_port,
@@ -611,36 +620,43 @@ my $get_frp_common = sub{
 };
 
 my $make_frpc_conf = sub{
+    my($comp,$from_path) = @_;
+    my $services = &$find_handler(visit=>$comp)->($comp);
+    my %auth = &$get_auth($comp);
+    my $sk = $auth{"simple.auth"} || die "no simple.auth";
+    my $put = &$rel_put_text($from_path);
+    my @common = (common => [&$get_frp_common($comp)]);
+    my @add = map{
+        my($service_name,$port,$host) = @$_;
+        ("$comp.$service_name" => [
+            type => "stcp",
+            sk => $sk,
+            local_ip => $host || "127.0.0.1",
+            local_port => $port,
+        ])
+    } @$services;
+    &$put("frpc.ini", &$to_ini_file([@common,@add]));
+};
+
+my $make_visitor_conf = sub{
     my($comp,$from_path,$services) = @_;
     my @common = (common => [&$get_frp_common($comp)]);
-    my($token,$sk,%auth) = &$get_auth($comp);
+    my @add = map{
+        my($port,$full_service_name) = @$_;
+        my $d_comp = $full_service_name=~/^(.*)\.\w+$/ ? $1 : die;
+        my %auth = &$get_auth($d_comp);
+        my $sk = $auth{"simple.auth"} || die "no simple.auth";
+        ("$full_service_name.visitor" => [
+            type => "stcp",
+            role => "visitor",
+            sk => $sk,
+            server_name => $full_service_name,
+            bind_port => $port,
+            bind_addr => "0.0.0.0",
+        ])
+    } @$services;
     my $put = &$rel_put_text($from_path);
-    do{
-        my @add = map{
-            my($service_name,$port) = @$_;
-            ("$comp.$service_name" => [
-                type => "stcp",
-                sk => $sk,
-                local_ip => "127.0.0.1",
-                local_port => $port,
-            ])
-        } @$services;
-        &$put("frpc.ini", &$to_ini_file([@common,@add]));
-    };
-    do{
-        my @add = map{
-            my($service_name,$port) = @$_;
-            ("$comp.$service_name.visitor" => [
-                type => "stcp",
-                role => "visitor",
-                sk => $sk,
-                server_name => "$comp.$service_name",
-                bind_port => $port,
-                bind_addr => "0.0.0.0",
-            ])
-        } @$services;
-        &$put("frpc.visitor.ini", &$to_ini_file([@common,@add]));
-    };
+    &$put("frpc.visitor.ini", &$to_ini_file([@common,@add]));
 };
 
 #C4INTERNAL_PORTS => "1080,1443",
@@ -653,6 +669,7 @@ my $consumer_options = sub{(
     C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
     C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
     C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
+    JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
 )};
 # todo secure jmx
 #            JAVA_TOOL_OPTIONS => join(' ',qw(
@@ -724,15 +741,9 @@ my @var_img = (image=>"<var:image>");
 
 my $make_secrets = sub{
     my($comp,$from_path)=@_;
-    my($token,$sk,%auth) = &$get_auth($comp);
+    my %auth = &$get_auth($comp);
     my $put = &$rel_put_text($from_path);
     &$put($_,$auth{$_}) for sort keys %auth;
-};
-my $make_desktop_secret = sub{
-    my($comp,$from_path)=@_;
-    my($token,$sk,%auth) = &$get_auth($comp);
-    my $put = &$rel_put_text($from_path);
-    &$put("simple.auth",$sk);
 };
 
 my $gate_ports = sub{
@@ -771,7 +782,7 @@ my $up_gate = sub{
     &$need_deploy_cert($run_comp,$from_path);
     ($run_comp, $from_path, [
         {
-            @var_img, name => "zookeeper", C4DATA_DIR => "/c4db",
+            @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
         },
         {
             @var_img,
@@ -781,7 +792,7 @@ my $up_gate = sub{
             C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
             C4SSL_PROPS => "/c4conf/main.properties",
             C4BOOTSTRAP_EXT_HOST => $server,
-            C4BOOTSTRAP_EXT_PORT => $external_broker_port,
+            C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
         },
         {
             @var_img,
@@ -800,10 +811,14 @@ my $up_gate = sub{
     ]);
 };
 
-my $prod_image_steps = sub{(
+my $base_image_steps = sub{(
     "FROM ubuntu:18.04",
     "COPY install.pl /",
     "RUN perl install.pl useradd",
+)};
+
+my $prod_image_steps = sub{(
+    &$base_image_steps(),
     "RUN perl install.pl apt".
     " curl unzip software-properties-common".
     " lsof mc",
@@ -822,11 +837,11 @@ my $prod_image_steps = sub{(
 #
 #}];
 
+my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
+
 my $up_desktop = sub{
     my($comp)=@_;
-    my $conf = &$get_compose($comp);
-    my $img = $$conf{image} || die;
-    do{
+    my $img = do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
         my $gen_dir = $ENV{C4PROTO_DIR} || die;
@@ -839,6 +854,7 @@ my $up_desktop = sub{
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
             'export C4PROTO_DIR=/c4/c4proto',
             'export C4DATA_DIR=/c4db',
+            'export JAVA_TOOL_OPTIONS=-XX:-UseContainerSupport',
             "alias prod='ssh-agent perl /c4/c4proto/prod.pl '",
         );
         &$put("Dockerfile", join "\n",
@@ -847,8 +863,9 @@ my $up_desktop = sub{
             " rsync openssh-client dropbear git".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
-            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime".
+            " iputils-ping wget nano",
+            "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
@@ -857,17 +874,13 @@ my $up_desktop = sub{
             "USER c4",
             'ENTRYPOINT ["perl","/desktop.pl"]',
         );
-        my $builder_comp = $$conf{builder} || die "no builder";
-        &$remote_build($builder_comp,$from_path,$img);
-        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
+        &$remote_build($comp,$from_path);
     };
     my $from_path = &$get_tmp_dir();
     my $cert_path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
     sy("cp $cert_path $from_path/ssh.tar.gz");
-    &$make_desktop_secret($comp,$from_path);
-    &$make_frpc_conf($comp,$from_path,[
-        [desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]
-    ]);
+    &$make_secrets($comp,$from_path);
+    &$make_frpc_conf($comp,$from_path);
     ($comp, $from_path,[
         {
             image => $img, name => "frpc",
@@ -883,7 +896,6 @@ my $up_desktop = sub{
             C4DATA_DIR => "/c4db",
             C4SSH_PORT => $ssh_port,
             C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
-            C4FRPC_VISITOR_INI => "/c4conf/frpc.visitor.ini",
         },
         {
             image => $img, name => "haproxy",
@@ -894,6 +906,11 @@ my $up_desktop = sub{
         },
     ])
 };
+
+push @tasks, ["visit-kc_desktop", "", sub{
+    my($comp)=@_;
+    [[desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]]
+}];
 
 # m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
 # dc:
@@ -937,7 +954,8 @@ push @tasks, ["up-dc_gate", "", sub{
 my $frp_client = sub{
     my($comp,$server)=@_;
     my($host,$port) = &$split_port($server);
-    my($token,$sk,%auth) = &$get_auth($comp);
+    my %auth = &$get_auth($comp);
+    my $sk = $auth{"simple.auth"} || die "no simple.auth";
     ("$comp.p$port" => [
         type => "stcp",
         sk => $sk,
@@ -993,7 +1011,7 @@ my $nc = sub{
 };
 my $nc_sec = sub{
     my($comp,$addr,$req) = @_;
-    my($token,$sk,%auth) = &$get_auth($comp);
+    my %auth = &$get_auth($comp);
     my $auth = $auth{"deploy.auth"} || die "no deploy.auth";
     &$nc($addr,sub{
         my($chld_out) = @_;
@@ -1071,22 +1089,19 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $img = "c4ci";
-    do{
+    my $img = do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
         sy("cp $gen_dir/install.pl $gen_dir/ci.pl $from_path/");
         &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
-            "RUN perl install.pl apt curl openssh-client socat",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            &$base_image_steps(),
+            "RUN perl install.pl apt curl openssh-client socat libdigest-perl-md5-perl",
+            "RUN perl install.pl curl $dl_frp_url",
             "COPY ci.pl /",
             "USER c4",
             'ENTRYPOINT ["perl","/ci.pl"]',
         );
-        &$remote_build($comp,$from_path,$img);
+        &$remote_build($comp,$from_path);
     };
     my $conf = &$get_compose($comp);
     my ($host,$port) = &$get_host_port($comp);
@@ -1108,7 +1123,7 @@ push @tasks, ["up-ci","",sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port]]);
+    &$make_frpc_conf($comp,$from_path);
     do{
         my $key_dir = &$get_tmp_dir();
         sy(join ' && ',
@@ -1127,24 +1142,103 @@ push @tasks, ["up-ci","",sub{
     &$sync_up($comp,$from_path,$up_content,"");
 }];
 
+push @tasks, ["visit-ci", "", sub{
+    my($comp)=@_;
+    [[main=>$cicd_port]]
+}];
+
+my $make_frpc_image = sub{
+    my ($comp) = @_;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    sy("cp $gen_dir/install.pl $from_path/");
+    &$put("frpc.pl", join "\n",
+        '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die; die;'
+    );
+    &$put("Dockerfile", join "\n",
+        &$base_image_steps(),
+        "RUN perl install.pl apt curl",
+        "RUN perl install.pl curl $dl_frp_url",
+        "COPY frpc.pl /",
+        "USER c4",
+        'ENTRYPOINT ["perl", "/frpc.pl"]',
+    );
+    return &$remote_build($comp,$from_path);
+};
+
+#my
+
+push @tasks, ["up-kc_frp_client", "", sub{
+    my ($comp,$args) = @_;
+    my $img = &$make_frpc_image($comp);
+    my @containers = ({
+        image => $img,
+        name => "frpc",
+        C4FRPC_INI => "/c4conf/frpc.ini",
+    });
+    my $from_path = &$get_tmp_dir();
+    &$make_frpc_conf($comp,$from_path);
+    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+}];
+
+push @tasks, ["visit-kc_frp_client", "", sub{
+    my($comp)=@_;
+    my $conf = &$get_compose($comp);
+    my $gate_comp = $$conf{ca};
+    my @http_client = !$gate_comp ? () : do{
+        my ($server,$external_http_port,$external_broker_port) = &$gate_ports($gate_comp);
+        ([http=>$external_http_port,$server])
+    };
+    my @connects = &$map($conf,sub{ my($k,$v)=@_;
+        $k=~/^frpc:(\w+)$/ ? ["$1",$v=~/^(.+):(\d+)$/?($2,$1):die] : ()
+    });
+    [@http_client,@connects]
+}];
+
+my $get_visitor_conf = sub{
+    my ($comp) = @_;
+    my $services = &$find_handler(visit=>$comp)->($comp);
+    map{ my($name,$port,$host) = @$_; [$port=>"$comp.$name"] } @$services;
+};
+
+push @tasks, ["up-kc_visitor", "", sub{
+    my ($comp,$args) = @_;
+    my $conf = &$get_compose($comp);
+    my $server_comp = $$conf{peer} || die;
+    my $img = &$make_frpc_image($comp);
+    my @services = &$get_visitor_conf($server_comp);
+    my @ports = map{
+        my($port,$name) = @$_;
+        my $low_port = $port == $ssh_port ? 22 : $port;
+        ("port:$low_port:$port" => "")
+    } @services;
+    my @containers = ({
+        image => $img,
+        name => "frpc",
+        C4FRPC_INI => "/c4conf/frpc.visitor.ini",
+        @ports,
+    });
+    my $from_path = &$get_tmp_dir();
+    &$make_visitor_conf($comp,$from_path,[@services]);
+    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+}];
+
 push @tasks, ["up-kc_host", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
-    my $img = $$conf{image} || die;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $external_ssh_port = $$conf{port} || die;
+    my $external_ssh_port = $$conf{port};
     my $dir = $$conf{dir} || die;
     my $conf_cert_path = &$get_conf_cert_path().".pub";
-    do{
+    my $img = do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
         sy("cp $gen_dir/install.pl $gen_dir/cd.pl $conf_cert_path $from_path/");
         &$put("Dockerfile", join "\n",
-            "FROM ubuntu:18.04",
-            "COPY install.pl /",
-            "RUN perl install.pl useradd",
+            &$base_image_steps(),
             "RUN perl install.pl apt curl rsync dropbear uuid-runtime libdigest-perl-md5-perl socat lsof nano",
-            "RUN perl install.pl curl https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz",
+            "RUN perl install.pl curl $dl_frp_url",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.14.0/bin/linux/amd64/kubectl "
             ."&& chmod +x ./kubectl "
@@ -1158,16 +1252,14 @@ push @tasks, ["up-kc_host", "", sub{
             "ENV C4SSH_PORT=$ssh_port",
             'ENTRYPOINT ["perl", "/cd.pl"]',
         );
-        my $builder_comp = $$conf{builder} || die "no builder";
-        &$remote_build($builder_comp,$from_path,$img);
-        sy(&$ssh_ctl($builder_comp,"-t","docker push $img"));
+        &$remote_build($comp,$from_path);
     };
     my @containers = (
         {
             image => $img,
             name => "sshd",
             C4DATA_DIR => "/c4db",
-            "port:$external_ssh_port:$ssh_port" => "node",
+            $external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
         },
         {
             image => $img,
@@ -1190,7 +1282,7 @@ push @tasks, ["up-kc_host", "", sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path,[[main=>$cicd_port]]);
+    &$make_frpc_conf($comp,$from_path);
     &$make_secrets($comp,$from_path);
 
     my $run_comp = "deployer";
@@ -1238,6 +1330,11 @@ push @tasks, ["up-kc_host", "", sub{
         roleRef => { kind => "Role", name => $run_comp, apiGroup => "rbac.authorization.k8s.io" },
     });
     print "########\n$add_yml$yml_str";
+}];
+
+push @tasks, ["visit-kc_host", "", sub{
+    my($comp)=@_;
+    [[main=>$cicd_port],[ssh=>$ssh_port]]
 }];
 
 ###
@@ -1447,8 +1544,10 @@ push @tasks, ["install","$composes_txt-<service> <tgz>",sub{
 push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
-    sy(&$remote($comp,&$mk_exec("","sshd","cat /c4conf/frpc.visitor.ini")));
+    my @services = &$get_visitor_conf($comp);
+    my $from_path = &$get_tmp_dir();
+    &$make_visitor_conf($comp,$from_path,[@services]);
+    sy("cat $from_path/frpc.visitor.ini");
 }];
 push @tasks, ["add_authorized_key","$composes_txt <key>",sub{
     my($comp,@key)=@_;

@@ -179,7 +179,7 @@ import StaticHashSearchImpl._
   modelCl: Class[Model],
   indexer: Indexer[Model],
   serializer: SerializationUtils
-) extends   HashSearchAssembleSharedKeys {
+) extends AssembleName("HashSearchStaticLeafAssemble", modelCl) with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
 
@@ -195,7 +195,7 @@ import StaticHashSearchImpl._
     leafCondId: SrcId,
     leafCond: Each[InnerLeaf[Model]]
   ): Values[(StaticHeapId, StaticNeed[Model])] =
-    if(indexer.isMy(leafCond))
+    if (indexer.isMy(leafCond))
       for {
         heapId ← heapIds(indexer, leafCond.condition)
       } yield {
@@ -208,7 +208,7 @@ import StaticHashSearchImpl._
     request: Each[InnerLeaf[Model]],
     @by[LeafCondId] priorities: Values[StaticCount[Model]]
   ): Values[(SrcId, InnerConditionEstimate[Model])] =
-    if(indexer.isMy(request))
+    if (indexer.isMy(request))
       List(WithPK(cEstimate(request, priorities)))
     else Nil
 }
@@ -216,9 +216,9 @@ import StaticHashSearchImpl._
 
 @assemble class StaticAssembleSharedBase[Model <: Product](
   modelCl: Class[Model],
-  debugMode: Boolean,// = false
+  debugMode: Boolean, // = false
   indexUtil: IndexUtil
-) extends   HashSearchAssembleSharedKeys {
+) extends AssembleName("StaticAssembleShared", modelCl) with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
 

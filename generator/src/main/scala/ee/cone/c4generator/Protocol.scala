@@ -117,6 +117,13 @@ object ProtocolGenerator extends Generator {
                   empty = "\"\"",
                   resultType = name
                 )
+              case Type.Name(name) ⇒
+                ProtoType(
+                  encodeStatement = (s"if(prep_$propName != ${name}Empty)", s"prep_$propName)"),
+                  serializerType = adapterOf(name),
+                  empty = s"${name}Empty",
+                  resultType = name
+                )
               case t"Option[${Type.Name(name)}]" ⇒
                 ProtoType(
                   encodeStatement = (s"if(prep_$propName.nonEmpty)", s"prep_$propName.get)"),
