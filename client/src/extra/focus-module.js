@@ -228,7 +228,7 @@ export default function FocusModule({log,documentManager,windowManager}){
 		}
 		const root = vk?(cNode&&cNode.ownerDocument):event.target.ownerDocument
 		if(!root) return
-		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
+		const nodes = Array.from(root.querySelectorAll('.focusWrapper[tabindex="1"]'))		
 		/*const cRNode = callbacks.find(o=>currentFocusNode&&true && o.el == currentFocusNode.el)
 		if(cRNode&&cRNode.props.autoFocus == false){
 			sendToServer(cRNode,"focus","change")
@@ -241,14 +241,14 @@ export default function FocusModule({log,documentManager,windowManager}){
 			}
 			else{
 				setTimeout(()=>{
-					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
+					const nodes = Array.from(root.querySelectorAll('.focusWrapper[tabindex="1"]'))		
 					const cIndex = nodes.findIndex(n=>n == cNode)
 					if(cIndex>=0) {
 						if(cIndex+1<nodes.length) {
 							nodes[cIndex+1].focus()							
 						}
 						else 
-							cNode&&cNode.focus()
+							nodes[0]&&nodes[0].focus() || cNode&&cNode.focus()
 					}					
 				},200)
 			}				

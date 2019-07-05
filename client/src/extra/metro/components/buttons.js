@@ -45,27 +45,25 @@ const ButtonElement = (props) => {
 		elem.current.changing = props.changing					
 	},[props.changing])
 	React.useEffect(()=>{		
-		elem.current.actions = {
-			onEnter: e =>{
-				//log(`Enter ;`)
-				e.stopPropagation()					
-				elem.current.click()
-				const cEvent = eventManager.create(e.target)("cTab",{bubbles:true})
-				elem.current.dispatchEvent(cEvent)
-			},
-			onClick: e =>{
-				if(!props.changing && (props.onClick || props.onChange)){
-					const w = e.target.ownerDocument.defaultView
-					w.setTimeout(()=>(props.onClick&&props.onClick(e) || props.onChange && props.onChange({target:{headers:{"X-r-action":"change"},value:""}})),(props.delay?parseInt(props.delay):0))
-				}				
-				e.stopPropagation()
-			}
+		const onEnter = e =>{
+			//log(`Enter ;`)
+			e.stopPropagation()					
+			elem.current.click()
+			const cEvent = eventManager.create(e.target)("cTab",{bubbles:true})
+			elem.current.dispatchEvent(cEvent)
 		}
-		elem.current.addEventListener("enter",elem.current.actions.onEnter)
-		elem.current.addEventListener("click",elem.current.actions.onClick)						
+		const onClick = e =>{
+			if(!props.changing && (props.onClick || props.onChange)){
+				const w = e.target.ownerDocument.defaultView
+				w.setTimeout(()=>(props.onClick&&props.onClick(e) || props.onChange && props.onChange({target:{headers:{"X-r-action":"change"},value:""}})),(props.delay?parseInt(props.delay):0))
+			}				
+			e.stopPropagation()
+		}			
+		elem.current.addEventListener("enter",onEnter)
+		elem.current.addEventListener("click",onClick)						
 		return () =>{
-			elem.current.removeEventListener("enter",elem.current.actions.onEnter)
-			elem.current.removeEventListener("click",elem.current.actions.onClick)
+			elem.current.removeEventListener("enter",onEnter)
+			elem.current.removeEventListener("click",onClick)
 		}
 	},[props.onClick,props.onChange])
 	const onMouseOver = (value) => () => {

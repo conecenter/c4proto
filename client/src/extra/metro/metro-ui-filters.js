@@ -249,7 +249,7 @@ export default function MetroUiFilters({log,StatefulComponent}){
 			const style = {
 				display:"flex",
 				flex:"1 1",
-				backgroundColor: "#c0ced8",				
+				//backgroundColor: "#c0ced8",				
 				visibility:this.state.show?"visible":"hidden",
 				height:this.state.show?"auto":"2em",
 				...this.props.style
@@ -267,7 +267,8 @@ export default function MetroUiFilters({log,StatefulComponent}){
 				flexBasis:this.state.w2Width?this.state.w2Width+"px":"auto"
 			}			
 			const w3style = {}
-			return $("div",{className:"tableOpts", ref:ref=>this.el=ref, style},[
+			const className = "tableOpts "+(this.props.className?this.props.className:"")
+			return $("div",{className, ref:ref=>this.el=ref, style},[
 			    $("div",{key:"remRef",ref:ref=>this.remRef=ref,style:{height:"1em",position:"absolute",zIndex:"-1"}}),
 				$(Filters,{key:1,style:fstyle,keys:fl, draggable:this.props.draggableFilters, dragover:this.props.dragoverFilters},this.getFilters()),
 				(wn1.length>0?$(wn,{key:2,className:"w1 z",style:w1style,ref:ref=>this.w1=ref?ref.el:null},wn1):null),
