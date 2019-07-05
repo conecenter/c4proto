@@ -842,7 +842,7 @@ my $prod_image_steps = sub{(
 my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
 
 my $up_desktop = sub{
-    my($comp)=@_;
+    my($comp,$ingress_port)=@_;
     my $img = do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
@@ -883,6 +883,9 @@ my $up_desktop = sub{
     sy("cp $cert_path $from_path/ssh.tar.gz");
     &$make_secrets($comp,$from_path);
     &$make_frpc_conf($comp,$from_path);
+    my $conf = &$get_compose($comp);
+    my $put = &$rel_put_text($from_path);
+    &$put("authorized_keys" => join "", map{"$_\n"} @{$$conf{authorized_keys}||[]});
     ($comp, $from_path,[
         {
             image => $img, name => "frpc",
@@ -898,13 +901,16 @@ my $up_desktop = sub{
             C4DATA_DIR => "/c4db",
             C4SSH_PORT => $ssh_port,
             C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
+            C4AUTHORIZED_KEYS => "/c4conf/authorized_keys",
         },
         {
             image => $img, name => "haproxy",
             C4DATA_DIR => "/c4db",
             C4JOINED_HTTP_PORT => $http_port,
-            "port:$http_port:$http_port"=>"",
-            &$get_ingres($comp,$http_port),
+            $ingress_port ? (
+                "port:$ingress_port:$http_port"=>"",
+                &$get_ingres($comp,$ingress_port),
+            ):(),
         },
     ])
 };
@@ -923,12 +929,12 @@ push @tasks, ["visit-dc_desktop", "", $visit_desktop];
 push @tasks, ["up-dc_desktop", "", sub{
     my($run_comp,$args)=@_;
     #sy(&$ssh_add());
-    &$sync_up(&$wrap_dc(&$up_desktop($run_comp)),$args);
+    &$sync_up(&$wrap_dc(&$up_desktop($run_comp,undef)),$args);
 }];
 push @tasks, ["up-kc_desktop", "", sub{
     my($run_comp,$args)=@_;
     #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_desktop($run_comp)),$args);
+    &$sync_up(&$wrap_kc(&$up_desktop($run_comp,$http_port)),$args);
 }];
 push @tasks, ["up-kc_consumer", "", sub{
     my($run_comp,$args)=@_;
@@ -1558,10 +1564,13 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     &$make_visitor_conf($comp,$from_path,[@services]);
     sy("cat $from_path/frpc.visitor.ini");
 }];
-push @tasks, ["add_authorized_key","$composes_txt <key>",sub{
+push @tasks, ["add_authorized_key","$composes_txt <key|from>",sub{
     my($comp,@key)=@_;
     sy(&$ssh_add());
-    my $content = join(' ',@key)."\n";
+    my $content = @key > 1 ? join(' ',@key)."\n" : do{
+        my ($from_comp) = @key;
+        syf(&$remote($from_comp,&$interactive($from_comp,"sshd","cat /c4/.ssh/authorized_keys")));
+    };
     sy(&$remote($comp,&$interactive($comp,"sshd","cat >> /c4/.ssh/authorized_keys"))." < ".&$put_temp("key",$content));
 }];
 
