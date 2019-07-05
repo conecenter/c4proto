@@ -566,7 +566,7 @@ my $wrap_kc = sub{
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v37";
+my $sys_image_ver = "v38";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
@@ -1564,15 +1564,6 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     &$make_visitor_conf($comp,$from_path,[@services]);
     sy("cat $from_path/frpc.visitor.ini");
 }];
-push @tasks, ["add_authorized_key","$composes_txt <key|from>",sub{
-    my($comp,@key)=@_;
-    sy(&$ssh_add());
-    my $content = @key > 1 ? join(' ',@key)."\n" : do{
-        my ($from_comp) = @key;
-        syf(&$remote($from_comp,&$interactive($from_comp,"sshd","cat /c4/.ssh/authorized_keys")));
-    };
-    sy(&$remote($comp,&$interactive($comp,"sshd","cat >> /c4/.ssh/authorized_keys"))." < ".&$put_temp("key",$content));
-}];
 
 ####
 
@@ -1586,6 +1577,16 @@ my($cmd,@args)=@ARGV;
 #    sy(&$ssh_add());
 #    my($comp,$service) = &$split_app($app);
 #    sy(&$ssh_ctl($comp,'-t',"docker logs $comp\_$service\_1 -tf --tail 1000"));
+#}];
+
+#push @tasks, ["add_authorized_key","$composes_txt <key|from>",sub{
+#    my($comp,@key)=@_;
+#    sy(&$ssh_add());
+#    my $content = @key > 1 ? join(' ',@key)."\n" : do{
+#        my ($from_comp) = @key;
+#        syf(&$remote($from_comp,&$interactive($from_comp,"sshd","cat /c4/.ssh/authorized_keys")));
+#    };
+#    sy(&$remote($comp,&$interactive($comp,"sshd","cat >> /c4/.ssh/authorized_keys"))." < ".&$put_temp("key",$content));
 #}];
 
 #push @tasks, ["devel_init_frpc","<devel>|all",sub{
