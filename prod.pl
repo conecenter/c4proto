@@ -261,12 +261,14 @@ my $lscont_kc = sub{
 
 push @tasks, ["exec-dc_consumer","",$exec_dc];
 push @tasks, ["exec-dc_gate","",$exec_dc];
+push @tasks, ["exec-dc_desktop","",$exec_dc];
 push @tasks, ["exec-kc_consumer","",$exec_kc];
 push @tasks, ["exec-kc_gate","",$exec_kc];
 push @tasks, ["exec-kc_desktop","",$exec_kc];
 #push @tasks, ["exec-kc_http_client","",$exec_kc];
 push @tasks, ["lscont-dc_consumer", "", $lscont_dc];
 push @tasks, ["lscont-dc_gate", "", $lscont_dc];
+push @tasks, ["lscont-dc_desktop", "", $lscont_dc];
 push @tasks, ["lscont-kc_consumer", "", $lscont_kc];
 push @tasks, ["lscont-kc_gate", "", $lscont_kc];
 push @tasks, ["lscont-kc_desktop", "", $lscont_kc];
@@ -906,16 +908,23 @@ my $up_desktop = sub{
         },
     ])
 };
-
-push @tasks, ["visit-kc_desktop", "", sub{
+my $visit_desktop = sub{
     my($comp)=@_;
     [[desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]]
-}];
+};
+
+push @tasks, ["visit-kc_desktop", "", $visit_desktop];
+push @tasks, ["visit-dc_desktop", "", $visit_desktop];
 
 # m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
 # dc:
 # kc:
 
+push @tasks, ["up-dc_desktop", "", sub{
+    my($run_comp,$args)=@_;
+    #sy(&$ssh_add());
+    &$sync_up(&$wrap_dc(&$up_desktop($run_comp)),$args);
+}];
 push @tasks, ["up-kc_desktop", "", sub{
     my($run_comp,$args)=@_;
     #sy(&$ssh_add());
