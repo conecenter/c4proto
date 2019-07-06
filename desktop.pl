@@ -38,6 +38,7 @@ push @tasks, [fix=>sub{
 }];
 push @tasks, [desktop=>sub{
     &$need_home();
+    #unlink "/tmp/.X1-lock"; !root
     sy("mkdir -p /c4/.config/autostart");
     my $pass_fn = $ENV{C4AUTH_KEY_FILE} || die;
     my $pass = `cat $pass_fn`=~/(\S+)/ ? $1 : die;

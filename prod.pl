@@ -144,6 +144,11 @@ my $sync_up = sub{
     sy(&$remote($comp,"cd $conf_dir && chmod +x up && ./up"));
 };
 
+my $main = sub{
+    my($cmd,@args)=@_;
+    ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
+};
+
 ####
 
 push @tasks, ["","",sub{
@@ -362,6 +367,7 @@ my $make_dc_yml = sub{
     my @pod = (pod => {
         command => ["sleep","infinity"],
         image => "ubuntu:18.04",
+        restart=>"unless-stopped",
         @port_maps ? (ports=>\@port_maps) : (),
         @host_maps ? (extra_hosts=>\@host_maps) : (),
     });
@@ -566,7 +572,7 @@ my $wrap_kc = sub{
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v38";
+my $sys_image_ver = "v39";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
@@ -891,11 +897,11 @@ my $up_desktop = sub{
             image => $img, name => "frpc",
             C4FRPC_INI => "/c4conf/frpc.ini",
         },
-        {
-            image => $img, name => "desktop",
-            C4DATA_DIR => "/c4db",
-            C4AUTH_KEY_FILE => "/c4conf/simple.auth",
-        },
+#        {
+#            image => $img, name => "desktop",
+#            C4DATA_DIR => "/c4db",
+#            C4AUTH_KEY_FILE => "/c4conf/simple.auth",
+#        },
         {
             image => $img, name => "sshd",
             C4DATA_DIR => "/c4db",
@@ -998,9 +1004,13 @@ my $frp_web = sub{
 my $cicd_port = "7079";
 
 push @tasks, ["up","$composes_txt <args>",sub{
-    my($comp,$args)=@_;
     sy(&$ssh_add());
-    &$find_handler(up=>$comp||die)->($comp,$args);
+    my $up; $up = sub{
+        my($comp,$args,@more)=@_;
+        &$find_handler(up=>$comp||die)->($comp,$args);
+        &$up(@more);
+    };
+    &$up(@_);
 }];
 
 push @tasks, ["restart","$composes_txt",sub{
@@ -1567,8 +1577,7 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
 
 ####
 
-my($cmd,@args)=@ARGV;
-($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
+&$main(@ARGV);
 &$cleanup();
 
 ## todo adapt for kube
