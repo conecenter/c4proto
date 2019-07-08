@@ -100,7 +100,7 @@ my $find_handler = sub{
     my($ev,$comp)=@_;
     my $nm = "$ev-".&$get_compose($comp)->{type};
     my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
-    @todo == 1 ? $todo[0] : die "bad type: $ev,$comp";
+    @todo == 1 ? $todo[0] : die "no handler: $nm,$comp";
 };
 
 my $find_exec_handler = sub{
