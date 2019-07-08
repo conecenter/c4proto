@@ -1008,7 +1008,7 @@ push @tasks, ["up","$composes_txt <args>",sub{
     my $up; $up = sub{
         my($comp,$args,@more)=@_;
         &$find_handler(up=>$comp||die)->($comp,$args);
-        &$up(@more);
+        &$up(@more) if @more;
     };
     &$up(@_);
 }];
