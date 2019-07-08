@@ -73,10 +73,14 @@ my $get_deploy_conf = lazy{
 };
 my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected $_[0]"};
 
+my $get_deployer = sub{
+    my($comp)=@_;
+    my $conf = &$get_compose($comp);
+    $$conf{deployer} || $comp;
+};
 my $get_deployer_conf = sub{
     my($comp,$chk,@k)=@_;
-    my $conf = &$get_compose($comp);
-    my $n_conf = $$conf{deployer} ? &$get_compose($$conf{deployer}) : $conf;
+    my $n_conf = &$get_compose(&$get_deployer($comp));
     map{$$n_conf{$_} || $chk && die "no $_"} @k;
 };
 my $get_host_port = sub{ &$get_deployer_conf($_[0],1,qw(host port)) };
@@ -99,9 +103,14 @@ my $find_handler = sub{
     @todo == 1 ? $todo[0] : die "bad type: $ev,$comp";
 };
 
+my $find_exec_handler = sub{
+    my ($comp) = @_;
+    &$find_handler(exec=>&$get_deployer($comp))->($comp);
+};
+
 my $interactive = sub{
     my($comp,$container,$stm)=@_;
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     &$mk_exec("-i",$container,$stm);
 };
 
@@ -179,7 +188,7 @@ push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
 my $remote_acc  = sub{
     my($comp,$stm)=@_;
     my $service = "zookeeper";
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     &$remote($comp,&$mk_exec("",$service,$stm));
 };
 
@@ -264,24 +273,15 @@ my $lscont_kc = sub{
         syf(&$remote($comp,$stm))=~/(\w+)/g;
 };
 
-push @tasks, ["exec-dc_consumer","",$exec_dc];
-push @tasks, ["exec-dc_gate","",$exec_dc];
-push @tasks, ["exec-dc_desktop","",$exec_dc];
-push @tasks, ["exec-kc_consumer","",$exec_kc];
-push @tasks, ["exec-kc_gate","",$exec_kc];
-push @tasks, ["exec-kc_desktop","",$exec_kc];
-#push @tasks, ["exec-kc_http_client","",$exec_kc];
-push @tasks, ["lscont-dc_consumer", "", $lscont_dc];
-push @tasks, ["lscont-dc_gate", "", $lscont_dc];
-push @tasks, ["lscont-dc_desktop", "", $lscont_dc];
-push @tasks, ["lscont-kc_consumer", "", $lscont_kc];
-push @tasks, ["lscont-kc_gate", "", $lscont_kc];
-push @tasks, ["lscont-kc_desktop", "", $lscont_kc];
+push @tasks, ["exec-dc_host","",$exec_dc];
+push @tasks, ["exec-kc_host","",$exec_kc];
+push @tasks, ["lscont-dc_host", "", $lscont_dc];
+push @tasks, ["lscont-kc_host", "", $lscont_kc];
 
 push @tasks, ["gc","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
-    for my $l_exec(&$find_handler(lscont=>$comp)->($comp)){
+    for my $l_exec(&$find_handler(lscont=>&$get_deployer($comp))->($comp)){
         #print "container: $c\n";
         my $cmd = &$remote($comp,&$l_exec("jcmd || echo -"));
         for(syl($cmd)){
@@ -409,7 +409,7 @@ my $wrap_dc = sub{
         .qq[pp(main=>$up);];
     ($name,$from_path,$up_content);
 };
-
+push @tasks, ["wrap_deploy-dc_host", "", $wrap_dc];
 
 
 #todo securityContext/runAsUser
@@ -506,7 +506,7 @@ my $make_kc_yml = sub{
     my @service_yml = do{
         my @ports = &$map(\%all,sub{ my($k,$v)=@_;
             $k=~/^port:(\d+):(\d+)$/ ? {
-                $all{is_deployer} ? (nodePort => $1-0) : (),
+                #$all{is_deployer} ? (nodePort => $1-0) : (),
                 port => $1-0,
                 targetPort => $2-0,
                 name => "c4-$2"
@@ -567,6 +567,7 @@ my $wrap_kc = sub{
         .q[pp(main=>"kubectl -n $ns apply -f-");];
     ($name,undef,$up_content);
 };
+push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #todo apply -n $ns
 
@@ -848,7 +849,7 @@ my $prod_image_steps = sub{(
 my $dl_frp_url = "https://github.com/fatedier/frp/releases/download/v0.21.0/frp_0.21.0_linux_amd64.tar.gz";
 
 my $up_desktop = sub{
-    my($comp,$ingress_port)=@_;
+    my($comp)=@_;
     my $img = do{
         my $from_path = &$get_tmp_dir();
         my $put = &$rel_put_text($from_path);
@@ -913,9 +914,9 @@ my $up_desktop = sub{
             image => $img, name => "haproxy",
             C4DATA_DIR => "/c4db",
             C4JOINED_HTTP_PORT => $http_port,
-            $ingress_port ? (
-                "port:$ingress_port:$http_port"=>"",
-                &$get_ingres($comp,$ingress_port),
+            $$conf{publish_ports} ? (
+                "port:$http_port:$http_port"=>"",
+                &$get_ingres($comp,$http_port),
             ):(),
         },
     ])
@@ -925,42 +926,28 @@ my $visit_desktop = sub{
     [[desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]]
 };
 
-push @tasks, ["visit-kc_desktop", "", $visit_desktop];
-push @tasks, ["visit-dc_desktop", "", $visit_desktop];
+push @tasks, ["visit-desktop", "", $visit_desktop];
 
 # m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
 # dc:
 # kc:
 
-push @tasks, ["up-dc_desktop", "", sub{
+my $wrap_deploy = sub{
+    my ($comp,$from_path,$options) = @_;
+    return &$find_handler(wrap_deploy=>&$get_deployer($comp))->($comp,$from_path,$options);
+};
+
+push @tasks, ["up-desktop", "", sub{
     my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_dc(&$up_desktop($run_comp,undef)),$args);
+    &$sync_up(&$wrap_deploy(&$up_desktop($run_comp)),$args);
 }];
-push @tasks, ["up-kc_desktop", "", sub{
+push @tasks, ["up-consumer", "", sub{
     my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_desktop($run_comp,$http_port)),$args);
+    &$sync_up(&$wrap_deploy(&$up_consumer($run_comp)),$args);
 }];
-push @tasks, ["up-kc_consumer", "", sub{
+push @tasks, ["up-gate", "", sub{
     my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_consumer($run_comp)),$args);
-}];
-push @tasks, ["up-dc_consumer", "", sub{
-    my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_dc(&$up_consumer($run_comp)),$args);
-}];
-push @tasks, ["up-kc_gate", "", sub{
-    my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_gate($run_comp)),$args);
-}];
-push @tasks, ["up-dc_gate", "", sub{
-    my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_dc(&$up_gate($run_comp)),$args);
+    &$sync_up(&$wrap_deploy(&$up_gate($run_comp)),$args);
 }];
 
 # deploy-time, conf-arity, easy-conf, restart-fail-independ -- gate|main|exch (or more, try min);
@@ -1194,7 +1181,7 @@ my $make_frpc_image = sub{
 
 #my
 
-push @tasks, ["up-kc_frp_client", "", sub{
+push @tasks, ["up-frp_client", "", sub{
     my ($comp,$args) = @_;
     my $img = &$make_frpc_image($comp);
     my @containers = ({
@@ -1204,10 +1191,10 @@ push @tasks, ["up-kc_frp_client", "", sub{
     });
     my $from_path = &$get_tmp_dir();
     &$make_frpc_conf($comp,$from_path);
-    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
-push @tasks, ["visit-kc_frp_client", "", sub{
+push @tasks, ["visit-frp_client", "", sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $gate_comp = $$conf{ca};
@@ -1227,17 +1214,20 @@ my $get_visitor_conf = sub{
     map{ my($name,$port,$host) = @$_; [$port=>"$comp.$name"] } @$services;
 };
 
-push @tasks, ["up-kc_visitor", "", sub{
+push @tasks, ["up-visitor", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $server_comp = $$conf{peer} || die;
     my $img = &$make_frpc_image($comp);
     my @services = &$get_visitor_conf($server_comp);
-    my @ports = map{
-        my($port,$name) = @$_;
-        my $low_port = $port == $ssh_port ? 22 : $port;
-        ("port:$low_port:$port" => "")
-    } @services;
+    my @ports = &$map($conf,sub{ my($k,$v)=@_;
+        $k=~/^port:/ ? ($k=>$v) : ()
+    });
+#    map{
+#        my($port,$name) = @$_;
+#        my $ext_port = $port == $ssh_port ? 22 : $port;
+#        ("port:$ext_port:$port" => "")
+#    } @services;
     my @containers = ({
         image => $img,
         name => "frpc",
@@ -1246,14 +1236,13 @@ push @tasks, ["up-kc_visitor", "", sub{
     });
     my $from_path = &$get_tmp_dir();
     &$make_visitor_conf($comp,$from_path,[@services]);
-    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
 push @tasks, ["up-kc_host", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $external_ssh_port = $$conf{port};
     my $dir = $$conf{dir} || die;
     my $conf_cert_path = &$get_conf_cert_path().".pub";
     my $img = do{
@@ -1284,7 +1273,7 @@ push @tasks, ["up-kc_host", "", sub{
             image => $img,
             name => "sshd",
             C4DATA_DIR => "/c4db",
-            $external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
+            #$external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
         },
         {
             image => $img,
@@ -1529,7 +1518,7 @@ push @tasks, ["thread_print","$composes_txt-<service> <package>",sub{
     my($app,$pkg)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
@@ -1549,14 +1538,14 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222")));
 }];
 push @tasks, ["greys","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"/tools/greys/greys.sh 1")));
 }];
 
