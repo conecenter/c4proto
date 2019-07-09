@@ -38,6 +38,7 @@ push @tasks, [fix=>sub{
 }];
 push @tasks, [desktop=>sub{
     &$need_home();
+    #unlink "/tmp/.X1-lock"; !root
     sy("mkdir -p /c4/.config/autostart");
     my $pass_fn = $ENV{C4AUTH_KEY_FILE} || die;
     my $pass = `cat $pass_fn`=~/(\S+)/ ? $1 : die;
@@ -68,7 +69,8 @@ push @tasks, [sshd=>sub{
     &$need_home();
     chomp, m{^/tools/skel(/.\w+)$} and !-e "/c4$1" and sy("cp",$_,"/c4$1") for </etc/skel/.*>;
     sy('mkdir -p /c4/dropbear /c4/.ssh');
-    -e "/c4/.ssh/authorized_keys" or sy("cat /id_rsa.pub >> /c4/.ssh/authorized_keys");
+    my $authorized_keys = $ENV{C4AUTHORIZED_KEYS} || die;
+    sy("cat /id_rsa.pub $authorized_keys > /c4/.ssh/authorized_keys");
     sy('chmod 0700 /c4/.ssh /c4/.ssh/authorized_keys');
     grep{/c4p_alias/} `cat /c4/.profile` or sy("echo '. /c4p_alias.sh' >> /c4/.profile");
     #sy('test -e /c4/c4proto || git clone https://github.com/conecenter/c4proto.git /c4/c4proto');
