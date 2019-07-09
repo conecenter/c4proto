@@ -21,13 +21,9 @@ trait HashSearchIdGeneration {
 
   def leafId(commonPrefix: String, by: Product): String = hash(leafId, commonPrefix, by)
 
-  def leafId(modelId: Int, lensName: List[String], by: Product): String = hash(leafId, commonPrefix(modelId, lensName), by)
-
   private lazy val heapId = 2
 
   def heapId(commonPrefix: String, by: Product): String = hash(heapId, commonPrefix, by)
-
-  def heapId(modelId: Int, lensName: List[String], by: Product): String = hash(heapId, commonPrefix(modelId, lensName), by)
 
   private lazy val nodeId = 3
 
@@ -41,8 +37,20 @@ trait HashSearchIdGeneration {
 
   lazy val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
-  private def hash(list: Any*): String = {
-    hashGen.generate(list.toList)
+  private def hash(typeId: Int, prefix: String, obj: Product): String = {
+    hashGen.generate(List(typeId, prefix, obj))
+  }
+
+  private def hash(typeId: Int, prefix: String, srcId: String): String = {
+    hashGen.generate(List(typeId, prefix, srcId))
+  }
+
+  private def hash(typeId: Int, prefix: String, id: Long): String = {
+    hashGen.generate(List(typeId, prefix, id))
+  }
+
+  private def hash(typeId: Int, id: Long, names: List[String]): String = {
+    hashGen.generate(typeId :: id :: names)
   }
 }
 
