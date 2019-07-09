@@ -769,6 +769,24 @@ my $get_ingres = sub{
     $domain_zone ? ("ingres:$comp.$domain_zone"=>$http_port) : ();
 };
 
+my $wrap_deploy = sub{
+    my ($comp,$from_path,$options) = @_;
+    return &$find_handler(wrap_deploy=>&$get_deployer($comp))->($comp,$from_path,$options);
+};
+
+push @tasks, ["up-client", "", sub{
+    my($run_comp,$args)=@_;
+    my $conf = &$get_compose($run_comp);
+    my $from_path = &$get_tmp_dir();
+    &$make_secrets($run_comp,$from_path);
+    my $options = [{
+        @var_img, name => "main",
+        tty => "true", JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
+        %$conf,
+    }];
+    &$sync_up(&$wrap_deploy($run_comp,$from_path,$options),$args);
+}];
+
 my $up_consumer = sub{
     my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
@@ -931,11 +949,6 @@ push @tasks, ["visit-desktop", "", $visit_desktop];
 # m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
 # dc:
 # kc:
-
-my $wrap_deploy = sub{
-    my ($comp,$from_path,$options) = @_;
-    return &$find_handler(wrap_deploy=>&$get_deployer($comp))->($comp,$from_path,$options);
-};
 
 push @tasks, ["up-desktop", "", sub{
     my($run_comp,$args)=@_;
@@ -1359,7 +1372,7 @@ push @tasks, ["need_certs","",sub{
 
 my $mk_to_cfg = sub{
 my($conf,$ts)=@_;
-my($to_ssl_host,$lis) = map{$$conf{$_}||die} qw[external_ip plain_items];
+my $to_ssl_host  = $$conf{external_ip} || die "no external_ip";
 qq{
 global
   tune.ssl.default-dh-param 2048
@@ -1376,14 +1389,10 @@ frontend fe80
   bind :80
   acl a_letsencrypt path_beg /.well-known/acme-challenge/
   use_backend beh_letsencrypt if a_letsencrypt
-  redirect scheme https if !{ method POST } !a_letsencrypt
-  default_backend beh_frps
+  redirect scheme https if !a_letsencrypt
 backend beh_letsencrypt
   mode http
   server s_letsencrypt $to_ssl_host:8080
-backend beh_frps
-  mode http
-  server s_frps frps:$vhost_http_port
 frontend fe443
   bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt}.join('',map{qq{
   use_backend be_$$_[0] if { ssl_fc_sni -m dom $$_[0] }}}@$ts).qq{
@@ -1392,16 +1401,13 @@ backend be_frps
   server s_frps frps:$vhost_https_port ssl verify none
 }.join('',map{qq{backend be_$$_[0]
   server s_$$_[0] $$_[1]
-}}@$ts).join('',map{ my $port=/(\d+)$/?$1:die; qq{listen listen_$port
-  bind :$port
-  server s_simple_$port $_
-}}@$lis).qq{
+}}@$ts).qq{
 };
 };
 
 my $mk_to_yml = sub{
 my($conf)=@_;
-my($to_ssl_host,$li_host,$lis) = map{$$conf{$_}||die} qw[external_ip internal_ip plain_items];
+my $to_ssl_host  = $$conf{external_ip} || die "no external_ip";
 qq{
 services:
   haproxy:
@@ -1412,8 +1418,7 @@ services:
     - "certs:/etc/letsencrypt:ro"
     ports:
     - "$to_ssl_host:443:443"
-    - "$to_ssl_host:80:80"}.join('',map{ my $port=/(\d+)$/?$1:die; qq{
-    - "$li_host:$port:$port"}}@$lis).qq{
+    - "$to_ssl_host:80:80"
   logger:
     image: c4logger
     restart: unless-stopped
