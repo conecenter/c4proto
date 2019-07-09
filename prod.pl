@@ -185,9 +185,12 @@ push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     sy(&$ssh_ctl($comp,@args));
 }];
 
+push @tasks, ["remote_service-gate",'',sub{"zookeeper"}];
+push @tasks, ["remote_service-desktop",'',sub{"sshd"}];
+
 my $remote_acc  = sub{
     my($comp,$stm)=@_;
-    my $service = "zookeeper";
+    my $service = &$find_handler(remote_service=>$comp)->();
     my $mk_exec = &$find_exec_handler($comp);
     &$remote($comp,&$mk_exec("",$service,$stm));
 };
