@@ -8,10 +8,10 @@ my $put_text = sub{
 };
 my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 my $need_home = sub{
-    print "1\n";
+    #print "1\n";
     my $data_dir = $ENV{C4DATA_DIR} || die;
     sy("mkdir -p $data_dir/home && chmod 0700 $data_dir/home");
-    print "2\n";
+    #print "2\n";
 };
 
 my @tasks;
@@ -76,13 +76,16 @@ push @tasks, [sshd=>sub{
     #sy('test -e /c4/c4proto || git clone https://github.com/conecenter/c4proto.git /c4/c4proto');
     &$exec('dropbear', '-RFEmwgs', '-p', $ENV{C4SSH_PORT}||die 'no C4SSH_PORT');
 }];
-push @tasks, [haproxy=>sub{
+my $haproxy = sub{
     &$need_home();
     my $port_prefix = $ENV{C4PORT_PREFIX} || 8000;
     $ENV{C4HTTP_PORT} = $port_prefix+67;
     $ENV{C4SSE_PORT} = $port_prefix+68;
     &$exec("perl", "/haproxy.pl");
-}];
+};
+push @tasks, [haproxy=>$haproxy];
+push @tasks, [le_http=>$haproxy];
+push @tasks, [le_https=>$haproxy];
 
 my($cmd,@args)=@ARGV;
 $cmd eq $$_[0] and $$_[1]->(@args) for @tasks;

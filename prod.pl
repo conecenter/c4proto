@@ -302,6 +302,8 @@ $YAML::XS::QuoteNumericStrings = 1;
 
 #my $inbox_prefix = '';
 
+my $le_http_port = "2080";
+my $le_https_port = "2443";
 my $http_port = "1080";
 my $vhost_http_port = "80";
 my $vhost_https_port = "443";
@@ -358,10 +360,10 @@ my $pl_embed = sub{
 };
 
 my $make_dc_yml = sub{
-    my ($name,$options) = @_;
+    my ($name,$tmp_path,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:|ingres:)/ ||
+        $k=~/^([A-Z]|host:|port:|ingress:)/ ||
         $k=~/^(volumes|tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
@@ -381,7 +383,10 @@ my $make_dc_yml = sub{
                 $k=~/^([A-Z].+)/ ? { environment=>{$1=>$v} } : (),
                 #$k=~/^host:(.+)/ ? { extra_hosts=>["$1:$v"]} : (),
                 $k=~/^(volumes|tty)$/ ? {$1=>$v} : (),
-                $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? {volumes=>["./$1:/c4conf/$1"]} : (),
+                $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? do{ my $fn=$1; +{
+                    volumes=>["./$fn:/c4conf/$fn"],
+                    environment=>{"$k\_MD5"=>md5_hex(syf("cat $tmp_path/$fn"))},
+                }} : (),
                 $k eq 'C4DATA_DIR' ? {volumes=>["db4:$v"]} : (),
             )}));
             (($$opt{name}||die)=>{
@@ -405,7 +410,7 @@ my $make_dc_yml = sub{
 
 my $wrap_dc = sub{
     my ($name,$from_path,$options) = @_;
-    my($yml_str,$up) = &$make_dc_yml($name,$options);
+    my($yml_str,$up) = &$make_dc_yml($name,$from_path,$options);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
         .&$interpolation_body($name)
         .'($vars{replicas}-0) or $c{main}=q[version: "3.2"];'
@@ -423,7 +428,7 @@ my $make_kc_yml = sub{
     my($name,$tmp_path,$spec,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:|ingres:)/ ||
+        $k=~/^([A-Z]|host:|port:|ingress:)/ ||
         $k=~/^(tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
@@ -529,7 +534,7 @@ my $make_kc_yml = sub{
     #
     my @ingress_yml = do{
         my @rules = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^ingres:(.+)$/ ? {
+            $k=~/^ingress:(.+)$/ ? {
                 host => "$1",
                 http => {
                     paths => [{
@@ -576,7 +581,7 @@ push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v39";
+my $sys_image_ver = "v49";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
@@ -631,12 +636,11 @@ my $get_frp_common = sub{
     );
 };
 
-my $make_frpc_conf = sub{
-    my($comp,$from_path) = @_;
+my $get_frpc_conf = sub{
+    my($comp) = @_;
     my $services = &$find_handler(visit=>$comp)->($comp);
     my %auth = &$get_auth($comp);
     my $sk = $auth{"simple.auth"} || die "no simple.auth";
-    my $put = &$rel_put_text($from_path);
     my @common = (common => [&$get_frp_common($comp)]);
     my @add = map{
         my($service_name,$port,$host) = @$_;
@@ -647,7 +651,12 @@ my $make_frpc_conf = sub{
             local_port => $port,
         ])
     } @$services;
-    &$put("frpc.ini", &$to_ini_file([@common,@add]));
+    &$to_ini_file([@common,@add]);
+};
+my $put_frpc_conf = sub{
+    my($from_path,$content) = @_;
+    my $put = &$rel_put_text($from_path);
+    &$put("frpc.ini", $content);
 };
 
 my $make_visitor_conf = sub{
@@ -766,10 +775,10 @@ my $gate_ports = sub{
     my $external_http_port = $$conf{http_port} || $http_port;
     ($host,$external_http_port,$external_broker_port);
 };
-my $get_ingres = sub{
+my $get_ingress = sub{
     my($comp,$http_port)=@_;
     my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
-    $domain_zone ? ("ingres:$comp.$domain_zone"=>$http_port) : ();
+    $domain_zone ? ("ingress:$comp.$domain_zone"=>$http_port) : ();
 };
 
 my $wrap_deploy = sub{
@@ -834,9 +843,10 @@ my $up_gate = sub{
         },
         {
             @var_img, name => "haproxy",
+            C4HAPROXY_CONF=>"/c4/haproxy.cfg",
             C4JOINED_HTTP_PORT => $http_port,
             "port:$external_http_port:$http_port"=>"",
-            &$get_ingres($run_comp,$external_http_port),
+            &$get_ingress($run_comp,$external_http_port),
         },
     ]);
 };
@@ -890,7 +900,7 @@ my $up_desktop = sub{
         &$put("Dockerfile", join "\n",
             &$prod_image_steps(),
             "RUN perl install.pl apt".
-            " rsync openssh-client dropbear git".
+            " rsync openssh-client dropbear git certbot".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
             " atop less bash-completion netcat-openbsd locales tmux uuid-runtime".
@@ -910,8 +920,28 @@ my $up_desktop = sub{
     my $cert_path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
     sy("cp $cert_path $from_path/ssh.tar.gz");
     &$make_secrets($comp,$from_path);
-    &$make_frpc_conf($comp,$from_path);
     my $conf = &$get_compose($comp);
+    my $hostname = $$conf{le_hostname};
+    my $https_frpc_content = $hostname ? do{
+        &$to_ini_file([
+            "$comp.le_http" => [
+                type => "http",
+                local_ip => "127.0.0.1",
+                local_port => $le_http_port,
+                #subdomain => $comp,
+                custom_domains => $hostname,
+            ],
+            "$comp.le_https" => [
+                type => "https",
+                local_ip => "127.0.0.1",
+                local_port => $le_https_port,
+                #subdomain => $comp,
+                custom_domains => $hostname,
+            ],
+        ]);
+
+    } : "";
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp).$https_frpc_content);
     my $put = &$rel_put_text($from_path);
     &$put("authorized_keys" => join "", map{"$_\n"} @{$$conf{authorized_keys}||[]});
     ($comp, $from_path,[
@@ -933,13 +963,27 @@ my $up_desktop = sub{
         },
         {
             image => $img, name => "haproxy",
-            C4DATA_DIR => "/c4db",
+            C4HAPROXY_CONF=>"/c4/haproxy.cfg",
             C4JOINED_HTTP_PORT => $http_port,
-            $$conf{publish_ports} ? (
+            C4DATA_DIR => "/c4db",
+            $$conf{enable_ingress} ? (
                 "port:$http_port:$http_port"=>"",
-                &$get_ingres($comp,$http_port),
-            ):(),
+                &$get_ingress($comp,$http_port),
+            ) : ()
         },
+        $hostname ? ({
+            image => $img, name => "le_http",
+            C4HAPROXY_CONF=>"/c4/le_http.cfg",
+            C4JOINED_HTTP_PORT => $le_http_port,
+            C4DATA_DIR => "/c4db",
+            C4HTTPS => "redirect",
+        }, {
+            image => $img, name => "le_https",
+            C4HAPROXY_CONF=>"/c4/le_https.cfg",
+            C4JOINED_HTTP_PORT => $le_https_port,
+            C4DATA_DIR => "/c4db",
+            C4HTTPS => "https:$hostname",
+        }) : (),
     ])
 };
 my $visit_desktop = sub{
@@ -972,38 +1016,6 @@ push @tasks, ["up-gate", "", sub{
 
 # zoo: netty, runit, * custom pod
 
-
-
-
-my $frp_client = sub{
-    my($comp,$server)=@_;
-    my($host,$port) = &$split_port($server);
-    my %auth = &$get_auth($comp);
-    my $sk = $auth{"simple.auth"} || die "no simple.auth";
-    ("$comp.p$port" => [
-        type => "stcp",
-        sk => $sk,
-        local_ip => $host,
-        local_port => $port,
-    ]);
-};
-my $frp_web = sub{
-    my($comp)=@_;
-    (
-    "$comp.http" => [
-        type => "http",
-        local_ip => "127.0.0.1",
-        local_port => $http_port,
-        subdomain => $comp,
-    ],
-    "$comp.https" => [
-        type => "https",
-        local_ip => "127.0.0.1",
-        local_port => 1443,
-        subdomain => $comp,
-    ],
-    );
-};
 my $cicd_port = "7079";
 
 push @tasks, ["up","$composes_txt <args>",sub{
@@ -1151,7 +1163,7 @@ push @tasks, ["up-ci","",sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path);
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
     do{
         my $key_dir = &$get_tmp_dir();
         sy(join ' && ',
@@ -1165,7 +1177,7 @@ push @tasks, ["up-ci","",sub{
     #sy(&$remote($comp,"mkdir -p $repo_dir"));
     #sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
 
-    my($yml_str,$up) = &$make_dc_yml($comp,\@containers);
+    my($yml_str,$up) = &$make_dc_yml($comp,$from_path,\@containers);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str).qq[pp(main=>$up);];
     &$sync_up($comp,$from_path,$up_content,"");
 }];
@@ -1206,7 +1218,7 @@ push @tasks, ["up-frp_client", "", sub{
         C4FRPC_INI => "/c4conf/frpc.ini",
     });
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path);
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
     &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
@@ -1312,7 +1324,7 @@ push @tasks, ["up-kc_host", "", sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path);
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
     &$make_secrets($comp,$from_path);
 
     my $run_comp = "deployer";
@@ -1411,6 +1423,7 @@ backend be_frps
 my $mk_to_yml = sub{
 my($conf)=@_;
 my $to_ssl_host  = $$conf{external_ip} || die "no external_ip";
+my $add_ssl_host = $$conf{frps_external_ip} || die "no external_ip";
 qq{
 services:
   haproxy:
@@ -1443,6 +1456,8 @@ services:
     ports:
     - "7000:7000"
     - "7500:7500"
+    - "$add_ssl_host:443:443"
+    - "$add_ssl_host:80:80"
 version: '3.2'
 volumes:
   certs: {}
@@ -1477,7 +1492,7 @@ push @tasks, ["up-proxy","",sub{
         dashboard_pwd => ($common{token}||die),
         vhost_http_port => $vhost_http_port,
         vhost_https_port => $vhost_https_port,
-        subdomain_host => ($$conf{subdomain_host}||die)
+        #subdomain_host => ($$conf{subdomain_host}||die)
     ]]));
     #if($mode eq "up"){
         &$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate","");
