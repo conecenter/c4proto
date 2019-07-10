@@ -1187,22 +1187,24 @@ push @tasks, ["visit-ci", "", sub{
     [[main=>$cicd_port]]
 }];
 
-my $make_frpc_image = sub{
+my $make_frp_image = sub{
     my ($comp) = @_;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
     sy("cp $gen_dir/install.pl $from_path/");
-    &$put("frpc.pl", join "\n",
-        '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die; die;'
+    &$put("frp.pl", join "\n",
+        '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die;',
+        '$ARGV[0] eq "frps" and exec "/tools/frp/frps", "-c", $ENV{C4FRPS_INI}||die;',
+        'die;'
     );
     &$put("Dockerfile", join "\n",
         &$base_image_steps(),
         "RUN perl install.pl apt curl",
         "RUN perl install.pl curl $dl_frp_url",
-        "COPY frpc.pl /",
+        "COPY frp.pl /",
         "USER c4",
-        'ENTRYPOINT ["perl", "/frpc.pl"]',
+        'ENTRYPOINT ["perl", "/frp.pl"]',
     );
     return &$remote_build($comp,$from_path);
 };
@@ -1211,7 +1213,7 @@ my $make_frpc_image = sub{
 
 push @tasks, ["up-frp_client", "", sub{
     my ($comp,$args) = @_;
-    my $img = &$make_frpc_image($comp);
+    my $img = &$make_frp_image($comp);
     my @containers = ({
         image => $img,
         name => "frpc",
@@ -1246,7 +1248,7 @@ push @tasks, ["up-visitor", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $server_comp = $$conf{peer} || die;
-    my $img = &$make_frpc_image($comp);
+    my $img = &$make_frp_image($comp);
     my @services = &$get_visitor_conf($server_comp);
     my @ports = &$map($conf,sub{ my($k,$v)=@_;
         $k=~/^port:/ ? ($k=>$v) : ()
@@ -1411,9 +1413,6 @@ backend beh_letsencrypt
 frontend fe443
   bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt}.join('',map{qq{
   use_backend be_$$_[0] if { ssl_fc_sni -m dom $$_[0] }}}@$ts).qq{
-  default_backend be_frps
-backend be_frps
-  server s_frps frps:$vhost_https_port ssl verify none
 }.join('',map{qq{backend be_$$_[0]
   server s_$$_[0] $$_[1]
 }}@$ts).qq{
@@ -1423,7 +1422,6 @@ backend be_frps
 my $mk_to_yml = sub{
 my($conf)=@_;
 my $to_ssl_host  = $$conf{external_ip} || die "no external_ip";
-my $add_ssl_host = $$conf{frps_external_ip} || die "no external_ip";
 qq{
 services:
   haproxy:
@@ -1447,17 +1445,6 @@ services:
     - "certs:/etc/letsencrypt"
     ports:
     - "$to_ssl_host:8080:80"
-  frps:
-    image: c4frp
-    restart: unless-stopped
-    command: ["/frps","-c","/frps.ini"]
-    volumes:
-    - "./frps.ini:/frps.ini:ro"
-    ports:
-    - "7000:7000"
-    - "7500:7500"
-    - "$add_ssl_host:443:443"
-    - "$add_ssl_host:80:80"
 version: '3.2'
 volumes:
   certs: {}
@@ -1469,34 +1456,46 @@ my $hmap = sub{ my($h,$f)=@_; map{&$f($_,$$h{$_})} sort keys %$h };
 
 push @tasks, ["up-proxy","",sub{
     my($comp,$args)=@_;
-    sy(&$ssh_add());
     my $conf = &$get_compose($comp);
-#    my @sb_items = &$hmap($composes, sub{ my($comp,$comp_conf)=@_;
-#        $$comp_conf{proxy_dom} ? do{
-#            my $host = $$comp_conf{host}||die;
-#            my $port = $$comp_conf{http_port}||die;
-#            [$$comp_conf{proxy_dom},"$host:$port"]
-#        } : ()
-#    });
     my $yml_str = &$mk_to_yml($conf);
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
     &$put("docker-compose.yml",$yml_str);
     &$put("haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]}])); #@sb_items
-    my %common = &$get_frp_common($comp);
-    &$put("frps.ini",&$to_ini_file([common=>[
-        token=>$common{token},
+    &$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate","");
+}];
+
+push @tasks, ["up-frps","",sub{
+    my($comp,$args)=@_;
+    my $conf = &$get_compose($comp);
+    my $ext_ip = $$conf{external_ip} || die "no external_ip";
+    my $img = &$make_frp_image($comp);
+    my %auth = &$get_auth($comp);
+    my $token = $auth{frps_token} || die "no frps_token in $comp";
+    my $local_http_port = 1080;
+    my $local_https_port = 1443;
+    my $conf_content = &$to_ini_file([common=>[
+        token=>$token,
         dashboard_addr => "0.0.0.0",
         dashboard_port => "7500",
         dashboard_user => "cone",
-        dashboard_pwd => ($common{token}||die),
-        vhost_http_port => $vhost_http_port,
-        vhost_https_port => $vhost_https_port,
-        #subdomain_host => ($$conf{subdomain_host}||die)
-    ]]));
-    #if($mode eq "up"){
-        &$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate","");
-    #}
+        dashboard_pwd => $token,
+        vhost_http_port => $local_http_port,
+        vhost_https_port => $local_https_port,
+    ]]);
+    my @containers = ({
+        image => $img,
+        name => "frps",
+        C4FRPS_INI => "/c4conf/frps.ini",
+        "port:7000:7000" => "",
+        "port:7500:7500" => "",
+        "port:$ext_ip:$vhost_https_port:$local_https_port" => "",
+        "port:$ext_ip:$vhost_http_port:$local_http_port" => "",
+    });
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    &$put("frps.ini", $conf_content);
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
 push @tasks, ["cert","<hostname>",sub{
