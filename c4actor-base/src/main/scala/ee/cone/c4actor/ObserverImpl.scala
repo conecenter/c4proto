@@ -10,7 +10,7 @@ import scala.collection.immutable.{Map, Seq}
 import scala.util.control.NonFatal
 import scala.util.{Success, Try}
 
-class TxTransforms(qMessages: QMessages) extends LazyLogging {
+class TxTransforms(qMessages: QMessages, warnPeriod: Long) extends LazyLogging {
   def get(global: RichContext): Map[SrcId,Option[Context]⇒Context] =
     ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
   private def handle(global: RichContext, key: SrcId): Option[Context]⇒Context = {
@@ -20,7 +20,6 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
     val startLatency = enqueueTimer.ms
     if(startLatency > 200)
       logger.debug(s"tx $key start latency $startLatency ms")
-    val workTimer = NanoTimer()
     val res = if( //todo implement skip for outdated world
         global.offset < ReadAfterWriteOffsetKey.of(local) ||
       Instant.now.isBefore(SleepUntilKey.of(local))
@@ -29,8 +28,12 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
         ByPK(classOf[TxTransform]).of(global).get(key) match {
           case None ⇒ local
           case Some(tr) ⇒
+            val workTimer = NanoTimer()
             val prepLocal = new Context(global.injected, global.assembled, local.transient)
             val nextLocal = TxTransformOrigMeta(tr.getClass.getName).andThen(tr.transform).andThen(qMessages.send)(prepLocal)
+            val period = workTimer.ms
+            if(period > warnPeriod)
+              logger.warn(s"tx ${tr.getClass.getName} $key worked for $period ms")
             new Context(global.injected, emptyReadModel, nextLocal.transient)
         }
       }
@@ -47,9 +50,6 @@ class TxTransforms(qMessages: QMessages) extends LazyLogging {
           SleepUntilKey.set(Instant.now.plusSeconds(was.size))
         ))(new Context(global.injected, emptyReadModel, Map.empty))
     }
-    val period = workTimer.ms
-    if(period > 500)
-      logger.debug(s"tx $key worked for $period ms")
     res
   }
 }

@@ -52,9 +52,10 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
+  def longTxWarnPeriod: Long = 500L
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
-  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
+  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,longTxWarnPeriod)
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =
