@@ -10,6 +10,10 @@ object ProdLens {
 
 case class NameMetaAttr(value: String) extends AbstractMetaAttr
 
+case class IdMetaAttr(fieldId: Long) extends AbstractMetaAttr
+
+case class ClassesAttr(modelClName: String, fieldClName: String) extends AbstractMetaAttr
+
 case class ProdLens[C, I](metaList: List[AbstractMetaAttr])(val of: C ⇒ I, val set: I ⇒ C ⇒ C) extends AbstractLens[C, I] {
   def to[V](inner: ProdLens[I, V]): ProdLens[C, V] =
     ProdLens[C, V](metaList ::: inner.metaList)(

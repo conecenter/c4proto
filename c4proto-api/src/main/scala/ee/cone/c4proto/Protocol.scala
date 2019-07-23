@@ -22,6 +22,8 @@ case class Id(id: Int) extends StaticAnnotation
 
 case class ShortName(name: String) extends StaticAnnotation
 
+class GenLens extends StaticAnnotation
+
 case class TypeProp(clName: String, alias: String, children: List[TypeProp])
 case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeProp)
 

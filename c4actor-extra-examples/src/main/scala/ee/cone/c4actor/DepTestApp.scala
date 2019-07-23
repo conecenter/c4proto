@@ -10,14 +10,18 @@ import ee.cone.c4actor.dep.reponse.filter.{DepCommonResponseForwardMix, DepForwa
 import ee.cone.c4actor.dep.request._
 import ee.cone.c4actor.dep_impl.{AskByPKsApp, ByPKRequestHandlerApp, DepAssembleApp, DepResponseFiltersApp}
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{GenLens, Id, Protocol, protocol}
 
 import scala.collection.immutable
 
+@protocol(TestCat) object TestProtocolBase {
 
-@protocol(TestCat) object TestProtocolBase   {
-
-  @Id(0x0001) case class D_TestNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
+  @GenLens
+  @deprecated
+  @Id(0x0001) case class D_TestNode(
+    @deprecated
+    @Id(0x0003) srcId: String,
+    @Id(0x0005) parentId: String)
 
   @Id(0x0010) case class D_ValueNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
 
@@ -127,7 +131,7 @@ class DepTestApp extends TestRichDataApp
   with DepResponseFiltersApp
   with DepCommonResponseForwardMix
   with DepResponseFilterFactoryMix
-with DepForwardUserAttributesMix
+  with DepForwardUserAttributesMix
   with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassNameAllRequestHandlerApp with ByClassNameRequestApp with ContextIdInjectApp {
 
   def depRequestHandlers: immutable.Seq[DepHandler] = depHandlers
