@@ -14,28 +14,17 @@ import ee.cone.c4proto.{GenLens, Id, Protocol, protocol}
 
 import scala.collection.immutable
 
-
 @protocol(TestCat) object TestProtocolBase {
 
   @GenLens
-  @Id(0x0001) case class D_TestNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
+  @deprecated
+  @Id(0x0001) case class D_TestNode(
+    @deprecated
+    @Id(0x0003) srcId: String,
+    @Id(0x0005) parentId: String)
 
   @Id(0x0010) case class D_ValueNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
 
-}
-
-object D_TestNodeLenses {
-  val srcId: ProdLens[D_TestNode, String] =
-    ProdLens.ofSet(
-      _.srcId,
-      v ⇒ _.copy(srcId = v),
-      "D_TestNode.srcId",
-      IdMetaAttr(0x0003),
-      ClassesAttr(
-        classOf[D_TestNode].getName,
-        classOf[String].getName
-      )
-    )
 }
 
 object DefaultPffNode extends DefaultModelFactory(classOf[D_ValueNode], D_ValueNode(_, 0))

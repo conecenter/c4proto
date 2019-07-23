@@ -35,8 +35,7 @@ object ProtocolGenerator extends Generator {
   }
 
   def getLens(protocolName: String, origType: String, fieldId: Long, fieldName: String, fieldType: String): String =
-    s"""
-       |  val $fieldName: ee.cone.c4actor.ProdLens[$protocolName.$origType, $fieldType] =
+    s"""  val $fieldName: ee.cone.c4actor.ProdLens[$protocolName.$origType, $fieldType] =
        |    ee.cone.c4actor.ProdLens.ofSet(
        |      _.$fieldName,
        |      v ⇒ _.copy($fieldName = v),
@@ -46,8 +45,7 @@ object ProtocolGenerator extends Generator {
        |        classOf[$protocolName.$origType].getName,
        |        classOf[$fieldType].getName
        |      )
-       |    )
-     """.stripMargin
+       |    )""".stripMargin
 
   def getTypeProp(t: Type): String = {
     t match {
@@ -75,7 +73,7 @@ object ProtocolGenerator extends Generator {
             pMods.copy(shortName=Option(shortName))
           case mod"@GenLens" ⇒
             pMods.copy(genLens = true)
-          case mod"@deprecated" ⇒ pMods
+          case mod"@deprecated(...$notes)" ⇒ pMods
         })
         val Sys = "Sys(.*)".r
         val (resultType,factoryName) = messageName match { case Sys(v) ⇒ (v,s"${v}Factory") case v ⇒ (v,v) }
@@ -95,6 +93,8 @@ object ProtocolGenerator extends Generator {
                 fMods.copy(id = Option(id))
               case mod"@ShortName(${Lit(shortName:String)})" ⇒
                 fMods.copy(shortName = Option(shortName))
+              case mod"@deprecated(...$notes)" ⇒
+                fMods
             })
             val tp = tpeopt.asInstanceOf[Option[Type]].get
             /*
