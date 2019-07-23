@@ -43,8 +43,6 @@ trait LensRegistryApi {
   def getByCommonPrefix[Model, Field](commonPrefix: String): Option[ProdLens[Model, Field]]
 }
 
-case class ClassesAttr(modelClName: String, fieldClName: String) extends AbstractMetaAttr
-
 case class LensRegistryImpl(lensList: List[ProdLens[_, _]], models: List[ProductWithId[_ <: Product]]) extends LensRegistryApi with HashSearchIdGeneration {
   private def getNames(prodLens: ProdLens[_, _]): List[String] = prodLens.metaList.collect { case a: NameMetaAttr ⇒ a }
     .map(_.value) match {
