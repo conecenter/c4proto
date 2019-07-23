@@ -17,9 +17,7 @@ import scala.collection.immutable
 @protocol(TestCat) object TestProtocolBase {
 
   @GenLens
-  @deprecated
   @Id(0x0001) case class D_TestNode(
-    @deprecated
     @Id(0x0003) srcId: String,
     @Id(0x0005) parentId: String)
 
