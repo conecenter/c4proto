@@ -2,7 +2,7 @@
 package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
@@ -22,7 +22,7 @@ import scala.concurrent.{Await, Future}
 
   def joinConsumers(
     key: SrcId,
-    first: Each[Firstborn]
+    first: Each[S_Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
     List(WithPK(LocalPostConsumer(s"/manage/$actorName")))
 }

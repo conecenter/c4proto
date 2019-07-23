@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{TxRef, Update}
+import ee.cone.c4actor.QProtocol.{N_TxRef, N_Update}
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{D_LogEntry, D_TxAddMeta}
 import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble._
@@ -19,7 +19,7 @@ case object ProfilerMetaCat extends DataCategory
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =
     NoJoiningProfiling
-  def addMeta(transition: WorldTransition, updates: Seq[Update]): Future[Seq[Update]] =
+  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] =
     Future.successful(updates)
 }
 
@@ -51,7 +51,7 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
   def createJoiningProfiling(localOpt: Option[Context]) =
     if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime)
-  def addMeta(transition: WorldTransition, updates: Seq[Update]): Future[Seq[Update]] = transition.profiling match {
+  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] = transition.profiling match {
     case SimpleSerialJoiningProfiling(startedAt) ⇒
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
@@ -63,7 +63,7 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
     } yield {
       val log = logAll.collect{ case l: D_LogEntry ⇒ l }
       val meta = List(
-        TxRef(id,""),
+        N_TxRef(id,""),
         D_TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)
       )
       val metaUpdates = meta.flatMap(LEvent.update).map(toUpdate.toUpdate)

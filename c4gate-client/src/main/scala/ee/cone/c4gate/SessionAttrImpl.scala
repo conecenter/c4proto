@@ -7,7 +7,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4proto._
 import okio.ByteString
@@ -45,7 +45,7 @@ object SessionDataAssembles {
 
   def joinSessionLife(
     key: SrcId,
-    session: Each[FromAlienState],
+    session: Each[U_FromAlienState],
     @by[SessionKey] sessionData: Each[U_RawSessionData]
   ): Values[(Alive, U_RawSessionData)] = List(WithPK(sessionData))
 }

@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4proto.ToByteString
 
 /*snapshot cleanup:
@@ -20,7 +20,7 @@ class SnapshotMergerImpl(
   reducer: RichRawWorldReducer,
   signer: Signer[SnapshotTask]
 ) extends SnapshotMerger {
-  private def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update] = {
+  private def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_Update] = {
     val currentUpdates = toUpdate.toUpdates(List(snapshot))
     val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
     val state = currentUpdates.map(up⇒toUpdate.toKey(up)→up).toMap

@@ -11,7 +11,7 @@ import ee.cone.c4proto.Protocol
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4actor.LEvent.update
-import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 
 class TestPasswordApp extends ServerApp
   with EnvConfigApp with VMExecutionApp

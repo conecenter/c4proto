@@ -5,7 +5,7 @@ import java.net.URL
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, fieldAccess}
-import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
 import ee.cone.c4gate.TestFilterProtocol.B_Content
 import ee.cone.c4proto.{Id, Protocol}
@@ -97,7 +97,7 @@ case class TestCoLeaderView(locationHash: String = "leader")(
 ) extends ByLocationHashView with LazyLogging {
   import tags._
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
-    val fromAlienStates = ByPK(classOf[FromAlienState]).of(local)
+    val fromAlienStates = ByPK(classOf[U_FromAlienState]).of(local)
     val fromAliens = for(
       fromAlien ← fromAlienStates.values;
       url ← Option(new URL(fromAlien.location));

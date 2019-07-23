@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{FailedUpdates, Firstborn, Offset}
+import ee.cone.c4actor.QProtocol.{S_FailedUpdates, S_Firstborn, S_Offset}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
@@ -30,7 +30,7 @@ class RichRawWorldReducerImpl(
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
       val offset = addEvents.lastOption.fold(emptyOffset)(_.srcId)
-      val firstborn = LEvent.update(Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
+      val firstborn = LEvent.update(S_Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
       val (bytes, headers) = toUpdate.toBytes(firstborn)
       SimpleRawEvent(offset, ToByteString(bytes), headers) :: addEvents
     }
@@ -51,7 +51,7 @@ class RichRawWorldReducerImpl(
   }
   def emptyOffset: NextOffset = "0" * OffsetHexSize()
   def create(injected: SharedComponentMap, assembled: ReadModel): RichRawWorldImpl = {
-    val offset = ByPK(classOf[Offset])
+    val offset = ByPK(classOf[S_Offset])
       .of(new RichRawWorldImpl(injected, assembled, ""))
       .get(actorName).fold(emptyOffset)(_.txId)
     new RichRawWorldImpl(injected, assembled, offset)

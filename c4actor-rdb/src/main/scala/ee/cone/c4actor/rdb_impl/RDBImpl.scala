@@ -10,7 +10,7 @@ import FromExternalDBProtocol.B_DBOffset
 import ToExternalDBProtocol.B_HasState
 import ToExternalDBTypes.{NeedSrcId, PseudoOrigNeedSrcId}
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{Firstborn, Update}
+import ee.cone.c4actor.QProtocol.{S_Firstborn, N_Update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.rdb_impl.ToExternalDBAssembleTypes.PseudoOrig
@@ -174,7 +174,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 @assemble class FromExternalDBSyncAssembleBase   {
   def joinTxTransform(
     key: SrcId,
-    first: Each[Firstborn]
+    first: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
     List("externalDBSync").map(k⇒k→FromExternalDBSyncTransform(k))
 }
@@ -258,7 +258,7 @@ class IndentedParser(
       case s: String ⇒ s
     }
 
-  def toUpdates(textEncoded: String): List[Update] = {
+  def toUpdates(textEncoded: String): List[N_Update] = {
     val lines = textEncoded.split(lineSplitter).filter(_.nonEmpty).toList
     val universalNode = UniversalNodeImpl(parseProps(lines, Nil))
     //println(PrettyProduct.encode(universalNode))
@@ -267,7 +267,7 @@ class IndentedParser(
         case node: UniversalDeleteImpl ⇒ (getNodeSrcId(node), ToByteString(Array.emptyByteArray))
         case node: UniversalNode ⇒ (getNodeSrcId(node), ToByteString(prop.encodedValue))
       }
-      Update(srcId, prop.tag, value, 0L)
+      N_Update(srcId, prop.tag, value, 0L)
     }
   }
 }

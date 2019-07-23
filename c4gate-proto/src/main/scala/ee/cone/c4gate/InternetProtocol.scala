@@ -38,7 +38,7 @@ case object AlienCat extends DataCategory
 
 @protocol object AlienProtocolBase   {
   @Cat(AlienCat)
-  @Id(0x0030) case class ToAlienWrite(
+  @Id(0x0030) case class U_ToAlienWrite(
     @Id(0x0031) srcId: String,
     @Id(0x0032) sessionKey: String,
     @Id(0x0033) event: String,
@@ -47,7 +47,7 @@ case object AlienCat extends DataCategory
   )
 
   @Cat(AlienCat)
-  @Id(0x0036) case class FromAlienState(
+  @Id(0x0036) case class U_FromAlienState(
     @Id(0x0032) sessionKey: String,
     @Id(0x0037) location: String,
     @Id(0x0039) connectionKey: String, // we need to affect branchKey
@@ -55,14 +55,14 @@ case object AlienCat extends DataCategory
   )
 
   @Cat(ExchangeCat)
-  @Id(0x003B) case class PostConsumer(
+  @Id(0x003B) case class E_PostConsumer(
     @Id(0x003C) srcId: String,
     @Id(0x003D) consumer: String,
     @Id(0x003E) condition: String
   )
 
   @Cat(AlienCat)
-  @Id(0x003F) case class FromAlienStatus(
+  @Id(0x003F) case class U_FromAlienStatus(
     @Id(0x0032) sessionKey: String,
     @Id(0x0038) expirationSecond: Long,
     @Id(0x005C) isOnline: Boolean

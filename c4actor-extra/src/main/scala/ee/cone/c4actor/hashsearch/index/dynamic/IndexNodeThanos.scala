@@ -2,7 +2,7 @@ package ee.cone.c4actor.hashsearch.index.dynamic
 
 import java.time.Instant
 
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNode
@@ -114,8 +114,8 @@ sealed trait ThanosTimeTypes {
 
   def SnapTransformWatcher(
     verId: SrcId,
-    firstBorn: Each[Firstborn],
-    versions: Values[IndexNodesVersion]
+    firstBorn: Each[S_Firstborn],
+    versions: Values[S_IndexNodesVersion]
   ): Values[(SrcId, TxTransform)] =
     if (versions.headOption.map(_.version).getOrElse("") == version) {
       Nil
@@ -125,7 +125,7 @@ sealed trait ThanosTimeTypes {
 
   def PowerFilterCurrentTimeNode(
     timeNode: SrcId,
-    firstborn: Values[Firstborn],
+    firstborn: Values[S_Firstborn],
     currentTimeNode: Each[S_CurrentTimeNode]
   ): Values[(PowerIndexNodeThanosAll, S_CurrentTimeNode)] =
     if (currentTimeNode.srcId == "DynamicIndexAssembleRefresh")
@@ -136,7 +136,7 @@ sealed trait ThanosTimeTypes {
 
   def ApplyThanosTransforms(
     firsBornId: SrcId,
-    firstborn: Each[Firstborn],
+    firstborn: Each[S_Firstborn],
     @by[ThanosLEventsTransformsAll] @distinct events: Values[LEventTransform]
   ): Values[(SrcId, TxTransform)] =
     if (events.nonEmpty)
@@ -276,7 +276,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   // Mock join
   def MockJoin(
     srcId: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId, RangerDirective[Model])] =
     Nil
 
@@ -559,10 +559,10 @@ case class SoulCorrectionTransform(srcId: SrcId, indexNodeList: List[S_IndexNode
 
 case class SnapTransform(srcId: String, fbId: String, version: String) extends TxTransform {
   def transform(local: Context): Context = {
-    val versionW = ByPK(classOf[IndexNodesVersion]).of(local).values.headOption.map(_.version).getOrElse("")
+    val versionW = ByPK(classOf[S_IndexNodesVersion]).of(local).values.headOption.map(_.version).getOrElse("")
     if (version != versionW) {
       val delete =
-        (ByPK(classOf[IndexNodesVersion]).of(local).values ++
+        (ByPK(classOf[S_IndexNodesVersion]).of(local).values ++
           ByPK(classOf[S_IndexNode]).of(local).values ++
           ByPK(classOf[S_IndexNodeSettings]).of(local).values ++
           ByPK(classOf[S_IndexByNodesStats]).of(local).values ++
@@ -570,7 +570,7 @@ case class SnapTransform(srcId: String, fbId: String, version: String) extends T
           ByPK(classOf[S_IndexByNodeLastSeen]).of(local).values ++
           ByPK(classOf[S_IndexByNodeSettings]).of(local).values ++
           ByPK(classOf[S_TimeMeasurement]).of(local).values).flatMap(LEvent.delete).toList
-      val add = LEvent.update(IndexNodesVersion(fbId, version))
+      val add = LEvent.update(S_IndexNodesVersion(fbId, version))
       TxAdd(delete ++ add)(local)
     }
     else

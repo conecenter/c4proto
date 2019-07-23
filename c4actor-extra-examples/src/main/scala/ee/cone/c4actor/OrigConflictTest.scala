@@ -1,8 +1,8 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.ProtoConflict.ConflictOrig
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.ProtoConflict.D_ConflictOrig
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble}
@@ -12,26 +12,26 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol(TestCat) object ProtoConflictBase   {
 
-  @Id(0x103) case class ConflictOrig(
+  @Id(0x103) case class D_ConflictOrig(
     @Id(0x104) srcId: String,
     @Id(0x105) value: Int
   )
 
 }
 
-case class ConflictRich(conflict: ConflictOrig)
+case class ConflictRich(conflict: D_ConflictOrig)
 
-@assemble class AssembleConflictBase(produce: ConflictOrig)   {
+@assemble class AssembleConflictBase(produce: D_ConflictOrig)   {
 
   def Produce(
     modelId: SrcId,
-    fb: Each[Firstborn]
-  ): Values[(SrcId, ConflictOrig)] =
+    fb: Each[S_Firstborn]
+  ): Values[(SrcId, D_ConflictOrig)] =
     WithPK(produce) :: Nil
 
   def ProduceRich(
     modelId: SrcId,
-    origs: Values[ConflictOrig]
+    origs: Values[D_ConflictOrig]
   ): Values[(SrcId, ConflictRich)] =
     for {
       origg ← Single.option(origs).toList
@@ -53,8 +53,8 @@ class ConflictingOrigTest(
     logger.info("============Empty local===================")
     println(ByPK(classOf[ConflictRich]).of(emptyLocal).values.toList)
 
-    val worldUpdate: Seq[LEvent[Product]] = List(ConflictOrig("main", 2)).flatMap(update)
-    val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val worldUpdate: Seq[LEvent[Product]] = List(D_ConflictOrig("main", 2)).flatMap(update)
+    val updates: List[QProtocol.N_Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nonEmptyLocal = contextFactory.updated(updates)
 
     logger.info("============Non empty local===================")
@@ -65,7 +65,7 @@ class ConflictingOrigTest(
   }
 }
 
-class ConflictOrigTestApp extends TestRichDataApp
+class D_ConflictOrigTestApp extends TestRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp
@@ -74,7 +74,7 @@ class ConflictOrigTestApp extends TestRichDataApp
 
   override def protocols: List[Protocol] = ProtoConflict :: super.protocols
 
-  override def assembles: List[Assemble] = new AssembleConflict(ConflictOrig("main", 0)) :: super.assembles
+  override def assembles: List[Assemble] = new AssembleConflict(D_ConflictOrig("main", 0)) :: super.assembles
 
   lazy val assembleProfiler = ConsoleAssembleProfiler //ValueAssembleProfiler
 }

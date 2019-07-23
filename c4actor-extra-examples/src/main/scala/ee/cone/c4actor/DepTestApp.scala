@@ -69,7 +69,7 @@ class DepTestStart(
     /*
           update(D_Node("12","1")) ++ update(D_Node("13","1")) ++
           update(D_Node("124","12")) ++ update(D_Node("125","12"))*/
-    val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val updates: List[QProtocol.N_Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
