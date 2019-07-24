@@ -5,7 +5,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import com.sun.net.httpserver.HttpExchange
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{Firstborn, Update}
+import ee.cone.c4actor.QProtocol.{S_Firstborn, N_Update}
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -40,7 +40,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandle
 
   def needConsumer(
     key: SrcId,
-    first: Each[Firstborn]
+    first: Each[S_Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
     List(WithPK(LocalPostConsumer(SnapshotMakingUtil.url)))
 
@@ -52,7 +52,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandle
 
   def mapFirstborn(
     key: SrcId,
-    firstborn: Each[Firstborn],
+    firstborn: Each[S_Firstborn],
     @by[NeedSnapshot] posts: Values[S_HttpPost]
   ): Values[(SrcId,TxTransform)] = {
     val srcId = "snapshotMaker"
@@ -154,13 +154,13 @@ class SnapshotMakerImpl(
   }
 
   @tailrec private def makeStatLine(
-    currType: Long, currCount: Long, currSize: Long, updates: List[Update]
-  ): List[Update] =
+    currType: Long, currCount: Long, currSize: Long, updates: List[N_Update]
+  ): List[N_Update] =
     if(updates.isEmpty || currType != updates.head.valueTypeId) {
       logger.debug(s"t:${java.lang.Long.toHexString(currType)} c:$currCount s:$currSize")
       updates
     } else makeStatLine(currType,currCount+1,currSize+updates.head.value.size(),updates.tail)
-  @tailrec private def makeStats(updates: List[Update]): Unit =
+  @tailrec private def makeStats(updates: List[N_Update]): Unit =
     if(updates.nonEmpty) makeStats(makeStatLine(updates.head.valueTypeId,0,0,updates))
 
   private def save(world: SnapshotWorld): RawSnapshot = {
@@ -233,7 +233,7 @@ class SafeToRun(snapshotMaker: SnapshotMakerImpl) extends Executable {
   }
 }
 
-class SnapshotWorld(val state: Map[Update,Update],val offset: NextOffset)
+class SnapshotWorld(val state: Map[N_Update,N_Update],val offset: NextOffset)
 
 trait SnapshotConfig {
   def ignore: Set[Long]

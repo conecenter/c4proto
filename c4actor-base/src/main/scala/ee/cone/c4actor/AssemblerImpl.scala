@@ -42,7 +42,7 @@ class AssemblerInit(
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends ToInject with LazyLogging {
 
-  private def toTree(assembled: ReadModel, updates: DPIterable[Update]): ReadModel =
+  private def toTree(assembled: ReadModel, updates: DPIterable[N_Update]): ReadModel =
     readModelUtil.create((for {
       tpPair ← updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair
@@ -67,9 +67,9 @@ class AssemblerInit(
     concurrent.blocking{Await.result(res, Duration.Inf)}
   }
 
-  private def offset(events: Seq[RawEvent]): List[Update] = for{
+  private def offset(events: Seq[RawEvent]): List[N_Update] = for{
     ev ← events.lastOption.toList
-    lEvent ← LEvent.update(Offset(actorName,ev.srcId))
+    lEvent ← LEvent.update(S_Offset(actorName,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
   private def readModelAdd(replace: Replace): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ try {
     val options = getAssembleOptions(assembled)
@@ -86,7 +86,7 @@ class AssemblerInit(
       if(events.size == 1){
         val options = getAssembleOptions(assembled)
         val updates = offset(events) ++
-          events.map(ev⇒FailedUpdates(ev.srcId, e.getMessage))
+          events.map(ev⇒S_FailedUpdates(ev.srcId, e.getMessage))
             .flatMap(LEvent.update).map(toUpdate.toUpdate)
         val failDiff = toTree(assembled, updates)
         reduce(replace, assembled, failDiff, options)
@@ -96,7 +96,7 @@ class AssemblerInit(
       }
   }
   // other parts:
-  private def add(out: Seq[Update]): Context ⇒ Context = {
+  private def add(out: Seq[N_Update]): Context ⇒ Context = {
     if (out.isEmpty) identity[Context]
     else { local ⇒
       val options = getAssembleOptions(local.assembled)

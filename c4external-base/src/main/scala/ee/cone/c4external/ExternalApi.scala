@@ -1,6 +1,5 @@
 package ee.cone.c4external
 
-import ee.cone.c4actor.UpdatesCat
 import ee.cone.c4external.ExternalProtocol.S_ExternalUpdate
 import ee.cone.c4proto.{Id, protocol}
 
@@ -23,7 +22,7 @@ trait ExtDBSync {
   def upload: List[S_ExternalUpdate] ⇒ List[(String, Int)]
 }
 
-@protocol(UpdatesCat) object ExternalProtocolBase {
+@protocol object ExternalProtocolBase {
 
   @Id(0x008d) case class S_ExternalOffset(
     @Id(0x008e) externalName: String,

@@ -5,7 +5,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{S_K2TreeParams, S_TreeNode, S_TreeNodeOuter, S_TreeRange}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4proto.{Id, OperativeCat, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait K2TreeApp extends AssemblesApp with ProtocolsApp {
   def k2ModelRegistry: List[(Class[_ <: Product], _ <: Product ⇒ (Long, Long))] = Nil
@@ -42,6 +42,7 @@ object K2TreeUtils {
           getRegions(right, search)
         else Nil
         answerLeft ::: answerRight
+      case _ ⇒ FailWith(s"Unhandled option for $root $search")
     }
 
 
@@ -158,7 +159,7 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
   }
 }
 
-@protocol(OperativeCat) object RangeTreeProtocolBase {
+@protocol object RangeTreeProtocolBase {
 
   @Id(0x0f8e) case class S_K2TreeParams(
     @Id(0x0f9b) srcId: String,

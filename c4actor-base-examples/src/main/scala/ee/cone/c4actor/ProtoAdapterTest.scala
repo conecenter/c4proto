@@ -27,7 +27,7 @@ object ProtoAdapterTest extends App with LazyLogging {
   logger.info(s"OK $group1")
 }
 
-@protocol(TestCat) object MyProtocolBase   {
+@protocol object MyProtocolBase   {
   import ee.cone.c4proto.BigDecimalProtocol._
 
   //com.squareup.wire.ProtoAdapter

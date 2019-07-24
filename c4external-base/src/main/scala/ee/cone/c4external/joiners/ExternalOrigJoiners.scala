@@ -1,7 +1,7 @@
 package ee.cone.c4external.joiners
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types.{SrcId, TypeId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -24,18 +24,18 @@ trait ExternalUpdateUtil[Model <: Product] {
 
 import ee.cone.c4external.ExternalOrigKey._
 
-case class WriteToKafka(origSrcId: SrcId, toKafka: Update)
+case class WriteToKafka(origSrcId: SrcId, toKafka: N_Update)
 
 class WriteToKafkaImpl(hashGen: HashGen, typeId: TypeId) {
   private val extUpdateId: Long = 4L
 
   def apply(ext: S_ExternalUpdate): List[(SrcId, WriteToKafka)] = {
     val srcId = hashGen.generate(ext.valueSrcId, typeId)
-    (srcId -> WriteToKafka(srcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, ext.flags | extUpdateId))) :: Nil
+    (srcId -> WriteToKafka(srcId, N_Update(ext.valueSrcId, ext.valueTypeId, ext.value, ext.flags | extUpdateId))) :: Nil
   }
   def apply(ext: S_CacheUpdate): List[(SrcId, WriteToKafka)] = {
     val srcId = hashGen.generate(ext.valueSrcId, typeId)
-    (srcId -> WriteToKafka(srcId, Update(ext.valueSrcId, ext.valueTypeId, ext.value, extUpdateId))) :: Nil
+    (srcId -> WriteToKafka(srcId, N_Update(ext.valueSrcId, ext.valueTypeId, ext.value, extUpdateId))) :: Nil
   }
 }
 

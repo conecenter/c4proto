@@ -12,12 +12,6 @@ trait Protocol {
   def adapters: List[ProtoAdapter[_] with HasId]
 }
 
-trait DataCategory extends Product
-
-case object InnerCat extends DataCategory
-
-case class Cat(category: DataCategory*) extends StaticAnnotation
-
 case class Id(id: Int) extends StaticAnnotation
 
 case class ShortName(name: String) extends StaticAnnotation

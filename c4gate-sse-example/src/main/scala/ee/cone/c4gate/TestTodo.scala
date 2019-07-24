@@ -42,7 +42,7 @@ class TestTodoApp extends ServerApp
   override def longTxWarnPeriod: Long = 10L
 }
 
-@protocol(TestCat) object TestTodoProtocolBase   {
+@protocol object TestTodoProtocolBase   {
   @Id(0x0001) case class B_TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,

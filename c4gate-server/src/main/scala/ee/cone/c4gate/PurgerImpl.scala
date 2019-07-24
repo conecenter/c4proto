@@ -4,7 +4,7 @@ import java.nio.file.{Files, Path, Paths}
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.{Context, SleepUntilKey, TxTransform, WithPK}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -60,7 +60,7 @@ case class PurgerTx(
 @assemble class PurgerAssembleBase(purger: Purger)   {
   def joinPurger(
     key: SrcId,
-    first: Each[Firstborn]
+    first: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
     List(WithPK(PurgerTx("purger",PurgerDefaultPolicy())(purger)))
 }

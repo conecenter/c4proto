@@ -21,7 +21,7 @@ class TestRootProducerImpl(rawQSender: RawQSender, toUpdate: ToUpdate) extends E
     iteration()
   }
   @tailrec private def iteration(): Unit = {
-    val updates = Nil //LEvent.update(Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
+    val updates = Nil //LEvent.update(S_Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
     val (bytes, headers) = toUpdate.toBytes(updates)
     rawQSender.send(List(new TestQRecordImpl(InboxTopicName(),bytes,headers)))
     logger.info(s"pushed")

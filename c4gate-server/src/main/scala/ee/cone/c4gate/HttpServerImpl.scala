@@ -18,7 +18,7 @@ import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4actor._
-import ee.cone.c4gate.AlienProtocol.{PostConsumer, ToAlienWrite}
+import ee.cone.c4gate.AlienProtocol.{E_PostConsumer, U_ToAlienWrite}
 import ee.cone.c4gate.AuthProtocol._
 import ee.cone.c4proto._
 
@@ -107,7 +107,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         if(hashOK) List(
           post(ToByteString(newId)),
           U_AuthenticatedSession(newId, userName, Instant.now.plusSeconds(20).getEpochSecond),
-          ToAlienWrite(newId,currentSessionKey,"signedIn",newId,0)
+          U_ToAlienWrite(newId,currentSessionKey,"signedIn",newId,0)
         ) else List(
           post(okio.ByteString.EMPTY)
         )
@@ -203,7 +203,7 @@ case class HttpPostAllow(condition: SrcId)
 
   def consumersByCondition(
     key: SrcId,
-    c: Each[PostConsumer]
+    c: Each[E_PostConsumer]
   ): Values[(Condition, LocalPostConsumer)] =
     List(WithPK(LocalPostConsumer(c.condition)))
 

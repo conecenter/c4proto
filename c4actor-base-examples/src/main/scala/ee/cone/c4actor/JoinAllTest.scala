@@ -16,7 +16,7 @@ class JoinAllTestApp extends TestRichDataApp
   override def toStart: List[Executable] = new JoinAllTestExecutable(contextFactory) :: super.toStart
 }
 
-@protocol(TestCat) object JoinAllTestProtocolBase   {
+@protocol object JoinAllTestProtocolBase   {
   @Id(0x0002) case class D_RegistryItem(@Id(0x0001) srcId: String)
   @Id(0x0001) case class D_Item(@Id(0x0001) srcId: String)
 }

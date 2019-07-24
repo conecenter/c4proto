@@ -1,6 +1,6 @@
 package ee.cone.c4actor.sandbox
 
-import ee.cone.c4actor.MD5HashingProtocol.{TestOrigEasy, TestOrigHard}
+import ee.cone.c4actor.MD5HashingProtocol.{D_TestOrigEasy, D_TestOrigHard}
 import ee.cone.c4actor.{PreHashed, PreHashingImpl, PreHashingMurMur3, TimeColored}
 import ee.cone.c4actor.Types.SrcId
 import okio.ByteString
@@ -103,11 +103,11 @@ object Test {
     Thread.sleep(1000)*/
   }
 
-  def generateRandomEasy: SrcId ⇒ TestOrigEasy = srcId ⇒
-    TestOrigEasy(srcId, Random.nextInt(100000000))
+  def generateRandomEasy: SrcId ⇒ D_TestOrigEasy = srcId ⇒
+    D_TestOrigEasy(srcId, Random.nextInt(100000000))
 
-  def generateHard: SrcId ⇒ TestOrigHard = srcId ⇒
-    TestOrigHard(srcId,
+  def generateHard: SrcId ⇒ D_TestOrigHard = srcId ⇒
+    D_TestOrigHard(srcId,
       Random.nextInt(100000000),
       Random.nextLong(),
       Some(Random.nextInt(100000000).toString),

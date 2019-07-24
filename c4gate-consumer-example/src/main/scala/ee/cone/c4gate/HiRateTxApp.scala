@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4actor.QProtocolBase.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.HttpProtocol.S_HttpPost
@@ -28,7 +28,7 @@ class HiRateTxApp extends ServerApp with ParallelObserversApp
 @assemble class HiRateAssembleBase {
   def joinPosts(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId, TxTransform)] = List(WithPK(HiRateTx("HiRateTx")))
 }
 

@@ -7,7 +7,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-@protocol(TestCat) object ConnProtocolBase   {
+@protocol object ConnProtocolBase   {
   @Id(0x0001) case class D_Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 }
 
