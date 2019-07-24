@@ -14,7 +14,7 @@ import ee.cone.c4proto.{GenLens, Id, Protocol, protocol}
 
 import scala.collection.immutable
 
-@protocol(TestCat) object TestProtocolBase {
+@protocol object TestProtocolBase {
 
   @GenLens
   @Id(0x0001) case class D_TestNode(

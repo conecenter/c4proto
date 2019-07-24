@@ -13,8 +13,6 @@ import scala.collection.immutable.{Map, Seq}
 
 case class Resolvable[+A](value: Option[A], requests: Seq[DepRequest] = Nil)  // low-level //?hashed
 
-case object DepRequestCat extends DataCategory
-
 trait Dep[A] {
   def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
   def map[B](f: A ⇒ B): Dep[B]

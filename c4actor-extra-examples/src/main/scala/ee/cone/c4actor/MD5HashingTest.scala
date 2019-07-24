@@ -22,7 +22,7 @@ case class NonHashedRich[T](srcId: SrcId, preHashed: T)
 
 case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[D_TestOrigEasy], NonHashedRich[D_TestOrigHard])])
 
-@protocol(TestCat) object MD5HashingProtocolBase   {
+@protocol object MD5HashingProtocolBase   {
 
   @Id(0x239) case class D_TestOrigHard(
     @Id(0x240) srcId: String,

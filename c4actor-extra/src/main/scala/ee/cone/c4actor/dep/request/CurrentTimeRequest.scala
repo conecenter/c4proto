@@ -48,7 +48,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   }
 }
 
-@protocol(OperativeCat) object CurrentTimeProtocolBase {
+@protocol object CurrentTimeProtocolBase {
 
   @Id(0x0127) case class S_CurrentTimeNodeSetting(
     @Id(0x0128) timeNodeId: String,
@@ -136,13 +136,11 @@ object CurrentTimeRequestAssembleTimeId {
 
 @protocol object CurrentTimeRequestProtocolBase {
 
-  @Cat(DepRequestCat)
-  @Id(0x0f83) case class N_CurrentTimeRequest(
+    @Id(0x0f83) case class N_CurrentTimeRequest(
     @Id(0x0f86) everyPeriod: Long
   )
 
-  @Cat(TxMetaCat)
-  @Id(0x0f87) case class D_CurrentTimeMetaAttr(
+    @Id(0x0f87) case class D_CurrentTimeMetaAttr(
     @Id(0x0f88) srcId: String,
     @Id(0x0f89) everyPeriod: Long
   )

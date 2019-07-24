@@ -17,7 +17,7 @@ import ee.cone.c4actor.ProtoBuffTestProtocol.{D_TestOrig, D_TestOrigForDecode}
 
 import scala.collection.immutable
 
-@protocol(TestCat) object ProtoBuffTestProtocolBase   {
+@protocol object ProtoBuffTestProtocolBase   {
 
   import AnyOrigProtocol._
 

@@ -9,7 +9,7 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, _}
 
-@protocol(TestCat) object PCProtocolBase   {
+@protocol object PCProtocolBase   {
   @Id(0x0003) case class D_RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
   @Id(0x0001) case class D_RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }

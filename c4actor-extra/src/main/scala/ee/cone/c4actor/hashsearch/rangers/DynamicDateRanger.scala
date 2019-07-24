@@ -159,7 +159,7 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
   }
 }
 
-@protocol(OperativeCat) object RangeTreeProtocolBase {
+@protocol object RangeTreeProtocolBase {
 
   @Id(0x0f8e) case class S_K2TreeParams(
     @Id(0x0f9b) srcId: String,

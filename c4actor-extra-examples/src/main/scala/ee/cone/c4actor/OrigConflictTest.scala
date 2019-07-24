@@ -10,7 +10,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConflictOrigTestApp sbt ~'c4actor-extra-examples/runMain -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 ee.cone.c4actor.ServerMain'
 
-@protocol(TestCat) object ProtoConflictBase   {
+@protocol object ProtoConflictBase   {
 
   @Id(0x103) case class D_ConflictOrig(
     @Id(0x104) srcId: String,

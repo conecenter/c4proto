@@ -23,7 +23,7 @@ trait ExtDBSync {
   def upload: List[S_ExternalUpdate] ⇒ List[(String, Int)]
 }
 
-@protocol(UpdatesCat) object ExternalProtocolBase {
+@protocol object ExternalProtocolBase {
 
   @Id(0x008d) case class S_ExternalOffset(
     @Id(0x008e) externalName: String,

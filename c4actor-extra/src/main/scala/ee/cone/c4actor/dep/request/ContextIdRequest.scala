@@ -3,7 +3,7 @@ package ee.cone.c4actor.dep.request
 import ee.cone.c4actor.dep.DepRequestCat
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-@protocol(DepRequestCat) object ContextIdRequestProtocolBase  {
+@protocol object ContextIdRequestProtocolBase  {
   @Id(0x0f31) case class N_ContextIdRequest()
 
   @Id(0x0f3a) case class N_UserIdRequest()

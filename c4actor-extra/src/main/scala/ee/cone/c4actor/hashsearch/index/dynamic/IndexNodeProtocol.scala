@@ -3,7 +3,7 @@ package ee.cone.c4actor.hashsearch.index.dynamic
 import ee.cone.c4actor.{CollectiveTransformProtocol, ProtocolsApp}
 import ee.cone.c4proto._
 
-@protocol(OperativeCat) object IndexNodeProtocolBase  {
+@protocol object IndexNodeProtocolBase  {
   @Id(0x205) case class S_IndexNodesVersion(
     @Id(0x207) srcId: String,
     @Id(0x206) version: String

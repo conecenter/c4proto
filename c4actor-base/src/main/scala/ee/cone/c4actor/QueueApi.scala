@@ -14,9 +14,7 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.Future
 
-case object UpdatesCat extends DataCategory
-
-@protocol(UpdatesCat) object QProtocolBase   {
+@protocol object QProtocolBase   {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
@@ -30,8 +28,7 @@ case object UpdatesCat extends DataCategory
     * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
     * @param flags == One of {0L, 1L, 2L, 4L}
     */
-  @Cat(InnerCat)
-  case class N_Update(
+    case class N_Update(
     @Id(0x0011) srcId: SrcId,
     @Id(0x0012) valueTypeId: Long,
     @Id(0x0013) value: okio.ByteString,
@@ -43,8 +40,7 @@ case object UpdatesCat extends DataCategory
     @Id(0x0015) updates: List[N_Update]
   )
 
-  @Cat(SettingsCat)
-  @Id(0x0016) case class S_Firstborn(
+    @Id(0x0016) case class S_Firstborn(
     @Id(0x0011) srcId: SrcId, //app class
     @Id(0x001A) txId: String
   )

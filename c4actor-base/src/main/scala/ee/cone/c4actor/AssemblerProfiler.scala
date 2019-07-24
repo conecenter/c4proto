@@ -14,8 +14,6 @@ import scala.collection.immutable.Seq
 import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case object ProfilerMetaCat extends DataCategory
-
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =
     NoJoiningProfiling
@@ -30,7 +28,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
 
 ////
 
-@protocol(ProfilerMetaCat) object SimpleAssembleProfilerProtocolBase   {
+@protocol object SimpleAssembleProfilerProtocolBase   {
   @Id(0x0073) case class D_TxAddMeta(
     @Id(0x0074) srcId: String,
     @Id(0x0075) startedAt: Long,

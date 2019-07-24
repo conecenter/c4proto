@@ -128,7 +128,7 @@ case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
 }
 
 
-@protocol(TestCat) object EqProtocolBase   {
+@protocol object EqProtocolBase   {
 
   @Id(0xaabc) case class D_ChangingNode(
     @Id(0xaabd) srcId: String,

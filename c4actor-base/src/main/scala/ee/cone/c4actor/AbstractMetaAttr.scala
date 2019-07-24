@@ -6,9 +6,7 @@ trait AbstractMetaAttr extends Product
 
 case class MetaAttr(orig: Product) extends AbstractMetaAttr
 
-case object TxMetaCat extends DataCategory
-
-@protocol(TxMetaCat) object MetaAttrProtocolBase   {
+@protocol object MetaAttrProtocolBase   {
   @Id(0x00ad) case class D_TxTransformNameMeta(
     @Id(0x00ae) clName: String
   )
