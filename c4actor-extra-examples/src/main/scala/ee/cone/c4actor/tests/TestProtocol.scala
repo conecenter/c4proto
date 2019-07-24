@@ -7,12 +7,12 @@ import ee.cone.c4proto._
 
   @ShortName("KEK")
   @Id(1)
-  @Cat(Cat2, Cat1) case class LUL(
+  @Cat(Cat2, Cat1) case class D_LUL(
     @ShortName("LUL") @Id(2) test: String
   )
 
   @Id(2)
-  @Cat(Cat1) case class LUL2()
+  @Cat(Cat1) case class D_LUL2()
 
 }
 

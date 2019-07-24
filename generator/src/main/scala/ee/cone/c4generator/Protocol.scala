@@ -54,6 +54,16 @@ object ProtocolGenerator extends Generator {
     }
   }
 
+  def getCat(origType: String, isSys: Boolean): String = {
+    if (isSys)
+      "ee.cone.c4proto.S_Cat"
+    else if (origType.charAt(1) == '_') {
+      s"ee.cone.c4proto.${origType.charAt(0)}_Cat"
+    }
+    else
+      throw new Exception(s"Invalid name for Orig: $origType, should start with 'W_' or unsupported orig type")
+  }
+
   def get: Get = { case code@q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" ⇒ Util.unBase(objectName,objectNameNode.pos.end){ objectName ⇒
 
       //println(t.structure)
@@ -76,7 +86,10 @@ object ProtocolGenerator extends Generator {
           case mod"@deprecated(...$notes)" ⇒ pMods
         })
         val Sys = "Sys(.*)".r
-        val (resultType,factoryName) = messageName match { case Sys(v) ⇒ (v,s"${v}Factory") case v ⇒ (v,v) }
+        val (resultType, factoryName, isSys) = messageName match {
+          case Sys(v) ⇒ (v, s"${v}Factory", true)
+          case v ⇒ (v, v, false)
+        }
         val doGenLens = protoMods.genLens
         val adapterOf: String=>String = {
           case "Int" ⇒ "com.squareup.wire.ProtoAdapter.SINT32"
@@ -198,7 +211,7 @@ object ProtocolGenerator extends Generator {
           ) with ee.cone.c4proto.HasId {
             def id = ${protoMods.id.getOrElse("throw new Exception")}
             def hasId = ${protoMods.id.nonEmpty}
-            val ${messageName}_categories = List(${protoMods.category.mkString(", ")}).distinct
+            val ${messageName}_categories = List(${(getCat(resultType, isSys) :: protoMods.category).mkString(", ")}).distinct
             def categories = ${messageName}_categories
             def className = classOf[$resultType].getName
             def cl = classOf[$resultType]

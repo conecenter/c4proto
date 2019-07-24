@@ -1,6 +1,5 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.TestCat
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 @protocol object TestFilterProtocolBase   {
