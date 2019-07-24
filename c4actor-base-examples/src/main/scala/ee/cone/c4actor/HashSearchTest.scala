@@ -21,6 +21,7 @@ case object StrEqRanger extends Ranger[StrEq,String] {
       value ⇒ List(StrEq(value)),
       { case p@StrEq(v) ⇒ List(p) }
     )
+    case _ ⇒ ???
   }
 }
 object DefaultConditionChecks {

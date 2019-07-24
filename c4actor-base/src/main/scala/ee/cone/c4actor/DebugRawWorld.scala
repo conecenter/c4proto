@@ -1,11 +1,11 @@
-package ee.cone.c4actor
+/*package ee.cone.c4actor
 
 import java.nio.charset.StandardCharsets.UTF_8
 
 import ee.cone.c4actor.QProtocol.S_Updates
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4proto.ToByteString
-
+*/
 /*
 object DebugInit extends ToInject {
   def toInject: List[Injectable] = DebugKey.set(None)

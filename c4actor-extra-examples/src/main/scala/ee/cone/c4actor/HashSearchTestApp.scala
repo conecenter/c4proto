@@ -177,6 +177,7 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[D_StrStartsWith], c
           ).toList :+ D_StrStartsWith("")).distinct, {
       case D_StrStartsWith(v) ⇒ D_StrStartsWith(v.take(5)) :: Nil
     })
+    case a ⇒ FailWith(s"Unsupported option $a")
   }
 
   def prepareRequest: D_StrStartsWith => D_StrStartsWith = in ⇒ in.copy(value = in.value.take(5))

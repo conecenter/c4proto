@@ -42,6 +42,7 @@ object K2TreeUtils {
           getRegions(right, search)
         else Nil
         answerLeft ::: answerRight
+      case _ ⇒ FailWith(s"Unhandled option for $root $search")
     }
 
 
