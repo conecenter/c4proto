@@ -15,3 +15,4 @@ case object E_Cat extends DataTypeCategory
 case object N_Cat extends DataTypeCategory
 case object S_Cat extends DataTypeCategory
 case object U_Cat extends DataTypeCategory
+case object V_Cat extends DataTypeCategory
