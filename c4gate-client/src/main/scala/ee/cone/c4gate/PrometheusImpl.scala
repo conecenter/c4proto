@@ -11,7 +11,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.ActorAccessProtocol.C_ActorAccessKey
 import ee.cone.c4gate.AvailabilitySettingProtocol.C_AvailabilitySetting
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
-import ee.cone.c4proto.{Id, Protocol, SettingsCat, protocol}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 import okio.ByteString
 
 @protocol object ActorAccessProtocolBase   {

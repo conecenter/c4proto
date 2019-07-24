@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.{Id, DataCategory, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 trait AbstractMetaAttr extends Product
 

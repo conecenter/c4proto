@@ -8,7 +8,7 @@ import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{D_LogEntry, D_TxAddMeta}
 import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, DataCategory, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.Future

@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.N_Update
-import ee.cone.c4proto.{DataCategory, ToByteString}
+import ee.cone.c4proto.{ToByteString}
 import okio.ByteString
 
 import scala.collection.immutable.Map

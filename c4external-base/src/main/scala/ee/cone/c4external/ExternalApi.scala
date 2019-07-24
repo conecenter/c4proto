@@ -1,6 +1,5 @@
 package ee.cone.c4external
 
-import ee.cone.c4actor.UpdatesCat
 import ee.cone.c4external.ExternalProtocol.S_ExternalUpdate
 import ee.cone.c4proto.{Id, protocol}
 

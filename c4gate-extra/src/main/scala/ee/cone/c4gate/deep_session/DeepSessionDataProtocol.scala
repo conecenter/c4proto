@@ -1,6 +1,5 @@
 package ee.cone.c4gate.deep_session
 
-import ee.cone.c4gate.SessionAttrCat
 import ee.cone.c4gate.SessionDataProtocol.N_RawDataNode
 import ee.cone.c4proto.{Id, Protocol, protocol}
 

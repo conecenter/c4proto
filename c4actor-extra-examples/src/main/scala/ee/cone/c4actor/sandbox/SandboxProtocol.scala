@@ -1,6 +1,6 @@
 package ee.cone.c4actor.sandbox
 
-import ee.cone.c4actor.{ProtocolsApp, TestCat}
+import ee.cone.c4actor.ProtocolsApp
 import ee.cone.c4actor.sandbox.OtherProtocol.{D_Other, D_Other2}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 

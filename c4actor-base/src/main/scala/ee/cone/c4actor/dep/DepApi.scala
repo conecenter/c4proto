@@ -4,7 +4,6 @@ import ee.cone.c4actor.PreHashed
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4proto.DataCategory
 
 import scala.collection.immutable.{Map, Seq}
 
