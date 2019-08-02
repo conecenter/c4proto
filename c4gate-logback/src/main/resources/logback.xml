@@ -2,7 +2,7 @@
     <!--statusListener class="ch.qos.logback.core.status.OnConsoleStatusListener" /-->
     <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
     <include file="./logback.xml"/>
-    <include file="./c4conf/logback.xml"/>
+    <include file="/c4conf/logback.xml"/>
 
 
 
