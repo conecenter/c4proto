@@ -7,9 +7,9 @@ import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.{CompletableFuture, Executors, TimeUnit}
+
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.PBEKeySpec
-
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
@@ -116,6 +116,10 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     TxAdd(requests.flatMap(LEvent.update)).andThen{ nLocal ⇒
       if(ByPK(classOf[HttpPostAllow]).of(nLocal).contains(requestId)){
         qMessages.send(nLocal)
+        val respHeaders = httpExchange.getResponseHeaders
+        val replaceHeaderValues = Map("$C4REQUEST_ID"→requestId)
+        for(header ← ByPK(classOf[E_ResponseOptionsByPath]).of(nLocal).get(path).fold(List.empty[N_Header])(_.headers))
+          respHeaders.add(header.key, replaceHeaderValues.getOrElse(header.value,header.value))
         httpExchange.sendResponseHeaders(200, 0)
         //logger.debug(s"200 $path $headers")
       } else {
