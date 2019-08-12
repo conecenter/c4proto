@@ -3,8 +3,7 @@ package ee.cone.c4actor
 import java.lang.management.ManagementFactory
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.MD5HashingProtocol.{TestOrigEasy, TestOrigHard}
-import ee.cone.c4actor.PerformanceProtocol.{NodeInstruction, D_PerformanceNode}
+import ee.cone.c4actor.MD5HashingProtocol.{D_TestOrigEasy, D_TestOrigHard}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -17,15 +16,15 @@ import scala.util.Random
 
 case class HashedRich[T](srcId: SrcId, preHashed: PreHashed[T])
 
-case class HashedRichFixed(srcId: SrcId, preHashed: PreHashed[List[(HashedRich[TestOrigEasy], HashedRich[TestOrigHard])]])
+case class HashedRichFixed(srcId: SrcId, preHashed: PreHashed[List[(HashedRich[D_TestOrigEasy], HashedRich[D_TestOrigHard])]])
 
 case class NonHashedRich[T](srcId: SrcId, preHashed: T)
 
-case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[TestOrigEasy], NonHashedRich[TestOrigHard])])
+case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[D_TestOrigEasy], NonHashedRich[D_TestOrigHard])])
 
-@protocol(TestCat) object MD5HashingProtocolBase   {
+@protocol object MD5HashingProtocolBase   {
 
-  @Id(0x239) case class TestOrigHard(
+  @Id(0x239) case class D_TestOrigHard(
     @Id(0x240) srcId: String,
     @Id(0x441) int: Int,
     @Id(0x442) long: Long,
@@ -33,7 +32,7 @@ case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[TestO
     @Id(0x444) list: List[Long]
   )
 
-  @Id(0x445) case class TestOrigEasy(
+  @Id(0x445) case class D_TestOrigEasy(
     @Id(0x446) srcId: String,
     @Id(0x447) value: Int
   )
@@ -45,39 +44,39 @@ case class NonHashedRichFixed(srcId: SrcId, preHashed: List[(NonHashedRich[TestO
 
   def nonHashMD5Easy(
     srcId: SrcId,
-    easy: Each[TestOrigEasy]
-  ): Values[(SrcId, NonHashedRich[TestOrigEasy])] =
+    easy: Each[D_TestOrigEasy]
+  ): Values[(SrcId, NonHashedRich[D_TestOrigEasy])] =
     WithPK(NonHashedRich(easy.srcId, easy)) :: Nil
 
   def nonHashMD5Hard(
     srcId: SrcId,
-    easy: Each[TestOrigHard]
-  ): Values[(SrcId, NonHashedRich[TestOrigHard])] =
+    easy: Each[D_TestOrigHard]
+  ): Values[(SrcId, NonHashedRich[D_TestOrigHard])] =
     WithPK(NonHashedRich(easy.srcId, easy)) :: Nil
 
   def nonEasyAndHard(
     srcId: SrcId,
-    easy: Each[NonHashedRich[TestOrigEasy]],
-    hard: Each[NonHashedRich[TestOrigHard]]
+    easy: Each[NonHashedRich[D_TestOrigEasy]],
+    hard: Each[NonHashedRich[D_TestOrigHard]]
   ): Values[(SrcId, NonHashedRichFixed)] =
     WithPK(NonHashedRichFixed(easy.srcId + hard.srcId, (easy, hard) :: (easy, hard) :: (easy, hard) :: (easy, hard) :: Nil)) :: Nil
 
   def HashMD5Easy(
     srcId: SrcId,
-    easy: Each[TestOrigEasy]
-  ): Values[(SrcId, HashedRich[TestOrigEasy])] =
+    easy: Each[D_TestOrigEasy]
+  ): Values[(SrcId, HashedRich[D_TestOrigEasy])] =
     WithPK(HashedRich(easy.srcId, preHashing.wrap(easy))) :: Nil
 
   def HashMD5Hard(
     srcId: SrcId,
-    easy: Each[TestOrigHard]
-  ): Values[(SrcId, HashedRich[TestOrigHard])] =
+    easy: Each[D_TestOrigHard]
+  ): Values[(SrcId, HashedRich[D_TestOrigHard])] =
     WithPK(HashedRich(easy.srcId, preHashing.wrap(easy))) :: Nil
 
   def EasyAndHard(
     srcId: SrcId,
-    easy: Each[HashedRich[TestOrigEasy]],
-    hard: Each[HashedRich[TestOrigHard]]
+    easy: Each[HashedRich[D_TestOrigEasy]],
+    hard: Each[HashedRich[D_TestOrigHard]]
   ): Values[(SrcId, HashedRichFixed)] =
     WithPK(HashedRichFixed(easy.srcId + hard.srcId, preHashing.wrap((easy, hard) :: (easy, hard) :: (easy, hard) :: (easy, hard) :: Nil))) :: Nil
 
@@ -97,7 +96,7 @@ class MD5HashingTest(
         i ← 1 to worldSize
       } yield generateRandomEasy(i.toString) :: generateHard(i.toString) :: Nil).flatten
     val worldUpdate: immutable.Seq[LEvent[Product]] = world.flatMap(update)
-    val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val updates: List[QProtocol.N_Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
@@ -122,11 +121,11 @@ class MD5HashingTest(
   }
 
 
-  def generateRandomEasy: SrcId ⇒ TestOrigEasy = srcId ⇒
-    TestOrigEasy(srcId, Random.nextInt(100000000))
+  def generateRandomEasy: SrcId ⇒ D_TestOrigEasy = srcId ⇒
+    D_TestOrigEasy(srcId, Random.nextInt(100000000))
 
-  def generateHard: SrcId ⇒ TestOrigHard = srcId ⇒
-    TestOrigHard(srcId,
+  def generateHard: SrcId ⇒ D_TestOrigHard = srcId ⇒
+    D_TestOrigHard(srcId,
       Random.nextInt(100000000),
       Random.nextLong(),
       Some(Random.nextInt(100000000).toString),

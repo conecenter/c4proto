@@ -3,7 +3,7 @@ package ee.cone.c4external.joiners
 import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocolBase.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -15,19 +15,19 @@ import ee.cone.dbadapter.DBAdapter
 @assemble class ProduceExternalTransformsBase(dbAdapter: DBAdapter, extDBSync: ExtDBSync, toUpdate: ToUpdate) {
   def CreateExternalLoaderTx(
     srcId: SrcId,
-    bind: Each[Firstborn]
+    bind: Each[S_Firstborn]
   ): Values[(SrcId, TxTransform)] =
     List(WithPK(ExternalLoaderTx(bind.srcId + "ExternalLoaderTx", extDBSync, dbAdapter, toUpdate)))
 
   def CreateUpdateOffsetTx(
     srcId: SrcId,
-    bind: Each[Firstborn]
+    bind: Each[S_Firstborn]
   ): Values[(SrcId, TxTransform)] =
     List(WithPK(UpdateOffsetTx(bind.srcId + "UpdateOffsetTx", dbAdapter)))
 
   /* def CreateFlushTx(
      srcId: SrcId,
-     bind: Each[Firstborn]
+     bind: Each[S_Firstborn]
    ): Values[(SrcId, TxTransform)] =
      List(WithPK(FlushTx(bind.srcId + "FlushTx", dbAdapter)))*/
 }

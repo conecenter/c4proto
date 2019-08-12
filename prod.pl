@@ -73,10 +73,14 @@ my $get_deploy_conf = lazy{
 };
 my $get_compose = sub{&$get_deploy_conf()->{$_[0]}||die "composition expected $_[0]"};
 
+my $get_deployer = sub{
+    my($comp)=@_;
+    my $conf = &$get_compose($comp);
+    $$conf{deployer} || $comp;
+};
 my $get_deployer_conf = sub{
     my($comp,$chk,@k)=@_;
-    my $conf = &$get_compose($comp);
-    my $n_conf = $$conf{deployer} ? &$get_compose($$conf{deployer}) : $conf;
+    my $n_conf = &$get_compose(&$get_deployer($comp));
     map{$$n_conf{$_} || $chk && die "no $_"} @k;
 };
 my $get_host_port = sub{ &$get_deployer_conf($_[0],1,qw(host port)) };
@@ -96,12 +100,17 @@ my $find_handler = sub{
     my($ev,$comp)=@_;
     my $nm = "$ev-".&$get_compose($comp)->{type};
     my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
-    @todo == 1 ? $todo[0] : die "bad type: $ev,$comp";
+    @todo == 1 ? $todo[0] : die "no handler: $nm,$comp";
+};
+
+my $find_exec_handler = sub{
+    my ($comp) = @_;
+    &$find_handler(exec=>&$get_deployer($comp))->($comp);
 };
 
 my $interactive = sub{
     my($comp,$container,$stm)=@_;
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     &$mk_exec("-i",$container,$stm);
 };
 
@@ -144,6 +153,11 @@ my $sync_up = sub{
     sy(&$remote($comp,"cd $conf_dir && chmod +x up && ./up"));
 };
 
+my $main = sub{
+    my($cmd,@args)=@_;
+    ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
+};
+
 ####
 
 push @tasks, ["","",sub{
@@ -171,10 +185,13 @@ push @tasks, ["ssh", "$composes_txt [command-with-args]", sub{
     sy(&$ssh_ctl($comp,@args));
 }];
 
+push @tasks, ["remote_service-gate",'',sub{"zookeeper"}];
+push @tasks, ["remote_service-desktop",'',sub{"sshd"}];
+
 my $remote_acc  = sub{
     my($comp,$stm)=@_;
-    my $service = "zookeeper";
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $service = &$find_handler(remote_service=>$comp)->();
+    my $mk_exec = &$find_exec_handler($comp);
     &$remote($comp,&$mk_exec("",$service,$stm));
 };
 
@@ -259,22 +276,15 @@ my $lscont_kc = sub{
         syf(&$remote($comp,$stm))=~/(\w+)/g;
 };
 
-push @tasks, ["exec-dc_consumer","",$exec_dc];
-push @tasks, ["exec-dc_gate","",$exec_dc];
-push @tasks, ["exec-kc_consumer","",$exec_kc];
-push @tasks, ["exec-kc_gate","",$exec_kc];
-push @tasks, ["exec-kc_desktop","",$exec_kc];
-#push @tasks, ["exec-kc_http_client","",$exec_kc];
-push @tasks, ["lscont-dc_consumer", "", $lscont_dc];
-push @tasks, ["lscont-dc_gate", "", $lscont_dc];
-push @tasks, ["lscont-kc_consumer", "", $lscont_kc];
-push @tasks, ["lscont-kc_gate", "", $lscont_kc];
-push @tasks, ["lscont-kc_desktop", "", $lscont_kc];
+push @tasks, ["exec-dc_host","",$exec_dc];
+push @tasks, ["exec-kc_host","",$exec_kc];
+push @tasks, ["lscont-dc_host", "", $lscont_dc];
+push @tasks, ["lscont-kc_host", "", $lscont_kc];
 
 push @tasks, ["gc","$composes_txt",sub{
     my($comp)=@_;
     sy(&$ssh_add());
-    for my $l_exec(&$find_handler(lscont=>$comp)->($comp)){
+    for my $l_exec(&$find_handler(lscont=>&$get_deployer($comp))->($comp)){
         #print "container: $c\n";
         my $cmd = &$remote($comp,&$l_exec("jcmd || echo -"));
         for(syl($cmd)){
@@ -292,6 +302,8 @@ $YAML::XS::QuoteNumericStrings = 1;
 
 #my $inbox_prefix = '';
 
+my $le_http_port = "2080";
+my $le_https_port = "2443";
 my $http_port = "1080";
 my $vhost_http_port = "80";
 my $vhost_https_port = "443";
@@ -348,10 +360,10 @@ my $pl_embed = sub{
 };
 
 my $make_dc_yml = sub{
-    my ($name,$options) = @_;
+    my ($name,$tmp_path,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:|ingres:)/ ||
+        $k=~/^([A-Z]|host:|port:|ingress:)/ ||
         $k=~/^(volumes|tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
@@ -360,6 +372,7 @@ my $make_dc_yml = sub{
     my @pod = (pod => {
         command => ["sleep","infinity"],
         image => "ubuntu:18.04",
+        restart=>"unless-stopped",
         @port_maps ? (ports=>\@port_maps) : (),
         @host_maps ? (extra_hosts=>\@host_maps) : (),
     });
@@ -370,7 +383,10 @@ my $make_dc_yml = sub{
                 $k=~/^([A-Z].+)/ ? { environment=>{$1=>$v} } : (),
                 #$k=~/^host:(.+)/ ? { extra_hosts=>["$1:$v"]} : (),
                 $k=~/^(volumes|tty)$/ ? {$1=>$v} : (),
-                $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? {volumes=>["./$1:/c4conf/$1"]} : (),
+                $k=~/^C4/ && $v=~m{^/c4conf/([\w\.]+)$} ? do{ my $fn=$1; +{
+                    volumes=>["./$fn:/c4conf/$fn"],
+                    environment=>{"$k\_MD5"=>md5_hex(syf("cat $tmp_path/$fn"))},
+                }} : (),
                 $k eq 'C4DATA_DIR' ? {volumes=>["db4:$v"]} : (),
             )}));
             (($$opt{name}||die)=>{
@@ -394,14 +410,14 @@ my $make_dc_yml = sub{
 
 my $wrap_dc = sub{
     my ($name,$from_path,$options) = @_;
-    my($yml_str,$up) = &$make_dc_yml($name,$options);
+    my($yml_str,$up) = &$make_dc_yml($name,$from_path,$options);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str)
         .&$interpolation_body($name)
         .'($vars{replicas}-0) or $c{main}=q[version: "3.2"];'
         .qq[pp(main=>$up);];
     ($name,$from_path,$up_content);
 };
-
+push @tasks, ["wrap_deploy-dc_host", "", $wrap_dc];
 
 
 #todo securityContext/runAsUser
@@ -412,7 +428,7 @@ my $make_kc_yml = sub{
     my($name,$tmp_path,$spec,$options) = @_;
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
-        $k=~/^([A-Z]|host:|port:|ingres:)/ ||
+        $k=~/^([A-Z]|host:|port:|ingress:)/ ||
         $k=~/^(tty|image|name)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
@@ -498,7 +514,7 @@ my $make_kc_yml = sub{
     my @service_yml = do{
         my @ports = &$map(\%all,sub{ my($k,$v)=@_;
             $k=~/^port:(\d+):(\d+)$/ ? {
-                $all{is_deployer} ? (nodePort => $1-0) : (),
+                #$all{is_deployer} ? (nodePort => $1-0) : (),
                 port => $1-0,
                 targetPort => $2-0,
                 name => "c4-$2"
@@ -518,7 +534,7 @@ my $make_kc_yml = sub{
     #
     my @ingress_yml = do{
         my @rules = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^ingres:(.+)$/ ? {
+            $k=~/^ingress:(.+)$/ ? {
                 host => "$1",
                 http => {
                     paths => [{
@@ -559,12 +575,13 @@ my $wrap_kc = sub{
         .q[pp(main=>"kubectl -n $ns apply -f-");];
     ($name,undef,$up_content);
 };
+push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #todo apply -n $ns
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v37";
+my $sys_image_ver = "v49";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
@@ -619,12 +636,11 @@ my $get_frp_common = sub{
     );
 };
 
-my $make_frpc_conf = sub{
-    my($comp,$from_path) = @_;
+my $get_frpc_conf = sub{
+    my($comp) = @_;
     my $services = &$find_handler(visit=>$comp)->($comp);
     my %auth = &$get_auth($comp);
     my $sk = $auth{"simple.auth"} || die "no simple.auth";
-    my $put = &$rel_put_text($from_path);
     my @common = (common => [&$get_frp_common($comp)]);
     my @add = map{
         my($service_name,$port,$host) = @$_;
@@ -635,7 +651,12 @@ my $make_frpc_conf = sub{
             local_port => $port,
         ])
     } @$services;
-    &$put("frpc.ini", &$to_ini_file([@common,@add]));
+    &$to_ini_file([@common,@add]);
+};
+my $put_frpc_conf = sub{
+    my($from_path,$content) = @_;
+    my $put = &$rel_put_text($from_path);
+    &$put("frpc.ini", $content);
 };
 
 my $make_visitor_conf = sub{
@@ -754,11 +775,29 @@ my $gate_ports = sub{
     my $external_http_port = $$conf{http_port} || $http_port;
     ($host,$external_http_port,$external_broker_port);
 };
-my $get_ingres = sub{
+my $get_ingress = sub{
     my($comp,$http_port)=@_;
     my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
-    $domain_zone ? ("ingres:$comp.$domain_zone"=>$http_port) : ();
+    $domain_zone ? ("ingress:$comp.$domain_zone"=>$http_port) : ();
 };
+
+my $wrap_deploy = sub{
+    my ($comp,$from_path,$options) = @_;
+    return &$find_handler(wrap_deploy=>&$get_deployer($comp))->($comp,$from_path,$options);
+};
+
+push @tasks, ["up-client", "", sub{
+    my($run_comp,$args)=@_;
+    my $conf = &$get_compose($run_comp);
+    my $from_path = &$get_tmp_dir();
+    &$make_secrets($run_comp,$from_path);
+    my $options = [{
+        @var_img, name => "main",
+        tty => "true", JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
+        %$conf,
+    }];
+    &$sync_up(&$wrap_deploy($run_comp,$from_path,$options),$args);
+}];
 
 my $up_consumer = sub{
     my($run_comp)=@_;
@@ -804,9 +843,10 @@ my $up_gate = sub{
         },
         {
             @var_img, name => "haproxy",
+            C4HAPROXY_CONF=>"/c4/haproxy.cfg",
             C4JOINED_HTTP_PORT => $http_port,
             "port:$external_http_port:$http_port"=>"",
-            &$get_ingres($run_comp,$external_http_port),
+            &$get_ingress($run_comp,$external_http_port),
         },
     ]);
 };
@@ -860,7 +900,7 @@ my $up_desktop = sub{
         &$put("Dockerfile", join "\n",
             &$prod_image_steps(),
             "RUN perl install.pl apt".
-            " rsync openssh-client dropbear git".
+            " rsync openssh-client dropbear git certbot".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
             " atop less bash-completion netcat-openbsd locales tmux uuid-runtime".
@@ -880,66 +920,94 @@ my $up_desktop = sub{
     my $cert_path = $ENV{C4DEPLOY_CONF} || die "no C4DEPLOY_CONF";
     sy("cp $cert_path $from_path/ssh.tar.gz");
     &$make_secrets($comp,$from_path);
-    &$make_frpc_conf($comp,$from_path);
+    my $conf = &$get_compose($comp);
+    my $hostname = $$conf{le_hostname};
+    my $https_frpc_content = $hostname ? do{
+        &$to_ini_file([
+            "$comp.le_http" => [
+                type => "http",
+                local_ip => "127.0.0.1",
+                local_port => $le_http_port,
+                #subdomain => $comp,
+                custom_domains => $hostname,
+            ],
+            "$comp.le_https" => [
+                type => "https",
+                local_ip => "127.0.0.1",
+                local_port => $le_https_port,
+                #subdomain => $comp,
+                custom_domains => $hostname,
+            ],
+        ]);
+
+    } : "";
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp).$https_frpc_content);
+    my $put = &$rel_put_text($from_path);
+    &$put("authorized_keys" => join "", map{"$_\n"} @{$$conf{authorized_keys}||[]});
     ($comp, $from_path,[
         {
             image => $img, name => "frpc",
             C4FRPC_INI => "/c4conf/frpc.ini",
         },
-        {
-            image => $img, name => "desktop",
-            C4DATA_DIR => "/c4db",
-            C4AUTH_KEY_FILE => "/c4conf/simple.auth",
-        },
+#        {
+#            image => $img, name => "desktop",
+#            C4DATA_DIR => "/c4db",
+#            C4AUTH_KEY_FILE => "/c4conf/simple.auth",
+#        },
         {
             image => $img, name => "sshd",
             C4DATA_DIR => "/c4db",
             C4SSH_PORT => $ssh_port,
             C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
+            C4AUTHORIZED_KEYS => "/c4conf/authorized_keys",
         },
         {
             image => $img, name => "haproxy",
-            C4DATA_DIR => "/c4db",
+            C4HAPROXY_CONF=>"/c4/haproxy.cfg",
             C4JOINED_HTTP_PORT => $http_port,
-            "port:$http_port:$http_port"=>"",
-            &$get_ingres($comp,$http_port),
+            C4DATA_DIR => "/c4db",
+            $$conf{enable_ingress} ? (
+                "port:$http_port:$http_port"=>"",
+                &$get_ingress($comp,$http_port),
+            ) : ()
         },
+        $hostname ? ({
+            image => $img, name => "le_http",
+            C4HAPROXY_CONF=>"/c4/le_http.cfg",
+            C4JOINED_HTTP_PORT => $le_http_port,
+            C4DATA_DIR => "/c4db",
+            C4HTTPS => "redirect",
+        }, {
+            image => $img, name => "le_https",
+            C4HAPROXY_CONF=>"/c4/le_https.cfg",
+            C4JOINED_HTTP_PORT => $le_https_port,
+            C4DATA_DIR => "/c4db",
+            C4HTTPS => "https:$hostname",
+        }) : (),
     ])
 };
-
-push @tasks, ["visit-kc_desktop", "", sub{
+my $visit_desktop = sub{
     my($comp)=@_;
     [[desktop=>5900],[ssh=>$ssh_port],[debug=>5005],[http=>$http_port]]
-}];
+};
+
+push @tasks, ["visit-desktop", "", $visit_desktop];
 
 # m  h g b z -- m-h m-b  h-g g-b b-z l-h l-g l-b l-z
 # dc:
 # kc:
 
-push @tasks, ["up-kc_desktop", "", sub{
+push @tasks, ["up-desktop", "", sub{
     my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_desktop($run_comp)),$args);
+    &$sync_up(&$wrap_deploy(&$up_desktop($run_comp)),$args);
 }];
-push @tasks, ["up-kc_consumer", "", sub{
+push @tasks, ["up-consumer", "", sub{
     my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_consumer($run_comp)),$args);
+    &$sync_up(&$wrap_deploy(&$up_consumer($run_comp)),$args);
 }];
-push @tasks, ["up-dc_consumer", "", sub{
+push @tasks, ["up-gate", "", sub{
     my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_dc(&$up_consumer($run_comp)),$args);
-}];
-push @tasks, ["up-kc_gate", "", sub{
-    my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_kc(&$up_gate($run_comp)),$args);
-}];
-push @tasks, ["up-dc_gate", "", sub{
-    my($run_comp,$args)=@_;
-    #sy(&$ssh_add());
-    &$sync_up(&$wrap_dc(&$up_gate($run_comp)),$args);
+    &$sync_up(&$wrap_deploy(&$up_gate($run_comp)),$args);
 }];
 
 # deploy-time, conf-arity, easy-conf, restart-fail-independ -- gate|main|exch (or more, try min);
@@ -948,44 +1016,16 @@ push @tasks, ["up-dc_gate", "", sub{
 
 # zoo: netty, runit, * custom pod
 
-
-
-
-my $frp_client = sub{
-    my($comp,$server)=@_;
-    my($host,$port) = &$split_port($server);
-    my %auth = &$get_auth($comp);
-    my $sk = $auth{"simple.auth"} || die "no simple.auth";
-    ("$comp.p$port" => [
-        type => "stcp",
-        sk => $sk,
-        local_ip => $host,
-        local_port => $port,
-    ]);
-};
-my $frp_web = sub{
-    my($comp)=@_;
-    (
-    "$comp.http" => [
-        type => "http",
-        local_ip => "127.0.0.1",
-        local_port => $http_port,
-        subdomain => $comp,
-    ],
-    "$comp.https" => [
-        type => "https",
-        local_ip => "127.0.0.1",
-        local_port => 1443,
-        subdomain => $comp,
-    ],
-    );
-};
 my $cicd_port = "7079";
 
 push @tasks, ["up","$composes_txt <args>",sub{
-    my($comp,$args)=@_;
     sy(&$ssh_add());
-    &$find_handler(up=>$comp||die)->($comp,$args);
+    my $up; $up = sub{
+        my($comp,$args,@more)=@_;
+        &$find_handler(up=>$comp||die)->($comp,$args);
+        &$up(@more) if @more;
+    };
+    &$up(@_);
 }];
 
 push @tasks, ["restart","$composes_txt",sub{
@@ -1123,7 +1163,7 @@ push @tasks, ["up-ci","",sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path);
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
     do{
         my $key_dir = &$get_tmp_dir();
         sy(join ' && ',
@@ -1137,7 +1177,7 @@ push @tasks, ["up-ci","",sub{
     #sy(&$remote($comp,"mkdir -p $repo_dir"));
     #sy(&$remote($comp,"test -e $repo_dir/.git || git clone $repo_url $repo_dir"));
 
-    my($yml_str,$up) = &$make_dc_yml($comp,\@containers);
+    my($yml_str,$up) = &$make_dc_yml($comp,$from_path,\@containers);
     my $up_content = &$pl_head().&$pl_embed(main=>$yml_str).qq[pp(main=>$up);];
     &$sync_up($comp,$from_path,$up_content,"");
 }];
@@ -1147,42 +1187,44 @@ push @tasks, ["visit-ci", "", sub{
     [[main=>$cicd_port]]
 }];
 
-my $make_frpc_image = sub{
+my $make_frp_image = sub{
     my ($comp) = @_;
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
     sy("cp $gen_dir/install.pl $from_path/");
-    &$put("frpc.pl", join "\n",
-        '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die; die;'
+    &$put("frp.pl", join "\n",
+        '$ARGV[0] eq "frpc" and exec "/tools/frp/frpc", "-c", $ENV{C4FRPC_INI}||die;',
+        '$ARGV[0] eq "frps" and exec "/tools/frp/frps", "-c", $ENV{C4FRPS_INI}||die;',
+        'die;'
     );
     &$put("Dockerfile", join "\n",
         &$base_image_steps(),
         "RUN perl install.pl apt curl",
         "RUN perl install.pl curl $dl_frp_url",
-        "COPY frpc.pl /",
+        "COPY frp.pl /",
         "USER c4",
-        'ENTRYPOINT ["perl", "/frpc.pl"]',
+        'ENTRYPOINT ["perl", "/frp.pl"]',
     );
     return &$remote_build($comp,$from_path);
 };
 
 #my
 
-push @tasks, ["up-kc_frp_client", "", sub{
+push @tasks, ["up-frp_client", "", sub{
     my ($comp,$args) = @_;
-    my $img = &$make_frpc_image($comp);
+    my $img = &$make_frp_image($comp);
     my @containers = ({
         image => $img,
         name => "frpc",
         C4FRPC_INI => "/c4conf/frpc.ini",
     });
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path);
-    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
-push @tasks, ["visit-kc_frp_client", "", sub{
+push @tasks, ["visit-frp_client", "", sub{
     my($comp)=@_;
     my $conf = &$get_compose($comp);
     my $gate_comp = $$conf{ca};
@@ -1202,17 +1244,20 @@ my $get_visitor_conf = sub{
     map{ my($name,$port,$host) = @$_; [$port=>"$comp.$name"] } @$services;
 };
 
-push @tasks, ["up-kc_visitor", "", sub{
+push @tasks, ["up-visitor", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $server_comp = $$conf{peer} || die;
-    my $img = &$make_frpc_image($comp);
+    my $img = &$make_frp_image($comp);
     my @services = &$get_visitor_conf($server_comp);
-    my @ports = map{
-        my($port,$name) = @$_;
-        my $low_port = $port == $ssh_port ? 22 : $port;
-        ("port:$low_port:$port" => "")
-    } @services;
+    my @ports = &$map($conf,sub{ my($k,$v)=@_;
+        $k=~/^port:/ ? ($k=>$v) : ()
+    });
+#    map{
+#        my($port,$name) = @$_;
+#        my $ext_port = $port == $ssh_port ? 22 : $port;
+#        ("port:$ext_port:$port" => "")
+#    } @services;
     my @containers = ({
         image => $img,
         name => "frpc",
@@ -1221,14 +1266,13 @@ push @tasks, ["up-kc_visitor", "", sub{
     });
     my $from_path = &$get_tmp_dir();
     &$make_visitor_conf($comp,$from_path,[@services]);
-    &$sync_up(&$wrap_kc($comp,$from_path,\@containers),$args);
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
 push @tasks, ["up-kc_host", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
     my $gen_dir = $ENV{C4PROTO_DIR} || die;
-    my $external_ssh_port = $$conf{port};
     my $dir = $$conf{dir} || die;
     my $conf_cert_path = &$get_conf_cert_path().".pub";
     my $img = do{
@@ -1259,7 +1303,7 @@ push @tasks, ["up-kc_host", "", sub{
             image => $img,
             name => "sshd",
             C4DATA_DIR => "/c4db",
-            $external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
+            #$external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
         },
         {
             image => $img,
@@ -1282,7 +1326,7 @@ push @tasks, ["up-kc_host", "", sub{
         },
     );
     my $from_path = &$get_tmp_dir();
-    &$make_frpc_conf($comp,$from_path);
+    &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
     &$make_secrets($comp,$from_path);
 
     my $run_comp = "deployer";
@@ -1343,10 +1387,7 @@ push @tasks, ["need_certs","",sub{
     &$need_certs(@_);
 }];
 
-my $mk_to_cfg = sub{
-my($conf,$ts)=@_;
-my($to_ssl_host,$lis) = map{$$conf{$_}||die} qw[external_ip plain_items];
-qq{
+my $mk_to_cfg = sub{qq{
 global
   tune.ssl.default-dh-param 2048
   log "logger:514" local0
@@ -1357,49 +1398,51 @@ defaults
   mode tcp
   option tcplog
   log global
-frontend fe80
-  mode http
-  bind :80
-  acl a_letsencrypt path_beg /.well-known/acme-challenge/
-  use_backend beh_letsencrypt if a_letsencrypt
-  redirect scheme https if !{ method POST } !a_letsencrypt
-  default_backend beh_frps
-backend beh_letsencrypt
-  mode http
-  server s_letsencrypt $to_ssl_host:8080
-backend beh_frps
-  mode http
-  server s_frps frps:$vhost_http_port
-frontend fe443
-  bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt}.join('',map{qq{
-  use_backend be_$$_[0] if { ssl_fc_sni -m dom $$_[0] }}}@$ts).qq{
-  default_backend be_frps
-backend be_frps
-  server s_frps frps:$vhost_https_port ssl verify none
-}.join('',map{qq{backend be_$$_[0]
-  server s_$$_[0] $$_[1]
-}}@$ts).join('',map{ my $port=/(\d+)$/?$1:die; qq{listen listen_$port
-  bind :$port
-  server s_simple_$port $_
-}}@$lis).qq{
+}};
+
+my $mk_to_http = sub{
+    my($external_ip)=@_;
+    &$mk_to_cfg().join "\n",
+        "frontend fe80",
+        "  mode http",
+        "  bind :80",
+        "  acl a_letsencrypt path_beg /.well-known/acme-challenge/",
+        "  use_backend beh_letsencrypt if a_letsencrypt",
+        "  redirect scheme https if !a_letsencrypt",
+        "backend beh_letsencrypt",
+        "  mode http",
+        "  server s_letsencrypt $external_ip:8080";
 };
+
+my $mk_to_https = sub{
+    my($ts)=@_;
+    &$mk_to_cfg().join "\n",
+        "frontend fe443",
+        "bind :443 ssl crt-list /etc/letsencrypt/haproxy/list.txt",
+        (map{"  use_backend be_$$_[0] if { ssl_fc_sni -m dom $$_[0] }"}@$ts),
+        (map{("backend be_$$_[0]", "  server s_$$_[0] $$_[1]")}@$ts);
+
 };
 
 my $mk_to_yml = sub{
-my($conf)=@_;
-my($to_ssl_host,$li_host,$lis) = map{$$conf{$_}||die} qw[external_ip internal_ip plain_items];
+my($external_ip)=@_;
 qq{
 services:
-  haproxy:
+  https:
     image: "haproxy:1.7"
     restart: unless-stopped
     volumes:
-    - "./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    - "./https.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
     - "certs:/etc/letsencrypt:ro"
     ports:
-    - "$to_ssl_host:443:443"
-    - "$to_ssl_host:80:80"}.join('',map{ my $port=/(\d+)$/?$1:die; qq{
-    - "$li_host:$port:$port"}}@$lis).qq{
+    - "$external_ip:443:443"
+  http:
+    image: "haproxy:1.7"
+    restart: unless-stopped
+    volumes:
+    - "./http.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro"
+    ports:
+    - "$external_ip:80:80"
   logger:
     image: c4logger
     restart: unless-stopped
@@ -1411,63 +1454,68 @@ services:
     volumes:
     - "certs:/etc/letsencrypt"
     ports:
-    - "$to_ssl_host:8080:80"
-  frps:
-    image: c4frp
-    restart: unless-stopped
-    command: ["/frps","-c","/frps.ini"]
-    volumes:
-    - "./frps.ini:/frps.ini:ro"
-    ports:
-    - "7000:7000"
-    - "7500:7500"
+    - "$external_ip:8080:80"
 version: '3.2'
 volumes:
   certs: {}
 };
 };#$to_ssl_host:
 
-my $hmap = sub{ my($h,$f)=@_; map{&$f($_,$$h{$_})} sort keys %$h };
-
-
 push @tasks, ["up-proxy","",sub{
     my($comp,$args)=@_;
-    sy(&$ssh_add());
     my $conf = &$get_compose($comp);
-#    my @sb_items = &$hmap($composes, sub{ my($comp,$comp_conf)=@_;
-#        $$comp_conf{proxy_dom} ? do{
-#            my $host = $$comp_conf{host}||die;
-#            my $port = $$comp_conf{http_port}||die;
-#            [$$comp_conf{proxy_dom},"$host:$port"]
-#        } : ()
-#    });
-    my $yml_str = &$mk_to_yml($conf);
+    my $external_ip  = $$conf{external_ip} || die "no external_ip";
+    my $yml_str = &$mk_to_yml($external_ip);
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
+    my @pass = &$map($conf,sub{ my($k,$v)=@_;
+        $k=~/^pass:(.+)$/ ? [$1=>$v] : ()
+    });
     &$put("docker-compose.yml",$yml_str);
-    &$put("haproxy.cfg",&$mk_to_cfg($conf,[@{$$conf{items}||[]}])); #@sb_items
-    my %common = &$get_frp_common($comp);
-    &$put("frps.ini",&$to_ini_file([common=>[
-        token=>$common{token},
+    &$put("http.cfg",&$mk_to_http($external_ip));
+    &$put("https.cfg",&$mk_to_https(\@pass));
+    &$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate","");
+}];
+
+push @tasks, ["up-frps","",sub{
+    my($comp,$args)=@_;
+    my $conf = &$get_compose($comp);
+    my $ext_ip = $$conf{external_ip} || die "no external_ip";
+    my $img = &$make_frp_image($comp);
+    my %auth = &$get_auth($comp);
+    my $token = $auth{frps_token} || die "no frps_token in $comp";
+    my $local_http_port = 1080;
+    my $local_https_port = 1443;
+    my $conf_content = &$to_ini_file([common=>[
+        token=>$token,
         dashboard_addr => "0.0.0.0",
         dashboard_port => "7500",
         dashboard_user => "cone",
-        dashboard_pwd => ($common{token}||die),
-        vhost_http_port => $vhost_http_port,
-        vhost_https_port => $vhost_https_port,
-        subdomain_host => ($$conf{subdomain_host}||die)
-    ]]));
-    #if($mode eq "up"){
-        &$sync_up($comp,$from_path,"#!/bin/bash\ndocker-compose up -d --remove-orphans --force-recreate","");
-    #}
+        dashboard_pwd => $token,
+        vhost_http_port => $local_http_port,
+        vhost_https_port => $local_https_port,
+    ]]);
+    my @containers = ({
+        image => $img,
+        name => "frps",
+        C4FRPS_INI => "/c4conf/frps.ini",
+        "port:7000:7000" => "",
+        "port:7500:7500" => "",
+        "port:$ext_ip:$vhost_https_port:$local_https_port" => "",
+        "port:$ext_ip:$vhost_http_port:$local_http_port" => "",
+    });
+    my $from_path = &$get_tmp_dir();
+    my $put = &$rel_put_text($from_path);
+    &$put("frps.ini", $conf_content);
+    &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
-push @tasks, ["cert","<hostname>",sub{
-  my($nm)=@_;
+push @tasks, ["cert","$composes_txt <hostname>",sub{
+  my($comp,$nm)=@_;
   sy(&$ssh_add());
-  my $conf = &$get_deploy_conf()->{proxy_to} || die;
-  my($comp,$cert_mail) = map{$$conf{$_}||die} qw[stack cert_mail];
-  my $exec = sub{&$remote($comp,"docker exec -i proxy_certbot_1 sh").' < '.&$put_temp(@_)};
+  my $conf = &$get_compose($comp);
+  my $cert_mail = $$conf{cert_mail} || die;
+  my $exec = sub{&$remote($comp,"docker exec -i $comp\_certbot_1 sh").' < '.&$put_temp(@_)};
   sy(&$exec("cert-only.sh","certbot certonly --standalone -n --email '$cert_mail' --agree-tos -d $nm")) if $nm;
   my $live = "/etc/letsencrypt/live";
   my $ha = "/etc/letsencrypt/haproxy";
@@ -1478,7 +1526,7 @@ push @tasks, ["cert","<hostname>",sub{
     "> $ha/list.txt",
     (map{"echo $ha/$_.pem >> $ha/list.txt"} @hosts),
   ));
-  sy(&$remote($comp,"docker exec proxy_haproxy_1 kill -s HUP 1"));
+  sy(&$remote($comp,"docker exec $comp\_https_1 kill -s HUP 1 || docker restart $comp\_https_1"));
 }];
 
 ####
@@ -1504,7 +1552,7 @@ push @tasks, ["thread_print","$composes_txt-<service> <package>",sub{
     my($app,$pkg)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     &$tp_run($pkg,sub{ my($cmd)=@_; &$remote($comp,&$mk_exec("",$service,$cmd)) });#/RUNNABLE/
 }];
 push @tasks, ["thread_grep_cut","<substring>",sub{
@@ -1524,14 +1572,14 @@ push @tasks, ["repl","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"test -e /c4/.ssh/id_rsa || ssh-keygen;ssh localhost -p22222")));
 }];
 push @tasks, ["greys","$composes_txt-<service>",sub{
     my($app)=@_;
     sy(&$ssh_add());
     my($comp,$service) = &$split_app($app);
-    my $mk_exec = &$find_handler(exec=>$comp)->($comp);
+    my $mk_exec = &$find_exec_handler($comp);
     sy(&$ssh_ctl($comp,'-t',&$mk_exec("-it",$service,"/tools/greys/greys.sh 1")));
 }];
 
@@ -1549,17 +1597,10 @@ push @tasks, ["cat_visitor_conf","$composes_txt",sub{
     &$make_visitor_conf($comp,$from_path,[@services]);
     sy("cat $from_path/frpc.visitor.ini");
 }];
-push @tasks, ["add_authorized_key","$composes_txt <key>",sub{
-    my($comp,@key)=@_;
-    sy(&$ssh_add());
-    my $content = join(' ',@key)."\n";
-    sy(&$remote($comp,&$interactive($comp,"sshd","cat >> /c4/.ssh/authorized_keys"))." < ".&$put_temp("key",$content));
-}];
 
 ####
 
-my($cmd,@args)=@ARGV;
-($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
+&$main(@ARGV);
 &$cleanup();
 
 ## todo adapt for kube
@@ -1568,6 +1609,16 @@ my($cmd,@args)=@ARGV;
 #    sy(&$ssh_add());
 #    my($comp,$service) = &$split_app($app);
 #    sy(&$ssh_ctl($comp,'-t',"docker logs $comp\_$service\_1 -tf --tail 1000"));
+#}];
+
+#push @tasks, ["add_authorized_key","$composes_txt <key|from>",sub{
+#    my($comp,@key)=@_;
+#    sy(&$ssh_add());
+#    my $content = @key > 1 ? join(' ',@key)."\n" : do{
+#        my ($from_comp) = @key;
+#        syf(&$remote($from_comp,&$interactive($from_comp,"sshd","cat /c4/.ssh/authorized_keys")));
+#    };
+#    sy(&$remote($comp,&$interactive($comp,"sshd","cat >> /c4/.ssh/authorized_keys"))." < ".&$put_temp("key",$content));
 #}];
 
 #push @tasks, ["devel_init_frpc","<devel>|all",sub{

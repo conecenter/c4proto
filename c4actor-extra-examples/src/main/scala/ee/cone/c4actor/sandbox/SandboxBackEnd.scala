@@ -14,7 +14,7 @@ class ChangingIndexPerformanceTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run(): Unit = {
-    // val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    // val updates: List[QProtocol.N_Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val local: Context = contextFactory.updated(Nil)
     //val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
     val neededSrcId = "123"

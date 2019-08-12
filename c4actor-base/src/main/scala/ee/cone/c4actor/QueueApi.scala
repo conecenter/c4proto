@@ -5,7 +5,7 @@ import java.time.Instant
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4proto._
@@ -14,9 +14,7 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.Future
 
-case object UpdatesCat extends DataCategory
-
-@protocol(UpdatesCat) object QProtocolBase   {
+@protocol object QProtocolBase   {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
@@ -30,36 +28,34 @@ case object UpdatesCat extends DataCategory
     * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
     * @param flags == One of {0L, 1L, 2L, 4L}
     */
-  @Cat(InnerCat)
-  case class Update(
+    case class N_Update(
     @Id(0x0011) srcId: SrcId,
     @Id(0x0012) valueTypeId: Long,
     @Id(0x0013) value: okio.ByteString,
     @Id(0x001C) flags: Long
   )
 
-  @Id(0x0014) case class Updates(
+  @Id(0x0014) case class S_Updates(
     @Id(0x0011) srcId: SrcId, //dummy
-    @Id(0x0015) updates: List[Update]
+    @Id(0x0015) updates: List[N_Update]
   )
 
-  @Cat(SettingsCat)
-  @Id(0x0016) case class Firstborn(
+    @Id(0x0016) case class S_Firstborn(
     @Id(0x0011) srcId: SrcId, //app class
     @Id(0x001A) txId: String
   )
 
-  @Id(0x0017) case class FailedUpdates(
+  @Id(0x0017) case class S_FailedUpdates(
     @Id(0x0011) srcId: SrcId,
     @Id(0x0018) reason: String
   )
 
-  @Id(0x0019) case class TxRef( //add actorName if need cross ms mortality?
+  @Id(0x0019) case class N_TxRef( //add actorName if need cross ms mortality?
     @Id(0x0011) srcId: SrcId,
     @Id(0x001A) txId: String
   )
 
-  @Id(0x001B) case class Offset(
+  @Id(0x001B) case class S_Offset(
     @Id(0x0011) srcId: SrcId, //app class
     @Id(0x001A) txId: String
   )
@@ -98,24 +94,24 @@ trait QMessages {
 }
 
 trait ToUpdate {
-  def toUpdate[M<:Product](message: LEvent[M]): Update
-  def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader])
+  def toUpdate[M<:Product](message: LEvent[M]): N_Update
+  def toBytes(updates: List[N_Update]): (Array[Byte], List[RawHeader])
   /**
     * Transforms RawEvents to updates, adds TxId and removes ALL flags
     *
     * @param events events from Kafka or Snapshot
     * @return updates
     */
-  def toUpdates(events: List[RawEvent]): List[Update]
+  def toUpdates(events: List[RawEvent]): List[N_Update]
   /**
     * Transforms RawEvents to updates, adds TxId and keeps ALL but TxId flags
     *
     * @param events events from Kafka or Snapshot
     * @return updates
     */
-  def toUpdatesWithFlags(events: List[RawEvent]): List[Update]
-  def toKey(up: Update): Update
-  def by(up: Update): (TypeId, SrcId)
+  def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update]
+  def toKey(up: N_Update): N_Update
+  def by(up: N_Update): (TypeId, SrcId)
 }
 
 object Types {
@@ -226,11 +222,11 @@ trait TxTransform extends Product {
   def transform(local: Context): Context
 }
 
-case object WriteModelKey extends TransientLens[Queue[Update]](Queue.empty)
+case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
 case object WriteModelDebugKey extends TransientLens[Queue[LEvent[Product]]](Queue.empty)
 case object ReadModelAddKey extends SharedComponentKey[SharedContext⇒Seq[RawEvent]⇒ReadModel⇒ReadModel]
 case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]⇒Context⇒Context]
-case object WriteModelAddKey extends SharedComponentKey[Seq[Update]⇒Context⇒Context]
+case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]⇒Context⇒Context]
 
 case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
 
@@ -282,7 +278,7 @@ object CheckedMap {
 
 trait AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling
-  def addMeta(transition: WorldTransition, updates: Seq[Update]): Future[Seq[Update]]
+  def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]]
 }
 
 case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
@@ -292,7 +288,7 @@ trait UpdatesProcessorsApp {
 }
 
 trait UpdatesPreprocessor {
-  def process(updates: Seq[Update]): Seq[Update]
+  def process(updates: Seq[N_Update]): Seq[N_Update]
 }
 
 trait KeyFactory {
@@ -300,5 +296,5 @@ trait KeyFactory {
 }
 
 trait UpdateProcessor {
-  def process(updates: Seq[Update]): Seq[Update]
+  def process(updates: Seq[N_Update]): Seq[N_Update]
 }

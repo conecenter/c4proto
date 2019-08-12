@@ -38,9 +38,9 @@ trait BranchOperations {
 
 case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, parentIsSession: Boolean)
 
-case object ErrorOrigCat extends DataCategory
 
-@protocol(HTTPCat) object BranchProtocolBase   {
+
+@protocol object BranchProtocolBase   {
   @Id(0x0040) case class S_BranchResult(
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,
@@ -49,8 +49,7 @@ case object ErrorOrigCat extends DataCategory
     @Id(0x0045) position: String
   )
 
-  @Cat(ErrorOrigCat)
-  @Id(0x0046) case class U_SessionFailure(
+    @Id(0x0046) case class U_SessionFailure(
     @Id(0x0047) srcId: String,
     @Id(0x0048) text: String,
     @Id(0x0049) time: Long,

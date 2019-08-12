@@ -104,7 +104,7 @@ case class DepDraft(factory: CommonRequestUtilityFactory, valueNode: AskByPK[D_V
   }
 }
 
-@protocol(TestCat) object TestRequestsBase   {
+@protocol object TestRequestsBase   {
 
   @Id(0x3031) case class D_FooDepRequest(@Id(0x3036) v: String)
 

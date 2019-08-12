@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import java.time.Instant
 import java.util.UUID
 
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Index, Values}
@@ -11,10 +11,10 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.ActorAccessProtocol.C_ActorAccessKey
 import ee.cone.c4gate.AvailabilitySettingProtocol.C_AvailabilitySetting
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
-import ee.cone.c4proto.{Id, Protocol, SettingsCat, protocol}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 import okio.ByteString
 
-@protocol(SettingsCat) object ActorAccessProtocolBase   {
+@protocol object ActorAccessProtocolBase   {
   @Id(0x006A) case class C_ActorAccessKey(
     @Id(0x006B) srcId: String,
     @Id(0x006C) value: String
@@ -24,14 +24,14 @@ import okio.ByteString
 @assemble class ActorAccessAssembleBase   {
   def join(
     key: SrcId,
-    first: Each[Firstborn],
+    first: Each[S_Firstborn],
     accessKeys: Values[C_ActorAccessKey]
   ): Values[(SrcId,TxTransform)] =
     if(accessKeys.nonEmpty) Nil
     else List(WithPK(ActorAccessCreateTx(s"ActorAccessCreateTx-${first.srcId}",first)))
 }
 
-case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransform {
+case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTransform {
   def transform(local: Context): Context =
     TxAdd(LEvent.update(C_ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
@@ -39,7 +39,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: Firstborn) extends TxTransfo
 @assemble class PrometheusAssembleBase(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
   def join(
     key: SrcId,
-    first: Each[Firstborn],
+    first: Each[S_Firstborn],
     accessKey: Each[C_ActorAccessKey]
   ): Values[(SrcId,TxTransform)] = {
     val path = s"/${accessKey.value}-metrics"
@@ -85,7 +85,7 @@ object Monitoring {
 @assemble class AvailabilityAssembleBase(updateDef: Long, timeoutDef: Long)   {
   def join(
     key: SrcId,
-    first: Each[Firstborn],
+    first: Each[S_Firstborn],
     settings: Values[C_AvailabilitySetting]
   ): Values[(SrcId,TxTransform)] = {
     val (updatePeriod, timeout) = Single.option(settings.map(s ⇒ s.updatePeriod → s.timeout)).getOrElse((updateDef, timeoutDef))
@@ -93,7 +93,7 @@ object Monitoring {
   }
 }
 
-@protocol(SettingsCat) object AvailabilitySettingProtocolBase  {
+@protocol object AvailabilitySettingProtocolBase  {
 
   @Id(0x00f0) case class C_AvailabilitySetting(
     @Id(0x0001) srcId: String,

@@ -11,30 +11,34 @@ my $exec = sub{ print join(" ",@_),"\n"; exec @_; die 'exec failed' };
 
 ###
 
+my $conf_path = $ENV{C4HAPROXY_CONF} || die;
 my $http_port = $ENV{C4HTTP_PORT} || die;
 my $sse_port = $ENV{C4SSE_PORT} || die;
-my $ext_http_port = $ENV{C4JOINED_HTTP_PORT} || die;
-my $pem_path = "/c4/dummy.pem";
-if(!-e $pem_path){
-    my $cert_path = "/c4/dummy.cert";
-    sy(qq[openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout $cert_path.key -out $cert_path.crt -subj "/C=EE"]);
-    &$put_text($pem_path,syf("cat $cert_path.crt $cert_path.key"));
-}
-&$put_text("/c4/haproxy.cfg", join "\n",
+my $ext_port = $ENV{C4JOINED_HTTP_PORT} || die;
+my $data_dir = $ENV{C4DATA_DIR};
+my ($hostname,$redirect) = $ENV{C4HTTPS}=~/^(|(redirect)|https:(.+))$/ ? ($3,$2) : die;
+
+#print "$ENV{C4HTTPS} || $hostname || $redirect\n";
+
+my $dir = $data_dir && "$data_dir/haproxy";
+my $pem_path = $dir && "$dir/cert.pem";
+my $https_conf = $pem_path && $hostname ? "ssl crt $pem_path" : "";
+
+&$put_text($conf_path, join "\n",
   "defaults",
   "  timeout connect 5s",
   "  timeout client  900s",
   "  timeout server  900s",
-  "frontend fe80",
+  "frontend fe_http",
   "  mode http",
-  "  bind :$ext_http_port",
+  "  bind :$ext_port $https_conf",
+  $redirect ? (
+  "  acl a_letsencrypt path_beg /.well-known/acme-challenge/",
+  "  redirect scheme https if !{ method POST } !a_letsencrypt",
+  ) : (),
   "  acl acl_sse hdr(accept) -i text/event-stream",
   "  use_backend be_sse if acl_sse",
   "  default_backend be_http",
-  "listen listen_443",
-  "  mode http",
-  "  bind :1443 ssl crt $pem_path",
-  "  server s_http :$ext_http_port",
   "backend be_http",
   "  mode http",
   "  server se_http 127.0.0.1:$http_port",
@@ -42,4 +46,19 @@ if(!-e $pem_path){
   "  mode http",
   "  server se_http 127.0.0.1:$sse_port",
 );
-&$exec("/usr/sbin/haproxy", "-f", "/c4/haproxy.cfg");
+if($https_conf){
+    sy("mkdir -p $dir");
+    sy(
+        "certbot", "certonly", "--standalone", "-n",
+        "--email", 'sk@cone.ee',
+        "--agree-tos",
+        "-d", $hostname,
+        "--config-dir", "$dir/letsencrypt",
+        "--work-dir", "/tmp/le-work",
+        "--logs-dir", "/tmp/le-logs",
+        "--http-01-port", $http_port,
+    );
+    my $le_out_dir = $hostname && "$dir/letsencrypt/live/$hostname";
+    sy("cat $le_out_dir/fullchain.pem $le_out_dir/privkey.pem > $pem_path");
+}
+&$exec("/usr/sbin/haproxy", "-f", $conf_path);

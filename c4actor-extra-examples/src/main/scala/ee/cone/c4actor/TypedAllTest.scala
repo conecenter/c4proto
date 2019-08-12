@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.TypedAllTestProtocol.{D_Model1, D_Model2, D_ModelTest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -19,8 +19,8 @@ class TypedAllTestStart(
 ) extends Executable with LazyLogging {
   def run(): Unit = {
     import LEvent.update
-    val recs = update(Firstborn("test", "0" * OffsetHexSize())) ++ update(D_Model1("1")) ++ update(D_Model2("2"))
-    val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val recs = update(S_Firstborn("test", "0" * OffsetHexSize())) ++ update(D_Model1("1")) ++ update(D_Model2("2"))
+    val updates: List[QProtocol.N_Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
     val nGlobalAA = ActivateContext(nGlobalActive)
@@ -58,7 +58,7 @@ trait TypedAllType {
 
   def test2(
     srcId: SrcId,
-    firstborn: Each[Firstborn],
+    firstborn: Each[S_Firstborn],
     @by[FixedAll] test: Each[D_ModelTest]
   ): Values[(SrcId, Nothing)] = {
     println(test)
@@ -67,7 +67,7 @@ trait TypedAllType {
 
   def test3(
     srcId: SrcId,
-    firstborn: Each[Firstborn],
+    firstborn: Each[S_Firstborn],
     @by[FixedAll] test: Values[D_ModelTest]
   ): Values[(SrcId, Nothing)] = {
     println(test)
@@ -87,7 +87,7 @@ trait TypedAllType {
 
   def AllGrabber(
     srcId: SrcId,
-    firstborn: Values[Firstborn],
+    firstborn: Values[S_Firstborn],
     @by[TestAll[Model]] models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
     println(s"[TYPED,$modelCl]", models)
@@ -106,7 +106,7 @@ trait TypedAllType {
 
   def FixedAllGrabber(
     srcId: SrcId,
-    firstborn: Each[Firstborn],
+    firstborn: Each[S_Firstborn],
     @by[FixedAll] models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
     println(s"[FIXED,$modelCl]", models)
@@ -123,7 +123,7 @@ trait TypedAllType {
 
   def FixedAllGrabber2(
     srcId: SrcId,
-    firstborn: Values[Firstborn],
+    firstborn: Values[S_Firstborn],
     @by[TestBy[Model]] models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
     println(s"[FIXEDBy,$modelCl]", models)
@@ -132,7 +132,7 @@ trait TypedAllType {
 
   def CreateTx(
     srcId: SrcId,
-    firstborn: Each[Firstborn],
+    firstborn: Each[S_Firstborn],
     @by[FixedAll] models: Values[Model]
   ): Values[(SrcId, TxTransform)] = WithPK(TestTx(srcId + modelCl.getName)) :: Nil
 }
@@ -142,7 +142,7 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 }
 
 
-@protocol(TestCat) object TypedAllTestProtocolBase   {
+@protocol object TypedAllTestProtocolBase   {
 
   @Id(0xaabc) case class D_Model1(
     @Id(0xaabd) srcId: String

@@ -7,7 +7,7 @@ import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
 
@@ -46,7 +46,7 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 
   def needConsumer(
     key: SrcId,
-    first: Each[Firstborn]
+    first: Each[S_Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
     List(WithPK(LocalPostConsumer("/abc")))
 

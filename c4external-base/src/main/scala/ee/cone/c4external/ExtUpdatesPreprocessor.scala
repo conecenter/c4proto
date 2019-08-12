@@ -2,7 +2,7 @@ package ee.cone.c4external
 
 import java.util.UUID
 
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types.{SrcId, TypeId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{AssembledKey, IndexUtil}
@@ -29,9 +29,9 @@ class ExtUpdatesPreprocessor(
   private val externalNames = external.map(_.clName).toSet
   val idSet: Set[Long] = qAdapterRegistry.byName.filterKeys(externalNames).transform { case (_, v) ⇒ v.id }.values.toSet
 
-  def process(updates: Seq[Update]): Seq[Update] = {
+  def process(updates: Seq[N_Update]): Seq[N_Update] = {
     val (ext, normal) = updates.partition(u ⇒ idSet(u.valueTypeId) && (u.flags & extUpdateId) == 0L)
-    val prepared: Map[TypeId, Map[SrcId, Seq[Update]]] = ext.groupBy(_.valueTypeId).mapValues(_.groupBy(_.srcId))
+    val prepared: Map[TypeId, Map[SrcId, Seq[N_Update]]] = ext.groupBy(_.valueTypeId).mapValues(_.groupBy(_.srcId))
     val extUpdates =
       for {
         (typeId, inner) ← prepared

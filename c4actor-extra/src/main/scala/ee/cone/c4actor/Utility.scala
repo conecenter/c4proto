@@ -15,7 +15,7 @@ object ByClassAdapter {
     qAdapterRegistry.byName(model.getName).asInstanceOf[ProtoAdapter[Model] with HasId]
 }
 
-object MinOpt{
+object MinOpt {
   def apply[A](iterable: Iterable[A])(implicit cmp: Ordering[A]): Option[A] = if (iterable.isEmpty) None else Some(iterable.min)
 }
 
@@ -23,7 +23,7 @@ trait WithMurMur3HashGenApp {
   def hashGen: HashGen = new MurMur3HashGen
 }
 
-class MurMur3HashGen extends HashGen{
+class MurMur3HashGen extends HashGen {
   private val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
   def generate[Model](m: Model): String = {
@@ -31,6 +31,12 @@ class MurMur3HashGen extends HashGen{
     parser.calculateModelHash(m, instance)
     instance.getStringHash
   }
+  def generateLong[Model](m: Model): (Long, Long) = {
+    val instance: MurmurHash3 = new MurmurHash3()
+    parser.calculateModelHash(m, instance)
+    (instance.digest1(), instance.digest2())
+  }
+
 }
 
 object TimeColored {
