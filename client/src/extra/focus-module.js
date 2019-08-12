@@ -44,20 +44,18 @@ export default function FocusModule({log,documentManager,windowManager}){
 			const r = n.getBoundingClientRect()				
 			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n:n}
 		})
-	}
+	}	
 	const getCNode = () =>{
 		const aEl = documentManager.activeElement()
-		if(aEl.tagName == "IFRAME") {
-			return getParentWrapper(aEl.contentDocument.activeElement)
-		}
-		return getParentWrapper(aEl)		
+		const node = (aEl.tagName == "IFRAME")?getParentWrapper(aEl.contentDocument.activeElement): getParentWrapper(aEl)				
+		return node
 	}
 	const findBestDistance = (axis) => {
 		const aEl = documentManager.activeElement()
 		if((axis==2||axis==0) && aEl.tagName == "INPUT") return
-		mapNodes()
-	    const wrap = getCNode()	
-		const index = nodesObj.findIndex(o => o.n == wrap)
+		mapNodes()		
+	    const wrap = getCNode()			
+		const index = wrap?nodesObj.findIndex(o => o.n == wrap):(nodesObj[0]?0:-1)
 		if(index<0) return
 		const cNodeObj = nodesObj[index]
 		const k = [-1,1]

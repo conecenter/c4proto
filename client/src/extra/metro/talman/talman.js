@@ -25,9 +25,14 @@ const keyBinder = (() =>{
 	}
 	return {bind,unbind}
 })()
-const log  = e => e.ownerDocument.defaultView.console.log
+const log  = e => {
+	if(e&&e.ownerDocument&&e.ownerDocument.defaultView)
+		return e.ownerDocument.defaultView.console.log
+	else 
+		return ()=>{}
+}
 
-const sendLogin = (event,props)=>{
+const sendLogin = onChange => (event,props)=>{
 	const doc = event.target.ownerDocument
 	const ar = Array.from(doc.querySelectorAll(".loginDialog input"))
 	if(ar.length!=2) return
@@ -36,11 +41,11 @@ const sendLogin = (event,props)=>{
 		if(getComputedStyle(_).textTransform == "uppercase") return _.value.toUpperCase()
 		return _.value
 	}).join("\n")
-	props.onChange({target:{headers:{"X-r-auth":"check"},value:body}})			
+	onChange({target:{headers:{"X-r-auth":"check"},value:body}})			
 }
 				
 const TButtonElement = (props) =>{
-	const {style,buttonCaption,className,binding, onChange} = props								
+	const {style,children,buttonCaption,className,binding, onChange} = props								
 	const elem = React.useRef(null)
 	React.useEffect(()=>{
 		log(elem.current)("bind",binding)
@@ -55,8 +60,9 @@ const TButtonElement = (props) =>{
 			
 		}
 	},[binding])	
-	return $(ButtonElement,{forwardRef:elem, ...props}, buttonCaption)
+	const chld = children&&children.length>0?children:buttonCaption
+	return $(ButtonElement,{forwardRef:elem, ...props}, chld)
 }
-const TLoginButtonElement = props => $(TButtonElement,{...props, onChange:sendLogin})
+const TLoginButtonElement = props => $(TButtonElement,{...props, onChange:sendLogin(props.onChange)})
 export default {TLoginButtonElement, TButtonElement}
 	

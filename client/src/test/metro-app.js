@@ -35,6 +35,8 @@ import ElectronUpdateManager from "../extra/custom/electron-update-manager"
 import "../test/scrollIntoViewIfNeeded"
 import {Errors} from '../extra/metro/errors.js'
 
+import notifications from '../extra/metro/notifications.js'
+
 import React from 'react'
 import ReactDOM from 'react-dom'
 import autoBind from 'react-autobind'
@@ -161,7 +163,8 @@ const receiversList = [
 	metroUi.receivers,    
 	cryptoElements.receivers,
 	focusModule.receivers,
-	errors.receivers
+	errors.receivers,
+	notifications.receivers(window)
 ]
 const composeUrl = () => {
     const port = parseInt(location.port)
