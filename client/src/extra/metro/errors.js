@@ -58,26 +58,28 @@ const ErrorElement = (props) => {
 	},[])
 	const wrap = () =>{
 		if(state.show){				
-			const closeImg = $("img",{src:images(elem.current).closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
-			const noteImg = $("img",{src:images(elem.current).noteSvgData,style:{width:"1.5em",display:"inherit"}})
+		    const noteSrc = props.noteSrc? props.noteSrc : images(elem.current).noteSvgData
+			const closeImg = () => $("img",{src:images(elem.current).closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
+			const noteImg = $("img",{src:noteSrc,style:{width:"1.5em",display:"inherit"}})
 			const data = props.data?props.data:state.data
-			const buttonEls = props.onClick?[					
-					$(ButtonElement,{key:"but2",onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
-				]:null
-			const style = {
-				backgroundColor:"white",
+			const children = props.children && props.children.length>0? props.children:(props.onClick?[$(ButtonElement,{key:"but2",onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg())]:null)			
+			const className = props.className
+			const noClassStyles = className?{backgroundColor:"white",borderColor:"#1976d2"}: null
+			const style = {				
 				padding:"0em 1.25em",
-				borderTop:"0.1em solid #1976d2",
-				borderBottom:"0.1em solid #1976d2",
+				borderTop:"0.1em solid",
+				borderBottom:"0.1em solid",
+				noClassStyles,
 				...props.style
 			}	
-			const errorEl = $("div",{style},
+			
+			const errorEl = $("div",{style, className},
 				$("div",{style:{display:"flex",height:"auto",margin:"0.2em"}},[
 					$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
 						$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
-						$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"}},data)						
+						$("div",{key:"msg",style:{alignSelf:"center",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"}},data)						
 					]),
-					buttonEls
+					children
 				])
 			)			
 			return errorEl

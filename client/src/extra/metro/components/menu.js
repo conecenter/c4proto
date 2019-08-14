@@ -154,15 +154,20 @@ const MenuDropdownElement = (props) =>{
 }
 const FolderMenuElement = React.memo((props) =>{
 	const elem = React.useRef(null)	
+	const [time, setTime] = React.useState(Date.now())
 	React.useEffect(()=>{
 		elem.current.actions = {
-			onClick:e =>{props.onClick && props.onClick(e); e.stopPropagation()}
+			onClick:e =>{props.onClick && props.onClick(e); setTime(Date.now());e.stopPropagation()}
 		}
 		elem.current.addEventListener("click",elem.current.actions.onClick)			
 		return ()=>{ 						
 			elem.current.removeEventListener("click",elem.current.actions.onClick)				
 		}
 	},[props.onClick])
+	React.useEffect(()=>{
+		elem.current.ownerDocument.defaultView.console.log(`${Date.now() - time}`)		
+		return () =>{}
+	},[props.children.length])
 	const selStyle={
 		position:'relative',		
 		whiteSpace:'nowrap',
