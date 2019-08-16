@@ -157,7 +157,7 @@ object AssembleGenerator extends Generator {
 
     val (subAssembleWith,subAssembleDef) = (rules.collect{ case SubAssembleName(n) ⇒ n }.distinct) match {
       case Seq() ⇒ ("","")
-      case s ⇒ (" with ee.cone.c4assemble.CallerAssemble",s.mkString(s"  def subAssembles = List(",",",")\n"))
+      case s ⇒ (" with ee.cone.c4assemble.CallerAssemble",s.mkString(s"  def subAssembles = List(",",",") ::: super.subAssembles\n"))
     }
 
     val paramNames = paramss.map(params⇒params.map{
