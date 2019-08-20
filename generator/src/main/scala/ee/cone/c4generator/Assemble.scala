@@ -63,6 +63,7 @@ object AssembleGenerator extends Generator {
       case q"def result: Result = tupled(${Term.Name(joinerName)} _)" ⇒
         JStat(s"override def resultKey = ${joinerName}_outKey") :: Nil
       case q"def result: Result = $temp" ⇒ Nil
+      case q"override def subAssembles: $tpeopt = $expr" ⇒ Nil
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)})] = $expr" ⇒
         val param"$keyName: ${ExtractKeyNSType(inKeyType)}" = params.head
         val paramInfo: List[(JConnDef,List[JRule])] = params.tail.toList.map{

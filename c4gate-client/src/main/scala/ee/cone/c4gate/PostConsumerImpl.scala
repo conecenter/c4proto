@@ -9,15 +9,15 @@ import ee.cone.c4gate.AlienProtocol.E_PostConsumer
 
 @assemble class PostConsumerAssembleBase(
   actorName: String, syncTxFactory: SyncTxFactory
-)(
-  override val subAssembles: List[Assemble] = List(syncTxFactory.create[E_PostConsumer](
-    classOf[E_PostConsumer], c ⇒ c.consumer == actorName, _ ⇒ "PostConsumerSync",
-    (key,tasks)⇒SimpleTxTransform(key,tasks.flatMap(_.events))
-  )) ::: super.subAssembles
 ) extends CallerAssemble {
   def needConsumers(
     key: SrcId,
     @distinct c: Each[LocalPostConsumer]
   ): Values[(NeedSrcId,E_PostConsumer)] =
     List(WithPK(E_PostConsumer(s"$actorName/${c.condition}", actorName, c.condition)))
+
+  override def subAssembles: List[Assemble] = List(syncTxFactory.create[E_PostConsumer](
+    classOf[E_PostConsumer], c ⇒ c.consumer == actorName, _ ⇒ "PostConsumerSync",
+    (key,tasks)⇒SimpleTxTransform(key,tasks.flatMap(_.events))
+  )) ::: super.subAssembles
 }
