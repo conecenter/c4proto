@@ -13,7 +13,7 @@ trait ManagementApp extends AssemblesApp with ActorAccessApp with PrometheusApp 
   lazy val syncTxFactory: SyncTxFactory = new SyncTxFactoryImpl
 
   override def assembles: List[Assemble] =
-    new ManagementPostAssemble(actorName, indexUtil, readModelUtil, defaultAssembleOptions) :: new PostConsumerAssemble(actorName, syncTxFactory)() ::
+    new ManagementPostAssemble(actorName, indexUtil, readModelUtil, defaultAssembleOptions) :: new PostConsumerAssemble(actorName, syncTxFactory) ::
       super.assembles
 }
 
