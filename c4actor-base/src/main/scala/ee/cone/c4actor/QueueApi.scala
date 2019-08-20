@@ -288,6 +288,11 @@ trait UpdatesProcessorsApp {
 }
 
 trait UpdatesPreprocessor {
+  /**
+    * Ability to add extra updates on some events
+    * @param updates current events
+    * @return extra updates to add to total list
+    */
   def process(updates: Seq[N_Update]): Seq[N_Update]
 }
 
