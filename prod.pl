@@ -690,7 +690,7 @@ my $consumer_options = sub{(
     C4AUTH_KEY_FILE => "/c4conf/simple.auth", #gate does no symlinks
     C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
     C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
-    JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
+    JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
 )};
 # todo secure jmx
 #            JAVA_TOOL_OPTIONS => join(' ',qw(
@@ -1095,7 +1095,7 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     my ($host,$port) = &$get_host_port($builder_comp);
     my $conf = &$get_compose($builder_comp);
     local $ENV{C4CI_HOST} = $host;
-    local $ENV{C4CI_REPO_DIRS} = $$conf{C4CI_REPO_DIRS} || die;
+    local $ENV{C4CI_REPO_DIRS} = $$conf{C4CI_REPO_DIRS} || die "$builder_comp C4CI_REPO_DIRS";
     local $ENV{C4CI_CTX_DIR} = $$conf{C4CI_CTX_DIR} || die;
     sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
 }];
