@@ -57,13 +57,16 @@ object AssembleGenerator extends Generator {
       case q"type $tname = $tpe" ⇒ Nil
       case q"type $tname[..$params] = $tpe" ⇒ Nil
       case q"import ..$i" ⇒ Nil
-      case q"@ignore val ..$vname: $tpe = $expr" ⇒ Nil
-      case e@q"@ignore lazy val ..$vname: $tpe = $expr" ⇒ throw new Exception(s"Don't use lazy in Assemble: ${e.toString}")
+      case e@q"..$mods val ..$vname: $tpe = $expr" ⇒ throw new Exception(s"Don't use val in Assemble: ${e.toString}")
       case q"@ignore def $dname: $tpe = $expr" ⇒ Nil
       case q"def result: Result = tupled(${Term.Name(joinerName)} _)" ⇒
         JStat(s"override def resultKey = ${joinerName}_outKey") :: Nil
       case q"def result: Result = $temp" ⇒ Nil
-      case q"override def subAssembles: $tpeopt = $expr" ⇒ Nil
+      case q"override def subAssembles: $tpeopt = $expr" ⇒
+        expr.collect{
+          case q"super.subAssembles" ⇒ List("ok")
+          case _ ⇒ Nil
+        }.flatten.headOption.map(_ ⇒ Nil).getOrElse(throw new Exception(s"\'override def subAssembles\' doesnt have \'super.subAssembles\'"))
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)})] = $expr" ⇒
         val param"$keyName: ${ExtractKeyNSType(inKeyType)}" = params.head
         val paramInfo: List[(JConnDef,List[JRule])] = params.tail.toList.map{

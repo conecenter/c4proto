@@ -4,7 +4,7 @@ import scala.meta._
 
 object ScalametaTest {
   def main(args: Array[String]): Unit = {
-    val s = "@ignore val test: Int = 1".parse[Stat].get
+    val s = "override val test: List[Int] = 1 ::: super.test".parse[Stat].get
 
     def parseType(t: Type): String = {
       t match {
@@ -14,9 +14,13 @@ object ScalametaTest {
     }
     //println(parseType(s))
     //println(s)
-    s match {
-      case q"@ignore val ..$vname: $tpe = $expr" ⇒ Nil
+    println(s match {
+      case q"override val ..$vname: $tpe = $expr" ⇒
+        expr.collect({
+          case q"super.test" ⇒ 1
+          case _ ⇒ 0
+        })
       case _ ⇒ throw new Exception("fail fish")
-    }
+    })
   }
 }
