@@ -1,16 +1,13 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{S_FailedUpdates, S_Firstborn, S_Offset}
+import ee.cone.c4actor.QProtocol.{S_Firstborn, S_Offset}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.ToByteString
 
-import scala.collection.immutable.{Map, Seq}
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
+import scala.collection.immutable.Map
 
 object Merge {
   def apply[A](path: List[Any], values: List[A]): A =
