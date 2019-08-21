@@ -5,7 +5,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.sandbox.OtherProtocol.D_Other
 import ee.cone.c4actor.sandbox.SandboxProtocol.D_Sandbox
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, ignore}
 
 /*
   This file can be edited for learning purposes, feel free to experiment here
@@ -33,7 +33,10 @@ case class RichSandboxPair(
   sandboxOrig: D_Sandbox
 )
 
-@assemble class SandboxJoinersBase(idGenUtil: IdGenUtil)   {
+@assemble class SandboxJoinersBase(idGenUtil: IdGenUtil) extends CallerAssemble  {
+  //@ignore val test: Int = 1
+  //@ignore lazy val test2: Int = 2
+  @ignore def test3: Int = 3
 
   def sandboxToRichSandbox(
     srcId: SrcId,
@@ -71,4 +74,5 @@ case class RichSandboxPair(
     )
     WithPK(RichSandboxPair(srcId, otherOrig, sandboxOrig)) :: Nil
   }
+  override def subAssembles: List[Assemble] = super.subAssembles
 }

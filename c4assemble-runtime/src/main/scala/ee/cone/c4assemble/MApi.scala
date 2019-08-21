@@ -163,7 +163,7 @@ trait BasicMergeableAssemble extends MergeableAssemble {
   def mergeKey: String = s"${(getClass::mergeKeyAddClasses).map(_.getName).mkString("-")}#$mergeKeyAddString"
 }
 trait CallerAssemble {
-  def subAssembles: List[Assemble]
+  def subAssembles: List[Assemble] = Nil
 }
 trait SubAssemble[R<:Product] {
   type Result = _⇒Values[(_,R)]

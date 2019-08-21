@@ -57,9 +57,16 @@ object AssembleGenerator extends Generator {
       case q"type $tname = $tpe" ⇒ Nil
       case q"type $tname[..$params] = $tpe" ⇒ Nil
       case q"import ..$i" ⇒ Nil
+      case e@q"..$mods val ..$vname: $tpe = $expr" ⇒ throw new Exception(s"Don't use val in Assemble: ${e.toString}")
+      case q"@ignore def $dname: $tpe = $expr" ⇒ Nil
       case q"def result: Result = tupled(${Term.Name(joinerName)} _)" ⇒
         JStat(s"override def resultKey = ${joinerName}_outKey") :: Nil
       case q"def result: Result = $temp" ⇒ Nil
+      case q"override def subAssembles: $tpeopt = $expr" ⇒
+        expr.collect{
+          case q"super.subAssembles" ⇒ List("ok")
+          case _ ⇒ Nil
+        }.flatten.headOption.map(_ ⇒ Nil).getOrElse(throw new Exception(s"\'override def subAssembles\' doesnt have \'super.subAssembles\'"))
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)})] = $expr" ⇒
         val param"$keyName: ${ExtractKeyNSType(inKeyType)}" = params.head
         val paramInfo: List[(JConnDef,List[JRule])] = params.tail.toList.map{
@@ -103,7 +110,7 @@ object AssembleGenerator extends Generator {
         val fullName = s"${defName}_outKey"
         joinKey(fullName,was=false,outKeyType,outValType) ::
         JoinDef(joinDefParams,inKeyType,JConnDef(defName,fullName,"",many=false,distinct=false)) :: paramInfo.flatMap(_._2)
-      case s ⇒ throw new Exception(s"${s.structure}")
+      case s ⇒ throw new Exception(s"Can't parse structure ${s.toString}")
     }
     val toString =
       s"""getClass.getPackage.getName + ".$className" ${if(tparams.isEmpty)"" else {
@@ -157,7 +164,7 @@ object AssembleGenerator extends Generator {
 
     val (subAssembleWith,subAssembleDef) = (rules.collect{ case SubAssembleName(n) ⇒ n }.distinct) match {
       case Seq() ⇒ ("","")
-      case s ⇒ (" with ee.cone.c4assemble.CallerAssemble",s.mkString(s"  def subAssembles = List(",",",")\n"))
+      case s ⇒ (" with ee.cone.c4assemble.CallerAssemble",s.mkString(s"override def subAssembles = List(",",",") ::: super.subAssembles\n"))
     }
 
     val paramNames = paramss.map(params⇒params.map{
