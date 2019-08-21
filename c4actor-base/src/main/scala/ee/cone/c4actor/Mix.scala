@@ -125,7 +125,7 @@ trait RichDataApp extends ProtocolsApp
 
 trait VMExecutionApp {
   def toStart: List[Executable]
-  lazy val execution: Execution = new VMExecution(()⇒toStart)
+  lazy val execution: Execution = new VMExecution(()⇒toStart)()()
 }
 
 trait FileRawSnapshotApp { // Remote!

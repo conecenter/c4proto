@@ -1,20 +1,16 @@
 
 package ee.cone.c4actor
 
+import java.util.concurrent.{ExecutorService, TimeUnit}
 import java.util.concurrent.atomic.AtomicReference
 
 import com.typesafe.scalalogging.LazyLogging
 
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
+import java.util.concurrent.Executors
 
-class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with LazyLogging {
-  def run(): Unit = {
-    val toStart = getToStart()
-    logger.debug(s"tracking ${toStart.size} services")
-    toStart.foreach(f ⇒ future(()).map(_⇒f.run()))
-  }
+object VMExecution {
   def onShutdown(hint: String, f: () ⇒ Unit): ()⇒Unit = {
     val thread = new Thread(){
       override def run(): Unit = {
@@ -30,18 +26,40 @@ class VMExecution(getToStart: ()⇒List[Executable]) extends Execution with Lazy
       case e: IllegalStateException ⇒ ()
     }
   }
+  def newThreadPool(): ExecutorService = {
+    val pool = Executors.newCachedThreadPool() //newWorkStealingPool
+    onShutdown("Pool",()⇒{
+      val tasks = pool.shutdownNow()
+      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
+    })
+    pool
+  }
+}
 
+
+class VMExecution(getToStart: ()⇒List[Executable])(
+  val threadPool: ExecutorService = VMExecution.newThreadPool()
+)(
+  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
+) extends Execution with LazyLogging {
+  def run(): Unit = {
+    val toStart = getToStart()
+    logger.debug(s"tracking ${toStart.size} services")
+    toStart.foreach(f ⇒ future(()).map(_⇒f.run()))
+  }
+  def onShutdown(hint: String, f: () ⇒ Unit): ()⇒Unit =
+    VMExecution.onShutdown(hint,f)
   def complete(): Unit = { // exit from pooled thread will block itself
     logger.info("exiting")
     System.exit(0)
   }
   def future[T](value: T): FatalFuture[T] =
-    new VMFatalFuture(Future.successful(value))
+    new VMFatalFuture(Future.successful(value))(executionContext)
   def emptySkippingFuture[T]: FatalFuture[Option[T]] =
-    new VMFatalSkippingFuture[Option[T]](Future.successful(None))
+    new VMFatalSkippingFuture[Option[T]](Future.successful(None))(executionContext)
 }
 
-class VMFatalSkippingFuture[T](inner: Future[T]) extends FatalFuture[T] with LazyLogging {
+class VMFatalSkippingFuture[T](inner: Future[T])(implicit executionContext: ExecutionContext) extends FatalFuture[T] with LazyLogging {
   private def canSkip[T](future: Future[T]) = future match {
     case a: AtomicReference[_] ⇒ a.get() match {
       case s: Seq[_] ⇒ s.nonEmpty
@@ -63,7 +81,7 @@ class VMFatalSkippingFuture[T](inner: Future[T]) extends FatalFuture[T] with Laz
   def value: Option[Try[T]] = inner.value
 }
 
-class VMFatalFuture[T](val inner: Future[T]) extends FatalFuture[T] with LazyLogging {
+class VMFatalFuture[T](val inner: Future[T])(implicit executionContext: ExecutionContext) extends FatalFuture[T] with LazyLogging {
   def map(body: T ⇒ T): FatalFuture[T] =
     new VMFatalFuture(inner.map(from ⇒ try body(from) catch {
       case e: Throwable ⇒

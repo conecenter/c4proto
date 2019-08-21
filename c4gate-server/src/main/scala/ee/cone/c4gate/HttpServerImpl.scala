@@ -143,14 +143,9 @@ class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
 
 class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends Executable {
   def run(): Unit = concurrent.blocking{
-    val pool = Executors.newCachedThreadPool() //newWorkStealingPool
-    execution.onShutdown("Pool",()⇒{
-      val tasks = pool.shutdownNow()
-      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
-    })
     val server: HttpServer = HttpServer.create(new InetSocketAddress(port),0)
     execution.onShutdown("HttpServer",()⇒server.stop(Int.MaxValue))
-    server.setExecutor(pool)
+    server.setExecutor(execution.threadPool)
     server.createContext("/", handler)
     server.start()
   }
