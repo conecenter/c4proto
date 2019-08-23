@@ -11,7 +11,6 @@ import ee.cone.c4proto.Protocol
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
-//import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
 case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: KeyFactory) {

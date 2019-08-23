@@ -3,7 +3,6 @@ package ee.cone.c4assemble
 import ee.cone.c4assemble.Types.{DMap, Index, emptyIndex}
 
 import scala.concurrent.{ExecutionContext, Future}
-//import scala.concurrent.ExecutionContext.Implicits.global
 
 class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
   def setPart[K,V](worldKey: AssembledKey)(

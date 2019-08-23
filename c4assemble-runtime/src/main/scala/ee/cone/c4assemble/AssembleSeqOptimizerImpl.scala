@@ -5,8 +5,6 @@ import ee.cone.c4assemble.Types._
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{ExecutionContext, Future}
-//import scala.concurrent.ExecutionContext.Implicits.global
-
 
 class LoopExpression[MapKey, Value](
   outputWorldKey: AssembledKey,

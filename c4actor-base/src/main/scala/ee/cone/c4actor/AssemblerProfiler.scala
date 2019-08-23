@@ -12,7 +12,6 @@ import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
-//import scala.concurrent.ExecutionContext.Implicits.global
 
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =

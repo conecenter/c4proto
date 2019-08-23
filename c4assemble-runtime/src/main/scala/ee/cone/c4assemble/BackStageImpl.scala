@@ -4,8 +4,6 @@ import ee.cone.c4assemble.Types._
 
 import scala.concurrent.ExecutionContext
 
-//import scala.concurrent.ExecutionContext.Implicits.global
-
 object PrepareBackStage extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition =
     transition.copy(prev=Option(transition), diff=emptyReadModel)

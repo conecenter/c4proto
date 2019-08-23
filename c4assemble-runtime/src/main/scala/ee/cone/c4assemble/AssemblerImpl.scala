@@ -12,7 +12,6 @@ import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
 import scala.collection.parallel.immutable.ParVector
 import scala.concurrent.{ExecutionContext, Future}
-//import scala.concurrent.ExecutionContext.Implicits.global
 
 case class Count(item: Product, count: Int)
 
