@@ -1,24 +1,17 @@
 
 package ee.cone.c4actor
 
-import java.util.concurrent.{ExecutorService, TimeUnit}
+import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
 import java.util.concurrent.atomic.AtomicReference
 
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
-import java.util.concurrent.Executors
 
 object VMExecution {
   def onShutdown(hint: String, f: () ⇒ Unit): ()⇒Unit = {
-    val thread = new Thread(){
-      override def run(): Unit = {
-        //println(s"hook-in $hint")
-        f()
-        //println(s"hook-out $hint")
-      }
-    }
+    val thread = new Thread(new ShutdownRunnable(hint,f))
     Runtime.getRuntime.addShutdownHook(thread)
     () ⇒ try {
       Runtime.getRuntime.removeShutdownHook(thread)
@@ -26,19 +19,31 @@ object VMExecution {
       case e: IllegalStateException ⇒ ()
     }
   }
-  def newThreadPool(): ExecutorService = {
-    val pool = Executors.newCachedThreadPool() //newWorkStealingPool
-    onShutdown("Pool",()⇒{
-      val tasks = pool.shutdownNow()
-      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
-    })
-    pool
+  def newThreadPool(prefix: String): ExecutorService = {
+    val defaultThreadFactory = Executors.defaultThreadFactory()
+    val threadFactory = new RThreadFactory(defaultThreadFactory,prefix)
+    Executors.newCachedThreadPool(threadFactory) //newWorkStealingPool
   }
 }
 
+class ShutdownRunnable(hint: String, f: () ⇒ Unit) extends Runnable with LazyLogging {
+  def run(): Unit = {
+    logger.debug(s"hook-in $hint")
+    f()
+    logger.debug(s"hook-out $hint")
+  }
+}
+
+class RThreadFactory(inner: ThreadFactory, prefix: String) extends ThreadFactory {
+  def newThread(runnable: Runnable): Thread = {
+    val thread = inner.newThread(runnable)
+    thread.setName(s"$prefix${thread.getName}")
+    thread
+  }
+}
 
 class VMExecution(getToStart: ()⇒List[Executable])(
-  val threadPool: ExecutorService = VMExecution.newThreadPool()
+  threadPool: ExecutorService = VMExecution.newThreadPool("tx-")
 )(
   val executionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
 ) extends Execution with LazyLogging {
@@ -55,8 +60,10 @@ class VMExecution(getToStart: ()⇒List[Executable])(
   }
   def future[T](value: T): FatalFuture[T] =
     new VMFatalFuture(Future.successful(value))(executionContext)
-  def emptySkippingFuture[T]: FatalFuture[Option[T]] =
-    new VMFatalSkippingFuture[Option[T]](Future.successful(None))(executionContext)
+  def skippingFuture[T](value: T): FatalFuture[T] =
+    new VMFatalSkippingFuture[T](Future.successful(value))(executionContext)
+  def newThreadPool(prefix: String): ExecutorService =
+    VMExecution.newThreadPool(prefix)
 }
 
 class VMFatalSkippingFuture[T](inner: Future[T])(implicit executionContext: ExecutionContext) extends FatalFuture[T] with LazyLogging {

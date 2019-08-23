@@ -11,8 +11,8 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
 import scala.collection.parallel.immutable.ParVector
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 case class Count(item: Product, count: Int)
 
@@ -216,7 +216,7 @@ class JoinMapIndex(
   override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
 
   def transform(transition: WorldTransition): WorldTransition = {
-
+    implicit val executionContext: ExecutionContext = transition.executionContext
     val next: Future[IndexUpdate] = for {
       worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
       res ← {
@@ -394,25 +394,29 @@ class TreeAssemblerImpl(
 
     val testSZ = transforms.size
     //for(t ← transforms) println("T",t)
-    def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] =
+    def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] = {
+      implicit val executionContext: ExecutionContext = transition.executionContext
       for {
-        stable ← readModelUtil.isEmpty(transition.diff)
+        stable ← readModelUtil.isEmpty(executionContext)(transition.diff)
         res ← {
           if(stable) Future.successful(transition)
           else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
           else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
         }
       } yield res
+    }
 
-    (prevWorld,diff,options,profiler) ⇒ {
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil))
+
+    (prevWorld,diff,options,profiler,executionContext) ⇒ {
+      implicit val ec = executionContext
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil),executionContext)
       val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
         seq ← Future.sequence(Seq(a,b))
       } yield composes.mergeIndex(seq) ))(prevWorld,diff)
-      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil))
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil),executionContext)
       for {
         finalTransition ← transformUntilStable(1000, nextTransition)
-        ready ← readModelUtil.ready(finalTransition.result)
+        ready ← readModelUtil.ready(ec)(finalTransition.result)
       } yield finalTransition
     }
   }

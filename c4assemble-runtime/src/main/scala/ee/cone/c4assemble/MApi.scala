@@ -6,9 +6,9 @@ import Types._
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.{GenIterable, GenMap, GenSeq, immutable}
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
-case class AssembleOptions(srcId: String, isParallel: Boolean)
+case class AssembleOptions(srcId: String, isParallel: Boolean, threadCount: Int)
 
 trait IndexUtil extends Product {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
@@ -50,9 +50,9 @@ trait ReadModelUtil {
   type MMap = DMap[AssembledKey, Future[Index]]
   def create(inner: MMap): ReadModel
   def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel⇒ReadModel
-  def isEmpty: ReadModel⇒Future[Boolean]
+  def isEmpty(implicit executionContext: ExecutionContext): ReadModel⇒Future[Boolean]
   def op(op: (MMap,MMap)⇒MMap): (ReadModel,ReadModel)⇒ReadModel
-  def ready: ReadModel⇒Future[ReadModel]
+  def ready(implicit executionContext: ExecutionContext): ReadModel⇒Future[ReadModel]
   def toMap: ReadModel⇒Map[AssembledKey,Index]
 }
 
@@ -72,7 +72,15 @@ trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with Data
   def transform(transition: WorldTransition): WorldTransition
 }
 //object WorldTransition { type Diff = Map[AssembledKey[_],IndexDiff[Object,_]] } //Map[AssembledKey[_],Index[Object,_]] //Map[AssembledKey[_],Map[Object,Boolean]]
-case class WorldTransition(prev: Option[WorldTransition], diff: ReadModel, result: ReadModel, options: AssembleOptions, profiling: JoiningProfiling, log: Future[ProfilingLog])
+case class WorldTransition(
+  prev: Option[WorldTransition],
+  diff: ReadModel,
+  result: ReadModel,
+  options: AssembleOptions,
+  profiling: JoiningProfiling,
+  log: Future[ProfilingLog],
+  executionContext: ExecutionContext
+)
 
 trait JoiningProfiling extends Product {
   def time: Long

@@ -11,7 +11,7 @@ class ContextFactory(reducer: RichRawWorldReducer, toUpdate: ToUpdate) {
     val (bytes, headers) = toUpdate.toBytes(updates)
     val firstUpdate = SimpleRawEvent("0" * OffsetHexSize(), ToByteString(bytes), headers)
     val world = reducer.reduce(None,List(firstUpdate))
-    new Context(world.injected, world.assembled, Map.empty)
+    new Context(world.injected, world.assembled, world.executionContext, Map.empty)
   }
 }
 

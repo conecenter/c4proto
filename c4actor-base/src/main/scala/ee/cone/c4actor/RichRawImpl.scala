@@ -1,5 +1,8 @@
 package ee.cone.c4actor
 
+import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory
+import java.util.concurrent.{ExecutorService, Executors, ForkJoinPool, ForkJoinWorkerThread}
+
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{S_Firstborn, S_Offset}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
@@ -8,6 +11,8 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.ToByteString
 
 import scala.collection.immutable.Map
+import scala.concurrent.ExecutionContext
+
 
 object Merge {
   def apply[A](path: List[Any], values: List[A]): A =
@@ -33,31 +38,64 @@ class RichRawWorldReducerImpl(
     }
     if(events.isEmpty) contextOpt.get match {
       case context: RichRawWorldImpl ⇒ context
-      case context ⇒ create(context.injected, context.assembled)
+      case context ⇒ create(context.injected, context.assembled, context.executionContext)
     } else {
       val context = contextOpt.getOrElse{
         val injectedList = for{
           toInject ← toInjects
           injected ← toInject.toInject
         } yield Map(injected.pair)
-        create(Merge(Nil,injectedList), emptyReadModel)
+        create(Merge(Nil,injectedList), emptyReadModel, EmptyOuterExecutionContext)
       }
-      val nAssembled = ReadModelAddKey.of(context)(context)(events)(context.assembled)
-      create(context.injected, nAssembled)
+      val nAssembled = ReadModelAddKey.of(context)(events)(context)
+      create(context.injected, nAssembled, context.executionContext)
     }
   }
   def emptyOffset: NextOffset = "0" * OffsetHexSize()
-  def create(injected: SharedComponentMap, assembled: ReadModel): RichRawWorldImpl = {
-    val offset = ByPK(classOf[S_Offset])
-      .of(new RichRawWorldImpl(injected, assembled, ""))
-      .get(actorName).fold(emptyOffset)(_.txId)
-    new RichRawWorldImpl(injected, assembled, offset)
+  def create(injected: SharedComponentMap, assembled: ReadModel, executionContext: OuterExecutionContext): RichRawWorldImpl = {
+    val preWorld = new RichRawWorldImpl(injected, assembled, executionContext, "")
+    val threadCount = GetAssembleOptions.of(preWorld)(assembled).threadCount
+    val offset = ByPK(classOf[S_Offset]).of(preWorld).get(actorName).fold(emptyOffset)(_.txId)
+    new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
   }
+  def newExecutionContext(threadCount: Int): OuterExecutionContext = {
+    val defaultThreadFactory = ForkJoinPool.defaultForkJoinWorkerThreadFactory
+    val threadFactory = new RForkJoinWorkerThreadFactory(defaultThreadFactory,"ass-")
+    val pool = new ForkJoinPool(threadCount, threadFactory, null, false)
+    new OuterExecutionContextImpl(threadCount,ExecutionContext.fromExecutor(pool),pool)
+  }
+  def needExecutionContext(threadCount: Int): OuterExecutionContext⇒OuterExecutionContext = {
+    case ec: OuterExecutionContextImpl if ec.threadCount == threadCount ⇒
+      ec
+    case ec: OuterExecutionContextImpl ⇒
+      ec.service.shutdown()
+      newExecutionContext(threadCount)
+    case _ ⇒
+      newExecutionContext(threadCount)
+  }
+}
+
+class RForkJoinWorkerThreadFactory(inner: ForkJoinWorkerThreadFactory, prefix: String) extends ForkJoinWorkerThreadFactory {
+  def newThread(pool: ForkJoinPool): ForkJoinWorkerThread = {
+    val thread = inner.newThread(pool)
+    thread.setName(s"$prefix${thread.getName}")
+    thread
+  }
+}
+
+class OuterExecutionContextImpl(
+  val threadCount: Int,
+  val value: ExecutionContext,
+  val service: ExecutorService
+) extends OuterExecutionContext
+object EmptyOuterExecutionContext extends OuterExecutionContext {
+  def value: ExecutionContext = throw new Exception("no ExecutionContext")
 }
 
 class RichRawWorldImpl(
   val injected: SharedComponentMap,
   val assembled: ReadModel,
+  val executionContext: OuterExecutionContext,
   val offset: NextOffset
 ) extends RichContext
 

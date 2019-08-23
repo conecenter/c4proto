@@ -4,8 +4,8 @@ import ee.cone.c4assemble.Types._
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 
 class LoopExpression[MapKey, Value](
@@ -21,6 +21,7 @@ class LoopExpression[MapKey, Value](
   private def inner(
     left: Int, transition: WorldTransition, resDiff: Index
   ): Future[IndexUpdate] = {
+    implicit val executionContext: ExecutionContext = transition.executionContext
     val transitionA = main.transform(transition)
     for {
       diffPart ← outputWorldKey.of(transitionA.diff)
@@ -38,6 +39,7 @@ class LoopExpression[MapKey, Value](
     } yield res
   }
   def transform(transition: WorldTransition): WorldTransition = {
+    implicit val executionContext: ExecutionContext = transition.executionContext
     //println("B")
     val next = inner(1000, transition, emptyIndex)
     //println("E")

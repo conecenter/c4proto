@@ -2,7 +2,9 @@ package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types._
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
+
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 object PrepareBackStage extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition =
@@ -16,6 +18,7 @@ class ConnectBackStage[MapKey, Value](
   composes: IndexUtil
 ) extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
+    implicit val executionContext: ExecutionContext = transition.executionContext
     val next = for {
       diff ← nextKey.of(transition.prev.get.diff)
       result ← nextKey.of(transition.result)

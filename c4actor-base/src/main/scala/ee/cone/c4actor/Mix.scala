@@ -52,7 +52,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
-  def longTxWarnPeriod: Long = 500L
+  def longTxWarnPeriod: Long = Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong)
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,longTxWarnPeriod)
@@ -110,7 +110,7 @@ trait RichDataApp extends ProtocolsApp
   private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
   private lazy val assemblerInit =
     new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions)()
-  lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn)
+  private lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn,Runtime.getRuntime.availableProcessors)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols

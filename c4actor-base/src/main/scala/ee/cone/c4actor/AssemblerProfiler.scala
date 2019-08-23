@@ -11,8 +11,8 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable.Seq
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 case object NoAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =
@@ -51,6 +51,7 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
     else SimpleSerialJoiningProfiling(System.nanoTime)
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] = transition.profiling match {
     case SimpleSerialJoiningProfiling(startedAt) ⇒
+    implicit val executionContext: ExecutionContext = transition.executionContext
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
     val size = updates.map(_.value.size).sum

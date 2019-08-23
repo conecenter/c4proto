@@ -2,13 +2,14 @@ package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types.{DMap, Index, emptyIndex}
 
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
+//import scala.concurrent.ExecutionContext.Implicits.global
 
 class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
   def setPart[K,V](worldKey: AssembledKey)(
     update: Future[IndexUpdate]
   ): WorldTransition⇒WorldTransition = transition ⇒ {
+    implicit val executionContext: ExecutionContext = transition.executionContext
     val diff = readModelUtil.updated(worldKey,update.map(_.diff))(transition.diff)
     val next = readModelUtil.updated(worldKey,update.map(_.result))(transition.result)
     val log = for {
@@ -25,7 +26,7 @@ class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
   def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel⇒ReadModel = {
     case from: ReadModelImpl ⇒ new ReadModelImpl(from.inner + (worldKey → value))
   }
-  def isEmpty: ReadModel⇒Future[Boolean] = {
+  def isEmpty(implicit executionContext: ExecutionContext): ReadModel⇒Future[Boolean] = {
     case model: ReadModelImpl ⇒
       Future.sequence(model.inner.values).map(_.forall(indexUtil.isEmpty))
   }
@@ -35,7 +36,7 @@ class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
   def toMap: ReadModel⇒Map[AssembledKey,Index] = {
     case model: ReadModelImpl ⇒ model.inner.transform((k,f) ⇒ f.value.get.get)
   }
-  def ready: ReadModel⇒Future[ReadModel] = {
+  def ready(implicit executionContext: ExecutionContext): ReadModel⇒Future[ReadModel] = {
     case model: ReadModelImpl ⇒
       for {
         ready ← Future.sequence(model.inner.values)

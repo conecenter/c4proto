@@ -39,7 +39,7 @@ class TestTodoApp extends ServerApp
   override def assembles: List[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") ::
     super.assembles
-  override def longTxWarnPeriod: Long = 10L
+  //override def longTxWarnPeriod: Long = 10L
 }
 
 @protocol object TestTodoProtocolBase   {

@@ -143,9 +143,14 @@ class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
 
 class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends Executable {
   def run(): Unit = concurrent.blocking{
+    val pool = execution.newThreadPool("http-") //newWorkStealingPool
+    execution.onShutdown("Pool",()⇒{
+      val tasks = pool.shutdownNow()
+      pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
+    })
     val server: HttpServer = HttpServer.create(new InetSocketAddress(port),0)
     execution.onShutdown("HttpServer",()⇒server.stop(Int.MaxValue))
-    server.setExecutor(execution.threadPool)
+    server.setExecutor(pool)
     server.createContext("/", handler)
     server.start()
   }
@@ -155,8 +160,8 @@ class WorldProviderImpl(
   worldFuture: CompletableFuture[AtomicReference[RichContext]] = new CompletableFuture()
 ) extends WorldProvider with Observer {
   def createTx(): Context = {
-    val global = concurrent.blocking{ worldFuture.get.get }
-    new Context(global.injected, global.assembled, Map.empty)
+    val global: RichContext = concurrent.blocking{ worldFuture.get.get }
+    new Context(global.injected, global.assembled, global.executionContext, Map.empty)
   }
   def activate(global: RichContext): Seq[Observer] = {
     if(worldFuture.isDone) worldFuture.get.set(global)
