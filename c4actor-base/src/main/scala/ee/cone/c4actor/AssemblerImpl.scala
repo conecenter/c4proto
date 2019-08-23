@@ -35,7 +35,8 @@ class AssemblerInit(
   actorName: String,
   updateProcessor: UpdateProcessor,
   processors: List[UpdatesPreprocessor],
-  defaultAssembleOptions: AssembleOptions
+  defaultAssembleOptions: AssembleOptions,
+  warnPeriod: Long
 )(
   assembleOptionsOuterKey: AssembledKey = origKeyFactory.rawKey(classOf[AssembleOptions].getName),
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
@@ -60,6 +61,14 @@ class AssemblerInit(
       } yield res))
     }).seq.toMap)
 
+  def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{
+    val end = NanoTimer()
+    val result = Await.result(res, Duration.Inf)
+    val period = end.ms
+    if(period > warnPeriod) logger.warn(s"${options.toString} long join $period ms on $stage")
+    result
+  }
+
   // read model part:
   private def reduce(
     replace: Replace,
@@ -67,7 +76,7 @@ class AssemblerInit(
     options: AssembleOptions, executionContext: ExecutionContext
   ): ReadModel = {
     val res = replace(wasAssembled,diff,options,assembleProfiler.createJoiningProfiling(None),executionContext).map(_.result)(executionContext)
-    concurrent.blocking{Await.result(res, Duration.Inf)}
+    waitFor(res, options, "read")
   }
 
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
@@ -78,11 +87,7 @@ class AssemblerInit(
     val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
     val realDiff = toTree(assembled, composes.mayBePar(updates, options))(executionContext)
-    val end = NanoTimer()
-    val nAssembled = reduce(replace, assembled, realDiff, options, executionContext)
-    val period = end.ms
-    if(period > 1000) logger.info(s"${options.toString} long join $period ms")
-    nAssembled
+    reduce(replace, assembled, realDiff, options, executionContext)
   } catch {
     case NonFatal(e) ⇒
       logger.error("reduce", e) // ??? exception to record
@@ -116,7 +121,7 @@ class AssemblerInit(
         val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
         WriteModelKey.modify(_.enqueue(updates))(nLocal)
       }
-      concurrent.blocking{Await.result(res, Duration.Inf)}
+      waitFor(res, options, "add")
       //call add here for new mortal?
     }
   }

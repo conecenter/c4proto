@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import java.util.concurrent.{ExecutorService, ThreadFactory}
+import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.LazyLogging
 

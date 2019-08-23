@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory
-import java.util.concurrent.{ExecutorService, Executors, ForkJoinPool, ForkJoinWorkerThread}
+import java.util.concurrent.{ExecutorService, ForkJoinPool, ForkJoinWorkerThread}
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{S_Firstborn, S_Offset}
@@ -12,7 +12,7 @@ import ee.cone.c4proto.ToByteString
 
 import scala.collection.immutable.Map
 import scala.concurrent.ExecutionContext
-
+import java.lang.Math.toIntExact
 
 object Merge {
   def apply[A](path: List[Any], values: List[A]): A =
@@ -28,7 +28,7 @@ object Merge {
 
 class RichRawWorldReducerImpl(
   toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String
-) extends RichRawWorldReducer {
+) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
       val offset = addEvents.lastOption.fold(emptyOffset)(_.srcId)
@@ -58,17 +58,19 @@ class RichRawWorldReducerImpl(
     val offset = ByPK(classOf[S_Offset]).of(preWorld).get(actorName).fold(emptyOffset)(_.txId)
     new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
   }
-  def newExecutionContext(threadCount: Int): OuterExecutionContext = {
+  def newExecutionContext(threadCount: Long): OuterExecutionContext = {
     val defaultThreadFactory = ForkJoinPool.defaultForkJoinWorkerThreadFactory
     val threadFactory = new RForkJoinWorkerThreadFactory(defaultThreadFactory,"ass-")
-    val pool = new ForkJoinPool(threadCount, threadFactory, null, false)
+    val pool = new ForkJoinPool(toIntExact(threadCount), threadFactory, null, false)
+    logger.info(s"ForkJoinPool create $threadCount")
     new OuterExecutionContextImpl(threadCount,ExecutionContext.fromExecutor(pool),pool)
   }
-  def needExecutionContext(threadCount: Int): OuterExecutionContext⇒OuterExecutionContext = {
+  def needExecutionContext(threadCount: Long): OuterExecutionContext⇒OuterExecutionContext = {
     case ec: OuterExecutionContextImpl if ec.threadCount == threadCount ⇒
       ec
     case ec: OuterExecutionContextImpl ⇒
       ec.service.shutdown()
+      logger.info("ForkJoinPool shutdown")
       newExecutionContext(threadCount)
     case _ ⇒
       newExecutionContext(threadCount)
@@ -84,7 +86,7 @@ class RForkJoinWorkerThreadFactory(inner: ForkJoinWorkerThreadFactory, prefix: S
 }
 
 class OuterExecutionContextImpl(
-  val threadCount: Int,
+  val threadCount: Long,
   val value: ExecutionContext,
   val service: ExecutorService
 ) extends OuterExecutionContext

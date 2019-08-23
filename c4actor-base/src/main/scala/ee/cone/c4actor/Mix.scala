@@ -109,7 +109,8 @@ trait RichDataApp extends ProtocolsApp
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions)()
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, longAssembleWarnPeriod)()
+  private def longAssembleWarnPeriod: Long = Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
   private lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn,Runtime.getRuntime.availableProcessors)
   def parallelAssembleOn: Boolean = false
   //

@@ -8,7 +8,7 @@ import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.collection.{GenIterable, GenMap, GenSeq, immutable}
 import scala.concurrent.{ExecutionContext, Future}
 
-case class AssembleOptions(srcId: String, isParallel: Boolean, threadCount: Int)
+case class AssembleOptions(srcId: String, isParallel: Boolean, threadCount: Long)
 
 trait IndexUtil extends Product {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
