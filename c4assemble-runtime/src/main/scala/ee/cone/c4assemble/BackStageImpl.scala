@@ -24,7 +24,7 @@ class ConnectBackStage[MapKey, Value](
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")
     //if(composes.isEmpty(diffPart)) transition else
-    updater.setPart(outputWorldKey)(next)(transition)
+    updater.setPart(outputWorldKey,next,logTask = true)(transition)
   }
 }
 

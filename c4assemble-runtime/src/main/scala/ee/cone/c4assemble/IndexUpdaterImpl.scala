@@ -5,9 +5,7 @@ import ee.cone.c4assemble.Types.{DMap, Index, emptyIndex}
 import scala.concurrent.{ExecutionContext, Future}
 
 class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
-  def setPart[K,V](worldKey: AssembledKey)(
-    update: Future[IndexUpdate]
-  ): WorldTransition⇒WorldTransition = transition ⇒ {
+  def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition⇒WorldTransition = transition ⇒ {
     implicit val executionContext: ExecutionContext = transition.executionContext
     val diff = readModelUtil.updated(worldKey,update.map(_.diff))(transition.diff)
     val next = readModelUtil.updated(worldKey,update.map(_.result))(transition.result)
@@ -15,7 +13,8 @@ class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
       log ← transition.log
       u ← update
     } yield u.log ::: log
-    transition.copy(diff=diff,result=next,log=log)
+    val nTaskLog = if(logTask) worldKey :: transition.taskLog else transition.taskLog
+    transition.copy(diff=diff,result=next,log=log,taskLog=nTaskLog)
   }
 }
 
@@ -44,5 +43,5 @@ class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
 }
 
 class ReadModelImpl(val inner: DMap[AssembledKey,Future[Index]]) extends ReadModel {
-  def getFuture(key: AssembledKey): Future[Index] = inner.getOrElse(key, Future.successful(emptyIndex))
+  def getFuture(key: AssembledKey): Option[Future[Index]] = inner.get(key)
 }

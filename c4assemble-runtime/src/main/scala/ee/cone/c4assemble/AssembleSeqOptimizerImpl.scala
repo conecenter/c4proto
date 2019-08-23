@@ -20,30 +20,31 @@ class LoopExpression[MapKey, Value](
     left: Int, transition: WorldTransition, resDiff: Index
   ): Future[IndexUpdate] = {
     implicit val executionContext: ExecutionContext = transition.executionContext
-    val transitionA = main.transform(transition)
     for {
-      diffPart ← outputWorldKey.of(transitionA.diff)
+      diffPart ← outputWorldKey.of(transition.diff)
       res ← {
         if(composes.isEmpty(diffPart)) for {
-          resVal ← outputWorldKey.of(transitionA.result)
+          resVal ← outputWorldKey.of(transition.result)
         } yield new IndexUpdate(resDiff, resVal, Nil)
         else if(left > 0) inner(
           left - 1,
-          continueF(transitionA),
+          main.transform(continueF(transition)),
           composes.mergeIndex(Seq(resDiff, diffPart))
         )
-        else throw new Exception(s"unstable local assemble ${transitionA.diff}")
+        else throw new Exception(s"unstable local assemble ${transition.diff}")
       }
     } yield res
   }
   def transform(transition: WorldTransition): WorldTransition = {
+    val transitionA = main.transform(transition)
+    if(transition eq transitionA) transition
+    else finishTransform(transition, inner(1000, transitionA, emptyIndex))
+  }
+  def finishTransform(transition: WorldTransition, next: Future[IndexUpdate]): WorldTransition = {
     implicit val executionContext: ExecutionContext = transition.executionContext
-    //println("B")
-    val next = inner(1000, transition, emptyIndex)
-    //println("E")
     Function.chain(Seq(
-      updater.setPart(outputWorldKey)(next),
-      updater.setPart(wasOutputWorldKey)(next.map(update⇒new IndexUpdate(emptyIndex,update.result,Nil)))
+      updater.setPart(outputWorldKey,next,logTask = true),
+      updater.setPart(wasOutputWorldKey,next.map(update⇒new IndexUpdate(emptyIndex,update.result,Nil)),logTask = false)
     ))(transition)
   }
 }

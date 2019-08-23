@@ -57,17 +57,20 @@ trait ReadModelUtil {
 }
 
 trait ReadModel {
-  def getFuture(key: AssembledKey): Future[Index]
+  def getFuture(key: AssembledKey): Option[Future[Index]]
 }
 
 trait Getter[C,+I] {
   def of: C ⇒ I
 }
 
-abstract class AssembledKey extends Getter[ReadModel,Future[Index]] with Product {
-  def of: ReadModel ⇒ Future[Index] = world ⇒ world.getFuture(this)
+object OrEmptyIndex {
+  def apply(opt: Option[Future[Index]]): Future[Index] =
+    opt.getOrElse(Future.successful(emptyIndex))
 }
-
+abstract class AssembledKey extends Product {
+  def of(model: ReadModel): Future[Index] = OrEmptyIndex(model.getFuture(this))
+}
 trait WorldPartExpression /*[From,To] extends DataDependencyFrom[From] with DataDependencyTo[To]*/ {
   def transform(transition: WorldTransition): WorldTransition
 }
@@ -79,7 +82,8 @@ case class WorldTransition(
   options: AssembleOptions,
   profiling: JoiningProfiling,
   log: Future[ProfilingLog],
-  executionContext: ExecutionContext
+  executionContext: ExecutionContext,
+  taskLog: List[AssembledKey]
 )
 
 trait JoiningProfiling extends Product {

@@ -215,9 +215,14 @@ class JoinMapIndex(
   override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
 
   def transform(transition: WorldTransition): WorldTransition = {
+    val worldDiffOpts: Seq[Option[Future[Index]]] = inputWorldKeys.map(transition.diff.getFuture)
+    if(worldDiffOpts.forall(_.isEmpty)) transition
+    else doTransform(transition, worldDiffOpts)
+  }
+  def doTransform(transition: WorldTransition, worldDiffOpts: Seq[Option[Future[Index]]]): WorldTransition = {
     implicit val executionContext: ExecutionContext = transition.executionContext
     val next: Future[IndexUpdate] = for {
-      worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
+      worldDiffs ← Future.sequence(worldDiffOpts.map(OrEmptyIndex(_)))
       res ← {
         if (worldDiffs.forall(composes.isEmpty)) for {
           outputDiff ← outputWorldKey.of(transition.diff)
@@ -248,7 +253,7 @@ class JoinMapIndex(
         }
       }
     } yield res
-    updater.setPart(outputWorldKey)(next)(transition)
+    updater.setPart(outputWorldKey,next,logTask = true)(transition)
   }
 }
 
@@ -396,10 +401,15 @@ class TreeAssemblerImpl(
     def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] = {
       implicit val executionContext: ExecutionContext = transition.executionContext
       for {
-        stable ← readModelUtil.isEmpty(executionContext)(transition.diff)
+        stable ← readModelUtil.isEmpty(executionContext)(transition.diff) //seq
         res ← {
           if(stable) Future.successful(transition)
-          else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
+          else if(left > 0) transformUntilStable(left-1, {
+            //val start = System.nanoTime
+            val r = transformAllOnce(transition)
+            //println(s"transformAllOnce ${r.taskLog.size} (${r.taskLog.takeRight(4)})/${transforms.size} rules \n${(System.nanoTime-start)/1000000} ms")
+            r
+          })
           else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
         }
       } yield res
@@ -408,14 +418,14 @@ class TreeAssemblerImpl(
 
     (prevWorld,diff,options,profiler,executionContext) ⇒ {
       implicit val ec = executionContext
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil),executionContext)
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil),executionContext,Nil)
       val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
         seq ← Future.sequence(Seq(a,b))
       } yield composes.mergeIndex(seq) ))(prevWorld,diff)
-      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil),executionContext)
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil),executionContext,Nil)
       for {
         finalTransition ← transformUntilStable(1000, nextTransition)
-        ready ← readModelUtil.ready(ec)(finalTransition.result)
+        ready ← readModelUtil.ready(ec)(finalTransition.result) //seq
       } yield finalTransition
     }
   }

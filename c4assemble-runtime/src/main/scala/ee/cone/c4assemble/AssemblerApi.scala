@@ -47,9 +47,7 @@ trait ByPriority {
 class IndexUpdate(val diff: Index, val result: Index, val log: ProfilingLog)
 
 trait IndexUpdater {
-  def setPart[K,V](worldKey: AssembledKey)(
-    next: Future[IndexUpdate]
-  ): WorldTransition⇒WorldTransition
+  def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition⇒WorldTransition
 }
 
 trait AssembleSeqOptimizer {
