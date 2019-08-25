@@ -39,9 +39,10 @@ class TestTodoApp extends ServerApp
   override def assembles: List[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") ::
     super.assembles
+  //override def longTxWarnPeriod: Long = 10L
 }
 
-@protocol(TestCat) object TestTodoProtocolBase   {
+@protocol object TestTodoProtocolBase   {
   @Id(0x0001) case class B_TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,
@@ -127,7 +128,7 @@ case class TestTodoRootView(locationHash: String = "todo")(
         divButton("remove")(TxAdd(delete(prod)))(List(text("caption","-")))
       ))
     ))
-Thread.sleep(3000)
+
     List(filterList,btnList,taskLines).flatten
   }
 }

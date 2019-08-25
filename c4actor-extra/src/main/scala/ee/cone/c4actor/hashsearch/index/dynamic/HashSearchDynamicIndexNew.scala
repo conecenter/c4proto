@@ -1,7 +1,7 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.base._

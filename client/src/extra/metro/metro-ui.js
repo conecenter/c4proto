@@ -244,7 +244,8 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			const block=this.captionEl.getBoundingClientRect();
 			const cs=getComputedStyle(this.groupEl);			
 			//const containerMinHeight=(Math.max(block.height,block.width) + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';			
-			const captionOffset=(-Math.max(block.height,block.width))+'px';
+			const containerHeight = parseFloat(cs.height)//this.groupEl.getBoundingClientRect().height
+			const captionOffset=(-Math.max(Math.min(block.height,containerHeight),Math.min(block.width,containerHeight)));
 			if(this.state.captionOffset!=captionOffset /*|| this.state.containerMinHeight!=containerMinHeight*/)
 				this.setState({captionOffset/*,containerMinHeight*/});
 			this.shouldRotate();
@@ -275,33 +276,45 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				margin:'0.4em',
 				padding:this.props.caption&&this.state.rotated?'0.5em 1em 1em 1.6em':'0.5em 0.5em 1em 0.5em',
 				minHeight:this.state.rotated?this.state.containerMinHeight:"",
-				position:"relative",
-				overflow:"hidden",
+				position:"relative",				
 				...this.props.style
 			};
 			const captionStyle={
 				color:"#727272",
 				lineHeight:"1",
-				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 1.7em)":"0em",
-				position:this.state.rotated?"absolute":"static",
-				transform:this.state.rotated?"rotate(-90deg)":"none",
-				transformOrigin:"100% 0px",
+				marginLeft:"0em",				
 				whiteSpace:"nowrap",
-				marginTop:this.state.rotated?"1.5em":"0em",
+				marginTop:"0em",
 				fontSize:"0.875em",
 				display:"inline-block",
+				visibility:this.state.rotated?"hidden":"",
 				...this.props.captionStyle
 			};
+			const captionRStyle ={
+				...captionStyle,
+				marginLeft:`calc(${this.state.captionOffset+"px"} - 1.7em)`,
+				position:"absolute",
+				transform: "rotate(-90deg)",
+				transformOrigin:"100% 0px",
+				//marginTop: "1.5em",
+				width:Math.abs(this.state.captionOffset)+"px",
+				overflow:"hidden",
+				visibility:""				
+			}
 			const emElStyle={
 				position:"absolute",
 				top:"0",
 				zIndex:"-1",
 				height:"1em"
 			}
-			const captionEl = this.props.caption? $("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption): null;
+			const captionEl = this.props.caption? [
+				$("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption),
+				(this.state.rotated?$("div",{style:captionRStyle,key:"caption-r"},this.props.caption):null)
+			]: [];
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
-			return $("div",{ref:ref=>this.groupEl=ref,style:style},[				
-				captionEl,
+			const className = this.props.className
+			return $("div",{ref:ref=>this.groupEl=ref,style:style, className},[				
+				...captionEl,
 				emRefEl,
 				this.props.children
 			])
@@ -796,9 +809,10 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 					this.s = -1
 					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})
 				}
-				else {
-					inp.value = ""
-					if(event.detail == null){
+				else {					
+					const readOnly = (!this.props.onChange && !this.props.onBlur)
+					if(event.detail == null && !readOnly){
+						inp.value = ""
 						nValue = ""					
 						this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}},inp)
 					}
@@ -952,7 +966,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				width:"100%",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				borderColor:this.props.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
+				//backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
 				boxSizing:"border-box",
 				...this.props.style
 			};
@@ -983,8 +997,10 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				display:this.props.div?"inline-block":"",
 				fontFamily:"inherit",
 				visibility:this.state.visibility,
+				color:"inherit",
+				backgroundColor:"inherit",
 				...this.props.inputStyle,
-				...(this.props.changing?{backgroundColor:"#ffffaa"}:null)
+				...(this.props.changing?{backgroundColor:"#ffffaa",color:"black"}:null)
 			};		
 			const placeholder = this.props.placeholder
 			const inputType = !this.props.inputType?ReControlledInput:this.props.inputType
@@ -1025,13 +1041,41 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 	}	
     InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:""};
 	const InputElement = (props) => $(Interactive,{},actions=>$(InputElementBase,{...props,ref:props._ref,...actions}))	
+	const InputWithButtonElement = (props) => {  
+		const {imgUrl,value,inputStyle,onBlur, onClick} = props		
+		const buttonImageStyle={				
+			verticalAlign:"middle",
+			display:"inline",
+			height:"100%",
+			width:"100%",
+			transform:props.open?"rotate(180deg)":"rotate(0deg)",
+			transition:"all 200ms ease",
+			boxSizing:"border-box",
+			...props.buttonImageStyle
+		}		
+		const buttonImage = $("img",{key:"buttonImg",src:imgUrl,style:buttonImageStyle},null)			
+		const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick},buttonImage)]				
+		const drawFunc = _ => _		
+		const onChange = e=>{
+			if(onChange) props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
+		}
+		return $(InputElement,{...props,drawFunc,inputStyle,value,buttonElement,onChange,onBlur})	
+	}
 	const TextAreaElement = (props) => $(Interactive,{},actions=>{
 		const inputStyle = {
 			whiteSpace:"pre-wrap",
+			resize:"none",
 			...props.inputStyle
 		}
 		const onKeyDown = evt =>{
-			if(evt.target.ownerDocument.activeElement.tagName =="TEXTAREA") evt.stopPropagation()
+			if(evt.target.ownerDocument.activeElement.tagName =="TEXTAREA") {
+				switch(evt.keyCode){
+					case 9:
+						break
+					default:
+						evt.stopPropagation()
+				}
+			}
 			return false	
 		}
 		return $(InputElementBase,{...props,onKeyDown,ref:props._ref,inputType:"textarea", inputStyle, ...actions})
@@ -1310,10 +1354,10 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 					width:"100%",				
 					padding:"0.4em 0.3125em",
 					boxSizing:"border-box",
-					outlineWidth:"1px",
-					outlineColor:"red",				
+					outlineWidth:"0.05em",
+					//outlineColor:"red",				
 					...propsOnPath(path,this.props.path),
-					outlineOffset:"-1px",
+					outlineOffset:"-0.05em",
 					...style
 				},tabIndex:"1",
 				className,				
@@ -1393,25 +1437,43 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			const topEdge = rect.top - popRect.height;
 			let top = 0
 			let left = 0
-			if(bottomEdge<=windowRect.bottom){					//bottom
-				left = rect.left//rect.left - popRect.left
-				if(left+ popRect.width> windowRect.right)
-					left = windowRect.right - popRect.width
-				top = rect.bottom					
-			}
-			else if(topEdge>windowRect.top){	//top
-				top = rect.top - popRect.height				
-				left = rect.left//rect.left - popRect.left;							
-				if(left+ popRect.width> windowRect.right)
-					left = windowRect.right - popRect.width
-			}
-			else if(leftEdge>windowRect.left){	//left
-				left = rect.left - popRect.width;
-				top = rect.top - popRect.height/2;					
-			}
-			else if(rightEdge<=windowRect.right){
-				left = rect.right
-				top = rect.top - popRect.height/2;					
+			const calcFunc = {
+				"bottom":() =>{
+					left = 0//-popRect.width
+					if(rect.left + popRect.width> windowRect.right)
+						left = rect.width - popRect.width
+					top = rect.height
+				},
+				"top":()=>{
+					top = -popRect.height				
+					left = 0//-popRect.width;							
+					if(rect.left + popRect.width> windowRect.right)
+						left = rect.width - popRect.width
+				},
+				"left":() =>{
+					left = -popRect.width
+					top = -popRect.height/2
+				},
+				"right":()=>{
+					left = rect.right
+					top = -popRect.height/2;
+				}
+			}			
+			const _cfunc = this.props.position && calcFunc[this.props.position]
+			if(_cfunc) _cfunc()
+			else{
+				if(bottomEdge<=windowRect.bottom){	//bottom
+					calcFunc["bottom"]()		
+				}
+				else if(topEdge>windowRect.top){	//top
+					calcFunc["top"]()
+				}
+				else if(leftEdge>windowRect.left){	//left
+					calcFunc["left"]()					
+				}
+				else if(rightEdge<=windowRect.right){ //right
+					calcFunc["right"]()		
+				}	
 			}			
 			//top -= getPageYOffset()
 			if(this.state.top!=top || this.state.left!=left)
@@ -1426,7 +1488,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 		}
 		render(){			
 			return $("div",{ref:ref=>this.el=ref,style:{				
-				position:"fixed",
+				position:"absolute",
 				zIndex:"6",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,
 				backgroundColor:"white",
@@ -1438,6 +1500,9 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 	}
 	const CheckboxElement = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
 	class CheckboxBase extends StatefulComponent{				
+		getInitialState(){
+			return {el:null}
+		}
 		onDelete(event){
 			if(!event.detail) return
 			this.onClick()
@@ -1447,7 +1512,9 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			if(this.el) {		
 				this.el.addEventListener("click",this.onClick)			
 				this.el.addEventListener("delete",this.onDelete)
-				this.el.changing = this.props.changing
+				this.el.changing = this.props.changing				
+				
+				this.setState({imgcolor:1})
 			}		
 		}
 		componentDidUpdate(){
@@ -1494,8 +1561,7 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				...props.innerStyle
 			};
 			const checkBoxStyle={
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
-				color:"#212121",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,				
 				display:"inline-block",
 				height:"1.625em",
 				lineHeight:"100%",
@@ -1504,9 +1570,10 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				position:"relative",
 				verticalAlign:"middle",
 				width:"1.625em",
-				boxSizing:"border-box",
+				boxSizing:"border-box",				
 				borderColor:props.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:props.onChange?"white":"#eeeeee",
+				...(!props.onChange?{backgroundColor:"#eeeeee"}:{}),		
+				...(props.changing?{backgroundColor:"#ffffaa",color:"black"}:{}),		
 				...props.altLabel?{height:"1.655em",width:"1.655em"}:null,
 				...props.checkBoxStyle
 			};
@@ -1529,13 +1596,16 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 				height:"90%",
 				width:"100%",
 			};	
-			const defaultCheckImage = props.value&&props.value.length>0?$("img",{style:imageStyle,src:images.checkboxSvgData,key:"checkImage"},null):null
+			const imgElem = this.el?this.el.ownerDocument.querySelector(".img"):null
+			const imgColor = imgElem && !props.changing?imgElem.ownerDocument.defaultView.getComputedStyle(imgElem).color:"black"
+			const defaultCheckImage = props.value&&props.value.length>0?$("img",{style:imageStyle,src:images.checkboxSvgData(!props.onChange?"black":imgColor),key:"checkImage"},null):null
 			const labelEl = props.label?$("label",{style:labelStyle,key:"2"},props.label):null;
 			const checkImage = props.checkImage?props.checkImage:defaultCheckImage;
+			const className = this.props.className?("img "+ this.props.className): "img"
 			const {onMouseOver,onMouseOut} = props		
 			return $("div",{style,tabIndex:"1",ref:ref=>this.el=ref},
 				$("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1"},[
-					$("span",{style:checkBoxStyle,key:"1"},checkImage),
+					$("span",{style:checkBoxStyle,key:"1", className},checkImage),
 					labelEl
 				])
 			);
@@ -2242,8 +2312,9 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 			this.unreg = InternalClock.reg({clockTicks,updateInterval,updateServer})			
 		}
 		componentWillReceiveProps(nextProps){
-			//log("came update")
-			InternalClock.update(parseInt(nextProps.time)*1000)
+			//log("came update", nextProps.time)
+			if(this.props.time != nextProps.time)
+				InternalClock.update(parseInt(nextProps.time)*1000)
 		}
 		componentDidUpdate(_, prevState){
 			if(prevState.timeString.length == 0 && this.state.timeString.length>0) this.recalc();
@@ -3185,7 +3256,8 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
-            InputElement,AnchorElement,HeightLimitElement,ImageElement,SoundProducerElement,
+            InputElement, InputWithButtonElement,
+			AnchorElement,HeightLimitElement,ImageElement,SoundProducerElement,
 			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,TextElement,
 			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,CheckboxElement,
             RadioButtonElement,FileUploadElement,TextAreaElement,
@@ -3219,12 +3291,20 @@ export default function MetroUi({log,requestState,documentManager,OverlayManager
 	const toUrl = (path) => {
 		setTimeout(()=>{documentManager.document.location.href = path})
 	}
+	const reload = () => {
+		documentManager.document.location.reload()
+	}
+	const historyBack = () => {
+		documentManager.document.defaultView.history.back()
+	}
 	const receivers = {
 		download,
 		ping:PingReceiver.ping,
 		availability:Availability.receiver,
 		branches:Branches.store,
-		toUrl
+		reload,
+		toUrl,
+		historyBack
 	}	
 	const checkActivate = checkActivateCalls.check
 	return ({transforms,receivers,checkActivate,reactPathConsumer:Consumer});

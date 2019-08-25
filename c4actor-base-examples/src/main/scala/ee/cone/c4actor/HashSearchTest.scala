@@ -21,6 +21,7 @@ case object StrEqRanger extends Ranger[StrEq,String] {
       value ⇒ List(StrEq(value)),
       { case p@StrEq(v) ⇒ List(p) }
     )
+    case _ ⇒ ???
   }
 }
 object DefaultConditionChecks {
@@ -30,7 +31,7 @@ object DefaultRangers {
   implicit lazy val strEq: Ranger[StrEq,String] = StrEqRanger
 }
 
-@protocol(TestCat) object HashSearchTestProtocolBase   {
+@protocol object HashSearchTestProtocolBase   {
   @Id(0x0001) case class D_SomeModel(
     @Id(0x0003) srcId: String,
     @Id(0x0004) fieldA: String,

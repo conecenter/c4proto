@@ -7,22 +7,19 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4gate.AlienProtocol.FromAlienState
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4proto._
 import okio.ByteString
 
-case object SessionAttrCat extends DataCategory
-
-@protocol(SessionAttrCat) object SessionDataProtocolBase   {
+@protocol object SessionDataProtocolBase   {
   @Id(0x0066) case class U_RawSessionData(
     @Id(0x0061) srcId: String,
     @Id(0x0067) sessionKey: String,
     @Id(0x0a66) dataNode: Option[N_RawDataNode] // Always isDefined
   )
 
-  @Cat(InnerCat)
-  @Id(0x0a65) case class N_RawDataNode(
+    @Id(0x0a65) case class N_RawDataNode(
     @Id(0x0068) domainSrcId: String,
     @Id(0x0069) fieldId: Long,
     @Id(0x0064) valueTypeId: Long,
@@ -45,7 +42,7 @@ object SessionDataAssembles {
 
   def joinSessionLife(
     key: SrcId,
-    session: Each[FromAlienState],
+    session: Each[U_FromAlienState],
     @by[SessionKey] sessionData: Each[U_RawSessionData]
   ): Values[(Alive, U_RawSessionData)] = List(WithPK(sessionData))
 }

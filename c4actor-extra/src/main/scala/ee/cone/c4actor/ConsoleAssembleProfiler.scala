@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4assemble.{Join, JoiningProfiling, WorldTransition}
 import ee.cone.c4assemble.Types.{DPIterable, Index, ProfilingLog}
 
@@ -11,7 +11,7 @@ import scala.concurrent.Future
 case object ConsoleAssembleProfiler extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling = ConsoleProfiling
 
-  def addMeta(transition: WorldTransition, updates: Seq[QProtocol.Update]): Future[Seq[Update]] = Future.successful(updates)
+  def addMeta(transition: WorldTransition, updates: Seq[QProtocol.N_Update]): Future[Seq[N_Update]] = Future.successful(updates)
 }
 
 case object ConsoleProfiling extends JoiningProfiling with LazyLogging {

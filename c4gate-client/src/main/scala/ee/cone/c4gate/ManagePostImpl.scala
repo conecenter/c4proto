@@ -2,7 +2,7 @@
 package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
@@ -12,28 +12,27 @@ import ee.cone.c4gate.HttpProtocol.S_HttpPost
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-@assemble class ManagementPostAssembleBase(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, defaultAssembleOptions: AssembleOptions, catchNonFatal: CatchNonFatal)   {
+@assemble class ManagementPostAssembleBase(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal)   {
   def joinHttpPostHandler(
     key: SrcId,
     post: Each[S_HttpPost]
   ): Values[(SrcId, TxTransform)] =
     if(post.path == s"/manage/$actorName")
-      List(WithPK(ManageHttpPostTx(post.srcId, post, defaultAssembleOptions)(indexUtil,readModelUtil,catchNonFatal))) else Nil
+      List(WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil,readModelUtil,catchNonFatal))) else Nil
 
   def joinConsumers(
     key: SrcId,
-    first: Each[Firstborn]
+    first: Each[S_Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
     List(WithPK(LocalPostConsumer(s"/manage/$actorName")))
 }
 
-case class ManageHttpPostTx(srcId: SrcId, post: S_HttpPost, defaultAssembleOptions: AssembleOptions)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
+case class ManageHttpPostTx(srcId: SrcId, post: S_HttpPost)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
   private def valueLines(index: Index, options: AssembleOptions)(k: Any): List[String] =
     indexUtil.getValues(index,k,"",options).flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
-    val options = ByPK(classOf[AssembleOptions]).of(local)
-      .getOrElse(ToPrimaryKey(defaultAssembleOptions),defaultAssembleOptions)
+    val options = GetAssembleOptions.of(local)(local.assembled)
     val headers: Map[String, String] = post.headers.map(h⇒h.key→h.value).toMap
     val world = readModelUtil.toMap(local.assembled)
     val WorldKeyAlias = """(\w+),(\w+)""".r

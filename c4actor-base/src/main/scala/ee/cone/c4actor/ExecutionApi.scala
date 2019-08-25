@@ -1,5 +1,7 @@
 package ee.cone.c4actor
 
+import java.util.concurrent.ExecutorService
+
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.util.Try
@@ -7,7 +9,8 @@ import scala.util.Try
 trait Execution extends Runnable {
   def onShutdown(hint: String, f:()⇒Unit): ()⇒Unit
   def complete(): Unit
-  def emptySkippingFuture[T]: FatalFuture[Option[T]]
+  def skippingFuture[T](value: T): FatalFuture[T]
+  def newThreadPool(prefix: String): ExecutorService
 }
 
 trait FatalFuture[T] {

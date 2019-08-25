@@ -52,9 +52,16 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
+  def longTxWarnPeriod: Long = Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong)
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
+<<<<<<< HEAD
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages, CatchNonFatalImpl)
+||||||| merged common ancestors
+  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
+=======
+  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,longTxWarnPeriod)
+>>>>>>> master
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =
@@ -111,8 +118,9 @@ trait RichDataApp extends ProtocolsApp
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, CatchNonFatalImpl)()
-  lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, longAssembleWarnPeriod, CatchNonFatalImpl)()
+  private def longAssembleWarnPeriod: Long = Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
+  private lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn,0L)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
@@ -127,7 +135,7 @@ trait RichDataApp extends ProtocolsApp
 
 trait VMExecutionApp {
   def toStart: List[Executable]
-  lazy val execution: Execution = new VMExecution(()⇒toStart)
+  lazy val execution: Execution = new VMExecution(()⇒toStart)()()
 }
 
 trait FileRawSnapshotApp { // Remote!

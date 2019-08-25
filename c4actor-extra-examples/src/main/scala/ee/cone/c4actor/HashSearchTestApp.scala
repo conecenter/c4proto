@@ -3,7 +3,7 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.EqProtocol.{D_ChangingNode, D_IntEq, D_StrStartsWith, D_TestObject, D_TestObject2}
 import ee.cone.c4actor.HashSearch.{Request, Response}
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.TestProtocol.D_TestNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.request.CurrentTimeAssembleMix
@@ -35,8 +35,8 @@ class HashSearchExtraTestStart(
     val world = for {
       i ← 1 to 10000
     } yield D_TestObject(i.toString, 239, i.toHexString)
-    val recs = /*update(D_TestNode("1", "")) ++ */ update(Firstborn("test", "0" * OffsetHexSize())) ++ update(D_ChangingNode("test", "6")) ++ update(D_ChangingNode("test-safe", "45")) ++ world.flatMap(update)
-    val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val recs = /*update(D_TestNode("1", "")) ++ */ update(S_Firstborn("test", "0" * OffsetHexSize())) ++ update(D_ChangingNode("test", "6")) ++ update(D_ChangingNode("test-safe", "45")) ++ world.flatMap(update)
+    val updates: List[QProtocol.N_Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
     val nGlobalAA = ActivateContext(nGlobalActive)
@@ -128,7 +128,7 @@ case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
 }
 
 
-@protocol(TestCat) object EqProtocolBase   {
+@protocol object EqProtocolBase   {
 
   @Id(0xaabc) case class D_ChangingNode(
     @Id(0xaabd) srcId: String,
@@ -177,6 +177,7 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[D_StrStartsWith], c
           ).toList :+ D_StrStartsWith("")).distinct, {
       case D_StrStartsWith(v) ⇒ D_StrStartsWith(v.take(5)) :: Nil
     })
+    case a ⇒ FailWith(s"Unsupported option $a")
   }
 
   def prepareRequest: D_StrStartsWith => D_StrStartsWith = in ⇒ in.copy(value = in.value.take(5))

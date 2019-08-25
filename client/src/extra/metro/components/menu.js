@@ -31,26 +31,27 @@ const MenuBarElement = (props) => {
 	
 	const [state, setBurger] = React.useState({isBurger:false,bpLength:null})
 	
+	const left = props.children.filter(_=>_.key&&!_.key.includes("right"))									
+	const right = props.children.filter(_=>!_.key||_.key.includes("right"))
+	
 	React.useEffect((c)=>{
-		elem.current.actions = {
-			calc: ()=>{
-				if(!leftElem.current) return
-				const tCLength = Math.round(Array.from(leftElem.current.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0))
-				const tLength = Math.round(leftElem.current.getBoundingClientRect().width)
-				
-				if(!state.bpLength && tCLength>0 && tCLength>=tLength && !state.isBurger) {					
-					setBurger({isBurger:true, bpLength:tCLength})					
-				}
-				if(state.bpLength && state.bpLength<tLength && state.isBurger){										
-					setBurger({isBurger:false, bpLength:null})							
-				}
+		const calc = () =>{
+			if(!leftElem.current) return
+			const tCLength = Math.round(Array.from(leftElem.current.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0))
+			const tLength = Math.round(leftElem.current.getBoundingClientRect().width)
+			
+			if(!state.bpLength && tCLength>0 && tCLength>=tLength && !state.isBurger) {					
+				setBurger({isBurger:true, bpLength:tCLength})					
 			}
-		}		
-		checkActivateCalls.add(elem.current.actions.calc)
+			if(state.bpLength && state.bpLength<tLength && state.isBurger){										
+				setBurger({isBurger:false, bpLength:null})							
+			}
+		}			
+		if(left.length > 1) checkActivateCalls.add(calc)
 		return ()=>{
-			checkActivateCalls.remove(elem.current.actions.calc)
+			checkActivateCalls.remove(calc)
 		}
-	},[state])		
+	},[state,props.children])		
 	const openBurger = (e) => {
 		props.onClick && props.onClick(e)			
 	}	
@@ -87,9 +88,7 @@ const MenuBarElement = (props) => {
 		position:"absolute",
 		zIndex:"1000",
 		backgroundColor:"inherit"
-	}
-	const left = props.children.filter(_=>_.key&&!_.key.includes("right"))									
-	const right = props.children.filter(_=>!_.key||_.key.includes("right"))
+	}	
 	const menuBurger = $("div",{onBlur:onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[
 		$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:props.isBurgerOpen,key:"burger",onClick:openBurger}),
 		props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null
@@ -155,15 +154,20 @@ const MenuDropdownElement = (props) =>{
 }
 const FolderMenuElement = React.memo((props) =>{
 	const elem = React.useRef(null)	
+	const [time, setTime] = React.useState(Date.now())
 	React.useEffect(()=>{
 		elem.current.actions = {
-			onClick:e =>{props.onClick && props.onClick(e); e.stopPropagation()}
+			onClick:e =>{props.onClick && props.onClick(e); setTime(Date.now());e.stopPropagation()}
 		}
 		elem.current.addEventListener("click",elem.current.actions.onClick)			
 		return ()=>{ 						
 			elem.current.removeEventListener("click",elem.current.actions.onClick)				
 		}
 	},[props.onClick])
+	React.useEffect(()=>{
+		elem.current.ownerDocument.defaultView.console.log(`${Date.now() - time}`)		
+		return () =>{}
+	},[props.children.length])
 	const selStyle={
 		position:'relative',		
 		whiteSpace:'nowrap',

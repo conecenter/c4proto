@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4proto.ToByteString
 
 /*snapshot cleanup:
@@ -47,7 +47,7 @@ class SnapshotDifferImpl(
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader
 ) extends SnapshotDiffer {
-  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update] = {
+  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_Update] = {
     val currentUpdates = toUpdate.toUpdates(List(snapshot))
     val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
     val state = currentUpdates.map(up⇒toUpdate.toKey(up)→up).toMap

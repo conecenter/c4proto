@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
@@ -155,15 +155,15 @@ import RRTestLenses._
   type CheckId = String
   def given(
     key: SrcId,
-    firstborn: Each[Firstborn]
-  ): Values[(CheckId,Firstborn)] = List("check"→firstborn)
+    firstborn: Each[S_Firstborn]
+  ): Values[(CheckId,S_Firstborn)] = List("check"→firstborn)
   def givenFoo(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId,Foo)] = List(WithPK(Foo("1",List("2","3"))))
   def givenBars(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId,Bar)] = List(WithPK(Bar("2")),WithPK(Bar("3")))
   //
   def checkStart(
@@ -172,7 +172,7 @@ import RRTestLenses._
   ): Values[(CheckId,RichFoo)] = List("check"→foo)
   def checkFinish(
     key: SrcId,
-    @by[CheckId] firstborn: Each[Firstborn],
+    @by[CheckId] firstborn: Each[S_Firstborn],
     @by[CheckId] fooValues: Values[RichFoo]
   ): Values[(SrcId,Product)] = {
     assert(Single.option(fooValues) == Option(RichFoo("1",List(Bar("2"),Bar("3")))))
@@ -194,15 +194,15 @@ import RRTestLenses._
   type CheckId = String
   def given(
     key: SrcId,
-    firstborn: Each[Firstborn]
-  ): Values[(CheckId,Firstborn)] = List("check"→firstborn)
+    firstborn: Each[S_Firstborn]
+  ): Values[(CheckId,S_Firstborn)] = List("check"→firstborn)
   def givenFoo(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId,Foo)] = List(WithPK(Foo("1",List("2","3"))))
   def givenBars(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId,Bar)] = List(WithPK(Bar("2")),WithPK(Bar("3")))
   //
   type FooId = SrcId
@@ -212,7 +212,7 @@ import RRTestLenses._
   ): Values[(CheckId,RichFooBar)] = List("check"→fooBar)
   def checkFinish(
     key: SrcId,
-    @by[CheckId] firstborn: Each[Firstborn],
+    @by[CheckId] firstborn: Each[S_Firstborn],
     @by[CheckId] fooBars: Values[RichFooBar]
   ): Values[(SrcId,Product)] = {
     assert(fooBars.sortBy(_.bar.id).toList == List(
@@ -236,15 +236,15 @@ import RRTestLenses._
   type CheckId = String
   def given(
     key: SrcId,
-    firstborn: Each[Firstborn]
-  ): Values[(CheckId,Firstborn)] = List("check"→firstborn)
+    firstborn: Each[S_Firstborn]
+  ): Values[(CheckId,S_Firstborn)] = List("check"→firstborn)
   def givenFoo(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId,FooRev)] = List(WithPK(FooRev("1")))
   def givenBars(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId,BarRev)] = List(WithPK(BarRev("2","1")),WithPK(BarRev("3","1")))
   //
   def checkStart(
@@ -253,7 +253,7 @@ import RRTestLenses._
   ): Values[(CheckId,RichFoo)] = List("check"→foo)
   def checkFinish(
     key: SrcId,
-    @by[CheckId] firstborn: Each[Firstborn],
+    @by[CheckId] firstborn: Each[S_Firstborn],
     @by[CheckId] fooValues: Values[RichFoo]
   ): Values[(SrcId,Product)] = {
     assert(Single.option(fooValues) == Option(RichFoo("1",List(Bar("2"),Bar("3")))))

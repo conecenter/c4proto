@@ -2,13 +2,13 @@ package ee.cone.c4gate
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.LifeTypes.Alive
-import ee.cone.c4actor.QProtocol.TxRef
+import ee.cone.c4actor.QProtocol.N_TxRef
 import ee.cone.c4actor._
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.D_TxAddMeta
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4gate.AlienProtocol.ToAlienWrite
+import ee.cone.c4gate.AlienProtocol.U_ToAlienWrite
 import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4gate.TestFilterProtocol.B_Content
 import ee.cone.c4proto.{HasId, Id}
@@ -33,7 +33,7 @@ trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalF
   )
 
   override def assembles: List[Assemble] =
-    mortal(classOf[TxRef]) :: mortal(classOf[D_TxAddMeta]) ::
+    mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) ::
     new TestTxLogAssemble(actorName)(qAdapterRegistry)() ::
     super.assembles
   override def byLocationHashViews: List[ByLocationHashView] =
@@ -102,7 +102,7 @@ object TestTxLogAttrs {
   lazy val authKey = SessionAttr(Id(0x000B), classOf[B_Content], UserLabel en "(authKey)")
 }
 
-case class UpdatesSummary(add: D_TxAddMeta, ref: TxRef)
+case class UpdatesSummary(add: D_TxAddMeta, ref: N_TxRef)
 case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount: Long, objCount: Long, byteCount: Long)
 
 @assemble class TestTxLogAssembleBase(actorName: String)(
@@ -116,7 +116,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
 
   def mapMeta(
     key: SrcId,
-    txRef: Each[TxRef],
+    txRef: Each[N_TxRef],
     txAdd: Each[D_TxAddMeta]
   ): Values[(SummaryId,UpdatesSummary)] =
     List(actorName → UpdatesSummary(txAdd, txRef))
@@ -141,7 +141,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
         else headToKeep(will, in.tail)
       }
 
-    val skipIds = Seq(classOf[ToAlienWrite],classOf[S_HttpPublication],classOf[D_TxAddMeta],classOf[TxRef])
+    val skipIds = Seq(classOf[U_ToAlienWrite],classOf[S_HttpPublication],classOf[D_TxAddMeta],classOf[N_TxRef])
       .map(cl⇒qAdapterRegistry.byName(cl.getName).id).toSet
 
     List(WithPK(headToKeep(
@@ -161,7 +161,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
   def keepRefs(
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
-  ): Values[(Alive,TxRef)] = for {
+  ): Values[(Alive,N_TxRef)] = for {
     item ← updatesListSummary.items
   } yield WithPK(item.ref)
 

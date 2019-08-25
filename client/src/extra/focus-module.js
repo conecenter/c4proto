@@ -44,20 +44,18 @@ export default function FocusModule({log,documentManager,windowManager}){
 			const r = n.getBoundingClientRect()				
 			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n:n}
 		})
-	}
+	}	
 	const getCNode = () =>{
 		const aEl = documentManager.activeElement()
-		if(aEl.tagName == "IFRAME") {
-			return getParentWrapper(aEl.contentDocument.activeElement)
-		}
-		return getParentWrapper(aEl)		
+		const node = (aEl.tagName == "IFRAME")?getParentWrapper(aEl.contentDocument.activeElement): getParentWrapper(aEl)				
+		return node
 	}
 	const findBestDistance = (axis) => {
 		const aEl = documentManager.activeElement()
 		if((axis==2||axis==0) && aEl.tagName == "INPUT") return
-		mapNodes()
-	    const wrap = getCNode()	
-		const index = nodesObj.findIndex(o => o.n == wrap)
+		mapNodes()		
+	    const wrap = getCNode()			
+		const index = wrap?nodesObj.findIndex(o => o.n == wrap):(nodesObj[0]?0:-1)
 		if(index<0) return
 		const cNodeObj = nodesObj[index]
 		const k = [-1,1]
@@ -228,7 +226,7 @@ export default function FocusModule({log,documentManager,windowManager}){
 		}
 		const root = vk?(cNode&&cNode.ownerDocument):event.target.ownerDocument
 		if(!root) return
-		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
+		const nodes = Array.from(root.querySelectorAll('.focusWrapper[tabindex="1"]'))		
 		/*const cRNode = callbacks.find(o=>currentFocusNode&&true && o.el == currentFocusNode.el)
 		if(cRNode&&cRNode.props.autoFocus == false){
 			sendToServer(cRNode,"focus","change")
@@ -241,14 +239,14 @@ export default function FocusModule({log,documentManager,windowManager}){
 			}
 			else{
 				setTimeout(()=>{
-					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
+					const nodes = Array.from(root.querySelectorAll('.focusWrapper[tabindex="1"]'))		
 					const cIndex = nodes.findIndex(n=>n == cNode)
 					if(cIndex>=0) {
 						if(cIndex+1<nodes.length) {
 							nodes[cIndex+1].focus()							
 						}
 						else 
-							cNode&&cNode.focus()
+							nodes[0]&&nodes[0].focus() || cNode&&cNode.focus()
 					}					
 				},200)
 			}				

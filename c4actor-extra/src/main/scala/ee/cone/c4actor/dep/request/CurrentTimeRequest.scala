@@ -3,15 +3,16 @@ package ee.cone.c4actor.dep.request
 import java.security.SecureRandom
 import java.time.Instant
 
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNode
 import ee.cone.c4actor.dep.request.CurrentTimeProtocolBase.S_CurrentTimeNodeSetting
-import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.{CurrentTimeMetaAttr, CurrentTimeRequest}
+import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.N_CurrentTimeRequest
+import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocolBase.D_CurrentTimeMetaAttr
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{All, Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4proto._
 
 trait CurrentTimeHandlerApp extends AssemblesApp with ProtocolsApp with CurrentTimeConfigApp with DepResponseFactoryApp {
@@ -31,7 +32,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   private val getOffset: Long = refreshMilli + random.nextInt(500)
 
   def transform(l: Context): Context = {
-    val newLocal = InsertOrigMeta(CurrentTimeMetaAttr(srcId, refreshRateSeconds) :: Nil)(l)
+    val newLocal = InsertOrigMeta(D_CurrentTimeMetaAttr(srcId, refreshRateSeconds) :: Nil)(l)
     val now = Instant.now
     val nowMilli = now.toEpochMilli
     val prev = ByPK(classOf[S_CurrentTimeNode]).of(newLocal).get(srcId)
@@ -47,7 +48,7 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
   }
 }
 
-@protocol(OperativeCat) object CurrentTimeProtocolBase {
+@protocol object CurrentTimeProtocolBase {
 
   @Id(0x0127) case class S_CurrentTimeNodeSetting(
     @Id(0x0128) timeNodeId: String,
@@ -89,7 +90,7 @@ object CurrentTimeRequestAssembleTimeId {
 
   def CreateTimeConfig(
     firstBornId: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(CurrentTimeId, CurrentTimeConfig)] =
     configList.map(WithPK(_))
 
@@ -118,7 +119,7 @@ object CurrentTimeRequestAssembleTimeId {
     rq: Each[DepInnerRequest]
   ): Values[(CTRATimeId, DepInnerRequest)] =
     rq.request match {
-      case _: CurrentTimeRequest ⇒ (CurrentTimeRequestAssembleTimeId.id → rq) :: Nil
+      case _: N_CurrentTimeRequest ⇒ (CurrentTimeRequestAssembleTimeId.id → rq) :: Nil
       case _ ⇒ Nil
     }
 
@@ -127,7 +128,7 @@ object CurrentTimeRequestAssembleTimeId {
     @by[CTRATimeId] pong: Each[S_CurrentTimeNode],
     @by[CTRATimeId] rq: Each[DepInnerRequest]
   ): Values[(SrcId, DepResponse)] = {
-    val timeRq = rq.request.asInstanceOf[CurrentTimeRequest]
+    val timeRq = rq.request.asInstanceOf[N_CurrentTimeRequest]
     val newTime = pong.currentTimeSeconds / timeRq.everyPeriod * timeRq.everyPeriod
     WithPK(util.wrap(rq, Option(newTime))) :: Nil
   }
@@ -135,13 +136,11 @@ object CurrentTimeRequestAssembleTimeId {
 
 @protocol object CurrentTimeRequestProtocolBase {
 
-  @Cat(DepRequestCat)
-  @Id(0x0f83) case class CurrentTimeRequest(
+    @Id(0x0f83) case class N_CurrentTimeRequest(
     @Id(0x0f86) everyPeriod: Long
   )
 
-  @Cat(TxMetaCat)
-  @Id(0x0f87) case class CurrentTimeMetaAttr(
+    @Id(0x0f87) case class D_CurrentTimeMetaAttr(
     @Id(0x0f88) srcId: String,
     @Id(0x0f89) everyPeriod: Long
   )

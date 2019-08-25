@@ -1,6 +1,6 @@
 package ee.cone.dbadapter
 
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4external.{ExtModelsApp, ExternalId, ExternalModel}
 
@@ -56,7 +56,7 @@ trait DBAdapter {
 
   def getOrigs(orig: DBSchema, pks: List[String]): List[Product]
 
-  def getOrigBytes(orig: DBSchema, pks: List[String]): List[Update]
+  def getOrigBytes(orig: DBSchema, pks: List[String]): List[N_Update]
 
   def findOrigBy(orig: DBSchema, fieldId: Long, field: List[Any]): List[String]
 }
