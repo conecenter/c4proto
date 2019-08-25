@@ -61,8 +61,9 @@ class RichRawWorldReducerImpl(
   def newExecutionContext(threadCount: Long): OuterExecutionContext = {
     val defaultThreadFactory = ForkJoinPool.defaultForkJoinWorkerThreadFactory
     val threadFactory = new RForkJoinWorkerThreadFactory(defaultThreadFactory,"ass-")
-    val pool = new ForkJoinPool(toIntExact(threadCount), threadFactory, null, false)
-    logger.info(s"ForkJoinPool create $threadCount")
+    val fixedThreadCount = if(threadCount>0) toIntExact(threadCount) else Runtime.getRuntime.availableProcessors
+    val pool = new ForkJoinPool(fixedThreadCount, threadFactory, null, false)
+    logger.info(s"ForkJoinPool create $fixedThreadCount")
     new OuterExecutionContextImpl(threadCount,ExecutionContext.fromExecutor(pool),pool)
   }
   def needExecutionContext(threadCount: Long): OuterExecutionContext⇒OuterExecutionContext = {
