@@ -26,7 +26,7 @@ trait HasId {
   def hasId: Boolean
   def categories: List[DataCategory]
   def className: String
-  def cl: Class[_]
+  def cl: Class[_ <: Product]
   def shortName: Option[String]
   def props: List[MetaProp]
 }
