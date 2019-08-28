@@ -55,13 +55,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def longTxWarnPeriod: Long = Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong)
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
-<<<<<<< HEAD
-  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages, CatchNonFatalImpl)
-||||||| merged common ancestors
-  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
-=======
-  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages,longTxWarnPeriod)
->>>>>>> master
+  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages, longTxWarnPeriod, CatchNonFatalImpl)
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =

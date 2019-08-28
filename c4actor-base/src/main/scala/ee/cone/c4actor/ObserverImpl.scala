@@ -23,7 +23,6 @@ class TxTransforms(qMessages: QMessages, warnPeriod: Long, catchNonFatal: CatchN
       global.offset < InnerReadAfterWriteOffsetKey.of(prev) ||
       Instant.now.isBefore(InnerSleepUntilKey.of(prev))
     ) prev else catchNonFatal {
-      Trace {
         ByPK(classOf[TxTransform]).of(global).get(key) match {
           case None ⇒ prev
           case Some(tr) ⇒
