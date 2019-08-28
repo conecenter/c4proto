@@ -9,6 +9,8 @@ import ee.cone.c4assemble.{assemble, by}
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPost}
 import okio.ByteString
 
+import scala.collection.immutable.Seq
+
 class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawSnapshotLoader {
   def load(snapshot: RawSnapshot): ByteString = {
     assert(snapshot.relativePath==relativePath)
@@ -40,8 +42,10 @@ case class SnapshotPutTx(srcId: SrcId, posts: List[S_HttpPost])(
     val post = posts.head
     val Some(Seq(putter.`url`,relativePath)) =
       signatureChecker.retrieve(check=true)(signed(post.headers))
-    putter.merge(relativePath, post.body)(local)
-    respond(List(post→Nil),posts.tail.map(_→"Ignored"))(local)
+    Function.chain(Seq(
+      putter.merge(relativePath, post.body),
+      respond(List(post→Nil),posts.tail.map(_→"Ignored"))
+    ))(local)
   }{ e ⇒
     respond(Nil,List(posts.head → e.getMessage))(local)
   }
