@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -52,7 +52,7 @@ case class SnapshotPutTx(srcId: SrcId, posts: List[S_HttpPost])(
 
   def needConsumer(
     key: SrcId,
-    first: Each[Firstborn]
+    first: Each[S_Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
     List(WithPK(LocalPostConsumer(putter.url)))
 

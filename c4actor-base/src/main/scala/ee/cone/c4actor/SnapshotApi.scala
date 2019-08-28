@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.Update
+import ee.cone.c4actor.QProtocol.N_Update
 import ee.cone.c4actor.Types.NextOffset
 import okio.ByteString
 
@@ -47,6 +47,6 @@ trait SnapshotMerger {
 }
 
 trait SnapshotDiffer {
-  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[Update]
+  def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_Update]
   def needCurrentSnapshot: Context⇒RawEvent
 }
