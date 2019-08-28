@@ -158,6 +158,8 @@ my $main = sub{
     ($cmd||'') eq $$_[0] and $$_[2]->(@args) for @tasks;
 };
 
+my $http_port = "1080";
+
 ####
 
 push @tasks, ["","",sub{
@@ -240,6 +242,28 @@ push @tasks, ["get_last_snapshot", $composes_txt, sub{
     sy(&$get_snapshot($comp,$snnm,sub{$_[0]}));
 }];
 
+my $put_snapshot = sub{
+    my($auth_path,$data_path,$addr)=@_;
+    my $gen_dir = $ENV{C4PROTO_DIR} || die;
+    my $data_fn = $data_path=~m{([^/]+)$} ? $1 : die "bad file path";
+    -e $auth_path or die "no gate auth";
+    sy("python3","$gen_dir/req.py",$auth_path,$data_path,$addr,"/put-snapshot","/put-snapshot","snapshots/$data_fn");
+};
+
+push @tasks, ["put_snapshot", "$composes_txt <file_path>", sub{
+    my($comp,$data_path)=@_;
+    my $host = &$get_compose($comp)->{le_hostname} || die "no le_hostname";
+    my($conf_dir,$save) = @{&$get_conf_dir()};
+    my $auth_path = "$conf_dir/ca/$comp/simple.auth";
+    &$put_snapshot($auth_path,$data_path,"https://$host");
+}];
+push @tasks, ["put_snapshot_local", "<file_path>", sub{
+    my($data_path)=@_;
+    my $data_dir = $ENV{C4DATA_DIR} || die;
+    &$put_snapshot("$data_dir/simple.auth",$data_path,"http://127.0.0.1:$http_port");
+}];
+
+
 my $get_kc_ns = sub{
     my($comp)=@_;
     syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
@@ -304,7 +328,6 @@ $YAML::XS::QuoteNumericStrings = 1;
 
 my $le_http_port = "2080";
 my $le_https_port = "2443";
-my $http_port = "1080";
 my $vhost_http_port = "80";
 my $vhost_https_port = "443";
 my $ssh_port = "2022";
