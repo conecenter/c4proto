@@ -20,7 +20,7 @@ class TestConsumerApp extends ServerApp
   with FileRawSnapshotApp
 {
   override def protocols: List[Protocol] = AlienProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
-  override def assembles: List[Assemble] = new TestAssemble(CatchNonFatalImpl) :: super.assembles
+  override def assembles: List[Assemble] = new TestAssemble(catchNonFatal) :: super.assembles
 }
 
 /*

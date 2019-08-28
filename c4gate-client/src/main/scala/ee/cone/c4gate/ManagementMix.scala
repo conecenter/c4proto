@@ -8,11 +8,12 @@ trait ManagementApp extends AssemblesApp with ActorAccessApp with PrometheusApp 
   def indexUtil: IndexUtil
   def readModelUtil: ReadModelUtil
   def actorName: String
+  def catchNonFatal: CatchNonFatal
 
   lazy val syncTxFactory: SyncTxFactory = new SyncTxFactoryImpl
 
   override def assembles: List[Assemble] =
-    new ManagementPostAssemble(actorName, indexUtil, readModelUtil, CatchNonFatalImpl) ::
+    new ManagementPostAssemble(actorName, indexUtil, readModelUtil, catchNonFatal) ::
     new PostConsumerAssemble(actorName, syncTxFactory) ::
     super.assembles
 }
