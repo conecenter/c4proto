@@ -714,6 +714,7 @@ my $consumer_options = sub{(
     C4KEYSTORE_PATH => "/c4conf/main.keystore.jks",
     C4TRUSTSTORE_PATH => "/c4conf/main.truststore.jks",
     JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport ", # -XX:ActiveProcessorCount=36
+    C4LOGBACK_XML => "/c4conf/logback.xml",
 )};
 # todo secure jmx
 #            JAVA_TOOL_OPTIONS => join(' ',qw(
@@ -822,6 +823,11 @@ push @tasks, ["up-client", "", sub{
     &$sync_up(&$wrap_deploy($run_comp,$from_path,$options),$args);
 }];
 
+my $need_logback = sub{
+    my ($from_path) = @_;
+    sy("touch","$from_path/logback.xml")
+};
+
 my $up_consumer = sub{
     my($run_comp)=@_;
     my $conf = &$get_compose($run_comp);
@@ -830,6 +836,7 @@ my $up_consumer = sub{
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($gate_comp,$from_path);
     &$make_secrets($run_comp,$from_path);
+    &$need_logback($from_path);
     ($run_comp, $from_path, [{
         @var_img, name => "main", &$consumer_options(),
         C4HTTP_SERVER => "http://$server:$external_http_port",
@@ -842,6 +849,7 @@ my $up_gate = sub{
     my ($server,$external_http_port,$external_broker_port) = &$gate_ports($run_comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($run_comp,$from_path);
+    &$need_logback($from_path);
     ($run_comp, $from_path, [
         {
             @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?

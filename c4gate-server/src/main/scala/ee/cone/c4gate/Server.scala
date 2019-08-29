@@ -17,6 +17,7 @@ class HttpGatewayApp extends ServerApp
   with SnapshotMakingApp
   with SnapshotPutApp
   with LZ4RawCompressorApp
+  with BasicLoggingApp
 {
   def httpHandlers: List[RHttpHandler] = //todo secure
     new HttpGetSnapshotHandler(snapshotLoader) ::

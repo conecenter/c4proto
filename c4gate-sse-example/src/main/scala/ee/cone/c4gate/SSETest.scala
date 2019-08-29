@@ -22,6 +22,7 @@ class TestSSEApp extends ServerApp
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
+  with BasicLoggingApp
 {
   override def assembles: List[Assemble] =
     new FromAlienTaskAssemble("/sse.html") ::

@@ -18,6 +18,7 @@ class TestConsumerApp extends ServerApp
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
+  with BasicLoggingApp
 {
   override def protocols: List[Protocol] = AlienProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble(catchNonFatal) :: super.assembles

@@ -20,6 +20,7 @@ class HiRateTxApp extends ServerApp with ParallelObserversApp
   with KafkaProducerApp with KafkaConsumerApp
   with NoAssembleProfilerApp
   with FileRawSnapshotApp
+  with BasicLoggingApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def assembles: List[Assemble] = new HiRateAssemble :: super.assembles

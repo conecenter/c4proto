@@ -7,7 +7,7 @@ lazy val descr = "C4 framework"
      
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.F.0.2",
+  version := "0.F.0.3",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
@@ -43,7 +43,8 @@ lazy val `c4vdom-canvas` = project.settings(publishSettings).dependsOn(`c4vdom-b
 lazy val `c4ui-main` = project.settings(publishSettings).dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-client`)
 lazy val `c4ui-extra` = project.settings(publishSettings).dependsOn(`c4ui-main`, `c4actor-extra`, `c4gate-extra`)
 lazy val `c4gate-client` = project.settings(publishSettings).dependsOn(`c4gate-proto`,`c4actor-base`)
-lazy val `c4gate-logback` = project.settings(publishSettings)
+lazy val `c4gate-logback-static` = project.settings(publishSettings)
+lazy val `c4gate-logback` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-repl` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4external-base` = project.settings(publishSettings).dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
 
@@ -57,6 +58,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-consumer-example`,
   `c4gate-server-example`,
   `c4gate-client`,
+  `c4gate-logback-static`,
   `c4gate-logback`,
   `c4gate-proto`,
   `c4gate-publish`,
