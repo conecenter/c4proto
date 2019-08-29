@@ -10,7 +10,7 @@ import scala.collection.immutable.{Map, Seq}
 import scala.util.control.NonFatal
 import scala.util.{Success, Try}
 
-class TxTransforms(qMessages: QMessages, warnPeriod: Long) extends LazyLogging {
+class TxTransforms(qMessages: QMessages, warnPeriod: Long, catchNonFatal: CatchNonFatal) extends LazyLogging {
   def get(global: RichContext): Map[SrcId,TransientMap⇒TransientMap] =
     ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
   private def handle(global: RichContext, key: SrcId): TransientMap⇒TransientMap = {
@@ -20,10 +20,9 @@ class TxTransforms(qMessages: QMessages, warnPeriod: Long) extends LazyLogging {
     if(startLatency > 200)
       logger.debug(s"tx $key start latency $startLatency ms")
     val res = if( //todo implement skip for outdated world
-        global.offset < InnerReadAfterWriteOffsetKey.of(prev) ||
+      global.offset < InnerReadAfterWriteOffsetKey.of(prev) ||
       Instant.now.isBefore(InnerSleepUntilKey.of(prev))
-    ) prev else try {
-      Trace {
+    ) prev else catchNonFatal {
         ByPK(classOf[TxTransform]).of(global).get(key) match {
           case None ⇒ prev
           case Some(tr) ⇒
@@ -37,9 +36,7 @@ class TxTransforms(qMessages: QMessages, warnPeriod: Long) extends LazyLogging {
               logger.warn(s"tx ${tr.getClass.getName} $key worked for $period ms (transform $transformPeriod ms)")
             nextLocal.transient
         }
-      }
-    } catch {
-      case NonFatal(e) ⇒
+    }{ e ⇒
         logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",e)
         val was = InnerErrorKey.of(prev)
         val exception = e match {

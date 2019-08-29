@@ -32,6 +32,7 @@ class TestTodoApp extends ServerApp
   with MortalFactoryApp
   with AvailabilityApp
   with TestTodoRootViewApp
+  with BasicLoggingApp
 {
 
   override def protocols: List[Protocol] =

@@ -49,6 +49,10 @@ object FinallyClose {
   def apply[A,R](close: A⇒Unit)(o: A)(f: A⇒R): R = try f(o) finally close(o)
 }
 
+trait CatchNonFatal {
+  def apply[T](aTry: ⇒T)(aCatch: Throwable⇒T): T
+}
+
 case class NanoTimer(startedAt: Long = System.nanoTime){
   def ms: Long = (System.nanoTime - startedAt) / 1000000
 }

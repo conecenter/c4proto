@@ -8,6 +8,7 @@ import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
+import scala.util.control.NonFatal
 
 object VMExecution {
   def onShutdown(hint: String, f: () ⇒ Unit): ()⇒Unit = {
@@ -117,4 +118,9 @@ object ServerMain extends BaseServerMain(
 class EnvConfigImpl extends Config {
   def get(key: String): String =
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
+}
+
+object CatchNonFatalImpl extends CatchNonFatal {
+  def apply[T](aTry: ⇒T)(aCatch: Throwable⇒T): T =
+    try { Trace{ aTry } } catch { case NonFatal(e) ⇒ aCatch(e) }
 }

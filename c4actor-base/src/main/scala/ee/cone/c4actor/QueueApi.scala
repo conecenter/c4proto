@@ -27,8 +27,8 @@ import scala.concurrent.{ExecutionContext, Future}
     * @param valueTypeId == QAdapterRegistry.byName(orig.getClass.getName).id
     * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
     * @param flags == One of {0L, 1L, 2L, 4L}
-    */
-    case class N_Update(
+    **/
+  case class N_Update(
     @Id(0x0011) srcId: SrcId,
     @Id(0x0012) valueTypeId: Long,
     @Id(0x0013) value: okio.ByteString,
@@ -276,6 +276,7 @@ trait MTime {
 //  def save(key: String, value: Array[Byte]): Unit
 //}
 
+// problem with ErrorKey is that when we check it world is different
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
 
