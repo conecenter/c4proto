@@ -153,13 +153,13 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
 
   type OuterDynamicHeapId = SrcId
 
-  type IndexNodeDirectiveAll = All
+  type IndexNodeDirectiveAll = AbstractAll
 
   type LeafConditionId = SrcId
 }
 
 trait DynamicIndexSharedTypes {
-  type DynamicIndexDirectiveAll = All
+  type DynamicIndexDirectiveAll = AbstractAll
 }
 
 case class IndexModel[Model <: Product, By <: Product, Field](
@@ -256,7 +256,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   def ModelToIndexModel(
     modelId: SrcId,
     model: Each[Model],
-    @by[IndexNodeDirectiveAll] node: Each[IndexDirective[Model, By, Field]]
+    @byEq[IndexNodeDirectiveAll](All) node: Each[IndexDirective[Model, By, Field]]
   ): Values[(InnerIndexModel[Model, By, Field], IndexModel[Model, By, Field])] =
     modelToIndexModel(model, node)
 
@@ -264,14 +264,14 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   def IndexModelToHeap(
     indexModelId: SrcId,
     @by[InnerIndexModel[Model, By, Field]] model: Each[IndexModel[Model, By, Field]],
-    @by[IndexNodeDirectiveAll] node: Each[IndexDirective[Model, By, Field]]
+    @byEq[IndexNodeDirectiveAll](All) node: Each[IndexDirective[Model, By, Field]]
   ): Values[(InnerDynamicHeapId[Model, By, Field], IndexModel[Model, By, Field])] =
     indexModelToHeaps(model, node)
 
   def IndexModelToHeapBy(
     indexModelId: SrcId,
     @by[InnerIndexModel[Model, By, Field]] model: Each[IndexModel[Model, By, Field]],
-    @by[IndexNodeDirectiveAll] node: Each[IndexByDirective[Model, By, Field]]
+    @byEq[IndexNodeDirectiveAll](All) node: Each[IndexByDirective[Model, By, Field]]
   ): Values[(InnerDynamicHeapId[Model, By, Field], IndexModel[Model, By, Field])] =
     indexModelToHeapsBy(model, node)
 
@@ -346,7 +346,7 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
 ) extends AssembleName("HashSearchDynamicIndexCommon", modelCl) with DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
   type InnerIndexModel = SrcId
   type OuterDynamicHeapId = SrcId
-  type IndexNodeDirectiveAll = All
+  type IndexNodeDirectiveAll = AbstractAll
   type LeafConditionId = SrcId
   type AllHeapId = SrcId
 

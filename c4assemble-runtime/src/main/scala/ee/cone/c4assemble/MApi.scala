@@ -138,6 +138,7 @@ trait JoinKey extends AssembledKey {
 
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
+class byEq[T](value: T) extends StaticAnnotation
 class was extends StaticAnnotation
 class distinct extends StaticAnnotation
 class ns(key: String) extends StaticAnnotation
@@ -146,8 +147,8 @@ trait ExpressionsDumper[To] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
 }
 
-sealed abstract class All
-case object All extends All
+sealed abstract class AbstractAll
+case object All extends AbstractAll
 
 /**
   * !!! bug

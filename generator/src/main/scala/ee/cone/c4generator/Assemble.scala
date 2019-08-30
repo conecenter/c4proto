@@ -138,10 +138,10 @@ object AssembleGenerator extends Generator {
            |    def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions): Result = {
            |      val iUtil = indexFactory.util
            |      val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
-           |      ${keyEqParams.map(p⇒s"${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
+           |      ${keyEqParams.map(p⇒s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
            |      val invalidateKeySetOpt =
-           |          if(${keyEqParams.map(p⇒s"${p.name}_isAllChanged").mkString(" || ")}) None
-           |          else Option(${keyIdParams.map(p⇒s"iUtil.keySet(${p.name}_diffIndex)").mkString(" ++ ")})
+           |          ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p⇒s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
+           |          Option(${keyIdParams.map(p⇒s"iUtil.keySet(${p.name}_diffIndex)").mkString(" ++ ")})
            |      ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
            |      for {
            |        indexRawSeqI <- indexRawSeqSeq
