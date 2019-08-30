@@ -1,23 +1,13 @@
 "use strict";
 import React from 'react'
 import {pairOfInputAttributes}  from "../../main/vdom-util"
-import Errors from "../../extra/errors"
 import {ctxToPath,rootCtx} from "../../main/vdom-util"
+import {MenuBurger} from "./components/menu.js"
+import {checkActivateCalls} from '../event-manager.js'
+import {DragDropDivElement} from './components/drag-drop.js'
 
-export default function MetroUiFilters({log,ui,windowManager,StatefulComponent}){
-	const {DragDropDivElement,MenuBurger} = ui.transforms.tp	
-	const $ = React.createElement
-	const checkActivateCalls=(()=>{
-		const callbacks=[]
-		const add = (c) => callbacks.push(c)
-		const remove = (c) => {
-			const index = callbacks.indexOf(c)
-			if(index>=0) callbacks.splice(index,1)
-		}
-		const check = () => callbacks.forEach(c=>c())
-		return {add,remove,check}
-	})();
-	const {getComputedStyle} = windowManager
+export default function MetroUiFilters({log,StatefulComponent}){	
+	const $ = React.createElement	
 	const Filters  = (props) => {
 		const keys = props.keys
 		const children = keys?props.children.filter(_=>keys.includes(_.key)):props.children
@@ -81,6 +71,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 	}
 	const calcMsOpts = (el) => {
 		const els = el.querySelectorAll(".msOpt")
+		const getComputedStyle = el.ownerDocument.defaultView.getComputedStyle
 		const msOpts = Array.from(els,o=>{
 			const rc = o.getBoundingClientRect()
 			const width = rc.width
@@ -258,7 +249,7 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 			const style = {
 				display:"flex",
 				flex:"1 1",
-				backgroundColor: "#c0ced8",				
+				//backgroundColor: "#c0ced8",				
 				visibility:this.state.show?"visible":"hidden",
 				height:this.state.show?"auto":"2em",
 				...this.props.style
@@ -276,7 +267,8 @@ export default function MetroUiFilters({log,ui,windowManager,StatefulComponent})
 				flexBasis:this.state.w2Width?this.state.w2Width+"px":"auto"
 			}			
 			const w3style = {}
-			return $("div",{className:"tableOpts", ref:ref=>this.el=ref, style},[
+			const className = "tableOpts "+(this.props.className?this.props.className:"")
+			return $("div",{className, ref:ref=>this.el=ref, style},[
 			    $("div",{key:"remRef",ref:ref=>this.remRef=ref,style:{height:"1em",position:"absolute",zIndex:"-1"}}),
 				$(Filters,{key:1,style:fstyle,keys:fl, draggable:this.props.draggableFilters, dragover:this.props.dragoverFilters},this.getFilters()),
 				(wn1.length>0?$(wn,{key:2,className:"w1 z",style:w1style,ref:ref=>this.w1=ref?ref.el:null},wn1):null),

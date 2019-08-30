@@ -3,7 +3,7 @@ package ee.cone.c4actor.sandbox
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.sandbox.SandboxProtocol.OrigSandbox
+import ee.cone.c4actor.sandbox.SandboxProtocol.D_Sandbox
 
 /*
   To start this app type the following into console:
@@ -14,13 +14,13 @@ class ChangingIndexPerformanceTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run(): Unit = {
-    // val updates: List[QProtocol.Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    // val updates: List[QProtocol.N_Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val local: Context = contextFactory.updated(Nil)
     //val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
     val neededSrcId = "123"
 
-    val sandboxOrigMap: Map[SrcId, OrigSandbox] = ByPK(classOf[OrigSandbox]).of(local)
-    val someOrig: Option[OrigSandbox] = sandboxOrigMap.get(neededSrcId)
+    val sandboxOrigMap: Map[SrcId, D_Sandbox] = ByPK(classOf[D_Sandbox]).of(local)
+    val someOrig: Option[D_Sandbox] = sandboxOrigMap.get(neededSrcId)
 
 
     println(someOrig)

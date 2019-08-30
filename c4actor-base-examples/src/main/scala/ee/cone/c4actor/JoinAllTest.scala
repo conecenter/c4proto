@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.JoinAllTestProtocol.{Item, RegistryItem}
+import ee.cone.c4actor.JoinAllTestProtocol.{D_Item, D_RegistryItem}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -16,9 +16,9 @@ class JoinAllTestApp extends TestRichDataApp
   override def toStart: List[Executable] = new JoinAllTestExecutable(contextFactory) :: super.toStart
 }
 
-@protocol(TestCat) object JoinAllTestProtocolBase   {
-  @Id(0x0002) case class RegistryItem(@Id(0x0001) srcId: String)
-  @Id(0x0001) case class Item(@Id(0x0001) srcId: String)
+@protocol object JoinAllTestProtocolBase   {
+  @Id(0x0002) case class D_RegistryItem(@Id(0x0001) srcId: String)
+  @Id(0x0001) case class D_Item(@Id(0x0001) srcId: String)
 }
 
 case class JoinAllTestItem(srcId: String)
@@ -26,13 +26,13 @@ case class JoinAllTestItem(srcId: String)
 @assemble class JoinAllTestAssembleBase   {
   def joinReg(
     key: SrcId,
-    regItem: Each[RegistryItem]
-  ): Values[(All,RegistryItem)] = List(All -> regItem)
+    regItem: Each[D_RegistryItem]
+  ): Values[(All,D_RegistryItem)] = List(All -> regItem)
 
   def join(
     key: SrcId,
-    @by[All] regItem: Each[RegistryItem],
-    item: Each[Item]
+    @by[All] regItem: Each[D_RegistryItem],
+    item: Each[D_Item]
   ): Values[(SrcId,JoinAllTestItem)] = {
     println(s"recalc: ${item.srcId}-${regItem.srcId}")
     List(WithPK(JoinAllTestItem(s"${item.srcId}-${regItem.srcId}")))
@@ -47,19 +47,19 @@ class JoinAllTestExecutable(contextFactory: ContextFactory) extends Executable {
       l => {
         println("will be recalc [12]-[ab] (4)")
         TxAdd(
-          LEvent.update(RegistryItem("a")) ++
-          LEvent.update(RegistryItem("b")) ++
-          LEvent.update(Item("1")) ++
-          LEvent.update(Item("2"))
+          LEvent.update(D_RegistryItem("a")) ++
+          LEvent.update(D_RegistryItem("b")) ++
+          LEvent.update(D_Item("1")) ++
+          LEvent.update(D_Item("2"))
         )(l)
       },
       l => {
         println("will be recalc 3-[ab] (2)")
-        TxAdd(LEvent.update(Item("3")))(l)
+        TxAdd(LEvent.update(D_Item("3")))(l)
       },
       l => {
         println("will be recalc [12 123]-[abc] (15)")
-        TxAdd(LEvent.update(RegistryItem("c")))(l)
+        TxAdd(LEvent.update(D_RegistryItem("c")))(l)
       },
       l => {
         assert(ByPK(classOf[JoinAllTestItem]).of(l).keys.size == 9)

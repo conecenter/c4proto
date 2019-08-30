@@ -7,7 +7,7 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
 
 import scala.collection.immutable.Seq
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 object Single {
   def apply[C](l: Seq[C]): C = if(l.isEmpty) {
@@ -30,7 +30,7 @@ object ToPrimaryKey {
 class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends DataDependencyTo[A]
 
 object TreeAssemblerTypes {
-  type Replace = (ReadModel, ReadModel, AssembleOptions, JoiningProfiling) ⇒ Future[WorldTransition]
+  type Replace = (ReadModel, ReadModel, AssembleOptions, JoiningProfiling, ExecutionContext) ⇒ Future[WorldTransition]
 }
 
 trait TreeAssembler {
@@ -47,9 +47,7 @@ trait ByPriority {
 class IndexUpdate(val diff: Index, val result: Index, val log: ProfilingLog)
 
 trait IndexUpdater {
-  def setPart[K,V](worldKey: AssembledKey)(
-    next: Future[IndexUpdate]
-  ): WorldTransition⇒WorldTransition
+  def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition⇒WorldTransition
 }
 
 trait AssembleSeqOptimizer {

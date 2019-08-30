@@ -5,9 +5,9 @@ import java.net.URL
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, fieldAccess}
-import ee.cone.c4gate.AlienProtocol.FromAlienState
-import ee.cone.c4gate.SessionDataProtocol.RawSessionData
-import ee.cone.c4gate.TestFilterProtocol.Content
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
+import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
+import ee.cone.c4gate.TestFilterProtocol.B_Content
 import ee.cone.c4proto.{Id, Protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
@@ -35,6 +35,7 @@ class TestCoWorkApp extends ServerApp
   with TestCoLeaderViewApp
   with TestTxLogApp
   with SSHDebugApp
+  with BasicLoggingApp
 {
   override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
@@ -51,13 +52,13 @@ class TestCoWorkApp extends ServerApp
 }
 
 @fieldAccess object TestContentAccessBase {
-  lazy val value: ProdLens[Content,String] = ProdLens.of(_.value)
+  lazy val value: ProdLens[B_Content,String] = ProdLens.of(_.value)
 }
 object TestAttrs {
-  lazy val contentFlt = SessionAttr(Id(0x0008), classOf[Content], UserLabel en "(Content)")
+  lazy val contentFlt = SessionAttr(Id(0x0008), classOf[B_Content], UserLabel en "(Content)")
 }
 
-object ContentDefault extends DefaultModelFactory(classOf[Content], Content(_,""))
+object ContentDefault extends DefaultModelFactory(classOf[B_Content], B_Content(_,""))
 
 trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]
@@ -97,7 +98,7 @@ case class TestCoLeaderView(locationHash: String = "leader")(
 ) extends ByLocationHashView with LazyLogging {
   import tags._
   def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
-    val fromAlienStates = ByPK(classOf[FromAlienState]).of(local)
+    val fromAlienStates = ByPK(classOf[U_FromAlienState]).of(local)
     val fromAliens = for(
       fromAlien ← fromAlienStates.values;
       url ← Option(new URL(fromAlien.location));

@@ -1,7 +1,7 @@
-package ee.cone.c4vdom
+/*package ee.cone.c4vdom
 
 import ee.cone.c4vdom.Types.VDomKey
-/*
+
 trait PathFactory {
   def path(key: VDomKey, children: ChildPair[OfPath]*): ChildPair[OfPathParent]
   def path(key: VDomKey, children: List[ChildPair[OfPath]]): ChildPair[OfPathParent]

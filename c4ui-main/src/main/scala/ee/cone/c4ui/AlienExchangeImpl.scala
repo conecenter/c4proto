@@ -9,8 +9,8 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.AlienProtocol.{FromAlienState, ToAlienWrite}
-import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4gate.AlienProtocol.{U_FromAlienState, U_ToAlienWrite}
+import ee.cone.c4gate.HttpProtocol.S_HttpPost
 import ee.cone.c4gate.LocalPostConsumer
 import okio.ByteString
 
@@ -24,7 +24,7 @@ object SendToAlienInit extends ToInject {
       val messages = sessionKeys.zipWithIndex.flatMap{
         case (sessionKey,i) ⇒
           val id = UUID.randomUUID.toString
-          update(ToAlienWrite(id,sessionKey,event,data,priority+i))
+          update(U_ToAlienWrite(id,sessionKey,event,data,priority+i))
       }
       //println(s"messages: $messages")
       ToAlienPriorityKey.modify(_+sessionKeys.size).andThen(TxAdd(messages))(local)
@@ -35,7 +35,7 @@ object SendToAlienInit extends ToInject {
 case class MessageFromAlienImpl(
   srcId: String,
   headers: Map[String,String],
-  request: HttpPost
+  request: S_HttpPost
 ) extends BranchMessage {
   def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
   def body: ByteString = request.body
@@ -45,7 +45,7 @@ case class MessageFromAlienImpl(
 @assemble class MessageFromAlienAssembleBase   {
   def mapHttpPostByBranch(
     key: SrcId,
-    post: Each[HttpPost]
+    post: Each[S_HttpPost]
   ): Values[(BranchKey, BranchMessage)] = if(post.path != "/connection") Nil else for(
     headers ← List(post.headers.flatMap(h ⇒
       if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
@@ -67,7 +67,7 @@ case class MessageFromAlienImpl(
   // more rich session may be joined
   def fromAliensToSeeds(
     key: SrcId,
-    fromAlien: Each[FromAlienState]
+    fromAlien: Each[U_FromAlienState]
   ): Values[(BranchKey, BranchRel)] = {
     val child = operations.toSeed(fromAlien)
     List(operations.toRel(child, fromAlien.sessionKey, parentIsSession = true))
@@ -80,7 +80,7 @@ case class MessageFromAlienImpl(
     task: Each[BranchTask]
   ): Values[(SrcId, FromAlienTask)] =
     for (
-      fromAlien ← List(task.product).collect { case s: FromAlienState ⇒ s };
+      fromAlien ← List(task.product).collect { case s: U_FromAlienState ⇒ s };
       url ← Option(new URL(fromAlien.location))
         if /*url.getHost == host && (*/ url.getFile == file || url.getPath == file
     ) yield task.branchKey → FromAlienTask(

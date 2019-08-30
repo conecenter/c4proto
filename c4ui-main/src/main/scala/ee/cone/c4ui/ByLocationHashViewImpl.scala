@@ -1,6 +1,6 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{Context, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -17,7 +17,7 @@ import ee.cone.c4vdom.Types.ViewRes
 
   def joinPublicView(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId,ByLocationHashView)] = for {
     view ← views
   } yield WithPK(view)

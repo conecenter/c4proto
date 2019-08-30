@@ -4,30 +4,27 @@ import java.lang.management.ManagementFactory
 import java.util
 import java.util.concurrent.{Callable, Executors}
 
-import ee.cone.c4actor.AnyOrigProtocol.AnyOrig
+import ee.cone.c4actor.AnyOrigProtocol.N_AnyOrig
 import ee.cone.c4proto._
 
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, Future}
 import scala.util.Random
 import AnyAdapter._
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.ProtoBuffTestProtocol.{TestOrig, TestOrigForDecode}
+import ee.cone.c4actor.ProtoBuffTestProtocol.{D_TestOrig, D_TestOrigForDecode}
 
 import scala.collection.immutable
 
-@protocol(TestCat) object ProtoBuffTestProtocolBase   {
+@protocol object ProtoBuffTestProtocolBase   {
 
   import AnyOrigProtocol._
 
-  @Id(0x1) case class TestOrig(
+  @Id(0x1) case class D_TestOrig(
     @Id(0x2) srcId: String,
     @Id(0x3) list: List[String],
-    @Id(0x4) byteStr: List[AnyOrig]
+    @Id(0x4) byteStr: List[N_AnyOrig]
   )
 
-  @Id(0x5) case class TestOrigForDecode(
+  @Id(0x5) case class D_TestOrigForDecode(
     @Id(0x6) srcId: String,
     @Id(0x7) number: Long
   )
@@ -98,12 +95,12 @@ class SerializationRunnable(pid: Int, number: Int, qAdapterRegistry: QAdapterReg
 
 object TestCode {
   def test(number: Int, qAdapterRegistry: QAdapterRegistry): Long = {
-    val testOrigs = for (i ← 1 to number) yield TestOrigForDecode(Random.nextString(10), i)
+    val testOrigs = for (i ← 1 to number) yield D_TestOrigForDecode(Random.nextString(10), i)
     val time = System.currentTimeMillis()
-    val encoded: immutable.Seq[AnyOrig] = testOrigs.map(encode(qAdapterRegistry)(_))
-    val testOrigsss: immutable.Seq[TestOrig] = encoded.zipWithIndex.map { case (a, b) ⇒ TestOrig(b.toString, a.toString.split(",").toList, List(a)) }
-    val encoded2: immutable.Seq[AnyOrig] = testOrigsss.map(encode(qAdapterRegistry)(_))
-    val decoded: immutable.Seq[TestOrig] = encoded2.map(decode[TestOrig](qAdapterRegistry))
+    val encoded: immutable.Seq[N_AnyOrig] = testOrigs.map(encode(qAdapterRegistry)(_))
+    val testOrigsss: immutable.Seq[D_TestOrig] = encoded.zipWithIndex.map { case (a, b) ⇒ D_TestOrig(b.toString, a.toString.split(",").toList, List(a)) }
+    val encoded2: immutable.Seq[N_AnyOrig] = testOrigsss.map(encode(qAdapterRegistry)(_))
+    val decoded: immutable.Seq[D_TestOrig] = encoded2.map(decode[D_TestOrig](qAdapterRegistry))
     if (testOrigsss != decoded)
       throw new Exception("NOT EQUAL")
     val time2 = System.currentTimeMillis()

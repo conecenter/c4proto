@@ -20,12 +20,11 @@ import MetroUi       from "../extra/metro/metro-ui"
 import MetroUiFilters   from "../extra/metro/metro-ui-filters"
 
 import FocusModule		from "../extra/focus-module"
-import {DragDropModule} from "../extra/dragdrop-module"
+
 import OverlayManager from "../extra/overlay-manager"
 //import RequestState from "../extra/request-state"
 import VirtualKeyboard from "../extra/virtual-keyboard"
 import WinWifi from "../extra/win-wifi-status"
-import Images from "../extra/images/images"
 
 import CryptoElements from "../extra/crypto-elements"
 
@@ -34,7 +33,9 @@ import ScannerProxy  from "../extra/custom/android-scanner-proxy"
 import ElectronUpdateManager from "../extra/custom/electron-update-manager"
 //import SwitchHost from "../extra/custom/switchhost-module"
 import "../test/scrollIntoViewIfNeeded"
+import {Errors} from '../extra/metro/errors.js'
 
+import notifications from '../extra/metro/notifications.js'
 
 import React from 'react'
 import ReactDOM from 'react-dom'
@@ -83,18 +84,6 @@ const documentManager = (()=>{
 	const nodeFromPoint = (x,y)=>document.elementFromPoint(x,y)
 	return {add,addFirst,remove,createElement,body,execCopy,activeElement,document,nodeFromPoint,elementsFromPoint}
 })()
-const eventManager = (()=>{
-	const create = (type,params) => {
-		switch(type){
-			case "keydown": return (new KeyboardEvent(type,params))
-			case "click": return (new MouseEvent(type,params))
-			case "mousedown": return (new MouseEvent(type,params))
-			default: return (new CustomEvent(type,params))
-		}
-	}
-	const sendToWindow = (event)=> window.dispatchEvent(event)
-	return {create,sendToWindow}
-})()
 
 const miscReact = (()=>{
 	const isReactRoot = (el) => true
@@ -117,7 +106,7 @@ const miscUtil = (()=>{
 	const winWifi = () => {if(!_winWifi) _winWifi = WinWifi(log,window.require,window.process,setInterval); return _winWifi}
 	const getBattery = typeof navigator.getBattery =="function"?(callback) => navigator.getBattery().then(callback):null
 	const Scanner = () => window.Scanner
-	const scannerProxy = () => {if(!_scannerProxy) window.ScannerProxy = _scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy,eventManager}); return _scannerProxy}	
+	const scannerProxy = () => {if(!_scannerProxy) window.ScannerProxy = _scannerProxy = ScannerProxy({Scanner,setInterval,clearInterval,log,innerHeight,documentManager,scrollBy}); return _scannerProxy}	
 	const audioContext = () => {return new (window.AudioContext || window.webkitAudioContext)()}
 	const audio = (f) => {return new Audio(f)}
 	const fileReader = ()=> (new window.FileReader())
@@ -127,22 +116,20 @@ const miscUtil = (()=>{
 
 const vDomAttributes = VDomAttributes(requestState)
 
-const images = Images(window.btoa)
-window.images = images
 const overlayManager = () => OverlayManager({log,documentManager,windowManager,getMountNode:()=>window.mountNode})
-const focusModule = FocusModule({log,documentManager,eventManager,windowManager})
-window.focusModule = focusModule
-const dragDropModule = () => DragDropModule({log2,documentManager,windowManager})
-const metroUi = MetroUi(log2,requestState,images,documentManager,eventManager,overlayManager,dragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes);
+const focusModule = FocusModule({log,documentManager,windowManager})
+
+//const dragDropModule = () => DragDropModule()
+const metroUi = MetroUi({log:log2,requestState,documentManager,OverlayManager:overlayManager,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes})
 //customUi with hacks
 const customMeasurer = () => window.CustomMeasurer ? [CustomMeasurer] : []
 const customTerminal = () => window.CustomTerminal ? [CustomTerminal] : []
 const customUi = CustomUi({log,ui:metroUi,customMeasurer,customTerminal,overlayManager,miscReact,miscUtil,StatefulComponent});
 const electronUpdateManager = ElectronUpdateManager(log,window,metroUi, StatefulComponent)
 
-const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,eventManager,windowManager,miscReact,StatefulComponent,reactPathConsumer:metroUi.reactPathConsumer})
+const virtualKeyboard = VirtualKeyboard({log,btoa:window.btoa,windowManager,miscReact,StatefulComponent,reactPathConsumer:metroUi.reactPathConsumer})
 const cryptoElements = CryptoElements({log,feedback,ui:metroUi,hwcrypto:window.hwcrypto,atob:window.atob,parentWindow:()=> window.parent,StatefulComponent});
-const metroUiFilters = MetroUiFilters({log,ui:metroUi,windowManager,StatefulComponent})
+const metroUiFilters = MetroUiFilters({log,StatefulComponent})
 
 //canvas
 const util = Canvas.CanvasUtil()
@@ -169,13 +156,15 @@ window.ReactDOM = ReactDOM
 const getMountNode = () => window.mountNode || document.body
 const vDom = VDomCore(log,transforms,getMountNode)
 //const switchHost = SwitchHost(log,window)
+const errors = Errors(document)
 const receiversList = [
     vDom.receivers,
     feedback.receivers,
 	metroUi.receivers,    
 	cryptoElements.receivers,
 	focusModule.receivers,
-	//switchHost.receivers	
+	errors.receivers,
+	notifications.receivers(window)
 ]
 const composeUrl = () => {
     const port = parseInt(location.port)

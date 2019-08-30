@@ -1,17 +1,17 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.EqProtocol.{ChangingNode, IntEq, StrStartsWith, TestObject, TestObject2}
+import ee.cone.c4actor.EqProtocol.{D_ChangingNode, D_IntEq, D_StrStartsWith, D_TestObject, D_TestObject2}
 import ee.cone.c4actor.HashSearch.{Request, Response}
-import ee.cone.c4actor.QProtocol.Firstborn
-import ee.cone.c4actor.TestProtocol.TestNode
+import ee.cone.c4actor.QProtocol.S_Firstborn
+import ee.cone.c4actor.TestProtocol.D_TestNode
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep.request.CurrentTimeAssembleMix
 import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeStats, ProductWithId}
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{IndexByNode, IndexByNodesStats, IndexNode, IndexNodeSettings}
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexByNodesStats, S_IndexNode, S_IndexNodeSettings}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4actor.tests.TestProtocolM
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -34,77 +34,77 @@ class HashSearchExtraTestStart(
 
     val world = for {
       i ← 1 to 10000
-    } yield TestObject(i.toString, 239, i.toHexString)
-    val recs = /*update(TestNode("1", "")) ++ */ update(Firstborn("test", "0" * OffsetHexSize())) ++ update(ChangingNode("test", "6")) ++ update(ChangingNode("test-safe", "45")) ++ world.flatMap(update)
-    val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    } yield D_TestObject(i.toString, 239, i.toHexString)
+    val recs = /*update(D_TestNode("1", "")) ++ */ update(S_Firstborn("test", "0" * OffsetHexSize())) ++ update(D_ChangingNode("test", "6")) ++ update(D_ChangingNode("test-safe", "45")) ++ world.flatMap(update)
+    val updates: List[QProtocol.N_Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
     val nGlobalAA = ActivateContext(nGlobalActive)
 
     //logger.info(s"${nGlobal.assembled}")
     println("0<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[TestObject]).of(nGlobal).values.toList)
+    //println(ByPK(classOf[D_TestObject]).of(nGlobal).values.toList)
     println("Should", List(17, 273))
     println("Answer", ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
-    println(ByPK(classOf[IndexNode]).of(nGlobalAA).values)
-    println(ByPK(classOf[IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.leafId → meh.byStr))
-    println(ByPK(classOf[IndexByNodesStats]).of(nGlobalAA).values)
+    println(ByPK(classOf[S_IndexNode]).of(nGlobalAA).values)
+    println(ByPK(classOf[S_IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.leafId → meh.byStr))
+    println(ByPK(classOf[S_IndexByNodesStats]).of(nGlobalAA).values)
     //Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    val newNGlobal: Context = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "1")))(nGlobalAA)
+    val newNGlobal: Context = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "1")))(nGlobalAA)
     val newNGlobalA = ActivateContext(newNGlobal)
     val newNGlobalAA = ActivateContext(newNGlobalA)
     println("1<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
+    //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
     println("Should", List(17, 4369))
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
-    println(ByPK(classOf[IndexByNode]).of(newNGlobalAA).values.map(meh ⇒ meh.leafId → meh.byStr))
-    println(ByPK(classOf[IndexByNodesStats]).of(newNGlobalAA).values)
+    println(ByPK(classOf[S_IndexByNode]).of(newNGlobalAA).values.map(meh ⇒ meh.leafId → meh.byStr))
+    println(ByPK(classOf[S_IndexByNodesStats]).of(newNGlobalAA).values)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-    val newNGlobal2 = TxAdd(LEvent.update(TestObject("124", 239, "adb")) ++ LEvent.update(ChangingNode("test", "")))(newNGlobalAA)
+    val newNGlobal2 = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "")))(newNGlobalAA)
     Thread.sleep(10000)
     val newNGlobal2A = ActivateContext(newNGlobal2)
     val newNGlobal2AA = ActivateContext(newNGlobal2A)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
-    //println(ByPK(classOf[TestObject]).of(newNGlobal).values.toList)
+    //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
     println("Should", List(17, 10000))
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
-    println(ByPK(classOf[IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.leafId → meh.byStr))
-    println(ByPK(classOf[IndexByNodesStats]).of(newNGlobal2AA).values)
+    println(ByPK(classOf[S_IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.leafId → meh.byStr))
+    println(ByPK(classOf[S_IndexByNodesStats]).of(newNGlobal2AA).values)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     execution.complete()
 
   }
 }
 
-case class CustomResponse(srcId: SrcId, list: List[TestObject])
+case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
 
-@assemble class CreateRequestBase(condition: List[Condition[TestObject]], changingCondition: String ⇒ Condition[TestObject])   {
+@assemble class CreateRequestBase(condition: List[Condition[D_TestObject]], changingCondition: String ⇒ Condition[D_TestObject])   {
   def createRequest(
     testId: SrcId,
-    test: Each[TestNode]
-  ): Values[(SrcId, Request[TestObject])] = for {
+    test: Each[D_TestNode]
+  ): Values[(SrcId, Request[D_TestObject])] = for {
     cond ← condition
   } yield WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))
 
   def createRequestChanging(
     testId: SrcId,
-    test: Each[ChangingNode]
-  ): Values[(SrcId, Request[TestObject])] = {
+    test: Each[D_ChangingNode]
+  ): Values[(SrcId, Request[D_TestObject])] = {
     val cond = changingCondition(test.value)
     List(WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond)))
   }
 
   def createRequestChanging2(
     testId: SrcId,
-    tests: Values[ChangingNode]
-  ): Values[(SrcId, Request[TestObject2])] =
+    tests: Values[D_ChangingNode]
+  ): Values[(SrcId, Request[D_TestObject2])] =
     Nil
 
   def grabResponse(
     responseId: SrcId,
-    tests: Values[TestNode],
-    responses: Values[Response[TestObject]]
+    tests: Values[D_TestNode],
+    responses: Values[Response[D_TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
     //println("Answer", responses.map(_.lines))
     (responseId → CustomResponse(responseId, responses.flatMap(_.lines).toList)) :: Nil
@@ -112,7 +112,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 
   /*def printAllInners(
     innerId: SrcId,
-    inners: Values[InnerLeaf[TestObject]]
+    inners: Values[InnerLeaf[D_TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
     //println("Inner", inners)
     Nil
@@ -120,7 +120,7 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 
   def printAllOuters(
     innerId: SrcId,
-    inners: Values[OuterCondition[TestObject]]
+    inners: Values[OuterCondition[D_TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
     //println("Outer", inners)
     Nil
@@ -128,28 +128,28 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 }
 
 
-@protocol(TestCat) object EqProtocolBase   {
+@protocol object EqProtocolBase   {
 
-  @Id(0xaabc) case class ChangingNode(
+  @Id(0xaabc) case class D_ChangingNode(
     @Id(0xaabd) srcId: String,
     @Id(0xaabe) value: String
   )
 
-  @Id(0x4567) case class IntEq(
+  @Id(0x4567) case class D_IntEq(
     @Id(0xabcd) value: Int
   )
 
-  @Id(0xaaaa) case class StrStartsWith(
+  @Id(0xaaaa) case class D_StrStartsWith(
     @Id(0xaaab) value: String
   )
 
-  @Id(0xaaad) case class TestObject(
+  @Id(0xaaad) case class D_TestObject(
     @Id(0xaaae) srcId: String,
     @Id(0xaaba) valueInt: Int,
     @Id(0xaabb) valueStr: String
   )
 
-  @Id(0xaa01) case class TestObject2(
+  @Id(0xaa01) case class D_TestObject2(
     @Id(0xaaae) srcId: String,
     @Id(0xaaba) valueInt: Int,
     @Id(0xaabb) valueStr: String
@@ -157,79 +157,80 @@ case class CustomResponse(srcId: SrcId, list: List[TestObject])
 
 }
 
-case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[StrStartsWith], classOf[String]) {
-  def prepare: List[MetaAttr] => StrStartsWith => StrStartsWith = _ ⇒ by ⇒ by
+case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[D_StrStartsWith], classOf[String]) {
+  def prepare: List[AbstractMetaAttr] => D_StrStartsWith => D_StrStartsWith = _ ⇒ by ⇒ by
 
-  def check: StrStartsWith => String => Boolean = {
-    case StrStartsWith(v) ⇒ _.startsWith(v)
+  def check: D_StrStartsWith => String => Boolean = {
+    case D_StrStartsWith(v) ⇒ _.startsWith(v)
   }
 
-  def defaultBy: Option[StrStartsWith => Boolean] = None
+  def defaultBy: Option[D_StrStartsWith => Boolean] = None
 }
 
-case object StrStartsWithRanger extends RangerWithCl(classOf[StrStartsWith], classOf[String]) {
-  def ranges: StrStartsWith => (String => List[StrStartsWith], PartialFunction[Product, List[StrStartsWith]]) = {
-    case StrStartsWith("") ⇒ (
+case object StrStartsWithRanger extends RangerWithCl(classOf[D_StrStartsWith], classOf[String]) {
+  def ranges: D_StrStartsWith => (String => List[D_StrStartsWith], PartialFunction[Product, List[D_StrStartsWith]]) = {
+    case D_StrStartsWith("") ⇒ (
       value ⇒ (
         (for {
           i ← 1 to 5
-        } yield StrStartsWith(value.take(i))
-          ).toList :+ StrStartsWith("")).distinct, {
-      case StrStartsWith(v) ⇒ StrStartsWith(v.take(5)) :: Nil
+        } yield D_StrStartsWith(value.take(i))
+          ).toList :+ D_StrStartsWith("")).distinct, {
+      case D_StrStartsWith(v) ⇒ D_StrStartsWith(v.take(5)) :: Nil
     })
+    case a ⇒ FailWith(s"Unsupported option $a")
   }
 
-  def prepareRequest: StrStartsWith => StrStartsWith = in ⇒ in.copy(value = in.value.take(5))
+  def prepareRequest: D_StrStartsWith => D_StrStartsWith = in ⇒ in.copy(value = in.value.take(5))
 }
 
-object DefaultStrStartsWith extends DefaultModelFactory[StrStartsWith](classOf[StrStartsWith], _ ⇒ StrStartsWith(""))
+object DefaultStrStartsWith extends DefaultModelFactory[D_StrStartsWith](classOf[D_StrStartsWith], _ ⇒ D_StrStartsWith(""))
 
-case object IntEqCheck extends ConditionCheckWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
-  def prepare: List[MetaAttr] ⇒ IntEq ⇒ IntEq = _ ⇒ identity[IntEq]
+case object IntEqCheck extends ConditionCheckWithCl[D_IntEq, Int](classOf[D_IntEq], classOf[Int]) {
+  def prepare: List[AbstractMetaAttr] ⇒ D_IntEq ⇒ D_IntEq = _ ⇒ identity[D_IntEq]
 
-  def check: IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ true
+  def check: D_IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ true
 
-  def defaultBy: Option[IntEq => Boolean] = None
+  def defaultBy: Option[D_IntEq => Boolean] = None
 }
 
-case class IntEqRanger() extends RangerWithCl[IntEq, Int](classOf[IntEq], classOf[Int]) {
-  def ranges: IntEq ⇒ (Int ⇒ List[IntEq], PartialFunction[Product, List[IntEq]]) = {
-    case IntEq(0) ⇒ (
-      value ⇒ List(IntEq(value), IntEq(0)).distinct, {
-      case p@IntEq(v) ⇒ List(p)
+case class IntEqRanger() extends RangerWithCl[D_IntEq, Int](classOf[D_IntEq], classOf[Int]) {
+  def ranges: D_IntEq ⇒ (Int ⇒ List[D_IntEq], PartialFunction[Product, List[D_IntEq]]) = {
+    case D_IntEq(0) ⇒ (
+      value ⇒ List(D_IntEq(value), D_IntEq(0)).distinct, {
+      case p@D_IntEq(v) ⇒ List(p)
     }
     )
   }
 
-  def prepareRequest: IntEq => IntEq = identity
+  def prepareRequest: D_IntEq => D_IntEq = identity
 }
 
-object DefaultIntEq extends DefaultModelFactory[IntEq](classOf[IntEq], id ⇒ IntEq(0))
+object DefaultIntEq extends DefaultModelFactory[D_IntEq](classOf[D_IntEq], id ⇒ D_IntEq(0))
 
 trait TestCondition extends SerializationUtilsApp {
-  def changingCondition: String ⇒ Condition[TestObject] = value ⇒ {
+  def changingCondition: String ⇒ Condition[D_TestObject] = value ⇒ {
     IntersectCondition(
       IntersectCondition(
-        ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(0))(IntEqCheck.check(IntEq(0)), _.valueInt),
+        ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, D_IntEq(0))(IntEqCheck.check(D_IntEq(0)), _.valueInt),
         AnyCondition()
       ),
-      ProdConditionImpl(NameMetaAttr("testLensStr") :: Nil, StrStartsWith(value))(StrStartsWithChecker.check(StrStartsWith(value)), _.valueStr)
+      ProdConditionImpl(NameMetaAttr("testLensStr") :: Nil, D_StrStartsWith(value))(StrStartsWithChecker.check(D_StrStartsWith(value)), _.valueStr)
     )
   }
 
-  def condition1: Condition[TestObject] = {
+  def condition1: Condition[D_TestObject] = {
     UnionCondition(
-      ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.valueInt),
-      ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.valueInt)
+      ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, D_IntEq(239))(IntEqCheck.check(D_IntEq(239)), _.valueInt),
+      ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, D_IntEq(666))(IntEqCheck.check(D_IntEq(666)), _.valueInt)
     )
   }
 
-  def condition2: Condition[TestObject] = {
+  def condition2: Condition[D_TestObject] = {
     IntersectCondition(
       IntersectCondition(
-        ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, IntEq(239))(IntEqCheck.check(IntEq(239)), _.valueInt),
+        ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, D_IntEq(239))(IntEqCheck.check(D_IntEq(239)), _.valueInt),
         AnyCondition()
-        //ProdConditionImpl(NameMetaAttr("testLens") :: Nil, IntEq(666))(IntEqCheck.check(IntEq(666)), _.value)
+        //ProdConditionImpl(NameMetaAttr("testLens") :: Nil, D_IntEq(666))(IntEqCheck.check(D_IntEq(666)), _.value)
       ),
       AnyCondition()
     )
@@ -237,7 +238,7 @@ trait TestCondition extends SerializationUtilsApp {
 
   def condition3 = IntersectCondition(condition1, condition2)
 
-  def conditions: List[Condition[TestObject]] = condition1 /*:: condition2*//*:: condition3*/ :: Nil
+  def conditions: List[Condition[D_TestObject]] = condition1 /*:: condition2*//*:: condition3*/ :: Nil
 
   def idGenUtil: IdGenUtil
   def indexUtil: IndexUtil
@@ -246,14 +247,14 @@ trait TestCondition extends SerializationUtilsApp {
 
   def joiners: List[Assemble] = Nil
 
-  /*factory.index(classOf[TestObject])
-     .add[IntEq, Int](lensInt, IntEq(0))(IntEqRanger())
-     .add[StrStartsWith, String](lensStr, StrStartsWith(""))(StrStartsWithRanger)
+  /*factory.index(classOf[D_TestObject])
+     .add[D_IntEq, Int](lensInt, D_IntEq(0))(IntEqRanger())
+     .add[D_StrStartsWith, String](lensStr, D_StrStartsWith(""))(StrStartsWithRanger)
      .assemble*/
 
-  def lensInt: ProdLens[TestObject, Int] = ProdLens.ofSet[TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt", ClassAttr(classOf[TestObject], classOf[Int]))
+  def lensInt: ProdLens[D_TestObject, Int] = ProdLens.ofSet[D_TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt", ClassAttr(classOf[D_TestObject], classOf[Int]))
 
-  def lensStr: ProdLens[TestObject, String] = ProdLens.ofSet[TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[TestObject], classOf[String]))
+  def lensStr: ProdLens[D_TestObject, String] = ProdLens.ofSet[D_TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[D_TestObject], classOf[String]))
 }
 
 class HashSearchExtraTestApp extends TestRichDataApp
@@ -304,11 +305,11 @@ class HashSearchExtraTestApp extends TestRichDataApp
 
   lazy val assembleProfiler = NoAssembleProfiler //ConsoleAssembleProfiler //ValueAssembleProfiler2
 
-  override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[TestObject], 1) :: super.dynIndexModels
+  override def dynIndexModels: List[ProductWithId[_ <: Product]] = ProductWithId(classOf[D_TestObject], 1) :: super.dynIndexModels
 
   def dynamicIndexRefreshRateSeconds: Long = 1L
 
-  override def dynamicIndexNodeDefaultSetting: IndexNodeSettings = IndexNodeSettings("", false, Some(100L))
+  override def dynamicIndexNodeDefaultSetting: S_IndexNodeSettings = S_IndexNodeSettings("", false, Some(100L))
 }
 
 /*

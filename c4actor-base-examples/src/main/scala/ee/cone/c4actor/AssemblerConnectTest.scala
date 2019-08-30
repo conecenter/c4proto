@@ -1,30 +1,30 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.ConnProtocol.Node
+import ee.cone.c4actor.ConnProtocol.D_Node
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
-@protocol(TestCat) object ConnProtocolBase   {
-  @Id(0x0001) case class Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
+@protocol object ConnProtocolBase   {
+  @Id(0x0001) case class D_Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 }
 
-case class ConnNodePath(path: List[Node])
+case class ConnNodePath(path: List[D_Node])
 
 @assemble class ConnAssembleBase   {
   type ParentId = SrcId
 
   def nodesByParentId(
       key: SrcId,
-      node: Each[Node]
-  ): Values[(ParentId,Node)] = List(node.parentId → node)
+      node: Each[D_Node]
+  ): Values[(ParentId,D_Node)] = List(node.parentId → node)
 
   def connect(
       key: SrcId,
       @was paths: Values[ConnNodePath],
-      @by[ParentId] node: Each[Node]
+      @by[ParentId] node: Each[D_Node]
   ): Values[(SrcId,ConnNodePath)] = {
     for {
       path ← if(key.nonEmpty) paths else List(ConnNodePath(Nil))
@@ -34,9 +34,9 @@ case class ConnNodePath(path: List[Node])
   }
 
   /*
-  By[ParentId,Node] := for(node ← Is[Node] if node.parentId.nonEmpty) yield node.parentId → node
-  Is[List[Node]]    := for(node ← Is[Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
-  Is[List[Node]]    := WithPK(Each(By[ParentId,Node])::Each(Was[List[Node]]))
+  By[ParentId,D_Node] := for(node ← Is[D_Node] if node.parentId.nonEmpty) yield node.parentId → node
+  Is[List[D_Node]]    := for(node ← Is[D_Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
+  Is[List[D_Node]]    := WithPK(Each(By[ParentId,D_Node])::Each(Was[List[D_Node]]))
   */
 }
 
@@ -45,9 +45,9 @@ class ConnStart(
 ) extends Executable with LazyLogging {
   def run() = {
     import LEvent.update
-    val recs = update(Node("1","")) ++
-      update(Node("12","1")) ++ update(Node("13","1")) ++
-      update(Node("124","12")) ++ update(Node("125","12"))
+    val recs = update(D_Node("1","")) ++
+      update(D_Node("12","1")) ++ update(D_Node("13","1")) ++
+      update(D_Node("124","12")) ++ update(D_Node("125","12"))
     val updates = recs.map(rec⇒toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
@@ -55,24 +55,24 @@ class ConnStart(
     assert(
       ByPK(classOf[ConnNodePath]).of(nGlobal)("125") ==
       ConnNodePath(List(
-        Node("125","12"), Node("12","1"), Node("1","")
+        D_Node("125","12"), D_Node("12","1"), D_Node("1","")
       ))
     )
 
     execution.complete()
     /*
     Map(
-      ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
-        "1" -> RawParentNode("1","P-1")
+      ByPK(classOf[PCProtocol.D_RawParentNode]) -> Map(
+        "1" -> D_RawParentNode("1","P-1")
       ),
-      ByPK(classOf[PCProtocol.RawChildNode]) -> Map(
-        "2" -> RawChildNode("2","1","C-2"),
-        "3" -> RawChildNode("3","1","C-3")
+      ByPK(classOf[PCProtocol.D_RawChildNode]) -> Map(
+        "2" -> D_RawChildNode("2","1","C-2"),
+        "3" -> D_RawChildNode("3","1","C-3")
       ),
       ByPK(classOf[ParentNodeWithChildren]) -> Map(
         "1" -> ParentNodeWithChildren("1",
           "P-1",
-          List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
+          List(D_RawChildNode("2","1","C-2"), D_RawChildNode("3","1","C-3"))
         )
       )
     ).foreach{

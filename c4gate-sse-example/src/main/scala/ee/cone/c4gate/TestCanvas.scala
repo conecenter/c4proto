@@ -2,7 +2,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, fieldAccess}
-import ee.cone.c4gate.TestCanvasProtocol.TestCanvasState
+import ee.cone.c4gate.TestCanvasProtocol.B_TestCanvasState
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
@@ -24,6 +24,7 @@ class TestCanvasApp extends ServerApp
   with SessionAttrApp
   with MortalFactoryApp
   with TestCanvasViewApp
+  with BasicLoggingApp
 {
   override def assembles: List[Assemble] =
       new FromAlienTaskAssemble("/react-app.html") ::
@@ -81,7 +82,7 @@ case class TestCanvasView(locationHash: String = "rectangle")(
     val relocate = tags.divButton("relocate")(branchTask.relocate("todo"))(
       List(tags.text("caption", "relocate"))
     )
-    val state: Option[Access[TestCanvasState]] =
+    val state: Option[Access[B_TestCanvasState]] =
       sessionAttrAccessFactory.to(TestCanvasStateAccess.state)(local)
     val inputs = for {
       canvasTask ← state.toList
@@ -110,20 +111,20 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 
 /******************************************/
 
-@protocol(TestCat) object TestCanvasProtocolBase   {
-  @Id(0x0008) case class TestCanvasState(
+@protocol object TestCanvasProtocolBase   {
+  @Id(0x0008) case class B_TestCanvasState(
     @Id(0x0009) srcId: String,
     @Id(0x000A) sizes: String
   )
 }
 
 @fieldAccess object TestCanvasStateAccessBase {
-  lazy val sizes: ProdLens[TestCanvasProtocol.TestCanvasState,String] = ProdLens.of(_.sizes)
+  lazy val sizes: ProdLens[TestCanvasProtocol.B_TestCanvasState,String] = ProdLens.of(_.sizes)
   lazy val state =
-    SessionAttr(Id(0x0009), classOf[TestCanvasState], UserLabel en "(TestCanvasState)")
+    SessionAttr(Id(0x0009), classOf[B_TestCanvasState], UserLabel en "(TestCanvasState)")
 }
 
-object TestCanvasStateDefault extends DefaultModelFactory(classOf[TestCanvasState],TestCanvasState(_,""))
+object TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))
 
 trait CanvasApp extends ProtocolsApp with DefaultModelFactoriesApp {
   def childPairFactory: ChildPairFactory

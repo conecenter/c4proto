@@ -3,11 +3,11 @@ package ee.cone.c4actor
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Assemble
 
-case class SyncTxTask[Item<:Product](
+case class SyncTxTask[D_Item<:Product](
   srcId: SrcId,
-  from: Option[Item],
-  to: Option[Item],
-  events: List[LEvent[Item]]
+  from: Option[D_Item],
+  to: Option[D_Item],
+  events: List[LEvent[D_Item]]
 )
 
 object SyncTx {
@@ -15,10 +15,10 @@ object SyncTx {
 }
 
 trait SyncTxFactory {
-  def create[Item<:Product](
-    classOfItem: Class[Item],
-    filter: Item⇒Boolean,
-    group: Item⇒SrcId,
-    txTransform: (SrcId,List[SyncTxTask[Item]])⇒TxTransform
+  def create[D_Item<:Product](
+    classOfItem: Class[D_Item],
+    filter: D_Item⇒Boolean,
+    group: D_Item⇒SrcId,
+    txTransform: (SrcId,List[SyncTxTask[D_Item]])⇒TxTransform
   ): Assemble
 }

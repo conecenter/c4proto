@@ -23,7 +23,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v55"
+  def version: String = "-v64"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -61,7 +61,7 @@ object Main {
     if(Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
       println(s"parsing $path")
       val content = new String(fromData,UTF_8).replace("\r\n","\n")
-      val source = dialects.Scala211(content).parse[Source]
+      val source = dialects.Scala212(content).parse[Source]
       val Parsed.Success(source"..$sourceStatements") = source
       val resStatements = for {
         q"package $n { ..$packageStatements }" ← sourceStatements

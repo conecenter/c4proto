@@ -2,10 +2,10 @@ package ee.cone.c4actor.hashsearch.rangers
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{K2TreeParams, TreeNode, TreeNodeOuter, TreeRange}
+import ee.cone.c4actor.hashsearch.rangers.RangeTreeProtocol.{S_K2TreeParams, S_TreeNode, S_TreeNodeOuter, S_TreeRange}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4proto.{Id, OperativeCat, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait K2TreeApp extends AssemblesApp with ProtocolsApp {
   def k2ModelRegistry: List[(Class[_ <: Product], _ <: Product ⇒ (Long, Long))] = Nil
@@ -16,7 +16,7 @@ trait K2TreeApp extends AssemblesApp with ProtocolsApp {
 }
 
 object K2TreeUtils {
-  def findRegion(root: TreeNode, date: (Option[Long], Option[Long])): TreeNode =
+  def findRegion(root: S_TreeNode, date: (Option[Long], Option[Long])): S_TreeNode =
     if (root.right.isEmpty && root.left.isEmpty)
       root
     else
@@ -27,10 +27,10 @@ object K2TreeUtils {
       }
 
 
-  def getRegions(root: TreeNode, search: TreeRange): List[TreeNode] =
+  def getRegions(root: S_TreeNode, search: S_TreeRange): List[S_TreeNode] =
     root match {
-      case TreeNode(Some(_), None, None) ⇒ root :: Nil
-      case TreeNode(_, Some(left), Some(right)) ⇒
+      case S_TreeNode(Some(_), None, None) ⇒ root :: Nil
+      case S_TreeNode(_, Some(left), Some(right)) ⇒
         val answerLeft = if (fullyIn(search, left.range.get))
           getAllRegions(left)
         else if (intersectCorrect(search, left.range.get))
@@ -42,17 +42,18 @@ object K2TreeUtils {
           getRegions(right, search)
         else Nil
         answerLeft ::: answerRight
+      case _ ⇒ FailWith(s"Unhandled option for $root $search")
     }
 
 
-  def fullyIn(search: TreeRange, b: TreeRange): Boolean =
+  def fullyIn(search: S_TreeRange, b: S_TreeRange): Boolean =
     (search.minX <= b.minX) &&
       (search.minY <= b.minY) &&
       (search.maxX > b.maxX) &&
       (search.maxY > b.maxY)
 
 
-  def intersectCorrect(search: TreeRange, b: TreeRange): Boolean =
+  def intersectCorrect(search: S_TreeRange, b: S_TreeRange): Boolean =
     (search.minX < b.maxX) &&
       (search.minY < b.maxY) &&
       (search.maxX > b.minX) &&
@@ -61,18 +62,18 @@ object K2TreeUtils {
   def inDotRange(x: Long, segment: (Long, Long)): Boolean =
     segment._1 <= x && x <= segment._2
 
-  def getAllRegions(root: TreeNode): List[TreeNode] =
+  def getAllRegions(root: S_TreeNode): List[S_TreeNode] =
     root match {
-      case TreeNode(Some(_), None, None) ⇒ root :: Nil
-      case TreeNode(_, Some(left), Some(right)) ⇒ getAllRegions(left) ::: getAllRegions(right)
+      case S_TreeNode(Some(_), None, None) ⇒ root :: Nil
+      case S_TreeNode(_, Some(left), Some(right)) ⇒ getAllRegions(left) ::: getAllRegions(right)
       case _ ⇒ throw new Exception("Node w/o left / right DynDateRanger:39")
     }
 
   lazy val maxValue = 3155760000000L
   lazy val minValue = 0L
 
-  def inReg(pair: (Option[Long],Option[Long]), range:TreeRange): Boolean = in(convert(pair)._1, convert(pair)._2, range)
-  private def in(x: Long, y: Long, range: TreeRange): Boolean = (range.minX <= x && x < range.maxX) && (range.minY <= y && y < range.maxY)
+  def inReg(pair: (Option[Long], Option[Long]), range: S_TreeRange): Boolean = in(convert(pair)._1, convert(pair)._2, range)
+  private def in(x: Long, y: Long, range: S_TreeRange): Boolean = (range.minX <= x && x < range.maxX) && (range.minY <= y && y < range.maxY)
 
   private def convert(dateOpt: (Option[Long], Option[Long])): (Long, Long) =
     (dateOpt._1, dateOpt._2) match {
@@ -83,19 +84,20 @@ object K2TreeUtils {
     }
 }
 
-@assemble class K2SparkJoinerBase[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long))   {
+@assemble class K2SparkJoinerBase[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long))
+  extends AssembleName("K2SparkJoiner", modelCl) {
   def SparkK2Tree(
     paramId: SrcId,
-    param: Each[K2TreeParams]
+    param: Each[S_K2TreeParams]
   ): Values[(SrcId, TxTransform)] =
-    if(param.modelName == modelCl.getName)
+    if (param.modelName == modelCl.getName)
       List(WithPK(K2TreeUpdate[Model](param.srcId, param, modelCl)(modelToDate)))
     else Nil
 }
 
-case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: K2TreeParams, modelCl: Class[Model])(getDates: Model ⇒ (Long, Long)) extends TxTransform {
+case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: S_K2TreeParams, modelCl: Class[Model])(getDates: Model ⇒ (Long, Long)) extends TxTransform {
   def transform(local: Context): Context = {
-    val tree = ByPK(classOf[TreeNodeOuter]).of(local).get(srcId)
+    val tree = ByPK(classOf[S_TreeNodeOuter]).of(local).get(srcId)
     val now = System.currentTimeMillis()
     val doUpdate = tree.isEmpty || (now - tree.get.lastUpdateMillis >= params.updateInterval)
     if (doUpdate) {
@@ -105,7 +107,7 @@ case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: K2TreeParams, mo
       }
       )
       val newTree = K2Tree(dates, params.maxDepth, params.minInHeap, params.maxMinInHeap).rootNode
-      TxAdd(LEvent.update(TreeNodeOuter(srcId, params.modelName, Option(newTree), now)))(local)
+      TxAdd(LEvent.update(S_TreeNodeOuter(srcId, params.modelName, Option(newTree), now)))(local)
     } else {
       local
     }
@@ -115,23 +117,23 @@ case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: K2TreeParams, mo
 case class Date2D(x: Long, y: Long)
 
 case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInHeap: Int) {
-  lazy val rootNode: TreeNode = getRoot()
+  lazy val rootNode: S_TreeNode = getRoot()
 
   val minV: Long = Long.MinValue //inputP.minBy(_.x).x
   val maxV: Long = Long.MaxValue //110L
-  val infRange = TreeRange(minV, minV, maxV, maxV)
+  val infRange = S_TreeRange(minV, minV, maxV, maxV)
 
-  def getRoot(currRange: TreeRange = infRange, currPoints: List[Date2D] = inputP, currDepth: Int = 0): TreeNode = {
+  def getRoot(currRange: S_TreeRange = infRange, currPoints: List[Date2D] = inputP, currDepth: Int = 0): S_TreeNode = {
     if (currDepth >= maxDepth && maxMinInHeap >= currPoints.size) {
-      TreeNode(Option(currRange), None, None)
+      S_TreeNode(Option(currRange), None, None)
     } else {
       currPoints.size match {
-        case i if i <= minInHeap ⇒ TreeNode(Option(currRange), None, None)
+        case i if i <= minInHeap ⇒ S_TreeNode(Option(currRange), None, None)
         case _ ⇒
           val (left, median, right) = splitPointsByMedian(currPoints, currDepth)
           val incDepth = currDepth + 1
           val (leftR, rightR) = splitRegionByMedian(currRange, median, currDepth)
-          TreeNode(Option(currRange), Option(getRoot(leftR, left, incDepth)), Option(getRoot(rightR, right, incDepth)))
+          S_TreeNode(Option(currRange), Option(getRoot(leftR, left, incDepth)), Option(getRoot(rightR, right, incDepth)))
       }
     }
   }
@@ -144,22 +146,22 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
     (sortedPoints.take(medianIndex), sortedPoints(medianIndex), sortedPoints.drop(medianIndex))
   }
 
-  def splitRegionByMedian(region: TreeRange, split: Date2D, depth: Int): (TreeRange, TreeRange) = {
+  def splitRegionByMedian(region: S_TreeRange, split: Date2D, depth: Int): (S_TreeRange, S_TreeRange) = {
     val minX = region.minX
     val maxX = region.maxX
     val minY = region.minY
     val maxY = region.maxY
     if (depth % 2 == 0) {
-      (TreeRange(minX, minY, split.x, maxY), TreeRange(split.x, minY, maxX, maxY))
+      (S_TreeRange(minX, minY, split.x, maxY), S_TreeRange(split.x, minY, maxX, maxY))
     } else {
-      (TreeRange(minX, minY, maxX, split.y), TreeRange(minX, split.y, maxX, maxY))
+      (S_TreeRange(minX, minY, maxX, split.y), S_TreeRange(minX, split.y, maxX, maxY))
     }
   }
 }
 
-@protocol(OperativeCat) object RangeTreeProtocolBase   {
+@protocol object RangeTreeProtocolBase {
 
-  @Id(0x0f8e) case class K2TreeParams(
+  @Id(0x0f8e) case class S_K2TreeParams(
     @Id(0x0f9b) srcId: String,
     @Id(0x0f8c) modelName: String,
     @Id(0x0f8d) updateInterval: Long,
@@ -168,20 +170,20 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
     @Id(0x0f9e) maxMinInHeap: Int
   )
 
-  @Id(0x0f8f) case class TreeNodeOuter(
+  @Id(0x0f8f) case class S_TreeNodeOuter(
     @Id(0x0f90) srcId: String,
     @Id(0x0f9b) modelName: String,
-    @Id(0x0f91) root: Option[TreeNode],
+    @Id(0x0f91) root: Option[S_TreeNode],
     @Id(0x0f9f) lastUpdateMillis: Long
   )
 
-  @Id(0x0f92) case class TreeNode(
-    @Id(0x0f94) range: Option[TreeRange],
-    @Id(0x0f93) right: Option[TreeNode],
-    @Id(0x0f95) left: Option[TreeNode]
+  @Id(0x0f92) case class S_TreeNode(
+    @Id(0x0f94) range: Option[S_TreeRange],
+    @Id(0x0f93) right: Option[S_TreeNode],
+    @Id(0x0f95) left: Option[S_TreeNode]
   )
 
-  @Id(0x0f96) case class TreeRange(
+  @Id(0x0f96) case class S_TreeRange(
     @Id(0x0f97) minX: Long,
     @Id(0x0f98) minY: Long,
     @Id(0x0f99) maxX: Long,

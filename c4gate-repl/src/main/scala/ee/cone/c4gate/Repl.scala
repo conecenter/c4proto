@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import java.util.concurrent.atomic.AtomicReference
 
 import ee.cone.c4actor._
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -22,7 +22,7 @@ trait SSHDebugApp extends AssemblesApp {
 @assemble class SSHDebugAssembleBase(reducer: RichRawWorldReducer, qMessages: QMessages)   {
   def join(
     key: SrcId,
-    firstborn: Each[Firstborn]
+    firstborn: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
     List(WithPK(SSHDebugTx()(reducer,qMessages)))
 }
@@ -36,7 +36,7 @@ case class SSHDebugTx(srcId: SrcId="SSHDebug")(
     def ctx(): RichContext = ref.get.get
     def tx(f: Context⇒Object): List[_] = {
       val context = ref.get.get
-      f(new Context(context.injected,context.assembled,Map.empty)) match {
+      f(new Context(context.injected,context.assembled,context.executionContext,Map.empty)) match {
         case local: Context ⇒
           qMessages.send(local)
           Nil
@@ -72,8 +72,8 @@ rollback()
 /*
 import ee.cone.c4actor._
 import ee.cone.c4gate._
-tx(ByPK(classOf[AlienProtocol.FromAlienState]).of(_).values.toList.sortBy(_.sessionKey))
-tx(TxAdd(LEvent.delete(AlienProtocol.FromAlienState("61297c47-c5de-4fd9-add9-1967615a44a8", "https://skh.dev.cone.ee/react-app.html", "61297c47-c5de-4fd9-add9-1967615a44a8", None))))
+tx(ByPK(classOf[AlienProtocol.U_FromAlienState]).of(_).values.toList.sortBy(_.sessionKey))
+tx(TxAdd(LEvent.delete(AlienProtocol.U_FromAlienState("61297c47-c5de-4fd9-add9-1967615a44a8", "https://skh.dev.cone.ee/react-app.html", "61297c47-c5de-4fd9-add9-1967615a44a8", None))))
  */
 
 case object SSHDebugKey extends TransientLens[Option[RichContext⇒Unit]](None)

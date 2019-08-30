@@ -52,16 +52,20 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def txObserver: Option[Observer]
   def rawQSender: RawQSender
   //
+  def longTxWarnPeriod: Long = Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong)
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
-  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages)
+  lazy val txTransforms: TxTransforms = new TxTransforms(qMessages, longTxWarnPeriod, catchNonFatal)
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
   private lazy val rootConsumer =
     new RootConsumer(richRawWorldReducer, snapshotMaker, snapshotLoader, progressObserverFactory, consuming)
+  lazy val snapshotDiffer: SnapshotDiffer = new SnapshotDifferImpl(
+    toUpdate, richRawWorldReducer, snapshotMaker, snapshotLoader
+  )
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
-  override def protocols: List[Protocol] = OrigMetaAttrProtocol :: super.protocols
+  override def protocols: List[Protocol] = MetaAttrProtocol :: super.protocols
   override def deCompressors: List[DeCompressor] = GzipFullCompressor() :: super.deCompressors
 }
 
@@ -79,14 +83,15 @@ trait RichDataApp extends ProtocolsApp
   with PreHashingApp
   with DeCompressorsApp
   with RawCompressorsApp
-  with WithDefaultExtProcessor
+  with DefaultUpdateProcessorApp
   with UpdatesProcessorsApp
+  with DefaultKeyFactoryApp
 {
   def assembleProfiler: AssembleProfiler
   def actorName: String
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()
+  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
@@ -100,21 +105,23 @@ trait RichDataApp extends ProtocolsApp
   lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   lazy val indexUtil: IndexUtil = IndexUtilImpl()()
+  lazy val catchNonFatal: CatchNonFatal = CatchNonFatalImpl
   private lazy val deCompressorRegistry: DeCompressorRegistry = DeCompressorRegistryImpl(deCompressors)()
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
   private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
-  private lazy val origKeyFactory = OrigKeyFactory(indexUtil)
+  private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
   private lazy val assemblerInit =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, origKeyFactory, assembleProfiler, readModelUtil, actorName, extUpdateProcessor, processors, defaultAssembleOptions)()
-  lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn)
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, longAssembleWarnPeriod, catchNonFatal)()
+  private def longAssembleWarnPeriod: Long = Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
+  private lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn,0L)
   def parallelAssembleOn: Boolean = false
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct,extUpdateProcessor,origKeyFactory)() ::: super.dataDependencies
+    ProtocolDataDependencies(protocols.distinct,origKeyFactory)() ::: super.dataDependencies
   override def toInject: List[ToInject] =
     assemblerInit ::
     localQAdapterRegistryInit ::
@@ -123,7 +130,7 @@ trait RichDataApp extends ProtocolsApp
 
 trait VMExecutionApp {
   def toStart: List[Executable]
-  lazy val execution: Execution = new VMExecution(()⇒toStart)
+  lazy val execution: Execution = new VMExecution(()⇒toStart)()()
 }
 
 trait FileRawSnapshotApp { // Remote!
@@ -141,13 +148,12 @@ trait FileRawSnapshotApp { // Remote!
 trait MergingSnapshotApp {
   def toUpdate: ToUpdate
   def richRawWorldReducer: RichRawWorldReducer
-  def snapshotLoader: SnapshotLoader
-  def snapshotMaker: SnapshotMaker
+  def snapshotDiffer: SnapshotDiffer
   def remoteSnapshotUtil: RemoteSnapshotUtil
   def snapshotTaskSigner: Signer[SnapshotTask]
   //
   lazy val snapshotMerger: SnapshotMerger = new SnapshotMergerImpl(
-    toUpdate, snapshotMaker,snapshotLoader,
+    toUpdate, snapshotDiffer,
     remoteSnapshotUtil,RemoteRawSnapshotLoaderFactory,SnapshotLoaderFactoryImpl,
     richRawWorldReducer, snapshotTaskSigner
   )

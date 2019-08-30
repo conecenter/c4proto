@@ -1,7 +1,7 @@
 package ee.cone.c4actor.hashsearch.index.dynamic
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.hashsearch.base._
@@ -17,8 +17,7 @@ trait HashSearchDynamicIndexApp
     with LensRegistryApp
     with HashSearchRangerRegistryApp
     with IdGenUtilApp
-    with DefaultModelRegistryApp
-{
+    with DefaultModelRegistryApp {
   def indexUtil: IndexUtil
 
   override def assembles: List[Assemble] = {
@@ -29,7 +28,7 @@ trait HashSearchDynamicIndexApp
     rangerWiseAssemble ::: modelOnlyAssembles ::: super.assembles
   }
 
-  def createAssemble[Model <: Product, By <: Product, Field ](a: Class[Model], b: Class[By], c: Class[Field])(
+  def createAssemble[Model <: Product, By <: Product, Field](a: Class[Model], b: Class[By], c: Class[Field])(
     modelId: Int,
     byId: Long,
     ranger: RangerWithCl[_ <: Product, _]
@@ -213,7 +212,8 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   val idGenUtil: IdGenUtil,
   val ranger: RangerWithCl[By, Field],
   val defaultModelRegistry: DefaultModelRegistry
-) extends   DynamicIndexSharedTypes
+) extends AssembleName("HashSearchDynamicIndexNew", modelCl, byCl, fieldCl)
+  with DynamicIndexSharedTypes
   with HashSearchAssembleSharedKeys
   with HashSearchDynamicIndexNewUtils[Model, By, Field] {
 
@@ -343,7 +343,7 @@ sealed trait DynIndexCommonUtils[Model <: Product] {
   val modelId: Int,
   val idGenUtil: IdGenUtil,
   indexUtil: IndexUtil
-) extends   DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
+) extends AssembleName("HashSearchDynamicIndexCommon", modelCl) with DynIndexCommonUtils[Model] with HashSearchAssembleSharedKeys {
   type InnerIndexModel = SrcId
   type OuterDynamicHeapId = SrcId
   type IndexNodeDirectiveAll = All

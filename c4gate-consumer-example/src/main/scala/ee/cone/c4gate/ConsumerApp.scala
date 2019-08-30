@@ -7,7 +7,7 @@ import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4proto._
 import ee.cone.c4actor.LEvent._
-import ee.cone.c4actor.QProtocol.Firstborn
+import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
 
@@ -18,9 +18,10 @@ class TestConsumerApp extends ServerApp
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
+  with BasicLoggingApp
 {
   override def protocols: List[Protocol] = AlienProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
-  override def assembles: List[Assemble] = new TestAssemble :: super.assembles
+  override def assembles: List[Assemble] = new TestAssemble(catchNonFatal) :: super.assembles
 }
 
 /*
@@ -36,52 +37,52 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --descri
 curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 */
 
-@assemble class TestAssembleBase   {
+@assemble class TestAssembleBase(catchNonFatal: CatchNonFatal)   {
   def joinTestHttpPostHandler(
     key: SrcId,
-    post: Each[HttpPost]
+    post: Each[S_HttpPost]
   ): Values[(SrcId, TxTransform)] =
     if(post.path == "/abc")
-      List(WithPK(TestHttpPostHandler(post.srcId,post))) else Nil
+      List(WithPK(TestHttpPostHandler(post.srcId,post)(catchNonFatal))) else Nil
 
   def needConsumer(
     key: SrcId,
-    first: Each[Firstborn]
+    first: Each[S_Firstborn]
   ): Values[(SrcId,LocalPostConsumer)] =
     List(WithPK(LocalPostConsumer("/abc")))
 
   def joinDebug(
     key: SrcId,
-    posts: Values[HttpPost]
+    posts: Values[S_HttpPost]
   ): Values[(SrcId, TxTransform)] = {
     //println(posts)
     Nil
   }
 
 /*
-  def joinAllTcpConnections(key: SrcId, items: Values[TcpConnection]): Values[(Unit, TcpConnection)] =
+  def joinAllTcpConnections(key: SrcId, items: Values[S_TcpConnection]): Values[(Unit, S_TcpConnection)] =
     items.map(()→_)
-  def joinGateTester(key: Unit, connections: Values[TcpConnection]): Values[(SrcId, TxTransform)] =
+  def joinGateTester(key: Unit, connections: Values[S_TcpConnection]): Values[(SrcId, TxTransform)] =
     List("GateTester"→GateTester(connections))*/
 }
 
-case class TestHttpPostHandler(srcId: SrcId, post: HttpPost) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = {
-    val resp = if(ErrorKey.of(local).nonEmpty) Nil else {
-      val prev = new String(post.body.toByteArray, "UTF-8")
-      val next = (prev.toLong * 3).toString
-      val body = okio.ByteString.encodeUtf8(next)
-      List(HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
-    }
+case class TestHttpPostHandler(srcId: SrcId, post: S_HttpPost)(catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
+  def transform(local: Context): Context = catchNonFatal {
+    val prev = new String(post.body.toByteArray, "UTF-8")
+    val next = (prev.toLong * 3).toString
+    val body = okio.ByteString.encodeUtf8(next)
+    val resp = List(S_HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
     logger.info(s"$resp")
     TxAdd(delete(post) ++ resp.flatMap(update))(local)
+  }{ e ⇒
+    TxAdd(delete(post))(local)
   }
 }
 
 /*
 case object TestTimerKey extends WorldKey[java.lang.Long](0L)
 
-case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
+case class GateTester(connections: Values[S_TcpConnection]) extends TxTransform {
   def transform(local: World): World = {
     val seconds = System.currentTimeMillis / 1000
     if(TestTimerKey.of(local) == seconds) return local
@@ -90,7 +91,7 @@ case class GateTester(connections: Values[TcpConnection]) extends TxTransform {
     println(size)
     val broadEvents = connections.flatMap { connection ⇒
       val key = UUID.randomUUID.toString
-      update(TcpWrite(key, connection.connectionKey, sizeBody, seconds))
+      update(S_TcpWrite(key, connection.connectionKey, sizeBody, seconds))
     }
     add(broadEvents).andThen(TestTimerKey.set(seconds))(local)
   }
@@ -143,8 +144,8 @@ object Test {
 ////
   case class Update[V](from: Seq[V], to: Seq[V])
 
-  trait MapReduce[Node, K, V, AV] {
-    def map(node: Node): Map[K, V]
+  trait MapReduce[D_Node, K, V, AV] {
+    def map(node: D_Node): Map[K, V]
     def del(aggregateValue: AV, partialValue: V): AV
     def add(aggregateValue: AV, partialValue: V): AV
   }

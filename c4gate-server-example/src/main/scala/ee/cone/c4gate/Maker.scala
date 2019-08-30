@@ -23,7 +23,7 @@ class SimpleMakerExecutable(execution: Execution, snapshotMaker: SnapshotMaker) 
 class SimplePusherApp extends ExecutableApp with EnvConfigApp
   with VMExecutionApp with NoAssembleProfilerApp with KafkaProducerApp
 {
-  private lazy val dbDir = "db4"
+  private lazy val dbDir = config.get("C4DATA_DIR")
   private lazy val rawSnapshotLoader: RawSnapshotLoader with SnapshotLister = new FileRawSnapshotLoader(dbDir,SnapshotUtilImpl)
   private lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()

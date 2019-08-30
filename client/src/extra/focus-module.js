@@ -1,10 +1,11 @@
 import {rootCtx} from "../main/vdom-util"
+import {eventManager} from './event-manager.js'
 
-export default function FocusModule({log,documentManager,eventManager,windowManager}){		
+export default function FocusModule({log,documentManager,windowManager}){		
 	let nodesObj = [];
 	let lastMousePos = {};
 	let stickyNode = null;
-	
+	const {document} = documentManager
 	const {addEventListener,setTimeout} = windowManager	
 	const distance = (no1,no2) =>{
 		if(!no1 || !no2) return undefined
@@ -43,20 +44,18 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			const r = n.getBoundingClientRect()				
 			return {y0:r.top,x0:r.left,y1:r.bottom,x1:r.right,n:n}
 		})
-	}
+	}	
 	const getCNode = () =>{
 		const aEl = documentManager.activeElement()
-		if(aEl.tagName == "IFRAME") {
-			return getParentWrapper(aEl.contentDocument.activeElement)
-		}
-		return getParentWrapper(aEl)	
+		const node = (aEl.tagName == "IFRAME")?getParentWrapper(aEl.contentDocument.activeElement): getParentWrapper(aEl)				
+		return node
 	}
 	const findBestDistance = (axis) => {
 		const aEl = documentManager.activeElement()
 		if((axis==2||axis==0) && aEl.tagName == "INPUT") return
-		mapNodes()
-	    const wrap = getCNode()	
-		const index = nodesObj.findIndex(o => o.n == wrap)
+		mapNodes()		
+	    const wrap = getCNode()			
+		const index = wrap?nodesObj.findIndex(o => o.n == wrap):(nodesObj[0]?0:-1)
 		if(index<0) return
 		const cNodeObj = nodesObj[index]
 		const k = [-1,1]
@@ -136,7 +135,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const sendEvent = (event) => {
 		const cNode = getCNode()
 		if(!cNode) return
-		const controlEl = cNode.querySelector("input")||cNode.querySelector("button,.button")
+		const controlEl = cNode.querySelector("input") || cNode.querySelector("textarea") || cNode.querySelector("button,.button")
 		const innerTab = cNode.querySelector('[tabindex="1"]')
 		const cEvent = event()
 		if(controlEl) 
@@ -149,9 +148,9 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	const onKeyDown = (event) =>{
 		//if(nodesObj.length == 0) return		
 		let best = null	
-        let isPrintable = false
-		const vk = event.code == "vk"
-		const eventKey = event.key || String.fromCharCode(event.keyCode)
+        let isPrintable = false		
+		const vk = event.code == "vk" || event.detail && event.detail.code == "vk"
+		const eventKey = event.key || event.keyCode && String.fromCharCode(event.keyCode) || event.detail && event.detail.key
 		const detail = {key:eventKey,vk}
 		switch(eventKey){
 			case "ArrowUp":
@@ -171,18 +170,18 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 				event.preventDefault();return;
 			case "F2":	
 			case "Enter":
-				sendEvent(()=>eventManager.create("enter",{detail}));
+				sendEvent(()=>eventManager.create(document)("enter",{detail}));
 				break;
 			case "Erase":
-				sendEvent(()=>eventManager.create("erase"));break;
+				sendEvent(()=>eventManager.create(document)("erase"));break;
 			case "Delete":
-			    sendEvent(()=>eventManager.create("delete"));break;	
+			    sendEvent(()=>eventManager.create(document)("delete"));break;	
 			case "Backspace":
-				sendEvent(()=>eventManager.create("backspace",{detail}));break;			
+				sendEvent(()=>eventManager.create(document)("backspace",{detail}));break;			
 			case "Insert":
 			case "c":
 				if(event.ctrlKey){
-					//sendEvent(()=>eventManager.create("ccopy"))
+					//sendEvent(()=>eventManager.create(document)("ccopy"))
 					break
 				}
 				isPrintable = true
@@ -199,14 +198,14 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			case "F10":
 				break;
 			case " ":
-				if(event.target.tagName !== "INPUT")
+				if(event.target.tagName !== "INPUT" && event.target.tagName !== "TEXTAREA")
 					event.preventDefault()
 			default:
 				isPrintable = true
 		}		
 		if(best) best.o.n.focus();				
 		if(isPrintable && isPrintableKeyCode(eventKey)) {			
-			sendEvent(()=>eventManager.create("delete",{detail}))
+			sendEvent(()=>eventManager.create(document)("delete",{detail}))
 			/*const cRNode = callbacks.find(o=>o.el == currentFocusNode&&currentFocusNode.el)			
 			if(cRNode && cRNode.props.sendKeys) sendToServer(cRNode,"key",event.key)*/
 		}			
@@ -221,9 +220,13 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const onTab = (event,vk) =>{		
 		const cNode = getCNode()
+		if(!cNode){		
+			mapNodes()
+			return nodesObj[0]&&nodesObj[0].n.focus()	
+		}
 		const root = vk?(cNode&&cNode.ownerDocument):event.target.ownerDocument
 		if(!root) return
-		const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
+		const nodes = Array.from(root.querySelectorAll('.focusWrapper[tabindex="1"]'))		
 		/*const cRNode = callbacks.find(o=>currentFocusNode&&true && o.el == currentFocusNode.el)
 		if(cRNode&&cRNode.props.autoFocus == false){
 			sendToServer(cRNode,"focus","change")
@@ -236,14 +239,14 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 			}
 			else{
 				setTimeout(()=>{
-					const nodes = Array.from(root.querySelectorAll('[tabindex="1"]'))		
+					const nodes = Array.from(root.querySelectorAll('.focusWrapper[tabindex="1"]'))		
 					const cIndex = nodes.findIndex(n=>n == cNode)
 					if(cIndex>=0) {
 						if(cIndex+1<nodes.length) {
 							nodes[cIndex+1].focus()							
 						}
 						else 
-							cNode&&cNode.focus()
+							nodes[0]&&nodes[0].focus() || cNode&&cNode.focus()
 					}					
 				},200)
 			}				
@@ -257,7 +260,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		const marker = `marker-${detail}`
 		const btn = root.querySelector(`button.${marker}`)
 		if(btn) {
-			btn.dispatchEvent(eventManager.create("click",{bubbles:true}))
+			btn.dispatchEvent(eventManager.create(document)("click",{bubbles:true}))
 		}
 	}
 	const getLastClickNode = () =>{
@@ -269,7 +272,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 	}
 	const onPaste = (event) => {
 		const data = event.clipboardData.getData("text")
-		sendEvent(()=>eventManager.create("cpaste",{detail:data}))
+		sendEvent(()=>eventManager.create(document)("cpaste",{detail:data}))
 	}		
 	addEventListener("keydown",onKeyDown)
 	addEventListener("paste",onPaste)
@@ -284,7 +287,7 @@ export default function FocusModule({log,documentManager,eventManager,windowMana
 		preferedFocusObj && preferedFocusObj.n.focus()
 	},200)
 	const toView = (className)=>setTimeout(()=>{
-		const o = documentManager.body().querySelector(`.${className}`)
+		const o = document.querySelector(`.${className}`)
 		o&&o.scrollIntoViewIfNeeded(false)
 	})	
 	const receivers = {focusTo,toView}

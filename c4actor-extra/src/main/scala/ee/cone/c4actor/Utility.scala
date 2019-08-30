@@ -1,18 +1,29 @@
 package ee.cone.c4actor
 
+import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.ToPrimaryKey
+import ee.cone.c4proto.HasId
 
 import scala.annotation.tailrec
 import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
 
+object ByClassAdapter {
+  def apply[Model <: Product](qAdapterRegistry: QAdapterRegistry)(model: Class[Model]): ProtoAdapter[Model] with HasId =
+    qAdapterRegistry.byName(model.getName).asInstanceOf[ProtoAdapter[Model] with HasId]
+}
+
+object MinOpt {
+  def apply[A](iterable: Iterable[A])(implicit cmp: Ordering[A]): Option[A] = if (iterable.isEmpty) None else Some(iterable.min)
+}
+
 trait WithMurMur3HashGenApp {
   def hashGen: HashGen = new MurMur3HashGen
 }
 
-class MurMur3HashGen extends HashGen{
+class MurMur3HashGen extends HashGen {
   private val parser: PreHashingMurMur3 = PreHashingMurMur3()
 
   def generate[Model](m: Model): String = {
@@ -20,6 +31,12 @@ class MurMur3HashGen extends HashGen{
     parser.calculateModelHash(m, instance)
     instance.getStringHash
   }
+  def generateLong[Model](m: Model): (Long, Long) = {
+    val instance: MurmurHash3 = new MurmurHash3()
+    parser.calculateModelHash(m, instance)
+    (instance.digest1(), instance.digest2())
+  }
+
 }
 
 object TimeColored {

@@ -12,15 +12,11 @@ trait Protocol {
   def adapters: List[ProtoAdapter[_] with HasId]
 }
 
-trait OrigCategory extends Product
-
-case object InnerCat extends OrigCategory
-
-case class Cat(category: OrigCategory*) extends StaticAnnotation
-
 case class Id(id: Int) extends StaticAnnotation
 
 case class ShortName(name: String) extends StaticAnnotation
+
+class GenLens extends StaticAnnotation
 
 case class TypeProp(clName: String, alias: String, children: List[TypeProp])
 case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeProp)
@@ -28,8 +24,9 @@ case class MetaProp(id: Int, propName: String, propShortName: Option[String], re
 trait HasId {
   def id: Long
   def hasId: Boolean
-  def categories: List[OrigCategory]
+  def categories: List[DataCategory]
   def className: String
+  def cl: Class[_]
   def shortName: Option[String]
   def props: List[MetaProp]
 }

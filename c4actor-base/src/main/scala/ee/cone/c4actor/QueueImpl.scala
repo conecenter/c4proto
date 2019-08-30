@@ -2,14 +2,14 @@
 package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.{Offset, TxRef, Update, Updates}
+import ee.cone.c4actor.QProtocol.{S_Offset, N_TxRef, N_Update, S_Updates}
 import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.NextOffset
+import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId}
 import okio.ByteString
 
 /*Future[RecordMetadata]*/
@@ -23,7 +23,7 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
   //import qAdapterRegistry._
   // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
-    val updates: List[Update] = WriteModelKey.of(local).toList
+    val updates: List[N_Update] = WriteModelKey.of(local).toList
     if(updates.isEmpty) return local
     //println(s"sending: ${updates.size} ${updates.map(_.valueTypeId).map(java.lang.Long.toHexString)}")
     val (bytes, headers) = toUpdate.toBytes(updates)
@@ -45,23 +45,34 @@ class ToUpdateImpl(
   compressorOpt: Option[RawCompressor],
   compressionMinSize: Long
 )(
-  updatesAdapter: ProtoAdapter[Updates] with HasId =
-  qAdapterRegistry.byName(classOf[QProtocol.Updates].getName)
-    .asInstanceOf[ProtoAdapter[Updates] with HasId],
-  refAdapter: ProtoAdapter[TxRef] with HasId =
-  qAdapterRegistry.byName(classOf[TxRef].getName)
-    .asInstanceOf[ProtoAdapter[TxRef] with HasId],
-  offsetAdapter: ProtoAdapter[Offset] with HasId =
-  qAdapterRegistry.byName(classOf[QProtocol.Offset].getName)
-    .asInstanceOf[ProtoAdapter[Offset] with HasId],
+  updatesAdapter: ProtoAdapter[S_Updates] with HasId =
+  qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
+    .asInstanceOf[ProtoAdapter[S_Updates] with HasId],
+  refAdapter: ProtoAdapter[N_TxRef] with HasId =
+  qAdapterRegistry.byName(classOf[N_TxRef].getName)
+    .asInstanceOf[ProtoAdapter[N_TxRef] with HasId],
+  offsetAdapter: ProtoAdapter[S_Offset] with HasId =
+  qAdapterRegistry.byName(classOf[QProtocol.S_Offset].getName)
+    .asInstanceOf[ProtoAdapter[S_Offset] with HasId],
   fillTxIdFlag: Long = 1L,
-  txIdPropId: Long = 0x001A
+  txIdPropId: Long = 0x001A,
+  archiveFlag: Long = 2L
+)(
+  withFillTxId: Set[Long] = qAdapterRegistry.byId.collect{case (k, v) if v.props.exists(_.id == txIdPropId) ⇒ k}.toSet
 ) extends ToUpdate with LazyLogging {
-  def toUpdate[M <: Product](message: LEvent[M]): Update = {
+
+  def toUpdate[M <: Product](message: LEvent[M]): N_Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
-    val byteString = ToByteString(message.value.map(valueAdapter.encode).getOrElse(Array.emptyByteArray))
-    val flags = if(message.value.nonEmpty && valueAdapter.props.exists(_.id==txIdPropId)) fillTxIdFlag else 0L
-    Update(message.srcId, valueAdapter.id, byteString, flags)
+    message match {
+      case upd: UpdateLEvent[_] ⇒
+        val byteString = ToByteString(valueAdapter.encode(upd.value))
+        val txRefFlags = if (withFillTxId(valueAdapter.id)) fillTxIdFlag else 0L
+        N_Update(message.srcId, valueAdapter.id, byteString, txRefFlags)
+      case _: DeleteLEvent[_] ⇒
+        N_Update(message.srcId, valueAdapter.id, ByteString.EMPTY, 0L)
+      case _: ArchiveLEvent[_] ⇒
+        N_Update(message.srcId, valueAdapter.id, ByteString.EMPTY, archiveFlag)
+    }
   }
 
   private val compressionKey = "c"
@@ -75,10 +86,9 @@ class ToUpdateImpl(
   private def makeHeaderFromName: RawCompressor ⇒ List[RawHeader] = jc ⇒
     RawHeader(compressionKey, jc.name) :: Nil
 
-  def toBytes(updates: List[Update]): (Array[Byte], List[RawHeader]) = {
+  def toBytes(updates: List[N_Update]): (Array[Byte], List[RawHeader]) = {
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
-    logger.trace(updates.toString)
-    val updatesBytes = updatesAdapter.encode(Updates("", filteredUpdates))
+    val updatesBytes = updatesAdapter.encode(S_Updates("", filteredUpdates))
     logger.debug("Compressing...")
     val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)
       .fold((updatesBytes, List.empty[RawHeader]))(compressor⇒
@@ -88,7 +98,26 @@ class ToUpdateImpl(
     result
   }
 
-  def toUpdates(events: List[RawEvent]): List[Update] =
+  def toUpdates(events: List[RawEvent]): List[N_Update] =
+    for {
+      event ← events
+      update ← {
+        val compressorOpt = findCompressor(event.headers)
+        logger.trace("Decompressing...")
+        val data = compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)
+        logger.trace("Decoding...")
+        updatesAdapter.decode(data).updates
+      }
+    } yield
+      if (update.flags == 0L) update
+      else if ((update.flags & fillTxIdFlag) == 0) update.copy(flags = 0L)
+      else {
+        val ref = N_TxRef("", event.srcId)
+        val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
+        update.copy(value = value, flags = 0L)
+      }
+
+  def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update] =
     for {
       event ← events
       update ← {
@@ -101,14 +130,15 @@ class ToUpdateImpl(
     } yield
       if ((update.flags & fillTxIdFlag) == 0) update
       else {
-        val ref = TxRef("",event.srcId)
+        val ref = N_TxRef("",event.srcId)
         val value = ToByteString(update.value.toByteArray ++ refAdapter.encode(ref))
         val flags = update.flags & ~fillTxIdFlag
         update.copy(value = value, flags = flags)
       }
 
-  def toKey(up: Update): Update = up.copy(value=ByteString.EMPTY)
-  def by(up: Update): (Long, String) = (up.valueTypeId,up.srcId)
+
+  def toKey(up: N_Update): N_Update = up.copy(value=ByteString.EMPTY)
+  def by(up: N_Update): (TypeId, SrcId) = (up.valueTypeId,up.srcId)
 }
 
 object QAdapterRegistryFactory {

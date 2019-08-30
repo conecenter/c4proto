@@ -2,10 +2,7 @@
 
 use strict;
 
-my $http_port = 8067;
-my $sse_port = 8068;
 my $temp = "target";
-my $docker_build = "$temp/docker_build";
 
 ################################################################################
 
@@ -37,73 +34,43 @@ my @tasks;
 
 ############################### image builds ###################################
 
-my $put_text = sub{
-    my($fn,$content)=@_;
-    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
-};
+#my $put_text = sub{
+#    my($fn,$content)=@_;
+#    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+#};
 
-my $recycling = sub{
-    !-e $_ or rename $_, &$need_path("$temp/recycle/".rand()) or die $! for @_;
-};
-
-my $prepare_build = sub{
-    my($name,$f) = @_;
-    my $ctx_dir = "$docker_build/$name";
-    &$need_path("$ctx_dir/any");
-    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
-    &$f($ctx_dir);
-};
+#my $recycling = sub{
+#    !-e $_ or rename $_, &$need_path("$temp/recycle/".rand()) or die $! for @_;
+#};
 
 
-my $gen_docker_conf = sub{
-    &$recycling($docker_build);
+#my $docker_build = "$temp/docker_build";
+#my $prepare_build = sub{
+#    my($name,$f) = @_;
+#    my $ctx_dir = "$docker_build/$name";
+#    &$need_path("$ctx_dir/any");
+#    &$put_text("$ctx_dir/.dockerignore",".dockerignore\nDockerfile");
+#    &$f($ctx_dir);
+#};
+#&$recycling($docker_build);
+#&$prepare_build("synced"=>sub{
+#        my($ctx_dir)=@_;
+#        sy("cp zoo/* $ctx_dir/");
+#        my $gen_dir = &$get_generated_sbt_dir();
+#        sy("cp -r $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
+#    });
 
-    &$prepare_build("synced"=>sub{
-        my($ctx_dir)=@_;
-        sy("cp zoo/* $ctx_dir/");
-        my $gen_dir = &$get_generated_sbt_dir();
-        sy("cp -r $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
-        &$put_text("$ctx_dir/gate.sh", join "\n",
-            "export C4HTTP_PORT=$http_port",
-            "export C4SSE_PORT=$sse_port",
-            "exec app/bin/c4gate-server",
-        );
-    });
 
-    &$prepare_build("haproxy"=>sub{
-        my($ctx_dir)=@_;
-        &$put_text("$ctx_dir/haproxy.cfg",qq{
-            defaults
-              timeout connect 5s
-              timeout client  900s
-              timeout server  900s
-            resolvers docker_resolver
-              nameserver dns "127.0.0.11:53"
-            frontend fe80
-              mode http
-              bind :80
-              acl acl_sse hdr(accept) -i text/event-stream
-              use_backend be_sse if acl_sse
-              default_backend be_http
-            listen listen_443
-              mode http
-              bind :443 ssl crt /c4deploy/dummy.pem
-              server s_http :80
-            backend be_http
-              mode http
-              server se_http gate:$http_port check resolvers docker_resolver resolve-prefer ipv4
-            backend be_sse
-              mode http
-              server se_sse gate:$sse_port check resolvers docker_resolver resolve-prefer ipv4
-        });
-        &$put_text("$ctx_dir/Dockerfile", join "\n",
-            "FROM haproxy:1.7",
-            "COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg",
-        );
-    });
-};
+
 ###
-
+#    &$prepare_build("haproxy"=>sub{
+#        my($ctx_dir)=@_;
+#        &$put_text("$ctx_dir/haproxy.cfg",???);
+#        &$put_text("$ctx_dir/Dockerfile", join "\n",
+#            "FROM haproxy:1.7",
+#            "COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg",
+#        );
+#    });
 #my $git_need_repo = sub{
 #    my($dir)=@_;
 #    my $agit = ['git', "--git-dir=$dir/.git", "--work-tree=$dir"];
@@ -145,7 +112,7 @@ my $run_generator = sub{
 
 my $run_generator_outer = sub{
     my $generator_path = &$get_generator_path();
-    &$recycling("$generator_path/src");
+    -e $_ and sy("rm -rf $_") for "$generator_path/src";
     my $src_dir = &$abs_path();
     for my $path (grep{-e} map{"$_/src"} <$src_dir/c4*>){
         my $rel_path = substr $path, length $src_dir;
@@ -155,24 +122,23 @@ my $run_generator_outer = sub{
     #&$update_file_tree("$generator_path/to",&$get_generated_sbt_dir());
 };
 
+my $build_some_server = sub{
+    &$run_generator_outer();
+    my $gen_dir = &$get_generated_sbt_dir();
+    &$sy_in_dir($gen_dir,"sbt stage");
+};
+
 push @tasks, ["### build ###"];
 push @tasks, ["build_all", sub{
     &$sy_in_dir(&$abs_path(),"sbt clean");
     &$sy_in_dir(&$abs_path("generator"),"sbt clean");
-    &$run_generator_outer();
-    &$sy_in_dir(&$get_generated_sbt_dir(),"sbt stage");
-    &$gen_docker_conf();
+    &$build_some_server();
 }];
 push @tasks, ["build_some_server", sub{
-    &$run_generator_outer();
-    &$sy_in_dir(&$get_generated_sbt_dir(),"sbt stage");
-    &$gen_docker_conf();
+    &$build_some_server();
 }];
 push @tasks, ["run_generator", sub{
     &$run_generator_outer();
-}];
-push @tasks, ["build_conf_only", sub{
-    &$gen_docker_conf([]);
 }];
 #push @tasks, ["sbt", sub{
 #    chdir &$get_generated_sbt_dir() or die $!;

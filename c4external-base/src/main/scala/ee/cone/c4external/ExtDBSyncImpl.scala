@@ -1,14 +1,16 @@
 package ee.cone.c4external
 
+import java.net.CacheResponse
+
 import com.squareup.wire.ProtoAdapter
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.{NextOffset, SrcId}
+import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
-import ee.cone.c4external.ExternalProtocol.ExternalUpdates
+import ee.cone.c4external.ExternalProtocol.S_ExternalUpdate
 import ee.cone.c4proto.HasId
-import ee.cone.dbadapter.{DBAdapter, OrigSchema, OrigSchemaBuilder, OrigSchemaBuildersApp}
+import ee.cone.dbadapter.{DBAdapter, DBSchemaBuilder, DBSchemaBuildersApp, TableSchema}
 
-trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
+trait ExtDBSyncApp extends DBSchemaBuildersApp with ExtModelsApp {
   def qAdapterRegistry: QAdapterRegistry
   def toUpdate: ToUpdate
   def dbAdapter: DBAdapter
@@ -18,49 +20,41 @@ trait ExtDBSyncApp extends OrigSchemaBuildersApp with ExtModelsApp {
 
 class ExtDBSyncImpl(
   dbAdapter: DBAdapter,
-  builders: List[OrigSchemaBuilder[_ <: Product]],
+  builders: List[DBSchemaBuilder[_ <: Product]],
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
-  external: List[ExternalModel[_ <: Product]]
+  external: List[ExternalModel[_ <: Product]],
+  archiveFlag: Long = 2L
 ) extends ExtDBSync with LazyLogging {
-
+  val patch: List[TableSchema] = dbAdapter.patchSchema(builders.flatMap(_.getSchemas))
+  logger.debug(patch.toString())
   val externalsList: List[String] = external.map(_.clName)
   val externalsSet: Set[String] = externalsList.toSet
-  val buildersByName: Map[String, OrigSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigClName → b).toMap
+  val buildersByName: Map[String, DBSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigClName → b).toMap
   // Check if registered externals have builder
-  val builderMap: Map[Long, OrigSchemaBuilder[_ <: Product]] = externalsList.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
+  val builderMap: Map[Long, DBSchemaBuilder[_ <: Product]] = externalsList.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
   val supportedIds: Set[Long] = builderMap.keySet
   // Check if registered externals have adapter
   val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.filterKeys(supportedIds)
 
-  val extUpdate: ProtoAdapter[ExternalUpdates] with HasId =
-    qAdapterRegistry.byName(classOf[ExternalUpdates].getName)
-      .asInstanceOf[ProtoAdapter[ExternalUpdates] with HasId]
+  val extUpdate: ProtoAdapter[S_ExternalUpdate] with HasId =
+    qAdapterRegistry.byName(classOf[S_ExternalUpdate].getName)
+      .asInstanceOf[ProtoAdapter[S_ExternalUpdate] with HasId]
 
-
-  lazy val externals: Map[String, Long] = buildersByName.transform{case (_, v) ⇒ v.getOrigId}.filterKeys(externalsSet)
-
-  def upload: List[ExternalUpdates] ⇒ List[(String, Int)] = list ⇒ {
-    val toWrite: List[(NextOffset, List[QProtocol.Update])] = list.map(u ⇒
-      u.txId → u.updates
-    )
+  def upload: List[S_ExternalUpdate] ⇒ List[(String, Int)] = list ⇒ {
+    val toWrite: List[(NextOffset, List[S_ExternalUpdate])] = list.filter(u ⇒ (u.flags & archiveFlag) == 0L).groupBy(_.txId).toList.sortBy(_._1)
     (for {
       (offset, qUpdates) ← toWrite
     } yield {
       val (toDelete, toUpdate) = qUpdates.partition(_.value.size() == 0)
-      val deletes = toDelete.flatMap(ext ⇒ builderMap(ext.valueTypeId).getDeleteValue(ext.srcId))
+      val deletes = toDelete.flatMap(ext ⇒ builderMap(ext.valueTypeId).getDeleteValue(ext.valueSrcId))
       val updates = toUpdate.flatMap(ext ⇒ {
         val builder = builderMap(ext.valueTypeId)
         builder.getUpdateValue(adaptersById(ext.valueTypeId).decode(ext.value))
       }
       )
-      logger.debug(s"Writing $offset $deletes/$updates origs")
+      logger.debug(s"Writing $offset ${deletes.length}/${updates.length} origs")
       dbAdapter.putOrigs(deletes ::: updates, offset)
     }).flatten.map(t ⇒ t._1.className → t._2)
-  }
-  
-  def download: List[ByPKExtRequest] ⇒ List[QProtocol.Update] = list ⇒ {
-    val loadList: List[(OrigSchema, List[SrcId])] = list.groupBy(_.modelId).toList.filter(p ⇒ supportedIds(p._1)).collect { case (k, v) ⇒ builderMap(k).getMainSchema → v.map(_.modelSrcId) }
-    loadList.flatMap { case (sch, pks) ⇒ dbAdapter.getOrigBytes(sch, pks) }
   }
 }

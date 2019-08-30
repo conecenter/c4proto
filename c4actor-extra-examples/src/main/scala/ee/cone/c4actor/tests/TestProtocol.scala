@@ -7,20 +7,20 @@ import ee.cone.c4proto._
 
   @ShortName("KEK")
   @Id(1)
-  @Cat(Cat2, Cat1) case class LUL(
+  @Cat(Cat2, Cat1) case class D_LUL(
     @ShortName("LUL") @Id(2) test: String
   )
 
   @Id(2)
-  @Cat(Cat1) case class LUL2()
+  @Cat(Cat1) case class D_LUL2()
 
 }
 
-case object Cat1 extends OrigCategory {
+case object Cat1 extends DataCategory {
   def uid: Int = 0x001
 }
 
-case object Cat2 extends OrigCategory {
+case object Cat2 extends DataCategory {
   def uid: Int = 0x002
 }
 

@@ -1,8 +1,8 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
-import ee.cone.c4gate.AlienProtocol.FromAlienState
-import ee.cone.c4gate.HttpProtocol.HttpPost
+import ee.cone.c4gate.AlienProtocol.U_FromAlienState
+import ee.cone.c4gate.HttpProtocol.S_HttpPost
 import ee.cone.c4proto.Protocol
 
 class DumperApp extends RichDataApp
@@ -28,8 +28,8 @@ class Dumper(
     val list = snapshotMaker.make(NextSnapshotTask(None))
     val event = snapshotLoader.load(list.head).get
     val context = richRawWorldReducer.reduce(None,List(event))
-    ByPK(classOf[HttpPost]).of(context).values.toList.sortBy(_.srcId).foreach(println)
-    ByPK(classOf[FromAlienState]).of(context).values.toList.sortBy(_.sessionKey).foreach(println)
+    ByPK(classOf[S_HttpPost]).of(context).values.toList.sortBy(_.srcId).foreach(println)
+    ByPK(classOf[U_FromAlienState]).of(context).values.toList.sortBy(_.sessionKey).foreach(println)
     execution.complete()
   }
 }

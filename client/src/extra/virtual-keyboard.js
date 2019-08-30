@@ -1,22 +1,14 @@
 "use strict";
 import React from 'react'
+import {eventManager,checkActivateCalls} from './event-manager.js'
 
-export default function VirtualKeyboard({log,btoa,eventManager,windowManager,StatefulComponent,reactPathConsumer}){
+export default function VirtualKeyboard({log,btoa,windowManager,StatefulComponent,reactPathConsumer}){
 	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const $ = React.createElement	
-	const checkActivateCalls=(()=>{
-		const callbacks=[]
-		const add = (c) => callbacks.push(c)
-		const remove = (c) => {
-			const index = callbacks.indexOf(c)
-			callbacks.splice(index,1)
-		}
-		const check = () => callbacks.forEach(c=>c())
-		return {add,remove,check}
-	})();
+	
 	const getReactRoot = (el) => el.ownerDocument.body
-	const isNodePosition = (el,v) => el.ownerDocument.defaultView.getComputedStyle(el).position == v
-	const {setTimeout,getWindowRect} = windowManager
+	const isNodePosition = (el,v) => el&&el.ownerDocument&&el.ownerDocument.defaultView&&el.ownerDocument.defaultView.getComputedStyle(el).position == v	
+	const {setTimeout,getWindowRect,setInterval,clearInterval} = windowManager
 	const getPageYOffset = (el) => el&&el.ownerDocument&&el.ownerDocument.defaultView?el.ownerDocument.defaultView.pageYOffset:0
 	const GlobalStyles = (()=>{
 		let styles = {
@@ -36,7 +28,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 		getInitialState(){return {mouseDown:false}}
 		onClick(ev){
 			this.props.onPress && this.props.onPress()
-			if(this.props.fkey) eventManager.sendToWindow(eventManager.create("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
+			if(this.props.fkey) eventManager.sendToWindow(eventManager.create(ev.target)("keydown",{key:this.props.fkey,bubbles:true,code:"vk"}))
 			if(this.props.onClick) this.props.onClick(ev)			
 		}
 		onTouchStart(e){
@@ -65,7 +57,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 				...this.props.style,				
 				...(this.state.mouseDown?{backgroundColor:"rgb(25, 118, 210)"}:{})
 			};
-			const className = "vkElement"
+			const className = "vkElement " + (this.props.className?this.props.className:"")
 			return $("button",{style:bStyle,className,onTouchStart:this.onTouchStart,onTouchEnd:this.onMouseUp,onMouseDown:this.onMouseDown,onMouseUp:this.onMouseUp},this.props.children);
 		}
 	}	
@@ -126,6 +118,14 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 			}
 			return null
 		}
+		isOfParentNode(el,parentNode){
+			let e = el
+			while(e){
+				if(e == parentNode) return true
+				e = e.parenElement
+			}
+			return false
+		}
 		getFocusedElement(){
 			const a = this.el.ownerDocument.querySelector(`*[data-path="${this.path}"]`)
 			const b = this.el.ownerDocument.activeElement
@@ -151,11 +151,16 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 			return this.root
 		}
 		componentDidMount(){
-			this.root = this.getRoot()				
-			checkActivateCalls.add(this.fitIn)			
+			this.root = this.getRoot()
+			if(!this.props.auto)
+				checkActivateCalls.add(this.fitIn)			
+			else 
+				this.posInterval = setInterval(this.fitIn,100)
+			
 		}
 		componentWillUnmount(){
-			this.unmounted = true			
+			this.unmounted = true	
+			clearInterval(this.posInterval)
 			checkActivateCalls.remove(this.fitIn)		
 		}
 		emRatio(){
@@ -275,9 +280,10 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 			}
 		}
 		onPress(){
-			if(this.getFocusedElement().tagName == "BODY") {
+			//if(this.getFocusedElement().tagName == "BODY") 
+			{
 				const sticky = this.getStickyElement()
-				sticky && sticky.focus()
+				if(sticky && !this.isOfParentNode(this.getFocusedElement(),sticky)) sticky.focus()
 			}
 		}
 		render(){					    
@@ -317,7 +323,7 @@ export default function VirtualKeyboard({log,btoa,eventManager,windowManager,Sta
 				$("div",{key:"vk",ref:this.onRef(path),style:positionStyle,className},
 					vkLayout?
 					$("div",{style:wrapperStyle},[				
-						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle}, key:genKey(btn.char,j),onPress:this.onPress, fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
+						buttons.map((btn,j)=>$(VKButton,{style:{...btn.style,...btnStyle},className:btn.className, key:genKey(btn.char,j),onPress:this.onPress, fkey:btn.char, onClick:btn.switcher?this.switchMode:null}, (btn.image)?$("img", mutate(btn.image), null):btn.value?btn.value:btn.char))
 					]):
 					null
 				),

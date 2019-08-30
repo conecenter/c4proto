@@ -8,7 +8,7 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4gate.AlienProtocol.{FromAlienStatus, _}
+import ee.cone.c4gate.AlienProtocol.{U_FromAlienStatus, _}
 import ee.cone.c4proto.Protocol
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
@@ -18,8 +18,8 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
-import ee.cone.c4gate.AuthProtocol.AuthenticatedSession
-import ee.cone.c4gate.HttpProtocol.{Header, HttpPost, HttpPublication}
+import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPost, S_HttpPublication}
 import okio.ByteString
 
 trait SSEServerApp
@@ -54,22 +54,22 @@ class PongHandler(
     pongs: TrieMap[String,Instant] = TrieMap()
 ) extends RHttpHandler with ToInject with LazyLogging {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
-  def handle(httpExchange: HttpExchange, reqHeaders: List[Header]): Boolean = {
+  def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean = {
     if(httpExchange.getRequestMethod != "POST") return false
     if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
     val headers = reqHeaders.groupBy(_.key).map{ case(k,v) ⇒ k→Single(v).value }
     val now = Instant.now
     val local = worldProvider.createTx()
     val sessionKey = headers("X-r-session")
-    val userName = ByPK(classOf[AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
-    val session = FromAlienState(
+    val userName = ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
+    val session = U_FromAlienState(
       sessionKey,
       headers("X-r-location"),
       headers("X-r-connection"),
       userName
     )
     val refreshPeriodLong = sseConfig.stateRefreshPeriodSeconds*1L
-    val status = FromAlienStatus(
+    val status = U_FromAlienStatus(
       sessionKey,
       now.getEpochSecond /
         refreshPeriodLong *
@@ -79,8 +79,8 @@ class PongHandler(
       isOnline = true
     )
     pongs(session.sessionKey) = now.plusSeconds(5)
-    val wasSession = ByPK(classOf[FromAlienState]).of(local).get(session.sessionKey)
-    val wasStatus = ByPK(classOf[FromAlienStatus]).of(local).get(status.sessionKey)
+    val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
+    val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
     TxAdd(
       (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
         (if(wasStatus != Option(status)) LEvent.update(status) else Nil)
@@ -123,9 +123,9 @@ case object SSEPingTimeKey extends TransientLens[Instant](Instant.MIN)
 
 case class SessionTxTransform( //?todo session/pongs purge
     sessionKey: SrcId,
-    fromAlien: FromAlienState,
-    status: FromAlienStatus,
-    writes: Values[ToAlienWrite],
+    fromAlien: U_FromAlienState,
+    status: U_FromAlienStatus,
+    writes: Values[U_ToAlienWrite],
     availability: Option[Availability]
 ) extends TxTransform {
   def transform(local: Context): Context = {
@@ -159,8 +159,8 @@ case class SessionTxTransform( //?todo session/pongs purge
 object SSEAssembles {
   def apply(mortal: MortalFactory): List[Assemble] =
     new SSEAssemble ::
-      mortal(classOf[FromAlienStatus]) ::
-      mortal(classOf[ToAlienWrite]) :: Nil
+      mortal(classOf[U_FromAlienStatus]) ::
+      mortal(classOf[U_ToAlienWrite]) :: Nil
 }
 
 @assemble class SSEAssembleBase   {
@@ -168,14 +168,14 @@ object SSEAssembles {
 
   def joinToAlienWrite(
     key: SrcId,
-    write: Each[ToAlienWrite]
-  ): Values[(SessionKey, ToAlienWrite)] = List(write.sessionKey→write)
+    write: Each[U_ToAlienWrite]
+  ): Values[(SessionKey, U_ToAlienWrite)] = List(write.sessionKey→write)
 
   def joinTxTransform(
     key: SrcId,
-    session: Each[FromAlienState],
-    status: Each[FromAlienStatus],
-    @by[SessionKey] writes: Values[ToAlienWrite],
+    session: Each[U_FromAlienState],
+    status: Each[U_FromAlienStatus],
+    @by[SessionKey] writes: Values[U_ToAlienWrite],
     @by[All] availabilities: Values[Availability]
   ): Values[(SrcId,TxTransform)] = List(WithPK(SessionTxTransform(
     session.sessionKey, session, status, writes.sortBy(_.priority), Single.option(availabilities)
@@ -183,22 +183,22 @@ object SSEAssembles {
 
   def lifeOfSessionToWrite(
     key: SrcId,
-    fromAliens: Values[FromAlienState],
-    @by[SessionKey] write: Each[ToAlienWrite]
-  ): Values[(Alive,ToAlienWrite)] =
+    fromAliens: Values[U_FromAlienState],
+    @by[SessionKey] write: Each[U_ToAlienWrite]
+  ): Values[(Alive,U_ToAlienWrite)] =
     if(fromAliens.nonEmpty) List(WithPK(write)) else Nil
 
   def lifeOfSessionPong(
     key: SrcId,
-    fromAliens: Values[FromAlienState],
-    status: Each[FromAlienStatus]
-  ): Values[(Alive,FromAlienStatus)] =
+    fromAliens: Values[U_FromAlienState],
+    status: Each[U_FromAlienStatus]
+  ): Values[(Alive,U_FromAlienStatus)] =
     if(fromAliens.nonEmpty) List(WithPK(status)) else Nil
 
   def checkAuthenticatedSession(
     key: SrcId,
-    fromAliens: Values[FromAlienState],
-    authenticatedSession: Each[AuthenticatedSession]
+    fromAliens: Values[U_FromAlienState],
+    authenticatedSession: Each[U_AuthenticatedSession]
   ): Values[(SrcId,TxTransform)] =
     if(fromAliens.isEmpty)
       List(WithPK(CheckAuthenticatedSessionTxTransform(authenticatedSession)))
@@ -206,7 +206,7 @@ object SSEAssembles {
 
   def allAvailability(
     key: SrcId,
-    doc: Each[HttpPublication]
+    doc: Each[S_HttpPublication]
   ): Values[(All,Availability)] = for {
     until ← doc.until.toList if doc.path == "/availability"
   } yield All → Availability(doc.path,until)
@@ -215,7 +215,7 @@ object SSEAssembles {
 case class Availability(path: String, until: Long)
 
 case class CheckAuthenticatedSessionTxTransform(
-  authenticatedSession: AuthenticatedSession
+  authenticatedSession: U_AuthenticatedSession
 ) extends TxTransform {
   def transform(local: Context) =
     if(Instant.ofEpochSecond(authenticatedSession.untilSecond).isBefore(Instant.now))

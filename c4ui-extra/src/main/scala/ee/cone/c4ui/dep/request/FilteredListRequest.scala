@@ -8,7 +8,7 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep_impl.{DepHandlersApp, DepResponseImpl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
-import ee.cone.c4ui.dep.request.DepFilteredListRequestProtocol.FilteredListRequest
+import ee.cone.c4ui.dep.request.DepFilteredListRequestProtocol.N_FilteredListRequest
 import ee.cone.c4proto.{Id, Protocol, protocol}
 import ee.cone.c4ui.FromAlienTask
 
@@ -32,15 +32,15 @@ trait FilterListRequestHandlerApp
 
   private lazy val depMap: Map[(String, String), Dep[List[_]]] = filterDepList.map(elem ⇒ (elem.listName, elem.filterPK) → elem.requestDep).toMap
 
-  private def fltAsk: DepAsk[FilteredListRequest, List[_]] = depAskFactory.forClasses(classOf[FilteredListRequest], classOf[List[_]])
+  private def fltAsk: DepAsk[N_FilteredListRequest, List[_]] = depAskFactory.forClasses(classOf[N_FilteredListRequest], classOf[List[_]])
 
   override def depHandlers: List[DepHandler] = fltAsk.by(rq ⇒ {
     depMap((rq.listName, rq.filterPK))
   }
-  ) :: injectContext[FilteredListRequest](fltAsk, _.contextId) ::
-    injectUser[FilteredListRequest](fltAsk, _.userId) ::
-    injectMockRole[FilteredListRequest](fltAsk, rq ⇒ rq.mockRoleId.flatMap(id ⇒ rq.mockRoleEditable.map(ed ⇒ id → ed))) ::
-    injectRole[FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
+  ) :: injectContext[N_FilteredListRequest](fltAsk, _.contextId) ::
+    injectUser[N_FilteredListRequest](fltAsk, _.userId) ::
+    injectMockRole[N_FilteredListRequest](fltAsk, rq ⇒ rq.mockRoleId.flatMap(id ⇒ rq.mockRoleEditable.map(ed ⇒ id → ed))) ::
+    injectRole[N_FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
   override def assembles: List[Assemble] = new FilteredListResponseReceiver(preHashing, hashGen) :: filterDepList.map(
     df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory)
@@ -86,7 +86,7 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     @by[GroupId] resp: Each[DepResponse]
   ): Values[(SrcId, FilteredListResponse)] =
     resp.innerRequest.request match {
-      case request: FilteredListRequest ⇒
+      case request: N_FilteredListRequest ⇒
         val srcId = hashGen.generate((request.branchId, request.listName, request.filterPK))
         resp match {
           case a: DepResponseImpl ⇒ List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, a.valueHashed)))
@@ -117,14 +117,14 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
           }
         else
           ("", "", None)
-      val filterRequest = FilteredListRequest(alienTask.branchKey, alienTask.fromAlienState.sessionKey, userId, roleId, mockRole.map(_._1), mockRole.map(_._2), listName, filterPK)
+      val filterRequest = N_FilteredListRequest(alienTask.branchKey, alienTask.fromAlienState.sessionKey, userId, roleId, mockRole.map(_._1), mockRole.map(_._2), listName, filterPK)
       List(u.tupledOuterRequest(alienTask.branchKey)(filterRequest))
     } else Nil
 }
 
-@protocol(DepRequestCat) object DepFilteredListRequestProtocolBase   {
+@protocol object DepFilteredListRequestProtocolBase   {
 
-  @Id(0x0a01) case class FilteredListRequest(
+  @Id(0x0a01) case class N_FilteredListRequest(
     @Id(0x0a0a) branchId: String,
     @Id(0x0a02) contextId: String,
     @Id(0x0a05) userId: String,

@@ -1,10 +1,16 @@
 "use strict";
 import React from 'react'
 import {pairOfInputAttributes}  from "../../main/vdom-util"
-import Errors from "../../extra/errors"
-import {ctxToPath,rootCtx} from "../../main/vdom-util"
-import {dragDropPositionStates} from "../dragdrop-module"
-
+import {ErrorElement} from "./errors"
+import {ctxToPath,rootCtx,chain} from "../../main/vdom-util"
+import GlobalStyles from './global-styles.js'
+import {eventManager,checkActivateCalls} from '../event-manager.js'
+import {ButtonElement,ButtonWithRippleElement} from './components/buttons'
+import {MenuBarElement, MenuDropdownElement, FolderMenuElement, ExecutableMenuElement} from './components/menu'
+import {dragDropModule,dragDropPositionStates} from "../dragdrop-module"
+import {DragDropHandlerElement, DragDropDivElement} from './components/drag-drop.js'
+import {images as _images} from "./media/images.js"
+import TalmanElements from "./talman/talman.js"
 /*
 todo:
 extract mouse/touch to components https://facebook.github.io/react/docs/jsx-in-depth.html 'Functions as Children'
@@ -12,28 +18,20 @@ jsx?
 */
 
 
-const TextSelectionMonitor = ((log) =>{
-	const windows = []
-	const getSelection = w => w.document.getSelection().toString()
-	const regListener = w => {		
-		if(!w || windows.find(_=>_==w)) return w		
-		windows.push(w)
-		w.addEventListener("mouseup",e=>w.lastSelectionT = getSelection(w).length>0?e.timeStamp:0,true)		
-	}
-	const check = (elem,event) => {
+const TextSelectionMonitor = ((log) =>{	
+	const getSelection = w => w.document.getSelection()
+	const check = (event) => {
+		const elem = event.target
 		const w = elem && elem.ownerDocument && elem.ownerDocument.defaultView		
-		if(!regListener(w) || !event) return false			
-		const timeStamp = event.timeStamp
-		return timeStamp - w.lastSelectionT < 2000
+		const selection = getSelection(w)
+		return selection.toString().length>0 && (!selection.anchorNode || elem.hasChildNodes(selection.anchorNode))
 	}
 	return check
 })
 
-
-export default function MetroUi(log,requestState,images,documentManager,eventManager,OverlayManager,DragDropModule,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes){
+export default function MetroUi({log,requestState,documentManager,OverlayManager,windowManager,miscReact,miscUtil,StatefulComponent,vDomAttributes}){
 	const $ = React.createElement	
-	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput
-	const dragDropModule = DragDropModule()
+	const ReControlledInput = vDomAttributes.transforms.tp.ReControlledInput	
 	const overlayManager = OverlayManager()	
 	const textSelectionMonitor = TextSelectionMonitor(log)
 	const Branches = (()=>{
@@ -50,32 +48,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		return {store, get, isSibling}
 	})()
-	const GlobalStyles = (()=>{
-		let styles = {
-			outlineWidth:"0.04em",
-			outlineStyle:"solid",
-			outlineColor:"blue",
-			outlineOffset:"-0.1em",
-			boxShadow:"0 0 0.3125em 0 rgba(0, 0, 0, 0.3)",
-			borderWidth:"1px",
-			borderStyle:"solid",
-			borderSpacing:"0em",
-		}
-		const update = (newStyles) => styles = {...styles,...newStyles}
-		return {...styles,update};
-	})()
-	const DarkPrimaryColor = "#1976d2"
-	const PrimaryColor = "#2196f3"
-	const checkActivateCalls=(()=>{
-		const callbacks=[]
-		const add = (c) => callbacks.push(c)
-		const remove = (c) => {
-			const index = callbacks.indexOf(c)
-			if(index>=0) callbacks.splice(index,1)
-		}
-		const check = (modify) => callbacks.forEach(c=>c(modify))
-		return {add,remove,check}
-	})();
+	const images = _images(documentManager.body())
+	const {DarkPrimaryColor, PrimaryColor} = GlobalStyles	
+	
 	const {isReactRoot,getReactRoot} = miscReact
 	const {setTimeout,clearTimeout,setInterval,clearInterval,getPageYOffset,addEventListener,removeEventListener,getWindowRect,getComputedStyle,urlPrefix} = windowManager
 	const {Provider, Consumer} = React.createContext("path");
@@ -121,430 +96,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		maxWidth:maxWidth?maxWidth:'auto',
 		...style
 	}},children);	
-	
-	class ButtonElement extends StatefulComponent{		
-		getInitialState(){return {mouseOver:false,touch:false, ripple:false}}
-		mouseOver(){
-			this.setState({mouseOver:true});
-			if(this.props.onMouseOver)
-				this.props.onMouseOver();
-		}
-		mouseOut(){
-			this.setState({mouseOver:false});
-			if(this.props.onMouseOut)
-				this.props.onMouseOut();
-		}
-		onTouchStart(e){
-			this.setState({touch:true});			
-		}
-		onTouchEnd(e){		
-			this.setState({touch:false,mouseOver:false});		
-		}
-		onClick(e){			
-			if(this.props.onClick){
-				setTimeout(function(){this.props.onClick(e)}.bind(this),(this.props.delay?parseInt(this.props.delay):0));
-			}				
-			e.stopPropagation()
-		}	
-		onMouseDown(e){
-			this.onClick(e)
-			e.stopPropagation()
-		}
-		onEnter(event){
-			//log(`Enter ;`)
-			event.stopPropagation()
-			if(!this.el) return
-			this.el.click()
-			const cEvent = eventManager.create("cTab",{bubbles:true})
-			this.el.dispatchEvent(cEvent)							
-		}	
-		componentDidMount(){
-			this.updatePeriod = 50
-			this.updateAt = 0
-			if(!this.el) return
-			this.el.addEventListener("enter",this.onEnter)
-			this.el.addEventListener("click",this.onClick)
-			if(this.props.ripple)
-				checkActivateCalls.add(this.rippleAnim)
-		}
-		componentDidUpdate(prevProps,prevState){
-			if(this.props.ripple && !prevProps.ripple)
-				checkActivateCalls.add(this.rippleAnim)
-			if(!this.props.ripple && prevProps.ripple)
-				checkActivateCalls.remove(this.rippleAnim)
-		}
-		componentWillUnmount(){
-			this.el.removeEventListener("enter",this.onEnter)
-			this.el.removeEventListener("click",this.onClick)
-			checkActivateCalls.remove(this.rippleAnim)
-		}
-		componentWillReceiveProps(nextProps){
-			this.setState({mouseOver:false,touch:false});
-		}
-		rippleAnim(){
-			if(this.updateAt<=0) {
-				const width = this.el.getBoundingClientRect().width
-				const height = this.el.getBoundingClientRect().height
-				const rBox = Math.max(width,height)
-				const top = width>height?-(rBox-height)/2:0
-				const left = width<height?-(rBox-width)/2:0								
-				this.setState({ripple:!this.state.ripple, rBox,top,left})
-				this.updateAt = this.updatePeriod				
-			}
-			this.updateAt-=1
-		}
-		render(){		
-			const defbg = "#eeeeee"
-			const bg = this.props.style&&this.props.style.backgroundColor?this.props.style.backgroundColor:defbg			
-			const oStyle = this.props.ripple?{margin:"0px"}:{}
-			const style={
-				border:'none',
-				cursor:'pointer',
-				paddingInlineStart:'0.4em',
-				paddingInlineEnd:'0.4em',
-				padding:'0 1em',
-				minHeight:'1em',
-				minWidth:'1em',
-				fontSize:'1em',
-				alignSelf:'center',
-				fontFamily:'inherit',				
-				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-				outlineOffset:GlobalStyles.outlineOffset,
-				...this.props.style,
-				...oStyle,				
-				...(this.state.mouseOver && Object.keys(this.props.overStyle||{}).length==0?{opacity:"0.8"}:null),
-				...(this.state.mouseOver?this.props.overStyle:null),				
-			}
-			const className = this.props.className
-			
-			const wrap = (el) =>{
-				if(this.props.ripple && this.state.top!==undefined && this.state.left!==undefined && this.state.rBox){					
-					const rEl = $("div",{key:"rp",style:{
-						width:this.state.rBox+"px",
-						height:this.state.rBox+"px",
-						position:"absolute",
-						top:this.state.top+"px",
-						left:this.state.left+"px",
-						backgroundColor:"transparent",
-						transition:this.state.ripple?"transform 2.1s":"transform 0s",						
-						borderRadius:"50%",						
-						boxShadow: "inset 0px 0px 2.4em 0.5em rgba(255,255,255,0.9)",						
-						transform:this.state.ripple?"scale(2,2)":"scale(0,0)",
-						pointerEvents:"none"
-					}})
-					return $("div",{style:{position:"relative",overflow:"hidden",...this.props.style}},[el,rEl])
-				}
-				else 
-					return el
-			}
-			const el = $("button",{title:this.props.hint,className,key:"btn",style,ref:ref=>this.el=ref,onMouseOver:this.mouseOver,onMouseOut:this.mouseOut,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children)	
-			return wrap(el)
-		}
-	}
-	
-	const uiElements = []
-	const errors = Errors({log,uiElements,documentManager})
-	
-	
-	class ErrorElement extends StatefulComponent{	
-		getInitialState(){return {show:false,data:null}}
-		callback(data){		
-			this.setState({show:true,data})
-		}
-		componentDidMount(){
-			this.binding = errors.reg(this.callback)			
-		}
-		onClick(e){			
-			this.setState({show:false,data:null})
-			if(this.props.onClick) this.props.onClick(e)
-		}
-		componentWillUnmount(){
-			if(this.binding) this.binding.unreg()
-		}
-		render(){
-			if(this.state.show||this.props.data!=undefined){				
-				const closeImg = $("img",{src:images.closeSvgData,style:{width:"1.5em",display:"inherit",height:"0.7em"}})
-				const noteImg = $("img",{src:images.noteSvgData,style:{width:"1.5em",display:"inherit"}})
-				const data = this.props.data?this.props.data:this.state.data
-				const buttonEls = this.props.onClick?[					
-						$(ButtonElement,{key:"but2",onClick:this.onClick,style:{/*margin:"5mm",*/margin:"0px",flex:"0 0 auto"}},closeImg)
-					]:null
-				const style = {
-					backgroundColor:"white",
-					padding:"0em 1.25em",
-					borderTop:"0.1em solid #1976d2",
-					borderBottom:"0.1em solid #1976d2",
-					...this.props.style
-				}	
-				const errorEl = $("div",{style},
-					$("div",{style:{display:"flex",height:"auto",margin:"0.2em"}},[
-						$("div",{key:"msg",style:{display:"flex",flex:"1 1 auto",minWidth:"0"}},[
-							$("div",{key:"icon",style:{alignSelf:"center"}},noteImg),
-							$("div",{key:"msg",style:{alignSelf:"center",color:"red",flex:"0 1 auto",margin:"0em 0.5em",overflow:"hidden",textOverflow:"ellipsis"}},data)						
-						]),
-						buttonEls
-					])
-				)			
-				return errorEl
-			}	
-			else 
-				return null
-		}
-	}
-	uiElements.push({ErrorElement})
-	
-	const MenuBurger = (props) => {	
-	
-		const c = {transition:"all 100ms",transformOrigin:"center"}
-		const alt1 = props.isBurgerOpen?{transform: "rotate(-45deg)"}:{}
-		const alt2 = props.isBurgerOpen?{opacity: "0"}:{}
-		const alt3 = props.isBurgerOpen?{transform: "rotate(45deg)"}:{}	
-		const color = props.style&&props.style.color?props.style.color:"white"
-		const svg = $("svg",{xmlns:"http://www.w3.org/2000/svg","xmlnsXlink":"http://www.w3.org/1999/xlink",height:"1.5em",width:"1.5em", style:{"enableBackground":"new 0 0 32 32"}, version:"1.1", viewBox:"0 0 32 32","xmlSpace":"preserve"},[				
-				$("line",{style:{...c,...alt1},key:1,"strokeLinecap":"round",x1:"2",y1:props.isBurgerOpen?"16":"9",x2:"30",y2:props.isBurgerOpen?"16":"9","strokeWidth":"4","stroke":color}),							
-				$("line",{style:{...c,...alt2},key:2,"strokeLinecap":"round",x1:"2",y1:"17",x2:"30",y2:"17","strokeWidth":"4","stroke":color}),								
-				$("line",{style:{...c,...alt3},key:3,"strokeLinecap":"round",x1:"2",y1:props.isBurgerOpen?"16":"25",x2:"30",y2:props.isBurgerOpen?"16":"25","strokeWidth":"4","stroke":color})				
-		])
-		const style = {
-			backgroundColor:"inherit",
-			cursor:"pointer",
-			...props.style
-		}
-		return $("div",{style,onClick:props.onClick},svg)
-	}
-	
-	class MenuBarElement extends StatefulComponent{		
-		getInitialState(){return {fixedHeight:"",scrolled:false, isBurger:false}}	
-		process(){
-			if(!this.el) return;
-			const height = this.el.getBoundingClientRect().height + "px";			
-			if(height !== this.state.fixedHeight) this.setState({fixedHeight:height});			
-		}
-		onScroll(){
-			const scrolled = getPageYOffset()>0;
-			if(!this.state.scrolled&&scrolled) this.setState({scrolled}) 
-			else if(this.state.scrolled&&!scrolled) this.setState({scrolled})
-		}
-		componentWillUnmount(){
-			checkActivateCalls.remove(this.calc)
-			//removeEventListener("scroll",this.onScroll);
-		}		
-		calc(){
-			if(!this.leftEl) return						
-			const tCLength = Math.round(Array.from(this.leftEl.children).reduce((a,e)=>a+e.getBoundingClientRect().width,0))
-			const tLength = Math.round(this.leftEl.getBoundingClientRect().width)
-			
-			if(!this.bpLength && tCLength>0 && tCLength>=tLength && !this.state.isBurger) {
-				this.bpLength = tCLength				
-				this.setState({isBurger:true})
-			}
-			if(this.bpLength && this.bpLength<tLength && this.state.isBurger){					
-				this.bpLength = null
-				this.setState({isBurger:false})
-			}
-		}
-		openBurger(e){
-			if(this.props.onClick)
-				this.props.onClick(e)			
-		}
-		componentDidMount(){
-			checkActivateCalls.add(this.calc)
-			//this.process();
-			//addEventListener("scroll",this.onScroll);
-		}
-		parentEl(node){
-			if(!this.leftEl||!node) return true
-			let p = node
-			while(p && p !=this.leftEl){
-				p = p.parentElement
-				if(p == this.leftEl) return true
-			}
-			return false
-		}
-		onBurgerBlur(e){
-			if(this.props.isBurgerOpen && !this.parentEl(e.relatedTarget)) this.openBurger(e)
-		}
-		render(){
-			const style = {								
-			}
-			const menuStyle = {
-				position:"static",
-				width:"100%",
-				zIndex:"6662",
-				top:"0rem",
-				boxShadow:this.state.scrolled?GlobalStyles.boxShadow:"",
-				...this.props.style				
-			}
-			const barStyle = {
-				display:'flex',
-				flexWrap:'nowrap',
-				justifyContent:'flex-start',
-				backgroundColor:'#2196f3',
-				verticalAlign:'middle',				
-				width:"100%",
-				...this.props.style				
-			}
-			const burgerPopStyle = {
-				position:"absolute",
-				zIndex:"1000",
-				backgroundColor:"inherit"
-			}
-			const left = this.props.children.filter(_=>_.key&&!_.key.includes("right"))									
-			const right = this.props.children.filter(_=>!_.key||_.key.includes("right"))
-			const menuBurger = $("div",{onBlur:this.onBurgerBlur,tabIndex:"0", style:{backgroundColor:"inherit",outline:"none"}},[
-				$(MenuBurger,{style:{marginLeft:"0.5em"},isBurgerOpen:this.props.isBurgerOpen,key:"burger",onClick:this.openBurger}),
-				this.props.isBurgerOpen?$("div",{style:burgerPopStyle,key:"popup"},left):null
-			])
-			return $("div",{style:style},
-				$("div",{style:barStyle,className:"menuBar",ref:ref=>this.el=ref,},[
-					$("div",{key:"left", ref:ref=>this.leftEl=ref,style:{whiteSpace:"nowrap",backgroundColor:"inherit",flex:"1",alignSelf:"center",display:"flex"}},this.state.isBurger?menuBurger:left),
-					$("div",{key:"right",style:{alignSelf:"center"}},right)
-				])				
-			)
-		}		
-	}
-	const getParentNode = function(childNode,className){
-		let parentNode = childNode.parentNode;
-		while(parentNode!=null&&parentNode!=undefined){
-			if(parentNode.classList.contains(className)) break;
-			parentNode = parentNode.parentNode;
-		}
-		return parentNode;
-	}
-	class MenuDropdownElement extends StatefulComponent{		
-		getInitialState(){return {maxHeight:"",right:null}}	
-		calcMaxHeight(){
-			if(!this.el) return;			
-			const elTop = this.el.getBoundingClientRect().top;
-			const innerHeight = getWindowRect().height;
-			if(this.props.isOpen&&parseFloat(this.state.maxHeight)!=innerHeight - elTop)						
-				this.setState({maxHeight:innerHeight - elTop + "px"});				
-		}
-		calc(){
-			if(!this.el) return
-			const menuRoot = getParentNode(this.el,"menuBar");
-			const maxRight = menuRoot.getBoundingClientRect().right
-			const elRight = this.el.getBoundingClientRect().right			
-			if(elRight>maxRight){				
-				if(this.state.right != 0) this.setState({right:0})
-			}
-		}
-		componentDidMount(){
-			//checkActivateCalls.add(this.calc)
-			this.calc()
-		}
-		componentDidUpdate(){
-			this.calc()
-		}
-		componentWillUnmount(){
-			//checkActivateCalls.remove(this.calc)
-		}
-		render(){			 
-			const re = /\d+(\.\d)?%/ //100%
-			const isLeft = re.test(this.props.style.left)
-			const sideStyle = isLeft && (this.state.right!==null)?{right:"100%",left:""}:{}
-			return $("div",{
-				ref:ref=>this.el=ref,
-				style: {
-					position:'absolute',					
-					minWidth:'7em',					
-					boxShadow:GlobalStyles.boxShadow,
-					zIndex:'10002',
-					transitionProperty:'all',
-					transitionDuration:'0.15s',
-					transformOrigin:'50% 0%',
-					borderWidth:GlobalStyles.borderWidth,
-					borderStyle:GlobalStyles.borderStyle,
-					borderColor:"#2196f3",					
-					maxHeight:this.state.maxHeight,
-					right:this.state.right!==null?this.state.right+"px":"",
-					...this.props.style,
-					...sideStyle
-				}
-			},this.props.children);			
-		}				
-	}
-	class FolderMenuElement extends StatefulComponent{		
-		getInitialState(){return {mouseEnter:false,touch:false}}			
-		mouseEnter(e){
-			this.setState({mouseEnter:true});
-		}
-		mouseLeave(e){
-			this.setState({mouseEnter:false});
-		}
-		onClick(e){
-		    if(this.props.onClick)
-		        this.props.onClick(e);
-			e.stopPropagation();			
-		}
-		componentDidMount(){
-			if(!this.el) return
-			this.el.addEventListener("click",this.onClick)
-		}
-		componentWillUnmount(){
-			if(!this.el) return
-			this.el.removeEventListener("click",this.onClick)
-		}
-		render(){		
-			const selStyle={
-				position:'relative',
-                backgroundColor:'inherit',
-                whiteSpace:'nowrap',
-                paddingRight:'0.8em',
-				cursor:"pointer",
-				outline:"none",
-				...this.props.style,
-				...(this.state.mouseEnter?this.props.overStyle:null)
-			};						
-				
-			return $("div",{
-				ref:ref=>this.el=ref,
-			    style:selStyle,
-			    onMouseEnter:this.mouseEnter,
-			    onMouseLeave:this.mouseLeave,			    
-				className:"menu-popup",
-				tabIndex:"1",
-			},this.props.children);
-		}
-	}
-	class ExecutableMenuElement extends StatefulComponent{		
-		getInitialState(){
-			return {mouseEnter:false}
-		}
-		mouseEnter(e){
-			this.setState({mouseEnter:true});
-		}
-		mouseLeave(e){
-			this.setState({mouseEnter:false});
-		}
-		onClick(e){
-			if(this.props.onClick)
-				this.props.onClick(e);
-			e.stopPropagation();
-		}
-		componentDidMount(){
-			if(!this.el) return
-			this.el.addEventListener("click",this.onClick)
-		}
-		componentWillUnmount(){
-			if(!this.el) return
-			this.el.removeEventListener("click",this.onClick)
-		}
-		render(){
-			const newStyle={
-                minWidth:'7em',             
-                cursor:'pointer',
-				...this.props.style,				
-				...(this.state.mouseEnter?{backgroundColor:DarkPrimaryColor,...this.props.overStyle}:null)
-			}
-		return $("div",{
-			ref:ref=>this.el=ref,
-            style:newStyle,    
-            onMouseEnter:this.mouseEnter,
-            onMouseLeave:this.mouseLeave           
-			},this.props.children);
-		}
-	}
+    
+
 	const TabSet=({style,children})=>$("div",{style:{
 		borderBottomWidth:GlobalStyles.borderWidth,
 		borderBottomStyle:GlobalStyles.borderStyle,		         
@@ -553,6 +106,33 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		marginTop:'0rem',
 		...style
 	}},children);
+	
+	
+	const appendCSS = (e,cs,data) =>{
+		let st = e.ownerDocument.querySelector(`style.${cs}`)
+		if(!st){
+			st = e.ownerDocument.createElement("style")
+			st.className = cs
+			e.ownerDocument.head.appendChild(st)
+		}
+		Array.from(st.sheet.cssRules).forEach(_=>st.sheet.deleteRule(0))
+		data.forEach(rule => st.sheet.insertRule(`${rule.selector} { ${rule.ruleStr} }`))
+	}	
+	const mountPaletteCSS = (e,p) => {		
+		const json = JSON.parse(p)
+		const data = json.map(rule=>{			
+			const selector = rule[0]
+			const rules = rule[1]
+			const ruleStr = rules.reduce((a,e)=>a+=`${e[0]}:${e[1]};\n`,"")
+			return {selector,ruleStr}			
+		})				
+		appendCSS(e,"palette",data)
+	}	
+	const disableMouseCSS = (e, on) => {	
+		const selector = "*"
+		const ruleStr = "pointer-events:none;"
+		appendCSS(e,"mouse",on?[{selector,ruleStr}]:[])		
+	}
 	class DocElement extends StatefulComponent{
 		sentData(){
 			const values = this.el.getBoundingClientRect()
@@ -591,8 +171,23 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				this.resizeL = resizeListener.reg(this.onResize)
 			}
 		}
+		/*setBodyStyle(prev = {}){
+			if(prev.style != this.props.style && this.el){
+				const isSibling = Branches.isSibling(this.ctx)
+				if(isSibling) {
+					Object.assign(this.el.style,this.props.style)
+				}
+				else
+					Object.assign(this.el.ownerDocument.body.style,this.props.style)
+			}
+		}*/
 		componentDidUpdate(prevProps){
 			this.initListener()
+			//this.setBodyStyle(prevProps)
+			if(prevProps.pathPalette != this.props.pathPalette)
+				mountPaletteCSS(this.el,this.props.pathPalette)
+			if(prevProps.noMouseEvents != this.props.noMouseEvents)
+				disableMouseCSS(this.el,this.props.noMouseEvents)
 		}
 		componentDidMount(){
 			if(!this.el) return
@@ -606,10 +201,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			doc.body.appendChild(this.remRef)
 			this.ctx = rootCtx(this.props.ctx)
 			this.initListener()			
+			//this.setBodyStyle()
+			if(this.props.pathPalette) mountPaletteCSS(this.el,this.props.pathPalette)
+			if(this.props.noMouseEvents) disableMouseCSS(this.el,this.props.noMouseEvents)
 		}
 		render(){			
-			const isSibling = Branches.isSibling(this.ctx)						
-			return $("div",{key:"1",className:"docRoot",style:this.props.style,ref:ref=>this.el=ref},this.props.children)						
+			const isSibling = Branches.isSibling(this.ctx)	
+			const style = this.props.style
+			return $("div",{key:"1",style,className:"docRoot",ref:ref=>this.el=ref},this.props.children)
 		}
 	}
 	const GrContainer= ({style,children})=>$("div",{style:{
@@ -645,7 +244,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const block=this.captionEl.getBoundingClientRect();
 			const cs=getComputedStyle(this.groupEl);			
 			//const containerMinHeight=(Math.max(block.height,block.width) + parseFloat(cs.paddingBottom||0) + parseFloat(cs.paddingTop||0)) +'px';			
-			const captionOffset=(-Math.max(block.height,block.width))+'px';
+			const containerHeight = parseFloat(cs.height)//this.groupEl.getBoundingClientRect().height
+			const captionOffset=(-Math.max(Math.min(block.height,containerHeight),Math.min(block.width,containerHeight)));
 			if(this.state.captionOffset!=captionOffset /*|| this.state.containerMinHeight!=containerMinHeight*/)
 				this.setState({captionOffset/*,containerMinHeight*/});
 			this.shouldRotate();
@@ -669,40 +269,52 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		render(){			
 			const style={
-				backgroundColor:'white',
+				//backgroundColor:'white',
 				borderColor:'#b6b6b6',
 				borderStyle:'dashed',
 				borderWidth:GlobalStyles.borderWidth,
 				margin:'0.4em',
 				padding:this.props.caption&&this.state.rotated?'0.5em 1em 1em 1.6em':'0.5em 0.5em 1em 0.5em',
 				minHeight:this.state.rotated?this.state.containerMinHeight:"",
-				position:"relative",
-				overflow:"hidden",
+				position:"relative",				
 				...this.props.style
 			};
 			const captionStyle={
 				color:"#727272",
 				lineHeight:"1",
-				marginLeft:this.state.rotated?"calc("+this.state.captionOffset+" - 1.7em)":"0em",
-				position:this.state.rotated?"absolute":"static",
-				transform:this.state.rotated?"rotate(-90deg)":"none",
-				transformOrigin:"100% 0px",
+				marginLeft:"0em",				
 				whiteSpace:"nowrap",
-				marginTop:this.state.rotated?"1.5em":"0em",
+				marginTop:"0em",
 				fontSize:"0.875em",
 				display:"inline-block",
+				visibility:this.state.rotated?"hidden":"",
 				...this.props.captionStyle
 			};
+			const captionRStyle ={
+				...captionStyle,
+				marginLeft:`calc(${this.state.captionOffset+"px"} - 1.7em)`,
+				position:"absolute",
+				transform: "rotate(-90deg)",
+				transformOrigin:"100% 0px",
+				//marginTop: "1.5em",
+				width:Math.abs(this.state.captionOffset)+"px",
+				overflow:"hidden",
+				visibility:""				
+			}
 			const emElStyle={
 				position:"absolute",
 				top:"0",
 				zIndex:"-1",
 				height:"1em"
 			}
-			const captionEl = this.props.caption? $("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption): null;
+			const captionEl = this.props.caption? [
+				$("div",{ref:ref=>this.captionEl=ref,style:captionStyle,key:"caption"},this.props.caption),
+				(this.state.rotated?$("div",{style:captionRStyle,key:"caption-r"},this.props.caption):null)
+			]: [];
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
-			return $("div",{ref:ref=>this.groupEl=ref,style:style},[				
-				captionEl,
+			const className = this.props.className
+			return $("div",{ref:ref=>this.groupEl=ref,style:style, className},[				
+				...captionEl,
 				emRefEl,
 				this.props.children
 			])
@@ -717,7 +329,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			event.stopPropagation()
 			if(!this.el) return
 			this.onClick()
-			const cEvent = eventManager.create("cTab",{bubbles:true})
+			const cEvent = eventManager.create(event.target)("cTab",{bubbles:true})
 			this.el.dispatchEvent(cEvent)							
 		}
 		componentDidMount(){
@@ -730,12 +342,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		render(){
 			const {value,style,tooltip,children} = this.props			
 			const title = tooltip?tooltip:null
+			const className = "button " + (this.props.className?this.props.className:"")
 			return	$("div",{style:{
-				fontSize:'1em',
-				color:'white',
+				fontSize:'1em',			
 				textAlign:'center',
-				borderRadius:'0.28em',					
-				backgroundColor:"#eee",
+				borderRadius:'0.28em',				
 				cursor:this.props.onClick?'pointer':'default',				
 				display:'inline-block',				
 				margin:'0 0.1em',
@@ -749,7 +360,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				MozUserSelect:"none",
 				userSelect:"none",				
 				...style
-			},className:"button",onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
+			},className,onClick:this.onClick,ref:ref=>this.el=ref,'data-src-key':this.props.srcKey,title},[value,children])
 		}
 	}
 	const ChipDeleteElement = ({style,onClick}) =>$(Interactive,{},(actions)=>{			
@@ -792,9 +403,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}			
 		}
 		onInputEnter(e){
-			const event = eventManager.create("keydown",{bubbles:true,key:"ArrowDown"})			
-			e.stopPropagation()
+			const event = eventManager.create(e.target)("keydown",{bubbles:true,key:"ArrowDown"})			
 			eventManager.sendToWindow(event)
+			e.stopPropagation()			
 		}
 		componentDidUpdate(){
 			this.props.dynamic && this.check()
@@ -819,9 +430,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				height:"1em"
 			}			
 			const emRefEl = $("div",{ref:ref=>this.emEl=ref,key:"emref",style:emElStyle});
+			const className = this.props.className?this.props.className:""
 			return [
 				$("table",{
 					key:"table",
+					className,
 					style:{
 					borderCollapse:'separate',
 					borderSpacing:GlobalStyles.borderSpacing,
@@ -960,7 +573,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			//const hightlight = this.props.droppable&&this.props.mouseEnter&&dragDropModule.onDrag()
 			const tabIndex = this.props.tabIndex?{tabIndex:this.props.tabIndex}:{}
 			const focusActions = nodeType=="td"?{onFocus:this.onFocus,onBlur:this.onBlur}:{}
-			const className = "marker focusWrapper"			
+			const className = "marker focusWrapper " + (this.props.className?this.props.className:"")
 			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
 			const v = {border:"1px solid"}
 			const infoS = {position:"absolute",boxSizing:"border-box",width:this.state.info.pWidth+"px"}
@@ -1016,17 +629,19 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const stO = this.state.info.side != dragDropPositionStates.none? {position:"relative",overflow:""}:{}
 			
 			const stStyle = (path)=>({
-					borderBottom:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					borderBottomWidth:GlobalStyles.borderWidth,
+					borderBottomStyle:GlobalStyles.borderStyle,
 					borderLeft:'none',
-					borderRight:!this.state.last?`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`:"none",
-					borderTop:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #b6b6b6`,
+					borderRightWidth:GlobalStyles.borderWidth,
+					borderRightStyle:!this.state.last?GlobalStyles.borderStyle:"none",
+					borderTopWidth:GlobalStyles.borderWidth,
+					borderTopStyle:GlobalStyles.borderStyle,
 					fontWeight:'bold',
 					padding:'0.1em 0.2em',
 					verticalAlign:'middle',
 					overflow:"hidden",				
 					textOverflow:"ellipsis",
-					cursor:this.props.draggable?"move":"auto",
-					backgroundColor:"transparent",
+					cursor:this.props.draggable?"move":"auto",					
 					outlineWidth:"1px",
 					outlineColor:"red",
 					...propsOnPath(path,this.props.path),
@@ -1078,15 +693,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}					
 		}
 		componentDidMount(){		
-			this.el.addEventListener("click",this.onClick)
-			textSelectionMonitor(this.el)
+			this.el.addEventListener("click",this.onClick)			
 		}
 		componentWillUnmount(){			
 			this.el.removeEventListener("click",this.onClick)
 		}
 		onClick(e){		
 			if(this.props.onClick){
-			    if(textSelectionMonitor(this.el,e)) return
+			    if(textSelectionMonitor && textSelectionMonitor(e)) return
 				if(!this.sentClick) {
 					this.props.onClick(e)					
 					this.sentClick = true
@@ -1095,14 +709,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 		}
 		render(){
+			const className = this.props.className
 			const trStyle={
 				outline:this.state.touch?`${GlobalStyles.outlineWidth} ${GlobalStyles.outlineStyle} ${GlobalStyles.outlineColor}`:'none',
-				outlineOffset:GlobalStyles.outlineOffset,
-				...(this.props.odd?{backgroundColor:'#fafafa'}:{backgroundColor:'#ffffff'}),
-				...(this.state.mouseOver?{backgroundColor:'#eeeeee'}:null),
-				...this.props.style
-			};			
-			return $("tr",{ref:ref=>this.el=ref,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
+				outlineOffset:GlobalStyles.outlineOffset,								
+				...this.props.style,
+				...(this.state.mouseOver?this.props.overStyle:null)
+			}
+			return $("tr",{ref:ref=>this.el=ref,className,style:trStyle,onMouseEnter:this.onMouseEnter,onKeyDown:this.onEnter,onMouseLeave:this.onMouseLeave,onTouchStart:this.onTouchStart,onTouchEnd:this.onTouchEnd},this.props.children);
 		}	
 	}
 	class Interactive extends StatefulComponent{		
@@ -1134,54 +748,48 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		getInitialState(){return {visibility:""}}
 		setFocus(focus){
 			if(!focus) return
-			this.getInput().focus()			
-		}
+			this.inp.focus()			
+		}		
 		onKeyDown(e){			
 			if(!this.inp) return
 			if(e.key == "Escape"){
-				if(this.prevval != undefined) {
-					const inp = this.getInput()
-					inp.value = this.prevval
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+				if(this.prevval != undefined) {					
+					this.inp.value = this.prevval
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:this.inp.value}})
 				}
 				this.prevval = undefined				
-				this.getInput().parentElement.focus()
+				this.cont.parentElement.focus()
 			}			
 			if(this.props.onKeyDown && !this.props.onKeyDown(e)) return					
 		}
-		doIfNotFocused(what){
-			const inp = this.getInput()
+		doIfNotFocused(what){			
 			const aEl = documentManager.activeElement()			
-			if(inp != aEl) {
+			if(this.inp != aEl) {
 				this.setFocus(true)
-				what(inp)
+				what(this.inp)
 				return true
 			}
 			return false
 		}
 		isVkEvent(event){
 			return event.detail && typeof event.detail == "object"?event.detail.vk:false			
-		}
-		getInput(){ return this.inp2||this.inp}
+		}		
 		onEnter(event){
 			//log(`Enter ;`)
-			if((this.isVkEvent(event) || this.props.vkOnly) || !this.doIfNotFocused((inp)=>{				
+			if((this.isVkEvent(event) || this.props.vkOnly) || !this.doIfNotFocused(inp=>{				
 				this.prevval = inp.value
 				inp.selectionEnd = inp.value.length
 				inp.selectionStart = inp.value.length
 			}))	{
 				const markerButton = this.props.mButtonEnter
 				let cEvent
-				if(markerButton){
-					const inp = this.getInput()
-					cEvent = eventManager.create("cEnter",{bubbles:true,detail:markerButton})
+				if(markerButton){					
+					cEvent = eventManager.create(event.target)("cEnter",{bubbles:true,detail:markerButton})
 					if(this.props.onBlur) this.props.onBlur()
-					else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
-					else {}
+					else if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:this.inp.value}})					
 				}
 				else{
-					if(!this.props.lockedFocus)
-						cEvent = eventManager.create("cTab",{bubbles:true})
+					if(!this.props.lockedFocus) cEvent = eventManager.create(event.target)("cTab",{bubbles:true})
 				}
 				cEvent && this.cont.dispatchEvent(cEvent)				
 			}
@@ -1193,7 +801,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.s = null
 			if(this.props.noDel) return
 			this.changed = true
-			if(!this.doIfNotFocused((inp)=>{				
+			if(!this.doIfNotFocused(inp=>{				
 				this.prevval = inp.value
 				let nValue = inp.value
 				if(this.isVkEvent(event)||this.props.vkOnly){					
@@ -1201,34 +809,33 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					this.s = -1
 					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})
 				}
-				else {
-					inp.value = ""
-					if(event.detail == null){
+				else {					
+					const readOnly = (!this.props.onChange && !this.props.onBlur)
+					if(event.detail == null && !readOnly){
+						inp.value = ""
 						nValue = ""					
 						this.onChange({target:{headers:{"X-r-action":"change"},value:nValue}},inp)
 					}
 				}				
 			})){				
-				if(this.isVkEvent(event)||this.props.vkOnly){	
-					const inp = this.getInput()
-					let nValue = inp.value
+				if(this.isVkEvent(event)||this.props.vkOnly){						
+					let nValue = this.inp.value
 					if(this.props.vkOnly)
 						nValue = nValue+event.detail.key												
 					else {
-						const value1 = nValue.substring(0, inp.selectionStart)
-						const value2 = nValue.substring(inp.selectionEnd)											
+						const value1 = nValue.substring(0, this.inp.selectionStart)
+						const value2 = nValue.substring(this.inp.selectionEnd)											
 						nValue = value1+event.detail.key+value2										
-						this.s = inp.selectionStart+1						
+						this.s = this.inp.selectionStart+1						
 					}					
-					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})					
+					this.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp:this.inp})					
 				}
 			}									
 		}
-		onErase(event){			
-			const inp = this.getInput()	
-			inp.value = ""
+		onErase(event){						
+			this.inp.value = ""
 			this.changed = true
-			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value},inp})				
+			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:this.inp.value},inp:this.inp})				
 			if(this.props.onBlur) this.props.onBlur()			
 		}
 		onBackspace(event){
@@ -1236,30 +843,29 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			event.stopPropagation()
 			this.s = null
 			if(this.props.noDel) return
-			if(!this.doIfNotFocused((inp)=>{				
+			if(!this.doIfNotFocused(inp=>{				
 				this.prevval = inp.value
 				const nValue = inp.value.slice(0,-1)
 				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})				
 			})){
-				if(this.isVkEvent(event)||this.props.vkOnly){		
-					const inp = this.getInput()
-					let nValue = inp.value
+				if(this.isVkEvent(event)||this.props.vkOnly){							
+					let nValue = this.inp.value
 					if(this.props.vkOnly)
 						nValue = nValue.slice(0,-1)
 					else{
-						const value1 = nValue.substring(0, inp.selectionStart-1)				
-						const value2 = nValue.substring(inp.selectionEnd)
+						const value1 = nValue.substring(0, this.inp.selectionStart-1)				
+						const value2 = nValue.substring(this.inp.selectionEnd)
 						nValue = value1+value2
-						this.k = inp.selectionStart-1
+						this.k = this.inp.selectionStart-1
 					}	
 					this.changed = true
-					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp})					
+					if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:nValue},inp:this.inp})					
 				}
 			}
 		}
 		onPaste(event){
 			//log(`Paste`)
-			this.doIfNotFocused((inp)=>{				
+			this.doIfNotFocused(inp=>{				
 				this.prevval = inp.value
 				inp.value = event.detail
 				this.changed = true
@@ -1269,7 +875,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		onCopy(event){
 			//log(`Copy`)
-			this.doIfNotFocused((inp)=>{				
+			this.doIfNotFocused(inp=>{				
 				this.prevval = inp.value
 				inp.setSelectionRange(0,inp.value.length)
 				documentManager.execCopy()
@@ -1295,46 +901,32 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			inp.removeEventListener('ccopy',this.onCopy)
 		}
 		componentDidMount(){
-			//this.setFocus(this.props.focus)
-			//const inp = this.getInput()						
+			//this.setFocus(this.props.focus)								
+			if(this.inp) this.inp.changing = this.props.changing
+			this.addListeners(this.inp)
 		}
 		componentWillUnmount(){			
 			if(this.dragBinding) this.dragBinding.releaseDD()
-		}
-		onRef1(ref){			
-			if(this.inp2) this.remListeners(this.inp2)
-			if(!ref) this.remListeners(this.inp)
-			else if(!this.inp) this.addListeners(ref)
-			this.inp = ref
-		}
-		onRef2(ref){
-			if(this.inp) this.remListeners(this.inp)
-			if(!ref) this.remListeners(ref)
-			else if(!this.inp2) this.addListeners(ref)			
-			this.inp2 = ref
-		}
+			this.remListeners(this.inp)
+		}		
 		componentDidUpdate(){						
 			if(this.props.cursorPos){
-				const pos = this.props.cursorPos()
-				const inp = this.getInput()
-				if(pos.ss) inp.selectionStart = pos.ss
-				if(pos.se) inp.selectionEnd = pos.se
+				const pos = this.props.cursorPos()				
+				if(pos.ss) this.inp.selectionStart = pos.ss
+				if(pos.se) this.inp.selectionEnd = pos.se
 			}			
-			if(this.k!==null &&this.k!==undefined){
-				const inp = this.getInput()
-				//log(this.k)
-				//log(this.k)
-				inp.selectionStart = this.k
-				inp.selectionEnd = this.k
+			if(this.k!==null &&this.k!==undefined){						
+				this.inp.selectionStart = this.k
+				this.inp.selectionEnd = this.k
 				this.k = null
-			}
+			}							
+			if(this.inp) this.inp.changing = this.props.changing
 		}		
-		onChange(e){
-			const inp = this.getInput()			
-			this.k = inp.selectionStart
+		onChange(e){			
+			this.k = this.inp.selectionStart
 			if(this.s!==null&&this.s!==undefined) {this.k = this.s;this.s = null}						
 			let value = e.target.value
-			if(inp&&getComputedStyle(inp).textTransform=="uppercase"){				
+			if(this.inp&&getComputedStyle(this.inp).textTransform=="uppercase"){				
 				value = value.toUpperCase();
 			}
 			if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value},inp:e.inp})
@@ -1346,9 +938,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				e.relatedTarget.classList.contains("vkKeyboard")
 			)) return
 			
-			if(this.props.onBlur && this.changed) {
-				const inp = this.getInput()
-				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:inp.value}})
+			if(this.props.onBlur && this.changed) {				
+				if(this.props.onChange) this.props.onChange({target:{headers:{"X-r-action":"change"},value:this.inp.value}})
 				this.props.onBlur()
 			}
 			this.changed = undefined
@@ -1357,9 +948,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(!this.props.div) return
 			if(!this.props.onReorder) return
 			this.dragBinding = dragDropModule.dragStartDD(e,this.inp,this.onMouseUpCall)
-			if(this.dragBinding)
-				this.setState({visibility:"hidden"})
-			//e.preventDefault()
+			if(this.dragBinding) this.setState({visibility:"hidden"})			
 		}
 		onMouseUpCall(newPos){
 			if(!this.props.div) return
@@ -1377,7 +966,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				width:"100%",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
 				borderColor:this.props.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:(this.props.onChange||this.props.onBlur)?"white":"#eeeeee",
+				//backgroundColor:(this.props.onChange||this.props.onBlur)?"":"#eeeeee",
 				boxSizing:"border-box",
 				...this.props.style
 			};
@@ -1387,12 +976,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				minHeight:"100%",
 				overflow:"hidden",
 				display:"flex"
-			};
+			};			
 			const inputStyle={
 				textOverflow:"ellipsis",
 				margin:"0rem",
-				verticalAlign:"top",
-				color:"rgb(33,33,33)",
+				verticalAlign:"top",				
 				border:"none",
 				height:this.props.div?"auto":"100%",
 				padding:"0.2172em 0.3125em 0.2172em 0.3125em",
@@ -1403,14 +991,16 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				whiteSpace:this.props.div?"normal":"nowrap",
 				overflow:"hidden",
 				fontSize:"inherit",
-				textTransform:"inherit",
-				backgroundColor:"inherit",
+				textTransform:"inherit",				
 				outline:"none",
 				textAlign:"inherit",
 				display:this.props.div?"inline-block":"",
 				fontFamily:"inherit",
 				visibility:this.state.visibility,
-				...this.props.inputStyle				
+				color:"inherit",
+				backgroundColor:"inherit",
+				...this.props.inputStyle,
+				...(this.props.changing?{backgroundColor:"#ffffaa",color:"black"}:null)
 			};		
 			const placeholder = this.props.placeholder
 			const inputType = !this.props.inputType?ReControlledInput:this.props.inputType
@@ -1425,22 +1015,22 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const dataType = this.props.dataType
 			const className = this.props.className
 			const drawFunc = this.props.drawFunc
+			
 			//log(this.props.value)
-			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions},[
+			return $("div",{style:inpContStyle,ref:(ref)=>this.cont=ref,...actions, className},[
 					this.props.shadowElement?this.props.shadowElement():null,
 					$("div",{key:"xx",style:inp2ContStyle}, drawFunc(
 						$(inputType,{
 							key:"input",
-							ref:this.onRef1,
+							ref:ref=>this.inp = ref,
 							type,rows,readOnly,placeholder,auto,
-							"data-type":dataType,
-							className,
+							"data-type":dataType,							
 							name:vkOnly,
 							content,							
 							style:inputStyle,							
 							onChange:this.onChange,onBlur:this.onBlur,onKeyDown:this.onKeyDown,value:this.props.value,
 							onMouseDown:this.onMouseDown,
-							onTouchStart:this.onMouseDown
+							onTouchStart:this.onMouseDown							
 							},
 							content?content:null
 						),inputStyle						
@@ -1450,13 +1040,46 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 	}	
     InputElementBase.defaultProps = { drawFunc: _=>_, rows:"2",autocomplete:null,type:"text",placeholder:""};
-	const InputElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,ref:props._ref,...actions}))	
-	const TextAreaElement = (props) => $(Interactive,{},(actions)=>$(InputElementBase,{...props,onKeyDown:()=>false,ref:props._ref,inputType:"textarea",
-		inputStyle:{
+	const InputElement = (props) => $(Interactive,{},actions=>$(InputElementBase,{...props,ref:props._ref,...actions}))	
+	const InputWithButtonElement = (props) => {  
+		const {imgUrl,value,inputStyle,onBlur, onClick} = props		
+		const buttonImageStyle={				
+			verticalAlign:"middle",
+			display:"inline",
+			height:"100%",
+			width:"100%",
+			transform:props.open?"rotate(180deg)":"rotate(0deg)",
+			transition:"all 200ms ease",
+			boxSizing:"border-box",
+			...props.buttonImageStyle
+		}		
+		const buttonImage = $("img",{key:"buttonImg",src:imgUrl,style:buttonImageStyle},null)			
+		const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick},buttonImage)]				
+		const drawFunc = _ => _		
+		const onChange = e=>{
+			if(onChange) props.onChange({target:{headers:{"X-r-action":"change"},value:e.target.value}})
+		}
+		return $(InputElement,{...props,drawFunc,inputStyle,value,buttonElement,onChange,onBlur})	
+	}
+	const TextAreaElement = (props) => $(Interactive,{},actions=>{
+		const inputStyle = {
 			whiteSpace:"pre-wrap",
+			resize:"none",
 			...props.inputStyle
-		},
-		...actions}))
+		}
+		const onKeyDown = evt =>{
+			if(evt.target.ownerDocument.activeElement.tagName =="TEXTAREA") {
+				switch(evt.keyCode){
+					case 9:
+						break
+					default:
+						evt.stopPropagation()
+				}
+			}
+			return false	
+		}
+		return $(InputElementBase,{...props,onKeyDown,ref:props._ref,inputType:"textarea", inputStyle, ...actions})
+	})
 	const LabeledTextElement = (props) => $(InputElementBase,{
 		...props,
 		onKeyDown:()=>false,
@@ -1662,13 +1285,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			};
 			const div = this.props.div&&this.props.div!=0
 			const urlData = this.props.url?this.props.url:images.arrowDownSvgData;
-			const className = this.props.focusMarker?`marker-${this.props.focusMarker}`:""		
+			//const className = (this.props.focusMarker?`marker-${this.props.focusMarker}`:"") + this.props.className
 			const buttonImage = $("img",{key:"buttonImg",src:urlData,style:buttonImageStyle},null);						
 			const placeholder = this.props.placeholder?this.props.placeholder:"";
 			const buttonElement = () => [$(ButtonInputElement,{key:"buttonEl",onClick:this.onClick},buttonImage)];
 			const value = this.props.value
 			const inputChildren = div? this.props.children.slice(0,parseInt(this.props.div)): null
-			const popupElement = this.props.open?$("div",{key:"popup",style:popupStyle,ref:ref=>this.pop=ref},div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null			
+			const popupElement = this.props.open?$("div",{key:"popup",style:popupStyle,className:"popup",ref:ref=>this.pop=ref},div?this.props.children.slice(parseInt(this.props.div)):this.props.children):null			
 			const overRideInputStyle = this.props.div?{display:"flex",flexWrap:"wrap",padding:"0.24em 0.1em",width:"auto"}:{}	
 			const drawFunc = (input,styles) => ([
 					(this.props.div?$("div",{key:"div",style:{...styles,...overRideInputStyle}},[inputChildren,input]):input),
@@ -1683,7 +1306,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					height:"auto"
 				}:null)
 			}
-			return $(InputElement,{...this.props,lockedFocus:this.props.open,drawFunc,inputStyle,className,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
+			return $(InputElement,{...this.props,lockedFocus:this.props.open,drawFunc,inputStyle,value,_ref:(ref)=>this.inp=ref,buttonElement,onChange:this.onChange,onBlur:this.props.onBlur,onKeyDown:this.onKeyDown});							
 		}
 	}
 	const ButtonInputElement = (props) => $(Interactive,{},(actions)=>{
@@ -1721,7 +1344,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return (ref)=> this.el=ref
 		}		
 		render(){
-			const className = "focusWrapper"		
+			const className = "focusWrapper " + (this.props.className?this.props.className:"")
 			const {style,children} = this.props
 			const focusedStyle  = this.state.focused
 			const propsOnPath = (p0,p1) => p0&&p1&&p0 == p1 && p1.length>0? {outlineStyle:"dashed"}:{outlineStyle:"none"}
@@ -1731,10 +1354,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					width:"100%",				
 					padding:"0.4em 0.3125em",
 					boxSizing:"border-box",
-					outlineWidth:"1px",
-					outlineColor:"red",				
+					outlineWidth:"0.05em",
+					//outlineColor:"red",				
 					...propsOnPath(path,this.props.path),
-					outlineOffset:"-1px",
+					outlineOffset:"-0.05em",
 					...style
 				},tabIndex:"1",
 				className,				
@@ -1746,8 +1369,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 	}
 	
-	const LabelElement = ({style,onClick,label,children})=>$("label",{onClick,style:{
-		color:"rgb(33,33,33)",
+	const LabelElement = ({style,onClick,label,children})=>$("label",{onClick,style:{		
 		cursor:onClick?"pointer":"auto",
 		textTransform:"none",
 		...style
@@ -1815,25 +1437,43 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const topEdge = rect.top - popRect.height;
 			let top = 0
 			let left = 0
-			if(bottomEdge<=windowRect.bottom){					//bottom
-				left = rect.left//rect.left - popRect.left
-				if(left+ popRect.width> windowRect.right)
-					left = windowRect.right - popRect.width
-				top = rect.bottom					
-			}
-			else if(topEdge>windowRect.top){	//top
-				top = rect.top - popRect.height				
-				left = rect.left//rect.left - popRect.left;							
-				if(left+ popRect.width> windowRect.right)
-					left = windowRect.right - popRect.width
-			}
-			else if(leftEdge>windowRect.left){	//left
-				left = rect.left - popRect.width;
-				top = rect.top - popRect.height/2;					
-			}
-			else if(rightEdge<=windowRect.right){
-				left = rect.right
-				top = rect.top - popRect.height/2;					
+			const calcFunc = {
+				"bottom":() =>{
+					left = 0//-popRect.width
+					if(rect.left + popRect.width> windowRect.right)
+						left = rect.width - popRect.width
+					top = rect.height
+				},
+				"top":()=>{
+					top = -popRect.height				
+					left = 0//-popRect.width;							
+					if(rect.left + popRect.width> windowRect.right)
+						left = rect.width - popRect.width
+				},
+				"left":() =>{
+					left = -popRect.width
+					top = -popRect.height/2
+				},
+				"right":()=>{
+					left = rect.right
+					top = -popRect.height/2;
+				}
+			}			
+			const _cfunc = this.props.position && calcFunc[this.props.position]
+			if(_cfunc) _cfunc()
+			else{
+				if(bottomEdge<=windowRect.bottom){	//bottom
+					calcFunc["bottom"]()		
+				}
+				else if(topEdge>windowRect.top){	//top
+					calcFunc["top"]()
+				}
+				else if(leftEdge>windowRect.left){	//left
+					calcFunc["left"]()					
+				}
+				else if(rightEdge<=windowRect.right){ //right
+					calcFunc["right"]()		
+				}	
 			}			
 			//top -= getPageYOffset()
 			if(this.state.top!=top || this.state.left!=left)
@@ -1848,7 +1488,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		}
 		render(){			
 			return $("div",{ref:ref=>this.el=ref,style:{				
-				position:"fixed",
+				position:"absolute",
 				zIndex:"6",
 				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle} #eee`,
 				backgroundColor:"white",
@@ -1858,8 +1498,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}},this.props.children);
 		}		
 	}
-	const Checkbox = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
+	const CheckboxElement = (props) => $(Interactive,{},(actions)=>$(CheckboxBase,{...props,...actions}))
 	class CheckboxBase extends StatefulComponent{				
+		getInitialState(){
+			return {el:null}
+		}
 		onDelete(event){
 			if(!event.detail) return
 			this.onClick()
@@ -1869,7 +1512,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.el) {		
 				this.el.addEventListener("click",this.onClick)			
 				this.el.addEventListener("delete",this.onDelete)
+				this.el.changing = this.props.changing				
+				
+				this.setState({imgcolor:1})
 			}		
+		}
+		componentDidUpdate(){
+			if(!this.el) return
+			this.el.changing = this.props.changing
 		}
 		componentWillUnmount(){
 			if(this.el) {						
@@ -1879,6 +1529,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.binding) this.binding.unreg()
 		}
 		onClick(e){
+			if(this.props.changing) return
 			if(this.props.onChange) 
 				this.props.onChange({target:{headers:{"X-r-action":"change"},value:(this.props.value?"":"checked")}})			
 			e&&e.stopPropagation()
@@ -1888,14 +1539,14 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const style={
 				flexGrow:"0",				
 				position:"relative",
-				maxWidth:"100%",
-				padding:"0.4em 0.3125em",				
+				maxWidth:"100%",							
 				flexShrink:"1",
 				boxSizing:"border-box",
 				lineHeight:"1",
 				outline:this.state.focused?"1px dashed red":"none",
 				...props.altLabel?{margin:"0.124em 0em",padding:"0em"}:null,
-				...props.style
+				...props.style,
+				...(props.changing?{opacity:"0.4"}:null)
 			};
 			const innerStyle={
 				border:"none",
@@ -1910,8 +1561,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				...props.innerStyle
 			};
 			const checkBoxStyle={
-				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,
-				color:"#212121",
+				border:`${GlobalStyles.borderWidth} ${GlobalStyles.borderStyle}`,				
 				display:"inline-block",
 				height:"1.625em",
 				lineHeight:"100%",
@@ -1920,9 +1570,10 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				position:"relative",
 				verticalAlign:"middle",
 				width:"1.625em",
-				boxSizing:"border-box",
+				boxSizing:"border-box",				
 				borderColor:props.mouseOver?"black":"rgb(182, 182, 182)",
-				backgroundColor:props.onChange?"white":"#eeeeee",
+				...(!props.onChange?{backgroundColor:"#eeeeee"}:{}),		
+				...(props.changing?{backgroundColor:"#ffffaa",color:"black"}:{}),		
 				...props.altLabel?{height:"1.655em",width:"1.655em"}:null,
 				...props.checkBoxStyle
 			};
@@ -1945,13 +1596,16 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 				height:"90%",
 				width:"100%",
 			};	
-			const defaultCheckImage = props.value&&props.value.length>0?$("img",{style:imageStyle,src:images.checkboxSvgData,key:"checkImage"},null):null
+			const imgElem = this.el?this.el.ownerDocument.querySelector(".img"):null
+			const imgColor = imgElem && !props.changing?imgElem.ownerDocument.defaultView.getComputedStyle(imgElem).color:"black"
+			const defaultCheckImage = props.value&&props.value.length>0?$("img",{style:imageStyle,src:images.checkboxSvgData(!props.onChange?"black":imgColor),key:"checkImage"},null):null
 			const labelEl = props.label?$("label",{style:labelStyle,key:"2"},props.label):null;
 			const checkImage = props.checkImage?props.checkImage:defaultCheckImage;
+			const className = this.props.className?("img "+ this.props.className): "img"
 			const {onMouseOver,onMouseOut} = props		
 			return $("div",{style,tabIndex:"1",ref:ref=>this.el=ref},
 				$("span",{onMouseOver,onMouseOut,style:innerStyle,key:"1"},[
-					$("span",{style:checkBoxStyle,key:"1"},checkImage),
+					$("span",{style:checkBoxStyle,key:"1", className},checkImage),
 					labelEl
 				])
 			);
@@ -1984,7 +1638,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		};
 		const checkImage = $("div",{style:imageStyle,key:"checkImage"},null);
 		
-		return $(Checkbox,{...props,innerStyle,checkImage,checkBoxStyle,});			
+		return $(CheckboxElement,{...props,innerStyle,checkImage,checkBoxStyle,});			
 	};	
 	const ConnectionState = (props) => {
 		const {style,iconStyle,on} = props;
@@ -2019,14 +1673,24 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(this.fInp)
 				this.fInp.click();
 		}
+		_arrayBufferToBase64(buffer,btoa) {
+			let binary = ''
+			let bytes = new Uint8Array( buffer )
+			const len = bytes.byteLength
+			for (let i = 0; i < len; i++) {
+				binary += String.fromCharCode( bytes[ i ] )
+			}
+			return btoa( binary );
+		}
 		onChange(e){
 			if(this.state.reading) return;
 			const reader= miscUtil.fileReader()
 			const file = e.target.files[0];
+			const btoa = e.target.ownerDocument.defaultView.btoa
 			reader.onload=(event)=>{				
 				if(this.props.onReadySendBlob){
-					const blob = event.target.result;
-					this.props.onReadySendBlob(this.fInp.value,blob);
+					const blob64 = this._arrayBufferToBase64(event.target.result,btoa)
+					this.props.onReadySendBlob(this.fInp.value,blob64);
 				}				
 				this.setState({reading:false});
 			}
@@ -2101,8 +1765,8 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		render(){
 			const prop = this.props
 			const [attributesA,attributesB] = pairOfInputAttributes(prop,{"X-r-auth":"check"},log)
-			const buttonStyle = {backgroundColor:"#c0ced8",...prop.buttonStyle}
-			const buttonOverStyle = {backgroundColor:"#d4e2ec",...prop.buttonOverStyle}
+			const buttonStyle = prop.buttonStyle
+			const buttonOverStyle = prop.buttonOverStyle
 			const usernameCaption = prop.usernameCaption?prop.usernameCaption:"Username";
 			const passwordCaption = prop.passwordCaption?prop.passwordCaption:"Password";
 			const buttonCaption = prop.buttonCaption?prop.buttonCaption:"LOGIN";
@@ -2118,6 +1782,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			const check = (e) =>{
 				
 			}
+			const className = "marker-login " + this.props.buttonCs
 			return $("div",{style:{margin:"1em 0em",...prop.style},ref:ref=>this.el=ref},$("form",{onSubmit:(e)=>{e.preventDefault()}},[
 				$(ControlWrapperElement,{key:"1"},
 					$(LabelElement,{label:usernameCaption},null),
@@ -2128,11 +1793,11 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 					$(InputElement,{...attributesB,value:undefined,vkOnly,style:styleB,onChange:this.onChange,onKeyDown:()=>false,type:"password",autocomplete:"new-password",dataType, mButtonEnter:"login",inputType:"input"},null)
 				),
 				$("div",{key:"3",style:{textAlign:"right",paddingRight:"0.3125em"}},
-					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className:"marker-login"},buttonCaption)
+					$(ButtonElement,{onClick:this.onClick,style:buttonStyle,overStyle:buttonOverStyle,className},buttonCaption)
 				)
 			]))		
 		}
-	}	
+	}		
 	
 	const CalenderCell = (props) => $(Interactive,{},(actions)=>{		
 		const onClick = () =>{
@@ -2647,8 +2312,9 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			this.unreg = InternalClock.reg({clockTicks,updateInterval,updateServer})			
 		}
 		componentWillReceiveProps(nextProps){
-			//log("came update")
-			InternalClock.update(parseInt(nextProps.time)*1000)
+			//log("came update", nextProps.time)
+			if(this.props.time != nextProps.time)
+				InternalClock.update(parseInt(nextProps.time)*1000)
 		}
 		componentDidUpdate(_, prevState){
 			if(prevState.timeString.length == 0 && this.state.timeString.length>0) this.recalc();
@@ -2747,37 +2413,46 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	}	
 	class FocusAnnouncerElement extends StatefulComponent{					
 		report(path){
+			if(path == this.props.value) return
 			//log("report",path)
 			this.props.onChange({target:{headers:{"X-r-action":"change"},value:path}})
 		}		
-		getParentPath(el){
+		getParentPath(el,func){
 			let e = el
 			while(e){
-				if(e.className.includes("popup")) return null
-				if(e.dataset.path) return e.dataset.path
+				const {r,o} = func(e)
+				if(r) return o				
 				e = e.parentElement
 			}
 			return null
 		}		
+		popIgnore(e){
+			if(e.className.includes("popup")) return {r:true,o:null}
+			if(e.dataset.path) return {r:true,o:e.dataset.path}
+			return {}
+		}
 		findAutofocusCandidate(el){
 			if(this.foundAuto) return
-			const a = Array.from(el.ownerDocument.querySelectorAll("input"))
-			const b = a.find(_=>this.getParentPath(_))
+			const a = Array.from(el.ownerDocument.querySelectorAll("input"))			
+			const b = a.find(_=>this.getParentPath(_,this.popIgnore))
 			//log("atuoCnaditate",b)
-			this.foundAuto = true
+			this.foundAuto = true			
 			b&& b.focus()
 		}
 		onFrame(modify){
 			if(!this.active||!this.el) return		
 			const activeElement = this.el.ownerDocument.activeElement
 			if(!activeElement) return
-			const path = this.getParentPath(activeElement)
+			const path = this.getParentPath(activeElement,this.popIgnore)
 			if(path===null && activeElement.tagName!="BODY") return
 			//log("aa",path,this.props.value)
 			if(path != this.props.value && this.props.value !="undefined" && this.props.value!=this.props.path){
 				const el = this.el.querySelector(`*[data-path='${this.props.value}']`)		
 				//log("onFrame",el);log("onFrame2",this.foundAuto)
-				if(el) el.focus()
+				if(el) {					
+					if(textSelectionMonitor({target:activeElement})) return
+					el.focus()
+				}
 				else if(!this.foundAuto) this.report("undefined")
 			}
 			else{
@@ -2788,8 +2463,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			}
 			if((this.props.value == "undefined"||this.props.value == "") && this.props.value!=this.props.path)  this.findAutofocusCandidate(this.el)			
 		}
+		ignoreFocout(e){
+			if(e.className.includes && e.className.includes("popup")) return {r:true,o:true}
+			return {}
+		}
 		onBBlur(e){			
 			if(!this.el || !this.el.ownerDocument) return
+			if(this.getParentPath(e.target,this.ignoreFocout)) return //ios focusout fix
 			if(this.el.ownerDocument.activeElement.tagName=="BODY") {
 				//log("blur",e,e.relatedTarget,e.target)			
 				this.report(this.props.path)
@@ -2799,13 +2479,13 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onBFocus(e){			
 			//log("focus",e.target,this.getParentPath(e.target))
 			this.active = true			
-			const path = this.getParentPath(e.target)
+			const path = this.getParentPath(e.target,this.popIgnore)
 			if(path != this.props.value) {				
 				if(path) return this.report(path)
 			}
 		}
 		componentWillUnmount(){		
-			//this.el.ownerDocument.documentElement.removeEventListener("blur",this.onBBlur,true)	
+			this.el.ownerDocument.documentElement.removeEventListener("click",this.onBBlur,true)	
 			this.el.ownerDocument.documentElement.removeEventListener("focus",this.onBFocus,true)	
 			clearInterval(this.interval)
 		}
@@ -2825,182 +2505,25 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			)
 		}
 	}
-	class DragDropHandlerElement extends StatefulComponent{
-		report(action,fromSrcId,toSrcId,side){			
-			if((!Array.isArray(this.props.filterActions)||this.props.filterActions.includes(action))&&this.props.onDragDrop)
-				this.props.onDragDrop("reorder",JSON.stringify({action,fromSrcId,toSrcId, side:side?side:""}))
+	
+	const OverlayElement = (props) =>{			
+		const style={
+			position:"fixed",
+			display:(!props.show)?"none":"",
+			top:"0px",
+			left:"0px",
+			width:"100vw",
+			height:"100vh",
+			zIndex:"6666",
+			color:"wheat",
+			textAlign:"center",
+			backgroundColor:"rgba(0,0,0,0.4)",
+			...props.style
 		}
-		componentDidMount(){
-			this.dragBinding = dragDropModule.regReporter(this.report)
-		}
-		componentWillUnmount(){
-			if(this.dragBinding) this.dragBinding.release()
-		}
-		render(){
-			return $('span',{className:"dragDropHandler"})
-		}
-	}
-	class ConfirmationOverlayElement extends StatefulComponent{		
-		getInitialState(){ return {dims:null}}
-		getRootDims(){
-			if(!this.root){
-				this.root = getReactRoot(this.el)
-				this.root = this.root.parentNode?this.root.parentNode:this.root
-			}
-			const dims = this.root.getBoundingClientRect()
-			return dims
-		}
-		recalc(){
-			const rdims = this.getRootDims()
-			if(!this.state.dims) return this.setState({dims:rdims})			
-			const sdims = this.state.dims
-			if(sdims.top != rdims.top || sdims.left!=rdims.left || sdims.bottom!=rdims.bottom||sdims.right!=rdims.right)
-				this.setState({dims:rdims})
-		}
-		componentDidMount(){
-			if(this.props.show) checkActivateCalls.add(this.recalc)			
-		}
-		componentDidUpdate(prevProps){
-			if(this.props.show && !prevProps.show) checkActivateCalls.add(this.recalc)				
-			if(!this.props.show && prevProps.show) checkActivateCalls.remove(this.recalc)		
-		}
-		componentWillUnmount(){
-			if(this.props.show) checkActivateCalls.remove(this.recalc)
-		}
-		render(){
-			const getSide = (dims,side)=>{
-				if(!dims) return "0px"
-				return dims[side] + "px"
-			}
-			const style={
-				position:"fixed",
-				display:(!this.state.dims||!this.props.show)?"none":"",
-				top:getSide(this.state.dims,"top"),
-				left:getSide(this.state.dims,"left"),
-				width:getSide(this.state.dims,"width"),
-				height:getSide(this.state.dims,"height"),
-				zIndex:"6666",
-				color:"wheat",
-				textAlign:"center",
-				backgroundColor:"rgba(0,0,0,0.4)"
-			};
-			return $('div',{style,ref:ref=>this.el=ref,className:"confirmOverlay"},this.props.children)			
-		}
+		return $('div',{style,className:"confirmOverlay"},props.children)		
 	}
 	 
-	class DragDropDivElement extends StatefulComponent{
-		getInitialState(){
-			return {info:{side:dragDropPositionStates.none}}
-		}
-		componentDidMount(){
-			this.className = "DragDropDivElement"
-			this.dragBinding = dragDropModule.dragReg({node:this.el,dragData:this.props.dragData})
-			addEventListener("mouseup",this.onMouseUp)
-			this.el.addEventListener("mousemove",this.onMouseMove)		
-		}
-		componentDidUpdate(){
-			this.dragBinding.update({node:this.el,dragData:this.props.dragData})				
-		}
-		componentWillUnmount(){
-			this.dragBinding.release()
-			removeEventListener("mouseup",this.onMouseUp)
-			this.el.removeEventListener("mousemove",this.onMouseMove)
-		}
-		onMouseDown(e){
-			if(!this.props.draggable) return
-			this.dragBinding.dragStart(e,this.el,"div",this.props.dragStyle)
-		}
-		updateState(v){
-			if(this.state.info.side !== v) {				
-			    const o = (el,_2) => (el?{el,rect:el.getBoundingClientRect(),s:_2}:null)
-				const a = (_ => {
-					switch(v){
-						case dragDropPositionStates.left: 							
-							return o(this.el.previousElementSibling,-1)
-						case dragDropPositionStates.right: 							
-							return o(this.el.nextElementSibling,1)					
-						default: return null;
-					}
-				})()
-				const thisElRect = this.el.getBoundingClientRect()
-				const b = a && (Math.abs(a.rect.top - thisElRect.top) < thisElRect.height) && a
-				const offSet = b?a.s * (a.s>0?thisElRect.right - a.rect.left:thisElRect.left - a.rect.right)/2:0				
-				this.setState({info:{side:v,offSet}})
-			}			
-		}
-		onMouseMove(e){
-			if(this.props.dragover) this.dragBinding.dragOver(e,this.el, this.updateState)
-		}
-		onMouseOut(e){
-			if(this.state.info.side != dragDropPositionStates.none) this.setState({info:{side:dragDropPositionStates.none}})
-		}
-		onMouseUp(e){
-			const {clientX,clientY} = e.type.includes("touch")&&e.touches.length>0?{clientX:e.touches[0].clientX,clientY:e.touches[0].clientY}:{clientX:e.clientX,clientY:e.clientY}
-			const elements = clientX&&clientY?documentManager.elementsFromPoint(clientX,clientY):[]
-			if(!elements.includes(this.el)) return			
-			if(!this.props.droppable) return
-			this.dragBinding.dragDrop(e,this.el)
-			this.onMouseOut(e)
-		}	
-		getSvgData(w,t){
-			if(!this.el) return
-			return images.triAngleSvgData
-		}
-		render(){
-			const v = {border:"1px solid"}
-			const borderL = this.state.info.side == dragDropPositionStates.left?v:{}
-			const borderR = this.state.info.side == dragDropPositionStates.right?v:{}
-			const infoS = {position:"absolute",boxSizing:"border-box",height:"100%",top:"0"}
-			const stO = this.state.info.side != dragDropPositionStates.none? {position:"relative"}:{}
-			const style = {
-				...this.props.style,
-				...stO
-			}
-			const draw2 = (v) => Object.values(v).length>0 
-			const actions = {				
-				onMouseDown:this.onMouseDown,				
-				onTouchStart:this.onMouseDown,
-				onTouchEnd:this.onMouseUp,
-				onMouseOut:this.onMouseOut
-			}
-			const stStyleL = {
-				...infoS,
-				...borderL,
-				left:this.state.info.offSet?this.state.info.offSet+"px":"0"
-			}
-			const stStyleR = {
-				...infoS,
-				...borderR,
-				right:this.state.info.offSet?this.state.info.offSet+"px":"0"
-			}
-			const iStyle = {
-				height: "0.3em",
-				position: "absolute",
-				transformOrigin: "center center",
-				zIndex:"1"
-			}
-			const iStyleT = {				
-				...iStyle,
-				transform: "rotate(180deg)",				
-				left: "-0.25em",
-				top: "-0.1em"
-			}
-			const iStyleB = {
-				...iStyle,
-				transform: "rotate(0deg)",				
-				left: "-0.25em",
-				bottom: "-0.1em"
-			}
-			
-			const ref = _ =>this.el = _
-			const className = this.className
-			return $("div",{style,ref,...actions,className},[
-				$("div",{style:stStyleL,key:1},draw2(borderL)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{key:2,src:this.getSvgData(),style:iStyleB})]:null),
-				$("div",{key:2},this.props.children),
-				$("div",{style:stStyleR,key:3},draw2(borderR)?[$("img",{key:1,src:this.getSvgData(),style:iStyleT}),$("img",{key:2,src:this.getSvgData(),style:iStyleB})]:null)
-			])
-		}
-	}
+	
 
 	class ColorCreator extends StatefulComponent{
 		onChange(e){
@@ -3076,8 +2599,12 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $("input",{type:"color",key:1,style:inputStyle,onChange:this.onChange, onInput:this.onChange,value:this.props.value, ref:ref=>this.el=ref})
 		}
 	}
-	class ColorPicker extends StatefulComponent{		
-		getInitialState(){return {left:null,top:null}}		
+	class ColorPickerElement extends StatefulComponent{		
+		getInitialState(){return {left:null,top:null}}	
+		onClick(e){
+			e.stopPropagation()
+			this.props.onClick&& this.props.onClick(e)
+		}
 		recalc(){
 			if(!this.el) return
 			const rect = this.el.getBoundingClientRect()
@@ -3085,52 +2612,50 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			if(Math.round(this.state.left)!=Math.round(rect.left)||Math.round(this.state.top)!=Math.round(newTop))
 				this.setState({left:rect.left,top:newTop})
 		}
-		componentDidMount(){
-			this.recalc()
+		componentDidMount(){		
+			this.el && this.el.addEventListener("click",this.onClick)
+			if(this.props.isOpen) this.active = checkActivateCalls.add(this.recalc)			
 		}
 		componentDidUpdate(){
-			this.recalc()
+			if(this.props.isOpen && !this.active) this.active = checkActivateCalls.add(this.recalc)
+			if(!this.props.isOpen && this.active) this.active = undefined
+		}
+		componentWillUnmount(){
+			if(this.active) checkActivateCalls.remove(this.recalc)				
+			this.el && this.el.removeEventListener("click",this.onClick)
 		}
 		render(){
-			const {onChange,style,children,isOpen, value} = this.props
-			return React.createElement('div',{
-				className:"colorPicker",
-				style: {
-						width:"100%",
-						boxSizing:"border-box"						
-					}},[
-						React.createElement('div', {
-								key:'1',
-								ref:ref=>this.el=ref,
-								style: {
-									minWidth:'6em',
-									height:'2em',
-									textShadow:'0.125em 0.125em 0.24em rgba(0, 0, 0, 0.4)',
-									color:'white',
-									padding:'0rem 0rem 0rem 0.2rem',
-									lineHeight:'2em',
-									verticalAlign:'middle',
-									...style
-								},
-								onClick: ev => onChange({target:{headers:{"X-r-action":"change"},value:""} })
-						}, value),
-						isOpen?React.createElement('div', {
-								key:'2',
-								style: {
-									position:"absolute",
-									display:'flex',
-									flexWrap:'wrap',
-									maxWidth:'25em',
-									left:this.state.left?this.state.left+"px":"",
-									top:this.state.top?this.state.top+"px":"",
-									//top:'100%',							
-									border:'0.06em solid grey',
-									zIndex: "669",
-									justifyContent:"space-around"
-								}
-						},children):null
-					]
-			)
+			const {onClick,style,children,isOpen, value} = this.props
+			const wrapStyle = {
+				width:"100%",
+				boxSizing:"border-box"				
+			}
+			const valueStyle = {
+				minWidth:'6em',
+				height:'2em',
+				textShadow:'0.125em 0.125em 0.24em rgba(0, 0, 0, 0.4)',
+				color:'white',
+				padding:'0rem 0rem 0rem 0.2rem',
+				lineHeight:'2em',
+				verticalAlign:'middle',				
+				...style
+			}
+			const popupStyle = {
+				position:"fixed",
+				display:'flex',
+				flexWrap:'wrap',
+				maxWidth:'25em',
+				left:this.state.left?this.state.left+"px":"",
+				top:this.state.top?this.state.top+"px":"",										
+				border:'0.06em solid grey',
+				zIndex: "669",
+				justifyContent:"space-around"
+			}			
+			const showChildren = isOpen?$('div', {key:'2', style: popupStyle},children):null			
+			return $('div',{className:"colorPicker",style: wrapStyle},[
+				$('div', {key:'1',ref:ref=>this.el=ref,style: valueStyle}, value),
+				showChildren
+			])
 		}
 	}
 	
@@ -3549,19 +3074,18 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	class ClickableDivElement extends StatefulComponent{
 		onClick(e){
 			e.stopPropagation()
-			if(textSelectionMonitor(this.el,e)) return
+			if(textSelectionMonitor && textSelectionMonitor(e)) return
 			this.props.onClick&& this.props.onClick(e)						
 		}
 		componentDidMount(){
-			if(this.el) this.el.addEventListener("click",this.onClick)
-			textSelectionMonitor(this.el)	
+			if(this.el) this.el.addEventListener("click",this.onClick)			
 		}
 		componentWillUnmount(){
 			if(this.el) this.el.removeEventListener("click",this.onClick)
 		}
 		render(){
-			const style = this.props.style
-			return $("div",{style,ref:ref=>this.el=ref},this.props.children)
+			const {style,className} = this.props			
+			return $("div",{style,ref:ref=>this.el=ref,className},this.props.children)
 		}
 	}		
 	class CanvasMaxHeightElement extends StatefulComponent{
@@ -3605,80 +3129,75 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $("div",{style,ref:ref=>this.el=ref},drawChildren)
 		}
 	}	
-	class ProgressbarElement extends StatefulComponent{	
-		getInitialState(){
-			return {top:undefined,left:undefined}
-		}
-		update(top,left){			
-			if(this.state.top==top && this.state.left==left) return
-			this.setState({top,left})
-		}
-		recalc(){
-			if(!this.t) return
-			const tR = this.t.getBoundingClientRect()
-			const pR = this.t.parentElement.getBoundingClientRect()
-			if(tR.width>pR.width||tR.height>pR.height) return this.update()
-			const top = (pR.height - tR.height)/2
-			const left = (pR.width - tR.width)/2
-			return this.update(top,left)
-		}
-		componentDidMount(){
-			this.rb = resizeListener.reg(this.recalc)
-			this.recalc()
-		}
-		componentDidUpdate(){
-			this.recalc()
-		}
-		componentWillUnmount(){
-			this.rb&&this.rb.unreg()
-		}	
-		onRef(node){
-			this.t = node
-			if(node) this.recalc()
-		}
-		render(){
-			const {value,max,percent} = this.props
-			const v1 = parseFloat(value)
-			const v2 = parseFloat(max)
-			let v = (v1/v2)*100
-			v = Number.isInteger(v)?v:v.toFixed(2)
-			const style = {
-				fontSize:'1em',
-				color:'white',
-				textAlign:'center',
-				borderRadius:'0.58em',														
-				margin:'0 0.1em',
-				verticalAlign:"top",			
-				alignSelf:"center",
-				MozUserSelect:"none",
-				userSelect:"none",		
-				overflow:"hidden",			
-				height:"1.76em",			
-				boxSizing:"border-box",
-				...this.props.style,
-				backgroundColor:"#eee"
+	const ProgressbarElement  = (props) => {
+		const elem = React.useRef(null)		
+		const [width, setWidth] = React.useState(null)
+		
+		React.useEffect(()=>{		
+			const recalc = () =>{
+				if(!elem.current) return
+				const tRw = elem.current.getBoundingClientRect().width
+				if(tRw != width) {					
+					setWidth(tRw)			
+				}
 			}
-			const style2 = {
-				position:"absolute",
-				left:this.state.left+"px",
-				top:this.state.top+"px",
-				color:this.props.color,
-				visibility:this.state.top?"":"hidden"
-			} 
-			const style3 = {
-				backgroundColor:this.props.backgroundColor,
-				height:"100%",
-				width:v+"%",
-				position:"relative"				
+			checkActivateCalls.add(recalc)
+			
+			return ()=>{
+				checkActivateCalls.remove(recalc)
 			}
-			const fv = percent?(v+"%"):`${value}/${max}`
-			return $("div",{style},
-				$("div",{style:style3},
-					$("div",{style:style2,ref:this.onRef},fv)
-				)
+		},[width])
+		const prg1 = {
+			position: "absolute",
+			border: "0",		
+			height: "1.76em",
+			lineHeight: "1.76em",
+			margin: "1mm 0.1em",			
+			fontWeight: "bold",
+			fontSize: "1em",
+			backgroundColor: "#eee",
+			borderRadius: "0.58em",
+			overflow: "hidden",
+			userSelect:"none",
+			MozUserSelect:"none",
+			width:width?width+"px":"0"
+		}		
+		const prg1T = {
+			position: "absolute",
+			top: "0",			
+			textAlign: "center",
+			color: PrimaryColor,
+			fontVariant: "small-caps",
+			width:width?width+"px":"0"
+		}
+		const prg1BT = {
+			...prg1T,
+			color: "white"
+		}
+		const {value,max,percent} = props
+		const v1 = parseFloat(value)
+		const v2 = parseFloat(max)
+		let v = (v1/v2)*100
+		v = Number.isInteger(v)?v:v.toFixed(2)
+		const prg1B = {
+			height: "100%",
+			overflow: "hidden",
+			width: v+"%",
+			backgroundColor: PrimaryColor,
+			borderRadius: "inherit",
+			overflow: "hidden",
+			position: "relative"
+		}		
+		const fv = percent?(v+"%"):`${value}/${max}`
+		return $("div",{style:{flexGrow:"1"},ref:elem},$("div",{style:prg1},[
+				$("div",{key:1,style:prg1T},fv),
+				$("div",{key:2,style:prg1B},
+					$("div",{style:prg1BT},fv)
+				)]
 			)
-		}
+		)
 	}
+
 	class TextElement extends StatefulComponent{
 		selectC(win){
 			const selection = win.getSelection()
@@ -3704,6 +3223,7 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 			return $("span",{ref:ref=>this.el=ref,style},content)
 		}
 	}
+	
 	const Availability = (() =>{		
 		let callbacks=[];
 		const receiver= (data) =>{			
@@ -3736,28 +3256,30 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 	const transforms= {
 		tp:{
             DocElement,FlexContainer,FlexElement,ButtonElement, TabSet, GrContainer, FlexGroup,
-            InputElement,AnchorElement,HeightLimitElement,ImageElement,SoundProducerElement,
+            InputElement, InputWithButtonElement,
+			AnchorElement,HeightLimitElement,ImageElement,SoundProducerElement,
 			DropDownElement,ControlWrapperElement,LabeledTextElement,MultilineTextElement,TextElement,
-			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,Checkbox,
+			LabelElement,ChipElement,ChipDeleteElement,FocusableElement,PopupElement,CheckboxElement,
             RadioButtonElement,FileUploadElement,TextAreaElement,
 			DateTimePicker,DateTimePickerYMSel,DateTimePickerDaySel,DateTimePickerTSelWrapper,DateTimePickerTimeSel,DateTimePickerNowSel,
 			DateTimeClockElement,TimeElement,ProgressbarElement,
-            MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,MenuBurger,
+            MenuBarElement,MenuDropdownElement,FolderMenuElement,ExecutableMenuElement,
             TableElement,THeadElement,TBodyElement,THElement,TRElement,TDElement,
             ConnectionState,
 			SignIn,ChangePassword,
 			ErrorElement,
 			ClickableDivElement,
 			FocusAnnouncerElement,
-			ConfirmationOverlayElement,
+			OverlayElement,
 			DragDropHandlerElement,
 			DragDropDivElement,			
-			ColorCreator,ColorItem,ColorPicker,
+			ColorCreator,ColorItem,ColorPickerElement,
 			InteractiveAreaElement,ZoomOnPopupElement,
 			BatteryState,DeviceConnectionState,
 			DragWrapperElement,
 			CanvasMaxHeightElement,
-			NoShowUntilElement			
+			NoShowUntilElement,
+			...TalmanElements
     },
 		onClickValue,		
 		onReadySendBlob,
@@ -3766,13 +3288,24 @@ export default function MetroUi(log,requestState,images,documentManager,eventMan
 		onWResize,
 		onContext:({ctx:ctx=>()=>rootCtx(ctx).branchKey})
 	};
+	const toUrl = (path) => {
+		setTimeout(()=>{documentManager.document.location.href = path})
+	}
+	const reload = () => {
+		documentManager.document.location.reload()
+	}
+	const historyBack = () => {
+		documentManager.document.defaultView.history.back()
+	}
 	const receivers = {
 		download,
 		ping:PingReceiver.ping,
 		availability:Availability.receiver,
 		branches:Branches.store,
-		...errors.receivers
+		reload,
+		toUrl,
+		historyBack
 	}	
-	const checkActivate = checkActivateCalls.check	
+	const checkActivate = checkActivateCalls.check
 	return ({transforms,receivers,checkActivate,reactPathConsumer:Consumer});
 }

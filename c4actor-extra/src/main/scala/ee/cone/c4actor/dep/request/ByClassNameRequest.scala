@@ -3,7 +3,7 @@ package ee.cone.c4actor.dep.request
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.{DepResponse, _}
-import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.ByClassNameRequest
+import ee.cone.c4actor.dep.request.ByClassNameRequestProtocol.N_ByClassNameRequest
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, was}
 import ee.cone.c4proto.{Id, Protocol, protocol}
@@ -19,7 +19,8 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with S
 
 case class InnerByClassNameRequest(request: DepInnerRequest, className: String, from: Int, to: Int)
 
-@assemble class ByClassNameGenericAssembleBase[A <: Product](handledClass: Class[A], classSrcId: SrcId, depResponseFactory: DepResponseFactory) extends   ByClassNameRequestUtils {
+@assemble class ByClassNameGenericAssembleBase[A <: Product](handledClass: Class[A], classSrcId: SrcId, depResponseFactory: DepResponseFactory)
+   extends AssembleName("ByClassNameGenericAssemble", handledClass) with ByClassNameRequestUtils {
   type ByCNSrcId = SrcId
   type ByCNRqSrcId = SrcId
 
@@ -34,7 +35,7 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
     rq: Each[DepInnerRequest]
   ): Values[(ByCNRqSrcId, DepInnerRequest)] =
     rq.request match {
-      case request: ByClassNameRequest if request.className == handledClass.getName => List((classSrcId + "ByCN") → rq)
+      case request: N_ByClassNameRequest if request.className == handledClass.getName => List((classSrcId + "ByCN") → rq)
       case _ => Nil
     }
 
@@ -45,16 +46,16 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
     @by[ByCNSrcId] items: Values[A]
   ): Values[(SrcId, DepResponse)] =
     rq.request match {
-      case byCNRq: ByClassNameRequest if byCNRq.className == handledClass.getName =>
+      case byCNRq: N_ByClassNameRequest if byCNRq.className == handledClass.getName =>
         List(WithPK(depResponseFactory.wrap(rq, Option(takeWithDefaultParams(items.toList)(byCNRq.from)(byCNRq.count)))))
       case _ => Nil
     }
 
 }
 
-@protocol(DepRequestCat) object ByClassNameRequestProtocolBase   {
+@protocol object ByClassNameRequestProtocolBase   {
 
-  @Id(0x0f26) case class ByClassNameRequest(
+  @Id(0x0f26) case class N_ByClassNameRequest(
     @Id(0x0f27) className: String,
     @Id(0x0f28) from: Int,
     @Id(0x0f29) count: Int

@@ -105,7 +105,7 @@ object StaticHashSearchImpl {
   }
 
   case class IndexerImpl[By <: Product, Model <: Product, Field](
-    metaList: List[MetaAttr], by: By, next: Indexer[Model]
+    metaList: List[AbstractMetaAttr], by: By, next: Indexer[Model]
   )(
     val serializer: SerializationUtils,
     val modelClass: Class[Model],
@@ -128,7 +128,7 @@ object StaticHashSearchImpl {
     def heapIds(model: Model): List[SrcId] =
       heapIds(metaList, valueToRanges(of(model)))
 
-    private def heapIds(metaList: List[MetaAttr], ranges: List[By]): List[SrcId] = for {
+    private def heapIds(metaList: List[AbstractMetaAttr], ranges: List[By]): List[SrcId] = for {
       range ← ranges
     } yield {
       //println(range,range.hashCode())
@@ -136,13 +136,13 @@ object StaticHashSearchImpl {
       getHeapSrcId(metaList, range)
     }
 
-    private def getHeapSrcId(metaList: List[MetaAttr], range: By): SrcId = {
+    private def getHeapSrcId(metaList: List[AbstractMetaAttr], range: By): SrcId = {
       val metaListUUID = serializer.srcIdFromMetaAttrList(metaList)
       val rangeUUID = serializer.srcIdFromOrig(range, by.getClass.getName)
       serializer.srcIdFromSeqMany(metaListUUID, rangeUUID).toString
     }
 
-    def fltML: List[MetaAttr] ⇒ NameMetaAttr =
+    def fltML: List[AbstractMetaAttr] ⇒ NameMetaAttr =
       _.collectFirst { case l: NameMetaAttr ⇒ l }.get
 
     def isMy(cond: InnerLeaf[Model]): Boolean = {
@@ -179,7 +179,7 @@ import StaticHashSearchImpl._
   modelCl: Class[Model],
   indexer: Indexer[Model],
   serializer: SerializationUtils
-) extends   HashSearchAssembleSharedKeys {
+) extends AssembleName("HashSearchStaticLeafAssemble", modelCl) with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
 
@@ -195,7 +195,7 @@ import StaticHashSearchImpl._
     leafCondId: SrcId,
     leafCond: Each[InnerLeaf[Model]]
   ): Values[(StaticHeapId, StaticNeed[Model])] =
-    if(indexer.isMy(leafCond))
+    if (indexer.isMy(leafCond))
       for {
         heapId ← heapIds(indexer, leafCond.condition)
       } yield {
@@ -208,7 +208,7 @@ import StaticHashSearchImpl._
     request: Each[InnerLeaf[Model]],
     @by[LeafCondId] priorities: Values[StaticCount[Model]]
   ): Values[(SrcId, InnerConditionEstimate[Model])] =
-    if(indexer.isMy(request))
+    if (indexer.isMy(request))
       List(WithPK(cEstimate(request, priorities)))
     else Nil
 }
@@ -216,9 +216,9 @@ import StaticHashSearchImpl._
 
 @assemble class StaticAssembleSharedBase[Model <: Product](
   modelCl: Class[Model],
-  debugMode: Boolean,// = false
+  debugMode: Boolean, // = false
   indexUtil: IndexUtil
-) extends   HashSearchAssembleSharedKeys {
+) extends AssembleName("StaticAssembleShared", modelCl) with HashSearchAssembleSharedKeys {
   type StaticHeapId = SrcId
   type LeafCondId = SrcId
 

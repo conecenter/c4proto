@@ -1,4 +1,4 @@
-export default function Images(btoa){
+const Images = (btoa) =>{
 	const svgSrc = svg => "data:image/svg+xml;base64,"+btoa(svg)
 	const closeSvg = `
 				<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" viewBox="0 0 348.333 348.334" style="enable-background:new 0 0 348.333 348.334;" xml:space="preserve" fill="black">
@@ -28,10 +28,10 @@ export default function Images(btoa){
 				</svg>`;
 	const folderSvgData=svgSrc(folderSvg)
 	
-	const checkboxSvg = `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411">
-					<polygon points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/>
+	const checkboxSvg =color=>`<svg version="1.1" xmlns="http://www.w3.org/2000/svg" width="16px" viewBox="0 0 128.411 128.411">
+					<polygon style = "stroke:${color};fill:${color}" points="127.526,15.294 45.665,78.216 0.863,42.861 0,59.255 44.479,113.117 128.411,31.666"/>
 				</svg>`;
-	const checkboxSvgData=svgSrc(checkboxSvg)
+	const checkboxSvgData=color=> svgSrc(checkboxSvg(color))	
 	
 	const calendarSvg = `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" x="0" y="0" viewBox="0 0 512 512" style="enable-background:new 0 0 512 512;" xml:space="preserve">
 				  <path style="fill:#FFFFFF;" d="M481.082,123.718V72.825c0-11.757-9.531-21.287-21.287-21.287H36         c-11.756,0-21.287,9.53-21.287,21.287v50.893L481.082,123.718L481.082,123.718z"/>
@@ -387,22 +387,12 @@ zR5MSVNUFAAAAElORk9JU0ZUCAAAAEZpc3Npb24A`
 		wifiSignalStateSvgData,beepMidi,errorSound,triAngleSvgData
 	}
 }
-
-/*
-	const triAngleSvg = (h,t) =>{
-		const viewBox = !t?`0 0 42 ${50+h}`:`0 0 ${50+h} 42`
-		const height = !t?50+h:42
-		const width = !t?42:50+h
-		const p1d = !t?"M 0,0 42,0 21,25 Z":"M 0,0 0,42 25,21 Z"
-		const p2d = !t?`M 0,${50+h} 42,${50+h} 21,${50+h-25} Z`:`M ${50+h},0 ${50+h},42 ${50+h-25},21 Z`		
-		const r = !t?{x:16,y:0,height:50+h,width:10}:{x:0,y:16,width:50+h,height:10}		
-		return `
-		<svg xmlns:svg="http://www.w3.org/2000/svg" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="${viewBox}" height="${height}" width="${width}" > 
-			<path style="stroke-width:0.2" d="${p1d}"/>
-			<path style="stroke-width:0.2" d="${p2d}"/>	  
-			<rect style="stroke-width:0.2" y="${r.y}" x="${r.x}" height="${r.height}" width="${r.width}"/>  
-		</svg>
-		`
+const images = (()=>{
+	let _img
+	const init = ref => {
+		if(!_img) _img = Images(ref.ownerDocument.defaultView.btoa)
+		return _img
 	}
-
-*/
+	return init
+})()
+export {Images,images}

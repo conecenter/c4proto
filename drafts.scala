@@ -63,31 +63,31 @@ import Types._
 class MyReduction(implicit indexFactory: IndexFactory, eventSource: EventSource){
   import indexFactory._
   implicit lazy val void: Index[Types.SrcId,Void] = ???
-  implicit lazy val newRawChildNode = createOriginalIndex[RawChildNode]
-  implicit lazy val newRawParentNode = createOriginalIndex[RawParentNode]
+  implicit lazy val newRawChildNode = createOriginalIndex[D_RawChildNode]
+  implicit lazy val newRawParentNode = createOriginalIndex[D_RawParentNode]
   implicit lazy val newChildNodeByParentJoin = new ChildNodeByParentJoin
   implicit lazy val newParentNodeWithChildrenJoin = new ParentNodeWithChildrenJoin
-  implicit lazy val newChildNodeByParent = createJoinMapIndex[RawChildNode,Void,ChildNodeByParent]
-  implicit lazy val newParentNodeWithChildren = createJoinMapIndex[ChildNodeByParent,RawParentNode,ParentNodeWithChildren]
+  implicit lazy val newChildNodeByParent = createJoinMapIndex[D_RawChildNode,Void,ChildNodeByParent]
+  implicit lazy val newParentNodeWithChildren = createJoinMapIndex[ChildNodeByParent,D_RawParentNode,ParentNodeWithChildren]
 }
 
-case class RawChildNode(srcId: SrcId, parentSrcId: SrcId, caption: String)
-case class RawParentNode(srcId: SrcId, caption: String)
-case class ChildNodeByParent(srcId: SrcId, child: RawChildNode)
-case class ParentNodeWithChildren(srcId: SrcId, children: List[RawChildNode])
+case class D_RawChildNode(srcId: SrcId, parentSrcId: SrcId, caption: String)
+case class D_RawParentNode(srcId: SrcId, caption: String)
+case class ChildNodeByParent(srcId: SrcId, child: D_RawChildNode)
+case class ParentNodeWithChildren(srcId: SrcId, children: List[D_RawChildNode])
 /*
 case class World[S](implicit
-  rawChildNode: Index[S,SrcId,RawChildNode],
-  rawParentNode: Index[S,SrcId,RawParentNode],
+  rawChildNode: Index[S,SrcId,D_RawChildNode],
+  rawParentNode: Index[S,SrcId,D_RawParentNode],
   childNodeByParent: Index[S,SrcId,ChildNodeByParent],
   parentNodeWithChildren: Index[S,SrcId,ParentNodeWithChildren]
 )*/
-class ChildNodeByParentJoin extends Join[RawChildNode,Void,ChildNodeByParent] {
-  def join(rawChildNode: Values[RawChildNode], void: Values[Void]): Values[ChildNodeByParent] =
+class ChildNodeByParentJoin extends Join[D_RawChildNode,Void,ChildNodeByParent] {
+  def join(rawChildNode: Values[D_RawChildNode], void: Values[Void]): Values[ChildNodeByParent] =
     rawChildNode.map(child ⇒ ChildNodeByParent(srcId=child.parentSrcId,child=child))
 }
-class ParentNodeWithChildrenJoin extends Join[ChildNodeByParent,RawParentNode,ParentNodeWithChildren] {
-  def join(childNodeByParent: Values[ChildNodeByParent], rawParentNode: Values[RawParentNode]): Values[ParentNodeWithChildren] = {
+class ParentNodeWithChildrenJoin extends Join[ChildNodeByParent,D_RawParentNode,ParentNodeWithChildren] {
+  def join(childNodeByParent: Values[ChildNodeByParent], rawParentNode: Values[D_RawParentNode]): Values[ParentNodeWithChildren] = {
     rawParentNode.map(parent ⇒
       ParentNodeWithChildren(parent.srcId, childNodeByParent.map(_.child).toList)
     )

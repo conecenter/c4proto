@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.FailedUpdates
+import ee.cone.c4actor.QProtocol.S_FailedUpdates
 
 import scala.annotation.tailrec
 
@@ -13,6 +13,7 @@ class RootConsumer(
   consuming: Consuming
 ) extends Executable with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
+    logger.info(s"Starting RootConsumer...")
     GCLog("before loadRecent")
     val initialRawWorld: RichContext =
       (for{
@@ -28,7 +29,7 @@ class RootConsumer(
           logger.debug(s"Reducing $snapshot")
           Option(reducer.reduce(None,List(event)))
         }
-        if ByPK(classOf[FailedUpdates]).of(world).isEmpty
+        if ByPK(classOf[S_FailedUpdates]).of(world).isEmpty
       } yield {
         logger.info(s"Snapshot reduced without failures [${snapshot.relativePath}]")
         world

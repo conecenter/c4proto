@@ -1,29 +1,31 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.DepTestProtocol.Spark
-import ee.cone.c4actor.TestProtocol.{TestNode, ValueNode}
-import ee.cone.c4actor.TestRequests.ChildDepRequest
+import ee.cone.c4actor.DepTestProtocol.D_Spark
+import ee.cone.c4actor.TestProtocol.{D_TestNode, D_ValueNode}
+import ee.cone.c4actor.TestRequests.D_ChildDepRequest
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.reponse.filter.{DepCommonResponseForwardMix, DepForwardUserAttributesMix, DepResponseFilterFactoryMix}
 import ee.cone.c4actor.dep.request._
 import ee.cone.c4actor.dep_impl.{AskByPKsApp, ByPKRequestHandlerApp, DepAssembleApp, DepResponseFiltersApp}
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{GenLens, Id, Protocol, protocol}
 
 import scala.collection.immutable
 
+@protocol object TestProtocolBase {
 
-@protocol(TestCat) object TestProtocolBase   {
+  @GenLens
+  @Id(0x0001) case class D_TestNode(
+    @Id(0x0003) srcId: String,
+    @Id(0x0005) parentId: String)
 
-  @Id(0x0001) case class TestNode(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
-
-  @Id(0x0010) case class ValueNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
+  @Id(0x0010) case class D_ValueNode(@Id(0x0013) srcId: String, @Id(0x0015) value: Int)
 
 }
 
-object DefaultPffNode extends DefaultModelFactory(classOf[ValueNode], ValueNode(_, 0))
+object DefaultPffNode extends DefaultModelFactory(classOf[D_ValueNode], D_ValueNode(_, 0))
 
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.DepTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 /*@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry)   {
@@ -53,7 +55,7 @@ object DefaultPffNode extends DefaultModelFactory(classOf[ValueNode], ValueNode(
 }*/
 
 case class TestTransform(srcId: SrcId, access: Any) extends TxTransform {
-  override def transform(local: Context): Context = access.asInstanceOf[Access[ValueNode]].updatingLens.get.set(access.asInstanceOf[Access[ValueNode]].initialValue.copy(value = 666))(local)
+  override def transform(local: Context): Context = access.asInstanceOf[Access[D_ValueNode]].updatingLens.get.set(access.asInstanceOf[Access[D_ValueNode]].initialValue.copy(value = 666))(local)
 }
 
 
@@ -63,11 +65,11 @@ class DepTestStart(
   def run(): Unit = {
     import LEvent.update
 
-    val recs = update(TestNode("1", "")) ++ update(ValueNode("123", 239)) ++ update(ValueNode("124", 666)) ++ update(Spark("test"))
+    val recs = update(D_TestNode("1", "")) ++ update(D_ValueNode("123", 239)) ++ update(D_ValueNode("124", 666)) ++ update(D_Spark("test"))
     /*
-          update(Node("12","1")) ++ update(Node("13","1")) ++
-          update(Node("124","12")) ++ update(Node("125","12"))*/
-    val updates: List[QProtocol.Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+          update(D_Node("12","1")) ++ update(D_Node("13","1")) ++
+          update(D_Node("124","12")) ++ update(D_Node("125","12"))*/
+    val updates: List[QProtocol.N_Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
@@ -78,10 +80,10 @@ class DepTestStart(
     val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
     println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")*/
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-    val newLocal = TxAdd(LEvent.update(ValueNode("124", 555)))(nGlobal)
+    val newLocal = TxAdd(LEvent.update(D_ValueNode("124", 555)))(nGlobal)
     println(ByPK(classOf[DepTestResponse]).of(newLocal).values.toList)
 
-    val newLocal2 = TxAdd(LEvent.update(ValueNode("123", 100)))(newLocal)
+    val newLocal2 = TxAdd(LEvent.update(D_ValueNode("123", 100)))(newLocal)
     println(ByPK(classOf[DepTestResponse]).of(newLocal2).values.toList)
     /*println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     val newContext = access.updatingLens.get.set(access.initialValue.copy(value = 666))(nGlobal)
@@ -95,17 +97,17 @@ class DepTestStart(
 
     /*
     Map(
-      ByPK(classOf[PCProtocol.RawParentNode]) -> Map(
-        "1" -> RawParentNode("1","P-1")
+      ByPK(classOf[PCProtocol.D_RawParentNode]) -> Map(
+        "1" -> D_RawParentNode("1","P-1")
       ),
-      ByPK(classOf[PCProtocol.RawChildNode]) -> Map(
-        "2" -> RawChildNode("2","1","C-2"),
-        "3" -> RawChildNode("3","1","C-3")
+      ByPK(classOf[PCProtocol.D_RawChildNode]) -> Map(
+        "2" -> D_RawChildNode("2","1","C-2"),
+        "3" -> D_RawChildNode("3","1","C-3")
       ),
       ByPK(classOf[ParentNodeWithChildren]) -> Map(
         "1" -> ParentNodeWithChildren("1",
           "P-1",
-          List(RawChildNode("2","1","C-2"), RawChildNode("3","1","C-3"))
+          List(D_RawChildNode("2","1","C-2"), D_RawChildNode("3","1","C-3"))
         )
       )
     ).foreach{
@@ -127,18 +129,18 @@ class DepTestApp extends TestRichDataApp
   with DepResponseFiltersApp
   with DepCommonResponseForwardMix
   with DepResponseFilterFactoryMix
-with DepForwardUserAttributesMix
+  with DepForwardUserAttributesMix
   with DepAssembleApp with AskByPKsApp with ByClassNameRequestMix with ByClassNameAllRequestHandlerApp with ByClassNameRequestApp with ContextIdInjectApp {
 
   def depRequestHandlers: immutable.Seq[DepHandler] = depHandlers
 
 
-  override def askByPKs: List[AbstractAskByPK] = askByPKFactory.forClass(classOf[ValueNode]) :: super.askByPKs
+  override def askByPKs: List[AbstractAskByPK] = askByPKFactory.forClass(classOf[D_ValueNode]) :: super.askByPKs
 
 
-  override def byClNameAllClasses: List[Class[_ <: Product]] = classOf[ValueNode] :: super.byClNameAllClasses
+  override def byClNameAllClasses: List[Class[_ <: Product]] = classOf[D_ValueNode] :: super.byClNameAllClasses
 
-  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[ValueNode]), depAskFactory, byClassNameAllAsk, depFactory)
+  def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[D_ValueNode]), depAskFactory, byClassNameAllAsk, depFactory)
 
   override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 
@@ -149,7 +151,7 @@ with DepForwardUserAttributesMix
 
   override def protocols: List[Protocol] = ContextIdRequestProtocol :: TestProtocol :: TestRequests :: super.protocols
 
-  override def childRequests: List[Class[_ <: Product]] = classOf[ChildDepRequest] :: super.childRequests
+  override def childRequests: List[Class[_ <: Product]] = classOf[D_ChildDepRequest] :: super.childRequests
 
   override def toStart: List[Executable] = new DepTestStart(execution, toUpdate, contextFactory) :: super.toStart
 

@@ -2,21 +2,21 @@ package ee.cone.c4actor.dep.request
 
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.ByClassNameAllRequestProtocol.ByClassNameAllRequest
-import ee.cone.c4actor.{AssemblesApp, ProtocolsApp, WithPK}
+import ee.cone.c4actor.dep.request.ByClassNameAllRequestProtocol.N_ByClassNameAllRequest
+import ee.cone.c4actor.{AssembleName, AssemblesApp, ProtocolsApp, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{All, Assemble, assemble, by}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class ByClassNameAllAskImpl(depFactory: DepFactory) extends ByClassNameAllAsk {
-  def askByClAll[A <: Product](cl: Class[A]): Dep[List[A]] = depFactory.uncheckedRequestDep[List[A]](ByClassNameAllRequest(cl.getName))
+  def askByClAll[A <: Product](cl: Class[A]): Dep[List[A]] = depFactory.uncheckedRequestDep[List[A]](N_ByClassNameAllRequest(cl.getName))
 }
 
-trait ByClassNameAllAsk{
+trait ByClassNameAllAsk {
   def askByClAll[A <: Product](cl: Class[A]): Dep[List[A]]
 }
 
-trait ByClassNameRequestMix extends DepFactoryApp with ByClassNameRequestApp{
+trait ByClassNameRequestMix extends DepFactoryApp with ByClassNameRequestApp {
   override def byClassNameAllAsk: ByClassNameAllAsk = ByClassNameAllAskImpl(depFactory)
 }
 
@@ -35,7 +35,8 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
   override def protocols: List[Protocol] = ByClassNameAllRequestProtocol :: super.protocols
 }
 
-@assemble class ByClassNameAllRequestGenericHandlerBase[Model <: Product](modelCl: Class[Model], util: DepResponseFactory)   {
+@assemble class ByClassNameAllRequestGenericHandlerBase[Model <: Product](modelCl: Class[Model], util: DepResponseFactory)
+  extends AssembleName("ByClassNameAllRequestGenericHandler", modelCl) {
   type ByClassNameRequestAll = All
 
   def GatherAllModels(
@@ -49,15 +50,15 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
     @by[ByClassNameRequestAll] models: Values[Model]
   ): Values[(SrcId, DepResponse)] =
     rq.request match {
-      case request: ByClassNameAllRequest if request.className == modelCl.getName ⇒
+      case request: N_ByClassNameAllRequest if request.className == modelCl.getName ⇒
         List(WithPK(util.wrap(rq, Option(models.toList))))
       case _ ⇒ Nil
     }
 }
 
-@protocol(DepRequestCat) object ByClassNameAllRequestProtocolBase   {
+@protocol object ByClassNameAllRequestProtocolBase {
 
-  @Id(0x0230) case class ByClassNameAllRequest(
+  @Id(0x0230) case class N_ByClassNameAllRequest(
     @Id(0x0231) className: String
   )
 
