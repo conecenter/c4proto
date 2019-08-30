@@ -105,7 +105,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
   def createIndexDirective(
     node: IndexNodeRich[Model],
     build: Boolean
-  ): Values[(All, IndexDirective[Model, By, Field])] =
+  ): Values[(AbstractAll, IndexDirective[Model, By, Field])] =
     lensRegistry.getByCommonPrefix[Model, Field](node.indexNode.commonPrefix) match {
       case Some(lens) ⇒
         /*println(lens.metaList, byClassName, node.indexNode)*/

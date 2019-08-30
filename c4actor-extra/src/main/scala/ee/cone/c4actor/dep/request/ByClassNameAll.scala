@@ -5,7 +5,7 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByClassNameAllRequestProtocol.N_ByClassNameAllRequest
 import ee.cone.c4actor.{AssembleName, AssemblesApp, ProtocolsApp, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{All, Assemble, assemble, by}
+import ee.cone.c4assemble.{AbstractAll, All, Assemble, assemble, by, byEq}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class ByClassNameAllAskImpl(depFactory: DepFactory) extends ByClassNameAllAsk {
