@@ -167,8 +167,6 @@ push @tasks, ["","",sub{
         (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
 }];
 
-#
-#    require "$dir/main.pl"
 push @tasks, ["edit","<main|auth> #todo locking or merging",sub{
     my($cf)=@_;
     sy(&$ssh_add());
