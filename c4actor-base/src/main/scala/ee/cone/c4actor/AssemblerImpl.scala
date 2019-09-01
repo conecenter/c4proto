@@ -43,10 +43,10 @@ class AssemblerInit(
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends ToInject with LazyLogging {
 
-  private def toTree(assembled: ReadModel, updates: DPIterable[N_Update])(implicit executionContext: ExecutionContext): ReadModel =
+  private def toTree(assembled: ReadModel, updates: Seq[N_Update])(implicit executionContext: ExecutionContext): ReadModel =
     readModelUtil.create((for {
       tpPair ← updates.groupBy(_.valueTypeId)
-      (valueTypeId, tpUpdates) = tpPair
+      (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
       valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
       wKey = origKeyFactory.rawKey(valueAdapter.className)
     } yield {
@@ -60,7 +60,7 @@ class AssemblerInit(
         add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
         res ← remove :: add
       } yield res))
-    }).seq.toMap)
+    }).toMap)
 
   def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{
     val end = NanoTimer()
@@ -109,7 +109,7 @@ class AssemblerInit(
     else { local ⇒
       implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions(local.assembled)
-      val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).to[Seq] ++ out
+      val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).to(Seq) ++ out
       val externalOut = updateProcessor.process(processedOut)
       val diff = toTree(local.assembled, externalOut)(executionContext)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
@@ -159,9 +159,9 @@ class AssemblerInit(
 }
 
 case class UniqueIndexMap[K,V](index: Index, options: AssembleOptions)(indexUtil: IndexUtil) extends Map[K,V] {
-  def +[B1 >: V](kv: (K, B1)): Map[K, B1] = iterator.toMap + kv
+  def updated[B1 >: V](k: K, v: B1): Map[K, B1] = iterator.toMap.updated(k,v)
   def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"",options)).asInstanceOf[Option[V]]
   def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,"",options))).asInstanceOf[(K,V)] }
-  def -(key: K): Map[K, V] = iterator.toMap - key
+  def removed(key: K): Map[K, V] = iterator.toMap - key
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
 }

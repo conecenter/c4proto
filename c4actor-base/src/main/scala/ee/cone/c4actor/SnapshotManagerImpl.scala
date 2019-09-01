@@ -5,8 +5,6 @@ import java.util.UUID
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
 
-import SnapshotUtilImpl._
-
 object SnapshotUtilImpl extends SnapshotUtil {
   def hashFromName: RawSnapshot⇒Option[SnapshotInfo] = {
     val R = """(snapshot[a-z_]+)/([0-9a-f]{16})-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})([-0-9a-z]+)?""".r;
@@ -30,6 +28,8 @@ object SnapshotUtilImpl extends SnapshotUtil {
   }
   def hashFromData: Array[Byte]⇒String = UUID.nameUUIDFromBytes(_).toString
 }
+
+import SnapshotUtilImpl._
 
 //case class Snapshot(offset: NextOffset, uuid: String, raw: RawSnapshot)
 class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends SnapshotSaver {

@@ -1,2 +1,2 @@
 
-libraryDependencies += "org.scalameta" %% "scalameta" % "4.1.0"
+libraryDependencies += "org.scalameta" %% "scalameta" % "4.2.3"

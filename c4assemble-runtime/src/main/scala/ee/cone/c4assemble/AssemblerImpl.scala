@@ -10,7 +10,7 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
-import scala.collection.parallel.immutable.ParVector
+//import scala.collection.parallel.immutable.ParVector
 import scala.concurrent.{ExecutionContext, Future}
 
 case class Count(item: Product, count: Int)
@@ -142,10 +142,10 @@ case class IndexUtilImpl()(
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
-      val changed = mayBePar(for {
+      val changed = mayBeParProd(for {
         (k,v) ← diffValues; values ← currentValues.get(k)
       } yield IndexUtilImpl.single(values,warning), options)
-      lazy val unchanged = mayBePar(for {
+      lazy val unchanged = mayBeParProd(for {
         (k,values) ← currentValues if !diffValues.contains(k)
       } yield IndexUtilImpl.single(values,warning), options)
       val unchangedRes = (false,()⇒unchanged) :: Nil
@@ -156,13 +156,15 @@ case class IndexUtilImpl()(
   def isParallel(options: AssembleOptions): Boolean = options.isParallel
 
   def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V] =
-    if(isParallel(options)) iterable.to[ParVector] else iterable
+    /*if(isParallel(options)) iterable.to[ParVector] else*/ iterable
 
-  def mayBePar[V](iterable: immutable.Iterable[V], options: AssembleOptions): DPIterable[V] =
-    if(isParallel(options)) iterable.par else iterable
+  def mayBeParProd[V](iterable: Iterable[Product], options: AssembleOptions): DPIterable[Product] =
+    /*if(isParallel(options)) iterable.par else*/ iterable
+  def mayBePar[V](iterable: immutable.Seq[V], options: AssembleOptions): Seq[V] =
+    /*if(isParallel(options)) iterable.par else*/ iterable
 
   def mayBePar[V](seq: immutable.Seq[V]): DPIterable[V] = seq match {
-    case s: DValuesImpl ⇒ if(isParallel(s.options)) s.par else s
+    case s: DValuesImpl ⇒ /*if(isParallel(s.options)) s.par else*/ s
     case s if s.isEmpty ⇒ s
   }
 
@@ -421,7 +423,7 @@ class TreeAssemblerImpl(
 object UMLExpressionsDumper extends ExpressionsDumper[String] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): String = {
     val keyAliases: List[(AssembledKey, String)] =
-      expressions.flatMap[AssembledKey,List[AssembledKey]](e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
+      expressions.flatMap(e ⇒ e.outputWorldKey :: e.inputWorldKeys.toList)
         .distinct.zipWithIndex.map{ case (k,i) ⇒ (k,s"wk$i")}
     val keyToAlias: Map[AssembledKey, String] = keyAliases.toMap
     List(

@@ -23,7 +23,7 @@ trait IndexUtil extends Product {
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
   def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V]
-  def mayBePar[V](iterable: Iterable[V], options: AssembleOptions): DPIterable[V]
+  def mayBePar[V](iterable: immutable.Seq[V], options: AssembleOptions): Seq[V]
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
 }
 
