@@ -30,6 +30,7 @@ class ReadModelUtilImpl(indexUtil: IndexUtil) extends ReadModelUtil {
   }
   def op(op: (MMap,MMap)⇒MMap): (ReadModel,ReadModel)⇒ReadModel = Function.untupled({
     case (a: ReadModelImpl, b: ReadModelImpl) ⇒ new ReadModelImpl(op(a.inner,b.inner))
+    case (_,_) ⇒  throw new Exception("ReadModel op")
   })
   def toMap: ReadModel⇒Map[AssembledKey,Index] = {
     case model: ReadModelImpl ⇒ model.inner.transform((k,f) ⇒ f.value.get.get)

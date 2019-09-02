@@ -36,7 +36,8 @@ class AssemblerInit(
   updateProcessor: UpdateProcessor,
   processors: List[UpdatesPreprocessor],
   defaultAssembleOptions: AssembleOptions,
-  warnPeriod: Long
+  warnPeriod: Long,
+  catchNonFatal: CatchNonFatal
 )(
   assembleOptionsOuterKey: AssembledKey = origKeyFactory.rawKey(classOf[AssembleOptions].getName),
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
@@ -83,13 +84,12 @@ class AssemblerInit(
     ev ← events.lastOption.toList
     lEvent ← LEvent.update(S_Offset(actorName,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
-  private def readModelAdd(replace: Replace, executionContext: ExecutionContext): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ try {
+  private def readModelAdd(replace: Replace, executionContext: ExecutionContext): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ catchNonFatal {
     val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
     val realDiff = toTree(assembled, composes.mayBePar(updates, options))(executionContext)
     reduce(replace, assembled, realDiff, options, executionContext)
-  } catch {
-    case NonFatal(e) ⇒
+  }{ e ⇒
       logger.error("reduce", e) // ??? exception to record
       if(events.size == 1){
         val options = getAssembleOptions(assembled)
