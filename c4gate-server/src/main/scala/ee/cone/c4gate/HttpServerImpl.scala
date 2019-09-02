@@ -25,6 +25,7 @@ import ee.cone.c4proto._
 import scala.collection.immutable.Seq
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+import scala.util.matching.Regex
 
 class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
   def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean = {
@@ -84,17 +85,26 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val buffer = (new okio.Buffer).readFrom(httpExchange.getRequestBody)
     val post: okio.ByteString ⇒ S_HttpPost =
       S_HttpPost(requestId, path, headers, _, System.currentTimeMillis)
+    val authPost: okio.ByteString ⇒ Int ⇒ S_HttpPost = body ⇒ status ⇒
+      post(body).copy(headers = N_Header("X-r-auth-status", status.toString) :: headers)
+    def getPassRegex: Option[String] = ByPK(classOf[C_PasswordRequirements]).of(local).get("gate-password-requirements").map(_.regex)
 
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
       case Some("change") ⇒
-        val Array(password,again) = buffer.readUtf8().split("\n")
-        if(password!=again) throw new Exception("passwords do not match")
-        val hash = Option(AuthOperations.createHash(password))
-        List(
-          S_PasswordChangeRequest(requestId, hash),
-          post(okio.ByteString.encodeUtf8(requestId))
-        )
+        val Array(password, again) = buffer.readUtf8().split("\n")
+        // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
+        if (password != again)
+          List(authPost(okio.ByteString.EMPTY)(1))
+        else if (getPassRegex.forall(regex ⇒ !password.matches(regex)))
+          List(authPost(okio.ByteString.EMPTY)(2))
+        else {
+          val hash = Option(AuthOperations.createHash(password))
+          List(
+            S_PasswordChangeRequest(requestId, hash),
+            authPost(okio.ByteString.encodeUtf8(requestId))(0)
+          )
+        }
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
         val hashesByUser = ByPK(classOf[C_PasswordHashOfUser]).of(local)
