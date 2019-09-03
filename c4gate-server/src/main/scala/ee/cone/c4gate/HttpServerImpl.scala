@@ -69,8 +69,8 @@ object AuthOperations {
     val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
     template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
   }
-  def createHash(password: String): N_SecureHash =
-    pbkdf2(password, N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))
+  def createHash(password: String, userHash: N_SecureHash = N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY)): N_SecureHash =
+    pbkdf2(password, userHash)
   def verify(password: String, correctHash: N_SecureHash): Boolean =
     correctHash == pbkdf2(password, correctHash)
 }
