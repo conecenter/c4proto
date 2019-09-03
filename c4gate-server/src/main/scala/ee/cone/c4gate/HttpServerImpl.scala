@@ -96,7 +96,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
         if (password != again)
           List(authPost(okio.ByteString.EMPTY)(1))
-        else if (getPassRegex.forall(regex ⇒ !password.matches(regex)))
+        else if (getPassRegex.forall(regex ⇒ regex.isEmpty || !password.matches(regex)))
           List(authPost(okio.ByteString.EMPTY)(2))
         else {
           val hash = Option(AuthOperations.createHash(password))
