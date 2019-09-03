@@ -45,7 +45,7 @@ case class K2Need[Model <: Product](requestId: SrcId, modelCl: Class[Model])
 case class K2Count[Model <: Product](heapSrcId: SrcId, count: Int)
 
 object HashSearchMockAssembleTest {
-  type K2TreeAll[Test] = All
+  type K2TreeAll[Test] = AbstractAll
 }
 
 import HashSearchMockUtils._
@@ -73,7 +73,7 @@ import HashSearchMockUtils._
   def RespLineByHeap(
     respLineId: SrcId,
     respLine: Each[Model],
-    @by[K2TreeAll[Model]] tree: Each[S_TreeNodeOuter]
+    @byEq[K2TreeAll[Model]](All) tree: Each[S_TreeNodeOuter]
   ): Values[(K2HeapId, Model)] =
     for {
       tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry, idGenUtil) :: Nil
@@ -85,7 +85,7 @@ import HashSearchMockUtils._
   def ReqByHeap(
     leafCondId: SrcId,
     leaf: Each[InnerLeaf[Model]],
-    @by[K2TreeAll[Model]] trees: Values[S_TreeNodeOuter]
+    @byEq[K2TreeAll[Model]](All) trees: Values[S_TreeNodeOuter]
   ): Values[(K2HeapId, K2Need[Model])] =
     if(isMy(leaf.condition, filterName))
       for {

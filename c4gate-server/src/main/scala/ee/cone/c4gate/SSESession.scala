@@ -176,7 +176,7 @@ object SSEAssembles {
     session: Each[U_FromAlienState],
     status: Each[U_FromAlienStatus],
     @by[SessionKey] writes: Values[U_ToAlienWrite],
-    @by[All] availabilities: Values[Availability]
+    @byEq[AbstractAll](All) availabilities: Values[Availability]
   ): Values[(SrcId,TxTransform)] = List(WithPK(SessionTxTransform(
     session.sessionKey, session, status, writes.sortBy(_.priority), Single.option(availabilities)
   )))
@@ -207,7 +207,7 @@ object SSEAssembles {
   def allAvailability(
     key: SrcId,
     doc: Each[S_HttpPublication]
-  ): Values[(All,Availability)] = for {
+  ): Values[(AbstractAll,Availability)] = for {
     until ← doc.until.toList if doc.path == "/availability"
   } yield All → Availability(doc.path,until)
 }

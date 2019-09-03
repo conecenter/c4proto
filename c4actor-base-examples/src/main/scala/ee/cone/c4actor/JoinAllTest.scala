@@ -27,11 +27,11 @@ case class JoinAllTestItem(srcId: String)
   def joinReg(
     key: SrcId,
     regItem: Each[D_RegistryItem]
-  ): Values[(All,D_RegistryItem)] = List(All -> regItem)
+  ): Values[(AbstractAll,D_RegistryItem)] = List(All -> regItem)
 
   def join(
     key: SrcId,
-    @by[All] regItem: Each[D_RegistryItem],
+    @byEq[AbstractAll](All) regItem: Each[D_RegistryItem],
     item: Each[D_Item]
   ): Values[(SrcId,JoinAllTestItem)] = {
     println(s"recalc: ${item.srcId}-${regItem.srcId}")

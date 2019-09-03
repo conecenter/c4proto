@@ -22,7 +22,7 @@ trait IndexUtil extends Product {
   type Partitioning = Iterable[(Boolean,()⇒DPIterable[Product])]
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
-  def invalidateKeySet(diffIndexSeq: Seq[Index], options: AssembleOptions): Seq[Index] ⇒ DPIterable[Any] //m
+  def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V]
   def mayBePar[V](iterable: Iterable[V], options: AssembleOptions): DPIterable[V]
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
 }
@@ -138,6 +138,7 @@ trait JoinKey extends AssembledKey {
 
 //@compileTimeOnly("not expanded")
 class by[T] extends StaticAnnotation
+class byEq[T](value: T) extends StaticAnnotation
 class was extends StaticAnnotation
 class distinct extends StaticAnnotation
 class ns(key: String) extends StaticAnnotation
@@ -146,8 +147,8 @@ trait ExpressionsDumper[To] {
   def dump(expressions: List[DataDependencyTo[_] with DataDependencyFrom[_]]): To
 }
 
-sealed abstract class All
-case object All extends All
+sealed abstract class AbstractAll
+case object All extends AbstractAll
 
 /**
   * !!! bug

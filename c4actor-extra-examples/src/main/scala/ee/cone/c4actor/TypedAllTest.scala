@@ -44,12 +44,12 @@ class TypedAllTestStart(
 }
 
 trait TypedAllType {
-  type TestAll[T] = All
+  type TestAll[T] = AbstractAll
   type TestBy[T] = SrcId
 }
 
 @assemble class TestAllEachBase   {
-  type FixedAll = All
+  type FixedAll = AbstractAll
 
   def test1(
     srcId: SrcId,
@@ -59,7 +59,7 @@ trait TypedAllType {
   def test2(
     srcId: SrcId,
     firstborn: Each[S_Firstborn],
-    @by[FixedAll] test: Each[D_ModelTest]
+    @byEq[FixedAll](All) test: Each[D_ModelTest]
   ): Values[(SrcId, Nothing)] = {
     println(test)
     Nil
@@ -68,7 +68,7 @@ trait TypedAllType {
   def test3(
     srcId: SrcId,
     firstborn: Each[S_Firstborn],
-    @by[FixedAll] test: Values[D_ModelTest]
+    @byEq[FixedAll](All) test: Values[D_ModelTest]
   ): Values[(SrcId, Nothing)] = {
     println(test)
     Nil
@@ -88,13 +88,13 @@ trait TypedAllType {
   def AllGrabber(
     srcId: SrcId,
     firstborn: Values[S_Firstborn],
-    @by[TestAll[Model]] models: Values[Model]
+    @byEq[TestAll[Model]](All) models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
     println(s"[TYPED,$modelCl]", models)
     Nil
   }
 
-  type FixedAll = All
+  type FixedAll = AbstractAll
 
   def ModelToFixedAll(
     srcId: SrcId,
@@ -107,7 +107,7 @@ trait TypedAllType {
   def FixedAllGrabber(
     srcId: SrcId,
     firstborn: Each[S_Firstborn],
-    @by[FixedAll] models: Values[Model]
+    @byEq[FixedAll](All) models: Values[Model]
   ): Values[(SrcId, Nothing)] = {
     println(s"[FIXED,$modelCl]", models)
     Nil
@@ -133,7 +133,7 @@ trait TypedAllType {
   def CreateTx(
     srcId: SrcId,
     firstborn: Each[S_Firstborn],
-    @by[FixedAll] models: Values[Model]
+    @byEq[FixedAll](All) models: Values[Model]
   ): Values[(SrcId, TxTransform)] = WithPK(TestTx(srcId + modelCl.getName)) :: Nil
 }
 
