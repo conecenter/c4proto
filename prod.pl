@@ -564,24 +564,35 @@ my $make_kc_yml = sub{
     };
     #
     my @ingress_yml = do{
-        my @rules = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^ingress:(.+)$/ ? {
-                host => "$1",
-                http => {
-                    paths => [{
-                        backend => {
-                            serviceName => $name,
-                            servicePort => $v-0,
-                        },
-                    }],
-                },
-            } : ()
+        my @items = &$map(\%all,sub{ my($k,$v)=@_;
+            $k=~/^ingress:(.+)$/ ? {host=>$1,port=>$v-0} : ()
         });
+        my $disable_tls = 0; #make option when required
+        my @annotations = $disable_tls ? () : (annotations=>{
+            "certmanager.k8s.io/acme-challenge-type" => "http01",
+            "certmanager.k8s.io/cluster-issuer" => "letsencrypt-prod",
+            "kubernetes.io/ingress.class" => "nginx",
+        });
+        my @tls = $disable_tls ? () : (tls=>[{
+            hosts => [map{$$_{host}}@items],
+            secretName => "$name-tls",
+        }]);
+        my @rules = map{+{
+            host => $$_{host},
+            http => {
+                paths => [{
+                    backend => {
+                        serviceName => $name,
+                        servicePort => $$_{port},
+                    },
+                }],
+            },
+        }} @items;
         @rules ? &$to_yml_str({
             apiVersion => "extensions/v1beta1",
             kind => "Ingress",
-            metadata => { name => $name },
-            spec => { rules => \@rules },
+            metadata => { name => $name, @annotations },
+            spec => { rules => \@rules, @tls },
         }) : ();
     };
     #
