@@ -35,7 +35,7 @@ class ExtDBSyncImpl(
   val builderMap: Map[Long, DBSchemaBuilder[_ <: Product]] = externalsList.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
   val supportedIds: Set[Long] = builderMap.keySet
   // Check if registered externals have adapter
-  val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.filterKeys(supportedIds)
+  val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.view.filterKeys(supportedIds).toMap
 
   val extUpdate: ProtoAdapter[S_ExternalUpdate] with HasId =
     qAdapterRegistry.byName(classOf[S_ExternalUpdate].getName)

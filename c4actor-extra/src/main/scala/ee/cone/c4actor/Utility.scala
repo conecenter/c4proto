@@ -6,7 +6,6 @@ import ee.cone.c4assemble.ToPrimaryKey
 import ee.cone.c4proto.HasId
 
 import scala.annotation.tailrec
-import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
 
@@ -196,6 +195,7 @@ trait LazyHashCodeProduct extends Product {
   override def hashCode(): Int = savedHashCode
 }
 
+/*
 object DistinctBySrcIdGit {
   def apply[Repr, A <: Product, That](xs: IterableLike[A, Repr])(implicit cbf: CanBuildFrom[Repr, A, That]): That =
     new ConeCollectionGit(xs).distinctBySrcId
@@ -222,7 +222,7 @@ class ConeCollectionGit[A <: Product, Repr](xs: IterableLike[A, Repr]) {
   //to Use implicit:
   //  implicit def toDistinct[A, Repr](xs: IterableLike[A, Repr]): ConeCollection[A, Repr] = new ConeCollection(xs)
 }
-
+*/
 object ClassAttr {
   def apply(a: Class[_], b: Class[_]): ClassesAttr = ClassesAttr(a.getName, b.getName)
 }

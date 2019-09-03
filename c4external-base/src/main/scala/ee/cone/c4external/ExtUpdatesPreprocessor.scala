@@ -27,21 +27,22 @@ class ExtUpdatesPreprocessor(
   extUpdateId: Long = 4L
 ) extends UpdateProcessor {
   private val externalNames = external.map(_.clName).toSet
-  val idSet: Set[Long] = qAdapterRegistry.byName.filterKeys(externalNames).transform { case (_, v) ⇒ v.id }.values.toSet
+  val idSet: Set[Long] = qAdapterRegistry.byName.collect{ case (k, v) if externalNames(k) ⇒ v.id }.toSet
 
   def process(updates: Seq[N_Update]): Seq[N_Update] = {
     val (ext, normal) = updates.partition(u ⇒ idSet(u.valueTypeId) && (u.flags & extUpdateId) == 0L)
-    val prepared: Map[TypeId, Map[SrcId, Seq[N_Update]]] = ext.groupBy(_.valueTypeId).mapValues(_.groupBy(_.srcId))
+    val prepared: Map[TypeId, Map[SrcId, Seq[N_Update]]] = ext.groupBy(_.valueTypeId).view.mapValues(_.groupBy(_.srcId)).toMap
     val extUpdates =
       for {
-        (typeId, inner) ← prepared
+        pair ← prepared
+        (typeId, inner) = pair: (TypeId, Map[SrcId, Seq[N_Update]])
         (_, updates) ← inner
       } yield {
         val randomUid = RandomUUID()
         val u = updates.last
         S_ExternalUpdate(randomUid, u.srcId, typeId, u.value, u.flags, "")
       }
-    extUpdates.to[Seq].flatMap(LEvent.update).map(toUpdate.toUpdate) ++
+    extUpdates.toSeq.flatMap(LEvent.update).map(toUpdate.toUpdate) ++
       normal.map(u ⇒
         if ((u.flags & extUpdateId) == 0L)
           u

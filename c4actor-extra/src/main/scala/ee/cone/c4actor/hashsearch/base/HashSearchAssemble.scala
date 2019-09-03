@@ -70,7 +70,9 @@ trait HashSearchAssembleApp extends AssemblesApp with HashSearchModelsApp with S
 
   def debugModeHashSearchAssemble: Boolean = false
 
-  override def assembles: List[Assemble] = hashSearchModels.distinct.map(new HashSearchAssemble(_, qAdapterRegistry, serializer, preHashing, hashGen, debugModeHashSearchAssemble, indexUtil)) ::: super.assembles
+  override def assembles: List[Assemble] = hashSearchModels.distinct.map(cl⇒
+    new HashSearchAssemble(cl, qAdapterRegistry, serializer, preHashing, hashGen, debugModeHashSearchAssemble, indexUtil)
+  ) ::: super.assembles
 }
 
 object HashSearchAssembleUtils {
@@ -281,11 +283,11 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     TimeColored("g", ("ResponsesToRequest", responses.size, responses.map(_.modelList.size).sum), doNotPrint = !debugMode) {
       val distinctList = MergeBySrcId(responses.map(_.modelList))
       val result = for {
-        root ← indexUtil.mayBePar(rootConditions)
+        root ← indexUtil.mayBePar(rootConditions).toSeq
       } yield {
         root.requestId → ResponseModelList(root.requestId + innerUnionId, distinctList)
       }
-      val transResult = result.to[Values]
+      val transResult = result //.to[Values]
       transResult
     }
   }

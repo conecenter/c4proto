@@ -82,7 +82,7 @@ object HashSearchImpl {
       val(valueToRanges,byToRanges) = ranger.ranges(by)
       IndexerImpl(modelConditionFactory.filterMetaList(lens),by,this)(preHashing,modelClass,modelConditionFactory,lens.of,valueToRanges,byToRanges.lift)
     }
-    def assemble = new HashSearchAssemble(modelClass,this, preHashing)
+    def assemble = new BHashSearchAssemble(modelClass,this, preHashing)
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]]
     def heapIds(model: Model): List[SrcId]
   }
@@ -127,7 +127,7 @@ object HashSearchImpl {
   //  l ⇒ Single.option(l.distinct).toList
 }
 
-@assemble class HashSearchAssembleBase[RespLine<:Product](
+@assemble class BHashSearchAssembleBase[RespLine<:Product](
   classOfRespLine: Class[RespLine],
   indexers: Indexer[RespLine],
   preHashing: PreHashing

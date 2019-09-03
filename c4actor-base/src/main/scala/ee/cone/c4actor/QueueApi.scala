@@ -196,16 +196,14 @@ case class UpdateLEvent[+M <: Product](srcId: SrcId, className: String, value: M
 case class DeleteLEvent[+M <: Product](srcId: SrcId, className: String) extends LEvent[M]
 
 object LEvent {
+  def update(models: List[Product]): Seq[LEvent[Product]] =
+    models.flatMap(update)
   def update(model: Product): Seq[LEvent[Product]] =
-    model match {
-      case list: List[_] ⇒ list.flatMap { case element: Product ⇒ update(element) }
-      case value ⇒ List(UpdateLEvent(ToPrimaryKey(value), value.getClass.getName, value))
-    }
+    List(UpdateLEvent(ToPrimaryKey(model), model.getClass.getName, model))
+  def delete(models: List[Product]): Seq[LEvent[Product]] =
+    models.flatMap(delete)
   def delete(model: Product): Seq[LEvent[Product]] =
-    model match {
-      case list: List[_] ⇒ list.flatMap { case element: Product ⇒ delete(element) }
-      case value ⇒ List(DeleteLEvent(ToPrimaryKey(value), value.getClass.getName))
-    }
+    List(DeleteLEvent(ToPrimaryKey(model), model.getClass.getName))
 }
 
 object WithPK {

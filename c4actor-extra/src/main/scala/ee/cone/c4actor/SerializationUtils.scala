@@ -19,7 +19,7 @@ case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, 
   def srcIdFromMetaAttrList(metaAttrs: List[AbstractMetaAttr]): SrcId = //1
     u.srcIdFromSrcIds(metaAttrs.map(srcIdFromMetaAttr):_*)
   def srcIdFromMetaAttr(metaAttr: AbstractMetaAttr): SrcId =
-    u.srcIdFromStrings(metaAttr.productPrefix +: metaAttr.productIterator.map(_.toString).to[Seq]:_*)
+    u.srcIdFromStrings(metaAttr.productPrefix +: metaAttr.productIterator.map(_.toString).toSeq:_*)
   def srcIdFromOrig(orig: Product, origClName: String): SrcId = { //2 //todo is it bad, className lost?
     val adapter = qAdapterRegistry.byName(origClName)
     u.srcIdFromSerialized(adapter.id,ToByteString(adapter.encode(orig)))
