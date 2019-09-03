@@ -96,14 +96,15 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
         // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
         if (password != again)
           List(authPost(okio.ByteString.EMPTY)(1))
-        else if (getPassRegex.forall(regex ⇒ regex.isEmpty || !password.matches(regex)))
-          List(authPost(okio.ByteString.EMPTY)(2))
-        else {
+        else if (getPassRegex.forall(regex ⇒ regex.isEmpty || password.matches(regex))) {
           val hash = Option(AuthOperations.createHash(password))
           List(
             S_PasswordChangeRequest(requestId, hash),
             authPost(okio.ByteString.encodeUtf8(requestId))(0)
           )
+        }
+        else {
+          List(authPost(okio.ByteString.EMPTY)(2))
         }
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
