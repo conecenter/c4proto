@@ -92,7 +92,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
       case Some("change") ⇒
-        val Array(username, password, again) = buffer.readUtf8().split("\n")
+        val Array(password, again, username) = buffer.readUtf8().split("\n")
         // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
         if (password != again)
           List(authPost(okio.ByteString.EMPTY)(1))
