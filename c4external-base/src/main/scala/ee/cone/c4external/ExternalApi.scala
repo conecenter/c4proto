@@ -35,7 +35,8 @@ trait ExtDBSync {
     @Id(0x0012) valueTypeId: Long,
     @Id(0x0013) value: okio.ByteString,
     @Id(0x001C) flags: Long,
-    @Id(0x001A) txId: String
+    @Id(0x001A) txId: String,
+    @Id(0x001D) time: Long
   )
 
   @Id(0x0085) case class S_CacheUpdate(

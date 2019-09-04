@@ -92,12 +92,17 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
       case Some("change") ⇒
-        val Array(password, again) = buffer.readUtf8().split("\n")
+        val Array(username, password, again) = buffer.readUtf8().split("\n")
         // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
         if (password != again)
           List(authPost(okio.ByteString.EMPTY)(1))
         else if (getPassRegex.forall(regex ⇒ regex.isEmpty || password.matches(regex))) {
-          val hash = Option(AuthOperations.createHash(password))
+          val prevHashOpt = ByPK(classOf[C_PasswordHashOfUser]).of(local).get(username).map(_.hash.get)
+          val hash: Option[N_SecureHash] =
+            prevHashOpt match {
+              case Some(prevHash) ⇒ Option(AuthOperations.createHash(password, prevHash))
+              case None ⇒ Option(AuthOperations.createHash(password))
+            }
           List(
             S_PasswordChangeRequest(requestId, hash),
             authPost(okio.ByteString.encodeUtf8(requestId))(0)

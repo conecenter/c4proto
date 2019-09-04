@@ -39,7 +39,7 @@ class ExtUpdatesPreprocessor(
       } yield {
         val randomUid = RandomUUID()
         val u = updates.last
-        S_ExternalUpdate(randomUid, u.srcId, typeId, u.value, u.flags, "")
+        S_ExternalUpdate(randomUid, u.srcId, typeId, u.value, u.flags, "", System.currentTimeMillis())
       }
     extUpdates.to[Seq].flatMap(LEvent.update).map(toUpdate.toUpdate) ++
       normal.map(u ⇒
