@@ -167,6 +167,14 @@ push @tasks, ["","",sub{
         (map{!$$_[1] ? () : "  prod $$_[0] $$_[1]"} @tasks);
 }];
 
+push @tasks, ["edit","<main|auth> #todo locking or merging",sub{
+    my($cf)=@_;
+    sy(&$ssh_add());
+    my($dir,$save) = @{&$get_conf_dir()};
+    sy("mcedit","$dir/$cf.pl");
+    sy($save);
+}];
+
 push @tasks, ["stack_list"," ",sub{
     sy(&$ssh_add());
     my $width = 6;

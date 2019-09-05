@@ -89,6 +89,11 @@ import ee.cone.c4proto._
     @Id(0x0058) userName: String,
     @Id(0x0056) hash: Option[N_SecureHash]
   )
+
+  @Id(0x005D) case class C_PasswordRequirements(
+    @Id(0x0050) srcId: String,
+    @Id(0x0051) regex: String
+  )
   /*
   @Id(0x0059) case class PasswordVerifiedRequest(
     @Id(0x0055) srcId: String,

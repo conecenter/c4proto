@@ -310,5 +310,5 @@ trait KeyFactory {
 }
 
 trait UpdateProcessor {
-  def process(updates: Seq[N_Update]): Seq[N_Update]
+  def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]
 }
