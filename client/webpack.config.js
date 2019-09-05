@@ -50,5 +50,5 @@ function config(kind,name) {
 module.exports = env=>[    
     config("test","react-app"),
     config("test","sse"),
-	...env&&env.out?[config.apply(null,env.out.split(','))]:[]
+	...env&&env.c4extra?[config.apply(null,env.c4extra.split(','))]:[]
 ]
