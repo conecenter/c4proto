@@ -110,7 +110,7 @@ class AssemblerInit(
       implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions(local.assembled)
       val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).to[Seq] ++ out
-      val externalOut = updateProcessor.process(processedOut)
+      val externalOut = updateProcessor.process(processedOut, WriteModelKey.of(local).size)
       val diff = toTree(local.assembled, externalOut)(executionContext)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)

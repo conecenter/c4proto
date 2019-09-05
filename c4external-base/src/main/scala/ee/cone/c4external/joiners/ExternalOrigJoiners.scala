@@ -69,7 +69,7 @@ import MergeTypes._
     @by[MergeId[Model]] extUs: Values[S_ExternalUpdate]
   ): Values[(CombineId[Model], S_ExternalUpdate)] =
     if (extUs.nonEmpty) {
-      val u = extUs.maxBy(_.txId)
+      val u = extUs.maxBy(u ⇒ u.txId → u.order)
       List(origId → u)
     } else Nil
 
