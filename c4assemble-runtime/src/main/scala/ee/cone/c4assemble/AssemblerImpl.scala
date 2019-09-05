@@ -11,8 +11,7 @@ import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
 import scala.collection.parallel.immutable.ParVector
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.{ExecutionContext, Future}
 
 case class Count(item: Product, count: Int)
 
@@ -25,7 +24,7 @@ case class DValuesImpl(asMultiSet: DMultiSet, warning: String, options: Assemble
   override def isEmpty: Boolean = asMultiSet.isEmpty //optim
 }
 
-class IndexImpl(val data: InnerIndex, val getMS: Any⇒Option[DMultiSet]/*, val opt: IndexOpt*/) extends Index {
+class IndexImpl(val data: InnerIndex) extends Index {
   override def toString: String = s"IndexImpl($data)"
 }
 
@@ -97,10 +96,8 @@ case class IndexUtilImpl()(
     JoinKeyImpl(was,keyAlias,keyClassName,valueClassName)
 
   def makeIndex(data: InnerIndex/*, opt: IndexOpt*/): Index =
-    if(data.isEmpty) emptyIndex else {
-      val all = data.get(All)
-      new IndexImpl(data, if(all.nonEmpty) (k:Any)⇒all else data.get/*, opt*/)
-    }
+    if(data.isEmpty) emptyIndex else new IndexImpl(data)
+
 
   def data(index: Index): InnerIndex = index match {
     case i: IndexImpl ⇒ i.data
@@ -108,7 +105,7 @@ case class IndexUtilImpl()(
   }
 
   def getMS(index: Index, key: Any): Option[DMultiSet] = index match {
-    case i: IndexImpl ⇒ i.getMS(key)
+    case i: IndexImpl ⇒ i.data.get(key)
     case _ if index == emptyIndex ⇒ None
   }
 
@@ -154,17 +151,6 @@ case class IndexUtilImpl()(
       val unchangedRes = (false,()⇒unchanged) :: Nil
       if(changed.nonEmpty) (true,()⇒changed) :: unchangedRes else unchangedRes
     }
-  }
-
-  def invalidateKeySet(diffIndexSeq: Seq[Index], options: AssembleOptions): Seq[Index] ⇒ DPIterable[Any] = {
-    val diffKeySet = diffIndexSeq.map(keySet).reduce(_ ++ _)
-    val res = if(diffKeySet.contains(All)){
-      (indexSeq: Seq[Index]) ⇒ mayBeParVector(indexSeq.map(keySet).reduce(_ ++ _) - All, options)
-    } else {
-      val ids = mayBeParVector(diffKeySet, options)
-      (indexSeq:Seq[Index]) ⇒ ids
-    }
-    res
   }
 
   def isParallel(options: AssembleOptions): Boolean = options.isParallel
@@ -216,9 +202,14 @@ class JoinMapIndex(
   override def toString: String = s"${super.toString} \n($assembleName,$name,\nInput keys:\n${inputWorldKeys.mkString("\t\n")},\nOutput key:$outputWorldKey)"
 
   def transform(transition: WorldTransition): WorldTransition = {
-
+    val worldDiffOpts: Seq[Option[Future[Index]]] = inputWorldKeys.map(transition.diff.getFuture)
+    if(worldDiffOpts.forall(_.isEmpty)) transition
+    else doTransform(transition, worldDiffOpts)
+  }
+  def doTransform(transition: WorldTransition, worldDiffOpts: Seq[Option[Future[Index]]]): WorldTransition = {
+    implicit val executionContext: ExecutionContext = transition.executionContext
     val next: Future[IndexUpdate] = for {
-      worldDiffs ← Future.sequence(inputWorldKeys.map(_.of(transition.diff)))
+      worldDiffs ← Future.sequence(worldDiffOpts.map(OrEmptyIndex(_)))
       res ← {
         if (worldDiffs.forall(composes.isEmpty)) for {
           outputDiff ← outputWorldKey.of(transition.diff)
@@ -249,7 +240,7 @@ class JoinMapIndex(
         }
       }
     } yield res
-    updater.setPart(outputWorldKey)(next)(transition)
+    updater.setPart(outputWorldKey,next,logTask = true)(transition)
   }
 }
 
@@ -394,25 +385,34 @@ class TreeAssemblerImpl(
 
     val testSZ = transforms.size
     //for(t ← transforms) println("T",t)
-    def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] =
+    def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] = {
+      implicit val executionContext: ExecutionContext = transition.executionContext
       for {
-        stable ← readModelUtil.isEmpty(transition.diff)
+        stable ← readModelUtil.isEmpty(executionContext)(transition.diff) //seq
         res ← {
           if(stable) Future.successful(transition)
-          else if(left > 0) transformUntilStable(left-1, transformAllOnce(transition))
+          else if(left > 0) transformUntilStable(left-1, {
+            //val start = System.nanoTime
+            val r = transformAllOnce(transition)
+            //println(s"transformAllOnce ${r.taskLog.size} (${r.taskLog.takeRight(4)})/${transforms.size} rules \n${(System.nanoTime-start)/1000000} ms")
+            r
+          })
           else Future.failed(new Exception(s"unstable assemble ${transition.diff}"))
         }
       } yield res
+    }
 
-    (prevWorld,diff,options,profiler) ⇒ {
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil))
+
+    (prevWorld,diff,options,profiler,executionContext) ⇒ {
+      implicit val ec = executionContext
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil),executionContext,Nil)
       val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
         seq ← Future.sequence(Seq(a,b))
       } yield composes.mergeIndex(seq) ))(prevWorld,diff)
-      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil))
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil),executionContext,Nil)
       for {
         finalTransition ← transformUntilStable(1000, nextTransition)
-        ready ← readModelUtil.ready(finalTransition.result)
+        ready ← readModelUtil.ready(ec)(finalTransition.result) //seq
       } yield finalTransition
     }
   }

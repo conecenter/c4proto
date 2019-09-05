@@ -25,6 +25,7 @@ import ee.cone.c4proto._
 import scala.collection.immutable.Seq
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+import scala.util.matching.Regex
 
 class HttpGetPublicationHandler(worldProvider: WorldProvider) extends RHttpHandler with LazyLogging {
   def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean = {
@@ -68,8 +69,8 @@ object AuthOperations {
     val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
     template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
   }
-  def createHash(password: String): N_SecureHash =
-    pbkdf2(password, N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))
+  def createHash(password: String, userHashOpt: Option[N_SecureHash]): N_SecureHash =
+    pbkdf2(password, userHashOpt.getOrElse(N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY)))
   def verify(password: String, correctHash: N_SecureHash): Boolean =
     correctHash == pbkdf2(password, correctHash)
 }
@@ -84,17 +85,28 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val buffer = (new okio.Buffer).readFrom(httpExchange.getRequestBody)
     val post: okio.ByteString ⇒ S_HttpPost =
       S_HttpPost(requestId, path, headers, _, System.currentTimeMillis)
+    val authPost: okio.ByteString ⇒ Int ⇒ S_HttpPost = body ⇒ status ⇒
+      post(body).copy(headers = N_Header("X-r-auth-status", status.toString) :: headers)
+    def getPassRegex: Option[String] = ByPK(classOf[C_PasswordRequirements]).of(local).get("gate-password-requirements").map(_.regex)
 
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
       case Some("change") ⇒
-        val Array(password,again) = buffer.readUtf8().split("\n")
-        if(password!=again) throw new Exception("passwords do not match")
-        val hash = Option(AuthOperations.createHash(password))
-        List(
-          S_PasswordChangeRequest(requestId, hash),
-          post(okio.ByteString.encodeUtf8(requestId))
-        )
+        val Array(password, again, username) = buffer.readUtf8().split("\n")
+        // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
+        if (password != again)
+          List(authPost(okio.ByteString.EMPTY)(1))
+        else if (getPassRegex.forall(regex ⇒ regex.isEmpty || password.matches(regex))) {
+          val prevHashOpt = ByPK(classOf[C_PasswordHashOfUser]).of(local).get(username).map(_.hash.get)
+          val hash: Option[N_SecureHash] = Option(AuthOperations.createHash(password, prevHashOpt))
+          List(
+            S_PasswordChangeRequest(requestId, hash),
+            authPost(okio.ByteString.encodeUtf8(requestId))(0)
+          )
+        }
+        else {
+          List(authPost(okio.ByteString.EMPTY)(2))
+        }
       case Some("check") ⇒
         val Array(userName,password) = buffer.readUtf8().split("\n")
         val hashesByUser = ByPK(classOf[C_PasswordHashOfUser]).of(local)
@@ -143,7 +155,7 @@ class ReqHandler(handlers: List[RHttpHandler]) extends HttpHandler {
 
 class RHttpServer(port: Int, handler: HttpHandler, execution: Execution) extends Executable {
   def run(): Unit = concurrent.blocking{
-    val pool = Executors.newCachedThreadPool() //newWorkStealingPool
+    val pool = execution.newThreadPool("http-") //newWorkStealingPool
     execution.onShutdown("Pool",()⇒{
       val tasks = pool.shutdownNow()
       pool.awaitTermination(Long.MaxValue,TimeUnit.SECONDS)
@@ -160,8 +172,8 @@ class WorldProviderImpl(
   worldFuture: CompletableFuture[AtomicReference[RichContext]] = new CompletableFuture()
 ) extends WorldProvider with Observer {
   def createTx(): Context = {
-    val global = concurrent.blocking{ worldFuture.get.get }
-    new Context(global.injected, global.assembled, Map.empty)
+    val global: RichContext = concurrent.blocking{ worldFuture.get.get }
+    new Context(global.injected, global.assembled, global.executionContext, Map.empty)
   }
   def activate(global: RichContext): Seq[Observer] = {
     if(worldFuture.isDone) worldFuture.get.set(global)

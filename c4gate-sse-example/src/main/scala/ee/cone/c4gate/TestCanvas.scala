@@ -24,6 +24,7 @@ class TestCanvasApp extends ServerApp
   with SessionAttrApp
   with MortalFactoryApp
   with TestCanvasViewApp
+  with BasicLoggingApp
 {
   override def assembles: List[Assemble] =
       new FromAlienTaskAssemble("/react-app.html") ::

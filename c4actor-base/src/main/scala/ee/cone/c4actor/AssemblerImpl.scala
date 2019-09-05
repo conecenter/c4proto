@@ -9,9 +9,8 @@ import ee.cone.c4assemble.Types._
 import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.{Map, Seq}
-import scala.concurrent.{Await, Future}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 
 case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: KeyFactory) {
@@ -36,13 +35,15 @@ class AssemblerInit(
   actorName: String,
   updateProcessor: UpdateProcessor,
   processors: List[UpdatesPreprocessor],
-  defaultAssembleOptions: AssembleOptions
+  defaultAssembleOptions: AssembleOptions,
+  warnPeriod: Long,
+  catchNonFatal: CatchNonFatal
 )(
   assembleOptionsOuterKey: AssembledKey = origKeyFactory.rawKey(classOf[AssembleOptions].getName),
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends ToInject with LazyLogging {
 
-  private def toTree(assembled: ReadModel, updates: DPIterable[N_Update]): ReadModel =
+  private def toTree(assembled: ReadModel, updates: DPIterable[N_Update])(implicit executionContext: ExecutionContext): ReadModel =
     readModelUtil.create((for {
       tpPair ← updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair
@@ -61,58 +62,66 @@ class AssemblerInit(
       } yield res))
     }).seq.toMap)
 
+  def waitFor[T](res: Future[T], options: AssembleOptions, stage: String): T = concurrent.blocking{
+    val end = NanoTimer()
+    val result = Await.result(res, Duration.Inf)
+    val period = end.ms
+    if(period > warnPeriod) logger.warn(s"${options.toString} long join $period ms on $stage")
+    result
+  }
+
   // read model part:
-  private def reduce(replace: Replace, wasAssembled: ReadModel, diff: ReadModel, options: AssembleOptions): ReadModel = {
-    val res = replace(wasAssembled,diff,options,assembleProfiler.createJoiningProfiling(None)).map(_.result)
-    concurrent.blocking{Await.result(res, Duration.Inf)}
+  private def reduce(
+    replace: Replace,
+    wasAssembled: ReadModel, diff: ReadModel,
+    options: AssembleOptions, executionContext: ExecutionContext
+  ): ReadModel = {
+    val res = replace(wasAssembled,diff,options,assembleProfiler.createJoiningProfiling(None),executionContext).map(_.result)(executionContext)
+    waitFor(res, options, "read")
   }
 
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
     ev ← events.lastOption.toList
     lEvent ← LEvent.update(S_Offset(actorName,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
-  private def readModelAdd(replace: Replace): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ try {
+  private def readModelAdd(replace: Replace, executionContext: ExecutionContext): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ catchNonFatal {
     val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
-    val realDiff = toTree(assembled, composes.mayBePar(updates, options))
-    val end = NanoTimer()
-    val nAssembled = reduce(replace, assembled, realDiff, options)
-    val period = end.ms
-    if(period > 1000) logger.info(s"${options.toString} long join $period ms")
-    nAssembled
-  } catch {
-    case NonFatal(e) ⇒
+    val realDiff = toTree(assembled, composes.mayBePar(updates, options))(executionContext)
+    reduce(replace, assembled, realDiff, options, executionContext)
+  }{ e ⇒
       logger.error("reduce", e) // ??? exception to record
       if(events.size == 1){
         val options = getAssembleOptions(assembled)
         val updates = offset(events) ++
           events.map(ev⇒S_FailedUpdates(ev.srcId, e.getMessage))
             .flatMap(LEvent.update).map(toUpdate.toUpdate)
-        val failDiff = toTree(assembled, updates)
-        reduce(replace, assembled, failDiff, options)
+        val failDiff = toTree(assembled, updates)(executionContext)
+        reduce(replace, assembled, failDiff, options, executionContext)
       } else {
         val(a,b) = events.splitAt(events.size / 2)
-        Function.chain(Seq(readModelAdd(replace)(a), readModelAdd(replace)(b)))(assembled)
+        Function.chain(Seq(readModelAdd(replace, executionContext)(a), readModelAdd(replace, executionContext)(b)))(assembled)
       }
   }
   // other parts:
   private def add(out: Seq[N_Update]): Context ⇒ Context = {
     if (out.isEmpty) identity[Context]
     else { local ⇒
+      implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions(local.assembled)
       val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).to[Seq] ++ out
-      val externalOut = updateProcessor.process(processedOut)
-      val diff = toTree(local.assembled, externalOut)
+      val externalOut = updateProcessor.process(processedOut, WriteModelKey.of(local).size)
+      val diff = toTree(local.assembled, externalOut)(executionContext)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val res = for {
-        transition ← replace(local.assembled,diff,options,profiling)
+        transition ← replace(local.assembled,diff,options,profiling, executionContext)
         updates ← assembleProfiler.addMeta(transition, externalOut)
       } yield {
-        val nLocal = new Context(local.injected, transition.result, local.transient)
+        val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
         WriteModelKey.modify(_.enqueue(updates))(nLocal)
       }
-      concurrent.blocking{Await.result(res, Duration.Inf)}
+      waitFor(res, options, "add")
       //call add here for new mortal?
     }
   }
@@ -141,8 +150,11 @@ class AssemblerInit(
           .andThen(add(out.map(toUpdate.toUpdate)))
       ) :::
       WriteModelAddKey.set(add) :::
-      ReadModelAddKey.set(context⇒readModelAdd(TreeAssemblerKey.of(context))) :::
-      GetOrigIndexKey.set(getOrigIndex)
+      ReadModelAddKey.set(events⇒context⇒
+        readModelAdd(TreeAssemblerKey.of(context), context.executionContext.value)(events)(context.assembled)
+      ) :::
+      GetOrigIndexKey.set(getOrigIndex) :::
+      GetAssembleOptions.set(getAssembleOptions)
   }
 }
 

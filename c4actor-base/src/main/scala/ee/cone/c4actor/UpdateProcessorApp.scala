@@ -6,7 +6,7 @@ import scala.collection.immutable
 import scala.collection.immutable.Seq
 
 class DefaultUpdateProcessor extends UpdateProcessor {
-  def process(updates: immutable.Seq[QProtocol.N_Update]): immutable.Seq[QProtocol.N_Update] = updates
+  def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update] = updates
 }
 
 trait DefaultUpdateProcessorApp {

@@ -5,7 +5,7 @@ import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.ByClassNameAllRequestProtocol.N_ByClassNameAllRequest
 import ee.cone.c4actor.{AssembleName, AssemblesApp, ProtocolsApp, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{All, Assemble, assemble, by}
+import ee.cone.c4assemble.{AbstractAll, All, Assemble, assemble, by, byEq}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class ByClassNameAllAskImpl(depFactory: DepFactory) extends ByClassNameAllAsk {
@@ -37,7 +37,7 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
 
 @assemble class ByClassNameAllRequestGenericHandlerBase[Model <: Product](modelCl: Class[Model], util: DepResponseFactory)
   extends AssembleName("ByClassNameAllRequestGenericHandler", modelCl) {
-  type ByClassNameRequestAll = All
+  type ByClassNameRequestAll = AbstractAll
 
   def GatherAllModels(
     modelId: SrcId,
@@ -47,7 +47,7 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
   def HandleRequest(
     requestId: SrcId,
     rq: Each[DepInnerRequest],
-    @by[ByClassNameRequestAll] models: Values[Model]
+    @byEq[ByClassNameRequestAll](All) models: Values[Model]
   ): Values[(SrcId, DepResponse)] =
     rq.request match {
       case request: N_ByClassNameAllRequest if request.className == modelCl.getName ⇒

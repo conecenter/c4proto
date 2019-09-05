@@ -4,9 +4,7 @@ import ee.cone.c4assemble.Types._
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
-import scala.concurrent.Future
-import scala.concurrent.ExecutionContext.Implicits.global
-
+import scala.concurrent.{ExecutionContext, Future}
 
 class LoopExpression[MapKey, Value](
   outputWorldKey: AssembledKey,
@@ -21,29 +19,32 @@ class LoopExpression[MapKey, Value](
   private def inner(
     left: Int, transition: WorldTransition, resDiff: Index
   ): Future[IndexUpdate] = {
-    val transitionA = main.transform(transition)
+    implicit val executionContext: ExecutionContext = transition.executionContext
     for {
-      diffPart ← outputWorldKey.of(transitionA.diff)
+      diffPart ← outputWorldKey.of(transition.diff)
       res ← {
         if(composes.isEmpty(diffPart)) for {
-          resVal ← outputWorldKey.of(transitionA.result)
+          resVal ← outputWorldKey.of(transition.result)
         } yield new IndexUpdate(resDiff, resVal, Nil)
         else if(left > 0) inner(
           left - 1,
-          continueF(transitionA),
+          main.transform(continueF(transition)),
           composes.mergeIndex(Seq(resDiff, diffPart))
         )
-        else throw new Exception(s"unstable local assemble ${transitionA.diff}")
+        else throw new Exception(s"unstable local assemble ${transition.diff}")
       }
     } yield res
   }
   def transform(transition: WorldTransition): WorldTransition = {
-    //println("B")
-    val next = inner(1000, transition, emptyIndex)
-    //println("E")
+    val transitionA = main.transform(transition)
+    if(transition eq transitionA) transition
+    else finishTransform(transition, inner(1000, transitionA, emptyIndex))
+  }
+  def finishTransform(transition: WorldTransition, next: Future[IndexUpdate]): WorldTransition = {
+    implicit val executionContext: ExecutionContext = transition.executionContext
     Function.chain(Seq(
-      updater.setPart(outputWorldKey)(next),
-      updater.setPart(wasOutputWorldKey)(next.map(update⇒new IndexUpdate(emptyIndex,update.result,Nil)))
+      updater.setPart(outputWorldKey,next,logTask = true),
+      updater.setPart(wasOutputWorldKey,next.map(update⇒new IndexUpdate(emptyIndex,update.result,Nil)),logTask = false)
     ))(transition)
   }
 }

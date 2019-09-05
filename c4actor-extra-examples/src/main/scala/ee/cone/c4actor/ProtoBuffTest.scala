@@ -7,9 +7,6 @@ import java.util.concurrent.{Callable, Executors}
 import ee.cone.c4actor.AnyOrigProtocol.N_AnyOrig
 import ee.cone.c4proto._
 
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, Future}
 import scala.util.Random
 import AnyAdapter._
 import com.squareup.wire.ProtoAdapter

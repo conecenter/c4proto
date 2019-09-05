@@ -36,7 +36,7 @@ case class SSHDebugTx(srcId: SrcId="SSHDebug")(
     def ctx(): RichContext = ref.get.get
     def tx(f: Context⇒Object): List[_] = {
       val context = ref.get.get
-      f(new Context(context.injected,context.assembled,Map.empty)) match {
+      f(new Context(context.injected,context.assembled,context.executionContext,Map.empty)) match {
         case local: Context ⇒
           qMessages.send(local)
           Nil

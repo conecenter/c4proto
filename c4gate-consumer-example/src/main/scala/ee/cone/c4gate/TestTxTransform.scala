@@ -18,6 +18,7 @@ abstract class TestTxTransformApp extends ServerApp
   with NoAssembleProfilerApp
   with FileRawSnapshotApp
   with TreeIndexValueMergerFactoryApp
+  with BasicLoggingApp
 {
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles

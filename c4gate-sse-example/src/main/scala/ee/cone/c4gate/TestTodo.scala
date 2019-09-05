@@ -32,6 +32,7 @@ class TestTodoApp extends ServerApp
   with MortalFactoryApp
   with AvailabilityApp
   with TestTodoRootViewApp
+  with BasicLoggingApp
 {
 
   override def protocols: List[Protocol] =
@@ -39,7 +40,7 @@ class TestTodoApp extends ServerApp
   override def assembles: List[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") ::
     super.assembles
-  override def longTxWarnPeriod: Long = 10L
+  //override def longTxWarnPeriod: Long = 10L
 }
 
 @protocol object TestTodoProtocolBase   {

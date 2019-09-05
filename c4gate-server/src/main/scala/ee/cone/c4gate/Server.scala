@@ -15,7 +15,9 @@ class HttpGatewayApp extends ServerApp
   with MortalFactoryApp
   with ManagementApp
   with SnapshotMakingApp
+  with SnapshotPutApp
   with LZ4RawCompressorApp
+  with BasicLoggingApp
 {
   def httpHandlers: List[RHttpHandler] = //todo secure
     new HttpGetSnapshotHandler(snapshotLoader) ::
@@ -39,6 +41,7 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   def config: Config
   def idGenUtil: IdGenUtil
   def actorName: String
+  def catchNonFatal: CatchNonFatal
   //
   lazy val rawSnapshotLoader: RawSnapshotLoader = fileRawSnapshotLoader
   lazy val snapshotMaker: SnapshotMaker = fileSnapshotMaker
@@ -61,7 +64,20 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
     new SnapshotTaskSigner(signer)()
   //
   override def assembles: List[Assemble] =
-    new SnapshotMakingAssemble(actorName, fileSnapshotMaker, snapshotTaskSigner) ::
+    new SnapshotMakingAssemble(actorName, fileSnapshotMaker, snapshotTaskSigner, new SignedPostUtilImpl(catchNonFatal)) ::
     new PurgerAssemble(new Purger(fileRawSnapshotLoader,dbDir)) ::
+    super.assembles
+}
+
+trait SnapshotPutApp extends AssemblesApp {
+  def signer: Signer[List[String]]
+  def snapshotDiffer: SnapshotDiffer
+  def catchNonFatal: CatchNonFatal
+  //
+  private lazy val snapshotPutter =
+    new SnapshotPutter(SnapshotLoaderFactoryImpl, snapshotDiffer)
+  //
+  override def assembles: List[Assemble] =
+    new SnapshotPutAssemble(snapshotPutter, signer, new SignedPostUtilImpl(catchNonFatal)) ::
     super.assembles
 }

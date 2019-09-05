@@ -12,7 +12,7 @@ import ee.cone.c4proto._
 import okio.ByteString
 
 import scala.collection.immutable.{Map, Queue, Seq}
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
 @protocol object QProtocolBase   {
 
@@ -27,8 +27,8 @@ import scala.concurrent.Future
     * @param valueTypeId == QAdapterRegistry.byName(orig.getClass.getName).id
     * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
     * @param flags == One of {0L, 1L, 2L, 4L}
-    */
-    case class N_Update(
+    **/
+  case class N_Update(
     @Id(0x0011) srcId: SrcId,
     @Id(0x0012) valueTypeId: Long,
     @Id(0x0013) value: okio.ByteString,
@@ -131,6 +131,11 @@ trait SharedContext {
 
 trait AssembledContext {
   def assembled: ReadModel
+  def executionContext: OuterExecutionContext
+}
+
+trait OuterExecutionContext {
+  def value: ExecutionContext
 }
 
 trait OffsetContext {
@@ -142,6 +147,7 @@ trait RichContext extends OffsetContext with SharedContext with AssembledContext
 class Context(
   val injected: SharedComponentMap,
   val assembled: ReadModel,
+  val executionContext: OuterExecutionContext,
   val transient: TransientMap
 ) extends SharedContext with AssembledContext
 
@@ -159,6 +165,7 @@ case class ByPrimaryKeyGetter[V<:Product](className: String)
 }
 
 case object GetOrigIndexKey extends SharedComponentKey[(AssembledContext,String)⇒Map[SrcId,Product]]
+case object GetAssembleOptions extends SharedComponentKey[ReadModel⇒AssembleOptions]
 
 trait Lens[C,I] extends Getter[C,I] {
   def modify: (I⇒I) ⇒ C⇒C
@@ -169,11 +176,12 @@ abstract class AbstractLens[C,I] extends Lens[C,I] {
   def modify: (I⇒I) ⇒ C⇒C = f ⇒ c ⇒ set(f(of(c)))(c)
 }
 
-abstract class TransientLens[D_Item](default: D_Item) extends AbstractLens[Context,D_Item] with Product {
-  def of: Context ⇒ D_Item = context ⇒ context.transient.getOrElse(this, default).asInstanceOf[D_Item]
-  def set: D_Item ⇒ Context ⇒ Context = value ⇒ context ⇒ new Context(
+abstract class TransientLens[Item](val default: Item) extends AbstractLens[Context,Item] with Product {
+  def of: Context ⇒ Item = context ⇒ context.transient.getOrElse(this, default).asInstanceOf[Item]
+  def set: Item ⇒ Context ⇒ Context = value ⇒ context ⇒ new Context(
     context.injected,
     context.assembled,
+    context.executionContext,
     context.transient + (this → value.asInstanceOf[Object])
   )
 }
@@ -224,7 +232,7 @@ trait TxTransform extends Product {
 
 case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
 case object WriteModelDebugKey extends TransientLens[Queue[LEvent[Product]]](Queue.empty)
-case object ReadModelAddKey extends SharedComponentKey[SharedContext⇒Seq[RawEvent]⇒ReadModel⇒ReadModel]
+case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]⇒(SharedContext with AssembledContext)⇒ReadModel]
 case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]⇒Context⇒Context]
 case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]⇒Context⇒Context]
 
@@ -268,6 +276,7 @@ trait MTime {
 //  def save(key: String, value: Array[Byte]): Unit
 //}
 
+// problem with ErrorKey is that when we check it world is different
 case object ErrorKey extends TransientLens[List[Exception]](Nil)
 case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
 
@@ -288,6 +297,11 @@ trait UpdatesProcessorsApp {
 }
 
 trait UpdatesPreprocessor {
+  /**
+    * Ability to add extra updates on some events
+    * @param updates current events
+    * @return extra updates to add to total list
+    */
   def process(updates: Seq[N_Update]): Seq[N_Update]
 }
 
@@ -296,5 +310,5 @@ trait KeyFactory {
 }
 
 trait UpdateProcessor {
-  def process(updates: Seq[N_Update]): Seq[N_Update]
+  def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]
 }

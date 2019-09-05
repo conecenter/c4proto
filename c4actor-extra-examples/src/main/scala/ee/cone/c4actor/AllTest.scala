@@ -27,7 +27,7 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
 
 @assemble class AllTestAssembleBase()   {
-  type TestAll = All
+  type TestAll = AbstractAll
   type TestSrcId = SrcId
 
   def D_AllTestOrigToAll(
@@ -38,7 +38,7 @@ case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
   def D_AllTestOrig2ToSrcId(
     srcId: SrcId,
     two: Each[D_AllTestOrig2],
-    @by[TestAll] one: Each[D_AllTestOrig]
+    @byEq[TestAll](All) one: Each[D_AllTestOrig]
   ): Values[(TestSrcId, D_AllTestOrig2)] =
     if (two.value > one.value)
       List(one.srcId → two)
@@ -47,7 +47,7 @@ case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
 
   def AllTestRichToSrcId(
     srcId: SrcId,
-    @by[TestAll] one: Each[D_AllTestOrig],
+    @byEq[TestAll](All) one: Each[D_AllTestOrig],
     @by[TestSrcId] twos: Values[D_AllTestOrig2]
   ): Values[(SrcId, AllTestRich)] =
     List(WithPK(AllTestRich(one.srcId, twos.toList)))

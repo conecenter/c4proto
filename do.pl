@@ -167,6 +167,7 @@ my $get_env = sub{
         C4TRUSTSTORE_PATH => "$data_dir/cu.def.truststore.jks",
         C4HTTP_PORT => $http_port,
         C4SSE_PORT => $sse_port,
+        C4LOGBACK_XML => "$data_dir/logback.xml",
     );
     my $env = join " ", map{"$_=$env{$_}"} sort keys %env;
     ($env,%env);

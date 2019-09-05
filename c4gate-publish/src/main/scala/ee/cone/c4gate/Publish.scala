@@ -50,7 +50,7 @@ class PublishingObserver(
     if(existingPublications.get(path).contains(publication)) {
       logger.debug(s"$path (${byteString.size}) exists")
     } else {
-      val local = new Context(global.injected, global.assembled, Map.empty)
+      val local = new Context(global.injected, global.assembled, global.executionContext, Map.empty)
       TxAdd(LEvent.update(publication)).andThen(qMessages.send)(local)
       logger.debug(s"$path (${byteString.size}) published")
     }

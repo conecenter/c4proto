@@ -7,7 +7,7 @@ import scala.meta._
 sealed trait JRule extends Product
 case class JStat(content: String) extends JRule
 case class JoinDef(params: Seq[JConnDef], inKeyType: KeyNSType, out: JConnDef) extends JRule
-case class JConnDef(name: String, indexKeyName: String, inValOuterType: String, many: Boolean, distinct: Boolean)
+case class JConnDef(name: String, indexKeyName: String, inValOuterType: String, many: Boolean, distinct: Boolean, keyEq: Option[String])
 case class KeyValType(name: String, of: List[KeyValType])
 case class KeyNSType(key: KeyValType, str: String, ns: String)
 case class SubAssembleName(name: String) extends JRule
@@ -57,9 +57,16 @@ object AssembleGenerator extends Generator {
       case q"type $tname = $tpe" ⇒ Nil
       case q"type $tname[..$params] = $tpe" ⇒ Nil
       case q"import ..$i" ⇒ Nil
+      case e@q"..$mods val ..$vname: $tpe = $expr" ⇒ throw new Exception(s"Don't use val in Assemble: ${e.toString}")
+      case q"@ignore def $dname: $tpe = $expr" ⇒ Nil
       case q"def result: Result = tupled(${Term.Name(joinerName)} _)" ⇒
         JStat(s"override def resultKey = ${joinerName}_outKey") :: Nil
       case q"def result: Result = $temp" ⇒ Nil
+      case q"override def subAssembles: $tpeopt = $expr" ⇒
+        expr.collect{
+          case q"super.subAssembles" ⇒ List("ok")
+          case _ ⇒ Nil
+        }.flatten.headOption.map(_ ⇒ Nil).getOrElse(throw new Exception(s"\'override def subAssembles\' doesnt have \'super.subAssembles\'"))
       case q"def ${Term.Name(defName)}(...${Seq(params)}): Values[(${ExtractKeyNSType(outKeyType)},${ExtractKeyValType(outValType)})] = $expr" ⇒
         val param"$keyName: ${ExtractKeyNSType(inKeyType)}" = params.head
         val paramInfo: List[(JConnDef,List[JRule])] = params.tail.toList.map{
@@ -70,40 +77,46 @@ object AssembleGenerator extends Generator {
             //
             object DistinctAnn
             object WasAnn
-            class ByAnn(val keyType: KeyNSType)
+            class ByAnn(val keyType: KeyNSType, val keyEq: Option[String])
             val ann = mods.map{
               case mod"@distinct" ⇒ DistinctAnn
               case mod"@was" ⇒ WasAnn
-              case mod"@by[${ExtractKeyNSType(tp)}]" ⇒ new ByAnn(tp)
+              case mod"@by[${ExtractKeyNSType(tp)}]" ⇒ new ByAnn(tp,None)
+              case mod"@byEq[${ExtractKeyNSType(tp)}]($v)" ⇒ new ByAnn(tp,Option(s"$v"))
               case s ⇒ throw new Exception(s"${s.structure}")
             }
             val distinct = ann.contains(DistinctAnn)
             val was = ann.contains(WasAnn)
-            val byOpt = ann.collect{ case b: ByAnn ⇒ b.keyType } match {
+            val byOpt = ann.collect{ case b: ByAnn ⇒ b } match {
               case Seq(tp) ⇒ Option(tp)
               case Seq() ⇒ None
             }
+            val keyEq: Option[String] = for {
+              by ← byOpt
+              keyEq ← by.keyEq
+            } yield keyEq
             //
             val fullNamePrefix = s"${defName}_$paramName"
             val fullName = s"${fullNamePrefix}_inKey"
             val statements = defVal match {
               case None ⇒
-              joinKey(fullName, was, byOpt.getOrElse(inKeyType), inValType) :: Nil
-             case Some(q"$expr.call") ⇒
-              assert(!was)
-              assert(byOpt.isEmpty)
-              val subAssembleName = s"${fullNamePrefix}_subAssemble"
-              SubAssembleName(subAssembleName) ::
-              mkLazyVal(subAssembleName,s"$expr") ::
-              joinKeyB(fullName, s"$subAssembleName.resultKey") :: Nil
+                val by = byOpt.getOrElse(new ByAnn(inKeyType,None))
+                joinKey(fullName, was, by.keyType , inValType) :: Nil
+              case Some(q"$expr.call") ⇒
+                assert(!was)
+                assert(byOpt.isEmpty)
+                val subAssembleName = s"${fullNamePrefix}_subAssemble"
+                SubAssembleName(subAssembleName) ::
+                mkLazyVal(subAssembleName,s"$expr") ::
+                joinKeyB(fullName, s"$subAssembleName.resultKey") :: Nil
             }
-            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct),statements)
+            (JConnDef(paramName, fullName, s"$inValOuterType", many, distinct, keyEq),statements)
         }
         val joinDefParams = paramInfo.map(_._1)
         val fullName = s"${defName}_outKey"
         joinKey(fullName,was=false,outKeyType,outValType) ::
-        JoinDef(joinDefParams,inKeyType,JConnDef(defName,fullName,"",many=false,distinct=false)) :: paramInfo.flatMap(_._2)
-      case s ⇒ throw new Exception(s"${s.structure}")
+        JoinDef(joinDefParams,inKeyType,JConnDef(defName,fullName,"",many=false,distinct=false,None)) :: paramInfo.flatMap(_._2)
+      case s ⇒ throw new Exception(s"Can't parse structure ${s.toString}")
     }
     val toString =
       s"""getClass.getPackage.getName + ".$className" ${if(tparams.isEmpty)"" else {
@@ -114,6 +127,8 @@ object AssembleGenerator extends Generator {
     val joinImpl = rules.collect{
       case JoinDef(params,inKeyType,out) ⇒
         val (seqParams,eachParams) = params.partition(_.many)
+        val (keyEqParams,keyIdParams) = params.partition(_.keyEq.nonEmpty)
+        def litOrId(p: JConnDef): String = p.keyEq.getOrElse("id")
         s"""  private class ${out.name}_Join(indexFactory: IndexFactory) extends Join(
            |    $toString,
            |    "${out.name}",
@@ -123,19 +138,23 @@ object AssembleGenerator extends Generator {
            |    def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions): Result = {
            |      val iUtil = indexFactory.util
            |      val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
-           |      val invalidateKeySet = iUtil.invalidateKeySet(diffIndexRawSeq,options)
+           |      ${keyEqParams.map(p⇒s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
+           |      val invalidateKeySetOpt =
+           |          ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p⇒s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
+           |          Option(${keyIdParams.map(p⇒s"iUtil.keySet(${p.name}_diffIndex)").mkString(" ++ ")})
            |      ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
            |      for {
            |        indexRawSeqI <- indexRawSeqSeq
            |        (dir,indexRawSeq) = indexRawSeqI
            |        Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
-           |        id <- invalidateKeySet(indexRawSeq)
-           |        ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,id,${p.name}_warn,options); ").mkString}
-           |        ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,id); ").mkString}
-           |        ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,id,${p.name}_warn,options); ").mkString}
+           |        invalidateKeySet = invalidateKeySetOpt.getOrElse(${keyIdParams.map(p⇒s"iUtil.keySet(${p.name}_index)").mkString(" ++ ")})
+           |        id <- iUtil.mayBeParVector(invalidateKeySet, options)
+           |        ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn,options); ").mkString}
+           |        ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
+           |        ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn,options); ").mkString}
            |        ${eachParams.map(p⇒s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
            |        pass <- if(
-           |          ${if(eachParams.nonEmpty)"" else seqParams.map(p⇒s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}
+           |          ${if(eachParams.exists(_.keyEq.isEmpty))"" else seqParams.filter(_.keyEq.isEmpty).map(p⇒s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}
            |          (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
            |        ) iUtil.nonEmptySeq else Nil;
            |        ${eachParams.map(p⇒s"${p.name}_arg <- ${p.name}_items(); ").mkString}
@@ -157,7 +176,7 @@ object AssembleGenerator extends Generator {
 
     val (subAssembleWith,subAssembleDef) = (rules.collect{ case SubAssembleName(n) ⇒ n }.distinct) match {
       case Seq() ⇒ ("","")
-      case s ⇒ (" with ee.cone.c4assemble.CallerAssemble",s.mkString(s"  def subAssembles = List(",",",")\n"))
+      case s ⇒ (" with ee.cone.c4assemble.CallerAssemble",s.mkString(s"override def subAssembles = List(",",",") ::: super.subAssembles\n"))
     }
 
     val paramNames = paramss.map(params⇒params.map{
