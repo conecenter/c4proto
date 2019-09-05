@@ -69,8 +69,8 @@ object AuthOperations {
     val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
     template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
   }
-  def createHash(password: String, userHash: N_SecureHash = N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY)): N_SecureHash =
-    pbkdf2(password, userHash)
+  def createHash(password: String, userHashOpt: Option[N_SecureHash]): N_SecureHash =
+    pbkdf2(password, userHashOpt.getOrElse(N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY)))
   def verify(password: String, correctHash: N_SecureHash): Boolean =
     correctHash == pbkdf2(password, correctHash)
 }
@@ -98,11 +98,7 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
           List(authPost(okio.ByteString.EMPTY)(1))
         else if (getPassRegex.forall(regex ⇒ regex.isEmpty || password.matches(regex))) {
           val prevHashOpt = ByPK(classOf[C_PasswordHashOfUser]).of(local).get(username).map(_.hash.get)
-          val hash: Option[N_SecureHash] =
-            prevHashOpt match {
-              case Some(prevHash) ⇒ Option(AuthOperations.createHash(password, prevHash))
-              case None ⇒ Option(AuthOperations.createHash(password))
-            }
+          val hash: Option[N_SecureHash] = Option(AuthOperations.createHash(password, prevHashOpt))
           List(
             S_PasswordChangeRequest(requestId, hash),
             authPost(okio.ByteString.encodeUtf8(requestId))(0)
