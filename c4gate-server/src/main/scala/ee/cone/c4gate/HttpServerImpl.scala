@@ -69,8 +69,8 @@ object AuthOperations {
     val skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1")
     template.copy(hash=ToByteString(skf.generateSecret(spec).getEncoded))
   }
-  def createHash(password: String): N_SecureHash =
-    pbkdf2(password, N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY))
+  def createHash(password: String, userHashOpt: Option[N_SecureHash]): N_SecureHash =
+    pbkdf2(password, userHashOpt.getOrElse(N_SecureHash(64000, 18, generateSalt(24), okio.ByteString.EMPTY)))
   def verify(password: String, correctHash: N_SecureHash): Boolean =
     correctHash == pbkdf2(password, correctHash)
 }
@@ -92,12 +92,13 @@ class HttpPostHandler(qMessages: QMessages, worldProvider: WorldProvider) extend
     val requests: List[Product] = headerMap.get("X-r-auth") match {
       case None ⇒ List(post(buffer.readByteString()))
       case Some("change") ⇒
-        val Array(password, again) = buffer.readUtf8().split("\n")
+        val Array(password, again, username) = buffer.readUtf8().split("\n")
         // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
         if (password != again)
           List(authPost(okio.ByteString.EMPTY)(1))
         else if (getPassRegex.forall(regex ⇒ regex.isEmpty || password.matches(regex))) {
-          val hash = Option(AuthOperations.createHash(password))
+          val prevHashOpt = ByPK(classOf[C_PasswordHashOfUser]).of(local).get(username).map(_.hash.get)
+          val hash: Option[N_SecureHash] = Option(AuthOperations.createHash(password, prevHashOpt))
           List(
             S_PasswordChangeRequest(requestId, hash),
             authPost(okio.ByteString.encodeUtf8(requestId))(0)
