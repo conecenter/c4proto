@@ -623,7 +623,7 @@ push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v49";
+my $sys_image_ver = "v52";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
@@ -1145,7 +1145,8 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     my ($host,$port) = &$get_host_port($builder_comp);
     my $conf = &$get_compose($builder_comp);
     local $ENV{C4CI_HOST} = $host;
-    local $ENV{C4CI_REPO_DIRS} = $$conf{C4CI_REPO_DIRS} || die "$builder_comp C4CI_REPO_DIRS";
+    local $ENV{C4CI_SHORT_REPO_DIRS} = $$conf{C4CI_SHORT_REPO_DIRS} || die "$builder_comp C4CI_SHORT_REPO_DIRS";
+    local $ENV{C4CI_ALLOW} = $$conf{C4CI_ALLOW} || die;
     local $ENV{C4CI_CTX_DIR} = $$conf{C4CI_CTX_DIR} || die;
     sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
 }];
@@ -1204,7 +1205,7 @@ push @tasks, ["up-ci","",sub{
             C4CI_PORT => $cicd_port,
             C4CI_HOST => $host,
             tty => "true",
-            (map{($_=>$$conf{$_}||die "no $_")} qw[C4CI_REPO_DIRS C4CI_CTX_DIR]),
+            (map{($_=>$$conf{$_}||die "no $_")} qw[C4CI_SHORT_REPO_DIRS C4CI_ALLOW C4CI_CTX_DIR]),
         },
         {
             image => $img,
@@ -1368,6 +1369,7 @@ push @tasks, ["up-kc_host", "", sub{
             C4CD_PORT => $cicd_port,
             C4CD_DIR => $dir,
             C4CD_AUTH_KEY_FILE => "/c4conf/deploy.auth",
+            C4CD_REGISTRY => ($$conf{C4CD_REGISTRY}||die "no C4CD_REGISTRY"),
         },
         {
             image => $img,

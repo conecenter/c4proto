@@ -15,15 +15,21 @@ my @tasks;
 
 my $handle_build = sub{
     my ($arg) = @_;
-    my($full_img,$img,$tag,$base,$mode,$checkout) =
-        $arg=~/^build\s+(([\w\-\.\:\/]+)\:(([\w\-\.]+)\.(\w+)\.([\w\-]+)))\s*$/ ?
-        ($1,$2,$3,$4,$5,$6) : die "can not [$arg]";
+    my $allow = &$env("C4CI_ALLOW");
+    if($arg=~/^allowed\s*$/){
+        print "allowed: $allow\n";
+        return;
+    }
+    my($full_img,$reg,$shrep,$tag,$base,$proj,$mode,$checkout) =
+        $arg=~/^build\s+(([\w\-\.\:\/]*?)(\w+)\:((([\w\-]+)[\w\.]*)\.(\w+)\.([\w\-]+)))\s*$/ ?
+        ($1,$2,$3,$4,$5,$6,$7,$8) : die "can not [$arg]";
+    index(" $allow ","$reg$shrep:$proj") < 0 and die "prefix not allowed";
     #we can implement fork after checkout later and unshare ctx_dir
     my $builder = md5_hex($full_img)."-".time;
     my $host = &$env("C4CI_HOST");
     my $ctx_dir = &$env("C4CI_CTX_DIR");
-    my %repo_dirs = &$env("C4CI_REPO_DIRS")=~/(\S+)/g;
-    my $repo_dir = $repo_dirs{$img} || die "no repo for $img";
+    my %repo_dirs = &$env("C4CI_SHORT_REPO_DIRS")=~/(\S+)/g;
+    my $repo_dir = $repo_dirs{$shrep} || die "no repo for $arg";
     my $args = " --build-arg C4CI_BASE_TAG=$base";
     my @commands = (
         "set -x",
@@ -37,7 +43,7 @@ my $handle_build = sub{
         "docker cp $builder:/c4/res $ctx_dir",
         "docker rm -f $builder",
         "docker build -t $full_img $ctx_dir",
-        $img=~m{/} ? "docker push $full_img" : (),
+        $reg ? "docker push $full_img" : (),
     );
     &$put_text("/tmp/build.sh", join " && ",@commands);
     sy("ssh c4\@$host sh < /tmp/build.sh");
