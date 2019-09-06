@@ -820,8 +820,11 @@ my $gate_ports = sub{
 };
 my $get_ingress = sub{
     my($comp,$http_port)=@_;
-    my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
-    $domain_zone ? ("ingress:$comp.$domain_zone"=>$http_port) : ();
+    my $hostname = &$get_compose($comp)->{le_hostname} || do{
+        my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
+        $domain_zone && "$comp.$domain_zone";
+    };
+    $hostname ? ("ingress:$hostname"=>$http_port) : ();
 };
 
 my $wrap_deploy = sub{
