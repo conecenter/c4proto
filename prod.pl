@@ -623,7 +623,7 @@ push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v52";
+my $sys_image_ver = "v53";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
@@ -1114,13 +1114,15 @@ my $nc_sec = sub{
 
 push @tasks, ["test_up","",sub{ # <host>:<port> $composes_txt $args
     my($addr,$comp,$args) = @_;
+    sy(&$ssh_add());
     my $deployer_comp = &$get_compose($comp)->{deployer} || die;
     my $add = $args ? " $args" : "";
     &$nc_sec($deployer_comp,$addr,"run $comp/up$add\n");
 }];
-push @tasks, ["test_pods","",sub{ # <host>:<port> $composes_txt
+push @tasks, ["test_cd","",sub{ # <host>:<port> $composes_txt <pods|repo>
     my($addr,$comp,$args) = @_;
-    &$nc_sec($comp,$addr,"pods\n");
+    sy(&$ssh_add());
+    &$nc_sec($comp,$addr,"$args\n");
 }];
 
 my $get_head_img_tag = sub{

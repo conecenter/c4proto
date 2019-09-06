@@ -53,8 +53,8 @@ push @tasks, ["cmd-pods"=>sub{
     my $ns = `cat /var/run/secrets/kubernetes.io/serviceaccount/namespace`=~/(\w+)/ ? "$1" : die;
     sy("kubectl -n $ns get pods -o jsonpath='pods: {.items[*].metadata.name}'");
 }];
-push @tasks, ["cmd-repo"=>sub{
-    print "$ENV{C4CD_REGISTRY}\n";
+push @tasks, ["cmd-registry"=>sub{
+    print "registry: $ENV{C4CD_REGISTRY}\n";
 }];
 
 push @tasks, ["cmd-history"=>sub{
