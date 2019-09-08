@@ -47,6 +47,9 @@ lazy val `c4gate-logback-static` = project.settings(publishSettings)
 lazy val `c4gate-logback` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-repl` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4external-base` = project.settings(publishSettings).dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
+lazy val `c4gate-sun` = project.settings(publishSettings).dependsOn(`c4gate-server`)
+lazy val `c4gate-finagle` = project.settings(publishSettings).dependsOn(`c4gate-server`)
+lazy val `c4gate-akka` = project.settings(publishSettings).dependsOn(`c4gate-server`)
 
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
@@ -74,5 +77,8 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4actor-extra-examples`,
   `c4ui-main`,
   `c4ui-extra`,
-  `c4external-base`
+  `c4external-base`,
+  //`c4gate-sun`,
+  //`c4gate-finagle`,
+  `c4gate-akka`
 )

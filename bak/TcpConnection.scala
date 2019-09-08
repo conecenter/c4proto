@@ -27,7 +27,7 @@ trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with Pr
 
 class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends TcpHandler {
   private def changeWorld(transform: Context ⇒ Context): Unit =
-    Option(worldProvider.createTx()).map(transform).foreach(qMessages.send)
+    worldProvider.createTx(???).map(transform)(???).foreach(qMessages.send)(???)
   override def beforeServerStart(): Unit = changeWorld{ local ⇒
     val connections = ByPK(classOf[S_TcpConnection]).of(local).values.toList
     TxAdd(connections.flatMap(LEvent.delete))(local)

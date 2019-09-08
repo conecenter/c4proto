@@ -1,9 +1,11 @@
 
 package ee.cone.c4gate
 
-import com.sun.net.httpserver.HttpExchange
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol.N_Header
+import okio.ByteString
+
+import scala.concurrent.{ExecutionContext, Future}
 
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
@@ -12,7 +14,7 @@ trait SenderToAgent {
 }
 
 trait WorldProvider {
-  def createTx(): Context
+  def createTx(implicit executionContext: ExecutionContext): Future[Context]
 }
 
 case object GetSenderKey extends SharedComponentKey[String⇒Option[SenderToAgent]]
@@ -32,5 +34,8 @@ trait SSEConfig {
 }
 
 trait RHttpHandler {
-  def handle(httpExchange: HttpExchange, headers: List[N_Header]): Boolean
+  def handle(request: RHttpRequest)(implicit executionContext: ExecutionContext): Future[RHttpResponse]
 }
+case class RHttpRequest(method: String, path: String, headers: List[N_Header], body: ByteString)
+case class RHttpResponse(status: Long, headers: List[N_Header], body: ByteString)
+

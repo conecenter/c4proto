@@ -46,7 +46,7 @@ class RThreadFactory(inner: ThreadFactory, prefix: String) extends ThreadFactory
 class VMExecution(getToStart: ()⇒List[Executable])(
   threadPool: ExecutorService = VMExecution.newThreadPool("tx-")
 )(
-  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
+  val mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
 ) extends Execution with LazyLogging {
   def run(): Unit = {
     val toStart = getToStart()
@@ -60,9 +60,9 @@ class VMExecution(getToStart: ()⇒List[Executable])(
     System.exit(0)
   }
   def future[T](value: T): FatalFuture[T] =
-    new VMFatalFuture(Future.successful(value))(executionContext)
+    new VMFatalFuture(Future.successful(value))(mainExecutionContext)
   def skippingFuture[T](value: T): FatalFuture[T] =
-    new VMFatalSkippingFuture[T](Future.successful(value))(executionContext)
+    new VMFatalSkippingFuture[T](Future.successful(value))(mainExecutionContext)
   def newThreadPool(prefix: String): ExecutorService =
     VMExecution.newThreadPool(prefix)
 }

@@ -4,12 +4,11 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
 
-class HttpGatewayApp extends ServerApp
+abstract class AbstractHttpGatewayApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp with TreeIndexValueMergerFactoryApp
   with InternetForwarderApp
-  with HttpServerApp
   with SSEServerApp
   with NoAssembleProfilerApp
   with MortalFactoryApp
@@ -18,21 +17,36 @@ class HttpGatewayApp extends ServerApp
   with SnapshotPutApp
   with LZ4RawCompressorApp
   with BasicLoggingApp
-{
-  def httpHandlers: List[RHttpHandler] = //todo secure
-    new HttpGetSnapshotHandler(snapshotLoader) ::
-    new HttpGetPublicationHandler(worldProvider) ::
-    pongHandler ::
-    new HttpPostHandler(qMessages,worldProvider) ::
-    Nil
-  def sseConfig: SSEConfig = NoProxySSEConfig(config.get("C4STATE_REFRESH_SECONDS").toInt)
-  override def toStart: List[Executable] = safeToRun :: super.toStart
-}
+  with HttpHandlersApp
+  with NoProxySSEConfigApp
+  with SafeToRunApp
+
+
 
 // I>P -- to agent, cmd>evl
 // >P -- post, sse status
 // Sn> -- to neo
 // S0>W -- static content
+
+
+trait SafeToRunApp extends ToStartApp {
+  def safeToRun: SafeToRun
+  override def toStart: List[Executable] = safeToRun :: super.toStart
+}
+
+trait HttpHandlersApp {
+  def qMessages: QMessages
+  def pongHandler: RHttpHandler
+  def snapshotLoader: SnapshotLoader
+  def worldProvider: WorldProvider
+  //
+  def httpHandler: RHttpHandler =new SeqRHttpHandler(List(//todo secure?
+    new HttpGetSnapshotHandler(snapshotLoader,NotFound()),
+    new HttpGetPublicationHandler(worldProvider),
+    pongHandler,
+    new HttpPostHandler(qMessages,worldProvider),
+  ))
+}
 
 trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
   def snapshotLoader: SnapshotLoader

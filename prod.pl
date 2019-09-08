@@ -1180,7 +1180,9 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
         'ENTRYPOINT ["perl","run.pl"]',
     );
     sy("cp $gen_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
-    sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
+    my $server_impl = "c4gate-akka";
+    sy("mv $gen_dir/$server_impl/target/universal/stage $ctx_dir/app");
+    sy("mv $ctx_dir/app/bin/$server_impl $ctx_dir/app/bin/c4gate");
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;

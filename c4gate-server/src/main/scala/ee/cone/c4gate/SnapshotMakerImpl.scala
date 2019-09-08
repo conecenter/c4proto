@@ -3,9 +3,8 @@ package ee.cone.c4gate
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 
-import com.sun.net.httpserver.HttpExchange
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{S_Firstborn, N_Update}
+import ee.cone.c4actor.QProtocol.{N_Update, S_Firstborn}
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -16,23 +15,19 @@ import okio.ByteString
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+import scala.concurrent.{ExecutionContext, Future}
 
-class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandler with LazyLogging {
-  def ok(httpExchange: HttpExchange, bytes: Array[Byte]): Boolean = {
-    logger.debug(s"Sending ${bytes.length} bytes")
-    httpExchange.sendResponseHeaders(200, bytes.length)
-    if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
-    true
-  }
-  def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean =
-    if(httpExchange.getRequestMethod == "GET"){
-      val path = httpExchange.getRequestURI.getPath
+class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, notFound: RHttpResponse) extends RHttpHandler with LazyLogging {
+  def handle(request: RHttpRequest)(implicit executionContext: ExecutionContext): Future[RHttpResponse] = Future{
+    if(request.method == "GET"){
+      val path = request.path
       if(path.startsWith("/snapshot")){
         logger.debug(s"Started loading snapshot ${path.tail}")
         snapshotLoader.load(RawSnapshot(path.tail)) // path will be checked inside loader
-          .fold(false)(ev⇒ok(httpExchange, ev.data.toByteArray))
-      } else false
-    } else false
+          .fold(notFound)(ev⇒RHttpResponse(200, Nil, ev.data))
+      } else notFound
+    } else notFound
+  }
 }
 
 @assemble class SnapshotMakingAssembleBase(actorName: String, snapshotMaking: SnapshotMakerImpl, signatureChecker: Signer[SnapshotTask], signedPostUtil: SignedPostUtil)   {

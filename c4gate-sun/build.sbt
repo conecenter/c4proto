@@ -1,5 +1,5 @@
 
-description := s"C4 framework / http/tcp gate server to kafka"
+description := s"C4 framework / http gate server to kafka"
 
 javaOptions in Universal ++= Seq(
     "-J-XX:+UseG1GC","-J-XX:MaxGCPauseMillis=200","-J-XX:+ExitOnOutOfMemoryError",
