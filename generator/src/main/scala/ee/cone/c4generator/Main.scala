@@ -23,7 +23,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v66"
+  def version: String = "-v67"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -50,9 +50,9 @@ object Main {
       Files.write(path,data)
     }
   }
-  lazy val generators: Stat⇒Seq[Generated] = {
+  lazy val generators: (Stat, String)⇒Seq[Generated] = {
     val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator)
-    stat ⇒ generators.flatMap(_.get.lift(stat)).flatten
+    (stat, fileName) ⇒ generators.flatMap(_.get.lift(stat, fileName)).flatten
   }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
     val fromData = Files.readAllBytes(path)
@@ -67,7 +67,7 @@ object Main {
         q"package $n { ..$packageStatements }" ← sourceStatements
         generated: Seq[Generated] = for {
           packageStatement ← packageStatements
-          generated ← generators(packageStatement)
+          generated ← generators(packageStatement, path.toString)
         } yield generated
         patches: Seq[Patch] = generated.collect{ case p: Patch ⇒ p }
         statements = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverseMap(_.content)
@@ -142,7 +142,7 @@ object Main {
 
 object ImportGenerator extends Generator {
   def get: Get = {
-    case q"import ..$importers" ⇒
+    case (q"import ..$importers", fileName) ⇒
       val nextImporters = importers.map{
         case initialImporter@importer"$eref.{..$importeesnel}" ⇒
           importer"$eref._" match {
@@ -150,6 +150,7 @@ object ImportGenerator extends Generator {
             case j@importer"ee.cone.c4proto._" ⇒ j
             case _ ⇒ initialImporter
           }
+        case t: Tree ⇒ Utils.parseError(t, "import", fileName)
       }
       List(GeneratedImport("\n\n" + q"import ..$nextImporters".syntax))
   }
@@ -172,7 +173,7 @@ object Util {
 }
 
 trait Generator {
-  type Get = PartialFunction[Stat,Seq[Generated]]
+  type Get = PartialFunction[(Stat,String),Seq[Generated]]
   def get: Get
 }
 

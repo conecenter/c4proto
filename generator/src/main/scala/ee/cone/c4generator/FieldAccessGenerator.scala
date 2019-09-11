@@ -5,7 +5,7 @@ import scala.meta._
 //import org.scalameta.logger
 
 object FieldAccessGenerator extends Generator {
-  def get: Get = { case Defn.Object(Seq(mod"@fieldAccess"),baseObjectNameNode@Term.Name(baseObjectName),code) ⇒ Util.unBase(baseObjectName,baseObjectNameNode.pos.end){objectName⇒
+  def get: Get = { case (Defn.Object(Seq(mod"@fieldAccess"),baseObjectNameNode@Term.Name(baseObjectName),code), fileName) ⇒ Util.unBase(baseObjectName,baseObjectNameNode.pos.end){objectName⇒
     //case q"@fieldAccess object $name $code" ⇒
     //  println(s"=-=$code")
     //Util.comment(code)(cont) +
@@ -15,6 +15,7 @@ object FieldAccessGenerator extends Generator {
         val q"_.$field" = head
         val nArgs = List(head :: q"value⇒model⇒model.copy($field=value)" :: Lit.String(s"$field") :: tail)
         q"$o.ofSet(...$nArgs)"
+      case t: Tree ⇒ Utils.parseError(t, "fieldAccess", fileName)
     }
 
     List(GeneratedCode(Defn.Object(Nil,Term.Name(objectName),nCode.asInstanceOf[Template]).syntax))
