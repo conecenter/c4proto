@@ -4,6 +4,7 @@ import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.LazyLogging
 
+import scala.concurrent.ExecutionContext
 import scala.util.Try
 
 trait Execution extends Runnable {
@@ -11,6 +12,7 @@ trait Execution extends Runnable {
   def complete(): Unit
   def skippingFuture[T](value: T): FatalFuture[T]
   def newThreadPool(prefix: String): ExecutorService
+  def mainExecutionContext: ExecutionContext
 }
 
 trait FatalFuture[T] {
