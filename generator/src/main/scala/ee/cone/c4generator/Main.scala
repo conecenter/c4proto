@@ -142,7 +142,7 @@ object Main {
 
 object ImportGenerator extends Generator {
   def get: Get = {
-    case (q"import ..$importers", fileName) ⇒
+    case (q"import ..$importers", _) ⇒
       val nextImporters = importers.map{
         case initialImporter@importer"$eref.{..$importeesnel}" ⇒
           importer"$eref._" match {
@@ -150,7 +150,6 @@ object ImportGenerator extends Generator {
             case j@importer"ee.cone.c4proto._" ⇒ j
             case _ ⇒ initialImporter
           }
-        case t: Tree ⇒ Utils.parseError(t, "import", fileName)
       }
       List(GeneratedImport("\n\n" + q"import ..$nextImporters".syntax))
   }

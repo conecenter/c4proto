@@ -208,6 +208,8 @@ object ProtocolGenerator extends Generator {
               metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName",${deOpt(fieldProps.shortName)},"${pt.resultType}", ${getTypeProp(tp)})""",
               if (doGenLens) Some(getLens(objectName, resultType, id, propName, pt.resultType, fieldProps)) else None
             )
+          case t: Tree ⇒
+            Utils.parseError(t, "protocol", fileName)
         }.toList
 
         val struct = s"""${factoryName}(${props.map(_.constructArg).mkString(",")})"""
