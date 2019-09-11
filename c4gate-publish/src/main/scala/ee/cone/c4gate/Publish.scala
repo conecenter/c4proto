@@ -38,12 +38,12 @@ class PublishingObserver(
   }
   def publish(global: RichContext)(path: String, body: Array[Byte]): Unit = {
     val pointPos = path.lastIndexOf(".")
-    val ext = if(pointPos<0) None else Option(path.substring(pointPos+1))
+    val ext = if(pointPos<0) "" else path.substring(pointPos+1)
     val byteString = compressor.compress(ToByteString(body))
     val headers =
       N_Header("ETag", s""""${idGenUtil.srcIdFromSerialized(0,byteString)}"""") ::
       N_Header("Content-Encoding", compressor.name) ::
-      ext.flatMap(mimeTypes).map(N_Header("Content-Type",_)).toList
+        mimeTypes(ext).map(N_Header("Content-Type",_)).toList
     val publication = S_HttpPublication(path,headers,byteString,None)
     val existingPublications = ByPK(classOf[S_HttpPublication]).of(global)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
