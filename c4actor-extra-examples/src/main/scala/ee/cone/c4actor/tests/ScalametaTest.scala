@@ -1,5 +1,7 @@
 package ee.cone.c4actor.tests
 
+import scala.collection.immutable.Seq
+import scala.meta.Term.Name
 import scala.meta._
 
 object ScalametaTest {
@@ -20,7 +22,22 @@ object ScalametaTest {
           case q"super.test" ⇒ 1
           case _ ⇒ 0
         })
-      case _ ⇒ throw new Exception("fail fish")
+      case _ ⇒ 666 :: Nil
     })
+
+    val defenition = "@ignore def test(arg: Int): LUL = {val a = 3}".parse[Stat].get
+    defenition match {
+      case q"@ignore def $ename[..$tparams](...$paramss): $tpeopt = $expr" ⇒ println("def ok")
+      case _ ⇒ println("not ok")
+    }
+
+    def parseArgs: Seq[Seq[Term]] ⇒ List[String] =
+      _.flatMap(_.map(_.toString())).toList
+
+    val text = "@Meta(Atata, ee.cone.ee.Totoot(1,1,1)) val a = 1".parse[Stat].get
+    text match {
+      case q"@Meta(...$exprss) val a = 1" ⇒ println(parseArgs(exprss))
+      case _ ⇒ Nil
+    }
   }
 }
