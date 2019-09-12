@@ -69,7 +69,5 @@ class LoggerConfigurator(path: Path, catchNonFatal: CatchNonFatal, scanPeriod: L
     context.reset()
     configurator.doConfigure(new ByteArrayInputStream(content.getBytes(UTF_8)))
     println("logback reconfigure 2 ok")
-  }{
-    e ⇒ e.printStackTrace()
-  }
+  }("reconfigure"){ e ⇒ () }
 }

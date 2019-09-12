@@ -89,8 +89,7 @@ class AssemblerInit(
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
     val realDiff = toTree(assembled, composes.mayBePar(updates, options))(executionContext)
     reduce(replace, assembled, realDiff, options, executionContext)
-  }{ e ⇒
-      logger.error("reduce", e) // ??? exception to record
+  }("reduce"){ e ⇒ // ??? exception to record
       if(events.size == 1){
         val options = getAssembleOptions(assembled)
         val updates = offset(events) ++

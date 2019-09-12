@@ -1,3 +1,3 @@
 package ee.cone.c4gate
 
-case class LocalPostConsumer(condition: String)
+case class LocalHttpConsumer(condition: String)

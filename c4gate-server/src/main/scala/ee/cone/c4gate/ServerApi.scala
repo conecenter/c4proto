@@ -3,6 +3,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol.N_Header
+import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
 import okio.ByteString
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -11,10 +12,6 @@ trait SenderToAgent {
   def add(data: Array[Byte]): Unit
   def close()
   def compressor: Option[Compressor]
-}
-
-trait WorldProvider {
-  def createTx(implicit executionContext: ExecutionContext): Future[Context]
 }
 
 case object GetSenderKey extends SharedComponentKey[String⇒Option[SenderToAgent]]
@@ -30,12 +27,32 @@ trait SSEConfig {
   def pongURL: String
   def stateRefreshPeriodSeconds: Int
   def tolerateOfflineSeconds: Int
-  def sessionWaitingPosts: Int
+  def sessionWaitingRequests: Int
 }
 
+// inner (TxTr-like) handler api
+case class RHttpResponse(instantResponse: Option[S_HttpResponse], events: List[LEvent[Product]])
 trait RHttpHandler {
-  def handle(request: RHttpRequest)(implicit executionContext: ExecutionContext): Future[RHttpResponse]
+  def handle(request: S_HttpRequest, local: Context): RHttpResponse
 }
-case class RHttpRequest(method: String, path: String, headers: List[N_Header], body: ByteString)
-case class RHttpResponse(status: Long, headers: List[N_Header], body: ByteString)
 
+// outer handler api
+case class FHttpRequest(method: String, path: String, headers: List[N_Header], body: ByteString)
+trait FHttpHandler {
+  def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse]
+}
+
+trait RHttpResponseFactory {
+  def directResponse(request: S_HttpRequest, patch: S_HttpResponse⇒S_HttpResponse): RHttpResponse
+}
+
+trait WorldProvider {
+  def sync(local: Option[Context])(implicit executionContext: ExecutionContext): Future[Context]
+}
+
+trait StatefulReceiverFactory {
+  def create[Message](inner: List[Observer[Message]])(implicit executionContext: ExecutionContext): Future[StatefulReceiver[Message]]
+}
+trait StatefulReceiver[Message] {
+  def send(message: Message): Unit
+}

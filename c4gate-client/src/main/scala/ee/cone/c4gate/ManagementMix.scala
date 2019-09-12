@@ -14,7 +14,7 @@ trait ManagementApp extends AssemblesApp with ActorAccessApp with PrometheusApp 
 
   override def assembles: List[Assemble] =
     new ManagementPostAssemble(actorName, indexUtil, readModelUtil, catchNonFatal) ::
-    new PostConsumerAssemble(actorName, syncTxFactory) ::
+    new HttpConsumerAssemble(actorName, syncTxFactory) ::
     super.assembles
 }
 

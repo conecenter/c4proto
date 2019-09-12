@@ -217,8 +217,8 @@ object TxAdd {
     WriteModelDebugAddKey.of(context)(out)(context)
 }
 
-trait Observer {
-  def activate(world: RichContext): Seq[Observer]
+trait Observer[Message] {
+  def activate(world: Message): Seq[Observer[Message]]
 }
 
 case object TxTransformOrigMeta{

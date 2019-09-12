@@ -12,20 +12,19 @@ trait SSEServerApp
 {
   def config: Config
   def qMessages: QMessages
-  def worldProvider: WorldProvider
   def sseConfig: SSEConfig
   def mortal: MortalFactory
-  lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig,NotFound())
+  lazy val pongRegistry: PongRegistry = new PongRegistry
   private lazy val ssePort = config.get("C4SSE_PORT").toInt
   private lazy val compressorFactory: StreamCompressorFactory = new GzipStreamCompressorFactory
   private lazy val sseServer =
-    new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10, compressorFactory)
+    new TcpServerImpl(ssePort, new SSEHandler(sseConfig), 10, compressorFactory)
   override def toStart: List[Executable] = sseServer :: super.toStart
   override def assembles: List[Assemble] =
-    SSEAssembles(mortal) ::: PostAssembles(mortal,sseConfig) :::
+    SSEAssembles(mortal) ::: HttpReqAssembles(mortal,sseConfig) :::
       super.assembles
   override def toInject: List[ToInject] =
-    sseServer :: pongHandler :: super.toInject
+    sseServer :: pongRegistry :: super.toInject
   override def protocols: List[Protocol] = AlienProtocol :: super.protocols
 }
 
