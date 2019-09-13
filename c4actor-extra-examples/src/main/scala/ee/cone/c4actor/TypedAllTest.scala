@@ -159,7 +159,7 @@ case class TestTx(srcId: SrcId) extends TxTransform {
 
 }
 
-class TypedAllTestApp extends TestRichDataApp
+class TypedAllTestApp extends TestVMRichDataApp
   //with ServerApp
   //with EnvConfigApp
   with VMExecutionApp

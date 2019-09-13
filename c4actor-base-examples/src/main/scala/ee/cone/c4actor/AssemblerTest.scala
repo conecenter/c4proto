@@ -48,7 +48,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-class AssemblerTestApp extends TestRichDataApp
+class AssemblerTestApp extends TestVMRichDataApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
 {
