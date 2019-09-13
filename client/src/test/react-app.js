@@ -12,7 +12,7 @@ import * as Canvas   from "../main/canvas"
 import CanvasManager from "../main/canvas-manager"
 import {ExampleAuth,ExampleComponents} from "../test/vdom-components"
 import {ExampleRequestState} from "../test/request-state"
-import CanvasExtraMix from "../extra/canvas-extra-mix"
+//import CanvasExtraMix from "../extra/canvas-extra-mix"
 import {CanvasBaseMix,CanvasSimpleMix} from "../main/canvas-mix"
 
 
@@ -31,7 +31,7 @@ const getRootElement = () => document.body
 const util = Canvas.CanvasUtil()
 
 const exchangeMix = options => canvas => Canvas.ExchangeCanvasSetup(canvas)
-const canvasMods = [CanvasBaseMix(log,util),exchangeMix,CanvasExtraMix(log)]
+const canvasMods = [CanvasBaseMix(log,util),exchangeMix/*,CanvasExtraMix(log)*/]
 
 const canvas = CanvasManager(Canvas.CanvasFactory(util, canvasMods), sender, log)
 

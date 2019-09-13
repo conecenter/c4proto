@@ -3,6 +3,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
+import ee.cone.c4proto.Protocol
 
 abstract class AbstractHttpGatewayApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -20,6 +21,7 @@ abstract class AbstractHttpGatewayApp extends ServerApp
   with HttpHandlersApp
   with NoProxySSEConfigApp
   with SafeToRunApp
+  with WorldProviderApp
 
 
 
@@ -28,6 +30,25 @@ abstract class AbstractHttpGatewayApp extends ServerApp
 // Sn> -- to neo
 // S0>W -- static content
 
+trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp with ToStartApp {
+  def httpServer: Executable
+  def config: Config
+  //
+  lazy val httpPort: Int = config.get("C4HTTP_PORT").toInt
+  override def protocols: List[Protocol] = AuthProtocol :: HttpProtocol :: super.protocols
+  override def toStart: List[Executable] = httpServer :: super.toStart
+}
+
+trait WorldProviderApp extends ToStartApp with InitialObserversApp {
+  def qMessages: QMessages
+  def execution: Execution
+  def statefulReceiverFactory: StatefulReceiverFactory
+  //
+  lazy val worldProvider: WorldProvider with Observer[RichContext] with Executable =
+    new WorldProviderImpl(qMessages, execution, statefulReceiverFactory)()
+  override def initialObservers: List[Observer[RichContext]] = worldProvider :: super.initialObservers
+  override def toStart: List[Executable] = worldProvider :: super.toStart
+}
 
 trait SafeToRunApp extends ToStartApp {
   def safeToRun: SafeToRun
@@ -35,17 +56,27 @@ trait SafeToRunApp extends ToStartApp {
 }
 
 trait HttpHandlersApp {
-  def qMessages: QMessages
-  def pongHandler: RHttpHandler
+  def pongRegistry: PongRegistry
   def snapshotLoader: SnapshotLoader
+  def sseConfig: SSEConfig
   def worldProvider: WorldProvider
-  //
-  def httpHandler: RHttpHandler =new SeqRHttpHandler(List(//todo secure?
-    new HttpGetSnapshotHandler(snapshotLoader,NotFound()),
-    new HttpGetPublicationHandler(worldProvider),
-    pongHandler,
-    new HttpPostHandler(qMessages,worldProvider),
-  ))
+  //()//todo secure?
+  lazy val httpResponseFactory: RHttpResponseFactory = RHttpResponseFactoryImpl
+  def httpHandler: FHttpHandler = new FHttpHandlerImpl(worldProvider, httpResponseFactory,
+    new HttpGetSnapshotHandler(snapshotLoader, httpResponseFactory,
+      new GetPublicationHttpHandler(httpResponseFactory,
+        new PongHandler(sseConfig, pongRegistry, httpResponseFactory,
+          new NotFoundProtectionHttpHandler(httpResponseFactory,
+            new SelfDosProtectionHttpHandler(httpResponseFactory, sseConfig,
+              new AuthHttpHandler(
+                new DefSyncHttpHandler()
+              )
+            )
+          )
+        )
+      )
+    )
+  )
 }
 
 trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
@@ -78,7 +109,7 @@ trait SnapshotMakingApp extends ToStartApp with AssemblesApp {
     new SnapshotTaskSigner(signer)()
   //
   override def assembles: List[Assemble] =
-    new SnapshotMakingAssemble(actorName, fileSnapshotMaker, snapshotTaskSigner, new SignedPostUtilImpl(catchNonFatal)) ::
+    new SnapshotMakingAssemble(actorName, fileSnapshotMaker, snapshotTaskSigner, new SignedReqUtilImpl(catchNonFatal)) ::
     new PurgerAssemble(new Purger(fileRawSnapshotLoader,dbDir)) ::
     super.assembles
 }
@@ -92,6 +123,6 @@ trait SnapshotPutApp extends AssemblesApp {
     new SnapshotPutter(SnapshotLoaderFactoryImpl, snapshotDiffer)
   //
   override def assembles: List[Assemble] =
-    new SnapshotPutAssemble(snapshotPutter, signer, new SignedPostUtilImpl(catchNonFatal)) ::
+    new SnapshotPutAssemble(snapshotPutter, signer, new SignedReqUtilImpl(catchNonFatal)) ::
     super.assembles
 }

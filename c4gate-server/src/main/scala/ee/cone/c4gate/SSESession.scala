@@ -10,27 +10,25 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4gate.AlienProtocol.{U_FromAlienStatus, _}
 import ee.cone.c4proto.Protocol
 
-
 import scala.collection.concurrent.TrieMap
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPost, S_HttpPublication}
+import ee.cone.c4gate.HttpProtocol.S_HttpPublication
+import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
 import okio.ByteString
-
-import scala.concurrent.{ExecutionContext, Future}
 
 case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
 
-class PongHandler(
-    qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig, notFound: RHttpResponse,
-    pongs: TrieMap[String,Instant] = TrieMap()
-) extends RHttpHandler with ToInject with LazyLogging {
+class PongRegistry(val pongs: TrieMap[String,Instant] = TrieMap()) extends ToInject {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
-  def handle(request: RHttpRequest)(implicit executionContext: ExecutionContext): Future[RHttpResponse] =
-    if(request.method == "POST" && request.path == sseConfig.pongURL) worldProvider.createTx.map{ local ⇒
+}
+
+class PongHandler(sseConfig: SSEConfig, pongRegistry: PongRegistry, httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
+  def handle(request: S_HttpRequest, local: Context): RHttpResponse =
+    if(request.method == "POST" && request.path == sseConfig.pongURL) {
       val headers = request.headers.groupBy(_.key).map{ case(k,v) ⇒ k→Single(v).value }
       val now = Instant.now
       val sessionKey = headers("X-r-session")
@@ -51,17 +49,15 @@ class PongHandler(
           sseConfig.tolerateOfflineSeconds,
         isOnline = true
       )
-      pongs(session.sessionKey) = now.plusSeconds(5)
+
+      pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
       val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
       val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
-      TxAdd(
-        (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
-          (if(wasStatus != Option(status)) LEvent.update(status) else Nil)
-      ).andThen(qMessages.send)(local)
-      //logger.debug(s"pong $headers")
-      RHttpResponse(200,Nil,ByteString.EMPTY)
-    } else Future.successful(notFound)
-
+      httpResponseFactory.directResponse(request,a⇒a).copy(events=
+        (if(wasSession != Option(session)) LEvent.update(session) else List.empty[LEvent[Product]]).toList :::
+          (if(wasStatus != Option(status)) LEvent.update(status) else List.empty[LEvent[Product]]).toList
+      )
+    } else next.handle(request,local)
 }
 
 object SSEMessage {
@@ -76,7 +72,7 @@ object SSEMessage {
   }
 }
 
-class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHandler with LazyLogging {
+class SSEHandler(config: SSEConfig) extends TcpHandler with LazyLogging {
   override def beforeServerStart(): Unit = ()
   override def afterConnect(connectionKey: String, sender: SenderToAgent): Unit = {
     val allowOrigin =
@@ -200,5 +196,5 @@ case class NoProxySSEConfig(stateRefreshPeriodSeconds: Int) extends SSEConfig {
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"
   def tolerateOfflineSeconds: Int = 60
-  def sessionWaitingPosts: Int = 8
+  def sessionWaitingRequests: Int = 8
 }

@@ -1,7 +1,6 @@
 package ee.cone.c4actor
 
-import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory
-import java.util.concurrent.{ExecutorService, ForkJoinPool, ForkJoinWorkerThread}
+import java.util.concurrent.ExecutorService
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.{S_Firstborn, S_Offset}
@@ -27,7 +26,7 @@ object Merge {
 }
 
 class RichRawWorldReducerImpl(
-  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String
+  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String, execution: Execution
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
@@ -59,10 +58,8 @@ class RichRawWorldReducerImpl(
     new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
   }
   def newExecutionContext(threadCount: Long): OuterExecutionContext = {
-    val defaultThreadFactory = ForkJoinPool.defaultForkJoinWorkerThreadFactory
-    val threadFactory = new RForkJoinWorkerThreadFactory(defaultThreadFactory,"ass-")
     val fixedThreadCount = if(threadCount>0) toIntExact(threadCount) else Runtime.getRuntime.availableProcessors
-    val pool = new ForkJoinPool(fixedThreadCount, threadFactory, null, false)
+    val pool = execution.newExecutorService("ass-",Option(fixedThreadCount))
     logger.info(s"ForkJoinPool create $fixedThreadCount")
     new OuterExecutionContextImpl(threadCount,ExecutionContext.fromExecutor(pool),pool)
   }
@@ -75,14 +72,6 @@ class RichRawWorldReducerImpl(
       newExecutionContext(threadCount)
     case _ ⇒
       newExecutionContext(threadCount)
-  }
-}
-
-class RForkJoinWorkerThreadFactory(inner: ForkJoinWorkerThreadFactory, prefix: String) extends ForkJoinWorkerThreadFactory {
-  def newThread(pool: ForkJoinPool): ForkJoinWorkerThread = {
-    val thread = inner.newThread(pool)
-    thread.setName(s"$prefix${thread.getName}")
-    thread
   }
 }
 
@@ -126,7 +115,7 @@ class StatsObserver(inner: RawObserver) extends RawObserver with LazyLogging {
 }
 
 class RichRawObserver(
-  observers: List[Observer],
+  observers: List[Observer[RichContext]],
   completing: RawObserver
 ) extends RawObserver {
   def activate(rawWorld: RichContext): RawObserver = rawWorld match {

@@ -13,7 +13,7 @@ trait ToStartApp {
 }
 
 trait InitialObserversApp {
-  def initialObservers: List[Observer] = Nil
+  def initialObservers: List[Observer[RichContext]] = Nil
 }
 
 trait ProtocolsApp {
@@ -49,7 +49,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   def snapshotMaker: SnapshotMaker
   def rawSnapshotLoader: RawSnapshotLoader
   def consuming: Consuming
-  def txObserver: Option[Observer]
+  def txObserver: Option[Observer[RichContext]]
   def rawQSender: RawQSender
   //
   def longTxWarnPeriod: Long = Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong)
@@ -64,7 +64,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
     toUpdate, richRawWorldReducer, snapshotMaker, snapshotLoader
   )
   override def toStart: List[Executable] = rootConsumer :: super.toStart
-  override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
+  override def initialObservers: List[Observer[RichContext]] = txObserver.toList ::: super.initialObservers
   override def protocols: List[Protocol] = MetaAttrProtocol :: super.protocols
   override def deCompressors: List[DeCompressor] = GzipFullCompressor() :: super.deCompressors
 }
@@ -89,13 +89,14 @@ trait RichDataApp extends ProtocolsApp
 {
   def assembleProfiler: AssembleProfiler
   def actorName: String
+  def execution: Execution
   //
   lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
-    new RichRawWorldReducerImpl(toInject,toUpdate,actorName)
+    new RichRawWorldReducerImpl(toInject,toUpdate,actorName,execution)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)

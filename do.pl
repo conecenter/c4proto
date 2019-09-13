@@ -181,7 +181,7 @@ push @tasks, ["gate_publish", sub{
     my($env,%env) = &$get_env();
     my $build_dir = &$client(0);
     $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
-    sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT=1 ".staged("c4gate-server","ee.cone.c4gate.PublishApp"))
+    sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT=1 ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
     my($env,%env) = &$get_env();

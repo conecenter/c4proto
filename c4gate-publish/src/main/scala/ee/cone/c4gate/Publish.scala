@@ -20,8 +20,8 @@ class PublishingObserver(
   fromDir: String,
   fromStrings: List[(String,String)],
   mimeTypes: String⇒Option[String]
-) extends Observer with LazyLogging {
-  def activate(global: RichContext): Seq[Observer] = {
+) extends Observer[RichContext] with LazyLogging {
+  def activate(global: RichContext): Seq[Observer[RichContext]] = {
     //println("AAA")
     logger.debug("publish started")
     val fromPath = Paths.get(fromDir)
@@ -43,7 +43,7 @@ class PublishingObserver(
     val headers =
       N_Header("ETag", s""""${idGenUtil.srcIdFromSerialized(0,byteString)}"""") ::
       N_Header("Content-Encoding", compressor.name) ::
-        mimeTypes(ext).map(N_Header("Content-Type",_)).toList
+      mimeTypes(ext).map(N_Header("Content-Type",_)).toList
     val publication = S_HttpPublication(path,headers,byteString,None)
     val existingPublications = ByPK(classOf[S_HttpPublication]).of(global)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")

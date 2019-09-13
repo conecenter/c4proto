@@ -10,6 +10,7 @@ import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4gate.HttpProtocolBase.{N_Header, S_HttpResponse}
 
 class TestConsumerApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
@@ -38,22 +39,22 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
 */
 
 @assemble class TestAssembleBase(catchNonFatal: CatchNonFatal)   {
-  def joinTestHttpPostHandler(
+  def joinTestHttpHandler(
     key: SrcId,
-    post: Each[S_HttpPost]
+    req: Each[S_HttpRequest]
   ): Values[(SrcId, TxTransform)] =
-    if(post.path == "/abc")
-      List(WithPK(TestHttpPostHandler(post.srcId,post)(catchNonFatal))) else Nil
+    if(req.path == "/abc" || req.path.startsWith("/abd/"))
+      List(WithPK(TestHttpHandler(req.srcId,req)(catchNonFatal))) else Nil
 
   def needConsumer(
     key: SrcId,
     first: Each[S_Firstborn]
-  ): Values[(SrcId,LocalPostConsumer)] =
-    List(WithPK(LocalPostConsumer("/abc")))
+  ): Values[(SrcId,LocalHttpConsumer)] =
+    List(LocalHttpConsumer("/abc"),LocalHttpConsumer("/abd/*")).map(WithPK(_))
 
   def joinDebug(
     key: SrcId,
-    posts: Values[S_HttpPost]
+    posts: Values[S_HttpRequest]
   ): Values[(SrcId, TxTransform)] = {
     //println(posts)
     Nil
@@ -66,16 +67,22 @@ curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
     List("GateTester"→GateTester(connections))*/
 }
 
-case class TestHttpPostHandler(srcId: SrcId, post: S_HttpPost)(catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
+case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = catchNonFatal {
-    val prev = new String(post.body.toByteArray, "UTF-8")
-    val next = (prev.toLong * 3).toString
+    val next = if(req.method == "POST"){
+      val prev = req.body.utf8()
+      (prev.toLong * 3).toString
+    } else s"GET-${req.path} ${Math.random()}"
     val body = okio.ByteString.encodeUtf8(next)
-    val resp = List(S_HttpPublication(post.path, Nil, body, Option(System.currentTimeMillis+4000)))
+    val now = System.currentTimeMillis
+    val resp = List(
+      S_HttpPublication(req.path, Nil, ToByteString(s"async $next\n"), Option(now+4000)),
+      S_HttpResponse(req.srcId,200,List(N_Header("Content-Type","text/html; charset=UTF-8")),ToByteString(s"sync $next ${now-req.time}\n"),now)
+    )
     logger.info(s"$resp")
-    TxAdd(delete(post) ++ resp.flatMap(update))(local)
-  }{ e ⇒
-    TxAdd(delete(post))(local)
+    TxAdd(delete(req) ++ resp.flatMap(update))(local)
+  }("test"){ e ⇒
+    TxAdd(delete(req))(local)
   }
 }
 

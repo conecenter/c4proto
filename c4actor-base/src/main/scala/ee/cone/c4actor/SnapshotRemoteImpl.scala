@@ -48,6 +48,7 @@ object HttpUtil extends LazyLogging {
       conn.setRequestMethod("POST")
       setHeaders(conn, ("Content-Length", "0") :: headers)
       conn.connect()
+      println(s"http resp status ${conn.getResponseCode}")
       assert(conn.getResponseCode==200)
     }
     logger.debug(s"http post done")

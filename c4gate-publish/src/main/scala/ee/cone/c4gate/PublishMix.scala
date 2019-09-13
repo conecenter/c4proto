@@ -14,6 +14,6 @@ trait PublishingApp extends ProtocolsApp with InitialObserversApp {
   private lazy val publishingObserver =
     new PublishingObserver(GzipFullCompressor(),qMessages,idGenUtil,publishDir,publishFromStrings,mimeTypes.get)
   override def protocols: List[Protocol] = HttpProtocol :: super.protocols
-  override def initialObservers: List[Observer] =
+  override def initialObservers: List[Observer[RichContext]] =
     publishingObserver :: super.initialObservers
 }
