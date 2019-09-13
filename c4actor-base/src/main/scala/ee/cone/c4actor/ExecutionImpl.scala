@@ -65,10 +65,8 @@ default exceptions in futures:
   fatal error -- no catch by scala, no onComplete, passed to executor -- stderr deep by executor, no exit jvm
 */
 class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends UncaughtExceptionHandler {
-  def uncaughtException(thread: Thread, throwable: Throwable): Unit = {
-    inner.uncaughtException(thread,throwable)
-    System.exit(1)
-  }
+  def uncaughtException(thread: Thread, throwable: Throwable): Unit =
+    try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
 class VMExecution(getToStart: ()⇒List[Executable])(

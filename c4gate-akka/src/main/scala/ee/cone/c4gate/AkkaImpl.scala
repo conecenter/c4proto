@@ -50,6 +50,7 @@ class AkkaHttpServer(
     for{
       mat ← akkaMat.get
       handler = getHandler(mat)
+      // to see: MergeHub/PartitionHub.statefulSink solution of the same task vs FHttpHandler
       binding ← Http()(mat.system).bindAndHandleAsync(handler,"localhost",port)(mat)
     } yield binding
   }
