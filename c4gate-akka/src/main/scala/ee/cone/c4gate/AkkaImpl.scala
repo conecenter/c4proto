@@ -50,7 +50,7 @@ class AkkaHttpServer(
     for{
       mat ← akkaMat.get
       handler = getHandler(mat)
-      binding ← Http()(mat.system).bindAndHandleAsync(handler,"localhost",port)(mat)
+      binding ← Http()(mat.system).bindAndHandleAsync(handler,"0.0.0.0",port)(mat)
     } yield binding
   }
 }
