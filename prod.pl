@@ -891,7 +891,7 @@ my $up_gate = sub{
             &$consumer_options(),
             name => "gate",
             C4DATA_DIR => "/c4db",
-            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
+            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.AkkaGatewayApp",
             C4STATE_REFRESH_SECONDS => 1000,
         },
         {
