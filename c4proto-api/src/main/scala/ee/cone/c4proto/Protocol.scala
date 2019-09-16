@@ -3,14 +3,12 @@ package ee.cone.c4proto
 
 import java.nio.charset.StandardCharsets.UTF_8
 
-import com.squareup.wire.ProtoAdapter
+import com.squareup.wire.{ProtoAdapter, ProtoReader, ProtoWriter}
 import okio.ByteString
-
+import collection.immutable.Seq
 import scala.annotation.StaticAnnotation
 
-trait Protocol {
-  def adapters: List[ProtoAdapter[_] with HasId]
-}
+trait Protocol extends AbstractComponents
 
 case class Id(id: Int) extends StaticAnnotation
 
@@ -18,8 +16,8 @@ case class ShortName(name: String) extends StaticAnnotation
 
 class GenLens extends StaticAnnotation
 
-case class TypeProp(clName: String, alias: String, children: List[TypeProp])
-case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeProp)
+case class TypeKey(clName: String, alias: String, children: List[TypeKey])
+case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeKey)
 
 trait HasId {
   def id: Long
@@ -34,4 +32,22 @@ trait HasId {
 object ToByteString {
   def apply(data: Array[Byte]): ByteString = ByteString.of(data,0,data.length)
   def apply(v: String): ByteString = apply(v.getBytes(UTF_8))
+}
+
+class c4component extends StaticAnnotation
+
+abstract class ArgAdapter[Value] {
+  def className: String
+  def encodedSizeWithTag (tag: Int, value: Value): Int
+  def encodeWithTag(writer: ProtoWriter, tag: Int, value: Value): Unit
+  def defaultValue: Value
+  def decodeReduce(reader: ProtoReader, prev: Value): Value
+  def decodeFix(prev: Value): Value
+}
+
+trait AbstractComponents {
+  def components: Seq[Component]
+}
+abstract class Component(val out: TypeKey, val in: Seq[TypeKey], val create: Seq[Object]=>Object) extends AbstractComponents {
+  def components: Seq[Component] = Seq(this)
 }
