@@ -257,7 +257,7 @@ trait TestCondition extends SerializationUtilsApp {
   def lensStr: ProdLens[D_TestObject, String] = ProdLens.ofSet[D_TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[D_TestObject], classOf[String]))
 }
 
-class HashSearchExtraTestApp extends TestRichDataApp
+class HashSearchExtraTestApp extends TestVMRichDataApp
   //with ServerApp
   //with EnvConfigApp
   with VMExecutionApp

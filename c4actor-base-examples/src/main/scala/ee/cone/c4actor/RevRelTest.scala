@@ -109,7 +109,7 @@ case class RelOuterReq(callerId: SrcId)
 
 // general test helpers
 
-abstract class TestExecutionApp(addAssembles: List[Assemble]) extends TestRichDataApp
+abstract class TestExecutionApp(addAssembles: List[Assemble]) extends TestVMRichDataApp
   with SimpleAssembleProfilerApp
   with VMExecutionApp with ToStartApp with ExecutableApp
 {

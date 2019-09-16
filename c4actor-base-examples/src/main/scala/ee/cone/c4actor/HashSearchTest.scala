@@ -73,7 +73,7 @@ import SomeModelAccess._
 
 case class SomeResponse(srcId: SrcId, lines: List[D_SomeModel])
 //todo reg
-class HashSearchTestApp extends TestRichDataApp
+class HashSearchTestApp extends TestVMRichDataApp
   with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
 {

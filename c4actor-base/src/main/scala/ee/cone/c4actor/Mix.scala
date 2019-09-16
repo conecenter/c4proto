@@ -69,7 +69,7 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
   override def deCompressors: List[DeCompressor] = GzipFullCompressor() :: super.deCompressors
 }
 
-trait TestRichDataApp extends RichDataApp {
+trait TestVMRichDataApp extends RichDataApp with VMExecutionApp with ToStartApp {
   lazy val contextFactory = new ContextFactory(richRawWorldReducer,toUpdate)
   lazy val actorName: String = getClass.getName
 }
