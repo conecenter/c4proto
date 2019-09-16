@@ -7,6 +7,7 @@ import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, ContentTypes, HttpEntity, HttpRequest, HttpResponse}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import akka.stream.scaladsl.{Keep, Sink, Source}
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4gate.HttpProtocolBase.N_Header
@@ -25,11 +26,12 @@ class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends Ak
 
 class AkkaHttpServer(
   port: Int, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat
-) extends Executable {
+) extends Executable with LazyLogging {
   def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest⇒Future[HttpResponse] = req ⇒ {
     val method = req.method.value
     val path = req.uri.path.toString
     val rHeaders = req.headers.map(h ⇒ N_Header(h.name, h.value)).toList
+    logger.debug(s"req init: $method|$path|$rHeaders")
     for {
       entity ← req.entity.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
@@ -43,6 +45,7 @@ class AkkaHttpServer(
           .getOrElse(ContentTypes.`application/octet-stream`)
       val aHeaders = rHeaders.map(h⇒RawHeader(h.key,h.value))
       val entity = HttpEntity(contentType,rResp.body.toByteArray)
+      logger.debug(s"resp status: $status")
       HttpResponse(status, aHeaders, entity)
     }
   }
