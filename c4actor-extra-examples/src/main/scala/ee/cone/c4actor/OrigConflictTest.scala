@@ -65,7 +65,7 @@ class ConflictingOrigTest(
   }
 }
 
-class D_ConflictOrigTestApp extends TestRichDataApp
+class D_ConflictOrigTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp

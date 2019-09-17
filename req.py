@@ -25,7 +25,7 @@ def signed_req(salt,responseKey,args,opt):
     uData = until + [s.encode("utf-8") for s in args]
     hash = [md5s([salt] + uData)]
     header = "=".join([urllib.parse.quote_plus(e) for e in hash + uData])
-    headers = { "X-r-signed": header, "X-r-response-key": responseKey }
+    headers = { "x-r-signed": header, "x-r-response-key": responseKey }
     postReq =  urllib.request.Request(headers=headers, **opt) #method="POST",
     postResp = urllib.request.urlopen(postReq)
     if postResp.status!=200:
@@ -39,7 +39,7 @@ def signed_req(salt,responseKey,args,opt):
             resp = urllib.request.urlopen(req)
         except:
             pass
-    err = resp.getheader("X-r-error-message")
+    err = resp.getheader("x-r-error-message")
     if not (err is None or err == ""):
         raise Exception("post handling failed: "+err)
 

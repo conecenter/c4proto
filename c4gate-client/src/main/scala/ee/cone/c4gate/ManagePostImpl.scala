@@ -37,14 +37,14 @@ case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: Ind
     val headers: Map[String, String] = request.headers.map(h⇒h.key→h.value).toMap
     val world = readModelUtil.toMap(local.assembled)
     val WorldKeyAlias = """(\w+),(\w+)""".r
-    val worldKeyAlias = headers("X-r-world-key")
+    val worldKeyAlias = headers("x-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
     val (indexStr,index): (String,Index) = Single.option(world.collect{
       case (worldKey: JoinKey, index) if !worldKey.was && worldKey.keyAlias == alias &&
         worldKey.valueClassName.split("\\W").last == keyClassAlias ⇒
         (s"$worldKey",index)
     }.toList).getOrElse(("[index not found]",emptyIndex))
-    val res: List[String] = headers("X-r-selection") match {
+    val res: List[String] = headers("x-r-selection") match {
       case k if k.startsWith(":") ⇒ k.tail :: valueLines(index, options)(k.tail)
       case "keys" ⇒ indexUtil.keySet(index).map(_.toString).toList.sorted
       case "all" ⇒ indexUtil.keySet(index).map(k⇒k.toString→k).toList.sortBy(_._1).flatMap{

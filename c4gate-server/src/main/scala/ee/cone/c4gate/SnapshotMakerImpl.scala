@@ -95,7 +95,7 @@ case class RequestedSnapshotMakingTx(
       signatureChecker.retrieve(check=true)(signed(post.headers)).nonEmpty
     )
     val res = if (authorized.nonEmpty) snapshotMaking.make(task) else Nil
-    val goodResp = List(N_Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
+    val goodResp = List(N_Header("x-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
     val authorizedResponses = authorized.map(au ⇒ au → goodResp)
     val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → "Non authorized request")
     respond(authorizedResponses, nonAuthorizedResponses)(local)

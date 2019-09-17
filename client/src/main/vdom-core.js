@@ -171,7 +171,7 @@ export function VDomCore(log,activeTransforms,getRootElement){
         const [branchKey,body] = splitFirst(" ", data)
         const index = parseInt(body)
         modify("ACK_CHANGE",branchByKey.one(branchKey,localByKey.all(st => {
-            return st.sent && index >= parseInt(st.sent["X-r-index"]) ? null : st
+            return st.sent && index >= parseInt(st.sent["x-r-index"]) ? null : st
         })))
     }
 

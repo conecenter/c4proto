@@ -35,7 +35,7 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --descri
 
 ...kafka-console-consumer.sh --key-deserializer
 
-curl 127.0.0.1:8067/connection -v -H X-r-action:pong -H X-r-connection:...
+curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
 */
 
 @assemble class TestAssembleBase(catchNonFatal: CatchNonFatal)   {
@@ -77,7 +77,7 @@ case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(catchNonFatal: Catc
     val now = System.currentTimeMillis
     val resp = List(
       S_HttpPublication(req.path, Nil, ToByteString(s"async $next\n"), Option(now+4000)),
-      S_HttpResponse(req.srcId,200,List(N_Header("Content-Type","text/html; charset=UTF-8")),ToByteString(s"sync $next ${now-req.time}\n"),now)
+      S_HttpResponse(req.srcId,200,List(N_Header("content-type","text/html; charset=UTF-8")),ToByteString(s"sync $next ${now-req.time}\n"),now)
     )
     logger.info(s"$resp")
     TxAdd(delete(req) ++ resp.flatMap(update))(local)

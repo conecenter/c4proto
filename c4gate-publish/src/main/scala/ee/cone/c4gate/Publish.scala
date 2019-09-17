@@ -41,9 +41,9 @@ class PublishingObserver(
     val ext = if(pointPos<0) "" else path.substring(pointPos+1)
     val byteString = compressor.compress(ToByteString(body))
     val headers =
-      N_Header("ETag", s""""${idGenUtil.srcIdFromSerialized(0,byteString)}"""") ::
-      N_Header("Content-Encoding", compressor.name) ::
-      mimeTypes(ext).map(N_Header("Content-Type",_)).toList
+      N_Header("etag", s""""${idGenUtil.srcIdFromSerialized(0,byteString)}"""") ::
+      N_Header("content-encoding", compressor.name) ::
+      mimeTypes(ext).map(N_Header("content-type",_)).toList
     val publication = S_HttpPublication(path,headers,byteString,None)
     val existingPublications = ByPK(classOf[S_HttpPublication]).of(global)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")

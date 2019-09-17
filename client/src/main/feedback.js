@@ -11,8 +11,8 @@ export default function Feedback(localStorage,sessionStorage,location,fetch,setT
             url: getConnectionState(never).pongURL,
             options: {
                 headers: {
-                    "X-r-connection": getConnectionKey(never),
-                    "X-r-location": location+""
+                    "x-r-connection": getConnectionKey(never),
+                    "x-r-location": location+""
                 }
             },
             skip: that=>true
@@ -43,12 +43,12 @@ export default function Feedback(localStorage,sessionStorage,location,fetch,setT
     function send(message){
         const headers = {
             ...message.options.headers,
-            "X-r-session": sessionKey(never),
-            "X-r-index": nextMessageIndex++,
-            "X-r-alien-date": Date.now()
+            "x-r-session": sessionKey(never),
+            "x-r-index": nextMessageIndex++,
+            "x-r-alien-date": Date.now()
         }
         const options = {method:"post", ...message.options, headers}
-        const qKey = headers["X-r-branch"] || message.url
+        const qKey = headers["x-r-branch"] || message.url
         const sender = senders[qKey] || (senders[qKey] = Sender(fetch,setTimeout))
         sender.send({...message, options})
         return headers

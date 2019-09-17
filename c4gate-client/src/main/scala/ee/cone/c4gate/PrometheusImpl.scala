@@ -65,7 +65,7 @@ case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUt
     val metrics = memStats ::: keyCounts
     val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
     val body = compressor.compress(okio.ByteString.encodeUtf8(bodyStr))
-    val headers = List(N_Header("Content-Encoding", compressor.name))
+    val headers = List(N_Header("content-encoding", compressor.name))
     Monitoring.publish(time, 15000, 5000, path, headers, body)(local)
   }
 }

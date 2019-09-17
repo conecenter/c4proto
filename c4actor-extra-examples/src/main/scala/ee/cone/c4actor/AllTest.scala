@@ -80,7 +80,7 @@ class AllTestTest(
   }
 }
 
-class AllTestTestApp extends TestRichDataApp
+class AllTestTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp
