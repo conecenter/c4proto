@@ -1,7 +1,6 @@
 *.class
 *.log
 
-# sbt specific
 .cache
 .history
 .lib/
@@ -12,13 +11,11 @@ src_managed/
 project/boot/
 project/plugins/project/
 
-# Scala-IDE specific
 .scala_dependencies
 .worksheet
 
-###
-
 .idea
+.git
 tmp/
 
 build
@@ -29,4 +26,3 @@ db.*
 htdocs
 /logback.xml
 *.auth
-c4gen.*.scala
