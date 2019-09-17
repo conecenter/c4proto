@@ -846,8 +846,10 @@ push @tasks, ["up-client", "", sub{
 }];
 
 my $need_logback = sub{
-    my ($from_path) = @_;
-    sy("touch","$from_path/logback.xml")
+    my ($comp,$from_path) = @_;
+    my %auth = &$get_auth($comp);
+    my $put = &$rel_put_text($from_path);
+    &$put($_,$auth{$_}||"") for "logback.xml";
 };
 
 my $up_consumer = sub{
@@ -858,7 +860,7 @@ my $up_consumer = sub{
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($gate_comp,$from_path);
     &$make_secrets($run_comp,$from_path);
-    &$need_logback($from_path);
+    &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [{
         @var_img, name => "main", &$consumer_options(),
         C4HTTP_SERVER => "http://$server:$external_http_port",
@@ -871,7 +873,7 @@ my $up_gate = sub{
     my ($server,$external_http_port,$external_broker_port) = &$gate_ports($run_comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($run_comp,$from_path);
-    &$need_logback($from_path);
+    &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [
         {
             @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?

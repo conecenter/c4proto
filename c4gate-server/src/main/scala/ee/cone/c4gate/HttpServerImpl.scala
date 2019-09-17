@@ -217,16 +217,19 @@ class FHttpHandlerImpl(
   worldProvider: WorldProvider,
   httpResponseFactory: RHttpResponseFactory,
   handler: RHttpHandler
-) extends FHttpHandler {
+) extends FHttpHandler with LazyLogging {
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = {
-    val requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, request.headers, request.body, System.currentTimeMillis)
-    for{
+    val now = System.currentTimeMillis
+    val res = for{
       local <- worldProvider.sync(None)
+      requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, request.headers, request.body, now)
       result = handler.handle(requestEv,local)
       uLocal = TxAdd(result.events)(local)
       cLocal <- worldProvider.sync(Option(uLocal))
       response <- result.instantResponse.fold{new WaitFor(requestEv).iteration(cLocal)}(Future.successful)
     } yield response
+    for(e ← res.failed) logger.error("http handling error",e)
+    res
   }
   class WaitFor(
     request: S_HttpRequest,
