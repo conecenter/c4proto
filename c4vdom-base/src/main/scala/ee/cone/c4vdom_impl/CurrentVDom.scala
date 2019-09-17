@@ -47,7 +47,7 @@ case class VDomHandlerImpl[State](
   private def empty = Option(VDomState(wasNoValue,0))
   private def init: Handler = _ ⇒ vDomStateKey.modify(_.orElse(empty))
 
-  private def pathHeader: VDomMessage => String = _.header("X-r-vdom-path")
+  private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
   //dispatches incoming message // can close / set refresh time
   private def dispatch: Handler = exchange ⇒ state ⇒ {
     val path = pathHeader(exchange)
@@ -82,7 +82,7 @@ case class VDomHandlerImpl[State](
     else if(
       vState.value != wasNoValue &&
       vState.until > System.currentTimeMillis &&
-      (exchange.header("X-r-redraw") match {
+      (exchange.header("x-r-redraw") match {
         case "1" ⇒ false
         case "" ⇒ pathHeader(exchange).isEmpty
       }) &&

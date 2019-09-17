@@ -49,10 +49,10 @@ case class MessageFromAlienImpl(
     req: Each[S_HttpRequest]
   ): Values[(BranchKey, BranchMessage)] = if(req.path != "/connection") Nil else for(
     headers ← List(req.headers.flatMap(h ⇒
-      if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
+      if(h.key.startsWith("x-r-")) List(h.key→h.value) else Nil
     ).toMap);
-    branchKey ← headers.get("X-r-branch");
-    index ← headers.get("X-r-index").map(_.toLong)
+    branchKey ← headers.get("x-r-branch");
+    index ← headers.get("x-r-index").map(_.toLong)
   ) yield branchKey → MessageFromAlienImpl(req.srcId,headers,req)
 
 

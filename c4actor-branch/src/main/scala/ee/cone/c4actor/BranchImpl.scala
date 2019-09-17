@@ -136,8 +136,8 @@ case class BranchTxTransform(
   private def rmRequestsErrors: Context ⇒ Context = local ⇒ {
     val send = SendToAlienKey.of(local)
     chain(requests.map{ request ⇒
-      val sessionKey = request.header("X-r-session")
-      val index = request.header("X-r-index")
+      val sessionKey = request.header("x-r-session")
+      val index = request.header("x-r-index")
       val deletes = request.deletes
       if(sessionKey.isEmpty) TxAdd(deletes)
       else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(TxAdd(deletes))
@@ -146,7 +146,7 @@ case class BranchTxTransform(
 
   def transform(local: Context): Context = {
     if(requests.nonEmpty)
-      logger.debug(s"branch $branchKey tx begin ${requests.map(r⇒r.header("X-r-alien-date")).mkString("(",", ",")")}")
+      logger.debug(s"branch $branchKey tx begin ${requests.map(r⇒r.header("x-r-alien-date")).mkString("(",", ",")")}")
     val errors = ErrorKey.of(local)
     var res = if(errors.nonEmpty && requests.nonEmpty)
       saveErrors(errorText(local)).andThen(rmRequestsErrors)(local)
@@ -202,7 +202,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     List(key → BranchTxTransform(key,
         seeds.headOption.map(_.seed),
         seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
-        requests.sortBy(req⇒(req.header("X-r-index") match{
+        requests.sortBy(req⇒(req.header("x-r-index") match{
           case "" ⇒ 0L
           case s ⇒ s.toLong
         },ToPrimaryKey(req))).toList,
@@ -232,7 +232,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
 
 case class RedrawBranchMessage(redraw: U_Redraw) extends BranchMessage {
   def method: String = "POST"
-  def header: String ⇒ String = { case "X-r-redraw" ⇒ "1" case _ ⇒ "" }
+  def header: String ⇒ String = { case "x-r-redraw" ⇒ "1" case _ ⇒ "" }
   def body: okio.ByteString = okio.ByteString.EMPTY
   def deletes: Seq[LEvent[Product]] = LEvent.delete(redraw)
 }
@@ -273,7 +273,7 @@ private def setupAdapters =
 
 */
 
-// /connection X-r-connection -> q-add -> q-poll -> FromAlienDictMessage
+// /connection x-r-connection -> q-add -> q-poll -> FromAlienDictMessage
 // (0/1-1) ShowToAlien -> sendToAlien
 
 //(World,Msg) => (WorldWithChanges,Seq[Send])
@@ -294,7 +294,7 @@ RootViewResult(...,subviews)
 TxTr(embedHash,embed,connections)
 
 next:
-"X-r-vdom-branch"
+"x-r-vdom-branch"
 
 ?errors in embed
 ?bind/positioning: ref=['embed','parent',key]

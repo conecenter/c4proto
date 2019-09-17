@@ -39,7 +39,7 @@ class AkkaHttpServer(
       rResp ← handler.handle(rReq)
     } yield {
       val status = Math.toIntExact(rResp.status)
-      val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="Content-Type")
+      val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
       val contentType =
         Single.option(ctHeaders.flatMap(h⇒ContentType.parse(h.value).toOption))
           .getOrElse(ContentTypes.`application/octet-stream`)

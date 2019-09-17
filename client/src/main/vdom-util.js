@@ -11,10 +11,10 @@ export function VDomSender(feedback){ // todo: may be we need a queue to be sure
     const send = (ctx, target) => {
         const headers = {
             ...target.headers,
-            "X-r-branch": rootCtx(ctx).branchKey,
-            "X-r-vdom-path": ctxToPath(ctx)
+            "x-r-branch": rootCtx(ctx).branchKey,
+            "x-r-vdom-path": ctxToPath(ctx)
         }
-        const skipByPath = that => that.options.headers["X-r-vdom-path"] === headers["X-r-vdom-path"]
+        const skipByPath = that => that.options.headers["x-r-vdom-path"] === headers["x-r-vdom-path"]
         return feedback.send({
             url: "/connection",
             options: { headers, body: target.value },

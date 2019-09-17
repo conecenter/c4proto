@@ -4,8 +4,8 @@ import {splitFirst}    from "../main/util"
 export function ExampleRequestState(sender){
     const send = (ctx, target) => {
         const sent = sender.send(ctx, target)
-        const branchKey = sent["X-r-branch"]
-        const index = parseInt(sent["X-r-index"])
+        const branchKey = sent["x-r-branch"]
+        const index = parseInt(sent["x-r-index"])
         console.log("req started",branchKey,index)
 //        const onFulfilled = response => console.log("req status",branchKey,index,response.status)
 //        const onRejected = error => console.log("req error",branchKey,index,error)

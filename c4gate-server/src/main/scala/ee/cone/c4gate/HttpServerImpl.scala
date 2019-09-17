@@ -3,7 +3,7 @@ package ee.cone.c4gate
 
 import java.security.SecureRandom
 import java.time.Instant
-import java.util.UUID
+import java.util.{Locale, UUID}
 import java.util.concurrent.atomic.AtomicReference
 
 import javax.crypto.SecretKeyFactory
@@ -39,8 +39,8 @@ class GetPublicationHttpHandler(httpResponseFactory: RHttpResponseFactory, next:
       val publicationsByPath = ByPK(classOf[S_HttpPublication]).of(local)
       publicationsByPath.get(path).filter(_.until.forall(now<_)) match {
         case Some(publication) ⇒
-          val cTag = request.headers.find(_.key=="If-none-match").map(_.value)
-          val sTag = publication.headers.find(_.key=="ETag").map(_.value)
+          val cTag = request.headers.find(_.key=="if-none-match").map(_.value)
+          val sTag = publication.headers.find(_.key=="etag").map(_.value)
           logger.debug(s"${request.headers}")
           logger.debug(s"$cTag $sTag")
           (cTag,sTag) match {
@@ -76,11 +76,11 @@ object AuthOperations {
 class AuthHttpHandler(next: RHttpHandler) extends RHttpHandler with LazyLogging {
   def handle(request: S_HttpRequest, local: Context): RHttpResponse = {
     if(request.method != "POST") next.handle(request,local)
-    else ReqGroup.header(request,"X-r-auth") match {
+    else ReqGroup.header(request,"x-r-auth") match {
       case None ⇒ next.handle(request,local)
       case Some("change") ⇒
         val authPost: okio.ByteString ⇒ Int ⇒ S_HttpRequest = body ⇒ status ⇒
-          request.copy(headers = N_Header("X-r-auth-status", status.toString) :: request.headers, body = body)
+          request.copy(headers = N_Header("x-r-auth-status", status.toString) :: request.headers, body = body)
         def getPassRegex: Option[String] = ByPK(classOf[C_PasswordRequirements]).of(local).get("gate-password-requirements").map(_.regex)
         val Array(password, again, username) = request.body.utf8().split("\n")
         // 0 - OK, 1 - passwords did not match, 2 - password did not match requirements
@@ -202,9 +202,9 @@ case class LocalHttpConsumerExists(condition: String)
 
 object ReqGroup {
   def session(request: S_HttpRequest): Option[String] =
-    header(request,"X-r-session").filter(_.nonEmpty)
+    header(request,"x-r-session").filter(_.nonEmpty)
   def conditions(request: S_HttpRequest): List[String] =
-    header(request,"X-r-branch").toList ::: genCond(request.path)
+    header(request,"x-r-branch").toList ::: genCond(request.path)
   private def genCond(path: String) = {
     val index = path.lastIndexOf("/")
     if(index < 0) List(path) else List(s"${path.substring(0,index)}/*",path)
@@ -222,15 +222,18 @@ class FHttpHandlerImpl(
     val now = System.currentTimeMillis
     val res = for{
       local <- worldProvider.sync(None)
-      requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, request.headers, request.body, now)
+      headers = normalize(request.headers)
+      requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, headers, request.body, now)
       result = handler.handle(requestEv,local)
       uLocal = TxAdd(result.events)(local)
       cLocal <- worldProvider.sync(Option(uLocal))
       response <- result.instantResponse.fold{new WaitFor(requestEv).iteration(cLocal)}(Future.successful)
-    } yield response
+    } yield response.copy(headers = normalize(response.headers))
     for(e ← res.failed) logger.error("http handling error",e)
     res
   }
+  def normalize(headers: List[N_Header]): List[N_Header] =
+    headers.map(h⇒h.copy(key = h.key.toLowerCase(Locale.ENGLISH)))
   class WaitFor(
     request: S_HttpRequest,
     requestByPK: ByPrimaryKeyGetter[S_HttpRequest] = ByPK(classOf[S_HttpRequest]),
