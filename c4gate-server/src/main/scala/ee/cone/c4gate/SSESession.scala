@@ -31,12 +31,12 @@ class PongHandler(sseConfig: SSEConfig, pongRegistry: PongRegistry, httpResponse
     if(request.method == "POST" && request.path == sseConfig.pongURL) {
       val headers = request.headers.groupBy(_.key).map{ case(k,v) ⇒ k→Single(v).value }
       val now = Instant.now
-      val sessionKey = headers("X-r-session")
+      val sessionKey = headers("x-r-session")
       val userName = ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
       val session = U_FromAlienState(
         sessionKey,
-        headers("X-r-location"),
-        headers("X-r-connection"),
+        headers("x-r-location"),
+        headers("x-r-connection"),
         userName
       )
       val refreshPeriodLong = sseConfig.stateRefreshPeriodSeconds*1L
@@ -76,11 +76,11 @@ class SSEHandler(config: SSEConfig) extends TcpHandler with LazyLogging {
   override def beforeServerStart(): Unit = ()
   override def afterConnect(connectionKey: String, sender: SenderToAgent): Unit = {
     val allowOrigin =
-      config.allowOrigin.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
+      config.allowOrigin.map(v=>s"access-control-allow-origin: $v\n").getOrElse("")
     val zipHeader = sender.compressor.fold("")(compressor =>
-      s"Content-Encoding: ${compressor.name}\n"
+      s"content-encoding: ${compressor.name}\n"
     )
-    val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$zipHeader$allowOrigin\n"
+    val header = s"HTTP/1.1 200 OK\ncontent-type: text/event-stream\n$zipHeader$allowOrigin\n"
     val data = s"$connectionKey ${config.pongURL}"
     //logger.debug(s"connection $connectionKey")
     SSEMessage.message(sender, "connect", data, header)

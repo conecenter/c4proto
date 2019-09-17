@@ -15,9 +15,10 @@ trait BasicLoggingApp extends ToStartApp {
   def catchNonFatal: CatchNonFatal
   def config: Config
   //
-  private lazy val logbackIncludePath = Paths.get(config.get("C4LOGBACK_XML"))
+  private lazy val logbackIncludePaths =
+    Paths.get(config.get("C4LOGBACK_XML")) :: Paths.get("/tmp/logback.xml") :: Nil
   private lazy val logbackConfigurator =
-    new LoggerConfigurator(logbackIncludePath, catchNonFatal, 5000)
+    new LoggerConfigurator(logbackIncludePaths, catchNonFatal, 5000)
   private lazy val logbackTest = new LoggerTest
   override def toStart: List[Executable] =
       Option(System.getenv("C4LOGBACK_TEST")).toList.map(_⇒logbackTest) :::
@@ -35,14 +36,14 @@ class LoggerTest extends Executable with LazyLogging {
   }
 }
 
-class LoggerConfigurator(path: Path, catchNonFatal: CatchNonFatal, scanPeriod: Long) extends Executable {
+class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPeriod: Long) extends Executable {
   def run(): Unit = iteration("")
   @tailrec private def iteration(wasContent: String): Unit = {
     val content =
       s"""
       <configuration>
         <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
-        ${if(Files.exists(path)) new String(Files.readAllBytes(path), UTF_8) else ""}
+        ${paths.map(path⇒if(Files.exists(path)) new String(Files.readAllBytes(path), UTF_8) else "").mkString}
         <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
           <encoder><pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern></encoder>
         </appender>
