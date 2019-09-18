@@ -2,8 +2,8 @@
 package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.{S_Offset, N_TxRef, N_Update, S_Updates}
-import ee.cone.c4proto.{HasId, Protocol, ToByteString}
+import ee.cone.c4actor.QProtocol.{N_TxRef, N_Update, S_Offset, S_Updates}
+import ee.cone.c4proto.{HasId, Protocol, ToByteString, c4component}
 
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -141,14 +141,12 @@ class ToUpdateImpl(
   def by(up: N_Update): (TypeId, SrcId) = (up.valueTypeId,up.srcId)
 }
 
-object QAdapterRegistryFactory {
-  def apply(protocols: List[Protocol]): QAdapterRegistry = {
-    val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
-    val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
-    val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
-    new QAdapterRegistry(byName, byId)
-  }
-}
+@c4component class QAdapterRegistryImpl(adapters: Seq[ProtoAdapter[_]])(
+  val byName: Map[String, ProtoAdapter[Product] with HasId] =
+    CheckedMap(adapters.collect{ case a: HasId ⇒ a.className → a.asInstanceOf[ProtoAdapter[Product] with HasId] }),
+  val byId: Map[Long, ProtoAdapter[Product] with HasId] =
+    CheckedMap(adapters.collect{ case a: HasId if a.hasId ⇒ a.id → a.asInstanceOf[ProtoAdapter[Product] with HasId] })
+) extends QAdapterRegistry
 
 class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)

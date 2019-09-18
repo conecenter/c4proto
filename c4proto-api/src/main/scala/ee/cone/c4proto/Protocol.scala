@@ -16,7 +16,7 @@ case class ShortName(name: String) extends StaticAnnotation
 
 class GenLens extends StaticAnnotation
 
-case class TypeKey(clName: String, alias: String, children: List[TypeKey])
+case class TypeKey(clName: String, alias: String, args: List[TypeKey])
 case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeKey)
 
 trait HasId {
@@ -37,7 +37,6 @@ object ToByteString {
 class c4component extends StaticAnnotation
 
 abstract class ArgAdapter[Value] {
-  def className: String
   def encodedSizeWithTag (tag: Int, value: Value): Int
   def encodeWithTag(writer: ProtoWriter, tag: Int, value: Value): Unit
   def defaultValue: Value

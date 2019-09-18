@@ -37,8 +37,12 @@ object ComponentsGenerator extends Generator {
   }
   def getTypeKey(t: Type): String = {
     t match {
-      case t"$tpe[..$tpesnel]" => s"""ee.cone.c4proto.TypeKey(classOf[$tpe[${tpesnel.map(_ ⇒ "_").mkString(", ")}]].getName, "$tpe", ${tpesnel.map(getTypeKey)})"""
-      case t"$tpe" ⇒ s"""ee.cone.c4proto.TypeKey(classOf[$tpe].getName, "$tpe", Nil)"""
+      case t"$tpe[..$tpesnel]" =>
+        val tArgs = tpesnel.map(_ ⇒ "_").mkString(", ")
+        val args = tpesnel.flatMap{ case t"_" ⇒ Nil case t ⇒ List(getTypeKey(t)) }
+        s"""ee.cone.c4proto.TypeKey(classOf[$tpe[$tArgs]].getName, "$tpe", $args)"""
+      case t"$tpe" ⇒
+        s"""ee.cone.c4proto.TypeKey(classOf[$tpe].getName, "$tpe", Nil)"""
     }
   }
 

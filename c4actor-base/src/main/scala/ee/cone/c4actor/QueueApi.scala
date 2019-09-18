@@ -238,10 +238,10 @@ case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]â‡’Contextâ
 
 case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
 
-class QAdapterRegistry(
-  val byName: Map[String,ProtoAdapter[Product] with HasId],
-  val byId: Map[Long,ProtoAdapter[Product] with HasId]
-)
+trait QAdapterRegistry {
+  def byName: Map[String, ProtoAdapter[Product] with HasId]
+  def byId: Map[Long, ProtoAdapter[Product] with HasId]
+}
 
 case class RawHeader(key: String, value: String)
 
