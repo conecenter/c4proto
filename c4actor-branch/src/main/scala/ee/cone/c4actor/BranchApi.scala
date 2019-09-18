@@ -1,6 +1,8 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4actor.ArgTypes.LazyList
+
 import scala.collection.immutable.Seq
 import ee.cone.c4actor.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
@@ -46,7 +48,7 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,
     @Id(0x0043) value: okio.ByteString,
-    @Id(0x0044) children: List[S_BranchResult],
+    @Id(0x0044) children: LazyList[S_BranchResult],
     @Id(0x0045) position: String
   )
 

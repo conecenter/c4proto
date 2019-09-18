@@ -2,7 +2,9 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble._
-import ee.cone.c4proto.Protocol
+import ee.cone.c4proto.{AbstractComponents, Component, Protocol}
+
+import scala.collection.immutable
 
 trait DataDependenciesApp {
   def dataDependencies: List[DataDependencyTo[_]] = Nil
@@ -26,6 +28,10 @@ trait AssemblesApp {
 
 trait ToInjectApp {
   def toInject: List[ToInject] = Nil
+}
+
+trait ComponentsApp {
+  def components: List[Component] = Nil
 }
 
 trait EnvConfigApp {
@@ -86,12 +92,14 @@ trait RichDataApp extends ProtocolsApp
   with DefaultUpdateProcessorApp
   with UpdatesProcessorsApp
   with DefaultKeyFactoryApp
+  with AbstractComponents
+  with ComponentsApp
 {
   def assembleProfiler: AssembleProfiler
   def actorName: String
   def execution: Execution
   //
-  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
+  lazy val qAdapterRegistry: QAdapterRegistry = Single(componentRegistry.resolve(classOf[QAdapterRegistry],Nil))
   lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
@@ -111,22 +119,35 @@ trait RichDataApp extends ProtocolsApp
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
-  private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
+  private lazy val localQAdapterRegistryInit: ToInject = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
-  private lazy val assemblerInit =
+  private lazy val assemblerInit: ToInject =
     new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, longAssembleWarnPeriod, catchNonFatal)()
   private def longAssembleWarnPeriod: Long = Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
   private lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn,0L)
   def parallelAssembleOn: Boolean = false
+  private lazy val componentRegistry = ComponentRegistry(this)
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct,origKeyFactory)() ::: super.dataDependencies
+    ProtocolDataDependencies(qAdapterRegistry,origKeyFactory)() ::: super.dataDependencies
   override def toInject: List[ToInject] =
     assemblerInit ::
-    localQAdapterRegistryInit ::
-    super.toInject
+      localQAdapterRegistryInit ::
+      super.toInject
+  def srcIdProtoAdapterHolderComponent: Component = SrcIdProtoAdapterHolderComponent
+  override def components: List[Component] =
+    List(
+      ComponentRegistryImplComponent, QAdapterRegistryImplComponent,
+      SeqComponentFactoryComponent, ArgAdapterComponentFactoryComponent,
+      ListArgAdapterFactoryComponent, LazyListArgAdapterFactoryComponent, OptionArgAdapterFactoryComponent, LazyOptionArgAdapterFactoryComponent,
+      BooleanDefaultArgumentComponent,    IntDefaultArgumentComponent,    LongDefaultArgumentComponent,    ByteStringDefaultArgumentComponent,    OKIOByteStringDefaultArgumentComponent,     StringDefaultArgumentComponent,
+      BooleanProtoAdapterHolderComponent, IntProtoAdapterHolderComponent, LongProtoAdapterHolderComponent, ByteStringProtoAdapterHolderComponent, OKIOByteStringProtoAdapterHolderComponent,  StringProtoAdapterHolderComponent,
+      SrcIdDefaultArgumentComponent, srcIdProtoAdapterHolderComponent
+    ) :::
+    protocols.distinct.flatMap(_.components) :::
+    super.components
 }
 
 trait VMExecutionApp {

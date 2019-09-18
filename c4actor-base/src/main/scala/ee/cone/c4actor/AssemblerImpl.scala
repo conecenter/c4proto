@@ -13,11 +13,10 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.concurrent.duration.Duration
 
-case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: KeyFactory) {
+case class ProtocolDataDependencies(QAdapterRegistry: QAdapterRegistry, origKeyFactory: KeyFactory) {
   def apply(): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters.filter(_.hasId)).map { adapter ⇒
-      new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
-    }
+    QAdapterRegistry.byId.values.map(_.className).toList.sorted
+      .map(nm ⇒ new OriginalWorldPart(origKeyFactory.rawKey(nm)))
 }
 
 case object TreeAssemblerKey extends SharedComponentKey[Replace]
