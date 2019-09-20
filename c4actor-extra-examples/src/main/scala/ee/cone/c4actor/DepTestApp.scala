@@ -116,7 +116,7 @@ class DepTestStart(
   }
 }
 
-class DepTestApp extends TestRichDataApp
+class DepTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp

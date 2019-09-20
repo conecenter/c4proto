@@ -3,67 +3,60 @@ package ee.cone.c4gate
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path, Paths}
 
-import com.sun.net.httpserver.HttpExchange
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{S_Firstborn, N_Update}
+import ee.cone.c4actor.QProtocol.{N_Update, S_Firstborn}
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPost, S_HttpPublication}
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication, S_HttpRequest}
+import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
 import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 import scala.annotation.tailrec
 import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+import scala.concurrent.{ExecutionContext, Future}
 
-class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader) extends RHttpHandler with LazyLogging {
-  def ok(httpExchange: HttpExchange, bytes: Array[Byte]): Boolean = {
-    logger.debug(s"Sending ${bytes.length} bytes")
-    httpExchange.sendResponseHeaders(200, bytes.length)
-    if(bytes.nonEmpty) httpExchange.getResponseBody.write(bytes)
-    true
-  }
-  def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean =
-    if(httpExchange.getRequestMethod == "GET"){
-      val path = httpExchange.getRequestURI.getPath
-      if(path.startsWith("/snapshot")){
-        logger.debug(s"Started loading snapshot ${path.tail}")
-        snapshotLoader.load(RawSnapshot(path.tail)) // path will be checked inside loader
-          .fold(false)(ev⇒ok(httpExchange, ev.data.toByteArray))
-      } else false
-    } else false
+class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
+  def handle(request: S_HttpRequest, local: Context): RHttpResponse =
+    if(request.method == "GET" && request.path.startsWith("/snapshot")){
+      val path = request.path
+      logger.debug(s"Started loading snapshot ${path.tail}")
+      snapshotLoader.load(RawSnapshot(path.tail)) // path will be checked inside loader
+        .fold(next.handle(request,local))(ev⇒httpResponseFactory.directResponse(request,_.copy(body=ev.data)))
+    } else next.handle(request,local)
 }
 
-@assemble class SnapshotMakingAssembleBase(actorName: String, snapshotMaking: SnapshotMakerImpl, signatureChecker: Signer[SnapshotTask], signedPostUtil: SignedPostUtil)   {
+@assemble class SnapshotMakingAssembleBase(actorName: String, snapshotMaking: SnapshotMakerImpl, signatureChecker: Signer[SnapshotTask], signedReqUtil: SignedReqUtil)   {
   type NeedSnapshot = SrcId
 
   def needConsumer(
     key: SrcId,
     first: Each[S_Firstborn]
-  ): Values[(SrcId,LocalPostConsumer)] =
-    List(WithPK(LocalPostConsumer(SnapshotMakingUtil.url)))
+  ): Values[(SrcId,LocalHttpConsumer)] =
+    List(WithPK(LocalHttpConsumer(SnapshotMakingUtil.url)))
 
   def mapAll(
     key: SrcId,
-    post: Each[S_HttpPost]
-  ): Values[(NeedSnapshot,S_HttpPost)] =
+    post: Each[S_HttpRequest]
+  ): Values[(NeedSnapshot,S_HttpRequest)] =
     if(post.path == SnapshotMakingUtil.url) List(actorName→post) else Nil
 
   def mapFirstborn(
     key: SrcId,
     firstborn: Each[S_Firstborn],
-    @by[NeedSnapshot] posts: Values[S_HttpPost]
+    @by[NeedSnapshot] posts: Values[S_HttpRequest]
   ): Values[(SrcId,TxTransform)] = {
     val srcId = "snapshotMaker"
     if(posts.isEmpty) List(WithPK(PeriodicSnapshotMakingTx(srcId)(snapshotMaking)))
     else {
-      def task(post: S_HttpPost) =
-        signatureChecker.retrieve(check=false)(signedPostUtil.signed(post.headers))
+      def task(post: S_HttpRequest) =
+        signatureChecker.retrieve(check=false)(signedReqUtil.signed(post.headers))
         // check=false <== no system time in joiners
       val taskOpt = task(posts.minBy(_.srcId))
       val similarPosts = posts.toList.filter(post ⇒ task(post)==taskOpt).sortBy(_.srcId)
-      List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking, signatureChecker, signedPostUtil)))
+      List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking, signatureChecker, signedReqUtil)))
     }
   }
 }
@@ -89,26 +82,26 @@ case class PeriodicSnapshotMakingTx(srcId: SrcId)(snapshotMaking: SnapshotMakerI
 }
 
 case class RequestedSnapshotMakingTx(
-  srcId: SrcId, taskOpt: Option[SnapshotTask], posts: List[S_HttpPost]
+  srcId: SrcId, taskOpt: Option[SnapshotTask], requests: List[S_HttpRequest]
 )(
   snapshotMaking: SnapshotMaker,
   signatureChecker: Signer[SnapshotTask],
-  signedPostUtil: SignedPostUtil
+  signedReqUtil: SignedReqUtil
 ) extends TxTransform {
-  import signedPostUtil._
+  import signedReqUtil._
   def transform(local: Context): Context = catchNonFatal {
     val task = taskOpt.get
-    val (authorized, nonAuthorized) = posts.partition(post ⇒
+    val (authorized, nonAuthorized) = requests.partition(post ⇒
       signatureChecker.retrieve(check=true)(signed(post.headers)).nonEmpty
     )
     val res = if (authorized.nonEmpty) snapshotMaking.make(task) else Nil
-    val goodResp = List(N_Header("X-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
+    val goodResp = List(N_Header("x-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
     val authorizedResponses = authorized.map(au ⇒ au → goodResp)
     val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → "Non authorized request")
     respond(authorizedResponses, nonAuthorizedResponses)(local)
-  }{ e ⇒
+  }("make-snapshot"){ e ⇒
     val message = e.getMessage
-    respond(Nil,posts.map(_ → message))(local)
+    respond(Nil,requests.map(_ → message))(local)
   }
 }
 

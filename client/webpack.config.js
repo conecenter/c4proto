@@ -47,8 +47,8 @@ function config(kind,name) {
     }
 }
 
-module.exports = [
-    config("test","metro-app"), //todo: fix
+module.exports = env=>[    
     config("test","react-app"),
-    config("test","sse")
+    config("test","sse"),
+	...env&&env.c4extra?[config.apply(null,env.c4extra.split(','))]:[]
 ]

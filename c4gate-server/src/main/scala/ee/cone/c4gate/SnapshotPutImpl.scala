@@ -6,7 +6,7 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{assemble, by}
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPost}
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest}
 import okio.ByteString
 
 import scala.collection.immutable.Seq
@@ -34,43 +34,44 @@ class SnapshotPutter(
   }
 }
 
-case class SnapshotPutTx(srcId: SrcId, posts: List[S_HttpPost])(
-  putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedPostUtil
+case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
+  putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedReqUtil
 ) extends TxTransform {
   import signedPostUtil._
   def transform(local: Context): Context = catchNonFatal {
-    val post = posts.head
+    val request = requests.head
+    assert(request.method == "POST")
     val Some(Seq(putter.`url`,relativePath)) =
-      signatureChecker.retrieve(check=true)(signed(post.headers))
+      signatureChecker.retrieve(check=true)(signed(request.headers))
     Function.chain(Seq(
-      putter.merge(relativePath, post.body),
-      respond(List(post→Nil),posts.tail.map(_→"Ignored"))
+      putter.merge(relativePath, request.body),
+      respond(List(request→Nil),requests.tail.map(_→"Ignored"))
     ))(local)
-  }{ e ⇒
-    respond(Nil,List(posts.head → e.getMessage))(local)
+  }("put-snapshot"){ e ⇒
+    respond(Nil,List(requests.head → e.getMessage))(local)
   }
 }
 
-@assemble class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedPostUtil) {
+@assemble class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedReqUtil) {
   type PuttingId = SrcId
 
   def needConsumer(
     key: SrcId,
     first: Each[S_Firstborn]
-  ): Values[(SrcId,LocalPostConsumer)] =
-    List(WithPK(LocalPostConsumer(putter.url)))
+  ): Values[(SrcId,LocalHttpConsumer)] =
+    List(WithPK(LocalHttpConsumer(putter.url)))
 
   def mapAll(
     key: SrcId,
-    post: Each[S_HttpPost]
-  ): Values[(PuttingId,S_HttpPost)] =
-    if(post.path == putter.url) List("snapshotPut"→post) else Nil
+    req: Each[S_HttpRequest]
+  ): Values[(PuttingId,S_HttpRequest)] =
+    if(req.path == putter.url) List("snapshotPut"→req) else Nil
 
   def mapTx(
     key: SrcId,
-    @by[PuttingId] posts: Values[S_HttpPost]
+    @by[PuttingId] requests: Values[S_HttpRequest]
   ): Values[(SrcId,TxTransform)] =
-    List(WithPK(SnapshotPutTx(key,posts.toList.sortBy(_.srcId))(putter,signatureChecker,signedPostUtil)))
+    List(WithPK(SnapshotPutTx(key,requests.toList.sortBy(_.srcId))(putter,signatureChecker,signedPostUtil)))
 }
 
 // how to know if post failed?

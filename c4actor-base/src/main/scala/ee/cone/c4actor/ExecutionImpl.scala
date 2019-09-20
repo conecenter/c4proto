@@ -1,7 +1,9 @@
 
 package ee.cone.c4actor
 
-import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
+import java.lang.Thread.UncaughtExceptionHandler
+import java.util.concurrent.ForkJoinPool.ForkJoinWorkerThreadFactory
+import java.util.concurrent.{ExecutorService, Executors, ForkJoinPool, ForkJoinWorkerThread, ThreadFactory, TimeUnit}
 import java.util.concurrent.atomic.AtomicReference
 
 import com.typesafe.scalalogging.LazyLogging
@@ -20,10 +22,21 @@ object VMExecution {
       case e: IllegalStateException ⇒ ()
     }
   }
-  def newThreadPool(prefix: String): ExecutorService = {
-    val defaultThreadFactory = Executors.defaultThreadFactory()
-    val threadFactory = new RThreadFactory(defaultThreadFactory,prefix)
-    Executors.newCachedThreadPool(threadFactory) //newWorkStealingPool
+  def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService = {
+    threadCount.fold{
+      val defaultThreadFactory = Executors.defaultThreadFactory()
+      val threadFactory = new RThreadFactory(defaultThreadFactory,prefix)
+      Executors.newCachedThreadPool(threadFactory) //newWorkStealingPool
+    }{ fixedThreadCount ⇒
+      val defaultThreadFactory = ForkJoinPool.defaultForkJoinWorkerThreadFactory
+      val threadFactory = new RForkJoinWorkerThreadFactory(defaultThreadFactory,prefix)
+      new ForkJoinPool(fixedThreadCount, threadFactory, null, false)
+    }
+  }
+  def setup[T<:Thread](prefix: String, thread: T): T = {
+    thread.setName(s"$prefix${thread.getName}")
+    thread.setUncaughtExceptionHandler(new RUncaughtExceptionHandler(thread.getUncaughtExceptionHandler))
+    thread
   }
 }
 
@@ -36,38 +49,56 @@ class ShutdownRunnable(hint: String, f: () ⇒ Unit) extends Runnable with LazyL
 }
 
 class RThreadFactory(inner: ThreadFactory, prefix: String) extends ThreadFactory {
-  def newThread(runnable: Runnable): Thread = {
-    val thread = inner.newThread(runnable)
-    thread.setName(s"$prefix${thread.getName}")
-    thread
-  }
+  def newThread(runnable: Runnable): Thread =
+    VMExecution.setup(prefix,inner.newThread(runnable))
+}
+
+class RForkJoinWorkerThreadFactory(inner: ForkJoinWorkerThreadFactory, prefix: String) extends ForkJoinWorkerThreadFactory {
+  def newThread(pool: ForkJoinPool): ForkJoinWorkerThread =
+    VMExecution.setup(prefix,inner.newThread(pool))
+}
+
+/*
+default exceptions in futures:
+  Exception -- onComplete Failure
+  no-fatal Error -- boxed -- onComplete Failure
+  fatal error -- no catch by scala, no onComplete, passed to executor -- stderr deep by executor, no exit jvm
+*/
+class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends UncaughtExceptionHandler {
+  def uncaughtException(thread: Thread, throwable: Throwable): Unit =
+    try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
 class VMExecution(getToStart: ()⇒List[Executable])(
-  threadPool: ExecutorService = VMExecution.newThreadPool("tx-")
+  threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
 )(
-  val executionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
+  mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
 ) extends Execution with LazyLogging {
   def run(): Unit = {
     val toStart = getToStart()
     logger.debug(s"tracking ${toStart.size} services")
-    toStart.foreach(f ⇒ future(()).map(_⇒f.run()))
+    toStart.foreach(f ⇒ fatal(Future(f.run())(_)))
   }
+  def fatal[T](future: ExecutionContext⇒Future[T]): Unit = future(mainExecutionContext).recover{
+    case NonFatal(e) ⇒
+      System.err.println(s"FATAL ${e.getMessage}")
+      e.printStackTrace()
+      System.exit(1)
+      throw e
+  }(mainExecutionContext)
   def onShutdown(hint: String, f: () ⇒ Unit): ()⇒Unit =
     VMExecution.onShutdown(hint,f)
   def complete(): Unit = { // exit from pooled thread will block itself
     logger.info("exiting")
     System.exit(0)
   }
-  def future[T](value: T): FatalFuture[T] =
-    new VMFatalFuture(Future.successful(value))(executionContext)
-  def skippingFuture[T](value: T): FatalFuture[T] =
-    new VMFatalSkippingFuture[T](Future.successful(value))(executionContext)
-  def newThreadPool(prefix: String): ExecutorService =
-    VMExecution.newThreadPool(prefix)
+  def skippingFuture[T](value: T): SkippingFuture[T] =
+    new SkippingFutureImpl[T](Future.successful(value))(mainExecutionContext)
+  def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService =
+    VMExecution.newExecutorService(prefix,threadCount)
 }
 
-class VMFatalSkippingFuture[T](inner: Future[T])(implicit executionContext: ExecutionContext) extends FatalFuture[T] with LazyLogging {
+class SkippingFutureImpl[T](inner: Future[T])(implicit executionContext: ExecutionContext) extends SkippingFuture[T] with LazyLogging {
   private def canSkip[T](future: Future[T]) = future match {
     case a: AtomicReference[_] ⇒ a.get() match {
       case s: Seq[_] ⇒ s.nonEmpty
@@ -75,28 +106,12 @@ class VMFatalSkippingFuture[T](inner: Future[T])(implicit executionContext: Exec
     }
     case u ⇒ logger.warn(s"no skip rule for outer ${u.getClass.getName}"); false
   }
-  def map(body: T ⇒ T): FatalFuture[T] = {
-    lazy val nextFuture: Future[T] = inner.map(from ⇒ try {
+  def map(body: T ⇒ T): SkippingFuture[T] = {
+    lazy val nextFuture: Future[T] = inner.map(from ⇒
       if(canSkip(nextFuture)) from else body(from)
-    } catch {
-      case e: Throwable ⇒
-        logger.error("fatal",e)
-        System.exit(1)
-        throw e
-    })
-    new VMFatalSkippingFuture(nextFuture)
+    )
+    new SkippingFutureImpl(nextFuture)
   }
-  def value: Option[Try[T]] = inner.value
-}
-
-class VMFatalFuture[T](val inner: Future[T])(implicit executionContext: ExecutionContext) extends FatalFuture[T] with LazyLogging {
-  def map(body: T ⇒ T): FatalFuture[T] =
-    new VMFatalFuture(inner.map(from ⇒ try body(from) catch {
-      case e: Throwable ⇒
-        logger.error("fatal",e)
-        System.exit(1)
-        throw e
-    }))
   def value: Option[Try[T]] = inner.value
 }
 
@@ -120,7 +135,10 @@ class EnvConfigImpl extends Config {
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
 
-object CatchNonFatalImpl extends CatchNonFatal {
-  def apply[T](aTry: ⇒T)(aCatch: Throwable⇒T): T =
-    try { Trace{ aTry } } catch { case NonFatal(e) ⇒ aCatch(e) }
+object CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
+  def apply[T](aTry: ⇒T)(getHint: ⇒String)(aCatch: Throwable⇒T): T = try { aTry } catch {
+    case NonFatal(e) ⇒
+      logger.error(getHint,e)
+      aCatch(e)
+  }
 }

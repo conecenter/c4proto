@@ -3,7 +3,6 @@ package ee.cone.c4gate
 import java.time.Instant
 import java.time.temporal.ChronoUnit.SECONDS
 
-import com.sun.net.httpserver.HttpExchange
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble._
@@ -11,84 +10,54 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4gate.AlienProtocol.{U_FromAlienStatus, _}
 import ee.cone.c4proto.Protocol
 
-import scala.collection.JavaConverters.mapAsScalaMapConverter
-import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.collection.concurrent.TrieMap
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPost, S_HttpPublication}
+import ee.cone.c4gate.HttpProtocol.S_HttpPublication
+import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
 import okio.ByteString
-
-trait SSEServerApp
-  extends ToStartApp
-  with AssemblesApp
-  with ToInjectApp
-  with ProtocolsApp
-{
-  def config: Config
-  def qMessages: QMessages
-  def worldProvider: WorldProvider
-  def sseConfig: SSEConfig
-  def mortal: MortalFactory
-  lazy val pongHandler = new PongHandler(qMessages,worldProvider,sseConfig)
-  private lazy val ssePort = config.get("C4SSE_PORT").toInt
-  private lazy val compressorFactory: StreamCompressorFactory = new GzipStreamCompressorFactory
-  private lazy val sseServer =
-    new TcpServerImpl(ssePort, new SSEHandler(worldProvider,sseConfig), 10, compressorFactory)
-  override def toStart: List[Executable] = sseServer :: super.toStart
-  override def assembles: List[Assemble] =
-    SSEAssembles(mortal) ::: PostAssembles(mortal,sseConfig) :::
-      super.assembles
-  override def toInject: List[ToInject] =
-    sseServer :: pongHandler :: super.toInject
-  override def protocols: List[Protocol] = AlienProtocol :: super.protocols
-}
 
 case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
 
-class PongHandler(
-    qMessages: QMessages, worldProvider: WorldProvider, sseConfig: SSEConfig,
-    pongs: TrieMap[String,Instant] = TrieMap()
-) extends RHttpHandler with ToInject with LazyLogging {
+class PongRegistry(val pongs: TrieMap[String,Instant] = TrieMap()) extends ToInject {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
-  def handle(httpExchange: HttpExchange, reqHeaders: List[N_Header]): Boolean = {
-    if(httpExchange.getRequestMethod != "POST") return false
-    if(httpExchange.getRequestURI.getPath != sseConfig.pongURL) return false
-    val headers = reqHeaders.groupBy(_.key).map{ case(k,v) ⇒ k→Single(v).value }
-    val now = Instant.now
-    val local = worldProvider.createTx()
-    val sessionKey = headers("X-r-session")
-    val userName = ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
-    val session = U_FromAlienState(
-      sessionKey,
-      headers("X-r-location"),
-      headers("X-r-connection"),
-      userName
-    )
-    val refreshPeriodLong = sseConfig.stateRefreshPeriodSeconds*1L
-    val status = U_FromAlienStatus(
-      sessionKey,
-      now.getEpochSecond /
-        refreshPeriodLong *
-        refreshPeriodLong +
-        refreshPeriodLong +
-        sseConfig.tolerateOfflineSeconds,
-      isOnline = true
-    )
-    pongs(session.sessionKey) = now.plusSeconds(5)
-    val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
-    val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
-    TxAdd(
-      (if(wasSession != Option(session)) LEvent.update(session) else Nil) ++
-        (if(wasStatus != Option(status)) LEvent.update(status) else Nil)
-    ).andThen(qMessages.send)(local)
-    httpExchange.sendResponseHeaders(200, 0)
-    //logger.debug(s"pong $headers")
-    true
-  }
+}
+
+class PongHandler(sseConfig: SSEConfig, pongRegistry: PongRegistry, httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
+  def handle(request: S_HttpRequest, local: Context): RHttpResponse =
+    if(request.method == "POST" && request.path == sseConfig.pongURL) {
+      val headers = request.headers.groupBy(_.key).map{ case(k,v) ⇒ k→Single(v).value }
+      val now = Instant.now
+      val sessionKey = headers("x-r-session")
+      val userName = ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
+      val session = U_FromAlienState(
+        sessionKey,
+        headers("x-r-location"),
+        headers("x-r-connection"),
+        userName
+      )
+      val refreshPeriodLong = sseConfig.stateRefreshPeriodSeconds*1L
+      val status = U_FromAlienStatus(
+        sessionKey,
+        now.getEpochSecond /
+          refreshPeriodLong *
+          refreshPeriodLong +
+          refreshPeriodLong +
+          sseConfig.tolerateOfflineSeconds,
+        isOnline = true
+      )
+
+      pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
+      val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
+      val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
+      httpResponseFactory.directResponse(request,a⇒a).copy(events=
+        (if(wasSession != Option(session)) LEvent.update(session) else List.empty[LEvent[Product]]).toList :::
+          (if(wasStatus != Option(status)) LEvent.update(status) else List.empty[LEvent[Product]]).toList
+      )
+    } else next.handle(request,local)
 }
 
 object SSEMessage {
@@ -103,15 +72,15 @@ object SSEMessage {
   }
 }
 
-class SSEHandler(worldProvider: WorldProvider, config: SSEConfig) extends TcpHandler with LazyLogging {
+class SSEHandler(config: SSEConfig) extends TcpHandler with LazyLogging {
   override def beforeServerStart(): Unit = ()
   override def afterConnect(connectionKey: String, sender: SenderToAgent): Unit = {
     val allowOrigin =
-      config.allowOrigin.map(v=>s"Access-Control-Allow-Origin: $v\n").getOrElse("")
+      config.allowOrigin.map(v=>s"access-control-allow-origin: $v\n").getOrElse("")
     val zipHeader = sender.compressor.fold("")(compressor =>
-      s"Content-Encoding: ${compressor.name}\n"
+      s"content-encoding: ${compressor.name}\n"
     )
-    val header = s"HTTP/1.1 200 OK\nContent-Type: text/event-stream\n$zipHeader$allowOrigin\n"
+    val header = s"HTTP/1.1 200 OK\ncontent-type: text/event-stream\n$zipHeader$allowOrigin\n"
     val data = s"$connectionKey ${config.pongURL}"
     //logger.debug(s"connection $connectionKey")
     SSEMessage.message(sender, "connect", data, header)
@@ -227,5 +196,5 @@ case class NoProxySSEConfig(stateRefreshPeriodSeconds: Int) extends SSEConfig {
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"
   def tolerateOfflineSeconds: Int = 60
-  def sessionWaitingPosts: Int = 8
+  def sessionWaitingRequests: Int = 8
 }

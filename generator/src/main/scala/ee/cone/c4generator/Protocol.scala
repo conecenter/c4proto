@@ -23,18 +23,21 @@ case class ProtoType(
 )
 case class ProtoMessage(adapterName: String, statements: List[String], lenses: String)
 case class ProtoMods(id: Option[Int]=None, category: List[String], shortName: Option[String] = None, genLens: Boolean = false)
-case class FieldMods(id: Option[Int]=None, shortName: Option[String] = None)
+case class FieldMods(id: Option[Int]=None, shortName: Option[String] = None, meta: List[String] = Nil)
 
 object ProtocolGenerator extends Generator {
   def parseArgs: Seq[Seq[Term]] ⇒ List[String] =
     _.flatMap(_.collect{case q"${Name(name:String)}" ⇒ name}).toList
+
+  def parseArgsWithApply: Seq[Seq[Term]] ⇒ List[String] =
+    _.flatMap(_.map(_.toString())).toList
 
   def deOpt: Option[String] ⇒ String = {
     case None ⇒ "None"
     case Some(a) ⇒ s"""Some("$a")"""
   }
 
-  def getLens(protocolName: String, origType: String, fieldId: Long, fieldName: String, fieldType: String): String =
+  def getLens(protocolName: String, origType: String, fieldId: Long, fieldName: String, fieldType: String, fieldProps: FieldMods): String =
     s"""  val $fieldName: ee.cone.c4actor.ProdLens[$protocolName.$origType, $fieldType] =
        |    ee.cone.c4actor.ProdLens.ofSet(
        |      _.$fieldName,
@@ -44,7 +47,7 @@ object ProtocolGenerator extends Generator {
        |      ee.cone.c4actor.ClassesAttr(
        |        classOf[$protocolName.$origType].getName,
        |        classOf[$fieldType].getName
-       |      )
+       |      )${if (fieldProps.meta.isEmpty) "" else fieldProps.meta.mkString(",\n      ", ",\n      ", "")}
        |    )""".stripMargin
 
   def getTypeProp(t: Type): String = {
@@ -64,7 +67,7 @@ object ProtocolGenerator extends Generator {
       throw new Exception(s"Invalid name for Orig: $origType, should start with 'W_' or unsupported orig type")
   }
 
-  def get: Get = { case code@q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" ⇒ Util.unBase(objectName,objectNameNode.pos.end){ objectName ⇒
+  def get: Get = { case (code@q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }", fileName) ⇒ Util.unBase(objectName,objectNameNode.pos.end){ objectName ⇒
 
       //println(t.structure)
 
@@ -84,6 +87,8 @@ object ProtocolGenerator extends Generator {
           case mod"@GenLens" ⇒
             pMods.copy(genLens = true)
           case mod"@deprecated(...$notes)" ⇒ pMods
+          case t: Tree ⇒
+            Utils.parseError(t, "protocol", fileName)
         })
         val Sys = "Sys(.*)".r
         val (resultType, factoryName, isSys) = messageName match {
@@ -108,6 +113,11 @@ object ProtocolGenerator extends Generator {
                 fMods.copy(shortName = Option(shortName))
               case mod"@deprecated(...$notes)" ⇒
                 fMods
+              case mod"@Meta(...$exprss)" ⇒
+                val old = fMods.meta
+                fMods.copy(meta = parseArgsWithApply(exprss) ::: old)
+              case t: Tree ⇒
+                Utils.parseError(t, "protocol", fileName)
             })
             val tp = tpeopt.asInstanceOf[Option[Type]].get
             /*
@@ -196,8 +206,10 @@ object ProtocolGenerator extends Generator {
               constructArg = s"prep_$propName",
               resultFix = if(pt.resultFix.nonEmpty) s"prep_$propName = ${pt.resultFix}" else "",
               metaProp = s"""ee.cone.c4proto.MetaProp($id,"$propName",${deOpt(fieldProps.shortName)},"${pt.resultType}", ${getTypeProp(tp)})""",
-              if (doGenLens) Some(getLens(objectName, resultType, id, propName, pt.resultType)) else None
+              if (doGenLens) Some(getLens(objectName, resultType, id, propName, pt.resultType, fieldProps)) else None
             )
+          case t: Tree ⇒
+            Utils.parseError(t, "protocol", fileName)
         }.toList
 
         val struct = s"""${factoryName}(${props.map(_.constructArg).mkString(",")})"""

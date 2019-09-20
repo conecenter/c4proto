@@ -81,7 +81,7 @@ class ConnStart(
   }
 }
 
-class ConnTestApp extends TestRichDataApp
+class ConnTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp

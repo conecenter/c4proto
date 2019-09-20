@@ -564,24 +564,35 @@ my $make_kc_yml = sub{
     };
     #
     my @ingress_yml = do{
-        my @rules = &$map(\%all,sub{ my($k,$v)=@_;
-            $k=~/^ingress:(.+)$/ ? {
-                host => "$1",
-                http => {
-                    paths => [{
-                        backend => {
-                            serviceName => $name,
-                            servicePort => $v-0,
-                        },
-                    }],
-                },
-            } : ()
+        my @items = &$map(\%all,sub{ my($k,$v)=@_;
+            $k=~/^ingress:(.+)$/ ? {host=>$1,port=>$v-0} : ()
         });
+        my $disable_tls = 0; #make option when required
+        my @annotations = $disable_tls ? () : (annotations=>{
+            "certmanager.k8s.io/acme-challenge-type" => "http01",
+            "certmanager.k8s.io/cluster-issuer" => "letsencrypt-prod",
+            "kubernetes.io/ingress.class" => "nginx",
+        });
+        my @tls = $disable_tls ? () : (tls=>[{
+            hosts => [map{$$_{host}}@items],
+            secretName => "$name-tls",
+        }]);
+        my @rules = map{+{
+            host => $$_{host},
+            http => {
+                paths => [{
+                    backend => {
+                        serviceName => $name,
+                        servicePort => $$_{port},
+                    },
+                }],
+            },
+        }} @items;
         @rules ? &$to_yml_str({
             apiVersion => "extensions/v1beta1",
             kind => "Ingress",
-            metadata => { name => $name },
-            spec => { rules => \@rules },
+            metadata => { name => $name, @annotations },
+            spec => { rules => \@rules, @tls },
         }) : ();
     };
     #
@@ -612,7 +623,7 @@ push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v49";
+my $sys_image_ver = "v53";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
@@ -809,8 +820,11 @@ my $gate_ports = sub{
 };
 my $get_ingress = sub{
     my($comp,$http_port)=@_;
-    my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
-    $domain_zone ? ("ingress:$comp.$domain_zone"=>$http_port) : ();
+    my $hostname = &$get_compose($comp)->{le_hostname} || do{
+        my ($domain_zone) = &$get_deployer_conf($comp,0,qw[domain_zone]);
+        $domain_zone && "$comp.$domain_zone";
+    };
+    $hostname ? ("ingress:$hostname"=>$http_port) : ();
 };
 
 my $wrap_deploy = sub{
@@ -832,8 +846,10 @@ push @tasks, ["up-client", "", sub{
 }];
 
 my $need_logback = sub{
-    my ($from_path) = @_;
-    sy("touch","$from_path/logback.xml")
+    my ($comp,$from_path) = @_;
+    my %auth = &$get_auth($comp);
+    my $put = &$rel_put_text($from_path);
+    &$put($_,$auth{$_}||"") for "logback.xml";
 };
 
 my $up_consumer = sub{
@@ -844,7 +860,7 @@ my $up_consumer = sub{
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($gate_comp,$from_path);
     &$make_secrets($run_comp,$from_path);
-    &$need_logback($from_path);
+    &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [{
         @var_img, name => "main", &$consumer_options(),
         C4HTTP_SERVER => "http://$server:$external_http_port",
@@ -857,7 +873,7 @@ my $up_gate = sub{
     my ($server,$external_http_port,$external_broker_port) = &$gate_ports($run_comp);
     my $from_path = &$get_tmp_dir();
     &$need_deploy_cert($run_comp,$from_path);
-    &$need_logback($from_path);
+    &$need_logback($run_comp,$from_path);
     ($run_comp, $from_path, [
         {
             @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
@@ -877,7 +893,7 @@ my $up_gate = sub{
             &$consumer_options(),
             name => "gate",
             C4DATA_DIR => "/c4db",
-            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.HttpGatewayApp",
+            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.AkkaGatewayApp",
             C4STATE_REFRESH_SECONDS => 1000,
         },
         {
@@ -1103,13 +1119,15 @@ my $nc_sec = sub{
 
 push @tasks, ["test_up","",sub{ # <host>:<port> $composes_txt $args
     my($addr,$comp,$args) = @_;
+    sy(&$ssh_add());
     my $deployer_comp = &$get_compose($comp)->{deployer} || die;
     my $add = $args ? " $args" : "";
     &$nc_sec($deployer_comp,$addr,"run $comp/up$add\n");
 }];
-push @tasks, ["test_pods","",sub{ # <host>:<port> $composes_txt
+push @tasks, ["test_cd","",sub{ # <host>:<port> $composes_txt <pods|repo>
     my($addr,$comp,$args) = @_;
-    &$nc_sec($comp,$addr,"pods\n");
+    sy(&$ssh_add());
+    &$nc_sec($comp,$addr,"$args\n");
 }];
 
 my $get_head_img_tag = sub{
@@ -1134,7 +1152,8 @@ push @tasks, ["ci_build_head","<builder> <req> <dir|commit> [parent]",sub{
     my ($host,$port) = &$get_host_port($builder_comp);
     my $conf = &$get_compose($builder_comp);
     local $ENV{C4CI_HOST} = $host;
-    local $ENV{C4CI_REPO_DIRS} = $$conf{C4CI_REPO_DIRS} || die "$builder_comp C4CI_REPO_DIRS";
+    local $ENV{C4CI_SHORT_REPO_DIRS} = $$conf{C4CI_SHORT_REPO_DIRS} || die "$builder_comp C4CI_SHORT_REPO_DIRS";
+    local $ENV{C4CI_ALLOW} = $$conf{C4CI_ALLOW} || die;
     local $ENV{C4CI_CTX_DIR} = $$conf{C4CI_CTX_DIR} || die;
     sy("perl", "$gen_dir/ci.pl", "ci_arg", $req);
 }];
@@ -1163,7 +1182,9 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
         'ENTRYPOINT ["perl","run.pl"]',
     );
     sy("cp $gen_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
-    sy("mv $gen_dir/c4gate-server/target/universal/stage $ctx_dir/app");
+    my $server_impl = "c4gate-akka";
+    sy("mv $gen_dir/$server_impl/target/universal/stage $ctx_dir/app");
+    sy("mv $ctx_dir/app/bin/$server_impl $ctx_dir/app/bin/c4gate");
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
@@ -1193,7 +1214,7 @@ push @tasks, ["up-ci","",sub{
             C4CI_PORT => $cicd_port,
             C4CI_HOST => $host,
             tty => "true",
-            (map{($_=>$$conf{$_}||die "no $_")} qw[C4CI_REPO_DIRS C4CI_CTX_DIR]),
+            (map{($_=>$$conf{$_}||die "no $_")} qw[C4CI_SHORT_REPO_DIRS C4CI_ALLOW C4CI_CTX_DIR]),
         },
         {
             image => $img,
@@ -1357,6 +1378,7 @@ push @tasks, ["up-kc_host", "", sub{
             C4CD_PORT => $cicd_port,
             C4CD_DIR => $dir,
             C4CD_AUTH_KEY_FILE => "/c4conf/deploy.auth",
+            C4CD_REGISTRY => ($$conf{C4CD_REGISTRY}||die "no C4CD_REGISTRY"),
         },
         {
             image => $img,

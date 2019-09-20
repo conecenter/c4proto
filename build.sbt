@@ -7,7 +7,7 @@ lazy val descr = "C4 framework"
      
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.F.1.2",
+  version := "0.F.1.5.RC1",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
@@ -29,7 +29,7 @@ lazy val `c4actor-base` = project.settings(publishSettings).dependsOn(`c4proto-a
 lazy val `c4actor-base-examples` = project.settings(publishSettings).dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`)
 lazy val `c4actor-extra` = project.settings(publishSettings).dependsOn(`c4actor-base`,`c4proto-types`)
 lazy val `c4gate-extra` = project.settings(publishSettings).dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`, `c4proto-types`)
-lazy val `c4actor-extra-examples` = project.settings(publishSettings).dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`, `c4external-base`, `c4actor-kafka`)
+lazy val `c4actor-extra-examples` = project.settings(publishSettings).dependsOn(`c4actor-base`,`c4proto-types`, `c4gate-logback`, `c4actor-extra`, `c4actor-kafka`)
 lazy val `c4actor-kafka` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-server` = project.settings(publishSettings).dependsOn(`c4actor-kafka`, `c4gate-client`, `c4gate-logback`, `c4gate-publish`)
 lazy val `c4gate-consumer-example` = project.settings(publishSettings).dependsOn(`c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
@@ -46,7 +46,9 @@ lazy val `c4gate-client` = project.settings(publishSettings).dependsOn(`c4gate-p
 lazy val `c4gate-logback-static` = project.settings(publishSettings)
 lazy val `c4gate-logback` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-repl` = project.settings(publishSettings).dependsOn(`c4actor-base`)
-lazy val `c4external-base` = project.settings(publishSettings).dependsOn(`c4actor-base`, `c4proto-types`, `c4actor-extra`)
+lazy val `c4gate-sun` = project.settings(publishSettings).dependsOn(`c4gate-server`)
+lazy val `c4gate-finagle` = project.settings(publishSettings).dependsOn(`c4gate-server`, `c4gate-sun`)
+lazy val `c4gate-akka` = project.settings(publishSettings).dependsOn(`c4gate-server`)
 
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4actor-base`,
@@ -74,5 +76,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4actor-extra-examples`,
   `c4ui-main`,
   `c4ui-extra`,
-  `c4external-base`
+  //`c4gate-sun`,
+  //`c4gate-finagle`,
+  `c4gate-akka`
 )

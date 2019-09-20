@@ -11,6 +11,7 @@ object BranchTypes {
 }
 
 trait BranchMessage extends Product {
+  def method: String
   def header: String⇒String
   def body: okio.ByteString
   def deletes: Seq[LEvent[Product]]
@@ -54,7 +55,7 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
     @Id(0x0048) text: String,
     @Id(0x0049) time: Long,
     @Id(0x004A) sessionKeys: List[String]
-    //retry: List[S_HttpPost]
+    //retry: List[S_HttpRequest]
   )
 
   @Id(0x004B) case class U_Redraw(

@@ -2,19 +2,19 @@ package ee.cone.c4actor
 
 import java.util.concurrent.ExecutorService
 
-import com.typesafe.scalalogging.LazyLogging
-
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 trait Execution extends Runnable {
   def onShutdown(hint: String, f:()⇒Unit): ()⇒Unit
   def complete(): Unit
-  def skippingFuture[T](value: T): FatalFuture[T]
-  def newThreadPool(prefix: String): ExecutorService
+  def skippingFuture[T](value: T): SkippingFuture[T]
+  def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService
+  def fatal[T](future: ExecutionContext⇒Future[T]): Unit
 }
 
-trait FatalFuture[T] {
-  def map(body: T ⇒ T): FatalFuture[T]
+trait SkippingFuture[T] {
+  def map(body: T ⇒ T): SkippingFuture[T]
   def value: Option[Try[T]]
 }
 
@@ -36,10 +36,11 @@ trait Signer[T] {
 
 ////
 
-object Trace extends LazyLogging { //m. b. to util
+object Trace { //m. b. to util
   def apply[T](f: =>T): T = try { f } catch {
     case e: Throwable =>
-      logger.error("Trace",e)
+      System.err.println(e.getMessage)
+      e.printStackTrace()
       throw e
   }
 }
@@ -50,7 +51,7 @@ object FinallyClose {
 }
 
 trait CatchNonFatal {
-  def apply[T](aTry: ⇒T)(aCatch: Throwable⇒T): T
+  def apply[T](aTry: ⇒T)(hint: ⇒String)(aCatch: Throwable⇒T): T
 }
 
 case class NanoTimer(startedAt: Long = System.nanoTime){

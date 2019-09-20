@@ -49,7 +49,7 @@ export function ExchangeCanvasSetup(canvas){
     return ({getViewPortRect})
 }
 
-//state.changedSizes && index >= parseInt(state.changedSizes.sent["X-r-index"]) ? {...state, changedSizes: null} : state
+//state.changedSizes && index >= parseInt(state.changedSizes.sent["x-r-index"]) ? {...state, changedSizes: null} : state
 export function ResizeCanvasSetup(canvas){
     function minus(a,b){ return a.map((e,i)=>[e-b[i]]) }
     function isSimilarSizes(a,b){
@@ -440,10 +440,10 @@ export function InteractiveCanvasSetup(canvas){
         if(!color) return;
         const rPos = canvas.relPos(canvas.parentNode(), mousePos) // has zk id
         canvas.sendToServer({
-            "X-r-canvas-color": color,
-            "X-r-canvas-rel-x": rPos.x+"",
-            "X-r-canvas-rel-y": rPos.y+"",
-            "X-r-action": "clickColor"
+            "x-r-canvas-color": color,
+            "x-r-canvas-rel-x": rPos.x+"",
+            "x-r-canvas-rel-y": rPos.y+"",
+            "x-r-action": "clickColor"
         },color)
     }
     function setupFrame(){

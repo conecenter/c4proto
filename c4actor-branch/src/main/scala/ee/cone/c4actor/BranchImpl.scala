@@ -56,6 +56,7 @@ case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Pr
 case object ReportAliveBranchesKey extends TransientLens[String]("")
 
 case object EmptyBranchMessage extends BranchMessage {
+  def method: String = ""
   def header: String ⇒ String = _⇒""
   def body: ByteString = ByteString.EMPTY
   def deletes: Seq[LEvent[Product]] = Nil
@@ -65,7 +66,7 @@ case class BranchTxTransform(
   branchKey: String,
   seed: Option[S_BranchResult],
   sessionKeys: List[SrcId],
-  posts: List[BranchMessage],
+  requests: List[BranchMessage],
   handler: BranchHandler
 ) extends TxTransform with LazyLogging {
   private def saveResult: Context ⇒ Context = local ⇒ {
@@ -107,8 +108,10 @@ case class BranchTxTransform(
     }
   }
 
-  private def getPosts: List[BranchMessage] =
+  private def getPosts: List[BranchMessage] = {
+    val posts = requests.filter(_.method=="POST")
     if(posts.isEmpty) List(EmptyBranchMessage) else posts
+  }
 
   private def sendToAll(evType: String, data: String): Context ⇒ Context =
     local ⇒ SendToAlienKey.of(local)(sessionKeys,evType,data)(local)
@@ -124,34 +127,34 @@ case class BranchTxTransform(
   private def incrementErrors: Context ⇒ Context =
     ErrorKey.modify(new Exception :: _)
 
-  private def savePostsErrors: String ⇒ Context ⇒ Context = text ⇒ {
+  private def saveErrors: String ⇒ Context ⇒ Context = text ⇒ {
     val now = System.currentTimeMillis
     val failure = U_SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
     TxAdd(LEvent.update(failure))
   }
 
-  private def rmPostsErrors: Context ⇒ Context = local ⇒ {
+  private def rmRequestsErrors: Context ⇒ Context = local ⇒ {
     val send = SendToAlienKey.of(local)
-    chain(posts.map{ post ⇒
-      val sessionKey = post.header("X-r-session")
-      val index = post.header("X-r-index")
-      val deletes = post.deletes
+    chain(requests.map{ request ⇒
+      val sessionKey = request.header("x-r-session")
+      val index = request.header("x-r-index")
+      val deletes = request.deletes
       if(sessionKey.isEmpty) TxAdd(deletes)
       else send(List(sessionKey), "ackChange", s"$branchKey $index").andThen(TxAdd(deletes))
     }).andThen(ErrorKey.set(Nil))(local)
   }
 
   def transform(local: Context): Context = {
-    if(posts.nonEmpty)
-      logger.debug(s"branch $branchKey tx begin ${posts.map(r⇒r.header("X-r-alien-date")).mkString("(",", ",")")}")
+    if(requests.nonEmpty)
+      logger.debug(s"branch $branchKey tx begin ${requests.map(r⇒r.header("x-r-alien-date")).mkString("(",", ",")")}")
     val errors = ErrorKey.of(local)
-    var res = if(errors.nonEmpty && posts.nonEmpty)
-      savePostsErrors(errorText(local)).andThen(rmPostsErrors)(local)
+    var res = if(errors.nonEmpty && requests.nonEmpty)
+      saveErrors(errorText(local)).andThen(rmRequestsErrors)(local)
     else if(errors.size == 1)
       reportError(errorText(local)).andThen(incrementErrors)(local)
     else chain(getPosts.map(handler.exchange))
       .andThen(saveResult).andThen(reportAliveBranches)
-      .andThen(rmPostsErrors)(local)
+      .andThen(rmRequestsErrors)(local)
     res
   }
 }
@@ -193,16 +196,16 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
   def joinTxTransform(
     key: SrcId,
     @by[BranchKey] seeds: Values[BranchRel],
-    @by[BranchKey] posts: Values[BranchMessage],
+    @by[BranchKey] requests: Values[BranchMessage],
     handler: Each[BranchHandler]
   ): Values[(SrcId,TxTransform)] =
     List(key → BranchTxTransform(key,
         seeds.headOption.map(_.seed),
         seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
-        posts.sortBy(post⇒(post.header("X-r-index") match{
+        requests.sortBy(req⇒(req.header("x-r-index") match{
           case "" ⇒ 0L
           case s ⇒ s.toLong
-        },ToPrimaryKey(post))).toList,
+        },ToPrimaryKey(req))).toList,
         handler
     ))
 
@@ -228,7 +231,8 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
 }
 
 case class RedrawBranchMessage(redraw: U_Redraw) extends BranchMessage {
-  def header: String ⇒ String = { case "X-r-redraw" ⇒ "1" case _ ⇒ "" }
+  def method: String = "POST"
+  def header: String ⇒ String = { case "x-r-redraw" ⇒ "1" case _ ⇒ "" }
   def body: okio.ByteString = okio.ByteString.EMPTY
   def deletes: Seq[LEvent[Product]] = LEvent.delete(redraw)
 }
@@ -269,7 +273,7 @@ private def setupAdapters =
 
 */
 
-// /connection X-r-connection -> q-add -> q-poll -> FromAlienDictMessage
+// /connection x-r-connection -> q-add -> q-poll -> FromAlienDictMessage
 // (0/1-1) ShowToAlien -> sendToAlien
 
 //(World,Msg) => (WorldWithChanges,Seq[Send])
@@ -290,7 +294,7 @@ RootViewResult(...,subviews)
 TxTr(embedHash,embed,connections)
 
 next:
-"X-r-vdom-branch"
+"x-r-vdom-branch"
 
 ?errors in embed
 ?bind/positioning: ref=['embed','parent',key]

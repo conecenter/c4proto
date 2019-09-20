@@ -36,8 +36,7 @@ class TxTransforms(qMessages: QMessages, warnPeriod: Long, catchNonFatal: CatchN
               logger.warn(s"tx ${tr.getClass.getName} $key worked for $period ms (transform $transformPeriod ms)")
             nextLocal.transient
         }
-    }{ e ⇒
-        logger.error(s"Tx failed [$key][${Thread.currentThread.getName}]",e)
+    }(s"Tx failed [$key][${Thread.currentThread.getName}]"){ e ⇒
         val was = InnerErrorKey.of(prev)
         val exception = e match {
           case e: Exception ⇒ e
@@ -65,8 +64,8 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
 
 class SerialObserver(localStates: Map[SrcId,TransientMap])(
   transforms: TxTransforms
-) extends Observer {
-  def activate(global: RichContext): Seq[Observer] = {
+) extends Observer[RichContext] {
+  def activate(global: RichContext): Seq[Observer[RichContext]] = {
     val nLocalStates = transforms.get(global).transform{ case(key,handle) ⇒
       handle(localStates.getOrElse(key,Map.empty))
     }
@@ -77,12 +76,12 @@ class SerialObserver(localStates: Map[SrcId,TransientMap])(
 
 
 class ParallelObserver(
-  localStates: Map[SrcId,FatalFuture[TransientMap]],
+  localStates: Map[SrcId,SkippingFuture[TransientMap]],
   transforms: TxTransforms,
   execution: Execution
-) extends Observer with LazyLogging {
-  private def empty: FatalFuture[TransientMap] = execution.skippingFuture(Map.empty)
-  def activate(global: RichContext): Seq[Observer] = {
+) extends Observer[RichContext] with LazyLogging {
+  private def empty: SkippingFuture[TransientMap] = execution.skippingFuture(Map.empty)
+  def activate(global: RichContext): Seq[Observer[RichContext]] = {
     val inProgressMap = localStates.filter{ case(k,v) ⇒
       v.value match {
         case None ⇒ true // inProgress
