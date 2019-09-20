@@ -36,6 +36,8 @@ object ToByteString {
 
 class c4component extends StaticAnnotation
 
+class replaceBy[T](factory: Object) extends StaticAnnotation
+
 abstract class ArgAdapter[Value] {
   def encodedSizeWithTag (tag: Int, value: Value): Int
   def encodeWithTag(writer: ProtoWriter, tag: Int, value: Value): Unit
@@ -47,6 +49,12 @@ abstract class ArgAdapter[Value] {
 trait AbstractComponents {
   def components: Seq[Component]
 }
-abstract class Component(val out: TypeKey, val in: Seq[TypeKey], val create: Seq[Object]=>Object) extends AbstractComponents {
+class Component(val out: TypeKey, val in: Seq[TypeKey], val create: Seq[Object]=>Object) extends AbstractComponents {
   def components: Seq[Component] = Seq(this)
+}
+abstract class Components(componentsList: Seq[AbstractComponents]) extends AbstractComponents {
+  def components: Seq[Component] = componentsList.flatMap(_.components)
+}
+trait ComponentsApp {
+  def components: List[Component] = Nil
 }

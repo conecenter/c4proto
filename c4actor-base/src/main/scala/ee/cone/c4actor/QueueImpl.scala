@@ -141,16 +141,6 @@ class ToUpdateImpl(
   def by(up: N_Update): (TypeId, SrcId) = (up.valueTypeId,up.srcId)
 }
 
-@c4component class QAdapterRegistryImpl(adapters: Seq[ProtoAdapter[_]])(
-  val byName: Map[String, ProtoAdapter[Product] with HasId] =
-    CheckedMap(adapters.collect{ case a: HasId ⇒ a.className → a.asInstanceOf[ProtoAdapter[Product] with HasId] }),
-  val byId: Map[Long, ProtoAdapter[Product] with HasId] =
-    CheckedMap(adapters.collect{ case a: HasId if a.hasId ⇒ a.id → a.asInstanceOf[ProtoAdapter[Product] with HasId] })
-) extends QAdapterRegistry
-
-class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
-  def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
-}
 
 /*object NoRawQSender extends RawQSender {
   def send(recs: List[QRecord]): List[NextOffset] = Nil

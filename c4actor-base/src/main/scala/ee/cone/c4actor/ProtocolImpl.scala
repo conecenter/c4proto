@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{ArgAdapter, TypeKey, c4component}
+import ee.cone.c4proto.{ArgAdapter, HasId, TypeKey, c4component}
 import okio.ByteString
 
 import scala.collection.immutable.Seq
@@ -91,6 +91,39 @@ import com.squareup.wire.ProtoAdapter._
 @c4component class OKIOByteStringProtoAdapterHolder extends ProtoAdapterHolder[okio.ByteString](BYTES)
 @c4component class StringProtoAdapterHolder extends ProtoAdapterHolder[String](STRING)
 @c4component class SrcIdProtoAdapterHolder extends ProtoAdapterHolder[SrcId](STRING)
+
+@c4component class QAdapterRegistryImpl(adapters: Seq[ProtoAdapter[_]])(
+  val byName: Map[String, ProtoAdapter[Product] with HasId] =
+    CheckedMap(adapters.collect{ case a: HasId ⇒ a.className → a.asInstanceOf[ProtoAdapter[Product] with HasId] }),
+  val byId: Map[Long, ProtoAdapter[Product] with HasId] =
+    CheckedMap(adapters.collect{ case a: HasId if a.hasId ⇒ a.id → a.asInstanceOf[ProtoAdapter[Product] with HasId] })
+) extends QAdapterRegistry
+
+class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
+  def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
+}
+
+@c4component class ProductProtoAdapter(
+  qAdapterRegistry: QAdapterRegistry
+) extends ProtoAdapter[Product](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
+  def encodedSize(value: Product): Int = {
+    val adapter = qAdapterRegistry.byName(value.getClass.getName)
+    adapter.encodedSizeWithTag(Math.toIntExact(adapter.id), value)
+  }
+  def encode(writer: ProtoWriter, value: Product): Unit = {
+    val adapter = qAdapterRegistry.byName(value.getClass.getName)
+    adapter.encodeWithTag(writer, Math.toIntExact(adapter.id), value)
+  }
+  def decode(reader: ProtoReader): Product = {
+    val token = reader.beginMessage()
+    val id = reader.nextTag()
+    val adapter = qAdapterRegistry.byId(id)
+    val res = adapter.decode(reader)
+    assert(reader.nextTag() == -1)
+    reader.endMessage(token)
+    res
+  }
+}
 
 
 /*

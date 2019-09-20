@@ -16,5 +16,6 @@ trait BigDecimalProtocolAdd {
 }
 
 @protocol object BigDecimalProtocolBase extends BigDecimalProtocolAdd {
-    case class SysBigDecimal(@Id(0x0001) scale: Int, @Id(0x0002) bytes: okio.ByteString)
+  @replaceBy[BigDecimal](BigDecimalFactory)
+  case class SysBigDecimal(@Id(0x0001) scale: Int, @Id(0x0002) bytes: okio.ByteString)
 }

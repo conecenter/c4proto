@@ -23,7 +23,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v74"
+  def version: String = "-v89"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -51,28 +51,40 @@ object Main {
     }
   }
   lazy val generators: (Stat, String)⇒Seq[Generated] = {
-    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,ComponentsGenerator)
+    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,ComponentsGenerator,LensesGenerator)
     (stat, fileName) ⇒ generators.flatMap(_.get.lift(stat, fileName)).flatten
   }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
     val fromData = Files.readAllBytes(path)
     val uuid = UUID.nameUUIDFromBytes(fromData).toString
     val cachePath = rootCachePath.resolve(s"$uuid$version")
+    val Name = """.+/(\w+)\.scala""".r
     if(Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
       println(s"parsing $path")
       val content = new String(fromData,UTF_8).replace("\r\n","\n")
       val source = dialects.Scala212(content).parse[Source]
       val Parsed.Success(source"..$sourceStatements") = source
-      val resStatements = for {
+      val resStatements: List[Generated] = for {
         q"package $n { ..$packageStatements }" ← sourceStatements
         generated: Seq[Generated] = for {
           packageStatement ← packageStatements
           generated ← generators(packageStatement, path.toString)
         } yield generated
         patches: Seq[Patch] = generated.collect{ case p: Patch ⇒ p }
-        statements = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverseMap(_.content)
+        statements = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverse
         res ← if(patches.nonEmpty) patches
-        else if(statements.nonEmpty) List(GeneratedCode(statements.mkString(s"package $n {\n\n","\n\n","\n\n}")))
+        else if(statements.nonEmpty){
+          val components = statements.collect{ case c: GeneratedComponent => c }.toList
+          val mStatements = if(components.isEmpty) statements else {
+            val Name(name) = path.toString
+            statements ++ List(
+              s"import ee.cone.c4proto._",
+              s"object ${name}Components extends AbstractComponents {${ComponentsGenerator.join(components)}\n}",
+              s"object ${name}ComponentsApp extends ComponentsApp { override def components: List[Component] = ${name}Components.components.toList ::: super.components }"
+            ).map(GeneratedCode)
+          }
+          List(GeneratedCode(mStatements.map(_.content).mkString(s"package $n {\n\n","\n\n","\n\n}")))
+        }
         else Nil
       } yield res
       val patches = resStatements.collect{ case p: Patch ⇒ p }
@@ -179,6 +191,7 @@ trait Generator {
 sealed trait Generated { def content: String }
 case class GeneratedImport(content: String) extends Generated
 case class GeneratedCode(content: String) extends Generated
+case class GeneratedComponent(name: String, cContent: String) extends Generated { def content: String="" }
 case class Patch(pos: Int, content: String) extends Generated
 
 object Lint {

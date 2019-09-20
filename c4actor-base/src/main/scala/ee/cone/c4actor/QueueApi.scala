@@ -236,13 +236,6 @@ case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]⇒(SharedCo
 case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]⇒Context⇒Context]
 case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]⇒Context⇒Context]
 
-case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
-
-trait QAdapterRegistry {
-  def byName: Map[String, ProtoAdapter[Product] with HasId]
-  def byId: Map[Long, ProtoAdapter[Product] with HasId]
-}
-
 case class RawHeader(key: String, value: String)
 
 trait RawEvent extends Product {

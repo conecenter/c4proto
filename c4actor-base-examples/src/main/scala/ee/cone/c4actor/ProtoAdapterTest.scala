@@ -2,8 +2,12 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4assemble.Single
+import ee.cone.c4proto.{Components, Id, Protocol, protocol}
 
+import scala.collection.immutable.Seq
+
+object ProtoAdapterTestComponents extends Components(Seq(BaseComponents,MyProtocol,QProtocol,BigDecimalImplComponents))
 
 object ProtoAdapterTest extends App with LazyLogging {
   import MyProtocol._
@@ -12,8 +16,8 @@ object ProtoAdapterTest extends App with LazyLogging {
   val worker1 = D_Person("worker1", Some(20), isActive = false)
   val group0 = D_Group("", Some(leader0), List(worker0,worker1))
   //
-  val protocols: List[Protocol] = MyProtocol :: QProtocol :: Nil
-  val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols)
+  val componentRegistry = ComponentRegistry(ProtoAdapterTestComponents)
+  val qAdapterRegistry: QAdapterRegistry = Single(componentRegistry.resolve(classOf[QAdapterRegistry],Nil))
   val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, DeCompressorRegistryImpl(Nil)(), Option(GzipFullCompressor()), 0L)()()
   //
   val lEvents = LEvent.update(group0)
@@ -28,9 +32,6 @@ object ProtoAdapterTest extends App with LazyLogging {
 }
 
 @protocol object MyProtocolBase   {
-  import ee.cone.c4proto.BigDecimalProtocol._
-
-  //com.squareup.wire.ProtoAdapter
   @Id(0x0003) case class D_Person(
     @Id(0x0007) name: String,
     @Id(0x0004) age: Option[BigDecimal],

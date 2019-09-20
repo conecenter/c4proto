@@ -2,9 +2,9 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{AbstractComponents, Component, Protocol}
+import ee.cone.c4proto.{AbstractComponents, Component, Components, ComponentsApp, Protocol}
 
-import scala.collection.immutable
+import scala.collection.immutable.Seq
 
 trait DataDependenciesApp {
   def dataDependencies: List[DataDependencyTo[_]] = Nil
@@ -28,10 +28,6 @@ trait AssemblesApp {
 
 trait ToInjectApp {
   def toInject: List[ToInject] = Nil
-}
-
-trait ComponentsApp {
-  def components: List[Component] = Nil
 }
 
 trait EnvConfigApp {
@@ -136,19 +132,12 @@ trait RichDataApp extends ProtocolsApp
     assemblerInit ::
       localQAdapterRegistryInit ::
       super.toInject
-  def srcIdProtoAdapterHolderComponent: Component = SrcIdProtoAdapterHolderComponent
   override def components: List[Component] =
-    List(
-      ComponentRegistryImplComponent, QAdapterRegistryImplComponent,
-      SeqComponentFactoryComponent, ArgAdapterComponentFactoryComponent,
-      ListArgAdapterFactoryComponent, LazyListArgAdapterFactoryComponent, OptionArgAdapterFactoryComponent, LazyOptionArgAdapterFactoryComponent,
-      BooleanDefaultArgumentComponent,    IntDefaultArgumentComponent,    LongDefaultArgumentComponent,    ByteStringDefaultArgumentComponent,    OKIOByteStringDefaultArgumentComponent,     StringDefaultArgumentComponent,
-      BooleanProtoAdapterHolderComponent, IntProtoAdapterHolderComponent, LongProtoAdapterHolderComponent, ByteStringProtoAdapterHolderComponent, OKIOByteStringProtoAdapterHolderComponent,  StringProtoAdapterHolderComponent,
-      SrcIdDefaultArgumentComponent, srcIdProtoAdapterHolderComponent
-    ) :::
-    protocols.distinct.flatMap(_.components) :::
+    (BaseComponents :: protocols.distinct).flatMap(_.components) :::
     super.components
 }
+
+object BaseComponents extends Components(Seq(ComponentImplComponents,ProtocolImplComponents))
 
 trait VMExecutionApp {
   def toStart: List[Executable]
