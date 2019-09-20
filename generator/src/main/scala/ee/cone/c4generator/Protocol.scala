@@ -100,6 +100,11 @@ object ProtocolGenerator extends Generator {
     val args = parseArgs(exprss)
     val protoGenerated: List[Generated] = stats.flatMap{
       case c@q"import ..$i" ⇒ List(GeneratedImport(s"\n  $c"))
+      case q"sealed trait ${Type.Name(tp)}" ⇒
+        List(
+          GeneratedTraitDef(tp),
+          GeneratedCode(s"\n  @c4component class ${tp}ProtoAdapterHolder(inner: ProtoAdapterHolder[Product]) extends ProtoAdapterHolder[$tp](inner.asInstanceOf[ProtoAdapter[$tp]])")
+        )
       case q"..$mods case class ${Type.Name(messageName)} ( ..$params ) extends ..$ext" =>
         val protoMods = mods./:(ProtoMods(messageName, messageName, category = args))((pMods,mod)⇒ mod match {
           case mod"@Cat(...$exprss)" ⇒
@@ -136,7 +141,7 @@ object ProtocolGenerator extends Generator {
             Utils.parseError(t, "protocol", fileName)
         }.toList
         val struct = s"""${factoryName}(${props.map(p⇒s"prep_${p.name}").mkString(",")})"""
-        List(
+        ext.map{ case init"${Type.Name(tn)}" ⇒ GeneratedTraitUsage(tn) } ::: List(
           GeneratedCode(s"""\n  type ${resultType} = ${objectName}Base.${resultType}"""),
           GeneratedCode(s"""\n  val ${factoryName} = ${objectName}Base.${factoryName}"""),
           GeneratedCode(s"""
@@ -190,8 +195,13 @@ object ProtocolGenerator extends Generator {
   }
         """)
         )
-        /*GeneratedComponent(s"${resultType}ProtoAdapter") :: */
     }.toList
+    //
+    val traitDefs = protoGenerated.collect{ case m: GeneratedTraitDef ⇒ m.name }.toSet
+    val traitUses = protoGenerated.collect{ case m: GeneratedTraitUsage ⇒ m.name }.toSet
+    val traitIllegal = traitUses -- traitDefs
+    if(traitIllegal.nonEmpty) throw new Exception(s"can not extend from non-local traits $traitIllegal")
+    //
     val imports = protoGenerated.collect{ case m: GeneratedImport ⇒ m.content }
     val messageStats = protoGenerated.collect{ case m: GeneratedCode ⇒ m.content }
     val components = (for {
@@ -204,13 +214,10 @@ object ProtocolGenerator extends Generator {
 object $objectName extends Protocol {
   import ee.cone.c4proto._
   import com.squareup.wire.ProtoAdapter
-  ${imports.mkString}
-  ${messageStats.mkString}
-  $comp
+  ${imports.mkString}${messageStats.mkString}$comp
 }"""
     //println(res)
     //Util.comment(code)(cont) +
-    List(GeneratedComponent(s"$objectName.components :::",""),GeneratedCode(res))
+    List(GeneratedComponent(s"$objectName.components ::: ",""),GeneratedCode(res))
   }}
 }
-

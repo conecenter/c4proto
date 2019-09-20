@@ -23,7 +23,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v89"
+  def version: String = "-v91"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -75,15 +75,15 @@ object Main {
         res ← if(patches.nonEmpty) patches
         else if(statements.nonEmpty){
           val components = statements.collect{ case c: GeneratedComponent => c }.toList
-          val mStatements = if(components.isEmpty) statements else {
+          val mStatements = toContent(if(components.isEmpty) statements else {
             val Name(name) = path.toString
-            statements ++ List(
+            statements.filterNot(_.isInstanceOf[GeneratedComponent]) ++ List(
               s"import ee.cone.c4proto._",
               s"object ${name}Components extends AbstractComponents {${ComponentsGenerator.join(components)}\n}",
               s"object ${name}ComponentsApp extends ComponentsApp { override def components: List[Component] = ${name}Components.components.toList ::: super.components }"
             ).map(GeneratedCode)
-          }
-          List(GeneratedCode(mStatements.map(_.content).mkString(s"package $n {\n\n","\n\n","\n\n}")))
+          })
+          List(GeneratedCode(mStatements.mkString(s"package $n {\n\n","\n","\n\n}")))
         }
         else Nil
       } yield res
@@ -97,11 +97,16 @@ object Main {
         pathToData(path,rootCachePath)
       } else {
         val warnings = Lint.process(sourceStatements)
-        val toData = (warnings ++ resStatements.map(_.content)).mkString("\n\n").getBytes(UTF_8)
+        val toData = (warnings ++ toContent(resStatements)).mkString("\n\n").getBytes(UTF_8)
         Files.write(cachePath,toData)
         toData
       }
     }
+  }
+  def toContent(seq: Seq[Generated]): Seq[String] = seq.map{
+    case c: GeneratedImport ⇒ c.content
+    case c: GeneratedCode ⇒ c.content
+    case c ⇒ throw new Exception(s"$c")
   }
 
 
@@ -188,11 +193,13 @@ trait Generator {
   def get: Get
 }
 
-sealed trait Generated { def content: String }
+sealed trait Generated
 case class GeneratedImport(content: String) extends Generated
 case class GeneratedCode(content: String) extends Generated
-case class GeneratedComponent(name: String, cContent: String) extends Generated { def content: String="" }
+case class GeneratedComponent(name: String, cContent: String) extends Generated
 case class Patch(pos: Int, content: String) extends Generated
+case class GeneratedTraitDef(name: String) extends Generated
+case class GeneratedTraitUsage(name: String) extends Generated
 
 object Lint {
   def process(stats: Seq[Stat]): Seq[String] =
