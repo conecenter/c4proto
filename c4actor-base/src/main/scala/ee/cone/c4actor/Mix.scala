@@ -89,7 +89,7 @@ trait RichDataApp extends ProtocolsApp
   with UpdatesProcessorsApp
   with DefaultKeyFactoryApp
   with AbstractComponents
-  with ComponentsApp
+  with BaseApp
 {
   def assembleProfiler: AssembleProfiler
   def actorName: String
@@ -133,11 +133,9 @@ trait RichDataApp extends ProtocolsApp
       localQAdapterRegistryInit ::
       super.toInject
   override def components: List[Component] =
-    (BaseComponents :: protocols.distinct).flatMap(_.components) :::
+    protocols.distinct.flatMap(_.components) :::
     super.components
 }
-
-object BaseComponents extends Components(Seq(ComponentImplComponents,ProtocolImplComponents))
 
 trait VMExecutionApp {
   def toStart: List[Executable]

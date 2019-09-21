@@ -17,7 +17,7 @@ object FieldAccessGenerator extends Generator {
         q"$o.ofSet(...$nArgs)"
     }
 
-    List(GeneratedCode(Defn.Object(Nil,Term.Name(objectName),nCode.asInstanceOf[Template]).syntax))
+    List(GeneratedCode("\n" + Defn.Object(Nil,Term.Name(objectName),nCode.asInstanceOf[Template]).syntax))
   }}
 }
 

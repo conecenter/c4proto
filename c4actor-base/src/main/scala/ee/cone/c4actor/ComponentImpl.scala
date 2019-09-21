@@ -12,7 +12,7 @@ class AppSeq[T](inner: Seq[()⇒T]) extends Seq[T] {
   def iterator: Iterator[T] = inner.iterator.map(_())
 }
 
-@c4component class ComponentRegistryImpl(app: AbstractComponents) extends ComponentRegistry with LazyLogging {
+@c4component("BaseApp") class ComponentRegistryImpl(app: AbstractComponents) extends ComponentRegistry with LazyLogging {
   def general(key: TypeKey): TypeKey = key.copy(args=Nil) // key.args.map(_⇒TypeKey("_"));   (1 to arity).map(_⇒TypeKey("_","_",Nil)).toList
   lazy val reg: Map[TypeKey,Seq[Object]] =
     fixNonFinal(app.components.distinct).map(toCached).flatMap(generalize)
@@ -53,7 +53,7 @@ class AppSeq[T](inner: Seq[()⇒T]) extends Seq[T] {
     resolveKey(toTypeKey(cl,args)).asInstanceOf[Seq[T]]
 }
 
-@c4component class SeqComponentFactory(
+@c4component("BaseApp") class SeqComponentFactory(
   componentRegistry: ComponentRegistry
 ) extends ComponentFactory[Seq[_]] {
   def forTypes(args: Seq[TypeKey]): Seq[Seq[_]] =

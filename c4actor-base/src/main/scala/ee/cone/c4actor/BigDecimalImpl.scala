@@ -1,5 +1,7 @@
 
-package ee.cone.c4proto
+package ee.cone.c4actor
+
+import ee.cone.c4proto.{Id, ToByteString, protocol, replaceBy}
 
 object BigDecimalFactory {
   def apply(scale: Int, bytes: okio.ByteString): BigDecimal =
@@ -12,7 +14,7 @@ object BigDecimalFactory {
 
 trait BigDecimalProtocolAdd {
   type BigDecimal = scala.math.BigDecimal
-  val BigDecimalFactory = ee.cone.c4proto.BigDecimalFactory
+  val BigDecimalFactory = ee.cone.c4actor.BigDecimalFactory
 }
 
 @protocol object BigDecimalProtocolBase extends BigDecimalProtocolAdd {

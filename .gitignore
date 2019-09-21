@@ -30,4 +30,4 @@ htdocs
 /logback.xml
 .stignore
 *.auth
-c4gen.*.scala
+c4gen.*

@@ -8,8 +8,6 @@ import okio.ByteString
 import collection.immutable.Seq
 import scala.annotation.StaticAnnotation
 
-trait Protocol extends AbstractComponents
-
 case class Id(id: Int) extends StaticAnnotation
 
 case class ShortName(name: String) extends StaticAnnotation
@@ -34,7 +32,7 @@ object ToByteString {
   def apply(v: String): ByteString = apply(v.getBytes(UTF_8))
 }
 
-class c4component extends StaticAnnotation
+class c4component(apps: String*) extends StaticAnnotation
 
 class replaceBy[T](factory: Object) extends StaticAnnotation
 

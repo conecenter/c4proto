@@ -23,7 +23,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v91"
+  def version: String = "-v95"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -35,10 +35,10 @@ object Main {
     val(wasFiles,fromFiles) = files.partition(_.getFileName.toString.startsWith(toPrefix))
     Files.createDirectories(rootCachePath)
     val was = (for { path ← wasFiles } yield path → Files.readAllBytes(path)).toMap
-    val will = for {
+    val will = withIndex(for {
       path ← fromFiles
       toData ← Option(pathToData(path,rootCachePath)) if toData.length > 0
-    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") → toData
+    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") → toData)
     for(path ← was.keySet -- will.toMap.keys) {
       println(s"removing $path")
       Files.delete(path)
@@ -49,6 +49,34 @@ object Main {
       println(s"saving $path")
       Files.write(path,data)
     }
+  }
+  def withIndex: List[(Path,Array[Byte])] ⇒ List[(Path,Array[Byte])] = args ⇒ {
+    val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
+    val indexes = args.groupBy(_._1.getParent).toList.sortBy(_._1).flatMap{ case (parentPath,args) ⇒
+      val links: Seq[GeneratedAppLink] = args.flatMap{ case (path,data) ⇒
+        val pos = data.indexOf('\n'.toByte)
+        // println((pos,path,new String(data)))
+        val firstLine = new String(data,0,pos,UTF_8)
+        pattern.findAllMatchIn(firstLine).map{ mat ⇒
+          val Seq(pkg,app,comp) = mat.subgroups
+          GeneratedAppLink(pkg,app,comp)
+        }
+      }
+      if(links.isEmpty) Nil else {
+        val Seq(pkg) = links.map(_.pkg).distinct
+        val content =
+          s"\npackage $pkg" +
+          links.groupBy(_.app).toList.map{ case (app,links) ⇒
+            s"\ntrait $app extends ee.cone.c4proto.ComponentsApp {" +
+            s"\n  override def components: List[ee.cone.c4proto.Component] = " +
+            links.map(c⇒ s"\n    ${c.component}.components.toList ::: ").mkString +
+            s"\n    super.components" +
+            s"\n}"
+          }.sorted.mkString
+        List(parentPath.resolve("c4gen.scala") → content.getBytes(UTF_8))
+      }
+    }
+    args ++ indexes
   }
   lazy val generators: (Stat, String)⇒Seq[Generated] = {
     val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,ComponentsGenerator,LensesGenerator)
@@ -75,15 +103,17 @@ object Main {
         res ← if(patches.nonEmpty) patches
         else if(statements.nonEmpty){
           val components = statements.collect{ case c: GeneratedComponent => c }.toList
-          val mStatements = toContent(if(components.isEmpty) statements else {
+          val mStatements = if(components.isEmpty) statements else {
             val Name(name) = path.toString
-            statements.filterNot(_.isInstanceOf[GeneratedComponent]) ++ List(
-              s"import ee.cone.c4proto._",
-              s"object ${name}Components extends AbstractComponents {${ComponentsGenerator.join(components)}\n}",
-              s"object ${name}ComponentsApp extends ComponentsApp { override def components: List[Component] = ${name}Components.components.toList ::: super.components }"
-            ).map(GeneratedCode)
-          })
-          List(GeneratedCode(mStatements.mkString(s"package $n {\n\n","\n","\n\n}")))
+            statements.filterNot(_.isInstanceOf[GeneratedComponent]) ++
+            components.groupBy(_.app).toList.sortBy(_._1).flatMap{ case (app,comps) ⇒
+              List(
+                ComponentsGenerator.join(s"${name}${app}Components","",components),
+                GeneratedAppLink(n.syntax,app,s"${name}${app}Components")
+              )
+            }
+          }
+          List(GeneratedCode(s"\npackage $n {")) ++ mStatements ++ List(GeneratedCode("\n}"))
         }
         else Nil
       } yield res
@@ -97,17 +127,27 @@ object Main {
         pathToData(path,rootCachePath)
       } else {
         val warnings = Lint.process(sourceStatements)
-        val toData = (warnings ++ toContent(resStatements)).mkString("\n\n").getBytes(UTF_8)
+        val code = resStatements.flatMap{
+          case c: GeneratedImport ⇒ List(c.content)
+          case c: GeneratedCode ⇒ List(c.content)
+          case c: GeneratedAppLink ⇒ Nil
+          case c ⇒ throw new Exception(s"$c")
+        }
+        val content = (warnings ++ code).mkString("\n")
+        val contentWithLinks = if(content.isEmpty) "" else
+          s"// THIS FILE IS GENERATED; APPLINKS: " +
+          resStatements.collect{ case s: GeneratedAppLink ⇒
+            s"(${s.pkg} ${s.app} ${s.component})"
+          }.mkString +
+          "\n" +
+          content
+        val toData = contentWithLinks.getBytes(UTF_8)
         Files.write(cachePath,toData)
         toData
       }
     }
   }
-  def toContent(seq: Seq[Generated]): Seq[String] = seq.map{
-    case c: GeneratedImport ⇒ c.content
-    case c: GeneratedCode ⇒ c.content
-    case c ⇒ throw new Exception(s"$c")
-  }
+
 
 
 /*
@@ -168,7 +208,7 @@ object ImportGenerator extends Generator {
             case _ ⇒ initialImporter
           }
       }
-      List(GeneratedImport("\n\n" + q"import ..$nextImporters".syntax))
+      List(GeneratedImport("\n" + q"import ..$nextImporters".syntax))
   }
 }
 
@@ -196,10 +236,11 @@ trait Generator {
 sealed trait Generated
 case class GeneratedImport(content: String) extends Generated
 case class GeneratedCode(content: String) extends Generated
-case class GeneratedComponent(name: String, cContent: String) extends Generated
+case class GeneratedComponent(app: String, name: String, cContent: String) extends Generated
 case class Patch(pos: Int, content: String) extends Generated
 case class GeneratedTraitDef(name: String) extends Generated
 case class GeneratedTraitUsage(name: String) extends Generated
+case class GeneratedAppLink(pkg: String, app: String, component: String) extends Generated
 
 object Lint {
   def process(stats: Seq[Stat]): Seq[String] =

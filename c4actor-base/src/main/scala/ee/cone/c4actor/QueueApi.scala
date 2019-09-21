@@ -14,7 +14,7 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
-@protocol object QProtocolBase   {
+@protocol("BaseApp") object QProtocolBase   {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,

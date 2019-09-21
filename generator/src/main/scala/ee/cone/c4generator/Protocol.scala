@@ -7,67 +7,7 @@ import scala.meta._
 
 import scala.collection.immutable.Seq
 
-object ComponentsGenerator extends Generator {
-  //private def isC4Component = { case mod"@c4component" ⇒ true }
-  def get: Get = {
-    case (q"..$cMods class $tname[..$tparams] ..$ctorMods (...$paramsList) extends ..$ext { ..$stats }", fileName)
-      if cMods.collectFirst{ case mod"@c4component" ⇒ true }.nonEmpty ⇒
-      val Type.Name(tp) = tname
-      val abstractType: Type = ext match {
-        case init"${t@Type.Name(_)}(...$a)" :: _ ⇒
-          val clArgs = a.flatten.collect{ case q"classOf[$a]" ⇒ a }
-          if(clArgs.nonEmpty) Type.Apply(t,clArgs) else t
-        case init"$t(...$_)" :: _ ⇒ t
-      }
-      val key = getTypeKey(abstractType)
-      val list = for{
-        params ← paramsList.toList
-      } yield for {
-        param"..$mods ${Name(name)}: ${Some(tpe)} = $expropt" ← params
-        r ← if(expropt.nonEmpty) None
-        else Option((Option((tpe,name)),q"${Term.Name(name)}.asInstanceOf[$tpe]"))
-      } yield r
-      val args = for { args ← list } yield for { (_,a) ← args } yield a
-      val caseSeq = for {(o,_) ← list.flatten; (_,a) ← o} yield a
-      val depSeq = for { (o,_) ← list.flatten; (a,_) ← o } yield getTypeKey(a)
-      val objName = Term.Name(s"${tp}Component")
-      val concrete = q"new ${Type.Name(tp)}(...$args)".syntax
-      List(GeneratedComponent(s"link$tp :: ",
-        s"""\n  private def out$tp = $key""" +
-        s"""\n  private def in$tp = """ +
-        depSeq.map(s⇒s"\n    $s ::").mkString +
-        s"""\n    Nil""" +
-        s"""\n  private def create$tp(args: scala.collection.immutable.Seq[Object]): $tp = {""" +
-        s"""\n    val Seq(${caseSeq.mkString(",")}) = args;""" +
-        s"""\n    $concrete""" +
-        s"""\n  }""" +
-        s"""\n  private lazy val link$tp = new Component(out$tp,in$tp,create$tp)"""
-      ))
-  }
-  def getTypeKey(t: Type): String = {
-    t match {
-      case t"$tpe[..$tpesnel]" =>
-        val tArgs = tpesnel.map(_ ⇒ "_").mkString(", ")
-        val args = tpesnel.flatMap{ case t"_" ⇒ Nil case t ⇒ List(getTypeKey(t)) }
-        s"""TypeKey(classOf[$tpe[$tArgs]].getName, "$tpe", $args)"""
-      case t"$tpe" ⇒
-        s"""TypeKey(classOf[$tpe].getName, "$tpe", Nil)"""
-    }
-  }
-  def join(comps: Seq[GeneratedComponent]): String =
-    comps.map(_.cContent).mkString +
-    "\n  def components = " +
-    comps.map(c ⇒ s"\n    ${c.name}").mkString +
-    "\n    Nil"
-
-}
-
-
 case class ProtoProp(id: Int, name: String, argType: String, metaProp: String)
-case class ProtoType(
-  encodeStatement: (String,String), serializerType: String, empty: String, resultType: String,
-  resultFix: String="", reduce: (String,String)=("","")
-)
 
 case class ProtoMods(
   resultType: String,
@@ -97,7 +37,7 @@ object ProtocolGenerator extends Generator {
 
   def get: Get = { case (code@q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }", fileName) ⇒ Util.unBase(objectName,objectNameNode.pos.end){ objectName ⇒
       //println(t.structure)
-    val args = parseArgs(exprss)
+    val app = if(exprss.nonEmpty) ComponentsGenerator.getApp(exprss.flatten) else ""
     val protoGenerated: List[Generated] = stats.flatMap{
       case c@q"import ..$i" ⇒ List(GeneratedImport(s"\n  $c"))
       case q"sealed trait ${Type.Name(tp)}" ⇒
@@ -106,7 +46,7 @@ object ProtocolGenerator extends Generator {
           GeneratedCode(s"\n  @c4component class ${tp}ProtoAdapterHolder(inner: ProtoAdapterHolder[Product]) extends ProtoAdapterHolder[$tp](inner.asInstanceOf[ProtoAdapter[$tp]])")
         )
       case q"..$mods case class ${Type.Name(messageName)} ( ..$params ) extends ..$ext" =>
-        val protoMods = mods./:(ProtoMods(messageName, messageName, category = args))((pMods,mod)⇒ mod match {
+        val protoMods = mods./:(ProtoMods(messageName, messageName, category = Nil))((pMods,mod)⇒ mod match {
           case mod"@Cat(...$exprss)" ⇒
             val old = pMods.category
             pMods.copy(category = parseArgs(exprss) ::: old)
@@ -209,15 +149,8 @@ object ProtocolGenerator extends Generator {
       rs <- ComponentsGenerator.get.lift((s.parse[Stat].get,fileName)).toList
       r <- rs
     } yield r).collect{ case c: GeneratedComponent ⇒  c }
-    val comp = ComponentsGenerator.join(components)
-    val res = s"""
-object $objectName extends Protocol {
-  import ee.cone.c4proto._
-  import com.squareup.wire.ProtoAdapter
-  ${imports.mkString}${messageStats.mkString}$comp
-}"""
-    //println(res)
+    val res = ComponentsGenerator.join(objectName,s"\nimport com.squareup.wire.ProtoAdapter;${imports.mkString}${messageStats.mkString}",components)
     //Util.comment(code)(cont) +
-    List(GeneratedComponent(s"$objectName.components ::: ",""),GeneratedCode(res))
+    (if(app.isEmpty) Nil else List(GeneratedComponent(app,s"$objectName.components ::: ",""))) ::: List(res)
   }}
 }

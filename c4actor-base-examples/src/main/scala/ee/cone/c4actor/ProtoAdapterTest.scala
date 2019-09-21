@@ -9,6 +9,8 @@ import scala.collection.immutable.Seq
 
 object ProtoAdapterTestComponents extends Components(Seq(BaseComponents,MyProtocol,QProtocol,BigDecimalImplComponents))
 
+class ProtoAdapterTestApp extends BaseApp
+
 object ProtoAdapterTest extends App with LazyLogging {
   import MyProtocol._
   val leader0 = D_Person("leader0", Some(40), isActive = true)

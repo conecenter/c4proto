@@ -24,7 +24,7 @@ object LensesGenerator extends Generator {
         case t: Tree ⇒
           Utils.parseError(t, "lenses", fileName)
       }
-      GeneratedCode(
+      GeneratedCode("\n" +
         s"""object ${resultType}Lenses {
            |  ${lensesLines.mkString("\n")}
            |}

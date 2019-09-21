@@ -11,7 +11,7 @@ import okio.ByteString
 
 import scala.collection.immutable.Seq
 
-@c4component class ArgAdapterComponentFactory(
+@c4component("BaseApp") class ArgAdapterComponentFactory(
   componentRegistry: ComponentRegistry
 ) extends ComponentFactory[ArgAdapter[_]] with LazyLogging {
   import componentRegistry._
@@ -48,8 +48,8 @@ class NoWrapArgAdapter[Value](val defaultValue: Value, inner: ProtoAdapter[Value
   def decodeFix(prev: Value): Value = prev
 }
 
-@c4component class LazyListArgAdapterFactory extends LazyArgAdapterFactory[LazyList[_]](new ListArgAdapter(_))
-@c4component class ListArgAdapterFactory extends ArgAdapterFactory[List[_]](new ListArgAdapter(_))
+@c4component("BaseApp") class LazyListArgAdapterFactory extends LazyArgAdapterFactory[LazyList[_]](new ListArgAdapter(_))
+@c4component("BaseApp") class ListArgAdapterFactory extends ArgAdapterFactory[List[_]](new ListArgAdapter(_))
 class ListArgAdapter[Value](inner: ()⇒ProtoAdapter[Value]) extends ArgAdapter[List[Value]] {
   def encodedSizeWithTag(tag: Int, value: List[Value]): Int =
     value.foldLeft(0)((res,item)⇒res+inner().encodedSizeWithTag(tag,item))
@@ -61,8 +61,8 @@ class ListArgAdapter[Value](inner: ()⇒ProtoAdapter[Value]) extends ArgAdapter[
   def decodeFix(prev: List[Value]): List[Value] = prev.reverse
 }
 
-@c4component class LazyOptionArgAdapterFactory extends LazyArgAdapterFactory[LazyOption[_]](new OptionArgAdapter(_))
-@c4component class OptionArgAdapterFactory extends ArgAdapterFactory[Option[_]](new OptionArgAdapter(_))
+@c4component("BaseApp") class LazyOptionArgAdapterFactory extends LazyArgAdapterFactory[LazyOption[_]](new OptionArgAdapter(_))
+@c4component("BaseApp") class OptionArgAdapterFactory extends ArgAdapterFactory[Option[_]](new OptionArgAdapter(_))
 class OptionArgAdapter[Value](inner: ()⇒ProtoAdapter[Value]) extends ArgAdapter[Option[Value]] {
   def encodedSizeWithTag(tag: Int, value: Option[Value]): Int =
     value.foldLeft(0)((res,item)⇒res+inner().encodedSizeWithTag(tag,item))
@@ -74,25 +74,25 @@ class OptionArgAdapter[Value](inner: ()⇒ProtoAdapter[Value]) extends ArgAdapte
   def decodeFix(prev: Option[Value]): Option[Value] = prev
 }
 
-@c4component class IntDefaultArgument extends DefaultArgument[Int](0)
-@c4component class LongDefaultArgument extends DefaultArgument[Long](0L)
-@c4component class BooleanDefaultArgument extends DefaultArgument[Boolean](false)
-@c4component class ByteStringDefaultArgument extends DefaultArgument[ByteString](ByteString.EMPTY)
-@c4component class OKIOByteStringDefaultArgument extends DefaultArgument[okio.ByteString](ByteString.EMPTY)
-@c4component class StringDefaultArgument extends DefaultArgument[String]("")
-@c4component class SrcIdDefaultArgument extends DefaultArgument[SrcId]("")
+@c4component("BaseApp") class IntDefaultArgument extends DefaultArgument[Int](0)
+@c4component("BaseApp") class LongDefaultArgument extends DefaultArgument[Long](0L)
+@c4component("BaseApp") class BooleanDefaultArgument extends DefaultArgument[Boolean](false)
+@c4component("BaseApp") class ByteStringDefaultArgument extends DefaultArgument[ByteString](ByteString.EMPTY)
+@c4component("BaseApp") class OKIOByteStringDefaultArgument extends DefaultArgument[okio.ByteString](ByteString.EMPTY)
+@c4component("BaseApp") class StringDefaultArgument extends DefaultArgument[String]("")
+@c4component("BaseApp") class SrcIdDefaultArgument extends DefaultArgument[SrcId]("")
 
 import com.squareup.wire.ProtoAdapter._
 
-@c4component class BooleanProtoAdapterHolder extends ProtoAdapterHolder[Boolean](BOOL.asInstanceOf[ProtoAdapter[Boolean]])
-@c4component class IntProtoAdapterHolder extends ProtoAdapterHolder[Int](SINT32.asInstanceOf[ProtoAdapter[Int]])
-@c4component class LongProtoAdapterHolder extends ProtoAdapterHolder[Long](SINT64.asInstanceOf[ProtoAdapter[Long]])
-@c4component class ByteStringProtoAdapterHolder extends ProtoAdapterHolder[ByteString](BYTES)
-@c4component class OKIOByteStringProtoAdapterHolder extends ProtoAdapterHolder[okio.ByteString](BYTES)
-@c4component class StringProtoAdapterHolder extends ProtoAdapterHolder[String](STRING)
-@c4component class SrcIdProtoAdapterHolder extends ProtoAdapterHolder[SrcId](STRING)
+@c4component("BaseApp") class BooleanProtoAdapterHolder extends ProtoAdapterHolder[Boolean](BOOL.asInstanceOf[ProtoAdapter[Boolean]])
+@c4component("BaseApp") class IntProtoAdapterHolder extends ProtoAdapterHolder[Int](SINT32.asInstanceOf[ProtoAdapter[Int]])
+@c4component("BaseApp") class LongProtoAdapterHolder extends ProtoAdapterHolder[Long](SINT64.asInstanceOf[ProtoAdapter[Long]])
+@c4component("BaseApp") class ByteStringProtoAdapterHolder extends ProtoAdapterHolder[ByteString](BYTES)
+@c4component("BaseApp") class OKIOByteStringProtoAdapterHolder extends ProtoAdapterHolder[okio.ByteString](BYTES)
+@c4component("BaseApp") class StringProtoAdapterHolder extends ProtoAdapterHolder[String](STRING)
+@c4component("BaseApp") class SrcIdProtoAdapterHolder extends ProtoAdapterHolder[SrcId](STRING)
 
-@c4component class QAdapterRegistryImpl(adapters: Seq[ProtoAdapter[_]])(
+@c4component("BaseApp") class QAdapterRegistryImpl(adapters: Seq[ProtoAdapter[_]])(
   val byName: Map[String, ProtoAdapter[Product] with HasId] =
     CheckedMap(adapters.collect{ case a: HasId ⇒ a.className → a.asInstanceOf[ProtoAdapter[Product] with HasId] }),
   val byId: Map[Long, ProtoAdapter[Product] with HasId] =
@@ -103,7 +103,7 @@ class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToIn
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
 }
 
-@c4component class ProductProtoAdapter(
+@c4component("BaseApp") class ProductProtoAdapter(
   qAdapterRegistry: QAdapterRegistry
 ) extends ProtoAdapter[Product](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
   def encodedSize(value: Product): Int = {
@@ -124,38 +124,3 @@ class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToIn
     res
   }
 }
-
-
-/*
-@c4component class BooleanProtoAdapter extends ProtoAdapter[Boolean](FieldEncoding.VARINT, classOf[Boolean]) {
-  def encodedSize(value: Boolean): Int = BOOL.encodedSize(value)
-  def encode(writer: ProtoWriter, value: Boolean): Unit = BOOL.encode(writer,value)
-  def decode(reader: ProtoReader): Boolean = BOOL.decode(reader)
-}
-@c4component class IntProtoAdapter extends ProtoAdapter[Int](FieldEncoding.VARINT, classOf[Int]) {
-  def encodedSize(value: Int): Int = SINT32.encodedSize(value)
-  def encode(writer: ProtoWriter, value: Int): Unit = SINT32.encode(writer,value)
-  def decode(reader: ProtoReader): Int = SINT32.decode(reader)
-}
-@c4component class LongProtoAdapter extends ProtoAdapter[Long](FieldEncoding.VARINT, classOf[Long]) {
-  def encodedSize(value: Long): Int = SINT64.encodedSize(value)
-  def encode(writer: ProtoWriter, value: Long): Unit = SINT64.encode(writer,value)
-  def decode(reader: ProtoReader): Long = SINT64.decode(reader)
-}
-
-trait ProtoAdapterMethods[T] {
-  def inner: ProtoAdapter[T]
-  def encodedSize(value: T): Int = inner.encodedSize(value)
-  def encode(writer: ProtoWriter, value: T): Unit = inner.encode(writer,value)
-  def decode(reader: ProtoReader): T = inner.decode(reader)
-}
-
-@c4component class ByteStringProtoAdapter extends ProtoAdapter[ByteString](FieldEncoding.LENGTH_DELIMITED, classOf[ByteString]) with ProtoAdapterMethods[ByteString] {
-  def inner = BYTES
-}
-@c4component class StringProtoAdapter extends ProtoAdapter[String](FieldEncoding.LENGTH_DELIMITED, classOf[String]) {
-  def encodedSize(value: String): Int = STRING.encodedSize(value)
-  def encode(writer: ProtoWriter, value: String): Unit = STRING.encode(writer,value)
-  def decode(reader: ProtoReader): String = STRING.decode(reader)
-}
-*/
