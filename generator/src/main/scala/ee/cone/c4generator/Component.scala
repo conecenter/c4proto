@@ -15,13 +15,13 @@ object ComponentsGenerator extends Generator {
     if(appsEx.isEmpty) Nil else {
       val app = getApp(appsEx.flatten.flatten)
       val Type.Name(tp) = tname
-      val abstractType: Type = ext match {
-        case init"${t@Type.Name(_)}(...$a)" :: _ ⇒
+      val abstractTypes = ext.map{
+        case init"${t@Type.Name(_)}(...$a)" ⇒
           val clArgs = a.flatten.collect{ case q"classOf[$a]" ⇒ a }
           if(clArgs.nonEmpty) Type.Apply(t,clArgs) else t
-        case init"$t(...$_)" :: _ ⇒ t
+        case init"$t(...$_)" ⇒ t
       }
-      val key = getTypeKey(abstractType)
+      val outs = abstractTypes.map(getTypeKey)
       val list = for{
         params ← paramsList.toList
       } yield for {
@@ -35,15 +35,17 @@ object ComponentsGenerator extends Generator {
       val objName = Term.Name(s"${tp}Component")
       val concrete = q"new ${Type.Name(tp)}(...$args)".syntax
       List(GeneratedComponent(app,s"link$tp :: ",
-        s"""\n  private def out$tp = $key""" +
-          s"""\n  private def in$tp = """ +
-          depSeq.map(s⇒s"\n    $s ::").mkString +
-          s"""\n    Nil""" +
-          s"""\n  private def create$tp(args: scala.collection.immutable.Seq[Object]): $tp = {""" +
-          s"""\n    val Seq(${caseSeq.mkString(",")}) = args;""" +
-          s"""\n    $concrete""" +
-          s"""\n  }""" +
-          s"""\n  private lazy val link$tp = new Component(out$tp,in$tp,create$tp)"""
+        s"""\n  private def out$tp = """ +
+        outs.map(s⇒s"\n    $s ::").mkString +
+        s"""\n    Nil""" +
+        s"""\n  private def in$tp = """ +
+        depSeq.map(s⇒s"\n    $s ::").mkString +
+        s"""\n    Nil""" +
+        s"""\n  private def create$tp(args: scala.collection.immutable.Seq[Object]): $tp = {""" +
+        s"""\n    val Seq(${caseSeq.mkString(",")}) = args;""" +
+        s"""\n    $concrete""" +
+        s"""\n  }""" +
+        s"""\n  private lazy val link$tp = new Component(out$tp,in$tp,create$tp)"""
       ))
     }
   }

@@ -7,9 +7,9 @@ import ee.cone.c4proto.{Components, Id, Protocol, protocol}
 
 import scala.collection.immutable.Seq
 
-object ProtoAdapterTestComponents extends Components(Seq(BaseComponents,MyProtocol,QProtocol,BigDecimalImplComponents))
 
-class ProtoAdapterTestApp extends BaseApp
+
+class ProtoAdapterTestApp extends ProtoAdapterTestAutoApp with BaseApp with BigDecimalApp
 
 object ProtoAdapterTest extends App with LazyLogging {
   import MyProtocol._
@@ -33,7 +33,7 @@ object ProtoAdapterTest extends App with LazyLogging {
   logger.info(s"OK $group1")
 }
 
-@protocol object MyProtocolBase   {
+@protocol("ProtoAdapterTestAutoApp") object MyProtocolBase   {
   @Id(0x0003) case class D_Person(
     @Id(0x0007) name: String,
     @Id(0x0004) age: Option[BigDecimal],

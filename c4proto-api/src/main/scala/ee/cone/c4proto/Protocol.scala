@@ -47,7 +47,7 @@ abstract class ArgAdapter[Value] {
 trait AbstractComponents {
   def components: Seq[Component]
 }
-class Component(val out: TypeKey, val in: Seq[TypeKey], val create: Seq[Object]=>Object) extends AbstractComponents {
+class Component(val out: Seq[TypeKey], val in: Seq[TypeKey], val create: Seq[Object]=>Object) extends AbstractComponents {
   def components: Seq[Component] = Seq(this)
 }
 abstract class Components(componentsList: Seq[AbstractComponents]) extends AbstractComponents {

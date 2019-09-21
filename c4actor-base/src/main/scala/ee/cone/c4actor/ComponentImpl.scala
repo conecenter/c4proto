@@ -15,24 +15,26 @@ class AppSeq[T](inner: Seq[()⇒T]) extends Seq[T] {
 @c4component("BaseApp") class ComponentRegistryImpl(app: AbstractComponents) extends ComponentRegistry with LazyLogging {
   def general(key: TypeKey): TypeKey = key.copy(args=Nil) // key.args.map(_⇒TypeKey("_"));   (1 to arity).map(_⇒TypeKey("_","_",Nil)).toList
   lazy val reg: Map[TypeKey,Seq[Object]] =
-    fixNonFinal(app.components.distinct).map(toCached).flatMap(generalize)
+    fixNonFinal(app.components.distinct).flatMap(toCached).flatMap(generalize)
       .groupBy(_.out).transform((k,v)⇒new AppSeq(v.map(_.get)))
-  def isFinal(c: Component): Boolean = c.in.contains(c.out)
-  def toNonFinal(component: Component): TypeKey⇒TypeKey = key ⇒
-    if(key==component.out) key.copy(alias = s"NonFinal#${key.alias}") else key
+  def finalSet(c: Component): Set[TypeKey] = c.in.intersect(c.out).toSet
+  def toNonFinal(k: TypeKey): TypeKey = k.copy(alias = s"NonFinal#${k.alias}")
   def fixNonFinal(components: Seq[Component]): Seq[Component] = {
-    val outs = components.collect{ case c if isFinal(c) ⇒ c.out }.toSet
+    val allFinal = components.flatMap(finalSet)
     components.map(c ⇒
-      if(!outs(c.out)) c
-      else if(isFinal(c)) new Component(c.out,c.in.map(toNonFinal(c)),c.create)
-      else new Component(toNonFinal(c)(c.out),c.in,c.create)
+      if(!c.out.exists(allFinal.contains)) c else {
+        val thisFinal = finalSet(c)
+        val nIn = c.in.map(k ⇒ if(thisFinal.contains(k)) toNonFinal(k) else k)
+        val nOut = c.out.map(k ⇒ if(allFinal.contains(k) && !thisFinal.contains(k)) toNonFinal(k) else k)
+        new Component(nOut, nIn, c.create)
+      }
     )
   }
   class Cached(val out: TypeKey, val get: ()⇒Object)
-  def toCached(component: Component): Cached = {
+  def toCached(component: Component): Seq[Cached] = {
     lazy val value = component.create(component.in.map(resolveSingle))
     val get = if(ComponentRegistry.isRegistry(component)) ()⇒this else ()⇒value
-    new Cached(component.out, get)
+    component.out.map(new Cached(_, get))
   }
   def resolveSingle(key: TypeKey): Object = resolveKey(key) match {
     case Seq(r:Object) ⇒ r

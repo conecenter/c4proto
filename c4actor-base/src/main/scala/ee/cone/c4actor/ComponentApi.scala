@@ -8,7 +8,7 @@ import scala.collection.immutable.Seq
 object ComponentRegistry {
   def isRegistry: Component⇒Boolean = {
     val clName = classOf[ComponentRegistry].getName
-    c ⇒ c.out.clName == clName
+    c ⇒ c.out.exists(out ⇒ out.clName == clName)
   }
   def apply(app: AbstractComponents): ComponentRegistry =
     Single(app.components.filter(isRegistry).distinct).create(Seq(app))
