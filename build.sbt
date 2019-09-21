@@ -80,3 +80,5 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   //`c4gate-finagle`,
   `c4gate-akka`
 )
+
+lazy val `generator` = project.in(file("generator"))
