@@ -23,7 +23,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v96"
+  def version: String = "-v99"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -108,7 +108,7 @@ object Main {
             statements.filterNot(_.isInstanceOf[GeneratedComponent]) ++
             components.groupBy(_.app).toList.sortBy(_._1).flatMap{ case (app,comps) ⇒
               List(
-                ComponentsGenerator.join(s"${name}${app}Components","",components),
+                ComponentsGenerator.join(s"${name}${app}Components","",comps),
                 GeneratedAppLink(n.syntax,app,s"${name}${app}Components")
               )
             }

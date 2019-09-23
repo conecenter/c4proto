@@ -7,6 +7,7 @@ import java.util.concurrent.{ExecutorService, Executors, ForkJoinPool, ForkJoinW
 import java.util.concurrent.atomic.AtomicReference
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4proto.{AbstractComponents, c4component}
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
@@ -69,13 +70,14 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
-class VMExecution(getToStart: ()⇒List[Executable])(
+@c4component("VMExecutionAutoApp")
+class VMExecution(getToStart: DeferredSeq[Executable])(
   threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
 )(
   mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
 ) extends Execution with LazyLogging {
   def run(): Unit = {
-    val toStart = getToStart()
+    val toStart = getToStart.value
     logger.debug(s"tracking ${toStart.size} services")
     toStart.foreach(f ⇒ fatal(Future(f.run())(_)))
   }
@@ -118,7 +120,8 @@ class SkippingFutureImpl[T](inner: Future[T])(implicit executionContext: Executi
 abstract class BaseServerMain(app: ExecutableApp){
   def main(args: Array[String]): Unit = try {
     Trace {
-      app.execution.run()
+      ExecutionRun(app)
+      //app.execution.run()
       //println("main is about to sleep")
       Thread.sleep(Long.MaxValue) //ctx.serving.get()
     }

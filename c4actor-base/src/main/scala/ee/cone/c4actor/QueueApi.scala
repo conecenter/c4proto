@@ -14,7 +14,7 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
-@protocol("BaseApp") object QProtocolBase   {
+@protocol("ProtoAutoApp") object QProtocolBase   {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
@@ -92,6 +92,8 @@ trait QMessages {
   // where richServers wrapped with txTr with AtomicRef;
   // HOWEVER READ-AFTER-WRITE problem here is harder
 }
+
+class UpdateCompressionMinSize(val value: Long)
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): N_Update

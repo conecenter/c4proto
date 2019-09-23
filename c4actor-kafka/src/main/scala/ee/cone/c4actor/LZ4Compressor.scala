@@ -1,12 +1,14 @@
 package ee.cone.c4actor
 
+import ee.cone.c4proto.c4component
 import net.jpountz.lz4.{LZ4BlockInputStream, LZ4BlockOutputStream}
 import okio.{Buffer, ByteString}
 
 import scala.annotation.tailrec
 
-case object LZ4Compressor extends DeCompressor with Compressor with RawCompressor {
-
+@c4component("LZ4DeCompressorApp")
+case class LZ4DeCompressor() extends DeCompressor {
+  def name: String = "lz4"
   @tailrec
   private def readAgain(in: LZ4BlockInputStream, sink: Buffer): Unit = {
     val size = in.available()
@@ -24,15 +26,11 @@ case object LZ4Compressor extends DeCompressor with Compressor with RawCompresso
       }
       buffer.readByteString()
     }
+}
 
-  def compress(data: ByteString): ByteString =
-    FinallyClose(new Buffer) { buffer ⇒
-      FinallyClose(new LZ4BlockOutputStream(buffer.outputStream(), 32000000)) { lz41 ⇒
-        lz41.write(data.toByteArray)
-      }
-      buffer.readByteString()
-    }
-
+@c4component("LZ4RawCompressorApp")
+case class LZ4RawCompressor() extends RawCompressor {
+  def name: String = "lz4"
   def compress(data: Array[Byte]): Array[Byte] =
     FinallyClose(new Buffer) { buffer ⇒
       FinallyClose(new LZ4BlockOutputStream(buffer.outputStream(), 32000000)) { lz41 ⇒
@@ -40,6 +38,15 @@ case object LZ4Compressor extends DeCompressor with Compressor with RawCompresso
       }
       buffer.readByteArray()
     }
+}
 
+case class LZ4Compressor() extends Compressor {
   def name: String = "lz4"
+  def compress(data: ByteString): ByteString =
+    FinallyClose(new Buffer) { buffer ⇒
+      FinallyClose(new LZ4BlockOutputStream(buffer.outputStream(), 32000000)) { lz41 ⇒
+        lz41.write(data.toByteArray)
+      }
+      buffer.readByteString()
+    }
 }

@@ -64,7 +64,8 @@ push @tasks, ["setup_kafka", sub{
 
 
 push @tasks, ["es_examples", sub{
-    sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
+    sy("C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ProtoAdapterTestApp cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain' ");
+    #sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
     sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
     sy("C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain' ");
 

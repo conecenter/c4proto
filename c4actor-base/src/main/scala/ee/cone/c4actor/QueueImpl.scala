@@ -39,11 +39,11 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
   }
 }
 
-class ToUpdateImpl(
+@c4component("ProtoAutoApp") class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
   deCompressorRegistry: DeCompressorRegistry,
   compressorOpt: Option[RawCompressor],
-  compressionMinSize: Long
+  compressionMinSize: UpdateCompressionMinSize
 )(
   updatesAdapter: ProtoAdapter[S_Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
@@ -90,7 +90,7 @@ class ToUpdateImpl(
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
     val updatesBytes = updatesAdapter.encode(S_Updates("", filteredUpdates))
     logger.debug("Compressing...")
-    val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)
+    val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize.value)
       .fold((updatesBytes, List.empty[RawHeader]))(compressor⇒
         (compressor.compress(updatesBytes), makeHeaderFromName(compressor))
       )

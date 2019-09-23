@@ -29,15 +29,3 @@ trait KafkaConsumerApp extends KafkaConfigApp with LZ4DeCompressorApp {
   //
   lazy val consuming: Consuming = KafkaConsuming(kafkaConfig)(execution)
 }
-
-trait LZ4DeCompressorApp extends DeCompressorsApp {
-  private lazy val lz4DeCompressor = LZ4Compressor
-  override def deCompressors: List[DeCompressor] =
-    lz4DeCompressor :: super.deCompressors
-}
-
-trait LZ4RawCompressorApp extends RawCompressorsApp{
-  private lazy val lz4RawCompressor = LZ4Compressor
-  override def rawCompressors: List[RawCompressor] =
-    lz4RawCompressor :: super.rawCompressors
-}

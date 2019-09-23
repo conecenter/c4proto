@@ -5,7 +5,7 @@ import ee.cone.c4actor._
 // C4MAX_REQUEST_SIZE=30000000 C4INBOX_TOPIC_PREFIX='' C4BOOTSTRAP_SERVERS=localhost:8092 C4STATE_TOPIC_PREFIX=ee.cone.c4gate.SimpleMakerApp sbt 'c4gate-server-example/run-main ee.cone.c4actor.ServerMain'
 
 class SimpleMakerApp extends RichDataApp with ExecutableApp
-  with EnvConfigApp with VMExecutionApp with RawCompressorsApp
+  with EnvConfigApp with VMExecutionApp
   with SnapshotMakingApp with NoAssembleProfilerApp with KafkaConsumerApp
 {
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)

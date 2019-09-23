@@ -2,35 +2,35 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{Components, Id, Protocol, protocol}
-
+import ee.cone.c4proto.{Id, c4component, protocol}
 import scala.collection.immutable.Seq
 
+class ProtoAdapterTestApp extends ProtoAdapterTestAutoApp
+  with ExecutableApp with VMExecutionApp
+  with BaseApp with ProtoApp with BigDecimalApp with GzipRawCompressorApp
 
+@c4component("ProtoAdapterTestAutoApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
 
-class ProtoAdapterTestApp extends ProtoAdapterTestAutoApp with BaseApp with BigDecimalApp
-
-object ProtoAdapterTest extends App with LazyLogging {
-  import MyProtocol._
-  val leader0 = D_Person("leader0", Some(40), isActive = true)
-  val worker0 = D_Person("worker0", Some(30), isActive = true)
-  val worker1 = D_Person("worker1", Some(20), isActive = false)
-  val group0 = D_Group("", Some(leader0), List(worker0,worker1))
-  //
-  val componentRegistry = ComponentRegistry(ProtoAdapterTestComponents)
-  val qAdapterRegistry: QAdapterRegistry = Single(componentRegistry.resolve(classOf[QAdapterRegistry],Nil))
-  val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, DeCompressorRegistryImpl(Nil)(), Option(GzipFullCompressor()), 0L)()()
-  //
-  val lEvents = LEvent.update(group0)
-  val updates = lEvents.map(toUpdate.toUpdate)
-  val group1 = updates.map(update ⇒
-    qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
-  ) match {
-    case Seq(g:D_Group) ⇒ g
+@c4component("ProtoAdapterTestAutoApp")
+class ProtoAdapterTest(qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, execution: Execution) extends Executable with LazyLogging {
+  def run(): Unit = {
+    import MyProtocol._
+    val leader0 = D_Person("leader0", Some(40), isActive = true)
+    val worker0 = D_Person("worker0", Some(30), isActive = true)
+    val worker1 = D_Person("worker1", Some(20), isActive = false)
+    val group0 = D_Group("", Some(leader0), List(worker0,worker1))
+    //
+    val lEvents = LEvent.update(group0)
+    val updates = lEvents.map(toUpdate.toUpdate)
+    val group1 = updates.map(update ⇒
+      qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
+    ) match {
+      case Seq(g:D_Group) ⇒ g
+    }
+    assert(group0==group1)
+    logger.info(s"OK $group1")
+    execution.complete()
   }
-  assert(group0==group1)
-  logger.info(s"OK $group1")
 }
 
 @protocol("ProtoAdapterTestAutoApp") object MyProtocolBase   {

@@ -41,9 +41,9 @@ object ComponentsGenerator extends Generator {
         s"""\n  private def in$tp = """ +
         depSeq.map(s⇒s"\n    $s ::").mkString +
         s"""\n    Nil""" +
-        s"""\n  private def create$tp(args: scala.collection.immutable.Seq[Object]): $tp = {""" +
+        s"""\n  private def create$tp(args: Seq[Object]): Seq[$tp] = {""" +
         s"""\n    val Seq(${caseSeq.mkString(",")}) = args;""" +
-        s"""\n    $concrete""" +
+        s"""\n    Seq($concrete)""" +
         s"""\n  }""" +
         s"""\n  private lazy val link$tp = new Component(out$tp,in$tp,create$tp)"""
       ))
@@ -62,6 +62,7 @@ object ComponentsGenerator extends Generator {
   def join(objectName: String, content: String, comps: Seq[GeneratedComponent]): GeneratedCode = GeneratedCode(
     s"\nobject $objectName extends ee.cone.c4proto.AbstractComponents {" +
     "\n  import ee.cone.c4proto._" +
+    "\n  import scala.collection.immutable.Seq" +
     content +
     comps.map(_.cContent).mkString +
     "\n  def components = " +
