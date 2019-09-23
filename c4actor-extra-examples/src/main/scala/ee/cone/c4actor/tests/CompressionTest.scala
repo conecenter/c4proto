@@ -14,6 +14,7 @@ import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 
 object GZipTest {
   val compressor = GzipFullCompressor()
+  val decompressor = GzipFullDeCompressor()
 
   def main(args: Array[String]): Unit = {
     /*val preTest = "test ololololasdasdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaafaaaaaaaaaaaaaaaaadgggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggssssssssssssssssssssssssssssssssssssssssssssssssssssssss4444444444444444444444444444444444444444444444444sdfsdfsdfdsaaaas"
@@ -42,7 +43,7 @@ object GZipTest {
     System.gc()
     val decomp = TimeColored("g", "comp")(compressor.compress(byteStr))
     println(decomp.size)
-    val comp = TimeColored("g", "decomp")(compressor.deCompress(decomp))
+    val comp = TimeColored("g", "decomp")(decompressor.deCompress(decomp))
     println(comp.size)
     System.gc()
 

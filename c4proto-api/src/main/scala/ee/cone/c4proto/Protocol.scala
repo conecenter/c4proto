@@ -8,8 +8,6 @@ import okio.ByteString
 import collection.immutable.Seq
 import scala.annotation.StaticAnnotation
 
-trait Protocol extends AbstractComponents
-
 case class Id(id: Int) extends StaticAnnotation
 
 case class ShortName(name: String) extends StaticAnnotation
@@ -34,7 +32,9 @@ object ToByteString {
   def apply(v: String): ByteString = apply(v.getBytes(UTF_8))
 }
 
-class c4component extends StaticAnnotation
+class c4component(apps: String*) extends StaticAnnotation
+
+class replaceBy[T](factory: Object) extends StaticAnnotation
 
 abstract class ArgAdapter[Value] {
   def encodedSizeWithTag (tag: Int, value: Value): Int
@@ -47,6 +47,12 @@ abstract class ArgAdapter[Value] {
 trait AbstractComponents {
   def components: Seq[Component]
 }
-abstract class Component(val out: TypeKey, val in: Seq[TypeKey], val create: Seq[Object]=>Object) extends AbstractComponents {
+class Component(val out: Seq[TypeKey], val in: Seq[TypeKey], val create: Seq[Object]=>Seq[Object]) extends AbstractComponents {
   def components: Seq[Component] = Seq(this)
+}
+abstract class Components(componentsList: Seq[AbstractComponents]) extends AbstractComponents {
+  def components: Seq[Component] = componentsList.flatMap(_.components)
+}
+trait ComponentsApp extends AbstractComponents {
+  def components: List[Component] = Nil
 }

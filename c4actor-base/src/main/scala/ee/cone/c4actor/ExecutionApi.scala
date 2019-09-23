@@ -2,6 +2,8 @@ package ee.cone.c4actor
 
 import java.util.concurrent.ExecutorService
 
+import ee.cone.c4proto.AbstractComponents
+
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
@@ -19,8 +21,12 @@ trait SkippingFuture[T] {
 }
 
 trait ExecutableApp {
-  def execution: Runnable
+  def execution: Runnable // we need this while we have componentRegistry.resolve to avoid 2 componentRegistry-s
 }
+/* target (w/o resolve):
+object ExecutionRun {
+  def apply(app: AbstractComponents): Unit = ComponentRegistry(app).resolveSingle(classOf[Execution])
+}*/
 
 trait Executable extends Runnable
 
