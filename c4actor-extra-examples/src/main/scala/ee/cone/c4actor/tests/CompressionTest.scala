@@ -49,7 +49,7 @@ object GZipTest {
 
     val decomp2 = TimeColored("g", "comp")(compressor.compress(byteStr))
     println(decomp2.size)
-    val comp2 = TimeColored("g", "decomp")(compressor.deCompress(decomp))
+    val comp2 = TimeColored("g", "decomp")(decompressor.deCompress(decomp))
     println(comp2.size)
 
     println("Valid?", byteStr == comp)

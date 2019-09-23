@@ -28,7 +28,10 @@ case object Cat2 extends DataCategory {
 
 object TestProtocolMain {
   def main(args: Array[String]): Unit = {
-    println(TestProtocolM.adapters.map(_.categories))
+    println(
+      "commented due to the failure of cats empire"
+      // TestProtocolM.adapters.map(_.categories)
+    )
   }
 }
 

@@ -277,7 +277,7 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   with CurrentTimeAssembleMix
   with WithMurMur3HashGenApp
   with ProdLensesApp {
-  println(TestProtocolM.adapters.map(a ⇒ a.categories))
+  // println(TestProtocolM.adapters.map(a ⇒ a.categories))
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
 

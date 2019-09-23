@@ -20,7 +20,7 @@ class SimpleMakerExecutable(execution: Execution, snapshotMaker: SnapshotMaker) 
   }
 }
 
-class SimplePusherApp extends ExecutableApp with EnvConfigApp
+class SimplePusherApp extends BaseApp with ExecutableApp with EnvConfigApp
   with VMExecutionApp with NoAssembleProfilerApp with KafkaProducerApp
 {
   private lazy val dbDir = config.get("C4DATA_DIR")
