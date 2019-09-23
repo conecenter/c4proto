@@ -2,7 +2,10 @@
 package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.ArgTypes.LazyOption
+import ee.cone.c4actor.MyProtocolBase.{D_BigDecimalContainer, D_Branch, D_Leaf}
 import ee.cone.c4proto.{Id, c4component, protocol}
+
 import scala.collection.immutable.Seq
 
 class ProtoAdapterTestApp extends ProtoAdapterTestAutoApp
@@ -12,8 +15,11 @@ class ProtoAdapterTestApp extends ProtoAdapterTestAutoApp
 @c4component("ProtoAdapterTestAutoApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
 
 @c4component("ProtoAdapterTestAutoApp")
-class ProtoAdapterTest(qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, execution: Execution) extends Executable with LazyLogging {
-  def run(): Unit = {
+class ProtoAdapterTest(
+  qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, execution: Execution,
+  finTest: FinTest
+) extends Executable with LazyLogging {
+  def simpleTest(): Unit = {
     import MyProtocol._
     val leader0 = D_Person("leader0", Some(40), isActive = true)
     val worker0 = D_Person("worker0", Some(30), isActive = true)
@@ -29,11 +35,40 @@ class ProtoAdapterTest(qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, e
     }
     assert(group0==group1)
     logger.info(s"OK $group1")
+  }
+  def numTest(): Unit = {
+    val model = D_BigDecimalContainer(88L,List(BigDecimal(7.5),BigDecimal(8)))
+    val adapter = qAdapterRegistry.byName(model.getClass.getName)
+    val encoded = adapter.encode(model)
+    val decoded = adapter.decode(encoded)
+    assert(model==decoded)
+    logger.info(s"OK numTest")
+  }
+  def recursiveTest(): Unit = {
+    val model = D_Branch(
+      Option(D_Branch(Option(D_Leaf(1L)),Option(D_Leaf(2L)))),
+      Option(D_Branch(Option(D_Leaf(3L)),Option(D_Leaf(4L))))
+    )
+    val adapter = qAdapterRegistry.byName(model.getClass.getName)
+    val encoded = adapter.encode(model)
+    val decoded = adapter.decode(encoded)
+    assert(model==decoded)
+    logger.info(s"OK recursiveTest")
+  }
+  def finTestTest(): Unit = {
+    assert(finTest.get == "<Final>{NonFinal}</Final>")
+    logger.info(s"OK finTestTest")
+  }
+  def run(): Unit = {
+    simpleTest()
+    numTest()
+    recursiveTest()
+    finTestTest()
     execution.complete()
   }
 }
 
-@protocol("ProtoAdapterTestAutoApp") object MyProtocolBase   {
+@protocol("ProtoAdapterTestAutoApp") object MyProtocolBase {
   @Id(0x0003) case class D_Person(
     @Id(0x0007) name: String,
     @Id(0x0004) age: Option[BigDecimal],
@@ -44,4 +79,31 @@ class ProtoAdapterTest(qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, e
     @Id(0x0005) leader: Option[D_Person],
     @Id(0x0006) worker: List[D_Person]
   )
+  //
+  @Id(0x0002) case class D_BigDecimalContainer(
+    @Id(0x0003) l: Long,
+    @Id(0x0004) b: List[BigDecimal]
+  )
+  //
+  trait GTree
+  @Id(0x0004) case class D_Branch(
+    @Id(0x0002) left: LazyOption[GTree],
+    @Id(0x0003) right: LazyOption[GTree]
+  ) extends GTree
+  @Id(0x0005) case class D_Leaf(
+    @Id(0x0001) value: Long
+  ) extends GTree
+
+}
+
+trait FinTest {
+  def get: String
+}
+@c4component("ProtoAdapterTestAutoApp")
+class NonFinalFinTest extends FinTest {
+  def get: String = "{NonFinal}"
+}
+@c4component("ProtoAdapterTestAutoApp")
+class FinalFinTest(inner: FinTest) extends FinTest {
+  def get: String = s"<Final>${inner.get}</Final>"
 }

@@ -153,11 +153,7 @@ trait RichDataApp extends RichDataAutoApp
 trait VMExecutionApp extends VMExecutionAutoApp {
   def componentRegistry: ComponentRegistry
   //
-  //private lazy val vmExecutionComponent = ComponentRegistry.provide(classOf[Execution],()⇒Seq(execution))
-  //override def components: List[Component] = vmExecutionComponent :: super.components
   lazy val execution: Execution = componentRegistry.resolveSingle(classOf[Execution])
-  // new VMExecution(componentRegistry.resolve(classOf[Executable],Nil))()()
-
 }
 
 trait FileRawSnapshotApp { // Remote!

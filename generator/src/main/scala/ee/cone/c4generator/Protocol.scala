@@ -40,10 +40,15 @@ object ProtocolGenerator extends Generator {
     val app = if(exprss.nonEmpty) ComponentsGenerator.getApp(exprss.flatten) else ""
     val protoGenerated: List[Generated] = stats.flatMap{
       case c@q"import ..$i" ⇒ List(GeneratedImport(s"\n  $c"))
-      case q"sealed trait ${Type.Name(tp)}" ⇒
+      case q"..$mods trait ${Type.Name(tp)}" ⇒
+//        assert(
+//          mods.collectFirst{ case mod"sealed" ⇒ true }.nonEmpty &&
+//          mods.collectFirst{ case mod"private" ⇒ true }.nonEmpty
+//        )
         List(
           GeneratedTraitDef(tp),
-          GeneratedCode(s"\n  @c4component class ${tp}ProtoAdapterHolder(inner: ProtoAdapterHolder[Product]) extends ProtoAdapterHolder[$tp](inner.asInstanceOf[ProtoAdapter[$tp]])")
+          GeneratedCode(s"""\n  type $tp = ${objectName}Base.$tp"""),
+          GeneratedCode(s"\n  @c4component class ${tp}ProtoAdapterHolder(inner: ProtoAdapterHolder[Product]) extends ProtoAdapterHolder[$tp](inner.value.asInstanceOf[ProtoAdapter[$tp]])")
         )
       case q"..$mods case class ${Type.Name(messageName)} ( ..$params ) extends ..$ext" =>
         val protoMods = mods./:(ProtoMods(messageName, messageName, category = Nil))((pMods,mod)⇒ mod match {
@@ -81,7 +86,11 @@ object ProtocolGenerator extends Generator {
             Utils.parseError(t, "protocol", fileName)
         }.toList
         val struct = s"""${factoryName}(${props.map(p⇒s"prep_${p.name}").mkString(",")})"""
-        ext.map{ case init"${Type.Name(tn)}" ⇒ GeneratedTraitUsage(tn) } ::: List(
+        val traitUsages = ext.map{
+          case init"${Type.Name(tn)}(...$_)" ⇒ GeneratedTraitUsage(tn)
+          case t ⇒ throw new Exception(t.structure)
+        }
+        traitUsages ::: List(
           GeneratedCode(s"""\n  type ${resultType} = ${objectName}Base.${resultType}"""),
           GeneratedCode(s"""\n  val ${factoryName} = ${objectName}Base.${factoryName}"""),
           GeneratedCode(s"""
