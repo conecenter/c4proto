@@ -120,8 +120,8 @@ class SkippingFutureImpl[T](inner: Future[T])(implicit executionContext: Executi
 abstract class BaseServerMain(app: ExecutableApp){
   def main(args: Array[String]): Unit = try {
     Trace {
-      ExecutionRun(app)
-      //app.execution.run()
+      //ExecutionRun(app)
+      app.execution.run()
       //println("main is about to sleep")
       Thread.sleep(Long.MaxValue) //ctx.serving.get()
     }

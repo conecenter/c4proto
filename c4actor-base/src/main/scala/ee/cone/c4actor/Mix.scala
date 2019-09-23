@@ -11,9 +11,9 @@ trait DataDependenciesApp {
 }
 
 trait ToStartApp extends ComponentsApp {
+  private lazy val executableComponent = ComponentRegistry.provide(classOf[Executable],()⇒toStart)
+  override def components: List[Component] = executableComponent :: super.components
   def toStart: List[Executable] = Nil
-  override def components: List[Component] =
-    ComponentRegistry.provide(classOf[Executable],()⇒toStart) :: super.components
 }
 
 trait InitialObserversApp {
@@ -153,8 +153,11 @@ trait RichDataApp extends RichDataAutoApp
 trait VMExecutionApp extends VMExecutionAutoApp {
   def componentRegistry: ComponentRegistry
   //
-  lazy val execution: Execution =
-    componentRegistry.resolveSingle(classOf[Execution])
+  //private lazy val vmExecutionComponent = ComponentRegistry.provide(classOf[Execution],()⇒Seq(execution))
+  //override def components: List[Component] = vmExecutionComponent :: super.components
+  lazy val execution: Execution = componentRegistry.resolveSingle(classOf[Execution])
+  // new VMExecution(componentRegistry.resolve(classOf[Executable],Nil))()()
+
 }
 
 trait FileRawSnapshotApp { // Remote!

@@ -21,13 +21,12 @@ trait SkippingFuture[T] {
 }
 
 trait ExecutableApp {
-  def componentRegistry: ComponentRegistry // we need this while we have resolve
+  def execution: Runnable // we need this while we have componentRegistry.resolve to avoid 2 componentRegistry-s
 }
-
+/* target (w/o resolve):
 object ExecutionRun {
-  def apply(app: ExecutableApp): Unit =
-    app.componentRegistry.resolveSingle(classOf[Execution]).run() // target (w/o resolve): ComponentRegistry(app).resolveSingle(classOf[Execution])
-}
+  def apply(app: AbstractComponents): Unit = ComponentRegistry(app).resolveSingle(classOf[Execution])
+}*/
 
 trait Executable extends Runnable
 
