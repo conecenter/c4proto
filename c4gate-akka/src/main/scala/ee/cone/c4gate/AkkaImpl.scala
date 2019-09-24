@@ -5,6 +5,7 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, ContentTypes, HttpEntity, HttpRequest, HttpResponse}
+import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import com.typesafe.scalalogging.LazyLogging
@@ -31,7 +32,8 @@ class AkkaHttpServer(
     val method = req.method.value
     val path = req.uri.path.toString
     val rHeaders = req.headers.map(h ⇒ N_Header(h.name, h.value)).toList
-    logger.debug(s"req init: $method|$path|$rHeaders")
+    logger.debug(s"req init: $method $path")
+    logger.trace(s"req headers: $rHeaders")
     for {
       entity ← req.entity.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
@@ -54,7 +56,13 @@ class AkkaHttpServer(
       mat ← akkaMat.get
       handler = getHandler(mat)
       // to see: MergeHub/PartitionHub.statefulSink solution of the same task vs FHttpHandler
-      binding ← Http()(mat.system).bindAndHandleAsync(handler,"localhost",port)(mat)
+      binding ← Http()(mat.system).bindAndHandleAsync(
+        handler = handler,
+        interface = "localhost",
+        port = port,
+        settings = ServerSettings("akka.http.server.request-timeout = 60 s")
+        //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
+      )(mat)
     } yield binding
   }
 }

@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.BigDecimalFactory
+//import ee.cone.c4proto.BigDecimalFactory
 
 case class PreHashingMurMur3() extends PreHashing {
   def wrap[T](value: T): PreHashed[T] = {

@@ -4,7 +4,7 @@ import ee.cone.c4actor.{IdMetaAttr, Meta, NameMetaAttr, TestProtocol}
 import ee.cone.c4assemble.{assemble, ignore}
 import ee.cone.c4proto._
 
-@protocol(Cat1) object TestProtocolMBase {
+@protocol /*(Cat1)*/ object TestProtocolMBase {
 
   @ShortName("KEK")
   @GenLens
@@ -28,7 +28,10 @@ case object Cat2 extends DataCategory {
 
 object TestProtocolMain {
   def main(args: Array[String]): Unit = {
-    println(TestProtocolM.adapters.map(_.categories))
+    println(
+      "commented due to the failure of cats empire"
+      // TestProtocolM.adapters.map(_.categories)
+    )
   }
 }
 

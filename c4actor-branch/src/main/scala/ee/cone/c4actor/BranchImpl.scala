@@ -148,7 +148,7 @@ case class BranchTxTransform(
     if(requests.nonEmpty)
       logger.debug(s"branch $branchKey tx begin ${requests.map(r⇒r.header("x-r-alien-date")).mkString("(",", ",")")}")
     val errors = ErrorKey.of(local)
-    var res = if(errors.nonEmpty && requests.nonEmpty)
+    val res = if(errors.nonEmpty && requests.nonEmpty)
       saveErrors(errorText(local)).andThen(rmRequestsErrors)(local)
     else if(errors.size == 1)
       reportError(errorText(local)).andThen(incrementErrors)(local)

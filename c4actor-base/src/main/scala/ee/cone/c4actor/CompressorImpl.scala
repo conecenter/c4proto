@@ -1,5 +1,6 @@
 package ee.cone.c4actor
 
+import ee.cone.c4proto.c4component
 import okio._
 
 import scala.annotation.tailrec
@@ -8,23 +9,15 @@ object NoStreamCompressorFactory extends StreamCompressorFactory {
   def create(): Option[Compressor] = None
 }
 
-case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
+@c4component("ProtoAutoApp") case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
   val byNameMap: Map[String, DeCompressor] = compressors.map(c ⇒ c.name → c).toMap
 ) extends DeCompressorRegistry {
   def byName: String ⇒ DeCompressor = byNameMap
 }
 
-case class GzipFullCompressor() extends DeCompressor with Compressor with RawCompressor {
+@c4component("ServerAutoApp")
+case class GzipFullDeCompressor() extends DeCompressor {
   def name: String = "gzip"
-
-  def compress(body: ByteString): ByteString =
-    FinallyClose(new Buffer) { sink ⇒
-      FinallyClose(new GzipSink(sink))(
-        gzipSink ⇒
-          gzipSink.write(new Buffer().write(body), body.size)
-      )
-      sink.readByteString()
-    }
 
   @tailrec
   private def readAgain(source: Source, sink: Buffer): Unit =
@@ -39,7 +32,23 @@ case class GzipFullCompressor() extends DeCompressor with Compressor with RawCom
       )
       sink.readByteString()
     }
+}
 
+case class GzipFullCompressor() extends Compressor {
+  def name: String = "gzip"
+  def compress(body: ByteString): ByteString =
+    FinallyClose(new Buffer) { sink ⇒
+      FinallyClose(new GzipSink(sink))(
+        gzipSink ⇒
+          gzipSink.write(new Buffer().write(body), body.size)
+      )
+      sink.readByteString()
+    }
+}
+
+@c4component("GzipRawCompressorApp")
+case class GzipFullRawCompressor() extends RawCompressor {
+  def name: String = "gzip"
   def compress(body: Array[Byte]): Array[Byte] =
     FinallyClose(new Buffer) { sink ⇒
       FinallyClose(new GzipSink(sink))(
@@ -49,6 +58,7 @@ case class GzipFullCompressor() extends DeCompressor with Compressor with RawCom
       sink.readByteArray()
     }
 }
+
 
 class GzipStreamCompressor extends Compressor {
   def name: String = "gzip"
