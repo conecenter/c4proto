@@ -22,7 +22,7 @@ case object NoAssembleProfiler extends AssembleProfiler {
 
 case object NoJoiningProfiling extends JoiningProfiling {
   def time: Long = 0L
-  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog = Nil
+  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog = Nil
 }
 
 ////
@@ -74,7 +74,7 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
 
 case class SimpleSerialJoiningProfiling(startedAt: Long) extends JoiningProfiling {
   def time: Long = System.nanoTime
-  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog = {
+  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog = {
     val period = (System.nanoTime - start) / 1000
     D_LogEntry(join.name,stage,period) :: wasLog
   }
@@ -82,10 +82,10 @@ case class SimpleSerialJoiningProfiling(startedAt: Long) extends JoiningProfilin
 
 case object SimpleConsoleSerialJoiningProfiling extends JoiningProfiling with LazyLogging {
   def time: Long = System.nanoTime
-  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog = {
+  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog = {
     val period = (System.nanoTime - start) / 1000000
     if(period > 50)
-      logger.debug(s"$period ms ${joinRes.size} items for ${join.name}-$stage")
+      logger.debug(s"$period ms for ${join.name}-$stage") // "${joinRes.size} items"
     wasLog
   }
 }

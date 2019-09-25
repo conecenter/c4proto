@@ -135,33 +135,33 @@ object AssembleGenerator extends Generator {
            |    collection.immutable.Seq(${params.map(p⇒s"${p.indexKeyName}(indexFactory)").mkString(",")}),
            |    ${out.indexKeyName}(indexFactory)
            |  ) {
-           |    def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions): Result = {
+           |    def joins(diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions)(implicit executionContext: scala.concurrent.ExecutionContext): Result = {
            |      val iUtil = indexFactory.util
            |      val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
            |      ${keyEqParams.map(p⇒s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
            |      val invalidateKeySetOpt =
            |          ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p⇒s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
-           |          Option(${keyIdParams.map(p⇒s"iUtil.keySet(${p.name}_diffIndex)").mkString(" ++ ")})
+           |          Option(iUtil.keyIteration(Seq(${keyIdParams.map(p⇒s"${p.name}_diffIndex").mkString(",")}),options))
            |      ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
-           |      for {
-           |        indexRawSeqI <- indexRawSeqSeq
-           |        (dir,indexRawSeq) = indexRawSeqI
-           |        Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
-           |        invalidateKeySet = invalidateKeySetOpt.getOrElse(${keyIdParams.map(p⇒s"iUtil.keySet(${p.name}_index)").mkString(" ++ ")})
-           |        id <- iUtil.mayBeParVector(invalidateKeySet, options)
-           |        ${seqParams.map(p⇒s"${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn,options); ").mkString}
-           |        ${seqParams.map(p⇒s"${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
-           |        ${eachParams.map(p⇒s"${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn,options); ").mkString}
-           |        ${eachParams.map(p⇒s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
-           |        pass <- if(
-           |          ${if(eachParams.exists(_.keyEq.isEmpty))"" else seqParams.filter(_.keyEq.isEmpty).map(p⇒s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}
-           |          (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
-           |        ) iUtil.nonEmptySeq else Nil;
-           |        ${eachParams.map(p⇒s"${p.name}_arg <- ${p.name}_items(); ").mkString}
-           |        pair <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")})
-           |      } yield {
-           |        val (byKey,product) = pair
-           |        iUtil.result(byKey,product,dir)
+           |      (dir,indexRawSeq) => {
+           |        val Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
+           |        invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p⇒s"${p.name}_index").mkString(",")}),options)){ id =>
+           |        ${seqParams.map(p⇒s"val ${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn,options); ").mkString}
+           |        ${seqParams.map(p⇒s"val ${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
+           |        ${eachParams.map(p⇒s"val ${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn,options); ").mkString}
+           |          for {
+           |            ${eachParams.map(p⇒s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
+           |            pass <- if(
+           |              ${if(eachParams.exists(_.keyEq.isEmpty))"" else seqParams.filter(_.keyEq.isEmpty).map(p⇒s"${p.name}_arg.nonEmpty").mkString("("," || ",") && ")}
+           |              (${params.map(p⇒s"${p.name}_isChanged").mkString(" || ")})
+           |            ) iUtil.nonEmptySeq else Nil;
+           |            ${eachParams.map(p⇒s"${p.name}_arg <- ${p.name}_items(); ").mkString}
+           |            pair <- ${out.name}(id.asInstanceOf[${inKeyType.str}],${params.map(p⇒s"${p.name}_arg.asInstanceOf[${p.inValOuterType}]").mkString(",")})
+           |          } yield {
+           |            val (byKey,product) = pair
+           |            iUtil.result(byKey,product,dir)
+           |          }
+           |        }
            |      }
            |    }
            |  }

@@ -19,12 +19,16 @@ trait IndexUtil extends Product {
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, key: Any): Index
   def result(key: Any, product: Product, count: Int): Index //m
-  type Partitioning = Iterable[(Boolean,()⇒DPIterable[Product])]
+  type Partitioning = Seq[(Boolean,()⇒DPIterable[Product])]
   def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
   def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V]
   def mayBePar[V](iterable: immutable.Seq[V], options: AssembleOptions): Seq[V]
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
+  //
+  def preIndex(seq: Seq[Index]): Index
+  def buildIndex(joinRes: Index): Index
+  def keyIteration(seq: Seq[Index], options: AssembleOptions)(implicit executionContext: ExecutionContext): (Any⇒Seq[Index])⇒Future[Index]
 }
 
 object Types {
@@ -87,8 +91,9 @@ case class WorldTransition(
 )
 
 trait JoiningProfiling extends Product {
+  type Res = Long
   def time: Long
-  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog
+  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog
 }
 
 trait IndexFactory {
@@ -118,10 +123,9 @@ abstract class Join(
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 {
-  type IndexRawSeqSeq = DPIterable[(Int,Seq[Index])]
   type DiffIndexRawSeq = Seq[Index]
-  type Result = DPIterable[Index]
-  def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions): Result
+  type Result = (Int,Seq[Index]) ⇒ Future[Index]
+  def joins(diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions)(implicit executionContext: ExecutionContext): Result
 }
 
 trait Assemble {

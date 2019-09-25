@@ -17,10 +17,10 @@ case object ConsoleAssembleProfiler extends AssembleProfiler {
 case object ConsoleProfiling extends JoiningProfiling with LazyLogging {
   def time: Long = System.nanoTime
 
-  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog = {
+  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog = {
     val timeNano: Long = (System.nanoTime - start) / 10000
     val timeFront: Double = timeNano / 100.0
-    val countT = joinRes.size
+    val countT = joinRes
     logger.debug(s"rule ${join.assembleName}-${join.name}-$stage ${getColoredCount(countT)} items for ${getColoredPeriod(timeFront)} ms")
     wasLog
   }
@@ -31,7 +31,7 @@ case object ConsoleProfiling extends JoiningProfiling with LazyLogging {
     case i if i >= 500 ⇒ PrintColored.makeColored("r")(i.toString)
   }
 
-  def getColoredCount: Int ⇒ String = {
+  def getColoredCount: Long ⇒ String = {
     case i if i < 100 ⇒ PrintColored.makeColored("g")(i.toString)
     case i if i >= 100 && i < 1000 ⇒ PrintColored.makeColored("y")(i.toString)
     case i if i >= 1000 ⇒ PrintColored.makeColored("r")(i.toString)

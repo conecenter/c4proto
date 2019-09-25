@@ -168,6 +168,23 @@ case class IndexUtilImpl()(
     case s if s.isEmpty ⇒ s
   }
 
+  // mapDiv cpuCount
+  def preIndex(seq: Seq[Index]): Index = new PreIndex(seq,seq.map{ case p: PreIndex ⇒ p.size case _ ⇒ 1 }.sum)
+  def keyIteration(seq: Seq[Index], options: AssembleOptions)(implicit executionContext: ExecutionContext): (Any⇒Seq[Index])⇒Future[Index] = {
+    val ids = seq.foldLeft(Set.empty[Any])((st,index)⇒st ++ data(index).keySet).toVector
+    val groupSize = ids.size/Math.toIntExact(options.threadCount)+1
+    val groups: Seq[Seq[Any]] = ids.grouped(groupSize).toVector
+    f ⇒ Future.sequence(groups.map(part=>Future(preIndex(part.map(f).map(preIndex))))).map(preIndex)
+  }
+  //
+  def buildIndex(joinRes: Index): Index = joinRes match {
+    case p: PreIndex ⇒ mergeIndex(p.inner.map(buildIndex))
+    case i ⇒ i
+  }
+}
+
+class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
+  override def toString: String = s"IndexImpl($inner)"
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,11 +239,14 @@ class JoinMapIndex(
           inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
           profiler = transition.profiling
           calcStart = profiler.time
-          joinRes = join.joins(composes.mayBePar(Seq(-1→prevInputs, +1→inputs), transition.options), worldDiffs, transition.options)
-          calcLog = profiler.handle(join, 0L, calcStart, joinRes, Nil)
+          runJoin = join.joins(worldDiffs, transition.options)
+          joinResSeq ← Future.sequence(Seq(runJoin(-1,prevInputs), runJoin(+1,inputs)))
+          joinRes = composes.preIndex(joinResSeq)
+          joinResSize = joinRes match { case p: PreIndex ⇒ p.size case _ ⇒ 0 }
+          calcLog = profiler.handle(join, 0L, calcStart, joinResSize, Nil)
           findChangesStart = profiler.time
-          indexDiff = composes.mergeIndex(joinRes)
-          findChangesLog = profiler.handle(join, 1L, findChangesStart, Nil, calcLog)
+          indexDiff = composes.buildIndex(joinRes)
+          findChangesLog = profiler.handle(join, 1L, findChangesStart, joinResSize, calcLog)
           outputDiff ← outputWorldKey.of(transition.diff)
           outputData ← outputWorldKey.of(transition.result)
         } yield {
@@ -236,7 +256,7 @@ class JoinMapIndex(
             val patchStart = profiler.time
             val nextDiff = composes.mergeIndex(Seq(outputDiff, indexDiff))
             val nextResult = composes.mergeIndex(Seq(outputData, indexDiff))
-            val patchLog = profiler.handle(join, 2L, patchStart, Nil, findChangesLog)
+            val patchLog = profiler.handle(join, 2L, patchStart, joinResSize, findChangesLog)
             new IndexUpdate(nextDiff,nextResult,patchLog)
           }
         }

@@ -87,7 +87,9 @@ class AssemblerInit(
   private def readModelAdd(replace: Replace, executionContext: ExecutionContext): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ catchNonFatal {
     val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
-    val realDiff = toTree(assembled, composes.mayBePar(updates, options))(executionContext)
+    val timer = NanoTimer()
+    val realDiff = toTree(assembled, updates)(executionContext)
+    logger.trace(s"toTree ${timer.ms} ms")
     reduce(replace, assembled, realDiff, options, executionContext)
   }{ e ⇒
       logger.error("reduce", e) // ??? exception to record
