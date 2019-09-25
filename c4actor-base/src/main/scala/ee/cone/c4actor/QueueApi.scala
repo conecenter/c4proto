@@ -136,10 +136,6 @@ trait AssembledContext {
   def executionContext: OuterExecutionContext
 }
 
-trait OuterExecutionContext {
-  def value: ExecutionContext
-}
-
 trait OffsetContext {
   def offset: NextOffset
 }

@@ -29,11 +29,11 @@ import scala.concurrent.{Await, Future}
 
 case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
-  private def valueLines(index: Index, options: AssembleOptions)(k: Any): List[String] =
-    indexUtil.getValues(index,k,"",options).flatMap(v⇒s"$v".split("\n")).map(indent).toList
+  private def valueLines(index: Index)(k: Any): List[String] =
+    indexUtil.getValues(index,k,"").flatMap(v⇒s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     assert(request.method == "POST")
-    val options = GetAssembleOptions.of(local)(local.assembled)
+    //val options = GetAssembleOptions.of(local)(local.assembled)
     val headers: Map[String, String] = request.headers.map(h⇒h.key→h.value).toMap
     val world = readModelUtil.toMap(local.assembled)
     val WorldKeyAlias = """(\w+),(\w+)""".r
@@ -45,10 +45,10 @@ case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: Ind
         (s"$worldKey",index)
     }.toList).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("x-r-selection") match {
-      case k if k.startsWith(":") ⇒ k.tail :: valueLines(index, options)(k.tail)
+      case k if k.startsWith(":") ⇒ k.tail :: valueLines(index)(k.tail)
       case "keys" ⇒ indexUtil.keySet(index).map(_.toString).toList.sorted
       case "all" ⇒ indexUtil.keySet(index).map(k⇒k.toString→k).toList.sortBy(_._1).flatMap{
-        case(ks,k) ⇒ ks :: valueLines(index, options)(k)
+        case(ks,k) ⇒ ks :: valueLines(index)(k)
       }
     }
     (s"REPORT $indexStr" :: res.map(indent) ::: "END" :: Nil).mkString("\n")

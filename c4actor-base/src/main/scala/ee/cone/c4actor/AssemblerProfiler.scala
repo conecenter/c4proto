@@ -50,7 +50,7 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
     else SimpleSerialJoiningProfiling(System.nanoTime)
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] = transition.profiling match {
     case SimpleSerialJoiningProfiling(startedAt) ⇒
-    implicit val executionContext: ExecutionContext = transition.executionContext
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
     val size = updates.map(_.value.size).sum

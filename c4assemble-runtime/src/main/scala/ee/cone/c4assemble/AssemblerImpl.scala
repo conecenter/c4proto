@@ -15,7 +15,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 case class Count(item: Product, count: Int)
 
-case class DValuesImpl(asMultiSet: DMultiSet, warning: String, options: AssembleOptions) extends Values[Product] {
+case class DValuesImpl(asMultiSet: DMultiSet, warning: String) extends Values[Product] {
   def length: Int = asMultiSet.size
   private def value(kv: (InnerKey,Products)): Product =
     IndexUtilImpl.single(kv._2,warning)
@@ -118,8 +118,8 @@ case class IndexUtilImpl()(
     res
   }
 
-  def getValues(index: Index, key: Any, warning: String, options: AssembleOptions): Values[Product] = {
-    val res = getMS(index,key).fold(Nil:Values[Product])(v ⇒ DValuesImpl(v,warning,options))
+  def getValues(index: Index, key: Any, warning: String): Values[Product] = {
+    val res = getMS(index,key).fold(Nil:Values[Product])(v ⇒ DValuesImpl(v,warning))
     res
   }
 
@@ -139,15 +139,15 @@ case class IndexUtilImpl()(
   def result(key: Any, product: Product, count: Int): Index =
     makeIndex(Map(key→Map((ToPrimaryKey(product),product.hashCode)→(Count(product,count)::Nil)))/*, opt*/)
 
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning = {
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning = {
     getMS(currentIndex,key).fold(Nil:Partitioning){currentValues ⇒
       val diffValues = getMS(diffIndex,key).getOrElse(emptyMS)
       val changed = mayBeParProd(for {
         (k,v) ← diffValues; values ← currentValues.get(k)
-      } yield IndexUtilImpl.single(values,warning), options)
+      } yield IndexUtilImpl.single(values,warning))
       lazy val unchanged = mayBeParProd(for {
         (k,values) ← currentValues if !diffValues.contains(k)
-      } yield IndexUtilImpl.single(values,warning), options)
+      } yield IndexUtilImpl.single(values,warning))
       val unchangedRes = (false,()⇒unchanged) :: Nil
       if(changed.nonEmpty) (true,()⇒changed) :: unchangedRes else unchangedRes
     }
@@ -158,7 +158,7 @@ case class IndexUtilImpl()(
   def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V] =
     /*if(isParallel(options)) iterable.to[ParVector] else*/ iterable
 
-  def mayBeParProd[V](iterable: Iterable[Product], options: AssembleOptions): DPIterable[Product] =
+  def mayBeParProd[V](iterable: Iterable[Product]): DPIterable[Product] =
     /*if(isParallel(options)) iterable.par else*/ iterable
   def mayBePar[V](iterable: immutable.Seq[V], options: AssembleOptions): Seq[V] =
     /*if(isParallel(options)) iterable.par else*/ iterable
@@ -170,9 +170,10 @@ case class IndexUtilImpl()(
 
   // mapDiv cpuCount
   def preIndex(seq: Seq[Index]): Index = new PreIndex(seq,seq.map{ case p: PreIndex ⇒ p.size case _ ⇒ 1 }.sum)
-  def keyIteration(seq: Seq[Index], options: AssembleOptions)(implicit executionContext: ExecutionContext): (Any⇒Seq[Index])⇒Future[Index] = {
+  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any⇒Seq[Index])⇒Future[Index] = {
+    implicit val ec: ExecutionContext = executionContext.value
     val ids = seq.foldLeft(Set.empty[Any])((st,index)⇒st ++ data(index).keySet).toVector
-    val groupSize = ids.size/Math.toIntExact(options.threadCount)+1
+    val groupSize = ids.size / Math.toIntExact(executionContext.threadCount)+1
     val groups: Seq[Seq[Any]] = ids.grouped(groupSize).toVector
     f ⇒ Future.sequence(groups.map(part=>Future(preIndex(part.map(f).map(preIndex))))).map(preIndex)
   }
@@ -226,7 +227,7 @@ class JoinMapIndex(
     else doTransform(transition, worldDiffOpts)
   }
   def doTransform(transition: WorldTransition, worldDiffOpts: Seq[Option[Future[Index]]]): WorldTransition = {
-    implicit val executionContext: ExecutionContext = transition.executionContext
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
     val next: Future[IndexUpdate] = for {
       worldDiffs ← Future.sequence(worldDiffOpts.map(OrEmptyIndex(_)))
       res ← {
@@ -239,7 +240,7 @@ class JoinMapIndex(
           inputs ← Future.sequence(inputWorldKeys.map(_.of(transition.result)))
           profiler = transition.profiling
           calcStart = profiler.time
-          runJoin = join.joins(worldDiffs, transition.options)
+          runJoin = join.joins(worldDiffs, transition.executionContext)
           joinResSeq ← Future.sequence(Seq(runJoin(-1,prevInputs), runJoin(+1,inputs)))
           joinRes = composes.preIndex(joinResSeq)
           joinResSize = joinRes match { case p: PreIndex ⇒ p.size case _ ⇒ 0 }
@@ -408,7 +409,7 @@ class TreeAssemblerImpl(
     val testSZ = transforms.size
     //for(t ← transforms) println("T",t)
     def transformUntilStable(left: Int, transition: WorldTransition): Future[WorldTransition] = {
-      implicit val executionContext: ExecutionContext = transition.executionContext
+      implicit val executionContext: ExecutionContext = transition.executionContext.value
       for {
         stable ← readModelUtil.isEmpty(executionContext)(transition.diff) //seq
         res ← {
@@ -425,13 +426,13 @@ class TreeAssemblerImpl(
     }
 
 
-    (prevWorld,diff,options,profiler,executionContext) ⇒ {
-      implicit val ec = executionContext
-      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,options,profiler,Future.successful(Nil),executionContext,Nil)
+    (prevWorld,diff,profiler,executionContext) ⇒ {
+      implicit val ec = executionContext.value
+      val prevTransition = WorldTransition(None,emptyReadModel,prevWorld,profiler,Future.successful(Nil),executionContext,Nil)
       val currentWorld = readModelUtil.op(Merge[AssembledKey,Future[Index]](_⇒false/*composes.isEmpty*/,(a,b)⇒for {
         seq ← Future.sequence(Seq(a,b))
       } yield composes.mergeIndex(seq) ))(prevWorld,diff)
-      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,options,profiler,Future.successful(Nil),executionContext,Nil)
+      val nextTransition = WorldTransition(Option(prevTransition),diff,currentWorld,profiler,Future.successful(Nil),executionContext,Nil)
       for {
         finalTransition ← transformUntilStable(1000, nextTransition)
         ready ← readModelUtil.ready(ec)(finalTransition.result) //seq

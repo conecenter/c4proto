@@ -15,12 +15,12 @@ trait IndexUtil extends Product {
   def isEmpty(index: Index): Boolean
   def keySet(index: Index): Set[Any]
   def mergeIndex(l: DPIterable[Index]): Index
-  def getValues(index: Index, key: Any, warning: String, options: AssembleOptions): Values[Product] //m
+  def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, key: Any): Index
   def result(key: Any, product: Product, count: Int): Index //m
   type Partitioning = Seq[(Boolean,()⇒DPIterable[Product])]
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning  //m
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
   def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V]
   def mayBePar[V](iterable: immutable.Seq[V], options: AssembleOptions): Seq[V]
@@ -28,7 +28,12 @@ trait IndexUtil extends Product {
   //
   def preIndex(seq: Seq[Index]): Index
   def buildIndex(joinRes: Index): Index
-  def keyIteration(seq: Seq[Index], options: AssembleOptions)(implicit executionContext: ExecutionContext): (Any⇒Seq[Index])⇒Future[Index]
+  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any⇒Seq[Index])⇒Future[Index]
+}
+
+trait OuterExecutionContext {
+  def value: ExecutionContext
+  def threadCount: Long
 }
 
 object Types {
@@ -83,10 +88,9 @@ case class WorldTransition(
   prev: Option[WorldTransition],
   diff: ReadModel,
   result: ReadModel,
-  options: AssembleOptions,
   profiling: JoiningProfiling,
   log: Future[ProfilingLog],
-  executionContext: ExecutionContext,
+  executionContext: OuterExecutionContext,
   taskLog: List[AssembledKey]
 )
 
@@ -125,7 +129,7 @@ abstract class Join(
 {
   type DiffIndexRawSeq = Seq[Index]
   type Result = (Int,Seq[Index]) ⇒ Future[Index]
-  def joins(diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions)(implicit executionContext: ExecutionContext): Result
+  def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): Result
 }
 
 trait Assemble {

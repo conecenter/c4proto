@@ -57,31 +57,33 @@ class RichRawWorldReducerImpl(
     val offset = ByPK(classOf[S_Offset]).of(preWorld).get(actorName).fold(emptyOffset)(_.txId)
     new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
   }
-  def newExecutionContext(threadCount: Long): OuterExecutionContext = {
-    val fixedThreadCount = if(threadCount>0) toIntExact(threadCount) else Runtime.getRuntime.availableProcessors
+  def newExecutionContext(confThreadCount: Long): OuterExecutionContext = {
+    val fixedThreadCount = if(confThreadCount>0) toIntExact(confThreadCount) else Runtime.getRuntime.availableProcessors
     val pool = execution.newExecutorService("ass-",Option(fixedThreadCount))
     logger.info(s"ForkJoinPool create $fixedThreadCount")
-    new OuterExecutionContextImpl(threadCount,ExecutionContext.fromExecutor(pool),pool)
+    new OuterExecutionContextImpl(confThreadCount,fixedThreadCount,ExecutionContext.fromExecutor(pool),pool)
   }
-  def needExecutionContext(threadCount: Long): OuterExecutionContext⇒OuterExecutionContext = {
-    case ec: OuterExecutionContextImpl if ec.threadCount == threadCount ⇒
+  def needExecutionContext(confThreadCount: Long): OuterExecutionContext⇒OuterExecutionContext = {
+    case ec: OuterExecutionContextImpl if ec.confThreadCount == confThreadCount ⇒
       ec
     case ec: OuterExecutionContextImpl ⇒
       ec.service.shutdown()
       logger.info("ForkJoinPool shutdown")
-      newExecutionContext(threadCount)
+      newExecutionContext(confThreadCount)
     case _ ⇒
-      newExecutionContext(threadCount)
+      newExecutionContext(confThreadCount)
   }
 }
 
 class OuterExecutionContextImpl(
+  val confThreadCount: Long,
   val threadCount: Long,
   val value: ExecutionContext,
   val service: ExecutorService
 ) extends OuterExecutionContext
 object EmptyOuterExecutionContext extends OuterExecutionContext {
   def value: ExecutionContext = throw new Exception("no ExecutionContext")
+  def threadCount: Long =  throw new Exception("no ExecutionContext")
 }
 
 class RichRawWorldImpl(

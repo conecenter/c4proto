@@ -16,7 +16,7 @@ class ConnectBackStage[MapKey, Value](
   composes: IndexUtil
 ) extends WorldPartExpression {
   def transform(transition: WorldTransition): WorldTransition = {
-    implicit val executionContext: ExecutionContext = transition.executionContext
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
     val next = for {
       diff ← nextKey.of(transition.prev.get.diff)
       result ← nextKey.of(transition.result)

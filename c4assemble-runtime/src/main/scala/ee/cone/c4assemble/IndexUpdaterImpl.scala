@@ -6,7 +6,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class IndexUpdaterImpl(readModelUtil: ReadModelUtil) extends IndexUpdater {
   def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition⇒WorldTransition = transition ⇒ {
-    implicit val executionContext: ExecutionContext = transition.executionContext
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
     val diff = readModelUtil.updated(worldKey,update.map(_.diff))(transition.diff)
     val next = readModelUtil.updated(worldKey,update.map(_.result))(transition.result)
     val log = for {

@@ -135,20 +135,21 @@ object AssembleGenerator extends Generator {
            |    collection.immutable.Seq(${params.map(p⇒s"${p.indexKeyName}(indexFactory)").mkString(",")}),
            |    ${out.indexKeyName}(indexFactory)
            |  ) {
-           |    def joins(diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions)(implicit executionContext: scala.concurrent.ExecutionContext): Result = {
+           |    def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): Result = {
+           |      implicit val ec = executionContext.value
            |      val iUtil = indexFactory.util
            |      val Seq(${params.map(p⇒s"${p.name}_diffIndex").mkString(",")}) = diffIndexRawSeq
            |      ${keyEqParams.map(p⇒s"val ${p.name}_isAllChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
            |      val invalidateKeySetOpt =
            |          ${if(keyEqParams.isEmpty)"" else s"""if(${keyEqParams.map(p⇒s"${p.name}_isAllChanged").mkString(" || ")}) None else """}
-           |          Option(iUtil.keyIteration(Seq(${keyIdParams.map(p⇒s"${p.name}_diffIndex").mkString(",")}),options))
+           |          Option(iUtil.keyIteration(Seq(${keyIdParams.map(p⇒s"${p.name}_diffIndex").mkString(",")}),executionContext))
            |      ${params.map(p ⇒ if(p.distinct) s"""val ${p.name}_warn = "";""" else s"""val ${p.name}_warn = "${out.name} ${p.name} "+${p.indexKeyName}(indexFactory).valueClassName;""").mkString}
            |      (dir,indexRawSeq) => {
            |        val Seq(${params.map(p⇒s"${p.name}_index").mkString(",")}) = indexRawSeq
-           |        invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p⇒s"${p.name}_index").mkString(",")}),options)){ id =>
-           |        ${seqParams.map(p⇒s"val ${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn,options); ").mkString}
+           |        invalidateKeySetOpt.getOrElse(iUtil.keyIteration(Seq(${keyIdParams.map(p⇒s"${p.name}_index").mkString(",")}),executionContext)){ id =>
+           |        ${seqParams.map(p⇒s"val ${p.name}_arg = iUtil.getValues(${p.name}_index,${litOrId(p)},${p.name}_warn); ").mkString}
            |        ${seqParams.map(p⇒s"val ${p.name}_isChanged = iUtil.nonEmpty(${p.name}_diffIndex,${litOrId(p)}); ").mkString}
-           |        ${eachParams.map(p⇒s"val ${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn,options); ").mkString}
+           |        ${eachParams.map(p⇒s"val ${p.name}_parts = iUtil.partition(${p.name}_index,${p.name}_diffIndex,${litOrId(p)},${p.name}_warn); ").mkString}
            |          for {
            |            ${eachParams.map(p⇒s" ${p.name}_part <- ${p.name}_parts; (${p.name}_isChanged,${p.name}_items) = ${p.name}_part; ").mkString}
            |            pass <- if(

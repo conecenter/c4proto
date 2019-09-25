@@ -19,7 +19,7 @@ class LoopExpression[MapKey, Value](
   private def inner(
     left: Int, transition: WorldTransition, resDiff: Index
   ): Future[IndexUpdate] = {
-    implicit val executionContext: ExecutionContext = transition.executionContext
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
     for {
       diffPart ← outputWorldKey.of(transition.diff)
       res ← {
@@ -41,7 +41,7 @@ class LoopExpression[MapKey, Value](
     else finishTransform(transition, inner(1000, transitionA, emptyIndex))
   }
   def finishTransform(transition: WorldTransition, next: Future[IndexUpdate]): WorldTransition = {
-    implicit val executionContext: ExecutionContext = transition.executionContext
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
     Function.chain(Seq(
       updater.setPart(outputWorldKey,next,logTask = true),
       updater.setPart(wasOutputWorldKey,next.map(update⇒new IndexUpdate(emptyIndex,update.result,Nil)),logTask = false)
