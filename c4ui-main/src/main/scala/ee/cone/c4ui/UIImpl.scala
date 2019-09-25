@@ -47,8 +47,8 @@ case class VDomBranchHandler(branchKey: SrcId, sender: VDomSender[Context], view
   def exchange: BranchMessage ⇒ Context ⇒ Context =
     message ⇒ local ⇒ {
       val vDomMessage = VDomMessageImpl(message)
-      //println(s"act ${message("X-r-action")}")
-      val handlePath = vDomMessage.header("X-r-vdom-path")
+      //println(s"act ${message("x-r-action")}")
+      val handlePath = vDomMessage.header("x-r-vdom-path")
       (CurrentPathKey.set(handlePath) andThen
         vHandler(local).receive(vDomMessage))(local)
     }

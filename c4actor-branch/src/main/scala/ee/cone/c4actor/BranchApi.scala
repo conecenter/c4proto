@@ -1,6 +1,8 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4actor.ArgTypes.LazyList
+
 import scala.collection.immutable.Seq
 import ee.cone.c4actor.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
@@ -11,6 +13,7 @@ object BranchTypes {
 }
 
 trait BranchMessage extends Product {
+  def method: String
   def header: String⇒String
   def body: okio.ByteString
   def deletes: Seq[LEvent[Product]]
@@ -45,7 +48,7 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,
     @Id(0x0043) value: okio.ByteString,
-    @Id(0x0044) children: List[S_BranchResult],
+    @Id(0x0044) children: LazyList[S_BranchResult],
     @Id(0x0045) position: String
   )
 
@@ -54,7 +57,7 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
     @Id(0x0048) text: String,
     @Id(0x0049) time: Long,
     @Id(0x004A) sessionKeys: List[String]
-    //retry: List[S_HttpPost]
+    //retry: List[S_HttpRequest]
   )
 
   @Id(0x004B) case class U_Redraw(

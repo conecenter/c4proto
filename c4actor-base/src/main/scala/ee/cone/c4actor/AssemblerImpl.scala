@@ -13,11 +13,10 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.concurrent.duration.Duration
 
-case class ProtocolDataDependencies(protocols: List[Protocol], origKeyFactory: KeyFactory) {
+case class ProtocolDataDependencies(QAdapterRegistry: QAdapterRegistry, origKeyFactory: KeyFactory) {
   def apply(): List[DataDependencyTo[_]] =
-    protocols.flatMap(_.adapters.filter(_.hasId)).map { adapter ⇒
-      new OriginalWorldPart(origKeyFactory.rawKey(adapter.className))
-    }
+    QAdapterRegistry.byId.values.map(_.className).toList.sorted
+      .map(nm ⇒ new OriginalWorldPart(origKeyFactory.rawKey(nm)))
 }
 
 case object TreeAssemblerKey extends SharedComponentKey[Replace]
@@ -91,8 +90,7 @@ class AssemblerInit(
     val realDiff = toTree(assembled, updates)(executionContext)
     logger.trace(s"toTree ${timer.ms} ms")
     reduce(replace, assembled, realDiff, options, executionContext)
-  }{ e ⇒
-      logger.error("reduce", e) // ??? exception to record
+  }("reduce"){ e ⇒ // ??? exception to record
       if(events.size == 1){
         val options = getAssembleOptions(assembled)
         val updates = offset(events) ++
@@ -112,7 +110,7 @@ class AssemblerInit(
       implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions(local.assembled)
       val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).toSeq ++ out
-      val externalOut = updateProcessor.process(processedOut)
+      val externalOut = updateProcessor.process(processedOut, WriteModelKey.of(local).size)
       val diff = toTree(local.assembled, externalOut)(executionContext)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
@@ -121,7 +119,7 @@ class AssemblerInit(
         updates ← assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
-        WriteModelKey.modify(_.enqueue(updates))(nLocal)
+        WriteModelKey.modify(_.enqueueAll(updates))(nLocal)
       }
       waitFor(res, options, "add")
       //call add here for new mortal?
@@ -166,4 +164,5 @@ case class UniqueIndexMap[K,V](index: Index, options: AssembleOptions)(indexUtil
   def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,"",options))).asInstanceOf[(K,V)] }
   def removed(key: K): Map[K, V] = iterator.toMap - key
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
+  override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index
 }

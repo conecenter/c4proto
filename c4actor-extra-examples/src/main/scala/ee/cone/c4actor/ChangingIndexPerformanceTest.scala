@@ -168,7 +168,7 @@ class ChangingIndexPerformanceTest(
   }
 }
 
-class ChangingIndexPerformanceTestApp extends TestRichDataApp
+class ChangingIndexPerformanceTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
   with TreeIndexValueMergerFactoryApp

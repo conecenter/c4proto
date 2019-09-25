@@ -2,18 +2,22 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble._
-import ee.cone.c4proto.Protocol
+import ee.cone.c4proto.{AbstractComponents, Component, Components, ComponentsApp, Protocol, TypeKey, c4component}
+
+import scala.collection.immutable.Seq
 
 trait DataDependenciesApp {
   def dataDependencies: List[DataDependencyTo[_]] = Nil
 }
 
-trait ToStartApp {
+trait ToStartApp extends ComponentsApp {
+  private lazy val executableComponent = ComponentRegistry.provide(classOf[Executable],()⇒toStart)
+  override def components: List[Component] = executableComponent :: super.components
   def toStart: List[Executable] = Nil
 }
 
 trait InitialObserversApp {
-  def initialObservers: List[Observer] = Nil
+  def initialObservers: List[Observer[RichContext]] = Nil
 }
 
 trait ProtocolsApp {
@@ -44,12 +48,12 @@ trait ExpressionsDumpersApp {
 trait SimpleIndexValueMergerFactoryApp //compat
 trait TreeIndexValueMergerFactoryApp //compat
 
-trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp with DeCompressorsApp {
+trait ServerApp extends ServerAutoApp with RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp {
   def execution: Execution
   def snapshotMaker: SnapshotMaker
   def rawSnapshotLoader: RawSnapshotLoader
   def consuming: Consuming
-  def txObserver: Option[Observer]
+  def txObserver: Option[Observer[RichContext]]
   def rawQSender: RawQSender
   //
   def longTxWarnPeriod: Long = Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong)
@@ -64,38 +68,53 @@ trait ServerApp extends RichDataApp with ExecutableApp with InitialObserversApp 
     toUpdate, richRawWorldReducer, snapshotMaker, snapshotLoader
   )
   override def toStart: List[Executable] = rootConsumer :: super.toStart
-  override def initialObservers: List[Observer] = txObserver.toList ::: super.initialObservers
+  override def initialObservers: List[Observer[RichContext]] = txObserver.toList ::: super.initialObservers
   override def protocols: List[Protocol] = MetaAttrProtocol :: super.protocols
-  override def deCompressors: List[DeCompressor] = GzipFullCompressor() :: super.deCompressors
 }
 
-trait TestRichDataApp extends RichDataApp {
+trait TestVMRichDataApp extends RichDataApp with VMExecutionApp with ToStartApp {
   lazy val contextFactory = new ContextFactory(richRawWorldReducer,toUpdate)
   lazy val actorName: String = getClass.getName
 }
 
-trait RichDataApp extends ProtocolsApp
+trait BaseApp extends BaseAutoApp with AbstractComponents {
+  lazy val componentRegistry = ComponentRegistry(this)
+}
+
+trait ProtoApp extends ProtoAutoApp {
+  def componentRegistry: ComponentRegistry
+  //
+  lazy val qAdapterRegistry: QAdapterRegistry =
+    componentRegistry.resolveSingle(classOf[QAdapterRegistry])
+  lazy val toUpdate: ToUpdate =
+    componentRegistry.resolveSingle(classOf[ToUpdate])
+}
+
+@c4component("RichDataAutoApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+
+trait RichDataApp extends RichDataAutoApp
+  with BaseApp
+  with ProtoApp
+  with ProtocolsApp
   with AssemblesApp
   with DataDependenciesApp
   with ToInjectApp
   with DefaultModelFactoriesApp
   with ExpressionsDumpersApp
   with PreHashingApp
-  with DeCompressorsApp
-  with RawCompressorsApp
   with DefaultUpdateProcessorApp
   with UpdatesProcessorsApp
   with DefaultKeyFactoryApp
 {
   def assembleProfiler: AssembleProfiler
   def actorName: String
+  def execution: Execution
   //
-  lazy val qAdapterRegistry: QAdapterRegistry = QAdapterRegistryFactory(protocols.distinct)
-  lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()()
+  //lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()()
   lazy val byPriority: ByPriority = ByPriorityImpl
   lazy val preHashing: PreHashing = PreHashingImpl
   lazy val richRawWorldReducer: RichRawWorldReducer =
-    new RichRawWorldReducerImpl(toInject,toUpdate,actorName)
+    new RichRawWorldReducerImpl(toInject,toUpdate,actorName,execution)
   lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
   lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
   lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
@@ -106,31 +125,35 @@ trait RichDataApp extends ProtocolsApp
   lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   lazy val indexUtil: IndexUtil = IndexUtilImpl()()
   lazy val catchNonFatal: CatchNonFatal = CatchNonFatalImpl
-  private lazy val deCompressorRegistry: DeCompressorRegistry = DeCompressorRegistryImpl(deCompressors)()
   private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
   private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
   private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
-  private lazy val localQAdapterRegistryInit = new LocalQAdapterRegistryInit(qAdapterRegistry)
+  private lazy val localQAdapterRegistryInit: ToInject = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
-  private lazy val assemblerInit =
+  private lazy val assemblerInit: ToInject =
     new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, longAssembleWarnPeriod, catchNonFatal)()
   private def longAssembleWarnPeriod: Long = Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
   private lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn,0L)
   def parallelAssembleOn: Boolean = false
+
   //
   override def protocols: List[Protocol] = QProtocol :: super.protocols
   override def dataDependencies: List[DataDependencyTo[_]] =
     assembleDataDependencies :::
-    ProtocolDataDependencies(protocols.distinct,origKeyFactory)() ::: super.dataDependencies
+    ProtocolDataDependencies(qAdapterRegistry,origKeyFactory)() ::: super.dataDependencies
   override def toInject: List[ToInject] =
     assemblerInit ::
-    localQAdapterRegistryInit ::
-    super.toInject
+      localQAdapterRegistryInit ::
+      super.toInject
+  override def components: List[Component] =
+    protocols.distinct.flatMap(_.components) :::
+    super.components
 }
 
-trait VMExecutionApp {
-  def toStart: List[Executable]
-  lazy val execution: Execution = new VMExecution(()⇒toStart)()()
+trait VMExecutionApp extends VMExecutionAutoApp {
+  def componentRegistry: ComponentRegistry
+  //
+  lazy val execution: Execution = componentRegistry.resolveSingle(classOf[Execution])
 }
 
 trait FileRawSnapshotApp { // Remote!

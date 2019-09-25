@@ -18,7 +18,7 @@ case class PathFactoryImpl[Context](
 case class PartPath[Context](attrs:List[PathAttr])(
   pathToJson: CanvasToJson
 ) extends VDomValue with Receiver[Context] {
-  def receive: VDomMessage => Context => Context = message => message.header("X-r-action") match {
+  def receive: VDomMessage => Context => Context = message => message.header("x-r-action") match {
     case "clickColor" =>
       attrs.collect{case h:ClickPathHandler[_]=>h}.head.handleClick.asInstanceOf[Context=>Context]
     case _ => throw new Exception("Unknown action type")

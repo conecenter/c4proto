@@ -33,7 +33,7 @@ object ExtractKeyNSType {
 }
 
 object AssembleGenerator extends Generator {
-  def get: Get = { case code@q"@assemble class ${baseClassNameNode@Type.Name(baseClassName)} [..$tparams] (...$paramss) extends ..$ext { ..$stats }" ⇒
+  def get: Get = { case (code@q"@assemble class ${baseClassNameNode@Type.Name(baseClassName)} [..$tparams] (...$paramss) extends ..$ext { ..$stats }", fileName) ⇒
     Util.unBase(baseClassName,baseClassNameNode.pos.end){className ⇒
     val classArgs = paramss.toList.flatten.collect{
       case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" ⇒
@@ -58,7 +58,7 @@ object AssembleGenerator extends Generator {
       case q"type $tname[..$params] = $tpe" ⇒ Nil
       case q"import ..$i" ⇒ Nil
       case e@q"..$mods val ..$vname: $tpe = $expr" ⇒ throw new Exception(s"Don't use val in Assemble: ${e.toString}")
-      case q"@ignore def $dname: $tpe = $expr" ⇒ Nil
+      case q"@ignore def $ename[..$tparams](...$paramss): $tpeopt = $expr" ⇒ Nil
       case q"def result: Result = tupled(${Term.Name(joinerName)} _)" ⇒
         JStat(s"override def resultKey = ${joinerName}_outKey") :: Nil
       case q"def result: Result = $temp" ⇒ Nil
@@ -116,7 +116,7 @@ object AssembleGenerator extends Generator {
         val fullName = s"${defName}_outKey"
         joinKey(fullName,was=false,outKeyType,outValType) ::
         JoinDef(joinDefParams,inKeyType,JConnDef(defName,fullName,"",many=false,distinct=false,None)) :: paramInfo.flatMap(_._2)
-      case s ⇒ throw new Exception(s"Can't parse structure ${s.toString}")
+      case s: Tree ⇒ Utils.parseError(s, "assemble", fileName)
     }
     val toString =
       s"""getClass.getPackage.getName + ".$className" ${if(tparams.isEmpty)"" else {

@@ -257,7 +257,7 @@ trait TestCondition extends SerializationUtilsApp {
   def lensStr: ProdLens[D_TestObject, String] = ProdLens.ofSet[D_TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[D_TestObject], classOf[String]))
 }
 
-class HashSearchExtraTestApp extends TestRichDataApp
+class HashSearchExtraTestApp extends TestVMRichDataApp
   //with ServerApp
   //with EnvConfigApp
   with VMExecutionApp
@@ -277,7 +277,7 @@ class HashSearchExtraTestApp extends TestRichDataApp
   with CurrentTimeAssembleMix
   with WithMurMur3HashGenApp
   with ProdLensesApp {
-  println(TestProtocolM.adapters.map(a ⇒ a.categories))
+  // println(TestProtocolM.adapters.map(a ⇒ a.categories))
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
 

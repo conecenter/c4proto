@@ -1,11 +1,13 @@
 package ee.cone.c4actor.rdb_impl
 
 import java.lang.Math.toIntExact
-import java.sql.{CallableStatement, Connection}
+import java.sql.{CallableStatement, Connection, ResultSet}
 import java.util.concurrent.CompletableFuture
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
+
+import scala.annotation.tailrec
 
 class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
@@ -138,10 +140,12 @@ class RConnectionImpl(conn: java.sql.Connection) extends RConnection with LazyLo
     FinallyClose(conn.prepareStatement(code)) { stmt ⇒
       bindObjects(stmt, bindList)
 
-      FinallyClose(stmt.executeQuery()) { rs ⇒
-        var res: List[Map[String, Object]] = Nil
-        while(rs.next()) res = cols.map(cn ⇒ cn → rs.getObject(cn)).toMap :: res
-        res.reverse
+      FinallyClose(stmt.executeQuery()) { rs: ResultSet ⇒
+        type Res = List[Map[String, Object]]
+        @tailrec def iter(res: Res): Res =
+          if(rs.next()) iter(cols.map(cn ⇒ cn → rs.getObject(cn)).toMap :: res)
+          else res.reverse
+        iter(Nil)
       }
     }
   }

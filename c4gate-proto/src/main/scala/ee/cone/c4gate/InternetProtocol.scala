@@ -10,8 +10,9 @@ import ee.cone.c4proto._
     @Id(0x0023) body: okio.ByteString,
     @Id(0x002E) until: Option[Long]
   )
-  @Id(0x0020) case class S_HttpPost(
+  @Id(0x0020) case class S_HttpRequest(
     @Id(0x002A) srcId: String,
+    @Id(0x002F) method: String,
     @Id(0x0021) path: String,
     @Id(0x0022) headers: List[N_Header],
     @Id(0x0023) body: okio.ByteString,
@@ -26,9 +27,14 @@ import ee.cone.c4proto._
   making ResponseOptions ByPath is not perfect -- we will have potential orig ownership conflict (and non-stop updating);
   simple solution is to check/update ResponseOptions only on service startup
    */
-  @Id(0x002F) case class E_ResponseOptionsByPath(
-    @Id(0x0021) path: String,
-    @Id(0x0022) headers: List[N_Header]
+//  @Id(0x002F) case class E_ResponseOptionsByPath(...)
+
+  @Id(0x0090) case class S_HttpResponse(
+    @Id(0x002A) srcId: String, //note: make srcId random and add requestId to detect consumer conflict
+    @Id(0x0091) status: Int,
+    @Id(0x0022) headers: List[N_Header],
+    @Id(0x0023) body: okio.ByteString,
+    @Id(0x002D) time: Long
   )
 }
 
@@ -60,10 +66,11 @@ import ee.cone.c4proto._
     @Id(0x003A) userName: Option[String]
   )
 
-  @Id(0x003B) case class E_PostConsumer(
+  @Id(0x003B) case class E_HttpConsumer(
     @Id(0x003C) srcId: String,
     @Id(0x003D) consumer: String,
-    @Id(0x003E) condition: String
+    @Id(0x003E) condition: String,
+    //isSynchronous: Boolean
   )
 
   @Id(0x003F) case class U_FromAlienStatus(
@@ -88,6 +95,11 @@ import ee.cone.c4proto._
   @Id(0x0057) case class C_PasswordHashOfUser(
     @Id(0x0058) userName: String,
     @Id(0x0056) hash: Option[N_SecureHash]
+  )
+
+  @Id(0x005E) case class C_PasswordRequirements(
+    @Id(0x005D) srcId: String,
+    @Id(0x005F) regex: String
   )
   /*
   @Id(0x0059) case class PasswordVerifiedRequest(

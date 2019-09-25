@@ -14,7 +14,7 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
-@protocol object QProtocolBase   {
+@protocol("ProtoAutoApp") object QProtocolBase   {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
@@ -92,6 +92,8 @@ trait QMessages {
   // where richServers wrapped with txTr with AtomicRef;
   // HOWEVER READ-AFTER-WRITE problem here is harder
 }
+
+class UpdateCompressionMinSize(val value: Long)
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): N_Update
@@ -215,8 +217,8 @@ object TxAdd {
     WriteModelDebugAddKey.of(context)(out)(context)
 }
 
-trait Observer {
-  def activate(world: RichContext): Seq[Observer]
+trait Observer[Message] {
+  def activate(world: Message): Seq[Observer[Message]]
 }
 
 case object TxTransformOrigMeta{
@@ -233,13 +235,6 @@ case object WriteModelDebugKey extends TransientLens[Queue[LEvent[Product]]](Que
 case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]⇒(SharedContext with AssembledContext)⇒ReadModel]
 case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]⇒Context⇒Context]
 case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]⇒Context⇒Context]
-
-case object QAdapterRegistryKey extends SharedComponentKey[QAdapterRegistry]
-
-class QAdapterRegistry(
-  val byName: Map[String,ProtoAdapter[Product] with HasId],
-  val byId: Map[Long,ProtoAdapter[Product] with HasId]
-)
 
 case class RawHeader(key: String, value: String)
 
@@ -308,5 +303,5 @@ trait KeyFactory {
 }
 
 trait UpdateProcessor {
-  def process(updates: Seq[N_Update]): Seq[N_Update]
+  def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]
 }

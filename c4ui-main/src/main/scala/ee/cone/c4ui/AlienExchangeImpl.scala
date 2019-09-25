@@ -10,8 +10,8 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.{U_FromAlienState, U_ToAlienWrite}
-import ee.cone.c4gate.HttpProtocol.S_HttpPost
-import ee.cone.c4gate.LocalPostConsumer
+import ee.cone.c4gate.HttpProtocol.S_HttpRequest
+import ee.cone.c4gate.LocalHttpConsumer
 import okio.ByteString
 
 import scala.collection.immutable.Seq
@@ -35,31 +35,32 @@ object SendToAlienInit extends ToInject {
 case class MessageFromAlienImpl(
   srcId: String,
   headers: Map[String,String],
-  request: S_HttpPost
+  request: S_HttpRequest
 ) extends BranchMessage {
+  def method: String = request.method match { case "" ⇒ "POST" case m ⇒ m }
   def header: String ⇒ String = k ⇒ headers.getOrElse(k,"")
   def body: ByteString = request.body
   def deletes: Seq[LEvent[Product]] = delete(request)
 }
 
 @assemble class MessageFromAlienAssembleBase   {
-  def mapHttpPostByBranch(
+  def mapHttpReqByBranch(
     key: SrcId,
-    post: Each[S_HttpPost]
-  ): Values[(BranchKey, BranchMessage)] = if(post.path != "/connection") Nil else for(
-    headers ← List(post.headers.flatMap(h ⇒
-      if(h.key.startsWith("X-r-")) List(h.key→h.value) else Nil
+    req: Each[S_HttpRequest]
+  ): Values[(BranchKey, BranchMessage)] = if(req.path != "/connection") Nil else for(
+    headers ← List(req.headers.flatMap(h ⇒
+      if(h.key.startsWith("x-r-")) List(h.key→h.value) else Nil
     ).toMap);
-    branchKey ← headers.get("X-r-branch");
-    index ← headers.get("X-r-index").map(_.toLong)
-  ) yield branchKey → MessageFromAlienImpl(post.srcId,headers,post)
+    branchKey ← headers.get("x-r-branch");
+    index ← headers.get("x-r-index").map(_.toLong)
+  ) yield branchKey → MessageFromAlienImpl(req.srcId,headers,req)
 
 
   def consumersForHandlers(
     key: SrcId,
     h: Each[BranchHandler]
-  ): Values[(SrcId,LocalPostConsumer)] =
-    List(WithPK(LocalPostConsumer(h.branchKey)))
+  ): Values[(SrcId,LocalHttpConsumer)] =
+    List(WithPK(LocalHttpConsumer(h.branchKey)))
 
 }
 

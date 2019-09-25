@@ -64,7 +64,8 @@ push @tasks, ["setup_kafka", sub{
 
 
 push @tasks, ["es_examples", sub{
-    sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
+    sy("C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ProtoAdapterTestApp cd $gen_dir && sbt 'c4actor-base-examples/runMain ee.cone.c4actor.ServerMain' ");
+    #sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
     sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
     sy("C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain' ");
 
@@ -181,12 +182,14 @@ push @tasks, ["gate_publish", sub{
     my($env,%env) = &$get_env();
     my $build_dir = &$client(0);
     $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
-    sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT=1 ".staged("c4gate-server","ee.cone.c4gate.PublishApp"))
+    sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT=1 ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
     my($env,%env) = &$get_env();
     &$inbox_configure();
-    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-server","ee.cone.c4gate.HttpGatewayApp"));
+    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-sun","ee.cone.c4gate.SunGatewayApp"));
+    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-finagle","ee.cone.c4gate.FinagleGatewayApp"));
+    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-akka","ee.cone.c4gate.AkkaGatewayApp"));
 }];
 push @tasks, ["env", sub{
     my ($cmd,@exec) = @ARGV;
