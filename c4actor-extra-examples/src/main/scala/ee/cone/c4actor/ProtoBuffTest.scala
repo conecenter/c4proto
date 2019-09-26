@@ -31,9 +31,7 @@ import scala.collection.immutable
 
 }
 
-trait Adapters extends ProtocolsApp with QAdapterRegistryApp {
-
-  def qAdapterRegistry: QAdapterRegistry = TestQAdapterRegistryFactory(protocols)
+trait Adapters extends ProtocolsApp with QAdapterRegistryApp with BaseApp with ProtoApp {
 
   override def protocols: List[Protocol] = ProtoBuffTestProtocol :: AnyOrigProtocol :: QProtocol :: super.protocols
 }
@@ -74,15 +72,6 @@ object ProtoBuffTest extends Adapters {
       println(s"Av2 ${lul.map(_.get()).sum / lul.length}")
       pool.shutdown()
     }
-  }
-}
-
-object TestQAdapterRegistryFactory {
-  def apply(protocols: List[Protocol]): QAdapterRegistry = {
-    val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
-    val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
-    val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
-    new QAdapterRegistry(byName, byId)
   }
 }
 
