@@ -20,7 +20,11 @@ trait InitialObserversApp {
   def initialObservers: List[Observer[RichContext]] = Nil
 }
 
-trait ProtocolsApp {
+trait ProtocolsApp extends ComponentsApp {
+  override def components: List[Component] =
+    protocols.distinct.flatMap(_.components) :::
+      super.components
+
   def protocols: List[Protocol] = Nil
 }
 
@@ -145,9 +149,6 @@ trait RichDataApp extends RichDataAutoApp
     assemblerInit ::
       localQAdapterRegistryInit ::
       super.toInject
-  override def components: List[Component] =
-    protocols.distinct.flatMap(_.components) :::
-    super.components
 }
 
 trait VMExecutionApp extends VMExecutionAutoApp {
