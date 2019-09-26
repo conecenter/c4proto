@@ -150,19 +150,20 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
     @Id(0x0f38) condition: LazyOption[ProtoDepCondition]
   ) extends ProtoDepCondition
 
-  case class N_DepConditionIntersect(
+
+  @Id(0x0f4c) case class N_DepConditionIntersect(
     @Id(0x0f46) condLeft: LazyOption[ProtoDepCondition],
     @Id(0x0f47) condRight: LazyOption[ProtoDepCondition],
   ) extends ProtoDepCondition
 
-  case class N_DepConditionUnion(
+  @Id(0x0f4d) case class N_DepConditionUnion(
     @Id(0x0f46) condLeft: LazyOption[ProtoDepCondition],
     @Id(0x0f47) condRight: LazyOption[ProtoDepCondition],
   ) extends ProtoDepCondition
 
-  case class N_DepConditionAny() extends ProtoDepCondition
+  @Id(0x0f4e) case class N_DepConditionAny() extends ProtoDepCondition
 
-  case class N_DepConditionLeaf(
+  @Id(0x0f4f) case class N_DepConditionLeaf(
     @Id(0x0f3f) modelClass: String,
     @Id(0x0f48) lensName: String,
     @Id(0x0f4b) byClName: String,
