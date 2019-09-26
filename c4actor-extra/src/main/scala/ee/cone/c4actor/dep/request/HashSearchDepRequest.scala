@@ -1,14 +1,17 @@
 package ee.cone.c4actor.dep.request
 
+import ee.cone.c4actor.ArgTypes.LazyOption
 import ee.cone.c4actor.HashSearch.{Request, Response}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{N_DepCondition, N_HashSearchDepRequest}
+import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{N_DepConditionAny, N_DepConditionIntersect, N_DepConditionLeaf, N_DepConditionUnion, N_HashSearchDepRequest}
+import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocolBase.ProtoDepCondition
 import ee.cone.c4actor.utils.{GeneralizedOrigRegistry, GeneralizedOrigRegistryApi}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto._
+import okio.ByteString
 
 trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with GeneralizedOrigRegistryApi with DepResponseFactoryApp {
   override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
@@ -106,14 +109,14 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
     )
 
 
-  private def parseCondition[Model](condition: N_DepCondition, factory: ModelConditionFactory[Model]): Condition[Model] = {
-    condition.condType match {
-      case "intersect" ⇒ factory.intersect(parseCondition(condition.condLeft.get, factory), parseCondition(condition.condRight.get, factory))
-      case "union" ⇒ factory.union(parseCondition(condition.condLeft.get, factory), parseCondition(condition.condRight.get, factory))
-      case "any" ⇒ factory.any
-      case "leaf" ⇒
-        val leafInfo: LeafInfoHolder[_ <: Product, _ <: Product, _] = leafs.getLeaf(condition.modelClass, condition.by.get.byClName, condition.lensName)
-        makeLeaf(leafInfo.modelCl, leafInfo.byCl, leafInfo.fieldCl)(leafInfo, condition.by.get).asInstanceOf[Condition[Model]]
+  private def parseCondition[Model](condition: ProtoDepCondition, factory: ModelConditionFactory[Model]): Condition[Model] = {
+    condition match {
+      case inter: N_DepConditionIntersect ⇒ factory.intersect(parseCondition(inter.condLeft.get, factory), parseCondition(inter.condRight.get, factory))
+      case union: N_DepConditionUnion ⇒ factory.union(parseCondition(union.condLeft.get, factory), parseCondition(union.condRight.get, factory))
+      case _: N_DepConditionAny ⇒ factory.any
+      case leaf: N_DepConditionLeaf ⇒
+        val leafInfo: LeafInfoHolder[_ <: Product, _ <: Product, _] = leafs.getLeaf(leaf.modelClass, leaf.byClName, leaf.lensName)
+        makeLeaf(leafInfo.modelCl, leafInfo.byCl, leafInfo.fieldCl)(leafInfo, leaf.value).asInstanceOf[Condition[Model]]
       case _ ⇒ throw new Exception("Not implemented yet: parseBy(by:By)")
     }
   }
@@ -122,13 +125,13 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
     _.asInstanceOf[LeafInfoHolder[Model, By, Field]]
 
   private def makeLeaf[Model <: Product, By <: Product, Field](modelCl: Class[Model], byClass: Class[By], fieldCl: Class[Field]):
-  (LeafInfoHolder[_, _, _], HashSearchDepRequestProtocol.N_By) ⇒ ProdConditionImpl[By, Model, Field] = (leafInfo, by) ⇒ {
+  (LeafInfoHolder[_, _, _], ByteString) ⇒ ProdConditionImpl[By, Model, Field] = (leafInfo, by) ⇒ {
     def filterMetaList: ProdLens[Model, Field] ⇒ List[AbstractMetaAttr] =
       _.metaList.collect { case l: NameMetaAttr ⇒ l }
 
-    val byAdapter = qAdapterRegistry.byName(by.byClName)
+    val byAdapter = qAdapterRegistry.byName(byClass.getName)
     val genericMaker = generalizedOrigRegistry.get[By](byClass.getName)
-    val byDecoded = byAdapter.decode(by.value).asInstanceOf[By]
+    val byDecoded = byAdapter.decode(by).asInstanceOf[By]
     val byGeneric = genericMaker.create("")(byDecoded)
     val prepHolder: LeafInfoHolder[Model, By, Field] = caster(modelCl, byClass, fieldCl)(leafInfo)
     val prepBy: By = prepHolder.check.prepare(prepHolder.byOptions)(byGeneric)
@@ -140,23 +143,30 @@ case class HashSearchRequestInner[Model](condition: Condition[Model])
 
 @protocol object HashSearchDepRequestProtocolBase {
 
-    @Id(0x0f37) case class N_HashSearchDepRequest(
+  trait ProtoDepCondition
+
+  @Id(0x0f37) case class N_HashSearchDepRequest(
     @Id(0x0f3e) modelName: String,
-    @Id(0x0f38) condition: Option[N_DepCondition]
-  )
+    @Id(0x0f38) condition: LazyOption[ProtoDepCondition]
+  ) extends ProtoDepCondition
 
-    case class N_DepCondition(
+  case class N_DepConditionIntersect(
+    @Id(0x0f46) condLeft: LazyOption[ProtoDepCondition],
+    @Id(0x0f47) condRight: LazyOption[ProtoDepCondition],
+  ) extends ProtoDepCondition
+
+  case class N_DepConditionUnion(
+    @Id(0x0f46) condLeft: LazyOption[ProtoDepCondition],
+    @Id(0x0f47) condRight: LazyOption[ProtoDepCondition],
+  ) extends ProtoDepCondition
+
+  case class N_DepConditionAny() extends ProtoDepCondition
+
+  case class N_DepConditionLeaf(
     @Id(0x0f3f) modelClass: String,
-    @Id(0x0f45) condType: String,
-    @Id(0x0f46) condLeft: Option[N_DepCondition],
-    @Id(0x0f47) condRight: Option[N_DepCondition],
     @Id(0x0f48) lensName: String,
-    @Id(0x0f49) by: Option[N_By]
-  )
-
-    case class N_By(
     @Id(0x0f4b) byClName: String,
-    @Id(0x0f3b) value: okio.ByteString
-  )
+    @Id(0x0f3b) value: okio.ByteString,
+  ) extends ProtoDepCondition
 
 }
