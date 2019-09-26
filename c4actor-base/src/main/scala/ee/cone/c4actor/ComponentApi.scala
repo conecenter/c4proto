@@ -6,17 +6,17 @@ import ee.cone.c4assemble.Single
 import scala.collection.immutable.Seq
 
 object ComponentRegistry {
-  def isRegistry: Component⇒Boolean = {
+  def isRegistry: Component=>Boolean = {
     val clName = classOf[ComponentRegistry].getName
-    c ⇒ c.out.exists(out ⇒ out.clName == clName)
+    c => c.out.exists(out => out.clName == clName)
   }
   def apply(app: AbstractComponents): ComponentRegistry =
     Single(Single(app.components.filter(isRegistry).distinct).create(Seq(app)))
       .asInstanceOf[ComponentRegistry]
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
     TypeKey(cl.getName,cl.getSimpleName,args.toList)
-  def provide[T<:Object](cl: Class[T], get: ()⇒Seq[T]): Component =
-    new Component(Seq(toTypeKey(cl,Nil)),Nil,_⇒get())
+  def provide[T<:Object](cl: Class[T], get: ()=>Seq[T]): Component =
+    new Component(Seq(toTypeKey(cl,Nil)),Nil,_=>get())
 }
 
 trait ComponentRegistry {

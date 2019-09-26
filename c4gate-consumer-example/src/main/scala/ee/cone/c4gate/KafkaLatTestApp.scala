@@ -33,7 +33,7 @@ class TestRootProducerImpl(rawQSender: RawQSender, toUpdate: ToUpdate) extends E
 
 class TestRootConsumerImpl(consuming: Consuming) extends Executable with LazyLogging {
   def run(): Unit = {
-    consuming.process("0" * OffsetHexSize(), consumer ⇒ iteration(consumer))
+    consuming.process("0" * OffsetHexSize(), consumer => iteration(consumer))
   }
   @tailrec private def iteration(consumer: Consumer): Unit = {
     val events = consumer.poll()

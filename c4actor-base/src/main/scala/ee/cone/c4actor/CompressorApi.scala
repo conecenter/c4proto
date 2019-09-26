@@ -19,7 +19,7 @@ trait RawCompressor extends NamedCompressing {
 }
 
 trait DeCompressorRegistry {
-  def byName: String ⇒ DeCompressor
+  def byName: String => DeCompressor
 }
 
 trait StreamCompressorFactory {

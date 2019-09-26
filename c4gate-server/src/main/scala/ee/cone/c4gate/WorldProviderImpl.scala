@@ -11,11 +11,11 @@ class WorldProviderImpl(qMessages: QMessages, execution: Execution, statefulRece
   receiverPromise: Promise[StatefulReceiver[WorldMessage]] = Promise()
 ) extends WorldProvider with Observer[RichContext] with Executable {
   def sync(localOpt: Option[Context])(implicit executionContext: ExecutionContext): Future[Context] = {
-    val offsetOpt = localOpt.map(local ⇒ ReadAfterWriteOffsetKey.of(qMessages.send(local)))
+    val offsetOpt = localOpt.map(local => ReadAfterWriteOffsetKey.of(qMessages.send(local)))
     val promise = Promise[Context]()
     for {
-      receiver ← receiverPromise.future
-      res ← {
+      receiver <- receiverPromise.future
+      res <- {
         receiver.send(new WorldConsumerMessage(promise,offsetOpt))
         promise.future
       }
@@ -25,7 +25,7 @@ class WorldProviderImpl(qMessages: QMessages, execution: Execution, statefulRece
     Await.result(receiverPromise.future, Duration.Inf).send(new WorldProviderMessage(world))
     List(this)
   }
-  def run(): Unit = execution.fatal { implicit ec ⇒
+  def run(): Unit = execution.fatal { implicit ec =>
     val receiverF = statefulReceiverFactory.create(List(new WorldProviderReceiverImpl(None,Nil)))
     receiverPromise.completeWith(receiverF)
     receiverF
@@ -34,16 +34,16 @@ class WorldProviderImpl(qMessages: QMessages, execution: Execution, statefulRece
 
 class WorldProviderReceiverImpl(localOpt: Option[Context], waitList: List[WorldConsumerMessage]) extends Observer[WorldMessage] {
   def activate(message: WorldMessage): immutable.Seq[Observer[WorldMessage]] = message match {
-    case incoming: WorldProviderMessage ⇒
+    case incoming: WorldProviderMessage =>
       val global = incoming.global
-      val(toHold,toResolve) = waitList.partition(sm⇒sm.offsetOpt.exists(global.offset < _))
+      val(toHold,toResolve) = waitList.partition(sm=>sm.offsetOpt.exists(global.offset < _))
       val local = new Context(global.injected, global.assembled, global.executionContext, Map.empty)
       toResolve.foreach(_.promise.success(local))
       List(new WorldProviderReceiverImpl(Option(local), toHold))
-    case incoming: WorldConsumerMessage if incoming.offsetOpt.isEmpty && localOpt.nonEmpty ⇒
+    case incoming: WorldConsumerMessage if incoming.offsetOpt.isEmpty && localOpt.nonEmpty =>
       incoming.promise.success(localOpt.get)
       List(this)
-    case incoming: WorldConsumerMessage ⇒
+    case incoming: WorldConsumerMessage =>
       List(new WorldProviderReceiverImpl(localOpt, incoming :: waitList))
   }
 }

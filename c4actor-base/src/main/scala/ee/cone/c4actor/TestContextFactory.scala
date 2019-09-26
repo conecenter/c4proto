@@ -17,7 +17,7 @@ class ContextFactory(reducer: RichRawWorldReducer, toUpdate: ToUpdate) {
 
 /*
 object NoSnapshotMaker extends SnapshotMaker {
-  def make(task: SnapshotTask): () ⇒ List[RawSnapshot] = throw new Exception
+  def make(task: SnapshotTask): () => List[RawSnapshot] = throw new Exception
 }
 
 object NoRawSnapshotLoader extends RawSnapshotLoader {

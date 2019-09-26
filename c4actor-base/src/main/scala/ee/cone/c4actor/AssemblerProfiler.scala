@@ -49,7 +49,7 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
     if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime)
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] = transition.profiling match {
-    case SimpleSerialJoiningProfiling(startedAt) ⇒
+    case SimpleSerialJoiningProfiling(startedAt) =>
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     //val meta = transition.profiling.result.toList.flatMap(LEvent.update).map(toUpdate.toUpdate)
     val finishedAt = System.nanoTime
@@ -57,9 +57,9 @@ case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) exte
     val types = updates.map(_.valueTypeId).distinct.toList
     val id = idGenUtil.srcIdFromStrings(UUID.randomUUID.toString)
     for {
-      logAll ← transition.log
+      logAll <- transition.log
     } yield {
-      val log = logAll.collect{ case l: D_LogEntry ⇒ l }
+      val log = logAll.collect{ case l: D_LogEntry => l }
       val meta = List(
         N_TxRef(id,""),
         D_TxAddMeta(id,startedAt,finishedAt,log,updates.size,size,types)

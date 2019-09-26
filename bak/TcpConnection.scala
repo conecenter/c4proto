@@ -26,9 +26,9 @@ trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with Pr
 }
 
 class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends TcpHandler {
-  private def changeWorld(transform: Context ⇒ Context): Unit =
+  private def changeWorld(transform: Context => Context): Unit =
     worldProvider.createTx(???).map(transform)(???).foreach(qMessages.send)(???)
-  override def beforeServerStart(): Unit = changeWorld{ local ⇒
+  override def beforeServerStart(): Unit = changeWorld{ local =>
     val connections = ByPK(classOf[S_TcpConnection]).of(local).values.toList
     TxAdd(connections.flatMap(LEvent.delete))(local)
   }
@@ -45,8 +45,8 @@ case class TcpConnectionTxTransform(
 ) extends TxTransform {
   def transform(local: Context): Context = {
     def sender = GetSenderKey.of(local)(connectionKey)
-    for(d ← tcpDisconnects; s ← sender) s.close()
-    for(message ← writes; s ← sender) s.add(message.body.toByteArray)
+    for(d <- tcpDisconnects; s <- sender) s.close()
+    for(message <- writes; s <- sender) s.add(message.body.toByteArray)
     TxAdd(writes.flatMap(LEvent.delete))(local)
   }
 }
@@ -55,7 +55,7 @@ case class TcpConnectionTxTransform(
   type ConnectionKey = SrcId
 
   def joinTcpWrite(key: SrcId, write: Each[S_TcpWrite]): Values[(ConnectionKey, S_TcpWrite)] =
-    List(write.connectionKey→write)
+    List(write.connectionKey->write)
 
   def joinTxTransform(
       key: SrcId,

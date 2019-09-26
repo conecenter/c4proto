@@ -14,7 +14,7 @@ class ChangingIndexPerformanceTest(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run(): Unit = {
-    // val updates: List[QProtocol.N_Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    // val updates: List[QProtocol.N_Update] = worldUpdate.map(rec => toUpdate.toUpdate(rec)).toList
     val local: Context = contextFactory.updated(Nil)
     //val nGlobal: Context = ReadModelAddKey.of(context)(updates)(context)
     val neededSrcId = "123"
@@ -41,9 +41,9 @@ class SandboxProject extends TestVMRichDataApp
 }
 /*
 object ValueAssembleProfiler extends AssembleProfiler {
-  def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
+  def get(ruleName: String): String => Int => Unit = startAction => {
     val startTime = System.currentTimeMillis
-    finalCount ⇒ {
+    finalCount => {
       val period = System.currentTimeMillis - startTime
       println(s"assembling by ${Thread.currentThread.getName} rule $ruleName $startAction $finalCount items in $period ms")
     }

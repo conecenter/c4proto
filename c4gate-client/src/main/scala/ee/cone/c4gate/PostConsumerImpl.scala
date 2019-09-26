@@ -17,7 +17,7 @@ import ee.cone.c4gate.AlienProtocol.E_HttpConsumer
     List(WithPK(E_HttpConsumer(s"$actorName/${c.condition}", actorName, c.condition)))
 
   override def subAssembles: List[Assemble] = List(syncTxFactory.create[E_HttpConsumer](
-    classOf[E_HttpConsumer], c ⇒ c.consumer == actorName, _ ⇒ "PostConsumerSync",
-    (key,tasks)⇒SimpleTxTransform(key,tasks.flatMap(_.events))
+    classOf[E_HttpConsumer], c => c.consumer == actorName, _ => "PostConsumerSync",
+    (key,tasks)=>SimpleTxTransform(key,tasks.flatMap(_.events))
   )) ::: super.subAssembles
 }

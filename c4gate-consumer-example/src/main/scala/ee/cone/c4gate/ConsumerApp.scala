@@ -62,9 +62,9 @@ curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
 
 /*
   def joinAllTcpConnections(key: SrcId, items: Values[S_TcpConnection]): Values[(Unit, S_TcpConnection)] =
-    items.map(()→_)
+    items.map(()->_)
   def joinGateTester(key: Unit, connections: Values[S_TcpConnection]): Values[(SrcId, TxTransform)] =
-    List("GateTester"→GateTester(connections))*/
+    List("GateTester"->GateTester(connections))*/
 }
 
 case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
@@ -81,7 +81,7 @@ case class TestHttpHandler(srcId: SrcId, req: S_HttpRequest)(catchNonFatal: Catc
     )
     logger.info(s"$resp")
     TxAdd(delete(req) ++ resp.flatMap(update))(local)
-  }("test"){ e ⇒
+  }("test"){ e =>
     TxAdd(delete(req))(local)
   }
 }
@@ -96,7 +96,7 @@ case class GateTester(connections: Values[S_TcpConnection]) extends TxTransform 
     val size = s"${connections.size}\n"
     val sizeBody = okio.ByteString.encodeUtf8(size)
     println(size)
-    val broadEvents = connections.flatMap { connection ⇒
+    val broadEvents = connections.flatMap { connection =>
       val key = UUID.randomUUID.toString
       update(S_TcpWrite(key, connection.connectionKey, sizeBody, seconds))
     }

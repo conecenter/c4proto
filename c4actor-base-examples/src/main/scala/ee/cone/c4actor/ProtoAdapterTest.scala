@@ -28,10 +28,10 @@ class ProtoAdapterTest(
     //
     val lEvents = LEvent.update(group0)
     val updates = lEvents.map(toUpdate.toUpdate)
-    val group1 = updates.map(update ⇒
+    val group1 = updates.map(update =>
       qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
     ) match {
-      case Seq(g:D_Group) ⇒ g
+      case Seq(g:D_Group) => g
     }
     assert(group0==group1)
     logger.info(s"OK $group1")

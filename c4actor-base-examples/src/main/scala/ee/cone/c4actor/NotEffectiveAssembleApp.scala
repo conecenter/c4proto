@@ -8,7 +8,7 @@ import ee.cone.c4actor.PCProtocol.{D_RawChildNode, D_RawParentNode}
 
 
 object Measure {
-  def apply(f: ()⇒Unit): Option[Long] = {
+  def apply(f: ()=>Unit): Option[Long] = {
     val start = System.currentTimeMillis
     f()
     Option(System.currentTimeMillis-start)
@@ -18,16 +18,16 @@ object Measure {
 object NotEffectiveAssemblerTest extends App with LazyLogging {
   val app = new AssemblerTestApp
   val nodes = List(D_RawParentNode("0","P-1")) ++
-    (1 to 10000).map(_.toString).map(srcId⇒D_RawChildNode(srcId,"0",s"C-$srcId"))
+    (1 to 10000).map(_.toString).map(srcId=>D_RawChildNode(srcId,"0",s"C-$srcId"))
   val local = app.contextFactory.updated(Nil)
 
-  Measure { () ⇒
+  Measure { () =>
     chain(nodes.map(update).map(TxAdd(_)))(local)
-  }.foreach(t⇒logger.info(s"bad join with many add-s takes $t ms"))
+  }.foreach(t=>logger.info(s"bad join with many add-s takes $t ms"))
 
-  Measure { () ⇒
+  Measure { () =>
     chain(List(TxAdd(nodes.flatMap(update))))(local)
-  }.foreach(t⇒logger.info(s"bad join with single add takes $t ms"))
+  }.foreach(t=>logger.info(s"bad join with single add takes $t ms"))
 }
 
 /*
@@ -37,47 +37,47 @@ import scala.collection.immutable.TreeMap
   val range = (0 to 5000000).reverse //Seq(1,2,3,4,5)
 
   val s: Seq[Int] = range.toArray.toSeq
-  Measure { () ⇒
+  Measure { () =>
     var res = 0
-    orange.foreach { _ ⇒
-      s.foreach{ case(k) ⇒
+    orange.foreach { _ =>
+      s.foreach{ case(k) =>
         res += k
       }
     }
     println(res)
-  }.foreach(t⇒println(s"$t"))
+  }.foreach(t=>println(s"$t"))
 
 
   val l = range.toList
-  Measure { () ⇒
+  Measure { () =>
     var res = 0
-    orange.foreach { _ ⇒
-      l.foreach { k ⇒
+    orange.foreach { _ =>
+      l.foreach { k =>
         res += k
       }
     }
     println(res)
-  }.foreach(t⇒println(s"$t"))
+  }.foreach(t=>println(s"$t"))
 
 
 
-  val m: TreeMap[Int, Int] = (TreeMap.empty[Int,Int] /: range)((m,i)⇒m + (i→1))
-  Measure { () ⇒
+  val m: TreeMap[Int, Int] = (TreeMap.empty[Int,Int] /: range)((m,i)=>m + (i->1))
+  Measure { () =>
     var res = 0
-    orange.foreach { _ ⇒
-      m.foreach { case (k, v) ⇒
+    orange.foreach { _ =>
+      m.foreach { case (k, v) =>
         res += k
       }
     }
     println(res)
-  }.foreach(t⇒println(s"$t"))
+  }.foreach(t=>println(s"$t"))
 
 
   val a = range.toArray
-  Measure { () ⇒
+  Measure { () =>
 
     var res = 0
-    orange.foreach { _ ⇒
+    orange.foreach { _ =>
       var i = 0
       while(i < a.length) {
         res += a(i)
@@ -85,15 +85,15 @@ import scala.collection.immutable.TreeMap
       }
     }
     println(res)
-  }.foreach(t⇒println(s"$t"))
+  }.foreach(t=>println(s"$t"))
 
 
 */
 
 /*
           def getId(e: R) = e.product Element(0) match {
-            case s: String ⇒ s
-            case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
+            case s: String => s
+            case _ => throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
           }
           val toAddB = new collection.mutable.ArrayBuffer[R]
           val toDelB = new collection.mutable.ArrayBuffer[R]
@@ -131,8 +131,8 @@ import scala.collection.immutable.TreeMap
 
 /*
 def getId(e: R) = e.product Element(0) match {
-  case s: String ⇒ s
-  case _ ⇒ throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
+  case s: String => s
+  case _ => throw new Exception(s"1st field of ${e.getClass.getName} should be primary key")
 }
 def fill(node: R, count: Int) = List.fill(Math.abs(count))(node)
 @tailrec def merge(a: List[R], b: List[R], t: List[R]): List[R] = {

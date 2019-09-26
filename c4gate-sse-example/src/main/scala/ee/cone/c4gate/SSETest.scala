@@ -42,15 +42,15 @@ class TestSSEApp extends ServerApp
 }
 
 case class TestSSEHandler(branchKey: SrcId, task: BranchTask) extends BranchHandler with LazyLogging {
-  def exchange: BranchMessage ⇒ Context ⇒ Context = message ⇒ local ⇒ {
+  def exchange: BranchMessage => Context => Context = message => local => {
     val now = Instant.now
     val (keepTo,freshTo) = task.sending(local)
     val send = chain(List(keepTo,freshTo).flatten.map(_("show",s"${now.getEpochSecond}")))
     logger.info(s"TestSSEHandler $keepTo $freshTo")
-    ByPK(classOf[U_FromAlienStatus]).of(local).values.foreach{ status ⇒
+    ByPK(classOf[U_FromAlienStatus]).of(local).values.foreach{ status =>
       logger.info(s"${status.isOnline} ... ${status.expirationSecond - now.getEpochSecond}")
     }
     SleepUntilKey.set(now.plusSeconds(1)).andThen(send)(local)
   }
-  def seeds: Context ⇒ List[BranchProtocol.S_BranchResult] = _ ⇒ Nil
+  def seeds: Context => List[BranchProtocol.S_BranchResult] = _ => Nil
 }

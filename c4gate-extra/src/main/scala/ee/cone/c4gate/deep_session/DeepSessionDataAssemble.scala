@@ -23,7 +23,7 @@ object DeepSessionDataAssembles {
     srcId: SrcId,
     rawData: Each[U_RawUserData]
   ): Values[(UserId, U_RawUserData)] =
-    List(rawData.userId → rawData)
+    List(rawData.userId -> rawData)
 
   def ModelWithRawUserDataLife(
     modelId: SrcId,
@@ -39,7 +39,7 @@ object DeepSessionDataAssembles {
   def RawRoleDataByRoleId(
     srcId: SrcId,
     rawData: Each[U_RawRoleData]
-  ): Values[(RoleId, U_RawRoleData)] = List(rawData.roleId → rawData)
+  ): Values[(RoleId, U_RawRoleData)] = List(rawData.roleId -> rawData)
 
   def ModelWithRawRoleDataLife(
     modelId: SrcId,

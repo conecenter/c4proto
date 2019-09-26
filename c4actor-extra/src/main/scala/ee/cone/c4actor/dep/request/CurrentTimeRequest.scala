@@ -37,13 +37,13 @@ case class CurrentTimeTransform(srcId: SrcId, refreshRateSeconds: Long) extends 
     val nowMilli = now.toEpochMilli
     val prev = ByPK(classOf[S_CurrentTimeNode]).of(newLocal).get(srcId)
     prev match {
-      case Some(currentTimeNode) if currentTimeNode.currentTimeMilli + getOffset < nowMilli ⇒
+      case Some(currentTimeNode) if currentTimeNode.currentTimeMilli + getOffset < nowMilli =>
         val nowSeconds = now.getEpochSecond
         TxAdd(LEvent.update(currentTimeNode.copy(currentTimeSeconds = nowSeconds, currentTimeMilli = nowMilli)))(newLocal)
-      case None ⇒
+      case None =>
         val nowSeconds = now.getEpochSecond
         TxAdd(LEvent.update(S_CurrentTimeNode(srcId, nowSeconds, nowMilli)))(newLocal)
-      case _ ⇒ l
+      case _ => l
     }
   }
 }
@@ -74,7 +74,7 @@ trait CurrentTimeAssembleMix extends CurrentTimeConfigApp with AssemblesApp with
   override def protocols: List[Protocol] = CurrentTimeProtocol :: super.protocols
 
   override def assembles: List[Assemble] = {
-    val grouped = currentTimeConfig.distinct.groupBy(_.srcId).filter(kv ⇒ kv._2.size > 1)
+    val grouped = currentTimeConfig.distinct.groupBy(_.srcId).filter(kv => kv._2.size > 1)
     assert(grouped.isEmpty, s"Duplicate keys ${grouped.keySet}")
     new CurrentTimeAssemble(currentTimeConfig.distinct) :: super.assembles
   }
@@ -119,8 +119,8 @@ object CurrentTimeRequestAssembleTimeId {
     rq: Each[DepInnerRequest]
   ): Values[(CTRATimeId, DepInnerRequest)] =
     rq.request match {
-      case _: N_CurrentTimeRequest ⇒ (CurrentTimeRequestAssembleTimeId.id → rq) :: Nil
-      case _ ⇒ Nil
+      case _: N_CurrentTimeRequest => (CurrentTimeRequestAssembleTimeId.id -> rq) :: Nil
+      case _ => Nil
     }
 
   def TimeToDepResponse(

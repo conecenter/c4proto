@@ -20,8 +20,8 @@ case class LZ4DeCompressor() extends DeCompressor {
   }
 
   def deCompress(data: ByteString): ByteString =
-    FinallyClose(new Buffer) { buffer ⇒
-      FinallyClose(new LZ4BlockInputStream(new Buffer().write(data).inputStream())) { lz41 ⇒
+    FinallyClose(new Buffer) { buffer =>
+      FinallyClose(new LZ4BlockInputStream(new Buffer().write(data).inputStream())) { lz41 =>
         readAgain(lz41, buffer)
       }
       buffer.readByteString()
@@ -32,8 +32,8 @@ case class LZ4DeCompressor() extends DeCompressor {
 case class LZ4RawCompressor() extends RawCompressor {
   def name: String = "lz4"
   def compress(data: Array[Byte]): Array[Byte] =
-    FinallyClose(new Buffer) { buffer ⇒
-      FinallyClose(new LZ4BlockOutputStream(buffer.outputStream(), 32000000)) { lz41 ⇒
+    FinallyClose(new Buffer) { buffer =>
+      FinallyClose(new LZ4BlockOutputStream(buffer.outputStream(), 32000000)) { lz41 =>
         lz41.write(data)
       }
       buffer.readByteArray()
@@ -43,8 +43,8 @@ case class LZ4RawCompressor() extends RawCompressor {
 case class LZ4Compressor() extends Compressor {
   def name: String = "lz4"
   def compress(data: ByteString): ByteString =
-    FinallyClose(new Buffer) { buffer ⇒
-      FinallyClose(new LZ4BlockOutputStream(buffer.outputStream(), 32000000)) { lz41 ⇒
+    FinallyClose(new Buffer) { buffer =>
+      FinallyClose(new LZ4BlockOutputStream(buffer.outputStream(), 32000000)) { lz41 =>
         lz41.write(data.toByteArray)
       }
       buffer.readByteString()

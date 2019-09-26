@@ -11,11 +11,11 @@ import scala.util.control.NonFatal
 import scala.util.{Success, Try}
 
 class TxTransforms(qMessages: QMessages, warnPeriod: Long, catchNonFatal: CatchNonFatal) extends LazyLogging {
-  def get(global: RichContext): Map[SrcId,TransientMap⇒TransientMap] =
-    ByPK(classOf[TxTransform]).of(global).keys.map(k⇒k→handle(global,k)).toMap
-  private def handle(global: RichContext, key: SrcId): TransientMap⇒TransientMap = {
+  def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap] =
+    ByPK(classOf[TxTransform]).of(global).keys.map(k=>k->handle(global,k)).toMap
+  private def handle(global: RichContext, key: SrcId): TransientMap=>TransientMap = {
     val enqueueTimer = NanoTimer()
-    prev ⇒
+    prev =>
     val startLatency = enqueueTimer.ms
     if(startLatency > 200)
       logger.debug(s"tx $key start latency $startLatency ms")
@@ -24,8 +24,8 @@ class TxTransforms(qMessages: QMessages, warnPeriod: Long, catchNonFatal: CatchN
       Instant.now.isBefore(InnerSleepUntilKey.of(prev))
     ) prev else catchNonFatal {
         ByPK(classOf[TxTransform]).of(global).get(key) match {
-          case None ⇒ prev
-          case Some(tr) ⇒
+          case None => prev
+          case Some(tr) =>
             val workTimer = NanoTimer()
             val prepLocal = new Context(global.injected, global.assembled, global.executionContext, prev)
             val transformedLocal = TxTransformOrigMeta(tr.getClass.getName).andThen(tr.transform)(prepLocal)
@@ -36,11 +36,11 @@ class TxTransforms(qMessages: QMessages, warnPeriod: Long, catchNonFatal: CatchN
               logger.warn(s"tx ${tr.getClass.getName} $key worked for $period ms (transform $transformPeriod ms)")
             nextLocal.transient
         }
-    }(s"Tx failed [$key][${Thread.currentThread.getName}]"){ e ⇒
+    }(s"Tx failed [$key][${Thread.currentThread.getName}]"){ e =>
         val was = InnerErrorKey.of(prev)
         val exception = e match {
-          case e: Exception ⇒ e
-          case err ⇒ new Exception(err)
+          case e: Exception => e
+          case err => new Exception(err)
         }
         Function.chain(List(
           InnerErrorKey.set(exception :: was),
@@ -56,17 +56,17 @@ case object InnerSleepUntilKey extends InnerTransientLens(SleepUntilKey)
 case object InnerReadAfterWriteOffsetKey extends InnerTransientLens(ReadAfterWriteOffsetKey)
 
 abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends AbstractLens[TransientMap,Item] with Product {
-  def of: TransientMap ⇒ Item =
-    m ⇒ m.getOrElse(key, key.default).asInstanceOf[Item]
-  def set: Item ⇒ TransientMap⇒TransientMap =
-    value ⇒ m ⇒ m + (key → value.asInstanceOf[Object])
+  def of: TransientMap => Item =
+    m => m.getOrElse(key, key.default).asInstanceOf[Item]
+  def set: Item => TransientMap=>TransientMap =
+    value => m => m + (key -> value.asInstanceOf[Object])
 }
 
 class SerialObserver(localStates: Map[SrcId,TransientMap])(
   transforms: TxTransforms
 ) extends Observer[RichContext] {
   def activate(global: RichContext): Seq[Observer[RichContext]] = {
-    val nLocalStates = transforms.get(global).transform{ case(key,handle) ⇒
+    val nLocalStates = transforms.get(global).transform{ case(key,handle) =>
       handle(localStates.getOrElse(key,Map.empty))
     }
     List(new SerialObserver(nLocalStates)(transforms))
@@ -82,15 +82,15 @@ class ParallelObserver(
 ) extends Observer[RichContext] with LazyLogging {
   private def empty: SkippingFuture[TransientMap] = execution.skippingFuture(Map.empty)
   def activate(global: RichContext): Seq[Observer[RichContext]] = {
-    val inProgressMap = localStates.filter{ case(k,v) ⇒
+    val inProgressMap = localStates.filter{ case(k,v) =>
       v.value match {
-        case None ⇒ true // inProgress
-        case Some(Success(transient)) ⇒
+        case None => true // inProgress
+        case Some(Success(transient)) =>
           global.offset < InnerReadAfterWriteOffsetKey.of(transient)
-        case a ⇒ throw new Exception(s"$a")
+        case a => throw new Exception(s"$a")
       }
     }
-    val toAdd = transforms.get(global).transform{ case(key,handle) ⇒
+    val toAdd = transforms.get(global).transform{ case(key,handle) =>
       localStates.getOrElse(key,empty).map(handle)
     }
     val nLocalStates = inProgressMap ++ toAdd

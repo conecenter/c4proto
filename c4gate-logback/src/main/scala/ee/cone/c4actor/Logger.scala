@@ -21,7 +21,7 @@ trait BasicLoggingApp extends ToStartApp {
     new LoggerConfigurator(logbackIncludePaths, catchNonFatal, 5000)
   private lazy val logbackTest = new LoggerTest
   override def toStart: List[Executable] =
-      Option(System.getenv("C4LOGBACK_TEST")).toList.map(_⇒logbackTest) :::
+      Option(System.getenv("C4LOGBACK_TEST")).toList.map(_=>logbackTest) :::
       logbackConfigurator ::
       super.toStart
 }
@@ -43,7 +43,7 @@ class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPe
       s"""
       <configuration>
         <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
-        ${paths.map(path⇒if(Files.exists(path)) new String(Files.readAllBytes(path), UTF_8) else "").mkString}
+        ${paths.map(path=>if(Files.exists(path)) new String(Files.readAllBytes(path), UTF_8) else "").mkString}
         <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
           <encoder><pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern></encoder>
         </appender>
@@ -70,5 +70,5 @@ class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPe
     context.reset()
     configurator.doConfigure(new ByteArrayInputStream(content.getBytes(UTF_8)))
     println("logback reconfigure 2 ok")
-  }("reconfigure"){ e ⇒ () }
+  }("reconfigure"){ e => () }
 }

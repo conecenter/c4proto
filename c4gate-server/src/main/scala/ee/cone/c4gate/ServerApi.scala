@@ -10,11 +10,11 @@ import scala.concurrent.{ExecutionContext, Future}
 
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
-  def close()
+  def close(): Unit
   def compressor: Option[Compressor]
 }
 
-case object GetSenderKey extends SharedComponentKey[String⇒Option[SenderToAgent]]
+case object GetSenderKey extends SharedComponentKey[String=>Option[SenderToAgent]]
 
 trait TcpHandler {
   def beforeServerStart(): Unit
@@ -43,7 +43,7 @@ trait FHttpHandler {
 }
 
 trait RHttpResponseFactory {
-  def directResponse(request: S_HttpRequest, patch: S_HttpResponse⇒S_HttpResponse): RHttpResponse
+  def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse
 }
 
 trait WorldProvider {

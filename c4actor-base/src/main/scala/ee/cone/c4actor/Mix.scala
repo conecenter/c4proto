@@ -11,7 +11,7 @@ trait DataDependenciesApp {
 }
 
 trait ToStartApp extends ComponentsApp {
-  private lazy val executableComponent = ComponentRegistry.provide(classOf[Executable],()⇒toStart)
+  private lazy val executableComponent = ComponentRegistry.provide(classOf[Executable],()=>toStart)
   override def components: List[Component] = executableComponent :: super.components
   def toStart: List[Executable] = Nil
 }
@@ -58,7 +58,7 @@ trait ServerApp extends ServerAutoApp with RichDataApp with ExecutableApp with I
   //
   def longTxWarnPeriod: Long = Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong)
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
-  lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()⇒rawQSender)
+  lazy val qMessages: QMessages = new QMessagesImpl(toUpdate, ()=>rawQSender)
   lazy val txTransforms: TxTransforms = new TxTransforms(qMessages, longTxWarnPeriod, catchNonFatal)
   private lazy val progressObserverFactory: ProgressObserverFactory =
     new ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObservers, new CompletingRawObserver(execution))))
@@ -131,7 +131,7 @@ trait RichDataApp extends RichDataAutoApp
   private lazy val localQAdapterRegistryInit: ToInject = new LocalQAdapterRegistryInit(qAdapterRegistry)
   private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
   private lazy val assemblerInit: ToInject =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()⇒dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, longAssembleWarnPeriod, catchNonFatal)()
+    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()=>dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, longAssembleWarnPeriod, catchNonFatal)()
   private def longAssembleWarnPeriod: Long = Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
   private lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn,0L)
   def parallelAssembleOn: Boolean = false

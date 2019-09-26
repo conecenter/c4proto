@@ -10,18 +10,18 @@ import ee.cone.c4proto.{Id, Protocol, protocol}
 
 case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
-  def prepare: List[AbstractMetaAttr] ⇒ StrEq ⇒ StrEq = _ ⇒ identity[StrEq]
-  def check: StrEq ⇒ String ⇒ Boolean = by ⇒ value ⇒ value == by.value
+  def prepare: List[AbstractMetaAttr] => StrEq => StrEq = _ => identity[StrEq]
+  def check: StrEq => String => Boolean = by => value => value == by.value
 
   def defaultBy: Option[StrEq => Boolean] = None
 }
 case object StrEqRanger extends Ranger[StrEq,String] {
-  def ranges: StrEq ⇒ (String ⇒ List[StrEq], PartialFunction[Product,List[StrEq]]) = {
-    case StrEq("") ⇒ (
-      value ⇒ List(StrEq(value)),
-      { case p@StrEq(v) ⇒ List(p) }
+  def ranges: StrEq => (String => List[StrEq], PartialFunction[Product,List[StrEq]]) = {
+    case StrEq("") => (
+      value => List(StrEq(value)),
+      { case p@StrEq(v) => List(p) }
     )
-    case _ ⇒ ???
+    case _ => ???
   }
 }
 object DefaultConditionChecks {
@@ -95,14 +95,14 @@ object HashSearchTestMain extends LazyLogging {
     import DefaultConditionChecks._
     val cf = modelConditionFactory.of[D_SomeModel]
     val leafs = for {
-      lens ← List(fieldA, fieldB, fieldC)
-      pattern ← request.pattern
-      value ← Option(lens.of(pattern)) if value.nonEmpty
+      lens <- List(fieldA, fieldB, fieldC)
+      pattern <- request.pattern
+      value <- Option(lens.of(pattern)) if value.nonEmpty
     } yield cf.leaf(lens, StrEq(value), Nil)
     leafs.reduce(cf.intersect)
   }
 
-  def measure[T](hint: String)(f: ()⇒T): T = {
+  def measure[T](hint: String)(f: ()=>T): T = {
     val t = System.currentTimeMillis
     val res = f()
     logger.info(s"$hint: ${System.currentTimeMillis-t}")
@@ -112,27 +112,27 @@ object HashSearchTestMain extends LazyLogging {
   def main(args: Array[String]): Unit = test()
 
 
-  def ask(modelConditionFactory: ModelConditionFactory[Unit]): D_SomeModel⇒Context⇒Unit = pattern ⇒ local ⇒ {
+  def ask(modelConditionFactory: ModelConditionFactory[Unit]): D_SomeModel=>Context=>Unit = pattern => local => {
     val request = D_SomeRequest("123",Option(pattern))
 
     logger.info(s"$request ${ByPK(classOf[D_SomeModel]).of(local).size}")
-    val res0 = measure("dumb  find models") { () ⇒
+    val res0 = measure("dumb  find models") { () =>
       val pattern = request.pattern.get
       for{
-        model ← ByPK(classOf[D_SomeModel]).of(local).values if
+        model <- ByPK(classOf[D_SomeModel]).of(local).values if
           (pattern.fieldA.isEmpty || model.fieldA == pattern.fieldA) &&
           (pattern.fieldB.isEmpty || model.fieldB == pattern.fieldB) &&
           (pattern.fieldC.isEmpty || model.fieldC == pattern.fieldC)
       } yield model //).toList.sortBy(_.srcId)
     }
 
-    val res1 = measure("cond  find models") { () ⇒
+    val res1 = measure("cond  find models") { () =>
       val lenses = List(fieldA,fieldB,fieldC)
       val condition = this.condition(modelConditionFactory,request)
       ByPK(classOf[D_SomeModel]).of(local).values.filter(condition.check)
     }
 
-    val res2 = measure("index find models") { () ⇒
+    val res2 = measure("index find models") { () =>
       val local2 = TxAdd(LEvent.update(request))(local)
       Single(ByPK(classOf[SomeResponse]).of(local2).values.toList).lines
     }
@@ -143,9 +143,9 @@ object HashSearchTestMain extends LazyLogging {
     if(res.distinct.size!=1) throw new Exception(s"$res")
   }
 
-  private def fillWorld(size: Int): Context⇒Context = local ⇒ {
-    val models = for{ i ← 1 to size } yield D_SomeModel(s"$i",s"${i%7}",s"${i%59}",s"${i%541}") //
-    measure("TxAdd models"){ () ⇒
+  private def fillWorld(size: Int): Context=>Context = local => {
+    val models = for{ i <- 1 to size } yield D_SomeModel(s"$i",s"${i%7}",s"${i%59}",s"${i%541}") //
+    measure("TxAdd models"){ () =>
       TxAdd(models.flatMap(LEvent.update))(local)
     }
   }
@@ -159,9 +159,9 @@ object HashSearchTestMain extends LazyLogging {
       fillWorld(1000000)(voidContext)
     )
     for {
-      i ← 1 to 2
-      local ← contexts
-      pattern ← List(
+      i <- 1 to 2
+      local <- contexts
+      pattern <- List(
         D_SomeModel("","1","2","3"),
         D_SomeModel("","1","2",""),
         D_SomeModel("","1","","3"),
@@ -176,11 +176,11 @@ object HashSearchTestMain extends LazyLogging {
 
 
 /*
-    local2.assembled.foreach{ case (k,v) ⇒
+    local2.assembled.foreach{ case (k,v) =>
       logger.info(s"$k")
       logger.info(v match {
-        case m: Map[_,_] ⇒ s"${m.size} ${m.values.collect{ case s: Seq[_] ⇒ s.size }.sum}"
-        case _ ⇒ "???"
+        case m: Map[_,_] => s"${m.size} ${m.values.collect{ case s: Seq[_] => s.size }.sum}"
+        case _ => "???"
       })
     }
 */

@@ -5,7 +5,7 @@ import ee.cone.c4actor.dep.DepTypes.DepRequest
 import ee.cone.c4actor.dep.request.ContextIdRequestProtocol.{N_ContextIdRequest, N_MockRoleRequest, N_RoleIdRequest, N_UserIdRequest}
 import ee.cone.c4actor.dep_impl.DepResponseFiltersApp
 
-case class DepResponseForwardFilterImpl(parentCl: Option[Class[_ <: DepRequest]], childCl: Class[_ <: DepRequest])(val filter: DepResponse ⇒ Option[DepResponse]) extends DepResponseForwardFilter
+case class DepResponseForwardFilterImpl(parentCl: Option[Class[_ <: DepRequest]], childCl: Class[_ <: DepRequest])(val filter: DepResponse => Option[DepResponse]) extends DepResponseForwardFilter
 
 case class DepResponseFilterFactoryImpl() extends DepResponseFilterFactory {
   def withParent(parentCl: Class[_ <: DepRequest], childCl: Class[_ <: DepRequest]): (DepResponse => Option[DepResponse]) => DepResponseForwardFilter =
@@ -31,14 +31,14 @@ trait DepCommonResponseForward {
 
 case class DepCommonResponseForwardImpl(factory: DepResponseFilterFactory) extends DepCommonResponseForward {
   def forwardSessionIds(request: Class[_ <: DepRequest]): DepResponseForwardFilter = {
-    factory.withChild(request)(resp ⇒ resp.innerRequest.request match {
-      case _: N_ContextIdRequest | _: N_RoleIdRequest | _: N_UserIdRequest | _: N_MockRoleRequest ⇒ Some(resp)
-      case _ ⇒ None
+    factory.withChild(request)(resp => resp.innerRequest.request match {
+      case _: N_ContextIdRequest | _: N_RoleIdRequest | _: N_UserIdRequest | _: N_MockRoleRequest => Some(resp)
+      case _ => None
     }
     )
   }
 
-  def massForwardSessionIds(requests: List[Class[_ <: DepRequest]]): List[DepResponseForwardFilter] = requests.map(rq ⇒ forwardSessionIds(rq))
+  def massForwardSessionIds(requests: List[Class[_ <: DepRequest]]): List[DepResponseForwardFilter] = requests.map(rq => forwardSessionIds(rq))
 }
 
 trait DepCommonResponseForwardApp {

@@ -19,9 +19,9 @@ import okio.ByteString
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends QMessages {
+class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()=>RawQSender) extends QMessages {
   //import qAdapterRegistry._
-  // .map(o⇒ nTx.setLocal(OffsetWorldKey, o+1))
+  // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
     val updates: List[N_Update] = WriteModelKey.of(local).toList
     if(updates.isEmpty) return local
@@ -58,40 +58,40 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
   txIdPropId: Long = 0x001A,
   archiveFlag: Long = 2L
 )(
-  withFillTxId: Set[Long] = qAdapterRegistry.byId.collect{case (k, v) if v.props.exists(_.id == txIdPropId) ⇒ k}.toSet
+  withFillTxId: Set[Long] = qAdapterRegistry.byId.collect{case (k, v) if v.props.exists(_.id == txIdPropId) => k}.toSet
 ) extends ToUpdate with LazyLogging {
 
   def toUpdate[M <: Product](message: LEvent[M]): N_Update = {
     val valueAdapter = qAdapterRegistry.byName(message.className)
     message match {
-      case upd: UpdateLEvent[_] ⇒
+      case upd: UpdateLEvent[_] =>
         val byteString = ToByteString(valueAdapter.encode(upd.value))
         val txRefFlags = if (withFillTxId(valueAdapter.id)) fillTxIdFlag else 0L
         N_Update(message.srcId, valueAdapter.id, byteString, txRefFlags)
-      case _: DeleteLEvent[_] ⇒
+      case _: DeleteLEvent[_] =>
         N_Update(message.srcId, valueAdapter.id, ByteString.EMPTY, 0L)
-      case _: ArchiveLEvent[_] ⇒
+      case _: ArchiveLEvent[_] =>
         N_Update(message.srcId, valueAdapter.id, ByteString.EMPTY, archiveFlag)
     }
   }
 
   private val compressionKey = "c"
 
-  private def findCompressor: List[RawHeader] ⇒ Option[DeCompressor] = list ⇒
-    list.collectFirst { case header if header.key == compressionKey ⇒ header.value } match {
-      case Some(name) ⇒ Option(deCompressorRegistry.byName(name))
-      case None ⇒ None
+  private def findCompressor: List[RawHeader] => Option[DeCompressor] = list =>
+    list.collectFirst { case header if header.key == compressionKey => header.value } match {
+      case Some(name) => Option(deCompressorRegistry.byName(name))
+      case None => None
     }
 
-  private def makeHeaderFromName: RawCompressor ⇒ List[RawHeader] = jc ⇒
+  private def makeHeaderFromName: RawCompressor => List[RawHeader] = jc =>
     RawHeader(compressionKey, jc.name) :: Nil
 
   def toBytes(updates: List[N_Update]): (Array[Byte], List[RawHeader]) = {
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
     val updatesBytes = updatesAdapter.encode(S_Updates("", filteredUpdates))
     logger.debug("Compressing...")
-    val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize.value)
-      .fold((updatesBytes, List.empty[RawHeader]))(compressor⇒
+    val result = compressorOpt.filter(_ => updatesBytes.size >= compressionMinSize.value)
+      .fold((updatesBytes, List.empty[RawHeader]))(compressor=>
         (compressor.compress(updatesBytes), makeHeaderFromName(compressor))
       )
     logger.debug("Finished compressing...")
@@ -100,8 +100,8 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
 
   def toUpdates(events: List[RawEvent]): List[N_Update] =
     for {
-      event ← events
-      update ← {
+      event <- events
+      update <- {
         val compressorOpt = findCompressor(event.headers)
         logger.trace("Decompressing...")
         val data = compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)
@@ -119,8 +119,8 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
 
   def toUpdatesWithFlags(events: List[RawEvent]): List[N_Update] =
     for {
-      event ← events
-      update ← {
+      event <- events
+      update <- {
         val compressorOpt = findCompressor(event.headers)
         logger.trace("Decompressing...")
         val data = compressorOpt.map(_.deCompress(event.data)).getOrElse(event.data)

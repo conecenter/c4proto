@@ -21,7 +21,7 @@ class VDomHandlerFactoryImpl(
 }
 
 object VDomResolverImpl extends VDomResolver {
-  def resolve(pathStr: String): Option[VDomValue] ⇒ Option[VDomValue] = from ⇒ {
+  def resolve(pathStr: String): Option[VDomValue] => Option[VDomValue] = from => {
     val path = pathStr.split("/").toList match {
       case "" :: parts => parts
       case _ => Never()
@@ -45,11 +45,11 @@ case class VDomHandlerImpl[State](
 ) extends VDomHandler[State] {
 
   private def empty = Option(VDomState(wasNoValue,0))
-  private def init: Handler = _ ⇒ vDomStateKey.modify(_.orElse(empty))
+  private def init: Handler = _ => vDomStateKey.modify(_.orElse(empty))
 
   private def pathHeader: VDomMessage => String = _.header("x-r-vdom-path")
   //dispatches incoming message // can close / set refresh time
-  private def dispatch: Handler = exchange ⇒ state ⇒ {
+  private def dispatch: Handler = exchange => state => {
     val path = pathHeader(exchange)
     if(path.isEmpty) state else (VDomResolverImpl.resolve(path)(vDomStateKey.of(state).map(_.value)) match {
       case Some(v: Receiver[_]) => v.receive(exchange)
@@ -61,10 +61,10 @@ case class VDomHandlerImpl[State](
 
   //todo invalidate until by default
 
-  def receive: Handler = m ⇒ chain(List(init,dispatch,toAlien).map(_(m)))
+  def receive: Handler = m => chain(List(init,dispatch,toAlien).map(_(m)))
 
-  private def diffSend(prev: VDomValue, send: sender.Send): State ⇒ State =
-    state ⇒ if(send.isEmpty) state else {
+  private def diffSend(prev: VDomValue, send: sender.Send): State => State =
+    state => if(send.isEmpty) state else {
       val next = vDomStateKey.of(state).get.value
       val diffTree = diff.diff(prev, next)
       if(diffTree.isEmpty) state else {
@@ -73,7 +73,7 @@ case class VDomHandlerImpl[State](
       }
     }
 
-  private def toAlien: Handler = exchange ⇒ state ⇒ {
+  private def toAlien: Handler = exchange => state => {
     val vState = vDomStateKey.of(state).get
     val (keepTo,freshTo) = sender.sending(state)
     if(keepTo.isEmpty && freshTo.isEmpty){
@@ -83,8 +83,8 @@ case class VDomHandlerImpl[State](
       vState.value != wasNoValue &&
       vState.until > System.currentTimeMillis &&
       (exchange.header("x-r-redraw") match {
-        case "1" ⇒ false
-        case "" ⇒ pathHeader(exchange).isEmpty
+        case "1" => false
+        case "" => pathHeader(exchange).isEmpty
       }) &&
       freshTo.isEmpty
     ) state
@@ -96,59 +96,59 @@ case class VDomHandlerImpl[State](
     ))(state)
   }
 
-  private def reView: State ⇒ State = state ⇒ {
+  private def reView: State => State = state => {
     val (until,viewRes) = vDomUntil.get(view.view(state))
     val vPair = child("root", RootElement(sender.branchKey), viewRes).asInstanceOf[VPair]
     val nextDom = vPair.value
     vDomStateKey.set(Option(VDomState(nextDom, until)))(state)
   }
 /*
-  def seeds: State ⇒ List[(String,Product)] = state ⇒ {
+  def seeds: State => List[(String,Product)] = state => {
     //println(vDomStateKey.of(state).get.value.getClass)
     gatherSeeds(Nil, Nil, vDomStateKey.of(state).get.value)
   }
   private def gatherSeeds(
     acc: List[(String,Product)], path: List[String], value: VDomValue
   ): List[(String,Product)] = value match {
-    case n: MapVDomValue ⇒
-      (acc /: n.pairs)((acc,pair)⇒gatherSeeds(acc, pair.jsonKey::path, pair.value))
-    case n: SeedVDomValue ⇒ (path.reverse.map(e⇒s"/$e").mkString,n.seed) :: acc
-     //case UntilElement(until) ⇒ acc.copy(until = Math.min(until, acc.until))
-    case _ ⇒ acc
+    case n: MapVDomValue =>
+      (acc /: n.pairs)((acc,pair)=>gatherSeeds(acc, pair.jsonKey::path, pair.value))
+    case n: SeedVDomValue => (path.reverse.map(e=>s"/$e").mkString,n.seed) :: acc
+     //case UntilElement(until) => acc.copy(until = Math.min(until, acc.until))
+    case _ => acc
   }*/
   /*private def gatherSeedsValue(value: VDomValue): Product = value match {
-    case n: MapVDomValue ⇒
+    case n: MapVDomValue =>
       val subRes = gatherSeedsPairs(n.pairs,Nil)
       if(subRes.nonEmpty) GatheredSeeds(subRes) else NoSeeds
-    case n: SeedVDomValue ⇒ n.seed
-    case _ ⇒ NoSeeds
+    case n: SeedVDomValue => n.seed
+    case _ => NoSeeds
   }*/
 
   type Seeds = List[(String,Product)]
-  def seeds: State ⇒ Seeds = state ⇒
+  def seeds: State => Seeds = state =>
     gatherSeedsFinal(Nil, gatherSeedsPair("",vDomStateKey.of(state).get.value,Nil), Nil)
   @tailrec private def gatherSeedsPairs(from: List[VPair], res: Seeds): Seeds =
     if(from.isEmpty) res else gatherSeedsPairs(from.tail, gatherSeedsPair(from.head.jsonKey,from.head.value,res))
   private def gatherSeedsPair(key: String, value: VDomValue, res: Seeds ): Seeds = value match {
-    case n: MapVDomValue ⇒
+    case n: MapVDomValue =>
       val subRes = gatherSeedsPairs(n.pairs,Nil)
       if(subRes.nonEmpty) (key,GatheredSeeds(subRes)) :: res else res
-    case n: SeedVDomValue ⇒ (key,n.seed) :: res
-    case _ ⇒ res
+    case n: SeedVDomValue => (key,n.seed) :: res
+    case _ => res
   }
   private def gatherSeedsFinal(path: List[String], from: Seeds, res: Seeds): Seeds =
     if(from.isEmpty) res else {
       val (key,value) = from.head
       val subPath = key :: path
       gatherSeedsFinal(path, from.tail, value match {
-        case GatheredSeeds(pairs) ⇒ gatherSeedsFinal(subPath,pairs,res)
-        case seed ⇒ (subPath.reverse.mkString("/"),seed) :: res
+        case GatheredSeeds(pairs) => gatherSeedsFinal(subPath,pairs,res)
+        case seed => (subPath.reverse.mkString("/"),seed) :: res
       })
     }
 
 
   //val relocateCommands = if(vState.hashFromAlien==vState.hashTarget) Nil
-  //else List("relocateHash"→vState.hashTarget)
+  //else List("relocateHash"->vState.hashTarget)
 
   /*
   private lazy val PathSplit = """(.*)(/[^/]*)""".r

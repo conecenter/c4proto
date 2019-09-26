@@ -4,12 +4,13 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
 
-import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+//import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.meta._
+import scala.jdk.CollectionConverters.IterableHasAsScala
 
 object FinallyClose {
-  def apply[A<:AutoCloseable,R](o: A)(f: A⇒R): R = try f(o) finally o.close()
-  def apply[A,R](close: A⇒Unit)(o: A)(f: A⇒R): R = try f(o) finally close(o)
+  def apply[A<:AutoCloseable,R](o: A)(f: A=>R): R = try f(o) finally o.close()
+  def apply[A,R](close: A=>Unit)(o: A)(f: A=>R): R = try f(o) finally close(o)
 }
 
 object DirInfo {
@@ -34,30 +35,30 @@ object Main {
     val files = DirInfo.deepFiles(rootFromPath).filter(_.toString.endsWith(fromPostfix))
     val(wasFiles,fromFiles) = files.partition(_.getFileName.toString.startsWith(toPrefix))
     Files.createDirectories(rootCachePath)
-    val was = (for { path ← wasFiles } yield path → Files.readAllBytes(path)).toMap
+    val was = (for { path <- wasFiles } yield path -> Files.readAllBytes(path)).toMap
     val will = withIndex(for {
-      path ← fromFiles
-      toData ← Option(pathToData(path,rootCachePath)) if toData.length > 0
-    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") → toData)
-    for(path ← was.keySet -- will.toMap.keys) {
+      path <- fromFiles
+      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
+    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
+    for(path <- was.keySet -- will.toMap.keys) {
       println(s"removing $path")
       Files.delete(path)
     }
     for{
-      (path,data) ← will if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
+      (path,data) <- will if !java.util.Arrays.equals(data,was.getOrElse(path,Array.empty))
     } {
       println(s"saving $path")
       Files.write(path,data)
     }
   }
-  def withIndex: List[(Path,Array[Byte])] ⇒ List[(Path,Array[Byte])] = args ⇒ {
+  def withIndex: List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
-    val indexes = args.groupBy(_._1.getParent).toList.sortBy(_._1).flatMap{ case (parentPath,args) ⇒
-      val links: Seq[GeneratedAppLink] = args.flatMap{ case (path,data) ⇒
+    val indexes = args.groupBy(_._1.getParent).toList.sortBy(_._1).flatMap{ case (parentPath,args) =>
+      val links: Seq[GeneratedAppLink] = args.flatMap{ case (path,data) =>
         val pos = data.indexOf('\n'.toByte)
         // println((pos,path,new String(data)))
         val firstLine = new String(data,0,pos,UTF_8)
-        pattern.findAllMatchIn(firstLine).map{ mat ⇒
+        pattern.findAllMatchIn(firstLine).map{ mat =>
           val Seq(pkg,app,comp) = mat.subgroups
           GeneratedAppLink(pkg,app,comp)
         }
@@ -66,21 +67,21 @@ object Main {
         val Seq(pkg) = links.map(_.pkg).distinct
         val content =
           s"\npackage $pkg" +
-          links.groupBy(_.app).toList.map{ case (app,links) ⇒
+          links.groupBy(_.app).toList.map{ case (app,links) =>
             s"\ntrait $app extends ee.cone.c4proto.ComponentsApp {" +
             s"\n  override def components: List[ee.cone.c4proto.Component] = " +
-            links.map(c⇒ s"\n    ${c.component}.components.toList ::: ").mkString +
+            links.map(c=> s"\n    ${c.component}.components.toList ::: ").mkString +
             s"\n    super.components" +
             s"\n}"
           }.sorted.mkString
-        List(parentPath.resolve("c4gen.scala") → content.getBytes(UTF_8))
+        List(parentPath.resolve("c4gen.scala") -> content.getBytes(UTF_8))
       }
     }
     args ++ indexes
   }
-  lazy val generators: (Stat, String)⇒Seq[Generated] = {
+  lazy val generators: (Stat, String)=>Seq[Generated] = {
     val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,ComponentsGenerator,LensesGenerator)
-    (stat, fileName) ⇒ generators.flatMap(_.get.lift(stat, fileName)).flatten
+    (stat, fileName) => generators.flatMap(_.get.lift(stat, fileName)).flatten
   }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
     val fromData = Files.readAllBytes(path)
@@ -93,20 +94,20 @@ object Main {
       val source = dialects.Scala212(content).parse[Source]
       val Parsed.Success(source"..$sourceStatements") = source
       val resStatements: List[Generated] = for {
-        q"package $n { ..$packageStatements }" ← sourceStatements
+        q"package $n { ..$packageStatements }" <- sourceStatements
         generated: Seq[Generated] = for {
-          packageStatement ← packageStatements
-          generated ← generators(packageStatement, path.toString)
+          packageStatement <- packageStatements
+          generated <- generators(packageStatement, path.toString)
         } yield generated
-        patches: Seq[Patch] = generated.collect{ case p: Patch ⇒ p }
+        patches: Seq[Patch] = generated.collect{ case p: Patch => p }
         statements = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverse
-        res ← if(patches.nonEmpty) patches
+        res <- if(patches.nonEmpty) patches
         else if(statements.nonEmpty){
           val components = statements.collect{ case c: GeneratedComponent => c }.toList
           val mStatements = if(components.isEmpty) statements else {
             val Name(name) = path.toString
             statements.filterNot(_.isInstanceOf[GeneratedComponent]) ++
-            components.groupBy(_.app).toList.sortBy(_._1).flatMap{ case (app,comps) ⇒
+            components.groupBy(_.app).toList.sortBy(_._1).flatMap{ case (app,comps) =>
               List(
                 ComponentsGenerator.join(s"${name}${app}Components","",comps),
                 GeneratedAppLink(n.syntax,app,s"${name}${app}Components")
@@ -117,9 +118,9 @@ object Main {
         }
         else Nil
       } yield res
-      val patches = resStatements.collect{ case p: Patch ⇒ p }
+      val patches = resStatements.collect{ case p: Patch => p }
       if(patches.nonEmpty){
-        val patchedContent = patches.sortBy(_.pos).foldRight(content)((patch,cont)⇒
+        val patchedContent = patches.sortBy(_.pos).foldRight(content)((patch,cont)=>
           cont.substring(0,patch.pos) + patch.content + cont.substring(patch.pos)
         )
         println(s"patching $path")
@@ -128,15 +129,15 @@ object Main {
       } else {
         val warnings = Lint.process(sourceStatements)
         val code = resStatements.flatMap{
-          case c: GeneratedImport ⇒ List(c.content)
-          case c: GeneratedCode ⇒ List(c.content)
-          case c: GeneratedAppLink ⇒ Nil
-          case c ⇒ throw new Exception(s"$c")
+          case c: GeneratedImport => List(c.content)
+          case c: GeneratedCode => List(c.content)
+          case c: GeneratedAppLink => Nil
+          case c => throw new Exception(s"$c")
         }
         val content = (warnings ++ code).mkString("\n")
         val contentWithLinks = if(content.isEmpty) "" else
           s"// THIS FILE IS GENERATED; APPLINKS: " +
-          resStatements.collect{ case s: GeneratedAppLink ⇒
+          resStatements.collect{ case s: GeneratedAppLink =>
             s"(${s.pkg} ${s.app} ${s.component})"
           }.mkString +
           "\n" +
@@ -155,9 +156,9 @@ object Main {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
     val rootFromPath = rootPath.resolve("from")
     for {
-      fromPath ← DirInfo.deepFiles(rootFromPath)
+      fromPath <- DirInfo.deepFiles(rootFromPath)
       toPath = rootPath.resolve("to").resolve(rootFromPath.relativize(fromPath))
-      fromRealPath ← generate(fromPath,rootPath)
+      fromRealPath <- generate(fromPath,rootPath)
     } yield {
       Files.createDirectories(toPath.getParent)
       Files.createLink(toPath,fromRealPath)
@@ -177,14 +178,14 @@ object Main {
         val Parsed.Success(source"..$sourceStatements") = source
         Lint.process(sourceStatements)
         val packageStatements = for {
-          q"package $n { ..$packageStatements }" ← sourceStatements
-          ps ← packageStatements
+          q"package $n { ..$packageStatements }" <- sourceStatements
+          ps <- packageStatements
         } yield ps
 
 
-        //  sourceStatements.toList.flatMap{ case q"package $n { ..$packageStatements }" ⇒ packageStatements }
+        //  sourceStatements.toList.flatMap{ case q"package $n { ..$packageStatements }" => packageStatements }
 
-        val res: String = packageStatements.foldRight(content){ (stat,cont)⇒
+        val res: String = packageStatements.foldRight(content){ (stat,cont)=>
           AssembleGenerator.get
           .orElse(ProtocolGenerator.get)
           .orElse(FieldAccessGenerator.get)
@@ -199,13 +200,13 @@ object Main {
 
 object ImportGenerator extends Generator {
   def get: Get = {
-    case (q"import ..$importers", _) ⇒
+    case (q"import ..$importers", _) =>
       val nextImporters = importers.map{
-        case initialImporter@importer"$eref.{..$importeesnel}" ⇒
+        case initialImporter@importer"$eref.{..$importeesnel}" =>
           importer"$eref._" match {
-            case j@importer"ee.cone.c4assemble._" ⇒ j
-            case j@importer"ee.cone.c4proto._" ⇒ j
-            case _ ⇒ initialImporter
+            case j@importer"ee.cone.c4assemble._" => j
+            case j@importer"ee.cone.c4proto._" => j
+            case _ => initialImporter
           }
       }
       List(GeneratedImport("\n" + q"import ..$nextImporters".syntax))
@@ -214,16 +215,16 @@ object ImportGenerator extends Generator {
 
 object Util {
   /*
-  def comment(stat: Stat): String⇒String = cont ⇒
+  def comment(stat: Stat): String=>String = cont =>
     cont.substring(0,stat.pos.start) + " /* " +
       cont.substring(stat.pos.start,stat.pos.end) + " */ " +
       cont.substring(stat.pos.end)*/
 
-  def unBase(name: String, pos: Int)(f: String⇒Seq[Generated]): Seq[Generated] = {
+  def unBase(name: String, pos: Int)(f: String=>Seq[Generated]): Seq[Generated] = {
     val UnBase = """(\w+)Base""".r
     name match {
-      case UnBase(n) ⇒ f(n)
-      case n ⇒ List(Patch(pos,"Base"))
+      case UnBase(n) => f(n)
+      case n => List(Patch(pos,"Base"))
     }
   }
 }
@@ -244,22 +245,22 @@ case class GeneratedAppLink(pkg: String, app: String, component: String) extends
 
 object Lint {
   def process(stats: Seq[Stat]): Seq[String] =
-    stats.flatMap{ stat ⇒
+    stats.flatMap{ stat =>
       stat.collect{
         case q"..$mods class $tname[..$tparams] ..$ctorMods (...$paramss) extends $template"
-          if mods.collect{ case mod"abstract" ⇒ true }.nonEmpty ⇒
+          if mods.collect{ case mod"abstract" => true }.nonEmpty =>
           ("abstract class",tname,template)
-        case q"..$mods trait $tname[..$tparams] extends $template" ⇒
+        case q"..$mods trait $tname[..$tparams] extends $template" =>
           ("trait",tname,template)
       }.flatMap{
-        case (tp,tName,template"{ ..$statsA } with ..$inits { $self => ..$statsB }") ⇒
+        case (tp,tName,template"{ ..$statsA } with ..$inits { $self => ..$statsB }") =>
           if(statsA.nonEmpty) println(s"warn: early initializer in $tName")
           statsB.collect{
             case q"..$mods val ..$patsnel: $tpeopt = $expr"
-              if mods.collect{ case mod"lazy" ⇒ true }.isEmpty ⇒
+              if mods.collect{ case mod"lazy" => true }.isEmpty =>
               s"/*\nwarn: val ${patsnel.mkString(" ")} in $tp $tName \n*/"
           }
-        case _ ⇒ Nil
+        case _ => Nil
       }
     }
 }

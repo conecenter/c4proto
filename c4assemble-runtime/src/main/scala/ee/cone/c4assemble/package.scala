@@ -6,5 +6,5 @@ package object c4assemble {
   class assemble extends StaticAnnotation
   class fieldAccess extends StaticAnnotation
   class ignore extends StaticAnnotation
-  type MakeJoinKey = IndexFactory⇒JoinKey
+  type MakeJoinKey = IndexFactory=>JoinKey
 }

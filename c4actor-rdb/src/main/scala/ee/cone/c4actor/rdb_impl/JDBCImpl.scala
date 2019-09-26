@@ -15,9 +15,9 @@ class ExternalDBSyncClient(
 ) extends ToInject with Executable with ExternalDBClient {
   def toInject: List[Injectable] = WithJDBCKey.set(getConnectionPool.doWith)
   def run(): Unit = concurrent.blocking{ db.complete(dbFactory.create(
-    createConnection ⇒ new RConnectionPool {
-      def doWith[T](f: RConnection⇒T): T = {
-        FinallyClose(createConnection()) { sqlConn ⇒
+    createConnection => new RConnectionPool {
+      def doWith[T](f: RConnection=>T): T = {
+        FinallyClose(createConnection()) { sqlConn =>
           val conn = new RConnectionImpl(sqlConn)
           f(conn)
         }
@@ -30,7 +30,7 @@ class ExternalDBSyncClient(
 
 
 object FinallyFree {
-  def apply[A,T](o: A, close: A⇒Unit)(f: A⇒T): T = try f(o) finally close(o)
+  def apply[A,T](o: A, close: A=>Unit)(f: A=>T): T = try f(o) finally close(o)
 }
 
 abstract class RDBBindImpl[R] extends RDBBind[R] with LazyLogging {
@@ -63,7 +63,7 @@ class InObjectRDBBind[R](val prev: RDBBindImpl[R], value: Object) extends ArgRDB
 
 class InTextRDBBind[R](val prev: RDBBindImpl[R], value: String) extends ArgRDBBind[R] {
   def execute(stmt: CallableStatement): R = {
-    FinallyClose[java.sql.Clob,R](_.free())(connection.createClob()){ clob ⇒
+    FinallyClose[java.sql.Clob,R](_.free())(connection.createClob()){ clob =>
       clob.setString(1,value)
       stmt.setClob(index,clob)
       prev.execute(stmt)
@@ -109,8 +109,8 @@ class OutTextRDBBind(
     stmt.execute()
     FinallyClose[Option[java.sql.Clob],String](_.foreach(_.free()))(
       Option(stmt.getClob(index))
-    ){ clob ⇒
-      clob.map(c⇒c.getSubString(1,toIntExact(c.length()))).getOrElse("")
+    ){ clob =>
+      clob.map(c=>c.getSubString(1,toIntExact(c.length()))).getOrElse("")
     }
   }
 }
@@ -118,14 +118,14 @@ class OutTextRDBBind(
 class RConnectionImpl(conn: java.sql.Connection) extends RConnection with LazyLogging {
 
   private def bindObjects(stmt: java.sql.PreparedStatement, bindList: List[Object]) =
-    bindList.zipWithIndex.foreach{ case (v,i) ⇒ stmt.setObject(i+1,v) }
+    bindList.zipWithIndex.foreach{ case (v,i) => stmt.setObject(i+1,v) }
 
   def outUnit(name: String): RDBBind[Unit] = new OutUnitRDBBind(conn, name)
   def outLongOption(name: String): RDBBind[Option[Long]] = new OutLongRDBBind(conn, name)
   def outText(name: String): RDBBind[String] = new OutTextRDBBind(conn, name)
 
   def execute(code: String): Unit = concurrent.blocking {
-    FinallyClose(conn.prepareStatement(code)) { stmt ⇒
+    FinallyClose(conn.prepareStatement(code)) { stmt =>
       logger.debug(code)
       stmt.execute()
       //println(stmt.getWarnings)
@@ -137,13 +137,13 @@ class RConnectionImpl(conn: java.sql.Connection) extends RConnection with LazyLo
   ): List[Map[String,Object]] = concurrent.blocking {
     //println(s"code:: [$code]")
     //conn.prepareCall(code).re
-    FinallyClose(conn.prepareStatement(code)) { stmt ⇒
+    FinallyClose(conn.prepareStatement(code)) { stmt =>
       bindObjects(stmt, bindList)
 
-      FinallyClose(stmt.executeQuery()) { rs: ResultSet ⇒
+      FinallyClose(stmt.executeQuery()) { rs: ResultSet =>
         type Res = List[Map[String, Object]]
         @tailrec def iter(res: Res): Res =
-          if(rs.next()) iter(cols.map(cn ⇒ cn → rs.getObject(cn)).toMap :: res)
+          if(rs.next()) iter(cols.map(cn => cn -> rs.getObject(cn)).toMap :: res)
           else res.reverse
         iter(Nil)
       }

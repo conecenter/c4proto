@@ -61,16 +61,16 @@ object ProtoBuffTest extends Adapters {
     val iter = 10000
 
     val times = TimeColored("g", "single thread") {
-      for {i ← 1 to n} yield {
+      for {i <- 1 to n} yield {
         TestCode.test(iter, qAdapterRegistry)
       }
     }
     println(s"Av ${times.sum / times.length}")
 
-    val runnables = for (i ← 1 to n) yield new SerializationRunnable(i, iter, qAdapterRegistry)
+    val runnables = for (i <- 1 to n) yield new SerializationRunnable(i, iter, qAdapterRegistry)
     val pool = Executors.newFixedThreadPool(n)
     TimeColored("y", "concurrent") {
-      val lul: immutable.Seq[util.concurrent.Future[Long]] = runnables.map(run ⇒ pool.submit(run))
+      val lul: immutable.Seq[util.concurrent.Future[Long]] = runnables.map(run => pool.submit(run))
       println(s"Av2 ${lul.map(_.get()).sum / lul.length}")
       pool.shutdown()
     }
@@ -80,8 +80,8 @@ object ProtoBuffTest extends Adapters {
 object TestQAdapterRegistryFactory {
   def apply(protocols: List[Protocol]): QAdapterRegistry = {
     val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
-    val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
-    val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
+    val byName = CheckedMap(adapters.map(a => a.className -> a))
+    val byId = CheckedMap(adapters.filter(_.hasId).map(a => a.id -> a))
     new QAdapterRegistry(byName, byId)
   }
 }
@@ -95,10 +95,10 @@ class SerializationRunnable(pid: Int, number: Int, qAdapterRegistry: QAdapterReg
 
 object TestCode {
   def test(number: Int, qAdapterRegistry: QAdapterRegistry): Long = {
-    val testOrigs = for (i ← 1 to number) yield D_TestOrigForDecode(Random.nextString(10), i)
+    val testOrigs = for (i <- 1 to number) yield D_TestOrigForDecode(Random.nextString(10), i)
     val time = System.currentTimeMillis()
     val encoded: immutable.Seq[N_AnyOrig] = testOrigs.map(encode(qAdapterRegistry)(_))
-    val testOrigsss: immutable.Seq[D_TestOrig] = encoded.zipWithIndex.map { case (a, b) ⇒ D_TestOrig(b.toString, a.toString.split(",").toList, List(a)) }
+    val testOrigsss: immutable.Seq[D_TestOrig] = encoded.zipWithIndex.map { case (a, b) => D_TestOrig(b.toString, a.toString.split(",").toList, List(a)) }
     val encoded2: immutable.Seq[N_AnyOrig] = testOrigsss.map(encode(qAdapterRegistry)(_))
     val decoded: immutable.Seq[D_TestOrig] = encoded2.map(decode[D_TestOrig](qAdapterRegistry))
     if (testOrigsss != decoded)

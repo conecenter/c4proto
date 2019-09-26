@@ -19,7 +19,7 @@ class PublishingObserver(
   idGenUtil: IdGenUtil,
   fromDir: String,
   fromStrings: List[(String,String)],
-  mimeTypes: String⇒Option[String]
+  mimeTypes: String=>Option[String]
 ) extends Observer[RichContext] with LazyLogging {
   def activate(global: RichContext): Seq[Observer[RichContext]] = {
     //println("AAA")
@@ -29,7 +29,7 @@ class PublishingObserver(
     val depth = Integer.MAX_VALUE
     val options = java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS)
     Files.walkFileTree(fromPath, options, depth, visitor)
-    fromStrings.foreach{ case(path,body) ⇒
+    fromStrings.foreach{ case(path,body) =>
       publish(global)(path,body.getBytes(UTF_8))
     }
     logger.debug("publish finished")
@@ -62,7 +62,7 @@ class PublishingObserver(
 
 
 class PublishFileVisitor(
-  fromPath: Path, publish: (String,Array[Byte])⇒Unit
+  fromPath: Path, publish: (String,Array[Byte])=>Unit
 ) extends SimpleFileVisitor[Path] {
   override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
     val path = s"/${fromPath.relativize(file)}"

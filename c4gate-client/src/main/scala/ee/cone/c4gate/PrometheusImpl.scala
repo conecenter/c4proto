@@ -53,17 +53,17 @@ case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUt
     val time = System.currentTimeMillis
     val runtime = Runtime.getRuntime
     val memStats: List[(String, Long)] = List( //seems to be: max > total > free
-      "runtime_mem_max" → runtime.maxMemory,
-      "runtime_mem_total" → runtime.totalMemory,
-      "runtime_mem_free" → runtime.freeMemory
+      "runtime_mem_max" -> runtime.maxMemory,
+      "runtime_mem_total" -> runtime.totalMemory,
+      "runtime_mem_free" -> runtime.freeMemory
     )
     val keyCounts: List[(String, Long)] = readModelUtil.toMap(local.assembled).collect {
       case (worldKey:JoinKey, index: Index)
-        if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
-        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → indexUtil.keySet(index).size.toLong
+        if !worldKey.was && worldKey.keyAlias == "SrcId" =>
+        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" -> indexUtil.keySet(index).size.toLong
     }.toList
     val metrics = memStats ::: keyCounts
-    val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
+    val bodyStr = metrics.sorted.map{ case (k,v) => s"$k $v $time\n" }.mkString
     val body = compressor.compress(okio.ByteString.encodeUtf8(bodyStr))
     val headers = List(N_Header("content-encoding", compressor.name))
     Monitoring.publish(time, 15000, 5000, path, headers, body)(local)
@@ -74,7 +74,7 @@ object Monitoring {
   def publish(
     time: Long, updatePeriod: Long, timeout: Long,
     path: String, headers: List[N_Header], body: okio.ByteString
-  ): Context⇒Context = {
+  ): Context=>Context = {
     val nextTime = time + updatePeriod
     val invalidateTime = nextTime + timeout
     val publication = S_HttpPublication(path, headers, body, Option(invalidateTime))
@@ -88,7 +88,7 @@ object Monitoring {
     first: Each[S_Firstborn],
     settings: Values[C_AvailabilitySetting]
   ): Values[(SrcId,TxTransform)] = {
-    val (updatePeriod, timeout) = Single.option(settings.map(s ⇒ s.updatePeriod → s.timeout)).getOrElse((updateDef, timeoutDef))
+    val (updatePeriod, timeout) = Single.option(settings.map(s => s.updatePeriod -> s.timeout)).getOrElse((updateDef, timeoutDef))
     List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}", updatePeriod, timeout)))
   }
 }

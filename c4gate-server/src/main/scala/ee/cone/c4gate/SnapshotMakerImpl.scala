@@ -15,8 +15,9 @@ import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters.iterableAsScalaIterableConverter
+// import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.concurrent.{ExecutionContext, Future}
+import scala.jdk.CollectionConverters.IterableHasAsScala
 
 class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
   def handle(request: S_HttpRequest, local: Context): RHttpResponse =
@@ -24,7 +25,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory
       val path = request.path
       logger.debug(s"Started loading snapshot ${path.tail}")
       snapshotLoader.load(RawSnapshot(path.tail)) // path will be checked inside loader
-        .fold(next.handle(request,local))(ev⇒httpResponseFactory.directResponse(request,_.copy(body=ev.data)))
+        .fold(next.handle(request,local))(ev=>httpResponseFactory.directResponse(request,_.copy(body=ev.data)))
     } else next.handle(request,local)
 }
 
@@ -41,7 +42,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory
     key: SrcId,
     post: Each[S_HttpRequest]
   ): Values[(NeedSnapshot,S_HttpRequest)] =
-    if(post.path == SnapshotMakingUtil.url) List(actorName→post) else Nil
+    if(post.path == SnapshotMakingUtil.url) List(actorName->post) else Nil
 
   def mapFirstborn(
     key: SrcId,
@@ -55,7 +56,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory
         signatureChecker.retrieve(check=false)(signedReqUtil.signed(post.headers))
         // check=false <== no system time in joiners
       val taskOpt = task(posts.minBy(_.srcId))
-      val similarPosts = posts.toList.filter(post ⇒ task(post)==taskOpt).sortBy(_.srcId)
+      val similarPosts = posts.toList.filter(post => task(post)==taskOpt).sortBy(_.srcId)
       List(WithPK(RequestedSnapshotMakingTx(srcId, taskOpt, similarPosts)(snapshotMaking, signatureChecker, signedReqUtil)))
     }
   }
@@ -91,17 +92,17 @@ case class RequestedSnapshotMakingTx(
   import signedReqUtil._
   def transform(local: Context): Context = catchNonFatal {
     val task = taskOpt.get
-    val (authorized, nonAuthorized) = requests.partition(post ⇒
+    val (authorized, nonAuthorized) = requests.partition(post =>
       signatureChecker.retrieve(check=true)(signed(post.headers)).nonEmpty
     )
     val res = if (authorized.nonEmpty) snapshotMaking.make(task) else Nil
     val goodResp = List(N_Header("x-r-snapshot-keys", res.map(_.relativePath).mkString(",")))
-    val authorizedResponses = authorized.map(au ⇒ au → goodResp)
-    val nonAuthorizedResponses = nonAuthorized.map(nau ⇒ nau → "Non authorized request")
+    val authorizedResponses = authorized.map(au => au -> goodResp)
+    val nonAuthorizedResponses = nonAuthorized.map(nau => nau -> "Non authorized request")
     respond(authorizedResponses, nonAuthorizedResponses)(local)
-  }("make-snapshot"){ e ⇒
+  }("make-snapshot"){ e =>
     val message = e.getMessage
-    respond(Nil,requests.map(_ → message))(local)
+    respond(Nil,requests.map(_ -> message))(local)
   }
 }
 
@@ -117,23 +118,23 @@ class SnapshotMakerImpl(
   toUpdate: ToUpdate
 ) extends SnapshotMaker with LazyLogging {
 
-  private def reduce(events: List[RawEvent]): SnapshotWorld⇒SnapshotWorld = if(events.isEmpty) w⇒w else world⇒{
+  private def reduce(events: List[RawEvent]): SnapshotWorld=>SnapshotWorld = if(events.isEmpty) w=>w else world=>{
     val updates = toUpdate.toUpdates(events)
     logger.debug(s"Reduce: got updates ${updates.size}")
-    val newState = (world.state /: updates){(state,up)⇒
+    val newState = updates.foldLeft(world.state){(state,up)=>
       if(snapshotConfig.ignore(up.valueTypeId)) state
-      else if(up.value.size > 0) state + (toUpdate.toKey(up)→up)
+      else if(up.value.size > 0) state + (toUpdate.toKey(up)->up)
       else state - up
     }
     new SnapshotWorld(newState,events.last.srcId)
   }
 
-  private def load(snapshotFilter: Option[NextOffset⇒Boolean]): SnapshotWorld = {
+  private def load(snapshotFilter: Option[NextOffset=>Boolean]): SnapshotWorld = {
     val srcId = "0" * OffsetHexSize()
     val emptyRawWorld = new SnapshotWorld(Map.empty, srcId)
     (for{
-      snapshot ← snapshotLister.list.toStream if snapshotFilter.forall(_(snapshot.offset))
-      event ← snapshotLoader.load(snapshot.raw)
+      snapshot <- snapshotLister.list.toStream if snapshotFilter.forall(_(snapshot.offset))
+      event <- snapshotLoader.load(snapshot.raw)
     } yield {
       reduce(List(event))(emptyRawWorld)
     }).headOption.getOrElse(emptyRawWorld)
@@ -173,20 +174,20 @@ class SnapshotMakerImpl(
   def makeInner(task: SnapshotTask): List[RawSnapshot] = {
     logger.debug(s"Loading snapshot for $task...")
     val offsetOpt = task.offsetOpt
-    val offsetFilter: NextOffset⇒NextOffset⇒Boolean = task match {
-      case t: NextSnapshotTask ⇒ end⇒curr⇒curr<=end
-      case t: DebugSnapshotTask ⇒ end⇒curr⇒curr<end
+    val offsetFilter: NextOffset=>NextOffset=>Boolean = task match {
+      case t: NextSnapshotTask => end=>curr=>curr<=end
+      case t: DebugSnapshotTask => end=>curr=>curr<end
     }
     val initialRawWorld = load(offsetOpt.map(offsetFilter))
     logger.debug("Consuming...")
-    consuming.process(initialRawWorld.offset, consumer ⇒ {
+    consuming.process(initialRawWorld.offset, consumer => {
       @tailrec def iteration(world: SnapshotWorld, endOffset: NextOffset, skipReportUntil: Long): List[RawSnapshot] = {
         val events = consumer.poll()
-        val (lEvents, gEvents) = events.span(ev ⇒ offsetFilter(endOffset)(ev.srcId))
+        val (lEvents, gEvents) = events.span(ev => offsetFilter(endOffset)(ev.srcId))
         val nWorld = reduce(lEvents)(world)
         val nSkip = progress(skipReportUntil,nWorld.offset,endOffset)
         task match {
-          case t: NextSnapshotTask ⇒
+          case t: NextSnapshotTask =>
             if(nWorld.offset == endOffset) {
               val saved = save(nWorld)
               if(offsetOpt.nonEmpty) List(saved) else snapshotLister.list.map(_.raw)
@@ -194,7 +195,7 @@ class SnapshotMakerImpl(
               assert(gEvents.isEmpty)
               iteration(nWorld, endOffset, nSkip)
             }
-          case t: DebugSnapshotTask ⇒
+          case t: DebugSnapshotTask =>
             if(gEvents.nonEmpty){
               assert(endOffset == gEvents.head.srcId)
               List(save(nWorld), txSnapshotSaver.save(endOffset, gEvents.head.data.toByteArray, gEvents.head.headers))
@@ -206,7 +207,7 @@ class SnapshotMakerImpl(
   }
 
   def maxTime: Long =
-    snapshotLister.list.headOption.fold(0L)(s⇒rawSnapshotLoader.mTime(s.raw))
+    snapshotLister.list.headOption.fold(0L)(s=>rawSnapshotLoader.mTime(s.raw))
 }
 
 class SafeToRun(snapshotMaker: SnapshotMakerImpl) extends Executable {
@@ -230,7 +231,7 @@ trait SnapshotConfig {
 class FileSnapshotConfigImpl(dirStr: String)(
   val ignore: Set[Long] =
     Option(Paths.get(dirStr).resolve(".ignore")).filter(Files.exists(_)).toSet.flatMap{
-      (path:Path) ⇒
+      (path:Path) =>
         val content = new String(Files.readAllBytes(path), UTF_8)
         val R = """([0-9a-f]+)""".r
         R.findAllIn(content).map(java.lang.Long.parseLong(_, 16))
@@ -247,7 +248,7 @@ class FileRawSnapshotLoader(baseDirStr: String, util: SnapshotUtil) extends RawS
     val subDir = baseDir.resolve(subDirStr)
     if(!Files.exists(subDir)) Nil
     else FinallyClose(Files.newDirectoryStream(subDir))(_.asScala.toList)
-      .map(path⇒RawSnapshot(baseDir.relativize(path).toString))
+      .map(path=>RawSnapshot(baseDir.relativize(path).toString))
   }
   def list: List[SnapshotInfo] = {
     val parseName = util.hashFromName

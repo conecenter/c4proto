@@ -20,7 +20,7 @@ import scala.collection.immutable.Seq
     componentRegistry.resolve(classOf[ProtoAdapterHolder[Any]],args).value.map(_.value)
 
   def forTypes(args: Seq[TypeKey]): Seq[ArgAdapter[_]] = {
-    val simpleRes = getProtoAdapters(args).map{ protoAdapter ⇒
+    val simpleRes = getProtoAdapters(args).map{ protoAdapter =>
       val defaultValue = Single(componentRegistry.resolve(classOf[DefaultArgument[_]],args).value)
       new NoWrapArgAdapter[Any](defaultValue.value,protoAdapter)
     }
@@ -30,9 +30,9 @@ import scala.collection.immutable.Seq
     def getProtoAdapter = Single(getProtoAdapters(itemTypes))
 
     val strictRes = resolve(classOf[ArgAdapterFactory[_]],List(collectionType)).value
-      .map{ f ⇒ val a = getProtoAdapter; f.wrap(()⇒a) }
+      .map{ f => val a = getProtoAdapter; f.wrap(()=>a) }
     val lazyRes = resolve(classOf[LazyArgAdapterFactory[_]],List(collectionType)).value
-      .map{ f ⇒ lazy val a = getProtoAdapter; f.wrap(()⇒a) }
+      .map{ f => lazy val a = getProtoAdapter; f.wrap(()=>a) }
     logger.trace(s"collectionType: $collectionType, res: ${simpleRes.size} ${strictRes.size} ${lazyRes.size}")
     simpleRes ++ strictRes ++ lazyRes
   }
@@ -50,11 +50,11 @@ class NoWrapArgAdapter[Value](val defaultValue: Value, inner: ProtoAdapter[Value
 
 @c4component("ProtoAutoApp") class LazyListArgAdapterFactory extends LazyArgAdapterFactory[LazyList[_]](new ListArgAdapter(_))
 @c4component("ProtoAutoApp") class ListArgAdapterFactory extends ArgAdapterFactory[List[_]](new ListArgAdapter(_))
-class ListArgAdapter[Value](inner: ()⇒ProtoAdapter[Value]) extends ArgAdapter[List[Value]] {
+class ListArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[List[Value]] {
   def encodedSizeWithTag(tag: Int, value: List[Value]): Int =
-    value.foldLeft(0)((res,item)⇒res+inner().encodedSizeWithTag(tag,item))
+    value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
   def encodeWithTag(writer: ProtoWriter, tag: Int, value: List[Value]): Unit =
-    value.foreach(item⇒inner().encodeWithTag(writer,tag,item))
+    value.foreach(item=>inner().encodeWithTag(writer,tag,item))
   def defaultValue: List[Value] = Nil
   def decodeReduce(reader: ProtoReader, prev: List[Value]): List[Value] =
     inner().decode(reader) :: prev
@@ -63,11 +63,11 @@ class ListArgAdapter[Value](inner: ()⇒ProtoAdapter[Value]) extends ArgAdapter[
 
 @c4component("ProtoAutoApp") class LazyOptionArgAdapterFactory extends LazyArgAdapterFactory[LazyOption[_]](new OptionArgAdapter(_))
 @c4component("ProtoAutoApp") class OptionArgAdapterFactory extends ArgAdapterFactory[Option[_]](new OptionArgAdapter(_))
-class OptionArgAdapter[Value](inner: ()⇒ProtoAdapter[Value]) extends ArgAdapter[Option[Value]] {
+class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter[Option[Value]] {
   def encodedSizeWithTag(tag: Int, value: Option[Value]): Int =
-    value.foldLeft(0)((res,item)⇒res+inner().encodedSizeWithTag(tag,item))
+    value.foldLeft(0)((res,item)=>res+inner().encodedSizeWithTag(tag,item))
   def encodeWithTag(writer: ProtoWriter, tag: Int, value: Option[Value]): Unit =
-    value.foreach(item⇒inner().encodeWithTag(writer,tag,item))
+    value.foreach(item=>inner().encodeWithTag(writer,tag,item))
   def defaultValue: Option[Value] = None
   def decodeReduce(reader: ProtoReader, prev: Option[Value]): Option[Value] =
     Option(inner().decode(reader))
@@ -94,9 +94,9 @@ import com.squareup.wire.ProtoAdapter._
 
 @c4component("ProtoAutoApp") class QAdapterRegistryImpl(adapters: List[ProtoAdapter[_]])(
   val byName: Map[String, ProtoAdapter[Product] with HasId] =
-    CheckedMap(adapters.collect{ case a: HasId ⇒ a.className → a.asInstanceOf[ProtoAdapter[Product] with HasId] }),
+    CheckedMap(adapters.collect{ case a: HasId => a.className -> a.asInstanceOf[ProtoAdapter[Product] with HasId] }),
   val byId: Map[Long, ProtoAdapter[Product] with HasId] =
-    CheckedMap(adapters.collect{ case a: HasId if a.hasId ⇒ a.id → a.asInstanceOf[ProtoAdapter[Product] with HasId] })
+    CheckedMap(adapters.collect{ case a: HasId if a.hasId => a.id -> a.asInstanceOf[ProtoAdapter[Product] with HasId] })
 ) extends QAdapterRegistry
 
 class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {

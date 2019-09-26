@@ -19,7 +19,7 @@ case class ConnNodePath(path: List[D_Node])
   def nodesByParentId(
       key: SrcId,
       node: Each[D_Node]
-  ): Values[(ParentId,D_Node)] = List(node.parentId → node)
+  ): Values[(ParentId,D_Node)] = List(node.parentId -> node)
 
   def connect(
       key: SrcId,
@@ -27,15 +27,15 @@ case class ConnNodePath(path: List[D_Node])
       @by[ParentId] node: Each[D_Node]
   ): Values[(SrcId,ConnNodePath)] = {
     for {
-      path ← if(key.nonEmpty) paths else List(ConnNodePath(Nil))
+      path <- if(key.nonEmpty) paths else List(ConnNodePath(Nil))
     } yield {
       WithPK(path.copy(path=node::path.path))
     }
   }
 
   /*
-  By[ParentId,D_Node] := for(node ← Is[D_Node] if node.parentId.nonEmpty) yield node.parentId → node
-  Is[List[D_Node]]    := for(node ← Is[D_Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
+  By[ParentId,D_Node] := for(node <- Is[D_Node] if node.parentId.nonEmpty) yield node.parentId -> node
+  Is[List[D_Node]]    := for(node <- Is[D_Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
   Is[List[D_Node]]    := WithPK(Each(By[ParentId,D_Node])::Each(Was[List[D_Node]]))
   */
 }
@@ -48,7 +48,7 @@ class ConnStart(
     val recs = update(D_Node("1","")) ++
       update(D_Node("12","1")) ++ update(D_Node("13","1")) ++
       update(D_Node("124","12")) ++ update(D_Node("125","12"))
-    val updates = recs.map(rec⇒toUpdate.toUpdate(rec)).toList
+    val updates = recs.map(rec=>toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
@@ -76,7 +76,7 @@ class ConnStart(
         )
       )
     ).foreach{
-      case (k,v) ⇒ assert(k.of(nGlobal).toMap==v)
+      case (k,v) => assert(k.of(nGlobal).toMap==v)
     }*/
   }
 }

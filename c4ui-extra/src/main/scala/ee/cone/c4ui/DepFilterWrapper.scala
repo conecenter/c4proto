@@ -24,7 +24,7 @@ trait DepFilterWrapperMix extends DepFilterWrapperApp with HashSearchRangerRegis
 
   def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[DepFilterPK] = DepFilterPK("", ".*" :: Nil) :: Nil): DepFilterWrapperApi[Model] = {
     val modelCondFactoryTyped = modelConditionFactory.ofWithCl(modelCl)
-    DepFilterWrapperImpl(Nil, listName, matches)(Seq({ _ ⇒ depFactory.resolvedRequestDep(modelCondFactoryTyped.any) }), modelCl, modelCondFactoryTyped, depFactory)
+    DepFilterWrapperImpl(Nil, listName, matches)(Seq({ _ => depFactory.resolvedRequestDep(modelCondFactoryTyped.any) }), modelCl, modelCondFactoryTyped, depFactory)
   }
 }
 
@@ -48,13 +48,13 @@ case class DepFilterWrapperImpl[Model <: Product](
   listName: String,
   matches: List[DepFilterPK]
 )(
-  depConditionSeq: Seq[String ⇒ Dep[Condition[Model]]],
+  depConditionSeq: Seq[String => Dep[Condition[Model]]],
   val modelCl: Class[Model],
   modelConditionFactory: ModelConditionFactory[Model],
   depFactory: DepFactory
 ) extends DepFilterWrapperApi[Model] {
   def add[By <: Product, Field](
-    byDep: String ⇒ Dep[Option[Access[By]]],
+    byDep: String => Dep[Option[Access[By]]],
     lens: ProdLens[Model, Field],
     byOptions: List[AbstractMetaAttr] = Nil
   )(
@@ -63,9 +63,9 @@ case class DepFilterWrapperImpl[Model <: Product](
     val (sByCl, sFieldCl) = (checker.byCl, checker.fieldCl)
     val newLeafs = LeafInfoHolder(lens, byOptions, checker, modelCl, sByCl, sFieldCl) :: leafs
     import modelConditionFactory._
-    val newDep: String ⇒ Dep[Condition[Model]] = pk ⇒
+    val newDep: String => Dep[Condition[Model]] = pk =>
       for {
-        byResolved ← byDep(pk)
+        byResolved <- byDep(pk)
       } yield {
         leaf[By, Field](lens, byResolved.get.initialValue, byOptions)(checker)
       }
@@ -82,20 +82,20 @@ case class DepFilterWrapperImpl[Model <: Product](
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]] = leafs
 
-  def getFilterDep: HashSearchDepRequestFactory[_] ⇒ String ⇒ Dep[List[Model]] = factory ⇒ filterPK ⇒ {
+  def getFilterDep: HashSearchDepRequestFactory[_] => String => Dep[List[Model]] = factory => filterPK => {
     val typedFactory = factory.ofWithCl(modelCl)
     for {
-      conditions ← depFactory.parallelSeq[Condition[Model]](depConditionSeq.map(_.apply(filterPK)))
-      list ← {
+      conditions <- depFactory.parallelSeq[Condition[Model]](depConditionSeq.map(_.apply(filterPK)))
+      list <- {
         val rq = typedFactory.conditionToHashSearchRequest(conditions.reduce(modelConditionFactory.intersect))
         new RequestDep[List[Model]](rq)
       }
     } yield list
   }
 
-  def filterRequests: HashSearchDepRequestFactory[_] ⇒ List[FLRequestDef] = factory ⇒
+  def filterRequests: HashSearchDepRequestFactory[_] => List[FLRequestDef] = factory =>
     for {
-      depFilterPK ← matches
+      depFilterPK <- matches
       DepFilterPK(filtersPK, matches) = depFilterPK
       preAppliedLambda = getFilterDep(factory)
     } yield {
@@ -103,14 +103,14 @@ case class DepFilterWrapperImpl[Model <: Product](
     }
 
   def addSwitch(
-    isLeftDep: String ⇒ Dep[Boolean],
+    isLeftDep: String => Dep[Boolean],
     partLeft: DepFilterWrapperPartApi[Model],
     partRight: DepFilterWrapperPartApi[Model]
   ): DepFilterWrapperApi[Model] = {
-    val newDep: String ⇒ Dep[Condition[Model]] = pk ⇒ for {
-      isLeft ← isLeftDep(pk)
+    val newDep: String => Dep[Condition[Model]] = pk => for {
+      isLeft <- isLeftDep(pk)
       depCondition = if (isLeft) partLeft.depCondition else partRight.depCondition
-      condition ← depCondition(pk)
+      condition <- depCondition(pk)
     } yield {
       condition
     }
@@ -140,7 +140,7 @@ case class DepFilterWrapperPrePartImpl[Model <: Product](
 ) extends DepFilterWrapperPrePartApi[Model] {
   def createWith(
     leaf: LeafInfoHolder[Model, _ <: Product, _],
-    newDep: String ⇒ Dep[Condition[Model]]
+    newDep: String => Dep[Condition[Model]]
   ): DepFilterWrapperPartApi[Model] =
     DepFilterWrapperPartImpl(
       leaf :: Nil
@@ -155,7 +155,7 @@ case class DepFilterWrapperPrePartImpl[Model <: Product](
 case class DepFilterWrapperPartImpl[Model <: Product](
   leafs: List[LeafInfoHolder[Model, _ <: Product, _]]
 )(
-  val depConditionSeq: Seq[String ⇒ Dep[Condition[Model]]],
+  val depConditionSeq: Seq[String => Dep[Condition[Model]]],
   val modelCl: Class[Model],
   val modelConditionFactory: ModelConditionFactory[Model],
   depFactory: DepFactory
@@ -173,9 +173,9 @@ case class DepFilterWrapperPartImpl[Model <: Product](
       depFactory
     )
 
-  def depCondition: String ⇒ Dep[Condition[Model]] = pk ⇒
+  def depCondition: String => Dep[Condition[Model]] = pk =>
     for {
-      conditions ← depFactory.parallelSeq(depConditionSeq.map(_.apply(pk)))
+      conditions <- depFactory.parallelSeq(depConditionSeq.map(_.apply(pk)))
     } yield {
       conditions.reduce(modelConditionFactory.intersect)
     }
@@ -183,7 +183,7 @@ case class DepFilterWrapperPartImpl[Model <: Product](
 
 trait DepFilterWrapperApi[Model <: Product] {
   def add[By <: Product, Field](
-    byDep: String ⇒ Dep[Option[Access[By]]],
+    byDep: String => Dep[Option[Access[By]]],
     lens: ProdLens[Model, Field],
     byOptions: List[AbstractMetaAttr] = Nil
   )(
@@ -194,7 +194,7 @@ trait DepFilterWrapperApi[Model <: Product] {
     If true, then first is selected, otherwise second
    */
   def addSwitch(
-    isLeftDep: String ⇒ Dep[Boolean],
+    isLeftDep: String => Dep[Boolean],
     partLeft: DepFilterWrapperPartApi[Model],
     partRight: DepFilterWrapperPartApi[Model]
   ): DepFilterWrapperApi[Model]
@@ -203,7 +203,7 @@ trait DepFilterWrapperApi[Model <: Product] {
 
   def getLeafs: List[LeafInfoHolder[_ <: Product, _ <: Product, _]]
 
-  def filterRequests: HashSearchDepRequestFactory[_] ⇒ List[FLRequestDef]
+  def filterRequests: HashSearchDepRequestFactory[_] => List[FLRequestDef]
 
   def modelCl: Class[Model]
 
@@ -215,7 +215,7 @@ trait DepFilterWrapperPrePartApi[Model <: Product] extends DepFilterWrapperPartA
 trait DepFilterWrapperPartApi[Model <: Product] extends DepFilterWrapperPartAdd[Model] {
   def leafs: List[LeafInfoHolder[Model, _ <: Product, _]]
 
-  def depCondition: String ⇒ Dep[Condition[Model]]
+  def depCondition: String => Dep[Condition[Model]]
 }
 
 trait DepFilterWrapperPartAdd[Model <: Product] {
@@ -223,10 +223,10 @@ trait DepFilterWrapperPartAdd[Model <: Product] {
 
   def modelConditionFactory: ModelConditionFactory[Model]
 
-  def createWith(leaf: LeafInfoHolder[Model, _ <: Product, _], newDep: String ⇒ Dep[Condition[Model]]): DepFilterWrapperPartApi[Model]
+  def createWith(leaf: LeafInfoHolder[Model, _ <: Product, _], newDep: String => Dep[Condition[Model]]): DepFilterWrapperPartApi[Model]
 
   def add[By <: Product, Field](
-    byDep: String ⇒ Dep[Option[Access[By]]],
+    byDep: String => Dep[Option[Access[By]]],
     lens: ProdLens[Model, Field],
     byOptions: List[AbstractMetaAttr] = Nil
   )(
@@ -234,9 +234,9 @@ trait DepFilterWrapperPartAdd[Model <: Product] {
   ): DepFilterWrapperPartApi[Model] = {
     val (sByCl, sFieldCl) = (checker.byCl, checker.fieldCl)
     val newLeaf = LeafInfoHolder(lens, byOptions, checker, modelCl, sByCl, sFieldCl)
-    val newDep: String ⇒ Dep[Condition[Model]] = pk ⇒
+    val newDep: String => Dep[Condition[Model]] = pk =>
       for {
-        byResolved ← byDep(pk)
+        byResolved <- byDep(pk)
       } yield {
         modelConditionFactory.leaf[By, Field](lens, byResolved.get.initialValue, byOptions)(checker)
       }

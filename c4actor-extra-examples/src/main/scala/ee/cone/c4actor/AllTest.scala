@@ -41,7 +41,7 @@ case class AllTestRich(srcId: SrcId, twos: List[D_AllTestOrig2])
     @byEq[TestAll](All) one: Each[D_AllTestOrig]
   ): Values[(TestSrcId, D_AllTestOrig2)] =
     if (two.value > one.value)
-      List(one.srcId → two)
+      List(one.srcId -> two)
     else
       Nil
 

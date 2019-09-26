@@ -20,7 +20,7 @@ import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
 import okio.ByteString
 
-case object LastPongKey extends SharedComponentKey[String⇒Option[Instant]]
+case object LastPongKey extends SharedComponentKey[String=>Option[Instant]]
 
 class PongRegistry(val pongs: TrieMap[String,Instant] = TrieMap()) extends ToInject {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
@@ -29,7 +29,7 @@ class PongRegistry(val pongs: TrieMap[String,Instant] = TrieMap()) extends ToInj
 class PongHandler(sseConfig: SSEConfig, pongRegistry: PongRegistry, httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
   def handle(request: S_HttpRequest, local: Context): RHttpResponse =
     if(request.method == "POST" && request.path == sseConfig.pongURL) {
-      val headers = request.headers.groupBy(_.key).map{ case(k,v) ⇒ k→Single(v).value }
+      val headers = request.headers.groupBy(_.key).map{ case(k,v) => k->Single(v).value }
       val now = Instant.now
       val sessionKey = headers("x-r-session")
       val userName = ByPK(classOf[U_AuthenticatedSession]).of(local).get(sessionKey).map(_.userName)
@@ -53,7 +53,7 @@ class PongHandler(sseConfig: SSEConfig, pongRegistry: PongRegistry, httpResponse
       pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
       val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
       val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
-      httpResponseFactory.directResponse(request,a⇒a).copy(events=
+      httpResponseFactory.directResponse(request,a=>a).copy(events=
         (if(wasSession != Option(session)) LEvent.update(session) else List.empty[LEvent[Product]]).toList :::
           (if(wasStatus != Option(status)) LEvent.update(status) else List.empty[LEvent[Product]]).toList
       )
@@ -108,17 +108,17 @@ case class SessionTxTransform( //?todo session/pongs purge
       else if(status.isOnline) TxAdd(LEvent.update(status.copy(isOnline = false)))(local)
       else local
     }
-    else sender.map( sender ⇒
-      ((local:Context) ⇒
+    else sender.map( sender =>
+      ((local:Context) =>
         if(SECONDS.between(SSEPingTimeKey.of(local), now) < 1) local
         else {
           SSEMessage.message(sender, "ping", fromAlien.connectionKey)
-          val availabilityAge = availability.map(a ⇒ a.until - now.toEpochMilli).mkString
+          val availabilityAge = availability.map(a => a.until - now.toEpochMilli).mkString
           SSEMessage.message(sender, "availability", availabilityAge)
           SSEPingTimeKey.set(now)(local)
         }
-      ).andThen{ local ⇒
-        for(m ← writes) SSEMessage.message(sender, m.event, m.data)
+      ).andThen{ local =>
+        for(m <- writes) SSEMessage.message(sender, m.event, m.data)
         TxAdd(writes.flatMap(LEvent.delete))(local)
       }(local)
     ).getOrElse(local)
@@ -138,7 +138,7 @@ object SSEAssembles {
   def joinToAlienWrite(
     key: SrcId,
     write: Each[U_ToAlienWrite]
-  ): Values[(SessionKey, U_ToAlienWrite)] = List(write.sessionKey→write)
+  ): Values[(SessionKey, U_ToAlienWrite)] = List(write.sessionKey->write)
 
   def joinTxTransform(
     key: SrcId,
@@ -177,8 +177,8 @@ object SSEAssembles {
     key: SrcId,
     doc: Each[S_HttpPublication]
   ): Values[(AbstractAll,Availability)] = for {
-    until ← doc.until.toList if doc.path == "/availability"
-  } yield All → Availability(doc.path,until)
+    until <- doc.until.toList if doc.path == "/availability"
+  } yield All -> Availability(doc.path,until)
 }
 
 case class Availability(path: String, until: Long)

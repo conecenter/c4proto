@@ -29,8 +29,8 @@ trait ByClassNameRequestApp {
 trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp with ByClassNameRequestApp with DepResponseFactoryApp {
   override def assembles: List[Assemble] =
     byClNameAllClasses
-      .map(cl ⇒ cl.getName → cl).groupBy(_._1).values.map(_.head._2).toList
-      .map(cl ⇒ new ByClassNameAllRequestGenericHandler(cl, depResponseFactory)) ::: super.assembles
+      .map(cl => cl.getName -> cl).groupBy(_._1).values.map(_.head._2).toList
+      .map(cl => new ByClassNameAllRequestGenericHandler(cl, depResponseFactory)) ::: super.assembles
 
   override def protocols: List[Protocol] = ByClassNameAllRequestProtocol :: super.protocols
 }
@@ -42,7 +42,7 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
   def GatherAllModels(
     modelId: SrcId,
     model: Each[Model]
-  ): Values[(ByClassNameRequestAll, Model)] = List(All → model)
+  ): Values[(ByClassNameRequestAll, Model)] = List(All -> model)
 
   def HandleRequest(
     requestId: SrcId,
@@ -50,9 +50,9 @@ trait ByClassNameAllRequestHandlerApp extends ProtocolsApp with AssemblesApp wit
     @byEq[ByClassNameRequestAll](All) models: Values[Model]
   ): Values[(SrcId, DepResponse)] =
     rq.request match {
-      case request: N_ByClassNameAllRequest if request.className == modelCl.getName ⇒
+      case request: N_ByClassNameAllRequest if request.className == modelCl.getName =>
         List(WithPK(util.wrap(rq, Option(models.toList))))
-      case _ ⇒ Nil
+      case _ => Nil
     }
 }
 

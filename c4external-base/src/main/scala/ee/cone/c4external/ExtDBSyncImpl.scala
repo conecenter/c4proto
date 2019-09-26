@@ -30,9 +30,9 @@ class ExtDBSyncImpl(
   logger.debug(patch.toString())
   val externalsList: List[String] = external.map(_.clName)
   val externalsSet: Set[String] = externalsList.toSet
-  val buildersByName: Map[String, DBSchemaBuilder[_ <: Product]] = builders.map(b ⇒ b.getOrigClName → b).toMap
+  val buildersByName: Map[String, DBSchemaBuilder[_ <: Product]] = builders.map(b => b.getOrigClName -> b).toMap
   // Check if registered externals have builder
-  val builderMap: Map[Long, DBSchemaBuilder[_ <: Product]] = externalsList.map(buildersByName).map(b ⇒ b.getOrigId → b).toMap
+  val builderMap: Map[Long, DBSchemaBuilder[_ <: Product]] = externalsList.map(buildersByName).map(b => b.getOrigId -> b).toMap
   val supportedIds: Set[Long] = builderMap.keySet
   // Check if registered externals have adapter
   val adaptersById: Map[Long, ProtoAdapter[Product] with HasId] = qAdapterRegistry.byId.view.filterKeys(supportedIds).toMap
@@ -41,20 +41,20 @@ class ExtDBSyncImpl(
     qAdapterRegistry.byName(classOf[S_ExternalUpdate].getName)
       .asInstanceOf[ProtoAdapter[S_ExternalUpdate] with HasId]
 
-  def upload: List[S_ExternalUpdate] ⇒ List[(String, Int)] = list ⇒ {
-    val toWrite: List[(NextOffset, List[S_ExternalUpdate])] = list.filter(u ⇒ (u.flags & archiveFlag) == 0L).groupBy(_.txId).toList.sortBy(_._1)
+  def upload: List[S_ExternalUpdate] => List[(String, Int)] = list => {
+    val toWrite: List[(NextOffset, List[S_ExternalUpdate])] = list.filter(u => (u.flags & archiveFlag) == 0L).groupBy(_.txId).toList.sortBy(_._1)
     (for {
-      (offset, qUpdates) ← toWrite
+      (offset, qUpdates) <- toWrite
     } yield {
       val (toDelete, toUpdate) = qUpdates.partition(_.value.size() == 0)
-      val deletes = toDelete.flatMap(ext ⇒ builderMap(ext.valueTypeId).getDeleteValue(ext.valueSrcId))
-      val updates = toUpdate.flatMap(ext ⇒ {
+      val deletes = toDelete.flatMap(ext => builderMap(ext.valueTypeId).getDeleteValue(ext.valueSrcId))
+      val updates = toUpdate.flatMap(ext => {
         val builder = builderMap(ext.valueTypeId)
         builder.getUpdateValue(adaptersById(ext.valueTypeId).decode(ext.value))
       }
       )
       logger.debug(s"Writing $offset ${deletes.length}/${updates.length} origs")
       dbAdapter.putOrigs(deletes ::: updates, offset)
-    }).flatten.map(t ⇒ t._1.className → t._2)
+    }).flatten.map(t => t._1.className -> t._2)
   }
 }

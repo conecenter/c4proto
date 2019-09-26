@@ -58,7 +58,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
   def ModelsToInstruction(
     modelId: SrcId,
     model: Each[D_PerformanceNode]
-  ): Values[(InstructionId, D_PerformanceNode)] = List(constant.srcId → model)
+  ): Values[(InstructionId, D_PerformanceNode)] = List(constant.srcId -> model)
 
   def test3(
     modelId: SrcId,
@@ -90,7 +90,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
     @by[InstructionId] models: Values[D_PerformanceNode],
     instruction: Each[D_NodeInstruction]
   ): Values[(InstructionId, SrcIdContainer)] = {
-    models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
+    models.slice(instruction.from, instruction.to).map(model => instruction.srcId -> SrcIdContainer(model.srcId, instruction.srcId))
   }
 
   def ModelsNInstructionToResult2(
@@ -99,7 +99,7 @@ case class ResultNodeFromList(srcId: SrcId, modelsSize: Int, result: String)
     instruction: Each[D_NodeInstruction]
   ): Values[(TestId, SrcIdContainer)] = {
     //throw new Exception("test")
-    models.slice(instruction.from, instruction.to).map(model ⇒ instruction.srcId → SrcIdContainer(model.srcId, instruction.srcId))
+    models.slice(instruction.from, instruction.to).map(model => instruction.srcId -> SrcIdContainer(model.srcId, instruction.srcId))
   }
 
   def ModelsNInstructionToResultList(
@@ -134,10 +134,10 @@ class ChangingIndexPerformanceTest(
     val worldSize = 100000
     val world: immutable.Seq[D_PerformanceNode] =
       for {
-        i ← 1 to worldSize
+        i <- 1 to worldSize
       } yield D_PerformanceNode(i.toString, Random.nextDouble().toString)
     val worldUpdate: immutable.Seq[LEvent[Product]] = world.flatMap(update)
-    val updates: List[QProtocol.N_Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val updates: List[QProtocol.N_Update] = worldUpdate.map(rec => toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
@@ -183,18 +183,18 @@ class ChangingIndexPerformanceTestApp extends TestVMRichDataApp
 }
 /*
 object ValueAssembleProfiler extends AssembleProfiler {
-  def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
+  def get(ruleName: String): String => Int => Unit = startAction => {
     val startTime = System.currentTimeMillis
-    finalCount ⇒ {
+    finalCount => {
       val period = System.currentTimeMillis - startTime
       println(s"assembling by ${Thread.currentThread.getName} rule $ruleName $startAction $finalCount items in $period ms")
     }
   }
 
-/*  override def getOpt(ruleName: String, in: immutable.Seq[AssembledKey], out: AssembledKey): Option[String ⇒ Int ⇒ Unit] =
-    Some { startAction ⇒
+/*  override def getOpt(ruleName: String, in: immutable.Seq[AssembledKey], out: AssembledKey): Option[String => Int => Unit] =
+    Some { startAction =>
       val startTime = System.currentTimeMillis
-      finalCount ⇒ {
+      finalCount => {
         val period = System.currentTimeMillis - startTime
         println(s"assembling by ${Thread.currentThread.getName} rule $ruleName\nin:${in.mkString("|")}\nout:$out\n$startAction $finalCount items in $period ms")
       }

@@ -30,10 +30,10 @@ class TestCanvasApp extends ServerApp
       new FromAlienTaskAssemble("/react-app.html") ::
       super.assembles
   def mimeTypes: Map[String, String] = Map(
-    "svg" → "image/svg+xml"
+    "svg" -> "image/svg+xml"
   )
   def publishFromStrings: List[(String, String)] = List(
-    "/test.svg" → s"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+    "/test.svg" -> s"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
       <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">
       <circle cx="250" cy="250" r="210" fill="#fff" stroke="#000" stroke-width="8"/>
       </svg>"""
@@ -73,7 +73,7 @@ case class TestCanvasView(locationHash: String = "rectangle")(
 ) extends ByLocationHashView {
   import pathFactory.path
   import TestCanvasStateAccess.sizes
-  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
+  def view: Context => ViewRes = untilPolicy.wrap{ local =>
     def canvasSeed(access: Access[String]) =
       cTags.canvas("testCanvas",List(styles.height(512),styles.widthAll), access)(
         viewRel(0)(local)::viewRel(50)(local)::Nil
@@ -85,12 +85,12 @@ case class TestCanvasView(locationHash: String = "rectangle")(
     val state: Option[Access[B_TestCanvasState]] =
       sessionAttrAccessFactory.to(TestCanvasStateAccess.state)(local)
     val inputs = for {
-      canvasTask ← state.toList
-      tags ← tTags.input(canvasTask to sizes) :: canvasSeed(canvasTask to sizes) :: Nil
+      canvasTask <- state.toList
+      tags <- tTags.input(canvasTask to sizes) :: canvasSeed(canvasTask to sizes) :: Nil
     } yield tags
     relocate :: inputs ::: Nil
   }
-  def viewRel: Int ⇒ Context ⇒ ChildPair[OfCanvas] = offset ⇒ local ⇒ {
+  def viewRel: Int => Context => ChildPair[OfCanvas] = offset => local => {
     val key = "123"+offset
     path(key,
       Rect(10+offset,20,30,40),
@@ -142,7 +142,7 @@ trait CanvasApp extends ProtocolsApp with DefaultModelFactoriesApp {
 case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: String)(
   utils: TagJsonUtils,
   toJson: CanvasToJson,
-  val receive: VDomMessage ⇒ Context ⇒ Context
+  val receive: VDomMessage => Context => Context
 ) extends VDomValue with Receiver[Context] {
   def appendJson(builder: MutableJsonBuilder): Unit = {
     builder.startObject()
@@ -159,13 +159,13 @@ trait TestCanvasTags {
 
 class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
   def messageStrBody(o: VDomMessage): String =
-    o.body match { case bs: okio.ByteString ⇒ bs.utf8() }
+    o.body match { case bs: okio.ByteString => bs.utf8() }
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =
     child[OfDiv](
       key,
-      CanvasElement(children.collect{ case a: CanvasAttr ⇒ a }, style, access.initialValue)(
+      CanvasElement(children.collect{ case a: CanvasAttr => a }, style, access.initialValue)(
         utils, toJson,
-        message ⇒ access.updatingLens.get.set(messageStrBody(message))
+        message => access.updatingLens.get.set(messageStrBody(message))
       ),
       children.filterNot(_.isInstanceOf[CanvasAttr])
     )

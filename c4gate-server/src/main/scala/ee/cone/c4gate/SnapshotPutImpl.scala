@@ -23,14 +23,14 @@ class SnapshotPutter(
   snapshotDiffer: SnapshotDiffer
 ) extends LazyLogging {
   val url = "/put-snapshot"
-  def merge(relativePath: String, data: ByteString): Context⇒Context = local ⇒ {
+  def merge(relativePath: String, data: ByteString): Context=>Context = local => {
     val rawSnapshotLoader = new MemRawSnapshotLoader(relativePath,data)
     val snapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoader)
     val Some(targetFullSnapshot) = snapshotLoader.load(RawSnapshot(relativePath))
     val currentSnapshot = snapshotDiffer.needCurrentSnapshot(local)
     val diffUpdates = snapshotDiffer.diff(currentSnapshot,targetFullSnapshot)
     logger.info(s"put-snapshot activated, ${diffUpdates.size} updates")
-    WriteModelKey.modify(_.enqueue(diffUpdates))(local)
+    WriteModelKey.modify(_.enqueueAll(diffUpdates))(local)
   }
 }
 
@@ -45,10 +45,10 @@ case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
       signatureChecker.retrieve(check=true)(signed(request.headers))
     Function.chain(Seq(
       putter.merge(relativePath, request.body),
-      respond(List(request→Nil),requests.tail.map(_→"Ignored"))
+      respond(List(request->Nil),requests.tail.map(_->"Ignored"))
     ))(local)
-  }("put-snapshot"){ e ⇒
-    respond(Nil,List(requests.head → e.getMessage))(local)
+  }("put-snapshot"){ e =>
+    respond(Nil,List(requests.head -> e.getMessage))(local)
   }
 }
 
@@ -65,7 +65,7 @@ case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
     key: SrcId,
     req: Each[S_HttpRequest]
   ): Values[(PuttingId,S_HttpRequest)] =
-    if(req.path == putter.url) List("snapshotPut"→req) else Nil
+    if(req.path == putter.url) List("snapshotPut"->req) else Nil
 
   def mapTx(
     key: SrcId,

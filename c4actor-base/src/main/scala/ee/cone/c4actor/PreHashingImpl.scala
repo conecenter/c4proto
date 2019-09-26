@@ -10,7 +10,7 @@ final class PreHashedImpl[T](code: Int, val value: T) extends PreHashed[T] {
 
   override def equals(that: Any): Boolean = {
     that match {
-      case that: PreHashed[_] ⇒ value == that.value
+      case that: PreHashed[_] => value == that.value
       case _ => false
     }
   }

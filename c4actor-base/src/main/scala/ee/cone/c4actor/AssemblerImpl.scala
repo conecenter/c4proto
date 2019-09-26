@@ -16,7 +16,7 @@ import scala.concurrent.duration.Duration
 case class ProtocolDataDependencies(QAdapterRegistry: QAdapterRegistry, origKeyFactory: KeyFactory) {
   def apply(): List[DataDependencyTo[_]] =
     QAdapterRegistry.byId.values.map(_.className).toList.sorted
-      .map(nm ⇒ new OriginalWorldPart(origKeyFactory.rawKey(nm)))
+      .map(nm => new OriginalWorldPart(origKeyFactory.rawKey(nm)))
 }
 
 case object TreeAssemblerKey extends SharedComponentKey[Replace]
@@ -25,7 +25,7 @@ class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
-  getDependencies: ()⇒List[DataDependencyTo[_]],
+  getDependencies: ()=>List[DataDependencyTo[_]],
   composes: IndexUtil,
   byPKKeyFactory: KeyFactory,
   origKeyFactory: KeyFactory,
@@ -44,21 +44,21 @@ class AssemblerInit(
 
   private def toTree(assembled: ReadModel, updates: Seq[N_Update], executionContext: OuterExecutionContext): ReadModel =
     readModelUtil.create((for {
-      tpPair ← updates.groupBy(_.valueTypeId)
+      tpPair <- updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
-      valueAdapter ← qAdapterRegistry.byId.get(valueTypeId)
+      valueAdapter <- qAdapterRegistry.byId.get(valueTypeId)
       wKey = origKeyFactory.rawKey(valueAdapter.className)
     } yield {
       implicit val ec: ExecutionContext = executionContext.value
-      wKey → (for {
-        wasIndex ← wKey.of(assembled)
+      wKey -> (for {
+        wasIndex <- wKey.of(assembled)
       } yield composes.mergeIndex(for {
-        iPair ← tpUpdates.groupBy(_.srcId)
+        iPair <- tpUpdates.groupBy(_.srcId)
         (srcId, iUpdates) = iPair
         rawValue = iUpdates.last.value
         remove = composes.removingDiff(wasIndex,srcId)
         add = if(rawValue.size > 0) composes.result(srcId,valueAdapter.decode(rawValue),+1) :: Nil else Nil
-        res ← remove :: add
+        res <- remove :: add
       } yield res))
     }).toMap)
 
@@ -81,21 +81,21 @@ class AssemblerInit(
   }
 
   private def offset(events: Seq[RawEvent]): List[N_Update] = for{
-    ev ← events.lastOption.toList
-    lEvent ← LEvent.update(S_Offset(actorName,ev.srcId))
+    ev <- events.lastOption.toList
+    lEvent <- LEvent.update(S_Offset(actorName,ev.srcId))
   } yield toUpdate.toUpdate(lEvent)
-  private def readModelAdd(replace: Replace, executionContext: OuterExecutionContext): Seq[RawEvent]⇒ReadModel⇒ReadModel = events ⇒ assembled ⇒ catchNonFatal {
+  private def readModelAdd(replace: Replace, executionContext: OuterExecutionContext): Seq[RawEvent]=>ReadModel=>ReadModel = events => assembled => catchNonFatal {
     val options = getAssembleOptions(assembled)
     val updates = offset(events) ::: toUpdate.toUpdates(events.toList)
     val timer = NanoTimer()
     val realDiff = toTree(assembled, updates, executionContext)
     logger.trace(s"toTree ${timer.ms} ms")
     reduce(replace, assembled, realDiff, options, executionContext)
-  }("reduce"){ e ⇒ // ??? exception to record
+  }("reduce"){ e => // ??? exception to record
       if(events.size == 1){
         val options = getAssembleOptions(assembled)
         val updates = offset(events) ++
-          events.map(ev⇒S_FailedUpdates(ev.srcId, e.getMessage))
+          events.map(ev=>S_FailedUpdates(ev.srcId, e.getMessage))
             .flatMap(LEvent.update).map(toUpdate.toUpdate)
         val failDiff = toTree(assembled, updates, executionContext)
         reduce(replace, assembled, failDiff, options, executionContext)
@@ -105,9 +105,9 @@ class AssemblerInit(
       }
   }
   // other parts:
-  private def add(out: Seq[N_Update]): Context ⇒ Context = {
+  private def add(out: Seq[N_Update]): Context => Context = {
     if (out.isEmpty) identity[Context]
-    else { local ⇒
+    else { local =>
       implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions(local.assembled)
       val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).toSeq ++ out
@@ -116,8 +116,8 @@ class AssemblerInit(
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)
       val res = for {
-        transition ← replace(local.assembled,diff,profiling,local.executionContext)
-        updates ← assembleProfiler.addMeta(transition, externalOut)
+        transition <- replace(local.assembled,diff,profiling,local.executionContext)
+        updates <- assembleProfiler.addMeta(transition, externalOut)
       } yield {
         val nLocal = new Context(local.injected, transition.result, local.executionContext, local.transient)
         WriteModelKey.modify(_.enqueueAll(updates))(nLocal)
@@ -130,7 +130,7 @@ class AssemblerInit(
   private def getAssembleOptions(assembled: ReadModel): AssembleOptions = {
     val index = assembleOptionsOuterKey.of(assembled).value.get.get
     composes.getValues(index,assembleOptionsInnerKey,"").collectFirst{
-      case o: AssembleOptions ⇒ o
+      case o: AssembleOptions => o
     }.getOrElse(defaultAssembleOptions)
   }
 
@@ -145,13 +145,13 @@ class AssemblerInit(
     val deps = getDependencies()
     logger.debug("getDependencies finished")
     TreeAssemblerKey.set(treeAssembler.replace(deps)) :::
-      WriteModelDebugAddKey.set(out ⇒
+      WriteModelDebugAddKey.set(out =>
         if(out.isEmpty) identity[Context]
         else WriteModelDebugKey.modify(_.enqueueAll(out))
           .andThen(add(out.map(toUpdate.toUpdate)))
       ) :::
       WriteModelAddKey.set(add) :::
-      ReadModelAddKey.set(events⇒context⇒
+      ReadModelAddKey.set(events=>context=>
         readModelAdd(TreeAssemblerKey.of(context), context.executionContext)(events)(context.assembled)
       ) :::
       GetOrigIndexKey.set(getOrigIndex) :::
@@ -162,7 +162,7 @@ class AssemblerInit(
 case class UniqueIndexMap[K,V](index: Index)(indexUtil: IndexUtil) extends Map[K,V] {
   def updated[B1 >: V](k: K, v: B1): Map[K, B1] = iterator.toMap.updated(k,v)
   def get(key: K): Option[V] = Single.option(indexUtil.getValues(index,key,"")).asInstanceOf[Option[V]]
-  def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k ⇒ (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
+  def iterator: Iterator[(K, V)] = indexUtil.keySet(index).iterator.map{ k => (k,Single(indexUtil.getValues(index,k,""))).asInstanceOf[(K,V)] }
   def removed(key: K): Map[K, V] = iterator.toMap - key
   override def keysIterator: Iterator[K] = indexUtil.keySet(index).iterator.asInstanceOf[Iterator[K]] // to work with non-Single
   override def keySet: Set[K] = indexUtil.keySet(index).asInstanceOf[Set[K]] // to get keys from index

@@ -49,12 +49,12 @@ case class TestTxLogView(locationHash: String = "txlog")(
   sessionAttrAccess: SessionAttrAccessFactory,
   tags: TestTags[Context]
 ) extends ByLocationHashView {
-  def view: Context ⇒ ViewRes = untilPolicy.wrap { local ⇒
+  def view: Context => ViewRes = untilPolicy.wrap { local =>
     import mTags._
 
     val logs: List[ChildPair[OfDiv]] = for{
-      updatesListSummary ← ByPK(classOf[UpdatesListSummary]).of(local).get(actorName).toList
-      updatesSummary ← updatesListSummary.items
+      updatesListSummary <- ByPK(classOf[UpdatesListSummary]).of(local).get(actorName).toList
+      updatesSummary <- updatesListSummary.items
       add = updatesSummary.add
     } yield div(s"tx${add.srcId}",List())(
       text("text",
@@ -65,7 +65,7 @@ case class TestTxLogView(locationHash: String = "txlog")(
           s" period: ${add.finishedAt-add.startedAt}"
       ) ::
       (for {
-        (logEntry,idx) ← add.log.zipWithIndex
+        (logEntry,idx) <- add.log.zipWithIndex
       } yield div(s"$idx",Nil)(
         text("text",
           s" ** ${logEntry.value} ${logEntry.name}"
@@ -83,8 +83,8 @@ case class TestTxLogView(locationHash: String = "txlog")(
       List(baseURLAccessOpt,authKeyAccessOpt).flatten.map(tags.input)
 
     val merge: Option[ChildPair[OfDiv]] = for {
-      baseURLAccess ← baseURLAccessOpt if baseURLAccess.initialValue.nonEmpty
-      authKeyAccess ← authKeyAccessOpt if authKeyAccess.initialValue.nonEmpty
+      baseURLAccess <- baseURLAccessOpt if baseURLAccess.initialValue.nonEmpty
+      authKeyAccess <- authKeyAccessOpt if authKeyAccess.initialValue.nonEmpty
     } yield {
       divButton[Context]("merge")(
         snapshotMerger.merge(baseURLAccess.initialValue,authKeyAccess.initialValue)
@@ -119,7 +119,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
     txRef: Each[N_TxRef],
     txAdd: Each[D_TxAddMeta]
   ): Values[(SummaryId,UpdatesSummary)] =
-    List(actorName → UpdatesSummary(txAdd, txRef))
+    List(actorName -> UpdatesSummary(txAdd, txRef))
 
   def sumMeta(
     key: SrcId,
@@ -142,7 +142,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
       }
 
     val skipIds = Seq(classOf[U_ToAlienWrite],classOf[S_HttpPublication],classOf[D_TxAddMeta],classOf[N_TxRef])
-      .map(cl⇒qAdapterRegistry.byName(cl.getName).id).toSet
+      .map(cl=>qAdapterRegistry.byName(cl.getName).id).toSet
 
     List(WithPK(headToKeep(
       UpdatesListSummary(key,Nil,0L,0L,0L),
@@ -155,14 +155,14 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
   ): Values[(Alive,D_TxAddMeta)] = for {
-    item ← updatesListSummary.items
+    item <- updatesListSummary.items
   } yield WithPK(item.add)
 
   def keepRefs(
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
   ): Values[(Alive,N_TxRef)] = for {
-    item ← updatesListSummary.items
+    item <- updatesListSummary.items
   } yield WithPK(item.ref)
 
 }

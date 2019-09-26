@@ -44,10 +44,10 @@ class TestCoWorkApp extends ServerApp
   override def defaultModelFactories: List[DefaultModelFactory[_]] =
     ContentDefault :: super.defaultModelFactories
   def mimeTypes: Map[String, String] = Map(
-    "html" → "text/html; charset=UTF-8"
+    "html" -> "text/html; charset=UTF-8"
   )
   def publishFromStrings: List[(String, String)] = List(
-    "/blank.html" → s"""<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>"""
+    "/blank.html" -> s"""<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>"""
   )
 }
 
@@ -72,10 +72,10 @@ case class TestCoWorkerView(locationHash: String = "worker")(
   tags: TestTags[Context],
   sessionAttrAccess: SessionAttrAccessFactory
 ) extends ByLocationHashView  {
-  def view: Context ⇒ ViewRes = local ⇒ {
+  def view: Context => ViewRes = local => {
     for {
-      content ← (sessionAttrAccess to TestAttrs.contentFlt)(local).toList
-      tags ← tags.input(content to TestContentAccess.value) :: Nil
+      content <- (sessionAttrAccess to TestAttrs.contentFlt)(local).toList
+      tags <- tags.input(content to TestContentAccess.value) :: Nil
     } yield tags
   }
 }
@@ -97,19 +97,19 @@ case class TestCoLeaderView(locationHash: String = "leader")(
   untilPolicy: UntilPolicy
 ) extends ByLocationHashView with LazyLogging {
   import tags._
-  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
+  def view: Context => ViewRes = untilPolicy.wrap{ local =>
     val fromAlienStates = ByPK(classOf[U_FromAlienState]).of(local)
     val fromAliens = for(
-      fromAlien ← fromAlienStates.values;
-      url ← Option(new URL(fromAlien.location));
-      ref ← Option(url.getRef) if ref != "leader"
+      fromAlien <- fromAlienStates.values;
+      url <- Option(new URL(fromAlien.location));
+      ref <- Option(url.getRef) if ref != "leader"
     ) yield fromAlien
     val seeds = fromAliens.toList.sortBy(_.sessionKey)
       .map(branchOperations.toSeed)
     divButton("add")(stats)(List(text("caption", "stats"))) ::
       seeds.map(seed(_)(List(styles.width(100), styles.height(100)), "/blank.html")(Nil))
   }
-  private def stats: Context ⇒ Context = local ⇒ {
+  private def stats: Context => Context = local => {
     logger.info(WorldStats.make(local))
     local
   }

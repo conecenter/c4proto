@@ -27,35 +27,35 @@ class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends Ak
 class AkkaHttpServer(
   port: Int, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat
 ) extends Executable with LazyLogging {
-  def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest⇒Future[HttpResponse] = req ⇒ {
+  def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest=>Future[HttpResponse] = req => {
     val method = req.method.value
     val path = req.uri.path.toString
-    val rHeaders = req.headers.map(h ⇒ N_Header(h.name, h.value)).toList
+    val rHeaders = req.headers.map(h => N_Header(h.name, h.value)).toList
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
     for {
-      entity ← req.entity.toStrict(Duration(5,MINUTES))(mat)
+      entity <- req.entity.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
-      rResp ← handler.handle(rReq)
+      rResp <- handler.handle(rReq)
     } yield {
       val status = Math.toIntExact(rResp.status)
       val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
       val contentType =
-        Single.option(ctHeaders.flatMap(h⇒ContentType.parse(h.value).toOption))
+        Single.option(ctHeaders.flatMap(h=>ContentType.parse(h.value).toOption))
           .getOrElse(ContentTypes.`application/octet-stream`)
-      val aHeaders = rHeaders.map(h⇒RawHeader(h.key,h.value))
+      val aHeaders = rHeaders.map(h=>RawHeader(h.key,h.value))
       val entity = HttpEntity(contentType,rResp.body.toByteArray)
       logger.debug(s"resp status: $status")
       HttpResponse(status, aHeaders, entity)
     }
   }
-  def run(): Unit = execution.fatal{ implicit ec ⇒
+  def run(): Unit = execution.fatal{ implicit ec =>
     for{
-      mat ← akkaMat.get
+      mat <- akkaMat.get
       handler = getHandler(mat)
       // to see: MergeHub/PartitionHub.statefulSink solution of the same task vs FHttpHandler
-      binding ← Http()(mat.system).bindAndHandleAsync(handler,"localhost",port)(mat)
+      binding <- Http()(mat.system).bindAndHandleAsync(handler,"localhost",port)(mat)
     } yield binding
   }
 }
@@ -67,12 +67,12 @@ class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Mess
 class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
   def create[Message](inner: List[Observer[Message]])(implicit executionContext: ExecutionContext): Future[StatefulReceiver[Message]] =
     for {
-      mat ← akkaMat.get
+      mat <- akkaMat.get
       source = Source.actorRef[Message](100, OverflowStrategy.fail)
-      sink = Sink.fold(inner)((st, msg: Message) ⇒ st.flatMap(_.activate(msg)))
+      sink = Sink.fold(inner)((st, msg: Message) => st.flatMap(_.activate(msg)))
       (actorRef,resF) = source.toMat(sink)(Keep.both).run()(mat)
     } yield {
-      execution.fatal(_ ⇒ resF)
+      execution.fatal(_ => resF)
       new AkkaStatefulReceiver[Message](actorRef)
     }
 }
@@ -81,5 +81,5 @@ class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extend
 //execution: Execution,
 //implicit val ec: ExecutionContextExecutor = system.dispatcher
 // List[RunnableGraph[Future[_]]]
-//val a: Source[String, NotUsed] = Source(Stream.from(1)).delay(1.second).fold("")((s,i)⇒s"$s-$i")
+//val a: Source[String, NotUsed] = Source(Stream.from(1)).delay(1.second).fold("")((s,i)=>s"$s-$i")
 //Source setup fromFutureSource tick

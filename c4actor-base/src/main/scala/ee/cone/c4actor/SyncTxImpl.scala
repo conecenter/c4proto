@@ -10,17 +10,17 @@ import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 class SyncTxFactoryImpl extends SyncTxFactory {
   def create[D_Item<:Product](
     classOfItem: Class[D_Item],
-    filter: D_Item⇒Boolean,
-    group: D_Item⇒SrcId,
-    txTransform: (SrcId,List[SyncTxTask[D_Item]])⇒TxTransform
+    filter: D_Item=>Boolean,
+    group: D_Item=>SrcId,
+    txTransform: (SrcId,List[SyncTxTask[D_Item]])=>TxTransform
   ): Assemble = new SyncTxAssemble(classOfItem,filter,group,txTransform)
 }
 
 @assemble class SyncTxAssembleBase[D_Item<:Product](
   classOfItem: Class[D_Item],
-  filter: D_Item⇒Boolean,
-  group: D_Item⇒SrcId,
-  txTransform: (SrcId,List[SyncTxTask[D_Item]])⇒TxTransform
+  filter: D_Item=>Boolean,
+  group: D_Item=>SrcId,
+  txTransform: (SrcId,List[SyncTxTask[D_Item]])=>TxTransform
 )   {
   type ExecutorId = SrcId
   def makeTasks(
@@ -29,8 +29,8 @@ class SyncTxFactoryImpl extends SyncTxFactory {
     @by[NeedSrcId] needItems: Values[D_Item]
   ): Values[(ExecutorId,SyncTxTask[D_Item])] =
     (items.filter(filter).toList,needItems.filter(filter).toList) match {
-      case (has,need) if has == need ⇒ Nil
-      case (has,need) ⇒
+      case (has,need) if has == need => Nil
+      case (has,need) =>
         val executorId = Single((has ::: need).map(group).distinct)
         val events = (has.flatMap(LEvent.delete) ::: need.flatMap(LEvent.update)).asInstanceOf[List[LEvent[D_Item]]]
         val task = SyncTxTask(key, Single.option(has), Single.option(need), events)

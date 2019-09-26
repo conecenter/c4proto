@@ -16,29 +16,29 @@ trait HashSearchDepRequestFactoryMix extends HashSearchDepRequestFactoryApp{
 }
 
 trait HashSearchDepRequestFactory[Model] {
-  def intersect: (N_DepCondition, N_DepCondition) ⇒ N_DepCondition
+  def intersect: (N_DepCondition, N_DepCondition) => N_DepCondition
 
-  def union: (N_DepCondition, N_DepCondition) ⇒ N_DepCondition
+  def union: (N_DepCondition, N_DepCondition) => N_DepCondition
 
   def any: N_DepCondition
 
   def leaf[By <: Product](lensName: NameMetaAttr, by: By): N_DepCondition
 
-  def request: N_DepCondition ⇒ N_HashSearchDepRequest
+  def request: N_DepCondition => N_HashSearchDepRequest
 
-  def conditionToHashSearchRequest: Condition[Model] ⇒ N_HashSearchDepRequest
+  def conditionToHashSearchRequest: Condition[Model] => N_HashSearchDepRequest
 
-  def conditionToDepCond: Condition[Model] ⇒ N_DepCondition
+  def conditionToDepCond: Condition[Model] => N_DepCondition
 
   def ofWithCl[OtherModel](otherModel: Class[OtherModel]): HashSearchDepRequestFactory[OtherModel]
 }
 
 case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapterRegistry: QAdapterRegistry) extends HashSearchDepRequestFactory[Model] {
   def intersect: (N_DepCondition, N_DepCondition) => N_DepCondition =
-    (a, b) ⇒ N_DepCondition(modelCl.getName, "intersect", Option(a), Option(b), "", None)
+    (a, b) => N_DepCondition(modelCl.getName, "intersect", Option(a), Option(b), "", None)
 
   def union: (N_DepCondition, N_DepCondition) => N_DepCondition =
-    (a, b) ⇒ N_DepCondition(modelCl.getName, "union", Option(a), Option(b), "", None)
+    (a, b) => N_DepCondition(modelCl.getName, "union", Option(a), Option(b), "", None)
 
   def any: N_DepCondition =
     N_DepCondition(modelCl.getName, "any", None, None, "", None)
@@ -50,23 +50,23 @@ case class HashSearchDepRequestFactoryImpl[Model](modelCl: Class[Model], qAdapte
   }
 
   def request: N_DepCondition => N_HashSearchDepRequest =
-    cond ⇒ N_HashSearchDepRequest(modelCl.getName, Option(cond))
+    cond => N_HashSearchDepRequest(modelCl.getName, Option(cond))
 
-  def conditionToHashSearchRequest: Condition[Model] ⇒ N_HashSearchDepRequest = cond ⇒
+  def conditionToHashSearchRequest: Condition[Model] => N_HashSearchDepRequest = cond =>
     request(conditionToDepCond(cond))
 
-  def conditionToDepCond: Condition[Model] ⇒ N_DepCondition = {
-    case IntersectCondition(left, right) ⇒
+  def conditionToDepCond: Condition[Model] => N_DepCondition = {
+    case IntersectCondition(left, right) =>
       val leftDep = conditionToDepCond(left)
       val rightDep = conditionToDepCond(right)
       intersect(leftDep, rightDep)
-    case UnionCondition(left, right) ⇒
+    case UnionCondition(left, right) =>
       val leftDep = conditionToDepCond(left)
       val rightDep = conditionToDepCond(right)
       union(leftDep, rightDep)
-    case AnyCondition() ⇒ any
-    case ProdConditionImpl(metaList, by) ⇒ leaf(metaList.collectFirst { case a: NameMetaAttr ⇒ a }.get, by)
-    case cant ⇒ FailWith.apply(s"No such condition node $cant")
+    case AnyCondition() => any
+    case ProdConditionImpl(metaList, by) => leaf(metaList.collectFirst { case a: NameMetaAttr => a }.get, by)
+    case cant => FailWith.apply(s"No such condition node $cant")
   }
 
   def ofWithCl[OtherModel](otherModel: Class[OtherModel]): HashSearchDepRequestFactory[OtherModel] = HashSearchDepRequestFactoryImpl(otherModel, qAdapterRegistry)

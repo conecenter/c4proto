@@ -11,9 +11,9 @@ class PublishApp extends ServerApp
   with FileRawSnapshotApp
 {
   def mimeTypes: Map[String,String] = Map( //not finished on gate-server side
-    "html" → "text/html; charset=UTF-8",
-    "js" → "application/javascript",
-    "ico" → "image/x-icon"
+    "html" -> "text/html; charset=UTF-8",
+    "js" -> "application/javascript",
+    "ico" -> "image/x-icon"
   )
   def publishFromStrings: List[(String,String)] = Nil
   def txObserver = None

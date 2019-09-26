@@ -99,7 +99,7 @@ case class TestTodoRootView(locationHash: String = "todo")(
   accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy
 ) extends ByLocationHashView {
-  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
+  def view: Context => ViewRes = untilPolicy.wrap{ local =>
     import mTags._
     import commonFilterConditionChecks._
     val filterPredicate = filterPredicates.create[B_TodoTask](local)
@@ -107,8 +107,8 @@ case class TestTodoRootView(locationHash: String = "todo")(
       .add(createdAtFlt, createdAt)
 
     val filterList = for {
-      access ← filterPredicate.accesses
-      tag ← accessViewRegistry.view(access)(local)
+      access <- filterPredicate.accesses
+      tag <- accessViewRegistry.view(access)(local)
     } yield tag
     // filterPredicate.accesses.flatMap { case a if a.initialValue => List(a to sub1, a to sub2) case a => List(a) }
 
@@ -121,8 +121,8 @@ case class TestTodoRootView(locationHash: String = "todo")(
     val todoTasks = ByPK(classOf[B_TodoTask]).of(local).values
       .filter(filterPredicate.condition.check).toList.sortBy(-_.createdAt)
     val taskLines = for {
-      prod ← todoTasks
-      task ← contextAccess to prod
+      prod <- todoTasks
+      task <- contextAccess to prod
     } yield div(prod.srcId,Nil)(List(
       tags.input(task to comments),
       div("remove",List(styles.width(100),styles.displayInlineBlock))(List(

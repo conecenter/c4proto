@@ -61,15 +61,15 @@ object DateBeforeDefault extends DefaultModelFactory(classOf[B_DateBefore],B_Dat
 object ContainsDefault extends DefaultModelFactory(classOf[B_Contains],B_Contains(_,""))
 
 case object DateBeforeCheck extends ConditionCheck[B_DateBefore,Long] {
-  def prepare: List[AbstractMetaAttr] ⇒ B_DateBefore ⇒ B_DateBefore = _ ⇒ identity[B_DateBefore]
-  def check: B_DateBefore ⇒ Long ⇒ Boolean = by ⇒ value ⇒ by.value forall (_>value)
+  def prepare: List[AbstractMetaAttr] => B_DateBefore => B_DateBefore = _ => identity[B_DateBefore]
+  def check: B_DateBefore => Long => Boolean = by => value => by.value forall (_>value)
 
   def defaultBy: Option[B_DateBefore => Boolean] = None
 }
 
 case object ContainsCheck extends ConditionCheck[B_Contains,String] {
-  def prepare: List[AbstractMetaAttr] ⇒ B_Contains ⇒ B_Contains = _ ⇒ identity[B_Contains]
-  def check: B_Contains ⇒ String ⇒ Boolean = by ⇒ value ⇒ value contains by.value
+  def prepare: List[AbstractMetaAttr] => B_Contains => B_Contains = _ => identity[B_Contains]
+  def check: B_Contains => String => Boolean = by => value => value contains by.value
 
   def defaultBy: Option[B_Contains => Boolean] = None
 }
@@ -80,13 +80,13 @@ object CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
 }
 
 class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_DateBefore]) {
-  def view(access: Access[B_DateBefore]): Context⇒List[ChildPair[OfDiv]] =
-    local ⇒ List(testTags.dateInput(access to CommonFilterAccess.dateBeforeValue))
+  def view(access: Access[B_DateBefore]): Context=>List[ChildPair[OfDiv]] =
+    local => List(testTags.dateInput(access to CommonFilterAccess.dateBeforeValue))
 }
 
 class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_Contains]) {
-  def view(access: Access[B_Contains]): Context⇒List[ChildPair[OfDiv]] =
-    local ⇒ List(testTags.input(access to CommonFilterAccess.containsValue))
+  def view(access: Access[B_Contains]): Context=>List[ChildPair[OfDiv]] =
+    local => List(testTags.input(access to CommonFilterAccess.containsValue))
 }
 
 @fieldAccess object CommonFilterAccessBase {

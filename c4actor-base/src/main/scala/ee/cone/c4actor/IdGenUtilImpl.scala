@@ -13,7 +13,7 @@ case class IdGenUtilImpl()(
 ) extends IdGenUtil {
   private def md5(data: Array[Byte]*): String = {
     val d = proto.clone().asInstanceOf[MessageDigest] // much faster than getInstance("MD5")
-    data.foreach{ bytes ⇒
+    data.foreach{ bytes =>
       val l = bytes.length
       d.update((l>>24).toByte)
       d.update((l>>16).toByte)

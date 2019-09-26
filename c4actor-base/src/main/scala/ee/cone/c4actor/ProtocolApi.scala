@@ -7,8 +7,8 @@ import scala.collection.immutable.Map
 
 abstract class DefaultArgument[Value](val value: Value)
 abstract class ProtoAdapterHolder[T](val value: ProtoAdapter[T])
-abstract class ArgAdapterFactory[T](val wrap: (()⇒ProtoAdapter[Any])⇒ArgAdapter[_])
-abstract class LazyArgAdapterFactory[T](val wrap: (()⇒ProtoAdapter[Any])⇒ArgAdapter[_])
+abstract class ArgAdapterFactory[T](val wrap: (()=>ProtoAdapter[Any])=>ArgAdapter[_])
+abstract class LazyArgAdapterFactory[T](val wrap: (()=>ProtoAdapter[Any])=>ArgAdapter[_])
 
 object ArgTypes {
   type LazyOption[T] = Option[T]

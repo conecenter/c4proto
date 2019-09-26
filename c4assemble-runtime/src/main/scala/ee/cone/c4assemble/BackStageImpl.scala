@@ -18,8 +18,8 @@ class ConnectBackStage[MapKey, Value](
   def transform(transition: WorldTransition): WorldTransition = {
     implicit val executionContext: ExecutionContext = transition.executionContext.value
     val next = for {
-      diff ← nextKey.of(transition.prev.get.diff)
-      result ← nextKey.of(transition.result)
+      diff <- nextKey.of(transition.prev.get.diff)
+      result <- nextKey.of(transition.result)
     } yield new IndexUpdate(diff,result,Nil)
     //println(s"AAA: $nextKey $diffPart")
     //println(s"BBB: $transition")
@@ -31,11 +31,11 @@ class ConnectBackStage[MapKey, Value](
 class BackStageFactoryImpl(updater: IndexUpdater, composes: IndexUtil) extends BackStageFactory {
   def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression] = {
     val wasKeys = (for {
-      e ← l
-      key ← Single.option(e.inputWorldKeys.collect{
-        case k:JoinKey if k.was ⇒ k
+      e <- l
+      key <- Single.option(e.inputWorldKeys.collect{
+        case k:JoinKey if k.was => k
       }) // multiple @was are not supported due to possible different join loop rates
     } yield key).distinct
-    PrepareBackStage :: wasKeys.map(k⇒new ConnectBackStage(k,k.withWas(was=false), updater, composes))
+    PrepareBackStage :: wasKeys.map(k=>new ConnectBackStage(k,k.withWas(was=false), updater, composes))
   }
 }

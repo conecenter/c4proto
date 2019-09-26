@@ -46,15 +46,15 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
     key: SrcId,
     items: Values[D_Item]
   ): Values[(ByParent, D_Item)] = for {
-    item ← items
+    item <- items
   } yield item.parent -> item
   def join(
     key: SrcId,
     vItems: Values[D_Item],
     @by[ByParent] items: Values[D_Item]
   ): Values[(SrcId,EachTestItem)] = for {
-    vItem ← vItems
-    item ← items
+    vItem <- vItems
+    item <- items
   } yield WithPK(EachTestItem(item,vItem))
 }
 
@@ -68,7 +68,7 @@ class EachTestExecutable(
     Function.chain[Context](Seq(
       TxAdd(LEvent.update(D_Item("1","2"))),
       TxAdd(LEvent.update(D_Item("1","3"))),
-      l ⇒ {
+      l => {
         assert(ByPK.apply(classOf[D_Item]).of(l)("1").parent=="3","last stored item wins")
         l
       }
@@ -84,7 +84,7 @@ class EachTestExecutable(
       indexUtil.result("1",D_Item("1","3"),+1)
     )))*/
 
-    def measure[R](f: ⇒R): R = {
+    def measure[R](f: =>R): R = {
       val startTime = System.currentTimeMillis
       val res = f
       logger.info(s"${System.currentTimeMillis - startTime}")
@@ -93,10 +93,10 @@ class EachTestExecutable(
 
     Function.chain[Context](Seq(
       TxAdd(LEvent.update(D_Item(s"V",""))),
-      l ⇒ measure(Function.chain[Context](
-        (1 to 3000).map(n⇒TxAdd(LEvent.update(D_Item(s"$n","V"))))
+      l => measure(Function.chain[Context](
+        (1 to 3000).map(n=>TxAdd(LEvent.update(D_Item(s"$n","V"))))
       )(l)),
-      { (l:Context) ⇒
+      { (l:Context) =>
         val r = ByPK(classOf[EachTestItem]).of(l)
         assert(r.keys.size==3000)
         assert(r.values.forall(_.valueItem.parent.isEmpty))

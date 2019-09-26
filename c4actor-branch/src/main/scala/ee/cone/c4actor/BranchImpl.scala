@@ -19,35 +19,35 @@ import scala.collection.immutable.Seq
 case object SessionKeysKey extends TransientLens[Set[BranchRel]](Set.empty)
 
 case class BranchTaskImpl(branchKey: String, seeds: List[BranchRel], product: Product) extends BranchTask with LazyLogging {
-  def sending: Context ⇒ (Send,Send) = local ⇒ {
+  def sending: Context => (Send,Send) = local => {
     val newSessionKeys = sessionKeys(local)
     val(keepTo,freshTo) = newSessionKeys.partition(SessionKeysKey.of(local))
     val send = SendToAlienKey.of(local)
     def sendingPart(to: Set[BranchRel]): Send =
       if(to.isEmpty) None
-      else Some((eventName,data) ⇒
+      else Some((eventName,data) =>
         send(to.map(_.parentSrcId).toList, eventName, data)
           .andThen(SessionKeysKey.set(newSessionKeys))
       )
     (sendingPart(keepTo), sendingPart(freshTo))
   }
 
-  def sessionKeys: Context ⇒ Set[BranchRel] = local ⇒ seeds.flatMap(rel⇒
+  def sessionKeys: Context => Set[BranchRel] = local => seeds.flatMap(rel=>
     if(rel.parentIsSession) rel :: Nil
     else {
       val index = ByPK(classOf[BranchTask]).of(local)
       index.get(rel.parentSrcId).toList.flatMap(_.sessionKeys(local))
     }
   ).toSet
-  def relocate(to: String): Context ⇒ Context = local ⇒ {
+  def relocate(to: String): Context => Context = local => {
     val(toSessions, toNested) = seeds.partition(_.parentIsSession)
     val sessionKeys = toSessions.map(_.parentSrcId)
     val send = SendToAlienKey.of(local)(sessionKeys,"relocateHash",to)
-    val nest = toNested.map((rel:BranchRel) ⇒ relocateSeed(rel.parentSrcId,rel.seed.position,to))
+    val nest = toNested.map((rel:BranchRel) => relocateSeed(rel.parentSrcId,rel.seed.position,to))
     send.andThen(chain(nest))(local)
   }
 
-  def relocateSeed(branchKey: String, position: String, to: String): Context ⇒ Context = {
+  def relocateSeed(branchKey: String, position: String, to: String): Context => Context = {
     logger.debug(s"relocateSeed: [$branchKey] [$position] [$to]")
     identity
   } //todo emulate post to branch?
@@ -57,7 +57,7 @@ case object ReportAliveBranchesKey extends TransientLens[String]("")
 
 case object EmptyBranchMessage extends BranchMessage {
   def method: String = ""
-  def header: String ⇒ String = _⇒""
+  def header: String => String = _=>""
   def body: ByteString = ByteString.EMPTY
   def deletes: Seq[LEvent[Product]] = Nil
 }
@@ -69,7 +69,7 @@ case class BranchTxTransform(
   requests: List[BranchMessage],
   handler: BranchHandler
 ) extends TxTransform with LazyLogging {
-  private def saveResult: Context ⇒ Context = local ⇒ {
+  private def saveResult: Context => Context = local => {
     //if(seed.isEmpty && newChildren.nonEmpty) println(s"newChildren: ${handler}")
     //println(s"S_BranchResult $wasBranchResults == $newBranchResult == ${wasBranchResults == newBranchResult}")
     val wasBranchResults = ByPK(classOf[S_BranchResult]).of(local).get(branchKey).toList
@@ -89,7 +89,7 @@ case class BranchTxTransform(
     )(local)*/
   }
 
-  private def reportAliveBranches: Context ⇒ Context = local ⇒ {
+  private def reportAliveBranches: Context => Context = local => {
     val wasReport = ReportAliveBranchesKey.of(local)
     if(sessionKeys.isEmpty){
       if(wasReport.isEmpty) local else ReportAliveBranchesKey.set("")(local)
@@ -113,29 +113,29 @@ case class BranchTxTransform(
     if(posts.isEmpty) List(EmptyBranchMessage) else posts
   }
 
-  private def sendToAll(evType: String, data: String): Context ⇒ Context =
-    local ⇒ SendToAlienKey.of(local)(sessionKeys,evType,data)(local)
+  private def sendToAll(evType: String, data: String): Context => Context =
+    local => SendToAlienKey.of(local)(sessionKeys,evType,data)(local)
 
-  private def errorText: Context ⇒ String = local ⇒ ErrorKey.of(local).map{
-    case e:BranchError ⇒ e.message
-    case _ ⇒ ""
+  private def errorText: Context => String = local => ErrorKey.of(local).map{
+    case e:BranchError => e.message
+    case _ => ""
   }.mkString("\n")
 
-  private def reportError: String ⇒ Context ⇒ Context = text ⇒
+  private def reportError: String => Context => Context = text =>
     sendToAll("fail",s"$branchKey\n$text")
 
-  private def incrementErrors: Context ⇒ Context =
+  private def incrementErrors: Context => Context =
     ErrorKey.modify(new Exception :: _)
 
-  private def saveErrors: String ⇒ Context ⇒ Context = text ⇒ {
+  private def saveErrors: String => Context => Context = text => {
     val now = System.currentTimeMillis
     val failure = U_SessionFailure(UUID.randomUUID.toString,text,now,sessionKeys)
     TxAdd(LEvent.update(failure))
   }
 
-  private def rmRequestsErrors: Context ⇒ Context = local ⇒ {
+  private def rmRequestsErrors: Context => Context = local => {
     val send = SendToAlienKey.of(local)
-    chain(requests.map{ request ⇒
+    chain(requests.map{ request =>
       val sessionKey = request.header("x-r-session")
       val index = request.header("x-r-index")
       val deletes = request.deletes
@@ -146,7 +146,7 @@ case class BranchTxTransform(
 
   def transform(local: Context): Context = {
     if(requests.nonEmpty)
-      logger.debug(s"branch $branchKey tx begin ${requests.map(r⇒r.header("x-r-alien-date")).mkString("(",", ",")")}")
+      logger.debug(s"branch $branchKey tx begin ${requests.map(r=>r.header("x-r-alien-date")).mkString("(",", ",")")}")
     val errors = ErrorKey.of(local)
     val res = if(errors.nonEmpty && requests.nonEmpty)
       saveErrors(errorText(local)).andThen(rmRequestsErrors)(local)
@@ -169,7 +169,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     S_BranchResult(id, valueAdapter.id, bytes, Nil, "")
   }
   def toRel(seed: S_BranchResult, parentSrcId: SrcId, parentIsSession: Boolean): (SrcId,BranchRel) =
-    seed.hash → BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
+    seed.hash -> BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
 @assemble class BranchAssembleBase(registry: QAdapterRegistry, operations: BranchOperations)   {
@@ -177,7 +177,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     key: SrcId,
     branchResult: Each[S_BranchResult]
   ): Values[(BranchKey,BranchRel)] = for {
-    child ← branchResult.children
+    child <- branchResult.children
   } yield operations.toRel(child, branchResult.hash, parentIsSession=false)
 
   def joinBranchTask(
@@ -187,7 +187,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
   ): Values[(SrcId,BranchTask)] = {
     val seed = seeds.headOption.map(_.seed).getOrElse(Single(wasBranchResults))
     registry.byId.get(seed.valueTypeId).map(_.decode(seed.value.toByteArray))
-      .map(product => key → BranchTaskImpl(key, seeds.toList, product)).toList
+      .map(product => key -> BranchTaskImpl(key, seeds.toList, product)).toList
     // may result in some garbage branches in the world?
 
     //println(s"join_task $key ${wasBranchResults.size} ${seeds.size}")
@@ -199,12 +199,12 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     @by[BranchKey] requests: Values[BranchMessage],
     handler: Each[BranchHandler]
   ): Values[(SrcId,TxTransform)] =
-    List(key → BranchTxTransform(key,
+    List(key -> BranchTxTransform(key,
         seeds.headOption.map(_.seed),
         seeds.filter(_.parentIsSession).map(_.parentSrcId).toList,
-        requests.sortBy(req⇒(req.header("x-r-index") match{
-          case "" ⇒ 0L
-          case s ⇒ s.toLong
+        requests.sortBy(req=>(req.header("x-r-index") match{
+          case "" => 0L
+          case s => s.toLong
         },ToPrimaryKey(req))).toList,
         handler
     ))
@@ -215,7 +215,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     key: SrcId,
     failure: Each[U_SessionFailure]
   ): Values[(SessionKey,U_SessionFailure)] =
-    for(k ← failure.sessionKeys) yield k → failure
+    for(k <- failure.sessionKeys) yield k -> failure
 
   def joinSessionFailures(
     key: SrcId,
@@ -227,12 +227,12 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     key: SrcId,
     redraw: Each[U_Redraw]
   ): Values[(BranchKey, BranchMessage)] =
-    List(redraw.branchKey → RedrawBranchMessage(redraw))
+    List(redraw.branchKey -> RedrawBranchMessage(redraw))
 }
 
 case class RedrawBranchMessage(redraw: U_Redraw) extends BranchMessage {
   def method: String = "POST"
-  def header: String ⇒ String = { case "x-r-redraw" ⇒ "1" case _ ⇒ "" }
+  def header: String => String = { case "x-r-redraw" => "1" case _ => "" }
   def body: okio.ByteString = okio.ByteString.EMPTY
   def deletes: Seq[LEvent[Product]] = LEvent.delete(redraw)
 }
@@ -249,15 +249,15 @@ case class SessionFailures(sessionKey: SrcId, failures: List[U_SessionFailure])
     key: SrcId,
     tasks: Values[BranchTaskSender]
   ): Values[(SrcId,BranchHandler)] =
-    for(task ← tasks if task.product == None) yield key → VoidBranchHandler()
+    for(task <- tasks if task.product == None) yield key -> VoidBranchHandler()
 }*/
 
 /*
 case class ProductProtoAdapter(className: SrcId, id: Long)(val adapter: ProtoAdapter[Product])
-def createWorld: World ⇒ World = setupAssembler andThen setupAdapters
+def createWorld: World => World = setupAssembler andThen setupAdapters
 private def setupAdapters =
-    By.srcId(classOf[ProductProtoAdapter]).set(protocols.flatMap(_.adapters).map(adapter⇒
-      adapter.className →
+    By.srcId(classOf[ProductProtoAdapter]).set(protocols.flatMap(_.adapters).map(adapter=>
+      adapter.className ->
         ProductProtoAdapter(adapter.id,adapter.className)(adapter.asInstanceOf[ProtoAdapter[Product]]) :: Nil
     ).toMap)
 
@@ -268,7 +268,7 @@ private def setupAdapters =
     key: SrcId,
     adapters: Values[ProductProtoAdapter]
   ): Values[(AnnotationId,ProductProtoAdapter)] =
-    adapters.map(a⇒a.id→a)
+    adapters.map(a=>a.id->a)
 }
 
 */

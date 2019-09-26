@@ -29,34 +29,34 @@ object HashSearchImpl {
   private def groups(b: Branch, options: Options): List[List[SrcId]] =
     List(heapIds(b.left,options),heapIds(b.right,options))
   private def heapIds(expr: Expression, options: Options) = (expr,options) match {
-    case (Leaf(ids),_) ⇒ ids
-    case (b: Intersect,Optimal(priorities)) ⇒
+    case (Leaf(ids),_) => ids
+    case (b: Intersect,Optimal(priorities)) =>
       groups(b,options).maxBy(_.map(priorities).min)
-    case (b: Branch,o) ⇒ groups(b,o).flatten.distinct
-    case (FullScan,_) ⇒ throw new Exception("full scan not supported")
+    case (b: Branch,o) => groups(b,o).flatten.distinct
+    case (FullScan,_) => throw new Exception("full scan not supported")
   }
   def heapIds[Model<:Product](indexers: Indexer[Model], req: Request[Model]): List[SrcId] =
     heapIds(expression(indexers)(req.condition),GatherAll)
   def heapIds[Model<:Product](indexers: Indexer[Model], req: Request[Model], priorities: Values[Priority[Model]]): List[SrcId] =
-    heapIds(expression(indexers)(req.condition),Optimal(priorities.groupBy(_.heapId).transform((k,v)⇒Single(v).priority)))
+    heapIds(expression(indexers)(req.condition),Optimal(priorities.groupBy(_.heapId).transform((k,v)=>Single(v).priority)))
 
-  private def expression[Model<:Product](indexers: Indexer[Model]): Condition[Model]⇒Expression = {
-    def traverse: Condition[Model]⇒Expression = {
-      case IntersectCondition(left,right) ⇒
+  private def expression[Model<:Product](indexers: Indexer[Model]): Condition[Model]=>Expression = {
+    def traverse: Condition[Model]=>Expression = {
+      case IntersectCondition(left,right) =>
         Intersect(traverse(left),traverse(right)) match {
-          case Intersect(FullScan,r) ⇒ r
-          case Intersect(l,FullScan) ⇒ l
-          case r ⇒ r
+          case Intersect(FullScan,r) => r
+          case Intersect(l,FullScan) => l
+          case r => r
         }
-      case UnionCondition(left,right) ⇒
+      case UnionCondition(left,right) =>
         Union(traverse(left),traverse(right)) match {
-          case Union(FullScan,r) ⇒ FullScan
-          case Union(l,FullScan) ⇒ FullScan
-          case r ⇒ r
+          case Union(FullScan,r) => FullScan
+          case Union(l,FullScan) => FullScan
+          case r => r
         }
-      case AnyCondition() ⇒
+      case AnyCondition() =>
         FullScan
-      case c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
+      case c => indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
     }
     traverse
   }
@@ -102,29 +102,29 @@ object HashSearchImpl {
     val preHashing: PreHashing,
     val modelClass: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
-    of: Model⇒Field,
-    valueToRanges: Field ⇒ List[By],
-    byToRanges: Product ⇒ Option[List[By]]
+    of: Model=>Field,
+    valueToRanges: Field => List[By],
+    byToRanges: Product => Option[List[By]]
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = (
       for {
-        c ← Option(condition.asInstanceOf[ProdCondition[By,Model]])
+        c <- Option(condition.asInstanceOf[ProdCondition[By,Model]])
         if metaList == c.metaList
-        ranges ← byToRanges(c.by)
+        ranges <- byToRanges(c.by)
       } yield heapIds(c.metaList, ranges).distinct
       ).orElse(next.heapIdsBy(condition))
     def heapIds(model: Model): List[SrcId] =
       heapIds(metaList, valueToRanges(of(model))) ::: next.heapIds(model)
     private def heapIds(metaList: List[AbstractMetaAttr], ranges: List[By]): List[SrcId] = for {
-      range ← ranges
+      range <- ranges
     } yield {
       //println(range,range.hashCode())
       letters3(metaList.hashCode ^ range.hashCode)
     }
   }
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
-  //def single[RespLine<:Product]: Values[Request[RespLine]]⇒Values[Request[RespLine]] =
-  //  l ⇒ Single.option(l.distinct).toList
+  //def single[RespLine<:Product]: Values[Request[RespLine]]=>Values[Request[RespLine]] =
+  //  l => Single.option(l.distinct).toList
 }
 
 @assemble class BHashSearchAssembleBase[RespLine<:Product](
@@ -139,37 +139,37 @@ object HashSearchImpl {
     respLineId: SrcId,
     respLine: Each[RespLine]
   ): Values[(HeapId,RespLine)] = for {
-    tagId ← indexers.heapIds(respLine).distinct
-  } yield tagId → respLine
+    tagId <- indexers.heapIds(respLine).distinct
+  } yield tagId -> respLine
 
   def reqByHeap(
     requestId: SrcId,
     request: Each[Request[RespLine]]
   ): Values[(HeapId,Need[RespLine])] = for {
-    heapId ← heapIds(indexers, request)
-  } yield heapId → Need[RespLine](ToPrimaryKey(request))
+    heapId <- heapIds(indexers, request)
+  } yield heapId -> Need[RespLine](ToPrimaryKey(request))
 
   def respHeapPriorityByReq(
     heapId: SrcId,
     @by[HeapId] respLines: Values[RespLine],
     @by[HeapId] need: Each[Need[RespLine]]
   ): Values[(ResponseId,Priority[RespLine])] =
-    List(ToPrimaryKey(need) → priority(heapId,respLines))
+    List(ToPrimaryKey(need) -> priority(heapId,respLines))
 
   def neededRespHeapPriority(
     requestId: SrcId,
     request: Each[Request[RespLine]],
     @by[ResponseId] priorities: Values[Priority[RespLine]]
   ): Values[(HeapId,Request[RespLine])] = for {
-    heapId ← heapIds(indexers, request, priorities)
-  } yield heapId → request
+    heapId <- heapIds(indexers, request, priorities)
+  } yield heapId -> request
 
   def respByReq(
     heapId: SrcId,
     @by[HeapId] line: Each[RespLine],
     @by[HeapId] request: Each[Request[RespLine]]
   ): Values[(ResponseId,RespLine)] =
-    if(request.condition.check(line)) List(ToPrimaryKey(request) → line) else Nil
+    if(request.condition.check(line)) List(ToPrimaryKey(request) -> line) else Nil
 
   def responses(
     requestId: SrcId,
@@ -179,5 +179,5 @@ object HashSearchImpl {
     val pk = ToPrimaryKey(request)
     List(WithPK(Response(pk, request, preHashing.wrap(Option(respLines.toList)))))
   }
-  //.foldRight(List.empty[RespLine])((line,res)⇒)
+  //.foldRight(List.empty[RespLine])((line,res)=>)
 }

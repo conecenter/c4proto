@@ -22,7 +22,7 @@ object Test {
   }
   ////
 */val test = {
-    def f(a: ⇒Int): Int = 0
+    def f(a: =>Int): Int = 0
     lazy val a = f(b)
     lazy val b = 9
     0
@@ -84,11 +84,11 @@ case class World[S](implicit
 )*/
 class ChildNodeByParentJoin extends Join[D_RawChildNode,Void,ChildNodeByParent] {
   def join(rawChildNode: Values[D_RawChildNode], void: Values[Void]): Values[ChildNodeByParent] =
-    rawChildNode.map(child ⇒ ChildNodeByParent(srcId=child.parentSrcId,child=child))
+    rawChildNode.map(child => ChildNodeByParent(srcId=child.parentSrcId,child=child))
 }
 class ParentNodeWithChildrenJoin extends Join[ChildNodeByParent,D_RawParentNode,ParentNodeWithChildren] {
   def join(childNodeByParent: Values[ChildNodeByParent], rawParentNode: Values[D_RawParentNode]): Values[ParentNodeWithChildren] = {
-    rawParentNode.map(parent ⇒
+    rawParentNode.map(parent =>
       ParentNodeWithChildren(parent.srcId, childNodeByParent.map(_.child).toList)
     )
   }
@@ -165,7 +165,7 @@ case class IndexMap[K,V](value: Map[K,Map[V,Int]], changed: Set[K])
 class WorldLensImpl[To<:Object] extends Lens[World,To] {
   def get(from: World) = from.value.get(this).asInstanceOf[Option[To]]
   def set(from: World, to: Option[To]) =
-    new World(if(to.isEmpty) from.value - this else from.value + (this→to.get))
+    new World(if(to.isEmpty) from.value - this else from.value + (this->to.get))
 }
 
 ////
@@ -190,7 +190,7 @@ class WorldOuterExpressionImpl[T1, T2, R](
 
     val nextValue
 
-     + (this→)
+     + (this->)
     val next3 = ???
     worldLens.set(world,next3)
 

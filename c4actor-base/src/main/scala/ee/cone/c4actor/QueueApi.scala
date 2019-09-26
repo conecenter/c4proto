@@ -27,7 +27,7 @@ import scala.concurrent.{ExecutionContext, Future}
     * @param valueTypeId == QAdapterRegistry.byName(orig.getClass.getName).id
     * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
     * @param flags == One of {0L, 1L, 2L, 4L}
-    **/
+    */
   case class N_Update(
     @Id(0x0011) srcId: SrcId,
     @Id(0x0012) valueTypeId: Long,
@@ -158,29 +158,29 @@ object ByPK {
 case class ByPrimaryKeyGetter[V<:Product](className: String)
   extends Getter[SharedContext with AssembledContext,Map[SrcId,V]]
 {
-  def of: SharedContext with AssembledContext ⇒ Map[SrcId, V] = context ⇒
+  def of: SharedContext with AssembledContext => Map[SrcId, V] = context =>
     GetOrigIndexKey.of(context)(context,className).asInstanceOf[Map[SrcId,V]]
 }
 
-case object GetOrigIndexKey extends SharedComponentKey[(AssembledContext,String)⇒Map[SrcId,Product]]
-case object GetAssembleOptions extends SharedComponentKey[ReadModel⇒AssembleOptions]
+case object GetOrigIndexKey extends SharedComponentKey[(AssembledContext,String)=>Map[SrcId,Product]]
+case object GetAssembleOptions extends SharedComponentKey[ReadModel=>AssembleOptions]
 
 trait Lens[C,I] extends Getter[C,I] {
-  def modify: (I⇒I) ⇒ C⇒C
-  def set: I ⇒ C⇒C
+  def modify: (I=>I) => C=>C
+  def set: I => C=>C
 }
 
 abstract class AbstractLens[C,I] extends Lens[C,I] {
-  def modify: (I⇒I) ⇒ C⇒C = f ⇒ c ⇒ set(f(of(c)))(c)
+  def modify: (I=>I) => C=>C = f => c => set(f(of(c)))(c)
 }
 
 abstract class TransientLens[Item](val default: Item) extends AbstractLens[Context,Item] with Product {
-  def of: Context ⇒ Item = context ⇒ context.transient.getOrElse(this, default).asInstanceOf[Item]
-  def set: Item ⇒ Context ⇒ Context = value ⇒ context ⇒ new Context(
+  def of: Context => Item = context => context.transient.getOrElse(this, default).asInstanceOf[Item]
+  def set: Item => Context => Context = value => context => new Context(
     context.injected,
     context.assembled,
     context.executionContext,
-    context.transient + (this → value.asInstanceOf[Object])
+    context.transient + (this -> value.asInstanceOf[Object])
   )
 }
 
@@ -205,11 +205,11 @@ object LEvent {
 }
 
 object WithPK {
-  def apply[P<:Product](p: P): (SrcId,P) = ToPrimaryKey(p) → p
+  def apply[P<:Product](p: P): (SrcId,P) = ToPrimaryKey(p) -> p
 }
 
 object TxAdd {
-  def apply[M<:Product](out: Seq[LEvent[M]]): Context⇒Context = context ⇒
+  def apply[M<:Product](out: Seq[LEvent[M]]): Context=>Context = context =>
     WriteModelDebugAddKey.of(context)(out)(context)
 }
 
@@ -218,7 +218,7 @@ trait Observer[Message] {
 }
 
 case object TxTransformOrigMeta{
-  def apply(name: String): Context ⇒ Context = TxTransformOrigMetaKey.set(MetaAttr(D_TxTransformNameMeta(name)) :: Nil)
+  def apply(name: String): Context => Context = TxTransformOrigMetaKey.set(MetaAttr(D_TxTransformNameMeta(name)) :: Nil)
 }
 case object TxTransformOrigMetaKey extends TransientLens[List[MetaAttr]](Nil)
 
@@ -228,9 +228,9 @@ trait TxTransform extends Product {
 
 case object WriteModelKey extends TransientLens[Queue[N_Update]](Queue.empty)
 case object WriteModelDebugKey extends TransientLens[Queue[LEvent[Product]]](Queue.empty)
-case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]⇒(SharedContext with AssembledContext)⇒ReadModel]
-case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]⇒Context⇒Context]
-case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]⇒Context⇒Context]
+case object ReadModelAddKey extends SharedComponentKey[Seq[RawEvent]=>(SharedContext with AssembledContext)=>ReadModel]
+case object WriteModelDebugAddKey extends SharedComponentKey[Seq[LEvent[Product]]=>Context=>Context]
+case object WriteModelAddKey extends SharedComponentKey[Seq[N_Update]=>Context=>Context]
 
 case class RawHeader(key: String, value: String)
 
@@ -271,7 +271,7 @@ case object SleepUntilKey extends TransientLens[Instant](Instant.MIN)
 
 object CheckedMap {
   def apply[K,V](pairs: Seq[(K,V)]): Map[K,V] =
-    pairs.groupBy(_._1).transform((k,l)⇒Single(l)._2)
+    pairs.groupBy(_._1).transform((k,l)=>Single(l)._2)
 }
 
 trait AssembleProfiler {

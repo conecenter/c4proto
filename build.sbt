@@ -17,6 +17,8 @@ lazy val publishSettings = Seq(
   bintrayVcsUrl := Option("git@github.com:conecenter/c4proto.git")
 )
 
+scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation")
+
 scalaVersion in ThisBuild := "2.13.0"
 
 //dockerBaseImage := "openjdk:8"

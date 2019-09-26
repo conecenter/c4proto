@@ -25,16 +25,16 @@ case object ConsoleProfiling extends JoiningProfiling with LazyLogging {
     wasLog
   }
 
-  def getColoredPeriod: Double ⇒ String = {
-    case i if i < 200 ⇒ PrintColored.makeColored("g")(i.toString)
-    case i if i >= 200 && i < 500 ⇒ PrintColored.makeColored("y")(i.toString)
-    case i if i >= 500 ⇒ PrintColored.makeColored("r")(i.toString)
+  def getColoredPeriod: Double => String = {
+    case i if i < 200 => PrintColored.makeColored("g")(i.toString)
+    case i if i >= 200 && i < 500 => PrintColored.makeColored("y")(i.toString)
+    case i if i >= 500 => PrintColored.makeColored("r")(i.toString)
   }
 
-  def getColoredCount: Long ⇒ String = {
-    case i if i < 100 ⇒ PrintColored.makeColored("g")(i.toString)
-    case i if i >= 100 && i < 1000 ⇒ PrintColored.makeColored("y")(i.toString)
-    case i if i >= 1000 ⇒ PrintColored.makeColored("r")(i.toString)
+  def getColoredCount: Long => String = {
+    case i if i < 100 => PrintColored.makeColored("g")(i.toString)
+    case i if i >= 100 && i < 1000 => PrintColored.makeColored("y")(i.toString)
+    case i if i >= 1000 => PrintColored.makeColored("r")(i.toString)
   }
 
 }

@@ -34,7 +34,7 @@ case class ConflictRich(conflict: D_ConflictOrig)
     origs: Values[D_ConflictOrig]
   ): Values[(SrcId, ConflictRich)] =
     for {
-      origg ← Single.option(origs).toList
+      origg <- Single.option(origs).toList
     } yield
       WithPK(ConflictRich(origg))
 
@@ -54,7 +54,7 @@ class ConflictingOrigTest(
     println(ByPK(classOf[ConflictRich]).of(emptyLocal).values.toList)
 
     val worldUpdate: Seq[LEvent[Product]] = List(D_ConflictOrig("main", 2)).flatMap(update)
-    val updates: List[QProtocol.N_Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val updates: List[QProtocol.N_Update] = worldUpdate.map(rec => toUpdate.toUpdate(rec)).toList
     val nonEmptyLocal = contextFactory.updated(updates)
 
     logger.info("============Non empty local===================")

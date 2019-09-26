@@ -21,25 +21,25 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
   def joinChildNodeByParent(
     key: SrcId,
     child: Each[D_RawChildNode]
-  ): Values[(ParentSrcId,D_RawChildNode)] = List(child.parentSrcId → child)
+  ): Values[(ParentSrcId,D_RawChildNode)] = List(child.parentSrcId -> child)
 
   def joinParentNodeWithChildren(
     key: SrcId,
     @by[ParentSrcId] childNodes: Values[D_RawChildNode],
     parent: Each[D_RawParentNode]
   ): Values[(SrcId,ParentNodeWithChildren)] =
-    List(parent.srcId → ParentNodeWithChildren(parent.srcId, parent.caption, childNodes))
+    List(parent.srcId -> ParentNodeWithChildren(parent.srcId, parent.caption, childNodes))
   /* todo:
   IO[SrcId,ParentNodeWithChildren](
     for(parent <- IO[SrcId,D_RawParentNode])
       yield ParentNodeWithChildren(parent.srcId, parent.caption, IO[ParentSrcId,D_RawChildNode](
-        key => for(child <- IO[SrcId,D_RawChildNode]) yield child.parentSrcId → child
+        key => for(child <- IO[SrcId,D_RawChildNode]) yield child.parentSrcId -> child
       ))
   )
   ////////
 
   Pairs[ParentSrcId,D_RawChildNode] =
-    for(child <- Values[SrcId,D_RawChildNode]) yield child.parentSrcId → child
+    for(child <- Values[SrcId,D_RawChildNode]) yield child.parentSrcId -> child
 
   Values[SrcId,ParentNodeWithChildren] =
     for(parent <- Values[SrcId,D_RawParentNode])
@@ -59,8 +59,8 @@ class AssemblerTestApp extends TestVMRichDataApp
 object AssemblerTest extends App with LazyLogging {
   val app = new AssemblerTestApp
   val recs = update(D_RawParentNode("1","P-1")) ++
-    List("2","3").flatMap(srcId ⇒ update(D_RawChildNode(srcId,"1",s"C-$srcId")))
-  val updates = recs.map(rec⇒app.toUpdate.toUpdate(rec)).toList
+    List("2","3").flatMap(srcId => update(D_RawChildNode(srcId,"1",s"C-$srcId")))
+  val updates = recs.map(rec=>app.toUpdate.toUpdate(rec)).toList
   //println(app.qMessages.toTree(rawRecs))
   val nGlobal = app.contextFactory.updated(updates)
   /*
@@ -90,6 +90,6 @@ object AssemblerTest extends App with LazyLogging {
       )
     )
   ).foreach{
-    case (k,v) ⇒ assert(k.of(nGlobal).toMap==v)
+    case (k,v) => assert(k.of(nGlobal).toMap==v)
   }
 }
