@@ -14,7 +14,10 @@ case class ShortName(name: String) extends StaticAnnotation
 
 class GenLens extends StaticAnnotation
 
-case class TypeKey(clName: String, alias: String, args: List[TypeKey])
+case class TypeKey(clName: String, alias: String, args: List[TypeKey]) {
+  override def toString: String =
+    s"TypeKey(${if (clName.endsWith(alias)) clName else s"$clName/$alias"}${if (args.isEmpty) "" else args.map(_.toString).mkString("[",", ", "]")})"
+}
 case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeKey)
 
 trait HasId {
