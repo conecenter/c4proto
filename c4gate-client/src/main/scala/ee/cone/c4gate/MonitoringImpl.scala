@@ -53,7 +53,7 @@ object PrometheusMetricBuilder {
     metrics.map(metricToString(_, time)).mkString("\n")
 
   def metricToString(metric: Metric, timeStamp: Long): String =
-    s"${metric.name}${metric.labels.map(label ⇒ s"""${label.name}="${label.value}""").mkString("{",",","}")} $timeStamp"
+    s"${metric.name}${metric.labels.map(label ⇒ s"""${label.name}="${label.value}""").mkString("{",",","}")} ${metric.value} $timeStamp"
 }
 
 case class PrometheusTx(path: String, compressor: Compressor, metricsFactories: List[MetricsFactory]) extends TxTransform {
