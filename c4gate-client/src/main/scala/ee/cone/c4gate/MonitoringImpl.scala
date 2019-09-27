@@ -36,7 +36,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTrans
     TxAdd(LEvent.update(C_ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssembleBase(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
+@assemble class PrometheusAssembleBase(compressor: Compressor, metricsFactories: List[MetricsFactory])   {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
@@ -44,26 +44,24 @@ case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTrans
   ): Values[(SrcId,TxTransform)] = {
     val path = s"/${accessKey.value}-metrics"
     println(s"Prometheus metrics at $path")
-    List(WithPK(PrometheusTx(path, compressor, indexUtil, readModelUtil)))
+    List(WithPK(PrometheusTx(path, compressor, metricsFactories)))
   }
 }
 
-case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends TxTransform {
+object PrometheusMetricBuilder {
+  def withTimeStamp(metrics: List[Metric], time: Long): String =
+    metrics.map(metricToString(_, time)).mkString("\n")
+
+  def metricToString(metric: Metric, timeStamp: Long): String =
+    s"${metric.name}${metric.labels.map(label ⇒ s"""${label.name}="${label.value}""").mkString("{",",","}")} $timeStamp"
+}
+
+case class PrometheusTx(path: String, compressor: Compressor, metricsFactories: List[MetricsFactory]) extends TxTransform {
+
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
-    val runtime = Runtime.getRuntime
-    val memStats: List[(String, Long)] = List( //seems to be: max > total > free
-      "runtime_mem_max" → runtime.maxMemory,
-      "runtime_mem_total" → runtime.totalMemory,
-      "runtime_mem_free" → runtime.freeMemory
-    )
-    val keyCounts: List[(String, Long)] = readModelUtil.toMap(local.assembled).collect {
-      case (worldKey:JoinKey, index: Index)
-        if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
-        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → indexUtil.keySet(index).size.toLong
-    }.toList
-    val metrics = memStats ::: keyCounts
-    val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
+    val metrics = metricsFactories.flatMap(_.measure(local))
+    val bodyStr = PrometheusMetricBuilder.withTimeStamp(metrics, time)
     val body = compressor.compress(okio.ByteString.encodeUtf8(bodyStr))
     val headers = List(N_Header("content-encoding", compressor.name))
     Monitoring.publish(time, 15000, 5000, path, headers, body)(local)

@@ -11,12 +11,10 @@ trait ActorAccessApp extends AssemblesApp with ProtocolsApp {
     ActorAccessProtocol :: super.protocols
 }
 
-trait PrometheusApp extends AssemblesApp with ProtocolsApp {
-  def indexUtil: IndexUtil
-  def readModelUtil: ReadModelUtil
+trait PrometheusApp extends AssemblesApp with ProtocolsApp with DefaultMetricsApp {
 
   override def assembles: List[Assemble] =
-    new PrometheusAssemble(GzipFullCompressor(), indexUtil, readModelUtil) :: super.assembles
+    new PrometheusAssemble(GzipFullCompressor(), metricFactories) :: super.assembles
 }
 
 trait AvailabilityApp extends AssemblesApp with ProtocolsApp {
