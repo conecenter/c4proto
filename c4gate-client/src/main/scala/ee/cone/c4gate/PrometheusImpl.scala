@@ -33,7 +33,13 @@ object PrometheusPostSettingsObj {
 import PrometheusPostSettingsObj._
 
 @assemble class PrometheusPostAssembleBase(metricsFactories: List[MetricsFactory], defaultSettings: Option[PrometheusPostSettings]) {
-  def join(
+  def StubJoin(
+    key: SrcId,
+    first: Each[S_Firstborn]
+  ): Values[(PrometheusPushId, PrometheusPostSettings)] =
+    Nil
+
+  def CreatePrometheusPost(
     key: SrcId,
     first: Each[S_Firstborn],
     @byEq[PrometheusPushId](fixedSrcId) settings: Values[PrometheusPostSettings]
