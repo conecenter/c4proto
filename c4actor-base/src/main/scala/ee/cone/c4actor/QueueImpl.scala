@@ -2,8 +2,8 @@
 package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
-import ee.cone.c4actor.QProtocol.{S_Offset, N_TxRef, N_Update, S_Updates}
-import ee.cone.c4proto.{HasId, Protocol, ToByteString}
+import ee.cone.c4actor.QProtocol.{N_TxRef, N_Update, S_Offset, S_Updates}
+import ee.cone.c4proto.{HasId, Protocol, ToByteString, c4component}
 
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -39,11 +39,11 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()⇒RawQSender) extends 
   }
 }
 
-class ToUpdateImpl(
+@c4component("ProtoAutoApp") class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
   deCompressorRegistry: DeCompressorRegistry,
   compressorOpt: Option[RawCompressor],
-  compressionMinSize: Long
+  compressionMinSize: UpdateCompressionMinSize
 )(
   updatesAdapter: ProtoAdapter[S_Updates] with HasId =
   qAdapterRegistry.byName(classOf[QProtocol.S_Updates].getName)
@@ -90,7 +90,7 @@ class ToUpdateImpl(
     val filteredUpdates = updates.filterNot(_.valueTypeId==offsetAdapter.id)
     val updatesBytes = updatesAdapter.encode(S_Updates("", filteredUpdates))
     logger.debug("Compressing...")
-    val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize)
+    val result = compressorOpt.filter(_ ⇒ updatesBytes.size >= compressionMinSize.value)
       .fold((updatesBytes, List.empty[RawHeader]))(compressor⇒
         (compressor.compress(updatesBytes), makeHeaderFromName(compressor))
       )
@@ -141,18 +141,6 @@ class ToUpdateImpl(
   def by(up: N_Update): (TypeId, SrcId) = (up.valueTypeId,up.srcId)
 }
 
-object QAdapterRegistryFactory {
-  def apply(protocols: List[Protocol]): QAdapterRegistry = {
-    val adapters = protocols.flatMap(_.adapters).asInstanceOf[List[ProtoAdapter[Product] with HasId]]
-    val byName = CheckedMap(adapters.map(a ⇒ a.className → a))
-    val byId = CheckedMap(adapters.filter(_.hasId).map(a ⇒ a.id → a))
-    new QAdapterRegistry(byName, byId)
-  }
-}
-
-class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
-  def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
-}
 
 /*object NoRawQSender extends RawQSender {
   def send(recs: List[QRecord]): List[NextOffset] = Nil

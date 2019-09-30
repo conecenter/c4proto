@@ -29,4 +29,4 @@ db.*
 htdocs
 /logback.xml
 *.auth
-c4gen.*.scala
+c4gen.*
