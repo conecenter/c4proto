@@ -56,13 +56,13 @@ object HttpUtil extends LazyLogging {
     logger.debug(s"http post done")
   }
 
-  def post(url: String, body: ByteString, mimeType: String, headers: List[(String, String)], timout: Int): Unit = {
+  def post(url: String, body: ByteString, mimeTypeOpt: Option[String], headers: List[(String, String)], timout: Int): Unit = {
     logger.debug(s"http post $url")
     withConnection(url) { conn ⇒
       conn.setConnectTimeout(timout)
       conn.setRequestMethod("POST")
-      setHeaders(conn, ("content-type", mimeType) :: ("content-length", s"${body.size}") :: headers)
-      FinallyClose(conn.getOutputStream){ bodyStream ⇒
+      setHeaders(conn, ("content-length", s"${body.size}") :: mimeTypeOpt.map(mimeType ⇒ ("content-type", mimeType)).toList ::: headers)
+      FinallyClose(conn.getOutputStream) { bodyStream ⇒
         bodyStream.write(body.toByteArray)
         bodyStream.flush()
       }
