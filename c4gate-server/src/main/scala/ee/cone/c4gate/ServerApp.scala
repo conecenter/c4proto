@@ -3,12 +3,11 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4proto.Protocol
 
 abstract class AbstractHttpGatewayApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with ParallelObserversApp
   with InternetForwarderApp
   with SSEServerApp
   with NoAssembleProfilerApp
@@ -30,12 +29,11 @@ abstract class AbstractHttpGatewayApp extends ServerApp
 // Sn> -- to neo
 // S0>W -- static content
 
-trait InternetForwarderApp extends ProtocolsApp with InitialObserversApp with ToStartApp {
+trait InternetForwarderApp extends InitialObserversApp with ToStartApp with HttpProtocolApp with AuthProtocolApp {
   def httpServer: Executable
   def config: Config
   //
   lazy val httpPort: Int = config.get("C4HTTP_PORT").toInt
-  override def protocols: List[Protocol] = AuthProtocol :: HttpProtocol :: super.protocols
   override def toStart: List[Executable] = httpServer :: super.toStart
 }
 

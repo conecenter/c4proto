@@ -37,7 +37,7 @@ object ProtocolGenerator extends Generator {
 
   def get: Get = { case (code@q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }", fileName) => Util.unBase(objectName,objectNameNode.pos.end){ objectName =>
       //println(t.structure)
-    val app = if(exprss.nonEmpty) ComponentsGenerator.getApp(exprss.flatten) else ""
+    val apps = ComponentsGenerator.getApp(exprss.flatten, objectName).toList
     val protoGenerated: List[Generated] = stats.flatMap{
       case c@q"import ..$i" => List(GeneratedImport(s"\n  $c"))
       case q"..$mods trait ${Type.Name(tp)}" =>
@@ -160,6 +160,6 @@ object ProtocolGenerator extends Generator {
     } yield r).collect{ case c: GeneratedComponent =>  c }
     val res = ComponentsGenerator.join(objectName,s"\nimport com.squareup.wire.ProtoAdapter;${imports.mkString}${messageStats.mkString}",components)
     //Util.comment(code)(cont) +
-    (if(app.isEmpty) Nil else List(GeneratedComponent(app,s"$objectName.components ::: ",""))) ::: List(res)
+    apps.map(app=>GeneratedComponent(app,s"$objectName.components ::: ","")) ::: List(res)
   }}
 }

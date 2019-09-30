@@ -9,7 +9,7 @@ import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto.Protocol
 
-trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with ProtocolsApp {
+trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with TcpProtocolApp {
   def config: Config
   def qMessages: QMessages
   def worldProvider: WorldProvider
@@ -22,7 +22,6 @@ trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with Pr
     mortal(classOf[S_TcpDisconnect]) :: mortal(classOf[S_TcpWrite]) ::
     new TcpAssemble :: super.assembles
   override def toInject: List[ToInject] = tcpServer :: super.toInject
-  override def protocols: List[Protocol] = TcpProtocol :: super.protocols
 }
 
 class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends TcpHandler {

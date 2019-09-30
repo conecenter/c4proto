@@ -8,7 +8,15 @@ import ee.cone.c4actor.HashSearchImpl._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4proto.c4component
 
+@c4component("RichDataAutoApp") class DefHashSearchFactoryHolder(
+  modelConditionFactoryHolder: ModelConditionFactoryHolder,
+  preHashing: PreHashing,
+  idGenUtil: IdGenUtil
+) extends HashSearchFactoryHolder(
+  new HashSearchImpl.FactoryImpl(modelConditionFactoryHolder.value, preHashing, idGenUtil)
+)
 object HashSearchImpl {
   case class Need[Model<:Product](requestId: SrcId)
   case class Priority[Model<:Product](heapId: SrcId, priority: Int)

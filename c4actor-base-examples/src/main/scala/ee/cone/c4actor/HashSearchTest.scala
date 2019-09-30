@@ -6,7 +6,7 @@ import ee.cone.c4actor.HashSearchTestProtocol.{D_SomeModel, D_SomeRequest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
@@ -31,7 +31,7 @@ object DefaultRangers {
   implicit lazy val strEq: Ranger[StrEq,String] = StrEqRanger
 }
 
-@protocol object HashSearchTestProtocolBase   {
+@protocol("HashSearchTestAutoApp") object HashSearchTestProtocolBase   {
   @Id(0x0001) case class D_SomeModel(
     @Id(0x0003) srcId: String,
     @Id(0x0004) fieldA: String,
@@ -73,12 +73,9 @@ import SomeModelAccess._
 
 case class SomeResponse(srcId: SrcId, lines: List[D_SomeModel])
 //todo reg
-class HashSearchTestApp extends TestVMRichDataApp
-  with TreeIndexValueMergerFactoryApp
+class HashSearchTestApp extends HashSearchTestAutoApp with TestVMRichDataApp
   with SimpleAssembleProfilerApp
 {
-  override def protocols: List[Protocol] =
-    HashSearchTestProtocol :: super.protocols
   import DefaultRangers._
   override def assembles: List[Assemble] = List(
     hashSearchFactory.index(classOf[D_SomeModel])

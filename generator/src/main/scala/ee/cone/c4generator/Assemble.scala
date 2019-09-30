@@ -33,7 +33,7 @@ object ExtractKeyNSType {
 }
 
 object AssembleGenerator extends Generator {
-  def get: Get = { case (code@q"@assemble class ${baseClassNameNode@Type.Name(baseClassName)} [..$tparams] (...$paramss) extends ..$ext { ..$stats }", fileName) =>
+  def get: Get = { case (code@q"@assemble(...$exprss) class ${baseClassNameNode@Type.Name(baseClassName)} [..$tparams] (...$paramss) extends ..$ext { ..$stats }", fileName) =>
     Util.unBase(baseClassName,baseClassNameNode.pos.end){className =>
     val classArgs = paramss.toList.flatten.collect{
       case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" =>
@@ -188,10 +188,13 @@ object AssembleGenerator extends Generator {
     }.flatten)
     val res = q"""class ${Type.Name(className)} [..$tparams] (...$paramNamesWithTypes)"""
 
+    val components: List[Generated] = if(exprss.isEmpty) Nil
+      else ComponentsGenerator.get((q"@c4component(...$exprss) class ${Type.Name(className)}(...$paramNamesWithTypes) extends Assemble",fileName)).toList
+
     //cont.substring(0,className.pos.end) + "_Base" + cont.substring(className.pos.end) +
-    List(GeneratedCode(
+    GeneratedCode(
       s"${res.syntax} extends ${baseClassName}$paramNames with Assemble$subAssembleWith " +
       s"{\n$statRules$joinImpl$dataDependencies$subAssembleDef}"
-    ))
+    ) :: components
   }}
 }

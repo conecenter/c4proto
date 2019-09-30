@@ -119,7 +119,6 @@ class DepTestStart(
 class DepTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
   with ToStartApp
   with ModelAccessFactoryApp

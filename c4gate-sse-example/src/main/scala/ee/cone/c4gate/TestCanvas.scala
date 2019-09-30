@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, fieldAccess}
 import ee.cone.c4gate.TestCanvasProtocol.B_TestCanvasState
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 import ee.cone.c4vdom.{PathFactory, PathFactoryImpl, _}
@@ -11,7 +11,7 @@ import ee.cone.c4vdom.{PathFactory, PathFactoryImpl, _}
 class TestCanvasApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with ParallelObserversApp
   with UIApp
   with PublishingApp
   with TestTagsApp
@@ -111,7 +111,7 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 
 /******************************************/
 
-@protocol object TestCanvasProtocolBase   {
+@protocol("CanvasAutoApp") object TestCanvasProtocolBase   {
   @Id(0x0008) case class B_TestCanvasState(
     @Id(0x0009) srcId: String,
     @Id(0x000A) sizes: String
@@ -126,15 +126,13 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 
 object TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))
 
-trait CanvasApp extends ProtocolsApp with DefaultModelFactoriesApp {
+trait CanvasApp extends CanvasAutoApp with DefaultModelFactoriesApp {
   def childPairFactory: ChildPairFactory
   def tagJsonUtils: TagJsonUtils
 
   lazy val testCanvasTags: TestCanvasTags = new TestCanvasTagsImpl(childPairFactory,tagJsonUtils,CanvasToJsonImpl)
   lazy val pathFactory: PathFactory = PathFactoryImpl[Context](childPairFactory,CanvasToJsonImpl)
-  
-  override def protocols: List[Protocol] =
-    TestCanvasProtocol :: super.protocols
+
   override def defaultModelFactories: List[DefaultModelFactory[_]] =
     TestCanvasStateDefault :: super.defaultModelFactories
 }

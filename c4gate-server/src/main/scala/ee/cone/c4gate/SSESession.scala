@@ -8,7 +8,6 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4gate.AlienProtocol.{U_FromAlienStatus, _}
-import ee.cone.c4proto.Protocol
 
 import scala.collection.concurrent.TrieMap
 import java.nio.charset.StandardCharsets.UTF_8

@@ -8,7 +8,3 @@ import scala.collection.immutable.Seq
 class DefaultUpdateProcessor extends UpdateProcessor {
   def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update] = updates
 }
-
-trait DefaultUpdateProcessorApp {
-  def updateProcessor: UpdateProcessor = new DefaultUpdateProcessor
-}

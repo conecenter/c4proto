@@ -171,7 +171,6 @@ class ChangingIndexPerformanceTest(
 class ChangingIndexPerformanceTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with TreeIndexValueMergerFactoryApp
   with ToStartApp {
   override def toStart: List[Executable] = new ChangingIndexPerformanceTest(execution, toUpdate, contextFactory) :: super.toStart
 

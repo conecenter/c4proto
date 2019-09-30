@@ -2,15 +2,12 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.Types.{ClName, SrcId}
 import ee.cone.c4assemble.{AssembledKey, IndexUtil}
+import ee.cone.c4proto.{Component, ComponentsApp, c4component}
 
-trait DefaultKeyFactoryApp {
-  def indexUtil: IndexUtil
+@c4component("RichDataAutoApp") class SwitchOrigKeyFactoryHolder(overriding: OrigKeyFactoryHolder, byPKKeyFactory: KeyFactory)
+  extends OrigKeyFactoryHolder(overriding.value.orElse(Option(byPKKeyFactory)))
 
-  def byPKKeyFactory: KeyFactory = DefaultKeyFactory(indexUtil)()
-  def origKeyFactoryOpt: Option[KeyFactory] = None
-}
-
-case class DefaultKeyFactory(composes: IndexUtil)(
+@c4component("RichDataAutoApp") case class DefaultKeyFactory(composes: IndexUtil)(
   srcIdAlias: String = "SrcId",
   srcIdClass: ClName = classOf[SrcId].getName
 ) extends KeyFactory {

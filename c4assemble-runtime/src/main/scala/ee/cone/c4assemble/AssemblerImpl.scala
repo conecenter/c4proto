@@ -7,6 +7,7 @@ import Types._
 import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
+import ee.cone.c4proto.c4component
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
@@ -82,7 +83,7 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
-case class IndexUtilImpl()(
+@c4component("AssembleAutoApp") case class IndexUtilImpl()(
   val nonEmptySeq: Seq[Unit] = Seq(()),
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v=>v.isEmpty,
@@ -153,7 +154,7 @@ case class IndexUtilImpl()(
     }
   }
 
-  def isParallel(options: AssembleOptions): Boolean = options.isParallel
+  // def isParallel(options: AssembleOptions): Boolean = options.isParallel
 
   def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V] =
     /*if(isParallel(options)) iterable.to[ParVector] else*/ iterable
@@ -190,7 +191,7 @@ class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IndexFactoryImpl(
+@c4component("AssembleAutoApp") class IndexFactoryImpl(
   val util: IndexUtil,
   updater: IndexUpdater
 ) extends IndexFactory {
@@ -360,7 +361,7 @@ class DebugJoinMapIndex(
 }
 */
 
-class TreeAssemblerImpl(
+@c4component("AssembleAutoApp") class TreeAssemblerImpl(
   composes: IndexUtil, readModelUtil: ReadModelUtil,
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
@@ -458,8 +459,8 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-object AssembleDataDependencies {
-  def apply(indexFactory: IndexFactory, assembles: List[Assemble]): List[DataDependencyTo[_]] = {
+@c4component("AssembleAutoApp") class AssembleDataDependencies(indexFactory: IndexFactory, assembles: List[Assemble]) extends DataDependencyProvider {
+  def apply(): List[DataDependencyTo[_]] = {
     def gather(assembles: List[Assemble]): List[Assemble] =
       if(assembles.isEmpty) Nil
       else gather(assembles.collect{ case a: CallerAssemble => a.subAssembles }.flatten) ::: assembles

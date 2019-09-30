@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4assemble.fieldAccess
 import ee.cone.c4gate.CommonFilterProtocol.{B_Contains, B_DateBefore}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 import ee.cone.c4ui.{AccessView, AccessViewsApp}
 import ee.cone.c4vdom.{ChildPair, OfDiv}
 
@@ -39,7 +39,7 @@ trait ContainsAccessViewApp extends AccessViewsApp {
 
 //// api
 
-@protocol object CommonFilterProtocolBase   {
+@protocol("TestTodoAutoApp") object CommonFilterProtocolBase   {
   @Id(0x0006) case class B_DateBefore(
     @Id(0x0001) srcId: String,
     @Id(0x0002) value: Option[Long]

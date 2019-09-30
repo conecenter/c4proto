@@ -1,16 +1,13 @@
 package ee.cone.c4gate
 
-import java.util.UUID
-
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
-import ee.cone.c4actor.LEvent._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.HttpProtocolBase.S_HttpPublication
-import ee.cone.c4proto.{Protocol, ToByteString}
+import ee.cone.c4proto.ToByteString
 
 
 
@@ -20,8 +17,8 @@ class HiRateTxApp extends ServerApp with ParallelObserversApp
   with NoAssembleProfilerApp
   with FileRawSnapshotApp
   with BasicLoggingApp
+  with HttpProtocolApp
 {
-  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def assembles: List[Assemble] = new HiRateAssemble :: super.assembles
 }
 

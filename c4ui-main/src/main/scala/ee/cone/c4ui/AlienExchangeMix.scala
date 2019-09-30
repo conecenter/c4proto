@@ -2,10 +2,9 @@ package ee.cone.c4ui
 
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4gate.{AlienProtocol, HttpProtocol}
-import ee.cone.c4proto.Protocol
+import ee.cone.c4gate.{AlienProtocolApp, HttpProtocolApp}
 
-trait AlienExchangeApp extends ToInjectApp with ProtocolsApp with AssemblesApp {
+trait AlienExchangeApp extends ToInjectApp with AssemblesApp with AlienProtocolApp with HttpProtocolApp {
   def branchOperations: BranchOperations
   //
   override def toInject: List[ToInject] = SendToAlienInit :: super.toInject
@@ -13,5 +12,4 @@ trait AlienExchangeApp extends ToInjectApp with ProtocolsApp with AssemblesApp {
     new FromAlienBranchAssemble(branchOperations) ::
     new MessageFromAlienAssemble ::
     super.assembles
-  override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
 }

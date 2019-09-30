@@ -6,8 +6,6 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
-import ee.cone.c4gate.HttpProtocolBase.{N_Header, S_HttpResponse}
-import ee.cone.c4proto.{Protocol, ToByteString}
 
 class TestSerialApp extends TestTxTransformApp with SerialObserversApp
 class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
@@ -17,10 +15,9 @@ abstract class TestTxTransformApp extends ServerApp
   with KafkaProducerApp with KafkaConsumerApp
   with NoAssembleProfilerApp
   with FileRawSnapshotApp
-  with TreeIndexValueMergerFactoryApp
   with BasicLoggingApp
+  with HttpProtocolApp
 {
-  override def protocols: List[Protocol] = HttpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles
 }
 

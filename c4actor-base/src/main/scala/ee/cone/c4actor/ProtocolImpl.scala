@@ -99,7 +99,7 @@ import com.squareup.wire.ProtoAdapter._
     CheckedMap(adapters.collect{ case a: HasId if a.hasId => a.id -> a.asInstanceOf[ProtoAdapter[Product] with HasId] })
 ) extends QAdapterRegistry
 
-class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
+@c4component("RichDataAutoApp") class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
 }
 

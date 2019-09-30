@@ -1,6 +1,7 @@
 package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types._
+import ee.cone.c4proto.c4component
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
@@ -49,7 +50,7 @@ class LoopExpression[MapKey, Value](
   }
 }
 
-class ShortAssembleSeqOptimizer(
+@c4component("AssembleAutoApp") class ShortAssembleSeqOptimizer(
   composes: IndexUtil,
   backStageFactory: BackStageFactory,
   updater: IndexUpdater

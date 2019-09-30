@@ -30,7 +30,7 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
 
 ////
 
-@protocol object ToExternalDBProtocolBase   {
+@protocol("ToExternalDBSyncAutoApp") object ToExternalDBProtocolBase   {
   @Id(0x0063) case class B_HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -164,7 +164,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol object FromExternalDBProtocolBase   {
+@protocol("FromExternalDBSyncAutoApp") object FromExternalDBProtocolBase   {
   @Id(0x0060) case class B_DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long

@@ -4,12 +4,12 @@ package ee.cone.c4actor
 import PCProtocol.{D_RawChildNode, D_RawParentNode}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, _}
 
-@protocol object PCProtocolBase   {
+@protocol("AssemblerTestAutoApp") object PCProtocolBase {
   @Id(0x0003) case class D_RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)
   @Id(0x0001) case class D_RawParentNode(@Id(0x0003) srcId: String, @Id(0x0004) caption: String)
 }
@@ -48,11 +48,9 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-class AssemblerTestApp extends TestVMRichDataApp
-  with TreeIndexValueMergerFactoryApp
+class AssemblerTestApp extends AssemblerTestAutoApp with TestVMRichDataApp
   with SimpleAssembleProfilerApp
 {
-  override def protocols: List[Protocol] = PCProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble :: super.assembles
 }
 

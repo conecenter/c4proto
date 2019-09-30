@@ -8,15 +8,15 @@ import ee.cone.c4assemble.{Assemble, fieldAccess}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
 import ee.cone.c4gate.TestFilterProtocol.B_Content
-import ee.cone.c4proto.{Id, Protocol}
+import ee.cone.c4proto.Id
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
-class TestCoWorkApp extends ServerApp
+class TestCoWorkApp extends TestCoWorkAutoApp with ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with ParallelObserversApp
   with UIApp
   with PublishingApp
   with TestTagsApp
@@ -37,7 +37,6 @@ class TestCoWorkApp extends ServerApp
   with SSHDebugApp
   with BasicLoggingApp
 {
-  override def protocols: List[Protocol] = TestFilterProtocol :: super.protocols
   override def assembles: List[Assemble] =
       new FromAlienTaskAssemble("/react-app.html") ::
       super.assembles

@@ -1,14 +1,13 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{AssemblesApp, Config, Executable, GzipStreamCompressorFactory, MortalFactory, ProtocolsApp, QMessages, StreamCompressorFactory, ToInject, ToInjectApp, ToStartApp}
+import ee.cone.c4actor.{AssemblesApp, Config, Executable, GzipStreamCompressorFactory, MortalFactory, QMessages, StreamCompressorFactory, ToInject, ToInjectApp, ToStartApp}
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4proto.Protocol
 
 trait SSEServerApp
   extends ToStartApp
     with AssemblesApp
     with ToInjectApp
-    with ProtocolsApp
+    with AlienProtocolApp
 {
   def config: Config
   def qMessages: QMessages
@@ -25,7 +24,6 @@ trait SSEServerApp
       super.assembles
   override def toInject: List[ToInject] =
     sseServer :: pongRegistry :: super.toInject
-  override def protocols: List[Protocol] = AlienProtocol :: super.protocols
 }
 
 trait NoProxySSEConfigApp {

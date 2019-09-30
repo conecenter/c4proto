@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.CollectiveTransformProtocol.D_CollectiveTransformMeta
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable.Seq
 

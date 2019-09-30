@@ -3,7 +3,6 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
-import ee.cone.c4proto.Protocol
 
 class DumperApp extends RichDataApp
   with ExecutableApp
@@ -12,9 +11,9 @@ class DumperApp extends RichDataApp
   with FileRawSnapshotApp
   with ToStartApp
   with EnvConfigApp
+  with AlienProtocolApp with HttpProtocolApp
 {
   lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
-  override def protocols: List[Protocol] = HttpProtocol :: AlienProtocol :: super.protocols
   override def toStart: List[Executable] = new Dumper(snapshotMaker,snapshotLoader,richRawWorldReducer,execution) :: super.toStart
 }
 

@@ -6,15 +6,16 @@ import scala.meta._
 
 object ComponentsGenerator extends Generator {
   //private def isC4Component = { case mod"@c4component" => true }
-  def getApp(mods: Seq[Any]): String = mods.map{ case Lit(app:String) => app } match {
-    case Seq(app) => app
-    case Seq() => "DefApp"
+  def getApp(mods: Seq[Any], name: String): Option[String] = mods.map{ case Lit(app:String) => app } match {
+    case Seq(app) => Option(app)
+    case Seq() => None //"DefApp"
+    case _ => throw new Exception(s"only single app supported for $name")
   }
   def get: Get = { case (q"..$cMods class $tname[..$tparams] ..$ctorMods (...$paramsList) extends ..$ext { ..$stats }", fileName) =>
     val appsEx: Seq[Seq[Seq[Any]]] = cMods.collect{ case mod"@c4component(...$exprss)" => exprss }
     if(appsEx.isEmpty) Nil else {
-      val app = getApp(appsEx.flatten.flatten)
       val Type.Name(tp) = tname
+      val app = getApp(appsEx.flatten.flatten,tp).getOrElse("")
       val abstractTypes = ext.map{
         case init"${t@Type.Name(_)}(...$a)" =>
           val clArgs = a.flatten.collect{ case q"classOf[$a]" => a }

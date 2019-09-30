@@ -11,10 +11,10 @@ import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
-class TestTodoApp extends ServerApp
+class TestTodoApp extends TestTodoAutoApp with ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with ParallelObserversApp
   with UIApp
   with TestTagsApp
   with NoAssembleProfilerApp
@@ -34,16 +34,13 @@ class TestTodoApp extends ServerApp
   with TestTodoRootViewApp
   with BasicLoggingApp
 {
-
-  override def protocols: List[Protocol] =
-    CommonFilterProtocol :: TestTodoProtocol :: super.protocols
   override def assembles: List[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") ::
     super.assembles
   //override def longTxWarnPeriod: Long = 10L
 }
 
-@protocol object TestTodoProtocolBase   {
+@protocol("TestTodoAutoApp") object TestTodoProtocolBase   {
   @Id(0x0001) case class B_TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,

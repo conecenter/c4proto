@@ -5,7 +5,6 @@ import ee.cone.c4actor._
 class PublishApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with TreeIndexValueMergerFactoryApp
   with PublishingApp
   with NoAssembleProfilerApp
   with FileRawSnapshotApp

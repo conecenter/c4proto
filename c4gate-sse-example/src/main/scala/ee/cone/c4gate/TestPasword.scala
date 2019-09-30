@@ -6,25 +6,21 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4gate.AuthProtocol.{S_PasswordChangeRequest, C_PasswordHashOfUser}
-import ee.cone.c4proto.Protocol
 import ee.cone.c4ui._
-import ee.cone.c4vdom.Types.ViewRes
-import ee.cone.c4actor.LEvent.update
-import ee.cone.c4gate.AlienProtocol.U_FromAlienState
+
 
 class TestPasswordApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with ParallelObserversApp
   with UIApp
   with TestTagsApp
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
   with BasicLoggingApp
+  with AuthProtocolApp
 {
-  override def protocols: List[Protocol] = AuthProtocol :: super.protocols
   override def assembles: List[Assemble] =
     new TestPasswordAssemble ::
       new FromAlienTaskAssemble("/react-app.html") ::

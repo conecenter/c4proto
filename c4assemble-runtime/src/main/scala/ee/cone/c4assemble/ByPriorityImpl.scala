@@ -1,8 +1,10 @@
 package ee.cone.c4assemble
 
+import ee.cone.c4proto.c4component
+
 import scala.collection.immutable.Map
 
-object ByPriorityImpl extends ByPriority {
+@c4component("AssembleAutoApp") class ByPriorityImpl extends ByPriority {
   def byPriority[K,V](uses: K=>(List[K],List[V]=>V)): List[K] => List[V] =
     new ByPriorityBuilder[K,V](uses).apply
 }

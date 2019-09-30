@@ -43,7 +43,7 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
 
 
 
-@protocol object BranchProtocolBase   {
+@protocol("BranchAutoApp") object BranchProtocolBase   {
   @Id(0x0040) case class S_BranchResult(
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,

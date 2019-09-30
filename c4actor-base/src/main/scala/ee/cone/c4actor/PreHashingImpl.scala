@@ -1,7 +1,9 @@
 package ee.cone.c4actor
 
+import ee.cone.c4proto.c4component
+
 // http://www.artima.com/pins1ed/object-equality.html
-object PreHashingImpl extends PreHashing {
+@c4component("RichDataAutoApp") class PreHashingImpl extends PreHashing {
   def wrap[T](value: T): PreHashed[T] = new PreHashedImpl(value.hashCode, value)
 }
 

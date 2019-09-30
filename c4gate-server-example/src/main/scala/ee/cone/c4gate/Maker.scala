@@ -26,7 +26,7 @@ class SimplePusherApp extends BaseApp with ExecutableApp with EnvConfigApp
   private lazy val dbDir = config.get("C4DATA_DIR")
   private lazy val rawSnapshotLoader: RawSnapshotLoader with SnapshotLister = new FileRawSnapshotLoader(dbDir,SnapshotUtilImpl)
   private lazy val snapshotLoader: SnapshotLoader = new SnapshotLoaderImpl(rawSnapshotLoader)
-  lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
+  // lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
   override def toStart: List[Executable] = new SimplePusherExecutable(execution,rawSnapshotLoader,snapshotLoader,rawQSender) :: super.toStart
 }
 

@@ -29,7 +29,7 @@ object Killing {
   } yield s"killing" -> killing //scaling: killing.hash.substring(0,1)
 }
 
-@assemble class MortalFatalityAssembleBase   {
+@assemble("MortalFactoryAutoApp") class MortalFatalityAssembleBase   {
   def aggregateKilling(
     key: SrcId,
     @by[KillerId] killings: Values[Killing]

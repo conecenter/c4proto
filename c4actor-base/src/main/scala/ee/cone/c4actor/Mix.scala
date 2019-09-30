@@ -1,17 +1,12 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4actor.ComponentRegistry.provide
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{AbstractComponents, Component, Components, ComponentsApp, Protocol, TypeKey, c4component}
-
-import scala.collection.immutable.Seq
-
-trait DataDependenciesApp {
-  def dataDependencies: List[DataDependencyTo[_]] = Nil
-}
+import ee.cone.c4proto.{AbstractComponents, Component, ComponentsApp, c4component}
 
 trait ToStartApp extends ComponentsApp {
-  private lazy val executableComponent = ComponentRegistry.provide(classOf[Executable],()=>toStart)
+  private lazy val executableComponent = ComponentRegistry.provide(classOf[Executable], Nil, ()=>toStart)
   override def components: List[Component] = executableComponent :: super.components
   def toStart: List[Executable] = Nil
 }
@@ -20,39 +15,44 @@ trait InitialObserversApp {
   def initialObservers: List[Observer[RichContext]] = Nil
 }
 
-trait ProtocolsApp extends ComponentsApp {
-  override def components: List[Component] =
-    protocols.distinct.flatMap(_.components) :::
-      super.components
-
-  def protocols: List[Protocol] = Nil
-}
-
-trait AssemblesApp {
+trait AssemblesApp extends ComponentsApp {
+  private lazy val assembleComponent = ComponentRegistry.provide(classOf[Assemble], Nil, ()=>assembles)
+  override def components: List[Component] = assembleComponent :: super.components
   def assembles: List[Assemble] = Nil
 }
 
-trait ToInjectApp {
+trait ToInjectApp extends ComponentsApp {
+  private lazy val toInjectComponent = ComponentRegistry.provide(classOf[ToInject], Nil, ()=>toInject)
+  override def components: List[Component] = toInjectComponent :: super.components
   def toInject: List[ToInject] = Nil
 }
 
-trait EnvConfigApp {
-  lazy val config: Config = new EnvConfigImpl
-  lazy val actorName: String = config.get("C4STATE_TOPIC_PREFIX")
+trait UpdatesProcessorsApp extends ComponentsApp {
+  private lazy val processorsComponent = ComponentRegistry.provide(classOf[UpdatesPreprocessor], Nil, ()=>processors)
+  override def components: List[Component] = processorsComponent :: super.components
+  def processors: List[UpdatesPreprocessor] = Nil
+}
+
+trait EnvConfigApp extends EnvConfigAutoApp {
+  def componentRegistry: ComponentRegistry
+  lazy val config: Config = componentRegistry.resolveSingle(classOf[Config])
+  lazy val actorName: String = componentRegistry.resolveSingle(classOf[ActorName]).value
 }
 
 trait UMLClientsApp {
   lazy val umlExpressionsDumper: ExpressionsDumper[String] = UMLExpressionsDumper
 }
 
-trait ExpressionsDumpersApp {
+trait ExpressionsDumpersApp extends ComponentsApp {
+  private lazy val expressionsDumpersComponent = ComponentRegistry.provide(classOf[ExpressionsDumper[Unit]], List(ComponentRegistry.toTypeKey(classOf[Unit],Nil)), ()=>expressionsDumpers)
+  override def components: List[Component] = expressionsDumpersComponent :: super.components
   def expressionsDumpers: List[ExpressionsDumper[Unit]] = Nil
 }
 
-trait SimpleIndexValueMergerFactoryApp //compat
-trait TreeIndexValueMergerFactoryApp //compat
+@deprecated trait SimpleIndexValueMergerFactoryApp
+@deprecated trait TreeIndexValueMergerFactoryApp
 
-trait ServerApp extends ServerAutoApp with RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with ProtocolsApp {
+trait ServerApp extends ServerAutoApp with RichDataApp with ExecutableApp with InitialObserversApp with ToStartApp with AssemblesApp {
   def execution: Execution
   def snapshotMaker: SnapshotMaker
   def rawSnapshotLoader: RawSnapshotLoader
@@ -73,7 +73,6 @@ trait ServerApp extends ServerAutoApp with RichDataApp with ExecutableApp with I
   )
   override def toStart: List[Executable] = rootConsumer :: super.toStart
   override def initialObservers: List[Observer[RichContext]] = txObserver.toList ::: super.initialObservers
-  override def protocols: List[Protocol] = MetaAttrProtocol :: super.protocols
 }
 
 trait TestVMRichDataApp extends RichDataApp with VMExecutionApp with ToStartApp {
@@ -95,60 +94,47 @@ trait ProtoApp extends ProtoAutoApp {
 }
 
 @c4component("RichDataAutoApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+@c4component("RichDataAutoApp") class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
+@c4component("RichDataAutoApp") class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
 
-trait RichDataApp extends RichDataAutoApp
-  with BaseApp
-  with ProtoApp
-  with ProtocolsApp
-  with AssemblesApp
-  with DataDependenciesApp
-  with ToInjectApp
-  with DefaultModelFactoriesApp
-  with ExpressionsDumpersApp
-  with PreHashingApp
-  with DefaultUpdateProcessorApp
-  with UpdatesProcessorsApp
-  with DefaultKeyFactoryApp
-{
+trait DefaultKeyFactoryApp extends ComponentsApp {
+  def origKeyFactoryOpt: Option[KeyFactory] = None
+  private lazy val origKeyFactoryComponent =
+    provide(classOf[OrigKeyFactoryHolder],Nil,()=>List(new OrigKeyFactoryHolder(origKeyFactoryOpt)))
+  override def components: List[Component] = origKeyFactoryComponent :: super.components
+}
+
+trait DefaultUpdateProcessorApp extends ComponentsApp {
+  def updateProcessor: UpdateProcessor = new DefaultUpdateProcessor
+  private lazy val updateProcessorComponent =
+    provide(classOf[UpdateProcessor],Nil,()=>List(updateProcessor))
+  override def components: List[Component] = updateProcessorComponent :: super.components
+}
+
+trait AssembleProfilerApp extends ComponentsApp {
   def assembleProfiler: AssembleProfiler
-  def actorName: String
-  def execution: Execution
-  //
-  //lazy val toUpdate: ToUpdate = new ToUpdateImpl(qAdapterRegistry, deCompressorRegistry, Single.option(rawCompressors), 50000000L)()()
-  lazy val byPriority: ByPriority = ByPriorityImpl
-  lazy val preHashing: PreHashing = PreHashingImpl
-  lazy val richRawWorldReducer: RichRawWorldReducer =
-    new RichRawWorldReducerImpl(toInject,toUpdate,actorName,execution)
-  lazy val defaultModelRegistry: DefaultModelRegistry = new DefaultModelRegistryImpl(defaultModelFactories)()
-  lazy val modelConditionFactory: ModelConditionFactory[Unit] = new ModelConditionFactoryImpl[Unit]
-  lazy val hashSearchFactory: HashSearch.Factory = new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
-  def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer //new ShortAssembleSeqOptimizer(backStageFactory,indexUpdater) //make abstract
-  lazy val readModelUtil: ReadModelUtil = new ReadModelUtilImpl(indexUtil)
-  lazy val indexUpdater: IndexUpdater = new IndexUpdaterImpl(readModelUtil)
-  lazy val backStageFactory: BackStageFactory = new BackStageFactoryImpl(indexUpdater,indexUtil)
-  lazy val idGenUtil: IdGenUtil = IdGenUtilImpl()()
-  lazy val indexUtil: IndexUtil = IndexUtilImpl()()
-  lazy val catchNonFatal: CatchNonFatal = CatchNonFatalImpl
-  private lazy val indexFactory: IndexFactory = new IndexFactoryImpl(indexUtil,indexUpdater)
-  private lazy val treeAssembler: TreeAssembler = new TreeAssemblerImpl(indexUtil,readModelUtil,byPriority,expressionsDumpers,assembleSeqOptimizer,backStageFactory)
-  private lazy val assembleDataDependencies = AssembleDataDependencies(indexFactory,assembles)
-  private lazy val localQAdapterRegistryInit: ToInject = new LocalQAdapterRegistryInit(qAdapterRegistry)
-  private lazy val origKeyFactory: KeyFactory = origKeyFactoryOpt.getOrElse(byPKKeyFactory)
-  private lazy val assemblerInit: ToInject =
-    new AssemblerInit(qAdapterRegistry, toUpdate, treeAssembler, ()=>dataDependencies, indexUtil, byPKKeyFactory, origKeyFactory, assembleProfiler, readModelUtil, actorName, updateProcessor, processors, defaultAssembleOptions, longAssembleWarnPeriod, catchNonFatal)()
-  private def longAssembleWarnPeriod: Long = Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong)
-  private lazy val defaultAssembleOptions = AssembleOptions("AssembleOptions",parallelAssembleOn,0L)
-  def parallelAssembleOn: Boolean = false
+  private lazy val assembleProfilerComponent =
+    provide(classOf[AssembleProfiler],Nil,()=>List(assembleProfiler))
+  override def components: List[Component] = assembleProfilerComponent :: super.components
+}
 
-  //
-  override def protocols: List[Protocol] = QProtocol :: super.protocols
-  override def dataDependencies: List[DataDependencyTo[_]] =
-    assembleDataDependencies :::
-    ProtocolDataDependencies(qAdapterRegistry,origKeyFactory)() ::: super.dataDependencies
-  override def toInject: List[ToInject] =
-    assemblerInit ::
-      localQAdapterRegistryInit ::
-      super.toInject
+trait RichDataApp extends RichDataAutoApp with BaseApp with ProtoApp with AssembleAutoApp with AssembleProfilerApp
+  with DefaultKeyFactoryApp with DefaultUpdateProcessorApp
+{
+  import componentRegistry.resolveSingle
+  lazy val preHashing: PreHashing = resolveSingle(classOf[PreHashing])
+  lazy val richRawWorldReducer: RichRawWorldReducer = resolveSingle(classOf[RichRawWorldReducer])
+  lazy val indexUtil: IndexUtil = resolveSingle(classOf[IndexUtil])
+  lazy val idGenUtil: IdGenUtil = resolveSingle(classOf[IdGenUtil])
+  lazy val defaultModelRegistry: DefaultModelRegistry = resolveSingle(classOf[DefaultModelRegistry])
+  lazy val readModelUtil: ReadModelUtil = resolveSingle(classOf[ReadModelUtil])
+  lazy val indexUpdater: IndexUpdater = resolveSingle(classOf[IndexUpdater])
+  lazy val backStageFactory: BackStageFactory = resolveSingle(classOf[BackStageFactory])
+  lazy val catchNonFatal: CatchNonFatal = resolveSingle(classOf[CatchNonFatal])
+  lazy val modelConditionFactory: ModelConditionFactory[Unit] = resolveSingle(classOf[ModelConditionFactoryHolder]).value
+  lazy val hashSearchFactory: HashSearch.Factory = resolveSingle(classOf[HashSearchFactoryHolder]).value
+  @deprecated def parallelAssembleOn: Boolean = false
+  @deprecated def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer
 }
 
 trait VMExecutionApp extends VMExecutionAutoApp {
@@ -194,25 +180,19 @@ trait ParallelObserversApp {
   lazy val txObserver = Option(new ParallelObserver(Map.empty,txTransforms,execution))
 }
 
-trait MortalFactoryApp extends AssemblesApp {
+trait MortalFactoryApp extends MortalFactoryAutoApp with AssemblesApp {
   def idGenUtil: IdGenUtil
   //
   def mortal: MortalFactory = MortalFactoryImpl(idGenUtil)
-  override def assembles: List[Assemble] =
-    new MortalFatalityAssemble() :: super.assembles
 }
 
 trait NoAssembleProfilerApp {
   lazy val assembleProfiler: AssembleProfiler = NoAssembleProfiler
 }
 
-trait SimpleAssembleProfilerApp extends ProtocolsApp {
+trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerAutoApp {
   def idGenUtil: IdGenUtil
   def toUpdate: ToUpdate
   //
   lazy val assembleProfiler: AssembleProfiler = SimpleAssembleProfiler(idGenUtil)(toUpdate)
-  //
-  override def protocols: List[Protocol] =
-    SimpleAssembleProfilerProtocol ::
-    super.protocols
 }

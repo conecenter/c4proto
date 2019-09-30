@@ -94,6 +94,7 @@ trait QMessages {
 }
 
 class UpdateCompressionMinSize(val value: Long)
+class LongAssembleWarnPeriod(val value: Long)
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): N_Update
@@ -281,10 +282,6 @@ trait AssembleProfiler {
 
 case object DebugStateKey extends TransientLens[Option[(RichContext,RawEvent)]](None)
 
-trait UpdatesProcessorsApp {
-  def processors: List[UpdatesPreprocessor] = Nil
-}
-
 trait UpdatesPreprocessor {
   /**
     * Ability to add extra updates on some events
@@ -297,6 +294,8 @@ trait UpdatesPreprocessor {
 trait KeyFactory {
   def rawKey(className: String): AssembledKey
 }
+
+class OrigKeyFactoryHolder(val value: Option[KeyFactory])
 
 trait UpdateProcessor {
   def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]

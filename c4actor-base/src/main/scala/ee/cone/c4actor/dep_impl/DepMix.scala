@@ -3,7 +3,6 @@ package ee.cone.c4actor.dep_impl
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4proto.Protocol
 
 import scala.collection.immutable.Seq
 
@@ -38,12 +37,11 @@ trait AskByPKsApp {
   def askByPKs: List[AbstractAskByPK] = Nil
 }
 
-trait ByPKRequestHandlerApp extends AssemblesApp with ProtocolsApp {
+trait ByPKRequestHandlerApp extends ByPKRequestHandlerAutoApp with AssemblesApp {
   def askByPKs: List[AbstractAskByPK]
   def depResponseFactory: DepResponseFactory
   def depAskFactory: DepAskFactory
 
   lazy val askByPKFactory: AskByPKFactory = AskByPKFactoryImpl(depAskFactory,depResponseFactory)
   override def assembles: List[Assemble] = ByPKAssembles(askByPKs) ::: super.assembles
-  override def protocols: List[Protocol] = ByPKRequestProtocol :: super.protocols
 }

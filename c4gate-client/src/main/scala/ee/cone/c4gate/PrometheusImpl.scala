@@ -11,10 +11,10 @@ import ee.cone.c4assemble._
 import ee.cone.c4gate.ActorAccessProtocol.C_ActorAccessKey
 import ee.cone.c4gate.AvailabilitySettingProtocol.C_AvailabilitySetting
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 import okio.ByteString
 
-@protocol object ActorAccessProtocolBase   {
+@protocol("ActorAccessAutoApp") object ActorAccessProtocolBase   {
   @Id(0x006A) case class C_ActorAccessKey(
     @Id(0x006B) srcId: String,
     @Id(0x006C) value: String
@@ -93,7 +93,7 @@ object Monitoring {
   }
 }
 
-@protocol object AvailabilitySettingProtocolBase  {
+@protocol("AvailabilityAutoApp") object AvailabilitySettingProtocolBase  {
 
   @Id(0x00f0) case class C_AvailabilitySetting(
     @Id(0x0001) srcId: String,

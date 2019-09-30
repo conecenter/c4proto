@@ -15,8 +15,8 @@ object ComponentRegistry {
       .asInstanceOf[ComponentRegistry]
   def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
     TypeKey(cl.getName,cl.getSimpleName,args.toList)
-  def provide[T<:Object](cl: Class[T], get: ()=>Seq[T]): Component =
-    new Component(Seq(toTypeKey(cl,Nil)),Nil,_=>get())
+  def provide[T<:Object](cl: Class[T], args: Seq[TypeKey], get: ()=>Seq[T]): Component =
+    new Component(Seq(toTypeKey(cl,args)),Nil,_=>get())
 }
 
 trait ComponentRegistry {

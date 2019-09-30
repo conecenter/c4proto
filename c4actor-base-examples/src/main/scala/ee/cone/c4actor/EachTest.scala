@@ -3,15 +3,14 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.EachTestProtocol.D_Item
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{Assemble, IndexUtil, assemble, by}
+import ee.cone.c4assemble.{IndexUtil, assemble, by}
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
-class EachTestApp extends TestVMRichDataApp
+class EachTestApp extends EachTestAutoApp with TestVMRichDataApp
   with SimpleAssembleProfilerApp
   with VMExecutionApp with ToStartApp with ExecutableApp with AssemblesApp
 {
-  override def protocols: List[Protocol] = EachTestProtocol :: super.protocols
   override def toStart: List[Executable] = new EachTestExecutable(execution, contextFactory, indexUtil) :: super.toStart
   override def assembles =
   new EachTestAssemble ::
@@ -19,7 +18,7 @@ class EachTestApp extends TestVMRichDataApp
       super.assembles
 }
 
-@protocol object EachTestProtocolBase   {
+@protocol("EachTestAutoApp") object EachTestProtocolBase   {
   @Id(0x0001) case class D_Item(@Id(0x0001) srcId: String, @Id(0x0002) parent: String)
 }
 

@@ -24,8 +24,9 @@ scalaVersion in ThisBuild := "2.13.0"
 
 //dockerBaseImage := "openjdk:8"
 
-lazy val `c4proto-api` = project.settings(publishSettings)
-lazy val `c4assemble-runtime` = project.settings(publishSettings)
+lazy val `c4proto-di` = project.settings(publishSettings)
+lazy val `c4proto-api` = project.settings(publishSettings).dependsOn(`c4proto-di`)
+lazy val `c4assemble-runtime` = project.settings(publishSettings).dependsOn(`c4proto-di`)
 lazy val `c4gate-proto` = project.settings(publishSettings).dependsOn(`c4proto-api`)
 lazy val `c4actor-base` = project.settings(publishSettings).dependsOn(`c4proto-api`,`c4assemble-runtime`)
 lazy val `c4actor-base-examples` = project.settings(publishSettings).dependsOn(`c4actor-base`,`c4gate-logback`)
@@ -48,8 +49,8 @@ lazy val `c4gate-client` = project.settings(publishSettings).dependsOn(`c4gate-p
 lazy val `c4gate-logback-static` = project.settings(publishSettings)
 lazy val `c4gate-logback` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-repl` = project.settings(publishSettings).dependsOn(`c4actor-base`)
-lazy val `c4gate-sun` = project.settings(publishSettings).dependsOn(`c4gate-server`)
-lazy val `c4gate-finagle` = project.settings(publishSettings).dependsOn(`c4gate-server`, `c4gate-sun`)
+//lazy val `c4gate-sun` = project.settings(publishSettings).dependsOn(`c4gate-server`)
+//lazy val `c4gate-finagle` = project.settings(publishSettings).dependsOn(`c4gate-server`, `c4gate-sun`)
 lazy val `c4gate-akka` = project.settings(publishSettings).dependsOn(`c4gate-server`)
 
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
@@ -70,6 +71,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4gate-sse-example`,
   `c4gate-repl`,
   `c4proto-api`,
+  `c4proto-di`,
   `c4vdom-base`,
   `c4vdom-canvas`,
   `c4actor-extra`,

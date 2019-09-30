@@ -136,7 +136,6 @@ class MD5HashingTest(
 class MD5HashingTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with TreeIndexValueMergerFactoryApp
   with ToStartApp {
   override def toStart: List[Executable] = new MD5HashingTest(execution, toUpdate, contextFactory) :: super.toStart
 

@@ -6,7 +6,7 @@ import Types._
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
 import scala.concurrent.{ExecutionContext, Future}
 
-case class AssembleOptions(srcId: String, isParallel: Boolean, threadCount: Long)
+case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
 
 trait IndexUtil extends Product {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
@@ -115,6 +115,10 @@ trait DataDependencyFrom[From] {
 
 trait DataDependencyTo[To] {
   def outputWorldKey: AssembledKey
+}
+
+trait DataDependencyProvider {
+  def apply(): List[DataDependencyTo[_]]
 }
 
 abstract class Join(

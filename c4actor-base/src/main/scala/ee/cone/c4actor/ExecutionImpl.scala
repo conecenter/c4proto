@@ -144,12 +144,13 @@ object ServerMain extends BaseServerMain(
     .newInstance().asInstanceOf[ExecutableApp]
 )
 
-class EnvConfigImpl extends Config {
+@c4component("EnvConfigAutoApp") class EnvConfigImpl extends Config {
   def get(key: String): String =
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
+@c4component("EnvConfigAutoApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 
-object CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
+@c4component("RichDataAutoApp") class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
   def apply[T](aTry: =>T)(getHint: =>String)(aCatch: Throwable=>T): T = try { aTry } catch {
     case NonFatal(e) =>
       logger.error(getHint,e)

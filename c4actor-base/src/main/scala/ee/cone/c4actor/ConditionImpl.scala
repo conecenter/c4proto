@@ -1,6 +1,11 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4proto.c4component
+
+@c4component("RichDataAutoApp") class DefModelConditionFactoryHolder
+  extends ModelConditionFactoryHolder(new ModelConditionFactoryImpl[Unit])
+
 class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
   def of[OtherModel]: ModelConditionFactory[OtherModel] =
     new ModelConditionFactoryImpl[OtherModel]

@@ -4,19 +4,17 @@ import ee.cone.c4actor.JoinAllTestProtocol.{D_Item, D_RegistryItem}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
-class JoinAllTestApp extends TestVMRichDataApp
-  with TreeIndexValueMergerFactoryApp
+class JoinAllTestApp extends JoinAllTestAutoApp with TestVMRichDataApp
   with SimpleAssembleProfilerApp
   with VMExecutionApp with ToStartApp with ExecutableApp
 {
   override def assembles: List[Assemble] = new JoinAllTestAssemble :: super.assembles
-  override def protocols: List[Protocol] = JoinAllTestProtocol :: super.protocols
   override def toStart: List[Executable] = new JoinAllTestExecutable(contextFactory) :: super.toStart
 }
 
-@protocol object JoinAllTestProtocolBase   {
+@protocol("JoinAllTestAutoApp") object JoinAllTestProtocolBase   {
   @Id(0x0002) case class D_RegistryItem(@Id(0x0001) srcId: String)
   @Id(0x0001) case class D_Item(@Id(0x0001) srcId: String)
 }

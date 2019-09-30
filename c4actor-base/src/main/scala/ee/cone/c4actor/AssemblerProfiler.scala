@@ -27,7 +27,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
 
 ////
 
-@protocol object SimpleAssembleProfilerProtocolBase   {
+@protocol("SimpleAssembleProfilerAutoApp") object SimpleAssembleProfilerProtocolBase   {
   @Id(0x0073) case class D_TxAddMeta(
     @Id(0x0074) srcId: String,
     @Id(0x0075) startedAt: Long,

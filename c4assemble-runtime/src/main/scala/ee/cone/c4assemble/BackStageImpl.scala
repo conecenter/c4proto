@@ -1,6 +1,7 @@
 package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types._
+import ee.cone.c4proto.c4component
 
 import scala.concurrent.ExecutionContext
 
@@ -28,7 +29,7 @@ class ConnectBackStage[MapKey, Value](
   }
 }
 
-class BackStageFactoryImpl(updater: IndexUpdater, composes: IndexUtil) extends BackStageFactory {
+@c4component("AssembleAutoApp") class BackStageFactoryImpl(updater: IndexUpdater, composes: IndexUtil) extends BackStageFactory {
   def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression] = {
     val wasKeys = (for {
       e <- l

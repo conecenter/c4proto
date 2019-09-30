@@ -1,17 +1,14 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{AssemblesApp, GzipFullCompressor, ProtocolsApp}
+import ee.cone.c4actor.{AssemblesApp, GzipFullCompressor}
 import ee.cone.c4assemble.{Assemble, IndexUtil, ReadModelUtil}
-import ee.cone.c4proto.Protocol
 
-trait ActorAccessApp extends AssemblesApp with ProtocolsApp {
+trait ActorAccessApp extends ActorAccessAutoApp with AssemblesApp {
   override def assembles: List[Assemble] =
     new ActorAccessAssemble :: super.assembles
-  override def protocols: List[Protocol] =
-    ActorAccessProtocol :: super.protocols
 }
 
-trait PrometheusApp extends AssemblesApp with ProtocolsApp {
+trait PrometheusApp extends AssemblesApp {
   def indexUtil: IndexUtil
   def readModelUtil: ReadModelUtil
 
@@ -19,12 +16,9 @@ trait PrometheusApp extends AssemblesApp with ProtocolsApp {
     new PrometheusAssemble(GzipFullCompressor(), indexUtil, readModelUtil) :: super.assembles
 }
 
-trait AvailabilityApp extends AssemblesApp with ProtocolsApp {
+trait AvailabilityApp extends AvailabilityAutoApp with AssemblesApp {
   def availabilityDefaultUpdatePeriod: Long = 3000
   def availabilityDefaultTimeout: Long = 3000
-
-
-  override def protocols: List[Protocol] = AvailabilitySettingProtocol :: super.protocols
 
   override def assembles: List[Assemble] =
     new AvailabilityAssemble(availabilityDefaultUpdatePeriod, availabilityDefaultTimeout) :: super.assembles

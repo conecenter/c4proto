@@ -68,7 +68,6 @@ class ConflictingOrigTest(
 class D_ConflictOrigTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with TreeIndexValueMergerFactoryApp
   with ToStartApp {
   override def toStart: List[Executable] = new ConflictingOrigTest(execution, toUpdate, contextFactory) :: super.toStart
 

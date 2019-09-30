@@ -7,7 +7,7 @@ import ee.cone.c4actor.QProtocol.{S_Firstborn, S_Offset}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4proto.{ToByteString, c4component}
 
 import scala.collection.immutable.Map
 import scala.concurrent.ExecutionContext
@@ -25,13 +25,13 @@ object Merge {
     }
 }
 
-class RichRawWorldReducerImpl(
-  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: String, execution: Execution
+@c4component("RichDataAutoApp") class RichRawWorldReducerImpl(
+  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: ActorName, execution: Execution
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
       val offset = addEvents.lastOption.fold(emptyOffset)(_.srcId)
-      val firstborn = LEvent.update(S_Firstborn(actorName,offset)).toList.map(toUpdate.toUpdate)
+      val firstborn = LEvent.update(S_Firstborn(actorName.value,offset)).toList.map(toUpdate.toUpdate)
       val (bytes, headers) = toUpdate.toBytes(firstborn)
       SimpleRawEvent(offset, ToByteString(bytes), headers) :: addEvents
     }
@@ -54,7 +54,7 @@ class RichRawWorldReducerImpl(
   def create(injected: SharedComponentMap, assembled: ReadModel, executionContext: OuterExecutionContext): RichRawWorldImpl = {
     val preWorld = new RichRawWorldImpl(injected, assembled, executionContext, "")
     val threadCount = GetAssembleOptions.of(preWorld)(assembled).threadCount
-    val offset = ByPK(classOf[S_Offset]).of(preWorld).get(actorName).fold(emptyOffset)(_.txId)
+    val offset = ByPK(classOf[S_Offset]).of(preWorld).get(actorName.value).fold(emptyOffset)(_.txId)
     new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
   }
   def newExecutionContext(confThreadCount: Long): OuterExecutionContext = {

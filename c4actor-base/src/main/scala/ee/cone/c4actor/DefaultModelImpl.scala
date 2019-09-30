@@ -1,6 +1,8 @@
 package ee.cone.c4actor
 
-class DefaultModelRegistryImpl(
+import ee.cone.c4proto.c4component
+
+@c4component("RichDataAutoApp") class DefaultModelRegistryImpl(
   defaultModelFactories: List[DefaultModelFactory[_]]
 )(
   val reg: Map[String,DefaultModelFactory[_]] =

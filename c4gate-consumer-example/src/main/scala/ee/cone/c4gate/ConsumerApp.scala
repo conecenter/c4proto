@@ -15,13 +15,15 @@ import ee.cone.c4gate.HttpProtocolBase.{N_Header, S_HttpResponse}
 class TestConsumerApp extends ServerApp
   with EnvConfigApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
+  with ParallelObserversApp
   with NoAssembleProfilerApp
   with ManagementApp
   with FileRawSnapshotApp
   with BasicLoggingApp
+  with AlienProtocolApp
+  with HttpProtocolApp
+  with TcpProtocolApp
 {
-  override def protocols: List[Protocol] = AlienProtocol :: HttpProtocol :: TcpProtocol :: super.protocols
   override def assembles: List[Assemble] = new TestAssemble(catchNonFatal) :: super.assembles
 }
 
