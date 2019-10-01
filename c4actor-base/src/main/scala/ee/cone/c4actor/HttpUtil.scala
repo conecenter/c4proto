@@ -29,6 +29,7 @@ object HttpUtil extends LazyLogging {
 
   def get(url: String, headers: List[(String, String)]): HttpResponse = {
     logger.debug(s"http get $url")
+    // TODO no way to find out that data download ended before fully loaded
     val res = withConnection(url) { conn ⇒
       setHeaders(conn, headers)
       FinallyClose(new BufferedInputStream(conn.getInputStream)) { is ⇒
@@ -56,7 +57,7 @@ object HttpUtil extends LazyLogging {
     logger.debug(s"http post done")
   }
 
-  def post(url: String, body: ByteString, mimeTypeOpt: Option[String], headers: List[(String, String)], timout: Int): Unit = {
+  def post(url: String, body: ByteString, mimeTypeOpt: Option[String], headers: List[(String, String)], timout: Int, expectCode: Int = 200): Unit = {
     logger.debug(s"http post $url")
     withConnection(url) { conn ⇒
       conn.setDoOutput(true)
@@ -69,7 +70,7 @@ object HttpUtil extends LazyLogging {
       }
       conn.connect()
       logger.debug(s"http resp status ${conn.getResponseCode}")
-      assert(conn.getResponseCode == 200)
+      assert(conn.getResponseCode == expectCode)
     }
     logger.debug(s"http post done")
   }

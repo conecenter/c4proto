@@ -14,13 +14,13 @@ import ee.cone.c4proto.ToByteString
 
 object PrometheusMetricBuilder {
   def apply(metrics: List[Metric]): String =
-    metrics.map(metricToString(_, "")).mkString("\n")
+    metrics.map(metricToString(_, "")).mkString("\n", "\n", "\n")
 
   def withTimeStamp(metrics: List[Metric], time: Long): String =
-    metrics.map(metricToString(_, time.toString)).mkString("\n")
+    metrics.map(metricToString(_, time.toString)).mkString("\n", "\n", "\n")
 
   def metricToString(metric: Metric, extraInfo: String): String =
-    s"${metric.name}${metric.labels.map(label ⇒ s"""${label.name}="${label.value}""").mkString("{", ",", "}")} ${metric.value} $extraInfo"
+    s"${metric.name}${metric.labels.map(label ⇒ s"""${label.name}="${label.value}"""").mkString("{", ",", "}")} ${metric.value}${if (extraInfo.isBlank) "" else s" $extraInfo"}"
 }
 
 case class PrometheusPostSettings(url: String, refreshRate: Long)
@@ -56,8 +56,8 @@ case class PrometheusPostTx(srcId: SrcId, settings: PrometheusPostSettings, metr
     val metrics = metricsFactories.flatMap(_.measure(local))
     val bodyStr = PrometheusMetricBuilder(metrics)
     val bodyBytes = ToByteString(bodyStr.getBytes(StandardCharsets.UTF_8))
-    logger.debug(s"Posted ${metrics.size} metrics")
-    HttpUtil.post(settings.url, bodyBytes, None, Nil, 5000)
+    logger.debug(s"Posted ${metrics.size} metrics to ${settings.url}")
+    HttpUtil.post(settings.url, bodyBytes, None, Nil, 5000, expectCode = 202)
     SleepUntilKey.set(Instant.ofEpochMilli(time + settings.refreshRate))(local)
   }
 }
