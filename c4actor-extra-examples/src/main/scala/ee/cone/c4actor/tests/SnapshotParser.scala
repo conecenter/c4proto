@@ -11,7 +11,12 @@ import okio.ByteString
 
 class SnapshotParser(execution: Execution, toUpdate: ToUpdate, snapshotLoader: SnapshotLoader, qAdapterRegistry: QAdapterRegistry) extends Executable {
   def run(): Unit = {
-    val sn = snapshotLoader.load(RawSnapshot("snapshots/0000000000005868-3c8ce3d3-d3b3-3027-9622-e210238e0276-c-lz4"))
+    println(new java.io.File(".").getCanonicalPath)
+    val hashFromData = SnapshotUtilImpl.hashFromData(Files.readAllBytes(Paths.get("/c4db/home/c4proto/c4actor-extra-examples/0000000000000000-92b87c05-294d-3c1d-b443-fb83bdc71d20-c-lz4")))
+    println(hashFromData)
+    val fromName = SnapshotUtilImpl.hashFromName(RawSnapshot("0000000000000000-92b87c05-294d-3c1d-b443-fb83bdc71d20-c-lz4")).get.uuid
+    println(hashFromData, fromName)
+    val sn = snapshotLoader.load(RawSnapshot("0000000000000000-92b87c05-294d-3c1d-b443-fb83bdc71d20-c-lz4"))
     val updates = toUpdate.toUpdates(sn.toList)
     println(updates.filter(_.flags != 0L).mkString("\n"))
     execution.complete()
@@ -25,8 +30,7 @@ class SnapshotParserApp
     with ExecutableApp
     with RichDataApp
     with EnvConfigApp
-    with LZ4DeCompressorApp
-{
+    with LZ4DeCompressorApp {
   val loader = new RawSnapshotLoader {
     def load(snapshot: RawSnapshot): ByteString = {
       val path = Paths.get(config.get("C4DATA_DIR")).resolve(snapshot.relativePath)

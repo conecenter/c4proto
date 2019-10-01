@@ -24,13 +24,6 @@ import ee.cone.c4proto._
     @Id(0x0195) keepAliveSeconds: Option[Long]
   )
 
-  // Combined stats about children of one node
-  @Id(0x0200) case class S_IndexByNodesStats(
-    @Id(0x0185) srcId: String,
-    @Id(0x0186) lastPongSeconds: Long,
-    @Id(0x0199) aliveList: List[String]
-  )
-
   // C
   @Id(0x0170) case class S_IndexByNode(
     @Id(0x0175) leafId: String,
