@@ -13,7 +13,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   def value: Seq[Nothing] = Nil
 }
 
-@c4component("BaseAutoApp") class ComponentRegistryImpl(app: AbstractComponents) extends ComponentRegistry with LazyLogging {
+@c4component("BaseApp") class ComponentRegistryImpl(app: AbstractComponents) extends ComponentRegistry with LazyLogging {
   import ComponentRegistry.toTypeKey
   def general(key: TypeKey): TypeKey = key.copy(args=Nil) // key.args.map(_=>TypeKey("_"));   (1 to arity).map(_=>TypeKey("_","_",Nil)).toList
   lazy val reg: Map[TypeKey,DeferredSeq[Object]] =
@@ -58,21 +58,21 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     resolveSingle(toTypeKey(cl,Nil)).asInstanceOf[T]
 }
 
-@c4component("BaseAutoApp") class SeqComponentFactory(
+@c4component("BaseApp") class SeqComponentFactory(
   componentRegistry: ComponentRegistry
 ) extends ComponentFactory[DeferredSeq[_]] {
   def forTypes(args: Seq[TypeKey]): Seq[DeferredSeq[_]] =
     Seq(componentRegistry.resolveKey(Single(args)))
 }
 
-@c4component("BaseAutoApp") class ListComponentFactory(
+@c4component("BaseApp") class ListComponentFactory(
   componentRegistry: ComponentRegistry
 ) extends ComponentFactory[List[_]] {
   def forTypes(args: Seq[TypeKey]): Seq[List[_]] =
     Seq(componentRegistry.resolveKey(Single(args)).value.toList)
 }
 
-@c4component("BaseAutoApp") class OptionComponentFactory(
+@c4component("BaseApp") class OptionComponentFactory(
   componentRegistry: ComponentRegistry
 ) extends ComponentFactory[Option[_]] {
   def forTypes(args: Seq[TypeKey]): Seq[Option[_]] =

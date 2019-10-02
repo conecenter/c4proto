@@ -2,10 +2,11 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_FailedUpdates
+import ee.cone.c4proto.c4component
 
 import scala.annotation.tailrec
 
-class RootConsumer(
+@c4component("ServerCompApp") class RootConsumer(
   reducer: RichRawWorldReducer,
   snapshotMaker: SnapshotMaker,
   loader: SnapshotLoader,

@@ -25,7 +25,7 @@ object Merge {
     }
 }
 
-@c4component("RichDataAutoApp") class RichRawWorldReducerImpl(
+@c4component("RichDataCompApp") class RichRawWorldReducerImpl(
   toInjects: List[ToInject], toUpdate: ToUpdate, actorName: ActorName, execution: Execution
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {

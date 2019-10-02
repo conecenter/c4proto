@@ -9,13 +9,13 @@ object NoStreamCompressorFactory extends StreamCompressorFactory {
   def create(): Option[Compressor] = None
 }
 
-@c4component("ProtoAutoApp") case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
+@c4component("ProtoApp") case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
   val byNameMap: Map[String, DeCompressor] = compressors.map(c => c.name -> c).toMap
 ) extends DeCompressorRegistry {
   def byName: String => DeCompressor = byNameMap
 }
 
-@c4component("ServerAutoApp")
+@c4component("ServerCompApp")
 case class GzipFullDeCompressor() extends DeCompressor {
   def name: String = "gzip"
 

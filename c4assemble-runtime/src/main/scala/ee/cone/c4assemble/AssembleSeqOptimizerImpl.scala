@@ -50,7 +50,7 @@ class LoopExpression[MapKey, Value](
   }
 }
 
-@c4component("AssembleAutoApp") class ShortAssembleSeqOptimizer(
+@c4component("AssembleApp") class ShortAssembleSeqOptimizer(
   composes: IndexUtil,
   backStageFactory: BackStageFactory,
   updater: IndexUpdater

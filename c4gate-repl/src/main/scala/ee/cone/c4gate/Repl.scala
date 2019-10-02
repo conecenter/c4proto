@@ -11,15 +11,7 @@ import ammonite.sshd._
 import ammonite.util.Bind
 import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
 
-trait SSHDebugApp extends AssemblesApp {
-  def richRawWorldReducer: RichRawWorldReducer
-  def qMessages: QMessages
-
-  override def assembles: List[Assemble] =
-    new SSHDebugAssemble(richRawWorldReducer,qMessages) :: super.assembles
-}
-
-@assemble class SSHDebugAssembleBase(reducer: RichRawWorldReducer, qMessages: QMessages)   {
+@assemble("SSHDebugApp") class SSHDebugAssembleBase(reducer: RichRawWorldReducer, qMessages: QMessages)   {
   def join(
     key: SrcId,
     firstborn: Each[S_Firstborn]

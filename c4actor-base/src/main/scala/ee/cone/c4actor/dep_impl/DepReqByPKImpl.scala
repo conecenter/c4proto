@@ -9,7 +9,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4proto.{Id, protocol}
 
-@protocol("ByPKRequestHandlerAutoApp") object ByPKRequestProtocolBase   {
+@protocol("ByPKRequestHandlerApp") object ByPKRequestProtocolBase   {
   @Id(0x0070) case class N_ByPKRequest(
     @Id(0x0071) className: String,
     @Id(0x0072) itemSrcId: String

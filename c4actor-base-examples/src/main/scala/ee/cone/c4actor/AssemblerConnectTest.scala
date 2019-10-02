@@ -5,15 +5,15 @@ import ee.cone.c4actor.ConnProtocol.D_Node
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4proto.{Id, c4component, protocol}
 
-@protocol("ConnTestAutoApp") object ConnProtocolBase   {
+@protocol("ConnTestApp") object ConnProtocolBase   {
   @Id(0x0001) case class D_Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 }
 
 case class ConnNodePath(path: List[D_Node])
 
-@assemble class ConnAssembleBase   {
+@assemble("ConnTestApp") class ConnAssembleBase   {
   type ParentId = SrcId
 
   def nodesByParentId(
@@ -39,8 +39,7 @@ case class ConnNodePath(path: List[D_Node])
   Is[List[D_Node]]    := WithPK(Each(By[ParentId,D_Node])::Each(Was[List[D_Node]]))
   */
 }
-
-class ConnStart(
+@c4component("ConnTestApp") class ConnStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run() = {
@@ -80,16 +79,3 @@ class ConnStart(
     }*/
   }
 }
-
-class ConnTestApp extends ConnTestAutoApp with TestVMRichDataApp
-  with ExecutableApp
-  with VMExecutionApp
-  with SimpleAssembleProfilerApp
-  with ToStartApp
-{
-  override def assembles: List[Assemble] = new ConnAssemble :: super.assembles
-  override def toStart: List[Executable] = new ConnStart(execution,toUpdate,contextFactory) :: super.toStart
-  override def assembleSeqOptimizer: AssembleSeqOptimizer = new ShortAssembleSeqOptimizer(indexUtil,backStageFactory,indexUpdater)
-}
-
-//C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain'

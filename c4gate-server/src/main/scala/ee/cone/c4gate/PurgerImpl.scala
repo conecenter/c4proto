@@ -9,6 +9,7 @@ import ee.cone.c4actor.{Context, SleepUntilKey, TxTransform, WithPK}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4proto.c4component
 
 object PurgerDefaultPolicy {
   def apply(): List[KeepPolicy] = {
@@ -24,12 +25,16 @@ case class KeepPolicy(period: Long, count: Int)
 
 case class TimedPath(path: Path, mTime: Long)
 
-class Purger(
-  lister: SnapshotLister, baseDir: String
-) extends LazyLogging {
+trait Purger {
+  def process(keepPolicyList: List[KeepPolicy]): Unit
+}
+
+@c4component("SnapshotMakingApp") class PurgerImpl(
+  lister: SnapshotLister, baseDir: DataDir
+) extends Purger with LazyLogging {
   def process(keepPolicyList: List[KeepPolicy]/*todo: pass Loaded*/): Unit = {
     val files: List[TimedPath] = lister.list.map { snapshot =>
-      val path = Paths.get(baseDir).resolve(snapshot.raw.relativePath)
+      val path = Paths.get(baseDir.value).resolve(snapshot.raw.relativePath)
       TimedPath(path, Files.getLastModifiedTime(path).toMillis)
     }
     val keepPaths = (for {
@@ -57,7 +62,7 @@ case class PurgerTx(
   }
 }
 
-@assemble class PurgerAssembleBase(purger: Purger)   {
+@assemble("SnapshotMakingApp") class PurgerAssembleBase(purger: Purger)   {
   def joinPurger(
     key: SrcId,
     first: Each[S_Firstborn]

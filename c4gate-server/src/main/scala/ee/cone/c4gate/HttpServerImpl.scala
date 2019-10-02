@@ -13,7 +13,7 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, Single, assemble, by, distinct}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, Single, assemble, by, distinct}
 import ee.cone.c4actor._
 import ee.cone.c4gate.AlienProtocol.{E_HttpConsumer, U_ToAlienWrite}
 import ee.cone.c4gate.AuthProtocol._
@@ -24,7 +24,7 @@ import okio.ByteString
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
-object RHttpResponseFactoryImpl extends RHttpResponseFactory {
+@c4component("AbstractHttpGatewayApp") class RHttpResponseFactoryImpl extends RHttpResponseFactory {
   def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse = {
     val resp = S_HttpResponse(request.srcId,200,Nil,ByteString.EMPTY,System.currentTimeMillis)
     RHttpResponse(Option(patch(resp)),Nil)
@@ -149,10 +149,9 @@ class SelfDosProtectionHttpHandler(httpResponseFactory: RHttpResponseFactory, ss
     } else next.handle(request,local)
 }
 
-
-object HttpReqAssembles {
-  def apply(mortal: MortalFactory, sseConfig: SSEConfig): List[Assemble] =
-    mortal(classOf[S_HttpRequest]) :: new PostLifeAssemble() :: Nil
+@assemble("SSEServerApp") class HttpReqAssemblesBase(mortal: MortalFactory, sseConfig: SSEConfig) extends CallerAssemble {
+  override def subAssembles: List[Assemble] =
+    mortal(classOf[S_HttpRequest]) :: new PostLifeAssemble() :: super.subAssembles
 }
 
 case class HttpRequestCount(sessionKey: SrcId, count: Long)

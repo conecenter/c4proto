@@ -1,17 +1,29 @@
 package ee.cone.c4gate
 
-import scala.collection.immutable.Seq
-import java.nio.file.attribute.BasicFileAttributes
-import java.nio.file._
-
-import ee.cone.c4actor._
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import java.nio.charset.StandardCharsets.UTF_8
+import java.nio.file._
+import java.nio.file.attribute.BasicFileAttributes
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4actor._
+import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
+import ee.cone.c4proto.{ToByteString, c4component}
+
+import scala.collection.immutable.Seq
 
 //todo un-publish
+
+@c4component("PublishingCompApp") class PublishingInitialObserverProvider(
+  qMessages: QMessages,
+  idGenUtil: IdGenUtil,
+  publishFromStringsProviders: List[PublishFromStringsProvider],
+  mimeTypesProviders: List[PublishMimeTypesProvider],
+  compressor: PublishFullCompressor
+)(
+  publishDir: String = "htdocs",
+  publishFromStrings: List[(String,String)] = publishFromStringsProviders.flatMap(_.get),
+  getMimeType: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get
+) extends InitialObserverProvider(Option(new PublishingObserver(compressor.value,qMessages,idGenUtil,publishDir,publishFromStrings,getMimeType)))
 
 class PublishingObserver(
   compressor: Compressor,
@@ -56,10 +68,6 @@ class PublishingObserver(
     }
   }
 }
-
-
-
-
 
 class PublishFileVisitor(
   fromPath: Path, publish: (String,Array[Byte])=>Unit

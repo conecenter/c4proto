@@ -9,14 +9,14 @@ import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto.Protocol
 
+
 trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with TcpProtocolApp {
   def config: Config
-  def qMessages: QMessages
   def worldProvider: WorldProvider
   def mortal: MortalFactory
 
   private lazy val tcpPort = config.get("C4TCP_PORT").toInt
-  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(qMessages, worldProvider), Long.MaxValue, NoStreamCompressorFactory)
+  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(componentRegistry.resolveSingle(classOf[QMessages]), worldProvider), Long.MaxValue, NoStreamCompressorFactory)
   override def toStart: List[Executable] = tcpServer :: super.toStart
   override def assembles: List[Assemble] =
     mortal(classOf[S_TcpDisconnect]) :: mortal(classOf[S_TcpWrite]) ::

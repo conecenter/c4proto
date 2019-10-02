@@ -2,12 +2,17 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
+import ee.cone.c4proto.c4component
 
 import scala.collection.immutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
-class WorldProviderImpl(qMessages: QMessages, execution: Execution, statefulReceiverFactory: StatefulReceiverFactory)(
+@c4component("WorldProviderApp") class WorldProviderInitialObserverProvider(
+  worldProvider: WorldProvider
+) extends InitialObserverProvider(Option(worldProvider match { case w: Observer[RichContext] => w }))
+
+@c4component("WorldProviderApp") class WorldProviderImpl(qMessages: QMessages, execution: Execution, statefulReceiverFactory: StatefulReceiverFactory)(
   receiverPromise: Promise[StatefulReceiver[WorldMessage]] = Promise()
 ) extends WorldProvider with Observer[RichContext] with Executable {
   def sync(localOpt: Option[Context])(implicit executionContext: ExecutionContext): Future[Context] = {

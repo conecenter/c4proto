@@ -34,6 +34,8 @@ sealed abstract class SnapshotTask(val name: String, val offsetOpt: Option[NextO
 case class NextSnapshotTask(offsetOptArg: Option[NextOffset]) extends SnapshotTask("next",offsetOptArg)
 case class DebugSnapshotTask(offsetArg: NextOffset) extends SnapshotTask("debug",Option(offsetArg))
 
+trait SnapshotTaskSigner extends Signer[SnapshotTask]
+
 trait SnapshotMaker {
   def make(task: SnapshotTask): List[RawSnapshot]
 }

@@ -8,13 +8,9 @@ import ee.cone.c4proto.{Id, c4component, protocol}
 
 import scala.collection.immutable.Seq
 
-class ProtoAdapterTestApp extends ProtoAdapterTestAutoApp
-  with ExecutableApp with VMExecutionApp
-  with BaseApp with ProtoApp with BigDecimalApp with GzipRawCompressorApp
+@c4component("ProtoAdapterTestApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
 
-@c4component("ProtoAdapterTestAutoApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
-
-@c4component("ProtoAdapterTestAutoApp")
+@c4component("ProtoAdapterTestApp")
 class ProtoAdapterTest(
   qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, execution: Execution,
   finTest: FinTest
@@ -68,7 +64,7 @@ class ProtoAdapterTest(
   }
 }
 
-@protocol("ProtoAdapterTestAutoApp") object MyProtocolBase {
+@protocol("ProtoAdapterTestApp") object MyProtocolBase {
   @Id(0x0003) case class D_Person(
     @Id(0x0007) name: String,
     @Id(0x0004) age: Option[BigDecimal],
@@ -99,11 +95,11 @@ class ProtoAdapterTest(
 trait FinTest {
   def get: String
 }
-@c4component("ProtoAdapterTestAutoApp")
+@c4component("ProtoAdapterTestApp")
 class NonFinalFinTest extends FinTest {
   def get: String = "{NonFinal}"
 }
-@c4component("ProtoAdapterTestAutoApp")
+@c4component("ProtoAdapterTestApp")
 class FinalFinTest(inner: FinTest) extends FinTest {
   def get: String = s"<Final>${inner.get}</Final>"
 }

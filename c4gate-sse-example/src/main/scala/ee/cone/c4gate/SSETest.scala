@@ -8,30 +8,29 @@ import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienStatus
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
 
-class TestSSEApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+class TestSSEAppBase extends ServerCompApp
+  with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with BranchApp
   with AlienExchangeApp
   with NoAssembleProfilerApp
   with ManagementApp
-  with FileRawSnapshotApp
+  with RemoteRawSnapshotApp
   with BasicLoggingApp
-{
-  override def assembles: List[Assemble] =
-    new FromAlienTaskAssemble("/sse.html") ::
-    new TestSSEAssemble ::
-    super.assembles
-    //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
+
+//println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
+@assemble("TestSSEApp")  class SSEFromAlienTaskAssembleBase extends CallerAssemble {
+  override def subAssembles: List[Assemble] =
+    new FromAlienTaskAssemble("/sse.html") :: super.subAssembles
 }
 
-@assemble class TestSSEAssembleBase   {
+@assemble("TestSSEApp") class TestSSEAssembleBase   {
   def joinView(
     key: SrcId,
     task: Each[BranchTask]

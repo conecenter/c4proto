@@ -14,7 +14,7 @@ import okio.ByteString
 import scala.collection.immutable.{Map, Queue, Seq}
 import scala.concurrent.{ExecutionContext, Future}
 
-@protocol("ProtoAutoApp") object QProtocolBase   {
+@protocol("ProtoApp") object QProtocolBase   {
 
   /*@Id(0x0010) case class TopicKey(
       @Id(0x0011) srcId: String,
@@ -93,8 +93,15 @@ trait QMessages {
   // HOWEVER READ-AFTER-WRITE problem here is harder
 }
 
+class LongTxWarnPeriod(val value: Long)
 class UpdateCompressionMinSize(val value: Long)
 class LongAssembleWarnPeriod(val value: Long)
+
+class InitialObserverProvider(val option: Option[Observer[RichContext]])
+
+trait ContextFactory { // for tests only
+  def updated(updates: List[N_Update]): Context
+}
 
 trait ToUpdate {
   def toUpdate[M<:Product](message: LEvent[M]): N_Update
@@ -295,7 +302,8 @@ trait KeyFactory {
   def rawKey(className: String): AssembledKey
 }
 
-class OrigKeyFactoryHolder(val value: Option[KeyFactory])
+class OrigKeyFactoryProposition(val value: KeyFactory)
+class OrigKeyFactoryFinalHolder(val value: KeyFactory)
 
 trait UpdateProcessor {
   def process(updates: Seq[N_Update], prevQueueSize: Int): Seq[N_Update]

@@ -7,21 +7,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 
-class TestSerialApp extends TestTxTransformApp with SerialObserversApp
-class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
-
-abstract class TestTxTransformApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with NoAssembleProfilerApp
-  with FileRawSnapshotApp
-  with BasicLoggingApp
-  with HttpProtocolApp
-{
-  override def assembles: List[Assemble] = new TestDelayAssemble :: super.assembles
-}
-
-@assemble class TestDelayAssembleBase   {
+@assemble("TestTxTransformApp") class TestDelayAssembleBase   {
   def joinTestHttpHandler(
     key: SrcId,
     req: Each[S_HttpRequest]

@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.N_Update
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4proto.{ToByteString, c4component}
 
 /*snapshot cleanup:
 docker exec ... ls -la c4/db4/snapshots
@@ -17,7 +17,7 @@ class SnapshotMergerImpl(
   rawSnapshotLoaderFactory: RawSnapshotLoaderFactory,
   snapshotLoaderFactory: SnapshotLoaderFactory,
   reducer: RichRawWorldReducer,
-  signer: Signer[SnapshotTask]
+  signer: SnapshotTaskSigner
 ) extends SnapshotMerger {
   def merge(baseURL: String, signed: String): Context=>Context = local => {
     val task = signer.retrieve(check = false)(Option(signed)).get
@@ -41,7 +41,7 @@ class SnapshotMergerImpl(
   }
 }
 
-class SnapshotDifferImpl(
+@c4component("ServerCompApp") class SnapshotDifferImpl(
   toUpdate: ToUpdate,
   reducer: RichRawWorldReducer,
   snapshotMaker: SnapshotMaker,

@@ -29,7 +29,7 @@ class ConnectBackStage[MapKey, Value](
   }
 }
 
-@c4component("AssembleAutoApp") class BackStageFactoryImpl(updater: IndexUpdater, composes: IndexUtil) extends BackStageFactory {
+@c4component("AssembleApp") class BackStageFactoryImpl(updater: IndexUpdater, composes: IndexUtil) extends BackStageFactory {
   def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression] = {
     val wasKeys = (for {
       e <- l

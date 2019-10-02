@@ -1,38 +1,33 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, fieldAccess}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, fieldAccess}
 import ee.cone.c4gate.TestCanvasProtocol.B_TestCanvasState
-import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4proto.{Id, c4component, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 import ee.cone.c4vdom.{PathFactory, PathFactoryImpl, _}
 
-class TestCanvasApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+class TestCanvasAppBase extends ServerCompApp
+  with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UIApp
-  with PublishingApp
+  with PublishingCompApp
   with TestTagsApp
   with CanvasApp
   with NoAssembleProfilerApp
   with ManagementApp
-  with FileRawSnapshotApp
+  with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with ModelAccessFactoryApp
   with SessionAttrApp
-  with MortalFactoryApp
-  with TestCanvasViewApp
+  with MortalFactoryCompApp
   with BasicLoggingApp
-{
-  override def assembles: List[Assemble] =
-      new FromAlienTaskAssemble("/react-app.html") ::
-      super.assembles
-  def mimeTypes: Map[String, String] = Map(
-    "svg" -> "image/svg+xml"
-  )
-  def publishFromStrings: List[(String, String)] = List(
+  with ReactHtmlApp
+
+@c4component("TestCanvasApp") class TestCanvasPublishFromStringsProvider extends PublishFromStringsProvider {
+  def get: List[(String, String)] = List(
     "/test.svg" -> s"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
       <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">
       <circle cx="250" cy="250" r="210" fill="#fff" stroke="#000" stroke-width="8"/>
@@ -40,6 +35,13 @@ class TestCanvasApp extends ServerApp
   )
 }
 
+@c4component("TestCanvasApp") class TestCanvasPublishMimeTypesProvider extends PublishMimeTypesProvider {
+  def get: List[(String, String)] = List(
+    "svg" -> "image/svg+xml"
+  )
+}
+
+/*
 trait TestCanvasViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]
   def tags: Tags
@@ -59,10 +61,9 @@ trait TestCanvasViewApp extends ByLocationHashViewsApp {
   )
   override def byLocationHashViews: List[ByLocationHashView] =
     testCanvasView :: super.byLocationHashViews
-}
+}*/
 
-
-case class TestCanvasView(locationHash: String = "rectangle")(
+@c4component("TestCanvasApp") case class TestCanvasView(locationHash: String = "rectangle")(
   tTags: TestTags[Context],
   tags: Tags,
   styles: TagStyles,
@@ -111,7 +112,7 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 
 /******************************************/
 
-@protocol("CanvasAutoApp") object TestCanvasProtocolBase   {
+@protocol("CanvasApp") object TestCanvasProtocolBase   {
   @Id(0x0008) case class B_TestCanvasState(
     @Id(0x0009) srcId: String,
     @Id(0x000A) sizes: String
@@ -124,17 +125,14 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
     SessionAttr(Id(0x0009), classOf[B_TestCanvasState], UserLabel en "(TestCanvasState)")
 }
 
-object TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))
+@c4component("CanvasApp") class TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))
 
-trait CanvasApp extends CanvasAutoApp with DefaultModelFactoriesApp {
+trait CanvasApp extends CanvasAutoApp {
   def childPairFactory: ChildPairFactory
   def tagJsonUtils: TagJsonUtils
 
   lazy val testCanvasTags: TestCanvasTags = new TestCanvasTagsImpl(childPairFactory,tagJsonUtils,CanvasToJsonImpl)
   lazy val pathFactory: PathFactory = PathFactoryImpl[Context](childPairFactory,CanvasToJsonImpl)
-
-  override def defaultModelFactories: List[DefaultModelFactory[_]] =
-    TestCanvasStateDefault :: super.defaultModelFactories
 }
 
 case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: String)(

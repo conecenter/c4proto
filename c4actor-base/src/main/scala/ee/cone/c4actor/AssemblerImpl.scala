@@ -13,32 +13,36 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.concurrent.duration.Duration
 
-@c4component("RichDataAutoApp") class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryHolder) extends DataDependencyProvider {
+@c4component("RichDataCompApp") class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryFinalHolder) extends DataDependencyProvider {
   def apply(): List[DataDependencyTo[_]] =
     qAdapterRegistry.byId.values.map(_.className).toList.sorted
-      .map(nm => new OriginalWorldPart(origKeyFactory.value.get.rawKey(nm)))
+      .map(nm => new OriginalWorldPart(origKeyFactory.value.rawKey(nm)))
 }
 
 case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
-@c4component("RichDataAutoApp") class AssemblerInit(
+@c4component("RichDataCompApp") class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
+
+@c4component("RichDataCompApp") class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
+
+@c4component("RichDataCompApp") class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,
   getDependencies: DeferredSeq[DataDependencyProvider],
   composes: IndexUtil,
   byPKKeyFactory: KeyFactory,
-  origKeyFactory: OrigKeyFactoryHolder,
+  origKeyFactory: OrigKeyFactoryFinalHolder,
   assembleProfiler: AssembleProfiler,
   readModelUtil: ReadModelUtil,
   actorName: ActorName,
-  updateProcessor: UpdateProcessor,
+  updateProcessor: Option[UpdateProcessor],
   processors: List[UpdatesPreprocessor],
   defaultAssembleOptions: AssembleOptions,
   warnPeriod: LongAssembleWarnPeriod,
   catchNonFatal: CatchNonFatal
 )(
-  assembleOptionsOuterKey: AssembledKey = origKeyFactory.value.get.rawKey(classOf[AssembleOptions].getName),
+  assembleOptionsOuterKey: AssembledKey = origKeyFactory.value.rawKey(classOf[AssembleOptions].getName),
   assembleOptionsInnerKey: String = ToPrimaryKey(defaultAssembleOptions)
 ) extends ToInject with LazyLogging {
 
@@ -47,7 +51,7 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
       tpPair <- updates.groupBy(_.valueTypeId)
       (valueTypeId, tpUpdates) = tpPair : (Long,Seq[N_Update])
       valueAdapter <- qAdapterRegistry.byId.get(valueTypeId)
-      wKey = origKeyFactory.value.get.rawKey(valueAdapter.className)
+      wKey = origKeyFactory.value.rawKey(valueAdapter.className)
     } yield {
       implicit val ec: ExecutionContext = executionContext.value
       wKey -> (for {
@@ -111,7 +115,7 @@ case object TreeAssemblerKey extends SharedComponentKey[Replace]
       implicit val executionContext: ExecutionContext = local.executionContext.value
       val options = getAssembleOptions(local.assembled)
       val processedOut = composes.mayBePar(processors, options).flatMap(_.process(out)).toSeq ++ out
-      val externalOut = updateProcessor.process(processedOut, WriteModelKey.of(local).size)
+      val externalOut = updateProcessor.fold(processedOut)(_.process(processedOut, WriteModelKey.of(local).size))
       val diff = toTree(local.assembled, externalOut, local.executionContext)
       val profiling = assembleProfiler.createJoiningProfiling(Option(local))
       val replace = TreeAssemblerKey.of(local)

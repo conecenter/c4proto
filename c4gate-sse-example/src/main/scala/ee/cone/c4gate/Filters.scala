@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4assemble.fieldAccess
 import ee.cone.c4gate.CommonFilterProtocol.{B_Contains, B_DateBefore}
-import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4proto.{Id, c4component, protocol}
 import ee.cone.c4ui.{AccessView, AccessViewsApp}
 import ee.cone.c4vdom.{ChildPair, OfDiv}
 
@@ -20,11 +20,6 @@ trait CommonFilterPredicateFactoriesApp {
     CommonFilterConditionChecksImpl
 }
 
-trait CommonFilterInjectApp extends DefaultModelFactoriesApp {
-  override def defaultModelFactories: List[DefaultModelFactory[_]] =
-    DateBeforeDefault :: ContainsDefault :: super.defaultModelFactories
-}
-
 trait DateBeforeAccessViewApp extends AccessViewsApp {
   def testTags: TestTags[Context]
   private lazy val dateBeforeAccessView = new DateBeforeAccessView(testTags)
@@ -39,7 +34,7 @@ trait ContainsAccessViewApp extends AccessViewsApp {
 
 //// api
 
-@protocol("TestTodoAutoApp") object CommonFilterProtocolBase   {
+@protocol("TestTodoApp") object CommonFilterProtocolBase   {
   @Id(0x0006) case class B_DateBefore(
     @Id(0x0001) srcId: String,
     @Id(0x0002) value: Option[Long]
@@ -57,8 +52,8 @@ trait CommonFilterConditionChecks {
 
 //// impl
 
-object DateBeforeDefault extends DefaultModelFactory(classOf[B_DateBefore],B_DateBefore(_,None))
-object ContainsDefault extends DefaultModelFactory(classOf[B_Contains],B_Contains(_,""))
+@c4component("CommonFilterInjectApp") class DateBeforeDefault extends DefaultModelFactory(classOf[B_DateBefore],B_DateBefore(_,None))
+@c4component("CommonFilterInjectApp") class ContainsDefault extends DefaultModelFactory(classOf[B_Contains],B_Contains(_,""))
 
 case object DateBeforeCheck extends ConditionCheck[B_DateBefore,Long] {
   def prepare: List[AbstractMetaAttr] => B_DateBefore => B_DateBefore = _ => identity[B_DateBefore]

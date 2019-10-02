@@ -9,15 +9,15 @@ import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.{Executable, Execution, Observer}
+import ee.cone.c4actor.{Config, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4gate.HttpProtocolBase.N_Header
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4proto.{ToByteString, c4component}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
-class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable {
+@c4component("AkkaMatApp") class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
     val system = ActorSystem.create()
@@ -25,8 +25,10 @@ class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends Ak
   }
 }
 
-class AkkaHttpServer(
-  port: Int, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat
+@c4component("AkkaServerApp") class AkkaHttpServer(
+  config: Config, handler: FHttpHandlerHolder, execution: Execution, akkaMat: AkkaMat
+)(
+  port: Int = config.get("C4HTTP_PORT").toInt
 ) extends Executable with LazyLogging {
   def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest=>Future[HttpResponse] = req => {
     val method = req.method.value
@@ -38,7 +40,7 @@ class AkkaHttpServer(
       entity <- req.entity.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
-      rResp <- handler.handle(rReq)
+      rResp <- handler.value.handle(rReq)
     } yield {
       val status = Math.toIntExact(rResp.status)
       val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
@@ -71,7 +73,7 @@ class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Mess
   def send(message: Message): Unit = ref ! message
 }
 
-class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
+@c4component("AkkaStatefulReceiverFactoryApp") class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
   def create[Message](inner: List[Observer[Message]])(implicit executionContext: ExecutionContext): Future[StatefulReceiver[Message]] =
     for {
       mat <- akkaMat.get

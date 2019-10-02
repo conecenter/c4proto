@@ -6,7 +6,7 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4proto._
@@ -27,9 +27,9 @@ import okio.ByteString
   )
 }
 
-object SessionDataAssembles {
-  def apply(mortal: MortalFactory): List[Assemble] =
-    mortal(classOf[U_RawSessionData]) :: new SessionDataAssemble :: Nil
+@assemble("SessionAttrApp") class  SessionDataAssemblesBase(mortal: MortalFactory) extends CallerAssemble {
+  override def subAssembles: List[Assemble] =
+    mortal(classOf[U_RawSessionData]) :: new SessionDataAssemble :: super.subAssembles
 }
 
 @assemble class SessionDataAssembleBase   {
@@ -47,7 +47,7 @@ object SessionDataAssembles {
   ): Values[(Alive, U_RawSessionData)] = List(WithPK(sessionData))
 }
 
-class SessionAttrAccessFactoryImpl(
+@c4component("SessionAttrApp") class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,

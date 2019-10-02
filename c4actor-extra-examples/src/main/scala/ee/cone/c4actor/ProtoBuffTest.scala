@@ -31,8 +31,9 @@ import scala.collection.immutable
 
 }
 
-trait Adapters extends ProtocolsApp with QAdapterRegistryApp with BaseApp with ProtoApp {
-
+trait Adapters extends ProtocolsApp with QAdapterRegistryApp with BaseApp with ProtoAutoApp {
+  lazy val qAdapterRegistry: QAdapterRegistry =
+    componentRegistry.resolveSingle(classOf[QAdapterRegistry])
   override def protocols: List[Protocol] = ProtoBuffTestProtocol :: AnyOrigProtocol :: QProtocol :: super.protocols
 }
 

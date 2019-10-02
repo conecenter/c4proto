@@ -1,0 +1,7 @@
+
+package ee.cone.c4gate
+
+trait AkkaMatAppBase
+trait AkkaServerAppBase
+trait AkkaStatefulReceiverFactoryAppBase
+class AkkaGatewayApp extends AbstractHttpGatewayApp with AkkaServerApp with AkkaStatefulReceiverFactoryApp with AkkaMatApp

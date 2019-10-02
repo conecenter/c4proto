@@ -7,17 +7,17 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.E_HttpConsumer
 
-@assemble class HttpConsumerAssembleBase(
-  actorName: String, syncTxFactory: SyncTxFactory
+@assemble("ManagementApp") class HttpConsumerAssembleBase(
+  actorName: ActorName, syncTxFactory: SyncTxFactory
 ) extends CallerAssemble {
   def needConsumers(
     key: SrcId,
     @distinct c: Each[LocalHttpConsumer]
   ): Values[(NeedSrcId,E_HttpConsumer)] =
-    List(WithPK(E_HttpConsumer(s"$actorName/${c.condition}", actorName, c.condition)))
+    List(WithPK(E_HttpConsumer(s"$actorName/${c.condition}", actorName.value, c.condition)))
 
   override def subAssembles: List[Assemble] = List(syncTxFactory.create[E_HttpConsumer](
-    classOf[E_HttpConsumer], c => c.consumer == actorName, _ => "PostConsumerSync",
+    classOf[E_HttpConsumer], c => c.consumer == actorName.value, _ => "PostConsumerSync",
     (key,tasks)=>SimpleTxTransform(key,tasks.flatMap(_.events))
   )) ::: super.subAssembles
 }

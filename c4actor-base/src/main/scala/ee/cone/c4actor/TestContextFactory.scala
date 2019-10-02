@@ -1,12 +1,12 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.N_Update
-import ee.cone.c4proto.{ToByteString}
+import ee.cone.c4proto.{ToByteString, c4component}
 import okio.ByteString
 
 import scala.collection.immutable.Map
 
-class ContextFactory(reducer: RichRawWorldReducer, toUpdate: ToUpdate) {
+@c4component("TestVMRichDataCompApp") class ContextFactoryImpl(reducer: RichRawWorldReducer, toUpdate: ToUpdate) extends ContextFactory {
   def updated(updates: List[N_Update]): Context = {
     val (bytes, headers) = toUpdate.toBytes(updates)
     val firstUpdate = SimpleRawEvent("0" * OffsetHexSize(), ToByteString(bytes), headers)

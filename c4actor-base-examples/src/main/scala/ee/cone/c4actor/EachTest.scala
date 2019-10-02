@@ -5,26 +5,17 @@ import ee.cone.c4actor.EachTestProtocol.D_Item
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.{IndexUtil, assemble, by}
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4proto.{Id, c4component, protocol}
 
-class EachTestApp extends EachTestAutoApp with TestVMRichDataApp
-  with SimpleAssembleProfilerApp
-  with VMExecutionApp with ToStartApp with ExecutableApp with AssemblesApp
-{
-  override def toStart: List[Executable] = new EachTestExecutable(execution, contextFactory, indexUtil) :: super.toStart
-  override def assembles =
-  new EachTestAssemble ::
-  //  new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
-      super.assembles
-}
+//  new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
 
-@protocol("EachTestAutoApp") object EachTestProtocolBase   {
+@protocol("EachTestApp") object EachTestProtocolBase   {
   @Id(0x0001) case class D_Item(@Id(0x0001) srcId: String, @Id(0x0002) parent: String)
 }
 
 case class EachTestItem(item: D_Item, valueItem: D_Item)
 
-@assemble class EachTestAssembleBase   {
+@assemble("EachTestApp") class EachTestAssembleBase   {
   type ByParent = SrcId
   def joinByVal(
     key: SrcId,
@@ -57,8 +48,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   } yield WithPK(EachTestItem(item,vItem))
 }
 
-
-class EachTestExecutable(
+@c4component("EachTestApp") class EachTestExecutable(
   execution: Execution, contextFactory: ContextFactory, indexUtil: IndexUtil
 ) extends Executable with LazyLogging {
   def run(): Unit = {
@@ -106,5 +96,3 @@ class EachTestExecutable(
     execution.complete()
   }
 }
-
-// C4STATE_TOPIC_PREFIX=ee.cone.c4actor.EachTestApp sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain'

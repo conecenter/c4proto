@@ -4,49 +4,48 @@ import java.net.URL
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, fieldAccess}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, fieldAccess}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
 import ee.cone.c4gate.TestFilterProtocol.B_Content
-import ee.cone.c4proto.Id
+import ee.cone.c4proto.{Id, c4component}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
-class TestCoWorkApp extends TestCoWorkAutoApp with ServerApp
-  with EnvConfigApp with VMExecutionApp
+class TestCoWorkAppBase extends ServerCompApp
+  with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UIApp
-  with PublishingApp
+  with PublishingCompApp
   with TestTagsApp
   with SimpleAssembleProfilerApp
   with ManagementApp
-  with FileRawSnapshotApp
+  with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with ModelAccessFactoryApp
   with SessionAttrApp
-  with SessionAttrAccessFactoryImplApp
-  with MortalFactoryApp
+  with MortalFactoryCompApp
   with DefaultModelFactoriesApp
-  with ByLocationHashViewsApp
   with MergingSnapshotApp
-  with TestCoWorkerViewApp
-  with TestCoLeaderViewApp
   with TestTxLogApp
   with SSHDebugApp
   with BasicLoggingApp
-{
-  override def assembles: List[Assemble] =
-      new FromAlienTaskAssemble("/react-app.html") ::
-      super.assembles
-  override def defaultModelFactories: List[DefaultModelFactory[_]] =
-    ContentDefault :: super.defaultModelFactories
-  def mimeTypes: Map[String, String] = Map(
-    "html" -> "text/html; charset=UTF-8"
-  )
-  def publishFromStrings: List[(String, String)] = List(
+  with ReactHtmlApp
+
+
+
+
+@c4component("TestCoWorkApp") class TestCoWorkPublishFromStringsProvider extends PublishFromStringsProvider {
+  def get: List[(String, String)] = List(
     "/blank.html" -> s"""<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>"""
+  )
+}
+
+@c4component("TestCoWorkApp") class TestCoWorkPublishMimeTypesProvider extends PublishMimeTypesProvider {
+  def get: List[(String, String)] = List(
+    "html" -> "text/html; charset=UTF-8"
   )
 }
 
@@ -57,17 +56,18 @@ object TestAttrs {
   lazy val contentFlt = SessionAttr(Id(0x0008), classOf[B_Content], UserLabel en "(Content)")
 }
 
-object ContentDefault extends DefaultModelFactory(classOf[B_Content], B_Content(_,""))
+@c4component("TestCoWorkApp") class ContentDefault extends DefaultModelFactory(classOf[B_Content], B_Content(_,""))
 
+/*
 trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]
   def sessionAttrAccessFactory: SessionAttrAccessFactory
   private lazy val testCoWorkerView = TestCoWorkerView()(testTags,sessionAttrAccessFactory)
   override def byLocationHashViews: List[ByLocationHashView] =
     testCoWorkerView :: super.byLocationHashViews
-}
+}*/
 
-case class TestCoWorkerView(locationHash: String = "worker")(
+@c4component("TestCoWorkApp") case class TestCoWorkerView(locationHash: String = "worker")(
   tags: TestTags[Context],
   sessionAttrAccess: SessionAttrAccessFactory
 ) extends ByLocationHashView  {
@@ -79,6 +79,7 @@ case class TestCoWorkerView(locationHash: String = "worker")(
   }
 }
 
+/*
 trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
   def tags: Tags
   def tagStyles: TagStyles
@@ -87,9 +88,9 @@ trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
   private lazy val testCoLeaderView = TestCoLeaderView()(tags,tagStyles,branchOperations,untilPolicy)
   override def byLocationHashViews: List[ByLocationHashView] =
     testCoLeaderView :: super.byLocationHashViews
-}
+}*/
 
-case class TestCoLeaderView(locationHash: String = "leader")(
+@c4component("TestCoWorkApp") case class TestCoLeaderView(locationHash: String = "leader")(
   tags: Tags,
   styles: TagStyles,
   branchOperations: BranchOperations,

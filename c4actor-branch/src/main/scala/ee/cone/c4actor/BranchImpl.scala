@@ -10,7 +10,7 @@ import ee.cone.c4assemble._
 import ee.cone.c4actor.BranchProtocol.{S_BranchResult, U_Redraw, U_SessionFailure}
 import ee.cone.c4actor.BranchTypes._
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4proto.{ToByteString, c4component}
 import okio.ByteString
 
 import Function.chain
@@ -160,8 +160,7 @@ case class BranchTxTransform(
 }
 
 //class UnconfirmedException() extends Exception
-
-class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) extends BranchOperations {
+@c4component("BranchApp") class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) extends BranchOperations {
   def toSeed(value: Product): S_BranchResult = {
     val valueAdapter = registry.byName(value.getClass.getName)
     val bytes = ToByteString(valueAdapter.encode(value))
@@ -172,7 +171,7 @@ class BranchOperationsImpl(registry: QAdapterRegistry, idGenUtil: IdGenUtil) ext
     seed.hash -> BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
-@assemble class BranchAssembleBase(registry: QAdapterRegistry, operations: BranchOperations)   {
+@assemble("BranchApp") class BranchAssembleBase(registry: QAdapterRegistry, operations: BranchOperations)   {
   def mapBranchSeedsByChild(
     key: SrcId,
     branchResult: Each[S_BranchResult]

@@ -12,21 +12,6 @@ import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4gate.HttpProtocolBase.{N_Header, S_HttpResponse}
 
-class TestConsumerApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with NoAssembleProfilerApp
-  with ManagementApp
-  with FileRawSnapshotApp
-  with BasicLoggingApp
-  with AlienProtocolApp
-  with HttpProtocolApp
-  with TcpProtocolApp
-{
-  override def assembles: List[Assemble] = new TestAssemble(catchNonFatal) :: super.assembles
-}
-
 /*
 tmp/kafka_2.11-0.10.1.0/bin/kafka-simple-consumer-shell.sh --broker-list localhost:9092 --topic inbox
 tmp/kafka_2.11-0.10.1.0/bin/kafka-topics.sh  --zookeeper localhost:2181 --describe
@@ -40,7 +25,7 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --descri
 curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
 */
 
-@assemble class TestAssembleBase(catchNonFatal: CatchNonFatal)   {
+@assemble("TestConsumerApp") class TestAssembleBase(catchNonFatal: CatchNonFatal)   {
   def joinTestHttpHandler(
     key: SrcId,
     req: Each[S_HttpRequest]

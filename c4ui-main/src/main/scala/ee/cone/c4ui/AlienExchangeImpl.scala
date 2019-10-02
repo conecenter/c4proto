@@ -12,12 +12,13 @@ import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.AlienProtocol.{U_FromAlienState, U_ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 import ee.cone.c4gate.LocalHttpConsumer
+import ee.cone.c4proto.c4component
 import okio.ByteString
 
 import scala.collection.immutable.Seq
 
 case object ToAlienPriorityKey extends TransientLens[java.lang.Long](0L)
-object SendToAlienInit extends ToInject {
+@c4component("AlienExchangeApp") class SendToAlienInit extends ToInject {
   def toInject: List[Injectable] = SendToAlienKey.set(
     (sessionKeys,event,data) => local => if(sessionKeys.isEmpty) local else {
       val priority = ToAlienPriorityKey.of(local)
@@ -75,7 +76,7 @@ case class MessageFromAlienImpl(
   }
 }
 
-@assemble class FromAlienTaskAssembleBase(file: String)   {
+@assemble class FromAlienTaskAssembleBase(file: String) {
   def mapBranchTaskByLocationHash(
     key: SrcId,
     task: Each[BranchTask]
@@ -92,3 +93,4 @@ case class MessageFromAlienImpl(
       Option(url.getRef).getOrElse("")
     )
 }
+

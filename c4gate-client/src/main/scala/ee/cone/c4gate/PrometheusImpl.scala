@@ -14,14 +14,14 @@ import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import ee.cone.c4proto.{Id, protocol}
 import okio.ByteString
 
-@protocol("ActorAccessAutoApp") object ActorAccessProtocolBase   {
+@protocol("ActorAccessApp") object ActorAccessProtocolBase   {
   @Id(0x006A) case class C_ActorAccessKey(
     @Id(0x006B) srcId: String,
     @Id(0x006C) value: String
   )
 }
 
-@assemble class ActorAccessAssembleBase   {
+@assemble("ActorAccessApp") class ActorAccessAssembleBase   {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
@@ -36,7 +36,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTrans
     TxAdd(LEvent.update(C_ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssembleBase(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
+@assemble("PrometheusApp") class PrometheusAssembleBase(compressor: PublishFullCompressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
@@ -44,7 +44,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTrans
   ): Values[(SrcId,TxTransform)] = {
     val path = s"/${accessKey.value}-metrics"
     println(s"Prometheus metrics at $path")
-    List(WithPK(PrometheusTx(path, compressor, indexUtil, readModelUtil)))
+    List(WithPK(PrometheusTx(path, compressor.value, indexUtil, readModelUtil)))
   }
 }
 
@@ -82,7 +82,7 @@ object Monitoring {
   }
 }
 
-@assemble class AvailabilityAssembleBase(updateDef: Long, timeoutDef: Long)   {
+@assemble("AvailabilityApp") class AvailabilityAssembleBase(updateDef: Long = 3000, timeoutDef: Long = 3000)   {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
@@ -93,7 +93,7 @@ object Monitoring {
   }
 }
 
-@protocol("AvailabilityAutoApp") object AvailabilitySettingProtocolBase  {
+@protocol("AvailabilityApp") object AvailabilitySettingProtocolBase  {
 
   @Id(0x00f0) case class C_AvailabilitySetting(
     @Id(0x0001) srcId: String,

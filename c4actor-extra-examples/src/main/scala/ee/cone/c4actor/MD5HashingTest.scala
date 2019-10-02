@@ -143,6 +143,6 @@ class MD5HashingTestApp extends TestVMRichDataApp
 
   override def assembles: List[Assemble] = new MD5HashingAssemble(PreHashingMurMur3()) :: super.assembles
 
-  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler
+  lazy val assembleProfiler = NoAssembleProfiler() //ValueAssembleProfiler
 }
 

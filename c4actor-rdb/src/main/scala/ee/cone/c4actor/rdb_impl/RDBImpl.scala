@@ -19,9 +19,14 @@ import ee.cone.c4assemble._
 import ee.cone.c4proto._
 import okio.ByteString
 
+@c4component("FromExternalDBSyncApp") class FromExternalDBOptionHolder(
+  rdbOptionFactory: RDBOptionFactory
+) extends ExternalDBOptionHolder(List(
+  rdbOptionFactory.dbProtocol(FromExternalDBProtocol),
+  rdbOptionFactory.fromDB(classOf[FromExternalDBProtocol.B_DBOffset])
+))
 
-
-class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
+@c4component("RDBSyncApp") class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
@@ -30,7 +35,7 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
 
 ////
 
-@protocol("ToExternalDBSyncAutoApp") object ToExternalDBProtocolBase   {
+@protocol("ToExternalDBSyncApp") object ToExternalDBProtocolBase   {
   @Id(0x0063) case class B_HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -48,10 +53,9 @@ object ToExternalDBTypes {
   type PseudoOrigNeedSrcId = SrcId
 }
 
-object ToExternalDBAssembles {
-  def apply(options: List[ExternalDBOption]): List[Assemble] =
-    new ToExternalDBTxAssemble ::
-      options.collect{ case o: ToDBOption => o.assemble }
+@assemble("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOptionHolder]) extends CallerAssemble {
+  override def subAssembles: List[Assemble] =
+    new ToExternalDBTxAssemble :: options.flatMap(_.values).collect{ case o: ToDBOption => o.assemble } ::: super.subAssembles
 }
 
 object ToExternalDBAssembleTypes {
@@ -164,14 +168,14 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol("FromExternalDBSyncAutoApp") object FromExternalDBProtocolBase   {
+@protocol("FromExternalDBSyncApp") object FromExternalDBProtocolBase   {
   @Id(0x0060) case class B_DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long
   )
 }
 
-@assemble class FromExternalDBSyncAssembleBase   {
+@assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase   {
   def joinTxTransform(
     key: SrcId,
     first: Each[S_Firstborn]

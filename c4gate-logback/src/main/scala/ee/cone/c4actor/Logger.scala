@@ -7,27 +7,13 @@ import java.nio.charset.StandardCharsets.UTF_8
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4proto.c4component
 import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 
-trait BasicLoggingApp extends ToStartApp {
-  def catchNonFatal: CatchNonFatal
-  def config: Config
-  //
-  private lazy val logbackIncludePaths =
-    Paths.get(config.get("C4LOGBACK_XML")) :: Paths.get("/tmp/logback.xml") :: Nil
-  private lazy val logbackConfigurator =
-    new LoggerConfigurator(logbackIncludePaths, catchNonFatal, 5000)
-  private lazy val logbackTest = new LoggerTest
-  override def toStart: List[Executable] =
-      Option(System.getenv("C4LOGBACK_TEST")).toList.map(_=>logbackTest) :::
-      logbackConfigurator ::
-      super.toStart
-}
-
-class LoggerTest extends Executable with LazyLogging {
-  def run(): Unit = iteration(0L)
+@c4component("BasicLoggingApp") class LoggerTest extends Executable with LazyLogging {
+  def run(): Unit = if(Option(System.getenv("C4LOGBACK_TEST")).nonEmpty) iteration(0L)
   @tailrec private def iteration(v: Long): Unit = {
     Thread.sleep(1000)
     logger.warn(s"logger test $v")
@@ -35,6 +21,15 @@ class LoggerTest extends Executable with LazyLogging {
     iteration(v+1L)
   }
 }
+
+@c4component("BasicLoggingApp") class DefLoggerConfigurator(
+  config: Config,
+  catchNonFatal: CatchNonFatal
+) extends LoggerConfigurator(
+  Paths.get(config.get("C4LOGBACK_XML")) :: Paths.get("/tmp/logback.xml") :: Nil,
+  catchNonFatal,
+  5000
+) with Executable
 
 class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPeriod: Long) extends Executable {
   def run(): Unit = iteration("")

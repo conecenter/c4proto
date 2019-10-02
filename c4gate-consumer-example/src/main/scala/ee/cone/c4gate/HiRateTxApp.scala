@@ -9,20 +9,7 @@ import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4gate.HttpProtocolBase.S_HttpPublication
 import ee.cone.c4proto.ToByteString
 
-
-
-class HiRateTxApp extends ServerApp with ParallelObserversApp
-  with EnvConfigApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with NoAssembleProfilerApp
-  with FileRawSnapshotApp
-  with BasicLoggingApp
-  with HttpProtocolApp
-{
-  override def assembles: List[Assemble] = new HiRateAssemble :: super.assembles
-}
-
-@assemble class HiRateAssembleBase {
+@assemble("HiRateTxApp") class HiRateAssembleBase {
   def joinPosts(
     key: SrcId,
     firstborn: Each[S_Firstborn]

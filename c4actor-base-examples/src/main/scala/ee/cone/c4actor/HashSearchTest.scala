@@ -6,7 +6,7 @@ import ee.cone.c4actor.HashSearchTestProtocol.{D_SomeModel, D_SomeRequest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4proto.{Id, c4component, protocol}
 
 case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
@@ -31,7 +31,7 @@ object DefaultRangers {
   implicit lazy val strEq: Ranger[StrEq,String] = StrEqRanger
 }
 
-@protocol("HashSearchTestAutoApp") object HashSearchTestProtocolBase   {
+@protocol("HashSearchTestApp") object HashSearchTestProtocolBase   {
   @Id(0x0001) case class D_SomeModel(
     @Id(0x0003) srcId: String,
     @Id(0x0004) fieldA: String,
@@ -53,15 +53,15 @@ object DefaultRangers {
 import HashSearch.{Request,Response}
 import SomeModelAccess._
 
-@assemble class HashSearchTestAssembleBase(
-  modelConditionFactory: ModelConditionFactory[Unit],
-  hashSearchFactory: HashSearch.Factory
+@assemble("HashSearchTestApp") class HashSearchTestAssembleBase(
+  modelConditionFactory: ModelConditionFactoryHolder,
+  hashSearchFactory: HashSearchFactoryHolder
 )   {
   def joinReq(
     srcId: SrcId,
     request: Each[D_SomeRequest]
   ): Values[(SrcId,Request[D_SomeModel])] =
-    List(WithPK(hashSearchFactory.request(HashSearchTestMain.condition(modelConditionFactory,request))))
+    List(WithPK(hashSearchFactory.value.request(HashSearchTestMain.condition(modelConditionFactory.value,request))))
 
   def joinResp(
     srcId: SrcId,
@@ -70,24 +70,22 @@ import SomeModelAccess._
     List(WithPK(SomeResponse(response.srcId,response.lines)))
 }
 
-
-case class SomeResponse(srcId: SrcId, lines: List[D_SomeModel])
-//todo reg
-class HashSearchTestApp extends HashSearchTestAutoApp with TestVMRichDataApp
-  with SimpleAssembleProfilerApp
-{
+@assemble("HashSearchTestApp") class HashSearchTestAddAssembleBase(
+  hashSearchFactoryHolder: HashSearchFactoryHolder
+) extends CallerAssemble {
   import DefaultRangers._
-  override def assembles: List[Assemble] = List(
-    hashSearchFactory.index(classOf[D_SomeModel])
+  override def subAssembles: List[Assemble] =
+    hashSearchFactoryHolder.value.index(classOf[D_SomeModel])
       .add(fieldA, StrEq(""))
       .add(fieldB, StrEq(""))
       .add(fieldC, StrEq(""))
-      .assemble,
-    new HashSearchTestAssemble(modelConditionFactory,hashSearchFactory)
-  ) ::: super.assembles
+      .assemble ::
+    super.subAssembles
 }
 
-object HashSearchTestMain extends LazyLogging {
+case class SomeResponse(srcId: SrcId, lines: List[D_SomeModel])
+
+object HashSearchTestMain {
   def condition(modelConditionFactory: ModelConditionFactory[Unit], request: D_SomeRequest): Condition[D_SomeModel] = {
     import DefaultConditionChecks._
     val cf = modelConditionFactory.of[D_SomeModel]
@@ -98,6 +96,13 @@ object HashSearchTestMain extends LazyLogging {
     } yield cf.leaf(lens, StrEq(value), Nil)
     leafs.reduce(cf.intersect)
   }
+}
+
+@c4component("HashSearchTestApp") class HashSearchTestMain(
+  modelConditionFactoryHolder: ModelConditionFactoryHolder,
+  contextFactory: ContextFactory,
+  execution: Execution
+) extends Executable with LazyLogging {
 
   def measure[T](hint: String)(f: ()=>T): T = {
     val t = System.currentTimeMillis
@@ -105,9 +110,6 @@ object HashSearchTestMain extends LazyLogging {
     logger.info(s"$hint: ${System.currentTimeMillis-t}")
     res
   }
-
-  def main(args: Array[String]): Unit = test()
-
 
   def ask(modelConditionFactory: ModelConditionFactory[Unit]): D_SomeModel=>Context=>Unit = pattern => local => {
     val request = D_SomeRequest("123",Option(pattern))
@@ -147,9 +149,8 @@ object HashSearchTestMain extends LazyLogging {
     }
   }
 
-  def test(): Unit = {
-    val app = new HashSearchTestApp
-    val voidContext = app.contextFactory.updated(Nil)
+  def run(): Unit = {
+    val voidContext = contextFactory.updated(Nil)
     val contexts = List(
       fillWorld(10000)(voidContext),
       fillWorld(100000)(voidContext),
@@ -164,7 +165,7 @@ object HashSearchTestMain extends LazyLogging {
         D_SomeModel("","1","","3"),
         D_SomeModel("","","2","3")
       )
-    } ask(app.modelConditionFactory)(pattern)(local)
+    } ask(modelConditionFactoryHolder.value)(pattern)(local)
 
 
 
@@ -181,6 +182,7 @@ object HashSearchTestMain extends LazyLogging {
       })
     }
 */
+    execution.complete()
   }
 }
 

@@ -164,7 +164,7 @@ class TypedAllTestApp extends TestVMRichDataApp
   //with EnvConfigApp
   with VMExecutionApp
   //with ParallelObserversApp
-  //with FileRawSnapshotApp
+  //with RemoteRawSnapshotApp
   with ExecutableApp
   with ToStartApp {
 
@@ -183,5 +183,5 @@ class TypedAllTestApp extends TestVMRichDataApp
       super.assembles
   }
 
-  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler2
+  lazy val assembleProfiler = NoAssembleProfiler() //ValueAssembleProfiler2
 }

@@ -262,7 +262,7 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   //with EnvConfigApp
   with VMExecutionApp
   //with ParallelObserversApp
-  //with FileRawSnapshotApp
+  //with RemoteRawSnapshotApp
   with ExecutableApp
   with ToStartApp
   with ModelAccessFactoryApp

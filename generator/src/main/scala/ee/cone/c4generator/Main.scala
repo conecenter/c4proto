@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v112"
+  def version: String = "-v113"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -68,7 +68,7 @@ object Main {
         val content =
           s"\npackage $pkg" +
           links.groupBy(_.app).toList.map{ case (app,links) =>
-            s"\ntrait $app extends ee.cone.c4proto.ComponentsApp {" +
+            s"\ntrait $app extends ${app}Base with ee.cone.c4proto.ComponentsApp {" +
             s"\n  override def components: List[ee.cone.c4proto.Component] = " +
             links.map(c=> s"\n    ${c.component}.components.toList ::: ").mkString +
             s"\n    super.components" +

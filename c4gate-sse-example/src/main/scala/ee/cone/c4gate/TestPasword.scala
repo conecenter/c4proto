@@ -5,29 +5,26 @@ import java.time.Instant
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble}
 import ee.cone.c4ui._
 
 
-class TestPasswordApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
+class TestPasswordAppBase extends ServerCompApp
+  with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UIApp
   with TestTagsApp
   with NoAssembleProfilerApp
   with ManagementApp
-  with FileRawSnapshotApp
+  with RemoteRawSnapshotApp
   with BasicLoggingApp
   with AuthProtocolApp
-{
-  override def assembles: List[Assemble] =
-    new TestPasswordAssemble ::
-      new FromAlienTaskAssemble("/react-app.html") ::
-      super.assembles
-}
+  with ReactHtmlApp
 
-@assemble class TestPasswordAssembleBase   {
+
+
+@assemble("TestPasswordApp") class TestPasswordAssembleBase   {
   def joinView(
     key: SrcId,
     fromAlien: Each[FromAlienTask]

@@ -4,10 +4,10 @@ import ee.cone.c4actor.SyncTx.NeedSrcId
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
+import ee.cone.c4proto.c4component
 
 //todo RDBImpl
-
-class SyncTxFactoryImpl extends SyncTxFactory {
+@c4component("ManagementApp") class SyncTxFactoryImpl extends SyncTxFactory {
   def create[D_Item<:Product](
     classOfItem: Class[D_Item],
     filter: D_Item=>Boolean,

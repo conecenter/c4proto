@@ -4,7 +4,7 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, c4component, protocol}
 
 import Function.tupled
 
@@ -33,7 +33,8 @@ class RelSrcImpl[From<:Product,Value](from: Class[From], lens: ProdLens[From,Val
     new RelChildrenAssemble(from,to,new RelAssemble(from,to,lens,adapter)())()
   }
 }
-class RevRelFactoryImpl extends RevRelFactory {
+
+@c4component("RevRelFactoryImplApp") class RevRelFactoryImpl extends RevRelFactory {
   def rel[From<:Product](lens: ProdLens[From,List[SrcId]])(implicit cf: ClassTag[From]): RelSrc[From,List[SrcId]] = {
     val from = cf.runtimeClass.asInstanceOf[Class[From]]
     new RelSrcImpl[From,List[SrcId]](from,lens,identity[List[SrcId]])
@@ -107,17 +108,7 @@ case class RelOuterReq(callerId: SrcId)
   def result: Result = tupled(join _) //join(_:SrcId,???,???)
 }
 
-// general test helpers
-
-abstract class TestExecutionApp(addAssembles: List[Assemble]) extends TestVMRichDataApp
-  with SimpleAssembleProfilerApp
-  with VMExecutionApp with ToStartApp with ExecutableApp
-{
-  override def toStart: List[Executable] = new JustJoinTestExecutable(execution, contextFactory) :: super.toStart
-  override def assembles: List[Assemble] = addAssembles ::: super.assembles
-}
-
-class JustJoinTestExecutable(
+@c4component("JustJoinTestApp") class JustJoinTestExecutable(
   execution: Execution, contextFactory: ContextFactory
 ) extends Executable {
   def run(): Unit = {
@@ -143,7 +134,7 @@ import RRTestItems._
 }
 import RRTestLenses._
 
-@assemble class RRTest1RuleAssembleBase(rr: RevRelFactory)   {
+@assemble("RRTest1App") class RRTest1RuleAssembleBase(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[Foo],
@@ -151,7 +142,7 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.values)))
 }
 
-@assemble class RRTest1CheckAssembleBase   {
+@assemble("RRTest1App") class RRTest1CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -181,7 +172,7 @@ import RRTestLenses._
   }
 }
 
-@assemble class RRTest2RuleAssembleBase(rr: RevRelFactory)   {
+@assemble("RRTest2App") class RRTest2RuleAssembleBase(rr: RevRelFactory)   {
   type FooId = SrcId
   def join(
     key: SrcId,
@@ -190,7 +181,7 @@ import RRTestLenses._
   ): Values[(FooId,RichFooBar)] = List(WithPK(RichFooBar(foo, bar)))
 }
 
-@assemble class RRTest2CheckAssembleBase   {
+@assemble("RRTest2App") class RRTest2CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -224,7 +215,7 @@ import RRTestLenses._
   }
 }
 
-@assemble class RRTest3RuleAssembleBase(rr: RevRelFactory)   {
+@assemble("RRTest3App") class RRTest3RuleAssembleBase(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[FooRev],
@@ -232,7 +223,7 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.toList.sortBy(_.id).map(i=>Bar(i.id)))))
 }
 
-@assemble class RRTest3CheckAssembleBase   {
+@assemble("RRTest3App") class RRTest3CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -261,16 +252,3 @@ import RRTestLenses._
     Nil
   }
 }
-
-class RRTest1App extends TestExecutionApp(List(
-  new RRTest1RuleAssemble(new RevRelFactoryImpl), new RRTest1CheckAssemble
-))
-class RRTest2App extends TestExecutionApp(List(
-  new RRTest2RuleAssemble(new RevRelFactoryImpl), new RRTest2CheckAssemble
-))
-class RRTest3App extends TestExecutionApp(List(
-  new RRTest3RuleAssemble(new RevRelFactoryImpl), new RRTest3CheckAssemble
-))
-
-
-// C4STATE_TOPIC_PREFIX=ee.cone.c4actor.RRTest1App sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain'

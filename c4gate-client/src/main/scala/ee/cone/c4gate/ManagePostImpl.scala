@@ -12,19 +12,19 @@ import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-@assemble class ManagementPostAssembleBase(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal)   {
+@assemble("ManagementApp") class ManagementPostAssembleBase(actorName: ActorName, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal)   {
   def joinHttpPostHandler(
     key: SrcId,
     post: Each[S_HttpRequest]
   ): Values[(SrcId, TxTransform)] =
-    if(post.path == s"/manage/$actorName")
+    if(post.path == s"/manage/${actorName.value}")
       List(WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil,readModelUtil,catchNonFatal))) else Nil
 
   def joinConsumers(
     key: SrcId,
     first: Each[S_Firstborn]
   ): Values[(SrcId,LocalHttpConsumer)] =
-    List(WithPK(LocalHttpConsumer(s"/manage/$actorName")))
+    List(WithPK(LocalHttpConsumer(s"/manage/${actorName.value}")))
 }
 
 case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {

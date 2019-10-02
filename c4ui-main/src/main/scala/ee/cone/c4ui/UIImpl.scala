@@ -5,11 +5,12 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4proto.c4component
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
 import okio.ByteString
 
-class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
+@c4component("UIApp") class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
   def toInject: List[Injectable] = List(
     CreateVDomHandlerKey.set((sender,view) =>
       vDomHandlerFactory.create(sender,view,VDomUntilImpl,VDomStateKey)
@@ -20,7 +21,7 @@ class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
 //case object RelocateKey extends WorldKey[String]("")
 //  with VDomLens[World, String]
 
-@assemble class VDomAssembleBase   {
+@assemble("UIApp") class VDomAssembleBase {
   def joinBranchHandler(
     key: SrcId,
     task: Each[BranchTask],
@@ -70,7 +71,7 @@ object VDomUntilImpl extends VDomUntil {
 
 case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
 
-object DefaultUntilPolicy extends UntilPolicy {
+@c4component("UIApp") object DefaultUntilPolicy extends UntilPolicy {
   def wrap(view: Context=>ViewRes): Context=>ViewRes = local => {
     val startTime = System.currentTimeMillis
     val res = view(local)

@@ -4,6 +4,7 @@ package ee.cone.c4actor.dep_impl
 import collection.immutable.Seq
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4actor.dep._
+import ee.cone.c4proto.c4component
 
 abstract class DepImpl[A] extends Dep[A] {
   def flatMap[B](f: A => Dep[B]): Dep[B] = new ComposedDep[A, B](this, f)
@@ -97,7 +98,7 @@ class SeqUncheckedParallelDep[A](depSeq: Seq[Dep[A]]) extends DepImpl[Seq[A]] {
   }
 }
 
-case class DepFactoryImpl() extends DepFactory {
+@c4component("DepAssembleCompApp") case class DepFactoryImpl() extends DepFactory {
   def parallelSeq[A](value: Seq[Dep[A]]): Dep[Seq[A]] =
     new SeqParallelDep[A](value.asInstanceOf[Seq[Dep[A]]])
   def uncheckedRequestDep[Out](request: DepRequest): Dep[Out] =

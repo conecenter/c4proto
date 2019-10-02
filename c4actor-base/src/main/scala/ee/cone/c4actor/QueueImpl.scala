@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId}
+import ee.cone.c4assemble.Single
 import okio.ByteString
 
 /*Future[RecordMetadata]*/
@@ -19,7 +20,7 @@ import okio.ByteString
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()=>RawQSender) extends QMessages {
+@c4component("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender]) extends QMessages {
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
@@ -30,7 +31,7 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()=>RawQSender) extends Q
     val rec = new QRecordImpl(InboxTopicName(), bytes, headers)
     val debugStr = WriteModelDebugKey.of(local).map(_.toString).mkString("\n---\n")
     val debugRec = new QRecordImpl(LogTopicName(),debugStr.getBytes(UTF_8), Nil)
-    val List(offset,_)= getRawQSender().send(List(rec,debugRec))
+    val List(offset,_)= Single(getRawQSender.value).send(List(rec,debugRec))
     Function.chain(Seq(
       WriteModelKey.set(Queue.empty),
       WriteModelDebugKey.set(Queue.empty),
@@ -39,7 +40,9 @@ class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: ()=>RawQSender) extends Q
   }
 }
 
-@c4component("ProtoAutoApp") class ToUpdateImpl(
+@c4component("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+
+@c4component("ProtoApp") class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
   deCompressorRegistry: DeCompressorRegistry,
   compressorOpt: Option[RawCompressor],

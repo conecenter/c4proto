@@ -7,7 +7,7 @@ import ee.cone.c4actor.dep.DepTypes._
 import ee.cone.c4actor.dep._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4proto.{ToByteString, c4component}
 
 case class DepResponseImpl(innerRequest: DepInnerRequest, valueHashed: PreHashed[Option[_]]) extends DepResponse {
   def value: Option[_] = valueHashed.value
@@ -84,7 +84,13 @@ case class DepInnerResolvable(result: DepResponse, subRequests: Seq[(SrcId,DepOu
     else Nil
 }
 
-case class DepRequestHandlerRegistry(
+trait DepRequestHandlerRegistry {
+  def handle(req: DepInnerRequest): Option[Values[DepResponse]=>DepInnerResolvable]
+  def add(req: DepInnerRequest): Values[(String, DepResponse)]
+  def filter(parent: DepInnerRequest, child: DepOuterRequest, response: DepResponse): Values[(String, DepResponse)]
+}
+
+@c4component("DepAssembleCompApp") case class DepRequestHandlerRegistryImpl(
   depRequestFactory: DepRequestFactory,
   depResponseFactory: DepResponseFactory,
   handlerSeq: Seq[DepHandler],
@@ -108,7 +114,7 @@ case class DepRequestHandlerRegistry(
       .groupBy(_.parentCl.map(_.getClass.getName))
       .map { case (k, v) => k -> v.groupBy(_.childCl.getName).transform((_, filters) => Single(filters).filter) }
   }
-) {
+) extends DepRequestHandlerRegistry {
   def handle(req: DepInnerRequest): Option[Values[DepResponse]=>DepInnerResolvable] =
     handlers.get(req.request.getClass.getName).map{ (handle:(DepRequest,DepCtx)=>Resolvable[_]) => (responses:Values[DepResponse]) =>
       val ctx: DepCtx = (for {
@@ -138,7 +144,7 @@ case class DepRequestHandlerRegistry(
 
 }
 
-case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseFactory {
+@c4component("DepAssembleCompApp") case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseFactory {
   def wrap(req: DepInnerRequest, value: Option[_]): DepResponse =
     DepResponseImpl(req,preHashing.wrap(value))
 
@@ -146,7 +152,7 @@ case class DepResponseFactoryImpl()(preHashing: PreHashing) extends DepResponseF
     DepResponseImpl(req,valueRaw)
 }
 
-case class DepRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepRequestFactory {
+@c4component("DepAssembleCompApp") case class DepRequestFactoryImpl(idGenUtil: IdGenUtil)(qAdapterRegistry: QAdapterRegistry) extends DepRequestFactory {
   def tupledOuterRequest(parentId: SrcId)(rq: DepRequest): (SrcId,DepOuterRequest) = {
     val inner = innerRequest(rq)
     val outerId = idGenUtil.srcIdFromSrcIds(parentId, inner.srcId)
@@ -170,7 +176,7 @@ case class DepAskImpl[In<:Product,Out](name: String, depFactory: DepFactory)(val
   def byParent[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn => Map[In, Out]): DepHandler =
     AddDepHandler(reason match { case DepAskImpl(nm,_) => nm })(handler.asInstanceOf[DepRequest => DepCtx])
 }
-case class DepAskFactoryImpl(depFactory: DepFactory) extends DepAskFactory {
+@c4component("DepAssembleCompApp") case class DepAskFactoryImpl(depFactory: DepFactory) extends DepAskFactory {
   def forClasses[In<:Product,Out](in: Class[In], out: Class[Out]): DepAsk[In,Out] =
     DepAskImpl[In,Out](in.getName, depFactory)(in)
 }

@@ -11,15 +11,50 @@ import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
-class TestTodoApp extends TestTodoAutoApp with ServerApp
-  with EnvConfigApp with VMExecutionApp
+// @c4mod class FooCargoType extends CargoType
+
+// @c4mod class CargoTypeRegistry(items: List[CargoType]) extends Registry
+// @c4mod class CargoTypeToPartViewProvider(reg: CargoTypeRegistry) {
+//   def providePartViews(): Seq[PartView] =
+
+// ! multi layer module tree
+// ! reg at Impl; c4mod traits by all extends
+// @c4mod class PartViewRegistry(views: List[PartView]) extends Registry
+// @c4mod class BarPartView() extends PartView
+
+
+// ee.cone.aaa.bbb.
+// ConeAaaBbbApp
+// @assembleModApp
+
+//
+
+
+//trait TestTodoAppBase extends ServerCompApp
+//@protocol("TestTodoApp")
+
+// @assemble("ReactHtmlApp")
+// @assembleAtReactHtmlApp
+// @c4component("TestTodoApp")
+// @mixAtTestTodoAutoApp
+// @mixMod == @mixAtCargoStuff
+// @partOf*
+
+// @c4component("BazApp") class FooHolderImpl(bar: Bar) extends FooHolder(new FooImpl)
+// vs
+// @c4component("BazApp") class Baz(...) {
+//   def mixFoo(bar: Bar): Foo = new Foo
+//   def mixHoo(bar: Goo): Hoo = new Hoo
+
+class TestTodoAppBase extends ServerCompApp
+  with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UIApp
   with TestTagsApp
   with NoAssembleProfilerApp
   with ManagementApp
-  with FileRawSnapshotApp
+  with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with CommonFilterInjectApp
   with CommonFilterPredicateFactoriesApp
@@ -29,18 +64,18 @@ class TestTodoApp extends TestTodoAutoApp with ServerApp
   with DateBeforeAccessViewApp
   with ContainsAccessViewApp
   with SessionAttrApp
-  with MortalFactoryApp
+  with MortalFactoryCompApp
   with AvailabilityApp
-  with TestTodoRootViewApp
   with BasicLoggingApp
-{
-  override def assembles: List[Assemble] =
-    new FromAlienTaskAssemble("/react-app.html") ::
-    super.assembles
-  //override def longTxWarnPeriod: Long = 10L
+  with ReactHtmlApp
+
+
+@assemble("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase extends CallerAssemble {
+  override def subAssembles: List[Assemble] =
+    new FromAlienTaskAssemble("/react-app.html") :: super.subAssembles
 }
 
-@protocol("TestTodoAutoApp") object TestTodoProtocolBase   {
+@protocol("TestTodoApp") object TestTodoProtocolBase   {
   @Id(0x0001) case class B_TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,
@@ -60,6 +95,7 @@ import TestTodoAccess._
     SessionAttr(Id(0x0007), classOf[B_Contains], IsDeep, UserLabel en "(comments contain)")
 }
 
+/*
 trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]
   def tags: Tags
@@ -84,9 +120,9 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
 
   override def byLocationHashViews: List[ByLocationHashView] =
     testTodoRootView :: super.byLocationHashViews
-}
+}*/
 
-case class TestTodoRootView(locationHash: String = "todo")(
+@c4component("TestTodoApp") case class TestTodoRootView(locationHash: String = "todo")(
   tags: TestTags[Context],
   mTags: Tags,
   styles: TagStyles,

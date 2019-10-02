@@ -41,6 +41,7 @@ case class FHttpRequest(method: String, path: String, headers: List[N_Header], b
 trait FHttpHandler {
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse]
 }
+class FHttpHandlerHolder(val value: FHttpHandler)
 
 trait RHttpResponseFactory {
   def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse
@@ -56,3 +57,5 @@ trait StatefulReceiverFactory {
 trait StatefulReceiver[Message] {
   def send(message: Message): Unit
 }
+
+class DataDir(val value: String)
