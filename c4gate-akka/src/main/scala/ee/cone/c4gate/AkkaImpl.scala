@@ -32,10 +32,11 @@ class AkkaHttpServer(
     val method = req.method.value
     val path = req.uri.path.toString
     val rHeaders = req.headers.map(h ⇒ N_Header(h.name, h.value)).toList
-    logger.debug(s"req init: $method $path")
-    logger.trace(s"req headers: $rHeaders")
+    logger.info(s"req init: $method $path")
+    logger.info(s"req headers: ${rHeaders.mkString("|")}")
     for {
       entity ← req.entity.toStrict(Duration(5,MINUTES))(mat)
+      _ = logger.info(entity.toString())
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp ← handler.handle(rReq)
