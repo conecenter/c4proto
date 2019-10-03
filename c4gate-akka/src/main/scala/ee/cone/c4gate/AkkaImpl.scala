@@ -67,7 +67,7 @@ class AkkaHttpServer(
         handler = handler,
         interface = "localhost",
         port = port,
-        settings = ServerSettings("akka.http.server.request-timeout = 60 s"),
+        settings = ServerSettings("akka.http.server.request-timeout = 60 s\nakka.loglevel=\"DEBUG\""),
         log = Logging(mat.system, getClass)
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
       )(mat)
