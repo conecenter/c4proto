@@ -222,9 +222,7 @@ class FHttpHandlerImpl(
     val now = System.currentTimeMillis
     val res = for{
       local <- worldProvider.sync(None)
-      _ = logger.info(request.headers.mkString("|"))
       headers = normalize(request.headers)
-      _ = logger.info(headers.mkString("|"))
       requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, headers, request.body, now)
       result = handler.handle(requestEv,local)
       _ = logger.info(result.toString)

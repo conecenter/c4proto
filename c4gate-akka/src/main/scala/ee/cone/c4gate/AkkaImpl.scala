@@ -49,7 +49,7 @@ class AkkaHttpServer(
           .getOrElse(ContentTypes.`application/octet-stream`)
       val aHeaders = rHeaders.map(h⇒RawHeader(h.key,h.value))
       val entity = HttpEntity(contentType,rResp.body.toByteArray)
-      logger.debug(s"resp status: $status")
+      logger.info(s"resp status: $status")
       HttpResponse(status, aHeaders, entity)
     }
   }
