@@ -32,6 +32,7 @@ class AkkaHttpServer(
     val method = req.method.value
     val path = req.uri.path.toString
     val rHeaders = req.headers.map(h ⇒ N_Header(h.name, h.value)).toList
+    println("Here we are!")
     logger.info(s"req init: $method $path")
     logger.info(s"req headers: ${rHeaders.mkString("|")}")
     for {
