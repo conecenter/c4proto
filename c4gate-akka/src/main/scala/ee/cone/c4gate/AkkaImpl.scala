@@ -44,7 +44,7 @@ class AkkaHttpServer(
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp ← handler.handle(rReq)
     } yield {
-      _ = logger.info(s"$rResp / $randomId")
+      logger.info(s"$rResp / $randomId")
       val status = Math.toIntExact(rResp.status)
       val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
       val contentType =
