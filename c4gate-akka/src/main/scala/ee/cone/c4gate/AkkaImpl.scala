@@ -3,7 +3,8 @@ package ee.cone.c4gate
 
 import java.util.UUID
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.{ActorLogging, ActorRef, ActorSystem}
+import akka.event.Logging
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
 import akka.http.scaladsl.model.{ContentType, ContentTypes, HttpEntity, HttpRequest, HttpResponse}
@@ -15,6 +16,7 @@ import ee.cone.c4actor.{Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4gate.HttpProtocolBase.N_Header
 import ee.cone.c4proto.ToByteString
+import org.slf4j.LoggerFactory
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -65,7 +67,8 @@ class AkkaHttpServer(
         handler = handler,
         interface = "localhost",
         port = port,
-        settings = ServerSettings("akka.http.server.request-timeout = 60 s")
+        settings = ServerSettings("akka.http.server.request-timeout = 60 s"),
+        log = Logging(mat.system, getClass)
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
       )(mat)
     } yield binding
