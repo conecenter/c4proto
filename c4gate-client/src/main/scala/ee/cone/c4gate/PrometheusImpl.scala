@@ -1,112 +1,63 @@
 package ee.cone.c4gate
 
+import java.nio.charset.StandardCharsets
 import java.time.Instant
-import java.util.UUID
 
+import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor._
-import ee.cone.c4assemble.Types.{Each, Index, Values}
-import ee.cone.c4assemble._
-import ee.cone.c4gate.ActorAccessProtocol.C_ActorAccessKey
-import ee.cone.c4gate.AvailabilitySettingProtocol.C_AvailabilitySetting
-import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
-import ee.cone.c4proto.{Id, Protocol, protocol}
-import okio.ByteString
+import ee.cone.c4actor.{Context, HttpUtil, SleepUntilKey, TxTransform, WithPK}
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{Single, assemble, byEq}
+import ee.cone.c4gate.PrometheusPostSettingsObj.PrometheusPushId
+import ee.cone.c4proto.ToByteString
 
-@protocol object ActorAccessProtocolBase   {
-  @Id(0x006A) case class C_ActorAccessKey(
-    @Id(0x006B) srcId: String,
-    @Id(0x006C) value: String
-  )
+object PrometheusMetricBuilder {
+  def apply(metrics: List[Metric]): String =
+    metrics.map(metricToString(_, "")).mkString("\n", "\n", "\n")
+
+  def withTimeStamp(metrics: List[Metric], time: Long): String =
+    metrics.map(metricToString(_, time.toString)).mkString("\n", "\n", "\n")
+
+  def metricToString(metric: Metric, extraInfo: String): String =
+    s"${metric.name}${metric.labels.map(label ⇒ s"""${label.name}="${label.value}"""").mkString("{", ",", "}")} ${metric.value}${if (extraInfo.isBlank) "" else s" $extraInfo"}"
 }
 
-@assemble class ActorAccessAssembleBase   {
-  def join(
+case class PrometheusPostSettings(url: String, refreshRate: Long)
+
+object PrometheusPostSettingsObj {
+  type PrometheusPushId = SrcId
+  lazy val fixedSrcId: PrometheusPushId = "prometheus-post-tx"
+}
+
+import PrometheusPostSettingsObj._
+
+@assemble class PrometheusPostAssembleBase(metricsFactories: List[MetricsFactory], defaultSettings: Option[PrometheusPostSettings]) {
+  def StubJoin(
+    key: SrcId,
+    first: Each[S_Firstborn]
+  ): Values[(PrometheusPushId, PrometheusPostSettings)] =
+    Nil
+
+  def CreatePrometheusPost(
     key: SrcId,
     first: Each[S_Firstborn],
-    accessKeys: Values[C_ActorAccessKey]
-  ): Values[(SrcId,TxTransform)] =
-    if(accessKeys.nonEmpty) Nil
-    else List(WithPK(ActorAccessCreateTx(s"ActorAccessCreateTx-${first.srcId}",first)))
+    @byEq[PrometheusPushId](fixedSrcId) settings: Values[PrometheusPostSettings]
+  ): Values[(SrcId, TxTransform)] =
+    Single.option(settings).orElse(defaultSettings).toList.map { settings ⇒
+      WithPK(PrometheusPostTx(fixedSrcId, settings, metricsFactories))
+    }
 }
 
-case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTransform {
-  def transform(local: Context): Context =
-    TxAdd(LEvent.update(C_ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
-}
+case class PrometheusPostTx(srcId: SrcId, settings: PrometheusPostSettings, metricsFactories: List[MetricsFactory]) extends TxTransform with LazyLogging {
 
-@assemble class PrometheusAssembleBase(compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
-  def join(
-    key: SrcId,
-    first: Each[S_Firstborn],
-    accessKey: Each[C_ActorAccessKey]
-  ): Values[(SrcId,TxTransform)] = {
-    val path = s"/${accessKey.value}-metrics"
-    println(s"Prometheus metrics at $path")
-    List(WithPK(PrometheusTx(path, compressor, indexUtil, readModelUtil)))
-  }
-}
-
-case class PrometheusTx(path: String, compressor: Compressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil) extends TxTransform {
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
-    val runtime = Runtime.getRuntime
-    val memStats: List[(String, Long)] = List( //seems to be: max > total > free
-      "runtime_mem_max" → runtime.maxMemory,
-      "runtime_mem_total" → runtime.totalMemory,
-      "runtime_mem_free" → runtime.freeMemory
-    )
-    val keyCounts: List[(String, Long)] = readModelUtil.toMap(local.assembled).collect {
-      case (worldKey:JoinKey, index: Index)
-        if !worldKey.was && worldKey.keyAlias == "SrcId" ⇒
-        s"""c4index_key_count{valClass="${worldKey.valueClassName}"}""" → indexUtil.keySet(index).size.toLong
-    }.toList
-    val metrics = memStats ::: keyCounts
-    val bodyStr = metrics.sorted.map{ case (k,v) ⇒ s"$k $v $time\n" }.mkString
-    val body = compressor.compress(okio.ByteString.encodeUtf8(bodyStr))
-    val headers = List(N_Header("content-encoding", compressor.name))
-    Monitoring.publish(time, 15000, 5000, path, headers, body)(local)
+    val metrics = metricsFactories.flatMap(_.measure(local))
+    val bodyStr = PrometheusMetricBuilder(metrics)
+    val bodyBytes = ToByteString(bodyStr.getBytes(StandardCharsets.UTF_8))
+    logger.debug(s"Posted ${metrics.size} metrics to ${settings.url}")
+    HttpUtil.post(settings.url, bodyBytes, None, Nil, 5000, expectCode = 202)
+    SleepUntilKey.set(Instant.ofEpochMilli(time + settings.refreshRate))(local)
   }
-}
-
-object Monitoring {
-  def publish(
-    time: Long, updatePeriod: Long, timeout: Long,
-    path: String, headers: List[N_Header], body: okio.ByteString
-  ): Context⇒Context = {
-    val nextTime = time + updatePeriod
-    val invalidateTime = nextTime + timeout
-    val publication = S_HttpPublication(path, headers, body, Option(invalidateTime))
-    TxAdd(LEvent.update(publication)).andThen(SleepUntilKey.set(Instant.ofEpochMilli(nextTime)))
-  }
-}
-
-@assemble class AvailabilityAssembleBase(updateDef: Long, timeoutDef: Long)   {
-  def join(
-    key: SrcId,
-    first: Each[S_Firstborn],
-    settings: Values[C_AvailabilitySetting]
-  ): Values[(SrcId,TxTransform)] = {
-    val (updatePeriod, timeout) = Single.option(settings.map(s ⇒ s.updatePeriod → s.timeout)).getOrElse((updateDef, timeoutDef))
-    List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}", updatePeriod, timeout)))
-  }
-}
-
-@protocol object AvailabilitySettingProtocolBase  {
-
-  @Id(0x00f0) case class C_AvailabilitySetting(
-    @Id(0x0001) srcId: String,
-    @Id(0x0002) updatePeriod: Long,
-    @Id(0x0003) timeout: Long
-  )
-
-}
-
-case class AvailabilityTx(srcId: SrcId, updatePeriod: Long, timeout: Long) extends TxTransform {
-  def transform(local: Context): Context =
-    Monitoring.publish(
-      System.currentTimeMillis, updatePeriod, timeout,
-      "/availability", Nil, ByteString.EMPTY
-    )(local)
 }
