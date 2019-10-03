@@ -1,6 +1,8 @@
 
 package ee.cone.c4gate
 
+import java.util.UUID
+
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
@@ -32,16 +34,17 @@ class AkkaHttpServer(
     val method = req.method.value
     val path = req.uri.path.toString
     val rHeaders = req.headers.map(h ⇒ N_Header(h.name, h.value)).toList
-    println("Here we are!")
-    logger.info(s"req init: $method $path")
-    logger.info(s"req headers: ${rHeaders.mkString("|")}")
+    val randomId = UUID.randomUUID().toString
+    logger.info(s"req init: $method $path / $randomId")
+    logger.info(s"req headers: ${rHeaders.mkString("|")} / $randomId")
     for {
       entity ← req.entity.toStrict(Duration(5,MINUTES))(mat)
-      _ = logger.info(entity.toString())
+      _ = logger.info(s"$entity / $randomId")
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp ← handler.handle(rReq)
     } yield {
+      _ = logger.info(s"$rResp / $randomId")
       val status = Math.toIntExact(rResp.status)
       val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
       val contentType =
@@ -49,7 +52,7 @@ class AkkaHttpServer(
           .getOrElse(ContentTypes.`application/octet-stream`)
       val aHeaders = rHeaders.map(h⇒RawHeader(h.key,h.value))
       val entity = HttpEntity(contentType,rResp.body.toByteArray)
-      logger.info(s"resp status: $status")
+      logger.info(s"resp status: $status / $randomId")
       HttpResponse(status, aHeaders, entity)
     }
   }

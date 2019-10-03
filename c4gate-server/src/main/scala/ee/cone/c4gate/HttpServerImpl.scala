@@ -225,7 +225,6 @@ class FHttpHandlerImpl(
       headers = normalize(request.headers)
       requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, headers, request.body, now)
       result = handler.handle(requestEv,local)
-      _ = logger.info(result.toString)
       uLocal = TxAdd(result.events)(local)
       cLocal <- worldProvider.sync(Option(uLocal))
       response <- result.instantResponse.fold{new WaitFor(requestEv).iteration(cLocal)}(Future.successful)
