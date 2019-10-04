@@ -4,13 +4,13 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes.LazyOption
 import ee.cone.c4actor.MyProtocolBase.{D_BigDecimalContainer, D_Branch, D_Leaf}
-import ee.cone.c4proto.{Id, c4component, protocol}
+import ee.cone.c4proto.{Id, c4, protocol}
 
 import scala.collection.immutable.Seq
 
-@c4component("ProtoAdapterTestApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
+@c4("ProtoAdapterTestApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
 
-@c4component("ProtoAdapterTestApp")
+@c4("ProtoAdapterTestApp")
 class ProtoAdapterTest(
   qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, execution: Execution,
   finTest: FinTest
@@ -95,11 +95,11 @@ class ProtoAdapterTest(
 trait FinTest {
   def get: String
 }
-@c4component("ProtoAdapterTestApp")
+@c4("ProtoAdapterTestApp")
 class NonFinalFinTest extends FinTest {
   def get: String = "{NonFinal}"
 }
-@c4component("ProtoAdapterTestApp")
+@c4("ProtoAdapterTestApp")
 class FinalFinTest(inner: FinTest) extends FinTest {
   def get: String = s"<Final>${inner.get}</Final>"
 }

@@ -3,9 +3,9 @@ package ee.cone.c4gate
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
-@c4component("FilterPredicateBuilderApp") class FilterPredicateBuilderImpl(
+@c4("FilterPredicateBuilderApp") class FilterPredicateBuilderImpl(
   sessionAttrAccessFactory: SessionAttrAccessFactory,
   modelConditionFactoryHolder: ModelConditionFactoryHolder
 )(

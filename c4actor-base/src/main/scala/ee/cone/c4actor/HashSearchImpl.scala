@@ -8,9 +8,9 @@ import ee.cone.c4actor.HashSearchImpl._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
-@c4component("RichDataCompApp") class DefHashSearchFactoryHolder(
+@c4("RichDataCompApp") class DefHashSearchFactoryHolder(
   modelConditionFactoryHolder: ModelConditionFactoryHolder,
   preHashing: PreHashing,
   idGenUtil: IdGenUtil

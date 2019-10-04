@@ -4,7 +4,7 @@ import ee.cone.c4actor.JoinAllTestProtocol.{D_Item, D_RegistryItem}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, c4component, protocol}
+import ee.cone.c4proto.{Id, c4, protocol}
 
 @protocol("JoinAllTestApp") object JoinAllTestProtocolBase   {
   @Id(0x0002) case class D_RegistryItem(@Id(0x0001) srcId: String)
@@ -13,7 +13,7 @@ import ee.cone.c4proto.{Id, c4component, protocol}
 
 case class JoinAllTestItem(srcId: String)
 
-@assemble("JoinAllTestApp") class JoinAllTestAssembleBase   {
+@c4assemble("JoinAllTestApp") class JoinAllTestAssembleBase   {
   def joinReg(
     key: SrcId,
     regItem: Each[D_RegistryItem]
@@ -29,7 +29,7 @@ case class JoinAllTestItem(srcId: String)
   }
 }
 
-@c4component("JoinAllTestApp") class JoinAllTestExecutable(
+@c4("JoinAllTestApp") class JoinAllTestExecutable(
   contextFactory: ContextFactory,
   execution: Execution
 ) extends Executable {

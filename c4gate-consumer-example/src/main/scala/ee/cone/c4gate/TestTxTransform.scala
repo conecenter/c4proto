@@ -4,10 +4,10 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 
-@assemble("TestTxTransformApp") class TestDelayAssembleBase   {
+@c4assemble("TestTxTransformApp") class TestDelayAssembleBase   {
   def joinTestHttpHandler(
     key: SrcId,
     req: Each[S_HttpRequest]

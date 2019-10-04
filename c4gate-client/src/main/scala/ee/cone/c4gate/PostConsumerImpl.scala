@@ -7,7 +7,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.AlienProtocol.E_HttpConsumer
 
-@assemble("ManagementApp") class HttpConsumerAssembleBase(
+@c4assemble("ManagementApp") class HttpConsumerAssembleBase(
   actorName: ActorName, syncTxFactory: SyncTxFactory
 ) extends CallerAssemble {
   def needConsumers(

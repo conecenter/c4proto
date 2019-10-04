@@ -7,12 +7,12 @@ import java.nio.charset.StandardCharsets.UTF_8
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 
-@c4component("BasicLoggingApp") class LoggerTest extends Executable with LazyLogging {
+@c4("BasicLoggingApp") class LoggerTest extends Executable with LazyLogging {
   def run(): Unit = if(Option(System.getenv("C4LOGBACK_TEST")).nonEmpty) iteration(0L)
   @tailrec private def iteration(v: Long): Unit = {
     Thread.sleep(1000)
@@ -22,7 +22,7 @@ import scala.annotation.tailrec
   }
 }
 
-@c4component("BasicLoggingApp") class DefLoggerConfigurator(
+@c4("BasicLoggingApp") class DefLoggerConfigurator(
   config: Config,
   catchNonFatal: CatchNonFatal
 ) extends LoggerConfigurator(

@@ -7,7 +7,7 @@ import ee.cone.c4actor.QProtocol.{S_Firstborn, S_Offset}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{ToByteString, c4component}
+import ee.cone.c4proto.{ToByteString, c4}
 
 import scala.collection.immutable.Map
 import scala.concurrent.ExecutionContext
@@ -25,7 +25,7 @@ object Merge {
     }
 }
 
-@c4component("RichDataCompApp") class RichRawWorldReducerImpl(
+@c4("RichDataCompApp") class RichRawWorldReducerImpl(
   toInjects: List[ToInject], toUpdate: ToUpdate, actorName: ActorName, execution: Execution
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {

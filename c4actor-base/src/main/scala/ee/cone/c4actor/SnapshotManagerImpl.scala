@@ -4,7 +4,7 @@ import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 object SnapshotUtilImpl extends SnapshotUtil {
   def hashFromName: RawSnapshot=>Option[SnapshotInfo] = {
@@ -42,7 +42,7 @@ class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends Snap
   }
 }
 
-@c4component("SnapshotLoaderImplApp") class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with LazyLogging {
+@c4("SnapshotLoaderImplApp") class SnapshotLoaderImpl(raw: RawSnapshotLoader) extends SnapshotLoader with LazyLogging {
   def load(snapshot: RawSnapshot): Option[RawEvent] = {
     logger.debug(s"Loading raw snapshot [${snapshot.relativePath}]")
     val res = for {
@@ -54,7 +54,7 @@ class SnapshotSaverImpl(subDirStr: String, inner: RawSnapshotSaver) extends Snap
   }
 }
 
-@c4component("SnapshotLoaderFactoryImplApp") class SnapshotLoaderFactoryImpl extends SnapshotLoaderFactory {
+@c4("SnapshotLoaderFactoryImplApp") class SnapshotLoaderFactoryImpl extends SnapshotLoaderFactory {
   def create(raw: RawSnapshotLoader): SnapshotLoader =
     new SnapshotLoaderImpl(raw)
 }

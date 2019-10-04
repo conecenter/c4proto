@@ -1,16 +1,16 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
-@c4component("SimpleMakerApp") class SimpleMakerExecutable(execution: Execution, snapshotMaker: SnapshotMaker) extends Executable {
+@c4("SimpleMakerApp") class SimpleMakerExecutable(execution: Execution, snapshotMaker: SnapshotMaker) extends Executable {
   def run(): Unit = {
     val rawSnapshot :: _ = snapshotMaker.make(NextSnapshotTask(None))
     execution.complete()
   }
 }
 
-@c4component("SimplePusherApp") class SimplePusherExecutable(execution: Execution, snapshotLister: SnapshotLister, snapshotLoader: SnapshotLoader, rawQSender: RawQSender) extends Executable {
+@c4("SimplePusherApp") class SimplePusherExecutable(execution: Execution, snapshotLister: SnapshotLister, snapshotLoader: SnapshotLoader, rawQSender: RawQSender) extends Executable {
   def run(): Unit = {
     val snapshotInfo :: _ = snapshotLister.list
     val Some(event) = snapshotLoader.load(snapshotInfo.raw)

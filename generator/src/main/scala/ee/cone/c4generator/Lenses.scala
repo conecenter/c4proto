@@ -12,26 +12,30 @@ val (tp,meta) = tpe.get match {
 println(meta,meta.map(_.getClass))*/
 
 object LensesGenerator extends Generator {
-  def get: Get = { case (code@q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }", fileName) => Util.unBase(objectName,objectNameNode.pos.end){ objectName =>
-    stats.collect{ case q"..$mods case class ${Type.Name(messageName)} ( ..$params ) extends ..$ext" if mods.collectFirst{ case mod"@GenLens" => true }.nonEmpty =>
-      val resultType = messageName // simplification
-      val lensesLines = params.map {
-        case param"..$mods ${Term.Name(propName)}: $tpeopt = $v" =>
-          val Seq(id) = mods.collect{ case mod"@Id(${Lit(id:Int)})" => id }
-          val tp = tpeopt.asInstanceOf[Option[Type]].get
-          val meta = mods.collect{ case mod"@Meta(...$exprss)" => parseArgsWithApply(exprss) }.flatten.toList
-          getLens(objectName, resultType, id, propName, s"$tp", meta)
-        case t: Tree =>
-          Utils.parseError(t, "lenses", fileName)
+  def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap{
+    case q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" =>
+      Util.unBase(objectName,objectNameNode.pos.end){ objectName =>
+        stats.collect{ case q"..$mods case class ${Type.Name(messageName)} ( ..$params ) extends ..$ext" if mods.collectFirst{ case mod"@GenLens" => true }.nonEmpty =>
+          val resultType = messageName // simplification
+          val lensesLines = params.map {
+            case param"..$mods ${Term.Name(propName)}: $tpeopt = $v" =>
+              val Seq(id) = mods.collect{ case mod"@Id(${Lit(id:Int)})" => id }
+              val tp = tpeopt.asInstanceOf[Option[Type]].get
+              val meta = mods.collect{ case mod"@Meta(...$exprss)" => parseArgsWithApply(exprss) }.flatten.toList
+              getLens(objectName, resultType, id, propName, s"$tp", meta)
+            case t: Tree =>
+              Utils.parseError(t, parseContext)
+          }
+          GeneratedCode("\n" +
+            s"""object ${resultType}Lenses {
+               |  ${lensesLines.mkString("\n")}
+               |}
+             """.stripMargin
+          )
+        }
       }
-      GeneratedCode("\n" +
-        s"""object ${resultType}Lenses {
-           |  ${lensesLines.mkString("\n")}
-           |}
-         """.stripMargin
-      )
-    }
-  }}
+    case _ => Nil
+  }
 
   def parseArgsWithApply: Seq[Seq[Term]] => List[String] =
     _.flatMap(_.map(_.toString())).toList

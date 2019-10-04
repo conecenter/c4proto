@@ -1,9 +1,9 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
-@c4component("RichDataCompApp") class DefModelConditionFactoryHolder
+@c4("RichDataCompApp") class DefModelConditionFactoryHolder
   extends ModelConditionFactoryHolder(new ModelConditionFactoryImpl[Unit])
 
 class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {

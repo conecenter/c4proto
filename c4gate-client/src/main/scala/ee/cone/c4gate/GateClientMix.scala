@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor.GzipFullCompressor
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 trait FilterPredicateBuilderAppBase
 
@@ -13,7 +13,7 @@ trait AvailabilityAppBase
 
 trait DefPublishFullCompressorAppBase
 trait PublishingCompAppBase extends HttpProtocolApp with DefPublishFullCompressorApp
-@c4component("DefPublishFullCompressorApp") class DefPublishFullCompressor extends PublishFullCompressor(GzipFullCompressor())
+@c4("DefPublishFullCompressorApp") class DefPublishFullCompressor extends PublishFullCompressor(GzipFullCompressor())
 
 trait SessionAttrAppBase extends SessionDataProtocolApp
 trait SessionDataProtocolAppBase

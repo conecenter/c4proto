@@ -13,7 +13,7 @@ class KafkaLatTestAppBase extends EnvConfigCompApp with VMExecutionApp with NoAs
   with ExecutableApp with RichDataCompApp
   with KafkaProducerApp with KafkaConsumerApp
 
-trait TestServerApp extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
+trait TestServerAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
   with ServerCompApp with BasicLoggingApp
   with KafkaProducerApp with KafkaConsumerApp
   with RemoteRawSnapshotApp

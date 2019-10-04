@@ -3,9 +3,9 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.EachTestProtocol.D_Item
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{IndexUtil, assemble, by}
+import ee.cone.c4assemble.{IndexUtil, assemble, by, c4assemble}
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, c4component, protocol}
+import ee.cone.c4proto.{Id, c4, protocol}
 
 //  new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
 
@@ -15,7 +15,7 @@ import ee.cone.c4proto.{Id, c4component, protocol}
 
 case class EachTestItem(item: D_Item, valueItem: D_Item)
 
-@assemble("EachTestApp") class EachTestAssembleBase   {
+@c4assemble("EachTestApp") class EachTestAssembleBase   {
   type ByParent = SrcId
   def joinByVal(
     key: SrcId,
@@ -48,7 +48,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   } yield WithPK(EachTestItem(item,vItem))
 }
 
-@c4component("EachTestApp") class EachTestExecutable(
+@c4("EachTestApp") class EachTestExecutable(
   execution: Execution, contextFactory: ContextFactory, indexUtil: IndexUtil
 ) extends Executable with LazyLogging {
   def run(): Unit = {

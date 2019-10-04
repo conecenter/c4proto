@@ -1,9 +1,9 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble.ToPrimaryKey
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
-@c4component("ModelAccessFactoryApp") class ModelAccessFactoryImpl extends ModelAccessFactory {
+@c4("ModelAccessFactoryApp") class ModelAccessFactoryImpl extends ModelAccessFactory {
   def to[P <: Product](product: P): Option[Access[P]] = {
     val name = product.getClass.getName
     val lens = TxProtoLens[P](product)

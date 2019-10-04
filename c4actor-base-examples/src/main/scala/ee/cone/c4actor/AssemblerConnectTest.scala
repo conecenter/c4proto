@@ -5,7 +5,7 @@ import ee.cone.c4actor.ConnProtocol.D_Node
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, c4component, protocol}
+import ee.cone.c4proto.{Id, c4, protocol}
 
 @protocol("ConnTestApp") object ConnProtocolBase   {
   @Id(0x0001) case class D_Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
@@ -13,7 +13,7 @@ import ee.cone.c4proto.{Id, c4component, protocol}
 
 case class ConnNodePath(path: List[D_Node])
 
-@assemble("ConnTestApp") class ConnAssembleBase   {
+@c4assemble("ConnTestApp") class ConnAssembleBase   {
   type ParentId = SrcId
 
   def nodesByParentId(
@@ -39,7 +39,7 @@ case class ConnNodePath(path: List[D_Node])
   Is[List[D_Node]]    := WithPK(Each(By[ParentId,D_Node])::Each(Was[List[D_Node]]))
   */
 }
-@c4component("ConnTestApp") class ConnStart(
+@c4("ConnTestApp") class ConnStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run() = {

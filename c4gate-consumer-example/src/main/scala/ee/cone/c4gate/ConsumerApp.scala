@@ -25,7 +25,7 @@ tmp/kafka_2.11-0.10.1.0/bin/kafka-configs.sh --zookeeper localhost:2181 --descri
 curl 127.0.0.1:8067/connection -v -H x-r-action:pong -H x-r-connection:...
 */
 
-@assemble("TestConsumerApp") class TestAssembleBase(catchNonFatal: CatchNonFatal)   {
+@c4assemble("TestConsumerApp") class TestAssembleBase(catchNonFatal: CatchNonFatal)   {
   def joinTestHttpHandler(
     key: SrcId,
     req: Each[S_HttpRequest]

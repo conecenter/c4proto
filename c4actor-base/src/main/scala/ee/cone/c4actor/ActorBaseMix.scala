@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{AbstractComponents, c4component}
+import ee.cone.c4proto.{AbstractComponents, c4}
 
 trait BaseAppBase
 trait BigDecimalAppBase
@@ -31,7 +31,7 @@ trait VMExecutionAppBase extends AbstractComponents {
   lazy val execution: Execution = componentRegistry.resolveSingle(classOf[Execution])
 }
 
-@c4component("ServerCompApp") class DefProgressObserverFactoryImpl(
+@c4("ServerCompApp") class DefProgressObserverFactoryImpl(
   initialObserverProviders: List[InitialObserverProvider],
   execution: Execution
 ) extends ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObserverProviders.flatMap(_.option), new CompletingRawObserver(execution))))

@@ -7,11 +7,11 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.D_TxAddMeta
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, c4assemble}
 import ee.cone.c4gate.AlienProtocol.U_ToAlienWrite
 import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4gate.TestFilterProtocol.B_Content
-import ee.cone.c4proto.{HasId, Id, c4component}
+import ee.cone.c4proto.{HasId, Id, c4}
 import ee.cone.c4ui.{ByLocationHashView, UntilPolicy}
 import ee.cone.c4vdom.{ChildPair, OfDiv, Tags}
 import ee.cone.c4vdom.Types.ViewRes
@@ -36,11 +36,11 @@ import scala.annotation.tailrec
     testTxLogView :: super.byLocationHashViews
 }*/
 
-@assemble("TestTxLogApp") class TestTxLogMortalAssembleBase(mortal: MortalFactory) extends CallerAssemble {
+@c4assemble("TestTxLogApp") class TestTxLogMortalAssembleBase(mortal: MortalFactory) extends CallerAssemble {
   override def subAssembles: List[Assemble] =
     mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) :: super.subAssembles
 }
-@c4component("TestTxLogApp") case class TestTxLogView(locationHash: String = "txlog")(
+@c4("TestTxLogApp") case class TestTxLogView(locationHash: String = "txlog")(
   actorName: ActorName,
   untilPolicy: UntilPolicy,
   mTags: Tags,
@@ -105,7 +105,7 @@ object TestTxLogAttrs {
 case class UpdatesSummary(add: D_TxAddMeta, ref: N_TxRef)
 case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount: Long, objCount: Long, byteCount: Long)
 
-@assemble("TestTxLogApp") class TestTxLogAssembleBase(actorName: ActorName)(
+@c4assemble("TestTxLogApp") class TestTxLogAssembleBase(actorName: ActorName)(
   qAdapterRegistry: QAdapterRegistry
 )(
   metaAdapter: ProtoAdapter[D_TxAddMeta] with HasId =

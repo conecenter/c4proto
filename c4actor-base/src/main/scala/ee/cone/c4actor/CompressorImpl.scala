@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 import okio._
 
 import scala.annotation.tailrec
@@ -9,13 +9,13 @@ object NoStreamCompressorFactory extends StreamCompressorFactory {
   def create(): Option[Compressor] = None
 }
 
-@c4component("ProtoApp") case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
+@c4("ProtoApp") case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
   val byNameMap: Map[String, DeCompressor] = compressors.map(c => c.name -> c).toMap
 ) extends DeCompressorRegistry {
   def byName: String => DeCompressor = byNameMap
 }
 
-@c4component("ServerCompApp")
+@c4("ServerCompApp")
 case class GzipFullDeCompressor() extends DeCompressor {
   def name: String = "gzip"
 
@@ -46,7 +46,7 @@ case class GzipFullCompressor() extends Compressor {
     }
 }
 
-@c4component("GzipRawCompressorApp")
+@c4("GzipRawCompressorApp")
 case class GzipFullRawCompressor() extends RawCompressor {
   def name: String = "gzip"
   def compress(body: Array[Byte]): Array[Byte] =

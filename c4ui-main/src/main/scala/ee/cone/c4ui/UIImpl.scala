@@ -4,13 +4,13 @@ import ee.cone.c4actor.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4proto.c4component
+import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
+import ee.cone.c4proto.c4
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
 import okio.ByteString
 
-@c4component("UIApp") class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
+@c4("UIApp") class UIInit(vDomHandlerFactory: VDomHandlerFactory) extends ToInject {
   def toInject: List[Injectable] = List(
     CreateVDomHandlerKey.set((sender,view) =>
       vDomHandlerFactory.create(sender,view,VDomUntilImpl,VDomStateKey)
@@ -21,7 +21,7 @@ import okio.ByteString
 //case object RelocateKey extends WorldKey[String]("")
 //  with VDomLens[World, String]
 
-@assemble("UIApp") class VDomAssembleBase {
+@c4assemble("UIApp") class VDomAssembleBase {
   def joinBranchHandler(
     key: SrcId,
     task: Each[BranchTask],
@@ -71,7 +71,7 @@ object VDomUntilImpl extends VDomUntil {
 
 case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
 
-@c4component("UIApp") object DefaultUntilPolicy extends UntilPolicy {
+@c4("UIApp") object DefaultUntilPolicy extends UntilPolicy {
   def wrap(view: Context=>ViewRes): Context=>ViewRes = local => {
     val startTime = System.currentTimeMillis
     val res = view(local)

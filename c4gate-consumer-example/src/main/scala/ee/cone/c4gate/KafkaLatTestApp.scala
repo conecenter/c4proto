@@ -2,14 +2,14 @@ package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{RawQSender, _}
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq
 
 
 class TestQRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
-@c4component("KafkaLatTestApp") class TestRootProducerImpl(rawQSender: RawQSender, toUpdate: ToUpdate) extends Executable with LazyLogging {
+@c4("KafkaLatTestApp") class TestRootProducerImpl(rawQSender: RawQSender, toUpdate: ToUpdate) extends Executable with LazyLogging {
   def run(): Unit = {
     iteration()
   }
@@ -24,7 +24,7 @@ class TestQRecordImpl(val topic: TopicName, val value: Array[Byte], val headers:
 }
 
 
-@c4component("KafkaLatTestApp") class TestRootConsumerImpl(consuming: Consuming) extends Executable with LazyLogging {
+@c4("KafkaLatTestApp") class TestRootConsumerImpl(consuming: Consuming) extends Executable with LazyLogging {
   def run(): Unit = {
     consuming.process("0" * OffsetHexSize(), consumer => iteration(consumer))
   }

@@ -6,10 +6,10 @@ import java.security.MessageDigest
 import java.util.Base64
 
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 import okio.ByteString
 
-@c4component("RichDataCompApp")case class IdGenUtilImpl()(
+@c4("RichDataCompApp")case class IdGenUtilImpl()(
   proto: MessageDigest = MessageDigest.getInstance("MD5")
 ) extends IdGenUtil {
   private def md5(data: Array[Byte]*): String = {

@@ -17,7 +17,7 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 import okio.ByteString
 
 case object LastPongKey extends SharedComponentKey[String=>Option[Instant]]
@@ -26,7 +26,7 @@ trait PongRegistry {
   def pongs: TrieMap[String,Instant]
 }
 
-@c4component("SSEServerApp") class PongRegistryImpl(val pongs: TrieMap[String,Instant] = TrieMap()) extends PongRegistry with ToInject {
+@c4("SSEServerApp") class PongRegistryImpl(val pongs: TrieMap[String,Instant] = TrieMap()) extends PongRegistry with ToInject {
   def toInject: List[Injectable] = LastPongKey.set(pongs.get)
 }
 
@@ -129,7 +129,7 @@ case class SessionTxTransform( //?todo session/pongs purge
   }
 }
 
-@c4component("SSEServerApp") class SSEAssembles(mortal: MortalFactory) extends CallerAssemble {
+@c4("SSEServerApp") class SSEAssembles(mortal: MortalFactory) extends CallerAssemble {
   override def subAssembles: List[Assemble] =
     new SSEAssemble :: mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: super.subAssembles
 }
@@ -194,7 +194,7 @@ case class CheckAuthenticatedSessionTxTransform(
     else local
 }
 
-@c4component("NoProxySSEConfigApp") case class NoProxySSEConfig()(config: Config) extends SSEConfig {
+@c4("NoProxySSEConfigApp") case class NoProxySSEConfig()(config: Config) extends SSEConfig {
   def stateRefreshPeriodSeconds: Int = config.get("C4STATE_REFRESH_SECONDS").toInt
   def allowOrigin: Option[String] = Option("*")
   def pongURL: String = "/pong"

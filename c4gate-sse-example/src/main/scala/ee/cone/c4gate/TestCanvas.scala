@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, fieldAccess}
 import ee.cone.c4gate.TestCanvasProtocol.B_TestCanvasState
-import ee.cone.c4proto.{Id, c4component, protocol}
+import ee.cone.c4proto.{Id, c4, protocol}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
 import ee.cone.c4vdom.{PathFactory, PathFactoryImpl, _}
@@ -26,7 +26,7 @@ class TestCanvasAppBase extends ServerCompApp
   with BasicLoggingApp
   with ReactHtmlApp
 
-@c4component("TestCanvasApp") class TestCanvasPublishFromStringsProvider extends PublishFromStringsProvider {
+@c4("TestCanvasApp") class TestCanvasPublishFromStringsProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = List(
     "/test.svg" -> s"""<?xml version="1.0" encoding="UTF-8" standalone="no"?>
       <svg xmlns="http://www.w3.org/2000/svg" width="500" height="500">
@@ -35,7 +35,7 @@ class TestCanvasAppBase extends ServerCompApp
   )
 }
 
-@c4component("TestCanvasApp") class TestCanvasPublishMimeTypesProvider extends PublishMimeTypesProvider {
+@c4("TestCanvasApp") class TestCanvasPublishMimeTypesProvider extends PublishMimeTypesProvider {
   def get: List[(String, String)] = List(
     "svg" -> "image/svg+xml"
   )
@@ -63,7 +63,7 @@ trait TestCanvasViewApp extends ByLocationHashViewsApp {
     testCanvasView :: super.byLocationHashViews
 }*/
 
-@c4component("TestCanvasApp") case class TestCanvasView(locationHash: String = "rectangle")(
+@c4("TestCanvasApp") case class TestCanvasView(locationHash: String = "rectangle")(
   tTags: TestTags[Context],
   tags: Tags,
   styles: TagStyles,
@@ -125,7 +125,7 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
     SessionAttr(Id(0x0009), classOf[B_TestCanvasState], UserLabel en "(TestCanvasState)")
 }
 
-@c4component("CanvasApp") class TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))
+@c4("CanvasApp") class TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))
 
 trait CanvasApp extends CanvasAutoApp {
   def childPairFactory: ChildPairFactory

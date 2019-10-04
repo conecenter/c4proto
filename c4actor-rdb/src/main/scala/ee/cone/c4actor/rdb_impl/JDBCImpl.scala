@@ -6,11 +6,11 @@ import java.util.concurrent.CompletableFuture
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 import scala.annotation.tailrec
 
-@c4component("RDBSyncApp") class ExternalDBSyncClient(
+@c4("RDBSyncApp") class ExternalDBSyncClient(
   dbFactory: ExternalDBFactory,
   db: CompletableFuture[RConnectionPool] = new CompletableFuture() //dataSource: javax.sql.DataSource
 ) extends ToInject with Executable with ExternalDBClient {

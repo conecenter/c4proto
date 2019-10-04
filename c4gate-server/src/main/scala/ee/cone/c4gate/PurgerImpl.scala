@@ -8,8 +8,8 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.{Context, SleepUntilKey, TxTransform, WithPK}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
-import ee.cone.c4proto.c4component
+import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
+import ee.cone.c4proto.c4
 
 object PurgerDefaultPolicy {
   def apply(): List[KeepPolicy] = {
@@ -29,7 +29,7 @@ trait Purger {
   def process(keepPolicyList: List[KeepPolicy]): Unit
 }
 
-@c4component("SnapshotMakingApp") class PurgerImpl(
+@c4("SnapshotMakingApp") class PurgerImpl(
   lister: SnapshotLister, baseDir: DataDir
 ) extends Purger with LazyLogging {
   def process(keepPolicyList: List[KeepPolicy]/*todo: pass Loaded*/): Unit = {
@@ -62,7 +62,7 @@ case class PurgerTx(
   }
 }
 
-@assemble("SnapshotMakingApp") class PurgerAssembleBase(purger: Purger)   {
+@c4assemble("SnapshotMakingApp") class PurgerAssembleBase(purger: Purger)   {
   def joinPurger(
     key: SrcId,
     first: Each[S_Firstborn]

@@ -5,11 +5,11 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
 import ee.cone.c4gate.HttpProtocolBase.S_HttpPublication
 import ee.cone.c4proto.ToByteString
 
-@assemble("HiRateTxApp") class HiRateAssembleBase {
+@c4assemble("HiRateTxApp") class HiRateAssembleBase {
   def joinPosts(
     key: SrcId,
     firstborn: Each[S_Firstborn]

@@ -7,13 +7,13 @@ import java.nio.file.attribute.BasicFileAttributes
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
-import ee.cone.c4proto.{ToByteString, c4component}
+import ee.cone.c4proto.{ToByteString, c4}
 
 import scala.collection.immutable.Seq
 
 //todo un-publish
 
-@c4component("PublishingCompApp") class PublishingInitialObserverProvider(
+@c4("PublishingCompApp") class PublishingInitialObserverProvider(
   qMessages: QMessages,
   idGenUtil: IdGenUtil,
   publishFromStringsProviders: List[PublishFromStringsProvider],

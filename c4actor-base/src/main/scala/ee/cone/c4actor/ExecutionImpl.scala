@@ -7,7 +7,7 @@ import java.util.concurrent.{ExecutorService, Executors, ForkJoinPool, ForkJoinW
 import java.util.concurrent.atomic.AtomicReference
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4proto.{AbstractComponents, c4component}
+import ee.cone.c4proto.{AbstractComponents, c4}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
@@ -70,7 +70,7 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
-@c4component("VMExecutionApp")
+@c4("VMExecutionApp")
 class VMExecution(getToStart: DeferredSeq[Executable])(
   threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
 )(
@@ -144,13 +144,13 @@ object ServerMain extends BaseServerMain(
     .newInstance().asInstanceOf[ExecutableApp]
 )
 
-@c4component("EnvConfigCompApp") class EnvConfigImpl extends Config {
+@c4("EnvConfigCompApp") class EnvConfigImpl extends Config {
   def get(key: String): String =
     Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
-@c4component("EnvConfigCompApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
+@c4("EnvConfigCompApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 
-@c4component("RichDataCompApp") class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
+@c4("RichDataCompApp") class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {
   def apply[T](aTry: =>T)(getHint: =>String)(aCatch: Throwable=>T): T = try { aTry } catch {
     case NonFatal(e) =>
       logger.error(getHint,e)

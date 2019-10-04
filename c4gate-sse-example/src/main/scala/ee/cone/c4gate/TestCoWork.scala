@@ -8,7 +8,7 @@ import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, fieldAccess}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
 import ee.cone.c4gate.TestFilterProtocol.B_Content
-import ee.cone.c4proto.{Id, c4component}
+import ee.cone.c4proto.{Id, c4}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
@@ -37,13 +37,13 @@ class TestCoWorkAppBase extends ServerCompApp
 
 
 
-@c4component("TestCoWorkApp") class TestCoWorkPublishFromStringsProvider extends PublishFromStringsProvider {
+@c4("TestCoWorkApp") class TestCoWorkPublishFromStringsProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = List(
     "/blank.html" -> s"""<!DOCTYPE html><meta charset="UTF-8"><body id="blank"></body>"""
   )
 }
 
-@c4component("TestCoWorkApp") class TestCoWorkPublishMimeTypesProvider extends PublishMimeTypesProvider {
+@c4("TestCoWorkApp") class TestCoWorkPublishMimeTypesProvider extends PublishMimeTypesProvider {
   def get: List[(String, String)] = List(
     "html" -> "text/html; charset=UTF-8"
   )
@@ -56,7 +56,7 @@ object TestAttrs {
   lazy val contentFlt = SessionAttr(Id(0x0008), classOf[B_Content], UserLabel en "(Content)")
 }
 
-@c4component("TestCoWorkApp") class ContentDefault extends DefaultModelFactory(classOf[B_Content], B_Content(_,""))
+@c4("TestCoWorkApp") class ContentDefault extends DefaultModelFactory(classOf[B_Content], B_Content(_,""))
 
 /*
 trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
@@ -67,7 +67,7 @@ trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
     testCoWorkerView :: super.byLocationHashViews
 }*/
 
-@c4component("TestCoWorkApp") case class TestCoWorkerView(locationHash: String = "worker")(
+@c4("TestCoWorkApp") case class TestCoWorkerView(locationHash: String = "worker")(
   tags: TestTags[Context],
   sessionAttrAccess: SessionAttrAccessFactory
 ) extends ByLocationHashView  {
@@ -90,7 +90,7 @@ trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
     testCoLeaderView :: super.byLocationHashViews
 }*/
 
-@c4component("TestCoWorkApp") case class TestCoLeaderView(locationHash: String = "leader")(
+@c4("TestCoWorkApp") case class TestCoLeaderView(locationHash: String = "leader")(
   tags: Tags,
   styles: TagStyles,
   branchOperations: BranchOperations,

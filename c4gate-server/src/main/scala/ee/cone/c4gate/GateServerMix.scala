@@ -1,7 +1,7 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor.{BasicLoggingApp, Config, ConfigSimpleSignerApp, EnvConfigCompApp, Executable, GzipStreamCompressorFactory, Injectable, KafkaConsumerApp, KafkaProducerApp, LZ4RawCompressorApp, ManagementApp, MortalFactoryCompApp, NoAssembleProfilerApp, NoObserversApp, ParallelObserversApp, RawSnapshotSaver, RemoteRawSnapshotApp, ServerCompApp, SnapshotLoader, SnapshotLoaderFactoryImplApp, SnapshotSaverImpl, TaskSignerApp, ToInject, VMExecutionApp}
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 class PublishAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
@@ -36,7 +36,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with SafeToRunApp
   with WorldProviderApp
 
-@c4component("AbstractHttpGatewayApp") class DefFHttpHandlerHolder(
+@c4("AbstractHttpGatewayApp") class DefFHttpHandlerHolder(
   pongRegistry: PongRegistry,
   loader: SnapshotLoader,
   sseConfig: SSEConfig,
@@ -61,7 +61,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
 )
 //()//todo secure?
 
-@c4component("SnapshotMakingApp") class DefSnapshotSavers(inner: RawSnapshotSaver)
+@c4("SnapshotMakingApp") class DefSnapshotSavers(inner: RawSnapshotSaver)
   extends SnapshotSavers(
     new SnapshotSaverImpl("snapshots",inner),
     new SnapshotSaverImpl("snapshot_txs",inner)
@@ -73,7 +73,7 @@ trait SignedReqUtilImplAppBase
 
 trait SSEServerAppBase extends AlienProtocolApp
 
-@c4component("SSEServerApp") class SSEServer(
+@c4("SSEServerApp") class SSEServer(
   config: Config,
   sseConfig: SSEConfig
 )(

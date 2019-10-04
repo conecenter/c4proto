@@ -19,14 +19,14 @@ import ee.cone.c4assemble._
 import ee.cone.c4proto._
 import okio.ByteString
 
-@c4component("FromExternalDBSyncApp") class FromExternalDBOptionHolder(
+@c4("FromExternalDBSyncApp") class FromExternalDBOptionHolder(
   rdbOptionFactory: RDBOptionFactory
 ) extends ExternalDBOptionHolder(List(
   rdbOptionFactory.dbProtocol(FromExternalDBProtocol),
   rdbOptionFactory.fromDB(classOf[FromExternalDBProtocol.B_DBOffset])
 ))
 
-@c4component("RDBSyncApp") class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
+@c4("RDBSyncApp") class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
@@ -53,7 +53,7 @@ object ToExternalDBTypes {
   type PseudoOrigNeedSrcId = SrcId
 }
 
-@assemble("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOptionHolder]) extends CallerAssemble {
+@c4assemble("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOptionHolder]) extends CallerAssemble {
   override def subAssembles: List[Assemble] =
     new ToExternalDBTxAssemble :: options.flatMap(_.values).collect{ case o: ToDBOption => o.assemble } ::: super.subAssembles
 }
@@ -175,7 +175,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
   )
 }
 
-@assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase   {
+@c4assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase   {
   def joinTxTransform(
     key: SrcId,
     first: Each[S_Firstborn]

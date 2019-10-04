@@ -7,7 +7,7 @@ import Types._
 import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}
@@ -83,7 +83,7 @@ case class JoinKeyImpl(
   def withWas(was: Boolean): JoinKey = copy(was=was)
 }
 
-@c4component("AssembleApp") case class IndexUtilImpl()(
+@c4("AssembleApp") case class IndexUtilImpl()(
   val nonEmptySeq: Seq[Unit] = Seq(()),
   mergeIndexInner: Compose[InnerIndex] =
     Merge[Any,DMultiSet](v=>v.isEmpty,
@@ -191,7 +191,7 @@ class PreIndex(val inner: Seq[Index], val size: Long) extends Index {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-@c4component("AssembleApp") class IndexFactoryImpl(
+@c4("AssembleApp") class IndexFactoryImpl(
   val util: IndexUtil,
   updater: IndexUpdater
 ) extends IndexFactory {
@@ -361,7 +361,7 @@ class DebugJoinMapIndex(
 }
 */
 
-@c4component("AssembleApp") class TreeAssemblerImpl(
+@c4("AssembleApp") class TreeAssemblerImpl(
   composes: IndexUtil, readModelUtil: ReadModelUtil,
   byPriority: ByPriority, expressionsDumpers: List[ExpressionsDumper[Unit]],
   optimizer: AssembleSeqOptimizer, backStageFactory: BackStageFactory
@@ -459,7 +459,7 @@ object UMLExpressionsDumper extends ExpressionsDumper[String] {
   }
 }
 
-@c4component("AssembleApp") class AssembleDataDependencies(indexFactory: IndexFactory, assembles: List[Assemble]) extends DataDependencyProvider {
+@c4("AssembleApp") class AssembleDataDependencies(indexFactory: IndexFactory, assembles: List[Assemble]) extends DataDependencyProvider {
   def apply(): List[DataDependencyTo[_]] = {
     def gather(assembles: List[Assemble]): List[Assemble] =
       if(assembles.isEmpty) Nil

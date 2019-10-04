@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.QProtocol.{N_TxRef, N_Update, S_Offset, S_Updates}
-import ee.cone.c4proto.{HasId, Protocol, ToByteString, c4component}
+import ee.cone.c4proto.{HasId, Protocol, ToByteString, c4}
 
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -20,7 +20,7 @@ import okio.ByteString
 
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
-@c4component("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender]) extends QMessages {
+@c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender]) extends QMessages {
   //import qAdapterRegistry._
   // .map(o=> nTx.setLocal(OffsetWorldKey, o+1))
   def send[M<:Product](local: Context): Context = {
@@ -40,9 +40,9 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
   }
 }
 
-@c4component("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
+@c4("RichDataCompApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(50000000L)
 
-@c4component("ProtoApp") class ToUpdateImpl(
+@c4("ProtoApp") class ToUpdateImpl(
   qAdapterRegistry: QAdapterRegistry,
   deCompressorRegistry: DeCompressorRegistry,
   compressorOpt: Option[RawCompressor],

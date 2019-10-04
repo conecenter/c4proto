@@ -4,7 +4,7 @@ package ee.cone.c4actor
 import PCProtocol.{D_RawChildNode, D_RawParentNode}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4proto.{Id, c4component, protocol}
+import ee.cone.c4proto.{Id, c4, protocol}
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, _}
@@ -16,7 +16,7 @@ import ee.cone.c4assemble.{Assemble, _}
 
 case class ParentNodeWithChildren(srcId: String, caption: String, children: Values[D_RawChildNode])
 
-@assemble("AssemblerTestApp") class TestAssembleBase   {
+@c4assemble("AssemblerTestApp") class TestAssembleBase   {
   type ParentSrcId = SrcId
   def joinChildNodeByParent(
     key: SrcId,
@@ -48,7 +48,7 @@ case class ParentNodeWithChildren(srcId: String, caption: String, children: Valu
 
 }
 
-@c4component("SimpleAssemblerTestApp") class AssemblerTestBase(
+@c4("SimpleAssemblerTestApp") class AssemblerTest(
   toUpdate: ToUpdate,
   contextFactory: ContextFactory,
   execution: Execution

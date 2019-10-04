@@ -7,7 +7,7 @@ import java.util.concurrent.CompletableFuture
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{ToByteString, c4component}
+import ee.cone.c4proto.{ToByteString, c4}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Paths}
 
@@ -23,7 +23,7 @@ import org.apache.kafka.common.serialization.{ByteArrayDeserializer, ByteArraySe
 import scala.collection.immutable.Map
 import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsScala,SeqHasAsJava}
 
-@c4component("KafkaConfigApp") class ConfigKafkaConfig(config: Config) extends KafkaConfig(
+@c4("KafkaConfigApp") class ConfigKafkaConfig(config: Config) extends KafkaConfig(
   bootstrapServers = config.get("C4BOOTSTRAP_SERVERS"),
   inboxTopicPrefix = config.get("C4INBOX_TOPIC_PREFIX"),
   maxRequestSize = config.get("C4MAX_REQUEST_SIZE"),
@@ -32,7 +32,7 @@ import scala.jdk.CollectionConverters.{IterableHasAsScala,MapHasAsJava,MapHasAsS
   keyPassPath = config.get("C4AUTH_KEY_FILE")
 )()
 
-@c4component("KafkaProducerApp") class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
+@c4("KafkaProducerApp") class KafkaRawQSender(conf: KafkaConfig, execution: Execution)(
   producer: CompletableFuture[Producer[Array[Byte], Array[Byte]]] = new CompletableFuture()
 ) extends RawQSender with Executable {
   def run(): Unit = concurrent.blocking {
@@ -100,7 +100,7 @@ case class KafkaConfig(
   }
 }
 
-@c4component("KafkaConsumerApp") case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consuming with LazyLogging {
+@c4("KafkaConsumerApp") case class KafkaConsuming(conf: KafkaConfig)(execution: Execution) extends Consuming with LazyLogging {
   def process[R](from: NextOffset, body: Consumer=>R): R = {
     val deserializer = new ByteArrayDeserializer
     val props: Map[String, Object] = conf.ssl ++ Map(

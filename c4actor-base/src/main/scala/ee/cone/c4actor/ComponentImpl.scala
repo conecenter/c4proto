@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{AbstractComponents, Component, TypeKey, c4component}
+import ee.cone.c4proto.{AbstractComponents, Component, TypeKey, c4}
 
 import scala.collection.immutable.Seq
 
@@ -13,30 +13,25 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   def value: Seq[Nothing] = Nil
 }
 
-@c4component("BaseApp") class ComponentRegistryImpl(app: AbstractComponents) extends ComponentRegistry with LazyLogging {
+@c4("BaseApp") class ComponentRegistryImpl(app: AbstractComponents) extends ComponentRegistry with LazyLogging {
   import ComponentRegistry.toTypeKey
   def general(key: TypeKey): TypeKey = key.copy(args=Nil) // key.args.map(_=>TypeKey("_"));   (1 to arity).map(_=>TypeKey("_","_",Nil)).toList
   lazy val reg: Map[TypeKey,DeferredSeq[Object]] =
-    fixNonFinal(app.components.distinct).flatMap(toCached).flatMap(generalize)
-      .groupBy(_.out).transform((k,v)=>new SimpleDeferredSeq(()=>v.flatMap(_.deferredSeq.value)))
-  def finalSet(c: Component): Set[TypeKey] = c.in.intersect(c.out).toSet
-  def toNonFinal(k: TypeKey): TypeKey = k.copy(alias = s"NonFinal#${k.alias}")
+    fixNonFinal(app.components.distinct).map(toCached).flatMap(generalize)
+    .groupBy(_.out).transform((k,v)=>new SimpleDeferredSeq(()=>v.flatMap(_.deferredSeq.value)))
+  // def toNonFinal(k: TypeKey): TypeKey = k.copy(alias = s"NonFinal#${k.alias}")
   def fixNonFinal(components: Seq[Component]): Seq[Component] = {
-    val allFinal = components.flatMap(finalSet)
-    components.map(c =>
-      if(!c.out.exists(allFinal.contains)) c else {
-        val thisFinal = finalSet(c)
-        val nIn = c.in.map(k => if(thisFinal.contains(k)) toNonFinal(k) else k)
-        val nOut = c.out.map(k => if(allFinal.contains(k) && !thisFinal.contains(k)) toNonFinal(k) else k)
-        new Component(nOut, nIn, c.create)
-      }
-    )
+    val toNonFinal = components.flatMap(c => c.nonFinalOut.map(nOut=>c.out->nOut)).toMap
+    components.map{ c =>
+      if(c.nonFinalOut.nonEmpty) c
+      else toNonFinal.get(c.out).fold(c)(nOut=>new Component(nOut, c.nonFinalOut, c.in, c.create))
+    }
   }
   class Cached(val out: TypeKey, val deferredSeq: DeferredSeq[Object])
-  def toCached(component: Component): Seq[Cached] = {
-    lazy val values = component.create(component.in.map(resolveSingle))
-    val deferredSeq = new SimpleDeferredSeq[Object](if(ComponentRegistry.isRegistry(component)) ()=>Seq(this) else ()=>values)
-    component.out.map(new Cached(_, deferredSeq))
+  def toCached(component: Component): Cached = {
+    val values = if(ComponentRegistry.isRegistry(component)) ()=>Seq(this)
+      else () => component.create(component.in.map(resolveSingle))
+    new Cached(component.out, new SimpleDeferredSeq[Object](values))
   }
   def resolveSingle(key: TypeKey): Object = resolveKey(key).value match {
     case Seq(r:Object) => r
@@ -58,21 +53,21 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     resolveSingle(toTypeKey(cl,Nil)).asInstanceOf[T]
 }
 
-@c4component("BaseApp") class SeqComponentFactory(
+@c4("BaseApp") class SeqComponentFactory(
   componentRegistry: ComponentRegistry
 ) extends ComponentFactory[DeferredSeq[_]] {
   def forTypes(args: Seq[TypeKey]): Seq[DeferredSeq[_]] =
     Seq(componentRegistry.resolveKey(Single(args)))
 }
 
-@c4component("BaseApp") class ListComponentFactory(
+@c4("BaseApp") class ListComponentFactory(
   componentRegistry: ComponentRegistry
 ) extends ComponentFactory[List[_]] {
   def forTypes(args: Seq[TypeKey]): Seq[List[_]] =
     Seq(componentRegistry.resolveKey(Single(args)).value.toList)
 }
 
-@c4component("BaseApp") class OptionComponentFactory(
+@c4("BaseApp") class OptionComponentFactory(
   componentRegistry: ComponentRegistry
 ) extends ComponentFactory[Option[_]] {
   def forTypes(args: Seq[TypeKey]): Seq[Option[_]] =

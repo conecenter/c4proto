@@ -7,7 +7,7 @@ import java.nio.file.{Files, Paths}
 import java.util.{Locale, UUID}
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 import okio.ByteString
 
 import scala.annotation.tailrec
@@ -71,7 +71,7 @@ object HttpUtil extends LazyLogging {
   }
 }
 
-@c4component("ConfigSimpleSignerApp") class SimpleSigner(
+@c4("ConfigSimpleSignerApp") class SimpleSigner(
   config: Config, idGenUtil : IdGenUtil
 )(
   fileName: String = config.get("C4AUTH_KEY_FILE")
@@ -103,14 +103,12 @@ class RemoteRawSnapshotLoader(baseURL: String) extends RawSnapshotLoader with La
   }
 }
 
-@c4component("MergingSnapshotApp") class RemoteRawSnapshotLoaderFactory extends RawSnapshotLoaderFactory {
+@c4("MergingSnapshotApp") class RemoteRawSnapshotLoaderFactory extends RawSnapshotLoaderFactory {
   def create(baseURL: String): RawSnapshotLoader =
     new RemoteRawSnapshotLoader(baseURL)
 }
 
-trait SnapshotTaskSigner extends Signer[SnapshotTask]
-
-@c4component("TaskSignerApp") class SnapshotTaskSignerImpl(inner: Signer[List[String]])(
+@c4("TaskSignerApp") class SnapshotTaskSignerImpl(inner: Signer[List[String]])(
   val url: String = "/need-snapshot"
 ) extends SnapshotTaskSigner {
   def sign(task: SnapshotTask, until: Long): String = inner.sign(List(url,task.name) ++ task.offsetOpt, until)
@@ -123,7 +121,7 @@ trait SnapshotTaskSigner extends Signer[SnapshotTask]
     }
 }
 
-@c4component("RemoteRawSnapshotApp") class RemoteSnapshotUtilImpl extends RemoteSnapshotUtil {
+@c4("RemoteRawSnapshotApp") class RemoteSnapshotUtilImpl extends RemoteSnapshotUtil {
   def request(appURL: String, signed: String): ()=>List[RawSnapshot] = {
     val url: String = "/need-snapshot"
     val uuid = UUID.randomUUID().toString
@@ -149,11 +147,11 @@ trait SnapshotTaskSigner extends Signer[SnapshotTask]
 
 class RemoteSnapshotAppURL(val value: String)
 
-@c4component("RemoteRawSnapshotApp") class DefRemoteSnapshotAppURL(config: Config) extends RemoteSnapshotAppURL(config.get("C4HTTP_SERVER"))
+@c4("RemoteRawSnapshotApp") class DefRemoteSnapshotAppURL(config: Config) extends RemoteSnapshotAppURL(config.get("C4HTTP_SERVER"))
 
-@c4component("RemoteRawSnapshotApp") class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL) extends RemoteRawSnapshotLoader(url.value)
+@c4("RemoteRawSnapshotApp") class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL) extends RemoteRawSnapshotLoader(url.value)
 
-@c4component("RemoteRawSnapshotApp") class RemoteSnapshotMaker(
+@c4("RemoteRawSnapshotApp") class RemoteSnapshotMaker(
   appURL: RemoteSnapshotAppURL, util: RemoteSnapshotUtil, signer: SnapshotTaskSigner
 ) extends SnapshotMaker {
   def make(task: SnapshotTask): List[RawSnapshot] =

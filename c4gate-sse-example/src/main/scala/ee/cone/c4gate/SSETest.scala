@@ -8,7 +8,7 @@ import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, c4assemble}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienStatus
 import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
 
@@ -25,12 +25,12 @@ class TestSSEAppBase extends ServerCompApp
   with BasicLoggingApp
 
 //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
-@assemble("TestSSEApp")  class SSEFromAlienTaskAssembleBase extends CallerAssemble {
+@c4assemble("TestSSEApp")  class SSEFromAlienTaskAssembleBase extends CallerAssemble {
   override def subAssembles: List[Assemble] =
     new FromAlienTaskAssemble("/sse.html") :: super.subAssembles
 }
 
-@assemble("TestSSEApp") class TestSSEAssembleBase   {
+@c4assemble("TestSSEApp") class TestSSEAssembleBase   {
   def joinView(
     key: SrcId,
     task: Each[BranchTask]

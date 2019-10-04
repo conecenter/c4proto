@@ -35,14 +35,14 @@ import ee.cone.c4vdom.Types.ViewRes
 
 // @assemble("ReactHtmlApp")
 // @assembleAtReactHtmlApp
-// @c4component("TestTodoApp")
+// @c4("TestTodoApp")
 // @mixAtTestTodoAutoApp
 // @mixMod == @mixAtCargoStuff
 // @partOf*
 
-// @c4component("BazApp") class FooHolderImpl(bar: Bar) extends FooHolder(new FooImpl)
+// @c4("BazApp") class FooHolderImpl(bar: Bar) extends FooHolder(new FooImpl)
 // vs
-// @c4component("BazApp") class Baz(...) {
+// @c4("BazApp") class Baz(...) {
 //   def mixFoo(bar: Bar): Foo = new Foo
 //   def mixHoo(bar: Goo): Hoo = new Hoo
 
@@ -70,7 +70,7 @@ class TestTodoAppBase extends ServerCompApp
   with ReactHtmlApp
 
 
-@assemble("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase extends CallerAssemble {
+@c4assemble("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase extends CallerAssemble {
   override def subAssembles: List[Assemble] =
     new FromAlienTaskAssemble("/react-app.html") :: super.subAssembles
 }
@@ -122,7 +122,7 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
     testTodoRootView :: super.byLocationHashViews
 }*/
 
-@c4component("TestTodoApp") case class TestTodoRootView(locationHash: String = "todo")(
+@c4("TestTodoApp") case class TestTodoRootView(locationHash: String = "todo")(
   tags: TestTags[Context],
   mTags: Tags,
   styles: TagStyles,

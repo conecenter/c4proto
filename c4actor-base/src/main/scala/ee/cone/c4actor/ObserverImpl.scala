@@ -5,7 +5,7 @@ import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 import scala.collection.immutable.{Map, Seq}
 import scala.util.control.NonFatal
@@ -15,9 +15,9 @@ trait TxTransforms {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap]
 }
 
-@c4component("ServerCompApp") class DefLongTxWarnPeriod extends LongTxWarnPeriod(Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong))
+@c4("ServerCompApp") class DefLongTxWarnPeriod extends LongTxWarnPeriod(Option(System.getenv("C4TX_WARN_PERIOD_MS")).fold(500L)(_.toLong))
 
-@c4component("ServerCompApp") class TxTransformsImpl(qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal) extends TxTransforms with LazyLogging {
+@c4("ServerCompApp") class TxTransformsImpl(qMessages: QMessages, warnPeriod: LongTxWarnPeriod, catchNonFatal: CatchNonFatal) extends TxTransforms with LazyLogging {
   def get(global: RichContext): Map[SrcId,TransientMap=>TransientMap] =
     ByPK(classOf[TxTransform]).of(global).keys.map(k=>k->handle(global,k)).toMap
   private def handle(global: RichContext, key: SrcId): TransientMap=>TransientMap = {
@@ -71,16 +71,16 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
 
 class TxObserver(val option: Option[Observer[RichContext]])
 
-@c4component("ServerCompApp") class TxToRichObserver(inner: TxObserver)
+@c4("ServerCompApp") class TxToRichObserver(inner: TxObserver)
   extends InitialObserverProvider(inner.option)
 
-@c4component("NoObserversApp") class NoTxObserver extends TxObserver(None)
+@c4("NoObserversApp") class NoTxObserver extends TxObserver(None)
 
-@c4component("SerialObserversApp") class SerialTxObserver(
+@c4("SerialObserversApp") class SerialTxObserver(
   transforms: TxTransforms
 ) extends TxObserver(Option(new SerialObserver(Map.empty)(transforms)))
 
-@c4component("ParallelObserversApp") class ParallelTxObserver(
+@c4("ParallelObserversApp") class ParallelTxObserver(
   transforms: TxTransforms,
   execution: Execution
 ) extends TxObserver(Option(new ParallelObserver(Map.empty,transforms,execution)))

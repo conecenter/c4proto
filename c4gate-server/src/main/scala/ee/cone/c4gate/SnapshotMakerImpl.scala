@@ -11,7 +11,7 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication, S_HttpRequest}
 import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
-import ee.cone.c4proto.{ToByteString, c4component}
+import ee.cone.c4proto.{ToByteString, c4}
 import okio.ByteString
 
 import scala.annotation.tailrec
@@ -29,7 +29,7 @@ class HttpGetSnapshotHandler(snapshotLoader: SnapshotLoader, httpResponseFactory
     } else next.handle(request,local)
 }
 
-@assemble("SnapshotMakingApp") class SnapshotMakingAssembleBase(actorName: ActorName, snapshotMaking: SnapshotMaker, maxTime: SnapshotMakerMaxTime, signatureChecker: SnapshotTaskSigner, signedReqUtil: SignedReqUtil)   {
+@c4assemble("SnapshotMakingApp") class SnapshotMakingAssembleBase(actorName: ActorName, snapshotMaking: SnapshotMaker, maxTime: SnapshotMakerMaxTime, signatureChecker: SnapshotTaskSigner, signedReqUtil: SignedReqUtil)   {
   type NeedSnapshot = SrcId
 
   def needConsumer(
@@ -109,7 +109,7 @@ case class RequestedSnapshotMakingTx(
 class SnapshotSavers(val full: SnapshotSaver, val tx: SnapshotSaver)
 
 //todo new
-@c4component("SnapshotMakingApp") class SnapshotMakerImpl(
+@c4("SnapshotMakingApp") class SnapshotMakerImpl(
   snapshotConfig: SnapshotConfig,
   snapshotLister: SnapshotLister,
   snapshotLoader: SnapshotLoader,
@@ -215,7 +215,7 @@ trait SnapshotMakerMaxTime {
   def maxTime: Long
 }
 
-@c4component("SafeToRunApp") class SafeToRun(snapshotMaker: SnapshotMakerMaxTime) extends Executable {
+@c4("SafeToRunApp") class SafeToRun(snapshotMaker: SnapshotMakerMaxTime) extends Executable {
   def run(): Unit = concurrent.blocking{
     Thread.sleep(10*minute)
     while(true){
@@ -233,9 +233,9 @@ trait SnapshotConfig {
 
 ////
 
-@c4component("ConfigDataDirApp") class ConfigDataDir(config: Config) extends DataDir(config.get("C4DATA_DIR"))
+@c4("ConfigDataDirApp") class ConfigDataDir(config: Config) extends DataDir(config.get("C4DATA_DIR"))
 
-@c4component("SnapshotMakingApp") class FileSnapshotConfigImpl(dir: DataDir)(
+@c4("SnapshotMakingApp") class FileSnapshotConfigImpl(dir: DataDir)(
   val ignore: Set[Long] =
     Option(Paths.get(dir.value).resolve(".ignore")).filter(Files.exists(_)).toSet.flatMap{
       (path:Path) =>
@@ -251,7 +251,7 @@ trait SnapshotMTime {
 
 
 
-@c4component("FileRawSnapshotLoaderApp") class FileRawSnapshotLoaderImpl(baseDirConf: DataDir, util: SnapshotUtil)
+@c4("FileRawSnapshotLoaderApp") class FileRawSnapshotLoaderImpl(baseDirConf: DataDir, util: SnapshotUtil)
   extends SnapshotMTime with RawSnapshotLoader with SnapshotLister
 {
   private def baseDir = Paths.get(baseDirConf.value)
@@ -276,7 +276,7 @@ trait SnapshotMTime {
   //remove Files.delete(path)
 }
 
-@c4component("SnapshotMakingApp") class FileRawSnapshotSaver(baseDir: DataDir) extends RawSnapshotSaver {
+@c4("SnapshotMakingApp") class FileRawSnapshotSaver(baseDir: DataDir) extends RawSnapshotSaver {
   def save(snapshot: RawSnapshot, data: Array[Byte]): Unit = {
     val path: Path = Paths.get(baseDir.value).resolve(snapshot.relativePath)
     Files.createDirectories(path.getParent)

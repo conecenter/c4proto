@@ -4,7 +4,7 @@ import Function.chain
 import LEvent._
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.PCProtocol.{D_RawChildNode, D_RawParentNode}
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 object Measure {
   def apply(f: ()=>Unit): Option[Long] = {
@@ -14,7 +14,7 @@ object Measure {
   }
 }
 
-@c4component("NotEffectiveAssemblerTestApp") class NotEffectiveAssemblerTest(
+@c4("NotEffectiveAssemblerTestApp") class NotEffectiveAssemblerTest(
   contextFactory: ContextFactory,
   execution: Execution
 ) extends Executable with LazyLogging {

@@ -4,10 +4,10 @@ import ee.cone.c4actor.Killing.KillerId
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by, distinct}
-import ee.cone.c4proto.c4component
+import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble, distinct}
+import ee.cone.c4proto.c4
 
-@c4component("MortalFactoryCompApp") case class MortalFactoryImpl(anUUIDUtil: IdGenUtil) extends MortalFactory {
+@c4("MortalFactoryCompApp") case class MortalFactoryImpl(anUUIDUtil: IdGenUtil) extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl,anUUIDUtil)
 }
 
@@ -30,7 +30,7 @@ object Killing {
   } yield s"killing" -> killing //scaling: killing.hash.substring(0,1)
 }
 
-@assemble("MortalFactoryCompApp") class MortalFatalityAssembleBase   {
+@c4assemble("MortalFactoryCompApp") class MortalFatalityAssembleBase   {
   def aggregateKilling(
     key: SrcId,
     @by[KillerId] killings: Values[Killing]

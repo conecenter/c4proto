@@ -4,7 +4,7 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, c4component, protocol}
+import ee.cone.c4proto.{Id, Protocol, c4, protocol}
 
 import Function.tupled
 
@@ -34,7 +34,7 @@ class RelSrcImpl[From<:Product,Value](from: Class[From], lens: ProdLens[From,Val
   }
 }
 
-@c4component("RevRelFactoryImplApp") class RevRelFactoryImpl extends RevRelFactory {
+@c4("RevRelFactoryImplApp") class RevRelFactoryImpl extends RevRelFactory {
   def rel[From<:Product](lens: ProdLens[From,List[SrcId]])(implicit cf: ClassTag[From]): RelSrc[From,List[SrcId]] = {
     val from = cf.runtimeClass.asInstanceOf[Class[From]]
     new RelSrcImpl[From,List[SrcId]](from,lens,identity[List[SrcId]])
@@ -108,7 +108,7 @@ case class RelOuterReq(callerId: SrcId)
   def result: Result = tupled(join _) //join(_:SrcId,???,???)
 }
 
-@c4component("JustJoinTestApp") class JustJoinTestExecutable(
+@c4("JustJoinTestApp") class JustJoinTestExecutable(
   execution: Execution, contextFactory: ContextFactory
 ) extends Executable {
   def run(): Unit = {
@@ -134,7 +134,7 @@ import RRTestItems._
 }
 import RRTestLenses._
 
-@assemble("RRTest1App") class RRTest1RuleAssembleBase(rr: RevRelFactory)   {
+@c4assemble("RRTest1App") class RRTest1RuleAssembleBase(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[Foo],
@@ -142,7 +142,7 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.values)))
 }
 
-@assemble("RRTest1App") class RRTest1CheckAssembleBase   {
+@c4assemble("RRTest1App") class RRTest1CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -172,7 +172,7 @@ import RRTestLenses._
   }
 }
 
-@assemble("RRTest2App") class RRTest2RuleAssembleBase(rr: RevRelFactory)   {
+@c4assemble("RRTest2App") class RRTest2RuleAssembleBase(rr: RevRelFactory)   {
   type FooId = SrcId
   def join(
     key: SrcId,
@@ -181,7 +181,7 @@ import RRTestLenses._
   ): Values[(FooId,RichFooBar)] = List(WithPK(RichFooBar(foo, bar)))
 }
 
-@assemble("RRTest2App") class RRTest2CheckAssembleBase   {
+@c4assemble("RRTest2App") class RRTest2CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
@@ -215,7 +215,7 @@ import RRTestLenses._
   }
 }
 
-@assemble("RRTest3App") class RRTest3RuleAssembleBase(rr: RevRelFactory)   {
+@c4assemble("RRTest3App") class RRTest3RuleAssembleBase(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[FooRev],
@@ -223,7 +223,7 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.toList.sortBy(_.id).map(i=>Bar(i.id)))))
 }
 
-@assemble("RRTest3App") class RRTest3CheckAssembleBase   {
+@c4assemble("RRTest3App") class RRTest3CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,

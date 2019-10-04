@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.N_Update
-import ee.cone.c4proto.{ToByteString, c4component}
+import ee.cone.c4proto.{ToByteString, c4}
 
 /*snapshot cleanup:
 docker exec ... ls -la c4/db4/snapshots
@@ -41,7 +41,7 @@ class SnapshotMergerImpl(
   }
 }
 
-@c4component("ServerCompApp") class SnapshotDifferImpl(
+@c4("ServerCompApp") class SnapshotDifferImpl(
   toUpdate: ToUpdate,
   reducer: RichRawWorldReducer,
   snapshotMaker: SnapshotMaker,

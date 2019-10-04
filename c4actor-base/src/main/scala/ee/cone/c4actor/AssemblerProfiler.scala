@@ -8,12 +8,12 @@ import ee.cone.c4actor.SimpleAssembleProfilerProtocol.{D_LogEntry, D_TxAddMeta}
 import ee.cone.c4assemble.Types.DPIterable
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, c4component, protocol}
+import ee.cone.c4proto.{Id, c4, protocol}
 
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4component("NoAssembleProfilerApp") case class NoAssembleProfiler() extends AssembleProfiler {
+@c4("NoAssembleProfilerApp") case class NoAssembleProfiler() extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]): JoiningProfiling =
     NoJoiningProfiling
   def addMeta(transition: WorldTransition, updates: Seq[N_Update]): Future[Seq[N_Update]] =
@@ -44,7 +44,7 @@ case object NoJoiningProfiling extends JoiningProfiling {
   )
 }
 
-@c4component("SimpleAssembleProfilerApp") case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) extends AssembleProfiler {
+@c4("SimpleAssembleProfilerApp") case class SimpleAssembleProfiler(idGenUtil: IdGenUtil)(toUpdate: ToUpdate) extends AssembleProfiler {
   def createJoiningProfiling(localOpt: Option[Context]) =
     if(localOpt.isEmpty) SimpleConsoleSerialJoiningProfiling
     else SimpleSerialJoiningProfiling(System.nanoTime)

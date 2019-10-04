@@ -6,12 +6,13 @@ import scala.collection.immutable.Seq
 
 case class TypeKey(clName: String, alias: String, args: List[TypeKey])
 
-class c4component(apps: String*) extends StaticAnnotation
+class c4(apps: String*) extends StaticAnnotation
+class provide extends StaticAnnotation
 
 trait AbstractComponents {
   def components: Seq[Component]
 }
-class Component(val out: Seq[TypeKey], val in: Seq[TypeKey], val create: Seq[Object]=>Seq[Object]) extends AbstractComponents {
+class Component(val out: TypeKey, val nonFinalOut: Option[TypeKey], val in: Seq[TypeKey], val create: Seq[Object]=>Seq[Object]) extends AbstractComponents {
   def components: Seq[Component] = Seq(this)
 }
 /*

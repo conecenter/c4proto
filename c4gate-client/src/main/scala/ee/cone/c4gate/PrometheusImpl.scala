@@ -21,7 +21,7 @@ import okio.ByteString
   )
 }
 
-@assemble("ActorAccessApp") class ActorAccessAssembleBase   {
+@c4assemble("ActorAccessApp") class ActorAccessAssembleBase   {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
@@ -36,7 +36,7 @@ case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTrans
     TxAdd(LEvent.update(C_ActorAccessKey(first.srcId,s"${UUID.randomUUID}")))(local)
 }
 
-@assemble("PrometheusApp") class PrometheusAssembleBase(compressor: PublishFullCompressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
+@c4assemble("PrometheusApp") class PrometheusAssembleBase(compressor: PublishFullCompressor, indexUtil: IndexUtil, readModelUtil: ReadModelUtil)   {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
@@ -82,7 +82,7 @@ object Monitoring {
   }
 }
 
-@assemble("AvailabilityApp") class AvailabilityAssembleBase(updateDef: Long = 3000, timeoutDef: Long = 3000)   {
+@c4assemble("AvailabilityApp") class AvailabilityAssembleBase(updateDef: Long = 3000, timeoutDef: Long = 3000)   {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],

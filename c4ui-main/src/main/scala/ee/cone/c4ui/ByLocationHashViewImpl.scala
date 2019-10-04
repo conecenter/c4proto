@@ -4,11 +4,11 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{Context, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble}
 import ee.cone.c4gate.CurrentSessionKey
 import ee.cone.c4vdom.Types.ViewRes
 
-@assemble("PublicViewAssembleApp") class PublicViewAssembleBase(views: List[ByLocationHashView])   {
+@c4assemble("PublicViewAssembleApp") class PublicViewAssembleBase(views: List[ByLocationHashView])   {
   type LocationHash = String
   def joinByLocationHash(
     key: SrcId,

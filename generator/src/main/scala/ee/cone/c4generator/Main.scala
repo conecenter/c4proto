@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v113"
+  def version: String = "-v133"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -59,8 +59,8 @@ object Main {
         // println((pos,path,new String(data)))
         val firstLine = new String(data,0,pos,UTF_8)
         pattern.findAllMatchIn(firstLine).map{ mat =>
-          val Seq(pkg,app,comp) = mat.subgroups
-          GeneratedAppLink(pkg,app,comp)
+          val Seq(pkg,app,expr) = mat.subgroups
+          GeneratedAppLink(pkg,app,expr)
         }
       }
       if(links.isEmpty) Nil else {
@@ -70,7 +70,7 @@ object Main {
           links.groupBy(_.app).toList.map{ case (app,links) =>
             s"\ntrait $app extends ${app}Base with ee.cone.c4proto.ComponentsApp {" +
             s"\n  override def components: List[ee.cone.c4proto.Component] = " +
-            links.map(c=> s"\n    ${c.component}.components.toList ::: ").mkString +
+            links.map(c=> s"\n    ${c.expr} ::: ").mkString +
             s"\n    super.components" +
             s"\n}"
           }.sorted.mkString
@@ -79,9 +79,9 @@ object Main {
     }
     args ++ indexes
   }
-  lazy val generators: (Stat, String)=>Seq[Generated] = {
-    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,ComponentsGenerator,LensesGenerator)
-    (stat, fileName) => generators.flatMap(_.get.lift(stat, fileName)).flatten
+  lazy val generators: ParseContext=>List[Generated] = {
+    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator,UnBaseGenerator)
+    ctx => generators.flatMap(_.get(ctx))
   }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
     val fromData = Files.readAllBytes(path)
@@ -91,37 +91,28 @@ object Main {
     if(Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
       println(s"parsing $path")
       val content = new String(fromData,UTF_8).replace("\r\n","\n")
-      val source = dialects.Scala212(content).parse[Source]
+      val source = dialects.Scala213(content).parse[Source]
       val Parsed.Success(source"..$sourceStatements") = source
       val resStatements: List[Generated] = for {
-        q"package $n { ..$packageStatements }" <- sourceStatements
-        generated: Seq[Generated] = for {
-          packageStatement <- packageStatements
-          generated <- generators(packageStatement, path.toString)
-        } yield generated
-        patches: Seq[Patch] = generated.collect{ case p: Patch => p }
-        statements = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverse
-        res <- if(patches.nonEmpty) patches
-        else if(statements.nonEmpty){
-          val components = statements.collect{ case c: GeneratedComponent => c }.toList
-          val mStatements = if(components.isEmpty) statements else {
-            val Name(name) = path.toString
-            statements.filterNot(_.isInstanceOf[GeneratedComponent]) ++
-            components.groupBy(_.app).toList.sortBy(_._1).flatMap{ case (app,comps) =>
-              assert(app.nonEmpty)
-              List(
-                ComponentsGenerator.join(s"${name}${app}Components","",comps),
-                GeneratedAppLink(n.syntax,app,s"${name}${app}Components")
-              )
-            }
-          }
-          List(GeneratedCode(s"\npackage $n {")) ++ mStatements ++ List(GeneratedCode("\n}"))
+        sourceStatement <- (sourceStatements:Seq[Stat]).toList
+        q"package $n { ..$packageStatements }" = sourceStatement
+        res <- {
+          val packageStatementsList = (packageStatements:Seq[Stat]).toList
+          val parseContext = new ParseContext(packageStatementsList, path.toString, n.syntax)
+          val generatedWOComponents: List[Generated] = generators(parseContext)
+          val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat].get }
+          val parsedAll = packageStatementsList ::: parsedGenerated
+          val compParseContext = new ParseContext(parsedAll, path.toString, n.syntax)
+          val generated: List[Generated] = generatedWOComponents ::: ComponentsGenerator.get(compParseContext)
+          val patches: List[Patch] = generated.collect{ case p: Patch => p }
+          val statements: List[Generated] = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverse
+          if(patches.nonEmpty) patches else if(statements.isEmpty) statements
+            else List(GeneratedCode(s"\npackage $n {")) ::: statements ::: List(GeneratedCode("\n}"))
         }
-        else Nil
       } yield res
       val patches = resStatements.collect{ case p: Patch => p }
       if(patches.nonEmpty){
-        val patchedContent = patches.sortBy(_.pos).foldRight(content)((patch,cont)=>
+        val patchedContent = patches.distinct.sortBy(_.pos).foldRight(content)((patch,cont)=>
           cont.substring(0,patch.pos) + patch.content + cont.substring(patch.pos)
         )
         println(s"patching $path")
@@ -139,7 +130,7 @@ object Main {
         val contentWithLinks = if(content.isEmpty) "" else
           s"// THIS FILE IS GENERATED; APPLINKS: " +
           resStatements.collect{ case s: GeneratedAppLink =>
-            s"(${s.pkg} ${s.app} ${s.component})"
+            s"(${s.pkg} ${s.app} ${s.expr})"
           }.mkString +
           "\n" +
           content
@@ -200,8 +191,8 @@ object Main {
 }
 
 object ImportGenerator extends Generator {
-  def get: Get = {
-    case (q"import ..$importers", _) =>
+  def get(parseContext: ParseContext): List[Generated] = parseContext.stats.flatMap{
+    case q"import ..$importers" =>
       val nextImporters = importers.map{
         case initialImporter@importer"$eref.{..$importeesnel}" =>
           importer"$eref._" match {
@@ -211,6 +202,7 @@ object ImportGenerator extends Generator {
           }
       }
       List(GeneratedImport("\n" + q"import ..$nextImporters".syntax))
+    case _ => Nil
   }
 }
 
@@ -228,21 +220,37 @@ object Util {
       case n => List(Patch(pos,"Base"))
     }
   }
+  def matchClass(stats: List[Stat]): List[ParsedClass] = stats.flatMap{
+    case q"..$cMods class ${nameNode@Type.Name(name)}[..$typeParams] ..$ctorMods (...$params) extends ..$ext { ..$stats }" =>
+      List(new ParsedClass(cMods.toList,nameNode,name,typeParams.toList,params.map(_.toList).toList,ext.map{ case t:Tree=>t }.toList,stats.toList))
+    case _ => Nil
+  }
+
+
+  def singleSeq[I](l: Seq[I]): Seq[I] = {
+    assert(l.size<=1)
+    l
+  }
 }
 
+class ParsedClass(
+  val mods: List[Mod], val nameNode: Type.Name, val name: String,
+  val typeParams: List[Type.Param], val params: List[List[Term.Param]],
+  val ext: List[Tree], val stats: List[Stat]
+)
+class ParseContext(val stats: List[Stat], val path: String, val pkg: String)
 trait Generator {
-  type Get = PartialFunction[(Stat,String),Seq[Generated]]
-  def get: Get
+  def get(parseContext: ParseContext): List[Generated]
 }
 
 sealed trait Generated
 case class GeneratedImport(content: String) extends Generated
 case class GeneratedCode(content: String) extends Generated
-case class GeneratedComponent(app: String, name: String, cContent: String) extends Generated
 case class Patch(pos: Int, content: String) extends Generated
 case class GeneratedTraitDef(name: String) extends Generated
 case class GeneratedTraitUsage(name: String) extends Generated
-case class GeneratedAppLink(pkg: String, app: String, component: String) extends Generated
+case class GeneratedInnerCode(content: String) extends Generated
+case class GeneratedAppLink(pkg: String, app: String, expr: String) extends Generated
 
 object Lint {
   def process(stats: Seq[Stat]): Seq[String] =

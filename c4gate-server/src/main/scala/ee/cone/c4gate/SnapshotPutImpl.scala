@@ -5,9 +5,9 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{assemble, by}
+import ee.cone.c4assemble.{assemble, by, c4assemble}
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpRequest}
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 import okio.ByteString
 
 import scala.collection.immutable.Seq
@@ -19,7 +19,7 @@ class MemRawSnapshotLoader(relativePath: String, bytes: ByteString) extends RawS
   }
 }
 
-@c4component("SnapshotPutApp") class SnapshotPutter(
+@c4("SnapshotPutApp") class SnapshotPutter(
   snapshotLoaderFactory: SnapshotLoaderFactory,
   snapshotDiffer: SnapshotDiffer
 ) extends LazyLogging {
@@ -53,7 +53,7 @@ case class SnapshotPutTx(srcId: SrcId, requests: List[S_HttpRequest])(
   }
 }
 
-@assemble("SnapshotPutApp") class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedReqUtil) {
+@c4assemble("SnapshotPutApp") class SnapshotPutAssembleBase(putter: SnapshotPutter, signatureChecker: Signer[List[String]], signedPostUtil: SignedReqUtil) {
   type PuttingId = SrcId
 
   def needConsumer(

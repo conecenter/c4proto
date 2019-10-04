@@ -12,12 +12,12 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{Config, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4gate.HttpProtocolBase.N_Header
-import ee.cone.c4proto.{ToByteString, c4component}
+import ee.cone.c4proto.{ToByteString, c4}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 
-@c4component("AkkaMatApp") class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable {
+@c4("AkkaMatApp") class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
     val system = ActorSystem.create()
@@ -25,7 +25,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   }
 }
 
-@c4component("AkkaServerApp") class AkkaHttpServer(
+@c4("AkkaServerApp") class AkkaHttpServer(
   config: Config, handler: FHttpHandlerHolder, execution: Execution, akkaMat: AkkaMat
 )(
   port: Int = config.get("C4HTTP_PORT").toInt
@@ -73,7 +73,7 @@ class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Mess
   def send(message: Message): Unit = ref ! message
 }
 
-@c4component("AkkaStatefulReceiverFactoryApp") class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
+@c4("AkkaStatefulReceiverFactoryApp") class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
   def create[Message](inner: List[Observer[Message]])(implicit executionContext: ExecutionContext): Future[StatefulReceiver[Message]] =
     for {
       mat <- akkaMat.get

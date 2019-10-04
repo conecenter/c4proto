@@ -6,14 +6,14 @@ import ee.cone.c4actor.Types._
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 
 import scala.collection.immutable.{Map, Seq}
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.NonFatal
 import scala.concurrent.duration.Duration
 
-@c4component("RichDataCompApp") class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryFinalHolder) extends DataDependencyProvider {
+@c4("RichDataCompApp") class ProtocolDataDependencies(qAdapterRegistry: QAdapterRegistry, origKeyFactory: OrigKeyFactoryFinalHolder) extends DataDependencyProvider {
   def apply(): List[DataDependencyTo[_]] =
     qAdapterRegistry.byId.values.map(_.className).toList.sorted
       .map(nm => new OriginalWorldPart(origKeyFactory.value.rawKey(nm)))
@@ -21,11 +21,11 @@ import scala.concurrent.duration.Duration
 
 case object TreeAssemblerKey extends SharedComponentKey[Replace]
 
-@c4component("RichDataCompApp") class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
+@c4("RichDataCompApp") class DefLongAssembleWarnPeriod extends LongAssembleWarnPeriod(Option(System.getenv("C4ASSEMBLE_WARN_PERIOD_MS")).fold(1000L)(_.toLong))
 
-@c4component("RichDataCompApp") class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
+@c4("RichDataCompApp") class DefAssembleOptions extends AssembleOptions("AssembleOptions",false,0L)
 
-@c4component("RichDataCompApp") class AssemblerInit(
+@c4("RichDataCompApp") class AssemblerInit(
   qAdapterRegistry: QAdapterRegistry,
   toUpdate: ToUpdate,
   treeAssembler: TreeAssembler,

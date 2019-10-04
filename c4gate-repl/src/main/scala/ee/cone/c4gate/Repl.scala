@@ -5,13 +5,13 @@ import java.util.concurrent.atomic.AtomicReference
 import ee.cone.c4actor._
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ammonite.sshd._
 import ammonite.util.Bind
 import org.apache.sshd.server.auth.pubkey.AcceptAllPublickeyAuthenticator
 
-@assemble("SSHDebugApp") class SSHDebugAssembleBase(reducer: RichRawWorldReducer, qMessages: QMessages)   {
+@c4assemble("SSHDebugApp") class SSHDebugAssembleBase(reducer: RichRawWorldReducer, qMessages: QMessages)   {
   def join(
     key: SrcId,
     firstborn: Each[S_Firstborn]

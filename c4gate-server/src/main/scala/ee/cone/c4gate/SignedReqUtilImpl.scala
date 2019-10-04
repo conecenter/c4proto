@@ -3,10 +3,10 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4gate.HttpProtocol._
 import ee.cone.c4gate.Time._
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 import okio.ByteString
 
-@c4component("SignedReqUtilImplApp") class SignedReqUtilImpl(val catchNonFatal: CatchNonFatal) extends SignedReqUtil {
+@c4("SignedReqUtilImplApp") class SignedReqUtilImpl(val catchNonFatal: CatchNonFatal) extends SignedReqUtil {
   def header(headers: List[N_Header], key: String): Option[String] =
     headers.find(_.key == key).map(_.value)
   def signed(headers: List[N_Header]): Option[String] = header(headers,"x-r-signed")
