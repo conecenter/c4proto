@@ -61,7 +61,7 @@ class AkkaHttpServer(
         interface = "localhost",
         port = port,
         settings = ServerSettings(
-          """akka.http.server.request-timeout = 60 s
+          """akka.http.server.request-timeout = 80 s
             |akka.http.server.parsing.max-content-length = infinite
             |""".stripMargin)
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
