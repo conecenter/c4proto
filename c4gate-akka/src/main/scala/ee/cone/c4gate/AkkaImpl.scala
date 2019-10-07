@@ -60,7 +60,7 @@ class AkkaHttpServer(
         handler = handler,
         interface = "localhost",
         port = port,
-        settings = ServerSettings("akka.http.server.request-timeout = 60 s")
+        settings = ServerSettings("akka.http.server.request-timeout = 80 s")
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
       )(mat)
     } yield binding
