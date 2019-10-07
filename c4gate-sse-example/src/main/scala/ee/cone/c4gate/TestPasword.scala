@@ -5,23 +5,8 @@ import java.time.Instant
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, c4assemble}
+import ee.cone.c4assemble.c4assemble
 import ee.cone.c4ui._
-
-
-class TestPasswordAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with UIApp
-  with TestTagsApp
-  with NoAssembleProfilerApp
-  with ManagementApp
-  with RemoteRawSnapshotApp
-  with BasicLoggingApp
-  with AuthProtocolApp
-  with ReactHtmlApp
-
 
 
 @c4assemble("TestPasswordApp") class TestPasswordAssembleBase   {

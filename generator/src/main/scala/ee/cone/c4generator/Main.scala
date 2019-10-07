@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v133"
+  def version: String = "-v136"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -80,7 +80,7 @@ object Main {
     args ++ indexes
   }
   lazy val generators: ParseContext=>List[Generated] = {
-    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator,UnBaseGenerator)
+    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator) //,UnBaseGenerator
     ctx => generators.flatMap(_.get(ctx))
   }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {

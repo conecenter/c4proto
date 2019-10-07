@@ -1,6 +1,7 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
+import ee.cone.c4proto.{c4, provide}
 import ee.cone.c4vdom._
 
 abstract class ElementValue extends VDomValue {
@@ -41,6 +42,15 @@ case class ChangePassword[State]()(
   def appendJsonAttributes(builder: MutableJsonBuilder): Unit = {
     input.appendInputAttributes(builder, "", deferSend = true)
   }
+}
+
+@c4("TestTagsApp") class TestTagsProvider(
+  childPairFactory: ChildPairFactory,
+  tagJsonUtils: TagJsonUtils,
+  tags: Tags
+) {
+  @provide def testTags: Seq[TestTags[Context]] =
+    List(new TestTags[Context](childPairFactory, tagJsonUtils, tags))
 }
 
 class TestTags[State](

@@ -1,0 +1,4 @@
+package ee.cone.c4actor.dep_impl
+
+trait ByPKRequestHandlerCompAppBase
+trait DepAssembleCompAppBase

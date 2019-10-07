@@ -75,13 +75,17 @@ object ComponentsGenerator extends Generator {
       outToContent(s"${tp}_E$i",t,a=>s"Seq($a)")
     }
     val defOuts: List[GeneratedComponent] = cl.stats.flatMap{
-      case q"..$cMods def ${Term.Name(defName)}(...${Seq(params)}): $tpeopt = $expr" =>
-        if(cMods.collectFirst{ case mod"@provide" => true }.isEmpty) Nil else {
+      case q"..$cMods def ${Term.Name(defName)}(...$params): $tpeopt = $expr" =>
+        if(cMods.collectFirst{ case mod"@provide" => true }.isEmpty){
+          Nil
+        } else {
           assert(params.isEmpty)
           val Some(t"Seq[$t]") = tpeopt
           List(outToContent(s"${tp}_D$defName",t,a=>s"$a.$defName"))
         }
-      case _ => Nil
+      case _ =>
+        //println(s"not def: $")
+        Nil
     }
     val outs: List[GeneratedComponent] = extOuts ::: defOuts
     val fixIn = outs.flatMap(_.fixIn).toMap
@@ -92,7 +96,7 @@ object ComponentsGenerator extends Generator {
     val components: List[GeneratedComponent] = for {
       cl <- Util.matchClass(parseContext.stats)
       getApp <- Util.singleSeq(cl.mods.collect{
-        case mod"@c4(...$exprss)" => (t:Type) => if(exprss.isEmpty) annArgToStr(exprss) else pkgNameToAppId(parseContext.pkg,t.toString)
+        case mod"@c4(...$exprss)" => (t:Type) => if(exprss.nonEmpty) annArgToStr(exprss) else pkgNameToAppId(parseContext.pkg,t.toString)
       })
       res <- getComponent(cl,getApp)
     } yield res

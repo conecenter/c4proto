@@ -4,33 +4,11 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.fieldAccess
 import ee.cone.c4gate.CommonFilterProtocol.{B_Contains, B_DateBefore}
 import ee.cone.c4proto.{Id, c4, protocol}
-import ee.cone.c4ui.{AccessView, AccessViewsApp}
+import ee.cone.c4ui.AccessView
 import ee.cone.c4vdom.{ChildPair, OfDiv}
 
 //todo access Meta from here, ex. precision
 //todo ask if predicate active ?Option[Field=>Boolean]
-
-//// mix
-
-trait CommonFilterApp extends CommonFilterPredicateFactoriesApp
-  with CommonFilterInjectApp with DateBeforeAccessViewApp with ContainsAccessViewApp
-
-trait CommonFilterPredicateFactoriesApp {
-  lazy val commonFilterConditionChecks: CommonFilterConditionChecks =
-    CommonFilterConditionChecksImpl
-}
-
-trait DateBeforeAccessViewApp extends AccessViewsApp {
-  def testTags: TestTags[Context]
-  private lazy val dateBeforeAccessView = new DateBeforeAccessView(testTags)
-  override def accessViews: List[AccessView[_]] = dateBeforeAccessView :: super.accessViews
-}
-trait ContainsAccessViewApp extends AccessViewsApp {
-  def testTags: TestTags[Context]
-  private lazy val containsAccessView = new ContainsAccessView(testTags)
-  override def accessViews: List[AccessView[_]] = containsAccessView :: super.accessViews
-}
-
 
 //// api
 
@@ -52,8 +30,8 @@ trait CommonFilterConditionChecks {
 
 //// impl
 
-@c4("CommonFilterInjectApp") class DateBeforeDefault extends DefaultModelFactory(classOf[B_DateBefore],B_DateBefore(_,None))
-@c4("CommonFilterInjectApp") class ContainsDefault extends DefaultModelFactory(classOf[B_Contains],B_Contains(_,""))
+@c4("CommonFilterApp") class DateBeforeDefault extends DefaultModelFactory(classOf[B_DateBefore],B_DateBefore(_,None))
+@c4("CommonFilterApp") class ContainsDefault extends DefaultModelFactory(classOf[B_Contains],B_Contains(_,""))
 
 case object DateBeforeCheck extends ConditionCheck[B_DateBefore,Long] {
   def prepare: List[AbstractMetaAttr] => B_DateBefore => B_DateBefore = _ => identity[B_DateBefore]
@@ -69,17 +47,17 @@ case object ContainsCheck extends ConditionCheck[B_Contains,String] {
   def defaultBy: Option[B_Contains => Boolean] = None
 }
 
-object CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
+@c4("CommonFilterApp") class CommonFilterConditionChecksImpl extends CommonFilterConditionChecks {
   lazy val dateBefore: ConditionCheck[B_DateBefore,Long] = DateBeforeCheck
   lazy val contains: ConditionCheck[B_Contains,String] = ContainsCheck
 }
 
-class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_DateBefore]) {
+@c4("CommonFilterApp") class DateBeforeAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_DateBefore]) {
   def view(access: Access[B_DateBefore]): Context=>List[ChildPair[OfDiv]] =
     local => List(testTags.dateInput(access to CommonFilterAccess.dateBeforeValue))
 }
 
-class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_Contains]) {
+@c4("CommonFilterApp") class ContainsAccessView(testTags: TestTags[Context]) extends AccessView(classOf[B_Contains]) {
   def view(access: Access[B_Contains]): Context=>List[ChildPair[OfDiv]] =
     local => List(testTags.input(access to CommonFilterAccess.containsValue))
 }

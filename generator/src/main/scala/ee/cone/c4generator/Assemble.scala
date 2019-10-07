@@ -31,7 +31,7 @@ object ExtractKeyNSType {
     }
   }
 }
-
+/*
 object UnBaseGenerator extends Generator {
   val UnBase = """(\w+)Base""".r
   def get(parseContext: ParseContext): List[Generated] = for {
@@ -46,7 +46,9 @@ object UnBaseGenerator extends Generator {
       case _ => Nil
     }
   } yield no
-}
+}*/
+
+
 
 object AssembleGenerator extends Generator {
   def get(parseContext: ParseContext): List[Generated] = for {
@@ -56,10 +58,11 @@ object AssembleGenerator extends Generator {
       case mod"@c4assemble(...$e)" => mod"@c4(...$e)".syntax
     })
     res <- Util.unBase(cl.name,cl.nameNode.pos.end) { className =>
+      (if(c4ann.isEmpty) Nil else List(GeneratedImport("\nimport ee.cone.c4proto.c4"))) :::
       getAssemble(parseContext, cl, className, c4ann)
     }
   } yield res
-  def getAssemble(parseContext: ParseContext, cl: ParsedClass, className: String, c4ann: String): Seq[Generated] = {
+  def getAssemble(parseContext: ParseContext, cl: ParsedClass, className: String, c4ann: String): List[Generated] = {
     val classArgs = cl.params.toList.flatten.collect{
       case param"..$mods ${Term.Name(argName)}: Class[${Type.Name(typeName)}]" =>
         typeName -> argName

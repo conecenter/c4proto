@@ -272,7 +272,6 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   with DynamicIndexAssemble
   with LensRegistryMix
   with HashSearchRangerRegistryMix
-  with DefaultModelFactoriesApp
   with CurrentTimeAssembleMix
   with WithMurMur3HashGenApp
   with ProdLensesApp {

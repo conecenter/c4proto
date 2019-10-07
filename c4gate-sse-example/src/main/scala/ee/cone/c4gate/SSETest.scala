@@ -8,21 +8,9 @@ import Function.chain
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, c4assemble}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, c4assemble}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienStatus
-import ee.cone.c4ui.{AlienExchangeApp, FromAlienTaskAssemble}
-
-
-class TestSSEAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with BranchApp
-  with AlienExchangeApp
-  with NoAssembleProfilerApp
-  with ManagementApp
-  with RemoteRawSnapshotApp
-  with BasicLoggingApp
+import ee.cone.c4ui.FromAlienTaskAssemble
 
 //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
 @c4assemble("TestSSEApp")  class SSEFromAlienTaskAssembleBase extends CallerAssemble {

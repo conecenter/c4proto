@@ -11,6 +11,7 @@ trait EnvConfigCompAppBase
 trait GzipRawCompressorAppBase
 trait ManagementAppBase
 trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp
+trait ModelAccessFactoryAppBase
 trait MortalFactoryCompAppBase
 trait NoAssembleProfilerAppBase
 trait NoObserversAppBase

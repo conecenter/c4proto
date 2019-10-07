@@ -46,28 +46,6 @@ import ee.cone.c4vdom.Types.ViewRes
 //   def mixFoo(bar: Bar): Foo = new Foo
 //   def mixHoo(bar: Goo): Hoo = new Hoo
 
-class TestTodoAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with UIApp
-  with TestTagsApp
-  with NoAssembleProfilerApp
-  with ManagementApp
-  with RemoteRawSnapshotApp
-  with PublicViewAssembleApp
-  with CommonFilterInjectApp
-  with CommonFilterPredicateFactoriesApp
-  with FilterPredicateBuilderApp
-  with ModelAccessFactoryApp
-  with AccessViewApp
-  with DateBeforeAccessViewApp
-  with ContainsAccessViewApp
-  with SessionAttrApp
-  with MortalFactoryCompApp
-  with AvailabilityApp
-  with BasicLoggingApp
-  with ReactHtmlApp
 
 
 @c4assemble("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase extends CallerAssemble {

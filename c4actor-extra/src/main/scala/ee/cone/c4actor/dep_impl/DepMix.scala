@@ -34,7 +34,7 @@ trait AskByPKsApp {
   def askByPKs: List[AbstractAskByPK] = Nil
 }
 
-trait ByPKRequestHandlerAppBase extends AssemblesApp {
+trait ByPKRequestHandlerApp extends ByPKRequestHandlerCompApp with AssemblesApp {
   def askByPKs: List[AbstractAskByPK]
   def depResponseFactory: DepResponseFactory
   def depAskFactory: DepAskFactory

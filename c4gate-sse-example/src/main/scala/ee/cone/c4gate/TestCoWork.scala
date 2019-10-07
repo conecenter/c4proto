@@ -4,35 +4,14 @@ import java.net.URL
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, fieldAccess}
+import ee.cone.c4assemble.fieldAccess
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
-import ee.cone.c4gate.SessionDataProtocol.U_RawSessionData
 import ee.cone.c4gate.TestFilterProtocol.B_Content
 import ee.cone.c4proto.{Id, c4}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
-class TestCoWorkAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with UIApp
-  with PublishingCompApp
-  with TestTagsApp
-  with SimpleAssembleProfilerApp
-  with ManagementApp
-  with RemoteRawSnapshotApp
-  with PublicViewAssembleApp
-  with ModelAccessFactoryApp
-  with SessionAttrApp
-  with MortalFactoryCompApp
-  with DefaultModelFactoriesApp
-  with MergingSnapshotApp
-  with TestTxLogApp
-  with SSHDebugApp
-  with BasicLoggingApp
-  with ReactHtmlApp
 
 
 

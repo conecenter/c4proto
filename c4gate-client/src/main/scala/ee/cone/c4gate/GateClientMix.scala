@@ -21,7 +21,7 @@ trait SessionDataProtocolAppBase
 trait AlienProtocolAppBase
 trait AuthProtocolAppBase
 trait HttpProtocolAppBase
-
+trait TcpProtocolAppBase
 
 // def availabilityDefaultUpdatePeriod: Long = 3000
 // def availabilityDefaultTimeout: Long = 3000

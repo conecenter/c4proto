@@ -1,30 +1,12 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
-import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, fieldAccess}
+import ee.cone.c4assemble.fieldAccess
 import ee.cone.c4gate.TestCanvasProtocol.B_TestCanvasState
-import ee.cone.c4proto.{Id, c4, protocol}
+import ee.cone.c4proto.{Id, c4, protocol, provide}
 import ee.cone.c4ui._
 import ee.cone.c4vdom.Types.{VDomKey, ViewRes}
-import ee.cone.c4vdom.{PathFactory, PathFactoryImpl, _}
-
-class TestCanvasAppBase extends ServerCompApp
-  with EnvConfigCompApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp
-  with UIApp
-  with PublishingCompApp
-  with TestTagsApp
-  with CanvasApp
-  with NoAssembleProfilerApp
-  with ManagementApp
-  with RemoteRawSnapshotApp
-  with PublicViewAssembleApp
-  with ModelAccessFactoryApp
-  with SessionAttrApp
-  with MortalFactoryCompApp
-  with BasicLoggingApp
-  with ReactHtmlApp
+import ee.cone.c4vdom.{PathFactory, _}
 
 @c4("TestCanvasApp") class TestCanvasPublishFromStringsProvider extends PublishFromStringsProvider {
   def get: List[(String, String)] = List(
@@ -127,13 +109,13 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
 
 @c4("CanvasApp") class TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))
 
-trait CanvasApp extends CanvasAutoApp {
-  def childPairFactory: ChildPairFactory
-  def tagJsonUtils: TagJsonUtils
-
-  lazy val testCanvasTags: TestCanvasTags = new TestCanvasTagsImpl(childPairFactory,tagJsonUtils,CanvasToJsonImpl)
-  lazy val pathFactory: PathFactory = PathFactoryImpl[Context](childPairFactory,CanvasToJsonImpl)
+@c4("CanvasApp") class PathFactoryProvider(childPairFactory: ChildPairFactory, tagJsonUtils: TagJsonUtils) {
+  @provide def canvasToJson: Seq[CanvasToJson] = List(CanvasToJsonImpl)
+  @provide def pathFactory: Seq[PathFactory] = List(PathFactoryImpl(childPairFactory,CanvasToJsonImpl))
 }
+
+
+
 
 case class CanvasElement(attr: List[CanvasAttr], styles: List[TagStyle], value: String)(
   utils: TagJsonUtils,
@@ -153,7 +135,7 @@ trait TestCanvasTags {
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv]
 }
 
-class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
+@c4("CanvasApp") class TestCanvasTagsImpl(child: ChildPairFactory, utils: TagJsonUtils, toJson: CanvasToJson) extends TestCanvasTags {
   def messageStrBody(o: VDomMessage): String =
     o.body match { case bs: okio.ByteString => bs.utf8() }
   def canvas(key: VDomKey, style: List[TagStyle], access: Access[String])(children: List[ChildPair[OfCanvas]]): ChildPair[OfDiv] =

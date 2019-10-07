@@ -176,6 +176,7 @@ $c4ann class ${resultType}ProtoAdapter(
     // todo: compat .components
     GeneratedImport("\nimport com.squareup.wire.ProtoAdapter") ::
     GeneratedImport("\nimport ee.cone.c4proto.HasId") ::
+    GeneratedImport("\nimport ee.cone.c4proto.c4") ::
     obj ::
     protoGenerated.collect{ case c: GeneratedImport => c } :::
     protoGenerated.collect{ case c: GeneratedCode => c }
