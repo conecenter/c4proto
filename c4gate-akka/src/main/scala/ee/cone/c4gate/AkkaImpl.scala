@@ -35,7 +35,7 @@ class AkkaHttpServer(
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
     for {
-      entity ← req.entity.toStrict(Duration(5,MINUTES))(mat)
+      entity ← req.entity.withoutSizeLimit.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp ← handler.handle(rReq)
@@ -60,7 +60,10 @@ class AkkaHttpServer(
         handler = handler,
         interface = "localhost",
         port = port,
-        settings = ServerSettings("akka.http.server.request-timeout = 60 s")
+        settings = ServerSettings(
+          """akka.http.server.request-timeout = 60 s
+            |akka.http.server.parsing.max-content-length = infinite
+            |""".stripMargin)
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
       )(mat)
     } yield binding
