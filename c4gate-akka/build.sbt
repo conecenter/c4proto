@@ -2,7 +2,7 @@
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.25"
 
 // https://mvnrepository.com/artifact/com.typesafe.akka/akka-http-core
-libraryDependencies += "com.typesafe.akka" %% "akka-http-core" % "10.0.13"
+libraryDependencies += "com.typesafe.akka" %% "akka-http-core" % "10.1.8"
 
 
 description := s"C4 framework / http gate server to kafka"
