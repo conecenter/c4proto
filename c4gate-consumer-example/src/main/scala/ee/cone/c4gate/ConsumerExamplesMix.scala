@@ -1,15 +1,16 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
+import ee.cone.c4proto.c4app
 
-class DumperAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
+@c4app class DumperAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
   with ExecutableApp with RichDataCompApp
   with RemoteRawSnapshotApp
   with AlienProtocolApp
   with HttpProtocolApp
   with SnapshotLoaderImplApp
 
-class KafkaLatTestAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
+@c4app class KafkaLatTestAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
   with ExecutableApp with RichDataCompApp
   with KafkaProducerApp with KafkaConsumerApp
 
@@ -19,14 +20,14 @@ trait TestServerApp extends EnvConfigCompApp with VMExecutionApp with NoAssemble
   with RemoteRawSnapshotApp
   with HttpProtocolApp
 
-class TestConsumerAppBase extends TestServerApp
+@c4app class TestConsumerAppBase extends TestServerApp
   with ManagementApp
   with AlienProtocolApp
   with TcpProtocolApp
   with ParallelObserversApp
 
-class HiRateTxAppBase extends TestServerApp with ParallelObserversApp
+@c4app class HiRateTxAppBase extends TestServerApp with ParallelObserversApp
 
-abstract class TestTxTransformAppBase extends TestServerApp
-class TestSerialApp extends TestTxTransformApp with SerialObserversApp
-class TestParallelApp extends TestTxTransformApp with ParallelObserversApp
+trait TestTxTransformAppBase extends TestServerApp
+@c4app class TestSerialApp extends TestTxTransformApp with SerialObserversApp
+@c4app class TestParallelApp extends TestTxTransformApp with ParallelObserversApp

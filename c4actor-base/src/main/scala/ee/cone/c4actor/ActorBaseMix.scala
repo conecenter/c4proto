@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{AbstractComponents, c4}
+import ee.cone.c4proto.{AbstractComponents, c4, provide}
 
 trait BaseAppBase
 trait BigDecimalAppBase
@@ -24,15 +24,27 @@ trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with Snapshot
 trait SimpleAssembleProfilerAppBase
 trait SnapshotLoaderFactoryImplAppBase
 trait SnapshotLoaderImplAppBase
+trait SnapshotUtilImplAppBase
 trait TaskSignerAppBase
 trait TestVMRichDataCompAppBase extends RichDataCompApp with VMExecutionApp
 
 trait VMExecutionAppBase extends AbstractComponents {
   lazy val componentRegistry = ComponentRegistry(this)
-  lazy val execution: Execution = componentRegistry.resolveSingle(classOf[Execution])
+  lazy val execution: Execution = Single(componentRegistry.resolve(classOf[Execution],Nil).value)
 }
 
 @c4("ServerCompApp") class DefProgressObserverFactoryImpl(
   initialObserverProviders: List[InitialObserverProvider],
   execution: Execution
-) extends ProgressObserverFactoryImpl(new StatsObserver(new RichRawObserver(initialObserverProviders.flatMap(_.option), new CompletingRawObserver(execution))))
+) {
+  @provide def get: Seq[ProgressObserverFactory] = List(
+    new ProgressObserverFactoryImpl(
+      new StatsObserver(
+        new RichRawObserver(
+          initialObserverProviders.flatMap(_.option),
+          new CompletingRawObserver(execution)
+        )
+      )
+    )
+  )
+}

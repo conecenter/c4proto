@@ -4,7 +4,6 @@ trait Condition[Model] extends Product {
   def check(model: Model): Boolean
 }
 
-class ModelConditionFactoryHolder(val value: ModelConditionFactory[Unit])
 trait ModelConditionFactory[Model] {
   def of[OtherModel<:Product]: ModelConditionFactory[OtherModel]
   def ofWithCl[OtherModel <: Product]: Class[OtherModel] => ModelConditionFactory[OtherModel]

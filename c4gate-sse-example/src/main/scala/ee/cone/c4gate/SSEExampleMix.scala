@@ -1,11 +1,12 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor.{BasicLoggingApp, BranchApp, EnvConfigCompApp, KafkaConsumerApp, KafkaProducerApp, ManagementApp, MergingSnapshotApp, ModelAccessFactoryApp, MortalFactoryCompApp, NoAssembleProfilerApp, ParallelObserversApp, RemoteRawSnapshotApp, ServerCompApp, SimpleAssembleProfilerApp, VMExecutionApp}
+import ee.cone.c4proto.c4app
 import ee.cone.c4ui.{AccessViewApp, AlienExchangeApp, PublicViewAssembleApp, UIApp}
 
 trait CanvasAppBase
 
-class TestSSEAppBase extends ServerCompApp
+@c4app class TestSSEAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
@@ -24,7 +25,7 @@ trait ReactHtmlAppBase
 
 trait TestTxLogAppBase
 
-class TestCanvasAppBase extends ServerCompApp
+@c4app class TestCanvasAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
@@ -42,7 +43,7 @@ class TestCanvasAppBase extends ServerCompApp
   with BasicLoggingApp
   with ReactHtmlApp
 
-class TestCoWorkAppBase extends ServerCompApp
+@c4app class TestCoWorkAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
@@ -62,7 +63,7 @@ class TestCoWorkAppBase extends ServerCompApp
   with BasicLoggingApp
   with ReactHtmlApp
 
-class TestPasswordAppBase extends ServerCompApp
+@c4app class TestPasswordAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
@@ -75,7 +76,7 @@ class TestPasswordAppBase extends ServerCompApp
   with AuthProtocolApp
   with ReactHtmlApp
 
-class TestTodoAppBase extends ServerCompApp
+@c4app class TestTodoAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp

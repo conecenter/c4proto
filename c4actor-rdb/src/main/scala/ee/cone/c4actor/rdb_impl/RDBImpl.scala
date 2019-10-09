@@ -19,12 +19,14 @@ import ee.cone.c4assemble._
 import ee.cone.c4proto._
 import okio.ByteString
 
-@c4("FromExternalDBSyncApp") class FromExternalDBOptionHolder(
+@c4("FromExternalDBSyncApp") class FromExternalDBOptionsProvider(
   rdbOptionFactory: RDBOptionFactory
-) extends ExternalDBOptionHolder(List(
-  rdbOptionFactory.dbProtocol(FromExternalDBProtocol),
-  rdbOptionFactory.fromDB(classOf[FromExternalDBProtocol.B_DBOffset])
-))
+) {
+  @provide def get: Seq[ExternalDBOption] = List(
+    rdbOptionFactory.dbProtocol(FromExternalDBProtocol),
+    rdbOptionFactory.fromDB(classOf[FromExternalDBProtocol.B_DBOffset])
+  )
+}
 
 @c4("RDBSyncApp") class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
@@ -53,9 +55,9 @@ object ToExternalDBTypes {
   type PseudoOrigNeedSrcId = SrcId
 }
 
-@c4assemble("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOptionHolder]) extends CallerAssemble {
-  override def subAssembles: List[Assemble] =
-    new ToExternalDBTxAssemble :: options.flatMap(_.values).collect{ case o: ToDBOption => o.assemble } ::: super.subAssembles
+@c4("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
+  @provide def subAssembles: Seq[Assemble] =
+    new ToExternalDBTxAssemble :: options.collect{ case o: ToDBOption => o.assemble }
 }
 
 object ToExternalDBAssembleTypes {

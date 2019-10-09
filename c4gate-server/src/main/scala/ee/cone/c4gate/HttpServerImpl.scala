@@ -149,9 +149,9 @@ class SelfDosProtectionHttpHandler(httpResponseFactory: RHttpResponseFactory, ss
     } else next.handle(request,local)
 }
 
-@c4assemble("SSEServerApp") class HttpReqAssemblesBase(mortal: MortalFactory, sseConfig: SSEConfig) extends CallerAssemble {
-  override def subAssembles: List[Assemble] =
-    mortal(classOf[S_HttpRequest]) :: new PostLifeAssemble() :: super.subAssembles
+@c4("SSEServerApp") class HttpReqAssemblesBase(mortal: MortalFactory, sseConfig: SSEConfig) {
+  @provide def subAssembles: Seq[Assemble] =
+    mortal(classOf[S_HttpRequest]) :: new PostLifeAssemble() :: Nil
 }
 
 case class HttpRequestCount(sessionKey: SrcId, count: Long)

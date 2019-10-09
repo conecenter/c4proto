@@ -5,7 +5,6 @@ import ee.cone.c4assemble.Assemble
 import ee.cone.c4proto.Protocol
 
 trait ExternalDBOption
-class ExternalDBOptionHolder(val values: List[ExternalDBOption])
 
 trait RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption

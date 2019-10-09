@@ -71,7 +71,7 @@ object VDomUntilImpl extends VDomUntil {
 
 case class UntilPair(key: String, until: Long) extends ChildPair[OfDiv]
 
-@c4("UIApp") object DefaultUntilPolicy extends UntilPolicy {
+@c4("UIApp") class DefaultUntilPolicy extends UntilPolicy {
   def wrap(view: Context=>ViewRes): Context=>ViewRes = local => {
     val startTime = System.currentTimeMillis
     val res = view(local)

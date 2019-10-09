@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{ArgAdapter, HasId, TypeKey, c4}
+import ee.cone.c4proto.{ArgAdapter, HasId, TypeKey, c4, provide}
 import okio.ByteString
 
 import scala.collection.immutable.Seq
@@ -16,8 +16,7 @@ import scala.collection.immutable.Seq
 ) extends ComponentFactory[ArgAdapter[_]] with LazyLogging {
   import componentRegistry._
   def getProtoAdapters(args: Seq[TypeKey]): Seq[ProtoAdapter[Any]] =
-    componentRegistry.resolve(classOf[ProtoAdapter[Any]],args).value ++
-    componentRegistry.resolve(classOf[ProtoAdapterHolder[Any]],args).value.map(_.value)
+    componentRegistry.resolve(classOf[ProtoAdapter[Any]],args).value
 
   def forTypes(args: Seq[TypeKey]): Seq[ArgAdapter[_]] = {
     val simpleRes = getProtoAdapters(args).map{ protoAdapter =>
@@ -84,13 +83,15 @@ class OptionArgAdapter[Value](inner: ()=>ProtoAdapter[Value]) extends ArgAdapter
 
 import com.squareup.wire.ProtoAdapter._
 
-@c4("ProtoApp") class BooleanProtoAdapterHolder extends ProtoAdapterHolder[Boolean](BOOL.asInstanceOf[ProtoAdapter[Boolean]])
-@c4("ProtoApp") class IntProtoAdapterHolder extends ProtoAdapterHolder[Int](SINT32.asInstanceOf[ProtoAdapter[Int]])
-@c4("ProtoApp") class LongProtoAdapterHolder extends ProtoAdapterHolder[Long](SINT64.asInstanceOf[ProtoAdapter[Long]])
-@c4("ProtoApp") class ByteStringProtoAdapterHolder extends ProtoAdapterHolder[ByteString](BYTES)
-@c4("ProtoApp") class OKIOByteStringProtoAdapterHolder extends ProtoAdapterHolder[okio.ByteString](BYTES)
-@c4("ProtoApp") class StringProtoAdapterHolder extends ProtoAdapterHolder[String](STRING)
-@c4("ProtoApp") class SrcIdProtoAdapterHolder extends ProtoAdapterHolder[SrcId](STRING)
+@c4("ProtoApp") class PrimitiveProtoAdapterProvider {
+  @provide def getBoolean: Seq[ProtoAdapter[Boolean]] = List(BOOL.asInstanceOf[ProtoAdapter[Boolean]])
+  @provide def getInt: Seq[ProtoAdapter[Int]] = List(SINT32.asInstanceOf[ProtoAdapter[Int]])
+  @provide def getLong: Seq[ProtoAdapter[Long]] = List(SINT64.asInstanceOf[ProtoAdapter[Long]])
+  @provide def getByteString: Seq[ProtoAdapter[ByteString]] = List(BYTES)
+  @provide def getOKIOByteString: Seq[ProtoAdapter[okio.ByteString]] = List(BYTES)
+  @provide def getString: Seq[ProtoAdapter[String]] = List(STRING)
+  @provide def getSrcId: Seq[ProtoAdapter[SrcId]] = List(STRING)
+}
 
 /*
 @c4("ProtoApp") class DefProtoAdapterFactory {
@@ -111,12 +112,10 @@ import com.squareup.wire.ProtoAdapter._
   def toInject: List[Injectable] = QAdapterRegistryKey.set(qAdapterRegistry)
 }
 
-@c4("ProtoApp") class ProductProtoAdapterHolder(
-  qAdapterRegistry: QAdapterRegistry
-) extends ProtoAdapterHolder[Product](new ProductProtoAdapter(qAdapterRegistry))
-class ProductProtoAdapter(
-  qAdapterRegistry: QAdapterRegistry
+@c4("ProtoApp") class ProductProtoAdapter(
+  qAdapterRegistryD: DeferredSeq[QAdapterRegistry]
 ) extends ProtoAdapter[Product](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
+  private lazy val qAdapterRegistry = Single(qAdapterRegistryD.value)
   def encodedSize(value: Product): Int = {
     val adapter = qAdapterRegistry.byName(value.getClass.getName)
     adapter.encodedSizeWithTag(Math.toIntExact(adapter.id), value)

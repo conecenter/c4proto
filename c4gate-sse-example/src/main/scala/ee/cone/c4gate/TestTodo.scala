@@ -48,9 +48,9 @@ import ee.cone.c4vdom.Types.ViewRes
 
 
 
-@c4assemble("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase extends CallerAssemble {
-  override def subAssembles: List[Assemble] =
-    new FromAlienTaskAssemble("/react-app.html") :: super.subAssembles
+@c4("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase {
+  @provide def subAssembles: Seq[Assemble] =
+    new FromAlienTaskAssemble("/react-app.html") :: Nil
 }
 
 @protocol("TestTodoApp") object TestTodoProtocolBase   {

@@ -11,11 +11,11 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4proto.c4
 
 @c4("RichDataCompApp") class DefHashSearchFactoryHolder(
-  modelConditionFactoryHolder: ModelConditionFactoryHolder,
+  modelConditionFactory: ModelConditionFactory[Unit],
   preHashing: PreHashing,
   idGenUtil: IdGenUtil
 ) extends HashSearchFactoryHolder(
-  new HashSearchImpl.FactoryImpl(modelConditionFactoryHolder.value, preHashing, idGenUtil)
+  new HashSearchImpl.FactoryImpl(modelConditionFactory, preHashing, idGenUtil)
 )
 object HashSearchImpl {
   case class Need[Model<:Product](requestId: SrcId)

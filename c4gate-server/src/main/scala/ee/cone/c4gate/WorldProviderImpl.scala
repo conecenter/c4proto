@@ -9,8 +9,8 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
 @c4("WorldProviderApp") class WorldProviderInitialObserverProvider(
-  worldProvider: WorldProvider
-) extends InitialObserverProvider(Option(worldProvider match { case w: Observer[RichContext] => w }))
+  worldProvider: WorldProviderImpl
+) extends InitialObserverProvider(Option(worldProvider))
 
 @c4("WorldProviderApp") class WorldProviderImpl(qMessages: QMessages, execution: Execution, statefulReceiverFactory: StatefulReceiverFactory)(
   receiverPromise: Promise[StatefulReceiver[WorldMessage]] = Promise()

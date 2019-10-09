@@ -1,19 +1,21 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.ComponentRegistry
+import ee.cone.c4actor.{ComponentProvider, ComponentRegistry}
 import ee.cone.c4gate.{HttpProtocolApp, PublishFromStringsProvider, PublishMimeTypesProvider}
 import ee.cone.c4proto.{Component, ComponentsApp}
+import ComponentProvider.provide
+
 
 trait PublishingApp extends PublishingCompApp with ComponentsApp {
   def mimeTypes: Map[String,String]
   def publishFromStrings: List[(String,String)]
   //
-  private lazy val mimeTypesComponent = ComponentRegistry.provide(classOf[PublishMimeTypesProvider],Nil,()=>List(
+  private lazy val mimeTypesComponent = provide(classOf[PublishMimeTypesProvider],Nil,()=>List(
     new PublishMimeTypesProvider {
       def get: List[(String, String)] = mimeTypes.toList
     }
   ))
-  private lazy val publishFromStringsComponent = ComponentRegistry.provide(classOf[PublishFromStringsProvider],Nil,()=>List(
+  private lazy val publishFromStringsComponent = provide(classOf[PublishFromStringsProvider],Nil,()=>List(
     new PublishFromStringsProvider {
       def get: List[(String, String)] = publishFromStrings
     }

@@ -7,7 +7,7 @@ import java.nio.file.{Files, Paths}
 import java.util.{Locale, UUID}
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4proto.c4
+import ee.cone.c4proto.{c4, provide}
 import okio.ByteString
 
 import scala.annotation.tailrec
@@ -149,7 +149,9 @@ class RemoteSnapshotAppURL(val value: String)
 
 @c4("RemoteRawSnapshotApp") class DefRemoteSnapshotAppURL(config: Config) extends RemoteSnapshotAppURL(config.get("C4HTTP_SERVER"))
 
-@c4("RemoteRawSnapshotApp") class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL) extends RemoteRawSnapshotLoader(url.value)
+@c4("RemoteRawSnapshotApp") class EnvRemoteRawSnapshotLoader(url: RemoteSnapshotAppURL) {
+  @provide def get: Seq[RawSnapshotLoader] = List(new RemoteRawSnapshotLoader(url.value))
+}
 
 @c4("RemoteRawSnapshotApp") class RemoteSnapshotMaker(
   appURL: RemoteSnapshotAppURL, util: RemoteSnapshotUtil, signer: SnapshotTaskSigner

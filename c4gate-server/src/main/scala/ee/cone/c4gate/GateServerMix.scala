@@ -1,9 +1,9 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{BasicLoggingApp, Config, ConfigSimpleSignerApp, EnvConfigCompApp, Executable, GzipStreamCompressorFactory, Injectable, KafkaConsumerApp, KafkaProducerApp, LZ4RawCompressorApp, ManagementApp, MortalFactoryCompApp, NoAssembleProfilerApp, NoObserversApp, ParallelObserversApp, RawSnapshotSaver, RemoteRawSnapshotApp, ServerCompApp, SnapshotLoader, SnapshotLoaderFactoryImplApp, SnapshotSaverImpl, TaskSignerApp, ToInject, VMExecutionApp}
-import ee.cone.c4proto.c4
+import ee.cone.c4actor.{BasicLoggingApp, Config, ConfigSimpleSignerApp, EnvConfigCompApp, Executable, GzipStreamCompressorFactory, Injectable, KafkaConsumerApp, KafkaProducerApp, LZ4RawCompressorApp, ManagementApp, MortalFactoryCompApp, NoAssembleProfilerApp, NoObserversApp, ParallelObserversApp, RawSnapshotSaver, RemoteRawSnapshotApp, ServerCompApp, SnapshotLoader, SnapshotLoaderFactoryImplApp, SnapshotSaverImpl, SnapshotUtilImplApp, TaskSignerApp, ToInject, VMExecutionApp}
+import ee.cone.c4proto.{c4, c4app, provide}
 
-class PublishAppBase extends ServerCompApp
+@c4app class PublishAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with PublishingCompApp
@@ -36,21 +36,23 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with SafeToRunApp
   with WorldProviderApp
 
-@c4("AbstractHttpGatewayApp") class DefFHttpHandlerHolder(
+@c4("AbstractHttpGatewayApp") class DefFHttpHandlerProvider(
   pongRegistry: PongRegistry,
   loader: SnapshotLoader,
   sseConfig: SSEConfig,
   worldProvider: WorldProvider,
   httpResponseFactory: RHttpResponseFactory
-) extends FHttpHandlerHolder(
-  new FHttpHandlerImpl(worldProvider, httpResponseFactory,
-    new HttpGetSnapshotHandler(loader, httpResponseFactory,
-      new GetPublicationHttpHandler(httpResponseFactory,
-        new PongHandler(sseConfig, pongRegistry, httpResponseFactory,
-          new NotFoundProtectionHttpHandler(httpResponseFactory,
-            new SelfDosProtectionHttpHandler(httpResponseFactory, sseConfig,
-              new AuthHttpHandler(
-                new DefSyncHttpHandler()
+){
+  @provide def get: Seq[FHttpHandler] = List(
+    new FHttpHandlerImpl(worldProvider, httpResponseFactory,
+      new HttpGetSnapshotHandler(loader, httpResponseFactory,
+        new GetPublicationHttpHandler(httpResponseFactory,
+          new PongHandler(sseConfig, pongRegistry, httpResponseFactory,
+            new NotFoundProtectionHttpHandler(httpResponseFactory,
+              new SelfDosProtectionHttpHandler(httpResponseFactory, sseConfig,
+                new AuthHttpHandler(
+                  new DefSyncHttpHandler()
+                )
               )
             )
           )
@@ -58,7 +60,8 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
       )
     )
   )
-)
+}
+
 //()//todo secure?
 
 @c4("SnapshotMakingApp") class DefSnapshotSavers(inner: RawSnapshotSaver)
@@ -67,7 +70,9 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
     new SnapshotSaverImpl("snapshot_txs",inner)
   )
 
-trait SnapshotMakingAppBase extends TaskSignerApp with FileRawSnapshotLoaderApp with ConfigDataDirApp with SignedReqUtilImplApp with ConfigSimpleSignerApp
+trait SnapshotMakingAppBase extends TaskSignerApp
+  with FileRawSnapshotLoaderApp with ConfigDataDirApp with SignedReqUtilImplApp
+  with ConfigSimpleSignerApp with SnapshotUtilImplApp
 trait SnapshotPutAppBase extends SignedReqUtilImplApp with SnapshotLoaderFactoryImplApp
 trait SignedReqUtilImplAppBase
 

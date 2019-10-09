@@ -14,7 +14,8 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
 }
 
 @c4("BaseApp") class ComponentRegistryImpl(app: AbstractComponents) extends ComponentRegistry with LazyLogging {
-  import ComponentRegistry.toTypeKey
+  def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
+    TypeKey(cl.getName,cl.getSimpleName,args.toList)
   def general(key: TypeKey): TypeKey = key.copy(args=Nil) // key.args.map(_=>TypeKey("_"));   (1 to arity).map(_=>TypeKey("_","_",Nil)).toList
   lazy val reg: Map[TypeKey,DeferredSeq[Object]] =
     fixNonFinal(app.components.distinct).map(toCached).flatMap(generalize)
@@ -30,12 +31,12 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   class Cached(val out: TypeKey, val deferredSeq: DeferredSeq[Object])
   def toCached(component: Component): Cached = {
     val values = if(ComponentRegistry.isRegistry(component)) ()=>Seq(this)
-      else () => component.create(component.in.map(resolveSingle))
+      else () => component.create(component.in.map(resolveSingle(component.out)))
     new Cached(component.out, new SimpleDeferredSeq[Object](values))
   }
-  def resolveSingle(key: TypeKey): Object = resolveKey(key).value match {
+  def resolveSingle: TypeKey => TypeKey => Object = outKey => inKey => resolveKey(inKey).value match {
     case Seq(r:Object) => r
-    case r => throw new Exception(s"resolution of $key fails with $r")
+    case r => throw new Exception(s"resolution of $inKey for $outKey fails with $r")
   }
   def generalize: Cached => Seq[Cached] = cached =>
     Seq(cached.out, general(cached.out)).distinct.map(o=>new Cached(o,cached.deferredSeq))
@@ -49,8 +50,6 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
   })
   def resolve[T](cl: Class[T], args: Seq[TypeKey]): DeferredSeq[T] =
     resolveKey(toTypeKey(cl,args)).asInstanceOf[DeferredSeq[T]]
-  def resolveSingle[T](cl: Class[T]): T =
-    resolveSingle(toTypeKey(cl,Nil)).asInstanceOf[T]
 }
 
 @c4("BaseApp") class SeqComponentFactory(

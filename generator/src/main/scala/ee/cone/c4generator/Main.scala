@@ -24,7 +24,7 @@ object DirInfo {
 }
 
 object Main {
-  def version: String = "-v136"
+  def version: String = s"-w${env("C4GENERATOR_VER")}"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
   def main(args: Array[String]): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
@@ -68,9 +68,11 @@ object Main {
         val content =
           s"\npackage $pkg" +
           links.groupBy(_.app).toList.map{ case (app,links) =>
-            s"\ntrait $app extends ${app}Base with ee.cone.c4proto.ComponentsApp {" +
+            val(classLinks,exprLinks) = links.partition(_.expr=="CLASS")
+            val tp = if(classLinks.nonEmpty) "class" else "trait"
+            s"\n$tp $app extends ${app}Base with ee.cone.c4proto.ComponentsApp {" +
             s"\n  override def components: List[ee.cone.c4proto.Component] = " +
-            links.map(c=> s"\n    ${c.expr} ::: ").mkString +
+              exprLinks.map(c=> s"\n    ${c.expr} ::: ").mkString +
             s"\n    super.components" +
             s"\n}"
           }.sorted.mkString
@@ -80,7 +82,7 @@ object Main {
     args ++ indexes
   }
   lazy val generators: ParseContext=>List[Generated] = {
-    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator) //,UnBaseGenerator
+    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator,AppGenerator) //,UnBaseGenerator
     ctx => generators.flatMap(_.get(ctx))
   }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
@@ -206,20 +208,29 @@ object ImportGenerator extends Generator {
   }
 }
 
+object AppGenerator extends Generator {
+  def get(parseContext: ParseContext): List[Generated] = for {
+    cl <- Util.matchClass(parseContext.stats) if cl.mods.collectFirst{ case mod"@c4app" => true }.nonEmpty
+    res <- cl.name match {
+      case Util.UnBase(app) => List(GeneratedAppLink(parseContext.pkg,app,"CLASS"))
+      case _ => Nil
+    }
+  } yield res
+}
+
 object Util {
+  val UnBase = """(\w+)Base""".r
   /*
   def comment(stat: Stat): String=>String = cont =>
     cont.substring(0,stat.pos.start) + " /* " +
       cont.substring(stat.pos.start,stat.pos.end) + " */ " +
       cont.substring(stat.pos.end)*/
 
-  def unBase(name: String, pos: Int)(f: String=>Seq[Generated]): Seq[Generated] = {
-    val UnBase = """(\w+)Base""".r
+  def unBase(name: String, pos: Int)(f: String=>Seq[Generated]): Seq[Generated] =
     name match {
       case UnBase(n) => f(n)
       case n => List(Patch(pos,"Base"))
     }
-  }
   def matchClass(stats: List[Stat]): List[ParsedClass] = stats.flatMap{
     case q"..$cMods class ${nameNode@Type.Name(name)}[..$typeParams] ..$ctorMods (...$params) extends ..$ext { ..$stats }" =>
       List(new ParsedClass(cMods.toList,nameNode,name,typeParams.toList,params.map(_.toList).toList,ext.map{ case t:Tree=>t }.toList,stats.toList))

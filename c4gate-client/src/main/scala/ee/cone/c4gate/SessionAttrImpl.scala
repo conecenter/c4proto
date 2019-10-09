@@ -27,9 +27,9 @@ import okio.ByteString
   )
 }
 
-@c4assemble("SessionAttrApp") class  SessionDataAssemblesBase(mortal: MortalFactory) extends CallerAssemble {
-  override def subAssembles: List[Assemble] =
-    mortal(classOf[U_RawSessionData]) :: new SessionDataAssemble :: super.subAssembles
+@c4("SessionAttrApp") class  SessionDataAssemblesBase(mortal: MortalFactory) {
+  @provide def subAssembles: Seq[Assemble] =
+    mortal(classOf[U_RawSessionData]) :: new SessionDataAssemble :: Nil
 }
 
 @assemble class SessionDataAssembleBase   {

@@ -22,3 +22,18 @@ abstract class Components(componentsList: Seq[AbstractComponents]) extends Abstr
 trait ComponentsApp extends AbstractComponents {
   def components: List[Component] = Nil
 }
+
+class c4app extends StaticAnnotation
+
+/*
+abstract class Main(app: ExecutableApp){
+  def main(args: Array[String]): Unit = app.execution.run()
+}
+
+trait ExecutableApp {
+  def execution: Runnable // we need this while we have componentRegistry.resolve to avoid 2 componentRegistry-s
+}*/
+/* target (w/o resolve):
+object ExecutionRun {
+  def apply(app: AbstractComponents): Unit = ComponentRegistry(app).resolveSingle(classOf[Execution])
+}*/

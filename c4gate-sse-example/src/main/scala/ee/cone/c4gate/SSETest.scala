@@ -10,12 +10,13 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, CallerAssemble, c4assemble}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienStatus
+import ee.cone.c4proto.{c4, provide}
 import ee.cone.c4ui.FromAlienTaskAssemble
 
 //println(s"visit http://localhost:${config.get("C4HTTP_PORT")}/sse.html")
-@c4assemble("TestSSEApp")  class SSEFromAlienTaskAssembleBase extends CallerAssemble {
-  override def subAssembles: List[Assemble] =
-    new FromAlienTaskAssemble("/sse.html") :: super.subAssembles
+@c4("TestSSEApp")  class SSEFromAlienTaskAssembleBase {
+  @provide def subAssembles: Seq[Assemble] =
+    new FromAlienTaskAssemble("/sse.html") :: Nil
 }
 
 @c4assemble("TestSSEApp") class TestSSEAssembleBase   {

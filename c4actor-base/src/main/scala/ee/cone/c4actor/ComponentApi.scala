@@ -7,22 +7,20 @@ import scala.collection.immutable.Seq
 
 object ComponentRegistry {
   def isRegistry: Component=>Boolean = {
-    val clName = classOf[ComponentRegistry].getName
-    c => c.out.clName == clName
+    val clName = classOf[AbstractComponents].getName
+    c => c.in match {
+      case Seq(inKey) if inKey.clName == clName => true
+      case _ => false
+    }
   }
   def apply(app: AbstractComponents): ComponentRegistry =
     Single(Single(app.components.filter(isRegistry).distinct).create(Seq(app)))
       .asInstanceOf[ComponentRegistry]
-  def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
-    TypeKey(cl.getName,cl.getSimpleName,args.toList)
-  def provide[T<:Object](cl: Class[T], args: Seq[TypeKey], get: ()=>Seq[T]): Component =
-    new Component(toTypeKey(cl,args),None,Nil,_=>get())
 }
 
 trait ComponentRegistry {
   def resolveKey(key: TypeKey): DeferredSeq[Any]
   def resolve[T](cl: Class[T], args: Seq[TypeKey]): DeferredSeq[T]
-  def resolveSingle[T](cl: Class[T]): T
 }
 
 abstract class ComponentFactory[T] {

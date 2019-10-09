@@ -6,7 +6,7 @@ import ee.cone.c4actor.HashSearchTestProtocol.{D_SomeModel, D_SomeRequest}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, c4, protocol}
+import ee.cone.c4proto.{Id, c4, protocol, provide}
 
 case class StrEq(value: String) //todo proto
 case object StrEqCheck extends ConditionCheck[StrEq,String] {
@@ -70,17 +70,16 @@ import SomeModelAccess._
     List(WithPK(SomeResponse(response.srcId,response.lines)))
 }
 
-@c4assemble("HashSearchTestApp") class HashSearchTestAddAssembleBase(
+@c4("HashSearchTestApp") class HashSearchTestAddAssembleBase(
   hashSearchFactoryHolder: HashSearchFactoryHolder
-) extends CallerAssemble {
+) {
   import DefaultRangers._
-  override def subAssembles: List[Assemble] =
+  @provide def subAssembles: Seq[Assemble] =
     hashSearchFactoryHolder.value.index(classOf[D_SomeModel])
       .add(fieldA, StrEq(""))
       .add(fieldB, StrEq(""))
       .add(fieldC, StrEq(""))
-      .assemble ::
-    super.subAssembles
+      .assemble :: Nil
 }
 
 case class SomeResponse(srcId: SrcId, lines: List[D_SomeModel])

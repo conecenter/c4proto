@@ -17,7 +17,7 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4gate.AuthProtocol.U_AuthenticatedSession
 import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4gate.HttpProtocolBase.{S_HttpRequest, S_HttpResponse}
-import ee.cone.c4proto.c4
+import ee.cone.c4proto.{c4, provide}
 import okio.ByteString
 
 case object LastPongKey extends SharedComponentKey[String=>Option[Instant]]
@@ -129,9 +129,9 @@ case class SessionTxTransform( //?todo session/pongs purge
   }
 }
 
-@c4("SSEServerApp") class SSEAssembles(mortal: MortalFactory) extends CallerAssemble {
-  override def subAssembles: List[Assemble] =
-    new SSEAssemble :: mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: super.subAssembles
+@c4("SSEServerApp") class SSEAssembles(mortal: MortalFactory) {
+  @provide def subAssembles: Seq[Assemble] =
+    new SSEAssemble :: mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
 }
 
 @assemble class SSEAssembleBase   {

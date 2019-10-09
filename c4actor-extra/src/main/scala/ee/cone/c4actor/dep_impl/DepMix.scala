@@ -7,15 +7,17 @@ import ee.cone.c4proto.{Component, ComponentsApp}
 
 import scala.collection.immutable.Seq
 
+import ComponentProvider.provide
+
 trait DepHandlersApp extends ComponentsApp {
   def depHandlers: List[DepHandler] = Nil
-  private lazy val depHandlersComponent = ComponentRegistry.provide(classOf[DepHandler],Nil,()=>depHandlers)
+  private lazy val depHandlersComponent = provide(classOf[DepHandler],Nil,()=>depHandlers)
   override def components: List[Component] = depHandlersComponent :: super.components
 }
 
 trait DepResponseFiltersApp extends ComponentsApp {
   def depFilters: List[DepResponseForwardFilter] = Nil
-  private lazy val depFiltersComponent = ComponentRegistry.provide(classOf[DepResponseForwardFilter],Nil,()=>depFilters)
+  private lazy val depFiltersComponent = provide(classOf[DepResponseForwardFilter],Nil,()=>depFilters)
   override def components: List[Component] = depFiltersComponent :: super.components
 }
 

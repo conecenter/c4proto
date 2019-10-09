@@ -7,9 +7,7 @@ import ee.cone.c4proto.c4
 
 @c4("FilterPredicateBuilderApp") class FilterPredicateBuilderImpl(
   sessionAttrAccessFactory: SessionAttrAccessFactory,
-  modelConditionFactoryHolder: ModelConditionFactoryHolder
-)(
-  modelConditionFactory: ModelConditionFactory[Unit] = modelConditionFactoryHolder.value
+  modelConditionFactory: ModelConditionFactory[Unit]
 ) extends FilterPredicateBuilder {
   def create[Model<:Product]: Context => FilterPredicate[Model] = local => {
     val condFactory = modelConditionFactory.of[Model]

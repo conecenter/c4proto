@@ -4,7 +4,7 @@ import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.NextOffset
-import ee.cone.c4proto.c4
+import ee.cone.c4proto.{c4, provide}
 
 object SnapshotUtilImpl extends SnapshotUtil {
   def hashFromName: RawSnapshot=>Option[SnapshotInfo] = {
@@ -29,6 +29,11 @@ object SnapshotUtilImpl extends SnapshotUtil {
   }
   def hashFromData: Array[Byte]=>String = UUID.nameUUIDFromBytes(_).toString
 }
+
+@c4("SnapshotUtilImplApp") class SnapshotUtilProvider {
+  @provide def provide: Seq[SnapshotUtil] = List(SnapshotUtilImpl)
+}
+
 
 import SnapshotUtilImpl._
 

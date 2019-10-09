@@ -70,8 +70,7 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
-@c4("VMExecutionApp")
-class VMExecution(getToStart: DeferredSeq[Executable])(
+@c4("VMExecutionApp") class VMExecution(getToStart: DeferredSeq[Executable])(
   threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
 )(
   mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
@@ -130,7 +129,7 @@ class SkippingFutureImpl[T](inner: Future[T], isNotLast: Promise[Unit])(implicit
 
 abstract class BaseServerMain(app: ExecutableApp){
   def main(args: Array[String]): Unit = try {
-    Trace {
+    Trace { // keep Trace here <-- execution construction may silently fail
       //ExecutionRun(app)
       app.execution.run()
       //println("main is about to sleep")

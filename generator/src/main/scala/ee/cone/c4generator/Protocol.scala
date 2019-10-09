@@ -154,7 +154,11 @@ $c4ann class ${resultType}ProtoAdapter(
           GeneratedTraitDef(tp),
           GeneratedInnerCode(s"""\n  type $tp = ${objectName}Base.$tp"""),
           GeneratedImport(s"""\nimport $objectName.$tp"""),
-          GeneratedCode(s"\n  $c4ann class ${tp}ProtoAdapterHolder(inner: ProtoAdapterHolder[Product]) extends ProtoAdapterHolder[$tp](inner.value.asInstanceOf[ProtoAdapter[$tp]])")
+          GeneratedCode(
+            s"\n$c4ann class ${tp}ProtoAdapterProvider(inner: ProtoAdapter[Product]) {" +
+            s"\n  @provide def get: Seq[ProtoAdapter[$tp]] = List(inner.asInstanceOf[ProtoAdapter[$tp]])" +
+            s"\n}"
+          )
         )
     }.flatten.toList ::: Util.matchClass(stats).flatMap(getAdapter(parseContext,objectName,_,c4ann))
 

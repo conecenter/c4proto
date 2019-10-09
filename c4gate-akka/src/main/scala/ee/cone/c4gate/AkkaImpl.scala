@@ -25,8 +25,8 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
   }
 }
 
-@c4("AkkaServerApp") class AkkaHttpServer(
-  config: Config, handler: FHttpHandlerHolder, execution: Execution, akkaMat: AkkaMat
+@c4("AkkaGatewayApp") class AkkaHttpServer(
+  config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat
 )(
   port: Int = config.get("C4HTTP_PORT").toInt
 ) extends Executable with LazyLogging {
@@ -40,7 +40,7 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
       entity <- req.entity.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
-      rResp <- handler.value.handle(rReq)
+      rResp <- handler.handle(rReq)
     } yield {
       val status = Math.toIntExact(rResp.status)
       val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")

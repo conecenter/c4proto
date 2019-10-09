@@ -2,7 +2,23 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.ComponentRegistry.provide
 import ee.cone.c4assemble.{Assemble, AssembleSeqOptimizer, BackStageFactory, ExpressionsDumper, IndexUpdater, IndexUtil, NoAssembleSeqOptimizer, ReadModelUtil, UMLExpressionsDumper}
-import ee.cone.c4proto.{Component, ComponentsApp, Protocol}
+import ee.cone.c4proto.{Component, ComponentsApp, Protocol, TypeKey, c4}
+
+import scala.collection.immutable.Seq
+
+object ComponentProvider {
+  private def toTypeKey[T](cl: Class[T], args: Seq[TypeKey]): TypeKey =
+    TypeKey(cl.getName,cl.getSimpleName,args.toList)
+  def provide[T<:Object](cl: Class[T], args: Seq[TypeKey], get: ()=>Seq[T]): Component =
+    new Component(toTypeKey(cl,args),None,Nil,_=>get())
+  def resolveSingle[T](cl: Class[T])(implicit componentRegistry: ComponentRegistry): T =
+    componentRegistry.resolve(cl,Nil).value match {
+      case Seq(r) => r
+      case r => throw new Exception(s"external resolution of $cl fails with $r")
+    }
+}
+import ComponentProvider._
+
 
 trait ProtocolsApp extends ComponentsApp {
   override def components: List[Component] =
@@ -13,19 +29,19 @@ trait ProtocolsApp extends ComponentsApp {
 }
 
 trait ToStartApp extends ComponentsApp {
-  private lazy val executableComponent = ComponentRegistry.provide(classOf[Executable], Nil, ()=>toStart)
+  private lazy val executableComponent = provide(classOf[Executable], Nil, ()=>toStart)
   override def components: List[Component] = executableComponent :: super.components
   def toStart: List[Executable] = Nil
 }
 
 trait AssemblesApp extends ComponentsApp {
-  private lazy val assembleComponent = ComponentRegistry.provide(classOf[Assemble], Nil, ()=>assembles)
+  private lazy val assembleComponent = provide(classOf[Assemble], Nil, ()=>assembles)
   override def components: List[Component] = assembleComponent :: super.components
   def assembles: List[Assemble] = Nil
 }
 
 trait ToInjectApp extends ComponentsApp {
-  private lazy val toInjectComponent = ComponentRegistry.provide(classOf[ToInject], Nil, ()=>toInject)
+  private lazy val toInjectComponent = provide(classOf[ToInject], Nil, ()=>toInject)
   override def components: List[Component] = toInjectComponent :: super.components
   def toInject: List[ToInject] = Nil
 }
@@ -35,7 +51,6 @@ trait PreHashingApp {
 }
 
 trait ServerApp extends ServerCompApp with RichDataApp { //e-only
-  import componentRegistry.resolveSingle
   lazy val snapshotLoader: SnapshotLoader = resolveSingle(classOf[SnapshotLoader])
   lazy val qMessages: QMessages = resolveSingle(classOf[QMessages])
   lazy val consuming: Consuming = resolveSingle(classOf[Consuming])
@@ -48,21 +63,20 @@ trait ServerApp extends ServerCompApp with RichDataApp { //e-only
 }
 
 trait TestVMRichDataApp extends TestVMRichDataCompApp with RichDataApp with ToStartApp {
-  import componentRegistry.resolveSingle
   lazy val contextFactory = resolveSingle(classOf[ContextFactory]) // extra-only
   lazy val actorName: String = getClass.getName
 }
 
 trait MortalFactoryApp extends MortalFactoryCompApp {
-  def componentRegistry: ComponentRegistry
-  def mortal: MortalFactory = componentRegistry.resolveSingle(classOf[MortalFactory])
+  implicit def componentRegistry: ComponentRegistry
+  def mortal: MortalFactory = resolveSingle(classOf[MortalFactory])
 }
 
 @deprecated trait SimpleIndexValueMergerFactoryApp
 @deprecated trait TreeIndexValueMergerFactoryApp
 
-trait RichDataApp extends RichDataCompApp with AssembleProfilerApp with DefaultKeyFactoryApp with DefaultUpdateProcessorApp with ExpressionsDumpersApp {
-  import componentRegistry.resolveSingle
+trait RichDataAppBase extends RichDataCompApp with AssembleProfilerApp with DefaultKeyFactoryApp with DefaultUpdateProcessorApp with ExpressionsDumpersApp {
+  implicit def componentRegistry: ComponentRegistry
   lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
   lazy val toUpdate: ToUpdate = resolveSingle(classOf[ToUpdate])
   lazy val preHashing: PreHashing = resolveSingle(classOf[PreHashing])
@@ -79,6 +93,8 @@ trait RichDataApp extends RichDataCompApp with AssembleProfilerApp with DefaultK
   @deprecated def parallelAssembleOn: Boolean = false
   @deprecated def assembleSeqOptimizer: AssembleSeqOptimizer = new NoAssembleSeqOptimizer
 }
+
+@c4("RichDataApp") class ModelConditionFactoryHolder(val value: ModelConditionFactory[Unit])
 
 trait AssembleProfilerApp extends ComponentsApp {
   def assembleProfiler: AssembleProfiler
@@ -102,7 +118,7 @@ trait DefaultUpdateProcessorApp extends ComponentsApp {
 }
 
 trait ExpressionsDumpersApp extends ComponentsApp {
-  private lazy val expressionsDumpersComponent = ComponentRegistry.provide(classOf[ExpressionsDumper[Unit]], List(ComponentRegistry.toTypeKey(classOf[Unit],Nil)), ()=>expressionsDumpers)
+  private lazy val expressionsDumpersComponent = provide(classOf[ExpressionsDumper[Unit]], List(ComponentRegistry.toTypeKey(classOf[Unit],Nil)), ()=>expressionsDumpers)
   override def components: List[Component] = expressionsDumpersComponent :: super.components
   def expressionsDumpers: List[ExpressionsDumper[Unit]] = Nil
 }
@@ -112,19 +128,19 @@ trait UMLClientsApp {
 }
 
 trait EnvConfigApp extends EnvConfigCompApp {
-  def componentRegistry: ComponentRegistry
-  lazy val config: Config = componentRegistry.resolveSingle(classOf[Config])
-  lazy val actorName: String = componentRegistry.resolveSingle(classOf[ActorName]).value
+  implicit def componentRegistry: ComponentRegistry
+  lazy val config: Config = resolveSingle(classOf[Config])
+  lazy val actorName: String = resolveSingle(classOf[ActorName]).value
 }
 
 trait UpdatesProcessorsApp extends ComponentsApp {
-  private lazy val processorsComponent = ComponentRegistry.provide(classOf[UpdatesPreprocessor], Nil, ()=>processors)
+  private lazy val processorsComponent = provide(classOf[UpdatesPreprocessor], Nil, ()=>processors)
   override def components: List[Component] = processorsComponent :: super.components
   def processors: List[UpdatesPreprocessor] = Nil
 }
 
 trait DefaultModelFactoriesApp extends ComponentsApp {
-  private lazy val defaultModelFactoriesComponent = ComponentRegistry.provide(classOf[DefaultModelFactory[_]], Nil, ()=>defaultModelFactories)
+  private lazy val defaultModelFactoriesComponent = provide(classOf[DefaultModelFactory[_]], Nil, ()=>defaultModelFactories)
   override def components: List[Component] = defaultModelFactoriesComponent :: super.components
   def defaultModelFactories: List[DefaultModelFactory[_]] = Nil
 }
@@ -141,12 +157,12 @@ trait RDBSyncApp extends ComponentsApp with ExternalDBOptionsApp { // may be to 
   lazy val externalDBSyncClient: ExternalDBClient = componentRegistry.resolveSingle(classOf[ExternalDBClient])
 
   def externalDBFactory: ExternalDBFactory
-  private lazy val externalDBFactoryComponent = ComponentRegistry.provide(classOf[ExternalDBFactory],Nil,()=>List(externalDBFactory))
+  private lazy val externalDBFactoryComponent = provide(classOf[ExternalDBFactory],Nil,()=>List(externalDBFactory))
   override def components: List[Component] = externalDBFactoryComponent :: super.components
 }
 trait ExternalDBOptionsApp extends ComponentsApp{
   def externalDBOptions: List[ExternalDBOption] = Nil
-  private lazy val externalDBOptionsComponent = ComponentRegistry.provide(classOf[ExternalDBOptionHolder],Nil,()=>List(new ExternalDBOptionHolder(externalDBOptions)))
+  private lazy val externalDBOptionsComponent = provide(classOf[ExternalDBOption],Nil,()=>externalDBOptions)
   override def components: List[Component] = externalDBOptionsComponent :: super.components
 }
 
