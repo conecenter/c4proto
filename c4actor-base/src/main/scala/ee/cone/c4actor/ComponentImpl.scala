@@ -44,7 +44,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     val directRes: DeferredSeq[Any] = reg.getOrElse(key,EmptyDeferredSeq)
     val factoryKey = toTypeKey(classOf[ComponentFactory[Object]],List(general(key)))
     val factories: DeferredSeq[Object] = reg.getOrElse(factoryKey,EmptyDeferredSeq)
-    logger.debug(s"$key")
+    // logger.debug(s"$key")
     directRes.value ++
       factories.value.flatMap(f=>f.asInstanceOf[ComponentFactory[Object]].forTypes(key.args))
   })

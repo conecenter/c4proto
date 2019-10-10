@@ -54,14 +54,14 @@ import HashSearch.{Request,Response}
 import SomeModelAccess._
 
 @c4assemble("HashSearchTestApp") class HashSearchTestAssembleBase(
-  modelConditionFactory: ModelConditionFactoryHolder,
+  modelConditionFactory: ModelConditionFactory[Unit],
   hashSearchFactory: HashSearchFactoryHolder
 )   {
   def joinReq(
     srcId: SrcId,
     request: Each[D_SomeRequest]
   ): Values[(SrcId,Request[D_SomeModel])] =
-    List(WithPK(hashSearchFactory.value.request(HashSearchTestMain.condition(modelConditionFactory.value,request))))
+    List(WithPK(hashSearchFactory.value.request(HashSearchTestMain.condition(modelConditionFactory,request))))
 
   def joinResp(
     srcId: SrcId,
@@ -98,7 +98,7 @@ object HashSearchTestMain {
 }
 
 @c4("HashSearchTestApp") class HashSearchTestMain(
-  modelConditionFactoryHolder: ModelConditionFactoryHolder,
+  modelConditionFactory: ModelConditionFactory[Unit],
   contextFactory: ContextFactory,
   execution: Execution
 ) extends Executable with LazyLogging {
@@ -126,7 +126,7 @@ object HashSearchTestMain {
 
     val res1 = measure("cond  find models") { () =>
       val lenses = List(fieldA,fieldB,fieldC)
-      val condition = this.condition(modelConditionFactory,request)
+      val condition = HashSearchTestMain.condition(modelConditionFactory,request)
       ByPK(classOf[D_SomeModel]).of(local).values.filter(condition.check)
     }
 
@@ -164,7 +164,7 @@ object HashSearchTestMain {
         D_SomeModel("","1","","3"),
         D_SomeModel("","","2","3")
       )
-    } ask(modelConditionFactoryHolder.value)(pattern)(local)
+    } ask(modelConditionFactory)(pattern)(local)
 
 
 

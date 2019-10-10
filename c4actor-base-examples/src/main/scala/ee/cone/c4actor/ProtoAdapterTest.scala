@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes.LazyOption
-import ee.cone.c4actor.MyProtocolBase.{D_BigDecimalContainer, D_Branch, D_Leaf}
+
 import ee.cone.c4proto.{Id, c4, protocol}
 
 import scala.collection.immutable.Seq
@@ -15,8 +15,8 @@ class ProtoAdapterTest(
   qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, execution: Execution,
   finTest: FinTest
 ) extends Executable with LazyLogging {
+  import ee.cone.c4actor.MyProtocol._
   def simpleTest(): Unit = {
-    import MyProtocol._
     val leader0 = D_Person("leader0", Some(40), isActive = true)
     val worker0 = D_Person("worker0", Some(30), isActive = true)
     val worker1 = D_Person("worker1", Some(20), isActive = false)

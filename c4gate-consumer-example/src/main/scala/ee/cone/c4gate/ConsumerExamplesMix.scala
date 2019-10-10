@@ -3,12 +3,15 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4proto.c4app
 
+
+
 @c4app class DumperAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
   with ExecutableApp with RichDataCompApp
   with RemoteRawSnapshotApp
   with AlienProtocolApp
   with HttpProtocolApp
   with SnapshotLoaderImplApp
+  with LZ4DeCompressorApp
 
 @c4app class KafkaLatTestAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
   with ExecutableApp with RichDataCompApp

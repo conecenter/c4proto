@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.JoinAllTestProtocol.{D_Item, D_RegistryItem}
+import ee.cone.c4actor.JoinAllTestProtocol.{D_AItem, D_RegistryItem}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
@@ -8,7 +8,7 @@ import ee.cone.c4proto.{Id, c4, protocol}
 
 @protocol("JoinAllTestApp") object JoinAllTestProtocolBase   {
   @Id(0x0002) case class D_RegistryItem(@Id(0x0001) srcId: String)
-  @Id(0x0001) case class D_Item(@Id(0x0001) srcId: String)
+  @Id(0x0001) case class D_AItem(@Id(0x0001) srcId: String)
 }
 
 case class JoinAllTestItem(srcId: String)
@@ -22,7 +22,7 @@ case class JoinAllTestItem(srcId: String)
   def join(
     key: SrcId,
     @byEq[AbstractAll](All) regItem: Each[D_RegistryItem],
-    item: Each[D_Item]
+    item: Each[D_AItem]
   ): Values[(SrcId,JoinAllTestItem)] = {
     println(s"recalc: ${item.srcId}-${regItem.srcId}")
     List(WithPK(JoinAllTestItem(s"${item.srcId}-${regItem.srcId}")))
@@ -42,13 +42,13 @@ case class JoinAllTestItem(srcId: String)
         TxAdd(
           LEvent.update(D_RegistryItem("a")) ++
           LEvent.update(D_RegistryItem("b")) ++
-          LEvent.update(D_Item("1")) ++
-          LEvent.update(D_Item("2"))
+          LEvent.update(D_AItem("1")) ++
+          LEvent.update(D_AItem("2"))
         )(l)
       },
       l => {
         println("will be recalc 3-[ab] (2)")
-        TxAdd(LEvent.update(D_Item("3")))(l)
+        TxAdd(LEvent.update(D_AItem("3")))(l)
       },
       l => {
         println("will be recalc [12 123]-[abc] (15)")

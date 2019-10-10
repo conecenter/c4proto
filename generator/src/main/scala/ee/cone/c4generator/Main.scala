@@ -66,6 +66,7 @@ object Main {
       if(links.isEmpty) Nil else {
         val Seq(pkg) = links.map(_.pkg).distinct
         val content =
+          s"\n// THIS FILE IS GENERATED; C4APPS: ${links.filter(_.expr=="CLASS").map(l=>s"$pkg.${l.app}").mkString(" ")}" +
           s"\npackage $pkg" +
           links.groupBy(_.app).toList.map{ case (app,links) =>
             val(classLinks,exprLinks) = links.partition(_.expr=="CLASS")

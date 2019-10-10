@@ -36,6 +36,10 @@ my $put_text = sub{
 my $need_tmp = sub{ -e $_ or mkdir $_ or die for "tmp" };
 
 my @tasks;
+my $main = sub{
+    my($cmd,@args)=@_;
+    ($cmd||'') eq $$_[0] and $$_[1]->(@args) for @tasks;
+};
 
 push @tasks, ["setup_sbt", sub{
     &$need_tmp();
@@ -60,18 +64,6 @@ push @tasks, ["setup_kafka", sub{
         sy("cd tmp && curl -LO http://www-eu.apache.org/dist/kafka/$kafka_version/$kafka.tgz");
         sy("cd tmp && tar -xzf $kafka.tgz")
     }
-}];
-
-
-push @tasks, ["es_examples", sub{
-    sy("C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ProtoAdapterTestApp cd $gen_dir && sbt 'c4actor-base-examples/runMain ee.cone.c4actor.ServerMain' ");
-    #sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ProtoAdapterTest' ");
-    sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.AssemblerTest' ");
-    sy("C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain' ");
-
-}];
-push @tasks, ["not_effective_join_bench", sub{
-    sy("cd $gen_dir && sbt 'c4actor-base-examples/run-main ee.cone.c4actor.NotEffectiveAssemblerTest' ");
 }];
 
 my $inbox_configure = sub{
@@ -182,7 +174,7 @@ push @tasks, ["gate_publish", sub{
     my($env,%env) = &$get_env();
     my $build_dir = &$client(0);
     $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
-    sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT=1 ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
+    sy("$env ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
     my($env,%env) = &$get_env();
@@ -192,7 +184,7 @@ push @tasks, ["gate_server_run", sub{
     sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-akka","ee.cone.c4gate.AkkaGatewayApp"));
 }];
 push @tasks, ["env", sub{
-    my ($cmd,@exec) = @ARGV;
+    my @exec = @_;
     my($env,%env) = &$get_env();
     $ENV{$_} = $env{$_} for keys %env;
     $ENV{C4STATE_TOPIC_PREFIX} || die "no actor name";
@@ -202,21 +194,31 @@ push @tasks, ["env", sub{
 
 }];
 
-#push @tasks, ["snapshot_maker_run", sub{
-#    sy("$env ".staged("c4gate-server","ee.cone.c4gate.SnapshotMakerApp"));
-#}];
+
 
 push @tasks, ["test", sub{
-    my ($arg_a,$arg_b) = @_;
-    my($env,%env) = &$get_env();
-    sy("$env ".staged(($ARGV[1]||die),($ARGV[2]||die)));
+    my @arg = @_;
+    if(@arg==0){
+        print map{"\t$0 test $_\n"} map{
+            my $src_dir = $_;
+            my @src_files = `find $src_dir`=~/(\S+\/c4gen\.scala)\b/g;
+            map{/(\S+)/g} map{`cat $_`=~/C4APPS:([^\n]+)/?"$1":die} @src_files;
+        } grep{-e $_} map{"$_/src"} grep{/example/} <$gen_dir/*>;
+    } elsif(@arg==1) {
+        my($env,%env) = &$get_env();
+        sy("$env ".staged("c4all-examples",$arg[0]));
+    } else { die }
 }];
 
-push @tasks, ["test_post_get_tcp_service_run", sub{
-    my($env,%env) = &$get_env();
-    sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestConsumerApp"))
+push @tasks, ["test_client",sub{
+    my @arg = @_;
+    if(@arg==0){
+        print map{$$_[0]=~/^test_client\s/ ? "\t$0 $$_[0]\n":()} @tasks;
+    } elsif(@arg==1){
+        &$main("test_client $arg[0]")
+    } else { die }
 }];
-push @tasks, ["test_post_get_check", sub{
+push @tasks, ["test_client ee.cone.c4gate.TestConsumerApp", sub{
     my $v = int(rand()*10);
     sy("$curl_test -X POST -d $v");
     sleep 1;
@@ -225,61 +227,33 @@ push @tasks, ["test_post_get_check", sub{
     sy("$curl_test -v");
     print " -- should be posted * 3\n";
 }];
-#push @tasks, ["test_tcp_check", sub{
-#    sy("nc 127.0.0.1 $sse_port");
-#}];
-push @tasks, ["test_actor_serial_service_run", sub{
-    my($env,%env) = &$get_env();
-    sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestSerialApp"))
-}];
-push @tasks, ["test_actor_parallel_service_run", sub{
-    my($env,%env) = &$get_env();
-    sy("$env ".staged("c4gate-consumer-example","ee.cone.c4gate.TestParallelApp"))
-}];
-push @tasks, ["test_actor_check", sub{
+push @tasks, ["test_client ee.cone.c4gate.TestParallelApp", sub{
     sy("$curl_test -X POST") for 0..11;
 }];
-push @tasks, ["test_big_message_check", sub{
+push @tasks, ["test_client post_big_message", sub{
     &$need_tmp();
     sy("dd if=/dev/zero of=tmp/test.bin bs=1M count=4 && $curl_test -v -XPOST -T tmp/test.bin")
 }];
 
-
-push @tasks, ["test_ui_timer_service_run", sub{ # http://localhost:8067/sse.html#
-    my($env,%env) = &$get_env();
-    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestSSEApp"))
-}];
-push @tasks, ["test_ui_todo_service_run", sub{
-    my($env,%env) = &$get_env();
-    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestTodoApp"))
-}];
-push @tasks, ["test_ui_cowork_service_run", sub{
-    my($env,%env) = &$get_env();
-    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestCoWorkApp"))
-}];
-push @tasks, ["test_ui_canvas_service_run", sub{
-    my($env,%env) = &$get_env();
-    sy("$env C4PUBLISH_DIR=$build_dir C4PUBLISH_THEN_EXIT='' ".staged("c4gate-sse-example","ee.cone.c4gate.TestCanvasApp"))
-}];
-push @tasks, ["test_ui_password_service_run", sub{
-    my($env,%env) = &$get_env();
-    sy("$env ".staged("c4gate-sse-example","ee.cone.c4gate.TestPasswordApp"))
-}];
-
-if($ARGV[0]) {
-    $ARGV[0] eq $$_[0] and $$_[1]->() for @tasks;
-} else {
+push @tasks,["",sub{
     print "usage:\n";
-    print "\t$0 $$_[0]\n" for @tasks;
-}
+        $$_[0] && $$_[0]!~/\s/ and print "\t$0 $$_[0]\n" for @tasks;
+}];
+
+&$main(@ARGV);
+
+
+
 #export PATH=$HOME/tools/jdk/bin:$HOME/tools/sbt/bin:$PATH
 #sbt show compile:dependencyClasspath
 #... ScalaCheck, Specs2, and ScalaTest
 
+# http://localhost:8067/sse.html#
 #http://localhost:8067/react-app.html#todo
 #http://localhost:8067/react-app.html#rectangle
 #http://localhost:8067/react-app.html#leader
 
+# TestCanvasApp C4PUBLISH_DIR=$build_dir need?
 
 #tmp/kafka_2.11-0.10.1.0/bin/kafka-topics.sh --zookeeper 127.0.0.1:8081 --list
 
@@ -291,22 +265,25 @@ if($ARGV[0]) {
 #tar cvf - db4 | lz4 - db.tar.lz4
 #lz4 -d db.tar.lz4 | tar xf -
 
+#push @tasks, ["test_tcp_check", sub{
+#    sy("nc 127.0.0.1 $sse_port");
+#}];
 
-=topic integrity
-use strict;
-use JSON::XS;
-my $e = JSON::XS->new;
-my $n = 0;
-my $c = 0;
-while(<>){
-  /records_consumed/ or next;
-  my $j = $e->decode($_);
-  $$j{name} eq "records_consumed" or next;
-  my($count,$min,$max) = @{$$j{partitions}[0]}{qw(count minOffset maxOffset)};
-  $count-1 == $max-$min or die $_;
-  $n == $min or die $_;
-  $n = $max + 1;
-  $c += $count;
-}
-print "count:$c\n";
-=cut
+#topic integrity:
+#use strict;
+#use JSON::XS;
+#my $e = JSON::XS->new;
+#my $n = 0;
+#my $c = 0;
+#while(<>){
+#  /records_consumed/ or next;
+#  my $j = $e->decode($_);
+#  $$j{name} eq "records_consumed" or next;
+#  my($count,$min,$max) = @{$$j{partitions}[0]}{qw(count minOffset maxOffset)};
+#  $count-1 == $max-$min or die $_;
+#  $n == $min or die $_;
+#  $n = $max + 1;
+#  $c += $count;
+#}
+#print "count:$c\n";
+

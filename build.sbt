@@ -40,44 +40,35 @@ lazy val `c4actor-branch` = project.settings(publishSettings).dependsOn(`c4actor
 lazy val `c4actor-rdb` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-sse-example` = project.settings(publishSettings).dependsOn(`c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
 lazy val `c4vdom-base` = project.settings(publishSettings)
-lazy val `c4vdom-canvas` = project.settings(publishSettings).dependsOn(`c4vdom-base`)
+lazy val `c4vdom-canvas` = project.settings(publishSettings).dependsOn(`c4vdom-base`) //seems examples only
 lazy val `c4ui-main` = project.settings(publishSettings).dependsOn(`c4actor-branch`, `c4vdom-base`, `c4gate-client`)
 lazy val `c4ui-extra` = project.settings(publishSettings).dependsOn(`c4ui-main`, `c4actor-extra`, `c4gate-extra`)
 lazy val `c4gate-client` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-logback-static` = project.settings(publishSettings)
 lazy val `c4gate-logback` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-repl` = project.settings(publishSettings).dependsOn(`c4actor-base`)
+
 //lazy val `c4gate-sun` = project.settings(publishSettings).dependsOn(`c4gate-server`)
 //lazy val `c4gate-finagle` = project.settings(publishSettings).dependsOn(`c4gate-server`, `c4gate-sun`)
 lazy val `c4gate-akka` = project.settings(publishSettings).dependsOn(`c4gate-server`)
-
-lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
-  `c4actor-base`,
+lazy val `c4all-examples` = project.settings(publishSettings).dependsOn(
   `c4actor-base-examples`,
-  `c4actor-branch`,
-  `c4actor-kafka`,
-  `c4actor-rdb`,
-  `c4assemble-runtime`,
   `c4gate-consumer-example`,
   `c4gate-server-example`,
-  `c4gate-client`,
+  `c4gate-sse-example`
+)
+
+lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
+  `c4gate-akka`,
+  // opt lib:
+  `c4actor-rdb`,
   `c4gate-logback-static`,
-  `c4gate-logback`,
-  `c4gate-server`,
-  `c4gate-sse-example`,
   `c4gate-repl`,
-  `c4proto-api`,
-  `c4proto-di`,
-  `c4vdom-base`,
-  `c4vdom-canvas`,
-  `c4actor-extra`,
-  `c4gate-extra`,
-  `c4actor-extra-examples`,
   `c4ui-main`,
   `c4ui-extra`,
-  //`c4gate-sun`,
-  //`c4gate-finagle`,
-  `c4gate-akka`
+  //
+  `c4actor-extra-examples`,
+  `c4all-examples`
 )
 
 

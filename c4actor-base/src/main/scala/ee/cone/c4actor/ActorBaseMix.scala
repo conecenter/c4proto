@@ -26,7 +26,7 @@ trait SnapshotLoaderFactoryImplAppBase
 trait SnapshotLoaderImplAppBase
 trait SnapshotUtilImplAppBase
 trait TaskSignerAppBase
-trait TestVMRichDataCompAppBase extends RichDataCompApp with VMExecutionApp
+trait TestVMRichDataCompAppBase extends RichDataCompApp with VMExecutionApp with EnvConfigCompApp
 
 trait VMExecutionAppBase extends AbstractComponents {
   lazy val componentRegistry = ComponentRegistry(this)
