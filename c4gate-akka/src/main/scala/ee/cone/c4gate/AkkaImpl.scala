@@ -4,10 +4,9 @@ package ee.cone.c4gate
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers.RawHeader
-import akka.http.scaladsl.model.{ContentType, ContentTypes, HttpEntity, HttpRequest, HttpResponse}
-import akka.http.scaladsl.settings.ServerSettings
-import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
+import akka.http.scaladsl.model._
 import akka.stream.scaladsl.{Keep, Sink, Source}
+import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
@@ -35,7 +34,7 @@ class AkkaHttpServer(
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
     for {
-      entity ← req.entity.toStrict(Duration(5,MINUTES))(mat)
+      entity ← req.entity.withoutSizeLimit.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp ← handler.handle(rReq)
@@ -60,7 +59,6 @@ class AkkaHttpServer(
         handler = handler,
         interface = "localhost",
         port = port,
-        settings = ServerSettings("akka.http.server.request-timeout = 60 s")
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
       )(mat)
     } yield binding
