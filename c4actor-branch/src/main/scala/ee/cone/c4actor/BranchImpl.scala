@@ -171,7 +171,7 @@ case class BranchTxTransform(
     seed.hash -> BranchRel(s"${seed.hash}/$parentSrcId",seed,parentSrcId,parentIsSession)
 }
 
-@c4assemble("BranchApp") class BranchAssembleBase(registry: QAdapterRegistry, operations: BranchOperations)   {
+@c4assemble("BranchApp") class BranchAssembleBase(registry: QAdapterRegistry, operations: BranchOperations) extends LazyLogging {
   def mapBranchSeedsByChild(
     key: SrcId,
     branchResult: Each[S_BranchResult]

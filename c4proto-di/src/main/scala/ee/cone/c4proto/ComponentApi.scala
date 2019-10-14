@@ -30,7 +30,7 @@ abstract class Main(app: ExecutableApp){
   def main(args: Array[String]): Unit = app.execution.run()
 }
 
-trait ExecutableApp {
+t rait ExecutableApp {
   def execution: Runnable // we need this while we have componentRegistry.resolve to avoid 2 componentRegistry-s
 }*/
 /* target (w/o resolve):

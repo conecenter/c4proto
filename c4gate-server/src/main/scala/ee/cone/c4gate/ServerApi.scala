@@ -46,8 +46,10 @@ trait RHttpResponseFactory {
   def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse
 }
 
+class TxRes[R](val value: R, val next: WorldProvider)
 trait WorldProvider {
-  def sync(local: Option[Context])(implicit executionContext: ExecutionContext): Future[Context]
+  def tx[R](f: Context=>(List[LEvent[Product]],R))(implicit executionContext: ExecutionContext): Future[TxRes[R]]
+  //def sync(local: Option[Context])(implicit executionContext: ExecutionContext): Future[Context]
 }
 
 trait StatefulReceiverFactory {

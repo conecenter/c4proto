@@ -22,12 +22,13 @@ trait DepResponseFiltersApp extends ComponentsApp {
 }
 
 trait DepAssembleApp extends DepAssembleCompApp {
-  def componentRegistry: ComponentRegistry
+  import ComponentProvider._
+  implicit def componentRegistry: ComponentRegistry
   //
-  lazy val depFactory: DepFactory = componentRegistry.resolveSingle(classOf[DepFactory])
-  lazy val depAskFactory: DepAskFactory = componentRegistry.resolveSingle(classOf[DepAskFactory])
-  lazy val depResponseFactory: DepResponseFactory = componentRegistry.resolveSingle(classOf[DepResponseFactory])
-  lazy val depRequestFactory: DepRequestFactory = componentRegistry.resolveSingle(classOf[DepRequestFactory])
+  lazy val depFactory: DepFactory = resolveSingle(classOf[DepFactory])
+  lazy val depAskFactory: DepAskFactory = resolveSingle(classOf[DepAskFactory])
+  lazy val depResponseFactory: DepResponseFactory = resolveSingle(classOf[DepResponseFactory])
+  lazy val depRequestFactory: DepRequestFactory = resolveSingle(classOf[DepRequestFactory])
 }
 
 ///

@@ -56,8 +56,7 @@ object ToExternalDBTypes {
 }
 
 @c4("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
-  @provide def subAssembles: Seq[Assemble] =
-    new ToExternalDBTxAssemble :: options.collect{ case o: ToDBOption => o.assemble }
+  @provide def subAssembles: Seq[Assemble] = options.collect{ case o: ToDBOption => o.assemble }
 }
 
 object ToExternalDBAssembleTypes {
@@ -92,7 +91,7 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@assemble class ToExternalDBTxAssembleBase extends   LazyLogging{
+@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase extends   LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,

@@ -33,6 +33,7 @@ trait PongRegistry {
 class PongHandler(sseConfig: SSEConfig, pongRegistry: PongRegistry, httpResponseFactory: RHttpResponseFactory, next: RHttpHandler) extends RHttpHandler with LazyLogging {
   def handle(request: S_HttpRequest, local: Context): RHttpResponse =
     if(request.method == "POST" && request.path == sseConfig.pongURL) {
+      val end = NanoTimer()
       val headers = request.headers.groupBy(_.key).map{ case(k,v) => k->Single(v).value }
       val now = Instant.now
       val sessionKey = headers("x-r-session")
@@ -57,6 +58,7 @@ class PongHandler(sseConfig: SSEConfig, pongRegistry: PongRegistry, httpResponse
       pongRegistry.pongs(session.sessionKey) = now.plusSeconds(5)
       val wasSession = ByPK(classOf[U_FromAlienState]).of(local).get(session.sessionKey)
       val wasStatus = ByPK(classOf[U_FromAlienStatus]).of(local).get(status.sessionKey)
+      logger.debug(s"pong time: ${end.ms}")
       httpResponseFactory.directResponse(request,a=>a).copy(events=
         (if(wasSession != Option(session)) LEvent.update(session) else List.empty[LEvent[Product]]).toList :::
           (if(wasStatus != Option(status)) LEvent.update(status) else List.empty[LEvent[Product]]).toList
@@ -131,10 +133,10 @@ case class SessionTxTransform( //?todo session/pongs purge
 
 @c4("SSEServerApp") class SSEAssembles(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] =
-    new SSEAssemble :: mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
+    mortal(classOf[U_FromAlienStatus]) :: mortal(classOf[U_ToAlienWrite]) :: Nil
 }
 
-@assemble class SSEAssembleBase   {
+@c4assemble("SSEServerApp") class SSEAssembleBase   {
   type SessionKey = SrcId
 
   def joinToAlienWrite(

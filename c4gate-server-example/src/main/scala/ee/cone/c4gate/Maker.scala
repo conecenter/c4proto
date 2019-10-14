@@ -14,10 +14,11 @@ import ee.cone.c4proto.c4
   def run(): Unit = {
     val snapshotInfo :: _ = snapshotLister.list
     val Some(event) = snapshotLoader.load(snapshotInfo.raw)
+    assert(event.headers.isEmpty)
     rawQSender.send(List(new QRecord {
       def topic: TopicName = InboxTopicName()
       def value: Array[Byte] = event.data.toByteArray
-      def headers: scala.collection.immutable.Seq[RawHeader] = Nil
+      def headers: scala.collection.immutable.Seq[RawHeader] = event.headers
     }))
     execution.complete()
   }

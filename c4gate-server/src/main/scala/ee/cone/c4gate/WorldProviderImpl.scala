@@ -2,34 +2,53 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor.Types.NextOffset
 import ee.cone.c4actor._
-import ee.cone.c4proto.c4
+import ee.cone.c4proto.{c4, provide}
 
 import scala.collection.immutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 
-@c4("WorldProviderApp") class WorldProviderInitialObserverProvider(
-  worldProvider: WorldProviderImpl
-) extends InitialObserverProvider(Option(worldProvider))
-
-@c4("WorldProviderApp") class WorldProviderImpl(qMessages: QMessages, execution: Execution, statefulReceiverFactory: StatefulReceiverFactory)(
-  receiverPromise: Promise[StatefulReceiver[WorldMessage]] = Promise()
-) extends WorldProvider with Observer[RichContext] with Executable {
-  def sync(localOpt: Option[Context])(implicit executionContext: ExecutionContext): Future[Context] = {
-    val offsetOpt = localOpt.map(local => ReadAfterWriteOffsetKey.of(qMessages.send(local)))
+class WorldProviderImpl(
+  qMessages: QMessages,
+  receiverF: Future[StatefulReceiver[WorldMessage]],
+  offsetOpt: Option[NextOffset]
+) extends WorldProvider {
+  def tx[R](f: Context=>(List[LEvent[Product]],R))(implicit executionContext: ExecutionContext): Future[TxRes[R]] = {
     val promise = Promise[Context]()
     for {
-      receiver <- receiverPromise.future
-      res <- {
+      receiver <- receiverF
+      local <- {
         receiver.send(new WorldConsumerMessage(promise,offsetOpt))
         promise.future
       }
-    } yield res
+    } yield {
+      val (events,res) = f(local)
+      val nLocal = TxAdd(events)(local)
+      val offset = ReadAfterWriteOffsetKey.of(qMessages.send(nLocal))
+      new TxRes(res,new WorldProviderImpl(qMessages,receiverF,Option(offset)))
+    }
   }
-  def activate(world: RichContext): immutable.Seq[Observer[RichContext]] = {
-    Await.result(receiverPromise.future, Duration.Inf).send(new WorldProviderMessage(world))
+}
+// todo: fix? if TxAdd had done nothing offset will be minimal,
+//  but promise does not resolve instantly;
+// ex. pong can take 200ms until the next WorldProviderMessage
+
+class WorldObserver(receiverF: Future[StatefulReceiver[WorldMessage]]) extends Observer[RichContext] {
+  def activate(world: RichContext): Seq[Observer[RichContext]] = {
+    Await.result(receiverF, Duration.Inf).send(new WorldProviderMessage(world))
     List(this)
   }
+}
+
+@c4("WorldProviderApp") class WorldProviderProviderImpl(qMessages: QMessages,
+  execution: Execution, statefulReceiverFactory: StatefulReceiverFactory
+)(
+  receiverPromise: Promise[StatefulReceiver[WorldMessage]] = Promise()
+) extends Executable {
+  @provide def getWorldProvider: Seq[WorldProvider] =
+    List(new WorldProviderImpl(qMessages,receiverPromise.future,None))
+  @provide def getInitialObserverProvider: Seq[InitialObserverProvider] =
+    List(new InitialObserverProvider(Option(new WorldObserver(receiverPromise.future))))
   def run(): Unit = execution.fatal { implicit ec =>
     val receiverF = statefulReceiverFactory.create(List(new WorldProviderReceiverImpl(None,Nil)))
     receiverPromise.completeWith(receiverF)

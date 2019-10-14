@@ -30,7 +30,7 @@ case class EachTestItem(item: D_Item, valueItem: D_Item)
   }
 }
 
-@assemble class EachTestNotEffectiveAssembleBase   {
+@c4assemble("EachTestApp") class EachTestNotEffectiveAssembleBase   {
   type ByParent = SrcId
   def joinByVal(
     key: SrcId,

@@ -28,11 +28,10 @@ import okio.ByteString
 }
 
 @c4("SessionAttrApp") class  SessionDataAssemblesBase(mortal: MortalFactory) {
-  @provide def subAssembles: Seq[Assemble] =
-    mortal(classOf[U_RawSessionData]) :: new SessionDataAssemble :: Nil
+  @provide def subAssembles: Seq[Assemble] = List(mortal(classOf[U_RawSessionData]))
 }
 
-@assemble class SessionDataAssembleBase   {
+@c4assemble("SessionAttrApp") class SessionDataAssembleBase {
   type SessionKey = SrcId
 
   def joinBySessionKey(

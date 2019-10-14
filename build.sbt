@@ -50,7 +50,7 @@ lazy val `c4gate-repl` = project.settings(publishSettings).dependsOn(`c4actor-ba
 
 //lazy val `c4gate-sun` = project.settings(publishSettings).dependsOn(`c4gate-server`)
 //lazy val `c4gate-finagle` = project.settings(publishSettings).dependsOn(`c4gate-server`, `c4gate-sun`)
-lazy val `c4gate-akka` = project.settings(publishSettings).dependsOn(`c4gate-server`)
+lazy val `c4gate-akka` = project.settings(publishSettings).dependsOn(`c4gate-server`, `c4gate-repl`)
 lazy val `c4all-examples` = project.settings(publishSettings).dependsOn(
   `c4actor-base-examples`,
   `c4gate-consumer-example`,

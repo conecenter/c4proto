@@ -111,7 +111,7 @@ trait Reduction[W] {
 trait Keys[V]
 */
 
-trait Lens[From,To] {
+t rait Lens[From,To] {
   def get(from: From): Option[To]
   def set(from: From, to: Option[To]): From
 }
@@ -122,7 +122,7 @@ trait Index[K,V] {
 trait Join[T1,T2,R] {
   def join(a1: Values[T1], a2: Values[T2]): Values[R]
 }
-trait IndexFactory {
+t rait IndexFactory {
   def createJoinMapIndex[T1, T2, R](implicit
     rejoin: Join[T1, T2, R], index1: Index[SrcId, T1], index2: Index[SrcId, T2]
   ): Index[SrcId, R]

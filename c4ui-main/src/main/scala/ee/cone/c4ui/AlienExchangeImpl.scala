@@ -8,7 +8,7 @@ import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble}
+import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
 import ee.cone.c4gate.AlienProtocol.{U_FromAlienState, U_ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 import ee.cone.c4gate.LocalHttpConsumer
@@ -44,7 +44,7 @@ case class MessageFromAlienImpl(
   def deletes: Seq[LEvent[Product]] = delete(request)
 }
 
-@assemble class MessageFromAlienAssembleBase   {
+@c4assemble("AlienExchangeApp") class MessageFromAlienAssembleBase   {
   def mapHttpReqByBranch(
     key: SrcId,
     req: Each[S_HttpRequest]
@@ -65,7 +65,7 @@ case class MessageFromAlienImpl(
 
 }
 
-@assemble class FromAlienBranchAssembleBase(operations: BranchOperations)   {
+@c4assemble("AlienExchangeApp") class FromAlienBranchAssembleBase(operations: BranchOperations)   {
   // more rich session may be joined
   def fromAliensToSeeds(
     key: SrcId,

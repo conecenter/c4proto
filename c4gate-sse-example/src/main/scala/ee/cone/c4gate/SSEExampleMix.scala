@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{BasicLoggingApp, BranchApp, EnvConfigCompApp, KafkaConsumerApp, KafkaProducerApp, ManagementApp, MergingSnapshotApp, ModelAccessFactoryApp, MortalFactoryCompApp, NoAssembleProfilerApp, ParallelObserversApp, RemoteRawSnapshotApp, ServerCompApp, SimpleAssembleProfilerApp, VMExecutionApp}
+import ee.cone.c4actor._
 import ee.cone.c4proto.c4app
 import ee.cone.c4ui.{AccessViewApp, AlienExchangeApp, PublicViewAssembleApp, UIApp}
 

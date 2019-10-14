@@ -19,12 +19,12 @@ import ee.cone.c4ui.FromAlienTaskAssemble
     new FromAlienTaskAssemble("/sse.html") :: Nil
 }
 
-@c4assemble("TestSSEApp") class TestSSEAssembleBase   {
+@c4assemble("TestSSEApp") class TestSSEAssembleBase extends LazyLogging {
   def joinView(
     key: SrcId,
     task: Each[BranchTask]
   ): Values[(SrcId,BranchHandler)] = {
-    //println(s"joinView ${tasks}")
+    logger.info(s"joinView ${task}")
     List(WithPK(TestSSEHandler(task.branchKey, task)))
   }
 }

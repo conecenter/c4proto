@@ -1,12 +1,12 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.GzipFullCompressor
+import ee.cone.c4actor.{GzipFullCompressor, SyncTxFactoryImplApp}
 import ee.cone.c4proto.c4
 
 trait FilterPredicateBuilderAppBase
 
 trait ActorAccessAppBase
-trait ManagementAppBase extends ActorAccessApp with PrometheusApp
+trait ManagementAppBase extends ActorAccessApp with PrometheusApp with SyncTxFactoryImplApp
 trait PrometheusAppBase extends DefPublishFullCompressorApp
 
 trait AvailabilityAppBase

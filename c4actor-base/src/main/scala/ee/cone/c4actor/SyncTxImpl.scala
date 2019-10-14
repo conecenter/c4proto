@@ -7,7 +7,7 @@ import ee.cone.c4assemble.{Assemble, Single, assemble, by}
 import ee.cone.c4proto.c4
 
 //todo RDBImpl
-@c4("ManagementApp") class SyncTxFactoryImpl extends SyncTxFactory {
+@c4("SyncTxFactoryImplApp") class SyncTxFactoryImpl extends SyncTxFactory {
   def create[D_Item<:Product](
     classOfItem: Class[D_Item],
     filter: D_Item=>Boolean,

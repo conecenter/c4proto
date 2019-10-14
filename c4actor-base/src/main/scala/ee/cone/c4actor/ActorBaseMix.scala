@@ -9,7 +9,6 @@ trait BigDecimalAppBase
 trait ConfigSimpleSignerAppBase
 trait EnvConfigCompAppBase
 trait GzipRawCompressorAppBase
-trait ManagementAppBase
 trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp
 trait ModelAccessFactoryAppBase
 trait MortalFactoryCompAppBase
@@ -17,7 +16,7 @@ trait NoAssembleProfilerAppBase
 trait NoObserversAppBase
 trait ParallelObserversAppBase
 trait ProtoAppBase
-trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp
+trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp //?SnapshotUtilImplApp
 trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp
 trait SerialObserversAppBase
 trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp
@@ -25,8 +24,11 @@ trait SimpleAssembleProfilerAppBase
 trait SnapshotLoaderFactoryImplAppBase
 trait SnapshotLoaderImplAppBase
 trait SnapshotUtilImplAppBase
+trait SyncTxFactoryImplAppBase
 trait TaskSignerAppBase
 trait TestVMRichDataCompAppBase extends RichDataCompApp with VMExecutionApp with EnvConfigCompApp
+
+
 
 trait VMExecutionAppBase extends AbstractComponents {
   lazy val componentRegistry = ComponentRegistry(this)

@@ -150,14 +150,13 @@ class SelfDosProtectionHttpHandler(httpResponseFactory: RHttpResponseFactory, ss
 }
 
 @c4("SSEServerApp") class HttpReqAssemblesBase(mortal: MortalFactory, sseConfig: SSEConfig) {
-  @provide def subAssembles: Seq[Assemble] =
-    mortal(classOf[S_HttpRequest]) :: new PostLifeAssemble() :: Nil
+  @provide def subAssembles: Seq[Assemble] = List(mortal(classOf[S_HttpRequest]))
 }
 
 case class HttpRequestCount(sessionKey: SrcId, count: Long)
 case class LocalHttpConsumerExists(condition: String)
 
-@assemble class PostLifeAssembleBase()   {
+@c4assemble("SSEServerApp") class PostLifeAssembleBase()   {
   type ASessionKey = SrcId
   type Condition = SrcId
 
@@ -219,15 +218,12 @@ class FHttpHandlerImpl(
 ) extends FHttpHandler with LazyLogging {
   def handle(request: FHttpRequest)(implicit executionContext: ExecutionContext): Future[S_HttpResponse] = {
     val now = System.currentTimeMillis
-    val res = for{
-      local <- worldProvider.sync(None)
-      headers = normalize(request.headers)
-      requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, headers, request.body, now)
-      result = handler.handle(requestEv,local)
-      uLocal = TxAdd(result.events)(local)
-      cLocal <- worldProvider.sync(Option(uLocal))
-      response <- result.instantResponse.fold{new WaitFor(requestEv).iteration(cLocal)}(Future.successful)
-    } yield response.copy(headers = normalize(response.headers))
+    val headers = normalize(request.headers)
+    val requestEv = S_HttpRequest(UUID.randomUUID.toString, request.method, request.path, headers, request.body, now)
+    val res = worldProvider.tx{ local =>
+      val result = handler.handle(requestEv,local)
+      (result.events,result.instantResponse)
+    }.flatMap(new WaitFor(requestEv).iteration)
     for(e <- res.failed) logger.error("http handling error",e)
     res
   }
@@ -238,14 +234,19 @@ class FHttpHandlerImpl(
     requestByPK: ByPrimaryKeyGetter[S_HttpRequest] = ByPK(classOf[S_HttpRequest]),
     responseByPK: ByPrimaryKeyGetter[S_HttpResponse] = ByPK(classOf[S_HttpResponse])
   )(implicit executionContext: ExecutionContext) {
-    def iteration(local: Context): Future[S_HttpResponse] = if(requestByPK.of(local).get(request.srcId).nonEmpty){
-      worldProvider.sync(Option(local)).flatMap(iteration)
-    } else {
-      val responseOpt = responseByPK.of(local).get(request.srcId)
-      val response = responseOpt.orElse(httpResponseFactory.directResponse(request,a=>a).instantResponse).get
-      val events = responseOpt.toList.flatMap(LEvent.delete)
-      val uLocal = TxAdd(events)(local)
-      for { _ <- worldProvider.sync(Option(uLocal)) } yield response
-    }
+    def iteration(txRes: TxRes[Option[S_HttpResponse]]): Future[S_HttpResponse] =
+      txRes.value.fold(
+        worldProvider.tx{ local =>
+          if(requestByPK.of(local).get(request.srcId).nonEmpty) (Nil,None)
+          else {
+            val responseOpt = responseByPK.of(local).get(request.srcId)
+            val response = responseOpt.orElse(httpResponseFactory.directResponse(request,a=>a).instantResponse).get
+            val events = responseOpt.toList.flatMap(LEvent.delete)
+            (events,Option(response))
+          }
+        }.flatMap(iteration)
+      )(response =>
+        Future.successful(response.copy(headers = normalize(response.headers)))
+      )
   }
 }

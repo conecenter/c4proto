@@ -10,6 +10,7 @@ my $temp = "target";
 sub so{ print join(" ",@_),"\n"; system @_ }
 sub sy{ &so and die $? }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
+sub syl{ for(@_){ print "$_\n"; my @r = `$_`; $? && die $?; return @r } }
 
 sub lazy(&){ my($calc)=@_; my $res; sub{ ($res||=[scalar &$calc()])->[0] } }
 
@@ -77,8 +78,19 @@ my $build_some_server = sub{
 
 push @tasks, ["### build ###"];
 push @tasks, ["build_all", sub{
-    &$sy_in_dir(&$abs_path(),"sbt clean");
-    &$sy_in_dir(&$abs_path("generator"),"sbt clean");
+    my $dir = &$pwd();
+    my @found = syl("find $dir");
+    for(reverse sort @found){
+        my $path = /^(.+)\n$/ ? $1 : die "[$_]";
+        my $pre = m{(.+)/target/} ? $1 : next;
+        if(-e "$pre/build.sbt" or -e "$pre/../build.sbt" or -e "$pre/../../build.sbt"){
+            unlink $path or rmdir $path or warn "can not clear '$path'";
+        } else {
+            warn "do we need to clear '$path'?";
+        }
+    }
+    #&$sy_in_dir(&$abs_path(),"sbt clean");
+    #&$sy_in_dir(&$abs_path("generator"),"sbt clean");
     &$build_some_server();
 }];
 push @tasks, ["build_some_server", sub{

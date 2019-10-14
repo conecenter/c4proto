@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{BasicLoggingApp, Config, ConfigSimpleSignerApp, EnvConfigCompApp, Executable, GzipStreamCompressorFactory, Injectable, KafkaConsumerApp, KafkaProducerApp, LZ4RawCompressorApp, ManagementApp, MortalFactoryCompApp, NoAssembleProfilerApp, NoObserversApp, ParallelObserversApp, RawSnapshotSaver, RemoteRawSnapshotApp, ServerCompApp, SnapshotLoader, SnapshotLoaderFactoryImplApp, SnapshotSaverImpl, SnapshotUtilImplApp, TaskSignerApp, ToInject, VMExecutionApp}
+import ee.cone.c4actor._
 import ee.cone.c4proto.{c4, c4app, provide}
 
 @c4app class PublishAppBase extends ServerCompApp
