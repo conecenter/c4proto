@@ -31,9 +31,8 @@ import scala.collection.immutable
 
 }
 
-trait Adapters extends ProtocolsApp with QAdapterRegistryApp with BaseApp with ProtoAutoApp {
-  lazy val qAdapterRegistry: QAdapterRegistry =
-    componentRegistry.resolveSingle(classOf[QAdapterRegistry])
+class ProtoBuffTestAppBase extends VMExecutionApp with ProtocolsApp with QAdapterRegistryApp with BaseApp with ComponentProviderApp {
+  lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
   override def protocols: List[Protocol] = ProtoBuffTestProtocol :: AnyOrigProtocol :: QProtocol :: super.protocols
 }
 
@@ -42,8 +41,10 @@ trait Adapters extends ProtocolsApp with QAdapterRegistryApp with BaseApp with P
 This code proves that there is a problem with okio: SegmentPool.java blocks concurrent execution
  */
 
-object ProtoBuffTest extends Adapters {
-  def main(args: Array[String]): Unit = {
+@c4("ProtoBuffTestApp") class ProtoBuffTest(
+  qAdapterRegistry: QAdapterRegistry
+) extends Executable {
+  def run(): Unit = {
     println(ManagementFactory.getRuntimeMXBean.getName)
     Thread.sleep(10000)
     /*val tasks: Seq[Future[Int]] = for (i <- 1 to 10) yield Future {

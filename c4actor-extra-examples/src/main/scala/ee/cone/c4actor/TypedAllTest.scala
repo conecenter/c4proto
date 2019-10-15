@@ -183,5 +183,5 @@ class TypedAllTestApp extends TestVMRichDataApp
       super.assembles
   }
 
-  lazy val assembleProfiler = NoAssembleProfiler() //ValueAssembleProfiler2
+  lazy val assembleProfiler = NoAssembleProfiler //ValueAssembleProfiler2
 }

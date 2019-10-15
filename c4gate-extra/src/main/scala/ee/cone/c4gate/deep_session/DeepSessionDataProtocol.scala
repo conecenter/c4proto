@@ -1,10 +1,9 @@
 package ee.cone.c4gate.deep_session
 
 import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4gate.SessionDataProtocol._
 
 @protocol object DeepSessionDataProtocolBase   {
-
-  import ee.cone.c4gate.SessionDataProtocol._
 
   @Id(0x0110) case class U_RawUserData(
     @Id(0x0111) srcId: String,

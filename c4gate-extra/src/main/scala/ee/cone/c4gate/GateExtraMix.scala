@@ -10,12 +10,12 @@ trait PublishingApp extends PublishingCompApp with ComponentsApp {
   def mimeTypes: Map[String,String]
   def publishFromStrings: List[(String,String)]
   //
-  private lazy val mimeTypesComponent = provide(classOf[PublishMimeTypesProvider],Nil,()=>List(
+  private lazy val mimeTypesComponent = provide(classOf[PublishMimeTypesProvider],()=>List(
     new PublishMimeTypesProvider {
       def get: List[(String, String)] = mimeTypes.toList
     }
   ))
-  private lazy val publishFromStringsComponent = provide(classOf[PublishFromStringsProvider],Nil,()=>List(
+  private lazy val publishFromStringsComponent = provide(classOf[PublishFromStringsProvider],()=>List(
     new PublishFromStringsProvider {
       def get: List[(String, String)] = publishFromStrings
     }

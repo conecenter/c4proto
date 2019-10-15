@@ -8,9 +8,9 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNode
-import ee.cone.c4actor.dep.request.CurrentTimeProtocolBase.S_CurrentTimeNodeSetting
+import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNodeSetting
 import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.N_CurrentTimeRequest
-import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocolBase.D_CurrentTimeMetaAttr
+import ee.cone.c4actor.dep.request.CurrentTimeRequestProtocol.D_CurrentTimeMetaAttr
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4proto._

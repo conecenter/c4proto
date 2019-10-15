@@ -50,7 +50,7 @@ trait TestTxLogAppBase
   with UIApp
   with PublishingCompApp
   with TestTagsApp
-  with SimpleAssembleProfilerApp
+  with SimpleAssembleProfilerCompApp
   with ManagementApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp

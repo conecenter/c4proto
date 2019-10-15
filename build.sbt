@@ -38,6 +38,7 @@ lazy val `c4gate-consumer-example` = project.settings(publishSettings).dependsOn
 lazy val `c4gate-server-example` = project.settings(publishSettings).dependsOn(`c4gate-server`)
 lazy val `c4actor-branch` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4actor-rdb` = project.settings(publishSettings).dependsOn(`c4actor-base`)
+lazy val `c4actor-extra-rdb` = project.settings(publishSettings).dependsOn(`c4actor-rdb`,`c4actor-extra`)
 lazy val `c4gate-sse-example` = project.settings(publishSettings).dependsOn(`c4proto-api`, `c4actor-kafka`, `c4ui-main`, `c4gate-client`, `c4vdom-canvas`, `c4gate-logback`, `c4gate-repl`)
 lazy val `c4vdom-base` = project.settings(publishSettings)
 lazy val `c4vdom-canvas` = project.settings(publishSettings).dependsOn(`c4vdom-base`) //seems examples only
@@ -61,7 +62,7 @@ lazy val `c4all-examples` = project.settings(publishSettings).dependsOn(
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4gate-akka`,
   // opt lib:
-  `c4actor-rdb`,
+  `c4actor-extra-rdb`,
   `c4gate-logback-static`,
   `c4gate-repl`,
   `c4ui-main`,

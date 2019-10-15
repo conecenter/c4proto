@@ -20,7 +20,7 @@ trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp 
 trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp
 trait SerialObserversAppBase
 trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp
-trait SimpleAssembleProfilerAppBase
+trait SimpleAssembleProfilerCompAppBase
 trait SnapshotLoaderFactoryImplAppBase
 trait SnapshotLoaderImplAppBase
 trait SnapshotUtilImplAppBase
