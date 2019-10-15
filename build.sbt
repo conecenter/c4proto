@@ -3,12 +3,14 @@
 import sbt.Keys._
 import sbt._
 
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
 lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
 lazy val descr = "C4 framework"
      
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.F.2.RC1",
+  version := "0.F.2.1",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
@@ -79,6 +81,5 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   //`c4gate-finagle`,
   `c4gate-akka`
 )
-
 
 lazy val `generator` = project.in(file("generator"))

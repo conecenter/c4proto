@@ -120,8 +120,6 @@ object Types {
   type ClName = String
   type TypeId = Long
   type SrcId = String
-  def SrcIdProtoAdapter: ProtoAdapter[SrcId] = com.squareup.wire.ProtoAdapter.STRING
-  def SrcIdEmpty = ""
   type TransientMap = Map[TransientLens[_],Object]
   type SharedComponentMap = Map[SharedComponentKey[_],Object]
   type NextOffset = String
