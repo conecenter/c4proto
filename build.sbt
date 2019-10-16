@@ -71,6 +71,7 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4ui-main`,
   `c4ui-extra`,
   //
+  `c4actor-extra-examples`,
   `c4gate-extra-examples`,
   `c4all-examples`
 )
