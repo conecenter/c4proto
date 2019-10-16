@@ -9,14 +9,12 @@ trait BigDecimalAppBase
 trait ConfigSimpleSignerAppBase
 trait EnvConfigCompAppBase
 trait GzipRawCompressorAppBase
-trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp
 trait ModelAccessFactoryAppBase
 trait MortalFactoryCompAppBase
 trait NoAssembleProfilerAppBase
 trait NoObserversAppBase
 trait ParallelObserversAppBase
 trait ProtoAppBase
-trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp //?SnapshotUtilImplApp
 trait RichDataCompAppBase extends BaseApp with ProtoApp with AssembleApp
 trait SerialObserversAppBase
 trait ServerCompAppBase extends RichDataCompApp with ExecutableApp with SnapshotLoaderImplApp

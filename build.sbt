@@ -3,12 +3,14 @@
 import sbt.Keys._
 import sbt._
 
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
 lazy val ourLicense = Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
 lazy val descr = "C4 framework"
      
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.F.2.RC1",
+  version := "0.F.2.1",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
@@ -31,7 +33,8 @@ lazy val `c4actor-base` = project.settings(publishSettings).dependsOn(`c4proto-a
 lazy val `c4actor-base-examples` = project.settings(publishSettings).dependsOn(`c4actor-base`,`c4gate-logback`)
 lazy val `c4actor-extra` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-extra` = project.settings(publishSettings).dependsOn(`c4actor-extra`, `c4gate-client`, `c4actor-base`)
-lazy val `c4actor-extra-examples` = project.settings(publishSettings).dependsOn(`c4actor-base`, `c4gate-logback`, `c4actor-extra`, `c4actor-kafka`)
+lazy val `c4actor-extra-examples` = project.settings(publishSettings).dependsOn(`c4gate-logback`, `c4actor-extra`, `c4actor-kafka`)
+lazy val `c4gate-extra-examples` = project.settings(publishSettings).dependsOn(`c4gate-extra`) // `c4gate-logback`, `c4actor-kafka`,
 lazy val `c4actor-kafka` = project.settings(publishSettings).dependsOn(`c4actor-base`)
 lazy val `c4gate-server` = project.settings(publishSettings).dependsOn(`c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
 lazy val `c4gate-consumer-example` = project.settings(publishSettings).dependsOn(`c4actor-kafka`, `c4gate-client`, `c4gate-logback`)
@@ -68,9 +71,8 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4ui-main`,
   `c4ui-extra`,
   //
-  `c4actor-extra-examples`,
+  `c4gate-extra-examples`,
   `c4all-examples`
 )
-
 
 lazy val `generator` = project.in(file("generator"))

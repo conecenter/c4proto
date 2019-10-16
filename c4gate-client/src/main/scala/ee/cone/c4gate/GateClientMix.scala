@@ -1,13 +1,13 @@
 package ee.cone.c4gate
 
-import ee.cone.c4actor.{GzipFullCompressor, SyncTxFactoryImplApp}
+import ee.cone.c4actor._
 import ee.cone.c4proto.c4
 
 trait FilterPredicateBuilderAppBase
 
 trait ActorAccessAppBase
-trait ManagementAppBase extends ActorAccessApp with PrometheusApp with SyncTxFactoryImplApp
-trait PrometheusAppBase extends DefPublishFullCompressorApp
+trait ManagementAppBase extends ActorAccessApp /*with PrometheusApp*/ with SyncTxFactoryImplApp
+// trait PrometheusAppBase extends DefPublishFullCompressorApp
 
 trait AvailabilityAppBase
 
@@ -25,6 +25,14 @@ trait TcpProtocolAppBase
 
 // def availabilityDefaultUpdatePeriod: Long = 3000
 // def availabilityDefaultTimeout: Long = 3000
+
+trait HttpUtilAppBase
+
+trait MergingSnapshotAppBase extends SnapshotLoaderFactoryImplApp with HttpUtilApp
+trait RemoteRawSnapshotAppBase extends TaskSignerApp with ConfigSimpleSignerApp with HttpUtilApp//?SnapshotUtilImplApp
+
+trait DefaultMetricsAppBase
+trait PrometheusPostAppBase extends DefaultMetricsApp with HttpUtilApp
 
 /*
 *

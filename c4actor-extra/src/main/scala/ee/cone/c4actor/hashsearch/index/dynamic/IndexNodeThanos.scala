@@ -565,7 +565,6 @@ case class SnapTransform(srcId: String, fbId: String, version: String) extends T
         (ByPK(classOf[S_IndexNodesVersion]).of(local).values ++
           ByPK(classOf[S_IndexNode]).of(local).values ++
           ByPK(classOf[S_IndexNodeSettings]).of(local).values ++
-          ByPK(classOf[S_IndexByNodesStats]).of(local).values ++
           ByPK(classOf[S_IndexByNode]).of(local).values ++
           ByPK(classOf[S_IndexByNodeLastSeen]).of(local).values ++
           ByPK(classOf[S_IndexByNodeSettings]).of(local).values ++

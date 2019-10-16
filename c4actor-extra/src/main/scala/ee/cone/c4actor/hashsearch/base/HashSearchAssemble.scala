@@ -36,7 +36,7 @@ case class InnerLeaf[Model <: Product](srcId: SrcId, condition: Condition[Model]
 
   lazy val prodCondition: Option[ProdCondition[_ <: Product, Model]] = if (isProdCondition) Option(condition.asInstanceOf[ProdCondition[_ <: Product, Model]]) else None
 
-  lazy val lensNameList: List[String] = prodCondition.map(_.metaList).getOrElse(Nil).collect{ case a:NameMetaAttr => a.value}
+  lazy val lensNameList: List[String] = prodCondition.map(_.metaList).getOrElse(Nil).collect { case a: NameMetaAttr => a.value }
 
   lazy val byClName: String = prodCondition.map(_.by.getClass.getName).getOrElse("")
 
@@ -106,17 +106,17 @@ object HashSearchAssembleUtils {
   }
 
   private def parsedToPublic[Model <: Product]: Class[Model] => SerializationUtils => ParseUnion[Model] => InnerUnionList[Model] = model => ser => parsed => {
-    val inters = for {
+    val inters = (for {
       inter <- parsed.list
-    } yield interParsedToPublic(model)(ser)(inter)
+    } yield interParsedToPublic(model)(ser)(inter)).sortBy(_.srcId)
     val pk = ser.srcIdFromSrcIds("InnerUnionList" :: inters.map(_.srcId))
     InnerUnionList(pk, inters)
   }
 
   private def interParsedToPublic[Model <: Product]: Class[Model] => SerializationUtils => ParseIntersect[Model] => InnerIntersectList[Model] = model => ser => parsed => {
-    val leafs = for {
+    val leafs = (for {
       leaf <- parsed.list
-    } yield leafParsedToPublic(model)(ser)(leaf)
+    } yield leafParsedToPublic(model)(ser)(leaf)).sortBy(_.srcId)
     val pk = ser.srcIdFromSrcIds("InnerIntersectList" :: leafs.map(_.srcId))
     InnerIntersectList(pk, leafs)
   }
@@ -181,7 +181,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
   ): Values[(SrcId, RootCondition[Model])] = {
     val condition: Condition[Model] = request.condition
     val condUnion: InnerUnionList[Model] = conditionToUnionList(modelCl)(condSer)(condition)
-    List(WithPK(RootCondition(hashGen.generate(request.requestId::condUnion.srcId::Nil), condUnion, request.requestId)))
+    List(WithPK(RootCondition(hashGen.generate(request.requestId :: condUnion.srcId :: Nil), condUnion, request.requestId)))
   }
 
   def RootCondToInnerConditionId(
@@ -191,7 +191,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleUtils._
     List(rootCond.innerUnion.srcId -> rootCond)
 
   def RootCondIntoInnerUnionList(
-    rootCondId: SrcId,
+    innerUnionId: SrcId,
     @by[InnerUnionId] rootConditions: Values[RootCondition[Model]]
   ): Values[(SrcId, InnerUnionList[Model])] = {
     val inner = Single(rootConditions.map(_.innerUnion).distinct)

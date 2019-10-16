@@ -6,6 +6,8 @@ libraryDependencies += "org.scalameta" %% "scalameta" % "4.2.3"
 
 enablePlugins(JavaServerAppPackaging)
 
+Global / onChangedBuildSource := ReloadOnSourceChanges
+
 description := s"C4 framework / scalameta generator for rules and Protobuf adapters"
 organization := "ee.cone"
 version := "0.E.5.1"

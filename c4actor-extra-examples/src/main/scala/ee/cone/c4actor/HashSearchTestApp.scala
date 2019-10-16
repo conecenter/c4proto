@@ -11,7 +11,7 @@ import ee.cone.c4actor.hashsearch.base.HashSearchAssembleApp
 import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeStats, ProductWithId}
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexByNodesStats, S_IndexNode, S_IndexNodeSettings}
+import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexNode, S_IndexNodeSettings}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4actor.tests.TestProtocolM
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -48,7 +48,6 @@ class HashSearchExtraTestStart(
     println("Answer", ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
     println(ByPK(classOf[S_IndexNode]).of(nGlobalAA).values)
     println(ByPK(classOf[S_IndexByNode]).of(nGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
-    println(ByPK(classOf[S_IndexByNodesStats]).of(nGlobalAA).values)
     //Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal: Context = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "1")))(nGlobalAA)
@@ -59,7 +58,6 @@ class HashSearchExtraTestStart(
     println("Should", List(17, 4369))
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
     println(ByPK(classOf[S_IndexByNode]).of(newNGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
-    println(ByPK(classOf[S_IndexByNodesStats]).of(newNGlobalAA).values)
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal2 = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "")))(newNGlobalAA)
     Thread.sleep(10000)
@@ -70,7 +68,6 @@ class HashSearchExtraTestStart(
     println("Should", List(17, 10000))
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
     println(ByPK(classOf[S_IndexByNode]).of(newNGlobal2AA).values.map(meh => meh.leafId -> meh.byStr))
-    println(ByPK(classOf[S_IndexByNodesStats]).of(newNGlobal2AA).values)
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     execution.complete()
 

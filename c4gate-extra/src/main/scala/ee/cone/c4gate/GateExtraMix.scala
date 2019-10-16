@@ -23,3 +23,5 @@ trait PublishingApp extends PublishingCompApp with ComponentsApp {
   override def components: List[Component] =
     mimeTypesComponent :: publishFromStringsComponent :: super.components
 }
+
+// trait FileRawSnapshotApp extends RemoteRawSnapshotApp  // Remote!

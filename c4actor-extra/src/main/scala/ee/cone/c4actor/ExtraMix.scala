@@ -167,8 +167,6 @@ trait DefaultModelFactoriesApp extends ComponentsApp {
   def defaultModelFactories: List[DefaultModelFactory[_]] = Nil
 }
 
-trait FileRawSnapshotApp extends RemoteRawSnapshotApp  // Remote!
-
 trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with ComponentProviderApp {
   def assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
