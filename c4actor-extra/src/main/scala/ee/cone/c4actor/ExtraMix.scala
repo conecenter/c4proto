@@ -59,7 +59,6 @@ trait ServerApp extends ServerCompApp with RichDataApp { //e-only
   lazy val consuming: Consuming = resolveSingle(classOf[Consuming])
   lazy val rawQSender: RawQSender = resolveSingle(classOf[RawQSender])
   //
-  lazy val snapshotTaskSigner: Signer[SnapshotTask] = resolveSingle(classOf[SnapshotTaskSigner])
   lazy val remoteSnapshotUtil: RemoteSnapshotUtil = resolveSingle(classOf[RemoteSnapshotUtil])
   lazy val snapshotMaker: SnapshotMaker = resolveSingle(classOf[SnapshotMaker])
   lazy val rawSnapshotLoader: RawSnapshotLoader = resolveSingle(classOf[RawSnapshotLoader])

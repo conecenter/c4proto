@@ -4,8 +4,8 @@ package ee.cone.c4actor
 import ee.cone.c4proto.{Component, ComponentsApp}
 import ee.cone.c4actor.ComponentProvider._
 
-trait FromExternalDBSyncApp extends ee.cone.c4actor.rdb_impl.FromExternalDBSyncApp
-trait ToExternalDBSyncApp extends ee.cone.c4actor.rdb_impl.ToExternalDBSyncApp
+trait FromExternalDBSyncApp extends ee.cone.c4actor.rdb_impl.FromExternalDBSyncApp with RDBSyncApp
+trait ToExternalDBSyncApp extends ee.cone.c4actor.rdb_impl.ToExternalDBSyncApp with RDBSyncApp
 trait RDBSyncApp extends ComponentsApp with ExternalDBOptionsApp with ComponentProviderApp { // may be to other module
   lazy val rdbOptionFactory: RDBOptionFactory = resolveSingle(classOf[RDBOptionFactory])
   lazy val externalDBSyncClient: ExternalDBClient = resolveSingle(classOf[ExternalDBClient])
