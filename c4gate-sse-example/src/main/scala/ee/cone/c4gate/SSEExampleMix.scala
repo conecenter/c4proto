@@ -37,7 +37,7 @@ trait TestTxLogAppBase
   with ManagementApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
-  with ModelAccessFactoryApp
+  with ModelAccessFactoryCompApp
   with SessionAttrApp
   with MortalFactoryCompApp
   with BasicLoggingApp
@@ -54,7 +54,7 @@ trait TestTxLogAppBase
   with ManagementApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
-  with ModelAccessFactoryApp
+  with ModelAccessFactoryCompApp
   with SessionAttrApp
   with MortalFactoryCompApp
   with MergingSnapshotApp
@@ -88,7 +88,7 @@ trait TestTxLogAppBase
   with PublicViewAssembleApp
   with CommonFilterApp
   with FilterPredicateBuilderApp
-  with ModelAccessFactoryApp
+  with ModelAccessFactoryCompApp
   with AccessViewApp
   with SessionAttrApp
   with MortalFactoryCompApp

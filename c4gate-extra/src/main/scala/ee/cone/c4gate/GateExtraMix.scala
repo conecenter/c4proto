@@ -24,4 +24,4 @@ trait PublishingApp extends PublishingCompApp with ComponentsApp {
     mimeTypesComponent :: publishFromStringsComponent :: super.components
 }
 
-// trait FileRawSnapshotApp extends RemoteRawSnapshotApp  // Remote!
+@deprecated trait FileRawSnapshotApp extends RemoteRawSnapshotApp  // Remote!

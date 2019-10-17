@@ -171,6 +171,10 @@ trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with Compo
   def assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
 
+trait ModelAccessFactoryApp extends ModelAccessFactoryCompApp with ComponentProviderApp {
+  lazy val modelAccessFactory: ModelAccessFactory = resolveSingle(classOf[ModelAccessFactory])
+}
+
 ////
 
 trait EeConeC4actorHasIdAppBase

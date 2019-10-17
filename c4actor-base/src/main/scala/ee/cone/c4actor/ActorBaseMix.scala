@@ -9,7 +9,7 @@ trait BigDecimalAppBase
 trait ConfigSimpleSignerAppBase
 trait EnvConfigCompAppBase
 trait GzipRawCompressorAppBase
-trait ModelAccessFactoryAppBase
+trait ModelAccessFactoryCompAppBase
 trait MortalFactoryCompAppBase
 trait NoAssembleProfilerAppBase
 trait NoObserversAppBase
