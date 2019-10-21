@@ -1124,7 +1124,7 @@ push @tasks, ["test_up","",sub{ # <host>:<port> $composes_txt $args
     my $add = $args ? " $args" : "";
     &$nc_sec($deployer_comp,$addr,"run $comp/up$add\n");
 }];
-push @tasks, ["test_cd","",sub{ # <host>:<port> $composes_txt <pods|repo>
+push @tasks, ["test_cd","<host>:<port> $composes_txt <pods|registry|'history $composes_txt'>",sub{
     my($addr,$comp,$args) = @_;
     sy(&$ssh_add());
     &$nc_sec($comp,$addr,"$args\n");
