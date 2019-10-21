@@ -2,7 +2,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor._
 import ee.cone.c4proto.c4app
-import ee.cone.c4ui.{AccessViewApp, AlienExchangeApp, PublicViewAssembleApp, UIApp}
+import ee.cone.c4ui.{AccessViewApp, AlienExchangeApp, PublicViewAssembleApp, UICompApp}
 
 trait CanvasAppBase
 
@@ -12,7 +12,7 @@ trait CanvasAppBase
   with ParallelObserversApp
   with BranchApp
   with AlienExchangeApp
-  with NoAssembleProfilerApp
+  with NoAssembleProfilerCompApp
   with ManagementApp
   with RemoteRawSnapshotApp
   with BasicLoggingApp
@@ -29,16 +29,16 @@ trait TestTxLogAppBase
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
-  with UIApp
+  with UICompApp
   with PublishingCompApp
   with TestTagsApp
   with CanvasApp
-  with NoAssembleProfilerApp
+  with NoAssembleProfilerCompApp
   with ManagementApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with ModelAccessFactoryCompApp
-  with SessionAttrApp
+  with SessionAttrCompApp
   with MortalFactoryCompApp
   with BasicLoggingApp
   with ReactHtmlApp
@@ -47,7 +47,7 @@ trait TestTxLogAppBase
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
-  with UIApp
+  with UICompApp
   with PublishingCompApp
   with TestTagsApp
   with SimpleAssembleProfilerCompApp
@@ -55,7 +55,7 @@ trait TestTxLogAppBase
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with ModelAccessFactoryCompApp
-  with SessionAttrApp
+  with SessionAttrCompApp
   with MortalFactoryCompApp
   with MergingSnapshotApp
   with TestTxLogApp
@@ -67,9 +67,9 @@ trait TestTxLogAppBase
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
-  with UIApp
+  with UICompApp
   with TestTagsApp
-  with NoAssembleProfilerApp
+  with NoAssembleProfilerCompApp
   with ManagementApp
   with RemoteRawSnapshotApp
   with BasicLoggingApp
@@ -80,9 +80,9 @@ trait TestTxLogAppBase
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
-  with UIApp
+  with UICompApp
   with TestTagsApp
-  with NoAssembleProfilerApp
+  with NoAssembleProfilerCompApp
   with ManagementApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
@@ -90,7 +90,7 @@ trait TestTxLogAppBase
   with FilterPredicateBuilderApp
   with ModelAccessFactoryCompApp
   with AccessViewApp
-  with SessionAttrApp
+  with SessionAttrCompApp
   with MortalFactoryCompApp
   with AvailabilityApp
   with BasicLoggingApp

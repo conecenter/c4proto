@@ -13,7 +13,7 @@ import ee.cone.c4proto.{Id, c4, protocol, provide}
 import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
-@c4("NoAssembleProfilerApp") class NoAssembleProfilerProvider {
+@c4("NoAssembleProfilerCompApp") class NoAssembleProfilerProvider {
   @provide def get: Seq[AssembleProfiler] = List(NoAssembleProfiler)
 }
 

@@ -37,3 +37,7 @@ trait MetricFactoriesApp extends ComponentProviderApp with ComponentsApp {
   override def components: List[Component] =
     metricFactoriesComponent :: super.components
 }
+
+trait SessionAttrApp extends SessionAttrCompApp with ComponentProviderApp {
+  lazy val sessionAttrAccessFactory: SessionAttrAccessFactory = resolveSingle(classOf[SessionAttrAccessFactory])
+}

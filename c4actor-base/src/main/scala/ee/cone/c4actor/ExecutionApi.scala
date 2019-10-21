@@ -47,7 +47,7 @@ trait Signer[T] {
 object Trace { //m. b. to util
   def apply[T](f: =>T): T = try { f } catch {
     case e: Throwable =>
-      System.err.println(e.getMessage)
+      System.err.println(s"TRACED: ${e.getMessage}")
       e.printStackTrace()
       throw e
   }

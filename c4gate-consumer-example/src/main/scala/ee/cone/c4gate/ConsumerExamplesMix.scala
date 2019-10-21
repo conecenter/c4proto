@@ -5,7 +5,7 @@ import ee.cone.c4proto.c4app
 
 
 
-@c4app class DumperAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
+@c4app class DumperAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp
   with ExecutableApp with RichDataCompApp
   with RemoteRawSnapshotApp
   with AlienProtocolApp
@@ -13,11 +13,11 @@ import ee.cone.c4proto.c4app
   with SnapshotLoaderImplApp
   with LZ4DeCompressorApp
 
-@c4app class KafkaLatTestAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
+@c4app class KafkaLatTestAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp
   with ExecutableApp with RichDataCompApp
   with KafkaProducerApp with KafkaConsumerApp
 
-trait TestServerApp extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerApp
+trait TestServerApp extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp
   with ServerCompApp with BasicLoggingApp
   with KafkaProducerApp with KafkaConsumerApp
   with RemoteRawSnapshotApp

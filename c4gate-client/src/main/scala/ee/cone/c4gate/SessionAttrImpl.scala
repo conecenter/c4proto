@@ -27,11 +27,11 @@ import okio.ByteString
   )
 }
 
-@c4("SessionAttrApp") class  SessionDataAssemblesBase(mortal: MortalFactory) {
+@c4("SessionAttrCompApp") class  SessionDataAssemblesBase(mortal: MortalFactory) {
   @provide def subAssembles: Seq[Assemble] = List(mortal(classOf[U_RawSessionData]))
 }
 
-@c4assemble("SessionAttrApp") class SessionDataAssembleBase {
+@c4assemble("SessionAttrCompApp") class SessionDataAssembleBase {
   type SessionKey = SrcId
 
   def joinBySessionKey(
@@ -46,7 +46,7 @@ import okio.ByteString
   ): Values[(Alive, U_RawSessionData)] = List(WithPK(sessionData))
 }
 
-@c4("SessionAttrApp") class SessionAttrAccessFactoryImpl(
+@c4("SessionAttrCompApp") class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,

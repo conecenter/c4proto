@@ -7,7 +7,7 @@ import ee.cone.c4proto.{c4, c4app, provide}
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with PublishingCompApp
-  with NoAssembleProfilerApp
+  with NoAssembleProfilerCompApp
   with RemoteRawSnapshotApp
   with NoObserversApp
 
@@ -25,7 +25,7 @@ abstract class AbstractHttpGatewayAppBase extends ServerCompApp
   with ParallelObserversApp
   with HttpProtocolApp with AuthProtocolApp
   with SSEServerApp
-  with NoAssembleProfilerApp
+  with NoAssembleProfilerCompApp
   with MortalFactoryCompApp
   with ManagementApp
   with SnapshotMakingApp

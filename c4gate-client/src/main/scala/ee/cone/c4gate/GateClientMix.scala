@@ -15,7 +15,7 @@ trait DefPublishFullCompressorAppBase
 trait PublishingCompAppBase extends HttpProtocolApp with DefPublishFullCompressorApp
 @c4("DefPublishFullCompressorApp") class DefPublishFullCompressor extends PublishFullCompressor(GzipFullCompressor())
 
-trait SessionAttrAppBase extends SessionDataProtocolApp
+trait SessionAttrCompAppBase extends SessionDataProtocolApp
 trait SessionDataProtocolAppBase
 
 trait AlienProtocolAppBase

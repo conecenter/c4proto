@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4assemble.{Assemble, AssembleSeqOptimizer, BackStageFactory, ExpressionsDumper, IndexUpdater, IndexUtil, NoAssembleSeqOptimizer, ReadModelUtil, UMLExpressionsDumper}
+import ee.cone.c4assemble.{Assemble, AssembleSeqOptimizer, BackStageFactory, ByPriority, ExpressionsDumper, IndexUpdater, IndexUtil, NoAssembleSeqOptimizer, ReadModelUtil, UMLExpressionsDumper}
 import ee.cone.c4proto.{Component, ComponentsApp, Protocol, TypeKey, c4, provide}
 
 import scala.collection.immutable.Seq
@@ -89,6 +89,7 @@ trait RichDataAppBase extends RichDataCompApp
   with AssemblesApp
   with DefaultModelFactoriesApp
 {
+  lazy val byPriority: ByPriority = resolveSingle(classOf[ByPriority])
   lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
   lazy val toUpdate: ToUpdate = resolveSingle(classOf[ToUpdate])
   lazy val preHashing: PreHashing = resolveSingle(classOf[PreHashing])
@@ -172,6 +173,10 @@ trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with Compo
 
 trait ModelAccessFactoryApp extends ModelAccessFactoryCompApp with ComponentProviderApp {
   lazy val modelAccessFactory: ModelAccessFactory = resolveSingle(classOf[ModelAccessFactory])
+}
+
+trait NoAssembleProfilerApp extends NoAssembleProfilerCompApp with ComponentProviderApp {
+  lazy val assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
 
 ////
