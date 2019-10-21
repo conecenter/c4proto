@@ -914,7 +914,7 @@ my $base_image_steps = sub{(
 
 my $prod_image_steps = sub{(
     &$base_image_steps(),
-    "RUN perl install.pl apt".
+    "RUN perl install.pl apt fontconfig".
     " curl unzip software-properties-common".
     " lsof mc",
     "RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
