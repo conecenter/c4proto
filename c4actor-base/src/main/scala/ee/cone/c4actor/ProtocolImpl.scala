@@ -6,7 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{ArgAdapter, HasId, TypeKey, c4, provide}
+import ee.cone.c4proto.{ArgAdapter, DataCategory, HasId, MetaProp, N_Cat, TypeKey, c4, provide}
 import okio.ByteString
 
 import scala.collection.immutable.Seq
@@ -105,7 +105,7 @@ import com.squareup.wire.ProtoAdapter._
 
 @c4("ProtoApp") class QAdapterRegistryProvider(adapters: List[HasId]) {
   @provide def get: Seq[QAdapterRegistry] = {
-    val cAdapters = adapters.map(_.asInstanceOf[ProtoAdapter[Product] with HasId])
+    val cAdapters = adapters.distinct.map(_.asInstanceOf[ProtoAdapter[Product] with HasId])
     Option(System.getenv("C4DEBUG_COMPONENTS")).foreach(_=>cAdapters.foreach(c=>println(s"adapter: ${c.className}")))
     val byName = CheckedMap(cAdapters.map(a => a.className -> a))
     val byId = CheckedMap(cAdapters.collect{ case a if a.hasId => a.id -> a })
@@ -124,7 +124,16 @@ class QAdapterRegistryImpl(
 
 @c4("ProtoApp") class ProductProtoAdapter(
   qAdapterRegistryD: DeferredSeq[QAdapterRegistry]
-) extends ProtoAdapter[Product](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[Product]) {
+) extends ProtoAdapter[Product](com.squareup.wire.FieldEncoding.LENGTH_DELIMITED, classOf[Product]) with HasId {
+  def id: Long = throw new Exception
+  def hasId: Boolean = false
+  def className: String = classOf[Product].getName
+  def props: List[MetaProp] = Nil
+  //
+  def categories: List[DataCategory] = List(N_Cat)
+  def cl: Class[_] = classOf[Product]
+  def shortName: Option[String] = None
+  //
   private lazy val qAdapterRegistry = Single(qAdapterRegistryD.value)
   def encodedSize(value: Product): Int = {
     val adapter = qAdapterRegistry.byName(value.getClass.getName)

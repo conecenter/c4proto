@@ -156,7 +156,8 @@ $c4ann class ${cl.name}ProtoAdapter(
           GeneratedImport(s"""\nimport $objectName.$tp"""),
           GeneratedCode(
             s"\n$c4ann class ${tp}ProtoAdapterProvider(inner: ProtoAdapter[Product]) {" +
-            s"\n  @provide def get: Seq[ProtoAdapter[$tp]] = List(inner.asInstanceOf[ProtoAdapter[$tp]])" +
+            s"\n  @provide def getProtoAdapter: Seq[ProtoAdapter[$tp]] = List(inner.asInstanceOf[ProtoAdapter[$tp]])" +
+            s"\n  @provide def getHasId: Seq[HasId] = List(inner.asInstanceOf[HasId])" +
             s"\n}"
           )
         )
@@ -164,19 +165,24 @@ $c4ann class ${cl.name}ProtoAdapter(
 
     //  case q"..$mods case class ${Type.Name(messageName)} ( ..$params ) extends ..$ext" =>
 
-    val traitDefs = protoGenerated.collect{ case m: GeneratedTraitDef => m.name }.toSet
+    val traitDefSeq = protoGenerated.collect{ case m: GeneratedTraitDef => m.name }
+    val traitDefs = traitDefSeq.toSet
     val traitUses = protoGenerated.collect{ case m: GeneratedTraitUsage => m.name }.toSet
     val traitIllegal = traitUses -- traitDefs
     if(traitIllegal.nonEmpty) throw new Exception(s"can not extend from non-local traits $traitIllegal")
     //
+    val classLinks =
+      for(cl <- classes; pf <- List("","_E0","_E1"))
+        yield s"link${cl.name}ProtoAdapter$pf"
+    val traitLinks =
+      for(nm <- traitDefSeq; pf <- List("","_DgetProtoAdapter","_DgetHasId")) //
+        yield s"link${nm}ProtoAdapterProvider$pf"
     val componentsId = ComponentsGenerator.fileNameToComponentsId(parseContext.path)
     val obj = GeneratedCode(
       s"""\nobject $objectName extends ee.cone.c4proto.AbstractComponents {""" +
         protoGenerated.collect{ case c: GeneratedInnerCode => c.content }.mkString +
-      s"""\n  def components = """ + (
-        for(cl <- classes; pf <- List("","_E0","_E1"))
-          yield s"\n    $componentsId.link${cl.name}ProtoAdapter$pf ::"
-      ).mkString +
+      s"""\n  def components = """ +
+      (classLinks:::traitLinks).map(l=>s"\n    $componentsId.$l ::").mkString +
       s"""\n    Nil""" +
       s"""\n}"""
     )
