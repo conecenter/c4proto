@@ -62,11 +62,11 @@ lazy val `c4all-examples` = project.settings(publishSettings).dependsOn(
   `c4vdom-canvas`,
   `c4actor-extra-examples`, `c4gate-extra-examples`
 )
-lazy val `c4all-server` = project.settings(publishSettings).dependsOn(`c4gate-server`)
+//lazy val `c4all-server` = project.settings(publishSettings).dependsOn(`c4gate-akka`)
 
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   // gate
-  `c4all-server`,
+  `c4gate-akka`,
   // lib
   `c4proto-di`,`c4proto-api`,`c4assemble-runtime`,
   `c4actor-base`,`c4actor-kafka`,`c4actor-branch`,`c4actor-rdb`,

@@ -15,6 +15,7 @@ import ee.cone.c4proto.{ToByteString, c4}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.control.NonFatal
 
 @c4("AkkaMatApp") class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable {
   def get: Future[ActorMaterializer] = matPromise.future
@@ -35,8 +36,8 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
     val rHeaders = req.headers.map(h => N_Header(h.name, h.value)).toList
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
-    for {
-      entity <- req.entity.withoutSizeLimit.toStrict(Duration(5,MINUTES))(mat)
+    (for {
+      entity <- req.entity.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp <- handler.handle(rReq)
@@ -50,6 +51,9 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
       val entity = HttpEntity(contentType,rResp.body.toByteArray)
       logger.debug(s"resp status: $status")
       HttpResponse(status, aHeaders, entity)
+    }).recover{ case NonFatal(e) =>
+        logger.error("http-handler",e)
+        throw e
     }
   }
   def run(): Unit = execution.fatal{ implicit ec =>
