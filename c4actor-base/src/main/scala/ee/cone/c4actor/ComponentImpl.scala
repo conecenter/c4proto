@@ -22,6 +22,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     .groupBy(_.out).transform((k,v)=>new SimpleDeferredSeq(()=>v.flatMap(_.deferredSeq.value)))
   // def toNonFinal(k: TypeKey): TypeKey = k.copy(alias = s"NonFinal#${k.alias}")
   def fixNonFinal(components: Seq[Component]): Seq[Component] = {
+    Option(System.getenv("C4DEBUG_COMPONENTS")).foreach(_=>components.foreach(c=>println(s"component (out: ${c.out}) (in: ${c.in})")))
     val toNonFinal = components.flatMap(c => c.nonFinalOut.map(nOut=>c.out->nOut)).toMap
     components.map{ c =>
       if(c.nonFinalOut.nonEmpty) c
@@ -44,6 +45,7 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     val directRes: DeferredSeq[Any] = reg.getOrElse(key,EmptyDeferredSeq)
     val factoryKey = toTypeKey(classOf[ComponentFactory[Object]],List(general(key)))
     val factories: DeferredSeq[Object] = reg.getOrElse(factoryKey,EmptyDeferredSeq)
+    Option(System.getenv("C4DEBUG_COMPONENTS")).foreach(_=>println(s"resolveKey $key"))
     // logger.debug(s"$key")
     directRes.value ++
       factories.value.flatMap(f=>f.asInstanceOf[ComponentFactory[Object]].forTypes(key.args))

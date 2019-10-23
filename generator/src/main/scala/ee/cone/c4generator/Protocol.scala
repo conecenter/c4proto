@@ -41,10 +41,9 @@ object ProtocolGenerator extends Generator {
       Util.unBase(objectName,objectNameNode.pos.end) { objectName =>
         val c4ann = if(exprss.isEmpty) "@c4" else mod"@c4(...$exprss)".syntax
         val app = if(exprss.isEmpty)
-          ComponentsGenerator.pkgNameToAppId(parseContext.pkg,"HasId").get
+          ComponentsGenerator.pkgNameToAppId(parseContext.pkg,"HasId")
         else ComponentsGenerator.annArgToStr(exprss).get
-        val cExpr = s"""${ComponentsGenerator.fileNameToComponentsId(parseContext.path)}.forThe$app"""
-        getProtocol(parseContext,objectName,stats.toList,c4ann,cExpr)
+        getProtocol(parseContext,objectName,stats.toList,c4ann)
       }
     case _ => Nil
   }
@@ -94,7 +93,7 @@ object ProtocolGenerator extends Generator {
       GeneratedInnerCode(s"""\n  type ${resultType} = ${objectName}Base.${resultType}"""),
       GeneratedInnerCode(s"""\n  val ${factoryName} = ${objectName}Base.${factoryName}"""),
       GeneratedCode(s"""
-$c4ann class ${resultType}ProtoAdapter(
+$c4ann class ${cl.name}ProtoAdapter(
   ${props.map(p => s"\n    adapter_${p.name}: ArgAdapter[${p.argType}]").mkString(",")}
 ) extends ProtoAdapter[$resultType](
   com.squareup.wire.FieldEncoding.LENGTH_DELIMITED,
@@ -146,8 +145,9 @@ $c4ann class ${resultType}ProtoAdapter(
     )
   }
 
-  def getProtocol(parseContext: ParseContext, objectName: String, stats: List[Stat], c4ann: String, compExpr: String): Seq[Generated] = {
+  def getProtocol(parseContext: ParseContext, objectName: String, stats: List[Stat], c4ann: String): Seq[Generated] = {
       //println(t.structure)
+    val classes = Util.matchClass(stats)
     val protoGenerated: List[Generated] = stats.collect{
       case q"..$mods trait ${Type.Name(tp)}" =>
         List(
@@ -160,7 +160,7 @@ $c4ann class ${resultType}ProtoAdapter(
             s"\n}"
           )
         )
-    }.flatten.toList ::: Util.matchClass(stats).flatMap(getAdapter(parseContext,objectName,_,c4ann))
+    }.flatten.toList ::: classes.flatMap(getAdapter(parseContext,objectName,_,c4ann))
 
     //  case q"..$mods case class ${Type.Name(messageName)} ( ..$params ) extends ..$ext" =>
 
@@ -169,11 +169,15 @@ $c4ann class ${resultType}ProtoAdapter(
     val traitIllegal = traitUses -- traitDefs
     if(traitIllegal.nonEmpty) throw new Exception(s"can not extend from non-local traits $traitIllegal")
     //
-
+    val componentsId = ComponentsGenerator.fileNameToComponentsId(parseContext.path)
     val obj = GeneratedCode(
       s"""\nobject $objectName extends ee.cone.c4proto.AbstractComponents {""" +
         protoGenerated.collect{ case c: GeneratedInnerCode => c.content }.mkString +
-      s"""\n  def components = $compExpr """ +
+      s"""\n  def components = """ + (
+        for(cl <- classes; pf <- List("","_E0","_E1"))
+          yield s"\n    $componentsId.link${cl.name}ProtoAdapter$pf ::"
+      ).mkString +
+      s"""\n    Nil""" +
       s"""\n}"""
     )
 

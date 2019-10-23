@@ -93,8 +93,8 @@ trait DepRequestHandlerRegistry {
 @c4("DepAssembleCompApp") case class DepRequestHandlerRegistryImpl(
   depRequestFactory: DepRequestFactory,
   depResponseFactory: DepResponseFactory,
-  handlerSeq: Seq[DepHandler],
-  filtersSeq: Seq[DepResponseForwardFilter]
+  handlerSeq: List[DepHandler],
+  filtersSeq: List[DepResponseForwardFilter]
 )(
   handlers: Map[String,(DepRequest,DepCtx)=>Resolvable[_]] =
     handlerSeq.collect{ case h: InternalDepHandler => h }.groupBy(_.className)

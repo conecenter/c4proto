@@ -26,8 +26,10 @@ import scala.collection.immutable.Seq
     val arg = Single(args)
     val collectionType = arg.copy(args=Nil)
     val itemTypes = arg.args
-    def getProtoAdapter = Single(getProtoAdapters(itemTypes))
-
+    def getProtoAdapter = getProtoAdapters(itemTypes) match {
+      case Seq(a) => a
+      case o => throw new Exception(s"non-single (${o.size}) of ${itemTypes}")
+    }
     val strictRes = resolve(classOf[ArgAdapterFactory[_]],List(collectionType)).value
       .map{ f => val a = getProtoAdapter; f.wrap(()=>a) }
     val lazyRes = resolve(classOf[LazyArgAdapterFactory[_]],List(collectionType)).value
@@ -101,11 +103,19 @@ import com.squareup.wire.ProtoAdapter._
 
 }*/
 
-@c4("ProtoApp") class QAdapterRegistryImpl(adapters: List[ProtoAdapter[_]])(
-  val byName: Map[String, ProtoAdapter[Product] with HasId] =
-    CheckedMap(adapters.collect{ case a: HasId => a.className -> a.asInstanceOf[ProtoAdapter[Product] with HasId] }),
-  val byId: Map[Long, ProtoAdapter[Product] with HasId] =
-    CheckedMap(adapters.collect{ case a: HasId if a.hasId => a.id -> a.asInstanceOf[ProtoAdapter[Product] with HasId] })
+@c4("ProtoApp") class QAdapterRegistryProvider(adapters: List[HasId]) {
+  @provide def get: Seq[QAdapterRegistry] = {
+    val cAdapters = adapters.map(_.asInstanceOf[ProtoAdapter[Product] with HasId])
+    Option(System.getenv("C4DEBUG_COMPONENTS")).foreach(_=>cAdapters.foreach(c=>println(s"adapter: ${c.className}")))
+    val byName = CheckedMap(cAdapters.map(a => a.className -> a))
+    val byId = CheckedMap(cAdapters.collect{ case a if a.hasId => a.id -> a })
+    List(new QAdapterRegistryImpl(byName,byId))
+  }
+}
+
+class QAdapterRegistryImpl(
+  val byName: Map[String, ProtoAdapter[Product] with HasId],
+  val byId: Map[Long, ProtoAdapter[Product] with HasId]
 ) extends QAdapterRegistry
 
 @c4("RichDataCompApp") class LocalQAdapterRegistryInit(qAdapterRegistry: QAdapterRegistry) extends ToInject {

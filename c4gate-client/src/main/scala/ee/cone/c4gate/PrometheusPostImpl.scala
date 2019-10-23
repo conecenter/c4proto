@@ -29,7 +29,7 @@ object PrometheusMetricBuilder {
   //  metrics.map(metricToString(_, time.toString)).mkString("\n", "\n", "\n")
 
   def metricToString(metric: Metric, extraInfo: String): String =
-    s"${metric.name}${metric.labels.map(label => s"""${label.name}="${label.value}"""").mkString("{", ",", "}")} ${metric.value}${if (extraInfo.isBlank) "" else s" $extraInfo"}"
+    s"${metric.name}${metric.labels.map(label => s"""${label.name}="${label.value}"""").mkString("{", ",", "}")} ${metric.value}${extraInfo.trim match { case "" => "" case a => s" $a"}}"
 }
 
 case class PrometheusPostSettings(url: String, refreshRate: Long)

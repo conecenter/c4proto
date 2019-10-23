@@ -4,10 +4,13 @@ import scala.collection.immutable.Seq
 import scala.meta.Term.Name
 import scala.meta._
 
-case class GeneratedComponent(appLink: Option[(String,String)], fixIn: Option[(String,String)], content: String)
+sealed abstract class AbstractGeneratedComponent extends Product
+case class GeneratedComponentAppLink(app: String, link: String) extends AbstractGeneratedComponent
+case class GeneratedComponent(typeStr: String, link: String, fixIn: Option[(String,String)], content: String) extends AbstractGeneratedComponent
+
 object ComponentsGenerator extends Generator {
-  def toContent(app: Option[String], name: String, out: String, nonFinalOut: Option[String], in: List[String], caseSeq: List[String], body: String, parent: String): GeneratedComponent =
-    GeneratedComponent(app.map(a=>a->s"link$name ::: "), nonFinalOut.map(k=>out->s"$k.get"),
+  def toContent(typeStr: String, name: String, out: String, nonFinalOut: Option[String], in: List[String], caseSeq: List[String], body: String): GeneratedComponent =
+    GeneratedComponent(typeStr,s"link$name",nonFinalOut.map(k=>out->s"$k.get"),
       s"""\n  private def out$name = $out""" +
       s"""\n  private def nonFinalOut$name = """ + nonFinalOut.getOrElse("None") +
       s"""\n  private def in$name = """ +
@@ -17,17 +20,14 @@ object ComponentsGenerator extends Generator {
       s"""\n    val Seq(${caseSeq.mkString(",")}) = args;""" +
       s"""\n    $body""" +
       s"""\n  }""" +
-      s"""\n  private lazy val link$name = new Component(out$name,nonFinalOut$name,in$name,create$name) :: $parent"""
+      s"""\n  lazy val link$name: Component = new Component(out$name,nonFinalOut$name,in$name,create$name)"""
     )
 
-  def pkgNameToAppId(pkgName: String, add: String): Option[String] = {
-    val IsId = """(\w+)""".r
-    add match {
-      case IsId(t) =>
-        val nPkgName = """\.([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
-        Option(s"$nPkgName${t}App")
-      case a => None
-    }
+  val IsId = """(\w+)""".r
+
+  def pkgNameToAppId(pkgName: String, add: String): String = {
+    val nPkgName = """\.([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
+    s"$nPkgName${add}App"
   }
   def fileNameToComponentsId(fileName: String): String = {
     val SName = """.+/(\w+)\.scala""".r
@@ -41,7 +41,7 @@ object ComponentsGenerator extends Generator {
       case Seq(r) => Option(r)
     }
   }
-  def getComponent(cl: ParsedClass, getApp: Type=>Option[String]) = {
+  def getComponent(cl: ParsedClass): List[GeneratedComponent] = {
     val tp = cl.name
     val list = for{
       params <- cl.params.toList
@@ -63,7 +63,7 @@ object ComponentsGenerator extends Generator {
       val out = getTypeKey(t)
       val isFinal = inSet(out)
       val fixIn = if(isFinal) Option(s"""Option($out).map(o=>o.copy(alias=s"NonFinal#"+o.alias))""") else None
-      toContent(getApp(t),name,out,fixIn,List(mainOut),List("arg"),body(s"arg.asInstanceOf[$tp]"),s"link$tp")
+      toContent(t.toString,name,out,fixIn,List(mainOut),List("arg"),body(s"arg.asInstanceOf[$tp]"))
     }
     val abstractTypes: List[Type] = cl.ext.map{
       case init"${t@Type.Name(_)}(...$a)" =>
@@ -90,25 +90,39 @@ object ComponentsGenerator extends Generator {
     val outs: List[GeneratedComponent] = extOuts ::: defOuts
     val fixIn = outs.flatMap(_.fixIn).toMap
     val inSeq = depSeq.map(k=>fixIn.getOrElse(k,k))
-    toContent(None,tp,mainOut,None,inSeq,caseSeq,concrete,"Nil") :: outs
+    toContent("",tp,mainOut,None,inSeq,caseSeq,concrete) :: outs
   }
   def get(parseContext: ParseContext): List[Generated] = {
-    val components: List[GeneratedComponent] = for {
+    val components: List[AbstractGeneratedComponent] = for {
       cl <- Util.matchClass(parseContext.stats)
-      getApp <- Util.singleSeq(cl.mods.collect{
-        case mod"@c4(...$exprss)" => (t:Type) => if(exprss.nonEmpty) annArgToStr(exprss) else pkgNameToAppId(parseContext.pkg,t.toString)
+      (exprss,cl) <- Util.singleSeq(cl.mods.collect {
+        case mod"@c4(...$exprss) " => (exprss, cl)
       })
-      res <- getComponent(cl,getApp)
+      components = getComponent(cl)
+      appLinks = if(exprss.nonEmpty){
+        for {
+          app <- annArgToStr(exprss).toList
+          c <- components
+        } yield new GeneratedComponentAppLink(app,c.link)
+      } else {
+        val(idComponents,uniComponents) = components.partition(_.typeStr match { case IsId(t) => true case _ => false })
+        for {
+          iC <- idComponents
+          app = pkgNameToAppId(parseContext.pkg,iC.typeStr)
+          c <- iC :: uniComponents
+        } yield new GeneratedComponentAppLink(app,c.link)
+      }
+      res <- appLinks ::: components
     } yield res
     if(components.isEmpty) Nil else wrapComponents(parseContext,components)
   }
-  def wrapComponents(parseContext: ParseContext, components: List[GeneratedComponent]): List[Generated] = {
+  def wrapComponents(parseContext: ParseContext, components: List[AbstractGeneratedComponent]): List[Generated] = {
     val componentsId = fileNameToComponentsId(parseContext.path)
-    val connects: List[Generated] = components.flatMap(_.appLink).groupMap(_._1)(_._2).toList.sortBy(_._1).flatMap{
-      case (app,constr) => List(
+    val connects: List[Generated] = components.collect{ case c: GeneratedComponentAppLink => c }.groupMap(_.app)(_.link).toList.sortBy(_._1).flatMap{
+      case (app,links) => List(
         GeneratedCode(
           s"\n  def forThe$app = " +
-            constr.map(c => s"\n    $c").mkString +
+            links.map(c => s"\n    $c ::").mkString +
             "\n    Nil"
         ),
         GeneratedAppLink(parseContext.pkg,app,s"$componentsId.forThe$app")
@@ -118,7 +132,7 @@ object ComponentsGenerator extends Generator {
       s"\nobject $componentsId {" +
         "\n  import ee.cone.c4proto._" +
         "\n  import scala.collection.immutable.Seq" +
-        components.map(_.content).mkString
+        components.collect{ case c: GeneratedComponent => c.content }.mkString
     ) :: connects ::: List(GeneratedCode("\n}"))
   }
   def getTypeKey(t: Type): String = t match {

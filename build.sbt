@@ -10,7 +10,7 @@ lazy val descr = "C4 framework"
      
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.F.2.1",
+  version := "0.F.3.sk",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
@@ -55,12 +55,27 @@ lazy val `c4gate-repl` = project.settings(publishSettings).dependsOn(`c4actor-ba
 //lazy val `c4gate-sun` = project.settings(publishSettings).dependsOn(`c4gate-server`)
 //lazy val `c4gate-finagle` = project.settings(publishSettings).dependsOn(`c4gate-server`, `c4gate-sun`)
 lazy val `c4gate-akka` = project.settings(publishSettings).dependsOn(`c4gate-server`, `c4gate-repl`)
+
+
 lazy val `c4all-examples` = project.settings(publishSettings).dependsOn(
-  `c4actor-base-examples`,
-  `c4gate-consumer-example`,
-  `c4gate-server-example`,
-  `c4gate-sse-example`
+  `c4actor-base-examples`, `c4gate-consumer-example`, `c4gate-server-example`, `c4gate-sse-example`,
+  `c4vdom-canvas`,
+  `c4actor-extra-examples`, `c4gate-extra-examples`
 )
+lazy val `c4all-server` = project.settings(publishSettings).dependsOn(`c4gate-server`)
+
+lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
+  // gate
+  `c4all-server`,
+  // lib
+  `c4proto-di`,`c4proto-api`,`c4assemble-runtime`,
+  `c4actor-base`,`c4actor-kafka`,`c4actor-branch`,`c4actor-rdb`,
+  `c4gate-client`,`c4gate-logback-static`,`c4gate-logback`,`c4vdom-base`,`c4ui-main`,
+  `c4actor-extra`,`c4gate-extra`,`c4actor-extra-rdb`,`c4ui-extra`,
+  // examples
+  `c4all-examples`
+)
+/*
 
 lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).aggregate(
   `c4gate-akka`,
@@ -74,6 +89,6 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4actor-extra-examples`,
   `c4gate-extra-examples`,
   `c4all-examples`
-)
+)*/
 
 lazy val `generator` = project.in(file("generator"))
