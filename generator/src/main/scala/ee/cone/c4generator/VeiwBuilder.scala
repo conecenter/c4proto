@@ -33,20 +33,22 @@ object ViewBuilderGenerator extends Generator {
           }
           OrigInfo(objectName, resultType, origId, fields.toList)
       }.toList
-      Seq(GeneratedCode("\n" +
-        s"""trait ${objectName}ViewBuilderApp
-           |  extends ee.cone.core.c4security.views._newvb._api.ProdGettersApp
-           |    with ee.cone.core.c4security.views._newvb._api.ProdSettersApp
-           |    with ee.cone.c4actor.AssemblesApp {
-           |  override def getters: List[ee.cone.core.c4security.views._newvb.ProdAttrGetter[_ <: Product, _]] = ${gettersName(origs)} ::: super.getters
-           |  override def prodSetters: List[ee.cone.core.c4security.views._newvb._api.ProdSetters[_ <: Product]] = ${settersName(origs)} :: super.prodSetters
-           |  override def assembles: List[ee.cone.c4assemble.Assemble] = ${assemblesName(origs)} :: super.assembles
-           |}
-           |""".stripMargin + "\n\n" +
-        getGetters(origs) + "\n\n" +
-        getSetters(origs)
-      )
-      )
+      if (origs.nonEmpty)
+        Seq(GeneratedCode("\n" +
+          s"""trait ${objectName}ViewBuilderApp
+             |  extends ee.cone.core.c4security.views._newvb._api.ProdGettersApp
+             |    with ee.cone.core.c4security.views._newvb._api.ProdSettersApp
+             |    with ee.cone.c4actor.AssemblesApp {
+             |  override def getters: List[ee.cone.core.c4security.views._newvb.ProdAttrGetter[_ <: Product, _]] = ${gettersName(origs)} ::: super.getters
+             |  override def prodSetters: List[ee.cone.core.c4security.views._newvb._api.ProdSetters[_ <: Product]] = ${settersName(origs)} :: super.prodSetters
+             |  override def assembles: List[ee.cone.c4assemble.Assemble] = ${assemblesName(origs)} :: super.assembles
+             |}
+             |""".stripMargin + "\n\n" +
+          getGetters(origs) + "\n\n" +
+          getSetters(origs)
+        )
+        )
+      else Seq.empty
     }
   }
 
