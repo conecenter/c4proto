@@ -77,7 +77,7 @@ object ViewBuilderGenerator extends Generator {
        |    ee.cone.core.c4security.views._newvb.ProdAttrGetter(ee.cone.core.c4security.views._newvb.Descriptor(
        |      ee.cone.core.c4security.views._newvb.OrigIdAttr(${origInfo.origId}),
        |      ee.cone.c4actor.IdMetaAttr(${field.fieldId}),
-       |      ee.cone.c4actor.NameMetaAttr("${origInfo.protocolName}.${origInfo.origType}.${field.fieldType}"),
+       |      ee.cone.c4actor.NameMetaAttr("${origInfo.protocolName}.${origInfo.origType}.${field.fieldName}"),
        |      ${if (field.meta.isEmpty) "" else field.meta.mkString(",\n      ", ",\n      ", "")}
        |    ))(_.${field.fieldName})
        |""".stripMargin
