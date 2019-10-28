@@ -17,8 +17,8 @@ object SyncTx {
 trait SyncTxFactory {
   def create[D_Item<:Product](
     classOfItem: Class[D_Item],
-    filter: D_Item⇒Boolean,
-    group: D_Item⇒SrcId,
-    txTransform: (SrcId,List[SyncTxTask[D_Item]])⇒TxTransform
+    filter: D_Item=>Boolean,
+    group: D_Item=>SrcId,
+    txTransform: (SrcId,List[SyncTxTask[D_Item]])=>TxTransform
   ): Assemble
 }

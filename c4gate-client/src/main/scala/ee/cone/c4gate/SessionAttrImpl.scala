@@ -6,13 +6,13 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, c4assemble}
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4proto._
 import okio.ByteString
 
-@protocol object SessionDataProtocolBase   {
+@protocol("SessionDataProtocolApp") object SessionDataProtocolBase   {
   @Id(0x0066) case class U_RawSessionData(
     @Id(0x0061) srcId: String,
     @Id(0x0067) sessionKey: String,
@@ -27,18 +27,17 @@ import okio.ByteString
   )
 }
 
-object SessionDataAssembles {
-  def apply(mortal: MortalFactory): List[Assemble] =
-    mortal(classOf[U_RawSessionData]) :: new SessionDataAssemble :: Nil
+@c4("SessionAttrCompApp") class  SessionDataAssemblesBase(mortal: MortalFactory) {
+  @provide def subAssembles: Seq[Assemble] = List(mortal(classOf[U_RawSessionData]))
 }
 
-@assemble class SessionDataAssembleBase   {
+@c4assemble("SessionAttrCompApp") class SessionDataAssembleBase {
   type SessionKey = SrcId
 
   def joinBySessionKey(
     srcId: SrcId,
     sd: Each[U_RawSessionData]
-  ): Values[(SessionKey, U_RawSessionData)] = List(sd.sessionKey → sd)
+  ): Values[(SessionKey, U_RawSessionData)] = List(sd.sessionKey -> sd)
 
   def joinSessionLife(
     key: SrcId,
@@ -47,17 +46,17 @@ object SessionDataAssembles {
   ): Values[(Alive, U_RawSessionData)] = List(WithPK(sessionData))
 }
 
-class SessionAttrAccessFactoryImpl(
+@c4("SessionAttrCompApp") class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
   defaultModelRegistry: DefaultModelRegistry,
   modelAccessFactory: ModelAccessFactory,
   val idGenUtil: IdGenUtil
 ) extends SessionAttrAccessFactory with KeyGenerator{
-  def to[P<:Product](attr: SessionAttr[P]): Context⇒Option[Access[P]] = {
+  def to[P<:Product](attr: SessionAttr[P]): Context=>Option[Access[P]] = {
     val adapter = registry.byName(classOf[U_RawSessionData].getName)
     val lens = ProdLens[U_RawSessionData,P](attr.metaList)(
-      rawData ⇒ registry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
-      value ⇒ rawData ⇒ {
+      rawData => registry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
+      value => rawData => {
         val valueAdapter = registry.byName(attr.className)
         val byteString = ToByteString(valueAdapter.encode(value))
         val newDataNode = rawData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
@@ -65,7 +64,7 @@ class SessionAttrAccessFactoryImpl(
       }
     )
     val byPK = ByPK(classOf[U_RawSessionData])
-    local ⇒ {
+    local => {
       val sessionKey = CurrentSessionKey.of(local)
       val request: U_RawSessionData = U_RawSessionData(
         srcId = "",
@@ -98,15 +97,15 @@ class SessionAttrAccessFactoryImpl(
     srcId: SrcId,
     rawDataValues: Values[U_RawSessionData]
   ): Values[(SrcId, SessionData)] = for {
-    r ← rawDataValues
-    adapter ← registry.byId.get(r.valueTypeId)
+    r <- rawDataValues
+    adapter <- registry.byId.get(r.valueTypeId)
   } yield WithPK(SessionData(r.srcId, r, adapter.decode(r.value.toByteArray)))
 
   def joinUserLife(
     key: SrcId,
     @by[SessionKey] sessionDataValues: Values[U_RawSessionData]
   ): Values[(Alive, U_RawSessionData)] = for {
-    sessionData ← sessionDataValues if sessionData.sessionKey.isEmpty
+    sessionData <- sessionDataValues if sessionData.sessionKey.isEmpty
   } yield WithPK(sessionData)
 
 case class SessionData(srcId: String, orig: U_RawSessionData, value: Product)

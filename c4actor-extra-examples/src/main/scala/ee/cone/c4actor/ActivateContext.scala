@@ -5,7 +5,7 @@ import ee.cone.c4actor.MetaAttrProtocol.D_TxTransformNameMeta
 object ActivateContext {
   def apply(local: Context): Context = {
     val txTransforms = ByPK(classOf[TxTransform]).of(local).values
-    txTransforms.foldLeft(local)((oldLocal, transform) ⇒
+    txTransforms.foldLeft(local)((oldLocal, transform) =>
       transform.transform(TxTransformOrigMeta(transform.getClass.getName)(oldLocal)))
   }
 

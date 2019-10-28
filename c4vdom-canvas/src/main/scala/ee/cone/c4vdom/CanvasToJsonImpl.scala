@@ -46,18 +46,18 @@ case class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, dec
     style match {
       case FillStyle(v)=>  attrSet("fillStyle",v)
       case StrokeStyle(v)=> attrSet("strokeStyle",v)
-      case FontStyle(font, _, fontWeight) ⇒
+      case FontStyle(font, _, fontWeight) =>
         val defSize = 20
         attrSet("font",s"${if(fontWeight.nonEmpty) fontWeight else "normal"} ${defSize}px $font")
-      case TextAnchorStyle(v) ⇒ attrSet("textAlign",v)
-      case TextBaseline(v) ⇒ attrSet("textBaseline",v)
-      case DominantBaselineCentralStyle(v) ⇒
+      case TextAnchorStyle(v) => attrSet("textAlign",v)
+      case TextBaseline(v) => attrSet("textBaseline",v)
+      case DominantBaselineCentralStyle(v) =>
         attrSet("textBaseline",if(v) "middle" else "bottom")
       case StrokeWidthStyle(_) =>
       case SetLineDash(_) =>
       case LineCapStyle(v) => attrSet("lineCap",v)
       case LineJoinStyle(v) => attrSet("lineJoin",v)
-      case p ⇒ println(s"!non-text style: $p")
+      case p => println(s"!non-text style: $p")
     }
     pf(style)
   }
@@ -97,10 +97,10 @@ case class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, dec
           cmd("setMainContext")
           cmd("save")
           transforms.foreach{
-            case DoTransform(a,b,c,d,e,f) ⇒ begin(); add(a); add(b); add(c); add(d); add(e); add(f); end("transform")
-            case Scale(v) ⇒ cmd(v,v,"scale")
-            case Translate(x,y) ⇒ cmd(x,y,"translate")
-            case Rotate(t) ⇒ cmd(t,"rotate")
+            case DoTransform(a,b,c,d,e,f) => begin(); add(a); add(b); add(c); add(d); add(e); add(f); end("transform")
+            case Scale(v) => cmd(v,v,"scale")
+            case Translate(x,y) => cmd(x,y,"translate")
+            case Rotate(t) => cmd(t,"rotate")
           }
         }
         begin(); add("applyPath"); begin()
@@ -116,7 +116,7 @@ case class PathToJsonImpl(attrs:List[PathAttr])(builder: MutableJsonBuilder, dec
             begin();add("lineWidth");add(v);end("set")
           case SetLineDash(dash)=>
             begin(); begin()
-            dash.split(",").foreach(s⇒add(BigDecimal(s.trim)))
+            dash.split(",").foreach(s=>add(BigDecimal(s.trim)))
             end(); end("setLineDash")
         }
         shapes.collect{case s:PathShape=>s}.foreach{

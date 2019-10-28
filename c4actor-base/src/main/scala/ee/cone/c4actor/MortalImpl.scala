@@ -4,9 +4,10 @@ import ee.cone.c4actor.Killing.KillerId
 import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by, distinct}
+import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble, distinct}
+import ee.cone.c4proto.c4
 
-case class MortalFactoryImpl(anUUIDUtil: IdGenUtil) extends MortalFactory {
+@c4("MortalFactoryCompApp") case class MortalFactoryImpl(anUUIDUtil: IdGenUtil) extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl,anUUIDUtil)
 }
 
@@ -24,12 +25,12 @@ object Killing {
     mortal: Each[D_Node],
     @distinct @by[Alive] keepAlive: Values[D_Node]
   ): Values[(KillerId,Killing)] = if(keepAlive.nonEmpty) Nil else for {
-    ev ← LEvent.delete(mortal)
-    killing ← Seq(Killing(anUUIDUtil.srcIdFromSrcIds(ev.srcId,ev.className/*it's just string*/),ev))
-  } yield s"killing" → killing //scaling: killing.hash.substring(0,1)
+    ev <- LEvent.delete(mortal)
+    killing <- Seq(Killing(anUUIDUtil.srcIdFromSrcIds(ev.srcId,ev.className/*it's just string*/),ev))
+  } yield s"killing" -> killing //scaling: killing.hash.substring(0,1)
 }
 
-@assemble class MortalFatalityAssembleBase   {
+@c4assemble("MortalFactoryCompApp") class MortalFatalityAssembleBase   {
   def aggregateKilling(
     key: SrcId,
     @by[KillerId] killings: Values[Killing]
@@ -67,7 +68,7 @@ trait GiveLifeRulesApp {
 trait GiveLifeRules {
   def add[Giver,Mortal](rule: GiveLifeRule[Giver,Mortal]): GiveLifeRules
 }
-abstract class GiveLifeRule[Giver,Mortal](to: Giver ⇒ List[Mortal]) extends Product
+abstract class GiveLifeRule[Giver,Mortal](to: Giver => List[Mortal]) extends Product
 
 
 case class GiveLifeRulesImpl() extends GiveLifeRules {
@@ -76,19 +77,19 @@ case class GiveLifeRulesImpl() extends GiveLifeRules {
 
 
 object ToPrimaryKey {
-  def apply(p: Product): SrcId = p.product Element(0) match{ case s: String ⇒ s }
+  def apply(p: Product): SrcId = p.product Element(0) match{ case s: String => s }
 }
 @assemble class GiveLifeAssemble[Giver<:Product,Mortal<:Product](
   classOfGiver: Class[Giver],
   classOfMortal: Class[Mortal],
-  f: Giver ⇒ List[Mortal]
+  f: Giver => List[Mortal]
 )   {
   import LifeTypes.MortalSrcId
   def join(
     key: SrcId,
     givers: Values[Giver]
   ): Values[(Alive,Mortal)] =
-    for(giver ← givers; mortal ← f(giver)) yield ToPrimaryKey(mortal) → mortal
+    for(giver <- givers; mortal <- f(giver)) yield ToPrimaryKey(mortal) -> mortal
 }
 */
 

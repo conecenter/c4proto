@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.c4component
+import ee.cone.c4proto.c4
 import okio._
 
 import scala.annotation.tailrec
@@ -9,13 +9,13 @@ object NoStreamCompressorFactory extends StreamCompressorFactory {
   def create(): Option[Compressor] = None
 }
 
-@c4component("ProtoAutoApp") case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
-  val byNameMap: Map[String, DeCompressor] = compressors.map(c ⇒ c.name → c).toMap
+@c4("ProtoApp") case class DeCompressorRegistryImpl(compressors: List[DeCompressor])(
+  val byNameMap: Map[String, DeCompressor] = compressors.map(c => c.name -> c).toMap
 ) extends DeCompressorRegistry {
-  def byName: String ⇒ DeCompressor = byNameMap
+  def byName: String => DeCompressor = byNameMap
 }
 
-@c4component("ServerAutoApp")
+@c4("ServerCompApp")
 case class GzipFullDeCompressor() extends DeCompressor {
   def name: String = "gzip"
 
@@ -25,9 +25,9 @@ case class GzipFullDeCompressor() extends DeCompressor {
       readAgain(source, sink)
 
   def deCompress(body: ByteString): ByteString =
-    FinallyClose(new Buffer) { sink ⇒
+    FinallyClose(new Buffer) { sink =>
       FinallyClose(new GzipSource(new Buffer().write(body)))(
-        gzipSource ⇒
+        gzipSource =>
           readAgain(gzipSource, sink)
       )
       sink.readByteString()
@@ -37,22 +37,22 @@ case class GzipFullDeCompressor() extends DeCompressor {
 case class GzipFullCompressor() extends Compressor {
   def name: String = "gzip"
   def compress(body: ByteString): ByteString =
-    FinallyClose(new Buffer) { sink ⇒
+    FinallyClose(new Buffer) { sink =>
       FinallyClose(new GzipSink(sink))(
-        gzipSink ⇒
+        gzipSink =>
           gzipSink.write(new Buffer().write(body), body.size)
       )
       sink.readByteString()
     }
 }
 
-@c4component("GzipRawCompressorApp")
+@c4("GzipRawCompressorApp")
 case class GzipFullRawCompressor() extends RawCompressor {
   def name: String = "gzip"
   def compress(body: Array[Byte]): Array[Byte] =
-    FinallyClose(new Buffer) { sink ⇒
+    FinallyClose(new Buffer) { sink =>
       FinallyClose(new GzipSink(sink))(
-        gzipSink ⇒
+        gzipSink =>
           gzipSink.write(new Buffer().write(body), body.length)
       )
       sink.readByteArray()

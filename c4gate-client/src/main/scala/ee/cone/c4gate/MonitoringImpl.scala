@@ -14,7 +14,7 @@ import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import ee.cone.c4proto.{Id, protocol}
 import okio.ByteString
 
-@protocol object ActorAccessProtocolBase {
+@protocol("ActorAccessApp") object ActorAccessProtocolBase {
 
   @Id(0x006A) case class C_ActorAccessKey(
     @Id(0x006B) srcId: String,
@@ -23,7 +23,7 @@ import okio.ByteString
 
 }
 
-@assemble class ActorAccessAssembleBase {
+@c4assemble("ActorAccessApp") class ActorAccessAssembleBase {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
@@ -38,7 +38,8 @@ case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTrans
     TxAdd(LEvent.update(C_ActorAccessKey(first.srcId, s"${UUID.randomUUID}")))(local)
 }
 
-@assemble class PrometheusAssembleBase(compressor: Compressor, metricsFactories: List[MetricsFactory])   {
+/*
+@c4assemble("PrometheusApp") class PrometheusAssembleBase(compressor: PublishFullCompressor, metricsFactories: List[MetricsFactory])   {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
@@ -46,11 +47,11 @@ case class ActorAccessCreateTx(srcId: SrcId, first: S_Firstborn) extends TxTrans
   ): Values[(SrcId,TxTransform)] = {
     val path = s"/${accessKey.value}-metrics"
     println(s"Prometheus metrics at $path")
-    List(WithPK(PrometheusTx(path, compressor, metricsFactories)))
+    List(WithPK(PrometheusTx(path)(compressor.value, metricsFactories)))
   }
 }
 
-case class PrometheusTx(path: String, compressor: Compressor, metricsFactories: List[MetricsFactory]) extends TxTransform {
+case class PrometheusTx(path: String)(compressor: Compressor, metricsFactories: List[MetricsFactory]) extends TxTransform {
 
   def transform(local: Context): Context = {
     val time = System.currentTimeMillis
@@ -60,13 +61,13 @@ case class PrometheusTx(path: String, compressor: Compressor, metricsFactories: 
     val headers = List(N_Header("content-encoding", compressor.name))
     Monitoring.publish(time, 15000, 5000, path, headers, body)(local)
   }
-}
+}*/
 
 object Monitoring {
   def publish(
     time: Long, updatePeriod: Long, timeout: Long,
     path: String, headers: List[N_Header], body: okio.ByteString
-  ): Context ⇒ Context = {
+  ): Context => Context = {
     val nextTime = time + updatePeriod
     val invalidateTime = nextTime + timeout
     val publication = S_HttpPublication(path, headers, body, Option(invalidateTime))
@@ -74,18 +75,18 @@ object Monitoring {
   }
 }
 
-@assemble class AvailabilityAssembleBase(updateDef: Long, timeoutDef: Long) {
+@c4assemble("AvailabilityApp") class AvailabilityAssembleBase(updateDef: Long = 3000, timeoutDef: Long = 3000) {
   def join(
     key: SrcId,
     first: Each[S_Firstborn],
     settings: Values[C_AvailabilitySetting]
   ): Values[(SrcId, TxTransform)] = {
-    val (updatePeriod, timeout) = Single.option(settings.map(s ⇒ s.updatePeriod → s.timeout)).getOrElse((updateDef, timeoutDef))
+    val (updatePeriod, timeout) = Single.option(settings.map(s => s.updatePeriod -> s.timeout)).getOrElse((updateDef, timeoutDef))
     List(WithPK(AvailabilityTx(s"AvailabilityTx-${first.srcId}", updatePeriod, timeout)))
   }
 }
 
-@protocol object AvailabilitySettingProtocolBase {
+@protocol("AvailabilityApp") object AvailabilitySettingProtocolBase {
 
   @Id(0x00f0) case class C_AvailabilitySetting(
     @Id(0x0001) srcId: String,

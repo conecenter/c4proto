@@ -4,22 +4,22 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{Context, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble}
 import ee.cone.c4gate.CurrentSessionKey
 import ee.cone.c4vdom.Types.ViewRes
 
-@assemble class PublicViewAssembleBase(views: List[ByLocationHashView])   {
+@c4assemble("PublicViewAssembleApp") class PublicViewAssembleBase(views: List[ByLocationHashView])   {
   type LocationHash = String
   def joinByLocationHash(
     key: SrcId,
     fromAlien: Each[FromAlienTask]
-  ): Values[(LocationHash,FromAlienTask)] = List(fromAlien.locationHash → fromAlien)
+  ): Values[(LocationHash,FromAlienTask)] = List(fromAlien.locationHash -> fromAlien)
 
   def joinPublicView(
     key: SrcId,
     firstborn: Each[S_Firstborn]
   ): Values[(SrcId,ByLocationHashView)] = for {
-    view ← views
+    view <- views
   } yield WithPK(view)
 
   def join(
@@ -31,7 +31,7 @@ import ee.cone.c4vdom.Types.ViewRes
 }
 
 case class AssignedPublicView(branchKey: SrcId, task: FromAlienTask, currentView: View) extends View {
-  def view: Context ⇒ ViewRes = Function.chain(Seq(
+  def view: Context => ViewRes = Function.chain(Seq(
     CurrentBranchKey.set(branchKey),
     CurrentSessionKey.set(task.fromAlienState.sessionKey)
   )).andThen(currentView.view)

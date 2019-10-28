@@ -14,7 +14,7 @@ import ee.cone.c4proto._
 import okio.ByteString
 
 trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with GeneralizedOrigRegistryApi with DepResponseFactoryApp {
-  override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model ⇒ new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
+  override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model => new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
 
@@ -88,9 +88,9 @@ case class LeafRegistryImpl(
 ) extends LeafRegistry {
 
   private lazy val leafMap: Map[(String, String, String), LeafInfoHolder[_ <: Product, _ <: Product, _]] =
-    leafList.map(leaf ⇒ (leaf.modelCl.getName, leaf.byCl.getName, leaf.lens.metaList.collect { case NameMetaAttr(v) ⇒ v }.head) → leaf).toMap
+    leafList.map(leaf => (leaf.modelCl.getName, leaf.byCl.getName, leaf.lens.metaList.collect { case NameMetaAttr(v) => v }.head) -> leaf).toMap
 
-  private lazy val modelMap: Map[String, Class[_ <: Product]] = models.map(cl ⇒ cl.getName → cl).distinct.toMap[String, Class[_ <: Product]]
+  private lazy val modelMap: Map[String, Class[_ <: Product]] = models.map(cl => cl.getName -> cl).distinct.toMap[String, Class[_ <: Product]]
 
   def getLeaf(modelCl: String, byCl: String, lensName: String): LeafInfoHolder[_ <: Product, _ <: Product, _] = leafMap((modelCl, byCl, lensName))
 
@@ -101,33 +101,33 @@ case class LeafRegistryImpl(
 
 case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[Unit], generalizedOrigRegistry: GeneralizedOrigRegistry, qAdapterRegistry: QAdapterRegistry) {
 
-  def handle: N_HashSearchDepRequest => Condition[_] = request ⇒
+  def handle: N_HashSearchDepRequest => Condition[_] = request =>
     parseCondition(
       request.condition.get, condFactory.ofWithCl(
         leafs.getModelCl(request.modelName)
       )
     )
 
-
   private def parseCondition[Model](condition: ProtoDepCondition, factory: ModelConditionFactory[Model]): Condition[Model] = {
     condition match {
-      case inter: N_DepConditionIntersect ⇒ factory.intersect(parseCondition(inter.condLeft.get, factory), parseCondition(inter.condRight.get, factory))
-      case union: N_DepConditionUnion ⇒ factory.union(parseCondition(union.condLeft.get, factory), parseCondition(union.condRight.get, factory))
-      case _: N_DepConditionAny ⇒ factory.any
-      case leaf: N_DepConditionLeaf ⇒
+      case inter: N_DepConditionIntersect => factory.intersect(parseCondition(inter.condLeft.get, factory), parseCondition(inter.condRight.get, factory))
+      case union: N_DepConditionUnion => factory.union(parseCondition(union.condLeft.get, factory), parseCondition(union.condRight.get, factory))
+      case _: N_DepConditionAny => factory.any
+      case leaf: N_DepConditionLeaf =>
         val leafInfo: LeafInfoHolder[_ <: Product, _ <: Product, _] = leafs.getLeaf(leaf.modelClass, leaf.byClName, leaf.lensName)
         makeLeaf(leafInfo.modelCl, leafInfo.byCl, leafInfo.fieldCl)(leafInfo, leaf.value).asInstanceOf[Condition[Model]]
-      case _ ⇒ throw new Exception("Not implemented yet: parseBy(by:By)")
+      case _ => throw new Exception("Not implemented yet: parseBy(by:By)")
     }
   }
 
-  private def caster[Model <: Product, By <: Product, Field](m: Class[Model], b: Class[By], f: Class[Field]): LeafInfoHolder[_, _, _] ⇒ LeafInfoHolder[Model, By, Field] =
+  private def caster[Model <: Product, By <: Product, Field](m: Class[Model], b: Class[By], f: Class[Field]): LeafInfoHolder[_, _, _] => LeafInfoHolder[Model, By, Field] =
     _.asInstanceOf[LeafInfoHolder[Model, By, Field]]
 
   private def makeLeaf[Model <: Product, By <: Product, Field](modelCl: Class[Model], byClass: Class[By], fieldCl: Class[Field]):
-  (LeafInfoHolder[_, _, _], ByteString) ⇒ ProdConditionImpl[By, Model, Field] = (leafInfo, by) ⇒ {
-    def filterMetaList: ProdLens[Model, Field] ⇒ List[AbstractMetaAttr] =
-      _.metaList.collect { case l: NameMetaAttr ⇒ l }
+
+  (LeafInfoHolder[_, _, _], ByteString) => ProdConditionImpl[By, Model, Field] = (leafInfo, by) => {
+    def filterMetaList: ProdLens[Model, Field] => List[AbstractMetaAttr] =
+      _.metaList.collect { case l: NameMetaAttr => l }
 
     val byAdapter = qAdapterRegistry.byName(byClass.getName)
     val genericMaker = generalizedOrigRegistry.get[By](byClass.getName)

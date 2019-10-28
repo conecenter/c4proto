@@ -12,7 +12,6 @@ import ee.cone.c4actor.hashsearch.condition.ConditionCheckWithCl
 import ee.cone.c4actor.hashsearch.index.StaticHashSearchImpl.StaticFactoryImpl
 import ee.cone.c4actor.hashsearch.index.dynamic.{DynamicIndexAssemble, IndexByNodeStats, ProductWithId}
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexNode, S_IndexNodeSettings}
-import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexByNode, S_IndexNode, S_IndexNodeSettings}
 import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryMix, RangerWithCl}
 import ee.cone.c4actor.tests.TestProtocolM
 import ee.cone.c4assemble.Types.{Each, Values}
@@ -34,10 +33,10 @@ class HashSearchExtraTestStart(
     import LEvent.update
 
     val world = for {
-      i ← 1 to 10000
+      i <- 1 to 10000
     } yield D_TestObject(i.toString, 239, i.toHexString)
     val recs = /*update(D_TestNode("1", "")) ++ */ update(S_Firstborn("test", "0" * OffsetHexSize())) ++ update(D_ChangingNode("test", "6")) ++ update(D_ChangingNode("test-safe", "45")) ++ world.flatMap(update)
-    val updates: List[QProtocol.N_Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val updates: List[QProtocol.N_Update] = recs.map(rec => toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
     val nGlobalAA = ActivateContext(nGlobalActive)
@@ -48,7 +47,7 @@ class HashSearchExtraTestStart(
     println("Should", List(17, 273))
     println("Answer", ByPK(classOf[CustomResponse]).of(nGlobalAA).values.toList.map(_.list.size))
     println(ByPK(classOf[S_IndexNode]).of(nGlobalAA).values)
-    println(ByPK(classOf[S_IndexByNode]).of(nGlobalAA).values.map(meh ⇒ meh.leafId → meh.byStr))
+    println(ByPK(classOf[S_IndexByNode]).of(nGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
     //Thread.sleep(3000)
     println("1>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal: Context = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "1")))(nGlobalAA)
@@ -58,7 +57,7 @@ class HashSearchExtraTestStart(
     //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
     println("Should", List(17, 4369))
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobalAA).values.toList.map(_.list.size))
-    println(ByPK(classOf[S_IndexByNode]).of(newNGlobalAA).values.map(meh ⇒ meh.leafId → meh.byStr))
+    println(ByPK(classOf[S_IndexByNode]).of(newNGlobalAA).values.map(meh => meh.leafId -> meh.byStr))
     println("2>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
     val newNGlobal2 = TxAdd(LEvent.update(D_TestObject("124", 239, "adb")) ++ LEvent.update(D_ChangingNode("test", "")))(newNGlobalAA)
     Thread.sleep(10000)
@@ -68,7 +67,7 @@ class HashSearchExtraTestStart(
     //println(ByPK(classOf[D_TestObject]).of(newNGlobal).values.toList)
     println("Should", List(17, 10000))
     println("Answer", ByPK(classOf[CustomResponse]).of(newNGlobal2AA).values.toList.map(_.list.size))
-    println(ByPK(classOf[S_IndexByNode]).of(newNGlobal2AA).values.map(meh ⇒ meh.leafId → meh.byStr))
+    println(ByPK(classOf[S_IndexByNode]).of(newNGlobal2AA).values.map(meh => meh.leafId -> meh.byStr))
     println("2<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
     execution.complete()
 
@@ -77,12 +76,12 @@ class HashSearchExtraTestStart(
 
 case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
 
-@assemble class CreateRequestBase(condition: List[Condition[D_TestObject]], changingCondition: String ⇒ Condition[D_TestObject])   {
+@assemble class CreateRequestBase(condition: List[Condition[D_TestObject]], changingCondition: String => Condition[D_TestObject])   {
   def createRequest(
     testId: SrcId,
     test: Each[D_TestNode]
   ): Values[(SrcId, Request[D_TestObject])] = for {
-    cond ← condition
+    cond <- condition
   } yield WithPK(Request(test.srcId + "_" + cond.toString.take(10), cond))
 
   def createRequestChanging(
@@ -105,7 +104,7 @@ case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
     responses: Values[Response[D_TestObject]]
   ): Values[(SrcId, CustomResponse)] = {
     //println("Answer", responses.map(_.lines))
-    (responseId → CustomResponse(responseId, responses.flatMap(_.lines).toList)) :: Nil
+    (responseId -> CustomResponse(responseId, responses.flatMap(_.lines).toList)) :: Nil
   }
 
   /*def printAllInners(
@@ -156,10 +155,10 @@ case class CustomResponse(srcId: SrcId, list: List[D_TestObject])
 }
 
 case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[D_StrStartsWith], classOf[String]) {
-  def prepare: List[AbstractMetaAttr] => D_StrStartsWith => D_StrStartsWith = _ ⇒ by ⇒ by
+  def prepare: List[AbstractMetaAttr] => D_StrStartsWith => D_StrStartsWith = _ => by => by
 
   def check: D_StrStartsWith => String => Boolean = {
-    case D_StrStartsWith(v) ⇒ _.startsWith(v)
+    case D_StrStartsWith(v) => _.startsWith(v)
   }
 
   def defaultBy: Option[D_StrStartsWith => Boolean] = None
@@ -167,35 +166,35 @@ case object StrStartsWithChecker extends ConditionCheckWithCl(classOf[D_StrStart
 
 case object StrStartsWithRanger extends RangerWithCl(classOf[D_StrStartsWith], classOf[String]) {
   def ranges: D_StrStartsWith => (String => List[D_StrStartsWith], PartialFunction[Product, List[D_StrStartsWith]]) = {
-    case D_StrStartsWith("") ⇒ (
-      value ⇒ (
+    case D_StrStartsWith("") => (
+      value => (
         (for {
-          i ← 1 to 5
+          i <- 1 to 5
         } yield D_StrStartsWith(value.take(i))
           ).toList :+ D_StrStartsWith("")).distinct, {
-      case D_StrStartsWith(v) ⇒ D_StrStartsWith(v.take(5)) :: Nil
+      case D_StrStartsWith(v) => D_StrStartsWith(v.take(5)) :: Nil
     })
-    case a ⇒ FailWith(s"Unsupported option $a")
+    case a => FailWith(s"Unsupported option $a")
   }
 
-  def prepareRequest: D_StrStartsWith => D_StrStartsWith = in ⇒ in.copy(value = in.value.take(5))
+  def prepareRequest: D_StrStartsWith => D_StrStartsWith = in => in.copy(value = in.value.take(5))
 }
 
-object DefaultStrStartsWith extends DefaultModelFactory[D_StrStartsWith](classOf[D_StrStartsWith], _ ⇒ D_StrStartsWith(""))
+object DefaultStrStartsWith extends DefaultModelFactory[D_StrStartsWith](classOf[D_StrStartsWith], _ => D_StrStartsWith(""))
 
 case object IntEqCheck extends ConditionCheckWithCl[D_IntEq, Int](classOf[D_IntEq], classOf[Int]) {
-  def prepare: List[AbstractMetaAttr] ⇒ D_IntEq ⇒ D_IntEq = _ ⇒ identity[D_IntEq]
+  def prepare: List[AbstractMetaAttr] => D_IntEq => D_IntEq = _ => identity[D_IntEq]
 
-  def check: D_IntEq ⇒ Int ⇒ Boolean = by ⇒ value ⇒ true
+  def check: D_IntEq => Int => Boolean = by => value => true
 
   def defaultBy: Option[D_IntEq => Boolean] = None
 }
 
 case class IntEqRanger() extends RangerWithCl[D_IntEq, Int](classOf[D_IntEq], classOf[Int]) {
-  def ranges: D_IntEq ⇒ (Int ⇒ List[D_IntEq], PartialFunction[Product, List[D_IntEq]]) = {
-    case D_IntEq(0) ⇒ (
-      value ⇒ List(D_IntEq(value), D_IntEq(0)).distinct, {
-      case p@D_IntEq(v) ⇒ List(p)
+  def ranges: D_IntEq => (Int => List[D_IntEq], PartialFunction[Product, List[D_IntEq]]) = {
+    case D_IntEq(0) => (
+      value => List(D_IntEq(value), D_IntEq(0)).distinct, {
+      case p@D_IntEq(v) => List(p)
     }
     )
   }
@@ -203,10 +202,10 @@ case class IntEqRanger() extends RangerWithCl[D_IntEq, Int](classOf[D_IntEq], cl
   def prepareRequest: D_IntEq => D_IntEq = identity
 }
 
-object DefaultIntEq extends DefaultModelFactory[D_IntEq](classOf[D_IntEq], id ⇒ D_IntEq(0))
+object DefaultIntEq extends DefaultModelFactory[D_IntEq](classOf[D_IntEq], id => D_IntEq(0))
 
 trait TestCondition extends SerializationUtilsApp {
-  def changingCondition: String ⇒ Condition[D_TestObject] = value ⇒ {
+  def changingCondition: String => Condition[D_TestObject] = value => {
     IntersectCondition(
       IntersectCondition(
         ProdConditionImpl(NameMetaAttr("testLensInt") :: Nil, D_IntEq(0))(IntEqCheck.check(D_IntEq(0)), _.valueInt),
@@ -250,9 +249,9 @@ trait TestCondition extends SerializationUtilsApp {
      .add[D_StrStartsWith, String](lensStr, D_StrStartsWith(""))(StrStartsWithRanger)
      .assemble*/
 
-  def lensInt: ProdLens[D_TestObject, Int] = ProdLens.ofSet[D_TestObject, Int](_.valueInt, value ⇒ _.copy(valueInt = value), "testLensInt", ClassAttr(classOf[D_TestObject], classOf[Int]))
+  def lensInt: ProdLens[D_TestObject, Int] = ProdLens.ofSet[D_TestObject, Int](_.valueInt, value => _.copy(valueInt = value), "testLensInt", ClassAttr(classOf[D_TestObject], classOf[Int]))
 
-  def lensStr: ProdLens[D_TestObject, String] = ProdLens.ofSet[D_TestObject, String](_.valueStr, value ⇒ _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[D_TestObject], classOf[String]))
+  def lensStr: ProdLens[D_TestObject, String] = ProdLens.ofSet[D_TestObject, String](_.valueStr, value => _.copy(valueStr = value), "testLensStr", ClassAttr(classOf[D_TestObject], classOf[String]))
 }
 
 class HashSearchExtraTestApp extends TestVMRichDataApp
@@ -260,8 +259,7 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   //with EnvConfigApp
   with VMExecutionApp
   //with ParallelObserversApp
-  //with FileRawSnapshotApp
-  with TreeIndexValueMergerFactoryApp
+  //with RemoteRawSnapshotApp
   with ExecutableApp
   with ToStartApp
   with ModelAccessFactoryApp
@@ -271,11 +269,10 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   with DynamicIndexAssemble
   with LensRegistryMix
   with HashSearchRangerRegistryMix
-  with DefaultModelFactoriesApp
   with CurrentTimeAssembleMix
   with WithMurMur3HashGenApp
   with ProdLensesApp {
-  // println(TestProtocolM.adapters.map(a ⇒ a.categories))
+  // println(TestProtocolM.adapters.map(a => a.categories))
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
 
@@ -312,9 +309,9 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
 
 /*
 object ValueAssembleProfiler2 extends AssembleProfiler {
-  def get(ruleName: String): String ⇒ Int ⇒ Unit = startAction ⇒ {
+  def get(ruleName: String): String => Int => Unit = startAction => {
     val startTime = System.currentTimeMillis
-    finalCount ⇒ {
+    finalCount => {
       if (true) {
         val period = System.currentTimeMillis - startTime
         if (period > 0)
@@ -328,7 +325,7 @@ object ValueAssembleProfiler2 extends AssembleProfiler {
     if (length >= limit)
       str.take(limit)
     else
-      str + List.range(0, limit - length).map(_ ⇒ "").mkString(" ")
+      str + List.range(0, limit - length).map(_ => "").mkString(" ")
     str
   }
 

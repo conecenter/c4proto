@@ -53,37 +53,37 @@ trait Color {
 ////
 
 trait VDomLens[C,I] {
-  def of: C⇒I
-  def modify: (I⇒I) ⇒ C⇒C
-  def set: I⇒C⇒C
+  def of: C=>I
+  def modify: (I=>I) => C=>C
+  def set: I=>C=>C
 }
 
 trait VDomView[State] extends Product {
-  def view: State ⇒ ViewRes
+  def view: State => ViewRes
 }
 
 trait VDomSender[State] {
   def branchKey: String
-  type Send = Option[(String,String) ⇒ State ⇒ State]
-  def sending: State ⇒ (Send,Send)
+  type Send = Option[(String,String) => State => State]
+  def sending: State => (Send,Send)
 }
 
 trait VDomMessage {
-  def header: String⇒String
+  def header: String=>String
   def body: Object
 }
 
 trait Receiver[State] {
-  type Handler = VDomMessage ⇒ State ⇒ State
+  type Handler = VDomMessage => State => State
   def receive: Handler
 }
 
 trait VDomResolver {
-  def resolve(pathStr: String): Option[VDomValue] ⇒ Option[VDomValue]
+  def resolve(pathStr: String): Option[VDomValue] => Option[VDomValue]
 }
 
 trait VDomHandler[State] extends Receiver[State] {
-  def seeds: State ⇒ List[(String,Product)]
+  def seeds: State => List[(String,Product)]
 }
 
 trait VDomHandlerFactory {

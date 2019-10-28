@@ -2,7 +2,7 @@
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.25"
 
 // https://mvnrepository.com/artifact/com.typesafe.akka/akka-http-core
-libraryDependencies += "com.typesafe.akka" %% "akka-http-core" % "10.0.13"
+libraryDependencies += "com.typesafe.akka" %% "akka-http-core" % "10.1.10" // "10.0.13"
 
 
 description := s"C4 framework / http gate server to kafka"
@@ -12,5 +12,5 @@ javaOptions in Universal ++= Seq(
     "-J-XX:GCTimeRatio=1","-J-XX:MinHeapFreeRatio=15","-J-XX:MaxHeapFreeRatio=50"
 )
 
-enablePlugins(JavaAppPackaging)
+enablePlugins(JavaServerAppPackaging)
 /*,AshScriptPlugin*/

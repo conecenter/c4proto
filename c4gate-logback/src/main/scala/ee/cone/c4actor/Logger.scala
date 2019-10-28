@@ -7,27 +7,13 @@ import java.nio.charset.StandardCharsets.UTF_8
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.classic.joran.JoranConfigurator
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4proto.c4
 import org.slf4j.LoggerFactory
 
 import scala.annotation.tailrec
 
-trait BasicLoggingApp extends ToStartApp {
-  def catchNonFatal: CatchNonFatal
-  def config: Config
-  //
-  private lazy val logbackIncludePaths =
-    Paths.get(config.get("C4LOGBACK_XML")) :: Paths.get("/tmp/logback.xml") :: Nil
-  private lazy val logbackConfigurator =
-    new LoggerConfigurator(logbackIncludePaths, catchNonFatal, 5000)
-  private lazy val logbackTest = new LoggerTest
-  override def toStart: List[Executable] =
-      Option(System.getenv("C4LOGBACK_TEST")).toList.map(_⇒logbackTest) :::
-      logbackConfigurator ::
-      super.toStart
-}
-
-class LoggerTest extends Executable with LazyLogging {
-  def run(): Unit = iteration(0L)
+@c4("BasicLoggingApp") class LoggerTest extends Executable with LazyLogging {
+  def run(): Unit = if(Option(System.getenv("C4LOGBACK_TEST")).nonEmpty) iteration(0L)
   @tailrec private def iteration(v: Long): Unit = {
     Thread.sleep(1000)
     logger.warn(s"logger test $v")
@@ -36,6 +22,15 @@ class LoggerTest extends Executable with LazyLogging {
   }
 }
 
+@c4("BasicLoggingApp") class DefLoggerConfigurator(
+  config: Config,
+  catchNonFatal: CatchNonFatal
+) extends LoggerConfigurator(
+  Paths.get(config.get("C4LOGBACK_XML")) :: Paths.get("/tmp/logback.xml") :: Nil,
+  catchNonFatal,
+  5000
+) with Executable
+
 class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPeriod: Long) extends Executable {
   def run(): Unit = iteration("")
   @tailrec private def iteration(wasContent: String): Unit = {
@@ -43,7 +38,7 @@ class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPe
       s"""
       <configuration>
         <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
-        ${paths.map(path⇒if(Files.exists(path)) new String(Files.readAllBytes(path), UTF_8) else "").mkString}
+        ${paths.map(path=>if(Files.exists(path)) new String(Files.readAllBytes(path), UTF_8) else "").mkString}
         <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
           <encoder><pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern></encoder>
         </appender>
@@ -70,5 +65,5 @@ class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPe
     context.reset()
     configurator.doConfigure(new ByteArrayInputStream(content.getBytes(UTF_8)))
     println("logback reconfigure 2 ok")
-  }("reconfigure"){ e ⇒ () }
+  }("reconfigure"){ e => () }
 }

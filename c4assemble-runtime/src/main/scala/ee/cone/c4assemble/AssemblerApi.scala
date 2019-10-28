@@ -10,35 +10,37 @@ import scala.collection.immutable.Seq
 import scala.concurrent.{ExecutionContext, Future}
 
 object Single {
-  def apply[C](l: Seq[C]): C = if(l.isEmpty) {
+  def apply[C](l: Seq[C], onTooManyErr: Seq[C]=>Exception = tooManyErr[C]): C = if(l.isEmpty) {
     throw new Exception("empty")
   } else if(l.tail.isEmpty) l.head else {
-    throw new Exception(s"non-single: \n${l.head}, \n${l.tail.head} ...")
+    throw onTooManyErr(l)
   }
   def option[C](l: Seq[C]): Option[C] = if(l.isEmpty) None else Option(apply(l))
+  def tooManyErr[C]: Seq[C]=>Exception =
+    l => new Exception(s"non-single: \n${l.head}, \n${l.tail.head} ...")
 }
 
 object ToPrimaryKey {
   def apply(node: Product): String =
     if(node.productArity > 0) node.productElement(0) match {
-      case s: String ⇒ s
-      case p: Product ⇒ ToPrimaryKey(p)
-      case _ ⇒ throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
+      case s: String => s
+      case p: Product => ToPrimaryKey(p)
+      case _ => throw new Exception(s"1st field of ${node.getClass.getName} should be primary key")
     } else ""
 }
 
 class OriginalWorldPart[A<:Object](val outputWorldKey: AssembledKey) extends DataDependencyTo[A]
 
 object TreeAssemblerTypes {
-  type Replace = (ReadModel, ReadModel, AssembleOptions, JoiningProfiling, ExecutionContext) ⇒ Future[WorldTransition]
+  type Replace = (ReadModel, ReadModel, JoiningProfiling, OuterExecutionContext) => Future[WorldTransition]
 }
 
 trait TreeAssembler {
-  def replace: List[DataDependencyTo[_]] ⇒ Replace
+  def replace: List[DataDependencyTo[_]] => Replace
 }
 
 trait ByPriority {
-  def byPriority[K,V](uses: K⇒(List[K],List[V]⇒V)): List[K] ⇒ List[V]
+  def byPriority[K,V](uses: K=>(List[K],List[V]=>V)): List[K] => List[V]
 }
 
 ////
@@ -47,12 +49,12 @@ trait ByPriority {
 class IndexUpdate(val diff: Index, val result: Index, val log: ProfilingLog)
 
 trait IndexUpdater {
-  def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition⇒WorldTransition
+  def setPart(worldKey: AssembledKey, update: Future[IndexUpdate], logTask: Boolean): WorldTransition=>WorldTransition
 }
 
 trait AssembleSeqOptimizer {
   type Expr = WorldPartExpression with DataDependencyFrom[_] with DataDependencyTo[_]
-  def optimize: List[Expr]⇒List[WorldPartExpression]
+  def optimize: List[Expr]=>List[WorldPartExpression]
 }
 
 trait BackStageFactory {

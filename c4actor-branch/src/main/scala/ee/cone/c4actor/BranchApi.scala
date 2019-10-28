@@ -14,24 +14,24 @@ object BranchTypes {
 
 trait BranchMessage extends Product {
   def method: String
-  def header: String⇒String
+  def header: String=>String
   def body: okio.ByteString
   def deletes: Seq[LEvent[Product]]
 }
 
 trait BranchHandler extends Product {
   def branchKey: SrcId
-  def exchange: BranchMessage ⇒ Context ⇒ Context
-  def seeds: Context ⇒ List[S_BranchResult]
+  def exchange: BranchMessage => Context => Context
+  def seeds: Context => List[S_BranchResult]
 }
 
 trait BranchTask extends Product {
   def branchKey: SrcId
   def product: Product
-  def sessionKeys: Context ⇒ Set[BranchRel]
-  type Send = Option[(String,String) ⇒ Context ⇒ Context]
-  def sending: Context ⇒ (Send,Send)
-  def relocate(to: String): Context ⇒ Context
+  def sessionKeys: Context => Set[BranchRel]
+  type Send = Option[(String,String) => Context => Context]
+  def sending: Context => (Send,Send)
+  def relocate(to: String): Context => Context
 }
 
 trait BranchOperations {
@@ -43,7 +43,7 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
 
 
 
-@protocol object BranchProtocolBase   {
+@protocol("BranchApp") object BranchProtocolBase   {
   @Id(0x0040) case class S_BranchResult(
     @Id(0x0041) hash: String,
     @Id(0x0042) valueTypeId: Long,
@@ -66,7 +66,7 @@ case class BranchRel(srcId: SrcId, seed: S_BranchResult, parentSrcId: SrcId, par
   )
 }
 
-case object SendToAlienKey extends SharedComponentKey[(Seq[String],String,String)⇒Context⇒Context]
+case object SendToAlienKey extends SharedComponentKey[(Seq[String],String,String)=>Context=>Context]
 
 trait BranchError {
   def message: String

@@ -10,11 +10,11 @@ import scala.concurrent.{ExecutionContext, Future}
 
 trait SenderToAgent {
   def add(data: Array[Byte]): Unit
-  def close()
+  def close(): Unit
   def compressor: Option[Compressor]
 }
 
-case object GetSenderKey extends SharedComponentKey[String⇒Option[SenderToAgent]]
+case object GetSenderKey extends SharedComponentKey[String=>Option[SenderToAgent]]
 
 trait TcpHandler {
   def beforeServerStart(): Unit
@@ -43,11 +43,13 @@ trait FHttpHandler {
 }
 
 trait RHttpResponseFactory {
-  def directResponse(request: S_HttpRequest, patch: S_HttpResponse⇒S_HttpResponse): RHttpResponse
+  def directResponse(request: S_HttpRequest, patch: S_HttpResponse=>S_HttpResponse): RHttpResponse
 }
 
+class TxRes[R](val value: R, val next: WorldProvider)
 trait WorldProvider {
-  def sync(local: Option[Context])(implicit executionContext: ExecutionContext): Future[Context]
+  def tx[R](f: Context=>(List[LEvent[Product]],R))(implicit executionContext: ExecutionContext): Future[TxRes[R]]
+  //def sync(local: Option[Context])(implicit executionContext: ExecutionContext): Future[Context]
 }
 
 trait StatefulReceiverFactory {
@@ -56,3 +58,5 @@ trait StatefulReceiverFactory {
 trait StatefulReceiver[Message] {
   def send(message: Message): Unit
 }
+
+class DataDir(val value: String)
