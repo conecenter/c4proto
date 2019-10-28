@@ -46,7 +46,6 @@ object EmptyDeferredSeq extends DeferredSeq[Nothing] {
     val factoryKey = toTypeKey(classOf[ComponentFactory[Object]],List(general(key)))
     val factories: DeferredSeq[Object] = reg.getOrElse(factoryKey,EmptyDeferredSeq)
     Option(System.getenv("C4DEBUG_COMPONENTS")).foreach(_=>println(s"resolveKey $key"))
-    // logger.debug(s"$key")
     directRes.value ++
       factories.value.flatMap(f=>f.asInstanceOf[ComponentFactory[Object]].forTypes(key.args))
   })
