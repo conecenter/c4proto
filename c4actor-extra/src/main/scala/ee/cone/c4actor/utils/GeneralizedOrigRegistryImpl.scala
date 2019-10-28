@@ -6,7 +6,7 @@ class GeneralizedOrigRegistryImpl(
   defaultModelFactories: List[GeneralizedOrigFactory[_]]
 )(
   val reg: Map[String, GeneralizedOrigFactory[_]] =
-  CheckedMap(defaultModelFactories.map(f ⇒ f.valueClass.getName → f))
+  CheckedMap(defaultModelFactories.map(f => f.valueClass.getName -> f))
 ) extends GeneralizedOrigRegistry {
   def get[P <: Product](className: String): GeneralizedOrigFactory[P] =
     reg(className).asInstanceOf[GeneralizedOrigFactory[P]]

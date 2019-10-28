@@ -10,7 +10,7 @@ case class PathFactoryImpl[Context](
   def path(key: VDomKey, children: List[ChildPair[OfPath]]): ChildPair[OfPathParent] =
     child[OfPathParent](
       key,
-      PartPath[Context](children.collect{ case a:PathAttr⇒a })(pathToJson),
+      PartPath[Context](children.collect{ case a:PathAttr=>a })(pathToJson),
       children.filterNot(_.isInstanceOf[PathAttr])
     )
 }

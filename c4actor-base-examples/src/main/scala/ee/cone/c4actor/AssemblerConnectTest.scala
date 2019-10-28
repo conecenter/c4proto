@@ -5,21 +5,21 @@ import ee.cone.c4actor.ConnProtocol.D_Node
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, c4, protocol}
 
-@protocol object ConnProtocolBase   {
+@protocol("ConnTestApp") object ConnProtocolBase   {
   @Id(0x0001) case class D_Node(@Id(0x0003) srcId: String, @Id(0x0005) parentId: String)
 }
 
 case class ConnNodePath(path: List[D_Node])
 
-@assemble class ConnAssembleBase   {
+@c4assemble("ConnTestApp") class ConnAssembleBase   {
   type ParentId = SrcId
 
   def nodesByParentId(
       key: SrcId,
       node: Each[D_Node]
-  ): Values[(ParentId,D_Node)] = List(node.parentId → node)
+  ): Values[(ParentId,D_Node)] = List(node.parentId -> node)
 
   def connect(
       key: SrcId,
@@ -27,20 +27,19 @@ case class ConnNodePath(path: List[D_Node])
       @by[ParentId] node: Each[D_Node]
   ): Values[(SrcId,ConnNodePath)] = {
     for {
-      path ← if(key.nonEmpty) paths else List(ConnNodePath(Nil))
+      path <- if(key.nonEmpty) paths else List(ConnNodePath(Nil))
     } yield {
       WithPK(path.copy(path=node::path.path))
     }
   }
 
   /*
-  By[ParentId,D_Node] := for(node ← Is[D_Node] if node.parentId.nonEmpty) yield node.parentId → node
-  Is[List[D_Node]]    := for(node ← Is[D_Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
+  By[ParentId,D_Node] := for(node <- Is[D_Node] if node.parentId.nonEmpty) yield node.parentId -> node
+  Is[List[D_Node]]    := for(node <- Is[D_Node] if node.parentId.isEmpty) yield WithPK(node::Nil)
   Is[List[D_Node]]    := WithPK(Each(By[ParentId,D_Node])::Each(Was[List[D_Node]]))
   */
 }
-
-class ConnStart(
+@c4("ConnTestApp") class ConnStart(
   execution: Execution, toUpdate: ToUpdate, contextFactory: ContextFactory
 ) extends Executable with LazyLogging {
   def run() = {
@@ -48,7 +47,7 @@ class ConnStart(
     val recs = update(D_Node("1","")) ++
       update(D_Node("12","1")) ++ update(D_Node("13","1")) ++
       update(D_Node("124","12")) ++ update(D_Node("125","12"))
-    val updates = recs.map(rec⇒toUpdate.toUpdate(rec)).toList
+    val updates = recs.map(rec=>toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
@@ -76,22 +75,7 @@ class ConnStart(
         )
       )
     ).foreach{
-      case (k,v) ⇒ assert(k.of(nGlobal).toMap==v)
+      case (k,v) => assert(k.of(nGlobal).toMap==v)
     }*/
   }
 }
-
-class ConnTestApp extends TestVMRichDataApp
-  with ExecutableApp
-  with VMExecutionApp
-  with TreeIndexValueMergerFactoryApp
-  with SimpleAssembleProfilerApp
-  with ToStartApp
-{
-  override def protocols: List[Protocol] = ConnProtocol :: super.protocols
-  override def assembles: List[Assemble] = new ConnAssemble :: super.assembles
-  override def toStart: List[Executable] = new ConnStart(execution,toUpdate,contextFactory) :: super.toStart
-  override def assembleSeqOptimizer: AssembleSeqOptimizer = new ShortAssembleSeqOptimizer(indexUtil,backStageFactory,indexUpdater)
-}
-
-//C4STATE_TOPIC_PREFIX=ee.cone.c4actor.ConnTestApp sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain'

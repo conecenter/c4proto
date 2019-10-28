@@ -3,6 +3,7 @@ package ee.cone.c4actor
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Assemble
 
+class HashSearchFactoryHolder(val value: HashSearch.Factory)
 object HashSearch {
 
   case class Request[Model <: Product](requestId: SrcId, condition: Condition[Model])

@@ -7,54 +7,54 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.SimpleAssembleProfilerProtocol.D_TxAddMeta
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4assemble.{Assemble, assemble, by}
+import ee.cone.c4assemble.{Assemble, CallerAssemble, assemble, by, c4assemble}
 import ee.cone.c4gate.AlienProtocol.U_ToAlienWrite
 import ee.cone.c4gate.HttpProtocol.S_HttpPublication
 import ee.cone.c4gate.TestFilterProtocol.B_Content
-import ee.cone.c4proto.{HasId, Id}
-import ee.cone.c4ui.{ByLocationHashView, ByLocationHashViewsApp, UntilPolicy}
+import ee.cone.c4proto.{HasId, Id, c4, provide}
+import ee.cone.c4ui.{ByLocationHashView, UntilPolicy}
 import ee.cone.c4vdom.{ChildPair, OfDiv, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
 import scala.annotation.tailrec
 
-trait TestTxLogApp extends AssemblesApp with ByLocationHashViewsApp with MortalFactoryApp {
+/*trait TestTxLogApp extends TestTxLogAutoApp {
   def tags: Tags
   def untilPolicy: UntilPolicy
-  def qAdapterRegistry: QAdapterRegistry
   def snapshotMerger: SnapshotMerger
   def sessionAttrAccessFactory: SessionAttrAccessFactory
   def testTags: TestTags[Context]
-  def snapshotTaskSigner: Signer[SnapshotTask]
-  def actorName: String
+
+  def componentRegistry: ComponentRegistry
 
   private lazy val testTxLogView = TestTxLogView()(
-    actorName, untilPolicy, tags, snapshotMerger, snapshotTaskSigner, sessionAttrAccessFactory, testTags
+    resolveSingle(classOf[ActorName]), untilPolicy, tags, snapshotMerger, componentRegistry.resolveSingle(classOf[SnapshotTaskSigner]), sessionAttrAccessFactory, testTags
   )
 
-  override def assembles: List[Assemble] =
-    mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) ::
-    new TestTxLogAssemble(actorName)(qAdapterRegistry)() ::
-    super.assembles
+
   override def byLocationHashViews: List[ByLocationHashView] =
     testTxLogView :: super.byLocationHashViews
-}
+}*/
 
-case class TestTxLogView(locationHash: String = "txlog")(
-  actorName: String,
+@c4("TestTxLogApp") class TestTxLogMortalAssembleBase(mortal: MortalFactory) {
+  @provide def subAssembles: Seq[Assemble] =
+    mortal(classOf[N_TxRef]) :: mortal(classOf[D_TxAddMeta]) :: Nil
+}
+@c4("TestTxLogApp") case class TestTxLogView(locationHash: String = "txlog")(
+  actorName: ActorName,
   untilPolicy: UntilPolicy,
   mTags: Tags,
   snapshotMerger: SnapshotMerger,
-  signer: Signer[SnapshotTask],
+  signer: SnapshotTaskSigner,
   sessionAttrAccess: SessionAttrAccessFactory,
   tags: TestTags[Context]
 ) extends ByLocationHashView {
-  def view: Context ⇒ ViewRes = untilPolicy.wrap { local ⇒
+  def view: Context => ViewRes = untilPolicy.wrap { local =>
     import mTags._
 
     val logs: List[ChildPair[OfDiv]] = for{
-      updatesListSummary ← ByPK(classOf[UpdatesListSummary]).of(local).get(actorName).toList
-      updatesSummary ← updatesListSummary.items
+      updatesListSummary <- ByPK(classOf[UpdatesListSummary]).of(local).get(actorName.value).toList
+      updatesSummary <- updatesListSummary.items
       add = updatesSummary.add
     } yield div(s"tx${add.srcId}",List())(
       text("text",
@@ -65,7 +65,7 @@ case class TestTxLogView(locationHash: String = "txlog")(
           s" period: ${add.finishedAt-add.startedAt}"
       ) ::
       (for {
-        (logEntry,idx) ← add.log.zipWithIndex
+        (logEntry,idx) <- add.log.zipWithIndex
       } yield div(s"$idx",Nil)(
         text("text",
           s" ** ${logEntry.value} ${logEntry.name}"
@@ -83,8 +83,8 @@ case class TestTxLogView(locationHash: String = "txlog")(
       List(baseURLAccessOpt,authKeyAccessOpt).flatten.map(tags.input)
 
     val merge: Option[ChildPair[OfDiv]] = for {
-      baseURLAccess ← baseURLAccessOpt if baseURLAccess.initialValue.nonEmpty
-      authKeyAccess ← authKeyAccessOpt if authKeyAccess.initialValue.nonEmpty
+      baseURLAccess <- baseURLAccessOpt if baseURLAccess.initialValue.nonEmpty
+      authKeyAccess <- authKeyAccessOpt if authKeyAccess.initialValue.nonEmpty
     } yield {
       divButton[Context]("merge")(
         snapshotMerger.merge(baseURLAccess.initialValue,authKeyAccess.initialValue)
@@ -105,7 +105,7 @@ object TestTxLogAttrs {
 case class UpdatesSummary(add: D_TxAddMeta, ref: N_TxRef)
 case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount: Long, objCount: Long, byteCount: Long)
 
-@assemble class TestTxLogAssembleBase(actorName: String)(
+@c4assemble("TestTxLogApp") class TestTxLogAssembleBase(actorName: ActorName)(
   qAdapterRegistry: QAdapterRegistry
 )(
   metaAdapter: ProtoAdapter[D_TxAddMeta] with HasId =
@@ -119,7 +119,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
     txRef: Each[N_TxRef],
     txAdd: Each[D_TxAddMeta]
   ): Values[(SummaryId,UpdatesSummary)] =
-    List(actorName → UpdatesSummary(txAdd, txRef))
+    List(actorName.value -> UpdatesSummary(txAdd, txRef))
 
   def sumMeta(
     key: SrcId,
@@ -142,7 +142,7 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
       }
 
     val skipIds = Seq(classOf[U_ToAlienWrite],classOf[S_HttpPublication],classOf[D_TxAddMeta],classOf[N_TxRef])
-      .map(cl⇒qAdapterRegistry.byName(cl.getName).id).toSet
+      .map(cl=>qAdapterRegistry.byName(cl.getName).id).toSet
 
     List(WithPK(headToKeep(
       UpdatesListSummary(key,Nil,0L,0L,0L),
@@ -155,14 +155,14 @@ case class UpdatesListSummary(srcId: SrcId, items: List[UpdatesSummary], txCount
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
   ): Values[(Alive,D_TxAddMeta)] = for {
-    item ← updatesListSummary.items
+    item <- updatesListSummary.items
   } yield WithPK(item.add)
 
   def keepRefs(
     key: SrcId,
     updatesListSummary: Each[UpdatesListSummary]
   ): Values[(Alive,N_TxRef)] = for {
-    item ← updatesListSummary.items
+    item <- updatesListSummary.items
   } yield WithPK(item.ref)
 
 }

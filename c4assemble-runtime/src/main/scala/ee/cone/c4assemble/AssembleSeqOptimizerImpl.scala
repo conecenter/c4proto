@@ -1,6 +1,7 @@
 package ee.cone.c4assemble
 
 import ee.cone.c4assemble.Types._
+import ee.cone.c4proto.c4
 
 import scala.annotation.tailrec
 import scala.collection.immutable.{Map, Seq}
@@ -14,17 +15,17 @@ class LoopExpression[MapKey, Value](
   updater: IndexUpdater
 )(composes: IndexUtil,
   //val outputWorldKey: AssembledKey[Index[MapKey, Value]] = main.outputWorldKey,
-  continueF: WorldTransition⇒WorldTransition = Function.chain(continue.map(h⇒h.transform(_)))
+  continueF: WorldTransition=>WorldTransition = Function.chain(continue.map(h=>h.transform(_)))
 ) extends WorldPartExpression {
   private def inner(
     left: Int, transition: WorldTransition, resDiff: Index
   ): Future[IndexUpdate] = {
-    implicit val executionContext: ExecutionContext = transition.executionContext
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
     for {
-      diffPart ← outputWorldKey.of(transition.diff)
-      res ← {
+      diffPart <- outputWorldKey.of(transition.diff)
+      res <- {
         if(composes.isEmpty(diffPart)) for {
-          resVal ← outputWorldKey.of(transition.result)
+          resVal <- outputWorldKey.of(transition.result)
         } yield new IndexUpdate(resDiff, resVal, Nil)
         else if(left > 0) inner(
           left - 1,
@@ -41,25 +42,25 @@ class LoopExpression[MapKey, Value](
     else finishTransform(transition, inner(1000, transitionA, emptyIndex))
   }
   def finishTransform(transition: WorldTransition, next: Future[IndexUpdate]): WorldTransition = {
-    implicit val executionContext: ExecutionContext = transition.executionContext
+    implicit val executionContext: ExecutionContext = transition.executionContext.value
     Function.chain(Seq(
       updater.setPart(outputWorldKey,next,logTask = true),
-      updater.setPart(wasOutputWorldKey,next.map(update⇒new IndexUpdate(emptyIndex,update.result,Nil)),logTask = false)
+      updater.setPart(wasOutputWorldKey,next.map(update=>new IndexUpdate(emptyIndex,update.result,Nil)),logTask = false)
     ))(transition)
   }
 }
 
-class ShortAssembleSeqOptimizer(
+@c4("AssembleApp") class ShortAssembleSeqOptimizer(
   composes: IndexUtil,
   backStageFactory: BackStageFactory,
   updater: IndexUpdater
 ) extends AssembleSeqOptimizer {
-  private def getSingleKeys[K]: Seq[K] ⇒ Set[K] = _.groupBy(i⇒i).collect{ case (k,Seq(_)) ⇒ k }.toSet
-  def optimize: List[Expr]⇒List[WorldPartExpression] = expressionsByPriority ⇒ {
+  private def getSingleKeys[K]: Seq[K] => Set[K] = _.groupBy(i=>i).collect{ case (k,Seq(_)) => k }.toSet
+  def optimize: List[Expr]=>List[WorldPartExpression] = expressionsByPriority => {
     val singleOutputKeys: Set[AssembledKey] = getSingleKeys(expressionsByPriority.map(_.outputWorldKey))
     val singleInputKeys = getSingleKeys(expressionsByPriority.flatMap(_.inputWorldKeys))
-    expressionsByPriority.map{ e ⇒ e.outputWorldKey match {
-      case key:JoinKey ⇒
+    expressionsByPriority.map{ e => e.outputWorldKey match {
+      case key:JoinKey =>
         val wKey = key.withWas(was=true)
         if(
           singleOutputKeys(key) && singleInputKeys(wKey) &&
@@ -73,5 +74,5 @@ class ShortAssembleSeqOptimizer(
 }
 
 class NoAssembleSeqOptimizer() extends AssembleSeqOptimizer {
-  def optimize: List[Expr]⇒List[WorldPartExpression] = l⇒l
+  def optimize: List[Expr]=>List[WorldPartExpression] = l=>l
 }

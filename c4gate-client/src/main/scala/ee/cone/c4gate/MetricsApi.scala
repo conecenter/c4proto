@@ -2,10 +2,6 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor.Context
 
-trait MetricFactoriesApp {
-  def metricFactories: List[MetricsFactory] = Nil
-}
-
 case class MetricLabel(name: String, value: String)
 
 case class Metric(name: String, labels: List[MetricLabel], value: Long)

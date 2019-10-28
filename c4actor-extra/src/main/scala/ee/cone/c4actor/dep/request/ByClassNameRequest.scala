@@ -14,7 +14,7 @@ trait ByClassNameRequestHandlerApp extends AssemblesApp with ProtocolsApp with S
 
   override def protocols: List[Protocol] = ByClassNameRequestProtocol :: super.protocols
 
-  override def assembles: List[Assemble] = byClassNameClasses.map(className ⇒ new ByClassNameGenericAssemble(className, idGenUtil.srcIdFromSrcIds(className.getName), depResponseFactory)) ::: super.assembles
+  override def assembles: List[Assemble] = byClassNameClasses.map(className => new ByClassNameGenericAssemble(className, idGenUtil.srcIdFromSrcIds(className.getName), depResponseFactory)) ::: super.assembles
 }
 
 case class InnerByClassNameRequest(request: DepInnerRequest, className: String, from: Int, to: Int)
@@ -27,7 +27,7 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
   def BCNItemsOnSrcId(
     key: SrcId,
     item: Each[A]
-  ): Values[(ByCNSrcId, A)] = List((classSrcId+"ByCN")→item)
+  ): Values[(ByCNSrcId, A)] = List((classSrcId+"ByCN")->item)
 
 
   def BCNRequestToClassSrcId(
@@ -35,7 +35,7 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
     rq: Each[DepInnerRequest]
   ): Values[(ByCNRqSrcId, DepInnerRequest)] =
     rq.request match {
-      case request: N_ByClassNameRequest if request.className == handledClass.getName => List((classSrcId + "ByCN") → rq)
+      case request: N_ByClassNameRequest if request.className == handledClass.getName => List((classSrcId + "ByCN") -> rq)
       case _ => Nil
     }
 
@@ -64,7 +64,7 @@ case class InnerByClassNameRequest(request: DepInnerRequest, className: String, 
 }
 
 trait ByClassNameRequestUtils {
-  private def customTake[A]: List[A] ⇒ Int => List[A] = list ⇒ count ⇒ if (count < 0) list else list.take(count)
+  private def customTake[A]: List[A] => Int => List[A] = list => count => if (count < 0) list else list.take(count)
 
-  def takeWithDefaultParams[A]: List[A] ⇒ Int ⇒ Int ⇒ List[A] = list ⇒ from ⇒ count ⇒ customTake(list.drop(from))(count)
+  def takeWithDefaultParams[A]: List[A] => Int => Int => List[A] = list => from => count => customTake(list.drop(from))(count)
 }

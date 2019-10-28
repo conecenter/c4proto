@@ -13,9 +13,9 @@ import scala.collection.immutable.{Map, Seq}
 case class Resolvable[+A](value: Option[A], requests: Seq[DepRequest] = Nil)  // low-level //?hashed
 
 trait Dep[A] {
-  def flatMap[B](f: A ⇒ Dep[B]): Dep[B]
-  def map[B](f: A ⇒ B): Dep[B]
-  // def filter(p: A ⇒ Boolean): Dep[A] use result ← Dep; (a, b) = result instead
+  def flatMap[B](f: A => Dep[B]): Dep[B]
+  def map[B](f: A => B): Dep[B]
+  // def filter(p: A => Boolean): Dep[A] use result <- Dep; (a, b) = result instead
   def resolve(ctx: DepCtx): Resolvable[A] // low-level
 }
 
@@ -42,11 +42,11 @@ trait DepFactory extends Product {
 trait DepHandler extends Product
 
 trait DepAsk[RequestIn <: Product, Out] extends Product {
-  def ask: RequestIn ⇒ Dep[Out]
+  def ask: RequestIn => Dep[Out]
 
-  def by(handler: RequestIn ⇒ Dep[Out]): DepHandler
+  def by(handler: RequestIn => Dep[Out]): DepHandler
 
-  def byParent[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn ⇒ Map[RequestIn, Out]): DepHandler
+  def byParent[ReasonIn <: Product](reason: DepAsk[ReasonIn, _], handler: ReasonIn => Map[RequestIn, Out]): DepHandler
 }
 trait DepAskFactory extends Product {
   def forClasses[RequestIn <: Product, Out](in: Class[RequestIn], out: Class[Out]): DepAsk[RequestIn, Out]
@@ -75,12 +75,12 @@ trait DepRequestFactory extends Product {
 trait DepResponseForwardFilter {
   def parentCl: Option[Class[_ <: Product]]
   def childCl: Class[_ <: Product]
-  def filter: DepResponse ⇒ Option[DepResponse]
+  def filter: DepResponse => Option[DepResponse]
 }
 
 trait DepResponseFilterFactory {
-  def withParent(parentCl: Class[_ <: Product], childCl: Class[_ <: Product]): (DepResponse ⇒ Option[DepResponse]) ⇒ DepResponseForwardFilter
-  def withChild(childCl: Class[_ <: Product]): (DepResponse ⇒ Option[DepResponse]) ⇒ DepResponseForwardFilter
+  def withParent(parentCl: Class[_ <: Product], childCl: Class[_ <: Product]): (DepResponse => Option[DepResponse]) => DepResponseForwardFilter
+  def withChild(childCl: Class[_ <: Product]): (DepResponse => Option[DepResponse]) => DepResponseForwardFilter
 }
 
 trait DepResponse extends Product {

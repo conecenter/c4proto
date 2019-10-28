@@ -11,39 +11,49 @@ import ee.cone.c4ui._
 import ee.cone.c4vdom.{TagStyles, Tags}
 import ee.cone.c4vdom.Types.ViewRes
 
-class TestTodoApp extends ServerApp
-  with EnvConfigApp with VMExecutionApp
-  with KafkaProducerApp with KafkaConsumerApp
-  with ParallelObserversApp with TreeIndexValueMergerFactoryApp
-  with UIApp
-  with TestTagsApp
-  with NoAssembleProfilerApp
-  with ManagementApp
-  with FileRawSnapshotApp
-  with PublicViewAssembleApp
-  with CommonFilterInjectApp
-  with CommonFilterPredicateFactoriesApp
-  with FilterPredicateBuilderApp
-  with ModelAccessFactoryApp
-  with AccessViewApp
-  with DateBeforeAccessViewApp
-  with ContainsAccessViewApp
-  with SessionAttrApp
-  with MortalFactoryApp
-  with AvailabilityApp
-  with TestTodoRootViewApp
-  with BasicLoggingApp
-{
+// @c4mod class FooCargoType extends CargoType
 
-  override def protocols: List[Protocol] =
-    CommonFilterProtocol :: TestTodoProtocol :: super.protocols
-  override def assembles: List[Assemble] =
-    new FromAlienTaskAssemble("/react-app.html") ::
-    super.assembles
-  //override def longTxWarnPeriod: Long = 10L
+// @c4mod class CargoTypeRegistry(items: List[CargoType]) extends Registry
+// @c4mod class CargoTypeToPartViewProvider(reg: CargoTypeRegistry) {
+//   def providePartViews(): Seq[PartView] =
+
+// ! multi layer module tree
+// ! reg at Impl; c4mod traits by all extends
+// @c4mod class PartViewRegistry(views: List[PartView]) extends Registry
+// @c4mod class BarPartView() extends PartView
+
+
+// ee.cone.aaa.bbb.
+// ConeAaaBbbApp
+// @assembleModApp
+
+//
+
+
+//trait TestTodoAppBase extends ServerCompApp
+//@protocol("TestTodoApp")
+
+// @assemble("ReactHtmlApp")
+// @assembleAtReactHtmlApp
+// @c4("TestTodoApp")
+// @mixAtTestTodoAutoApp
+// @mixMod == @mixAtCargoStuff
+// @partOf*
+
+// @c4("BazApp") class FooHolderImpl(bar: Bar) extends FooHolder(new FooImpl)
+// vs
+// @c4("BazApp") class Baz(...) {
+//   def mixFoo(bar: Bar): Foo = new Foo
+//   def mixHoo(bar: Goo): Hoo = new Hoo
+
+
+
+@c4("ReactHtmlApp") class ReactHtmlFromAlienTaskAssembleBase {
+  @provide def subAssembles: Seq[Assemble] =
+    new FromAlienTaskAssemble("/react-app.html") :: Nil
 }
 
-@protocol object TestTodoProtocolBase   {
+@protocol("TestTodoApp") object TestTodoProtocolBase   {
   @Id(0x0001) case class B_TodoTask(
     @Id(0x0002) srcId: String,
     @Id(0x0003) createdAt: Long,
@@ -63,6 +73,7 @@ import TestTodoAccess._
     SessionAttr(Id(0x0007), classOf[B_Contains], IsDeep, UserLabel en "(comments contain)")
 }
 
+/*
 trait TestTodoRootViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]
   def tags: Tags
@@ -87,9 +98,9 @@ trait TestTodoRootViewApp extends ByLocationHashViewsApp {
 
   override def byLocationHashViews: List[ByLocationHashView] =
     testTodoRootView :: super.byLocationHashViews
-}
+}*/
 
-case class TestTodoRootView(locationHash: String = "todo")(
+@c4("TestTodoApp") case class TestTodoRootView(locationHash: String = "todo")(
   tags: TestTags[Context],
   mTags: Tags,
   styles: TagStyles,
@@ -99,7 +110,7 @@ case class TestTodoRootView(locationHash: String = "todo")(
   accessViewRegistry: AccessViewRegistry,
   untilPolicy: UntilPolicy
 ) extends ByLocationHashView {
-  def view: Context ⇒ ViewRes = untilPolicy.wrap{ local ⇒
+  def view: Context => ViewRes = untilPolicy.wrap{ local =>
     import mTags._
     import commonFilterConditionChecks._
     val filterPredicate = filterPredicates.create[B_TodoTask](local)
@@ -107,8 +118,8 @@ case class TestTodoRootView(locationHash: String = "todo")(
       .add(createdAtFlt, createdAt)
 
     val filterList = for {
-      access ← filterPredicate.accesses
-      tag ← accessViewRegistry.view(access)(local)
+      access <- filterPredicate.accesses
+      tag <- accessViewRegistry.view(access)(local)
     } yield tag
     // filterPredicate.accesses.flatMap { case a if a.initialValue => List(a to sub1, a to sub2) case a => List(a) }
 
@@ -121,8 +132,8 @@ case class TestTodoRootView(locationHash: String = "todo")(
     val todoTasks = ByPK(classOf[B_TodoTask]).of(local).values
       .filter(filterPredicate.condition.check).toList.sortBy(-_.createdAt)
     val taskLines = for {
-      prod ← todoTasks
-      task ← contextAccess to prod
+      prod <- todoTasks
+      task <- contextAccess to prod
     } yield div(prod.srcId,Nil)(List(
       tags.input(task to comments),
       div("remove",List(styles.width(100),styles.displayInlineBlock))(List(

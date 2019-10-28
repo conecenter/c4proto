@@ -9,26 +9,25 @@ import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4gate.TcpProtocol._
 import ee.cone.c4proto.Protocol
 
-trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with ProtocolsApp {
+
+trait TcpServerApp extends ToStartApp with AssemblesApp with ToInjectApp with TcpProtocolApp {
   def config: Config
-  def qMessages: QMessages
   def worldProvider: WorldProvider
   def mortal: MortalFactory
 
   private lazy val tcpPort = config.get("C4TCP_PORT").toInt
-  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(qMessages, worldProvider), Long.MaxValue, NoStreamCompressorFactory)
+  private lazy val tcpServer = new TcpServerImpl(tcpPort, new TcpHandlerImpl(componentRegistry.resolveSingle(classOf[QMessages]), worldProvider), Long.MaxValue, NoStreamCompressorFactory)
   override def toStart: List[Executable] = tcpServer :: super.toStart
   override def assembles: List[Assemble] =
     mortal(classOf[S_TcpDisconnect]) :: mortal(classOf[S_TcpWrite]) ::
     new TcpAssemble :: super.assembles
   override def toInject: List[ToInject] = tcpServer :: super.toInject
-  override def protocols: List[Protocol] = TcpProtocol :: super.protocols
 }
 
 class TcpHandlerImpl(qMessages: QMessages, worldProvider: WorldProvider) extends TcpHandler {
-  private def changeWorld(transform: Context ⇒ Context): Unit =
+  private def changeWorld(transform: Context => Context): Unit =
     worldProvider.createTx(???).map(transform)(???).foreach(qMessages.send)(???)
-  override def beforeServerStart(): Unit = changeWorld{ local ⇒
+  override def beforeServerStart(): Unit = changeWorld{ local =>
     val connections = ByPK(classOf[S_TcpConnection]).of(local).values.toList
     TxAdd(connections.flatMap(LEvent.delete))(local)
   }
@@ -45,17 +44,17 @@ case class TcpConnectionTxTransform(
 ) extends TxTransform {
   def transform(local: Context): Context = {
     def sender = GetSenderKey.of(local)(connectionKey)
-    for(d ← tcpDisconnects; s ← sender) s.close()
-    for(message ← writes; s ← sender) s.add(message.body.toByteArray)
+    for(d <- tcpDisconnects; s <- sender) s.close()
+    for(message <- writes; s <- sender) s.add(message.body.toByteArray)
     TxAdd(writes.flatMap(LEvent.delete))(local)
   }
 }
 
-@assemble class TcpAssembleBase   {
+@assemble class TcpAssemble   {
   type ConnectionKey = SrcId
 
   def joinTcpWrite(key: SrcId, write: Each[S_TcpWrite]): Values[(ConnectionKey, S_TcpWrite)] =
-    List(write.connectionKey→write)
+    List(write.connectionKey->write)
 
   def joinTxTransform(
       key: SrcId,

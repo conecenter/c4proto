@@ -33,16 +33,16 @@ trait HashSearchRangerRegistryApi {
 
 case class HashSearchRangerRegistryImpl(rangers: List[RangerWithCl[_ <: Product, _]], qAdapterRegistry: QAdapterRegistry) extends HashSearchRangerRegistryApi {
   lazy val rangerMap: Map[(String, String), RangerWithCl[_ <: Product, _]] =
-    rangers.map(ranger ⇒ (ranger.byCl.getName, ranger.fieldCl.getName) → ranger).toMap
+    rangers.map(ranger => (ranger.byCl.getName, ranger.fieldCl.getName) -> ranger).toMap
 
   lazy val byNameMap: Map[String, RangerWithCl[_ <: Product, _]] =
-    rangers.map(ranger ⇒ ranger.getClass.getName → ranger).toMap
+    rangers.map(ranger => ranger.getClass.getName -> ranger).toMap
 
   lazy val byIdMap: Map[Long, RangerWithCl[_ <: Product, _]] =
-    rangers.map(ranger ⇒ qAdapterRegistry.byName(ranger.byCl.getName).id → ranger).toMap
+    rangers.map(ranger => qAdapterRegistry.byName(ranger.byCl.getName).id -> ranger).toMap
 
   lazy val byByCl: Map[String, RangerWithCl[_ <: Product, _]] =
-    rangers.map(ranger ⇒ ranger.byCl.getName → ranger).toMap
+    rangers.map(ranger => ranger.byCl.getName -> ranger).toMap
 
   def getByFieldByCl[By <: Product, Field](byCl: Class[By], fieldCl: Class[Field]): Option[RangerWithCl[By, Field]] =
     rangerMap.get((byCl.getName, fieldCl.getName)).map(_.asInstanceOf[RangerWithCl[By, Field]])

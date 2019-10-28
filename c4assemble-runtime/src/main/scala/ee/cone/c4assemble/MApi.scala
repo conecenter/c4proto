@@ -1,37 +1,44 @@
 
 package ee.cone.c4assemble
 
-import collection.immutable.{Iterable, Map, Seq, TreeMap}
 import Types._
 
 import scala.annotation.{StaticAnnotation, compileTimeOnly}
-import scala.collection.{GenIterable, GenMap, GenSeq, immutable}
 import scala.concurrent.{ExecutionContext, Future}
 
-case class AssembleOptions(srcId: String, isParallel: Boolean, threadCount: Long)
+case class AssembleOptions(srcId: String, @deprecated isParallel: Boolean, threadCount: Long)
 
 trait IndexUtil extends Product {
   def joinKey(was: Boolean, keyAlias: String, keyClassName: String, valueClassName: String): JoinKey
   def isEmpty(index: Index): Boolean
   def keySet(index: Index): Set[Any]
   def mergeIndex(l: DPIterable[Index]): Index
-  def getValues(index: Index, key: Any, warning: String, options: AssembleOptions): Values[Product] //m
+  def getValues(index: Index, key: Any, warning: String): Values[Product] //m
   def nonEmpty(index: Index, key: Any): Boolean //m
   def removingDiff(index: Index, key: Any): Index
   def result(key: Any, product: Product, count: Int): Index //m
-  type Partitioning = Iterable[(Boolean,()⇒DPIterable[Product])]
-  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String, options: AssembleOptions): Partitioning  //m
+  type Partitioning = Seq[(Boolean,()=>DPIterable[Product])]
+  def partition(currentIndex: Index, diffIndex: Index, key: Any, warning: String): Partitioning  //m
   def nonEmptySeq: Seq[Unit] //m
-  def mayBeParVector[V](iterable: immutable.Set[V], options: AssembleOptions): DPIterable[V]
-  def mayBePar[V](iterable: Iterable[V], options: AssembleOptions): DPIterable[V]
+  def mayBeParVector[V](iterable: Set[V], options: AssembleOptions): DPIterable[V]
+  def mayBePar[V](iterable: Seq[V], options: AssembleOptions): Seq[V]
   def mayBePar[V](seq: Seq[V]): DPIterable[V]
+  //
+  def preIndex(seq: Seq[Index]): Index
+  def buildIndex(joinRes: Index): Index
+  def keyIteration(seq: Seq[Index], executionContext: OuterExecutionContext): (Any=>Seq[Index])=>Future[Index]
+}
+
+trait OuterExecutionContext {
+  def value: ExecutionContext
+  def threadCount: Long
 }
 
 object Types {
   type Values[V] = Seq[V]
   type Each[V] = V
   type DMap[K,V] = Map[K,V] //ParMap[K,V]
-  type DPIterable[V] = GenIterable[V]
+  type DPIterable[V] = Iterable[V]
   trait Index //DMap[Any,DMultiSet]
   private object EmptyIndex extends Index
   private object EmptyReadModel extends ReadModelImpl(emptyDMap)
@@ -49,11 +56,11 @@ object Types {
 trait ReadModelUtil {
   type MMap = DMap[AssembledKey, Future[Index]]
   def create(inner: MMap): ReadModel
-  def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel⇒ReadModel
-  def isEmpty(implicit executionContext: ExecutionContext): ReadModel⇒Future[Boolean]
-  def op(op: (MMap,MMap)⇒MMap): (ReadModel,ReadModel)⇒ReadModel
-  def ready(implicit executionContext: ExecutionContext): ReadModel⇒Future[ReadModel]
-  def toMap: ReadModel⇒Map[AssembledKey,Index]
+  def updated(worldKey: AssembledKey, value: Future[Index]): ReadModel=>ReadModel
+  def isEmpty(implicit executionContext: ExecutionContext): ReadModel=>Future[Boolean]
+  def op(op: (MMap,MMap)=>MMap): (ReadModel,ReadModel)=>ReadModel
+  def ready(implicit executionContext: ExecutionContext): ReadModel=>Future[ReadModel]
+  def toMap: ReadModel=>Map[AssembledKey,Index]
 }
 
 trait ReadModel {
@@ -61,7 +68,7 @@ trait ReadModel {
 }
 
 trait Getter[C,+I] {
-  def of: C ⇒ I
+  def of: C => I
 }
 
 object OrEmptyIndex {
@@ -79,16 +86,16 @@ case class WorldTransition(
   prev: Option[WorldTransition],
   diff: ReadModel,
   result: ReadModel,
-  options: AssembleOptions,
   profiling: JoiningProfiling,
   log: Future[ProfilingLog],
-  executionContext: ExecutionContext,
+  executionContext: OuterExecutionContext,
   taskLog: List[AssembledKey]
 )
 
 trait JoiningProfiling extends Product {
+  type Res = Long
   def time: Long
-  def handle(join: Join, stage: Long, start: Long, joinRes: DPIterable[Index], wasLog: ProfilingLog): ProfilingLog
+  def handle(join: Join, stage: Long, start: Long, joinRes: Res, wasLog: ProfilingLog): ProfilingLog
 }
 
 trait IndexFactory {
@@ -110,6 +117,10 @@ trait DataDependencyTo[To] {
   def outputWorldKey: AssembledKey
 }
 
+trait DataDependencyProvider {
+  def apply(): List[DataDependencyTo[_]]
+}
+
 abstract class Join(
   val assembleName: String,
   val name: String,
@@ -118,14 +129,13 @@ abstract class Join(
 ) extends DataDependencyFrom[Index]
   with DataDependencyTo[Index]
 {
-  type IndexRawSeqSeq = DPIterable[(Int,Seq[Index])]
   type DiffIndexRawSeq = Seq[Index]
-  type Result = DPIterable[Index]
-  def joins(indexRawSeqSeq: IndexRawSeqSeq, diffIndexRawSeq: DiffIndexRawSeq, options: AssembleOptions): Result
+  type Result = (Int,Seq[Index]) => Future[Index]
+  def joins(diffIndexRawSeq: DiffIndexRawSeq, executionContext: OuterExecutionContext): Result
 }
 
 trait Assemble {
-  def dataDependencies: IndexFactory ⇒ List[DataDependencyTo[_]]
+  def dataDependencies: IndexFactory => List[DataDependencyTo[_]]
 }
 
 trait JoinKey extends AssembledKey {
@@ -179,9 +189,9 @@ trait CallerAssemble {
   def subAssembles: List[Assemble] = Nil
 }
 trait SubAssemble[R<:Product] {
-  type Result = _⇒Values[(_,R)]
+  type Result = _=>Values[(_,R)]
   def result: Result
-  def resultKey: IndexFactory⇒JoinKey = throw new Exception("never here")
+  def resultKey: IndexFactory=>JoinKey = throw new Exception("never here")
 }
 
 class CanCallToValues

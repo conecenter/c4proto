@@ -12,7 +12,7 @@ abstract class WorldDiffAggregation extends Product
 
 
 abstract class WorldDiffHandler[T](val theClass: Class[T]) extends Product {
-  def handle(world: ReadModel): List[ReadModel]⇒List[T]⇒List[T]
+  def handle(world: ReadModel): List[ReadModel]=>List[T]=>List[T]
 }
 
 case class SimpleAssembleProfilingHandler(
@@ -21,17 +21,17 @@ case class SimpleAssembleProfilingHandler(
 ) extends WorldDiffHandler(classOf[SimpleAssembleProfilingResult]){
   def handle(
     world: ReadModel
-  ): List[ReadModel]⇒List[SimpleAssembleProfilingResult]⇒List[SimpleAssembleProfilingResult] =
-    worldDiffs ⇒ profilingList ⇒ {
+  ): List[ReadModel]=>List[SimpleAssembleProfilingResult]=>List[SimpleAssembleProfilingResult] =
+    worldDiffs => profilingList => {
       val currentCounters = for{
-        profiling ← profilingList
-        counter ← profiling.counters
+        profiling <- profilingList
+        counter <- profiling.counters
       } yield counter
       val newCounters = for {
-        worldDiff ← worldDiffs
-        (joinKey: JoinKey, indexDiff) ← worldDiff
+        worldDiff <- worldDiffs
+        (joinKey: JoinKey, indexDiff) <- worldDiff
         keys = indexUtil.keySet(indexDiff)
-        nonStrictCount = keys.map(key⇒indexUtil.getValues(indexDiff,key,"").length).sum
+        nonStrictCount = keys.map(key=>indexUtil.getValues(indexDiff,key,"").length).sum
       } yield SimpleAssembleProfilingCounter(joinKey,keys.size,nonStrictCount)
       val nextCounters = newCounters ::: currentCounters
       SimpleAssembleProfilingResult(actorName, nextCounters) :: Nil
@@ -57,15 +57,15 @@ case class WorldDiffHandlerStage(
         transition.diff :: transition.prev.fold(Nil:List[ReadModel])(gatherDiffs)
       val worldDiffs = gatherDiffs(transition)
       val currentCounters = for{
-        (value:AssembleProfilingResult) ← indexUtil.getValues(resIndex,actorName,"").toList
-        counter ← value.counters
+        (value:AssembleProfilingResult) <- indexUtil.getValues(resIndex,actorName,"").toList
+        counter <- value.counters
       } yield counter
 
 
 
       val nextAcc =
       val nextResIndex = indexUtil.result(actorName,nextAcc,1)
-      transition.copy(result = world + (resWKey → nextResIndex))
+      transition.copy(result = world + (resWKey -> nextResIndex))
     }
   }
 }
@@ -73,7 +73,7 @@ case class WorldDiffHandlerStage(
 
 
 /*val nextCounters = (currentCounters ++ newCounters).groupBy(_.joinKey).map{
-        case (joinKey, counters) ⇒
+        case (joinKey, counters) =>
           AssembleProfilingCounter(
             joinKey,
             counters.map(_.keyCount).sum,

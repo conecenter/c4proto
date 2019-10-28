@@ -8,15 +8,15 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 trait Execution extends Runnable {
-  def onShutdown(hint: String, f:()⇒Unit): ()⇒Unit
+  def onShutdown(hint: String, f:()=>Unit): ()=>Unit
   def complete(): Unit
   def skippingFuture[T](value: T): SkippingFuture[T]
   def newExecutorService(prefix: String, threadCount: Option[Int]): ExecutorService
-  def fatal[T](future: ExecutionContext⇒Future[T]): Unit
+  def fatal[T](future: ExecutionContext=>Future[T]): Unit
 }
 
 trait SkippingFuture[T] {
-  def map(body: T ⇒ T): SkippingFuture[T]
+  def map(body: T => T): SkippingFuture[T]
   def value: Option[Try[T]]
 }
 
@@ -34,9 +34,11 @@ trait Config {
   def get(key: String): String
 }
 
+case class ActorName(value: String)
+
 trait Signer[T] {
   def sign(data: T, until: Long): String
-  def retrieve(check: Boolean): Option[String]⇒Option[T]
+  def retrieve(check: Boolean): Option[String]=>Option[T]
 }
 
 
@@ -45,19 +47,19 @@ trait Signer[T] {
 object Trace { //m. b. to util
   def apply[T](f: =>T): T = try { f } catch {
     case e: Throwable =>
-      System.err.println(e.getMessage)
+      System.err.println(s"TRACED: ${e.getMessage}")
       e.printStackTrace()
       throw e
   }
 }
 
 object FinallyClose {
-  def apply[A<:AutoCloseable,R](o: A)(f: A⇒R): R = try f(o) finally o.close()
-  def apply[A,R](close: A⇒Unit)(o: A)(f: A⇒R): R = try f(o) finally close(o)
+  def apply[A<:AutoCloseable,R](o: A)(f: A=>R): R = try f(o) finally o.close()
+  def apply[A,R](close: A=>Unit)(o: A)(f: A=>R): R = try f(o) finally close(o)
 }
 
 trait CatchNonFatal {
-  def apply[T](aTry: ⇒T)(hint: ⇒String)(aCatch: Throwable⇒T): T
+  def apply[T](aTry: =>T)(hint: =>String)(aCatch: Throwable=>T): T
 }
 
 case class NanoTimer(startedAt: Long = System.nanoTime){

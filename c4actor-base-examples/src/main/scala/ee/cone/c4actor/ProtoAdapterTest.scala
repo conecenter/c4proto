@@ -3,24 +3,20 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes.LazyOption
-import ee.cone.c4actor.MyProtocolBase.{D_BigDecimalContainer, D_Branch, D_Leaf}
-import ee.cone.c4proto.{Id, c4component, protocol}
+
+import ee.cone.c4proto.{Id, c4, protocol}
 
 import scala.collection.immutable.Seq
 
-class ProtoAdapterTestApp extends ProtoAdapterTestAutoApp
-  with ExecutableApp with VMExecutionApp
-  with BaseApp with ProtoApp with BigDecimalApp with GzipRawCompressorApp
+@c4("ProtoAdapterTestApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
 
-@c4component("ProtoAdapterTestAutoApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
-
-@c4component("ProtoAdapterTestAutoApp")
+@c4("ProtoAdapterTestApp")
 class ProtoAdapterTest(
   qAdapterRegistry: QAdapterRegistry, toUpdate: ToUpdate, execution: Execution,
   finTest: FinTest
 ) extends Executable with LazyLogging {
+  import ee.cone.c4actor.MyProtocol._
   def simpleTest(): Unit = {
-    import MyProtocol._
     val leader0 = D_Person("leader0", Some(40), isActive = true)
     val worker0 = D_Person("worker0", Some(30), isActive = true)
     val worker1 = D_Person("worker1", Some(20), isActive = false)
@@ -28,10 +24,10 @@ class ProtoAdapterTest(
     //
     val lEvents = LEvent.update(group0)
     val updates = lEvents.map(toUpdate.toUpdate)
-    val group1 = updates.map(update ⇒
+    val group1 = updates.map(update =>
       qAdapterRegistry.byId(update.valueTypeId).decode(update.value)
     ) match {
-      case Seq(g:D_Group) ⇒ g
+      case Seq(g:D_Group) => g
     }
     assert(group0==group1)
     logger.info(s"OK $group1")
@@ -68,7 +64,7 @@ class ProtoAdapterTest(
   }
 }
 
-@protocol("ProtoAdapterTestAutoApp") object MyProtocolBase {
+@protocol("ProtoAdapterTestApp") object MyProtocolBase {
   @Id(0x0003) case class D_Person(
     @Id(0x0007) name: String,
     @Id(0x0004) age: Option[BigDecimal],
@@ -99,11 +95,11 @@ class ProtoAdapterTest(
 trait FinTest {
   def get: String
 }
-@c4component("ProtoAdapterTestAutoApp")
+@c4("ProtoAdapterTestApp")
 class NonFinalFinTest extends FinTest {
   def get: String = "{NonFinal}"
 }
-@c4component("ProtoAdapterTestAutoApp")
+@c4("ProtoAdapterTestApp")
 class FinalFinTest(inner: FinTest) extends FinTest {
   def get: String = s"<Final>${inner.get}</Final>"
 }
