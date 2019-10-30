@@ -60,7 +60,7 @@ object ProtocolGenerator extends Generator {
       case mod"@ShortName(${Lit(shortName:String)})" if pMods.shortName.isEmpty =>
         pMods.copy(shortName=Option(shortName))
       case mod"@GenLens" => pMods
-      case mod"@Getters" ⇒ pMods
+      case mod"@Getters" => pMods
       case mod"@deprecated(...$notes)" => pMods
       case t: Tree => Utils.parseError(t, parseContext)
     })
