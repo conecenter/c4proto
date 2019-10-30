@@ -13,4 +13,5 @@ trait VDomApp extends ComponentProviderApp {
 
 trait UIApp extends UICompApp with VDomApp {
   lazy val branchOperations: BranchOperations = resolveSingle(classOf[BranchOperations])
+  lazy val untilPolicy: UntilPolicy = resolveSingle(classOf[UntilPolicy])
 }
