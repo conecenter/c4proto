@@ -1,3 +1,0 @@
-package ee.cone.c4actor.hashsearch.rangers
-
-trait EeConeC4actorHashsearchRangersHasIdAppBase

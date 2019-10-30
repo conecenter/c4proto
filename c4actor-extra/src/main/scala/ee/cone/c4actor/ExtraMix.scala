@@ -178,7 +178,3 @@ trait ModelAccessFactoryApp extends ModelAccessFactoryCompApp with ComponentProv
 trait NoAssembleProfilerApp extends NoAssembleProfilerCompApp with ComponentProviderApp {
   lazy val assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
 }
-
-////
-
-trait EeConeC4actorHasIdAppBase

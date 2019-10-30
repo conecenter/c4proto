@@ -1,3 +1,0 @@
-package ee.cone.c4gate.deep_session
-
-trait EeConeC4gateDeep_sessionHasIdAppBase

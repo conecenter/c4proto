@@ -40,9 +40,9 @@ object ProtocolGenerator extends Generator {
     case q"@protocol(...$exprss) object ${objectNameNode@Term.Name(objectName)} extends ..$ext { ..$stats }" =>
       Util.unBase(objectName,objectNameNode.pos.end) { objectName =>
         val c4ann = if(exprss.isEmpty) "@c4" else mod"@c4(...$exprss)".syntax
-        val app = if(exprss.isEmpty)
+        /* val app = if(exprss.isEmpty)
           ComponentsGenerator.pkgNameToAppId(parseContext.pkg,"HasId")
-        else ComponentsGenerator.annArgToStr(exprss).get
+        else ComponentsGenerator.annArgToStr(exprss).get */
         getProtocol(parseContext,objectName,stats.toList,c4ann)
       }
     case _ => Nil

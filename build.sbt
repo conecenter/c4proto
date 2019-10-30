@@ -10,7 +10,7 @@ lazy val descr = "C4 framework"
      
 lazy val publishSettings = Seq(
   organization := "ee.cone",
-  version := "0.F.3",
+  version := "0.F.3.1",
   bintrayRepository := "c4proto",
   description := descr,
   licenses := ourLicense,
@@ -70,7 +70,8 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   // lib
   `c4proto-di`,`c4proto-api`,`c4assemble-runtime`,
   `c4actor-base`,`c4actor-kafka`,`c4actor-branch`,`c4actor-rdb`,
-  `c4gate-client`,`c4gate-logback-static`,`c4gate-logback`,`c4vdom-base`,`c4ui-main`,
+  `c4gate-client`,`c4gate-logback-static`,`c4gate-logback`,`c4gate-repl`,
+  `c4vdom-base`,`c4ui-main`,
   `c4actor-extra`,`c4gate-extra`,`c4actor-extra-rdb`,`c4ui-extra`,
   // examples
   `c4all-examples`
