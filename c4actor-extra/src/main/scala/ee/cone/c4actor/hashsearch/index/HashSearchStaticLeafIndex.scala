@@ -34,8 +34,8 @@ object StaticHashSearchImpl {
   case class Optimal(priorities: Map[SrcId, Int]) extends Options
 
   private def heapIds(expr: Expression, options: Options) = (expr, options) match {
-    case (Leaf(ids), _) ⇒ ids
-    case (FullScan, _) ⇒ Nil
+    case (Leaf(ids), _) => ids
+    case (FullScan, _) => Nil
   }
 
   def heapIds[Model <: Product](indexers: Indexer[Model], cond: Condition[Model]): List[SrcId] =
@@ -49,8 +49,8 @@ object StaticHashSearchImpl {
     InnerConditionEstimate(cond.srcId, Log2Pow2(priorPrep.map(_.count).sum), priorPrep.map(_.heapId).toList)
   }
 
-  private def expression[Model <: Product](indexers: Indexer[Model]): Condition[Model] ⇒ Expression =
-    c ⇒ indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
+  private def expression[Model <: Product](indexers: Indexer[Model]): Condition[Model] => Expression =
+    c => indexers.heapIdsBy(c).map(Leaf).getOrElse(FullScan)
 
   class StaticFactoryImpl(
     modelConditionFactory: ModelConditionFactory[Unit],
@@ -110,26 +110,26 @@ object StaticHashSearchImpl {
     val serializer: SerializationUtils,
     val modelClass: Class[Model],
     val modelConditionFactory: ModelConditionFactory[Model],
-    of: Model ⇒ Field,
-    valueToRanges: Field ⇒ List[By],
-    byToRanges: Product ⇒ Option[List[By]]
+    of: Model => Field,
+    valueToRanges: Field => List[By],
+    byToRanges: Product => Option[List[By]]
   ) extends Indexer[Model] {
     def heapIdsBy(condition: Condition[Model]): Option[List[SrcId]] = for {
-      c ← Option(condition.asInstanceOf[ProdCondition[By, Model]])
-      a ← {
+      c <- Option(condition.asInstanceOf[ProdCondition[By, Model]])
+      a <- {
         if (byToRanges(c.by).isEmpty)
           println("[Warning] something went wrong StaticLeaf:112", metaList, c.metaList, c.by, by)
         Some(1)
       }
       if metaList == c.metaList
-      ranges ← byToRanges(c.by)
+      ranges <- byToRanges(c.by)
     } yield heapIds(c.metaList, ranges).distinct
 
     def heapIds(model: Model): List[SrcId] =
       heapIds(metaList, valueToRanges(of(model)))
 
     private def heapIds(metaList: List[AbstractMetaAttr], ranges: List[By]): List[SrcId] = for {
-      range ← ranges
+      range <- ranges
     } yield {
       //println(range,range.hashCode())
       //letters3(metaList.hashCode ^ range.hashCode)
@@ -142,13 +142,13 @@ object StaticHashSearchImpl {
       serializer.srcIdFromSeqMany(metaListUUID, rangeUUID).toString
     }
 
-    def fltML: List[AbstractMetaAttr] ⇒ NameMetaAttr =
-      _.collectFirst { case l: NameMetaAttr ⇒ l }.get
+    def fltML: List[AbstractMetaAttr] => NameMetaAttr =
+      _.collectFirst { case l: NameMetaAttr => l }.get
 
     def isMy(cond: InnerLeaf[Model]): Boolean = {
       cond.condition match {
-        case a: ProdConditionImpl[By, Model, Field] ⇒ fltML(a.metaList) == fltML(metaList) && a.by.getClass.getName == by.getClass.getName
-        case _ ⇒ false
+        case a: ProdConditionImpl[By, Model, Field] => fltML(a.metaList) == fltML(metaList) && a.by.getClass.getName == by.getClass.getName
+        case _ => false
       }
     }
 
@@ -157,8 +157,8 @@ object StaticHashSearchImpl {
 
   private def letters3(i: Int) = Integer.toString(i & 0x3FFF | 0x4000, 32)
 
-  def single[Something]: Values[Something] ⇒ Values[Something] =
-    l ⇒ Single.option(l.distinct).toList
+  def single[Something]: Values[Something] => Values[Something] =
+    l => Single.option(l.distinct).toList
 }
 
 trait HashSearchStaticLeafFactoryApi {
@@ -187,8 +187,8 @@ import StaticHashSearchImpl._
     respLineId: SrcId,
     respLine: Each[Model]
   ): Values[(StaticHeapId, Model)] = for {
-    tagId ← indexer.heapIds(respLine).distinct
-  } yield tagId → respLine
+    tagId <- indexer.heapIds(respLine).distinct
+  } yield tagId -> respLine
 
 
   def reqByHeap(
@@ -197,9 +197,9 @@ import StaticHashSearchImpl._
   ): Values[(StaticHeapId, StaticNeed[Model])] =
     if (indexer.isMy(leafCond))
       for {
-        heapId ← heapIds(indexer, leafCond.condition)
+        heapId <- heapIds(indexer, leafCond.condition)
       } yield {
-        heapId → StaticNeed[Model](ToPrimaryKey(leafCond))
+        heapId -> StaticNeed[Model](ToPrimaryKey(leafCond))
       }
     else Nil
 
@@ -227,7 +227,7 @@ import StaticHashSearchImpl._
     @by[StaticHeapId] respLines: Values[Model],
     @by[StaticHeapId] need: Each[StaticNeed[Model]]
   ): Values[(LeafCondId, StaticCount[Model])] =
-    List(ToPrimaryKey(need) → count(heapId, respLines))
+    List(ToPrimaryKey(need) -> count(heapId, respLines))
 
   def handleRequest(
     heapId: SrcId,
@@ -236,7 +236,7 @@ import StaticHashSearchImpl._
   ): Values[(SharedResponseId, ResponseModelList[Model])] = {
     //TimeColored("r", ("handleRequest", heapId, requests.size, responses.size), requests.isEmpty || !debugMode) {
     val lines = indexUtil.mayBePar(responses).filter(request.check)
-    List(request.srcId → ResponseModelList(request.srcId + heapId, lines.toList))
+    List(request.srcId -> ResponseModelList(request.srcId + heapId, lines.toList))
     //}
   }
 }

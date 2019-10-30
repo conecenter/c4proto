@@ -1,0 +1,5 @@
+package ee.cone.c4actor.rdb_impl
+
+trait RDBSyncAppBase
+trait ToExternalDBSyncAppBase extends RDBSyncApp
+trait FromExternalDBSyncAppBase extends RDBSyncApp

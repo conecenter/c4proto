@@ -93,10 +93,10 @@ class MD5HashingTest(
     val worldSize = 50000
     val world: immutable.Seq[Product] =
       (for {
-        i ← 1 to worldSize
+        i <- 1 to worldSize
       } yield generateRandomEasy(i.toString) :: generateHard(i.toString) :: Nil).flatten
     val worldUpdate: immutable.Seq[LEvent[Product]] = world.flatMap(update)
-    val updates: List[QProtocol.N_Update] = worldUpdate.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val updates: List[QProtocol.N_Update] = worldUpdate.map(rec => toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
@@ -107,7 +107,7 @@ class MD5HashingTest(
     println("Change index")
     val world2: immutable.Seq[Product] =
       (for {
-        i ← 1 to worldSize / 2
+        i <- 1 to worldSize / 2
       } yield generateRandomEasy(i.toString) :: generateHard(i.toString) :: Nil).flatten
     val worldUpdate2: immutable.Seq[LEvent[Product]] = world2.flatMap(update)
     val firstGlobal = TxAdd(worldUpdate2)(nGlobal)
@@ -121,22 +121,21 @@ class MD5HashingTest(
   }
 
 
-  def generateRandomEasy: SrcId ⇒ D_TestOrigEasy = srcId ⇒
+  def generateRandomEasy: SrcId => D_TestOrigEasy = srcId =>
     D_TestOrigEasy(srcId, Random.nextInt(100000000))
 
-  def generateHard: SrcId ⇒ D_TestOrigHard = srcId ⇒
+  def generateHard: SrcId => D_TestOrigHard = srcId =>
     D_TestOrigHard(srcId,
       Random.nextInt(100000000),
       Random.nextLong(),
       Some(Random.nextInt(100000000).toString),
-      (for {i ← 1 to 100} yield Random.nextLong()).toList
+      (for {i <- 1 to 100} yield Random.nextLong()).toList
     )
 }
 
 class MD5HashingTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with TreeIndexValueMergerFactoryApp
   with ToStartApp {
   override def toStart: List[Executable] = new MD5HashingTest(execution, toUpdate, contextFactory) :: super.toStart
 

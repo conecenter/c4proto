@@ -20,7 +20,7 @@ class TypedAllTestStart(
   def run(): Unit = {
     import LEvent.update
     val recs = update(S_Firstborn("test", "0" * OffsetHexSize())) ++ update(D_Model1("1")) ++ update(D_Model2("2"))
-    val updates: List[QProtocol.N_Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val updates: List[QProtocol.N_Update] = recs.map(rec => toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
     val nGlobalActive = ActivateContext(nGlobal)
     val nGlobalAA = ActivateContext(nGlobalActive)
@@ -54,7 +54,7 @@ trait TypedAllType {
   def test1(
     srcId: SrcId,
     test: Each[D_ModelTest]
-  ): Values[(FixedAll, D_ModelTest)] = (All → test) :: Nil
+  ): Values[(FixedAll, D_ModelTest)] = (All -> test) :: Nil
 
   def test2(
     srcId: SrcId,
@@ -82,8 +82,8 @@ trait TypedAllType {
     models: Values[Model]
   ): Values[(TestAll[Model], Model)] =
     for {
-      model ← models
-    } yield All → model
+      model <- models
+    } yield All -> model
 
   def AllGrabber(
     srcId: SrcId,
@@ -101,8 +101,8 @@ trait TypedAllType {
     models: Values[Model]
   ): Values[(FixedAll, Model)] =
     for {
-      model ← models
-    } yield All → model
+      model <- models
+    } yield All -> model
 
   def FixedAllGrabber(
     srcId: SrcId,
@@ -118,8 +118,8 @@ trait TypedAllType {
     models: Values[Model]
   ): Values[(TestBy[Model], Model)] =
     for {
-      model ← models
-    } yield "test" → model
+      model <- models
+    } yield "test" -> model
 
   def FixedAllGrabber2(
     srcId: SrcId,
@@ -164,8 +164,7 @@ class TypedAllTestApp extends TestVMRichDataApp
   //with EnvConfigApp
   with VMExecutionApp
   //with ParallelObserversApp
-  //with FileRawSnapshotApp
-  with TreeIndexValueMergerFactoryApp
+  //with RemoteRawSnapshotApp
   with ExecutableApp
   with ToStartApp {
 

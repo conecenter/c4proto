@@ -26,23 +26,23 @@ case class SessionAttrAskFactoryImpl(
   depFactory: DepFactory
 ) extends SessionAttrAskFactoryApi with KeyGenerator {
 
-  def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String ⇒ Dep[Option[Access[P]]] = pk ⇒ askSessionAttr(attr.withPK(pk))
+  def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String => Dep[Option[Access[P]]] = pk => askSessionAttr(attr.withPK(pk))
 
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] =
     askSessionAttrWithDefault(attr, defaultModelRegistry.get[P](attr.className).create)
 
-  def askSessionAttrWithDefault[P <: Product](attr: SessionAttr[P], default: SrcId ⇒ P): Dep[Option[Access[P]]] =
+  def askSessionAttrWithDefault[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Option[Access[P]]] =
     if (attr.metaList.contains(UserLevelAttr))
       for {
-        mockRoleOpt ← commonRequestFactory.askMockRole
-        result ← {
+        mockRoleOpt <- commonRequestFactory.askMockRole
+        result <- {
           mockRoleOpt match {
-            case Some((mockRoleId, editable)) ⇒
+            case Some((mockRoleId, editable)) =>
               if (editable)
                 roleAsk(attr, mockRoleId, default)
               else
                 deepAsk(attr, default, Some(""), Some(mockRoleId))
-            case None ⇒
+            case None =>
               deepAsk(attr, default)
           }
         }
@@ -52,11 +52,11 @@ case class SessionAttrAskFactoryImpl(
     else
       sessionAsk(attr, default)
 
-  def sessionAsk[P <: Product](attr: SessionAttr[P], default: SrcId ⇒ P): Dep[Option[Access[P]]] = {
+  def sessionAsk[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Option[Access[P]]] = {
 
     val lens = ProdLens[U_RawSessionData, P](attr.metaList)(
-      rawData ⇒ qAdapterRegistry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
-      value ⇒ rawData ⇒ {
+      rawData => qAdapterRegistry.byId(rawData.dataNode.get.valueTypeId).decode(rawData.dataNode.get.value).asInstanceOf[P],
+      value => rawData => {
         val valueAdapter = qAdapterRegistry.byName(attr.className)
         val byteString = ToByteString(valueAdapter.encode(value))
         val newDataNode = rawData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
@@ -64,7 +64,7 @@ case class SessionAttrAskFactoryImpl(
       }
     )
 
-    def rawSessionData: ContextId ⇒ U_RawSessionData = contextId ⇒
+    def rawSessionData: ContextId => U_RawSessionData = contextId =>
       U_RawSessionData(
         srcId = "",
         sessionKey = contextId,
@@ -80,8 +80,8 @@ case class SessionAttrAskFactoryImpl(
 
     import commonRequestFactory._
     for {
-      contextId ← askContextId
-      rawModel ← rawDataAsk.option(genPK(rawSessionData(contextId), rawDataAdapter))
+      contextId <- askContextId
+      rawModel <- rawDataAsk.option(genPK(rawSessionData(contextId), rawDataAdapter))
     } yield {
       val request = rawSessionData(contextId)
       val pk = genPK(request, rawDataAdapter)
@@ -95,7 +95,7 @@ case class SessionAttrAskFactoryImpl(
     }
   }
 
-  def roleAsk[P <: Product](attr: SessionAttr[P], roleKey: RoleId, default: SrcId ⇒ P): Dep[Option[Access[P]]] = {
+  def roleAsk[P <: Product](attr: SessionAttr[P], roleKey: RoleId, default: SrcId => P): Dep[Option[Access[P]]] = {
     val dataNode = Option(
       N_RawDataNode(
         domainSrcId = attr.pk,
@@ -106,8 +106,8 @@ case class SessionAttrAskFactoryImpl(
     )
 
     val lens = ProdLens[U_RawRoleData, P](attr.metaList)(
-      rawRoleData ⇒ qAdapterRegistry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
-      value ⇒ rawRoleData ⇒ {
+      rawRoleData => qAdapterRegistry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
+      value => rawRoleData => {
         val valueAdapter = qAdapterRegistry.byName(attr.className)
         val byteString = ToByteString(valueAdapter.encode(value))
         val newDataNode = rawRoleData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
@@ -123,7 +123,7 @@ case class SessionAttrAskFactoryImpl(
       )
 
     for {
-      rawModel ← rawRoleDataAsk.option(genPK(rawRoleData, rawRoleAdapter))
+      rawModel <- rawRoleDataAsk.option(genPK(rawRoleData, rawRoleAdapter))
     } yield {
       val pk = genPK(rawRoleData, rawRoleAdapter)
 
@@ -140,7 +140,7 @@ case class SessionAttrAskFactoryImpl(
   lazy val rawUserAdapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[U_RawUserData].getName)
   lazy val rawRoleAdapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(classOf[U_RawRoleData].getName)
 
-  def deepAsk[P <: Product](attr: SessionAttr[P], default: SrcId ⇒ P, userIdOpt: Option[UserId] = None, roleIdOpt: Option[RoleId] = None): Dep[Option[Access[P]]] = {
+  def deepAsk[P <: Product](attr: SessionAttr[P], default: SrcId => P, userIdOpt: Option[UserId] = None, roleIdOpt: Option[RoleId] = None): Dep[Option[Access[P]]] = {
     val dataNode = Option(
       N_RawDataNode(
         domainSrcId = attr.pk,
@@ -150,21 +150,21 @@ case class SessionAttrAskFactoryImpl(
       )
     )
 
-    def rawSessionData: ContextId ⇒ U_RawSessionData = contextId ⇒
+    def rawSessionData: ContextId => U_RawSessionData = contextId =>
       U_RawSessionData(
         srcId = "",
         sessionKey = contextId,
         dataNode = dataNode
       )
 
-    def rawUserData: UserId ⇒ U_RawUserData = userId ⇒
+    def rawUserData: UserId => U_RawUserData = userId =>
       U_RawUserData(
         srcId = "",
         userId = userId,
         dataNode = dataNode
       )
 
-    def rawRoleData: RoleId ⇒ U_RawRoleData = userId ⇒
+    def rawRoleData: RoleId => U_RawRoleData = userId =>
       U_RawRoleData(
         srcId = "",
         roleId = userId,
@@ -173,20 +173,20 @@ case class SessionAttrAskFactoryImpl(
 
     import commonRequestFactory._
     for {
-      contextId ← askContextId
-      rawSession ← rawDataAsk.option(genPK(rawSessionData(contextId), rawDataAdapter))
-      userId ← userIdOpt.map(depFactory.resolvedRequestDep).getOrElse(askUserId)
-      rawUser ← rawUserDataAsk.option(genPK(rawUserData(userId), rawUserAdapter))
-      roleId ← roleIdOpt.map(depFactory.resolvedRequestDep).getOrElse(askRoleId)
-      rawRole ← rawRoleDataAsk.option(genPK(rawRoleData(roleId), rawRoleAdapter))
+      contextId <- askContextId
+      rawSession <- rawDataAsk.option(genPK(rawSessionData(contextId), rawDataAdapter))
+      userId <- userIdOpt.map(depFactory.resolvedRequestDep).getOrElse(askUserId)
+      rawUser <- rawUserDataAsk.option(genPK(rawUserData(userId), rawUserAdapter))
+      roleId <- roleIdOpt.map(depFactory.resolvedRequestDep).getOrElse(askRoleId)
+      rawRole <- rawRoleDataAsk.option(genPK(rawRoleData(roleId), rawRoleAdapter))
     } yield {
       val rawDataPK = genPK(rawSessionData(contextId), rawDataAdapter)
       val rawUserDataPK = genPK(rawUserData(userId), rawUserAdapter)
       val rawRoleDataPK = genPK(rawRoleData(roleId), rawRoleAdapter)
 
       val lensRaw = ProdLens[U_RawSessionData, P](attr.metaList)(
-        rawSessionData ⇒ qAdapterRegistry.byId(rawSessionData.dataNode.get.valueTypeId).decode(rawSessionData.dataNode.get.value).asInstanceOf[P],
-        value ⇒ rawRoleData ⇒ {
+        rawSessionData => qAdapterRegistry.byId(rawSessionData.dataNode.get.valueTypeId).decode(rawSessionData.dataNode.get.value).asInstanceOf[P],
+        value => rawRoleData => {
           val valueAdapter = qAdapterRegistry.byName(attr.className)
           val byteString = ToByteString(valueAdapter.encode(value))
           val newDataNode = rawRoleData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
@@ -195,8 +195,8 @@ case class SessionAttrAskFactoryImpl(
       )
 
       val lensRawUser = ProdLens[U_RawUserData, P](attr.metaList)(
-        rawRoleData ⇒ qAdapterRegistry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
-        value ⇒ rawRoleData ⇒ {
+        rawRoleData => qAdapterRegistry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
+        value => rawRoleData => {
           val valueAdapter = qAdapterRegistry.byName(attr.className)
           val byteString = ToByteString(valueAdapter.encode(value))
           val newDataNode = rawRoleData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
@@ -211,7 +211,7 @@ case class SessionAttrAskFactoryImpl(
 
       val lens = ProdLens[DeepRawSessionData[P], P](attr.metaList)(
         _.of(qAdapterRegistry),
-        value ⇒ deepData ⇒ deepData.set(qAdapterRegistry)(value)(deepData)
+        value => deepData => deepData.set(qAdapterRegistry)(value)(deepData)
       )
 
       val access: AccessImpl[DeepRawSessionData[P]] = AccessImpl(data, Option(TxDeepRawDataLens(data)), NameMetaAttr("DeepRawSessionData") :: Nil)

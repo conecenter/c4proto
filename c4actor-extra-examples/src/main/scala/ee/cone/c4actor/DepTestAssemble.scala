@@ -28,7 +28,7 @@ trait DepTestAssemble
 
   private lazy val testRequestAsk = depAskFactory.forClasses(classOf[D_DepTestRequest], classOf[Any])
 
-  override def depHandlers: List[DepHandler] = testRequestAsk.by(_ ⇒ testDep) :: injectRole[D_DepTestRequest](testRequestAsk, _ ⇒ testContextId) :: super.depHandlers
+  override def depHandlers: List[DepHandler] = testRequestAsk.by(_ => testDep) :: injectRole[D_DepTestRequest](testRequestAsk, _ => testContextId) :: super.depHandlers
 
   override def assembles: List[Assemble] = new DepTestAssembles(qAdapterRegistry, depRequestFactory) :: super.assembles
 }
@@ -46,7 +46,7 @@ trait DepTestAssemble
 case class DepTestHandler(dep: Dep[_], contextId: String) extends DepHandler {
   def requestClassName: String = classOf[D_DepTestRequest].getName
 
-  def handle: DepRequest ⇒ DepCtx ⇒ Resolvable[_] = _ ⇒ ctx ⇒ dep.resolve(ctx + (N_ContextIdRequest() →  contextId))
+  def handle: DepRequest => DepCtx => Resolvable[_] = _ => ctx => dep.resolve(ctx + (N_ContextIdRequest() ->  contextId))
 }
 
 case class DepTestResponse(srcId: String, response: Option[_])

@@ -36,7 +36,7 @@ object GZipTest {
     val subDir = baseDir
     //.resolve(subDirStr)
     /*println(FinallyClose(Files.newDirectoryStream(subDir))(_.asScala.toList)
-      .map(path⇒baseDir.relativize(path).toString))*/
+      .map(path=>baseDir.relativize(path).toString))*/
     val path = baseDir.resolve("0000000000000000-b00538a7-8c57-3225-bb30-7fae7dd107c0")
     val byteStr = TimeColored("g", "read")(ToByteString(Files.readAllBytes(path)))
     println(byteStr.size)
@@ -70,24 +70,24 @@ case class DeflaterCompressor(level: Int = 1) extends DeCompressor with Compress
   }
 
   def deCompress(data: ByteString): ByteString =
-    FinallyClose(new Buffer) { buffer ⇒
-      FinallyClose(new InflaterInputStream(new Buffer().write(data).inputStream(), new Inflater(true), 10000000)) { deflater ⇒
+    FinallyClose(new Buffer) { buffer =>
+      FinallyClose(new InflaterInputStream(new Buffer().write(data).inputStream(), new Inflater(true), 10000000)) { deflater =>
           readAgain(deflater, buffer)
       }
       buffer.readByteString()
     }
 
   def compress(data: ByteString): ByteString =
-    FinallyClose(new Buffer) { buffer ⇒
-      FinallyClose(new DeflaterOutputStream(buffer.outputStream(), new Deflater(level, true), 10000000)) { deflater ⇒
+    FinallyClose(new Buffer) { buffer =>
+      FinallyClose(new DeflaterOutputStream(buffer.outputStream(), new Deflater(level, true), 10000000)) { deflater =>
         deflater.write(data.toByteArray)
       }
       buffer.readByteString()
     }
 
   def compress(data: Array[Byte]): Array[Byte] =
-    FinallyClose(new Buffer) { buffer ⇒
-        FinallyClose(new DeflaterOutputStream(buffer.outputStream(), new Deflater(level, true), 10000000)) { defl ⇒
+    FinallyClose(new Buffer) { buffer =>
+        FinallyClose(new DeflaterOutputStream(buffer.outputStream(), new Deflater(level, true), 10000000)) { defl =>
           defl.write(data)
         }
       buffer.readByteArray()

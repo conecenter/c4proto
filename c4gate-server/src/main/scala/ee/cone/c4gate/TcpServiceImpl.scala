@@ -14,14 +14,14 @@ import scala.collection.concurrent.TrieMap
 import scala.collection.immutable.Queue
 
 class ChannelHandler(
-  channel: AsynchronousSocketChannel, unregister: ()⇒Unit, fail: Throwable⇒Unit,
+  channel: AsynchronousSocketChannel, unregister: ()=>Unit, fail: Throwable=>Unit,
   executor: ScheduledExecutorService, timeout: Long, val compressor: Option[Compressor]
 ) extends CompletionHandler[Integer,Unit] with SenderToAgent {
   private var queue: Queue[Array[Byte]] = Queue.empty
   private var activeElement: Option[ByteBuffer] = None
   private var purge: Option[ScheduledFuture[_]] = None
   private def startWrite(): Unit =
-    queue.dequeueOption.foreach{ case (element,nextQueue) ⇒
+    queue.dequeueOption.foreach{ case (element,nextQueue) =>
       queue = nextQueue
       activeElement = Option(ByteBuffer.wrap(element))
       channel.write[Unit](activeElement.get, (), this)
@@ -68,13 +68,13 @@ class TcpServerImpl(
       def completed(ch: AsynchronousSocketChannel, att: Unit): Unit = Trace {
         listener.accept[Unit]((), this)
         val key = UUID.randomUUID.toString
-        val sender = new ChannelHandler(ch, {() ⇒
+        val sender = new ChannelHandler(ch, {() =>
           channels -= key
           tcpHandler.afterDisconnect(key)
-        }, { error ⇒
+        }, { error =>
           logger.error("channel",error)
         }, executor, timeout, compressorFactory.create())
-        channels += key → sender
+        channels += key -> sender
         tcpHandler.afterConnect(key, sender)
       }
       def failed(exc: Throwable, att: Unit): Unit = logger.error("tcp",exc) //! may be set status-finished

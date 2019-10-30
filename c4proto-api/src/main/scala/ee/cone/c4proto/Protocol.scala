@@ -14,10 +14,9 @@ case class ShortName(name: String) extends StaticAnnotation
 
 class GenLens extends StaticAnnotation
 
-case class TypeKey(clName: String, alias: String, args: List[TypeKey]) {
-  override def toString: String =
-    s"TypeKey(${if (clName.endsWith(alias)) clName else s"$clName/$alias"}${if (args.isEmpty) "" else args.map(_.toString).mkString("[",", ", "]")})"
-}
+//  override def toString: String =
+//    s"TypeKey(${if (clName.endsWith(alias)) clName else s"$clName/$alias"}${if (args.isEmpty) "" else args.map(_.toString).mkString("[",", ", "]")})"
+
 case class MetaProp(id: Int, propName: String, propShortName: Option[String], resultType: String, typeProp: TypeKey)
 
 trait HasId {
@@ -35,8 +34,6 @@ object ToByteString {
   def apply(v: String): ByteString = apply(v.getBytes(UTF_8))
 }
 
-class c4component(apps: String*) extends StaticAnnotation
-
 class replaceBy[T](factory: Object) extends StaticAnnotation
 
 abstract class ArgAdapter[Value] {
@@ -45,17 +42,4 @@ abstract class ArgAdapter[Value] {
   def defaultValue: Value
   def decodeReduce(reader: ProtoReader, prev: Value): Value
   def decodeFix(prev: Value): Value
-}
-
-trait AbstractComponents {
-  def components: Seq[Component]
-}
-class Component(val out: Seq[TypeKey], val in: Seq[TypeKey], val create: Seq[Object]=>Seq[Object]) extends AbstractComponents {
-  def components: Seq[Component] = Seq(this)
-}
-abstract class Components(componentsList: Seq[AbstractComponents]) extends AbstractComponents {
-  def components: Seq[Component] = componentsList.flatMap(_.components)
-}
-trait ComponentsApp extends AbstractComponents {
-  def components: List[Component] = Nil
 }

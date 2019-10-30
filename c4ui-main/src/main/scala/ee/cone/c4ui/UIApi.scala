@@ -7,7 +7,7 @@ import ee.cone.c4vdom.{VDomLens, VDomState, VDomView}
 trait View extends VDomView[Context] with Product
 
 trait UntilPolicy {
-  def wrap(view: Context⇒ViewRes): Context⇒ViewRes
+  def wrap(view: Context=>ViewRes): Context=>ViewRes
 }
 
 case object VDomStateKey extends TransientLens[Option[VDomState]](None)

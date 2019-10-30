@@ -21,13 +21,13 @@ object SanboxLensTutuorial {
     val prodPhoneLens: ProdLens[D_Person, Phone] =
       ProdLens.ofSet[D_Person, Phone](
         _.phone,
-        phone ⇒ _.copy(phone = phone),
+        phone => _.copy(phone = phone),
         "PersonToPhone"
       )
     val prodCodeLens: ProdLens[Phone, Int] =
       ProdLens.ofSet[Phone, Int](
         _.code,
-        code ⇒ _.copy(code = code),
+        code => _.copy(code = code),
         "PhoneToCode"
       )
     val prodPersonCodeLens: ProdLens[D_Person, Int] =
@@ -51,7 +51,7 @@ case object CodeGetter extends Getter[Phone, Int] {
 }
 
 case class GetterComposer[A, B, C](getterA: Getter[A, B], getterB: Getter[B, C]) extends Getter[A, C] {
-  def of: A => C = model ⇒ getterB.of(getterA.of(model))
+  def of: A => C = model => getterB.of(getterA.of(model))
 }
 
 case object PersonToPhoneLens extends Lens[D_Person, Phone]

@@ -12,49 +12,49 @@ import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
-@assemble class ManagementPostAssembleBase(actorName: String, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal)   {
+@c4assemble("ManagementApp") class ManagementPostAssembleBase(actorName: ActorName, indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal)   {
   def joinHttpPostHandler(
     key: SrcId,
     post: Each[S_HttpRequest]
   ): Values[(SrcId, TxTransform)] =
-    if(post.path == s"/manage/$actorName")
+    if(post.path == s"/manage/${actorName.value}")
       List(WithPK(ManageHttpPostTx(post.srcId, post)(indexUtil,readModelUtil,catchNonFatal))) else Nil
 
   def joinConsumers(
     key: SrcId,
     first: Each[S_Firstborn]
   ): Values[(SrcId,LocalHttpConsumer)] =
-    List(WithPK(LocalHttpConsumer(s"/manage/$actorName")))
+    List(WithPK(LocalHttpConsumer(s"/manage/${actorName.value}")))
 }
 
 case class ManageHttpPostTx(srcId: SrcId, request: S_HttpRequest)(indexUtil: IndexUtil, readModelUtil: ReadModelUtil, catchNonFatal: CatchNonFatal) extends TxTransform with LazyLogging {
   private def indent(l: String) = s"  $l"
-  private def valueLines(index: Index, options: AssembleOptions)(k: Any): List[String] =
-    indexUtil.getValues(index,k,"",options).flatMap(v⇒s"$v".split("\n")).map(indent).toList
+  private def valueLines(index: Index)(k: Any): List[String] =
+    indexUtil.getValues(index,k,"").flatMap(v=>s"$v".split("\n")).map(indent).toList
   private def report(local: Context): String = {
     assert(request.method == "POST")
-    val options = GetAssembleOptions.of(local)(local.assembled)
-    val headers: Map[String, String] = request.headers.map(h⇒h.key→h.value).toMap
+    //val options = GetAssembleOptions.of(local)(local.assembled)
+    val headers: Map[String, String] = request.headers.map(h=>h.key->h.value).toMap
     val world = readModelUtil.toMap(local.assembled)
     val WorldKeyAlias = """(\w+),(\w+)""".r
     val worldKeyAlias = headers("x-r-world-key")
     val WorldKeyAlias(alias,keyClassAlias) = worldKeyAlias
     val (indexStr,index): (String,Index) = Single.option(world.collect{
       case (worldKey: JoinKey, index) if !worldKey.was && worldKey.keyAlias == alias &&
-        worldKey.valueClassName.split("\\W").last == keyClassAlias ⇒
+        worldKey.valueClassName.split("\\W").last == keyClassAlias =>
         (s"$worldKey",index)
     }.toList).getOrElse(("[index not found]",emptyIndex))
     val res: List[String] = headers("x-r-selection") match {
-      case k if k.startsWith(":") ⇒ k.tail :: valueLines(index, options)(k.tail)
-      case "keys" ⇒ indexUtil.keySet(index).map(_.toString).toList.sorted
-      case "all" ⇒ indexUtil.keySet(index).map(k⇒k.toString→k).toList.sortBy(_._1).flatMap{
-        case(ks,k) ⇒ ks :: valueLines(index, options)(k)
+      case k if k.startsWith(":") => k.tail :: valueLines(index)(k.tail)
+      case "keys" => indexUtil.keySet(index).map(_.toString).toList.sorted
+      case "all" => indexUtil.keySet(index).map(k=>k.toString->k).toList.sortBy(_._1).flatMap{
+        case(ks,k) => ks :: valueLines(index)(k)
       }
     }
     (s"REPORT $indexStr" :: res.map(indent) ::: "END" :: Nil).mkString("\n")
   }
   def transform(local: Context): Context = {
-    catchNonFatal{ logger.info(report(local)) }("manage"){ e ⇒ ()}
+    catchNonFatal{ logger.info(report(local)) }("manage"){ e => ()}
     TxAdd(LEvent.delete(request))(local)
   }
 }

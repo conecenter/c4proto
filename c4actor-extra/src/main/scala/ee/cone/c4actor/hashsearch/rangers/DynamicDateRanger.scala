@@ -8,9 +8,9 @@ import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto.{Id, Protocol, protocol}
 
 trait K2TreeApp extends AssemblesApp with ProtocolsApp {
-  def k2ModelRegistry: List[(Class[_ <: Product], _ <: Product ⇒ (Long, Long))] = Nil
+  def k2ModelRegistry: List[(Class[_ <: Product], _ <: Product => (Long, Long))] = Nil
 
-  override def assembles: List[Assemble] = k2ModelRegistry.map(pair ⇒ new K2SparkJoiner(pair._1, pair._2)) ::: super.assembles
+  override def assembles: List[Assemble] = k2ModelRegistry.map(pair => new K2SparkJoiner(pair._1, pair._2)) ::: super.assembles
 
   override def protocols: List[Protocol] = RangeTreeProtocol :: super.protocols
 }
@@ -21,16 +21,16 @@ object K2TreeUtils {
       root
     else
       convert(date) match {
-        case (x, y) if in(x, y, root.left.get.range.get) ⇒ findRegion(root.left.get, date)
-        case (x, y) if in(x, y, root.right.get.range.get) ⇒ findRegion(root.right.get, date)
-        case _ ⇒ throw new Exception("DynDateRanger: 26 Dot is not in any region")
+        case (x, y) if in(x, y, root.left.get.range.get) => findRegion(root.left.get, date)
+        case (x, y) if in(x, y, root.right.get.range.get) => findRegion(root.right.get, date)
+        case _ => throw new Exception("DynDateRanger: 26 Dot is not in any region")
       }
 
 
   def getRegions(root: S_TreeNode, search: S_TreeRange): List[S_TreeNode] =
     root match {
-      case S_TreeNode(Some(_), None, None) ⇒ root :: Nil
-      case S_TreeNode(_, Some(left), Some(right)) ⇒
+      case S_TreeNode(Some(_), None, None) => root :: Nil
+      case S_TreeNode(_, Some(left), Some(right)) =>
         val answerLeft = if (fullyIn(search, left.range.get))
           getAllRegions(left)
         else if (intersectCorrect(search, left.range.get))
@@ -42,7 +42,7 @@ object K2TreeUtils {
           getRegions(right, search)
         else Nil
         answerLeft ::: answerRight
-      case _ ⇒ FailWith(s"Unhandled option for $root $search")
+      case _ => FailWith(s"Unhandled option for $root $search")
     }
 
 
@@ -64,9 +64,9 @@ object K2TreeUtils {
 
   def getAllRegions(root: S_TreeNode): List[S_TreeNode] =
     root match {
-      case S_TreeNode(Some(_), None, None) ⇒ root :: Nil
-      case S_TreeNode(_, Some(left), Some(right)) ⇒ getAllRegions(left) ::: getAllRegions(right)
-      case _ ⇒ throw new Exception("Node w/o left / right DynDateRanger:39")
+      case S_TreeNode(Some(_), None, None) => root :: Nil
+      case S_TreeNode(_, Some(left), Some(right)) => getAllRegions(left) ::: getAllRegions(right)
+      case _ => throw new Exception("Node w/o left / right DynDateRanger:39")
     }
 
   lazy val maxValue = 3155760000000L
@@ -77,14 +77,14 @@ object K2TreeUtils {
 
   private def convert(dateOpt: (Option[Long], Option[Long])): (Long, Long) =
     (dateOpt._1, dateOpt._2) match {
-      case (None, None) ⇒ (maxValue, maxValue)
+      case (None, None) => (maxValue, maxValue)
       case (Some(from), None) => (from, maxValue)
-      case (None, Some(to)) ⇒ (minValue, to)
-      case (Some(from), Some(to)) ⇒ (from, to)
+      case (None, Some(to)) => (minValue, to)
+      case (Some(from), Some(to)) => (from, to)
     }
 }
 
-@assemble class K2SparkJoinerBase[Model <: Product](modelCl: Class[Model], modelToDate: Model ⇒ (Long, Long))
+@assemble class K2SparkJoinerBase[Model <: Product](modelCl: Class[Model], modelToDate: Model => (Long, Long))
   extends AssembleName("K2SparkJoiner", modelCl) {
   def SparkK2Tree(
     paramId: SrcId,
@@ -95,13 +95,13 @@ object K2TreeUtils {
     else Nil
 }
 
-case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: S_K2TreeParams, modelCl: Class[Model])(getDates: Model ⇒ (Long, Long)) extends TxTransform {
+case class K2TreeUpdate[Model <: Product](srcId: SrcId, params: S_K2TreeParams, modelCl: Class[Model])(getDates: Model => (Long, Long)) extends TxTransform {
   def transform(local: Context): Context = {
     val tree = ByPK(classOf[S_TreeNodeOuter]).of(local).get(srcId)
     val now = System.currentTimeMillis()
     val doUpdate = tree.isEmpty || (now - tree.get.lastUpdateMillis >= params.updateInterval)
     if (doUpdate) {
-      val dates = ByPK(modelCl).of(local).values.toList.map(model ⇒ {
+      val dates = ByPK(modelCl).of(local).values.toList.map(model => {
         val (from, to) = getDates(model)
         Date2D(from, to)
       }
@@ -128,8 +128,8 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
       S_TreeNode(Option(currRange), None, None)
     } else {
       currPoints.size match {
-        case i if i <= minInHeap ⇒ S_TreeNode(Option(currRange), None, None)
-        case _ ⇒
+        case i if i <= minInHeap => S_TreeNode(Option(currRange), None, None)
+        case _ =>
           val (left, median, right) = splitPointsByMedian(currPoints, currDepth)
           val incDepth = currDepth + 1
           val (leftR, rightR) = splitRegionByMedian(currRange, median, currDepth)
@@ -139,8 +139,8 @@ case class K2Tree(inputP: List[Date2D], maxDepth: Int, minInHeap: Int, maxMinInH
   }
 
   def splitPointsByMedian(ds: List[Date2D], i: Int): (List[Date2D], Date2D, List[Date2D]) = {
-    val sortBy: Date2D ⇒ Long = if (i % 2 == 0) _.x else _.y
-    val sortBy2: Date2D ⇒ Long = if (i % 2 == 1) _.y else _.x
+    val sortBy: Date2D => Long = if (i % 2 == 0) _.x else _.y
+    val sortBy2: Date2D => Long = if (i % 2 == 1) _.y else _.x
     val sortedPoints = ds.sortBy(sortBy).sortBy(sortBy2)
     val medianIndex = ds.size / 2
     (sortedPoints.take(medianIndex), sortedPoints(medianIndex), sortedPoints.drop(medianIndex))

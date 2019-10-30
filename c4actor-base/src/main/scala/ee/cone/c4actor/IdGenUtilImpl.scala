@@ -6,14 +6,15 @@ import java.security.MessageDigest
 import java.util.Base64
 
 import ee.cone.c4actor.Types.SrcId
+import ee.cone.c4proto.c4
 import okio.ByteString
 
-case class IdGenUtilImpl()(
+@c4("RichDataCompApp")case class IdGenUtilImpl()(
   proto: MessageDigest = MessageDigest.getInstance("MD5")
 ) extends IdGenUtil {
   private def md5(data: Array[Byte]*): String = {
     val d = proto.clone().asInstanceOf[MessageDigest] // much faster than getInstance("MD5")
-    data.foreach{ bytes ⇒
+    data.foreach{ bytes =>
       val l = bytes.length
       d.update((l>>24).toByte)
       d.update((l>>16).toByte)

@@ -2,13 +2,13 @@
 package ee.cone.c4actor
 
 trait ExternalDBFactory {
-  def create(wrap: (()⇒java.sql.Connection)⇒RConnectionPool): RConnectionPool
+  def create(wrap: (()=>java.sql.Connection)=>RConnectionPool): RConnectionPool
 }
 
-case object WithJDBCKey extends SharedComponentKey[(RConnection⇒Context)⇒Context]
+case object WithJDBCKey extends SharedComponentKey[(RConnection=>Context)=>Context]
 
 trait RConnectionPool {
-  def doWith[T](f: RConnection⇒T): T
+  def doWith[T](f: RConnection=>T): T
 }
 
 trait ExternalDBClient {

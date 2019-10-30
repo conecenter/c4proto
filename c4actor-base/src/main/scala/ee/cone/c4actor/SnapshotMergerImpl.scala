@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4actor.QProtocol.N_Update
-import ee.cone.c4proto.ToByteString
+import ee.cone.c4proto.{ToByteString, c4}
 
 /*snapshot cleanup:
 docker exec ... ls -la c4/db4/snapshots
@@ -17,9 +17,9 @@ class SnapshotMergerImpl(
   rawSnapshotLoaderFactory: RawSnapshotLoaderFactory,
   snapshotLoaderFactory: SnapshotLoaderFactory,
   reducer: RichRawWorldReducer,
-  signer: Signer[SnapshotTask]
+  signer: SnapshotTaskSigner
 ) extends SnapshotMerger {
-  def merge(baseURL: String, signed: String): Context⇒Context = local ⇒ {
+  def merge(baseURL: String, signed: String): Context=>Context = local => {
     val task = signer.retrieve(check = false)(Option(signed)).get
     val parentProcess = remoteSnapshotUtil.request(baseURL,signed)
     val parentSnapshotLoader = snapshotLoaderFactory.create(rawSnapshotLoaderFactory.create(baseURL))
@@ -28,10 +28,10 @@ class SnapshotMergerImpl(
     val Some(targetFullSnapshot) = parentSnapshotLoader.load(targetRawSnapshot)
     val diffUpdates = differ.diff(currentFullSnapshot,targetFullSnapshot)
     task match {
-      case t:NextSnapshotTask ⇒
+      case t:NextSnapshotTask =>
         assert(t.offsetOpt.isEmpty || txs.isEmpty)
-        WriteModelKey.modify(_.enqueue(diffUpdates))(local)
-      case t:DebugSnapshotTask ⇒
+        WriteModelKey.modify(_.enqueueAll(diffUpdates))(local)
+      case t:DebugSnapshotTask =>
         val (bytes, headers) = toUpdate.toBytes(diffUpdates)
         val diffRawEvent = SimpleRawEvent(targetFullSnapshot.srcId,ToByteString(bytes), headers)
         val preTargetWorld = reducer.reduce(Option(local),List(diffRawEvent))
@@ -41,7 +41,7 @@ class SnapshotMergerImpl(
   }
 }
 
-class SnapshotDifferImpl(
+@c4("ServerCompApp") class SnapshotDifferImpl(
   toUpdate: ToUpdate,
   reducer: RichRawWorldReducer,
   snapshotMaker: SnapshotMaker,
@@ -50,12 +50,12 @@ class SnapshotDifferImpl(
   def diff(snapshot: RawEvent, targetSnapshot: RawEvent): List[N_Update] = {
     val currentUpdates = toUpdate.toUpdates(List(snapshot))
     val targetUpdates = toUpdate.toUpdates(List(targetSnapshot))
-    val state = currentUpdates.map(up⇒toUpdate.toKey(up)→up).toMap
-    val updates = targetUpdates.filterNot{ up ⇒ state.get(toUpdate.toKey(up)).contains(up) }
+    val state = currentUpdates.map(up=>toUpdate.toKey(up)->up).toMap
+    val updates = targetUpdates.filterNot{ up => state.get(toUpdate.toKey(up)).contains(up) }
     val deletes = state.keySet -- targetUpdates.map(toUpdate.toKey)
     (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
-  def needCurrentSnapshot: Context⇒RawEvent = local ⇒ {
+  def needCurrentSnapshot: Context=>RawEvent = local => {
     val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Option(local),Nil).offset)))
     val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
     currentFullSnapshot

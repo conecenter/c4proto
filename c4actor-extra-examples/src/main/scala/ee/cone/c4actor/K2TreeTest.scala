@@ -12,7 +12,7 @@ import scala.util.Random
 object K2TreeTest {
   def main(args: Array[String]): Unit = {
     val points = (for {
-      i ← 0 to 1000000
+      i <- 0 to 1000000
     } yield {
       val x = Random.nextInt(1000) + 10
       val y = Random.nextInt(1000) + 10
@@ -57,7 +57,7 @@ object K2TreeTest {
     //g.fill(new Rectangle2D.Double(20.0, 400.0, 50.0, 20.0))
     g.scale(1.0, -1.0)
     g.translate(0.0, -size._2 + 10)
-    points.foreach(point ⇒ {
+    points.foreach(point => {
       g.setColor(Color.RED)
       g.fill(new Ellipse2D.Double(point.x * scale - scale / 2, point.y * scale - scale / 2, scale, scale))
     }

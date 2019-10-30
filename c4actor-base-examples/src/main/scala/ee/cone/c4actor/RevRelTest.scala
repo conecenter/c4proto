@@ -4,7 +4,7 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, Protocol, c4, protocol}
 
 import Function.tupled
 
@@ -25,7 +25,7 @@ trait RevRelFactory {
 }
 import RRTypes._
 //
-class RelSrcImpl[From<:Product,Value](from: Class[From], lens: ProdLens[From,Value], adapter: Value⇒List[SrcId]) extends RelSrc[From,Value] {
+class RelSrcImpl[From<:Product,Value](from: Class[From], lens: ProdLens[From,Value], adapter: Value=>List[SrcId]) extends RelSrc[From,Value] {
   def to[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[To] with Assemble =
     new RelAssemble(from,ct.runtimeClass.asInstanceOf[Class[To]],lens,adapter)()
   def toChildren[To<:Product](implicit ct: ClassTag[To]): EachSubAssemble[RelChildren[To]] with Assemble = {
@@ -33,28 +33,29 @@ class RelSrcImpl[From<:Product,Value](from: Class[From], lens: ProdLens[From,Val
     new RelChildrenAssemble(from,to,new RelAssemble(from,to,lens,adapter)())()
   }
 }
-class RevRelFactoryImpl extends RevRelFactory {
+
+@c4("RevRelFactoryImplApp") class RevRelFactoryImpl extends RevRelFactory {
   def rel[From<:Product](lens: ProdLens[From,List[SrcId]])(implicit cf: ClassTag[From]): RelSrc[From,List[SrcId]] = {
     val from = cf.runtimeClass.asInstanceOf[Class[From]]
     new RelSrcImpl[From,List[SrcId]](from,lens,identity[List[SrcId]])
   }
   def rev[To<:Product](lens: ProdLens[To,SrcId])(implicit ct: ClassTag[To]): ValuesSubAssemble[To] with Assemble =
-    new RevAssemble[To,SrcId](ct.runtimeClass.asInstanceOf[Class[To]],lens,v⇒List(v))()
+    new RevAssemble[To,SrcId](ct.runtimeClass.asInstanceOf[Class[To]],lens,v=>List(v))()
 }
 @assemble class RevAssembleBase[To<:Product,Value](
   classOfTo: Class[To],
   lens: ProdLens[To,Value],
-  adapter: Value⇒List[SrcId]
+  adapter: Value=>List[SrcId]
 )(
   val mergeKeyAddClasses: List[Class[_]] = List(classOfTo),
-  val mergeKeyAddString: String = lens.metaList.collect{ case l: NameMetaAttr ⇒ l.value }.mkString("-")
+  val mergeKeyAddString: String = lens.metaList.collect{ case l: NameMetaAttr => l.value }.mkString("-")
 ) extends ValuesSubAssemble[To] with BasicMergeableAssemble {
   def map(
     key: SrcId,
     to: Each[To]
   ): Values[(FK@ns(mergeKey),To)] = for {
-    k ← adapter(lens.of(to))
-  } yield k → to
+    k <- adapter(lens.of(to))
+  } yield k -> to
   def result: Result = tupled(map _)
   //def t: Function
 }
@@ -64,24 +65,24 @@ case class RelOuterReq(callerId: SrcId)
   classOfFrom: Class[From],
   classOfTo: Class[To],
   val lens: ProdLens[From,Value],
-  val adapter: Value⇒List[SrcId]
+  val adapter: Value=>List[SrcId]
 )(
   val mergeKeyAddClasses: List[Class[_]] = List(classOfFrom,classOfTo),
-  val mergeKeyAddString: String = lens.metaList.collect{ case l: NameMetaAttr ⇒ l.value }.mkString("-")
+  val mergeKeyAddString: String = lens.metaList.collect{ case l: NameMetaAttr => l.value }.mkString("-")
 ) extends EachSubAssemble[To] with ValuesSubAssemble[To] with BasicMergeableAssemble {
   def mapReq(
     key: SrcId,
     from: Each[From]
   ): Values[(FK@ns(mergeKey),RelOuterReq)] = {
     val req = RelOuterReq(ToPrimaryKey(from))
-    for { k ← adapter(lens.of(from)) } yield k → req
+    for { k <- adapter(lens.of(from)) } yield k -> req
   }
   def mapResp(
     key: SrcId,
     to: Each[To],
     @by[FK@ns(mergeKey)] request: Each[RelOuterReq]
   ): Values[(FK@ns(mergeKey),To)] =
-    List(request.callerId → to)
+    List(request.callerId -> to)
   def result: Result = tupled(mapResp _)
 }
 @assemble class RelChildrenAssembleBase[From<:Product,Value,To<:Product](
@@ -97,27 +98,17 @@ case class RelOuterReq(callerId: SrcId)
     from: Each[From],
     tos: Values[To] = inner.call
   ): Values[(FK@ns(inner.mergeKey),RelChildren[To])] = {
-    val tosMap = tos.map(to⇒ToPrimaryKey(to)→to).toMap
+    val tosMap = tos.map(to=>ToPrimaryKey(to)->to).toMap
     val tosList = for {
-      k ← inner.adapter(inner.lens.of(from))
-      to ← tosMap.get(k)
+      k <- inner.adapter(inner.lens.of(from))
+      to <- tosMap.get(k)
     } yield to
     List(WithPK(RelChildren(ToPrimaryKey(from),tosList)))
   }
   def result: Result = tupled(join _) //join(_:SrcId,???,???)
 }
 
-// general test helpers
-
-abstract class TestExecutionApp(addAssembles: List[Assemble]) extends TestVMRichDataApp
-  with SimpleAssembleProfilerApp
-  with VMExecutionApp with ToStartApp with ExecutableApp
-{
-  override def toStart: List[Executable] = new JustJoinTestExecutable(execution, contextFactory) :: super.toStart
-  override def assembles: List[Assemble] = addAssembles ::: super.assembles
-}
-
-class JustJoinTestExecutable(
+@c4("JustJoinTestApp") class JustJoinTestExecutable(
   execution: Execution, contextFactory: ContextFactory
 ) extends Executable {
   def run(): Unit = {
@@ -143,7 +134,7 @@ import RRTestItems._
 }
 import RRTestLenses._
 
-@assemble class RRTest1RuleAssembleBase(rr: RevRelFactory)   {
+@c4assemble("RRTest1App") class RRTest1RuleAssembleBase(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[Foo],
@@ -151,12 +142,12 @@ import RRTestLenses._
   ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.values)))
 }
 
-@assemble class RRTest1CheckAssembleBase   {
+@c4assemble("RRTest1App") class RRTest1CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
     firstborn: Each[S_Firstborn]
-  ): Values[(CheckId,S_Firstborn)] = List("check"→firstborn)
+  ): Values[(CheckId,S_Firstborn)] = List("check"->firstborn)
   def givenFoo(
     key: SrcId,
     firstborn: Each[S_Firstborn]
@@ -169,7 +160,7 @@ import RRTestLenses._
   def checkStart(
     key: SrcId,
     foo: Each[RichFoo]
-  ): Values[(CheckId,RichFoo)] = List("check"→foo)
+  ): Values[(CheckId,RichFoo)] = List("check"->foo)
   def checkFinish(
     key: SrcId,
     @by[CheckId] firstborn: Each[S_Firstborn],
@@ -181,7 +172,7 @@ import RRTestLenses._
   }
 }
 
-@assemble class RRTest2RuleAssembleBase(rr: RevRelFactory)   {
+@c4assemble("RRTest2App") class RRTest2RuleAssembleBase(rr: RevRelFactory)   {
   type FooId = SrcId
   def join(
     key: SrcId,
@@ -190,12 +181,12 @@ import RRTestLenses._
   ): Values[(FooId,RichFooBar)] = List(WithPK(RichFooBar(foo, bar)))
 }
 
-@assemble class RRTest2CheckAssembleBase   {
+@c4assemble("RRTest2App") class RRTest2CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
     firstborn: Each[S_Firstborn]
-  ): Values[(CheckId,S_Firstborn)] = List("check"→firstborn)
+  ): Values[(CheckId,S_Firstborn)] = List("check"->firstborn)
   def givenFoo(
     key: SrcId,
     firstborn: Each[S_Firstborn]
@@ -209,7 +200,7 @@ import RRTestLenses._
   def checkStart(
     key: SrcId,
     @by[FooId] fooBar: Each[RichFooBar]
-  ): Values[(CheckId,RichFooBar)] = List("check"→fooBar)
+  ): Values[(CheckId,RichFooBar)] = List("check"->fooBar)
   def checkFinish(
     key: SrcId,
     @by[CheckId] firstborn: Each[S_Firstborn],
@@ -224,20 +215,20 @@ import RRTestLenses._
   }
 }
 
-@assemble class RRTest3RuleAssembleBase(rr: RevRelFactory)   {
+@c4assemble("RRTest3App") class RRTest3RuleAssembleBase(rr: RevRelFactory)   {
   def join(
     key: SrcId,
     foo: Each[FooRev],
     bars: Values[BarRev] = rr.rev(barFooL).call
-  ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.toList.sortBy(_.id).map(i⇒Bar(i.id)))))
+  ): Values[(SrcId,RichFoo)] = List(WithPK(RichFoo(foo.id,bars.toList.sortBy(_.id).map(i=>Bar(i.id)))))
 }
 
-@assemble class RRTest3CheckAssembleBase   {
+@c4assemble("RRTest3App") class RRTest3CheckAssembleBase   {
   type CheckId = String
   def given(
     key: SrcId,
     firstborn: Each[S_Firstborn]
-  ): Values[(CheckId,S_Firstborn)] = List("check"→firstborn)
+  ): Values[(CheckId,S_Firstborn)] = List("check"->firstborn)
   def givenFoo(
     key: SrcId,
     firstborn: Each[S_Firstborn]
@@ -250,7 +241,7 @@ import RRTestLenses._
   def checkStart(
     key: SrcId,
     foo: Each[RichFoo]
-  ): Values[(CheckId,RichFoo)] = List("check"→foo)
+  ): Values[(CheckId,RichFoo)] = List("check"->foo)
   def checkFinish(
     key: SrcId,
     @by[CheckId] firstborn: Each[S_Firstborn],
@@ -261,16 +252,3 @@ import RRTestLenses._
     Nil
   }
 }
-
-class RRTest1App extends TestExecutionApp(List(
-  new RRTest1RuleAssemble(new RevRelFactoryImpl), new RRTest1CheckAssemble
-))
-class RRTest2App extends TestExecutionApp(List(
-  new RRTest2RuleAssemble(new RevRelFactoryImpl), new RRTest2CheckAssemble
-))
-class RRTest3App extends TestExecutionApp(List(
-  new RRTest3RuleAssemble(new RevRelFactoryImpl), new RRTest3CheckAssemble
-))
-
-
-// C4STATE_TOPIC_PREFIX=ee.cone.c4actor.RRTest1App sbt ~'c4actor-base-examples/run-main ee.cone.c4actor.ServerMain'

@@ -3,17 +3,18 @@ package ee.cone.c4gate
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Single
+import ee.cone.c4proto.c4
 
-class FilterPredicateBuilderImpl(
+@c4("FilterPredicateBuilderApp") class FilterPredicateBuilderImpl(
   sessionAttrAccessFactory: SessionAttrAccessFactory,
   modelConditionFactory: ModelConditionFactory[Unit]
 ) extends FilterPredicateBuilder {
-  def create[Model<:Product]: Context ⇒ FilterPredicate[Model] = local ⇒ {
+  def create[Model<:Product]: Context => FilterPredicate[Model] = local => {
     val condFactory = modelConditionFactory.of[Model]
     FilterPredicateImpl(Nil,condFactory.any)(sessionAttrAccessFactory,condFactory,local)
   }
 
-  def createWithPK[Model <: Product](filterPK: SrcId): Context => FilterPredicate[Model] = local ⇒ {
+  def createWithPK[Model <: Product](filterPK: SrcId): Context => FilterPredicate[Model] = local => {
     val condFactory = modelConditionFactory.of[Model]
     FilterPredicateImplWithPK(Nil,condFactory.any, Some(filterPK))(sessionAttrAccessFactory,condFactory,local)
   }
@@ -71,7 +72,7 @@ case class FilterPredicateImplWithPK[Model <: Product, By <: Product, Field](
 /*
 case class AccessSplitter[P,I](lens: ProdLens[P,I])(val valueClass: Class[P])
 trait AccessSplitterRegistry {
-  def split: List[Access[_]] ⇒ List[Access[_]]
+  def split: List[Access[_]] => List[Access[_]]
 }
 
 class AccessSplitterRegistryImpl(
@@ -79,10 +80,10 @@ class AccessSplitterRegistryImpl(
 )(
   map: Map[String,List[AccessSplitter[_,_]]] = list.groupBy(_.valueClass.getName)
 ) extends AccessSplitterRegistry {
-  def split: List[Access[_]] ⇒ List[Access[_]] = accesses ⇒ for {
-    access ← accesses
-    sAccess ← map.get(access.initialValue.getClass.getName)
-      .fold(List(access))(splitters⇒split(splitters.map(access to _.lens)))
+  def split: List[Access[_]] => List[Access[_]] = accesses => for {
+    access <- accesses
+    sAccess <- map.get(access.initialValue.getClass.getName)
+      .fold(List(access))(splitters=>split(splitters.map(access to _.lens)))
   } yield sAccess
 }
 */

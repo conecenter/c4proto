@@ -24,14 +24,14 @@ class DeepSessionAttrAccessFactoryImpl(
   lazy val roleByPK = ByPK(classOf[U_RawRoleData])
 
 
-  def to[P <: Product](attr: SessionAttr[P]): Context ⇒ Option[Access[P]] =
-    if (attr.metaList.collectFirst { case UserLevelAttr ⇒ "" }.isEmpty) {
+  def to[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] =
+    if (attr.metaList.collectFirst { case UserLevelAttr => "" }.isEmpty) {
       sessionAttrAccessFactory.to(attr)
     } else {
       toUser(attr)
     }
 
-  def toUser[P <: Product](attr: SessionAttr[P]): Context ⇒ Option[Access[P]] = local ⇒ {
+  def toUser[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] = local => {
     val dataNode = N_RawDataNode(
       domainSrcId = attr.pk,
       fieldId = attr.id,
@@ -67,8 +67,8 @@ class DeepSessionAttrAccessFactoryImpl(
     val rawRoleDataOpt: Option[U_RawRoleData] = roleByPK.of(local).get(rawRoleDataPK)
     // Rest
     val lensRaw = ProdLens[U_RawSessionData, P](attr.metaList)(
-      rawSessionData ⇒ registry.byId(rawSessionData.dataNode.get.valueTypeId).decode(rawSessionData.dataNode.get.value).asInstanceOf[P],
-      value ⇒ rawRoleData ⇒ {
+      rawSessionData => registry.byId(rawSessionData.dataNode.get.valueTypeId).decode(rawSessionData.dataNode.get.value).asInstanceOf[P],
+      value => rawRoleData => {
         val valueAdapter = registry.byName(attr.className)
         val byteString = ToByteString(valueAdapter.encode(value))
         val newDataNode = rawRoleData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
@@ -77,8 +77,8 @@ class DeepSessionAttrAccessFactoryImpl(
     )
 
     val lensRawUser = ProdLens[U_RawUserData, P](attr.metaList)(
-      rawRoleData ⇒ registry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
-      value ⇒ rawRoleData ⇒ {
+      rawRoleData => registry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
+      value => rawRoleData => {
         val valueAdapter = registry.byName(attr.className)
         val byteString = ToByteString(valueAdapter.encode(value))
         val newDataNode = rawRoleData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
@@ -86,7 +86,7 @@ class DeepSessionAttrAccessFactoryImpl(
       }
     )
 
-    val defaultModel: SrcId ⇒ P = defaultModelRegistry.get[P](attr.className).create
+    val defaultModel: SrcId => P = defaultModelRegistry.get[P](attr.className).create
     val defaultRawData = lensRaw.set(defaultModel(rawDataPK))(stubRawData.copy(srcId = rawDataPK))
     val defaultRawUserData = lensRawUser.set(defaultModel(rawUserDataPK))(stubRawUserData.copy(srcId = rawUserDataPK))
 
@@ -94,14 +94,14 @@ class DeepSessionAttrAccessFactoryImpl(
 
     val lens = ProdLens[DeepRawSessionData[P], P](attr.metaList)(
       _.of(registry),
-      value ⇒ deepData ⇒ deepData.set(registry)(value)(deepData)
+      value => deepData => deepData.set(registry)(value)(deepData)
     )
 
     val access: AccessImpl[DeepRawSessionData[P]] = AccessImpl(data, Option(TxDeepRawDataLens(data)), NameMetaAttr("DeepRawSessionData") :: Nil)
     Option(access.to(lens))
   }
 
-  def toRole[P <: Product](attr: SessionAttr[P]): Context ⇒ Option[Access[P]] = {
+  def toRole[P <: Product](attr: SessionAttr[P]): Context => Option[Access[P]] = {
     val dataNode = N_RawDataNode(
       domainSrcId = attr.pk,
       fieldId = attr.id,
@@ -110,8 +110,8 @@ class DeepSessionAttrAccessFactoryImpl(
     )
 
     val lens = ProdLens[U_RawRoleData, P](attr.metaList)(
-      rawRoleData ⇒ registry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
-      value ⇒ rawRoleData ⇒ {
+      rawRoleData => registry.byId(rawRoleData.dataNode.get.valueTypeId).decode(rawRoleData.dataNode.get.value).asInstanceOf[P],
+      value => rawRoleData => {
         val valueAdapter = registry.byName(attr.className)
         val byteString = ToByteString(valueAdapter.encode(value))
         val newDataNode = rawRoleData.dataNode.get.copy(valueTypeId = valueAdapter.id, value = byteString)
@@ -119,7 +119,7 @@ class DeepSessionAttrAccessFactoryImpl(
       }
     )
 
-    local ⇒ {
+    local => {
       val roleKey = CurrentRoleIdKey.of(local)
       val stubRawRoleData = U_RawRoleData(
         srcId = "",
@@ -151,28 +151,28 @@ case class DeepRawSessionData[P <: Product](
   def get: (Long, okio.ByteString) = {
     if (sessionData.isDefined)
       sessionData.get.dataNode.get match {
-        case p ⇒ (p.valueTypeId, p.value)
+        case p => (p.valueTypeId, p.value)
       }
     else if (userData.isDefined)
       userData.get.dataNode.get match {
-        case p ⇒ (p.valueTypeId, p.value)
+        case p => (p.valueTypeId, p.value)
       }
     else if (roleData.isDefined)
       roleData.get.dataNode.get match {
-        case p ⇒ (p.valueTypeId, p.value)
+        case p => (p.valueTypeId, p.value)
       }
     else
       default match {
-        case (p, _) ⇒ (p.dataNode.get.valueTypeId, p.dataNode.get.value)
+        case (p, _) => (p.dataNode.get.valueTypeId, p.dataNode.get.value)
       }
   }
 
-  def of: QAdapterRegistry ⇒ P = registry ⇒ {
+  def of: QAdapterRegistry => P = registry => {
     val (id, value) = get
     registry.byId(id).decode(value).asInstanceOf[P]
   }
 
-  def set: QAdapterRegistry ⇒ P ⇒ DeepRawSessionData[P] ⇒ DeepRawSessionData[P] = registry ⇒ model ⇒ old ⇒ {
+  def set: QAdapterRegistry => P => DeepRawSessionData[P] => DeepRawSessionData[P] = registry => model => old => {
     val adapter = registry.byName(model.getClass.getName)
     val byteString = ToByteString(adapter.encode(model))
     val (defaultRaw, defaultUser) = old.default
@@ -186,7 +186,7 @@ case class TxDeepRawDataLens[P <: Product](initialValue: DeepRawSessionData[P]) 
   lazy val userByPK = ByPK(classOf[U_RawUserData])
   lazy val roleByPK = ByPK(classOf[U_RawRoleData])
 
-  def of: Context ⇒ DeepRawSessionData[P] = local ⇒ {
+  def of: Context => DeepRawSessionData[P] = local => {
     val (rawId, userId, roleId) = initialValue.srcIds
     val rawOpt = dataByPK.of(local).get(rawId)
     val userOpt = userByPK.of(local).get(userId)
@@ -194,7 +194,7 @@ case class TxDeepRawDataLens[P <: Product](initialValue: DeepRawSessionData[P]) 
     initialValue.copy(sessionData = rawOpt, userData = userOpt, roleData = roleOpt)
   }
 
-  def set: DeepRawSessionData[P] ⇒ Context ⇒ Context = value ⇒ local ⇒ {
+  def set: DeepRawSessionData[P] => Context => Context = value => local => {
     if (initialValue != of(local)) throw new Exception(s"'$initialValue' != '${of(local)}'")
     val DeepRawSessionData(raw, user, _, _, _) = value
     val rawEvent = raw.map(LEvent.update).toList.flatten

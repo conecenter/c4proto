@@ -31,8 +31,8 @@ import scala.collection.immutable
 
 }
 
-trait Adapters extends ProtocolsApp with QAdapterRegistryApp with BaseApp with ProtoApp {
-
+class ProtoBuffTestAppBase extends VMExecutionApp with ProtocolsApp with QAdapterRegistryApp with BaseApp with ComponentProviderApp {
+  lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
   override def protocols: List[Protocol] = ProtoBuffTestProtocol :: AnyOrigProtocol :: QProtocol :: super.protocols
 }
 
@@ -41,8 +41,10 @@ trait Adapters extends ProtocolsApp with QAdapterRegistryApp with BaseApp with P
 This code proves that there is a problem with okio: SegmentPool.java blocks concurrent execution
  */
 
-object ProtoBuffTest extends Adapters {
-  def main(args: Array[String]): Unit = {
+@c4("ProtoBuffTestApp") class ProtoBuffTest(
+  qAdapterRegistry: QAdapterRegistry
+) extends Executable {
+  def run(): Unit = {
     println(ManagementFactory.getRuntimeMXBean.getName)
     Thread.sleep(10000)
     /*val tasks: Seq[Future[Int]] = for (i <- 1 to 10) yield Future {
@@ -59,16 +61,16 @@ object ProtoBuffTest extends Adapters {
     val iter = 10000
 
     val times = TimeColored("g", "single thread") {
-      for {i ← 1 to n} yield {
+      for {i <- 1 to n} yield {
         TestCode.test(iter, qAdapterRegistry)
       }
     }
     println(s"Av ${times.sum / times.length}")
 
-    val runnables = for (i ← 1 to n) yield new SerializationRunnable(i, iter, qAdapterRegistry)
+    val runnables = for (i <- 1 to n) yield new SerializationRunnable(i, iter, qAdapterRegistry)
     val pool = Executors.newFixedThreadPool(n)
     TimeColored("y", "concurrent") {
-      val lul: immutable.Seq[util.concurrent.Future[Long]] = runnables.map(run ⇒ pool.submit(run))
+      val lul: immutable.Seq[util.concurrent.Future[Long]] = runnables.map(run => pool.submit(run))
       println(s"Av2 ${lul.map(_.get()).sum / lul.length}")
       pool.shutdown()
     }
@@ -84,10 +86,10 @@ class SerializationRunnable(pid: Int, number: Int, qAdapterRegistry: QAdapterReg
 
 object TestCode {
   def test(number: Int, qAdapterRegistry: QAdapterRegistry): Long = {
-    val testOrigs = for (i ← 1 to number) yield D_TestOrigForDecode(Random.nextString(10), i)
+    val testOrigs = for (i <- 1 to number) yield D_TestOrigForDecode(Random.nextString(10), i)
     val time = System.currentTimeMillis()
     val encoded: immutable.Seq[N_AnyOrig] = testOrigs.map(encode(qAdapterRegistry)(_))
-    val testOrigsss: immutable.Seq[D_TestOrig] = encoded.zipWithIndex.map { case (a, b) ⇒ D_TestOrig(b.toString, a.toString.split(",").toList, List(a)) }
+    val testOrigsss: immutable.Seq[D_TestOrig] = encoded.zipWithIndex.map { case (a, b) => D_TestOrig(b.toString, a.toString.split(",").toList, List(a)) }
     val encoded2: immutable.Seq[N_AnyOrig] = testOrigsss.map(encode(qAdapterRegistry)(_))
     val decoded: immutable.Seq[D_TestOrig] = encoded2.map(decode[D_TestOrig](qAdapterRegistry))
     if (testOrigsss != decoded)

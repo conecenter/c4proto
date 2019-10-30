@@ -2,10 +2,11 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_FailedUpdates
+import ee.cone.c4proto.c4
 
 import scala.annotation.tailrec
 
-class RootConsumer(
+@c4("ServerCompApp") class RootConsumer(
   reducer: RichRawWorldReducer,
   snapshotMaker: SnapshotMaker,
   loader: SnapshotLoader,
@@ -17,15 +18,15 @@ class RootConsumer(
     GCLog("before loadRecent")
     val initialRawWorld: RichContext =
       (for{
-        snapshot ← {
+        snapshot <- {
           logger.debug("Making snapshot")
           snapshotMaker.make(NextSnapshotTask(None)).toStream
         }
-        event ← {
+        event <- {
           logger.debug(s"Loading $snapshot")
           loader.load(snapshot)
         }
-        world ← {
+        world <- {
           logger.debug(s"Reducing $snapshot")
           Option(reducer.reduce(None,List(event)))
         }
@@ -35,7 +36,7 @@ class RootConsumer(
         world
       }).head
     GCLog("after loadRecent")
-    consuming.process(initialRawWorld.offset, consumer ⇒ {
+    consuming.process(initialRawWorld.offset, consumer => {
       val initialRawObserver = progressObserverFactory.create(consumer.endOffset)
       iteration(consumer, initialRawWorld, initialRawObserver)
     })
@@ -45,7 +46,7 @@ class RootConsumer(
   ): Unit = if(!observer.isInstanceOf[FinishedRawObserver]){
     val events = consumer.poll()
     if(events.nonEmpty){
-      val latency = System.currentTimeMillis-events.map{ case e: MTime ⇒ e.mTime}.min //check rec.timestampType == TimestampType.CREATE_TIME ?
+      val latency = System.currentTimeMillis-events.map{ case e: MTime => e.mTime}.min //check rec.timestampType == TimestampType.CREATE_TIME ?
       logger.debug(s"p-c latency $latency ms")
     }
     val end = NanoTimer()

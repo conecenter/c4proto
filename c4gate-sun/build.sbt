@@ -6,5 +6,5 @@ javaOptions in Universal ++= Seq(
     "-J-XX:GCTimeRatio=1","-J-XX:MinHeapFreeRatio=15","-J-XX:MaxHeapFreeRatio=50"
 )
 
-enablePlugins(JavaAppPackaging)
+// enablePlugins(JavaAppPackaging)
 /*,AshScriptPlugin*/
