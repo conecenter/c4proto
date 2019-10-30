@@ -20,7 +20,10 @@ import scala.collection.immutable.Seq
 
   def forTypes(args: Seq[TypeKey]): Seq[ArgAdapter[_]] = {
     val simpleRes = getProtoAdapters(args).map{ protoAdapter =>
-      val defaultValue = Single(componentRegistry.resolve(classOf[DefaultArgument[_]],args).value)
+      val defaultValue = Single.option(componentRegistry.resolve(classOf[DefaultArgument[_]], args).value) match {
+        case Some(defaultValue) => defaultValue
+        case None => throw new Exception(s"Couldn't find DefaultArgument[$args]")
+      }
       new NoWrapArgAdapter[Any](defaultValue.value,protoAdapter)
     }
     val arg = Single(args)

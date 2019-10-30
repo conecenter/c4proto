@@ -83,7 +83,7 @@ object Main {
     args ++ indexes
   }
   lazy val generators: ParseContext=>List[Generated] = {
-    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator,AppGenerator) //,UnBaseGenerator
+    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator,ViewBuilderGenerator,AppGenerator) //,UnBaseGenerator
     ctx => generators.flatMap(_.get(ctx))
   }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
