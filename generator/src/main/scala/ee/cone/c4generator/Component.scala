@@ -5,8 +5,7 @@ import scala.meta.Term.Name
 import scala.meta._
 
 sealed abstract class AbstractGeneratedComponent extends Product
-case class GeneratedComponentStrictAppLink(app: String, link: String) extends AbstractGeneratedComponent
-case class GeneratedComponentDefAppLink(app: String, link: String) extends AbstractGeneratedComponent
+case class GeneratedComponentAppLink(app: String, link: String) extends AbstractGeneratedComponent
 case class GeneratedComponent(typeStr: String, link: String, fixIn: Option[(String,String)], content: String) extends AbstractGeneratedComponent
 
 object ComponentsGenerator extends Generator {
@@ -28,7 +27,7 @@ object ComponentsGenerator extends Generator {
 
   /* def pkgNameToAppId(pkgName: String, add: String): String = {
     val nPkgName = """\.([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
-    s"$nPkgName${add}App"
+    s"${nPkgName}Auto${add}App"
   }*/
   def fileNameToComponentsId(fileName: String): String = {
     val SName = """.+/(\w+)\.scala""".r
@@ -104,15 +103,15 @@ object ComponentsGenerator extends Generator {
         for {
           app <- annArgToStr(exprss).toList
           c <- components
-        } yield new GeneratedComponentStrictAppLink(app,c.link)
+        } yield new GeneratedComponentAppLink(app,c.link)
       } else {
         val(idComponents,uniComponents) = components.partition(_.typeStr match { case IsId(t) => true case _ => false })
         for {
           iC <- idComponents
           // app = pkgNameToAppId(parseContext.pkg,iC.typeStr)
-          app = s"${iC.typeStr}AutoApp"
+          app = s"Auto${iC.typeStr}App"
           c <- iC :: uniComponents
-        } yield new GeneratedComponentDefAppLink(app,c.link)
+        } yield new GeneratedComponentAppLink(app,c.link)
       }
       res <- appLinks ::: components
     } yield res
@@ -120,7 +119,7 @@ object ComponentsGenerator extends Generator {
   }
   def wrapComponents(parseContext: ParseContext, components: List[AbstractGeneratedComponent]): List[Generated] = {
     val componentsId = fileNameToComponentsId(parseContext.path)
-    val strictConnects: List[Generated] = components.collect{ case c: GeneratedComponentStrictAppLink => c }.groupMap(_.app)(_.link).toList.sortBy(_._1).flatMap{
+    val connects: List[Generated] = components.collect{ case c: GeneratedComponentAppLink => c }.groupMap(_.app)(_.link).toList.sortBy(_._1).flatMap{
       case (app,links) => List(
         GeneratedCode(
           s"\n  def forThe$app = " +
@@ -130,16 +129,12 @@ object ComponentsGenerator extends Generator {
         GeneratedAppLink(parseContext.pkg,app,s"$componentsId.forThe$app")
       )
     }
-    val defConnects: List[Generated] = components.collect{
-      case c: GeneratedComponentDefAppLink =>
-        GeneratedCode(s"\n  // DEF_APP_LINK ${parseContext.pkg} ${c.app} $componentsId.${c.link}")
-    }
     GeneratedCode(
       s"\nobject $componentsId {" +
         "\n  import ee.cone.c4proto._" +
         "\n  import scala.collection.immutable.Seq" +
         components.collect{ case c: GeneratedComponent => c.content }.mkString
-    ) :: strictConnects ::: defConnects ::: List(GeneratedCode("\n}"))
+    ) :: connects ::: List(GeneratedCode("\n}"))
   }
   def getTypeKey(t: Type): String = t match {
     case t"$tpe[..$tpesnel]" =>

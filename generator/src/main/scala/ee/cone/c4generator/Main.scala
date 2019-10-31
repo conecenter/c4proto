@@ -68,7 +68,7 @@ object Main {
         val content =
           s"\n// THIS FILE IS GENERATED; C4APPS: ${links.filter(_.expr=="CLASS").map(l=>s"$pkg.${l.app}").mkString(" ")}" +
           s"\npackage $pkg" +
-          links.groupBy(_.app).toList.map{ case (app,links) =>
+          links.groupBy(_.app).toList.collect{ case (app,links) if !app.startsWith("Auto") =>
             val(classLinks,exprLinks) = links.partition(_.expr=="CLASS")
             val tp = if(classLinks.nonEmpty) "class" else "trait"
             s"\n$tp $app extends ${app}Base with ee.cone.c4proto.ComponentsApp {" +
