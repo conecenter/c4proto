@@ -3,7 +3,7 @@ package ee.cone.c4gate
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.headers.{RawHeader, `Content-Type`}
 import akka.http.scaladsl.model._
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
@@ -28,9 +28,9 @@ class AkkaHttpServer(
   port: Int, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat
 ) extends Executable with LazyLogging {
   def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest⇒Future[HttpResponse] = req ⇒ {
-    val method = req.method.value
-    val path = req.uri.path.toString
-    val rHeaders = req.headers.map(h ⇒ N_Header(h.name, h.value)).toList
+    val method = req.method.value    
+    val path = req.uri.path.toString()+req.uri.queryString().map("?"+_).getOrElse("")     
+    val rHeaders = (Seq(`Content-Type`(req.entity.contentType)) ++ req.headers).map(h ⇒ N_Header(h.name, h.value)).toList
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
     for {
@@ -40,7 +40,7 @@ class AkkaHttpServer(
       rResp ← handler.handle(rReq)
     } yield {
       val status = Math.toIntExact(rResp.status)
-      val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
+      val(ctHeaders,rHeaders) = rResp.headers.partition(_.key.toLowerCase=="content-type")
       val contentType =
         Single.option(ctHeaders.flatMap(h⇒ContentType.parse(h.value).toOption))
           .getOrElse(ContentTypes.`application/octet-stream`)

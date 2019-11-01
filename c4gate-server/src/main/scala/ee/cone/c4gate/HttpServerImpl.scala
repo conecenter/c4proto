@@ -206,8 +206,9 @@ object ReqGroup {
   def conditions(request: S_HttpRequest): List[String] =
     header(request,"x-r-branch").toList ::: genCond(request.path)
   private def genCond(path: String) = {
-    val index = path.lastIndexOf("/")
-    if(index < 0) List(path) else List(s"${path.substring(0,index)}/*",path)
+    val _path = path.split('?')(0)
+    val index = _path.lastIndexOf("/")
+    if(index < 0) List(_path) else List(s"${_path.substring(0,index)}/*",_path)
   }
   def header(request: S_HttpRequest, key: String): Option[String] =
     request.headers.find(_.key == key).map(_.value)
