@@ -3,7 +3,7 @@ package ee.cone.c4gate
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.headers.{RawHeader,`Content-Type`}
 import akka.http.scaladsl.model._
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
@@ -33,7 +33,8 @@ import scala.util.control.NonFatal
   def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest=>Future[HttpResponse] = req => {
     val method = req.method.value
     val path = req.uri.path.toString
-    val rHeaders = req.headers.map(h => N_Header(h.name, h.value)).toList
+    val rHeaders = (`Content-Type`(req.entity.contentType) :: req.headers.toList)
+      .map(h => N_Header(h.name, h.value))
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
     (for {
