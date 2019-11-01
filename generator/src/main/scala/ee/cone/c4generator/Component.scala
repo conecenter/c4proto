@@ -25,10 +25,8 @@ object ComponentsGenerator extends Generator {
 
   val IsId = """(\w+)""".r
 
-  /* def pkgNameToAppId(pkgName: String, add: String): String = {
-    val nPkgName = """\.([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
-    s"${nPkgName}Auto${add}App"
-  }*/
+  def pkgNameToId(pkgName: String): String =
+    """\.([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
   def fileNameToComponentsId(fileName: String): String = {
     val SName = """.+/(\w+)\.scala""".r
     val SName(fName) = fileName
@@ -98,22 +96,9 @@ object ComponentsGenerator extends Generator {
       (exprss,cl) <- Util.singleSeq(cl.mods.collect {
         case mod"@c4(...$exprss) " => (exprss, cl)
       })
-      components = getComponent(cl)
-      appLinks = if(exprss.nonEmpty){
-        for {
-          app <- annArgToStr(exprss).toList
-          c <- components
-        } yield new GeneratedComponentAppLink(app,c.link)
-      } else {
-        val(idComponents,uniComponents) = components.partition(_.typeStr match { case IsId(t) => true case _ => false })
-        for {
-          iC <- idComponents
-          // app = pkgNameToAppId(parseContext.pkg,iC.typeStr)
-          app = s"Auto${iC.typeStr}App"
-          c <- iC :: uniComponents
-        } yield new GeneratedComponentAppLink(app,c.link)
-      }
-      res <- appLinks ::: components
+      app = if(exprss.isEmpty) s"${pkgNameToId(parseContext.pkg)}DefApp" else annArgToStr(exprss).get
+      c <- getComponent(cl)
+      res <- new GeneratedComponentAppLink(app,c.link) :: c :: Nil
     } yield res
     if(components.isEmpty) Nil else wrapComponents(parseContext,components)
   }

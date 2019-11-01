@@ -37,3 +37,5 @@ t rait ExecutableApp {
 object ExecutionRun {
   def apply(app: AbstractComponents): Unit = ComponentRegistry(app).resolveSingle(classOf[Execution])
 }*/
+
+abstract class AutoMixer(val components: List[Component], val dependencies: List[AutoMixer])

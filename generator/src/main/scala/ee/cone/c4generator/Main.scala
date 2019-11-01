@@ -68,10 +68,12 @@ object Main {
         val content =
           s"\n// THIS FILE IS GENERATED; C4APPS: ${links.filter(_.expr=="CLASS").map(l=>s"$pkg.${l.app}").mkString(" ")}" +
           s"\npackage $pkg" +
-          links.groupBy(_.app).toList.collect{ case (app,links) if !app.startsWith("Auto") =>
+          links.groupBy(_.app).toList.collect{ case (app,links) =>
             val(classLinks,exprLinks) = links.partition(_.expr=="CLASS")
             val tp = if(classLinks.nonEmpty) "class" else "trait"
-            s"\n$tp $app extends ${app}Base with ee.cone.c4proto.ComponentsApp {" +
+            val base = if(app.endsWith("DefApp")) "ee.cone.c4proto.ComponentsApp"
+              else s"${app}Base with ee.cone.c4proto.ComponentsApp"
+            s"\n$tp $app extends $base {" +
             s"\n  override def components: List[ee.cone.c4proto.Component] = " +
               exprLinks.map(c=> s"\n    ${c.expr} ::: ").mkString +
             s"\n    super.components" +
