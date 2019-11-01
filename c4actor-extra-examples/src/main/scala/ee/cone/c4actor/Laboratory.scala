@@ -6,7 +6,7 @@ object Laboratory {
   def main(args: Array[String]): Unit = {
     assert(0 == 1, "LUL")
     val world = for{
-      i ← 1 to 50000
+      i <- 1 to 50000
     } yield A(i.toString, i)
     val list1 = world.slice(0, 20000).toList
     val list2 = world.slice(10000,50000).toList

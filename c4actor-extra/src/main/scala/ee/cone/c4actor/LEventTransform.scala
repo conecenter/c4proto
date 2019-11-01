@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import ee.cone.c4actor.CollectiveTransformProtocol.D_CollectiveTransformMeta
 import ee.cone.c4assemble.Types.Values
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
 import scala.collection.immutable.Seq
 
@@ -18,7 +18,7 @@ case class CollectiveTransform(srcId: String, events: Values[LEventTransform]) e
 }
 
 object InsertOrigMeta {
-  def apply(origs: List[Product]): Context ⇒ Context =
+  def apply(origs: List[Product]): Context => Context =
     TxTransformOrigMetaKey.set(origs.map(MetaAttr))
 }
 

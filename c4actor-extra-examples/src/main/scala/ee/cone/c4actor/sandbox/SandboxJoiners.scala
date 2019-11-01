@@ -43,8 +43,8 @@ case class RichSandboxPair(
     sandboxOrigs: Values[D_Sandbox]
   ): Values[(SrcId, RichSandbox)] =
     sandboxOrigs
-      .map(orig ⇒ RichSandbox(orig.srcId, orig.value))
-      .map(rich ⇒ (rich.srcId, rich))
+      .map(orig => RichSandbox(orig.srcId, orig.value))
+      .map(rich => (rich.srcId, rich))
 
   type OtherSrcId = SrcId
 
@@ -53,8 +53,8 @@ case class RichSandboxPair(
     sandboxOrig: Each[D_Sandbox]
   ): Values[(OtherSrcId, D_Sandbox)] =
     sandboxOrig.otherOrig match {
-      case Some(otherOrig) ⇒ (otherOrig.srcId → sandboxOrig) :: Nil
-      case None ⇒ Nil
+      case Some(otherOrig) => (otherOrig.srcId -> sandboxOrig) :: Nil
+      case None => Nil
     }
 
   def RichSandboxValueConstruction(

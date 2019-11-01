@@ -9,18 +9,18 @@ trait TagStyles {
   def displayTable: TagStyle
   def displayFlex: TagStyle
 
-  def margin: Int⇒TagStyle
+  def margin: Int=>TagStyle
   def marginLeftAuto: TagStyle
   def marginRightAuto: TagStyle
-  def padding: Int⇒TagStyle
+  def padding: Int=>TagStyle
 
-  def width: Int⇒TagStyle
-  def minWidth: Int⇒TagStyle
-  def maxWidth: Int⇒TagStyle
+  def width: Int=>TagStyle
+  def minWidth: Int=>TagStyle
+  def maxWidth: Int=>TagStyle
   def widthAll: TagStyle
-  def widthAllBut: Int⇒TagStyle
-  def height: Int⇒TagStyle
-  def minHeight: Int⇒TagStyle
+  def widthAllBut: Int=>TagStyle
+  def height: Int=>TagStyle
+  def minHeight: Int=>TagStyle
   def heightAll: TagStyle
 
   def alignLeft: TagStyle
@@ -31,8 +31,8 @@ trait TagStyles {
   def alignTop: TagStyle
 
   def relative: TagStyle
-  def color: Color⇒TagStyle
+  def color: Color=>TagStyle
   def noWrap: TagStyle
   def flexWrap: TagStyle
-  def fontSize: Int⇒TagStyle
+  def fontSize: Int=>TagStyle
 }

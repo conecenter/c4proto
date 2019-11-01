@@ -14,7 +14,7 @@ object DebugInit extends ToInject {
 /*
 class DebugRichRawWorldFactory(rawSnapshot: RawSnapshot, options: RawDebugOptions, inner: RawWorldFactory) extends RawWorldFactory{
   def create(): RawWorld = rawSnapshot.loadRecent(inner.create(), None) match {
-    case world: RichContext ⇒
+    case world: RichContext =>
       val data = options.load("request-event")
       if(data.isEmpty) world else {
         val event = RawEvent(world.offset, ToByteString(data))
@@ -30,7 +30,7 @@ class DebugRichRawWorld(
   def assembled: ReadModel = inner.assembled
   def offset: NextOffset = inner.offset
   def reduce(events: List[RawEvent]): RawWorld =
-    new DebugRichRawWorld(inner.reduce(events) match{ case w: RawWorld with RichContext ⇒ w }, injected)
+    new DebugRichRawWorld(inner.reduce(events) match{ case w: RawWorld with RichContext => w }, injected)
   def hasErrors: Boolean = inner.hasErrors
   def save(): String = inner.save()
 }

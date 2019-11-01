@@ -30,20 +30,20 @@ trait FilterListRequestHandlerApp
 
   def hashGen: HashGen
 
-  private lazy val depMap: Map[(String, String), Dep[List[_]]] = filterDepList.map(elem ⇒ (elem.listName, elem.filterPK) → elem.requestDep).toMap
+  private lazy val depMap: Map[(String, String), Dep[List[_]]] = filterDepList.map(elem => (elem.listName, elem.filterPK) -> elem.requestDep).toMap
 
   private def fltAsk: DepAsk[N_FilteredListRequest, List[_]] = depAskFactory.forClasses(classOf[N_FilteredListRequest], classOf[List[_]])
 
-  override def depHandlers: List[DepHandler] = fltAsk.by(rq ⇒ {
+  override def depHandlers: List[DepHandler] = fltAsk.by(rq => {
     depMap((rq.listName, rq.filterPK))
   }
   ) :: injectContext[N_FilteredListRequest](fltAsk, _.contextId) ::
     injectUser[N_FilteredListRequest](fltAsk, _.userId) ::
-    injectMockRole[N_FilteredListRequest](fltAsk, rq ⇒ rq.mockRoleId.flatMap(id ⇒ rq.mockRoleEditable.map(ed ⇒ id → ed))) ::
+    injectMockRole[N_FilteredListRequest](fltAsk, rq => rq.mockRoleId.flatMap(id => rq.mockRoleEditable.map(ed => id -> ed))) ::
     injectRole[N_FilteredListRequest](fltAsk, _.roleId) :: super.depHandlers
 
   override def assembles: List[Assemble] = new FilteredListResponseReceiver(preHashing, hashGen) :: filterDepList.map(
-    df ⇒ new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory)
+    df => new FilterListRequestCreator(qAdapterRegistry, df.listName, df.filterPK, df.matches, depRequestFactory)
   ) ::: super.assembles
 
   override def protocols: List[Protocol] = DepFilteredListRequestProtocol :: super.protocols
@@ -65,7 +65,7 @@ object FilterListRequestCreatorUtils {
         split.tail.head
       }
     } catch {
-      case _: Exception ⇒ ""
+      case _: Exception => ""
     }
   }
 }
@@ -86,13 +86,13 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     @by[GroupId] resp: Each[DepResponse]
   ): Values[(SrcId, FilteredListResponse)] =
     resp.innerRequest.request match {
-      case request: N_FilteredListRequest ⇒
+      case request: N_FilteredListRequest =>
         val srcId = hashGen.generate((request.branchId, request.listName, request.filterPK))
         resp match {
-          case a: DepResponseImpl ⇒ List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, a.valueHashed)))
-          case _ ⇒ List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, preHashing.wrap(resp.value))))
+          case a: DepResponseImpl => List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, a.valueHashed)))
+          case _ => List(WithPK(FilteredListResponse(srcId, request.listName, request.filterPK, preHashing.wrap(resp.value))))
         }
-      case _ ⇒ Nil
+      case _ => Nil
     }
 }
 
@@ -109,11 +109,11 @@ case class BranchWithUserId(branchId: String, contextId: String, userId: String,
     alienTask: Each[FromAlienTask],
     sessionWithUser: Values[BranchWithUserId]
   ): Values[(GroupId, DepOuterRequest)] =
-    if (matches.foldLeft(false)((z, regex) ⇒ z || parseUrl(alienTask.fromAlienState.location).matches(regex))) {
+    if (matches.foldLeft(false)((z, regex) => z || parseUrl(alienTask.fromAlienState.location).matches(regex))) {
       val (userId, roleId, mockRole) =
         if (sessionWithUser.nonEmpty)
           sessionWithUser.head match {
-            case p ⇒ (p.userId, p.roleId, p.mockRole)
+            case p => (p.userId, p.roleId, p.mockRole)
           }
         else
           ("", "", None)

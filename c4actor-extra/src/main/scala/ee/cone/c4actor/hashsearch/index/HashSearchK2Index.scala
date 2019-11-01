@@ -24,19 +24,19 @@ object HashSearchMockUtils {
 
   def heapIds(cl: Class[_], nodes: List[S_TreeNode], qAdapterRegistry: QAdapterRegistry, idGenUtil: IdGenUtil): List[SrcId] =
     for {
-      node ← nodes
+      node <- nodes
     } yield heapId(cl, node, qAdapterRegistry, idGenUtil)
 
-  def single[Something]: Values[Something] ⇒ Values[Something] =
-    l ⇒ Single.option(l.distinct).toList
+  def single[Something]: Values[Something] => Values[Something] =
+    l => Single.option(l.distinct).toList
 
   def count[Model <: Product](heapSrcId: SrcId, respLines: Values[Model]): K2Count[Model] =
     K2Count(heapSrcId, Log2Pow2(respLines.length))
 
   def isMy[Model](cond: Condition[Model], name: NameMetaAttr): Boolean =
     cond match {
-      case a: ProdCondition[_, Model] ⇒ a.metaList.collectFirst{case a:NameMetaAttr ⇒ a}.get == name
-      case _ ⇒ false
+      case a: ProdCondition[_, Model] => a.metaList.collectFirst{case a:NameMetaAttr => a}.get == name
+      case _ => false
     }
 }
 
@@ -52,8 +52,8 @@ import HashSearchMockUtils._
 
 @assemble class HashSearchMockAssembleBase[Model <: Product](
   modelCl: Class[Model],
-  getDate: Model ⇒ (Option[Long], Option[Long]),
-  conditionToRegion: Condition[Model] ⇒ S_TreeRange,
+  getDate: Model => (Option[Long], Option[Long]),
+  conditionToRegion: Condition[Model] => S_TreeRange,
   filterName: NameMetaAttr,
   qAdapterRegistry: QAdapterRegistry,
   idGenUtil: IdGenUtil
@@ -67,7 +67,7 @@ import HashSearchMockUtils._
     param: Each[S_K2TreeParams],
     tree: Each[S_TreeNodeOuter]
   ): Values[(K2TreeAll[Model], S_TreeNodeOuter)] =
-    if(param.modelName == modelCl.getName) List(All → tree) else Nil
+    if(param.modelName == modelCl.getName) List(All -> tree) else Nil
 
   // Index builder
   def RespLineByHeap(
@@ -76,8 +76,8 @@ import HashSearchMockUtils._
     @byEq[K2TreeAll[Model]](All) tree: Each[S_TreeNodeOuter]
   ): Values[(K2HeapId, Model)] =
     for {
-      tagId ← heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry, idGenUtil) :: Nil
-    } yield tagId → respLine
+      tagId <- heapId(modelCl, findRegion(tree.root.get, getDate(respLine)), qAdapterRegistry, idGenUtil) :: Nil
+    } yield tagId -> respLine
 
   // end index builder
 
@@ -89,9 +89,9 @@ import HashSearchMockUtils._
   ): Values[(K2HeapId, K2Need[Model])] =
     if(isMy(leaf.condition, filterName))
       for {
-        tree ← trees
-        heapId ← heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry, idGenUtil)
-      } yield heapId → K2Need[Model](ToPrimaryKey(leaf), modelCl)
+        tree <- trees
+        heapId <- heapIds(modelCl, getRegions(tree.root.get, conditionToRegion(leaf.condition)), qAdapterRegistry, idGenUtil)
+      } yield heapId -> K2Need[Model](ToPrimaryKey(leaf), modelCl)
     else Nil
 
   def RespHeapCountByReq(
@@ -99,7 +99,7 @@ import HashSearchMockUtils._
     @by[K2HeapId] respLines: Values[Model],
     @by[K2HeapId] need: Each[K2Need[Model]]
   ): Values[(K2ToCountId, K2Count[Model])] =
-    List(need.requestId → count(heapId, respLines))
+    List(need.requestId -> count(heapId, respLines))
 
   // Count response
   def CountByReq(
@@ -118,7 +118,7 @@ import HashSearchMockUtils._
     @by[SharedHeapId] request: Each[Request[Model]]
   ): Values[(SharedResponseId, Model)] = {
     //println(requests.toString().take(50), responses.size)
-      if(request.condition.check(line)) List(ToPrimaryKey(request) → line)
+      if(request.condition.check(line)) List(ToPrimaryKey(request) -> line)
       else Nil
   }
 

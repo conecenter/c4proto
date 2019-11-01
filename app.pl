@@ -8,8 +8,15 @@ my $temp = "target";
 
 sub so{ print join(" ",@_),"\n"; system @_ }
 sub sy{ &so and die $? }
+sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
+sub syl{ for(@_){ print "$_\n"; my @r = `$_`; $? && die $?; return @r } }
 
 sub lazy(&){ my($calc)=@_; my $res; sub{ ($res||=[scalar &$calc()])->[0] } }
+
+my $put_text = sub{
+    my($fn,$content)=@_;
+    open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
+};
 
 my $need_path; $need_path = sub{
     my($path)=@_;
@@ -31,6 +38,62 @@ my $get_generator_path = sub{ &$abs_path("$temp/c4gen") };
 my $get_generated_sbt_dir = sub{ &$pwd() };
 
 my @tasks;
+
+my $run_generator_outer = sub{
+    my $generator_path = &$get_generator_path();
+    -e $_ and sy("rm -rf $_") for "$generator_path/src";
+    my $src_dir = &$abs_path();
+    for my $path (grep{-e} map{"$_/src"} <$src_dir/c4*>){
+        my $rel_path = substr $path, length $src_dir;
+        symlink $path,&$need_path("$generator_path/src$rel_path") or die $!;
+    }
+    &$sy_in_dir(&$abs_path("generator"),"C4GENERATOR_PATH=$generator_path perl run.pl");
+};
+
+my $build_some_server = sub{
+    &$run_generator_outer();
+    my $gen_dir = &$get_generated_sbt_dir();
+    &$sy_in_dir($gen_dir,"sbt stage");
+};
+
+push @tasks, ["### build ###"];
+push @tasks, ["build_all", sub{
+    my $dir = &$pwd();
+    my @found = syl("find $dir");
+    for(reverse sort @found){
+        my $path = /^(.+)\n$/ ? $1 : die "[$_]";
+        my $pre = m{(.+)/target/} ? $1 : next;
+        if(-e "$pre/build.sbt" or -e "$pre/../build.sbt" or -e "$pre/../../build.sbt"){
+            unlink $path or rmdir $path or warn "can not clear '$path'";
+        } else {
+            warn "do we need to clear '$path'?";
+        }
+    }
+    #&$sy_in_dir(&$abs_path(),"sbt clean");
+    #&$sy_in_dir(&$abs_path("generator"),"sbt clean");
+    &$build_some_server();
+}];
+push @tasks, ["build_some_server", sub{
+    &$build_some_server();
+}];
+push @tasks, ["run_generator", sub{
+    &$run_generator_outer();
+}];
+
+################################################################################
+
+if($ARGV[0]) {
+    my($cmd,@args)=@ARGV;
+    $cmd eq $$_[0] and $$_[1]->(@args) for @tasks;
+} else {
+    print join '', map{"$_\n"} "usage:",
+        map{$$_[0]=~/^\./ ? () : $$_[0]=~"^#" ? $$_[0] : "  $0 $$_[0]"} @tasks;
+}
+
+#push @tasks, ["sbt", sub{
+#    chdir &$get_generated_sbt_dir() or die $!;
+#    sy("sbt",@ARGV[1..$#ARGV]);
+#}];
 
 ############################### image builds ###################################
 
@@ -96,62 +159,3 @@ my @tasks;
 #    sy(@$sbt_git, "reset", "--hard");
 #    sy(@$sbt_git, "pull", $gen_dir, "master:master"); #reset --hard failed to delete files
 #};
-
-
-
-my $run_generator = sub{
-    my $generator_path = &$get_generator_path();
-    #&$recycling($_) for <$generator_path/to/*>; # .git not included
-    my $generator_src_dir = &$abs_path("generator");
-    my $generator_exec = "$generator_src_dir/target/universal/stage/bin/generator";
-    &$sy_in_dir($generator_src_dir,"sbt stage") if !-e $generator_exec;
-    print "generation starting\n";
-    sy("C4GENERATOR_PATH=$generator_path $generator_exec");
-    print "generation finished\n";
-};
-
-my $run_generator_outer = sub{
-    my $generator_path = &$get_generator_path();
-    -e $_ and sy("rm -rf $_") for "$generator_path/src";
-    my $src_dir = &$abs_path();
-    for my $path (grep{-e} map{"$_/src"} <$src_dir/c4*>){
-        my $rel_path = substr $path, length $src_dir;
-        symlink $path,&$need_path("$generator_path/src$rel_path") or die $!;
-    }
-    &$run_generator();
-    #&$update_file_tree("$generator_path/to",&$get_generated_sbt_dir());
-};
-
-my $build_some_server = sub{
-    &$run_generator_outer();
-    my $gen_dir = &$get_generated_sbt_dir();
-    &$sy_in_dir($gen_dir,"sbt stage");
-};
-
-push @tasks, ["### build ###"];
-push @tasks, ["build_all", sub{
-    &$sy_in_dir(&$abs_path(),"sbt clean");
-    &$sy_in_dir(&$abs_path("generator"),"sbt clean");
-    &$build_some_server();
-}];
-push @tasks, ["build_some_server", sub{
-    &$build_some_server();
-}];
-push @tasks, ["run_generator", sub{
-    &$run_generator_outer();
-}];
-#push @tasks, ["sbt", sub{
-#    chdir &$get_generated_sbt_dir() or die $!;
-#    sy("sbt",@ARGV[1..$#ARGV]);
-#}];
-
-
-################################################################################
-
-if($ARGV[0]) {
-    my($cmd,@args)=@ARGV;
-    $cmd eq $$_[0] and $$_[1]->(@args) for @tasks;
-} else {
-    print join '', map{"$_\n"} "usage:",
-        map{$$_[0]=~/^\./ ? () : $$_[0]=~"^#" ? $$_[0] : "  $0 $$_[0]"} @tasks;
-}

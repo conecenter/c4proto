@@ -59,8 +59,8 @@ trait CreateRangerDirective extends HashSearchIdGeneration {
 
   def dynIndexModels: List[ProductWithId[_ <: Product]]
 
-  lazy val modelIdMap: Map[String, Int] = dynIndexModels.map(p ⇒ p.modelCl.getName → p.modelId).toMap
-  lazy val nameToIdMap: Map[String, Long] = qAdapterRegistry.byName.transform((_, v) ⇒ if (v.hasId) v.id else -1)
+  lazy val modelIdMap: Map[String, Int] = dynIndexModels.map(p => p.modelCl.getName -> p.modelId).toMap
+  lazy val nameToIdMap: Map[String, Long] = qAdapterRegistry.byName.transform((_, v) => if (v.hasId) v.id else -1)
 
   def apply[Model <: Product, By <: Product](modelCl: Class[Model], by: By, lensName: List[String]): RangerDirective[Model] = {
     val modelId = modelIdMap(modelCl.getName)

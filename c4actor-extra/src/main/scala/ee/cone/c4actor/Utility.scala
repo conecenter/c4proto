@@ -6,7 +6,6 @@ import ee.cone.c4assemble.ToPrimaryKey
 import ee.cone.c4proto.HasId
 
 import scala.annotation.tailrec
-import scala.collection.IterableLike
 import scala.collection.generic.CanBuildFrom
 import scala.collection.immutable.Seq
 
@@ -40,7 +39,7 @@ class MurMur3HashGen extends HashGen {
 }
 
 object TimeColored {
-  def apply[R, F](color: ⇒ String, tag: ⇒ F, doNotPrint: Boolean = false, lowerBound: ⇒ Long = 0L)(f: ⇒ R): R = {
+  def apply[R, F](color: => String, tag: => F, doNotPrint: Boolean = false, lowerBound: => Long = 0L)(f: => R): R = {
     if (!doNotPrint) {
       val tagColored = PrintColored.makeColored(color)(tag)
       val timeStart = System.nanoTime()
@@ -57,23 +56,23 @@ object TimeColored {
 }
 
 object PrintGreen {
-  def apply[R](f: ⇒ R): R = PrintColored("g")(f)
+  def apply[R](f: => R): R = PrintColored("g")(f)
 }
 
 object PrintRed {
-  def apply[R](f: ⇒ R): R = PrintColored("r")(f)
+  def apply[R](f: => R): R = PrintColored("r")(f)
 }
 
 object PrintBlue {
-  def apply[R](f: ⇒ R): R = PrintColored("b")(f)
+  def apply[R](f: => R): R = PrintColored("b")(f)
 }
 
 object PrintYellow {
-  def apply[R](f: ⇒ R): R = PrintColored("y")(f)
+  def apply[R](f: => R): R = PrintColored("y")(f)
 }
 
 object PrintColored {
-  def apply[R](color: String = "", bgColor: String = "")(f: ⇒ R): R = {
+  def apply[R](color: String = "", bgColor: String = "")(f: => R): R = {
     val result = f
     println(makeColored(color.toLowerCase, bgColor.toLowerCase)(result))
     result
@@ -81,17 +80,17 @@ object PrintColored {
 
   def makeColored[R](color: String, bgColor: String = "")(f: R): String = {
     val colorAnsi = color match {
-      case "y" ⇒ Console.YELLOW
-      case "g" ⇒ Console.GREEN
-      case "b" ⇒ Console.BLUE
-      case "r" ⇒ Console.RED
-      case "c" ⇒ Console.CYAN
-      case "m" ⇒ Console.MAGENTA
-      case "" ⇒ Console.BLACK
+      case "y" => Console.YELLOW
+      case "g" => Console.GREEN
+      case "b" => Console.BLUE
+      case "r" => Console.RED
+      case "c" => Console.CYAN
+      case "m" => Console.MAGENTA
+      case "" => Console.BLACK
     }
     val bgColorAnsi = bgColor match {
-      case "w" ⇒ Console.WHITE_B
-      case "" ⇒ Console.BLACK_B
+      case "w" => Console.WHITE_B
+      case "" => Console.BLACK_B
     }
     s"$colorAnsi$bgColorAnsi$f${Console.RESET}"
   }
@@ -99,9 +98,9 @@ object PrintColored {
 
 object SingleInSeq {
   def apply[C](l: Seq[C]): Seq[C] = l match {
-    case Seq() ⇒ l
-    case Seq(_) ⇒ l
-    case _ ⇒ FailWith.apply("Non single in SingleInSeq")
+    case Seq() => l
+    case Seq(_) => l
+    case _ => FailWith.apply("Non single in SingleInSeq")
   }
 }
 
@@ -113,7 +112,7 @@ object Utility {
       Option(list.minBy(f)(cmp))
   }
 
-  def reduceOpt[A](list: TraversableOnce[A])(f: (A, A) ⇒ A): Option[A] = {
+  def reduceOpt[A](list: TraversableOnce[A])(f: (A, A) => A): Option[A] = {
     if (list.isEmpty)
       None
     else
@@ -140,7 +139,7 @@ object MergeBySrcId {
 
   private def combine[A <: Product](xss: Seq[List[A]]): List[A] = {
     val b = List.newBuilder[A]
-    var its: Seq[List[(String, A)]] = xss.map(elem ⇒ elem.map(item ⇒ ToPrimaryKey(item) → item))
+    var its: Seq[List[(String, A)]] = xss.map(elem => elem.map(item => ToPrimaryKey(item) -> item))
     var lastItem: Option[A] = None
     while (its.nonEmpty) {
       its = its.filter(_.nonEmpty)
@@ -158,7 +157,7 @@ object MergeBySrcId {
       val inWIndex: Seq[(List[(String, A)], Int)] = in.zipWithIndex
       val minElem: ((String, A), Int) = in.map(_.head).zipWithIndex.minBy(_._1._1)
       val ((_, item), minIndex) = minElem
-      val newIn = inWIndex.map(pair ⇒ {
+      val newIn = inWIndex.map(pair => {
         val (list, index) = pair
         if (index != minIndex)
           pair
@@ -196,6 +195,7 @@ trait LazyHashCodeProduct extends Product {
   override def hashCode(): Int = savedHashCode
 }
 
+/*
 object DistinctBySrcIdGit {
   def apply[Repr, A <: Product, That](xs: IterableLike[A, Repr])(implicit cbf: CanBuildFrom[Repr, A, That]): That =
     new ConeCollectionGit(xs).distinctBySrcId
@@ -222,7 +222,7 @@ class ConeCollectionGit[A <: Product, Repr](xs: IterableLike[A, Repr]) {
   //to Use implicit:
   //  implicit def toDistinct[A, Repr](xs: IterableLike[A, Repr]): ConeCollection[A, Repr] = new ConeCollection(xs)
 }
-
+*/
 object ClassAttr {
   def apply(a: Class[_], b: Class[_]): ClassesAttr = ClassesAttr(a.getName, b.getName)
 }

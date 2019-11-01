@@ -19,7 +19,7 @@ case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, 
   def srcIdFromMetaAttrList(metaAttrs: List[AbstractMetaAttr]): SrcId = //1
     u.srcIdFromSrcIds(metaAttrs.map(srcIdFromMetaAttr):_*)
   def srcIdFromMetaAttr(metaAttr: AbstractMetaAttr): SrcId =
-    u.srcIdFromStrings(metaAttr.productPrefix +: metaAttr.productIterator.map(_.toString).to[Seq]:_*)
+    u.srcIdFromStrings(metaAttr.productPrefix +: metaAttr.productIterator.map(_.toString).toSeq:_*)
   def srcIdFromOrig(orig: Product, origClName: String): SrcId = { //2 //todo is it bad, className lost?
     val adapter = qAdapterRegistry.byName(origClName)
     u.srcIdFromSerialized(adapter.id,ToByteString(adapter.encode(orig)))
@@ -32,22 +32,22 @@ case class SerializationUtils(u: IdGenUtil, qAdapterRegistry: QAdapterRegistry, 
     u.srcIdFromSrcIds(srcIdList:_*)
 
   def getConditionPK[Model](modelCl: Class[Model], condition: Condition[Model]): SrcId = { //e
-    def get: Any ⇒ SrcId = {
-      case c: ProdCondition[_, _] ⇒
+    def get: Any => SrcId = {
+      case c: ProdCondition[_, _] =>
         val rq: Product = c.by
         val byClassName = rq.getClass.getName
         val valueAdapterOpt = qAdapterRegistry.byName.get(byClassName)
         valueAdapterOpt match {
-          case Some(valueAdapter) ⇒
+          case Some(valueAdapter) =>
             val bytesHash = u.srcIdFromSerialized(0,ToByteString(valueAdapter.encode(rq)))
             val byHash = byClassName :: bytesHash :: Nil
-            val names = c.metaList.collect { case NameMetaAttr(name) ⇒ name }
+            val names = c.metaList.collect { case NameMetaAttr(name) => name }
             hashGen.generate(modelCl.getName :: byHash ::: names)
-          case None ⇒
+          case None =>
             PrintColored("r")(s"[Warning] NonSerializable condition by: ${rq.getClass}")
             hashGen.generate(c.toString)
         }
-      case c: Condition[_] ⇒
+      case c: Condition[_] =>
         hashGen.generate(c.getClass.getName :: c.productIterator.map(get).toList)
     }
 

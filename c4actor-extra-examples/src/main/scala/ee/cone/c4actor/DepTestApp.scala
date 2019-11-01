@@ -47,7 +47,7 @@ object DefaultPffNode extends DefaultModelFactory(classOf[D_ValueNode], D_ValueN
     resolvable: Values[UpResolvable]
   ): Values[(SrcId, TxTransform)] =
     for {
-      res ← resolvable
+      res <- resolvable
       if res.request.srcId == "c151e7dd-2ac6-3d34-871a-dbe77a155abc"
     } yield {
       WithPK(TestTransform(res.request.srcId, res.resolvable.value.getOrElse("LUL")))
@@ -69,14 +69,14 @@ class DepTestStart(
     /*
           update(D_Node("12","1")) ++ update(D_Node("13","1")) ++
           update(D_Node("124","12")) ++ update(D_Node("125","12"))*/
-    val updates: List[QProtocol.N_Update] = recs.map(rec ⇒ toUpdate.toUpdate(rec)).toList
+    val updates: List[QProtocol.N_Update] = recs.map(rec => toUpdate.toUpdate(rec)).toList
     val nGlobal = contextFactory.updated(updates)
 
     //logger.info(s"${nGlobal.assembled}")
     logger.debug("asddfasdasdasdas")
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     println(ByPK(classOf[DepTestResponse]).of(nGlobal).values.toList)
-    /*println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test ⇒ test.resolvable.value → test.request.srcId))
+    /*println(ByPK(classOf[UpResolvable]).of(nGlobal).values.map(test => test.resolvable.value -> test.request.srcId))
     val access: Access[PffNode] = ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value.get.asInstanceOf[Option[Access[PffNode]]].get
     println(s"Final result1: ${ByPK(classOf[UpResolvable]).of(nGlobal)("c151e7dd-2ac6-3d34-871a-dbe77a155abc").resolvable.value}")*/
     println("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
@@ -111,7 +111,7 @@ class DepTestStart(
         )
       )
     ).foreach{
-      case (k,v) ⇒ assert(k.of(nGlobal).toMap==v)
+      case (k,v) => assert(k.of(nGlobal).toMap==v)
     }*/
   }
 }
@@ -119,7 +119,6 @@ class DepTestStart(
 class DepTestApp extends TestVMRichDataApp
   with ExecutableApp
   with VMExecutionApp
-  with TreeIndexValueMergerFactoryApp
   with SimpleAssembleProfilerApp
   with ToStartApp
   with ModelAccessFactoryApp

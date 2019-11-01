@@ -1,2 +1,2 @@
 
-libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.7.2"
+libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"

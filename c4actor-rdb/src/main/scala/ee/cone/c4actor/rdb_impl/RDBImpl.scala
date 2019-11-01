@@ -19,9 +19,16 @@ import ee.cone.c4assemble._
 import ee.cone.c4proto._
 import okio.ByteString
 
+@c4("FromExternalDBSyncApp") class FromExternalDBOptionsProvider(
+  rdbOptionFactory: RDBOptionFactory
+) {
+  @provide def get: Seq[ExternalDBOption] = List(
+    rdbOptionFactory.dbProtocol(FromExternalDBProtocol),
+    rdbOptionFactory.fromDB(classOf[FromExternalDBProtocol.B_DBOffset])
+  )
+}
 
-
-class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
+@c4("RDBSyncApp") class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
   def dbProtocol(value: Protocol): ExternalDBOption = new ProtocolDBOption(value)
   def fromDB[P <: Product](cl: Class[P]): ExternalDBOption = new FromDBOption(cl.getName)
   def toDB[P <: Product](cl: Class[P], code: List[String]): ExternalDBOption =
@@ -30,7 +37,7 @@ class RDBOptionFactoryImpl(toUpdate: ToUpdate) extends RDBOptionFactory {
 
 ////
 
-@protocol object ToExternalDBProtocolBase   {
+@protocol("ToExternalDBSyncApp") object ToExternalDBProtocolBase   {
   @Id(0x0063) case class B_HasState(
     @Id(0x0061) srcId: String,
     @Id(0x0064) valueTypeId: Long,
@@ -48,10 +55,8 @@ object ToExternalDBTypes {
   type PseudoOrigNeedSrcId = SrcId
 }
 
-object ToExternalDBAssembles {
-  def apply(options: List[ExternalDBOption]): List[Assemble] =
-    new ToExternalDBTxAssemble ::
-      options.collect{ case o: ToDBOption ⇒ o.assemble }
+@c4("ToExternalDBSyncApp") class ToExternalDBAssemblesBase(options: List[ExternalDBOption]) {
+  @provide def subAssembles: Seq[Assemble] = options.collect{ case o: ToDBOption => o.assemble }
 }
 
 object ToExternalDBAssembleTypes {
@@ -61,11 +66,11 @@ object ToExternalDBAssembleTypes {
 trait  ToExternalDBItemAssembleUtil {
   def toUpdate: ToUpdate
 
-  def itemToHasState[D_Item <: Product]: D_Item ⇒ Values[(String,B_HasState)] = item ⇒
-    for(e ← LEvent.update(item)) yield {
+  def itemToHasState[D_Item <: Product]: D_Item => Values[(String,B_HasState)] = item =>
+    for(e <- LEvent.update(item)) yield {
       val u = toUpdate.toUpdate(e)
       val key = UUID.nameUUIDFromBytes(ToBytes(u.valueTypeId) ++ u.srcId.getBytes(UTF_8)).toString
-      key → B_HasState(key,u.valueTypeId,u.value)
+      key -> B_HasState(key,u.valueTypeId,u.value)
     }
 }
 
@@ -86,7 +91,7 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@assemble class ToExternalDBTxAssembleBase extends   LazyLogging{
+@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase extends   LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -103,7 +108,7 @@ trait  ToExternalDBItemAssembleUtil {
       }
     if (hasStates.toList == mergedNeedStates) Nil else {
       val typeHex = Hex(Single((hasStates ++ mergedNeedStates).map(_.valueTypeId).distinct))
-      List(typeHex → ToExternalDBTask(key, typeHex, Single.option(hasStates), Single.option(mergedNeedStates)))
+      List(typeHex -> ToExternalDBTask(key, typeHex, Single.option(hasStates), Single.option(mergedNeedStates)))
     }
   }
   def join(
@@ -124,15 +129,15 @@ case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_H
 case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val now = Instant.now()
-    tasks.find{ task ⇒
+    tasks.find{ task =>
       val skip = RDBSleepUntilKey.of(local)
       val(until,wasTo) = skip.getOrElse(task.srcId, (Instant.MIN,None))
       until.isBefore(now) || task.to != wasTo
-    }.map{ task ⇒ WithJDBCKey.of(local) { conn ⇒
+    }.map{ task => WithJDBCKey.of(local) { conn =>
       import task.{from,to}
       val registry = QAdapterRegistryKey.of(local)
       val protoToString = new ProtoToString(registry)
-      def recode(stateOpt: Option[B_HasState]) = stateOpt.map{ state ⇒
+      def recode(stateOpt: Option[B_HasState]) = stateOpt.map{ state =>
         protoToString.recode(state.valueTypeId, state.value)
       }.getOrElse(("",""))
       val(fromSrcId,fromText) = recode(from)
@@ -148,10 +153,10 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
       logger.debug(s"from [$fromText] to [$toText] delay $delay")
       logger.warn(s"delay $delay")
-      if(delay > 0L) RDBSleepUntilKey.modify(m ⇒
-        m + (task.srcId→(now.plusMillis(delay)→to))
+      if(delay > 0L) RDBSleepUntilKey.modify(m =>
+        m + (task.srcId->(now.plusMillis(delay)->to))
       )(local)
-      else RDBSleepUntilKey.modify(m ⇒
+      else RDBSleepUntilKey.modify(m =>
         m - task.srcId
       ).andThen(TxAdd(
         from.toList.flatMap(LEvent.delete) ++ to.toList.flatMap(LEvent.update)
@@ -164,29 +169,29 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
 
 ////
 
-@protocol object FromExternalDBProtocolBase   {
+@protocol("FromExternalDBSyncApp") object FromExternalDBProtocolBase   {
   @Id(0x0060) case class B_DBOffset(
     @Id(0x0061) srcId: String,
     @Id(0x0062) value: Long
   )
 }
 
-@assemble class FromExternalDBSyncAssembleBase   {
+@c4assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase   {
   def joinTxTransform(
     key: SrcId,
     first: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List("externalDBSync").map(k⇒k→FromExternalDBSyncTransform(k))
+    List("externalDBSync").map(k=>k->FromExternalDBSyncTransform(k))
 }
 
 case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform with LazyLogging {
-  def transform(local: Context): Context = WithJDBCKey.of(local){ conn ⇒
+  def transform(local: Context): Context = WithJDBCKey.of(local){ conn =>
     val offset =
       ByPK(classOf[B_DBOffset]).of(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
     logger.debug(s"offset $offset")//, By.srcId(classOf[Invoice]).of(world).size)
     val textEncoded = conn.outText("poll").in(srcId).in(offset.value).call()
     //val updateOffset = List(B_DBOffset(srcId, nextOffsetValue)).filter(offset!=_)
-    //  .map(n⇒LEvent.add(LEvent.update(n)))
+    //  .map(n=>LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
       logger.debug(s"textEncoded $textEncoded")
       WriteModelAddKey.of(local)((new IndentedParser).toUpdates(textEncoded))(local)
@@ -240,9 +245,9 @@ class IndentedParser(
     val ("0x", hex) = xHex.splitAt(2)
     val tag = Integer.parseInt(hex, 16)
     handlerName match {
-      case "Node" ⇒ UniversalPropImpl(tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
-      case "Delete" ⇒ UniversalPropImpl(tag,UniversalDeleteImpl(parseProps(value, Nil)))(UniversalDeleteProtoAdapter)
-      case _ ⇒ RDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
+      case "Node" => UniversalPropImpl(tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
+      case "Delete" => UniversalPropImpl(tag,UniversalDeleteImpl(parseProps(value, Nil)))(UniversalDeleteProtoAdapter)
+      case _ => RDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
     }
   }
   private def parseProps(lines: List[String], res: List[UniversalProp]): List[UniversalProp] =
@@ -255,17 +260,17 @@ class IndentedParser(
 
   private def getNodeSrcId(node: UniversalNode): SrcId =
     node.props.head.value match {
-      case s: String ⇒ s
+      case s: String => s
     }
 
   def toUpdates(textEncoded: String): List[N_Update] = {
     val lines = textEncoded.split(lineSplitter).filter(_.nonEmpty).toList
     val universalNode = UniversalNodeImpl(parseProps(lines, Nil))
     //println(PrettyProduct.encode(universalNode))
-    universalNode.props.map { prop ⇒
+    universalNode.props.map { prop =>
       val (srcId, value) = prop.value match {
-        case node: UniversalDeleteImpl ⇒ (getNodeSrcId(node), ToByteString(Array.emptyByteArray))
-        case node: UniversalNode ⇒ (getNodeSrcId(node), ToByteString(prop.encodedValue))
+        case node: UniversalDeleteImpl => (getNodeSrcId(node), ToByteString(Array.emptyByteArray))
+        case node: UniversalNode => (getNodeSrcId(node), ToByteString(prop.encodedValue))
       }
       N_Update(srcId, prop.tag, value, 0L)
     }
@@ -276,19 +281,19 @@ class ProtoToString(registry: QAdapterRegistry){
   private def esc(id: Long, handler: String, value: String): String =
     s"\n${Hex(id)} $handler${value.replace("\n","\n ")}"
   private def encode(id: Long, p: Any): String = p match {
-    case Nil | None ⇒ ""
-    case Some(e) ⇒ encode(id, e)
-    case l: List[_] ⇒ l.map(encode(id, _)).mkString
-    case p: Product ⇒
+    case Nil | None => ""
+    case Some(e) => encode(id, e)
+    case l: List[_] => l.map(encode(id, _)).mkString
+    case p: Product =>
       val adapter = registry.byName(p.getClass.getName)
       esc(id, "Node", adapter.props.zipWithIndex.map{
-        case(prop,i) ⇒ encode(prop.id, p.productElement(i))
+        case(prop,i) => encode(prop.id, p.productElement(i))
       }.mkString)
-    case e: Object ⇒
+    case e: Object =>
       esc(id, RDBTypes.shortName(e.getClass), s"\n${RDBTypes.encode(e)}")
   }
   def recode(valueTypeId: Long, value: ByteString): (String,String) =
-    registry.byId.get(valueTypeId).map{ adapter ⇒
+    registry.byId.get(valueTypeId).map{ adapter =>
       val(srcId,decoded) = WithPK(adapter.decode(value.toByteArray))
       (srcId,encode(adapter.id, decoded))
     }.getOrElse(("",""))
@@ -300,27 +305,27 @@ object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
 object RDBTypes {
   def encode(p: Object): String = p match {
-    case v: String ⇒ v
-    case v: java.lang.Boolean ⇒ if(v) "T" else ""
-    case v: java.lang.Long ⇒ v.toString
-    case v: java.lang.Integer ⇒ v.toString
-    case v: BigDecimal ⇒ v.bigDecimal.toString
+    case v: String => v
+    case v: java.lang.Boolean => if(v) "T" else ""
+    case v: java.lang.Long => v.toString
+    case v: java.lang.Integer => v.toString
+    case v: BigDecimal => v.bigDecimal.toString
     case v: okio.ByteString => v.base64()
-    case v: Instant ⇒ v.toEpochMilli.toString
+    case v: Instant => v.toEpochMilli.toString
   }
   def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
   def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
-    case "String" ⇒
+    case "String" =>
       UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
-    case "ByteString" ⇒
+    case "ByteString" =>
       UniversalPropImpl[okio.ByteString](tag, okio.ByteString.decodeBase64(value))(ProtoAdapter.BYTES)
-    case "Boolean" ⇒
+    case "Boolean" =>
       UniversalPropImpl[java.lang.Boolean](tag,value.nonEmpty)(ProtoAdapter.BOOL)
-    case "Long" | "Instant" ⇒
+    case "Long" | "Instant" =>
       UniversalPropImpl[java.lang.Long](tag,java.lang.Long.parseLong(value))(ProtoAdapter.SINT64)
-    case "Integer" ⇒
+    case "Integer" =>
       UniversalPropImpl[java.lang.Integer](tag,java.lang.Integer.parseInt(value))(ProtoAdapter.SINT32)
-    case "BigDecimal" ⇒
+    case "BigDecimal" =>
       val BigDecimalFactory(scale,bytes) = BigDecimal(value)
       val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
       val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)

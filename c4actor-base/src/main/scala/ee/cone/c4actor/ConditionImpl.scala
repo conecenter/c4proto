@@ -1,23 +1,29 @@
 
 package ee.cone.c4actor
 
+import ee.cone.c4proto.{c4, provide}
+
+@c4("RichDataCompApp") class ModelConditionFactoryProvider {
+  @provide def get: Seq[ModelConditionFactory[Unit]] = List(new ModelConditionFactoryImpl[Unit])
+}
+
 class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
   def of[OtherModel]: ModelConditionFactory[OtherModel] =
     new ModelConditionFactoryImpl[OtherModel]
 
-  def ofWithCl[OtherModel]: Class[OtherModel] ⇒ ModelConditionFactory[OtherModel] = cl ⇒
+  def ofWithCl[OtherModel]: Class[OtherModel] => ModelConditionFactory[OtherModel] = cl =>
     new ModelConditionFactoryImpl[OtherModel]
 
-  def intersect: (Condition[Model], Condition[Model]) ⇒ Condition[Model] = {
-    case (AnyCondition(), left) ⇒ left
-    case (right, AnyCondition()) ⇒ right
-    case (left, right) ⇒ IntersectCondition(left, right)
+  def intersect: (Condition[Model], Condition[Model]) => Condition[Model] = {
+    case (AnyCondition(), left) => left
+    case (right, AnyCondition()) => right
+    case (left, right) => IntersectCondition(left, right)
   }
 
-  def union: (Condition[Model], Condition[Model]) ⇒ Condition[Model] = {
-    case (AnyCondition(), _) ⇒ AnyCondition()
-    case (_, AnyCondition()) ⇒ AnyCondition()
-    case (left, right) ⇒ UnionCondition(left, right)
+  def union: (Condition[Model], Condition[Model]) => Condition[Model] = {
+    case (AnyCondition(), _) => AnyCondition()
+    case (_, AnyCondition()) => AnyCondition()
+    case (left, right) => UnionCondition(left, right)
   }
 
   def any: Condition[Model] =
@@ -27,20 +33,20 @@ class ModelConditionFactoryImpl[Model] extends ModelConditionFactory[Model] {
     implicit check: ConditionCheck[By, Field]
   ): Condition[Model] = {
     val preparedBy = check.prepare(byOptions)(by)
-    if (check.defaultBy.exists(default ⇒ default(preparedBy)))
+    if (check.defaultBy.exists(default => default(preparedBy)))
       AnyCondition()
     else
       ProdConditionImpl(filterMetaList(lens), preparedBy)(check.check(preparedBy), lens.of)
   }
 
-  def filterMetaList[Field]: ProdLens[Model, Field] ⇒ List[AbstractMetaAttr] =
-    _.metaList.collect { case l: NameMetaAttr ⇒ l }
+  def filterMetaList[Field]: ProdLens[Model, Field] => List[AbstractMetaAttr] =
+    _.metaList.collect { case l: NameMetaAttr => l }
 }
 
 case class ProdConditionImpl[By <: Product, Model, Field](
   metaList: List[AbstractMetaAttr], by: By
 )(
-  fieldCheck: Field ⇒ Boolean, of: Model ⇒ Field
+  fieldCheck: Field => Boolean, of: Model => Field
 ) extends ProdCondition[By, Model] {
   def check(model: Model): Boolean = fieldCheck(of(model))
 }

@@ -7,9 +7,9 @@ import ee.cone.c4actor.dep_impl.ByPKRequestProtocol.N_ByPKRequest
 import ee.cone.c4actor.dep_impl.ByPKTypes.ByPkItemSrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
-import ee.cone.c4proto.{Id, Protocol, protocol}
+import ee.cone.c4proto.{Id, protocol}
 
-@protocol object ByPKRequestProtocolBase   {
+@protocol("ByPKRequestHandlerCompApp") object ByPKRequestProtocolBase   {
   @Id(0x0070) case class N_ByPKRequest(
     @Id(0x0071) className: String,
     @Id(0x0072) itemSrcId: String
@@ -29,7 +29,7 @@ object ByPKTypes {
   ): Values[(ByPkItemSrcId, InnerByPKRequest)] =
     if(!rq.request.isInstanceOf[N_ByPKRequest]) Nil else {
       val brq = rq.request.asInstanceOf[N_ByPKRequest]
-      List(brq.itemSrcId → InnerByPKRequest(rq, brq.className))
+      List(brq.itemSrcId -> InnerByPKRequest(rq, brq.className))
     }
 }
 
@@ -45,7 +45,7 @@ object ByPKTypes {
 
 object ByPKAssembles {
   def apply(askByPKs: List[AbstractAskByPK]): List[Assemble] =
-    new ByPKAssemble :: askByPKs.distinct.collect{ case bc: AskByPKImpl[_] ⇒ bc.assemble }
+    new ByPKAssemble :: askByPKs.distinct.collect{ case bc: AskByPKImpl[_] => bc.assemble }
 }
 
 case class AskByPKFactoryImpl(depAskFactory: DepAskFactory, util: DepResponseFactory) extends AskByPKFactory {
@@ -89,8 +89,8 @@ case class BarView(
 
 
 def subView(a: Int): Dep[Int] = for {
-    c ← askByPK(classOf[D_ValueNode], "123")
-    b ← askFoo("B")
+    c <- askByPK(classOf[D_ValueNode], "123")
+    b <- askFoo("B")
   } yield a + b + c.map(_.value).getOrElse(0)
  */
 
