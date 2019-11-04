@@ -26,7 +26,7 @@ object ComponentsGenerator extends Generator {
   val IsId = """(\w+)""".r
 
   def pkgNameToId(pkgName: String): String =
-    """\.([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
+    """[\._]+([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
   def fileNameToComponentsId(fileName: String): String = {
     val SName = """.+/(\w+)\.scala""".r
     val SName(fName) = fileName
