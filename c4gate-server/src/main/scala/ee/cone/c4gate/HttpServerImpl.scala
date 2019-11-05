@@ -236,7 +236,7 @@ class FHttpHandlerImpl(
   )(implicit executionContext: ExecutionContext) {
     def iteration(txRes: TxRes[Option[S_HttpResponse]]): Future[S_HttpResponse] =
       txRes.value.fold(
-        worldProvider.tx{ local =>
+        txRes.next.tx{ local =>
           if(requestByPK.of(local).get(request.srcId).nonEmpty) (Nil,None)
           else {
             val responseOpt = responseByPK.of(local).get(request.srcId)
