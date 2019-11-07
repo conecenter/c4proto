@@ -144,8 +144,9 @@ object ServerMain extends BaseServerMain(
 )
 
 @c4("EnvConfigCompApp") class EnvConfigImpl extends Config {
+  def getOpt(key: String): Option[String] = Option(System.getenv(key))
   def get(key: String): String =
-    Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
+    getOpt(key).getOrElse(throw new Exception(s"Need ENV: $key"))
 }
 @c4("EnvConfigCompApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 

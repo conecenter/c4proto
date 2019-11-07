@@ -5,7 +5,7 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Path
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.RawHeader
+import akka.http.scaladsl.model.headers.{RawHeader, `Content-Type`}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import com.typesafe.scalalogging.LazyLogging
@@ -32,7 +32,7 @@ import scala.util.matching.Regex
 
 @c4("AkkaGatewayApp") class AkkaHttpServer(
   config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat,
-  additionalHandlers: List[AkkaAdditionalHandler],
+  additionalHandlers: List[AkkaInnerResponseHandler],
 )(
   port: Int = config.get("C4HTTP_PORT").toInt
 ) extends Executable with LazyLogging {
@@ -41,31 +41,23 @@ import scala.util.matching.Regex
   def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest => Future[HttpResponse] = req => {
     val method = req.method.value
     val path = req.uri.path.toString
-    val rHeaders = req.headers.map(h => N_Header(h.name, h.value)).toList
+    val rHeaders = (`Content-Type`(req.entity.contentType) :: req.headers.toList)
+      .map(h => N_Header(h.name, h.value))
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
-    additionalHandlers.find(_.shouldHandle(req)).fold {
-      (for {
-        entity <- req.entity.toStrict(Duration(5, MINUTES))(mat)
-        body = ToByteString(entity.getData.toArray)
-        rReq = FHttpRequest(method, path, rHeaders, body)
-        rResp <- handler.handle(rReq)
-      } yield {
-        val status = Math.toIntExact(rResp.status)
-        val (ctHeaders, rHeaders) = rResp.headers.partition(_.key == "content-type")
-        val contentType =
-          Single.option(ctHeaders.flatMap(h => ContentType.parse(h.value).toOption))
-            .getOrElse(ContentTypes.`application/octet-stream`)
-        val aHeaders = rHeaders.map(h => RawHeader(h.key, h.value))
-        val entity = HttpEntity(contentType, rResp.body.toByteArray)
-        logger.debug(s"resp status: $status")
-        HttpResponse(status, aHeaders, entity)
-      }).recover { case NonFatal(e) =>
-        logger.error("http-handler", e)
-        throw e
-      }
-    }(_.handleAsync(req, akkaMat))
+    (for {
+      entity <- req.entity.toStrict(Duration(5, MINUTES))(mat)
+      body = ToByteString(entity.getData.toArray)
+      rReq = FHttpRequest(method, path, rHeaders, body)
+      rResp <- handler.handle(rReq)
+      response <- additionalHandlers.find(_ shouldHandle rResp).getOrElse(AkkaDefaultResponseHandler).handleAsync(rResp, akkaMat)
+    } yield response
 
+
+      ).recover { case NonFatal(e) =>
+      logger.error("http-handler", e)
+      throw e
+    }
   }
   def run(): Unit = execution.fatal{ implicit ec =>
     for{
@@ -81,10 +73,8 @@ import scala.util.matching.Regex
     } yield binding
   }
 }
-@c4("AkkaGatewayApp") class WithAkkaMinio {
-  def akkaMinioSettings: List[AkkaMinioSettings] =
-    AkkaMinioSettings.fromEnv
-  @provide def additionalHandlers: Seq[AkkaAdditionalHandler] = akkaMinioSettings.map(new AkkaMinioHandler(_))
+@c4("AkkaGatewayApp") class WithAkkaRedirect {
+  @provide def additionalHandlers: Seq[AkkaInnerResponseHandler] = AkkaRedirectInnerResponseHandler :: Nil
 }
 case class AkkaMinioSettings(
   endpoint: String,
@@ -94,44 +84,54 @@ case class AkkaMinioSettings(
 )
 object AkkaMinioSettings {
   val confregex: Regex = """(.*)?accesskey=(.*)&privatekey=(.*)&bucket=(.*)""".r
-  def fromEnv: List[AkkaMinioSettings] =
-    sys.env.get("C4MINIO").map {
+  def fromConfig(config: Config): List[AkkaMinioSettings] =
+    config.getOpt("C4MINIO").map {
       settings =>
         val confregex(endpoint, accesskey, privatekey, projbucket) = settings
         new AkkaMinioSettings(endpoint, accesskey, privatekey, projbucket)
     }.toList
 }
-class AkkaMinioHandler(
-  settings: AkkaMinioSettings,
-) extends AkkaAdditionalHandler with LazyLogging {
-
-  import settings._
-
-  val minioClient = new MinioClient(endpoint, accesskey, privatekey)
-  def shouldHandle(httpRequest: HttpRequest): Boolean = httpRequest.uri.path match {
-    case Path.Slash(Path.Segment(name, Path.Slash(_))) =>
-      name == projBucket//maybe filestorage or some constant?
+object AkkaDefaultResponseHandler extends AkkaInnerResponseHandler with LazyLogging {
+  def shouldHandle(httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse): Boolean = true
+  def handleAsync(
+    httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse,
+    akkaMat: AkkaMat,
+  )(
+    implicit ec: ExecutionContext,
+  ): Future[HttpResponse] = Future.successful {
+    val status = Math.toIntExact(httpResponse.status)
+    val (ctHeaders, rHeaders) = httpResponse.headers.partition(_.key == "content-type")
+    val contentType =
+      Single.option(ctHeaders.flatMap(h => ContentType.parse(h.value).toOption))
+        .getOrElse(ContentTypes.`application/octet-stream`)
+    val aHeaders = rHeaders.map(h => RawHeader(h.key, h.value))
+    val entity = HttpEntity(contentType, httpResponse.body.toByteArray)
+    logger.debug(s"resp status: $status")
+    HttpResponse(status, aHeaders, entity)
+  }
+}
+object AkkaRedirectInnerResponseHandler
+  extends AkkaInnerResponseHandler with LazyLogging {
+  val headername = "redirect-inner"
+  def shouldHandle(
+    httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse
+  ): Boolean = httpResponse.headers.exists {
+    case N_Header(`headername`, _) => true
     case _ => false
   }
   def handleAsync(
-    httpRequest: HttpRequest,
+    httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse,
     akkaMat: AkkaMat,
-  )(implicit ec: ExecutionContext): Future[HttpResponse] =
-    httpRequest.uri.path match {
-      case Path.Slash(Path.Segment(bucket, Path.Slash(file))) =>
-        for {
-          materializer <- akkaMat.get
-          _ = httpRequest.uri
-          resp <- Http(materializer.system).singleRequest(HttpRequest(uri = Uri(minioClient.presignedGetObject(bucket, file.toString))))
-          entitiy = resp.entity.withoutSizeLimit()
-        } yield HttpResponse(entity = entitiy)
-    }
-
-
-  def handle(
-    httpRequest: HttpRequest,
-    akkaMat: AkkaMat,
-  ): HttpResponse = Await.result(handleAsync(httpRequest, akkaMat)(concurrent.ExecutionContext.global), Duration.Inf)
+  )(
+    implicit ec: ExecutionContext,
+  ): Future[HttpResponse] = httpResponse.headers.collectFirst {
+    case N_Header(`headername`, uri) =>
+      for {
+        materializer <- akkaMat.get
+        actorsys = materializer.system
+        response <- Http(actorsys).singleRequest(HttpRequest(uri = uri))
+      } yield response
+  }.getOrElse(Future.failed(new Exception("akka-minio-response-handler-failure")))
 }
 
 class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Message] {
