@@ -4,6 +4,8 @@ import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
 
+import scala.meta.parsers.Parsed.{Error, Success}
+
 //import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.meta._
 import scala.jdk.CollectionConverters.IterableHasAsScala
@@ -106,7 +108,12 @@ class RootGenerator(generators: List[Generator]) {
           val packageStatementsList = (packageStatements:Seq[Stat]).toList
           val parseContext = new ParseContext(packageStatementsList, path.toString, n.syntax)
           val generatedWOComponents: List[Generated] = generators.flatMap(_.get(parseContext))
-          val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat].get }
+          val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat] match {
+            case Success(stat) => stat
+            case Error(position, str, exception) =>
+              println(c.content)
+              throw exception
+          } /*OrElse(throw new Exception) */}
           val parsedAll = packageStatementsList ::: parsedGenerated
           val compParseContext = new ParseContext(parsedAll, path.toString, n.syntax)
           val generated: List[Generated] = generatedWOComponents ::: ComponentsGenerator.get(compParseContext)
