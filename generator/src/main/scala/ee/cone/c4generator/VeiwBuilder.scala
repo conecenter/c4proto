@@ -36,11 +36,11 @@ object ViewBuilderGenerator extends Generator {
         }.toList
         if (origs.nonEmpty)
           Seq(
-            GeneratedImport("ee.cone.core.c4security.views._newvb.{ProdAttrSetter, SrcIdProdAttrSetter, ProdAttrGetter, Descriptor, OrigIdAttr}"),
-            GeneratedImport("ee.cone.core.c4security.views._newvb._api.{ProdSetters, ProdGettersApp, ProdSettersApp}"),
-            GeneratedImport("ee.cone.core.c4security.views._newvb._assemble.OrigToSession"),
-            GeneratedImport("ee.cone.c4actor.{IdMetaAttr, NameMetaAttr, AssemblesApp}"),
-            GeneratedImport("ee.cone.c4assemble.Assemble"),
+            GeneratedImport("import ee.cone.core.c4security.views._newvb.{ProdAttrSetter, SrcIdProdAttrSetter, ProdAttrGetter, Descriptor, OrigIdAttr}"),
+            GeneratedImport("import ee.cone.core.c4security.views._newvb._api.{ProdSetters, ProdGettersApp, ProdSettersApp}"),
+            GeneratedImport("import ee.cone.core.c4security.views._newvb._assemble.OrigToSession"),
+            GeneratedImport("import ee.cone.c4actor.{IdMetaAttr, NameMetaAttr, AssemblesApp}"),
+            GeneratedImport("import ee.cone.c4assemble.Assemble"),
             GeneratedCode("\n" +
             s"""trait ${objectName}ViewBuilderApp
                |  extends ProdGettersApp
@@ -82,7 +82,7 @@ object ViewBuilderGenerator extends Generator {
     infos.map(info =>
       s"""object ${info.origType}Getters {
          |${info.fields.map(field => getGetter(info, field)).mkString("\n")}
-         |  val all = List(${info.fields.map(_.fieldName).mkString(", ")})
+         |  val all: List[ProdAttrGetter[${fullOrigName(info)}, _]] = List(${info.fields.map(_.fieldName).mkString(", ")})
          |}""".stripMargin
     ).mkString("\n\n")
 
