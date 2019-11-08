@@ -28,9 +28,9 @@ object ComponentsGenerator extends Generator {
   def pkgNameToId(pkgName: String): String =
     """[\._]+([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
   def fileNameToComponentsId(fileName: String): String = {
-    val SName = """.+/(\w+)\.scala""".r
+    val SName = """.+/([-\w]+)\.scala""".r
     val SName(fName) = fileName
-    s"${fName}Components"
+    s"${fName.replace('-', '_')}Components"
   }
   def annArgToStr(arg: Any): Option[String] = arg match {
     case Lit(v:String) => Option(v)

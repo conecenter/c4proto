@@ -108,12 +108,12 @@ class RootGenerator(generators: List[Generator]) {
           val packageStatementsList = (packageStatements:Seq[Stat]).toList
           val parseContext = new ParseContext(packageStatementsList, path.toString, n.syntax)
           val generatedWOComponents: List[Generated] = generators.flatMap(_.get(parseContext))
-          val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat] match {
+          val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat] match { // c.content.parse[Source].get.stats}.flatten
             case Success(stat) => stat
             case Error(position, str, exception) =>
               println(c.content)
               throw exception
-          } /*OrElse(throw new Exception) */}
+          }}
           val parsedAll = packageStatementsList ::: parsedGenerated
           val compParseContext = new ParseContext(parsedAll, path.toString, n.syntax)
           val generated: List[Generated] = generatedWOComponents ::: ComponentsGenerator.get(compParseContext)
