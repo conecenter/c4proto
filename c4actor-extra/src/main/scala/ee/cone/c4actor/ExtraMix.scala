@@ -80,7 +80,7 @@ trait MortalFactoryApp extends MortalFactoryCompApp with ComponentProviderApp {
 @deprecated trait TreeIndexValueMergerFactoryApp
 
 trait RichDataAppBase extends RichDataCompApp
-  with AssembleProfilerApp
+  // with AssembleProfilerApp
   with DefaultKeyFactoryApp
   with DefaultUpdateProcessorApp
   with ExpressionsDumpersApp
@@ -111,13 +111,13 @@ class CompatHolder[T](val value: T)
 
 @c4("RichDataApp") class ModelConditionFactoryHolder(value: ModelConditionFactory[Unit])
   extends CompatHolder[ModelConditionFactory[Unit]](value)
-
+/*
 trait AssembleProfilerApp extends ComponentsApp {
   def assembleProfiler: AssembleProfiler
   private lazy val assembleProfilerComponent =
     provide(classOf[AssembleProfiler],()=>List(assembleProfiler))
   override def components: List[Component] = assembleProfilerComponent :: super.components
-}
+}*/
 
 trait DefaultKeyFactoryApp extends ComponentsApp {
   def origKeyFactoryOpt: Option[KeyFactory] = None
@@ -175,6 +175,3 @@ trait ModelAccessFactoryApp extends ModelAccessFactoryCompApp with ComponentProv
   lazy val modelAccessFactory: ModelAccessFactory = resolveSingle(classOf[ModelAccessFactory])
 }
 
-trait NoAssembleProfilerApp extends NoAssembleProfilerCompApp with ComponentProviderApp {
-  lazy val assembleProfiler: AssembleProfiler = resolveSingle(classOf[AssembleProfiler])
-}
