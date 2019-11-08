@@ -35,14 +35,20 @@ object ViewBuilderGenerator extends Generator {
             OrigInfo(objectName, resultType, origId, fields.toList)
         }.toList
         if (origs.nonEmpty)
-          Seq(GeneratedCode("\n" +
+          Seq(
+            GeneratedImport("ee.cone.core.c4security.views._newvb.{ProdAttrSetter, SrcIdProdAttrSetter, ProdAttrGetter, Descriptor, OrigIdAttr}"),
+            GeneratedImport("ee.cone.core.c4security.views._newvb._api.{ProdSetters, ProdGettersApp, ProdSettersApp}"),
+            GeneratedImport("ee.cone.core.c4security.views._newvb._assemble.OrigToSession"),
+            GeneratedImport("ee.cone.c4actor.{IdMetaAttr, NameMetaAttr, AssemblesApp}"),
+            GeneratedImport("ee.cone.c4assemble.Assemble"),
+            GeneratedCode("\n" +
             s"""trait ${objectName}ViewBuilderApp
-               |  extends ee.cone.core.c4security.views._newvb._api.ProdGettersApp
-               |    with ee.cone.core.c4security.views._newvb._api.ProdSettersApp
-               |    with ee.cone.c4actor.AssemblesApp {
-               |  override def getters: List[ee.cone.core.c4security.views._newvb.ProdAttrGetter[_ <: Product, _]] = ${gettersName(origs)} ::: super.getters
-               |  override def prodSetters: List[ee.cone.core.c4security.views._newvb._api.ProdSetters[_ <: Product]] = ${settersName(origs)} :: super.prodSetters
-               |  override def assembles: List[ee.cone.c4assemble.Assemble] = ${assemblesName(origs)} :: super.assembles
+               |  extends ProdGettersApp
+               |    with ProdSettersApp
+               |    with AssemblesApp {
+               |  override def getters: List[ProdAttrGetter[_ <: Product, _]] = ${gettersName(origs)} ::: super.getters
+               |  override def prodSetters: List[ProdSetters[_ <: Product]] = ${settersName(origs)} :: super.prodSetters
+               |  override def assembles: List[Assemble] = ${assemblesName(origs)} :: super.assembles
                |}
                |""".stripMargin + "\n\n" +
             getGetters(origs) + "\n\n" +
@@ -54,6 +60,12 @@ object ViewBuilderGenerator extends Generator {
     case _ => Nil
   }
 
+  def fullOrigName(info: OrigInfo): String =
+    s"${info.protocolName}.${info.origType}"
+
+  def toLong(number: Long): String =
+    s"${number}L"
+
   def gettersName(infos: List[OrigInfo]): String =
     infos.map(info => s"${info.origType}Getters.all").mkString(" ::: ")
 
@@ -61,7 +73,7 @@ object ViewBuilderGenerator extends Generator {
     infos.map(info => s"${info.origType}Setters.orig_setter").mkString(" :: ")
 
   def assemblesName(infos: List[OrigInfo]): String =
-    infos.map(info => s"new ee.cone.core.c4security.views._newvb._assemble.OrigToSession(classOf[${info.origType}], ${info.origId})").mkString(" :: ")
+    infos.map(info => s"new OrigToSession(classOf[${fullOrigName(info)}], ${toLong(info.origId)})").mkString(" :: ")
 
   def parseArgsWithApply: Seq[Seq[Term]] => List[String] =
     _.flatMap(_.map(_.toString())).toList
@@ -75,11 +87,11 @@ object ViewBuilderGenerator extends Generator {
     ).mkString("\n\n")
 
   def getGetter(origInfo: OrigInfo, field: FieldInfo): String =
-    s"""  val ${field.fieldName}: ee.cone.core.c4security.views._newvb.ProdAttrGetter[${origInfo.protocolName}.${origInfo.origType}, ${field.fieldType}] =
-       |    ee.cone.core.c4security.views._newvb.ProdAttrGetter(ee.cone.core.c4security.views._newvb.Descriptor(
-       |      ee.cone.core.c4security.views._newvb.OrigIdAttr(${origInfo.origId}),
-       |      ee.cone.c4actor.IdMetaAttr(${field.fieldId}),
-       |      ee.cone.c4actor.NameMetaAttr("${origInfo.protocolName}.${origInfo.origType}.${field.fieldName}"),
+    s"""  val ${field.fieldName}: ProdAttrGetter[${fullOrigName(origInfo)}, ${field.fieldType}] =
+       |    ProdAttrGetter(Descriptor(
+       |      OrigIdAttr(${toLong(origInfo.origId)}),
+       |      IdMetaAttr(${toLong(field.fieldId)}),
+       |      NameMetaAttr("${fullOrigName(origInfo)}.${field.fieldName}"),
        |      ${if (field.meta.isEmpty) "" else field.meta.mkString(",\n      ", ",\n      ", "")}
        |    ))(_.${field.fieldName})
        |""".stripMargin
@@ -89,8 +101,8 @@ object ViewBuilderGenerator extends Generator {
       s"""object ${info.origType}Setters {
          |${getSetter("SrcId", info, info.fields.head)}
          |${info.fields.tail.map(field => getSetter("", info, field)).mkString("\n")}
-         |  val orig_setter = new ee.cone.core.c4security.views._newvb._api.ProdSetters[${info.origType}](
-         |    ${info.origId},
+         |  val orig_setter = new ProdSetters[${fullOrigName(info)}](
+         |    ${toLong(info.origId)},
          |    ${info.fields.head.fieldName},
          |    List(${info.fields.tail.map(_.fieldName).mkString(", ")})
          |  )
@@ -98,9 +110,9 @@ object ViewBuilderGenerator extends Generator {
     ).mkString("\n\n")
 
   def getSetter(prefix: String, origInfo: OrigInfo, field: FieldInfo): String =
-    s"""  val ${field.fieldName}: ee.cone.core.c4security.views._newvb.${prefix}ProdAttrSetter[${origInfo.protocolName}.${origInfo.origType}, ${field.fieldType}] =
-       |    ee.cone.core.c4security.views._newvb.${prefix}ProdAttrSetter(
-       |      ${origInfo.origId}, ${field.fieldId}
+    s"""  val ${field.fieldName}: ${prefix}ProdAttrSetter[${origInfo.protocolName}.${origInfo.origType}, ${field.fieldType}] =
+       |    ${prefix}ProdAttrSetter(
+       |      ${toLong(origInfo.origId)}, ${toLong(field.fieldId)}
        |    )(v => _.copy(${field.fieldName} = v))
        |""".stripMargin
 }

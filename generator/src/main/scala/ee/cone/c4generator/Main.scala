@@ -105,7 +105,7 @@ object Main {
           val packageStatementsList = (packageStatements:Seq[Stat]).toList
           val parseContext = new ParseContext(packageStatementsList, path.toString, n.syntax)
           val generatedWOComponents: List[Generated] = generators(parseContext)
-          val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat].get }
+          val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Source].get.stats}.flatten
           val parsedAll = packageStatementsList ::: parsedGenerated
           val compParseContext = new ParseContext(parsedAll, path.toString, n.syntax)
           val generated: List[Generated] = generatedWOComponents ::: ComponentsGenerator.get(compParseContext)
