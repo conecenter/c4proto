@@ -65,7 +65,7 @@ class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq
 ) extends ToUpdate with LazyLogging {
 
   def toUpdate[M <: Product](message: LEvent[M]): N_Update = {
-    val valueAdapter = qAdapterRegistry.byName(message.className)
+    val valueAdapter = qAdapterRegistry.byName.getOrElse(message.className,throw new Exception(s"missing ${message.className} adapter"))
     message match {
       case upd: UpdateLEvent[_] =>
         val byteString = ToByteString(valueAdapter.encode(upd.value))

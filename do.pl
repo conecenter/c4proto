@@ -162,8 +162,7 @@ my $get_env = sub{
         C4SSE_PORT => $sse_port,
         C4LOGBACK_XML => "$data_dir/logback.xml",
     );
-    my $env = join " ", map{"$_=$env{$_}"} sort keys %env;
-    ($env,%env);
+    join " ", map{"$_=$env{$_}"} sort keys %env;
 };
 
 
@@ -171,31 +170,19 @@ sub staged{
     "C4STATE_TOPIC_PREFIX=$_[1] $gen_dir/$_[0]/target/universal/stage/bin/$_[0] $_[1]"
 }
 push @tasks, ["gate_publish", sub{
-    my($env,%env) = &$get_env();
+    my $env = &$get_env();
     my $build_dir = &$client(0);
     $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
     sy("$env ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
-    my($env,%env) = &$get_env();
+    my $env = &$get_env();
     &$inbox_configure();
     #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-sun","ee.cone.c4gate.SunGatewayApp"));
     #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-finagle","ee.cone.c4gate.FinagleGatewayApp"));
     sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-akka","ee.cone.c4gate.AkkaGatewayApp"));
 }];
-push @tasks, ["env", sub{
-    my @exec = @_;
-    my($env,%env) = &$get_env();
-    $ENV{$_} = $env{$_} for keys %env;
-    $ENV{C4STATE_TOPIC_PREFIX} || die "no actor name";
-    sy(@exec);
-
-    #perl $ENV{C4PROTO_DIR}/prod.pl
-
-}];
-
-
-
+push @tasks, ["get_env", sub{ print "RES: ", &$get_env(), "\n" }];
 push @tasks, ["test", sub{
     my @arg = @_;
     if(@arg==0){
@@ -205,7 +192,7 @@ push @tasks, ["test", sub{
             map{/(\S+)/g} map{`cat $_`=~/C4APPS:([^\n]+)/?"$1":die} @src_files;
         } grep{-e $_} map{"$_/src"} grep{/example/} <$gen_dir/*>;
     } elsif(@arg==1) {
-        my($env,%env) = &$get_env();
+        my $env = &$get_env();
         sy("$env ".staged("c4all-examples",$arg[0]));
     } else { die }
 }];
