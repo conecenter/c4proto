@@ -24,9 +24,14 @@ object DirInfo {
 }
 
 object Main {
+  def defaultGenerators: List[Generator] = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator,AppGenerator) //,UnBaseGenerator
+  def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators).run()
+}
+
+class RootGenerator(generators: List[Generator]) {
   def version: String = s"-w${env("C4GENERATOR_VER")}"
   def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
-  def main(args: Array[String]): Unit = {
+  def run(): Unit = {
     val rootPath = Paths.get(env("C4GENERATOR_PATH"))
     val rootFromPath = rootPath.resolve("src")
     val rootCachePath = rootPath.resolve("cache")
@@ -84,10 +89,6 @@ object Main {
     }
     args ++ indexes
   }
-  lazy val generators: ParseContext=>List[Generated] = {
-    val generators = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator,ViewBuilderGenerator,AppGenerator) //,UnBaseGenerator
-    ctx => generators.flatMap(_.get(ctx))
-  }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
     val fromData = Files.readAllBytes(path)
     val uuid = UUID.nameUUIDFromBytes(fromData).toString
@@ -104,7 +105,7 @@ object Main {
         res <- {
           val packageStatementsList = (packageStatements:Seq[Stat]).toList
           val parseContext = new ParseContext(packageStatementsList, path.toString, n.syntax)
-          val generatedWOComponents: List[Generated] = generators(parseContext)
+          val generatedWOComponents: List[Generated] = generators.flatMap(_.get(parseContext))
           val parsedGenerated = generatedWOComponents.collect{ case c: GeneratedCode => c.content.parse[Stat].get }
           val parsedAll = packageStatementsList ::: parsedGenerated
           val compParseContext = new ParseContext(parsedAll, path.toString, n.syntax)
