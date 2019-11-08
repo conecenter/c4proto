@@ -10,8 +10,6 @@ my $put_text = sub{
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
 #
-my $generator_path = $ENV{C4GENERATOR_PATH} || die;
-#
 my $generator_src_dir = ".";
 my $generator_exec = "$generator_src_dir/target/universal/stage/bin/generator";
 my @src_files = syf("find $generator_src_dir/src")=~/(\S+\.scala)\b/g;

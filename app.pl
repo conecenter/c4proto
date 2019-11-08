@@ -24,7 +24,7 @@ my $clear = sub{
 
 my $run_generator_outer = sub{
     my $src_dir = &$pwd();
-    my $generator_path = "$src_dir/tmp/c4gen";
+    my $generator_path = "$src_dir/generator/target/c4gen";
     my $io_dir = "$generator_path/src";
     -e $io_dir and sy("rm -r $io_dir");
     my @rel_paths = map{substr $_, length $src_dir} grep{-e "$_/src"} <$src_dir/c4*>;
@@ -34,7 +34,7 @@ my $run_generator_outer = sub{
     &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path perl run.pl");
 };
 
-my $exclude = " --exclude='target'  --exclude='tmp' --exclude='.git' --exclude='.idea'";
+my $exclude = join " ", map{"--exclude='$_'"} 'target','tmp','.git','.idea','generator';
 
 my $build_do = sub{
    my($clean)=@_;
