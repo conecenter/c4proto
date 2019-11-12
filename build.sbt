@@ -92,4 +92,4 @@ lazy val `c4proto-aggregate` = project.in(file(".")).settings(publishSettings).a
   `c4all-examples`
 )*/
 
-// lazy val `generator` = project.in(file("generator"))
+lazy val `generator` = project.in(file("generator"))
