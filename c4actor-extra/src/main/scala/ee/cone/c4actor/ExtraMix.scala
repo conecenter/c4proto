@@ -21,7 +21,7 @@ trait ComponentProviderApp {
   def resolveSingle[T](cl: Class[T]): T = ComponentProvider.resolveSingle(cl)(componentRegistry)
 }
 
-abstract class ResolveSingleChecker {
+abstract class AppChecker {
   def executeFor(app: ComponentProviderApp): Unit
 }
 
