@@ -29,7 +29,7 @@ trait DeepSessionDataAssembleApp extends AssemblesApp {
 trait DeepSessionAttrFactoryImplApp {
   def qAdapterRegistry: QAdapterRegistry
 
-  def defaultModelRegistry: DefaultModelRegistry
+  def modelFactory: ModelFactory
 
   def modelAccessFactory: ModelAccessFactory
 
@@ -38,5 +38,5 @@ trait DeepSessionAttrFactoryImplApp {
   def sessionAttrAccessFactory: SessionAttrAccessFactory
 
   lazy val deepSessionAttrAccessFactory: DeepSessionAttrAccessFactory =
-    new DeepSessionAttrAccessFactoryImpl(qAdapterRegistry, defaultModelRegistry, modelAccessFactory, idGenUtil, sessionAttrAccessFactory)
+    new DeepSessionAttrAccessFactoryImpl(qAdapterRegistry, modelFactory, modelAccessFactory, idGenUtil, sessionAttrAccessFactory)
 }

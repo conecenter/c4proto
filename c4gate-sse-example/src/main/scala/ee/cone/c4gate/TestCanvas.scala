@@ -107,8 +107,6 @@ case class GotoClick(vDomKey: VDomKey) extends ClickPathHandler[Context] {
     SessionAttr(Id(0x0009), classOf[B_TestCanvasState], UserLabel en "(TestCanvasState)")
 }
 
-@c4("CanvasApp") class TestCanvasStateDefault extends DefaultModelFactory(classOf[B_TestCanvasState],B_TestCanvasState(_,""))
-
 @c4("CanvasApp") class PathFactoryProvider(childPairFactory: ChildPairFactory, tagJsonUtils: TagJsonUtils) {
   @provide def canvasToJson: Seq[CanvasToJson] = List(CanvasToJsonImpl)
   @provide def pathFactory: Seq[PathFactory] = List(PathFactoryImpl(childPairFactory,CanvasToJsonImpl))

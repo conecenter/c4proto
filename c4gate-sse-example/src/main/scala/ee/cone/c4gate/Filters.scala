@@ -30,9 +30,6 @@ trait CommonFilterConditionChecks {
 
 //// impl
 
-@c4("CommonFilterApp") class DateBeforeDefault extends DefaultModelFactory(classOf[B_DateBefore],B_DateBefore(_,None))
-@c4("CommonFilterApp") class ContainsDefault extends DefaultModelFactory(classOf[B_Contains],B_Contains(_,""))
-
 case object DateBeforeCheck extends ConditionCheck[B_DateBefore,Long] {
   def prepare: List[AbstractMetaAttr] => B_DateBefore => B_DateBefore = _ => identity[B_DateBefore]
   def check: B_DateBefore => Long => Boolean = by => value => by.value forall (_>value)

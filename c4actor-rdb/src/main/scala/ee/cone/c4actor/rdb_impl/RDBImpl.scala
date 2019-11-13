@@ -1,6 +1,6 @@
 package ee.cone.c4actor.rdb_impl
 
-import com.squareup.wire.{FieldEncoding, ProtoAdapter, ProtoReader, ProtoWriter}
+import com.squareup.wire.ProtoAdapter
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time.Instant
@@ -199,43 +199,6 @@ case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform with Laz
   }
 }
 
-////
-trait UniversalNode {
-  def props: List[UniversalProp]
-}
-
-case class UniversalNodeImpl(props: List[UniversalProp]) extends UniversalNode
-
-case class UniversalDeleteImpl(props: List[UniversalProp]) extends UniversalNode
-
-sealed trait UniversalProp {
-  def tag: Int
-  def value: Object
-  def encodedValue: Array[Byte]
-  def encodedSize: Int
-  def encode(writer: ProtoWriter): Unit
-}
-
-case class UniversalPropImpl[T<:Object](tag: Int, value: T)(adapter: ProtoAdapter[T]) extends UniversalProp {
-  def encodedSize: Int = adapter.encodedSizeWithTag(tag, value)
-  def encode(writer: ProtoWriter): Unit = adapter.encodeWithTag(writer, tag, value)
-  def encodedValue: Array[Byte] = adapter.encode(value)
-}
-
-object UniversalProtoAdapter extends ProtoAdapter[UniversalNodeImpl](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalNodeImpl]) {
-  def encodedSize(value: UniversalNodeImpl): Int =
-    value.props.map(_.encodedSize).sum
-  def encode(writer: ProtoWriter, value: UniversalNodeImpl): Unit =
-    value.props.foreach(_.encode(writer))
-  def decode(reader: ProtoReader): UniversalNodeImpl = throw new Exception("not implemented")
-}
-
-object UniversalDeleteProtoAdapter extends ProtoAdapter[UniversalDeleteImpl](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalDeleteImpl]) {
-  def encodedSize(value: UniversalDeleteImpl): Int = throw new Exception("Can't be called")
-  def encode(writer: ProtoWriter, value: UniversalDeleteImpl): Unit = throw new Exception("Can't be called")
-  def decode(reader: ProtoReader): UniversalDeleteImpl = throw new Exception("Can't be called")
-}
-
 class IndentedParser(
   splitter: Char = ' ', lineSplitter: String = "\n"
 ) {
@@ -245,11 +208,12 @@ class IndentedParser(
     val ("0x", hex) = xHex.splitAt(2)
     val tag = Integer.parseInt(hex, 16)
     handlerName match {
-      case "Node" => UniversalPropImpl(tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
+      case "Node" => UniversalPropImpl[UniversalNode](tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
       case "Delete" => UniversalPropImpl(tag,UniversalDeleteImpl(parseProps(value, Nil)))(UniversalDeleteProtoAdapter)
       case _ => RDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
     }
   }
+  @scala.annotation.tailrec
   private def parseProps(lines: List[String], res: List[UniversalProp]): List[UniversalProp] =
     if(lines.isEmpty) res.reverse else {
       val key = lines.head
@@ -329,6 +293,6 @@ object RDBTypes {
       val BigDecimalFactory(scale,bytes) = BigDecimal(value)
       val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
       val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)
-      UniversalPropImpl(tag,UniversalNodeImpl(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
+      UniversalPropImpl[UniversalNode](tag,UniversalNodeImpl(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
   }
 }

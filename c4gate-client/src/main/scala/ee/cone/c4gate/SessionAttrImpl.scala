@@ -48,7 +48,7 @@ import okio.ByteString
 
 @c4("SessionAttrCompApp") class SessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
-  defaultModelRegistry: DefaultModelRegistry,
+  modelFactory: ModelFactory,
   modelAccessFactory: ModelAccessFactory,
   val idGenUtil: IdGenUtil
 ) extends SessionAttrAccessFactory with KeyGenerator{
@@ -80,7 +80,7 @@ import okio.ByteString
       )
       val pk = genPK(request, adapter)//val deepPK = genPK(request.copy(sessionKey=""))
       val value: U_RawSessionData = byPK.of(local).getOrElse(pk,{
-        val model = defaultModelRegistry.get[P](attr.className).create(pk)
+        val model = modelFactory.create[P](attr.className)(pk)
         lens.set(model)(request.copy(srcId=pk))
       })
       modelAccessFactory.to(value).map(_.to(lens))

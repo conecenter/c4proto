@@ -180,7 +180,7 @@ case object StrStartsWithRanger extends RangerWithCl(classOf[D_StrStartsWith], c
   def prepareRequest: D_StrStartsWith => D_StrStartsWith = in => in.copy(value = in.value.take(5))
 }
 
-object DefaultStrStartsWith extends DefaultModelFactory[D_StrStartsWith](classOf[D_StrStartsWith], _ => D_StrStartsWith(""))
+object DefaultStrStartsWithInitializer extends DefaultModelInitializer[D_StrStartsWith](classOf[D_StrStartsWith], _.copy(value = ""))
 
 case object IntEqCheck extends ConditionCheckWithCl[D_IntEq, Int](classOf[D_IntEq], classOf[Int]) {
   def prepare: List[AbstractMetaAttr] => D_IntEq => D_IntEq = _ => identity[D_IntEq]
@@ -202,7 +202,7 @@ case class IntEqRanger() extends RangerWithCl[D_IntEq, Int](classOf[D_IntEq], cl
   def prepareRequest: D_IntEq => D_IntEq = identity
 }
 
-object DefaultIntEq extends DefaultModelFactory[D_IntEq](classOf[D_IntEq], id => D_IntEq(0))
+object DefaultInitializer extends DefaultModelInitializer[D_IntEq](classOf[D_IntEq], _.copy(value = 0))
 
 trait TestCondition extends SerializationUtilsApp {
   def changingCondition: String => Condition[D_TestObject] = value => {
@@ -275,8 +275,6 @@ class HashSearchExtraTestApp extends TestVMRichDataApp
   // println(TestProtocolM.adapters.map(a => a.categories))
 
   override def lensList: List[ProdLens[_, _]] = lensInt :: lensStr :: super.lensList
-
-  override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultIntEq :: DefaultStrStartsWith :: super.defaultModelFactories
 
   override def hashSearchRangers: List[RangerWithCl[_ <: Product, _]] = StrStartsWithRanger :: IntEqRanger() :: super.hashSearchRangers
 
