@@ -23,7 +23,7 @@ trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtilityA
 
   def qAdapterRegistry: QAdapterRegistry
 
-  def defaultModelRegistry: DefaultModelRegistry
+  def modelFactory: ModelFactory
 
   def modelAccessFactory: ModelAccessFactory
 
@@ -35,7 +35,7 @@ trait SessionAttrAskMix extends SessionAttrAskUtility with CommonRequestUtilityA
 
   override def askByPKs: List[AbstractAskByPK] = rawDataAsk :: userDataAsk :: roleDataAsk :: super.askByPKs
 
-  def sessionAttrAskFactory: SessionAttrAskFactoryApi = SessionAttrAskFactoryImpl(qAdapterRegistry, defaultModelRegistry, modelAccessFactory, commonRequestUtilityFactory, rawDataAsk, userDataAsk, roleDataAsk, idGenUtil, depFactory)
+  def sessionAttrAskFactory: SessionAttrAskFactoryApi = SessionAttrAskFactoryImpl(qAdapterRegistry, modelFactory, modelAccessFactory, commonRequestUtilityFactory, rawDataAsk, userDataAsk, roleDataAsk, idGenUtil, depFactory)
 }
 
 trait CurrentTimeAskMix extends CurrentTimeAskUtility {

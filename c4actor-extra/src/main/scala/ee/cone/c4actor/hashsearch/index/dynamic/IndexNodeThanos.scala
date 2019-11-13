@@ -51,7 +51,7 @@ trait DynamicIndexAssemble
           dynamicIndexAutoStaticLiveSeconds,
           dynamicIndexNodeDefaultSetting,
           dynamicIndexDeleteAnywaySeconds
-        )(defaultModelRegistry, qAdapterRegistry, hashSearchRangerRegistry, idGenUtil)
+        )(modelFactory, qAdapterRegistry, hashSearchRangerRegistry, idGenUtil)
       ) :::
       super.assembles
   }
@@ -188,7 +188,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
 
   def idGenUtil: IdGenUtil
 
-  def defaultModelRegistry: DefaultModelRegistry
+  def modelFactory: ModelFactory
 
   lazy val nameToIdMap: Map[String, Long] = qAdapterRegistry.byName.transform((_, v) => if (v.hasId) v.id else -1)
   lazy val longToName: Map[Long, String] = qAdapterRegistry.byId.transform((_, v) => v.className)
@@ -219,7 +219,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   def processLeafWDefault(
     leaf: PreProcessedLeaf[Model]
   ): ProcessedLeaf[Model] = {
-    val directive = defaultModelRegistry.get[Product](leaf.by.getClass.getName).create("")
+    val directive = modelFactory.create[Product](leaf.by.getClass.getName)("")
     processLeaf(leaf, directive)
   }
 
@@ -262,7 +262,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   dynamicIndexNodeDefaultSetting: S_IndexNodeSettings,
   deleteAnyway: Long
 )(
-  val defaultModelRegistry: DefaultModelRegistry,
+  val modelFactory: ModelFactory,
   val qAdapterRegistry: QAdapterRegistry,
   val rangerRegistryApi: HashSearchRangerRegistryApi,
   val idGenUtil: IdGenUtil

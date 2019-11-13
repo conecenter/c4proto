@@ -35,8 +35,6 @@ object TestAttrs {
   lazy val contentFlt = SessionAttr(Id(0x0008), classOf[B_Content], UserLabel en "(Content)")
 }
 
-@c4("TestCoWorkApp") class ContentDefault extends DefaultModelFactory(classOf[B_Content], B_Content(_,""))
-
 /*
 trait TestCoWorkerViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]

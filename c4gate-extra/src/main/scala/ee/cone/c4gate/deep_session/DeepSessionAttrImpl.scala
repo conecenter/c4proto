@@ -10,7 +10,7 @@ import okio.ByteString
 
 class DeepSessionAttrAccessFactoryImpl(
   registry: QAdapterRegistry,
-  defaultModelRegistry: DefaultModelRegistry,
+  modelFactory: ModelFactory,
   modelAccessFactory: ModelAccessFactory,
   val idGenUtil: IdGenUtil,
   sessionAttrAccessFactory: SessionAttrAccessFactory
@@ -86,7 +86,7 @@ class DeepSessionAttrAccessFactoryImpl(
       }
     )
 
-    val defaultModel: SrcId => P = defaultModelRegistry.get[P](attr.className).create
+    val defaultModel: SrcId => P = srcId ⇒ modelFactory.create[P](attr.className)(srcId)
     val defaultRawData = lensRaw.set(defaultModel(rawDataPK))(stubRawData.copy(srcId = rawDataPK))
     val defaultRawUserData = lensRawUser.set(defaultModel(rawUserDataPK))(stubRawUserData.copy(srcId = rawUserDataPK))
 
@@ -128,7 +128,7 @@ class DeepSessionAttrAccessFactoryImpl(
       )
       val pk = genPK(stubRawRoleData, rawRoleAdapter)
       val value = roleByPK.of(local).getOrElse(pk, {
-        val model = defaultModelRegistry.get[P](attr.className).create(pk)
+        val model = modelFactory.create[P](attr.className)(pk)
         lens.set(model)(stubRawRoleData.copy(srcId = pk))
       }
       )

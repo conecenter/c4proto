@@ -45,7 +45,7 @@ trait HashSearchDynamicIndexApp
       lensRegistry,
       idGenUtil,
       ranger.asInstanceOf[RangerWithCl[By, Field]],
-      defaultModelRegistry
+      modelFactory
     )
 
   def getAssembles(model: ProductWithId[_ <: Product]): List[HashSearchDynamicIndexNew[_ <: Product, Product, Any]] = {
@@ -82,7 +82,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
 
   def idGenUtil: IdGenUtil
 
-  def defaultModelRegistry: DefaultModelRegistry
+  def modelFactory: ModelFactory
 
   def ranger: RangerWithCl[By, Field]
 
@@ -98,7 +98,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
 
   def fieldClass: Class[Field]
 
-  lazy val defaultBy: By = defaultModelRegistry.get[By](byClassName).create("")
+  lazy val defaultBy: By = modelFactory.create[By](byClassName)("")
 
   lazy val byAdapter: ProtoAdapter[Product] with HasId = qAdapterRegistry.byName(byClassName)
 
@@ -211,7 +211,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   val lensRegistry: LensRegistryApi,
   val idGenUtil: IdGenUtil,
   val ranger: RangerWithCl[By, Field],
-  val defaultModelRegistry: DefaultModelRegistry
+  val modelFactory: ModelFactory
 ) extends AssembleName("HashSearchDynamicIndexNew", modelCl, byCl, fieldCl)
   with DynamicIndexSharedTypes
   with HashSearchAssembleSharedKeys

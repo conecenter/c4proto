@@ -25,8 +25,6 @@ import scala.collection.immutable
 
 }
 
-object DefaultPffNode extends DefaultModelFactory(classOf[D_ValueNode], D_ValueNode(_, 0))
-
 //  C4STATE_TOPIC_PREFIX=ee.cone.c4actor.DepTestApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'
 /*@assemble class DepAssemble(handlerRegistry: RequestHandlerRegistry, adapterRegistry: QAdapterRegistry)   {
   type ToResponse = SrcId
@@ -140,8 +138,6 @@ class DepTestApp extends TestVMRichDataApp
   override def byClNameAllClasses: List[Class[_ <: Product]] = classOf[D_ValueNode] :: super.byClNameAllClasses
 
   def depDraft: DepDraft = DepDraft(commonRequestUtilityFactory, askByPKFactory.forClass(classOf[D_ValueNode]), depAskFactory, byClassNameAllAsk, depFactory)
-
-  override def defaultModelFactories: List[DefaultModelFactory[_]] = DefaultPffNode :: super.defaultModelFactories
 
   override def depHandlers: List[DepHandler] = {
     println(super.depHandlers.mkString("\n"))

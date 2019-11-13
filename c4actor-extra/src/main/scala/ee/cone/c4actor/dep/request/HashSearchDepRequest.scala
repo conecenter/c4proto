@@ -7,13 +7,12 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocol.{N_DepConditionAny, N_DepConditionIntersect, N_DepConditionLeaf, N_DepConditionUnion, N_HashSearchDepRequest}
 import ee.cone.c4actor.dep.request.HashSearchDepRequestProtocolBase.ProtoDepCondition
-import ee.cone.c4actor.utils.{GeneralizedOrigRegistry, GeneralizedOrigRegistryApi}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble}
 import ee.cone.c4proto._
 import okio.ByteString
 
-trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with GeneralizedOrigRegistryApi with DepResponseFactoryApp {
+trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with DepResponseFactoryApp with ComponentProviderApp {
   override def assembles: List[Assemble] = leafRegistry.getModelsList.map(model => new HSDepRequestAssemble(hsDepRequestHandler, model, depResponseFactory)) ::: super.assembles
 
   override def protocols: List[Protocol] = HashSearchDepRequestProtocol :: super.protocols
@@ -24,7 +23,7 @@ trait HashSearchRequestApp extends AssemblesApp with ProtocolsApp with Generaliz
 
   def modelConditionFactory: ModelConditionFactory[Unit]
 
-  def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, modelConditionFactory, generalizedOrigRegistry, qAdapterRegistry)
+  def hsDepRequestHandler: HashSearchDepRequestHandler = HashSearchDepRequestHandler(leafRegistry, modelConditionFactory, resolveSingle(classOf[ModelFactory]), qAdapterRegistry)
 }
 
 case class HashSearchDepRqWrap(srcId: String, request: N_HashSearchDepRequest, modelCl: String)
@@ -99,7 +98,7 @@ case class LeafRegistryImpl(
   def getModelsList: List[Class[_ <: Product]] = models.distinct
 }
 
-case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[Unit], generalizedOrigRegistry: GeneralizedOrigRegistry, qAdapterRegistry: QAdapterRegistry) {
+case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelConditionFactory[Unit], modelFactory: ModelFactory, qAdapterRegistry: QAdapterRegistry) {
 
   def handle: N_HashSearchDepRequest => Condition[_] = request =>
     parseCondition(
@@ -130,9 +129,9 @@ case class HashSearchDepRequestHandler(leafs: LeafRegistry, condFactory: ModelCo
       _.metaList.collect { case l: NameMetaAttr => l }
 
     val byAdapter = qAdapterRegistry.byName(byClass.getName)
-    val genericMaker = generalizedOrigRegistry.get[By](byClass.getName)
+    val genericMaker: SrcId => By => By = modelFactory.changeSrcId[By](byClass.getName)
     val byDecoded = byAdapter.decode(by).asInstanceOf[By]
-    val byGeneric = genericMaker.create("")(byDecoded)
+    val byGeneric = genericMaker("")(byDecoded)
     val prepHolder: LeafInfoHolder[Model, By, Field] = caster(modelCl, byClass, fieldCl)(leafInfo)
     val prepBy: By = prepHolder.check.prepare(prepHolder.byOptions)(byGeneric)
     ProdConditionImpl(filterMetaList(prepHolder.lens), prepBy)(prepHolder.check.check(prepBy), prepHolder.lens.of)

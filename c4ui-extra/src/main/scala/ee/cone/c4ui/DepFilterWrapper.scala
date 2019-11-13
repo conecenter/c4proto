@@ -20,7 +20,7 @@ trait DepFilterWrapperApp {
 trait DepFilterWrapperMix extends DepFilterWrapperApp with HashSearchRangerRegistryApp with DepFactoryApp {
   def modelConditionFactory: ModelConditionFactory[Unit]
 
-  def defaultModelRegistry: DefaultModelRegistry
+  def modelFactory: ModelFactory
 
   def depFilterWrapper[Model <: Product](modelCl: Class[Model], listName: String, matches: List[DepFilterPK] = DepFilterPK("", ".*" :: Nil) :: Nil): DepFilterWrapperApi[Model] = {
     val modelCondFactoryTyped = modelConditionFactory.ofWithCl(modelCl)

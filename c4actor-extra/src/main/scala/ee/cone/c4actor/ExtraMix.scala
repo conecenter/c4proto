@@ -92,7 +92,6 @@ trait RichDataAppBase extends RichDataCompApp
   with ComponentProviderApp
   with ProtocolsApp
   with AssemblesApp
-  with DefaultModelFactoriesApp
 {
   lazy val byPriority: ByPriority = resolveSingle(classOf[ByPriority])
   lazy val qAdapterRegistry: QAdapterRegistry = resolveSingle(classOf[QAdapterRegistry])
@@ -101,7 +100,7 @@ trait RichDataAppBase extends RichDataCompApp
   lazy val richRawWorldReducer: RichRawWorldReducer = resolveSingle(classOf[RichRawWorldReducer])
   lazy val indexUtil: IndexUtil = resolveSingle(classOf[IndexUtil])
   lazy val idGenUtil: IdGenUtil = resolveSingle(classOf[IdGenUtil])
-  lazy val defaultModelRegistry: DefaultModelRegistry = resolveSingle(classOf[DefaultModelRegistry])
+  lazy val modelFactory: ModelFactory = resolveSingle(classOf[ModelFactory])
   lazy val readModelUtil: ReadModelUtil = resolveSingle(classOf[ReadModelUtil])
   lazy val indexUpdater: IndexUpdater = resolveSingle(classOf[IndexUpdater])
   lazy val backStageFactory: BackStageFactory = resolveSingle(classOf[BackStageFactory])
@@ -164,12 +163,6 @@ trait UpdatesProcessorsApp extends ComponentsApp {
   private lazy val processorsComponent = provide(classOf[UpdatesPreprocessor], ()=>processors)
   override def components: List[Component] = processorsComponent :: super.components
   def processors: List[UpdatesPreprocessor] = Nil
-}
-
-trait DefaultModelFactoriesApp extends ComponentsApp {
-  private lazy val defaultModelFactoriesComponent = provide(classOf[DefaultModelFactory[_]], ()=>defaultModelFactories)
-  override def components: List[Component] = defaultModelFactoriesComponent :: super.components
-  def defaultModelFactories: List[DefaultModelFactory[_]] = Nil
 }
 
 trait SimpleAssembleProfilerApp extends SimpleAssembleProfilerCompApp with ComponentProviderApp {
