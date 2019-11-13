@@ -59,10 +59,13 @@ object ProtocolGenerator extends Generator {
         pMods.copy(resultType=rt, factoryName=fact)
       case mod"@ShortName(${Lit(shortName:String)})" if pMods.shortName.isEmpty =>
         pMods.copy(shortName=Option(shortName))
+      /*
       case mod"@GenLens" => pMods
       case mod"@Getters" => pMods
       case mod"@deprecated(...$notes)" => pMods
       case t: Tree => Utils.parseError(t, parseContext)
+      */
+      case _ => pMods
     })
     import protoMods.{resultType,factoryName}
     val Seq(params) = cl.params
@@ -73,10 +76,11 @@ object ProtocolGenerator extends Generator {
             fMods.copy(id = Option(id))
           case mod"@ShortName(${Lit(shortName:String)})" =>
             fMods.copy(shortName = Option(shortName))
-          case mod"@deprecated(...$notes)" => fMods
+          /*case mod"@deprecated(...$notes)" => fMods
           case mod"@Meta(...$exprss)" => fMods
           case t: Tree =>
-            Utils.parseError(t, parseContext)
+            Utils.parseError(t, parseContext)*/
+          case _ => fMods
         })
         val tp = tpeopt.asInstanceOf[Option[Type]].get
         val id = fieldProps.id.get
