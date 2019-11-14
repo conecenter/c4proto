@@ -8,11 +8,13 @@ import ee.cone.c4proto.{MetaProp, c4}
   defaultModelInitializers: List[DefaultModelInitializer[_]],
   qAdapterRegistry: QAdapterRegistry,
   universalProtoAdapter: ProtoAdapter[UniversalNode],
-  srcIdAdapter: ProtoAdapter[SrcId]
+  srcIdAdapter: ProtoAdapter[SrcId],
+  universalNodeFactory: UniversalNodeFactory
 )(
   val reg: Map[String,DefaultModelInitializer[_]] =
     CheckedMap(defaultModelInitializers.map(f=>f.valueClass.getName->f))
 ) extends ModelFactory {
+  import universalNodeFactory._
   def process[P<:Product](className: String, basedOn: Option[P], srcId: SrcId): P = {
     val adapter = qAdapterRegistry.byName(className)
     val node = makeUniversalNode(adapter.props.head, srcId)
@@ -25,12 +27,12 @@ import ee.cone.c4proto.{MetaProp, c4}
   private def makeUniversalNode(headProp: MetaProp, srcId: SrcId): UniversalNode = {
     val headPropClass = headProp.typeProp.clName
     val propImpl = if (headPropClass == classOf[SrcId].getName) {
-      UniversalPropImpl(headProp.id, srcId)(srcIdAdapter)
+      prop(headProp.id, srcId, srcIdAdapter)
     } else {  //recursion
       // Dimik: not sure about overriding complex structures
       val chAdapter = qAdapterRegistry.byName(headPropClass)
-      UniversalPropImpl(headProp.id, makeUniversalNode(chAdapter.props.head, srcId))(universalProtoAdapter)
+      prop(headProp.id, makeUniversalNode(chAdapter.props.head, srcId), universalProtoAdapter)
     }
-    UniversalNodeImpl(propImpl :: Nil)
+    node(propImpl :: Nil)
   }
 }

@@ -1,6 +1,6 @@
 package ee.cone.c4actor.rdb_impl
 
-import com.squareup.wire.ProtoAdapter
+import com.squareup.wire.{FieldEncoding, ProtoAdapter, ProtoReader, ProtoWriter}
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets.UTF_8
 import java.time.Instant
@@ -10,7 +10,7 @@ import FromExternalDBProtocol.B_DBOffset
 import ToExternalDBProtocol.B_HasState
 import ToExternalDBTypes.{NeedSrcId, PseudoOrigNeedSrcId}
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.QProtocol.{S_Firstborn, N_Update}
+import ee.cone.c4actor.QProtocol.{N_Update, S_Firstborn}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.rdb_impl.ToExternalDBAssembleTypes.PseudoOrig
@@ -91,7 +91,7 @@ trait  ToExternalDBItemAssembleUtil {
     itemToHasState(item)
 }
 
-@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase extends   LazyLogging{
+@c4assemble("ToExternalDBSyncApp") class ToExternalDBTxAssembleBase(rDBTypes: RDBTypes) extends   LazyLogging{
   type TypeHex = String
   def joinTasks(
     key: SrcId,
@@ -114,7 +114,7 @@ trait  ToExternalDBItemAssembleUtil {
   def join(
     key: SrcId,
     @by[TypeHex] tasks: Values[ToExternalDBTask]
-  ): Values[(SrcId,TxTransform)] = List(WithPK(ToExternalDBTx(key, tasks.toList)))
+  ): Values[(SrcId,TxTransform)] = List(WithPK(ToExternalDBTx(key, tasks.toList)(rDBTypes)))
 }
 
 case class ToExternalDBTask(
@@ -126,7 +126,7 @@ case class ToExternalDBTask(
 
 case object RDBSleepUntilKey extends TransientLens[Map[SrcId,(Instant,Option[B_HasState])]](Map.empty)
 
-case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends TxTransform with LazyLogging {
+case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask])(rDBTypes: RDBTypes) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = {
     val now = Instant.now()
     tasks.find{ task =>
@@ -136,7 +136,7 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
     }.map{ task => WithJDBCKey.of(local) { conn =>
       import task.{from,to}
       val registry = QAdapterRegistryKey.of(local)
-      val protoToString = new ProtoToString(registry)
+      val protoToString = new ProtoToString(registry,rDBTypes)
       def recode(stateOpt: Option[B_HasState]) = stateOpt.map{ state =>
         protoToString.recode(state.valueTypeId, state.value)
       }.getOrElse(("",""))
@@ -176,15 +176,15 @@ case class ToExternalDBTx(typeHex: SrcId, tasks: List[ToExternalDBTask]) extends
   )
 }
 
-@c4assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase   {
+@c4assemble("FromExternalDBSyncApp") class FromExternalDBSyncAssembleBase(indentedParser: IndentedParser) {
   def joinTxTransform(
     key: SrcId,
     first: Each[S_Firstborn]
   ): Values[(SrcId,TxTransform)] =
-    List("externalDBSync").map(k=>k->FromExternalDBSyncTransform(k))
+    List("externalDBSync").map(k=>k->FromExternalDBSyncTransform(k)(indentedParser))
 }
 
-case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform with LazyLogging {
+case class FromExternalDBSyncTransform(srcId:SrcId)(indentedParser: IndentedParser) extends TxTransform with LazyLogging {
   def transform(local: Context): Context = WithJDBCKey.of(local){ conn =>
     val offset =
       ByPK(classOf[B_DBOffset]).of(local).getOrElse(srcId, B_DBOffset(srcId, 0L))
@@ -194,23 +194,25 @@ case class FromExternalDBSyncTransform(srcId:SrcId) extends TxTransform with Laz
     //  .map(n=>LEvent.add(LEvent.update(n)))
     if(textEncoded.isEmpty) local else {
       logger.debug(s"textEncoded $textEncoded")
-      WriteModelAddKey.of(local)((new IndentedParser).toUpdates(textEncoded))(local)
+      WriteModelAddKey.of(local)(indentedParser.toUpdates(textEncoded))(local)
     }
   }
 }
 
-class IndentedParser(
+@c4("FromExternalDBSyncApp") class IndentedParser(
+  universalProtoAdapter: ProtoAdapter[UniversalNode], rDBTypes: RDBTypes, universalNodeFactory: UniversalNodeFactory,
   splitter: Char = ' ', lineSplitter: String = "\n"
 ) {
   //@tailrec final
   private def parseProp(key: String, value: List[String]): UniversalProp = {
+    import universalNodeFactory._
     val Array(xHex,handlerName) = key.split(splitter)
     val ("0x", hex) = xHex.splitAt(2)
     val tag = Integer.parseInt(hex, 16)
     handlerName match {
-      case "Node" => UniversalPropImpl[UniversalNode](tag,UniversalNodeImpl(parseProps(value, Nil)))(UniversalProtoAdapter)
-      case "Delete" => UniversalPropImpl(tag,UniversalDeleteImpl(parseProps(value, Nil)))(UniversalDeleteProtoAdapter)
-      case _ => RDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
+      case "Node" => prop[UniversalNode](tag,node(parseProps(value, Nil)),universalProtoAdapter)
+      case "Delete" => prop(tag,UniversalDeleteImpl(parseProps(value, Nil)),UniversalDeleteProtoAdapter)
+      case _ => rDBTypes.toUniversalProp(tag,handlerName,value.mkString(lineSplitter))
     }
   }
   @scala.annotation.tailrec
@@ -229,7 +231,7 @@ class IndentedParser(
 
   def toUpdates(textEncoded: String): List[N_Update] = {
     val lines = textEncoded.split(lineSplitter).filter(_.nonEmpty).toList
-    val universalNode = UniversalNodeImpl(parseProps(lines, Nil))
+    val universalNode = universalNodeFactory.node(parseProps(lines, Nil))
     //println(PrettyProduct.encode(universalNode))
     universalNode.props.map { prop =>
       val (srcId, value) = prop.value match {
@@ -241,7 +243,7 @@ class IndentedParser(
   }
 }
 
-class ProtoToString(registry: QAdapterRegistry){
+class ProtoToString(registry: QAdapterRegistry, rDBTypes: RDBTypes){
   private def esc(id: Long, handler: String, value: String): String =
     s"\n${Hex(id)} $handler${value.replace("\n","\n ")}"
   private def encode(id: Long, p: Any): String = p match {
@@ -254,7 +256,7 @@ class ProtoToString(registry: QAdapterRegistry){
         case(prop,i) => encode(prop.id, p.productElement(i))
       }.mkString)
     case e: Object =>
-      esc(id, RDBTypes.shortName(e.getClass), s"\n${RDBTypes.encode(e)}")
+      esc(id, rDBTypes.shortName(e.getClass), s"\n${rDBTypes.encode(e)}")
   }
   def recode(valueTypeId: Long, value: ByteString): (String,String) =
     registry.byId.get(valueTypeId).map{ adapter =>
@@ -267,7 +269,8 @@ class ProtoToString(registry: QAdapterRegistry){
 
 object Hex { def apply(i: Long): String = "0x%04x".format(i) }
 
-object RDBTypes {
+@c4("RDBSyncApp") class RDBTypes(universalProtoAdapter: ProtoAdapter[UniversalNode], universalNodeFactory: UniversalNodeFactory) {
+  import universalNodeFactory._
   def encode(p: Object): String = p match {
     case v: String => v
     case v: java.lang.Boolean => if(v) "T" else ""
@@ -280,19 +283,29 @@ object RDBTypes {
   def shortName(cl: Class[_]): String = cl.getName.split("\\.").last
   def toUniversalProp(tag: Int, typeName: String, value: String): UniversalProp = typeName match {
     case "String" =>
-      UniversalPropImpl[String](tag,value)(ProtoAdapter.STRING)
+      prop[String](tag,value,ProtoAdapter.STRING)
     case "ByteString" =>
-      UniversalPropImpl[okio.ByteString](tag, okio.ByteString.decodeBase64(value))(ProtoAdapter.BYTES)
+      prop[okio.ByteString](tag, okio.ByteString.decodeBase64(value),ProtoAdapter.BYTES)
     case "Boolean" =>
-      UniversalPropImpl[java.lang.Boolean](tag,value.nonEmpty)(ProtoAdapter.BOOL)
+      prop[java.lang.Boolean](tag,value.nonEmpty,ProtoAdapter.BOOL)
     case "Long" | "Instant" =>
-      UniversalPropImpl[java.lang.Long](tag,java.lang.Long.parseLong(value))(ProtoAdapter.SINT64)
+      prop[java.lang.Long](tag,java.lang.Long.parseLong(value),ProtoAdapter.SINT64)
     case "Integer" =>
-      UniversalPropImpl[java.lang.Integer](tag,java.lang.Integer.parseInt(value))(ProtoAdapter.SINT32)
+      prop[java.lang.Integer](tag,java.lang.Integer.parseInt(value),ProtoAdapter.SINT32)
     case "BigDecimal" =>
       val BigDecimalFactory(scale,bytes) = BigDecimal(value)
-      val scaleProp = UniversalPropImpl(0x0001,scale:Integer)(ProtoAdapter.SINT32)
-      val bytesProp = UniversalPropImpl(0x0002,bytes)(ProtoAdapter.BYTES)
-      UniversalPropImpl[UniversalNode](tag,UniversalNodeImpl(List(scaleProp,bytesProp)))(UniversalProtoAdapter)
+      val scaleProp = prop(0x0001,scale:Integer,ProtoAdapter.SINT32)
+      val bytesProp = prop(0x0002,bytes,ProtoAdapter.BYTES)
+      prop[UniversalNode](tag,node(List(scaleProp,bytesProp)),universalProtoAdapter)
   }
 }
+
+///
+
+object UniversalDeleteProtoAdapter extends ProtoAdapter[UniversalDeleteImpl](FieldEncoding.LENGTH_DELIMITED, classOf[UniversalDeleteImpl]) {
+  def encodedSize(value: UniversalDeleteImpl): Int = throw new Exception("Can't be called")
+  def encode(writer: ProtoWriter, value: UniversalDeleteImpl): Unit = throw new Exception("Can't be called")
+  def decode(reader: ProtoReader): UniversalDeleteImpl = throw new Exception("Can't be called")
+}
+
+case class UniversalDeleteImpl(props: List[UniversalProp]) extends UniversalNode
