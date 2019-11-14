@@ -23,10 +23,10 @@ import scala.annotation.tailrec
 }
 
 @c4("BasicLoggingApp") class DefLoggerConfigurator(
-  config: Config,
+  config: ListConfig,
   catchNonFatal: CatchNonFatal
 ) extends LoggerConfigurator(
-  Paths.get(config.get("C4LOGBACK_XML")) :: Paths.get("/tmp/logback.xml") :: Nil,
+  config.get("C4LOGBACK_XML").map(Paths.get(_)) ::: Paths.get("/tmp/logback.xml") :: Nil,
   catchNonFatal,
   5000
 ) with Executable
@@ -38,7 +38,7 @@ class LoggerConfigurator(paths: List[Path], catchNonFatal: CatchNonFatal, scanPe
       s"""
       <configuration>
         <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
-        ${paths.map(path=>if(Files.exists(path)) new String(Files.readAllBytes(path), UTF_8) else "").mkString}
+        ${paths.map(path=>if(Files.exists (path)) new String(Files.readAllBytes(path), UTF_8) else "").mkString}
         <appender name="CON" class="ch.qos.logback.core.ConsoleAppender">
           <encoder><pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern></encoder>
         </appender>

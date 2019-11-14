@@ -17,12 +17,6 @@ import ee.cone.c4vdom.{PathFactory, _}
   )
 }
 
-@c4("TestCanvasApp") class TestCanvasPublishMimeTypesProvider extends PublishMimeTypesProvider {
-  def get: List[(String, String)] = List(
-    "svg" -> "image/svg+xml"
-  )
-}
-
 /*
 trait TestCanvasViewApp extends ByLocationHashViewsApp {
   def testTags: TestTags[Context]

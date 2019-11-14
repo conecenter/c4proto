@@ -7,7 +7,7 @@ import ee.cone.c4actor.QProtocol.{S_Firstborn, S_Offset}
 import ee.cone.c4actor.Types.{NextOffset, SharedComponentMap}
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{ToByteString, c4}
+import ee.cone.c4proto.{ToByteString, c4, provide}
 
 import scala.collection.immutable.Map
 import scala.concurrent.ExecutionContext
@@ -25,12 +25,18 @@ object Merge {
     }
 }
 
+@c4("RichDataCompApp") class GetOffsetImpl(actorName: ActorName) extends GetOffset {
+  def of: SharedContext with AssembledContext => NextOffset =
+    ctx => ByPK(classOf[S_Offset]).of(ctx).get(actorName.value).fold(empty)(_.txId)
+  def empty: NextOffset = "0" * OffsetHexSize()
+}
+
 @c4("RichDataCompApp") class RichRawWorldReducerImpl(
-  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: ActorName, execution: Execution
+  toInjects: List[ToInject], toUpdate: ToUpdate, actorName: ActorName, execution: Execution, getOffset: GetOffsetImpl
 ) extends RichRawWorldReducer with LazyLogging {
   def reduce(contextOpt: Option[SharedContext with AssembledContext], addEvents: List[RawEvent]): RichContext = {
     val events = if(contextOpt.nonEmpty) addEvents else {
-      val offset = addEvents.lastOption.fold(emptyOffset)(_.srcId)
+      val offset = addEvents.lastOption.fold(getOffset.empty)(_.srcId)
       val firstborn = LEvent.update(S_Firstborn(actorName.value,offset)).toList.map(toUpdate.toUpdate)
       val (bytes, headers) = toUpdate.toBytes(firstborn)
       SimpleRawEvent(offset, ToByteString(bytes), headers) :: addEvents
@@ -50,11 +56,11 @@ object Merge {
       create(context.injected, nAssembled, context.executionContext)
     }
   }
-  def emptyOffset: NextOffset = "0" * OffsetHexSize()
+
   def create(injected: SharedComponentMap, assembled: ReadModel, executionContext: OuterExecutionContext): RichRawWorldImpl = {
     val preWorld = new RichRawWorldImpl(injected, assembled, executionContext, "")
     val threadCount = GetAssembleOptions.of(preWorld)(assembled).threadCount
-    val offset = ByPK(classOf[S_Offset]).of(preWorld).get(actorName.value).fold(emptyOffset)(_.txId)
+    val offset = getOffset.of(preWorld)
     new RichRawWorldImpl(injected, assembled, needExecutionContext(threadCount)(executionContext), offset)
   }
   def newExecutionContext(confThreadCount: Long): OuterExecutionContext = {
@@ -92,10 +98,10 @@ class RichRawWorldImpl(
   val executionContext: OuterExecutionContext,
   val offset: NextOffset
 ) extends RichContext
-
+/*
 object WorldStats {
   def make(context: AssembledContext): String = ""
-    /*Await.result(Future.sequence(
+    Await.result(Future.sequence(
       for {
         (worldKey,indexF) <- context.assembled.inner.toSeq.sortBy(_._1)
       } yield for {
@@ -104,26 +110,7 @@ object WorldStats {
         val sz = index.data.values.collect { case s: Seq[_] => s.size }.sum
         s"$worldKey : ${index.size} : $sz"
       }
-    ), Duration.Inf).mkString("\n")*/
+    ), Duration.Inf).mkString("\n")
 }
+*/
 
-class StatsObserver(inner: RawObserver) extends RawObserver with LazyLogging {
-  def activate(rawWorld: RichContext): RawObserver = rawWorld match {
-    case ctx: AssembledContext =>
-      logger.debug(WorldStats.make(ctx))
-      logger.info("Stats OK")
-      inner
-  }
-}
-
-class RichRawObserver(
-  observers: List[Observer[RichContext]],
-  completing: RawObserver
-) extends RawObserver {
-  def activate(rawWorld: RichContext): RawObserver = rawWorld match {
-    case richContext: RichContext =>
-      val newObservers = observers.flatMap(_.activate(richContext))
-      if(newObservers.isEmpty) completing.activate(rawWorld)
-      else new RichRawObserver(newObservers, completing)
-  }
-}

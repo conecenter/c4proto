@@ -13,7 +13,7 @@ my $clear = sub{
     my @found = `find $dir`;
     for(reverse sort @found){
         my $path = /^(.+)\n$/ ? $1 : die "[$_]";
-        my $pre = m{(.+)/(target|tmp|node_modules)/} ? $1 : next;
+        my $pre = m{(.+)/(target|tmp|node_modules|build)/} ? $1 : next;
         if(grep{-e "$_/build.sbt"} &$parents($pre)){
             unlink $path or rmdir $path or warn "can not clear '$path'";
         } else {
@@ -34,7 +34,7 @@ my $run_generator_outer = sub{
     &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path perl run.pl");
 };
 
-my $exclude = join " ", map{"--exclude='$_'"} 'target','tmp','.git','.idea','generator';
+my $exclude = join " ", map{"--exclude='$_'"} 'target','tmp','node_modules','build','.git','.idea','generator';
 
 my $build_do = sub{
    my($clean)=@_;
@@ -53,6 +53,7 @@ my $build_some_server = sub{
     &$clear() if $clean;
     &$run_generator_outer();
     my $port = $ENV{C4BUILD_PORT}-0;
+    print "C4BUILD_PORT: $port\n";
     return &$build_do() if !$port;
     my $dir = &$pwd();
     my $rdir = "/c4/c4proto";

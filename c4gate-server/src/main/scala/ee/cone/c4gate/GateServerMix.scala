@@ -3,13 +3,14 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4proto.{c4, c4app, provide}
 
+/*
 @c4app class PublishAppBase extends ServerCompApp
   with EnvConfigCompApp with VMExecutionApp
   with KafkaProducerApp with KafkaConsumerApp
   with PublishingCompApp
   with NoAssembleProfilerCompApp
   with RemoteRawSnapshotApp
-  with NoObserversApp
+  with NoObserversApp*/
 
 ////
 

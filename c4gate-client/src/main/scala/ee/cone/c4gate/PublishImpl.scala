@@ -3,52 +3,79 @@ package ee.cone.c4gate
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
+import java.time.Instant
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4actor.QProtocol.S_Firstborn
+import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4assemble.Types.{Each, Values}
+import ee.cone.c4assemble.{Single, c4assemble}
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
 import ee.cone.c4proto.{ToByteString, c4}
+import okio.ByteString
 
 import scala.collection.immutable.Seq
 
 //todo un-publish
 
-@c4("PublishingCompApp") class PublishingInitialObserverProvider(
-  qMessages: QMessages,
+import scala.jdk.CollectionConverters.IterableHasAsScala
+
+object DirInfo {
+  def sortedList(dir: Path): List[Path] =
+    FinallyClose(Files.newDirectoryStream(dir))(_.asScala.toList).sorted
+  def deepFiles(path: Path): List[Path] = {
+    if(!Files.exists(path)) Nil
+    else if(Files.isDirectory(path)) sortedList(path).flatMap(deepFiles)
+    else List(path) //Files.isRegularFile(path)
+  }
+}
+
+sealed trait LastPublishState extends Product
+case object LastPublishStateKey extends TransientLens[LastPublishState](NotCheckedLastPublishState)
+case object NotCheckedLastPublishState extends LastPublishState
+case object NoFileLastPublishState extends LastPublishState
+case class FileLastPublishState(content: ByteString) extends LastPublishState
+
+@c4assemble("PublishingCompApp") class PublishingAssembleBase(publishing: Publishing){
+  def join(
+    srcId: SrcId,
+    firstborn: Each[S_Firstborn]
+  ): Values[(SrcId,TxTransform)] =
+    List(WithPK(PublishingTx("PublishingTx")(publishing)))
+}
+
+case class PublishingTx(srcId: SrcId)(publishing: Publishing) extends TxTransform {
+  def transform(local: Context): Context = publishing.transform(local)
+}
+
+@c4("PublishingCompApp") class Publishing(
   idGenUtil: IdGenUtil,
   publishFromStringsProviders: List[PublishFromStringsProvider],
   mimeTypesProviders: List[PublishMimeTypesProvider],
-  compressor: PublishFullCompressor
+  publishFullCompressor: PublishFullCompressor,
 )(
-  publishDir: String = "htdocs",
-  publishFromStrings: List[(String,String)] = publishFromStringsProviders.flatMap(_.get),
-  getMimeType: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get
-) extends InitialObserverProvider(Option(new PublishingObserver(compressor.value,qMessages,idGenUtil,publishDir,publishFromStrings,getMimeType)))
-
-class PublishingObserver(
-  compressor: Compressor,
-  qMessages: QMessages,
-  idGenUtil: IdGenUtil,
-  fromDir: String,
-  fromStrings: List[(String,String)],
-  mimeTypes: String=>Option[String]
-) extends Observer[RichContext] with LazyLogging {
-  def activate(global: RichContext): Seq[Observer[RichContext]] = {
-    //println("AAA")
-    logger.debug("publish started")
-    val fromPath = Paths.get(fromDir)
-    val visitor = new PublishFileVisitor(fromPath,publish(global))
-    val depth = Integer.MAX_VALUE
-    val options = java.util.EnumSet.of(FileVisitOption.FOLLOW_LINKS)
-    Files.walkFileTree(fromPath, options, depth, visitor)
-    fromStrings.foreach{ case(path,body) =>
-      publish(global)(path,body.getBytes(UTF_8))
+  mimeTypes: String=>Option[String] = mimeTypesProviders.flatMap(_.get).toMap.get,
+  compressor: Compressor = publishFullCompressor.value
+) extends LazyLogging {
+  def transform(local: Context): Context = { //Seq[Observer[RichContext]]
+    val fromPath = Paths.get("htdocs")
+    val publishState =
+      Option(fromPath.resolve("publish_time")).filter(Files.exists(_))
+      .map(path=>FileLastPublishState(ToByteString(Files.readAllBytes(path))))
+      .getOrElse(NoFileLastPublishState)
+    if(LastPublishStateKey.of(local) == publishState)
+      SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
+    else {
+      logger.debug("publish started")
+      val events =
+        publishFromStringsProviders.flatMap(_.get).flatMap{ case(path,body) => publish(path,body.getBytes(UTF_8))(local)} ++
+          DirInfo.deepFiles(fromPath).flatMap(file=>publish(s"/${fromPath.relativize(file)}",Files.readAllBytes(file))(local))
+      logger.debug("publish finishing")
+      TxAdd(events).andThen(LastPublishStateKey.set(publishState))(local)
     }
-    logger.debug("publish finished")
-    //println("BBB")
-    Nil
   }
-  def publish(global: RichContext)(path: String, body: Array[Byte]): Unit = {
+  def publish(path: String, body: Array[Byte]): Context=>Seq[LEvent[Product]] = local => {
     val pointPos = path.lastIndexOf(".")
     val ext = if(pointPos<0) "" else path.substring(pointPos+1)
     val byteString = compressor.compress(ToByteString(body))
@@ -61,25 +88,14 @@ class PublishingObserver(
       N_Header("content-encoding", compressor.name) ::
       mimeType.map(N_Header("content-type",_)).toList
     val publication = S_HttpPublication(path,headers,byteString,None)
-    val existingPublications = ByPK(classOf[S_HttpPublication]).of(global)
+    val existingPublications = ByPK(classOf[S_HttpPublication]).of(local)
     //println(s"${existingPublications.getOrElse(path,Nil).size}")
     if(existingPublications.get(path).contains(publication)) {
       logger.debug(s"$path (${byteString.size}) exists")
+      Nil
     } else {
-      val local = new Context(global.injected, global.assembled, global.executionContext, Map.empty)
-      TxAdd(LEvent.update(publication)).andThen(qMessages.send)(local)
       logger.debug(s"$path (${byteString.size}) published")
+      LEvent.update(publication)
     }
-  }
-}
-
-class PublishFileVisitor(
-  fromPath: Path, publish: (String,Array[Byte])=>Unit
-) extends SimpleFileVisitor[Path] {
-  override def visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult = {
-    val path = s"/${fromPath.relativize(file)}"
-    val body = Files.readAllBytes(file)
-    publish(path,body)
-    FileVisitResult.CONTINUE
   }
 }

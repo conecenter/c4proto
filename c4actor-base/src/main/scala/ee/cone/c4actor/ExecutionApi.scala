@@ -33,6 +33,10 @@ trait Executable extends Runnable
 trait Config {
   def get(key: String): String
 }
+trait ListConfig {
+  def get(key: String): List[String]
+}
+
 
 case class ActorName(value: String)
 

@@ -6,7 +6,7 @@ import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor.{Config, Context, SleepUntilKey, TxTransform, WithPK}
+import ee.cone.c4actor.{Config, Context, ListConfig, SleepUntilKey, TxTransform, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, byEq, c4assemble}
 import ee.cone.c4gate.PrometheusPostSettingsObj.PrometheusPushId
@@ -14,10 +14,10 @@ import ee.cone.c4proto.{ToByteString, c4, provide}
 
 import scala.util.Try
 
-@c4("PrometheusPostApp") class PrometheusPostSettingsProvider(config: Config) {
+@c4("PrometheusPostApp") class PrometheusPostSettingsProvider(config: ListConfig) {
   def defaultPrometheusPostRefresh: Long = 30L * 1000L
   @provide def get: Seq[PrometheusPostSettings] =
-    Try(config.get("C4PROMETHEUS_POST_URL")).toOption.toList
+    config.get("C4PROMETHEUS_POST_URL")
       .map(url => PrometheusPostSettings(url, defaultPrometheusPostRefresh))
 }
 

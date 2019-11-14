@@ -69,30 +69,25 @@ abstract class InnerTransientLens[Item](key: TransientLens[Item]) extends Abstra
     value => m => m + (key -> value.asInstanceOf[Object])
 }
 
-class TxObserver(val option: Option[Observer[RichContext]])
-
-@c4("ServerCompApp") class TxToRichObserver(inner: TxObserver)
-  extends InitialObserverProvider(inner.option)
-
-@c4("NoObserversApp") class NoTxObserver extends TxObserver(None)
+class TxObserver(val value: Observer[RichContext])
 
 @c4("SerialObserversApp") class SerialTxObserver(
   transforms: TxTransforms
-) extends TxObserver(Option(new SerialObserver(Map.empty)(transforms)))
+) extends TxObserver(new SerialObserver(Map.empty)(transforms))
 
 @c4("ParallelObserversApp") class ParallelTxObserver(
   transforms: TxTransforms,
   execution: Execution
-) extends TxObserver(Option(new ParallelObserver(Map.empty,transforms,execution)))
+) extends TxObserver(new ParallelObserver(Map.empty,transforms,execution))
 
 class SerialObserver(localStates: Map[SrcId,TransientMap])(
   transforms: TxTransforms
 ) extends Observer[RichContext] {
-  def activate(global: RichContext): Seq[Observer[RichContext]] = {
+  def activate(global: RichContext): Observer[RichContext] = {
     val nLocalStates = transforms.get(global).transform{ case(key,handle) =>
       handle(localStates.getOrElse(key,Map.empty))
     }
-    List(new SerialObserver(nLocalStates)(transforms))
+    new SerialObserver(nLocalStates)(transforms)
   }
 }
 
@@ -102,7 +97,7 @@ class ParallelObserver(
   execution: Execution
 ) extends Observer[RichContext] with LazyLogging {
   private def empty: SkippingFuture[TransientMap] = execution.skippingFuture(Map.empty)
-  def activate(global: RichContext): Seq[Observer[RichContext]] = {
+  def activate(global: RichContext): Observer[RichContext] = {
     val inProgressMap = localStates.filter{ case(k,v) =>
       v.value match {
         case None => true // inProgress
@@ -121,7 +116,7 @@ class ParallelObserver(
       s"uncompleted: ${inProgressMap.values.count(_.value.isEmpty)}, " +
       s"just-mapped: ${toAdd.size}"
     )
-    List(new ParallelObserver(nLocalStates,transforms,execution))
+    new ParallelObserver(nLocalStates,transforms,execution)
   }
 }
 

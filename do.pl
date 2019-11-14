@@ -143,8 +143,9 @@ push @tasks, ["inbox_copy", sub{
 my $client = sub{
     my($inst)=@_;
     unlink or die $! for <$build_dir/*>;
-    sy("cd client && npm install") if $inst;
-    sy("cd client && ./node_modules/webpack/bin/webpack.js");# -d
+    my $run = "./node_modules/webpack/bin/webpack.js";
+    sy("cd client && npm install") if $inst || !-e $run;
+    sy("cd client && $run");# -d
     $build_dir
 };
 
@@ -173,7 +174,8 @@ push @tasks, ["gate_publish", sub{
     my $env = &$get_env();
     my $build_dir = &$client(0);
     $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
-    sy("$env ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
+    &$put_text("htdocs/publish_time",time);
+    #sy("$env ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
     my $env = &$get_env();
