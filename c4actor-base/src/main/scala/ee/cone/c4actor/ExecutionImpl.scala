@@ -7,6 +7,7 @@ import java.util.concurrent.{ExecutorService, Executors, ForkJoinPool, ForkJoinW
 import java.util.concurrent.atomic.AtomicReference
 
 import com.typesafe.scalalogging.LazyLogging
+import ee.cone.c4assemble.Single
 import ee.cone.c4proto.{AbstractComponents, c4}
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -139,14 +140,18 @@ abstract class BaseServerMain(app: ExecutableApp){
 }
 
 object ServerMain extends BaseServerMain(
-  Option(Class.forName((new EnvConfigImpl).get("C4STATE_TOPIC_PREFIX"))).get
+  Option(Class.forName((new SingleConfigImpl(new EnvConfigImpl)).get("C4STATE_TOPIC_PREFIX"))).get
     .newInstance().asInstanceOf[ExecutableApp]
 )
 
-@c4("EnvConfigCompApp") class EnvConfigImpl extends Config {
-  def get(key: String): String =
-    Option(System.getenv(key)).getOrElse(throw new Exception(s"Need ENV: $key"))
+@c4("EnvConfigCompApp") class EnvConfigImpl extends ListConfig {
+  def get(key: String): List[String] = Option(System.getenv(key)).toList
 }
+@c4("EnvConfigCompApp") class SingleConfigImpl(inner: ListConfig) extends Config {
+  def get(key: String): String =
+    Single[String](inner.get(key), (l:Seq[String])=>new Exception(s"Need single ENV: $key: $l"))
+}
+
 @c4("EnvConfigCompApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
 
 @c4("RichDataCompApp") class CatchNonFatalImpl extends CatchNonFatal with LazyLogging {

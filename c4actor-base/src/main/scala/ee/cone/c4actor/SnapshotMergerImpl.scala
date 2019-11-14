@@ -43,7 +43,7 @@ class SnapshotMergerImpl(
 
 @c4("ServerCompApp") class SnapshotDifferImpl(
   toUpdate: ToUpdate,
-  reducer: RichRawWorldReducer,
+  getOffset: GetOffset,
   snapshotMaker: SnapshotMaker,
   snapshotLoader: SnapshotLoader
 ) extends SnapshotDiffer {
@@ -56,7 +56,7 @@ class SnapshotMergerImpl(
     (deletes.toList ::: updates).sortBy(toUpdate.by)
   }
   def needCurrentSnapshot: Context=>RawEvent = local => {
-    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(reducer.reduce(Option(local),Nil).offset)))
+    val rawSnapshot = snapshotMaker.make(NextSnapshotTask(Option(getOffset.of(local))))
     val Seq(Some(currentFullSnapshot)) = rawSnapshot.map(snapshotLoader.load)
     currentFullSnapshot
   }

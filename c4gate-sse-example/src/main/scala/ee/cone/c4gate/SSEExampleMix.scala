@@ -13,7 +13,7 @@ trait CanvasAppBase
   with BranchApp
   with AlienExchangeApp
   with NoAssembleProfilerCompApp
-  with ManagementApp
+  with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp
   with BasicLoggingApp
 
@@ -30,11 +30,10 @@ trait TestTxLogAppBase
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UICompApp
-  with PublishingCompApp
   with TestTagsApp
   with CanvasApp
   with NoAssembleProfilerCompApp
-  with ManagementApp
+  with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with ModelAccessFactoryCompApp
@@ -48,10 +47,9 @@ trait TestTxLogAppBase
   with KafkaProducerApp with KafkaConsumerApp
   with ParallelObserversApp
   with UICompApp
-  with PublishingCompApp
   with TestTagsApp
   with SimpleAssembleProfilerCompApp
-  with ManagementApp
+  with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with ModelAccessFactoryCompApp
@@ -70,7 +68,7 @@ trait TestTxLogAppBase
   with UICompApp
   with TestTagsApp
   with NoAssembleProfilerCompApp
-  with ManagementApp
+  with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp
   with BasicLoggingApp
   with AuthProtocolApp
@@ -83,7 +81,7 @@ trait TestTxLogAppBase
   with UICompApp
   with TestTagsApp
   with NoAssembleProfilerCompApp
-  with ManagementApp
+  with ManagementApp with PublishingCompApp
   with RemoteRawSnapshotApp
   with PublicViewAssembleApp
   with CommonFilterApp

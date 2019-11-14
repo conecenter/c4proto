@@ -42,8 +42,8 @@ import scala.annotation.tailrec
     })
   }
   @tailrec private def iteration(
-    consumer: Consumer, world: RichContext, observer: RawObserver
-  ): Unit = if(!observer.isInstanceOf[FinishedRawObserver]){
+    consumer: Consumer, world: RichContext, observer: Observer[RichContext]
+  ): Unit = {
     val events = consumer.poll()
     if(events.nonEmpty){
       val latency = System.currentTimeMillis-events.map{ case e: MTime => e.mTime}.min //check rec.timestampType == TimestampType.CREATE_TIME ?

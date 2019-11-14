@@ -97,8 +97,6 @@ class LongTxWarnPeriod(val value: Long)
 class UpdateCompressionMinSize(val value: Long)
 class LongAssembleWarnPeriod(val value: Long)
 
-class InitialObserverProvider(val option: Option[Observer[RichContext]])
-
 trait ContextFactory { // for tests only
   def updated(updates: List[N_Update]): Context
 }
@@ -220,7 +218,7 @@ object TxAdd {
 }
 
 trait Observer[Message] {
-  def activate(world: Message): Seq[Observer[Message]]
+  def activate(world: Message): Observer[Message]
 }
 
 case object TxTransformOrigMeta{
@@ -247,17 +245,14 @@ trait RawEvent extends Product {
 }
 case class SimpleRawEvent(srcId: SrcId, data: ByteString, headers: List[RawHeader]) extends RawEvent
 
+trait GetOffset extends Getter[SharedContext with AssembledContext,NextOffset]
+
 trait RichRawWorldReducer {
   def reduce(context: Option[SharedContext with AssembledContext], events: List[RawEvent]): RichContext
 }
 
-trait FinishedRawObserver extends RawObserver
-trait RawObserver {
-  def activate(rawWorld: RichContext): RawObserver
-}
-
 trait ProgressObserverFactory {
-  def create(endOffset: NextOffset): RawObserver
+  def create(endOffset: NextOffset): Observer[RichContext]
 }
 
 

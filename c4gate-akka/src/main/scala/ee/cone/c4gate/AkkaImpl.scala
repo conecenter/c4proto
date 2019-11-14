@@ -81,7 +81,7 @@ class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Mess
     for {
       mat <- akkaMat.get
       source = Source.actorRef[Message](100, OverflowStrategy.fail)
-      sink = Sink.fold(inner)((st, msg: Message) => st.flatMap(_.activate(msg)))
+      sink = Sink.fold(inner)((st, msg: Message) => st.map(_.activate(msg)))
       (actorRef,resF) = source.toMat(sink)(Keep.both).run()(mat)
     } yield {
       execution.fatal(_ => resF)

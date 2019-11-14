@@ -22,12 +22,6 @@ import ee.cone.c4vdom.Types.ViewRes
   )
 }
 
-@c4("TestCoWorkApp") class TestCoWorkPublishMimeTypesProvider extends PublishMimeTypesProvider {
-  def get: List[(String, String)] = List(
-    "html" -> "text/html; charset=UTF-8"
-  )
-}
-
 @fieldAccess object TestContentAccessBase {
   lazy val value: ProdLens[B_Content,String] = ProdLens.of(_.value)
 }
@@ -87,7 +81,7 @@ trait TestCoLeaderViewApp extends ByLocationHashViewsApp {
       seeds.map(seed(_)(List(styles.width(100), styles.height(100)), "/blank.html")(Nil))
   }
   private def stats: Context => Context = local => {
-    logger.info(WorldStats.make(local))
+    // logger.info(WorldStats.make(local))
     local
   }
 }
