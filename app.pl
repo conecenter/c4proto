@@ -56,7 +56,7 @@ my $build_some_server = sub{
     my $dir = &$pwd();
     my $rdir = "/c4/c4proto";
     local $ENV{C4BUILD_CLEAN} = $clean;
-    local $ENV{C4BUILD_CMD} = ". /c4p_alias.sh && cd $rdir && perl app.pl build_do $clean";
+    local $ENV{C4BUILD_CMD} = ". /c4p_alias.sh && cd $rdir && perl app.pl build_do";
     sy("perl $dir/generator/sync.pl $dir $rdir");
 };
 

@@ -123,7 +123,7 @@ class RootGenerator(generators: List[Generator]) {
           if(statements.isEmpty) statements
             else List(GeneratedCode(s"\npackage $n {")) ::: statements ::: List(GeneratedCode("\n}"))
         }
-      } yield res
+      } yield res;
       /*
       val patches = resStatements.collect{ case p: Patch => p }
       if(patches.nonEmpty){
@@ -134,7 +134,7 @@ class RootGenerator(generators: List[Generator]) {
         Files.write(path, patchedContent.getBytes(UTF_8))
         pathToData(path,rootCachePath)
       } else */
-
+      {
         val warnings = Lint.process(sourceStatements)
         val code = resStatements.flatMap{
           case c: GeneratedImport => List(c.content)
@@ -153,7 +153,7 @@ class RootGenerator(generators: List[Generator]) {
         val toData = contentWithLinks.getBytes(UTF_8)
         Files.write(cachePath,toData)
         toData
-
+      }
     }
   }
 
