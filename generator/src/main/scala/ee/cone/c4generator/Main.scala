@@ -117,12 +117,14 @@ class RootGenerator(generators: List[Generator]) {
           val parsedAll = packageStatementsList ::: parsedGenerated
           val compParseContext = new ParseContext(parsedAll, path.toString, n.syntax)
           val generated: List[Generated] = generatedWOComponents ::: ComponentsGenerator.get(compParseContext)
-          val patches: List[Patch] = generated.collect{ case p: Patch => p }
+          // val patches: List[Patch] = generated.collect{ case p: Patch => p }
           val statements: List[Generated] = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverse
-          if(patches.nonEmpty) patches else if(statements.isEmpty) statements
+          // if(patches.nonEmpty) patches else
+          if(statements.isEmpty) statements
             else List(GeneratedCode(s"\npackage $n {")) ::: statements ::: List(GeneratedCode("\n}"))
         }
       } yield res
+      /*
       val patches = resStatements.collect{ case p: Patch => p }
       if(patches.nonEmpty){
         val patchedContent = patches.distinct.sortBy(_.pos).foldRight(content)((patch,cont)=>
@@ -131,7 +133,8 @@ class RootGenerator(generators: List[Generator]) {
         println(s"patching $path")
         Files.write(path, patchedContent.getBytes(UTF_8))
         pathToData(path,rootCachePath)
-      } else {
+      } else */
+
         val warnings = Lint.process(sourceStatements)
         val code = resStatements.flatMap{
           case c: GeneratedImport => List(c.content)
@@ -150,7 +153,7 @@ class RootGenerator(generators: List[Generator]) {
         val toData = contentWithLinks.getBytes(UTF_8)
         Files.write(cachePath,toData)
         toData
-      }
+
     }
   }
 
@@ -240,7 +243,7 @@ object Util {
   def unBase(name: String, pos: Int)(f: String=>Seq[Generated]): Seq[Generated] =
     name match {
       case UnBase(n) => f(n)
-      case n => List(Patch(pos,"Base"))
+      case n => throw new Exception(s"can not unBase $n") //List(Patch(pos,"Base"))
     }
   def matchClass(stats: List[Stat]): List[ParsedClass] = stats.flatMap{
     case q"..$cMods class ${nameNode@Type.Name(name)}[..$typeParams] ..$ctorMods (...$params) extends ..$ext { ..$stats }" =>
@@ -268,7 +271,7 @@ trait Generator {
 sealed trait Generated
 case class GeneratedImport(content: String) extends Generated
 case class GeneratedCode(content: String) extends Generated
-case class Patch(pos: Int, content: String) extends Generated
+//case class Patch(pos: Int, content: String) extends Generated
 case class GeneratedTraitDef(name: String) extends Generated
 case class GeneratedTraitUsage(name: String) extends Generated
 case class GeneratedInnerCode(content: String) extends Generated
