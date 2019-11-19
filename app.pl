@@ -25,22 +25,18 @@ my $clear = sub{
 my $run_generator_outer = sub{
     my $src_dir = &$pwd();
     my $generator_path = "$src_dir/generator/target/c4gen";
-    my $io_dir = "$generator_path/src";
-    -e $io_dir and sy("rm -r $io_dir");
-    my @rel_paths = map{substr $_, length $src_dir} grep{-e "$_/src"} <$src_dir/c4*>;
-    @rel_paths || die;
-    sy("mkdir -p ".join " ",map{"$io_dir$_"}@rel_paths);
-    symlink "$src_dir$_/src","$io_dir$_/src" or die $! for @rel_paths;
+    (-e "$generator_path/src") ? sy("rm -r $generator_path/src") : sy("mkdir -p $generator_path");
+    my $src_dirs = join " ", grep{-e $_} map{"$_/src"} <$src_dir/c4*>;
+    sy("find $src_dirs -type f | sort > $generator_path/src");
     &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path perl run.pl");
 };
 
-my $exclude = join " ", map{"--exclude='$_'"} 'target','tmp','node_modules','build','.git','.idea','generator';
+#my $exclude = join " ", map{"--exclude='$_'"} 'target','tmp','node_modules','build','.git','.idea','generator';
 
 my $build_do = sub{
-   my($clean)=@_;
    my $dir = &$pwd();
    my $gen_dir = $dir;
-
+    &$run_generator_outer();
    #see /universal/
    #my $gen_dir = "$dir/tmp/c4proto";
    #sy("mkdir -p $gen_dir");
@@ -51,24 +47,21 @@ my $build_do = sub{
 my $build_some_server = sub{
     my($clean)=@_;
     &$clear() if $clean;
-    &$run_generator_outer();
     my $port = $ENV{C4BUILD_PORT}-0;
     print "C4BUILD_PORT: $port\n";
     return &$build_do() if !$port;
     my $dir = &$pwd();
     my $rdir = "/c4/c4proto";
-    my $to = 'c4@127.0.0.1';
-    my $ssh = "ssh -p$port";
-    sy("$ssh $to mkdir -p $rdir");
-    sy("rsync -e '$ssh' -av --del $exclude $dir/ $to:$rdir");
-    sy("$ssh $to '. /c4p_alias.sh && cd $rdir && perl app.pl build_do $clean'");
+    local $ENV{C4BUILD_CLEAN} = $clean;
+    local $ENV{C4BUILD_CMD} = ". /c4p_alias.sh && cd $rdir && perl app.pl build_do";
+    sy("perl $dir/generator/sync.pl $dir $rdir");
 };
 
 my @tasks;
 push @tasks, ["### build ###"];
 push @tasks, ["build_all", sub{ &$build_some_server(1); }];
 push @tasks, ["build_some_server", sub{ &$build_some_server(0); }];
-push @tasks, ["build_do", sub{ &$clear() if $_[0]-0; &$build_do() }];
+push @tasks, ["build_do", sub{ &$build_do() }];
 
 if($ARGV[0]) {
     my($cmd,@args)=@ARGV;

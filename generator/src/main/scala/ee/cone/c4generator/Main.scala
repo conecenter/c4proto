@@ -3,50 +3,44 @@ package ee.cone.c4generator
 import java.nio.file.{Files, Path, Paths}
 import java.util.UUID
 import java.nio.charset.StandardCharsets.UTF_8
-
 import scala.meta.parsers.Parsed.{Error, Success}
-
-//import scala.collection.JavaConverters.iterableAsScalaIterableConverter
 import scala.meta._
 import scala.jdk.CollectionConverters.IterableHasAsScala
-
-object FinallyClose {
-  def apply[A<:AutoCloseable,R](o: A)(f: A=>R): R = try f(o) finally o.close()
-  def apply[A,R](close: A=>Unit)(o: A)(f: A=>R): R = try f(o) finally close(o)
-}
-
-object DirInfo {
-  def sortedList(dir: Path): List[Path] =
-    FinallyClose(Files.newDirectoryStream(dir))(_.asScala.toList).sorted
-  def deepFiles(path: Path): List[Path] = {
-    if(!Files.exists(path)) Nil
-    else if(Files.isDirectory(path)) sortedList(path).flatMap(deepFiles)
-    else List(path) //Files.isRegularFile(path)
-  }
-}
+import scala.jdk.CollectionConverters.IteratorHasAsScala
 
 object Main {
   def defaultGenerators: List[Generator] = List(ImportGenerator,AssembleGenerator,ProtocolGenerator,FieldAccessGenerator,LensesGenerator,AppGenerator) //,UnBaseGenerator
   def main(args: Array[String]): Unit = new RootGenerator(defaultGenerators).run()
+  def toPrefix = "c4gen."
+  def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
+  def version: String = s"-w${env("C4GENERATOR_VER")}"
+  def rootPath = Paths.get(env("C4GENERATOR_PATH"))
+}
+import Main.{toPrefix,rootPath,version}
+
+case class WillGeneratorContext(fromFiles: List[Path])
+trait WillGenerator {
+  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])]
 }
 
 class RootGenerator(generators: List[Generator]) {
-  def version: String = s"-w${env("C4GENERATOR_VER")}"
-  def env(key: String): String = Option(System.getenv(key)).getOrElse(s"missing env $key")
+  def willGenerators: List[WillGenerator] = List(
+    new DefaultWillGenerator(generators),
+    new PublicPathsGenerator
+  )
+  //
+  def isGenerated(path: Path): Boolean = path.getFileName.toString.startsWith(toPrefix)
   def run(): Unit = {
-    val rootPath = Paths.get(env("C4GENERATOR_PATH"))
+    //println(s"1:${System.currentTimeMillis()}") //130
     val rootFromPath = rootPath.resolve("src")
-    val rootCachePath = rootPath.resolve("cache")
-    val fromPostfix = ".scala"
-    val toPrefix = "c4gen."
-    val files = DirInfo.deepFiles(rootFromPath).filter(_.toString.endsWith(fromPostfix))
-    val(wasFiles,fromFiles) = files.partition(_.getFileName.toString.startsWith(toPrefix))
-    Files.createDirectories(rootCachePath)
+    val(wasFiles,fromFiles) = Files.readAllLines(rootFromPath).asScala.map(Paths.get(_)).toList.partition(isGenerated)
+    //println(s"5:${System.currentTimeMillis()}") //150
     val was = (for { path <- wasFiles } yield path -> Files.readAllBytes(path)).toMap
-    val will = withIndex(for {
-      path <- fromFiles
-      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
-    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
+    //println(s"4:${System.currentTimeMillis()}") //1s
+    val willGeneratorContext = WillGeneratorContext(fromFiles)
+    val will = willGenerators.flatMap(_.get(willGeneratorContext))
+    assert(will.forall{ case(path,_) => isGenerated(path) })
+    //println(s"2:${System.currentTimeMillis()}")
     for(path <- was.keySet -- will.toMap.keys) {
       println(s"removing $path")
       Files.delete(path)
@@ -57,6 +51,19 @@ class RootGenerator(generators: List[Generator]) {
       println(s"saving $path")
       Files.write(path,data)
     }
+    //println(s"3:${System.currentTimeMillis()}")
+  }
+}
+
+class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
+  def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])] = {
+    val rootCachePath = rootPath.resolve("cache")
+    val fromPostfix = ".scala"
+    Files.createDirectories(rootCachePath)
+    withIndex(for {
+      path <- ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
+      toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
+    } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
   }
   def withIndex: List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
@@ -74,18 +81,18 @@ class RootGenerator(generators: List[Generator]) {
         val Seq(pkg) = links.map(_.pkg).distinct
         val content =
           s"\n// THIS FILE IS GENERATED; C4APPS: ${links.filter(_.expr=="CLASS").map(l=>s"$pkg.${l.app}").mkString(" ")}" +
-          s"\npackage $pkg" +
-          links.groupBy(_.app).toList.collect{ case (app,links) =>
-            val(classLinks,exprLinks) = links.partition(_.expr=="CLASS")
-            val tp = if(classLinks.nonEmpty) "class" else "trait"
-            val base = if(app.endsWith("DefApp")) "ee.cone.c4proto.ComponentsApp"
+            s"\npackage $pkg" +
+            links.groupBy(_.app).toList.collect{ case (app,links) =>
+              val(classLinks,exprLinks) = links.partition(_.expr=="CLASS")
+              val tp = if(classLinks.nonEmpty) "class" else "trait"
+              val base = if(app.endsWith("DefApp")) "ee.cone.c4proto.ComponentsApp"
               else s"${app}Base with ee.cone.c4proto.ComponentsApp"
-            s"\n$tp $app extends $base {" +
-            s"\n  override def components: List[ee.cone.c4proto.Component] = " +
-              exprLinks.map(c=> s"\n    ${c.expr} ::: ").mkString +
-            s"\n    super.components" +
-            s"\n}"
-          }.sorted.mkString
+              s"\n$tp $app extends $base {" +
+                s"\n  override def components: List[ee.cone.c4proto.Component] = " +
+                exprLinks.map(c=> s"\n    ${c.expr} ::: ").mkString +
+                s"\n    super.components" +
+                s"\n}"
+            }.sorted.mkString
         List(parentPath.resolve("c4gen.scala") -> content.getBytes(UTF_8))
       }
     }
@@ -117,21 +124,14 @@ class RootGenerator(generators: List[Generator]) {
           val parsedAll = packageStatementsList ::: parsedGenerated
           val compParseContext = new ParseContext(parsedAll, path.toString, n.syntax)
           val generated: List[Generated] = generatedWOComponents ::: ComponentsGenerator.get(compParseContext)
-          val patches: List[Patch] = generated.collect{ case p: Patch => p }
+          // val patches: List[Patch] = generated.collect{ case p: Patch => p }
           val statements: List[Generated] = generated.reverse.dropWhile(_.isInstanceOf[GeneratedImport]).reverse
-          if(patches.nonEmpty) patches else if(statements.isEmpty) statements
+          // if(patches.nonEmpty) patches else
+          if(statements.isEmpty) statements
             else List(GeneratedCode(s"\npackage $n {")) ::: statements ::: List(GeneratedCode("\n}"))
         }
-      } yield res
-      val patches = resStatements.collect{ case p: Patch => p }
-      if(patches.nonEmpty){
-        val patchedContent = patches.distinct.sortBy(_.pos).foldRight(content)((patch,cont)=>
-          cont.substring(0,patch.pos) + patch.content + cont.substring(patch.pos)
-        )
-        println(s"patching $path")
-        Files.write(path, patchedContent.getBytes(UTF_8))
-        pathToData(path,rootCachePath)
-      } else {
+      } yield res;
+      {
         val warnings = Lint.process(sourceStatements)
         val code = resStatements.flatMap{
           case c: GeneratedImport => List(c.content)
@@ -153,54 +153,6 @@ class RootGenerator(generators: List[Generator]) {
       }
     }
   }
-
-
-
-/*
-  def main(args: Array[String]): Unit = {
-    val rootPath = Paths.get(env("C4GENERATOR_PATH"))
-    val rootFromPath = rootPath.resolve("from")
-    for {
-      fromPath <- DirInfo.deepFiles(rootFromPath)
-      toPath = rootPath.resolve("to").resolve(rootFromPath.relativize(fromPath))
-      fromRealPath <- generate(fromPath,rootPath)
-    } yield {
-      Files.createDirectories(toPath.getParent)
-      Files.createLink(toPath,fromRealPath)
-    }
-  }
-  def generate(fromPath: Path, rootPath: Path): Option[Path] = {
-    if(!fromPath.toString.endsWith(".scala")) Option(fromPath) else {
-      val data = Files.readAllBytes(fromPath)
-      val uuid = UUID.nameUUIDFromBytes(data ++ version).toString
-      val rootCachePath = rootPath.resolve("cache")
-      Files.createDirectories(rootCachePath)
-      val cachePath = rootCachePath.resolve(uuid)
-      if(!Files.exists(cachePath)){
-        println(s"parsing $fromPath")
-        val content = new String(data,UTF_8).replace("\r\n","\n")
-        val source = dialects.Scala211(content).parse[Source]
-        val Parsed.Success(source"..$sourceStatements") = source
-        Lint.process(sourceStatements)
-        val packageStatements = for {
-          q"package $n { ..$packageStatements }" <- sourceStatements
-          ps <- packageStatements
-        } yield ps
-
-
-        //  sourceStatements.toList.flatMap{ case q"package $n { ..$packageStatements }" => packageStatements }
-
-        val res: String = packageStatements.foldRight(content){ (stat,cont)=>
-          AssembleGenerator.get
-          .orElse(ProtocolGenerator.get)
-          .orElse(FieldAccessGenerator.get)
-          .lift(stat).fold(cont)(_(cont))
-        }
-        Files.write(cachePath,/*s"/* --==C4-GENERATED==-- */\n$res"*/res.getBytes(UTF_8))
-      }
-      Option(cachePath)
-    }
-  }*/
 }
 
 object ImportGenerator extends Generator {
@@ -240,7 +192,7 @@ object Util {
   def unBase(name: String, pos: Int)(f: String=>Seq[Generated]): Seq[Generated] =
     name match {
       case UnBase(n) => f(n)
-      case n => List(Patch(pos,"Base"))
+      case n => throw new Exception(s"can not unBase $n") //List(Patch(pos,"Base"))
     }
   def matchClass(stats: List[Stat]): List[ParsedClass] = stats.flatMap{
     case q"..$cMods class ${nameNode@Type.Name(name)}[..$typeParams] ..$ctorMods (...$params) extends ..$ext { ..$stats }" =>
@@ -268,7 +220,7 @@ trait Generator {
 sealed trait Generated
 case class GeneratedImport(content: String) extends Generated
 case class GeneratedCode(content: String) extends Generated
-case class Patch(pos: Int, content: String) extends Generated
+//case class Patch(pos: Int, content: String) extends Generated
 case class GeneratedTraitDef(name: String) extends Generated
 case class GeneratedTraitUsage(name: String) extends Generated
 case class GeneratedInnerCode(content: String) extends Generated
@@ -295,6 +247,49 @@ object Lint {
       }
     }
 }
+
+case class PublicPathRoot(basePath: Path, genPath: Path, pkgName: String, publicPath: Path, modName: String)
+class PublicPathsGenerator extends WillGenerator {
+  def matchThisOrParent(cond: Path=>Boolean): Path=>Option[Path] = {
+    def inner(path: Path): Option[Path] =
+      if(cond(path)) Option(path) else Option(path.getParent).flatMap(inner)
+    inner
+  }
+  def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
+    val roots: List[PublicPathRoot] = for {
+      path <- ctx.fromFiles.filter(_.getFileName.toString == "ht.scala")
+      scalaPath <- matchThisOrParent(_.getFileName.toString=="scala")(path).toList
+    } yield {
+      val basePath = scalaPath.getParent
+      val genPath = path.resolveSibling("c4gen.htdocs.scala")
+      val pkgPath = scalaPath.relativize(path.getParent)
+      val publicPath = basePath.resolve("htdocs").resolve(pkgPath)
+      val pkgName = pkgPath.iterator.asScala.mkString(".")
+      val modName = s"${basePath.getFileName}.$pkgName"
+      PublicPathRoot(basePath,genPath,pkgName,publicPath,modName)
+    }
+    val isModRoot = roots.map(_.publicPath).toSet
+    val toModRoot = matchThisOrParent(isModRoot)
+    val pathByRoot = ctx.fromFiles.groupBy(toModRoot)
+    val RefOk = """([\w\-\./]+)""".r
+    val links = roots.groupMap(_.basePath.resolve("c4gen.ht.links"))(
+      root=>s"mod/${root.modName}/src/main/htdocs ${root.publicPath}"
+    ).transform((path,lines)=>lines.mkString("\n").getBytes(UTF_8)).toList.sortBy(_._1)
+    val code = roots.map { (root:PublicPathRoot) =>
+      val defs = pathByRoot.getOrElse(Option(root.publicPath),Nil)
+        .map(root.publicPath.relativize(_).toString).map{
+          case RefOk(r) => s"""    def `/$r` = "/mod/${root.modName}/$r" """
+        }
+      val lines = if(defs.isEmpty) Nil else
+        "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
+        s"package ${root.pkgName}" ::
+        "object PublicPath {" :: defs ::: "}" :: Nil
+      root.genPath -> lines.mkString("\n").getBytes(UTF_8)
+    }
+    links ::: code
+  }
+}
+
 
 
 /*
