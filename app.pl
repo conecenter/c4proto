@@ -25,12 +25,9 @@ my $clear = sub{
 my $run_generator_outer = sub{
     my $src_dir = &$pwd();
     my $generator_path = "$src_dir/generator/target/c4gen";
-    my $io_dir = "$generator_path/src";
-    -e $io_dir and sy("rm -r $io_dir");
-    my @rel_paths = map{substr $_, length $src_dir} grep{-e "$_/src"} <$src_dir/c4*>;
-    @rel_paths || die;
-    sy("mkdir -p ".join " ",map{"$io_dir$_"}@rel_paths);
-    symlink "$src_dir$_/src","$io_dir$_/src" or die $! for @rel_paths;
+    (-e "$generator_path/src") ? sy("rm -r $generator_path/src") : sy("mkdir -p $generator_path");
+    my $src_dirs = join " ", grep{-e $_} map{"$_/src"} <$src_dir/c4*>;
+    sy("find $src_dirs -type f | sort > $generator_path/src");
     &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path perl run.pl");
 };
 

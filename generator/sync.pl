@@ -24,12 +24,12 @@ my $find = sub{
 };
 
 my $sync = sub{
-    my ($list_fn,$ssh,$from,$from_fns,$to,$to_fns,$to_rm) = @_;
+    my ($list_fn,$ssh,$from,$from_fns,$to,$to_fns,$to_rm_f) = @_;
     my %keep = map{($_=>1)} @$from_fns;
     my $to_rm = join " ", grep{!$keep{$_}} @$to_fns;
     &$put_text($list_fn, join "", map{"$_\n"} @$from_fns);
     sy("rsync -e '$ssh' -av --files-from=$list_fn $from/ $to") if @$from_fns;
-    sy(&$to_rm($to_rm)) if $to_rm;
+    sy(&$to_rm_f($to_rm)) if $to_rm;
 };
 
 my $filter = sub{grep{m{\bc4gen\b}}@_};
