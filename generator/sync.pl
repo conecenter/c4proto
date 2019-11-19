@@ -46,9 +46,18 @@ my $remote = "c4\@127.0.0.1:$remote_dir";
 my $remote_pre = "$ssh c4\@127.0.0.1 ";
 my $list_fn = "$dir/target/c4sync";
 
-$clean ?
-    sy("$remote_pre 'mkdir -p $remote_dir && rm -r $remote_dir && mkdir $remote_dir'"):
+if($clean){
+    print "= clean =\n";
+    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/build/"} map{"/$_"} &$find("","$dir/",[])){
+        my $path = "$dir$_";
+        print "deleting $path\n";
+        unlink $path or die;
+    }
+    sy("$remote_pre 'mkdir -p $remote_dir && rm -r $remote_dir && mkdir $remote_dir'");
+} else {
     sy("$remote_pre 'mkdir -p $remote_dir'");
+}
+
 mkdir "$dir/target";
 my @local_fns = &$find("","$dir/",$prune);
 &$sync($list_fn,$ssh,
@@ -62,3 +71,4 @@ sy("$remote_pre '$cmd'") if $cmd;
     $dir,[&$filter(@local_fns)],
     sub{"cd $dir && rm $_[0]"}
 ) if $cmd;
+

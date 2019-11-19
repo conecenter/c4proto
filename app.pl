@@ -6,21 +6,6 @@ sub sy{ &so and die $? }
 sub lazy(&){ my($calc)=@_; my $res; sub{ ($res||=[scalar &$calc()])->[0] } }
 my $sy_in_dir = sub{ my($d,$c)=@_; sy("mkdir -p $d && cd $d && $c") };
 my $pwd = lazy{ my $c = `pwd`; chomp $c; $c };
-my $parents; $parents = sub{ ($_[0], $_[0]=~m{(.+)/[^/]+} ? &$parents("$1"):()) };
-
-my $clear = sub{
-    my $dir = &$pwd();
-    my @found = `find $dir`;
-    for(reverse sort @found){
-        my $path = /^(.+)\n$/ ? $1 : die "[$_]";
-        my $pre = m{(.+)/(target|tmp|node_modules|build)/} ? $1 : next;
-        if(grep{-e "$_/build.sbt"} &$parents($pre)){
-            unlink $path or rmdir $path or warn "can not clear '$path'";
-        } else {
-            warn "do we need to clear '$path'?";
-        }
-    }
-};
 
 my $run_generator_outer = sub{
     my $src_dir = &$pwd();
@@ -31,16 +16,10 @@ my $run_generator_outer = sub{
     &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path perl run.pl");
 };
 
-#my $exclude = join " ", map{"--exclude='$_'"} 'target','tmp','node_modules','build','.git','.idea','generator';
-
 my $build_do = sub{
    my $dir = &$pwd();
    my $gen_dir = $dir;
     &$run_generator_outer();
-   #see /universal/
-   #my $gen_dir = "$dir/tmp/c4proto";
-   #sy("mkdir -p $gen_dir");
-   #sy("rsync -av --del $exclude $dir/ $gen_dir");
    &$sy_in_dir($gen_dir,"sbt stage");
 };
 
