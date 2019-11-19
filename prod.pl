@@ -1308,9 +1308,9 @@ my $get_visitor_conf = sub{
 push @tasks, ["up-visitor", "", sub{
     my ($comp,$args) = @_;
     my $conf = &$get_compose($comp);
-    my $server_comp = $$conf{peer} || die;
+    my $server_comp = $$conf{peer};
     my $img = &$make_frp_image($comp);
-    my @services = &$get_visitor_conf($server_comp);
+    my @services = $server_comp ? &$get_visitor_conf($server_comp) : ();
     my @ports = &$map($conf,sub{ my($k,$v)=@_;
         $k=~/^port:/ ? ($k=>$v) : ()
     });
@@ -1319,14 +1319,18 @@ push @tasks, ["up-visitor", "", sub{
 #        my $ext_port = $port == $ssh_port ? 22 : $port;
 #        ("port:$ext_port:$port" => "")
 #    } @services;
+    my @visits = &$map($conf,sub{ my($k,$v)=@_;
+        $k=~/^visit:(\d+)$/ ? ["$1"=>$v] : ()
+    });
+    my @add_ports = map{ my($port,$nm)=@$_; ("port:$port:$port"=>"") } @visits;
     my @containers = ({
         image => $img,
         name => "frpc",
         C4FRPC_INI => "/c4conf/frpc.visitor.ini",
-        @ports,
+        @ports, @add_ports,
     });
     my $from_path = &$get_tmp_dir();
-    &$make_visitor_conf($comp,$from_path,[@services]);
+    &$make_visitor_conf($comp,$from_path,[@services,@visits]);
     &$sync_up(&$wrap_deploy($comp,$from_path,\@containers),$args);
 }];
 
