@@ -48,7 +48,7 @@ my $list_fn = "$dir/target/c4sync";
 
 if($clean){
     print "= clean =\n";
-    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/|/build/"} map{"/$_"} &$find("","$dir/",[])){
+    for(grep{m"\bc4gen\b|/target/|/tmp/|/node_modules/"} map{"/$_"} &$find("","$dir/",[])){
         my $path = "$dir$_";
         print "deleting $path\n";
         unlink $path or die;
