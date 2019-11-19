@@ -25,7 +25,6 @@ my $build_do = sub{
 
 my $build_some_server = sub{
     my($clean)=@_;
-    &$clear() if $clean;
     my $port = $ENV{C4BUILD_PORT}-0;
     print "C4BUILD_PORT: $port\n";
     return &$build_do() if !$port;
