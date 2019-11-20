@@ -964,7 +964,7 @@ my $up_desktop = sub{
             " wget nano python",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
-            "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
+            "RUN perl install.pl curl https://piccolo.link/sbt-1.3.2.tgz",
             "RUN rm -r /etc/dropbear && ln -s /c4/dropbear /etc/dropbear ",
             "COPY desktop.pl haproxy.pl id_rsa.pub c4p_alias.sh /",
             "RUN C4DATA_DIR=/c4db perl /desktop.pl fix",
