@@ -86,6 +86,13 @@ my $haproxy = sub{
 push @tasks, [haproxy=>$haproxy];
 push @tasks, [le_http=>$haproxy];
 push @tasks, [le_https=>$haproxy];
+push @tasks, [bloop=>sub{
+    &$need_home();
+    my $dir = "/c4/.bloop";
+    -e $dir or run("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
+    $ENV{PATH} = "$ENV{PATH}:/tools/jdk/bin:$dir";
+    &$exec("bloop","server");
+}];
 
 my($cmd,@args)=@ARGV;
 $cmd eq $$_[0] and $$_[1]->(@args) for @tasks;

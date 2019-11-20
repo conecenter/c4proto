@@ -1,5 +1,6 @@
 
 use strict;
+use Time::HiRes;
 
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 
@@ -26,9 +27,12 @@ my $find = sub{
 my $sync = sub{
     my ($list_fn,$ssh,$from,$from_fns,$to,$to_fns,$to_rm_f) = @_;
     my %keep = map{($_=>1)} @$from_fns;
-    my $to_rm = join " ", grep{!$keep{$_}} @$to_fns;
+    my @to_rm = grep{!$keep{$_}} @$to_fns;
+    my $to_rm = join " ", map{$_%10 ? $to_rm[$_] : ("&&","rm",$to_rm[$_])} 0..(@to_rm-1);
     &$put_text($list_fn, join "", map{"$_\n"} @$from_fns);
+    my $tm = Time::HiRes::time();
     sy("rsync -e '$ssh' -av --files-from=$list_fn $from/ $to") if @$from_fns;
+    print Time::HiRes::time()-$tm," for rsync\n";
     sy(&$to_rm_f($to_rm)) if $to_rm;
 };
 
@@ -63,12 +67,12 @@ my @local_fns = &$find("","$dir/",$prune);
 &$sync($list_fn,$ssh,
     $dir,[@local_fns],
     $remote,[&$find($remote_pre,"$remote_dir/",$prune)],
-    sub{"$remote_pre 'cd $remote_dir && rm $_[0]'"}
+    sub{"$remote_pre 'cd $remote_dir $_[0]'"}
 );
 sy("$remote_pre '$cmd'") if $cmd;
 &$sync($list_fn,$ssh,
     $remote,[&$filter(&$find($remote_pre,"$remote_dir/",$prune))],
     $dir,[&$filter(@local_fns)],
-    sub{"cd $dir && rm $_[0]"}
+    sub{"cd $dir $_[0]"}
 ) if $cmd;
 

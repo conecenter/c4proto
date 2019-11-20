@@ -623,7 +623,7 @@ push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v54";
+my $sys_image_ver = "v56";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
@@ -914,9 +914,9 @@ my $base_image_steps = sub{(
 
 my $prod_image_steps = sub{(
     &$base_image_steps(),
-    "RUN perl install.pl apt fontconfig".
+    "RUN perl install.pl apt".
     " curl unzip software-properties-common".
-    " lsof mc",
+    " lsof mc iputils-ping netcat-openbsd fontconfig",
     "RUN add-apt-repository -y ppa:vbernat/haproxy-1.8",
     "RUN perl install.pl apt haproxy",
     #"RUN perl install.pl curl https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz",
@@ -944,7 +944,7 @@ my $up_desktop = sub{
         my $conf_cert_path = &$get_conf_cert_path().".pub";
         sy("cp $gen_dir/install.pl $gen_dir/desktop.pl $gen_dir/haproxy.pl $conf_cert_path $from_path/");
         &$put("c4p_alias.sh", join "\n",
-            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin',
+            'export PATH=$PATH:/tools/jdk/bin:/tools/sbt/bin:/tools/node/bin:/tools/kafka/bin:/c4/.bloop',
             'export JAVA_HOME=/tools/jdk',
             'export C4DEPLOY_CONF=/c4conf/ssh.tar.gz',
             "export C4DEPLOY_LOCATION=".($ENV{C4DEPLOY_LOCATION}||die),
@@ -955,12 +955,13 @@ my $up_desktop = sub{
         );
         &$put("Dockerfile", join "\n",
             &$prod_image_steps(),
+            "RUN add-apt-repository -y ppa:certbot/certbot",
             "RUN perl install.pl apt".
             " rsync openssh-client dropbear git certbot".
             " xserver-xspice openbox firefox spice-vdagent terminology".
             " libjson-xs-perl libyaml-libyaml-perl libexpect-perl".
-            " atop less bash-completion netcat-openbsd locales tmux uuid-runtime".
-            " iputils-ping wget nano",
+            " atop less bash-completion locales tmux uuid-runtime".
+            " wget nano python",
             "RUN perl install.pl curl $dl_frp_url",
             "RUN perl install.pl curl https://nodejs.org/dist/v8.9.1/node-v8.9.1-linux-x64.tar.xz",
             "RUN perl install.pl curl https://piccolo.link/sbt-1.2.8.tgz",
@@ -1040,6 +1041,10 @@ my $up_desktop = sub{
             C4DATA_DIR => "/c4db",
             C4HTTPS => "https:$hostname",
         }) : (),
+        {
+            image => $img, name => "bloop",
+            C4DATA_DIR => "/c4db",
+        },
     ])
 };
 my $visit_desktop = sub{
