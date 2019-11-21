@@ -21,7 +21,7 @@ my $build_some_server = sub{
     my $port = $ENV{C4BUILD_PORT}-0;
     print "C4BUILD_PORT: $port\n";
     local $ENV{C4BUILD_CMD} = "perl app.pl build_do";
-    local $ENV{C4BUILD_COMPILE_CMD} = "sbt stage";
+    local $ENV{C4BUILD_COMPILE_CMD} = "sbt compile";
     if($port){
         my $dir = &$pwd();
         my $rdir = "/c4/c4proto";
