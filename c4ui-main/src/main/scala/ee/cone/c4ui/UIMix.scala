@@ -1,8 +1,8 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.BranchApp
+import ee.cone.c4actor_branch.BranchApp
 import ee.cone.c4gate.{AlienProtocolApp, HttpProtocolApp}
-import ee.cone.c4proto.{c4, provide}
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4vdom.{ChildPairFactory, TagJsonUtils, TagStyles, Tags, VDomHandlerFactory, VDomResolver}
 import ee.cone.c4vdom_impl.{ChildPairFactoryImpl, DiffImpl, JsonToStringImpl, MapVDomValueImpl, TagJsonUtilsImpl, TagStylesImpl, TagsImpl, VDomHandlerFactoryImpl, VDomResolverImpl, WasNoValueImpl}
 

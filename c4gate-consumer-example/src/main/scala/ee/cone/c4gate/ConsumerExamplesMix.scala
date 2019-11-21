@@ -1,8 +1,9 @@
 package ee.cone.c4gate
 
 import ee.cone.c4actor._
-import ee.cone.c4proto.c4app
-
+import ee.cone.c4actor_kafka_impl.{KafkaConsumerApp, KafkaProducerApp, LZ4DeCompressorApp}
+import ee.cone.c4actor_logback_impl.BasicLoggingApp
+import ee.cone.c4di.c4app
 
 
 @c4app class DumperAppBase extends EnvConfigCompApp with VMExecutionApp with NoAssembleProfilerCompApp

@@ -8,7 +8,7 @@ import ee.cone.c4actor.HashSearchImpl._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble._
 import ee.cone.c4assemble.Types.{Each, Values}
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 @c4("RichDataCompApp") class DefHashSearchFactoryHolder(
   modelConditionFactory: ModelConditionFactory[Unit],

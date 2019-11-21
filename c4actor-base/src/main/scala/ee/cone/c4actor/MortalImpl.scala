@@ -5,7 +5,7 @@ import ee.cone.c4actor.LifeTypes.Alive
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by, c4assemble, distinct}
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 @c4("MortalFactoryCompApp") case class MortalFactoryImpl(anUUIDUtil: IdGenUtil) extends MortalFactory {
   def apply[P <: Product](cl: Class[P]): Assemble = new MortalAssemble(cl,anUUIDUtil)

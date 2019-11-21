@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.{AbstractComponents, Component, TypeKey}
 import ee.cone.c4assemble.Single
+import ee.cone.c4di.{AbstractComponents, Component, TypeKey}
 
 import scala.collection.immutable.Seq
 

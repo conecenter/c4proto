@@ -1,15 +1,9 @@
 package ee.cone.c4ui.dep.request
 
-import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4actor._
-import ee.cone.c4actor.dep.ContextTypes.MockRoleOpt
-import ee.cone.c4actor.dep.DepTypes.GroupId
-import ee.cone.c4actor.dep._
-import ee.cone.c4actor.dep_impl.{DepHandlersApp, DepResponseImpl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, by}
 import ee.cone.c4ui.dep.request.DepFilteredListRequestProtocol.N_FilteredListRequest
-import ee.cone.c4proto.{Id, Protocol, protocol}
+
 import ee.cone.c4ui.FromAlienTask
 
 case class FLRequestDef(listName: String, filterPK: String, matches: List[String] = List(".*"))(val requestDep: Dep[List[_]])

@@ -2,7 +2,7 @@ package ee.cone.c4actor
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{AbstractComponents, Component, TypeKey, c4}
+import ee.cone.c4di.{AbstractComponents, Component, TypeKey, c4}
 
 import scala.collection.immutable.Seq
 

@@ -4,7 +4,7 @@ package ee.cone.c4actor.dep_impl
 import collection.immutable.Seq
 import ee.cone.c4actor.dep.DepTypes.{DepCtx, DepRequest}
 import ee.cone.c4actor.dep._
-import ee.cone.c4proto.c4
+import ee.cone.c4di._
 
 abstract class DepImpl[A] extends Dep[A] {
   def flatMap[B](f: A => Dep[B]): Dep[B] = new ComposedDep[A, B](this, f)

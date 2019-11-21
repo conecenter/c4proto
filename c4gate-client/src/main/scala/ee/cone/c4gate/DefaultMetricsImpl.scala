@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor.Context
 import ee.cone.c4assemble.{IndexUtil, JoinKey, ReadModelUtil}
 import ee.cone.c4assemble.Types.Index
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 @c4("DefaultMetricsApp") class RichWorldMetricsFactory(readModelUtil: ReadModelUtil, indexUtil: IndexUtil) extends MetricsFactory {
   def measure(local: Context): List[Metric] =

@@ -1,6 +1,7 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.{BranchOperations, ComponentProviderApp}
+import ee.cone.c4actor._
+import ee.cone.c4actor_branch.BranchOperations
 import ee.cone.c4vdom.{ChildPairFactory, TagJsonUtils, TagStyles, Tags, VDomResolver}
 
 trait VDomApp extends ComponentProviderApp {

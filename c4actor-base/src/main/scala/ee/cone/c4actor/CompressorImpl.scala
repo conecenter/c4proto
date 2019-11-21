@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 import okio._
 
 import scala.annotation.tailrec

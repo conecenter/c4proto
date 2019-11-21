@@ -4,7 +4,7 @@ import java.net.{URLDecoder, URLEncoder}
 import java.nio.file.{Files, Paths}
 import java.nio.charset.StandardCharsets.UTF_8
 
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 @c4("ConfigSimpleSignerApp") class SimpleSigner(
   config: Config, idGenUtil : IdGenUtil

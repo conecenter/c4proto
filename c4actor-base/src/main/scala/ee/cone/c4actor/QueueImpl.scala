@@ -3,7 +3,7 @@ package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.QProtocol.{N_TxRef, N_Update, S_Offset, S_Updates}
-import ee.cone.c4proto.{HasId, Protocol, ToByteString, c4}
+import ee.cone.c4proto.{HasId, Protocol, ToByteString}
 
 import scala.collection.immutable.{Queue, Seq}
 import java.nio.charset.StandardCharsets.UTF_8
@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{NextOffset, SrcId, TypeId}
 import ee.cone.c4assemble.Single
+import ee.cone.c4di.c4
 import okio.ByteString
 
 /*Future[RecordMetadata]*/

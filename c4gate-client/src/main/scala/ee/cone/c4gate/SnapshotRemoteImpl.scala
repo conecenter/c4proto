@@ -5,7 +5,7 @@ import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{Config, NanoTimer, RawSnapshot, RawSnapshotLoader, RawSnapshotLoaderFactory, RemoteSnapshotUtil, SnapshotMaker, SnapshotTask, SnapshotTaskSigner}
-import ee.cone.c4proto.{c4, provide}
+import ee.cone.c4di.{c4, provide}
 import okio.ByteString
 
 import scala.annotation.tailrec

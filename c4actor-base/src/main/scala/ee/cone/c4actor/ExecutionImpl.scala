@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{AbstractComponents, c4}
+import ee.cone.c4di.c4
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try

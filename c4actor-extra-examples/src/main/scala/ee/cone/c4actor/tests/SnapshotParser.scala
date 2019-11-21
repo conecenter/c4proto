@@ -4,7 +4,8 @@ import java.nio.file.{Files, Paths}
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor._
-import ee.cone.c4proto.{HasId, Protocol, ToByteString}
+import ee.cone.c4proto.ToByteString
+import ee.cone.c4actor_kafka_impl.LZ4DeCompressorApp
 import okio.ByteString
 
 //C4STATE_TOPIC_PREFIX=ee.cone.c4actor.tests.SnapshotParserApp sbt ~'c4actor-extra-examples/runMain ee.cone.c4actor.ServerMain'

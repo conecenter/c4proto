@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 // http://www.artima.com/pins1ed/object-equality.html
 @c4("RichDataCompApp") class PreHashingImpl extends PreHashing {

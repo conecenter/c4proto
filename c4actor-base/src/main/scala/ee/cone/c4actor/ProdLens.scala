@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.TypeKey
+import ee.cone.c4di.TypeKey
 
 object ProdLens {
   def of[C, I](of: C => I, meta: AbstractMetaAttr*): ProdLens[C, I] =

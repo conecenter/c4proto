@@ -1,7 +1,7 @@
 package ee.cone.c4ui
 
 import ee.cone.c4actor._
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 import ee.cone.c4vdom.{ChildPair, OfDiv}
 
 case object AccessViewsKey extends SharedComponentKey[Map[String,AccessView[_]]]

@@ -116,7 +116,7 @@ object ComponentsGenerator extends Generator {
     }
     GeneratedCode(
       s"\nobject $componentsId {" +
-        "\n  import ee.cone.c4proto._" +
+        "\n  import ee.cone.c4di._" +
         "\n  import scala.collection.immutable.Seq" +
         components.collect{ case c: GeneratedComponent => c.content }.mkString
     ) :: connects ::: List(GeneratedCode("\n}"))

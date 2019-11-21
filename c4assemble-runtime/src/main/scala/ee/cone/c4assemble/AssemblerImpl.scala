@@ -7,7 +7,7 @@ import Types._
 import ee.cone.c4assemble.IndexTypes.{DMultiSet, InnerIndex, InnerKey, Products}
 import ee.cone.c4assemble.Merge.Compose
 import ee.cone.c4assemble.TreeAssemblerTypes.Replace
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 import scala.collection.immutable
 import scala.collection.immutable.{Map, Seq, TreeMap}

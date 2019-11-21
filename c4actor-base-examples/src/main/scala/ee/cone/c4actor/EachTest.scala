@@ -5,7 +5,8 @@ import ee.cone.c4actor.EachTestProtocol.D_Item
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.{IndexUtil, assemble, by, c4assemble}
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.{Id, c4, protocol}
+import ee.cone.c4di.c4
+import ee.cone.c4proto.{Id, protocol}
 
 //  new EachTestNotEffectiveAssemble :: // 25s vs 1s for 3K 1-item-tx-s
 

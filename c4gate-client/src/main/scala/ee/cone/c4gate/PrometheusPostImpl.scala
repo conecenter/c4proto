@@ -9,8 +9,8 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor.{Config, Context, ListConfig, SleepUntilKey, TxTransform, WithPK}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, byEq, c4assemble}
-import ee.cone.c4gate.PrometheusPostSettingsObj.PrometheusPushId
-import ee.cone.c4proto.{ToByteString, c4, provide}
+import ee.cone.c4di.{c4, provide}
+import ee.cone.c4proto.ToByteString
 
 import scala.util.Try
 

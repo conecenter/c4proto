@@ -9,7 +9,7 @@ import ee.cone.c4actor.QProtocolBase.S_Firstborn
 import ee.cone.c4actor.Types.{NextOffset, SrcId}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.c4assemble
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 @c4("ServerCompApp") class ProgressObserverFactoryImpl(inner: TxObserver) extends ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext] = new ProgressObserverImpl(inner.value,endOffset)

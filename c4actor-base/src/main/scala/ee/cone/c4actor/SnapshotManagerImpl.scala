@@ -3,8 +3,8 @@ package ee.cone.c4actor
 import java.util.UUID
 
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.Types.NextOffset
-import ee.cone.c4proto.{c4, provide}
+import ee.cone.c4di.{c4, provide}
+import ee.cone.c4actor.Types._
 
 object SnapshotUtilImpl extends SnapshotUtil {
   def hashFromName: RawSnapshot=>Option[SnapshotInfo] = {

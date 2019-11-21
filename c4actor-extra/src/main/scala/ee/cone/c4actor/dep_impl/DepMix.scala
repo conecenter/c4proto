@@ -3,9 +3,9 @@ package ee.cone.c4actor.dep_impl
 import ee.cone.c4actor.dep._
 import ee.cone.c4actor._
 import ee.cone.c4assemble.Assemble
-import ee.cone.c4proto.{Component, ComponentsApp}
+import ee.cone.c4di.{Component, ComponentsApp}
 
-import ComponentProvider.provide
+import ee.cone.c4actor.ComponentProvider.provide
 
 trait DepHandlersApp extends ComponentsApp {
   def depHandlers: List[DepHandler] = Nil

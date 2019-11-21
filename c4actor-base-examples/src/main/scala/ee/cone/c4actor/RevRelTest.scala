@@ -4,8 +4,7 @@ import ee.cone.c4actor.QProtocol.S_Firstborn
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types._
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, Protocol, c4, protocol}
-
+import ee.cone.c4di.c4
 import Function.tupled
 
 // add rr

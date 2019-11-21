@@ -2,7 +2,8 @@ package ee.cone.c4actor
 
 import com.squareup.wire.ProtoAdapter
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4proto.{MetaProp, c4}
+import ee.cone.c4di.c4
+import ee.cone.c4proto.MetaProp
 
 @c4("RichDataCompApp") class ModelFactoryImpl(
   defaultModelInitializers: List[DefaultModelInitializer[_]],

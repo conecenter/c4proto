@@ -3,16 +3,17 @@ package ee.cone.c4ui
 import java.net.URL
 import java.util.UUID
 
-import ee.cone.c4actor.BranchTypes.BranchKey
+import ee.cone.c4actor_branch.BranchTypes.BranchKey
 import ee.cone.c4actor.LEvent.{delete, update}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor_branch._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
 import ee.cone.c4gate.AlienProtocol.{U_FromAlienState, U_ToAlienWrite}
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
 import ee.cone.c4gate.LocalHttpConsumer
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 import okio.ByteString
 
 import scala.collection.immutable.Seq

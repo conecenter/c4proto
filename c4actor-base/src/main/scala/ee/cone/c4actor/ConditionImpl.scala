@@ -1,7 +1,7 @@
 
 package ee.cone.c4actor
 
-import ee.cone.c4proto.{c4, provide}
+import ee.cone.c4di.{c4, provide}
 
 @c4("RichDataCompApp") class ModelConditionFactoryProvider {
   @provide def get: Seq[ModelConditionFactory[Unit]] = List(new ModelConditionFactoryImpl[Unit])

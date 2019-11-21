@@ -1,7 +1,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble.ToPrimaryKey
-import ee.cone.c4proto.c4
+import ee.cone.c4di._
 
 @c4("ModelAccessFactoryCompApp") class ModelAccessFactoryImpl extends ModelAccessFactory {
   def to[P <: Product](product: P): Option[Access[P]] = {

@@ -1,6 +1,6 @@
 package ee.cone.c4gate
 
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 @c4("PublishingCompApp") class DefMimeTypesProvider extends PublishMimeTypesProvider {
   def get: List[(String, String)] = List( //not finished on gate-server side

@@ -1,5 +1,7 @@
 package ee.cone
 
+import ee.cone.c4di.AbstractComponents
+
 import scala.annotation.StaticAnnotation
 
 package object c4proto {

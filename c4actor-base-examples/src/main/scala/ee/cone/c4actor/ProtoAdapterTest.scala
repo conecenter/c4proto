@@ -4,7 +4,8 @@ package ee.cone.c4actor
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes.LazyOption
 
-import ee.cone.c4proto.{Id, c4, protocol}
+import ee.cone.c4proto.{Id, protocol}
+import ee.cone.c4di._
 
 import scala.collection.immutable.Seq
 

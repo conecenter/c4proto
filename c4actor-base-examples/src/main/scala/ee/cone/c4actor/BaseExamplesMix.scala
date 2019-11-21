@@ -1,6 +1,6 @@
 package ee.cone.c4actor
 
-import ee.cone.c4proto.c4app
+import ee.cone.c4di.c4app
 
 trait BaseExamplesTestApp extends TestVMRichDataCompApp
   with SimpleAssembleProfilerCompApp with VMExecutionApp with ExecutableApp

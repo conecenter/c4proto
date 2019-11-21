@@ -6,7 +6,7 @@ import java.util.Locale
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.FinallyClose
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 import okio.ByteString
 
 import scala.jdk.CollectionConverters.MapHasAsScala

@@ -1,8 +1,9 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.N_Update
-import ee.cone.c4actor.Types.NextOffset
 import okio.ByteString
+
+import ee.cone.c4actor.QProtocol._
+import ee.cone.c4actor.Types._
 
 case class RawSnapshot(relativePath: String)
 trait RawSnapshotSaver {

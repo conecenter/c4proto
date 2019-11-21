@@ -4,7 +4,9 @@ package ee.cone.c4proto
 import java.nio.charset.StandardCharsets.UTF_8
 
 import com.squareup.wire.{ProtoAdapter, ProtoReader, ProtoWriter}
+import ee.cone.c4di.TypeKey
 import okio.ByteString
+
 import collection.immutable.Seq
 import scala.annotation.StaticAnnotation
 

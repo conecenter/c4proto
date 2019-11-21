@@ -11,6 +11,7 @@ import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.SessionDataProtocol.{N_RawDataNode, U_RawSessionData}
 import ee.cone.c4proto._
 import okio.ByteString
+import ee.cone.c4di.{c4, provide}
 
 @protocol("SessionDataProtocolApp") object SessionDataProtocolBase   {
   @Id(0x0066) case class U_RawSessionData(

@@ -3,7 +3,7 @@ package ee.cone.c4gate
 import ee.cone.c4actor._
 import ee.cone.c4gate.AlienProtocol.U_FromAlienState
 import ee.cone.c4gate.HttpProtocol.S_HttpRequest
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 @c4("DumperApp") class Dumper(
   snapshotMaker: SnapshotMaker,

@@ -4,7 +4,7 @@ import ee.cone.c4actor.SyncTx.NeedSrcId
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.Values
 import ee.cone.c4assemble.{Assemble, Single, assemble, by}
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 //todo RDBImpl
 @c4("SyncTxFactoryImplApp") class SyncTxFactoryImpl extends SyncTxFactory {

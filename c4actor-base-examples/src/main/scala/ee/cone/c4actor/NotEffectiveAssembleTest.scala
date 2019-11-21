@@ -4,7 +4,7 @@ import Function.chain
 import LEvent._
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.PCProtocol.{D_RawChildNode, D_RawParentNode}
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 object Measure {
   def apply(f: ()=>Unit): Option[Long] = {

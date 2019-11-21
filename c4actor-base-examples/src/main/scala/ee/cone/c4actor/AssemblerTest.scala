@@ -4,10 +4,11 @@ package ee.cone.c4actor
 import PCProtocol.{D_RawChildNode, D_RawParentNode}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.SrcId
-import ee.cone.c4proto.{Id, c4, protocol}
+import ee.cone.c4proto.{Id,protocol}
 import ee.cone.c4actor.LEvent._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, _}
+import ee.cone.c4di.c4
 
 @protocol("AssemblerTestApp") object PCProtocolBase {
   @Id(0x0003) case class D_RawChildNode(@Id(0x0003) srcId: String, @Id(0x0005) parentSrcId: String, @Id(0x0004) caption: String)

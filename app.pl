@@ -16,35 +16,31 @@ my $run_generator_outer = sub{
     &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path perl run.pl");
 };
 
-my $build_do = sub{
-   my $dir = &$pwd();
-   my $gen_dir = $dir;
-    &$run_generator_outer();
-   &$sy_in_dir($gen_dir,"sbt stage");
-};
-
 my $build_some_server = sub{
     my($clean)=@_;
     my $port = $ENV{C4BUILD_PORT}-0;
     print "C4BUILD_PORT: $port\n";
-    return &$build_do() if !$port;
-    my $dir = &$pwd();
-    my $rdir = "/c4/c4proto";
-    local $ENV{C4BUILD_CLEAN} = $clean;
-    local $ENV{C4BUILD_CMD} = ". /c4p_alias.sh && cd $rdir && perl app.pl build_do";
-    sy("perl $dir/generator/sync.pl $dir $rdir");
+    local $ENV{C4BUILD_CMD} = "perl app.pl build_do";
+    local $ENV{C4BUILD_COMPILE_CMD} = "sbt stage";
+    if($port){
+        my $dir = &$pwd();
+        my $rdir = "/c4/c4proto";
+        local $ENV{C4BUILD_CLEAN} = $clean;
+        sy("perl $dir/generator/sync.pl $dir $rdir");
+    } else {
+        sy($_) for $ENV{C4BUILD_CMD}, $ENV{C4BUILD_COMPILE_CMD};
+    }
 };
 
 my @tasks;
-push @tasks, ["### build ###"];
-push @tasks, ["build_all", sub{ &$build_some_server(1); }];
-push @tasks, ["build_some_server", sub{ &$build_some_server(0); }];
-push @tasks, ["build_do", sub{ &$build_do() }];
-
-if($ARGV[0]) {
-    my($cmd,@args)=@ARGV;
-    $cmd eq $$_[0] and $$_[1]->(@args) for @tasks;
-} else {
+push @tasks, ["","",sub{
     print join '', map{"$_\n"} "usage:",
-        map{$$_[0]=~/^\./ ? () : $$_[0]=~"^#" ? $$_[0] : "  $0 $$_[0]"} @tasks;
-}
+        (map{!$$_[1] ? () : "  $0 $$_[0] $$_[1]"} @tasks);
+}];
+push @tasks, ["build_all"," ",sub{ &$build_some_server(1); }];
+push @tasks, ["build_some_server"," ",sub{ &$build_some_server(0); }];
+push @tasks, ["build_do","",sub{ &$run_generator_outer(); }];
+
+my($cmd,@args)=@ARGV;
+($cmd||"") eq $$_[0] and $$_[2]->(@args) for @tasks;
+

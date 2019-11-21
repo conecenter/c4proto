@@ -2,7 +2,7 @@ package ee.cone.c4gate
 
 import ee.cone.c4actor.{ComponentProvider, ComponentProviderApp, ComponentRegistry, RawSnapshotLoaderFactory, Signer, SnapshotLoaderFactory, SnapshotTask, SnapshotTaskSigner}
 import ee.cone.c4gate.{HttpProtocolApp, PublishFromStringsProvider, PublishMimeTypesProvider}
-import ee.cone.c4proto.{Component, ComponentsApp}
+import ee.cone.c4di.{Component, ComponentsApp}
 import ComponentProvider.provide
 
 

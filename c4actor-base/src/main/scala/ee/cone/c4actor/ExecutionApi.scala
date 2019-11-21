@@ -1,9 +1,6 @@
 package ee.cone.c4actor
 
 import java.util.concurrent.ExecutorService
-
-import ee.cone.c4proto.AbstractComponents
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 

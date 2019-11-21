@@ -2,7 +2,7 @@ package ee.cone.c4gate
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{RawQSender, _}
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
 import scala.collection.immutable.Seq

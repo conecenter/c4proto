@@ -1,11 +1,12 @@
 package ee.cone.c4ui
 
-import ee.cone.c4actor.BranchProtocol.S_BranchResult
+import ee.cone.c4actor_branch.BranchProtocol.S_BranchResult
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
+import ee.cone.c4actor_branch._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Assemble, assemble, c4assemble}
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 import ee.cone.c4vdom.Types.ViewRes
 import ee.cone.c4vdom._
 import okio.ByteString

@@ -5,9 +5,12 @@ import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4actor._
 import ee.cone.c4actor.dep.DepTypes._
 import ee.cone.c4actor.dep._
+
+import scala.collection.immutable.{Map, Seq}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{ToByteString, c4}
+import ee.cone.c4di.c4
+import ee.cone.c4proto.ToByteString
 
 case class DepResponseImpl(innerRequest: DepInnerRequest, valueHashed: PreHashed[Option[_]]) extends DepResponse {
   def value: Option[_] = valueHashed.value

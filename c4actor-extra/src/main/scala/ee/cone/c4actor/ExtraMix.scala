@@ -1,8 +1,8 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble.{Assemble, AssembleSeqOptimizer, BackStageFactory, ByPriority, ExpressionsDumper, IndexUpdater, IndexUtil, NoAssembleSeqOptimizer, ReadModelUtil, UMLExpressionsDumper}
-import ee.cone.c4proto.{Component, ComponentsApp, Protocol, TypeKey, c4, provide}
-
+import ee.cone.c4proto._
+import ee.cone.c4di._
 import scala.collection.immutable.Seq
 
 object ComponentProvider {

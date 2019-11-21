@@ -12,7 +12,8 @@ import ee.cone.c4actor._
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.{Single, c4assemble}
 import ee.cone.c4gate.HttpProtocol.{N_Header, S_HttpPublication}
-import ee.cone.c4proto.{ToByteString, c4}
+import ee.cone.c4di.c4
+import ee.cone.c4proto.ToByteString
 import okio.ByteString
 
 import scala.collection.immutable.Seq

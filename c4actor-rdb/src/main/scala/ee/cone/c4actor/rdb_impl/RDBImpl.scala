@@ -16,8 +16,10 @@ import ee.cone.c4actor._
 import ee.cone.c4actor.rdb_impl.ToExternalDBAssembleTypes.PseudoOrig
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4proto._
 import okio.ByteString
+import ee.cone.c4actor.rdb._
 
 @c4("FromExternalDBSyncApp") class FromExternalDBOptionsProvider(
   rdbOptionFactory: RDBOptionFactory

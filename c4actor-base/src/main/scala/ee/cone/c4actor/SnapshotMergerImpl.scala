@@ -1,7 +1,8 @@
 package ee.cone.c4actor
 
-import ee.cone.c4actor.QProtocol.N_Update
-import ee.cone.c4proto.{ToByteString, c4}
+import ee.cone.c4di.c4
+import ee.cone.c4proto.ToByteString
+import ee.cone.c4actor.QProtocol._
 
 /*snapshot cleanup:
 docker exec ... ls -la c4/db4/snapshots

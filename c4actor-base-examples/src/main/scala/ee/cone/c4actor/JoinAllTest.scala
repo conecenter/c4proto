@@ -4,7 +4,8 @@ import ee.cone.c4actor.JoinAllTestProtocol.{D_AItem, D_RegistryItem}
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{Id, c4, protocol}
+import ee.cone.c4di.c4
+import ee.cone.c4proto.{Id, protocol}
 
 @protocol("JoinAllTestApp") object JoinAllTestProtocolBase   {
   @Id(0x0002) case class D_RegistryItem(@Id(0x0001) srcId: String)

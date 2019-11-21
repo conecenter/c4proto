@@ -6,7 +6,8 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.ArgTypes._
 import ee.cone.c4actor.Types.SrcId
 import ee.cone.c4assemble.Single
-import ee.cone.c4proto.{ArgAdapter, DataCategory, HasId, MetaProp, N_Cat, TypeKey, c4, provide}
+import ee.cone.c4di.{TypeKey, c4, provide}
+import ee.cone.c4proto.{ArgAdapter, DataCategory, HasId, MetaProp, N_Cat}
 import okio.ByteString
 
 import scala.collection.immutable.Seq

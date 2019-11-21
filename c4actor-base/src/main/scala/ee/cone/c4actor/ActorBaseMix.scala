@@ -2,7 +2,7 @@
 package ee.cone.c4actor
 
 import ee.cone.c4assemble._
-import ee.cone.c4proto.{AbstractComponents, c4, provide}
+import ee.cone.c4di.AbstractComponents
 
 trait BaseAppBase
 trait BigDecimalAppBase

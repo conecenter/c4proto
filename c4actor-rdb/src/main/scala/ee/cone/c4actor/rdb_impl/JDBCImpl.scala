@@ -6,7 +6,8 @@ import java.util.concurrent.CompletableFuture
 
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor._
-import ee.cone.c4proto.c4
+import ee.cone.c4actor.rdb._
+import ee.cone.c4di.c4
 
 import scala.annotation.tailrec
 

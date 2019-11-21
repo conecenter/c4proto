@@ -5,7 +5,7 @@ import java.time.Instant
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.Types.{SrcId, TransientMap}
 import ee.cone.c4assemble.Types._
-import ee.cone.c4proto.c4
+import ee.cone.c4di.c4
 
 import scala.collection.immutable.{Map, Seq}
 import scala.util.control.NonFatal

@@ -42,6 +42,7 @@ my $prune = [qw(target .git .idea)];
 my $port = ($ENV{C4BUILD_PORT}-0) || die;
 my $clean = $ENV{C4BUILD_CLEAN}-0;
 my $cmd = $ENV{C4BUILD_CMD};
+my $compile = $ENV{C4BUILD_COMPILE_CMD};
 my $dir = $ARGV[0] || die;
 my $remote_dir = $ARGV[1] || die;
 
@@ -69,10 +70,10 @@ my @local_fns = &$find("","$dir/",$prune);
     $remote,[&$find($remote_pre,"$remote_dir/",$prune)],
     sub{"$remote_pre 'cd $remote_dir $_[0]'"}
 );
-sy("$remote_pre '$cmd'") if $cmd;
+sy("$remote_pre '. /c4p_alias.sh && cd $remote_dir && $cmd'") if $cmd;
 &$sync($list_fn,$ssh,
     $remote,[&$filter(&$find($remote_pre,"$remote_dir/",$prune))],
     $dir,[&$filter(@local_fns)],
     sub{"cd $dir $_[0]"}
 ) if $cmd;
-
+sy("$remote_pre '. /c4p_alias.sh && cd $remote_dir && $compile'") if $compile;

@@ -85,10 +85,10 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
             links.groupBy(_.app).toList.collect{ case (app,links) =>
               val(classLinks,exprLinks) = links.partition(_.expr=="CLASS")
               val tp = if(classLinks.nonEmpty) "class" else "trait"
-              val base = if(app.endsWith("DefApp")) "ee.cone.c4proto.ComponentsApp"
-              else s"${app}Base with ee.cone.c4proto.ComponentsApp"
+              val base = if(app.endsWith("DefApp")) "ee.cone.c4di.ComponentsApp"
+              else s"${app}Base with ee.cone.c4di.ComponentsApp"
               s"\n$tp $app extends $base {" +
-                s"\n  override def components: List[ee.cone.c4proto.Component] = " +
+                s"\n  override def components: List[ee.cone.c4di.Component] = " +
                 exprLinks.map(c=> s"\n    ${c.expr} ::: ").mkString +
                 s"\n    super.components" +
                 s"\n}"
