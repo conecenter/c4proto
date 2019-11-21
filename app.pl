@@ -11,7 +11,8 @@ my $run_generator_outer = sub{
     my $src_dir = &$pwd();
     my $generator_path = "$src_dir/generator/target/c4gen";
     (-e "$generator_path/src") ? sy("rm -r $generator_path/src") : sy("mkdir -p $generator_path");
-    my $src_dirs = join " ", grep{-e $_} map{"$_/src"} <$src_dir/c4*>;
+    my $src_dirs = join " ", map{"$src_dir/$_/src"}
+        qw[base_lib base_server base_examples extra_lib extra_examples];
     sy("find $src_dirs -type f | sort > $generator_path/src");
     &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path perl run.pl");
 };
