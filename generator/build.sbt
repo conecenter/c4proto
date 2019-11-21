@@ -1,6 +1,6 @@
 
 
-scalaVersion := "2.13.1"
+scalaVersion := "2.13.0"
 
 libraryDependencies += "org.scalameta" %% "scalameta" % "4.2.3"
 
