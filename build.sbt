@@ -11,6 +11,7 @@ scalacOptions in ThisBuild ++= Seq("-unchecked", "-deprecation")
 
 scalaVersion in ThisBuild := "2.13.0"
 
+/*
 lazy val base_lib = project
 lazy val base_server = project.dependsOn(base_lib)
 lazy val base_examples = project.dependsOn(base_server)
@@ -19,6 +20,24 @@ lazy val extra_examples = project.dependsOn(extra_lib)
 lazy val `c4proto-aggregate` = project.in(file("."))
   .aggregate(base_lib,base_server,base_examples,extra_lib,extra_examples)
 lazy val generator = project //.in(file("generator"))
+*/
+
+unmanagedSourceDirectories in Compile ++=
+  Seq("base_lib","base_server","base_examples","extra_lib","extra_examples")
+    .map(d=>baseDirectory.value / s"$d/src")
+
+enablePlugins(JavaServerAppPackaging)
+
+libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
+libraryDependencies += "org.apache.kafka" % "kafka-clients" % "2.3.0"
+libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
+libraryDependencies += "com.lihaoyi" % "ammonite-sshd" % "1.6.9" cross CrossVersion.full
+libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0"
+
+libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.25"
+libraryDependencies += "com.typesafe.akka" %% "akka-http-core" % "10.1.10"
+libraryDependencies += "org.scalameta" %% "scalameta" % "4.2.3"
+
 
 
 

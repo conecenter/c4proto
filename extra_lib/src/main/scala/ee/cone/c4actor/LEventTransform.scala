@@ -22,7 +22,8 @@ object InsertOrigMeta {
     TxTransformOrigMetaKey.set(origs.map(MetaAttr))
 }
 
-@protocol object CollectiveTransformProtocolBase   {
+trait CollectiveTransformProtocolAppBase
+@protocol("CollectiveTransformProtocolApp") object CollectiveTransformProtocolBase   {
 
   @Id(0x0ab0) case class D_CollectiveTransformMeta(
     @Id(0x0ab1) transforms: List[String]

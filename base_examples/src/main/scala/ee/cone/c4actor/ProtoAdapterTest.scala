@@ -9,7 +9,7 @@ import ee.cone.c4di._
 
 import scala.collection.immutable.Seq
 
-@c4("ProtoAdapterTestApp") class DefUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
+@c4("ProtoAdapterTestApp") class ExampleUpdateCompressionMinSize extends UpdateCompressionMinSize(0L)
 
 @c4("ProtoAdapterTestApp")
 class ProtoAdapterTest(
