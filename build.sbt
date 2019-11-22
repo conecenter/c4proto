@@ -22,9 +22,13 @@ lazy val `c4proto-aggregate` = project.in(file("."))
 lazy val generator = project //.in(file("generator"))
 */
 
-unmanagedSourceDirectories in Compile ++=
-  Seq("base_lib","base_server","base_examples","extra_lib","extra_examples")
-    .map(d=>baseDirectory.value / s"$d/src")
+unmanagedSourceDirectories in Compile ++= Seq(
+  "base_lib",
+  "base_server",
+  "base_examples",
+  "extra_lib",
+  "extra_examples"
+)   .map(d=>baseDirectory.value / s"$d/src")
 
 enablePlugins(JavaServerAppPackaging)
 
@@ -36,6 +40,7 @@ libraryDependencies += "com.squareup.wire" % "wire-runtime" % "2.2.0"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.25"
 libraryDependencies += "com.typesafe.akka" %% "akka-http-core" % "10.1.10"
+
 libraryDependencies += "org.scalameta" %% "scalameta" % "4.2.3"
 
 
