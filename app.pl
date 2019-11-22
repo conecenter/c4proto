@@ -22,7 +22,7 @@ my $build_some_server = sub{
     my $port = $ENV{C4BUILD_PORT}-0;
     print "C4BUILD_PORT: $port\n";
     local $ENV{C4BUILD_CMD} = "perl app.pl build_do";
-    local $ENV{C4BUILD_COMPILE_CMD} = "sbt compile";
+    local $ENV{C4BUILD_COMPILE_CMD} = "sbt stage";
     if($port){
         my $dir = &$pwd();
         my $rdir = "/c4/c4proto";
@@ -41,6 +41,9 @@ push @tasks, ["","",sub{
 push @tasks, ["build_all"," ",sub{ &$build_some_server(1); }];
 push @tasks, ["build_some_server"," ",sub{ &$build_some_server(0); }];
 push @tasks, ["build_do","",sub{ &$run_generator_outer(); }];
+
+#sbt bloopInstall
+#bloop compile c4proto-aggregate
 
 my($cmd,@args)=@ARGV;
 ($cmd||"") eq $$_[0] and $$_[2]->(@args) for @tasks;
