@@ -1,4 +1,4 @@
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.3.17")
-//addSbtPlugin("me.lessis" % "bintray-sbt" % "0.3.0")
-addSbtPlugin("org.foundweekends" % "sbt-bintray" % "0.5.2")
+
+addSbtPlugin("ch.epfl.scala" % "sbt-bloop" % "1.3.4")

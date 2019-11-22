@@ -28,7 +28,7 @@ unmanagedSourceDirectories in Compile ++= Seq(
   "base_examples",
   "extra_lib",
   "extra_examples"
-)   .map(d=>baseDirectory.value / s"$d/src")
+).map(d=>baseDirectory.value / s"$d/src")
 
 enablePlugins(JavaServerAppPackaging)
 
