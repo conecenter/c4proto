@@ -89,8 +89,8 @@ push @tasks, [le_https=>$haproxy];
 push @tasks, [bloop=>sub{
     &$need_home();
     my $dir = "/c4/.bloop";
-    -e $dir or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
     $ENV{PATH} = "$ENV{PATH}:/tools/jdk/bin:$dir";
+    -e "$dir/bloop" or sy("curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python");
     &$exec("bloop","server");
 }];
 
