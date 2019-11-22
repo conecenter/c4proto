@@ -623,7 +623,7 @@ push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v57";
+my $sys_image_ver = "v58";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
