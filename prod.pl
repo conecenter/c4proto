@@ -3,6 +3,8 @@
 use strict;
 use Digest::MD5 qw(md5_hex);
 
+my $sys_image_ver = "v59";
+
 sub so{ print join(" ",@_),"\n"; system @_; }
 sub sy{ print join(" ",@_),"\n"; system @_ and die $?; }
 sub syf{ for(@_){ print "$_\n"; my $r = scalar `$_`; $? && die $?; return $r } }
@@ -623,7 +625,6 @@ push @tasks, ["wrap_deploy-kc_host", "", $wrap_kc];
 
 #networks => { default => { aliases => ["broker","zookeeper"] } },
 
-my $sys_image_ver = "v56";
 my $remote_build = sub{
     my($comp,$dir)=@_;
     my($build_comp,$repo) = &$get_deployer_conf($comp,1,qw[builder sys_image_repo]);
