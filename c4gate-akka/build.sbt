@@ -4,6 +4,9 @@ libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.25"
 // https://mvnrepository.com/artifact/com.typesafe.akka/akka-http-core
 libraryDependencies += "com.typesafe.akka" %% "akka-http-core" % "10.1.10" // "10.0.13"
 
+// https://mvnrepository.com/artifact/io.minio/minio
+libraryDependencies += "io.minio" % "minio" % "6.0.11"
+
 
 description := s"C4 framework / http gate server to kafka"
 

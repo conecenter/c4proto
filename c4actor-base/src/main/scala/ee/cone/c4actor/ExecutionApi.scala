@@ -32,6 +32,7 @@ trait Executable extends Runnable
 
 trait Config {
   def get(key: String): String
+  def getOpt(key: String): Option[String]
 }
 trait ListConfig {
   def get(key: String): List[String]

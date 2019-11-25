@@ -151,6 +151,8 @@ object ServerMain extends BaseServerMain(
 @c4("EnvConfigCompApp") class SingleConfigImpl(inner: ListConfig) extends Config {
   def get(key: String): String =
     Single[String](inner.get(key), (l:Seq[String])=>new Exception(s"Need single ENV: $key: $l"))
+  def getOpt(key: String): Option[String] =
+    Single.option(inner.get(key))
 }
 
 @c4("EnvConfigCompApp") class ActorNameImpl(config: Config) extends ActorName(config.get("C4STATE_TOPIC_PREFIX"))
