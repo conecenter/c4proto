@@ -25,8 +25,6 @@ object ComponentsGenerator extends Generator {
 
   val IsId = """(\w+)""".r
 
-  def pkgNameToId(pkgName: String): String =
-    """[\._]+([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
   def fileNameToComponentsId(fileName: String): String = {
     val SName = """.+/([-\w]+)\.scala""".r
     val SName(fName) = fileName
@@ -96,7 +94,7 @@ object ComponentsGenerator extends Generator {
       (exprss,cl) <- Util.singleSeq(cl.mods.collect {
         case mod"@c4(...$exprss) " => (exprss, cl)
       })
-      app = if(exprss.isEmpty) s"${pkgNameToId(parseContext.pkg)}DefApp" else annArgToStr(exprss).get
+      app = if(exprss.isEmpty) s"DefApp" else annArgToStr(exprss).get
       c <- getComponent(cl)
       res <- new GeneratedComponentAppLink(app,c.link) :: c :: Nil
     } yield res

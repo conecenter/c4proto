@@ -1,4 +1,46 @@
 
+//C4DEP base_lib.ee.cone.c4proto base_lib.ee.cone.c4di
+//C4DEP base_lib.ee.cone.c4assemble base_lib.ee.cone.c4di
+//C4DEP base_lib.ee.cone.c4actor base_lib.ee.cone.c4proto
+//C4DEP base_lib.ee.cone.c4actor base_lib.ee.cone.c4assemble
+//C4DEP base_lib.ee.cone.c4actor_branch base_lib.ee.cone.c4actor
+//C4DEP base_lib.ee.cone.c4actor_kafka_impl base_lib.ee.cone.c4actor
+//C4DEP base_lib.ee.cone.c4actor_logback_impl base_lib.ee.cone.c4actor
+//C4DEP base_lib.ee.cone.c4actor_repl_impl base_lib.ee.cone.c4actor
+//C4DEP base_lib.ee.cone.c4gate base_lib.ee.cone.c4actor
+//C4DEP base_lib.ee.cone.c4vdom_impl base_lib.ee.cone.c4vdom
+//C4DEP base_lib.ee.cone.c4vdom_mix base_lib.ee.cone.c4vdom_impl
+//C4DEP base_lib.ee.cone.c4ui base_lib.ee.cone.c4actor_branch
+//C4DEP base_lib.ee.cone.c4ui base_lib.ee.cone.c4vdom_mix
+//C4DEP base_lib.ee.cone.c4ui base_lib.ee.cone.c4gate
+
+//C4DEP base_server.ee.cone.c4gate_server base_lib.ee.cone.c4gate
+//C4DEP base_server.ee.cone.c4gate_server base_lib.ee.cone.c4actor_kafka_impl
+//C4DEP base_server.ee.cone.c4gate_server base_lib.ee.cone.c4actor_logback_impl
+//C4DEP base_server.ee.cone.c4gate_akka base_server.ee.cone.c4gate_server
+
+//C4DEP base_examples.ee.cone.c4actor base_lib.ee.cone.c4actor_logback_impl
+//C4DEP base_examples.ee.cone.c4gate base_lib.ee.cone.c4gate
+//C4DEP base_examples.ee.cone.c4gate base_lib.ee.cone.c4actor_kafka_impl
+//C4DEP base_examples.ee.cone.c4gate base_lib.ee.cone.c4actor_logback_impl
+//C4DEP base_examples.ee.cone.c4gate_server base_server.ee.cone.c4gate_server
+//C4DEP base_examples.ee.cone.c4vdom base_lib.ee.cone.c4vdom_mix
+//C4DEP base_examples.ee.cone.c4ui base_lib.ee.cone.c4ui
+//C4DEP base_examples.ee.cone.c4ui base_lib.ee.cone.c4actor_kafka_impl
+//C4DEP base_examples.ee.cone.c4ui base_lib.ee.cone.c4actor_logback_impl
+//C4DEP base_examples.ee.cone.c4ui base_lib.ee.cone.c4actor_repl_impl
+
+//C4DEP extra_lib.ee.cone.c4actor base_lib.ee.cone.c4actor
+//C4DEP extra_lib.ee.cone.c4gate base_lib.ee.cone.c4gate
+//C4DEP extra_lib.ee.cone.c4gate extra_lib.ee.cone.c4actor
+//C4DEP extra_lib.ee.cone.c4ui base_lib.ee.cone.c4ui
+//C4DEP extra_lib.ee.cone.c4ui extra_lib.ee.cone.c4gate
+
+//C4DEP extra_examples.ee.cone.c4actor extra_lib.ee.cone.c4actor
+//C4DEP extra_examples.ee.cone.c4actor base_lib.ee.cone.c4actor_kafka_impl
+//C4DEP extra_examples.ee.cone.c4actor base_lib.ee.cone.c4actor_logback_impl
+//C4DEP extra_examples.ee.cone.c4gate extra_lib.ee.cone.c4gate
+
 
 import sbt.Keys._
 import sbt._
