@@ -13,7 +13,7 @@ import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{Config, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4gate.HttpProtocolBase.N_Header
-import ee.cone.c4proto.{ToByteString, c4}
+import ee.cone.c4proto.{ToByteString, c4, provide}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -33,6 +33,7 @@ import scala.util.control.NonFatal
   handler: FHttpHandler,
   execution: Execution,
   akkaMat: AkkaMat,
+  additionalHandlers: List[AkkaInnerResponseHandler],
 )(
   port: Int = config.get("C4HTTP_PORT").toInt
 ) extends Executable with LazyLogging {
@@ -56,17 +57,8 @@ import scala.util.control.NonFatal
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp <- handler.handle(rReq)
-    } yield {
-      val status = Math.toIntExact(rResp.status)
-      val (ctHeaders, rHeaders) = rResp.headers.partition(_.key == "content-type")
-      val contentType =
-        Single.option(ctHeaders.flatMap(h => ContentType.parse(h.value).toOption))
-          .getOrElse(ContentTypes.`application/octet-stream`)
-      val aHeaders = rHeaders.map(h => RawHeader(h.key, h.value))
-      val entity = HttpEntity(contentType, rResp.body.toByteArray)
-      logger.debug(s"resp status: $status")
-      HttpResponse(status, aHeaders, entity)
-    }).recover{ case NonFatal(e) =>
+      response <- additionalHandlers.find(_ shouldHandle rResp).getOrElse(AkkaDefaultResponseHandler).handleAsync(rResp, akkaMat)
+    } yield response).recover{ case NonFatal(e) =>
         logger.error("http-handler",e)
         throw e
     }
@@ -85,17 +77,63 @@ import scala.util.control.NonFatal
     } yield binding
   }
 }
+@c4("AkkaGatewayApp") class WithAkkaRedirect {
+  @provide def additionalHandlers: Seq[AkkaInnerResponseHandler] = AkkaRedirectInnerResponseHandler :: Nil
+}
+object AkkaRedirectInnerResponseHandler
+  extends AkkaInnerResponseHandler with LazyLogging {
+  val headername = "redirect-inner"
+  def shouldHandle(
+    httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse
+  ): Boolean = httpResponse.headers.exists {
+    case N_Header(`headername`, _) => true
+    case _ => false
+  }
+  def handleAsync(
+    httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse,
+    akkaMat: AkkaMat,
+  )(
+    implicit ec: ExecutionContext,
+  ): Future[HttpResponse] = httpResponse.headers.collectFirst {
+    case N_Header(`headername`, uri) =>
+      for {
+        materializer <- akkaMat.get
+        actorsys = materializer.system
+        response <- Http(actorsys).singleRequest(HttpRequest(uri = uri))
+      } yield response
+  }.getOrElse(Future.failed(new Exception("akka-minio-response-handler-failure")))
+}
+object AkkaDefaultResponseHandler extends AkkaInnerResponseHandler with LazyLogging {
+  def shouldHandle(httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse): Boolean = true
+  def handleAsync(
+    httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse,
+    akkaMat: AkkaMat,
+  )(
+    implicit ec: ExecutionContext,
+  ): Future[HttpResponse] = Future.successful {
+    val status = Math.toIntExact(httpResponse.status)
+    val (ctHeaders, rHeaders) = httpResponse.headers.partition(_.key == "content-type")
+    val contentType =
+      Single.option(ctHeaders.flatMap(h => ContentType.parse(h.value).toOption))
+        .getOrElse(ContentTypes.`application/octet-stream`)
+    val aHeaders = rHeaders.map(h => RawHeader(h.key, h.value))
+    val entity = HttpEntity(contentType, httpResponse.body.toByteArray)
+    logger.debug(s"resp status: $status")
+    HttpResponse(status, aHeaders, entity)
+  }
+}
 @c4("AkkaGatewayApp") class AkkaHttpServerWithS3(
   akkaHttpServer: AkkaHttpServer,
   config: Config,
   handler: FHttpHandler,
   execution: Execution,
   akkaMat: AkkaMat,
+  additionalHandlers: List[AkkaInnerResponseHandler],
   s3FileStorage: S3FileStorage,
 )(
   port: Int = config.get("C4HTTP_PORT").toInt,
   useS3: Boolean = config.getOpt("C4MFS").exists(!_.isBlank),
-) extends AkkaHttpServer(config, handler, execution, akkaMat)(port) {
+) extends AkkaHttpServer(config, handler, execution, akkaMat, additionalHandlers)(port) {
   if (useS3) s3FileStorage.setTmpExpirationDays(1)
 
   override def additionalRequestPreparation(mat: Materializer, req: HttpRequest)(
