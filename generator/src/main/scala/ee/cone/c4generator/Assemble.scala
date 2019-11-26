@@ -58,7 +58,7 @@ object AssembleGenerator extends Generator {
       case mod"@c4assemble(...$e)" => mod"@c4(...$e)".syntax
     })
     res <- Util.unBase(cl.name,cl.nameNode.pos.end) { className =>
-      (if(c4ann.isEmpty) Nil else List(GeneratedImport("\nimport ee.cone.c4proto.c4"))) :::
+      (if(c4ann.isEmpty) Nil else List(GeneratedImport("\nimport ee.cone.c4di.c4"))) :::
       getAssemble(parseContext, cl, className, c4ann)
     }
   } yield res

@@ -182,20 +182,23 @@ push @tasks, ["gate_server_run", sub{
     &$inbox_configure();
     #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-sun","ee.cone.c4gate.SunGatewayApp"));
     #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-finagle","ee.cone.c4gate.FinagleGatewayApp"));
-    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-akka","ee.cone.c4gate.AkkaGatewayApp"));
+    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("base_server","ee.cone.c4gate_akka.AkkaGatewayApp"));
 }];
 push @tasks, ["get_env", sub{ print "RES: ", &$get_env(), "\n" }];
 push @tasks, ["test", sub{
     my @arg = @_;
+    my @tests = map{
+        my $src_dir = $_;
+        my $src_mod = $src_dir=~m{([^/]+)/src$} ? $1 : die;
+        my @src_files = `find $src_dir`=~/(\S+\/c4gen\.scala)\b/g;
+        map{[$src_mod,$_]} map{/(\S+)/g} map{`cat $_`=~/C4APPS:([^\n]+)/?"$1":die} @src_files;
+    } grep{-e $_} map{"$_/src"} grep{/example/} <$gen_dir/*>;
     if(@arg==0){
-        print map{"\t$0 test $_\n"} map{
-            my $src_dir = $_;
-            my @src_files = `find $src_dir`=~/(\S+\/c4gen\.scala)\b/g;
-            map{/(\S+)/g} map{`cat $_`=~/C4APPS:([^\n]+)/?"$1":die} @src_files;
-        } grep{-e $_} map{"$_/src"} grep{/example/} <$gen_dir/*>;
+        print map{"\t$0 test $$_[1]\n"} @tests;
     } elsif(@arg==1) {
         my $env = &$get_env();
-        sy("$env ".staged("c4all-examples",$arg[0]));
+        my $test = (grep{$arg[0] eq $$_[1]} @tests)[0] || die;
+        sy("$env ".staged(@$test));
     } else { die }
 }];
 

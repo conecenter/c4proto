@@ -18,18 +18,32 @@ object Main {
 }
 import Main.{toPrefix,rootPath,version}
 
-case class WillGeneratorContext(fromFiles: List[Path])
+case class WillGeneratorContext(fromFiles: List[Path], dirToModDir: Map[Path,ParentPath])
 trait WillGenerator {
   def get(ctx: WillGeneratorContext): List[(Path,Array[Byte])]
 }
 
+class ParentPath(val path: Path, val removed: List[String])
 class RootGenerator(generators: List[Generator]) {
   def willGenerators: List[WillGenerator] = List(
     new DefaultWillGenerator(generators),
-    new PublicPathsGenerator
+    new PublicPathsGenerator,
+    new ModRootsGenerator
   )
   //
   def isGenerated(path: Path): Boolean = path.getFileName.toString.startsWith(toPrefix)
+  def getParentPaths(res: List[ParentPath]): List[ParentPath] = (for {
+    parent <- Option(res.head.path.getParent)
+    name <- Option(res.head.path.getFileName)
+  } yield getParentPaths(new ParentPath(parent, name.toString::res.head.removed) :: res)).getOrElse(res)
+  def getModDirs(paths: List[Path]): Map[Path,ParentPath] = {
+    val srcScalaDirs: List[Path] =
+      paths.filter(_.getFileName.toString.endsWith(".scala")).map(_.getParent).distinct
+    val hasScala = srcScalaDirs.toSet
+    srcScalaDirs.map(dir => dir ->
+      getParentPaths(new ParentPath(dir,Nil)::Nil).find(p=>hasScala(p.path)).get
+    ).toMap
+  }
   def run(): Unit = {
     //println(s"1:${System.currentTimeMillis()}") //130
     val rootFromPath = rootPath.resolve("src")
@@ -37,7 +51,7 @@ class RootGenerator(generators: List[Generator]) {
     //println(s"5:${System.currentTimeMillis()}") //150
     val was = (for { path <- wasFiles } yield path -> Files.readAllBytes(path)).toMap
     //println(s"4:${System.currentTimeMillis()}") //1s
-    val willGeneratorContext = WillGeneratorContext(fromFiles)
+    val willGeneratorContext = WillGeneratorContext(fromFiles,getModDirs(fromFiles))
     val will = willGenerators.flatMap(_.get(willGeneratorContext))
     assert(will.forall{ case(path,_) => isGenerated(path) })
     //println(s"2:${System.currentTimeMillis()}")
@@ -60,24 +74,31 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
     val rootCachePath = rootPath.resolve("cache")
     val fromPostfix = ".scala"
     Files.createDirectories(rootCachePath)
-    withIndex(for {
+    withIndex(ctx)(for {
       path <- ctx.fromFiles.filter(_.toString.endsWith(fromPostfix))
       toData <- Option(pathToData(path,rootCachePath)) if toData.length > 0
     } yield path.getParent.resolve(s"$toPrefix${path.getFileName}") -> toData)
   }
-  def withIndex: List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
+  def pkgNameToId(pkgName: String): String =
+    """[\._]+([a-z])""".r.replaceAllIn(s".$pkgName",m=>m.group(1).toUpperCase)
+  def withIndex(ctx: WillGeneratorContext): List[(Path,Array[Byte])] => List[(Path,Array[Byte])] = args => {
     val pattern = """\((\S+)\s(\S+)\s(\S+)\)""".r
-    val indexes = args.groupBy(_._1.getParent).toList.sortBy(_._1).flatMap{ case (parentPath,args) =>
-      val links: Seq[GeneratedAppLink] = args.flatMap{ case (path,data) =>
-        val pos = data.indexOf('\n'.toByte)
-        // println((pos,path,new String(data)))
-        val firstLine = new String(data,0,pos,UTF_8)
-        pattern.findAllMatchIn(firstLine).map{ mat =>
-          val Seq(pkg,app,expr) = mat.subgroups
-          GeneratedAppLink(pkg,app,expr)
-        }
-      }
-      if(links.isEmpty) Nil else {
+    val indexes = (for {
+      (path,data) <- args
+      pos = data.indexOf('\n'.toByte)
+      firstLine = new String(data,0,pos,UTF_8)
+      dir = path.getParent
+      mat <- pattern.findAllMatchIn(firstLine)
+    } yield {
+      val Seq(pkg,app,expr) = mat.subgroups
+      if(app=="DefApp"){
+        val modParentPath = ctx.dirToModDir(dir)
+        val end = modParentPath.removed.map(n=>s".$n").mkString
+        assert(pkg.endsWith(end))
+        val appPkg = pkg.substring(0,pkg.length-end.length)
+        modParentPath.path -> GeneratedAppLink(appPkg, s"${pkgNameToId(appPkg)}$app", s"$pkg.$expr")
+      } else dir -> GeneratedAppLink(pkg,app,expr)
+    }).groupMap(_._1)(_._2).toList.sortBy(_._1).map{ case(parentPath,links) =>
         val Seq(pkg) = links.map(_.pkg).distinct
         val content =
           s"\n// THIS FILE IS GENERATED; C4APPS: ${links.filter(_.expr=="CLASS").map(l=>s"$pkg.${l.app}").mkString(" ")}" +
@@ -85,23 +106,23 @@ class DefaultWillGenerator(generators: List[Generator]) extends WillGenerator {
             links.groupBy(_.app).toList.collect{ case (app,links) =>
               val(classLinks,exprLinks) = links.partition(_.expr=="CLASS")
               val tp = if(classLinks.nonEmpty) "class" else "trait"
-              val base = if(app.endsWith("DefApp")) "ee.cone.c4proto.ComponentsApp"
-              else s"${app}Base with ee.cone.c4proto.ComponentsApp"
+              val base = if(app.endsWith("DefApp")) "ee.cone.c4di.ComponentsApp"
+              else s"${app}Base with ee.cone.c4di.ComponentsApp"
               s"\n$tp $app extends $base {" +
-                s"\n  override def components: List[ee.cone.c4proto.Component] = " +
+                s"\n  override def components: List[ee.cone.c4di.Component] = " +
                 exprLinks.map(c=> s"\n    ${c.expr} ::: ").mkString +
                 s"\n    super.components" +
                 s"\n}"
             }.sorted.mkString
-        List(parentPath.resolve("c4gen.scala") -> content.getBytes(UTF_8))
-      }
+        parentPath.resolve("c4gen.scala") -> content.getBytes(UTF_8)
     }
     args ++ indexes
   }
   def pathToData(path: Path, rootCachePath: Path): Array[Byte] = {
     val fromData = Files.readAllBytes(path)
+    val uuidForPath = UUID.nameUUIDFromBytes(path.toString.getBytes(UTF_8)).toString
     val uuid = UUID.nameUUIDFromBytes(fromData).toString
-    val cachePath = rootCachePath.resolve(s"$uuid$version")
+    val cachePath = rootCachePath.resolve(s"$uuidForPath-$uuid-$version")
     val Name = """.+/(\w+)\.scala""".r
     if(Files.exists(cachePath)) Files.readAllBytes(cachePath) else {
       println(s"parsing $path")
@@ -205,6 +226,35 @@ object Util {
     assert(l.size<=1)
     l
   }
+
+  def matchThisOrParent(cond: Path=>Boolean): Path=>Option[Path] = {
+    def inner(path: Path): Option[Path] =
+      if(cond(path)) Option(path) else Option(path.getParent).flatMap(inner)
+    inner
+  }
+
+  private val getPkgRootPath: Path => Option[Path] = Util.matchThisOrParent { path =>
+    val parent = path.getParent
+    parent.getFileName.toString == "main" &&
+      parent.getParent.getFileName.toString == "src"
+  }
+
+  def pkgInfo(path: Path): PkgInfo = {
+    val pkgRootPath = getPkgRootPath(path).get
+    //val basePath = scalaPath.getParent
+    val pkgPath = pkgRootPath.relativize(path)
+    val pkgName = pkgPath.iterator.asScala.mkString(".")
+    val mainPath = pkgRootPath.getParent
+    val modName = s"${mainPath.getFileName}.$pkgName"
+    PkgInfo(mainPath,pkgPath,pkgName,modName)
+  }
+
+  def toBinFileList(in: Iterable[(Path,List[String])]): List[(Path,Array[Byte])] =
+    in.map{ case (path,lines) => path->lines.mkString("\n").getBytes(UTF_8) }.toList.sortBy(_._1)
+}
+case class PkgInfo(mainPath: Path, pkgPath: Path, pkgName: String, modName: String){
+  def resolve(tp: String): Path = mainPath.resolve(tp).resolve(pkgPath)
+  def link(tp: String): String = s"mod/${modName}/src/main/$tp ${resolve(tp)}"
 }
 
 class ParsedClass(
@@ -248,48 +298,67 @@ object Lint {
     }
 }
 
-case class PublicPathRoot(basePath: Path, genPath: Path, pkgName: String, publicPath: Path, modName: String)
+case class PublicPathRoot(pkgInfo: PkgInfo, genPath: Path, publicPath: Path)
 class PublicPathsGenerator extends WillGenerator {
-  def matchThisOrParent(cond: Path=>Boolean): Path=>Option[Path] = {
-    def inner(path: Path): Option[Path] =
-      if(cond(path)) Option(path) else Option(path.getParent).flatMap(inner)
-    inner
-  }
   def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
     val roots: List[PublicPathRoot] = for {
       path <- ctx.fromFiles.filter(_.getFileName.toString == "ht.scala")
-      scalaPath <- matchThisOrParent(_.getFileName.toString=="scala")(path).toList
     } yield {
-      val basePath = scalaPath.getParent
+      val pkgInfo = Util.pkgInfo(path.getParent)
       val genPath = path.resolveSibling("c4gen.htdocs.scala")
-      val pkgPath = scalaPath.relativize(path.getParent)
-      val publicPath = basePath.resolve("htdocs").resolve(pkgPath)
-      val pkgName = pkgPath.iterator.asScala.mkString(".")
-      val modName = s"${basePath.getFileName}.$pkgName"
-      PublicPathRoot(basePath,genPath,pkgName,publicPath,modName)
+      val publicPath = pkgInfo.resolve("htdocs")
+      PublicPathRoot(pkgInfo,genPath,publicPath)
     }
     val isModRoot = roots.map(_.publicPath).toSet
-    val toModRoot = matchThisOrParent(isModRoot)
+    val toModRoot = Util.matchThisOrParent(isModRoot)
     val pathByRoot = ctx.fromFiles.groupBy(toModRoot)
     val RefOk = """([\w\-\./]+)""".r
-    val links = roots.groupMap(_.basePath.resolve("c4gen.ht.links"))(
-      root=>s"mod/${root.modName}/src/main/htdocs ${root.publicPath}"
-    ).transform((path,lines)=>lines.mkString("\n").getBytes(UTF_8)).toList.sortBy(_._1)
+    val links = roots.groupMap(_.pkgInfo.mainPath.resolve("c4gen.ht.links"))(_.pkgInfo.link("htdocs"))
     val code = roots.map { (root:PublicPathRoot) =>
       val defs = pathByRoot.getOrElse(Option(root.publicPath),Nil)
         .map(root.publicPath.relativize(_).toString).map{
-          case RefOk(r) => s"""    def `/$r` = "/mod/${root.modName}/$r" """
+          case RefOk(r) => s"""    def `/$r` = "/mod/${root.pkgInfo.modName}/$r" """
         }
       val lines = if(defs.isEmpty) Nil else
         "/** THIS FILE IS GENERATED; CHANGES WILL BE LOST **/" ::
-        s"package ${root.pkgName}" ::
+        s"package ${root.pkgInfo.pkgName}" ::
         "object PublicPath {" :: defs ::: "}" :: Nil
-      root.genPath -> lines.mkString("\n").getBytes(UTF_8)
+      root.genPath -> lines
     }
-    links ::: code
+    Util.toBinFileList(links) ::: Util.toBinFileList(code)
   }
 }
 
+class ModRootsGenerator extends WillGenerator {
+  def get(ctx: WillGeneratorContext): List[(Path, Array[Byte])] = {
+    def dSorted(path: Path, l: Iterable[String]): List[String] =
+      l.toList.distinct.sorted
+
+    val javaLinks: Map[Path, List[String]] = ctx.fromFiles
+      .filter(_.getFileName.toString.endsWith(".java"))
+      .map(_.getParent).map(Util.pkgInfo)
+      .groupMap(_.mainPath.resolve("c4gen.java.links")){ pkgInfo =>
+        val dirWithScala = pkgInfo.resolve("scala")
+        assert(ctx.dirToModDir(dirWithScala).path==dirWithScala)
+        pkgInfo.link("java")
+      }.transform(dSorted)
+
+    val modDirChecks: Map[Path, List[String]] = ctx.dirToModDir.values
+      .filter(_.removed.nonEmpty)
+      .groupMap(pp=>Util.pkgInfo(pp.path).mainPath.resolve("c4gen.mod_dirs_check"))(_.removed.mkString("/"))
+      .transform(dSorted)
+
+    val scalaLinks: Map[Path, List[String]] = ctx.dirToModDir.values
+      .map(pp=>Util.pkgInfo(pp.path))
+      .groupMap(_.mainPath.resolve("c4gen.scala.links")){ pkgInfo =>
+        if(pkgInfo.pkgName.contains("._"))
+          throw new Exception(s"unclear name: ${pkgInfo.pkgName}; create dummy *.scala file or remove '_' prefix")
+        pkgInfo.link("scala")
+      }.transform(dSorted)
+
+    List(modDirChecks,javaLinks,scalaLinks).flatMap(Util.toBinFileList)
+  }
+}
 
 
 /*

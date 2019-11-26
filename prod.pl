@@ -894,7 +894,7 @@ my $up_gate = sub{
             &$consumer_options(),
             name => "gate",
             C4DATA_DIR => "/c4db",
-            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate.AkkaGatewayApp",
+            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate_akka.AkkaGatewayApp",
             C4STATE_REFRESH_SECONDS => 1000,
         },
         {
@@ -1189,7 +1189,7 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
         'ENTRYPOINT ["perl","run.pl"]',
     );
     sy("cp $gen_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
-    my $server_impl = "c4gate-akka";
+    my $server_impl = "base_server";
     sy("mv $gen_dir/$server_impl/target/universal/stage $ctx_dir/app");
     sy("mv $ctx_dir/app/bin/$server_impl $ctx_dir/app/bin/c4gate");
 }];

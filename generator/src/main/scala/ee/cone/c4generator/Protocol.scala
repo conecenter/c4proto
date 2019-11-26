@@ -184,7 +184,7 @@ $c4ann class ${cl.name}ProtoAdapter(
         yield s"link${nm}ProtoAdapterProvider$pf"
     val componentsId = ComponentsGenerator.fileNameToComponentsId(parseContext.path)
     val obj = GeneratedCode(
-      s"""\nobject $objectName extends ee.cone.c4proto.AbstractComponents {""" +
+      s"""\nobject $objectName extends ee.cone.c4di.AbstractComponents {""" +
         protoGenerated.collect{ case c: GeneratedInnerCode => c.content }.mkString +
       s"""\n  def components = """ +
       (classLinks:::traitLinks).map(l=>s"\n    $componentsId.$l ::").mkString +
@@ -194,8 +194,8 @@ $c4ann class ${cl.name}ProtoAdapter(
 
     // todo: compat .components
     GeneratedImport("\nimport com.squareup.wire.ProtoAdapter") ::
-    GeneratedImport("\nimport ee.cone.c4proto.HasId") ::
-    GeneratedImport("\nimport ee.cone.c4proto.c4") ::
+    GeneratedImport("\nimport ee.cone.c4proto._") ::
+    GeneratedImport("\nimport ee.cone.c4di._") ::
     obj ::
     protoGenerated.collect{ case c: GeneratedImport => c } :::
     protoGenerated.collect{ case c: GeneratedCode => c }

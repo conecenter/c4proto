@@ -25,23 +25,23 @@ my $find = sub{
 };
 
 my $sync = sub{
-    my ($list_fn,$ssh,$from,$from_fns,$to,$to_fns,$to_rm_f) = @_;
+    my ($list_fn,$ssh,$from,$from_fns,$to,$to_fns) = @_;
     my %keep = map{($_=>1)} @$from_fns;
     my @to_rm = grep{!$keep{$_}} @$to_fns;
-    my $to_rm = join " ", map{$_%10 ? $to_rm[$_] : ("&&","rm",$to_rm[$_])} 0..(@to_rm-1);
     &$put_text($list_fn, join "", map{"$_\n"} @$from_fns);
+    &$put_text("$list_fn.rm",join " ", "true", map{$_%10 ? $to_rm[$_] : ("\\\n && rm",$to_rm[$_])} 0..(@to_rm-1));
     my $tm = Time::HiRes::time();
     sy("rsync -e '$ssh' -av --files-from=$list_fn $from/ $to") if @$from_fns;
     print Time::HiRes::time()-$tm," for rsync\n";
-    sy(&$to_rm_f($to_rm)) if $to_rm;
 };
 
 my $filter = sub{grep{m{\bc4gen\b}}@_};
-my $prune = [qw(target .git .idea)];
+my $prune = [qw(target .git .idea .bloop)];
 
 my $port = ($ENV{C4BUILD_PORT}-0) || die;
 my $clean = $ENV{C4BUILD_CLEAN}-0;
 my $cmd = $ENV{C4BUILD_CMD};
+my $compile = $ENV{C4BUILD_COMPILE_CMD};
 my $dir = $ARGV[0] || die;
 my $remote_dir = $ARGV[1] || die;
 
@@ -66,13 +66,17 @@ mkdir "$dir/target";
 my @local_fns = &$find("","$dir/",$prune);
 &$sync($list_fn,$ssh,
     $dir,[@local_fns],
-    $remote,[&$find($remote_pre,"$remote_dir/",$prune)],
-    sub{"$remote_pre 'cd $remote_dir $_[0]'"}
+    $remote,[&$find($remote_pre,"$remote_dir/",$prune)]
 );
-sy("$remote_pre '$cmd'") if $cmd;
-&$sync($list_fn,$ssh,
-    $remote,[&$filter(&$find($remote_pre,"$remote_dir/",$prune))],
-    $dir,[&$filter(@local_fns)],
-    sub{"cd $dir $_[0]"}
-) if $cmd;
-
+sy("$remote_pre 'cd $remote_dir && sh' < $list_fn.rm");
+if($cmd){
+    sy("$remote_pre '. /c4p_alias.sh && cd $remote_dir && $cmd'");
+    &$sync($list_fn,$ssh,
+        $remote,[&$filter(&$find($remote_pre,"$remote_dir/",$prune))],
+        $dir,[&$filter(@local_fns)]
+    );
+    sy("cd $dir && sh < $list_fn.rm");
+}
+if($compile){
+    sy("$remote_pre '. /c4p_alias.sh && cd $remote_dir && $compile'");
+}
