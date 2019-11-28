@@ -26,12 +26,19 @@ import scala.util.control.NonFatal
     matPromise.success(ActorMaterializer.create(system))
   }
 }
-
+case class AkkaRequestResponsePreHandlers(
+  defaultResponseHandler: AkkaResponseHandler,
+  defaultRequestHandler: AkkaRequestHandler,
+  additionalResponseHandlers: List[AkkaResponseHandler] = Nil,
+  additionalRequestHandlers: List[AkkaRequestHandler] = Nil,
+)
 @c4("AkkaGatewayApp") class AkkaHttpServer(
-  config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat
+  config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat,
+  preHandlers: AkkaRequestResponsePreHandlers,
 )(
   port: Int = config.get("C4HTTP_PORT").toInt
 ) extends Executable with LazyLogging {
+  import preHandlers._
   def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest=>Future[HttpResponse] = req => {
     val method = req.method.value
     val path = req.uri.path.toString
@@ -40,21 +47,19 @@ import scala.util.control.NonFatal
     logger.debug(s"req init: $method $path")
     logger.trace(s"req headers: $rHeaders")
     (for {
-      entity <- req.entity.toStrict(Duration(5,MINUTES))(mat)
+      request <- additionalRequestHandlers
+        .find(_.shouldHandle(req))
+        .getOrElse(defaultRequestHandler)
+        .handleAsync(req, akkaMat)
+      entity <- request.entity.toStrict(Duration(5,MINUTES))(mat)
       body = ToByteString(entity.getData.toArray)
       rReq = FHttpRequest(method, path, rHeaders, body)
       rResp <- handler.handle(rReq)
-    } yield {
-      val status = Math.toIntExact(rResp.status)
-      val(ctHeaders,rHeaders) = rResp.headers.partition(_.key=="content-type")
-      val contentType =
-        Single.option(ctHeaders.flatMap(h=>ContentType.parse(h.value).toOption))
-          .getOrElse(ContentTypes.`application/octet-stream`)
-      val aHeaders = rHeaders.map(h=>RawHeader(h.key,h.value))
-      val entity = HttpEntity(contentType,rResp.body.toByteArray)
-      logger.debug(s"resp status: $status")
-      HttpResponse(status, aHeaders, entity)
-    }).recover{ case NonFatal(e) =>
+      response <- additionalResponseHandlers
+        .find(_.shouldHandle(rResp))
+        .getOrElse(defaultResponseHandler)
+        .handleAsync(rResp, akkaMat)
+    } yield response).recover{ case NonFatal(e) =>
         logger.error("http-handler",e)
         throw e
     }
@@ -74,10 +79,93 @@ import scala.util.control.NonFatal
   }
 }
 
+object AkkaRedirectResponseHandler
+  extends AkkaResponseHandler with LazyLogging {
+  val headername = "redirect-inner"
+  def shouldHandle(
+    httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse
+  ): Boolean = httpResponse.headers.exists {
+    case N_Header(`headername`, _) => true
+    case _ => false
+  }
+  def handleAsync(
+    income: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse,
+    akkaMat: AkkaMat,
+  )(
+    implicit ec: ExecutionContext,
+  ): Future[HttpResponse] = income.headers.collectFirst {
+    case N_Header(`headername`, uri) =>
+      for {
+        materializer <- akkaMat.get
+        actorsys = materializer.system
+        _ = logger debug s"Redirecting resp with id=${income.srcId} to $uri"
+        response <- Http(actorsys).singleRequest(HttpRequest(uri = uri))
+        _ = logger debug "Redirect successful"
+      } yield response
+  }.getOrElse(Future.failed(new Exception("akka-redirect-response-handler-failure")))
+}
+object AkkaDefaultResponseHandler extends AkkaResponseHandler with LazyLogging {
+  def shouldHandle(httpResponse: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse): Boolean = true
+  def handleAsync(
+    income: ee.cone.c4gate.HttpProtocolBase.S_HttpResponse,
+    akkaMat: AkkaMat,
+  )(
+    implicit ec: ExecutionContext,
+  ): Future[HttpResponse] = Future.successful {
+    val status = Math.toIntExact(income.status)
+    val (ctHeaders, rHeaders) = income.headers.partition(_.key == "content-type")
+    val contentType =
+      Single.option(ctHeaders.flatMap(h => ContentType.parse(h.value).toOption))
+        .getOrElse(ContentTypes.`application/octet-stream`)
+    val aHeaders = rHeaders.map(h => RawHeader(h.key, h.value))
+    val entity = HttpEntity(contentType, income.body.toByteArray)
+    logger.debug(s"resp status: $status")
+    HttpResponse(status, aHeaders, entity)
+  }
+}
+object AkkaDefaultRequestHandler extends AkkaRequestHandler with LazyLogging {
+  def shouldHandle(income: HttpRequest): Boolean = true
+  def handleAsync(
+    income: HttpRequest, akkaMat: AkkaMat
+  )(
+    implicit ec: ExecutionContext
+  ): Future[HttpRequest] = Future successful income
+}
+
+trait WithAkkaDefaultRequestHandler {
+  def defaultRequestHandler: AkkaRequestHandler
+}
+trait WithAkkaDefaultResponseHandler {
+  def defaultResponseHandler: AkkaResponseHandler
+}
+trait WithAkkaAdditionalRequestPrehandlers {
+  def additionalRequestHandlers: List[AkkaRequestHandler] = Nil
+}
+trait WithAkkaAdditionalResponsePrehandlers {
+  def additionalResponseHandlers: List[AkkaResponseHandler] = Nil
+}
+trait WithAkkaRequestResponsePrehandlers
+  extends WithAkkaDefaultRequestHandler
+    with WithAkkaDefaultResponseHandler
+    with WithAkkaAdditionalRequestPrehandlers
+    with WithAkkaAdditionalResponsePrehandlers {
+  def preHandlers: AkkaRequestResponsePreHandlers = AkkaRequestResponsePreHandlers(
+    defaultRequestHandler = defaultRequestHandler,
+    defaultResponseHandler = defaultResponseHandler,
+    additionalResponseHandlers = additionalResponseHandlers,
+    additionalRequestHandlers = additionalRequestHandlers,
+  )
+
+}
+@c4("AkkaGatewayApp") class WithAkkaDefaultPreHandlers
+  extends WithAkkaRequestResponsePrehandlers {
+  override def additionalResponseHandlers: List[AkkaResponseHandler] = AkkaRedirectResponseHandler :: super.additionalResponseHandlers
+  def defaultRequestHandler: AkkaRequestHandler = AkkaDefaultRequestHandler
+  def defaultResponseHandler: AkkaResponseHandler = AkkaDefaultResponseHandler
+}
 class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Message] {
   def send(message: Message): Unit = ref ! message
 }
-
 @c4("AkkaStatefulReceiverFactoryApp") class AkkaStatefulReceiverFactory(execution: Execution, akkaMat: AkkaMat) extends StatefulReceiverFactory {
   def create[Message](inner: List[Observer[Message]])(implicit executionContext: ExecutionContext): Future[StatefulReceiver[Message]] =
     for {
