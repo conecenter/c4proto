@@ -14,7 +14,7 @@ my $run_generator_outer = sub{
     my $src_dirs = join " ", map{"$src_dir/$_/src"}
         qw[base_lib base_server base_examples extra_lib extra_examples];
     sy("find $src_dirs -type f | sort > $generator_path/src");
-    &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path perl run.pl");
+    &$sy_in_dir("$src_dir/generator","C4GENERATOR_PATH=$generator_path C4GENERATOR_MAIN=ee.cone.c4generator.Main perl run.pl");
 };
 
 my $build_some_server = sub{
