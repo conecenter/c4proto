@@ -1,4 +1,35 @@
 
+
+//C4GENERATOR_MAIN ee.cone.c4generator.Main generator.ee.cone.c4generator
+
+//C4GROUP generator generator/src/main
+//C4GROUP base_lib base_lib/src/main
+//C4GROUP base_server base_server/src/main
+//C4GROUP base_examples base_examples/src/main
+//C4GROUP extra_lib extra_lib/src/main
+//C4GROUP extra_examples extra_examples/src/main
+
+
+//C4EXT generator.ee.cone.c4generator org.scalameta:scalameta_2.13:4.2.3
+//C4EXT base_lib.ee.cone.c4actor com.typesafe.scala-logging:scala-logging_2.13:3.9.2
+//C4EXT base_lib.ee.cone.c4actor_kafka_impl org.apache.kafka:kafka-clients:2.3.0
+//C4EXT base_lib.ee.cone.c4actor_logback_impl ch.qos.logback:logback-classic:1.2.3
+//C4EXT base_lib.ee.cone.c4actor_repl_impl com.lihaoyi:ammonite-sshd_2.13.0:1.8.2
+//C4EXT base_lib.ee.cone.c4proto com.squareup.wire:wire-runtime:2.2.0
+
+//C4EXT base_server.ee.cone.c4gate_akka com.typesafe.akka:akka-stream_2.13:2.5.25
+//C4EXT base_server.ee.cone.c4gate_akka com.typesafe.akka:akka-http-core_2.13:10.1.10
+
+//C4EXT extra_examples.ee.cone.c4actor org.scalameta:scalameta_2.13:4.2.3
+
+//"com.lihaoyi" % "ammonite-sshd" % "1.6.9" cross CrossVersion.full
+
+/* akka
+"-J-XX:+UseG1GC","-J-XX:MaxGCPauseMillis=200","-J-XX:+ExitOnOutOfMemoryError",
+"-J-XX:GCTimeRatio=1","-J-XX:MinHeapFreeRatio=15","-J-XX:MaxHeapFreeRatio=50"
+ee.cone.c4actor.ServerMain
+*/
+
 //C4DEP base_lib.ee.cone.c4proto base_lib.ee.cone.c4di
 //C4DEP base_lib.ee.cone.c4assemble base_lib.ee.cone.c4di
 //C4DEP base_lib.ee.cone.c4actor base_lib.ee.cone.c4proto
@@ -18,6 +49,7 @@
 //C4DEP base_server.ee.cone.c4gate_server base_lib.ee.cone.c4actor_kafka_impl
 //C4DEP base_server.ee.cone.c4gate_server base_lib.ee.cone.c4actor_logback_impl
 //C4DEP base_server.ee.cone.c4gate_akka base_server.ee.cone.c4gate_server
+//C4DEP base_server.ee.cone.c4gate_akka base_lib.ee.cone.c4actor_repl_impl
 
 //C4DEP base_examples.ee.cone.c4actor base_lib.ee.cone.c4actor_logback_impl
 //C4DEP base_examples.ee.cone.c4gate base_lib.ee.cone.c4gate
