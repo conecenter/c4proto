@@ -30,3 +30,4 @@ htdocs
 /logback.xml
 *.auth
 c4gen.*
+c4gen-*
