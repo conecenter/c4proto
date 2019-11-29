@@ -10,7 +10,7 @@ import ee.cone.c4actor.Config
 import ee.cone.c4actor_s3.S3FileStorage
 import ee.cone.c4actor_s3_minio.MinioS3FileStorage
 import ee.cone.c4di.c4
-import ee.cone.c4gate_akka.{AkkaMat, AkkaRequestHandler, WithAkkaDefaultPreHandlers}
+import ee.cone.c4gate_akka.{AkkaMat, AkkaRequestHandler, AkkaRequestResponseHandlerProvider, AkkaRequestResponsePreHandlers}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -43,9 +43,13 @@ class AkkaMinioRequestHandler(
   } yield request
 }
 
-@c4("AkkaMinioGatewayApp") trait WithAkkaMinioPreHandlers
-  extends WithAkkaDefaultPreHandlers {
-  def config: Config
+@c4("AkkaMinioGatewayApp") class WithAkkaMinioPreHandlers(
+  config: Config,
+  inner: AkkaRequestResponseHandlerProvider,
+) extends AkkaRequestResponseHandlerProvider {
   lazy val fileStorage: MinioS3FileStorage = new MinioS3FileStorage(config)
-  override def additionalRequestHandlers: List[AkkaRequestHandler] = new AkkaMinioRequestHandler(fileStorage) :: super.additionalRequestHandlers
+  lazy val innerHandler: AkkaRequestResponsePreHandlers = inner.get
+  def get: AkkaRequestResponsePreHandlers = innerHandler.copy(
+    additionalRequestHandlers = new AkkaMinioRequestHandler(fileStorage) :: innerHandler.additionalRequestHandlers
+  )
 }

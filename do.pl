@@ -184,6 +184,13 @@ push @tasks, ["gate_server_run", sub{
     #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-finagle","ee.cone.c4gate.FinagleGatewayApp"));
     sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("base_server","ee.cone.c4gate_akka.AkkaGatewayApp"));
 }];
+push @tasks, ["gate_server_run_s3", sub{
+    my $env = &$get_env();
+    &$inbox_configure();
+    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-sun","ee.cone.c4gate.SunGatewayApp"));
+    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-finagle","ee.cone.c4gate.FinagleGatewayApp"));
+    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("base_server","ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp"));
+}];
 push @tasks, ["get_env", sub{ print "RES: ", &$get_env(), "\n" }];
 push @tasks, ["test", sub{
     my @arg = @_;

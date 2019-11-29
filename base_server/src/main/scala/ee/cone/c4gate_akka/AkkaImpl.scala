@@ -3,14 +3,14 @@ package ee.cone.c4gate_akka
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.{RawHeader,`Content-Type`}
+import akka.http.scaladsl.model.headers.{RawHeader, `Content-Type`}
 import akka.http.scaladsl.model._
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import com.typesafe.scalalogging.LazyLogging
 import ee.cone.c4actor.{Config, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
-import ee.cone.c4di.c4
+import ee.cone.c4di.{c4, provide}
 import ee.cone.c4gate.HttpProtocolBase.N_Header
 import ee.cone.c4gate_server._
 import ee.cone.c4proto.ToByteString
@@ -34,11 +34,12 @@ case class AkkaRequestResponsePreHandlers(
 )
 @c4("AkkaGatewayApp") class AkkaHttpServer(
   config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat,
-  preHandlers: AkkaRequestResponsePreHandlers,
+  preHandlers: AkkaRequestResponseHandlerProvider,
 )(
   port: Int = config.get("C4HTTP_PORT").toInt
 ) extends Executable with LazyLogging {
-  import preHandlers._
+  private lazy val handlers = preHandlers.get
+  import handlers._
   def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest=>Future[HttpResponse] = req => {
     val method = req.method.value
     val path = req.uri.path.toString
@@ -132,7 +133,7 @@ object AkkaDefaultRequestHandler extends AkkaRequestHandler with LazyLogging {
   ): Future[HttpRequest] = Future successful income
 }
 
-trait WithAkkaDefaultRequestHandler {
+/*trait WithAkkaDefaultRequestHandler {
   def defaultRequestHandler: AkkaRequestHandler
 }
 trait WithAkkaDefaultResponseHandler {
@@ -156,12 +157,20 @@ trait WithAkkaRequestResponsePrehandlers
     additionalRequestHandlers = additionalRequestHandlers,
   )
 
+}*/
+trait AkkaRequestResponseHandlerProvider {
+  def get:AkkaRequestResponsePreHandlers
 }
 @c4("AkkaGatewayApp") class WithAkkaDefaultPreHandlers
-  extends WithAkkaRequestResponsePrehandlers {
-  override def additionalResponseHandlers: List[AkkaResponseHandler] = AkkaRedirectResponseHandler :: super.additionalResponseHandlers
-  def defaultRequestHandler: AkkaRequestHandler = AkkaDefaultRequestHandler
-  def defaultResponseHandler: AkkaResponseHandler = AkkaDefaultResponseHandler
+  extends AkkaRequestResponseHandlerProvider {
+
+  def get: AkkaRequestResponsePreHandlers = AkkaRequestResponsePreHandlers(
+    defaultRequestHandler = AkkaDefaultRequestHandler,
+    defaultResponseHandler = AkkaDefaultResponseHandler,
+    additionalResponseHandlers = additionalResponseHandlers,
+    additionalRequestHandlers = Nil,
+  )
+  def additionalResponseHandlers: List[AkkaResponseHandler] = AkkaRedirectResponseHandler :: Nil
 }
 class AkkaStatefulReceiver[Message](ref: ActorRef) extends StatefulReceiver[Message] {
   def send(message: Message): Unit = ref ! message
