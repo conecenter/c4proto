@@ -54,7 +54,8 @@ push @tasks, [gate=>sub{
     $ENV{C4HTTP_PORT} = $http_port;
     $ENV{C4SSE_PORT} = $sse_port;
     $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$bootstrap_port";
-    &$exec("app/bin/c4gate");
+    $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
+    &$exec("java ee.cone.c4actor.ServerMain");
 }];
 push @tasks, [main=>sub{
     m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>;

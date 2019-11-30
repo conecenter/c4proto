@@ -113,10 +113,12 @@ my $calc_bloop_conf = sub{
     });
     my @bloop_will = map{
         my $conf = &$single(&$conf_by_name($_));
-        my $classpath = "export CLASSPATH=".join ":", &$bloop_conf_to_classpath($conf);
+        my $classpath = join ":", &$bloop_conf_to_classpath($conf);
+        my $classpath_sh = "export CLASSPATH=$classpath";
         (
             +{ fn=>"$dir/.bloop/$_.json", content=>&$json()->encode($conf) },
-            +{ fn=>"$tmp/mod.$_.classpath.sh", content=>$classpath },
+            +{ fn=>"$tmp/mod.$_.classpath", content=>$classpath },
+            +{ fn=>"$tmp/mod.$_.classpath.sh", content=>$classpath_sh },
         )
     } @mod_names;
     my $src_dirs_by_name = &$lazy_dict(sub{

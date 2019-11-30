@@ -16,6 +16,11 @@ my $put_text = sub{
     my($fn,$content)=@_;
     open FF,">:encoding(UTF-8)",$fn and print FF $content and close FF or die "put_text($!)($fn)";
 };
+my $start = sub{
+    print join " ",@_,"\n";
+    open my $fh, "|-", @_ or die $!;
+    sub{ close $fh or die $! };
+};
 
 my @tasks;
 
@@ -1182,17 +1187,22 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
         &$prod_image_steps(),
         "ENV JAVA_HOME=/tools/jdk",
         'ENV PATH=${PATH}:/tools/jdk/bin:/tools/kafka/bin',
-        "COPY . /c4",
         "RUN chown -R c4:c4 /c4",
         "WORKDIR /c4",
         "USER c4",
         "RUN cd /tools/greys && bash ./install-local.sh",
+        "COPY --chown=c4:c4 . /c4",
         'ENTRYPOINT ["perl","run.pl"]',
     );
     sy("cp $gen_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
-    my $server_impl = "base_server";
-    sy("mv $gen_dir/$server_impl/target/universal/stage $ctx_dir/app");
-    sy("mv $ctx_dir/app/bin/$server_impl $ctx_dir/app/bin/c4gate");
+    #
+    my $mod = "base_server.ee.cone.c4gate_akka";
+    mkdir "$ctx_dir/app";
+    my @started = map{&$start($_)} map{
+        m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
+        m{([^/]+)\.classes$} ? "cd $_ && zip -q -r $ctx_dir/app/$1.jar ." : die
+    } syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath")=~/([^\s:]+)/g;
+    &$_() for @started;
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;
