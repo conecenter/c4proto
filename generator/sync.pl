@@ -36,7 +36,8 @@ my $sync = sub{
     sy("cat $list_fn");
     sy("ls -la $from");
     sy("ls -la $to");
-    system "rsync $ssh_opt -av --files-from=$list_fn $from/ $to" if @$from_fns;
+    system "rsync $ssh_opt -av --files-from=$list_fn $from/ $to 2>0" if @$from_fns;
+    sy("cat 0")
     print "AAA\n";
 
     sy("rsync $ssh_opt -av --files-from=$list_fn $from/ $to") if @$from_fns;
