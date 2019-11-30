@@ -119,11 +119,8 @@ my $calc_bloop_conf = sub{
         my @own = map{@{$$_{project}{sources}||die}} &$conf_by_name($k);
         my @local_dependencies = &$int_dep_by_from($k);
         my @res = &$distinct(@own, map{@$_} map{&$get($_)} @local_dependencies);
-        print "R:",@res," | ",@own,"\n";
         @res
     });
-
-
     (\@bloop_conf,$src_dirs_by_name);
 };
 my $calc_sbt_conf = sub{

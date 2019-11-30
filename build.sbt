@@ -61,6 +61,7 @@ ee.cone.c4actor.ServerMain
 //C4DEP base_examples.ee.cone.c4ui base_lib.ee.cone.c4actor_kafka_impl
 //C4DEP base_examples.ee.cone.c4ui base_lib.ee.cone.c4actor_logback_impl
 //C4DEP base_examples.ee.cone.c4ui base_lib.ee.cone.c4actor_repl_impl
+//C4DEP base_examples.ee.cone.c4ui base_examples.ee.cone.c4vdom
 
 //C4DEP extra_lib.ee.cone.c4actor base_lib.ee.cone.c4actor
 //C4DEP extra_lib.ee.cone.c4gate base_lib.ee.cone.c4gate
@@ -73,18 +74,20 @@ ee.cone.c4actor.ServerMain
 //C4DEP extra_examples.ee.cone.c4actor base_lib.ee.cone.c4actor_logback_impl
 //C4DEP extra_examples.ee.cone.c4gate extra_lib.ee.cone.c4gate
 
+//C4DEP extra_examples.aggregate base_server.ee.cone.c4gate_akka
+//C4DEP extra_examples.aggregate base_examples.ee.cone.c4actor
+//C4DEP extra_examples.aggregate base_examples.ee.cone.c4gate
+//C4DEP extra_examples.aggregate base_examples.ee.cone.c4gate_server
+//C4DEP extra_examples.aggregate base_examples.ee.cone.c4ui
+//C4DEP extra_examples.aggregate extra_lib.ee.cone.c4ui
+//C4DEP extra_examples.aggregate extra_examples.ee.cone.c4actor
+//C4DEP extra_examples.aggregate extra_examples.ee.cone.c4gate
+
 
 import sbt.Keys._
 import sbt._
 
-Global / onChangedBuildSource := ReloadOnSourceChanges
-
 licenses in ThisBuild := Seq("Apache-2.0" -> url("http://opensource.org/licenses/Apache-2.0"))
-
-scalacOptions in ThisBuild ++= Seq(
-  "-unchecked",
-  "-deprecation"
-)
 
 scalaVersion in ThisBuild := "2.13.0"
 
@@ -97,7 +100,12 @@ lazy val `c4proto-aggregate` = project.in(file("."))
   .aggregate(base_lib,base_server,base_examples,extra_lib,extra_examples)
 lazy val generator = project //.in(file("generator"))
 
+// Global / onChangedBuildSource := ReloadOnSourceChanges
 
+//scalacOptions in ThisBuild ++= Seq(
+//  "-unchecked",
+//  "-deprecation"
+//)
 
 /* single module variant
 unmanagedSourceDirectories in Compile ++= Seq(

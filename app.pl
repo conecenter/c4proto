@@ -9,7 +9,7 @@ my $build_some_server = sub{
     my $port = $ENV{C4BUILD_PORT}-0;
     print "C4BUILD_PORT: $port\n";
     local $ENV{C4BUILD_CMD} = "C4GENERATOR_DEP=./build.sbt perl generator/run.pl";
-    #local $ENV{C4BUILD_COMPILE_CMD} = "sbt stage";
+    local $ENV{C4BUILD_COMPILE_CMD} = "bloop compile extra_examples.aggregate";
     if($port){
         my $dir = `pwd`=~/^(\S+)\s*$/ ? $1 : die;
         local $ENV{C4BUILD_CLEAN} = $clean;
