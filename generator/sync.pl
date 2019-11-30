@@ -32,6 +32,11 @@ my $sync = sub{
     &$put_text("$list_fn.rm",join " ", "true", map{$_%10 ? $to_rm[$_] : ("\\\n && rm",$to_rm[$_])} 0..(@to_rm-1));
     my $tm = Time::HiRes::time();
     my $ssh_opt = $ssh ? "-e '$ssh'" : "";
+
+    sy("cat $list_fn");
+    sy("ls -la $from");
+    sy("ls -la $to");
+
     sy("rsync $ssh_opt -av --files-from=$list_fn $from/ $to") if @$from_fns;
     print Time::HiRes::time()-$tm," for rsync\n";
 };
