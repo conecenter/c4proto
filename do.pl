@@ -168,21 +168,19 @@ my $get_env = sub{
 
 
 sub staged{
-    "C4STATE_TOPIC_PREFIX=$_[1] $gen_dir/$_[0]/target/universal/stage/bin/$_[0] $_[1]"
+    my($add_env,$mod_gr,$app)=@_;
+    my $env = &$get_env();
+    my $mod = "$mod_gr.$app"=~/^(.+)\.\w+$/ ? $1 : die;
+    ". $gen_dir/.bloop/c4/mod.$mod.classpath.sh && $env $add_env C4STATE_TOPIC_PREFIX=$app java ee.cone.c4actor.ServerMain";
 }
 push @tasks, ["gate_publish", sub{
-    my $env = &$get_env();
     my $build_dir = &$client(0);
     $build_dir eq readlink $_ or symlink $build_dir, $_ or die $! for "htdocs";
     &$put_text("htdocs/publish_time",time);
-    #sy("$env ".staged("c4gate-akka","ee.cone.c4gate.PublishApp"))
 }];
 push @tasks, ["gate_server_run", sub{
-    my $env = &$get_env();
     &$inbox_configure();
-    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-sun","ee.cone.c4gate.SunGatewayApp"));
-    #sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("c4gate-finagle","ee.cone.c4gate.FinagleGatewayApp"));
-    sy("$env C4STATE_REFRESH_SECONDS=100 ".staged("base_server","ee.cone.c4gate_akka.AkkaGatewayApp"));
+    sy(staged("C4STATE_REFRESH_SECONDS=100","base_server","ee.cone.c4gate_akka.AkkaGatewayApp"));
 }];
 push @tasks, ["get_env", sub{ print "RES: ", &$get_env(), "\n" }];
 push @tasks, ["test", sub{
@@ -190,15 +188,14 @@ push @tasks, ["test", sub{
     my @tests = map{
         my $src_dir = $_;
         my $src_mod = $src_dir=~m{([^/]+)/src$} ? $1 : die;
-        my @src_files = `find $src_dir`=~/(\S+\/c4gen\.scala)\b/g;
-        map{[$src_mod,$_]} map{/(\S+)/g} map{`cat $_`=~/C4APPS:([^\n]+)/?"$1":die} @src_files;
+        my $src_files = join(" ", grep{m"/c4gen\.scala$"} `find $src_dir`=~/(\S+)/g) || die;
+        map{[$src_mod,$_]} map{/(\S+)/g} `cat $src_files`=~/C4APPS:([^\n]+)/g;
     } grep{-e $_} map{"$_/src"} grep{/example/} <$gen_dir/*>;
     if(@arg==0){
         print map{"\t$0 test $$_[1]\n"} @tests;
     } elsif(@arg==1) {
-        my $env = &$get_env();
         my $test = (grep{$arg[0] eq $$_[1]} @tests)[0] || die;
-        sy("$env ".staged(@$test));
+        sy(staged("",@$test));
     } else { die }
 }];
 

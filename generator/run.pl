@@ -26,7 +26,7 @@ my $need_path = sub{
     -d $dir or sy("mkdir -p $dir");
     $path;
 };
-
+my $single = sub{ @_==1 ? $_[0] : die };
 my $group = sub{ my %r; push @{$r{$$_[0]}||=[]}, $$_[1] for @_; (sub{@{$r{$_[0]}||[]}},[sort keys %r]) };
 my $distinct = sub{ my(@r,%was); $was{$_}++ or push @r,$_ for @_; @r };
 my $lazy_dict = sub{
@@ -111,8 +111,13 @@ my $calc_bloop_conf = sub{
         };
         (+{ "version" => "1.0.0", "project" => $project });
     });
-    my @bloop_conf = map{
-        +{ fn=>"$dir/.bloop/$_.json", map{(conf=>$_)} &$conf_by_name($_) };
+    my @bloop_will = map{
+        my $conf = &$single(&$conf_by_name($_));
+        my $classpath = "export CLASSPATH=".join ":", &$bloop_conf_to_classpath($conf);
+        (
+            +{ fn=>"$dir/.bloop/$_.json", content=>&$json()->encode($conf) },
+            +{ fn=>"$tmp/mod.$_.classpath.sh", content=>$classpath },
+        )
     } @mod_names;
     my $src_dirs_by_name = &$lazy_dict(sub{
         my($k,$get)=@_;
@@ -121,7 +126,7 @@ my $calc_bloop_conf = sub{
         my @res = &$distinct(@own, map{@$_} map{&$get($_)} @local_dependencies);
         @res
     });
-    (\@bloop_conf,$src_dirs_by_name);
+    (\@bloop_will,$src_dirs_by_name);
 };
 my $calc_sbt_conf = sub{
     my($src_dirs,$externals)=@_;
@@ -139,8 +144,7 @@ my $tmp = "$src_dir/.bloop/c4";
 my $dep_content = &$cat($ENV{C4GENERATOR_DEP} || die);
 my $dep_conf = &$parse_dependencies($dep_content);
 my @src_dirs = &$distinct(map{$$_{to}=~m"^(.+/src)/main$"?"$1":()} &$dep_conf("C4GROUP"));
-my ($gen_mod) = map{$$_{to}} &$dep_conf("C4GENERATOR_MAIN");
-$gen_mod || die "bad C4GENERATOR_MAIN";
+my $gen_mod = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{to}||die;
 #
 &$if_changed("$tmp/bloop-conf-in-sum",&$get_sum($dep_content), sub{
     my $externals = [&$distinct(map{$$_{to}} &$dep_conf("C4EXT"))];
@@ -150,8 +154,8 @@ $gen_mod || die "bad C4GENERATOR_MAIN";
         sy("coursier fetch -j $coursier_out_path $dependencies_args");
     });
     my $coursier_out = &$json()->decode(&$cat($coursier_out_path));
-    my ($bloop_conf,$src_dirs_by_name) = &$calc_bloop_conf($src_dir,$tmp,$dep_conf,$coursier_out);
-    &$put_text(&$need_path($$_{fn}),&$json()->encode($$_{conf})) for @$bloop_conf;
+    my ($bloop_will,$src_dirs_by_name) = &$calc_bloop_conf($src_dir,$tmp,$dep_conf,$coursier_out);
+    &$put_text(&$need_path($$_{fn}),$$_{content}) for @$bloop_will;
     &$put_text(&$need_path("$tmp/generator-src-dirs"), join " ", &$src_dirs_by_name($gen_mod));
     &$put_text("$src_dir/c4gen-generator.sbt", &$calc_sbt_conf(\@src_dirs,$externals));
 });
@@ -163,9 +167,6 @@ my $sum = &$get_sum(&$cat(grep{/\.scala$/} &$find_files(&$cat("$tmp/generator-sr
     sy("cd $src_dir && bloop compile $gen_mod");
 });
 print "generation starting\n";
-my $bloop_conf = &$json()->decode(&$cat("$src_dir/.bloop/$gen_mod.json"));
-my $classpath = join ":", &$bloop_conf_to_classpath($bloop_conf);
-my ($main) = map{$$_{from}} &$dep_conf("C4GENERATOR_MAIN");
-$main || die "bad C4GENERATOR_MAIN";
-sy("C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen java -classpath $classpath $main");
+my $main = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{from}||die;
+sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen java $main");
 print "generation finished\n";
