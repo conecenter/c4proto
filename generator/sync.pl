@@ -66,7 +66,7 @@ if($clean){
     sy("$remote_pre_q 'mkdir -p $remote_dir'");
 }
 
-mkdir "$dir/target";
+mkdir "$dir/target" or die "$! -- $dir/target";
 my @local_fns = &$find("","$dir/",$prune);
 &$sync($list_fn,$ssh,
     $dir,[@local_fns],
