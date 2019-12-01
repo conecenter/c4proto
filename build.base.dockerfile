@@ -8,6 +8,6 @@ ENV PATH=${PATH}:/tools/jdk/bin:/tools/sbt/bin:/tools:/c4/.bloop
 USER c4
 RUN curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python
 COPY --chown=c4:c4 . /c4repo/c4proto
-RUN cd /c4repo/c4proto && ./app.pl build_some_server
+RUN bloop server & (cd /c4repo/c4proto && ./app.pl build_some_server)
 ARG C4CI_BASE_TAG
 RUN perl /c4/c4proto/prod.pl ci_cp_proto ${C4CI_BASE_TAG} /c4/c4proto
