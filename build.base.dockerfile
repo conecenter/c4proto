@@ -4,7 +4,7 @@ RUN perl install.pl useradd
 RUN perl install.pl apt curl unzip libyaml-libyaml-perl libjson-xs-perl rsync python
 RUN perl install.pl curl https://github.com/AdoptOpenJDK/openjdk11-binaries/releases/download/jdk-11.0.5%2B10/OpenJDK11U-jdk_x64_linux_hotspot_11.0.5_10.tar.gz
 RUN perl install.pl curl https://git.io/coursier-cli && chmod +x /tools/coursier
-ENV PATH=${PATH}:/tools/jdk/bin:/tools/sbt/bin:/tools
+ENV PATH=${PATH}:/tools/jdk/bin:/tools/sbt/bin:/tools:/c4/.bloop
 USER c4
 RUN curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/install.py | python
 COPY --chown=c4:c4 . /c4repo/c4proto
