@@ -32,14 +32,6 @@ my $sync = sub{
     &$put_text("$list_fn.rm",join " ", "true", map{$_%10 ? $to_rm[$_] : ("\\\n && rm",$to_rm[$_])} 0..(@to_rm-1));
     my $tm = Time::HiRes::time();
     my $ssh_opt = $ssh ? "-e '$ssh'" : "";
-
-#    sy("cat $list_fn");
-#    sy("ls -la $from");
-#    sy("ls -la $to");
-#    system "rsync $ssh_opt -av --files-from=$list_fn $from/ $to 2>0" if @$from_fns;
-#    sy("cat 0");
-#    print "AAA\n";
-
     sy("rsync $ssh_opt -av --files-from=$list_fn $from/ $to") if @$from_fns;
     print Time::HiRes::time()-$tm," for rsync\n";
 };
@@ -74,7 +66,7 @@ if($clean){
     sy("$remote_pre_q 'mkdir -p $remote_dir'");
 }
 
-mkdir "$dir/target" or die "$! -- $dir/target";
+-e $_ or mkdir $_ or die "$! -- $_" for "$dir/target";
 my @local_fns = &$find("","$dir/",$prune);
 &$sync($list_fn,$ssh,
     $dir,[@local_fns],
