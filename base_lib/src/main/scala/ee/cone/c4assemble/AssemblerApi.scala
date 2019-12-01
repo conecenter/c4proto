@@ -60,4 +60,3 @@ trait AssembleSeqOptimizer {
 trait BackStageFactory {
   def create(l: List[DataDependencyFrom[_]]): List[WorldPartExpression]
 }
-
