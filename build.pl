@@ -133,17 +133,20 @@ my $calc_bloop_conf = sub{
 my $calc_sbt_conf = sub{
     my($src_dirs,$externals)=@_;
     join "\n",
+        'scalaVersion in ThisBuild := "2.13.0"','',
         "libraryDependencies ++= ",
         (map{"  ($_) ::"} map{join " % ",map{qq^"$_"^}/([^:]+)/g} @$externals),
-        "  Nil;",
+        "  Nil",
+        "",
         "unmanagedSourceDirectories in Compile ++= ",
         (map{qq^  (baseDirectory.value / "$_") ::^} sort @$src_dirs),
-        "  Nil;";
+        "  Nil";
 };
 #
 my $src_dir = syf("pwd")=~/^(\S+)\s*$/ ? $1 : die;
 my $tmp = "$src_dir/.bloop/c4";
-my $dep_content = &$cat($ENV{C4GENERATOR_DEP} || die);
+my $dep_content = &$cat(sort <$src_dir/*.c4dep>);
+
 my $dep_conf = &$parse_dependencies($dep_content);
 my @src_dirs = &$distinct(map{$$_{to}=~m"^(.+/src)/main$"?"$1":()} &$dep_conf("C4GROUP"));
 my $gen_mod = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{to}||die;

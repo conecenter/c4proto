@@ -41,23 +41,6 @@ my $main = sub{
     ($cmd||'') eq $$_[0] and $$_[1]->(@args) for @tasks;
 };
 
-push @tasks, ["setup_sbt", sub{
-    &$need_tmp();
-    my $sbta = "sbt-0.13.13.tgz";
-    if(!-e $sbta){
-        sy("cd tmp && curl -LO https://dl.bintray.com/sbt/native-packages/sbt/0.13.13/$sbta");
-        sy("cd tmp && tar -xzf $sbta");
-        sy("tmp/sbt-launcher-packaging-0.13.13/bin/sbt update")
-    }
-
-    #my $nodea = "node-v6.10.0-linux-x64.tar.xz";
-    #if(!-e $nodea){
-    #    sy("wget https://nodejs.org/dist/v6.10.0/$nodea");
-    #    sy("tar -xJf $nodea");
-    #}
-    #print qq{export PATH=tmp/sbt-launcher-packaging-0.13.13/bin:tmp/node-v6.10.0-linux-x64/bin:\$PATH\n};
-    print qq{add to .bashrc or so:\nexport PATH=tmp/sbt-launcher-packaging-0.13.13/bin:\$PATH\n};
-}];
 push @tasks, ["setup_kafka", sub{
     &$need_tmp();
     if (!-e $kafka) {

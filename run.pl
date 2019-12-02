@@ -55,7 +55,10 @@ push @tasks, [gate=>sub{
     $ENV{C4SSE_PORT} = $sse_port;
     $ENV{C4BOOTSTRAP_SERVERS} = "127.0.0.1:$bootstrap_port";
     $ENV{CLASSPATH} = join ":", sort <app/*.jar>;
-    &$exec("java ee.cone.c4actor.ServerMain");
+    my $args = join " ",
+        "-XX:+UseG1GC","-XX:MaxGCPauseMillis=200","-XX:+ExitOnOutOfMemoryError",
+        "-XX:GCTimeRatio=1","-XX:MinHeapFreeRatio=15","-XX:MaxHeapFreeRatio=50";
+    &$exec("java $args ee.cone.c4actor.ServerMain");
 }];
 push @tasks, [main=>sub{
     m{([^/]+)$} and (-e $1 or symlink $_,$1) or die for </c4conf/*>;
