@@ -1,4 +1,7 @@
 
+//C4TAG def base_server.ee.cone.c4gate_akka
+//C4TAG all extra_examples.aggregate
+
 //C4GENERATOR_MAIN ee.cone.c4generator.Main generator.ee.cone.c4generator
 
 //C4GROUP generator generator/src/main

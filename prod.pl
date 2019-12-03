@@ -521,14 +521,16 @@ my $make_kc_yml = sub{
     ) : ();
     my @db4_volumes = $all{C4DATA_DIR} ? {name=>"db4"} : ();
     #
+    my $is_rolling = $all{C4ROLLING};
+    $is_rolling and @volume_claim_templates and die "C4DATA_DIR can not be C4ROLLING";
     my $stateful_set_yml = &$to_yml_str({
         apiVersion => "apps/v1",
-        kind => "StatefulSet",
+        kind => $is_rolling ? "Deployment" : "StatefulSet",
         metadata => { name => $name },
         spec => {
             %$spec,
             selector => { matchLabels => { app => $name } },
-            serviceName => $name,
+            $is_rolling ? () : (serviceName => $name),
             template => {
                 metadata => { labels => { app => $name } },
                 spec => {
@@ -1178,7 +1180,9 @@ push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [pa
 }];
 push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
     my($base,$gen_dir)=@_;
-    $base eq 'def' || die "bad tag prefix: $base";
+    my %tag2mod = syf("cat $gen_dir/.bloop/c4/tag2mod")=~/(\S+)/g;
+    my $mod = $tag2mod{$base} || die "bad tag prefix: $base";
+    sy("bloop server & (cd $gen_dir && bloop compile $mod)");
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
@@ -1195,8 +1199,6 @@ push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
         'ENTRYPOINT ["perl","run.pl"]',
     );
     sy("cp $gen_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
-    #
-    my $mod = "base_server.ee.cone.c4gate_akka";
     mkdir "$ctx_dir/app";
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
