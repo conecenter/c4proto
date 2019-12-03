@@ -12,7 +12,7 @@ import scala.annotation.tailrec
   loader: SnapshotLoader,
   progressObserverFactory: ProgressObserverFactory,
   consuming: Consuming
-) extends Executable with LazyLogging {
+) extends Executable with Early with LazyLogging {
   def run(): Unit = concurrent.blocking { //ck mg
     logger.info(s"Starting RootConsumer...")
     GCLog("before loadRecent")

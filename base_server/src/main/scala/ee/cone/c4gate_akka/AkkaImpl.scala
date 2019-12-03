@@ -3,12 +3,12 @@ package ee.cone.c4gate_akka
 
 import akka.actor.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.{RawHeader,`Content-Type`}
+import akka.http.scaladsl.model.headers.{RawHeader, `Content-Type`}
 import akka.http.scaladsl.model._
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import com.typesafe.scalalogging.LazyLogging
-import ee.cone.c4actor.{Config, Executable, Execution, Observer}
+import ee.cone.c4actor.{Config, Early, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
 import ee.cone.c4gate.HttpProtocolBase.N_Header
@@ -19,7 +19,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.control.NonFatal
 
-@c4("AkkaMatApp") class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable {
+@c4("AkkaMatApp") class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
     val system = ActorSystem.create()
@@ -31,7 +31,7 @@ import scala.util.control.NonFatal
   config: Config, handler: FHttpHandler, execution: Execution, akkaMat: AkkaMat
 )(
   port: Int = config.get("C4HTTP_PORT").toInt
-) extends Executable with LazyLogging {
+) extends Executable with Early with LazyLogging {
   def getHandler(mat: Materializer)(implicit ec: ExecutionContext): HttpRequest=>Future[HttpResponse] = req => {
     val method = req.method.value
     val path = req.uri.path.toString

@@ -71,14 +71,16 @@ class RUncaughtExceptionHandler(inner: UncaughtExceptionHandler) extends Uncaugh
     try inner.uncaughtException(thread,throwable) finally System.exit(1)
 }
 
-@c4("VMExecutionApp") class VMExecution(getToStart: DeferredSeq[Executable])(
+@c4("VMExecutionApp") class DefExecutionFilter extends ExecutionFilter(_=>true)
+
+@c4("VMExecutionApp") class VMExecution(getToStart: DeferredSeq[Executable], executionFilter: ExecutionFilter)(
   threadPool: ExecutorService = VMExecution.newExecutorService("tx-",Option(Runtime.getRuntime.availableProcessors)) // None?
 )(
   mainExecutionContext: ExecutionContext = ExecutionContext.fromExecutor(threadPool)
 ) extends Execution with LazyLogging {
   def run(): Unit = {
-    val toStart = getToStart.value
-    logger.debug(s"tracking ${toStart.size} services")
+    val toStart = getToStart.value.filter(executionFilter.check)
+    logger.info(s"tracking ${toStart.size} services")
     toStart.foreach(f => fatal(Future(f.run())(_)))
   }
   def fatal[T](future: ExecutionContext=>Future[T]): Unit = future(mainExecutionContext).recover{

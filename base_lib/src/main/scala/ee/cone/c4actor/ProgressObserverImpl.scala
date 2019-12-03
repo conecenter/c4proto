@@ -11,6 +11,8 @@ import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble.c4assemble
 import ee.cone.c4di.c4
 
+import scala.concurrent.Future
+
 @c4("ServerCompApp") class ProgressObserverFactoryImpl(inner: TxObserver) extends ProgressObserverFactory {
   def create(endOffset: NextOffset): Observer[RichContext] = new ProgressObserverImpl(inner.value,endOffset)
 }
@@ -42,5 +44,26 @@ case class BuildVerTx(srcId: SrcId, path: Path, value: String)(execution: Execut
   def transform(local: Context): Context = {
     if(new String(Files.readAllBytes(path), UTF_8) != value) execution.complete()
     SleepUntilKey.set(Instant.ofEpochMilli(System.currentTimeMillis+1000))(local)
+  }
+}
+
+////
+
+@c4("ServerCompApp") class ServerExecutionFilter(inner: ExecutionFilter)
+  extends ExecutionFilter(e=>inner.check(e) && e.isInstanceOf[Early])
+
+@c4assemble("ServerCompApp") class LateExecutionAssembleBase(execution: Execution, getToStart: DeferredSeq[Executable]){
+  def join(
+    srcId: SrcId,
+    firstborn: Each[S_Firstborn]
+  ): Values[(SrcId,TxTransform)] =
+    List(WithPK(LateExecutionTx("LateExecutionTx")(execution,getToStart.value.filterNot(_.isInstanceOf[Early]))))
+}
+
+case class LateExecutionTx(srcId: SrcId)(execution: Execution, toStart: Seq[Executable]) extends TxTransform with LazyLogging {
+  def transform(local: Context): Context = {
+    logger.info(s"tracking ${toStart.size} late services")
+    toStart.foreach(f => execution.fatal(Future(f.run())(_)))
+    SleepUntilKey.set(Instant.MAX)(local)
   }
 }

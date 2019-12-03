@@ -27,6 +27,13 @@ object ExecutionRun {
 
 trait Executable extends Runnable
 
+// mark Executable with Early
+//   if it is highly optimal to start it before the world is ready;
+// Early Executable SHOULD NOT write to anything (kafka,db,jms)
+//   because another instance of the same app may be still alive;
+trait Early
+abstract class ExecutionFilter(val check: Executable=>Boolean)
+
 trait Config {
   def get(key: String): String
 }
