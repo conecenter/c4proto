@@ -18,7 +18,6 @@ push @tasks, ["","",sub{
     print join '', map{"$_\n"} "usage:",
         (map{!$$_[1] ? () : "  $0 $$_[0] $$_[1]"} @tasks);
 }];
-push @tasks, ["build","<mod>",sub{ &$build_some_server($_[0]); }];
 push @tasks, ["build_all"," ",sub{
     local $ENV{C4BUILD_CLEAN} = 1;
     &$build_some_server("extra_examples.aggregate");

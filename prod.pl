@@ -1178,12 +1178,15 @@ push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [pa
     my $req = "build $req_pre.$pf\n";
     &$nc($addr,sub{ $req });
 }];
-push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
-    my($gen_dir)=@_;
+push @tasks, ["ci_build_inner","",sub{ #to call from Dockerfile
+    my($from_dir,$gen_dir)=@_;
     my $base = $ENV{C4CI_BASE_TAG} || die;
+    do{
+        local $ENV{C4BUILD_CMD} = "perl build.pl";
+        sy("bloop server & (perl $from_dir/sync.pl $from_dir $gen_dir && cd $gen_dir && bloop compile $mod)");
+    };
     my %tag2mod = syf("cat $gen_dir/.bloop/c4/tag2mod")=~/(\S+)/g;
     my $mod = $tag2mod{$base} || die "bad tag prefix: $base";
-    sy("bloop server & (cd $gen_dir && bloop compile $mod)");
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
