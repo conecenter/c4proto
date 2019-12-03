@@ -10,4 +10,5 @@ RUN curl -L https://github.com/scalacenter/bloop/releases/download/v1.3.4/instal
 COPY --chown=c4:c4 . /c4repo/c4proto
 RUN cd /c4repo/c4proto && ./app.pl build
 ARG C4CI_BASE_TAG
-RUN perl /c4/c4proto/prod.pl ci_cp_proto ${C4CI_BASE_TAG} /c4/c4proto
+ENV C4CI_BASE_TAG=$C4CI_BASE_TAG
+RUN perl /c4/c4proto/prod.pl ci_cp_proto /c4/c4proto

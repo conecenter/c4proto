@@ -1179,7 +1179,8 @@ push @tasks, ["ci_build_head_tcp","",sub{ # <host>:<port> <req> <dir|commit> [pa
     &$nc($addr,sub{ $req });
 }];
 push @tasks, ["ci_cp_proto","",sub{ #to call from Dockerfile
-    my($base,$gen_dir)=@_;
+    my($gen_dir)=@_;
+    my $base = $ENV{C4CI_BASE_TAG} || die;
     my %tag2mod = syf("cat $gen_dir/.bloop/c4/tag2mod")=~/(\S+)/g;
     my $mod = $tag2mod{$base} || die "bad tag prefix: $base";
     sy("bloop server & (cd $gen_dir && bloop compile $mod)");
