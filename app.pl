@@ -8,7 +8,7 @@ my $build_some_server = sub{
     my($target)=@_;
     print "C4BUILD_PORT: $ENV{C4BUILD_PORT}\n";
     local $ENV{C4BUILD_CMD} = "perl build.pl";
-    local $ENV{C4BUILD_COMPILE_CMD} = $target ? "bloop compile $target" : "";
+    local $ENV{C4BUILD_COMPILE_CMD} = $target ? "sh .bloop/c4/tag.$target.compile" : "";
     my $dir = `pwd`=~/^(\S+)\s*$/ ? $1 : die;
     sy("perl $dir/sync.pl $dir /c4/c4proto");
 };
@@ -20,9 +20,9 @@ push @tasks, ["","",sub{
 }];
 push @tasks, ["build_all"," ",sub{
     local $ENV{C4BUILD_CLEAN} = 1;
-    &$build_some_server("extra_examples.aggregate");
+    &$build_some_server("all");
 }];
-push @tasks, ["build_some_server"," ",sub{ &$build_some_server("base_server.ee.cone.c4gate_akka"); }];
+push @tasks, ["build_some_server"," ",sub{ &$build_some_server("def"); }];
 
 my($cmd,@args)=@ARGV;
 ($cmd||"") eq $$_[0] and $$_[2]->(@args) for @tasks;

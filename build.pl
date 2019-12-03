@@ -121,7 +121,10 @@ my $calc_bloop_conf = sub{
             +{ fn=>"$tmp/mod.$_.classpath.sh", content=>$classpath_sh },
         )
     } @mod_names;
-    my $tag2mod = { fn=>"$tmp/tag2mod", content=>join(" ",map{($$_{from}=>$$_{to})} &$dep_conf("C4TAG")) };
+    my @tag2mod = map{(
+        +{ fn=>"$tmp/tag.$$_{from}.compile", content=>"bloop compile $$_{to}" },
+        +{ fn=>"$tmp/tag.$$_{from}.mod", content=>$$_{to} },
+    )} &$dep_conf("C4TAG");
     my $src_dirs_by_name = &$lazy_dict(sub{
         my($k,$get)=@_;
         my @own = map{@{$$_{project}{sources}||die}} &$conf_by_name($k);
@@ -129,7 +132,7 @@ my $calc_bloop_conf = sub{
         my @res = &$distinct(@own, map{@$_} map{&$get($_)} @local_dependencies);
         @res
     });
-    ([$tag2mod,@bloop_will],$src_dirs_by_name);
+    ([@tag2mod,@bloop_will],$src_dirs_by_name);
 };
 my $calc_sbt_conf = sub{
     my($src_dirs,$externals)=@_;

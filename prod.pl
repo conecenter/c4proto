@@ -1183,10 +1183,10 @@ push @tasks, ["ci_build_inner","",sub{ #to call from Dockerfile
     my $base = $ENV{C4CI_BASE_TAG} || die;
     do{
         local $ENV{C4BUILD_CMD} = "perl build.pl";
-        sy("bloop server & (perl $from_dir/sync.pl $from_dir $gen_dir && cd $gen_dir && bloop compile $mod)");
+        local $ENV{C4BUILD_COMPILE_CMD} = "sh .bloop/c4/tag.$base.compile";
+        sy("bloop server & (perl $from_dir/sync.pl $from_dir $gen_dir)");
     };
-    my %tag2mod = syf("cat $gen_dir/.bloop/c4/tag2mod")=~/(\S+)/g;
-    my $mod = $tag2mod{$base} || die "bad tag prefix: $base";
+    my $mod = syf("cat $gen_dir/.bloop/c4/tag.$base.mod")=~/(\S+)/ ? $1 : die;
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
