@@ -179,3 +179,4 @@ print "generation starting\n";
 my $main = &$single(&$dep_conf("C4GENERATOR_MAIN"))->{from}||die;
 sy(". $tmp/mod.$gen_mod.classpath.sh && C4GENERATOR_VER=$sum C4GENERATOR_PATH=$tmp/gen java $main");
 print "generation finished\n";
+
