@@ -571,8 +571,7 @@ my $make_kc_yml = sub{
         });
         my $disable_tls = 0; #make option when required
         my @annotations = $disable_tls ? () : (annotations=>{
-            "certmanager.k8s.io/acme-challenge-type" => "http01",
-            "certmanager.k8s.io/cluster-issuer" => "letsencrypt-prod",
+            "cert-manager.io/cluster-issuer" => "letsencrypt-prod",
             "kubernetes.io/ingress.class" => "nginx",
         });
         my @tls = $disable_tls ? () : (tls=>[{
