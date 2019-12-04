@@ -901,7 +901,7 @@ my $up_gate = sub{
             &$consumer_options(),
             name => "gate",
             C4DATA_DIR => "/c4db",
-            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate_akka.AkkaGatewayApp",
+            C4STATE_TOPIC_PREFIX => "gate",
             C4STATE_REFRESH_SECONDS => 1000,
         },
         {
@@ -1186,7 +1186,6 @@ push @tasks, ["ci_build_inner","",sub{ #to call from Dockerfile
         local $ENV{C4BUILD_COMPILE_CMD} = "sh .bloop/c4/tag.$base.compile";
         sy("bloop server & (perl $from_dir/sync.pl $from_dir $gen_dir)");
     };
-    my $mod = syf("cat $gen_dir/.bloop/c4/tag.$base.mod")=~/(\S+)/ ? $1 : die;
     my $ctx_dir = "/c4/res";
     -e $ctx_dir and sy("rm -r $ctx_dir");
     sy("mkdir $ctx_dir");
@@ -1204,11 +1203,14 @@ push @tasks, ["ci_build_inner","",sub{ #to call from Dockerfile
     );
     sy("cp $gen_dir/$_ $ctx_dir/$_") for "install.pl", "run.pl", "haproxy.pl";
     mkdir "$ctx_dir/app";
+    my $mod  = syf("cat $gen_dir/.bloop/c4/tag.$base.mod" )=~/(\S+)/ ? $1 : die;
+    my $main = syf("cat $gen_dir/.bloop/c4/tag.$base.main")=~/(\S+)/ ? $1 : die;
     my @started = map{&$start($_)} map{
         m{([^/]+\.jar)$} ? "cp $_ $ctx_dir/app/$1" :
         m{([^/]+)\.classes$} ? "cd $_ && zip -q -r $ctx_dir/app/$1.jar ." : die
     } syf("cat $gen_dir/.bloop/c4/mod.$mod.classpath")=~/([^\s:]+)/g;
     &$_() for @started;
+    &$put_text("$ctx_dir/serve.sh","export C4APP_CLASS=$main\nexec java ee.cone.c4actor.ServerMain");
 }];
 push @tasks, ["up-ci","",sub{
     my ($comp,$args) = @_;

@@ -154,7 +154,7 @@ sub staged{
     my($add_env,$mod_gr,$app)=@_;
     my $env = &$get_env();
     my $mod = "$mod_gr.$app"=~/^(.+)\.\w+$/ ? $1 : die;
-    ". $gen_dir/.bloop/c4/mod.$mod.classpath.sh && $env $add_env C4STATE_TOPIC_PREFIX=$app java ee.cone.c4actor.ServerMain";
+    ". $gen_dir/.bloop/c4/mod.$mod.classpath.sh && $env $add_env C4STATE_TOPIC_PREFIX=$app C4APP_CLASS=$app java ee.cone.c4actor.ServerMain";
 }
 push @tasks, ["gate_publish", sub{
     my $build_dir = &$client(0);

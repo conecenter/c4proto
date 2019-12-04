@@ -143,7 +143,7 @@ abstract class BaseServerMain(app: ExecutableApp){
 }
 
 object ServerMain extends BaseServerMain(
-  Option(Class.forName((new SingleConfigImpl(new EnvConfigImpl)).get("C4STATE_TOPIC_PREFIX"))).get
+  Option(Class.forName((new SingleConfigImpl(new EnvConfigImpl)).get("C4APP_CLASS"))).get
     .newInstance().asInstanceOf[ExecutableApp]
 )
 

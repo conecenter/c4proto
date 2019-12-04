@@ -1,6 +1,7 @@
 
-//C4TAG def base_server.ee.cone.c4gate_akka
-//C4TAG all extra_examples.aggregate
+//C4TAG def base_server.ee.cone.c4gate_akka.AkkaGatewayApp
+//C4TAG all extra_examples.aggregate.XXX
+//C4TAG test-consumer base_examples.ee.cone.c4gate.TestConsumerApp
 
 //C4GENERATOR_MAIN ee.cone.c4generator.Main generator.ee.cone.c4generator
 
