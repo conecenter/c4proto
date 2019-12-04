@@ -1429,7 +1429,7 @@ push @tasks, ["up-kc_host", "", sub{
         rules => [
             {
                 apiGroups => ["","apps"],
-                resources => ["statefulsets","secrets","services"],
+                resources => ["statefulsets","secrets","services","deployments"],
                 verbs => ["get","create","patch"],
             },
             {
@@ -1449,7 +1449,7 @@ push @tasks, ["up-kc_host", "", sub{
             },
             {
                 apiGroups => ["extensions"],
-                resources => ["ingresses"],
+                resources => ["ingresses","deployments"],
                 verbs => ["get","create","patch"],
             },
         ],
