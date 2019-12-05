@@ -12,7 +12,9 @@ trait HttpUtil {
   def put(url: String, headers: List[(String, String)], body: ByteString): Int
 }
 object HttpUtil {
-  sealed trait HttpMethod
+  sealed trait HttpMethod {
+    def ==: (that: String): Boolean = that == this.toString
+  }
   object HttpMethod {
     case object PUT extends HttpMethod
     case object POST extends HttpMethod
