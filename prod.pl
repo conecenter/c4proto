@@ -507,6 +507,16 @@ my $make_kc_yml = sub{
             env=>\@env, volumeMounts=>\@volume_mounts,
             $$opt{tty} ? (tty=>$$opt{tty}) : (),
             securityContext => { allowPrivilegeEscalation => "false" },
+            resources => {
+                limits => {
+                    cpu => "64",
+                    memory => "64Gi",
+                },
+                requests => {
+                    cpu => ($$opt{req_cpu}||die "no req_cpu"),
+                    memory => ($$opt{req_mem}||die "no req_mem"),
+                },
+            },
         }
     } @$options;
     #
@@ -578,8 +588,7 @@ my $make_kc_yml = sub{
         });
         my $disable_tls = 0; #make option when required
         my @annotations = $disable_tls ? () : (annotations=>{
-            "certmanager.k8s.io/acme-challenge-type" => "http01",
-            "certmanager.k8s.io/cluster-issuer" => "letsencrypt-prod",
+            "cert-manager.io/cluster-issuer" => "letsencrypt-prod",
             "kubernetes.io/ingress.class" => "nginx",
         });
         my @tls = $disable_tls ? () : (tls=>[{
@@ -810,6 +819,8 @@ my $need_deploy_cert = sub{
 };
 
 my @var_img = (image=>"<var:image>");
+my @req_small = (req_mem=>"100Mi",req_cpu=>"250m");
+my @req_big = (req_mem=>"10Gi",req_cpu=>"1000m");
 
 my $make_secrets = sub{
     my($comp,$from_path)=@_;
@@ -848,6 +859,7 @@ push @tasks, ["up-client", "", sub{
     my $options = [{
         @var_img, name => "main",
         tty => "true", JAVA_TOOL_OPTIONS => "-XX:-UseContainerSupport",
+        @req_small,
         %$conf,
     }];
     &$sync_up(&$wrap_deploy($run_comp,$from_path,$options),$args);
@@ -873,6 +885,7 @@ my $up_consumer = sub{
         @var_img, name => "main", &$consumer_options(),
         C4HTTP_SERVER => "http://$server:$external_http_port",
         C4BOOTSTRAP_SERVERS => "$server:$external_broker_port",
+        @req_big,
         %$conf,
     }]);
 };
@@ -885,6 +898,7 @@ my $up_gate = sub{
     ($run_comp, $from_path, [
         {
             @var_img, name => "zookeeper", C4DATA_DIR => "/c4db", #UseContainerSupport?
+            req_mem => "1Gi", req_cpu => "250m",
         },
         {
             @var_img,
@@ -895,6 +909,7 @@ my $up_gate = sub{
             C4SSL_PROPS => "/c4conf/main.properties",
             C4BOOTSTRAP_EXT_HOST => $server,
             C4BOOTSTRAP_EXT_PORT => $external_broker_port, #UseContainerSupport?
+            req_mem => "2Gi", req_cpu => "500m",
         },
         {
             @var_img,
@@ -903,6 +918,7 @@ my $up_gate = sub{
             C4DATA_DIR => "/c4db",
             C4STATE_TOPIC_PREFIX => "gate",
             C4STATE_REFRESH_SECONDS => 1000,
+            req_mem => "4Gi", req_cpu => "1000m",
         },
         {
             @var_img, name => "haproxy",
@@ -910,6 +926,7 @@ my $up_gate = sub{
             C4JOINED_HTTP_PORT => $http_port,
             "port:$external_http_port:$http_port"=>"",
             &$get_ingress($run_comp,$external_http_port),
+            @req_small,
         },
     ]);
 };
@@ -1014,6 +1031,7 @@ my $up_desktop = sub{
         {
             image => $img, name => "frpc",
             C4FRPC_INI => "/c4conf/frpc.ini",
+            @req_small,
         },
 #        {
 #            image => $img, name => "desktop",
@@ -1026,6 +1044,7 @@ my $up_desktop = sub{
             C4SSH_PORT => $ssh_port,
             C4DEPLOY_CONF => "/c4conf/ssh.tar.gz",
             C4AUTHORIZED_KEYS => "/c4conf/authorized_keys",
+            @req_big,
         },
         {
             image => $img, name => "haproxy",
@@ -1035,7 +1054,8 @@ my $up_desktop = sub{
             $$conf{enable_ingress} ? (
                 "port:$http_port:$http_port"=>"",
                 &$get_ingress($comp,$http_port),
-            ) : ()
+            ) : (),
+            @req_small,
         },
         $hostname ? ({
             image => $img, name => "le_http",
@@ -1043,16 +1063,19 @@ my $up_desktop = sub{
             C4JOINED_HTTP_PORT => $le_http_port,
             C4DATA_DIR => "/c4db",
             C4HTTPS => "redirect",
+            @req_small,
         }, {
             image => $img, name => "le_https",
             C4HAPROXY_CONF=>"/c4/le_https.cfg",
             C4JOINED_HTTP_PORT => $le_https_port,
             C4DATA_DIR => "/c4db",
             C4HTTPS => "https:$hostname",
+            @req_small,
         }) : (),
         {
             image => $img, name => "bloop",
             C4DATA_DIR => "/c4db",
+            @req_big,
         },
     ])
 };
@@ -1304,6 +1327,7 @@ push @tasks, ["up-frp_client", "", sub{
         image => $img,
         name => "frpc",
         C4FRPC_INI => "/c4conf/frpc.ini",
+        @req_small,
     });
     my $from_path = &$get_tmp_dir();
     &$put_frpc_conf($from_path,&$get_frpc_conf($comp));
@@ -1353,6 +1377,7 @@ push @tasks, ["up-visitor", "", sub{
         name => "frpc",
         C4FRPC_INI => "/c4conf/frpc.visitor.ini",
         @ports, @add_ports,
+        @req_small,
     });
     my $from_path = &$get_tmp_dir();
     &$make_visitor_conf($comp,$from_path,[@services,@visits]);
@@ -1394,11 +1419,13 @@ push @tasks, ["up-kc_host", "", sub{
             name => "sshd",
             C4DATA_DIR => "/c4db",
             #$external_ssh_port ? ("port:$external_ssh_port:$ssh_port" => "node") : (),
+            @req_small,
         },
         {
             image => $img,
             name => "kubectl",
             is_deployer => 1,
+            @req_small,
         },
         {
             image => $img,
@@ -1409,11 +1436,13 @@ push @tasks, ["up-kc_host", "", sub{
             C4CD_DIR => $dir,
             C4CD_AUTH_KEY_FILE => "/c4conf/deploy.auth",
             C4CD_REGISTRY => ($$conf{C4CD_REGISTRY}||die "no C4CD_REGISTRY"),
+            @req_small,
         },
         {
             image => $img,
             name => "frpc",
             C4FRPC_INI => "/c4conf/frpc.ini",
+            @req_small,
         },
     );
     my $from_path = &$get_tmp_dir();
@@ -1594,6 +1623,7 @@ push @tasks, ["up-frps","",sub{
         "port:7500:7500" => "",
         "port:$ext_ip:$vhost_https_port:$local_https_port" => "",
         "port:$ext_ip:$vhost_http_port:$local_http_port" => "",
+        @req_small,
     });
     my $from_path = &$get_tmp_dir();
     my $put = &$rel_put_text($from_path);
