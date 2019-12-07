@@ -22,6 +22,10 @@ trait DynamicIndexModelsApp {
   def dynIndexModels: List[ProductWithId[_ <: Product]] = Nil
 }
 
+object DynIndexRefresh {
+  def apply(): String = "DynamicIndexAssembleRefresh"
+}
+
 trait DynamicIndexAssemble
   extends AssemblesApp
     with WithIndexNodeProtocol
@@ -37,12 +41,12 @@ trait DynamicIndexAssemble
   def dynamicIndexNodeDefaultSetting: S_IndexNodeSettings = S_IndexNodeSettings("", false, None)
 
   override def currentTimeConfig: List[CurrentTimeConfig] =
-    CurrentTimeConfig("DynamicIndexAssembleRefresh", dynamicIndexRefreshRateSeconds) ::
+    CurrentTimeConfig(DynIndexRefresh(), dynamicIndexRefreshRateSeconds) ::
       super.currentTimeConfig
 
   override def assembles: List[Assemble] = {
     modelListIntegrityCheck(dynIndexModels.distinct)
-    new ThanosTimeFilters(hashSearchVersion, maxTransforms = dynamicIndexMaxEvents) ::
+    (if (dynIndexModels.nonEmpty) new ThanosTimeFilters(hashSearchVersion, maxTransforms = dynamicIndexMaxEvents) :: Nil else Nil) :::
       dynIndexModels.distinct.map(p =>
         new IndexNodeThanos(
           p.modelCl, p.modelId,
@@ -105,8 +109,6 @@ case class IndexByNodeStats(
 )
 
 sealed trait ThanosTimeTypes {
-  type PowerIndexNodeThanosAll = AbstractAll
-
   type ThanosLEventsTransformsAll = AbstractAll
 }
 
@@ -122,16 +124,6 @@ sealed trait ThanosTimeTypes {
     } else {
       WithPK(SnapTransform(firstBorn.srcId + "Snap", firstBorn.srcId, version)) :: Nil
     }
-
-  def PowerFilterCurrentTimeNode(
-    timeNode: SrcId,
-    firstborn: Values[S_Firstborn],
-    currentTimeNode: Each[S_CurrentTimeNode]
-  ): Values[(PowerIndexNodeThanosAll, S_CurrentTimeNode)] =
-    if (currentTimeNode.srcId == "DynamicIndexAssembleRefresh")
-      WithAll(currentTimeNode) :: Nil
-    else
-      Nil
 
 
   def ApplyThanosTransforms(
@@ -395,7 +387,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     innerLeafs: Values[ProcessedLeaf[Model]],
     indexByNodesLastSeen: Values[S_IndexByNodeLastSeen],
     indexByNodeSettings: Values[S_IndexByNodeSettings],
-    @byEq[PowerIndexNodeThanosAll](All) currentTimes: Each[S_CurrentTimeNode]
+    @byEq[SrcId](DynIndexRefresh()) currentTimes: Each[S_CurrentTimeNode]
   ): Values[(IndexNodeId, IndexByNodeRich[Model])] =
     if (nodes.size == 1) {
       val node = nodes.head
@@ -489,7 +481,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
     indexByNodeId: SrcId,
     indexByNodes: Each[IndexByNodeTyped[Model]],
     indexByNodesLastSeen: Values[S_IndexByNodeLastSeen],
-    @byEq[PowerIndexNodeThanosAll](All) currentTimes: Each[S_CurrentTimeNode]
+    @byEq[SrcId](DynIndexRefresh()) currentTimes: Each[S_CurrentTimeNode]
   ): Values[(ThanosLEventsTransformsAll, LEventTransform)] =
     if (indexByNodesLastSeen.nonEmpty && currentTimes.currentTimeSeconds - indexByNodesLastSeen.head.lastSeenAtSeconds > deleteAnyway) {
       WithAll(PowerTransform(indexByNodes.leafId, s"Anyway-${indexByNodes.leafId}")) :: Nil
