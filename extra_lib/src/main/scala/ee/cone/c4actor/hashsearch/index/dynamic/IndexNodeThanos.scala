@@ -9,7 +9,7 @@ import ee.cone.c4actor.dep.request.CurrentTimeProtocol.S_CurrentTimeNode
 import ee.cone.c4actor.dep.request.{CurrentTimeConfig, CurrentTimeConfigApp}
 import ee.cone.c4actor.hashsearch.base.InnerLeaf
 import ee.cone.c4actor.hashsearch.index.dynamic.IndexNodeProtocol.{S_IndexNodeSettings, _}
-import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistryApi, HashSearchRangerRegistryApp, IndexType, RangerWithCl}
+import ee.cone.c4actor.hashsearch.rangers.{HashSearchRangerRegistry, HashSearchRangerRegistryApp, IndexType, RangerWithCl}
 import ee.cone.c4assemble.Types.{Each, Values}
 import ee.cone.c4assemble._
 
@@ -184,7 +184,7 @@ case class IndexByNodeTyped[Model <: Product](
 trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
   def qAdapterRegistry: QAdapterRegistry
 
-  def rangerRegistryApi: HashSearchRangerRegistryApi
+  def rangerRegistryApi: HashSearchRangerRegistry
 
   def idGenUtil: IdGenUtil
 
@@ -264,7 +264,7 @@ trait IndexNodeThanosUtils[Model <: Product] extends HashSearchIdGeneration {
 )(
   val modelFactory: ModelFactory,
   val qAdapterRegistry: QAdapterRegistry,
-  val rangerRegistryApi: HashSearchRangerRegistryApi,
+  val rangerRegistryApi: HashSearchRangerRegistry,
   val idGenUtil: IdGenUtil
 )
   extends AssembleName("IndexNodeThanos", modelCl) with ThanosTimeTypes

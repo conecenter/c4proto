@@ -86,7 +86,7 @@ class DeepSessionAttrAccessFactoryImpl(
       }
     )
 
-    val defaultModel: SrcId => P = srcId ⇒ modelFactory.create[P](attr.className)(srcId)
+    val defaultModel: SrcId => P = srcId => modelFactory.create[P](attr.className)(srcId)
     val defaultRawData = lensRaw.set(defaultModel(rawDataPK))(stubRawData.copy(srcId = rawDataPK))
     val defaultRawUserData = lensRawUser.set(defaultModel(rawUserDataPK))(stubRawUserData.copy(srcId = rawUserDataPK))
 
