@@ -3,8 +3,8 @@
 /*
 private def sendToAgent(handlerLists: CoHandlerLists, key: String, data: Array[Byte]): Unit =
   channels.get(key) match {
-    case Some(handler) ⇒ handler.add(data)
-    case None ⇒
+    case Some(handler) => handler.add(data)
+    case None =>
       handlerLists.list(ChannelStatusKey).foreach(_(ChannelNotFound(key)))
   }*/
 
@@ -32,7 +32,7 @@ class SSESender(
 class RSSEServer(
   ssePort: Int,
   lifeCycleManager: ExecutionManager,
-  createConnection: LifeCycle ⇒ CoMixBase
+  createConnection: LifeCycle => CoMixBase
 ) extends CanStart {
   private lazy val serverSocket = new ServerSocket(ssePort) //t o d o toClose
   def start() = lifeCycleManager.submit{ ()=>
@@ -55,7 +55,7 @@ class RSSEServer(
 class SeverSSE(ssePort: Int) extends Runnable {
   def run(): Unit = {
     val serverSocket = new ServerSocket(ssePort)
-    OnShutdown(()⇒serverSocket.close())
+    OnShutdown(()=>serverSocket.close())
     while(true){
       val socket = serverSocket.accept()
       socket.
@@ -72,19 +72,19 @@ class SeverSSE(ssePort: Int) extends Runnable {
 ///////////////////////////
 /*
 class SerialExecutor(
-  executor: ExecutorService, add: Runnable⇒Unit, poll: ()⇒Option[Runnable]
+  executor: ExecutorService, add: Runnable=>Unit, poll: ()=>Option[Runnable]
 ) {
-  private var tasks: Queue[()⇒Unit] = Queue.empty
+  private var tasks: Queue[()=>Unit] = Queue.empty
   private var active: Option[Future[_]] = None
   def failed: Boolean = synchronized {
     active.exists(_.isDone)
   }
-  def execute(add: Queue[()⇒Unit]⇒Queue[()⇒Unit]): Unit = synchronized {
+  def execute(add: Queue[()=>Unit]=>Queue[()=>Unit]): Unit = synchronized {
     tasks = add(tasks)
     if(active.isEmpty) scheduleNext()
   }
   private def scheduleNext(): Unit = synchronized {
-    tasks.dequeueOption.foreach{ case (task, more) ⇒
+    tasks.dequeueOption.foreach{ case (task, more) =>
       tasks = more
       active = Option(executor.submit(new Runnable() {
         def run(): Unit = {

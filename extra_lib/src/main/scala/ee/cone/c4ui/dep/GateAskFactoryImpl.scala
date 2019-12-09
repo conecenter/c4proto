@@ -29,7 +29,7 @@ case class SessionAttrAskFactoryImpl(
   def askSessionAttrWithPK[P <: Product](attr: SessionAttr[P]): String => Dep[Option[Access[P]]] = pk => askSessionAttr(attr.withPK(pk))
 
   def askSessionAttr[P <: Product](attr: SessionAttr[P]): Dep[Option[Access[P]]] =
-    askSessionAttrWithDefault(attr, srcId ⇒ modelFactory.create[P](attr.className)(srcId))
+    askSessionAttrWithDefault(attr, srcId => modelFactory.create[P](attr.className)(srcId))
 
   def askSessionAttrWithDefault[P <: Product](attr: SessionAttr[P], default: SrcId => P): Dep[Option[Access[P]]] =
     if (attr.metaList.contains(UserLevelAttr))
