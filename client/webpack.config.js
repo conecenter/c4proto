@@ -18,7 +18,7 @@ function config(kind,name) {
                     presets: [
                         ['es2015', {"modules": false}]
                     ],
-                    plugins: ["transform-object-rest-spread","undeclared-variables-check","transform-es3-property-literals"],
+                    plugins: ["transform-object-rest-spread","undeclared-variables-check","transform-es3-property-literals", "babel-plugin-transform-async-to-promises"],
                     //plugins: ["transform-es2015-modules-commonjs","transform-es2015-literals"]
                     cacheDirectory: true
                 }
