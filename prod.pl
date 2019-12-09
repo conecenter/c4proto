@@ -467,9 +467,10 @@ my $make_kc_yml = sub{
     my %all = map{%$_} @$options;
     my @unknown = &$map(\%all,sub{ my($k,$v)=@_;
         $k=~/^([A-Z]|host:|port:|ingress:)/ ||
-        $k=~/^(tty|image|name)$/ ? () : $k
+        $k=~/^(tty|image|name|rolling)$/ ? () : $k
     });
     @unknown and warn "unknown conf keys: ".join(" ",@unknown);
+    my $rolling = $all{rolling};
     #
     my @host_aliases = do{
         my $ip2aliases = &$merge_list({},&$map(\%all,sub{ my($k,$v)=@_; $k=~/^host:(.+)/ ? {$v=>["$1"]} : () }));
@@ -504,7 +505,11 @@ my $make_kc_yml = sub{
         );
         +{
             name => $nm, args=>[$nm], image => &$mandatory_of(image=>$opt),
-            env=>\@env, volumeMounts=>\@volume_mounts,
+            env=>[
+                $rolling ? { name=>"C4ROLLING", value=>$rolling } : (),
+                @env
+            ],
+            volumeMounts=>\@volume_mounts,
             $$opt{tty} ? (tty=>$$opt{tty}) : (),
             securityContext => { allowPrivilegeEscalation => "false" },
             resources => {
@@ -513,10 +518,17 @@ my $make_kc_yml = sub{
                     memory => "64Gi",
                 },
                 requests => {
-                    cpu => ($$opt{req_cpu}||die "no req_cpu"),
-                    memory => ($$opt{req_mem}||die "no req_mem"),
+                    cpu => &$mandatory_of(req_cpu=>$opt),
+                    memory => &$mandatory_of(req_mem=>$opt),
                 },
             },
+            $rolling ? (
+                readinessProbe => {
+                    periodSeconds => 3,
+                    exec => { command => ["cat","$rolling/c4is-ready"] },
+                },
+            ):(),
+
         }
     } @$options;
     #
@@ -531,16 +543,15 @@ my $make_kc_yml = sub{
     ) : ();
     my @db4_volumes = $all{C4DATA_DIR} ? {name=>"db4"} : ();
     #
-    my $is_rolling = $all{C4ROLLING};
-    $is_rolling and @volume_claim_templates and die "C4DATA_DIR can not be C4ROLLING";
+    $rolling and @volume_claim_templates and die "C4DATA_DIR can not be C4ROLLING";
     my $stateful_set_yml = &$to_yml_str({
         apiVersion => "apps/v1",
-        kind => $is_rolling ? "Deployment" : "StatefulSet",
+        kind => $rolling ? "Deployment" : "StatefulSet",
         metadata => { name => $name },
         spec => {
             %$spec,
             selector => { matchLabels => { app => $name } },
-            $is_rolling ? () : (serviceName => $name),
+            $rolling ? () : (serviceName => $name),
             template => {
                 metadata => { labels => { app => $name } },
                 spec => {
@@ -886,6 +897,7 @@ my $up_consumer = sub{
         C4HTTP_SERVER => "http://$server:$external_http_port",
         C4BOOTSTRAP_SERVERS => "$server:$external_broker_port",
         @req_big,
+        rolling => "/c4",
         %$conf,
     }]);
 };
