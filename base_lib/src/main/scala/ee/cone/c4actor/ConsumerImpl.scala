@@ -68,3 +68,4 @@ object GCLog extends LazyLogging {
     logger.info(s"$hint: then $used bytes used")
   }
 }
+
