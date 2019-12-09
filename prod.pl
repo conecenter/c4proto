@@ -103,11 +103,12 @@ my $remote = sub{
     "ssh c4\@$host -p $port '$stm'"; #'' must be here; ssh joins with ' ' args for the remote sh anyway
 };
 
+my $single_or_undef = sub{ @_==1 ? $_[0] : undef };
+
 my $find_handler = sub{
     my($ev,$comp)=@_;
     my $nm = "$ev-".&$get_compose($comp)->{type};
-    my @todo = map{$$_[0] eq $nm ? $$_[2] : ()} @tasks;
-    @todo == 1 ? $todo[0] : die "no handler: $nm,$comp";
+    &$single_or_undef(map{$$_[0] eq $nm ? $$_[2] : ()} @tasks) || die "no handler: $nm,$comp";
 };
 
 my $find_exec_handler = sub{
@@ -281,7 +282,11 @@ push @tasks, ["put_snapshot_local", "<file_path>", sub{
 
 my $get_kc_ns = sub{
     my($comp)=@_;
-    syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
+    my $ns = syf(&$remote($comp,'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace'))=~/(\w+)/ ? "$1" : die;
+    my $stm = qq[kubectl -n $ns get po -l app=$comp -o jsonpath="{.items[*].metadata.name}"];
+    my @pods = syf(&$remote($comp,$stm))=~/(\S+)/g;
+    my $pod = &$single_or_undef(@pods) || die "no single pod for $comp";
+    ($ns,$pod)
 };
 
 my $exec_stm_dc = sub{
@@ -289,8 +294,8 @@ my $exec_stm_dc = sub{
     qq[docker exec $md $comp\_$service\_1 sh -c "JAVA_TOOL_OPTIONS= $stm"];
 };
 my $exec_stm_kc = sub{
-    my($ns,$md,$comp,$service,$stm) = @_;
-    qq[kubectl -n $ns exec $md $comp-0 -c $service -- sh -c "JAVA_TOOL_OPTIONS= $stm"];
+    my($ns,$md,$pod,$service,$stm) = @_;
+    qq[kubectl -n $ns exec $md $pod -c $service -- sh -c "JAVA_TOOL_OPTIONS= $stm"];
 };
 my $exec_dc = sub{
     my($comp)=@_;
@@ -298,8 +303,8 @@ my $exec_dc = sub{
 };
 my $exec_kc = sub{
     my($comp)=@_;
-    my $ns = &$get_kc_ns($comp);
-    sub{ my($md,$service,$stm)=@_; &$exec_stm_kc($ns,$md,$comp,$service,$stm) };
+    my ($ns,$pod) = &$get_kc_ns($comp);
+    sub{ my($md,$service,$stm)=@_; &$exec_stm_kc($ns,$md,$pod,$service,$stm) };
 };
 my $lscont_dc = sub{
     my($comp)=@_;
@@ -309,9 +314,9 @@ my $lscont_dc = sub{
 };
 my $lscont_kc = sub{
     my($comp)=@_;
-    my $ns = &$get_kc_ns($comp);
-    my $stm = "kubectl -n $ns get po/$comp-0 -o jsonpath={.spec.containers[*].name}";
-    map{ my $c = $_; sub{ my($stm)=@_; &$exec_stm_kc($ns,"",$comp,$c,$stm) } }
+    my ($ns,$pod) = &$get_kc_ns($comp);
+    my $stm = "kubectl -n $ns get po/$pod -o jsonpath={.spec.containers[*].name}";
+    map{ my $c = $_; sub{ my($stm)=@_; &$exec_stm_kc($ns,"",$pod,$c,$stm) } }
         syf(&$remote($comp,$stm))=~/(\w+)/g;
 };
 
