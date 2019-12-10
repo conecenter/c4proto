@@ -78,7 +78,7 @@ sealed trait HashSearchDynamicIndexNewUtils[Model <: Product, By <: Product, Fie
 
   def qAdapterRegistry: QAdapterRegistry
 
-  def lensRegistry: LensRegistryApi
+  def lensRegistry: LensRegistry
 
   def idGenUtil: IdGenUtil
 
@@ -208,7 +208,7 @@ case class DynamicCount[Model <: Product](heapId: SrcId, count: Int)
   val modelId: Int,
   val byAdapterId: Long,
   val qAdapterRegistry: QAdapterRegistry,
-  val lensRegistry: LensRegistryApi,
+  val lensRegistry: LensRegistry,
   val idGenUtil: IdGenUtil,
   val ranger: RangerWithCl[By, Field],
   val modelFactory: ModelFactory
