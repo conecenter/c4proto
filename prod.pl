@@ -910,7 +910,7 @@ my $up_gate = sub{
             name => "gate",
             C4DATA_DIR => "/c4db",
             #C4STATE_TOPIC_PREFIX => "ee.cone.c4gate_akka.AkkaGatewayApp",
-            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate_akka.AkkaMinioGatewayApp",
+            C4STATE_TOPIC_PREFIX => "ee.cone.c4gate_akka_s3.AkkaMinioGatewayApp",
             C4STATE_REFRESH_SECONDS => 1000,
             req_mem => "4Gi", req_cpu => "1000m",
         },
