@@ -34,6 +34,10 @@ class AkkaMinioRequestHandler(
         logger debug s"Bytes Stream created"
         s3FileStorage.uploadByteStream(tmpFilename, is)
         logger debug s"Uploaded bytestream to $tmpFilename"
+      }.recover {
+        case e: Throwable =>
+          logger debug "Upload failed. Reason:"
+          e.printStackTrace(System.out)
       }
       if (succ.isSuccess)
         income.withEntity(tmpFilename)
