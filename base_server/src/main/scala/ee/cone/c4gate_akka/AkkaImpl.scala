@@ -9,6 +9,7 @@ import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.stream.{ActorMaterializer, Materializer, OverflowStrategy}
 import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.config.{Config, ConfigFactory}
 import ee.cone.c4actor.{Config, Early, Executable, Execution, Observer}
 import ee.cone.c4assemble.Single
 import ee.cone.c4di.c4
@@ -23,7 +24,17 @@ import scala.util.control.NonFatal
 @c4("AkkaMatApp") class AkkaMatImpl(matPromise: Promise[ActorMaterializer] = Promise()) extends AkkaMat with Executable with Early {
   def get: Future[ActorMaterializer] = matPromise.future
   def run(): Unit = {
-    val system = ActorSystem.create()
+    val system = ActorSystem.create("default",ConfigFactory.parseString(
+
+      List(
+        "akka.http.server.parsing.max-content-length = infinite",
+        //"akka.http.server.parsing.max-to-strict-bytes = infinite",
+        "akka.http.server.request-timeout = 600 s",
+        "akka.http.parsing.max-to-strict-bytes = infinite",
+        "akka.http.server.raw-request-uri-header = on",
+      ).mkString("\n")
+
+    ))
     matPromise.success(ActorMaterializer.create(system))
   }
 }
@@ -69,13 +80,7 @@ import scala.util.control.NonFatal
         handler = handler,
         interface = "localhost",
         port = port,
-        settings = ServerSettings(List(
-          "akka.http.server.parsing.max-content-length = infinite",
-          "akka.http.server.parsing.max-to-strict-bytes = infinite",
-          "akka.http.server.request-timeout = 600 s",
-          // "akka.http.parsing.max-to-strict-bytes = infinite",
-          "akka.http.server.raw-request-uri-header = on",
-        ).mkString("\n"))
+        settings = ServerSettings(mat.system)
         //defapply(configOverrides: String): ServerSettings(system)//ServerSettings(system)
       )(mat)
     } yield binding
