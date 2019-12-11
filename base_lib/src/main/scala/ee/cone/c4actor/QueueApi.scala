@@ -22,17 +22,6 @@ trait UpdateFlag {
   def flagValue: Long
 }
 
-@c4("ProtoApp") class UpdateFlagsCheck(
-  val updateFlags: List[UpdateFlag]
-)(
-  val flagsOk: Boolean = {
-    val flags = updateFlags.map(_.flagValue)
-    if (flags.exists(java.lang.Long.bitCount(_) != 1)) false
-    else if (flags.distinct.size != flags.size) false
-    else true
-  }
-)
-
 @protocol("ProtoApp") object QProtocolBase   {
 
   /*@Id(0x0010) case class TopicKey(
@@ -45,7 +34,7 @@ trait UpdateFlag {
     * @param srcId == ToPrimaryKey(orig)
     * @param valueTypeId == QAdapterRegistry.byName(orig.getClass.getName).id
     * @param value == QAdapterRegistry.byId(valueTypeId).encode(orig)
-    * @param flags == One of UpdateFlag.flagValue{0L, 1L, 2L, 4L, 8L}
+    * @param flags == '|' of UpdateFlag.flagValue{1L, 2L, 4L, 8L}
     */
   case class N_Update(
     @Id(0x0011) srcId: SrcId,

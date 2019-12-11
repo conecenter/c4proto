@@ -19,6 +19,17 @@ import okio.ByteString
 //decode(new ProtoReader(new okio.Buffer().write(bytes)))
 //
 
+@c4("ProtoApp") class UpdateFlagsCheck(
+  val updateFlags: List[UpdateFlag]
+)(
+  val flagsOk: Boolean = {
+    val flags = updateFlags.map(_.flagValue)
+    if (flags.exists(java.lang.Long.bitCount(_) != 1)) false
+    else if (flags.distinct.size != flags.size) false
+    else true
+  }
+)
+
 class QRecordImpl(val topic: TopicName, val value: Array[Byte], val headers: Seq[RawHeader]) extends QRecord
 
 @c4("ServerCompApp") class QMessagesImpl(toUpdate: ToUpdate, getRawQSender: DeferredSeq[RawQSender], flagsCheck: UpdateFlagsCheck) extends QMessages {
